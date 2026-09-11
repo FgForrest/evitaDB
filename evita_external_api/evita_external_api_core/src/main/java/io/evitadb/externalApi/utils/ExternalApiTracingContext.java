@@ -23,8 +23,10 @@
 
 package io.evitadb.externalApi.utils;
 
+import com.linecorp.armeria.common.logging.RequestLogAccess;
+import com.linecorp.armeria.common.logging.RequestLogProperty;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.observability.trace.TracingContext;
-import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 
 import javax.annotation.Nonnull;
@@ -53,6 +55,7 @@ public interface ExternalApiTracingContext<C> {
 	 */
 	@Nonnull
 	Class<C> contextType();
+
 	/**
 	 * Format of the client ID used by the server.
 	 */
@@ -86,38 +89,38 @@ public interface ExternalApiTracingContext<C> {
 	}
 
 	/**
+	 * Returns the instant the request currently being served started, as epoch milliseconds rendered to a string
+	 * ready for {@link TracingContext#MDC_REQUEST_START_PROPERTY}.
+	 *
+	 * Returns {@code null} when this thread is not serving a request, and the caller must then leave any request
+	 * start already recorded alone. It deliberately does **not** fall back to the current time: a thread that cannot
+	 * see the request context is, by definition, one the request was handed to later, so "now" would record the
+	 * hand-off instant as the start of the request and under-report every duration derived from it.
+	 *
+	 * `ServiceRequestContext.currentOrNull()` resolves to the **root** service context, so an outbound client call
+	 * made from inside a served request still reports that request's start - which is what a line logged while the
+	 * server talks to something else should say. Only a client call with no served request behind it yields null.
+	 *
+	 * @return epoch milliseconds of the request start as a string, or null when no served request is current
+	 */
+	@Nullable
+	static String currentRequestStart() {
+		final ServiceRequestContext requestContext = ServiceRequestContext.currentOrNull();
+		if (requestContext == null) {
+			return null;
+		}
+		final RequestLogAccess logAccess = requestContext.log();
+		// REQUEST_START_TIME is set inside the ServiceRequestContext constructor, so this holds for anything that can
+		// observe the context at all - the guard is what keeps `partial()` from throwing if that ever changes
+		return logAccess.isAvailable(RequestLogProperty.REQUEST_START_TIME) ?
+			Long.toString(logAccess.partial().requestStartTimeMillis()) : null;
+	}
+
+	/**
 	 * Method allows to propagate header name settings to the tracing context.
 	 * @param headerOptions header options to be used for tracing
 	 */
 	void configureHeaders(@Nonnull HeaderOptions headerOptions);
-
-	/**
-	 * Sets the passed task name and attributes to the trace BEFORE the lambda is executed. Within the method,
-	 * the lambda with passed logic will be traced and properly executed.
-	 */
-	void executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Runnable runnable, @Nullable SpanAttribute... attributes);
-
-	/**
-	 * Sets the passed task name and attributes to the trace BEFORE the lambda is executed. Within the method,
-	 * the lambda with passed logic will be traced and properly executed.
-	 */
-	<T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Supplier<T> lambda, @Nullable SpanAttribute... attributes);
-
-	/**
-	 * Sets the passed task name and attributes to the trace AFTER the lambda is executed. Within the method,
-	 * the lambda with passed logic will be traced and properly executed. After the method successfully finishes,
-	 * the attributes will be set to the trace. The attributes may take advantage of the data computed in the lambda
-	 * itself.
-	 */
-	void executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Runnable runnable, @Nullable Supplier<SpanAttribute[]> attributes);
-
-	/**
-	 * Sets the passed task name and attributes to the trace AFTER the lambda is executed. Within the method,
-	 * the lambda with passed logic will be traced and properly executed. After the method successfully finishes,
-	 * the attributes will be set to the trace. The attributes may take advantage of the data computed in the lambda
-	 * itself.
-	 */
-	<T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Supplier<T> lambda, @Nullable Supplier<SpanAttribute[]> attributes);
 
 	/**
 	 * Executes the given lambda within the tracing block. It requires the client ID to be provided by the client and his

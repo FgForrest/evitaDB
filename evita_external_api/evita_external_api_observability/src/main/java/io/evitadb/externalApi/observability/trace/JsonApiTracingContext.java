@@ -23,12 +23,10 @@
 
 package io.evitadb.externalApi.observability.trace;
 
-import com.linecorp.armeria.common.HttpHeaderNames;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.RequestHeaders;
 import io.evitadb.api.observability.trace.TracingBlockReference;
 import io.evitadb.api.observability.trace.TracingContext;
-import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
 import io.evitadb.api.observability.trace.TracingContextProvider;
 import io.evitadb.api.query.head.Label;
 import io.evitadb.externalApi.configuration.HeaderOptions;
@@ -79,7 +77,13 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 		};
 
 	/**
-	 * Header configuration. Initialized with default settings that gets overwritten once the context is prepared.
+	 * Names of the headers the client context is read from. Initialized with **no** header names — the builder starts
+	 * every list empty, so a context nobody has configured recognises no forwarded-URI, label or client-id header at
+	 * all; the documented defaults (`X-Forwarded-Uri`, `X-EvitaDB-Label`, `X-EvitaDB-ClientID`, …) live in the
+	 * {@link HeaderOptions#HeaderOptions()} constructor and reach this field only through the configuration.
+	 *
+	 * The value is installed by {@link #configureHeaders(HeaderOptions)} while the API is being set up, and read from
+	 * request threads afterwards.
 	 */
 	@Setter private HeaderOptions headerOptions = HeaderOptions.builder().build();
 	/**
@@ -114,84 +118,6 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 	}
 
 	@Override
-	public void executeWithinBlock(
-		@Nonnull String protocolName,
-		@Nonnull HttpRequest context,
-		@Nonnull Runnable runnable,
-		@Nullable SpanAttribute... attributes
-	) {
-		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
-			runnable.run();
-			return;
-		}
-		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-			this.tracingContext.executeWithinBlock(
-				protocolName,
-				runnable,
-				attributes
-			);
-		}
-	}
-
-	@Override
-	public <T> T executeWithinBlock(
-		@Nonnull String protocolName,
-		@Nonnull HttpRequest context,
-		@Nonnull Supplier<T> lambda,
-		@Nullable SpanAttribute... attributes
-	) {
-		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
-			return lambda.get();
-		}
-		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-			return this.tracingContext.executeWithinBlock(
-				protocolName,
-				lambda,
-				attributes
-			);
-		}
-	}
-
-	@Override
-	public void executeWithinBlock(
-		@Nonnull String protocolName,
-		@Nonnull HttpRequest context,
-		@Nonnull Runnable runnable,
-		@Nullable Supplier<SpanAttribute[]> attributes
-	) {
-		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
-			runnable.run();
-			return;
-		}
-		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-			this.tracingContext.executeWithinBlock(
-				protocolName,
-				runnable,
-				attributes
-			);
-		}
-	}
-
-	@Override
-	public <T> T executeWithinBlock(
-		@Nonnull String protocolName,
-		@Nonnull HttpRequest context,
-		@Nonnull Supplier<T> lambda,
-		@Nullable Supplier<SpanAttribute[]> attributes
-	) {
-		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
-			return lambda.get();
-		}
-		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-			return this.tracingContext.executeWithinBlock(
-				protocolName,
-				lambda,
-				attributes
-			);
-		}
-	}
-
-	@Override
 	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull HttpRequest context, @Nonnull Runnable runnable) {
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
 			runnable.run();
@@ -213,9 +139,11 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 		@Nonnull Supplier<T> lambda
 	) {
 		final ClientMetadata metadata = extractClientMetadata(context.headers());
+		final String requestStart = ExternalApiTracingContext.currentRequestStart();
 
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
 			return TracingContext.executeWithClientContext(
+				requestStart,
 				metadata.clientIpAddress(),
 				metadata.clientUri(),
 				metadata.labels(),
@@ -224,6 +152,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 		}
 		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
 			return TracingContext.executeWithClientContext(
+				requestStart,
 				metadata.clientIpAddress(),
 				metadata.clientUri(),
 				metadata.labels(),
@@ -254,10 +183,12 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 		@Nonnull Supplier<CompletableFuture<T>> asyncLambda
 	) {
 		final ClientMetadata metadata = extractClientMetadata(context.headers());
+		final String requestStart = ExternalApiTracingContext.currentRequestStart();
 
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
-			// no tracing -- executeWithClientContext sets/clears MDC synchronously
+			// no tracing -- executeWithClientContext sets and restores the MDC synchronously
 			return TracingContext.executeWithClientContext(
+				requestStart,
 				metadata.clientIpAddress(),
 				metadata.clientUri(),
 				metadata.labels(),
@@ -269,6 +200,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 		// Only span.end() is deferred to when the async future completes.
 		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
 			return TracingContext.executeWithClientContext(
+				requestStart,
 				metadata.clientIpAddress(),
 				metadata.clientUri(),
 				metadata.labels(),
@@ -312,19 +244,6 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 	}
 
 	/**
-	 * Client metadata extracted from HTTP request headers for tracing and MDC.
-	 *
-	 * @param clientIpAddress the client IP from X-Forwarded-For header
-	 * @param clientUri       the client URI from configured forwarded-uri headers
-	 * @param labels          client-provided labels from configured forwarded-for headers
-	 */
-	private record ClientMetadata(
-		@Nullable String clientIpAddress,
-		@Nullable String clientUri,
-		@Nonnull Label[] labels
-	) {}
-
-	/**
 	 * Extracts client metadata (IP address, URI, and labels) from the given request headers using
 	 * the configured header options.
 	 *
@@ -333,27 +252,22 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 	 */
 	@Nonnull
 	private ClientMetadata extractClientMetadata(@Nonnull RequestHeaders headers) {
-		final String clientIpAddress = headers.get(HttpHeaderNames.X_FORWARDED_FOR);
+		final String clientIpAddress = this.headerOptions.forwardedFor()
+			.stream()
+			.map(headers::get)
+			.filter(Objects::nonNull)
+			.findFirst()
+			.orElse(null);
 		final String clientUri = this.headerOptions.forwardedUri()
 			.stream()
 			.map(headers::get)
 			.filter(Objects::nonNull)
 			.findFirst()
 			.orElse(null);
-		final Label[] labels = this.headerOptions.forwardedFor()
+		final Label[] labels = this.headerOptions.label()
 			.stream()
 			.flatMap(name -> headers.getAll(name).stream())
-			.map(header -> {
-				final int index = header.indexOf('=');
-				if (index < 0) {
-					return null;
-				} else {
-					return new Label(
-						header.substring(0, index),
-						header.substring(index + 1)
-					);
-				}
-			})
+			.map(ClientMetadata::parseLabel)
 			.filter(Objects::nonNull)
 			.toArray(Label[]::new);
 		return new ClientMetadata(clientIpAddress, clientUri, labels);

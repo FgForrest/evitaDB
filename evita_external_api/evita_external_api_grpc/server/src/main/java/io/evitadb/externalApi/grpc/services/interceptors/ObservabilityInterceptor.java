@@ -23,12 +23,14 @@
 
 package io.evitadb.externalApi.grpc.services.interceptors;
 
+import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.core.session.EvitaInternalSessionContract;
 import io.evitadb.externalApi.event.ResponseStatus;
 import io.evitadb.externalApi.grpc.metric.event.AbstractProcedureCalledEvent;
 import io.evitadb.externalApi.grpc.metric.event.AbstractProcedureCalledEvent.InitiatorType;
 import io.evitadb.externalApi.grpc.metric.event.EvitaProcedureCalledEvent;
 import io.evitadb.externalApi.grpc.metric.event.SessionProcedureCalledEvent;
+import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.grpc.ForwardingServerCall.SimpleForwardingServerCall;
 import io.grpc.ForwardingServerCallListener;
 import io.grpc.Metadata;
@@ -42,6 +44,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Optional;
 
 /**
@@ -63,6 +66,15 @@ import java.util.Optional;
  *
  * <p>
  * Inspired by https://stackoverflow.com/a/56999548.
+ *
+ * **The interceptor has a second responsibility: the request start.** Every seam through which control passes
+ * downstream - `startCall` and each listener callback - is wrapped in a scope that records the start of the request
+ * being served in the MDC, so that anything logged underneath it can report how far into the request it happened.
+ * A seam left unwrapped costs that on every line logged under the callback **and** on every task submitted to an
+ * evitaDB executor from it, because the executor snapshots the MDC as the task is constructed rather than as it
+ * runs. A contributor overriding a further listener callback therefore has to wrap it too.
+ *
+ * Guarded by `ObservabilityInterceptorRequestStartTest`.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
@@ -94,8 +106,16 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 				)
 			);
 		final ObservabilityServerCall<ReqT, RespT> loggingServerCall = new ObservabilityServerCall<>(call, event);
-		return new ObservabilityListener<>(
-			next.startCall(loggingServerCall, headers), event
+		// `startCall` is where a client-streaming or bidi service method body actually executes - grpc-java invokes
+		// the user method before it constructs the listener - so the request start has to be recorded around it and
+		// not only around the listener callbacks below. It is also read here once and handed to the listener,
+		// because this is the one site Armeria is guaranteed to have pushed the request context at.
+		final String requestStart = ExternalApiTracingContext.currentRequestStart();
+		return TracingContext.executeWithRequestStart(
+			requestStart,
+			() -> new ObservabilityListener<>(
+				next.startCall(loggingServerCall, headers), event, requestStart
+			)
 		);
 	}
 
@@ -146,34 +166,80 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 	}
 
 	/**
-	 * Observability listener that changes the properties of the gRPC procedure called event.
+	 * Observability listener that changes the properties of the gRPC procedure called event, and re-establishes the
+	 * start of the request being served around every callback it delegates - including the ones it has nothing else
+	 * to add to.
 	 */
 	private static class ObservabilityListener<R> extends ForwardingServerCallListener<R> {
 		private final ServerCall.Listener<R> delegate;
 		private final AbstractProcedureCalledEvent event;
+		/**
+		 * The start of the request this call belongs to, as it was readable when the call was intercepted, or null
+		 * when no request context was current then. A listener serves exactly one call, so this value stays correct
+		 * for the whole of its life - which is what lets the callbacks below report it without asking Armeria again.
+		 */
+		@Nullable private final String requestStart;
 
 		ObservabilityListener(
 			@Nonnull ServerCall.Listener<R> delegate,
-			@Nonnull AbstractProcedureCalledEvent event
+			@Nonnull AbstractProcedureCalledEvent event,
+			@Nullable String requestStart
 		) {
 			this.delegate = delegate;
 			this.event = event;
+			this.requestStart = requestStart;
+		}
+
+		/**
+		 * Records the start of the request being served in the MDC for the duration of {@code lambda}, so that
+		 * anything logged underneath it - and any task submitted to an evitaDB executor from underneath it, which
+		 * snapshots the MDC as it is constructed - can report how far into the request it happened.
+		 *
+		 * The value captured when the call was intercepted is preferred over reading Armeria again, because it is
+		 * the same value and it is available even where Armeria has not pushed the request context: `onReady` is
+		 * invoked without it, and `startCall` itself runs without it once a method is served on the blocking task
+		 * executor. Only when nothing was captured is the live context consulted, and when that yields nothing
+		 * either the MDC is left exactly as it was - these scopes nest, and a listener callback runs inside the
+		 * same request as the `startCall` that preceded it.
+		 *
+		 * @param lambda the work to run with the request start recorded
+		 */
+		private void withRequestStart(@Nonnull Runnable lambda) {
+			TracingContext.executeWithRequestStart(
+				this.requestStart == null ? ExternalApiTracingContext.currentRequestStart() : this.requestStart,
+				() -> {
+					lambda.run();
+					return null;
+				}
+			);
 		}
 
 		@Override
 		public void onHalfClose() {
-			try {
-				super.onHalfClose();
-			} catch (RuntimeException ex) {
-				this.event.setGrpcResponseStatus(ResponseStatus.ERROR);
-				throw ex;
-			}
+			withRequestStart(() -> {
+				try {
+					super.onHalfClose();
+				} catch (RuntimeException ex) {
+					this.event.setGrpcResponseStatus(ResponseStatus.ERROR);
+					throw ex;
+				}
+			});
 		}
 
 		@Override
 		public void onCancel() {
 			this.event.setGrpcResponseStatus(ResponseStatus.CANCELLED);
-			super.onCancel();
+			withRequestStart(() -> super.onCancel());
+		}
+
+		/**
+		 * Delegates unchanged. The override exists **only** to open the request-start scope around the delegate: a
+		 * call being torn down still logs, and those lines belong to the request that is ending. It deliberately adds
+		 * no other behaviour, so it must not be mistaken for a removable no-op forward.
+		 */
+		@Override
+		public void onComplete() {
+			withRequestStart(() -> super.onComplete());
 		}
 
 		@Override
@@ -186,7 +252,19 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 			if (this.event.streamsRequests() || this.event.unaryCall()) {
 				this.event.setInitiator(InitiatorType.CLIENT);
 			}
-			super.onMessage(request);
+			withRequestStart(() -> super.onMessage(request));
+		}
+
+		/**
+		 * Delegates unchanged, and like {@code onComplete()} exists only to open the request-start scope - but this
+		 * is the callback that most needs it: Armeria invokes `onReady` **without** pushing the request context,
+		 * unlike the other four, so the value captured when the call was intercepted is the only source of a request
+		 * start here. Without the wrapper, everything a flow-controlled producer logs from `onReady` loses its
+		 * duration. It deliberately adds no other behaviour.
+		 */
+		@Override
+		public void onReady() {
+			withRequestStart(() -> super.onReady());
 		}
 
 	}

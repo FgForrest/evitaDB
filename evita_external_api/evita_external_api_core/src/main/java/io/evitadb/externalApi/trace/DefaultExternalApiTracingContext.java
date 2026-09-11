@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.trace;
 
-import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import lombok.NoArgsConstructor;
@@ -51,26 +50,6 @@ public class DefaultExternalApiTracingContext implements ExternalApiTracingConte
 	@Override
 	public void configureHeaders(@Nonnull HeaderOptions headerOptions) {
 		// do nothing
-	}
-
-	@Override
-	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull Object context, @Nonnull Runnable runnable, @Nullable SpanAttribute... attributes) {
-		runnable.run();
-	}
-
-	@Override
-	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull Object context, @Nonnull Supplier<T> lambda, @Nullable SpanAttribute... attributes) {
-		return lambda.get();
-	}
-
-	@Override
-	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull Object context, @Nonnull Runnable runnable, @Nullable Supplier<SpanAttribute[]> attributes) {
-		runnable.run();
-	}
-
-	@Override
-	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull Object context, @Nonnull Supplier<T> lambda, @Nullable Supplier<SpanAttribute[]> attributes) {
-		return lambda.get();
 	}
 
 	@Override
