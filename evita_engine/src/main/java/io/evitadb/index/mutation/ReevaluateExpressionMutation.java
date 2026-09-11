@@ -25,7 +25,6 @@ package io.evitadb.index.mutation;
 
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.bitmap.Bitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -66,7 +65,7 @@ import java.util.Map;
  * @param dependencyType         how the mutated entity relates to the owner
  * @param scope                  scope of the expression to re-evaluate
  * @param preMutationSourceValues pre-mutation attribute values keyed by attribute name and locale, or null
- * @param previouslyIndexedOwnerPKs owner PKs whose condition held before the batch, keyed by histogram name,
+ * @param previouslyIndexedOwnerPKs the condition's answer captured before the batch, keyed by histogram name,
  *                                  or null when no pre-pass ran (facet-only triggers, tests, WAL replay paths
  *                                  without a collector)
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -110,7 +109,7 @@ public record ReevaluateExpressionMutation(
 	 * {@code LocalMutationExecutorCollector} to attach the state it captured before the batch was applied,
 	 * without disturbing the mutation's identity.
 	 *
-	 * @param previouslyIndexedOwnerPKs owner PKs whose condition held before the batch, keyed by histogram name
+	 * @param previouslyIndexedOwnerPKs the condition's answer captured before the batch, keyed by histogram name
 	 * @return a copy carrying the pre-pass state
 	 */
 	@Nonnull

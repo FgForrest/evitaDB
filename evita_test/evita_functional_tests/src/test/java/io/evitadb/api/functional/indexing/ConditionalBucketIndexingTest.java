@@ -126,6 +126,8 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 	private static final String HISTOGRAM_AND = "andHistogram";
 	private static final String HISTOGRAM_PARENT = "parentHistogram";
 	private static final String HISTOGRAM_PARENT_MIX = "parentMixHistogram";
+	private static final String REF_PARAM_BY_PARENT_AND_REF_ATTR = "paramByParentAndRefAttr";
+	private static final String HISTOGRAM_PARENT_REF_ATTR = "parentRefAttrHistogram";
 
 
 	private TestPaths paths;
@@ -489,6 +491,28 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 						ExpressionFactory.parse(
 							"($entity.parentEntity?.attributes['status'] ?? '') == 'ACTIVE'"
 								+ " && ($reference.referencedEntity.attributes['weight'] ?? 0) > 0"
+						)
+					)
+			)
+
+			// --- Ungrouped: condition mixes the owner's parent with the REFERENCE's own attribute ---
+			// the reference-attribute half differs per reference but reaches the query as a bare
+			// `referenceHaving`, carrying none of the scope containers the gate looks for
+			.withReferenceToEntity(
+				REF_PARAM_BY_PARENT_AND_REF_ATTR, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs
+					.indexedForFilteringAndPartitioning()
+					.withAttribute(ATTR_PRIORITY, Integer.class, whichAttr -> whichAttr.filterable().nullable())
+					.bucketed(
+						HISTOGRAM_PARENT_REF_ATTR,
+						ExpressionFactory.parse(
+							"$reference.referencedEntity?.attributes['basicUnitValue']"
+						)
+					)
+					.bucketedPartially(
+						ExpressionFactory.parse(
+							"($entity.parentEntity?.attributes['status'] ?? '') == 'ACTIVE'"
+								+ " && ($reference.attributes['priority'] ?? 0) > 0"
 						)
 					)
 			)
@@ -2593,7 +2617,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 					// CHECKBOX -> SELECT is semantically inert for this condition: both are non-INTERVAL,
 					// so every contribution's qualification is unchanged and this must be
 					// cardinality-neutral. GROUP dependencies are evaluated with a single owner-level
-					// answer (`needsPerGroupEvaluation` excludes them), which cannot say "PV#1 qualifies,
+					// answer (the per-contribution gate excludes them), which cannot say "PV#1 qualifies,
 					// PV#2 does not" - so the add side reinstates a unit for PV#2 as well.
 					session.getEntity(ENTITY_PARAMETER, 10, entityFetchAllContent())
 						.orElseThrow()
@@ -2838,6 +2862,65 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 					assertUngroupedHistogramBucketNotContains(
 						productCollection, REF_PARAM_BY_PARENT_AND_REF_ENTITY,
 						HISTOGRAM_PARENT_MIX, new BigDecimal("90"), 1
+					);
+				}
+			);
+		}
+
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should not index a non-qualifying reference attribute when a parent mutation fires")
+		void shouldNotIndexNonQualifyingReferenceAttributeWhenParentMutationFires(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 3)
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("90"))
+						.upsertVia(session);
+
+					session.createNewEntity(ENTITY_PRODUCT, 100)
+						.setAttribute(ATTR_STATUS, "INACTIVE")
+						.upsertVia(session);
+					// PV#1 carries priority 5 (qualifies), PV#3 carries priority 0 (never qualifies)
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setParent(100)
+						.setReference(
+							REF_PARAM_BY_PARENT_AND_REF_ATTR, 1,
+							whichIs -> whichIs.setAttribute(ATTR_PRIORITY, 5)
+						)
+						.setReference(
+							REF_PARAM_BY_PARENT_AND_REF_ATTR, 3,
+							whichIs -> whichIs.setAttribute(ATTR_PRIORITY, 0)
+						)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+					assertUngroupedHistogramNotIndexed(
+						productCollection, REF_PARAM_BY_PARENT_AND_REF_ATTR,
+						HISTOGRAM_PARENT_REF_ATTR, 1
+					);
+
+					session.getEntity(ENTITY_PRODUCT, 100, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.upsertVia(session);
+
+					// PV#1 (priority 5) legitimately qualifies
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_PARENT_AND_REF_ATTR,
+						HISTOGRAM_PARENT_REF_ATTR, new BigDecimal("50"), 1
+					);
+					// PV#3 (priority 0) can NEVER satisfy the condition
+					assertUngroupedHistogramBucketNotContains(
+						productCollection, REF_PARAM_BY_PARENT_AND_REF_ATTR,
+						HISTOGRAM_PARENT_REF_ATTR, new BigDecimal("90"), 1
 					);
 				}
 			);

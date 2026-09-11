@@ -9,7 +9,7 @@ prs: [1468, 1469]
 areas: [evita_engine/src/main/java/io/evitadb/index/mutation, evita_engine/src/main/java/io/evitadb/core/collection]
 supersedes: []
 superseded-by: []
-relates: [2026-04-23-bucketed-histogram-indexing]
+relates: [2026-04-23-bucketed-histogram-indexing, 2026-09-08-conditional-histogram-per-contribution-verdicts]
 ---
 
 # Cross-entity histogram removal is gated on the pre-mutation condition, captured before the batch is applied

@@ -66,7 +66,7 @@ import java.util.concurrent.TimeUnit;
  * java -Xmx8g \
  *   -cp evita_test/evita_performance_tests/target/benchmarks.jar \
  *   io.evitadb.performance.BenchmarkRunner ConditionalHistogramTriggerBenchmark \
- *   -prof gc
+ *   -f 3 -prof gc
  * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -74,6 +74,8 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
+// the annotation default keeps an exploratory run cheap; the ADR's published numbers come from the
+// documented command above, which overrides it with `-f 3`
 @Fork(
 	value = 1,
 	jvmArgsAppend = {

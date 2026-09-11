@@ -23,7 +23,6 @@
 
 package io.evitadb.index.mutation;
 
-import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -108,7 +107,7 @@ public class IndexMutationExecutorRegistry {
 	 *
 	 * @param mutation the cross-entity re-evaluation signal about to be applied
 	 * @param target   limited view of the target `EntityCollection`
-	 * @return owner PKs whose condition currently holds, keyed by histogram name, or `null` when the reference
+	 * @return the condition's answer, keyed by histogram name, or `null` when the reference
 	 *         declares no histogram trigger
 	 * @see ReevaluateExpressionExecutor#evaluateHistogramConditionState
 	 */

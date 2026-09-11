@@ -1144,7 +1144,7 @@ class ReevaluateExpressionExecutorTest {
 			);
 
 			// groupPK is non-null so the resolution-index mock fixtures fire, but the trigger
-			// filter has no GroupHaving — so `needsPerGroupEvaluation` is still false and the
+			// filter has no GroupHaving — so the per-contribution gate is still not tripped and the
 			// global path runs (which is where the recursive rewrite traverses arbitrary nesting).
 			final AffectedReferenceGroup group = new AffectedReferenceGroup(
 				3, 1, new BaseBitmap(100)

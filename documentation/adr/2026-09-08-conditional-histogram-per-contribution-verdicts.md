@@ -1,7 +1,7 @@
 ---
 title: Conditional histogram triggers answer per contribution, and the mutated entity's PK is pinned inside the scope container
 date: 2026-09-08
-updated: 2026-09-09 05:22
+updated: 2026-09-11 19:25
 status: accepted
 kind: fix
 issues: [1470]
@@ -133,10 +133,22 @@ to the batch. They should not: a cross-entity mutation does not touch the owners
   apart, so the owner-level bitmap *is* the per-contribution answer and no per-reference evaluation was spent.
   **A missing key means "no contribution", never "unknown"** — see Option D.
 - **The gate is in `ReevaluateExpressionExecutor#evaluateCondition`**: per-contribution evaluation runs when the
-  condition contains an `EntityHaving` or a `GroupHaving`, and only then. A pure `$entity.…` or
-  `$entity.parentEntity.…` condition keeps its single filter run, because every reference of an owner shares one
-  verdict by construction. This gate is the entire cost story: widening it would make every trigger pay
-  per-contribution evaluation for nothing.
+  condition reads something that can differ between an owner's references — the referenced entity, the group, or
+  the reference's own attributes — and only then. A pure `$entity.…` or `$entity.parentEntity.…` condition keeps
+  its single filter run, because every reference of an owner shares one verdict by construction. This gate is the
+  entire cost story: widening it would make every trigger pay per-contribution evaluation for nothing.
+  **Two of the three signals are read off the constraint tree, the third cannot be.** `wrapForPathType` wraps a
+  referenced-entity read in `entityHaving` and a group read in `groupHaving`, so a `FinderVisitor` scan finds
+  those. A `$reference.attributes[…]` read becomes a *bare* `referenceHaving` with no scope container, and
+  `PARENT_ENTITY_ATTRIBUTE` becomes an equally containerless `hierarchyWithinSelf` — so their combination carries
+  neither marker, and the trigger's own `getLocalReferenceAttributes()` is the only reliable signal for that
+  shape. The first revision of this gate scanned the tree alone and collapsed exactly that shape back onto the
+  owner, reintroducing this record's own defect inside its fix; PR review caught it, and
+  `shouldNotIndexNonQualifyingReferenceAttributeWhenParentMutationFires` is the regression test.
+  **A `GroupHaving` under a `GROUP_*` mutation deliberately does *not* fan out.** When the mutated entity is the
+  group, `resolveForGroupEntityAttribute` resolves only contributions sitting in that one group and `parameterize`
+  pins it inside the `groupHaving`, so one run answers every contribution exactly — fanning out would spend one
+  filter run per referenced entity in the group to recompute the same verdict.
   **The number of resolved contributions is deliberately not part of the test**, and an earlier revision that
   added `&& affected.groups().size() > 1` was wrong. `affected` enumerates only the contributions *this
   mutation* resolves; an owner's other references never appear in it, and they are exactly what an unpinned
@@ -281,13 +293,17 @@ ever shows up in a profile.
   A Codex adversarial review of this commit raised two findings; verifying them against the code and against a
   throwaway regression test settled both to the same root cause. The literal claim — that the gate at
   `evaluateCondition` can send a mixed condition (a bare `$reference.attributes[...]` predicate combined with
-  `$reference.referencedEntity...`) down the owner-level path — does not hold: any condition compiled from a
-  cross-entity dependency carries an `EntityHaving`/`GroupHaving` node by construction, and `ReferenceHaving`'s
+  `$reference.referencedEntity...`) down the owner-level path — does not hold *for that shape*: its
+  `$reference.referencedEntity…` half compiles to an `EntityHaving`, so the gate fires, and `ReferenceHaving`'s
   query-time translator (`ReferenceHavingTranslator`) evaluates the whole nested filter once per
   `ReducedEntityIndex` — one instance per referenced entity — so a bare reference-attribute predicate is
   already isolated to the one reference instance targeting that entity. A throwaway test (two references from
   one owner, opposite `priority` values, the mutated one's own `priority` failing) confirmed this: the mutated
   reference was correctly excluded, not accepted on its sibling's `priority`.
+  The *generalisation* first written here — that any cross-entity condition carries one of those nodes by
+  construction — was wrong, and a later PR review found the shape that breaks it: a `PARENT_*` dependency mixed
+  with a bare `$reference.attributes[…]` predicate carries neither node. That is the gate gap described above,
+  fixed in this same line of work rather than deferred.
   What *is* real, and is the true reading of both findings, only shows up when the two references share a
   **target** — `*_WITH_DUPLICATES` cardinality (`documentation/user/en/use/schema.md`'s own example: several
   `medias` references to one `Media` entity, distinguished by a `representative` `role` attribute). Then both

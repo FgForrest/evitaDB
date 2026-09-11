@@ -243,7 +243,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 *
 	 * @param mutation the cross-entity re-evaluation signal about to be applied
 	 * @param target   access to the owning entity collection's schema, triggers, and indexes
-	 * @return owner PKs whose condition currently holds, keyed by histogram name, or `null` when the reference
+	 * @return the condition's answer, keyed by histogram name, or `null` when the reference
 	 *         has no histogram triggers at all
 	 */
 	@Nullable
@@ -843,10 +843,18 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			);
 		}
 		// A condition can only tell one of an owner's references from another if it actually reads something
-		// that differs between them — the referenced entity, or the group the reference sits in. When it reads
-		// neither (a pure `$entity.…` or `$entity.parentEntity.…` predicate), every reference of an owner
-		// shares one verdict by construction and a single filter run is the exact answer, not an approximation.
-		// This gate is what keeps the per-contribution evaluation off the paths that cannot benefit from it.
+		// that differs between them — the referenced entity, the group the reference sits in, or an attribute
+		// carried by the reference itself. When it reads none of those (a pure `$entity.…` or
+		// `$entity.parentEntity.…` predicate), every reference of an owner shares one verdict by construction
+		// and a single filter run is the exact answer, not an approximation. This gate is what keeps the
+		// per-contribution evaluation off the paths that cannot benefit from it.
+		//
+		// The reference's own attributes are not findable in the constraint tree the way the other two are.
+		// `ExpressionToQueryTranslator` wraps a referenced-entity read in `entityHaving` and a group read in
+		// `groupHaving`, but a `$reference.attributes[…]` read becomes a bare `referenceHaving` carrying no
+		// scope container at all — and a parent dependency translates to `hierarchyWithinSelf`, equally
+		// containerless. Their combination therefore carries neither marker, so the trigger's own record of the
+		// reference attributes it reads is the only reliable signal for that shape.
 		//
 		// **The number of resolved contributions is deliberately not part of this test.** `affected` enumerates
 		// only the contributions *this mutation* resolves; the owner's other references never appear in it, and
@@ -859,7 +867,17 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		final boolean readsGroup = !FinderVisitor.findConstraints(
 			conditionConstraint, GroupHaving.class::isInstance
 		).isEmpty();
-		if (readsReferencedEntity || readsGroup) {
+		final boolean readsReferenceAttribute = !trigger.getLocalReferenceAttributes().isEmpty();
+		// A group read cannot separate one of this mutation's contributions from another when the mutated
+		// entity IS the group: `resolveForGroupEntityAttribute` only ever resolves contributions sitting in
+		// that one group, and `parameterize` pins it inside the `groupHaving` on the global path, so a single
+		// run already answers each of them exactly. Fanning out would cost one filter run per referenced
+		// entity in the group to recompute the same verdict. A read of the referenced entity or of the
+		// reference's own attributes can still differ, and keeps its own signal above.
+		final boolean groupAlreadyPinnedByMutation =
+			mutation.dependencyType() == DependencyType.GROUP_ENTITY_ATTRIBUTE
+				|| mutation.dependencyType() == DependencyType.GROUP_ENTITY_REFERENCE_ATTRIBUTE;
+		if (readsReferencedEntity || readsReferenceAttribute || (readsGroup && !groupAlreadyPinnedByMutation)) {
 			return evaluateConditionPerContribution(trigger, mutation, target, affected);
 		} else {
 			return evaluateConditionGlobal(trigger, mutation, target, allAffectedOwnerPKs);
