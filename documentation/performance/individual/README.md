@@ -39,6 +39,11 @@ the test and its results stay discoverable from either side.
   monitor that sits in every child channel pipeline. Proved the inbound frame walk is O(frames) rather than O(bytes)
   (48.7× more bytes → +2.2 % time) at ~7 ns/frame, the outbound `GOAWAY` recognition ~1–3 ns/write, and neither
   direction allocating.
+- [`ReferenceNarrowingDecodeBenchmark/`](ReferenceNarrowingDecodeBenchmark/README.md) — prices reference-name
+  narrowing (decoding only the reference names a projection asks for) on the production record shape that
+  motivated it. 2.9× less allocation on the decode, 3.2× with the `References` index build — which collapses
+  from scaling with the record to a flat ~227 B/op — and 1.6–1.8× faster. Also prices what narrowing does
+  *not* remove: ~136 B still allocated per reference merely walked past.
 - [`BucketBPlusTreePayloadBenchmark/`](BucketBPlusTreePayloadBenchmark/README.md) — neutrality A/B for generalizing the
   `TransactionalBucketBPlusTree` single-record column from raw `int[]` to the pluggable `RecordColumn` SPI
   (`IntRecordColumn` / `LongRecordColumn`). Proved allocation- and time-neutral (deterministic `gc.alloc.rate.norm`
