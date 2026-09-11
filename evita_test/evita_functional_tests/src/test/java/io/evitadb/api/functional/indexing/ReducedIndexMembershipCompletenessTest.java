@@ -270,6 +270,48 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 
 	@ParameterizedTest(name = "{0}")
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName("the last owner leaving a reduced index leaves the lookup complete")
+	void lastOwnerLeavingAReducedIndexKeepsTheLookupComplete(CatalogState state) {
+		// The one state the lookup cannot account for: an index holding nobody lands in neither the covered nor
+		// the residual set. Whether that is reachable is decided upstream rather than in the map - the reduced
+		// index is un-advertised in the same synchronous step in which its last owner leaves, so
+		// `covered u residual == advertised` survives the drop only for as long as those two move together.
+		// This constructs the state through the write path, by both routes into it, and lets the union assertion
+		// answer the question rather than arguing it. A failure here is not an assertion to relax: it is the
+		// invariant, and this is the case it exists for.
+		prepare(state, "CHECKBOX");
+		upsertProducts(1, 3, 1);
+		// two categories held by exactly one product each, so either can be emptied without disturbing the rest
+		upsertProducts(4, 4, 2);
+		upsertProducts(5, 5, 3);
+		assertMembershipMatchesIndexes();
+		assertTrue(
+			coveredOwnersOf(REF_CATEGORIES, Scope.LIVE).contains(4),
+			"the sole owner of its category must be covered before it leaves, or emptying that index proves "
+				+ "nothing"
+		);
+		assertFalse(coveredOf(REF_CATEGORIES).isEmpty(), "the lookup must hold coverage before the removals");
+
+		// the ordinary reference removal empties the index of category 2 ...
+		tx(session -> session.getEntity(ENTITY_PRODUCT, 4, entityFetchAllContent())
+			.orElseThrow()
+			.openForWrite()
+			.removeReference(REF_CATEGORIES, 2)
+			.upsertVia(session));
+		assertMembershipMatchesIndexes();
+
+		// ... and deleting the entity outright empties the index of category 3, reaching the same state through
+		// the entirely-removed path rather than through a reference mutation
+		tx(session -> session.deleteEntity(ENTITY_PRODUCT, 5));
+		assertMembershipMatchesIndexes();
+		assertFalse(
+			coveredOwnersOf(REF_CATEGORIES, Scope.LIVE).contains(5),
+			"the deleted owner must be gone from the lookup as well as from the indexes"
+		);
+	}
+
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 	@DisplayName("crossing the coverage threshold in both directions keeps the lookup exact")
 	void thresholdCrossingBothWaysMatches(CatalogState state) {
 		prepare(state, "CHECKBOX");
@@ -654,6 +696,32 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 	}
 
 	@Test
+	@DisplayName("a catalog reloaded after the last owner left rebuilds a complete lookup")
+	void reloadAfterTheLastOwnerLeftRebuildsACompleteLookup() {
+		// The load path is the only caller of `ReducedIndexMembership#registerIndex`, and therefore the only one
+		// that can reach its empty-membership arm at all. Whether it does rests on the same lockstep the write
+		// path is driven across above: an index the reference still advertises after its last owner left would
+		// be handed to `registerIndex` with an empty membership, land in neither set, and break the union
+		// assertion below - a reduced index the trigger would then never visit.
+		prepare(CatalogState.ALIVE, "CHECKBOX");
+		upsertProducts(1, 3, 1);
+		upsertProducts(4, 4, 2);
+		tx(session -> session.getEntity(ENTITY_PRODUCT, 4, entityFetchAllContent())
+			.orElseThrow()
+			.openForWrite()
+			.removeReference(REF_CATEGORIES, 2)
+			.upsertVia(session));
+		assertMembershipMatchesIndexes();
+
+		this.evita.close();
+		this.evita = new Evita(getEvitaConfiguration());
+		awaitCatalogLoaded();
+
+		assertMembershipMatchesIndexes();
+		assertMembershipEngaged(REF_CATEGORIES);
+	}
+
+	@Test
 	@DisplayName("every reference the lookup is keyed by is still declared by the schema")
 	void everyReferenceNameInTheLookupIsInTheSchema() {
 		prepare(CatalogState.ALIVE, "CHECKBOX");
@@ -747,6 +815,67 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 	}
 
 	@Test
+	@DisplayName("the sibling walk reaches a partition the lookup left residual")
+	void siblingWalkReachesAResidualPartition() {
+		// The residual half of the accelerated resolution, and production's common case: a partition larger than
+		// the coverage threshold is exactly the one coverage declines to hold entries for. Every other test that
+		// fires the trigger with a lookup in place has an empty residual set, so the residual probe could be
+		// dropped from `ReevaluateExpressionExecutor#resolveSiblingReducedIndexes` and the suite would stay
+		// green. Here the single category holds more owners than the threshold, so it is residual and
+		// `coveredOwners` is empty - the covered half returns immediately and the residual probe is the only
+		// path by which the facet can reach the partition.
+		prepare(CatalogState.ALIVE, "INTERVAL_INPUT");
+		upsertProducts(1, OVER_THRESHOLD, 1);
+		assertFalse(
+			residualOf(REF_CATEGORIES).isEmpty(),
+			"a category of " + OVER_THRESHOLD + " owners must have been promoted out of coverage"
+		);
+		assertTrue(
+			coveredOf(REF_CATEGORIES).isEmpty(),
+			"no other category is written here, so the covered half must have nothing to contribute"
+		);
+
+		fireCrossEntityTrigger();
+
+		assertEquals(
+			OVER_THRESHOLD, countInCategoryWithFacetSelected(1),
+			"the residual partition must receive the facet - no covered-owner entry names it, so nothing else "
+				+ "selects it for the probe"
+		);
+	}
+
+	@Test
+	@DisplayName("one trigger reaches a covered and a residual partition together")
+	void siblingWalkReachesACoveredAndAResidualPartitionInOneTrigger() {
+		// The mixed shape, so neither half of the accelerated resolution can be satisfied by the other: one
+		// category is above the coverage threshold and hence residual, the other is small and covered. Removing
+		// either half fails exactly one of the two assertions below, which is what tells them apart.
+		prepare(CatalogState.ALIVE, "INTERVAL_INPUT");
+		upsertProducts(1, OVER_THRESHOLD, 1);
+		upsertProducts(OVER_THRESHOLD + 1, OVER_THRESHOLD + 5, 2);
+		assertFalse(
+			residualOf(REF_CATEGORIES).isEmpty(),
+			"the category of " + OVER_THRESHOLD + " owners must have been promoted out of coverage"
+		);
+		assertFalse(
+			coveredOf(REF_CATEGORIES).isEmpty(),
+			"the category of five owners must be covered, or the two halves are not both exercised"
+		);
+		assertMembershipMatchesIndexes();
+
+		fireCrossEntityTrigger();
+
+		assertEquals(
+			OVER_THRESHOLD, countInCategoryWithFacetSelected(1),
+			"the residual partition must receive the facet"
+		);
+		assertEquals(
+			5, countInCategoryWithFacetSelected(2),
+			"the covered partition must receive the facet in the same trigger"
+		);
+	}
+
+	@Test
 	@DisplayName("the sibling walk survives a covered entry naming a reduced index that no longer exists")
 	void siblingWalkSurvivesAStaleCoveredEntry() {
 		// The map's own contract is that nothing it records is an answer: it selects which reduced indexes are
@@ -821,6 +950,7 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 		for (final ReferenceSchemaContract reference : collection.getSchema().getReferences().values()) {
 			final String referenceName = reference.getName();
 			final Set<Integer> advertised = advertisedReducedIndexes(collection, referenceName, scope);
+			assertEveryAdvertisedIndexHoldsAnOwner(collection, referenceName, scope, advertised);
 			final ReducedIndexMembership membership =
 				typedGlobalIndex.getReducedIndexMembership(referenceName);
 			if (membership == null) {
@@ -880,6 +1010,45 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 						" must name exactly the covered indexes holding it"
 				);
 			}
+		}
+	}
+
+	/**
+	 * Asserts the upstream lockstep the whole lookup rests on: a reference advertises a reduced index only while
+	 * that index holds at least one owner.
+	 *
+	 * `ReferenceIndexMutator#referenceRemovalPerComponent` un-advertises on the 1 → 0 crossing of
+	 * `ReferencedTypeEntityIndex`'s per-tuple owner counter, in the same synchronous step in which the reduced
+	 * index loses its last owner — and every arm of `ReducedIndexMembership` that accounts for an index assumes
+	 * exactly that. Asserting it here tests the lockstep **directly**, at every boundary state this class
+	 * already drives, rather than waiting for its downstream symptom. It is also the assertion that keeps the
+	 * union check honest: were the two to decouple, `covered ∪ residual == advertised` would start failing with
+	 * no wrong facet behind it, and this says which of the two moved.
+	 *
+	 * @param collection    the collection to inspect
+	 * @param referenceName reference whose advertisement is checked
+	 * @param scope         the scope whose indexes are read
+	 * @param advertised    the reduced-index primary keys the reference advertises
+	 */
+	private static void assertEveryAdvertisedIndexHoldsAnOwner(
+		@Nonnull EntityCollection collection,
+		@Nonnull String referenceName,
+		@Nonnull Scope scope,
+		@Nonnull Set<Integer> advertised
+	) {
+		for (final Integer indexPk : advertised) {
+			final EntityIndex reducedIndex = collection.getIndexByPrimaryKeyIfExists(indexPk);
+			assertNotNull(
+				reducedIndex,
+				"scope " + scope + ", reference `" + referenceName + "`: advertised index " + indexPk
+					+ " does not exist"
+			);
+			assertFalse(
+				reducedIndex.getAllPrimaryKeys().isEmpty(),
+				"scope " + scope + ", reference `" + referenceName + "`: advertised index " + indexPk
+					+ " holds no owners - the advertisement and the index's membership must be dropped in the "
+					+ "same step, or the lookup is left accounting for an index nothing can be found in"
+			);
 		}
 	}
 

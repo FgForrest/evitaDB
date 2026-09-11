@@ -71,7 +71,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * For an **existing** entity that check no longer walks the whole reference container - it verifies only the
  * references the incoming mutations named (issue #1531). That narrowing is safe only because the per-reference
  * verdict depends on nothing entity-scoped except the entity's locale set, and the implementation falls back to the
- * full scan whenever a locale is added, and whenever a mutation names a reference by a key that cannot be resolved
+ * full scan whenever the entity's OWN locale set gains a locale - an attribute written in a locale the entity
+ * already declares does not fall back - and whenever a mutation names a reference by a key that cannot be resolved
  * against the container at all.
  *
  * **These tests attack the narrowing, not the mechanism.** The load-bearing one is
