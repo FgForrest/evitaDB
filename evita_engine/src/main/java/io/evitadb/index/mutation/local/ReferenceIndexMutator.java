@@ -58,11 +58,11 @@ import io.evitadb.index.HistogramIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
-import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.facet.FacetGroupIndex;
 import io.evitadb.index.facet.FacetIdIndex;
 import io.evitadb.index.facet.FacetReferenceIndex;
+import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor.RepresentativeReferenceKeys;
 import io.evitadb.index.mutation.local.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.index.mutation.local.dataAccess.ExistingDataSupplierFactory;
@@ -155,8 +155,8 @@ import static io.evitadb.utils.Assert.isPremiseValid;
  * indexing level or component in the given scope, used heavily as guards throughout the other methods.
  *
  * **Reduced-index membership maintenance** — `recordOwnerEnteredReducedIndex`,
- * `recordOwnerLeftReducedIndex`, `seedFromAdvertisedIndexes`, `hasReducedIndexMembership`: keep the reverse
- * lookup the cross-entity conditional-facet trigger consults
+ * `recordOwnerLeftReducedIndex`, `isReducedIndexMembershipMaintained`, `seedFromAdvertisedIndexes`,
+ * `hasReducedIndexMembership`: keep the reverse lookup the cross-entity conditional-facet trigger consults
  * ({@link io.evitadb.index.membership.ReducedIndexMembership}) in step with the reduced indexes the lifecycle
  * operations above have just changed. Both boundaries are gated on the collection declaring a conditional
  * facet and on the reference being indexed for partitioning, so a collection that can never fire the trigger
@@ -947,7 +947,12 @@ public interface ReferenceIndexMutator {
 		int referencedPrimaryKey,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
-		// remove reduced index PK → referenced primary key mapping from the type index
+		// Remove reduced index PK → referenced primary key mapping from the type index. This is unconditional
+		// and it happens FIRST, which is what `ReducedIndexMembership#ownerRemoved` relies on: the counter
+		// behind it drops the index from the reference's advertisement on the 1 -> 0 crossing, in the same
+		// synchronous step in which the membership map forgets it below, so `covered ∪ residual == advertised`
+		// holds across the removal. Deferring or conditioning this un-advertise would leave an advertised index
+		// in neither of that map's sets - a reduced index the cross-entity facet trigger then never visits.
 		final int pkForReferenceTypeIndex = referenceIndex.getPrimaryKey();
 		referenceTypeIndex.removePrimaryKey(pkForReferenceTypeIndex, referencedPrimaryKey);
 
@@ -1298,12 +1303,7 @@ public interface ReferenceIndexMutator {
 		int entityPrimaryKey
 	) {
 		final Scope scope = executor.getScope();
-		if (!executor.getEntitySchema().declaresConditionalFacetInScope(scope)) {
-			// memoized on the schema, so this is a bit test - the trigger never fires here, and the load-time
-			// build skips such a collection for the same reason, so there is nothing to maintain or to discard
-			return;
-		}
-		if (!isIndexedReferenceForFilteringAndPartitioning(referenceSchema, scope)) {
+		if (!isReducedIndexMembershipMaintained(executor, referenceSchema, scope)) {
 			return;
 		}
 		final GlobalEntityIndex globalIndex = resolveGlobalIndex(executor, scope);
@@ -1316,6 +1316,32 @@ public interface ReferenceIndexMutator {
 		membership.ownerAdded(
 			referenceIndex.getPrimaryKey(), entityPrimaryKey, referenceIndex.getAllPrimaryKeys()
 		);
+	}
+
+	/**
+	 * Tells whether the reverse lookup of this reference is kept current in this scope — the pair of gates both
+	 * maintenance boundaries open with, in the order they evaluate them.
+	 *
+	 * The first is memoized on the schema, so a collection that declares no conditional facet pays a bit test and
+	 * nothing else: the trigger never fires there, and `EntityCollection#rebuildReducedIndexMembership` skips such
+	 * a collection at load for the same reason, so there is nothing to maintain and nothing to discard. The second
+	 * confines the lookup to the references the trigger's sibling walk actually visits.
+	 *
+	 * Both read the schema and nothing else, which is what makes maintenance stoppable only at a schema change —
+	 * see {@link #recordOwnerEnteredReducedIndex} for where a lookup nothing maintains any more is dropped.
+	 *
+	 * @param executor        the mutation executor, which carries the entity schema
+	 * @param referenceSchema schema of the reference whose lookup would be maintained
+	 * @param scope           the scope the write lands in
+	 * @return `true` when a write to this reference has to be recorded into the lookup
+	 */
+	private static boolean isReducedIndexMembershipMaintained(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Scope scope
+	) {
+		return executor.getEntitySchema().declaresConditionalFacetInScope(scope)
+			&& isIndexedReferenceForFilteringAndPartitioning(referenceSchema, scope);
 	}
 
 	/**
@@ -1420,12 +1446,7 @@ public interface ReferenceIndexMutator {
 		int entityPrimaryKey
 	) {
 		final Scope scope = executor.getScope();
-		if (!executor.getEntitySchema().declaresConditionalFacetInScope(scope)) {
-			// see the insert counterpart: a bit test on the schema, and the only gate a collection without a
-			// conditional facet ever reaches
-			return;
-		}
-		if (!isIndexedReferenceForFilteringAndPartitioning(referenceSchema, scope)) {
+		if (!isReducedIndexMembershipMaintained(executor, referenceSchema, scope)) {
 			return;
 		}
 		if (!hasReducedIndexMembership(executor, referenceSchema, scope)) {

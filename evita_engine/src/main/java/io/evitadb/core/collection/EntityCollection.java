@@ -94,6 +94,7 @@ import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -149,11 +150,10 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.index.*;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
-import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.MapChanges.ValueMerger;
 import io.evitadb.index.map.PersistentTransactionalProducerMap;
+import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
 import io.evitadb.index.mutation.EntityIndexMutation;
 import io.evitadb.index.mutation.IndexMutation;
@@ -1931,7 +1931,7 @@ public final class EntityCollection implements
 		final EntityIndex reducedIndex = getIndexByPrimaryKeyIfExists(reducedIndexPk);
 		if (reducedIndex == null) {
 			// Advertised but not resolvable, so its members cannot be read and coverage cannot be decided.
-			// Recording it as residual keeps `covered u residual == advertised` - the invariant that lets a
+			// Recording it as residual keeps `covered ∪ residual == advertised` - the invariant that lets a
 			// caller tell "this index is accounted for" from "this index is unknown to the map" - and leaves
 			// the index on the probe, which is exactly where it was before the map existed.
 			membership.registerIndexAsResidual(reducedIndexPk);

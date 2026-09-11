@@ -2648,8 +2648,9 @@ public final class ContainerizedLocalMutationExecutor
 	 * makes an already-stored reference non-compliant — a reference attribute newly made mandatory, or newly
 	 * given a default value — is therefore not detected by a later upsert that touches a *different* reference
 	 * of the same entity, where it once would have been repaired (or refused) by that unrelated write. Such an
-	 * entity is repaired by writing the reference itself. That is the narrowing issue #1531 made deliberately;
-	 * the conditions that still send the check back over the whole container are listed on
+	 * entity is repaired by writing the reference itself. That is the narrowing issue #1531 made deliberately.
+	 * Three conditions still send the check back over the whole container: an entity-scoped locale added by the
+	 * batch ({@link #hasAddedEntityLocale()}), decided here, plus the two unresolvable-key conditions listed on
 	 * {@link #collectTouchedReferences}.
 	 *
 	 * @param scope The scope of the current operation.
@@ -2661,8 +2662,10 @@ public final class ContainerizedLocalMutationExecutor
 	 * @param implicitMutations The set of implicit mutation behaviors to consider during the verification process.
 	 * @param scanAllReferences True for a brand-new entity, whose every reference must be verified. False for an
 	 *                          existing one, where only the references the mutations touched are re-verified - see
-	 *                          {@link #collectTouchedReferences} for why, and for the conditions that send this path
-	 *                          back to the full scan anyway.
+	 *                          {@link #collectTouchedReferences} for why, and for the two unresolvable-key
+	 *                          conditions that send this path back to the full scan anyway. An added entity-scoped
+	 *                          locale ({@link #hasAddedEntityLocale()}) is a third such condition, and this method
+	 *                          decides it rather than that one.
 	 * @throws MandatoryAttributesNotProvidedException If mandatory attributes are missing and cannot be resolved.
 	 */
 	private void verifyReferenceAttributes(
@@ -2824,14 +2827,18 @@ public final class ContainerizedLocalMutationExecutor
 	 *
 	 * Resolution is by binary search over the (name, primary key)-ordered container. **Returns `null` whenever any
 	 * key cannot be resolved unambiguously**, which makes the caller fall back to the full scan - the incremental
-	 * path must never verify less than the full one would. Exactly two conditions do that:
+	 * path must never verify less than the full one would. Exactly two conditions make THIS method return `null`:
 	 *
 	 * - the key carries no known internal primary key, so it names no single reference to look up;
 	 * - the container holds no slot for the key at all, which means the key is stale rather than that there is
 	 *   nothing to verify.
 	 *
-	 * A reference the batch **removed** is neither: its slot resolves, so the key is proved current, and it is
-	 * skipped exactly as the full scan skips it on its own `exists()` check. A batch containing a removal
+	 * They are not the whole fall-back set. {@link #verifyReferenceAttributes} adds a third condition of its own
+	 * and evaluates it BEFORE calling this method at all - an entity-scoped locale added by the batch
+	 * ({@link #hasAddedEntityLocale()}) - so an audit of what still reaches the full scan has to read both sites.
+	 *
+	 * A reference the batch **removed** is none of the three: its slot resolves, so the key is proved current, and
+	 * it is skipped exactly as the full scan skips it on its own `exists()` check. A batch containing a removal
 	 * therefore stays on the incremental path.
 	 *
 	 * @param referencesStoragePart the container to resolve against

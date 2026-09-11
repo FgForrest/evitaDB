@@ -347,10 +347,10 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			new EntityIndexKey(EntityIndexType.GLOBAL, scope)
 		);
 		// Reduced indexes exist for EVERY reference indexed at FOR_FILTERING or above - the local path creates
-		// them behind `isIndexedReferenceForFiltering` (EntityIndexLocalMutationExecutor:2652 and its peers), and
-		// a production catalog can hold two orders of magnitude more of them for FOR_FILTERING references than
-		// for partitioned ones. What is restricted to FOR_FILTERING_AND_PARTITIONING is the maintenance of
-		// FACETS inside them, which is what this flag actually governs. Reading it as "no index exists" is
+		// them behind `isIndexedReferenceForFiltering` (`EntityIndexLocalMutationExecutor#unindexReferences` and
+		// its peers), and a production catalog can hold two orders of magnitude more of them for FOR_FILTERING
+		// references than for partitioned ones. What is restricted to FOR_FILTERING_AND_PARTITIONING is the
+		// maintenance of FACETS inside them, which is what this flag governs. Reading it as "no index exists" is
 		// wrong and load-bearing: it makes the cross-entity walk's cost look bounded by the current schema when
 		// in fact a client raising one reference to FOR_FILTERING_AND_PARTITIONING widens that walk over
 		// partitions that already exist, with no reindexing and no entity writes (issue #1529).
@@ -556,9 +556,14 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * holding it. Shared by both halves of the accelerated resolution: the residual set — the indexes holding
 	 * more owners than covering them is worth — and the covered indexes selected by
 	 * {@link #collectOwnersFromMembership}. Iterating a named set rather than filtering the reference's
-	 * advertisement is the whole point: the residual set is small by construction (`<= M / T` for `M` total
-	 * memberships) and the selected set is bounded by the affected owners, while the advertisement is bounded
-	 * by neither.
+	 * advertisement is the whole point: the selected set is bounded by the affected owners, while the
+	 * advertisement is bounded by nothing.
+	 *
+	 * The residual set is bounded only for the indexes that earned their place by SIZE — at most `M / T` of
+	 * them for `M` total memberships and a threshold of `T`. It carries indexes registered for other reasons
+	 * too (see {@link ReducedIndexMembership#getResidualIndexPrimaryKeys()}), and a freshly seeded slice is the
+	 * limiting case: every advertised index is residual, so this probes the whole advertisement and buys
+	 * nothing until {@link ReducedIndexMembership#ownerAdded} has demoted the small ones as they are written.
 	 *
 	 * @param target           access to the entity collection's index store
 	 * @param siblingSchema    the reference whose reduced indexes are probed
@@ -575,25 +580,59 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	) {
 		final OfInt it = indexPrimaryKeys.iterator();
 		while (it.hasNext()) {
-			final int reducedIndexPK = it.nextInt();
-			final EntityIndex probedIndex = target.getIndexByPrimaryKeyIfExists(reducedIndexPK);
-			// Not an unexpected state: the empty-index sweep drops a reduced index the moment its last owner
-			// leaves, so a set naming it can legitimately outlive it. The unaccelerated walk skips such a key
-			// the same way - an index that holds nobody cannot hold an affected owner either.
-			if (probedIndex == null) {
-				continue;
-			}
-			final int[] owners = and(getRoaringBitmap(probedIndex.getAllPrimaryKeys()), affected).toArray();
-			if (owners.length == 0) {
-				continue;
-			}
-			// resolved once per index, after the intersection, exactly as the unaccelerated walk does
-			final SiblingReducedIndex sibling = new SiblingReducedIndex(
-				target.getOrCreateIndexByPrimaryKey(reducedIndexPK), siblingSchema
-			);
-			for (final int owner : owners) {
-				addSibling(result, owner, sibling);
-			}
+			probeReducedIndexForAffectedOwners(target, siblingSchema, it.nextInt(), affected, result);
+		}
+	}
+
+	/**
+	 * Probes a single reduced index and records, for every affected owner it holds, the index holding it.
+	 *
+	 * This is the whole body of both resolutions: the accelerated one reaches it once per index named by
+	 * {@link #collectOwnersOfProbedIndexes}, the unaccelerated walk once per index the reference advertises
+	 * ({@link #collectOwnersOfReducedIndexes}). They differ in how they arrive at the primary key and in
+	 * nothing that happens to it afterwards, which is why the two paths cannot drift apart in what a probe
+	 * means.
+	 *
+	 * @param target         access to the entity collection's index store
+	 * @param siblingSchema  the reference whose reduced index is probed
+	 * @param reducedIndexPK primary key of the reduced index to probe
+	 * @param affected       roaring bitmap of affected owner PKs, intersected against the index
+	 * @param result         accumulator, keyed by owner PK
+	 */
+	private static void probeReducedIndexForAffectedOwners(
+		@Nonnull IndexMutationTarget target,
+		@Nonnull ReferenceSchemaContract siblingSchema,
+		int reducedIndexPK,
+		@Nonnull PersistentRoaringBitmap affected,
+		@Nonnull Map<Integer, List<SiblingReducedIndex>> result
+	) {
+		final EntityIndex probedIndex = target.getIndexByPrimaryKeyIfExists(reducedIndexPK);
+		// Not an unexpected state, and not the empty-index sweep that drops it either - that sweep fires on
+		// `EntityIndex#isEmpty()`, a conjunction in which the owner bitmap is one term among several. What
+		// retires a reduced index the moment its last owner leaves is the advertisement:
+		// `ReferencedTypeEntityIndex` counts owners per (index, referenced entity) tuple and un-advertises
+		// on the 1 -> 0 crossing, in the same synchronous step. A set naming an index that no longer
+		// resolves is therefore a stale SELECTOR entry, which this structure's contract tolerates by design
+		// - nothing it records is an answer, and an index the collection does not hold can hold no affected
+		// owner. The unaccelerated walk skips such a key the same way.
+		if (probedIndex == null) {
+			return;
+		}
+		final int[] owners = and(getRoaringBitmap(probedIndex.getAllPrimaryKeys()), affected).toArray();
+		if (owners.length == 0) {
+			return;
+		}
+		// Re-fetch through the registering accessor, and only for partitions that really hold an
+		// affected owner. That registration is what enrols the index in the "dirty" set, and hence
+		// what gets its transactional layer swept at commit - mutating the plainly-read instance
+		// instead leaves the layer stranded and the whole transaction dies with
+		// StaleTransactionMemoryException. Doing it after the intersection keeps every untouched
+		// partition out of the dirty set.
+		final SiblingReducedIndex sibling = new SiblingReducedIndex(
+			target.getOrCreateIndexByPrimaryKey(reducedIndexPK), siblingSchema
+		);
+		for (final int owner : owners) {
+			addSibling(result, owner, sibling);
 		}
 	}
 
@@ -650,28 +689,11 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		// second time into the same map and allocate an `int[]` per entry - and this traversal runs over
 		// *every* partition the reference advertises, on every trigger that reaches it without a reverse
 		// lookup, so those per-partition allocations are the bulk of the walk's constant factor.
-		referencedTypeIndex.forEachReferenceIndexPrimaryKey(reducedIndexPK -> {
-			final EntityIndex probedIndex = target.getIndexByPrimaryKeyIfExists(reducedIndexPK);
-			if (probedIndex == null) {
-				return;
-			}
-			final int[] owners = and(getRoaringBitmap(probedIndex.getAllPrimaryKeys()), affected).toArray();
-			if (owners.length == 0) {
-				return;
-			}
-			// Re-fetch through the registering accessor, and only for partitions that really hold an
-			// affected owner. That registration is what enrols the index in the "dirty" set, and hence
-			// what gets its transactional layer swept at commit - mutating the plainly-read instance
-			// instead leaves the layer stranded and the whole transaction dies with
-			// StaleTransactionMemoryException. Doing it after the intersection keeps every untouched
-			// partition out of the dirty set.
-			final SiblingReducedIndex sibling = new SiblingReducedIndex(
-				target.getOrCreateIndexByPrimaryKey(reducedIndexPK), siblingSchema
-			);
-			for (final int owner : owners) {
-				addSibling(result, owner, sibling);
-			}
-		});
+		referencedTypeIndex.forEachReferenceIndexPrimaryKey(
+			reducedIndexPK -> probeReducedIndexForAffectedOwners(
+				target, siblingSchema, reducedIndexPK, affected, result
+			)
+		);
 	}
 
 	/**

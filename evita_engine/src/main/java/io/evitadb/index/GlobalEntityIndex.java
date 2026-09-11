@@ -192,11 +192,19 @@ public class GlobalEntityIndex extends EntityIndex
 	 * Per-reference reverse lookup of "which reduced indexes hold this owner", keyed by reference name, used
 	 * by the cross-entity conditional-facet trigger to avoid walking every reduced index of the collection.
 	 *
-	 * Derived state, never persisted, and an **accelerator rather than an authority** — a reduced index it
-	 * does not cover must still be walked, so an absent or incomplete entry costs speed and never
-	 * correctness. See {@link ReducedIndexMembership} for the whole contract.
+	 * Derived state, never persisted, and an **accelerator rather than an authority** — nothing it records is
+	 * taken as an answer, and every index it names is asked itself who is in it, so a stale entry costs a probe
+	 * and never correctness.
 	 *
-	 * Empty for every collection that never fires such a trigger, which is why it is charged nothing there.
+	 * What that does **not** license is an incomplete entry. An absent entry is safe — with no lookup the
+	 * trigger walks every index the reference advertises, exactly as it did before this map existed — but an
+	 * entry that EXISTS is probed exactly as it stands, so a reduced index missing from it is never visited and
+	 * the trigger writes a wrong facet rather than a slow one. Absence of the whole entry is therefore the safe
+	 * state, and the one this map is left in when maintenance stops. See {@link ReducedIndexMembership} for the
+	 * whole contract.
+	 *
+	 * Empty for every collection that never fires such a trigger, where it is charged its own map object and
+	 * nothing per reference — a `HashMap` allocates its table on the first put.
 	 */
 	@Nonnull private final TransactionalMap<String, ReducedIndexMembership> reducedIndexMembership;
 
