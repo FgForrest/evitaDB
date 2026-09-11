@@ -28,7 +28,6 @@ import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.RequestHeaders;
 import io.evitadb.api.observability.trace.TracingBlockReference;
 import io.evitadb.api.observability.trace.TracingContext;
-import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
 import io.evitadb.api.observability.trace.TracingContextProvider;
 import io.evitadb.api.query.head.Label;
 import io.evitadb.externalApi.configuration.HeaderOptions;
@@ -117,84 +116,6 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 	@Override
 	public void configureHeaders(@Nonnull HeaderOptions headerOptions) {
 		this.headerOptions = headerOptions;
-	}
-
-	@Override
-	public void executeWithinBlock(
-		@Nonnull String protocolName,
-		@Nonnull HttpRequest context,
-		@Nonnull Runnable runnable,
-		@Nullable SpanAttribute... attributes
-	) {
-		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
-			runnable.run();
-			return;
-		}
-		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-			this.tracingContext.executeWithinBlock(
-				protocolName,
-				runnable,
-				attributes
-			);
-		}
-	}
-
-	@Override
-	public <T> T executeWithinBlock(
-		@Nonnull String protocolName,
-		@Nonnull HttpRequest context,
-		@Nonnull Supplier<T> lambda,
-		@Nullable SpanAttribute... attributes
-	) {
-		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
-			return lambda.get();
-		}
-		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-			return this.tracingContext.executeWithinBlock(
-				protocolName,
-				lambda,
-				attributes
-			);
-		}
-	}
-
-	@Override
-	public void executeWithinBlock(
-		@Nonnull String protocolName,
-		@Nonnull HttpRequest context,
-		@Nonnull Runnable runnable,
-		@Nullable Supplier<SpanAttribute[]> attributes
-	) {
-		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
-			runnable.run();
-			return;
-		}
-		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-			this.tracingContext.executeWithinBlock(
-				protocolName,
-				runnable,
-				attributes
-			);
-		}
-	}
-
-	@Override
-	public <T> T executeWithinBlock(
-		@Nonnull String protocolName,
-		@Nonnull HttpRequest context,
-		@Nonnull Supplier<T> lambda,
-		@Nullable Supplier<SpanAttribute[]> attributes
-	) {
-		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
-			return lambda.get();
-		}
-		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-			return this.tracingContext.executeWithinBlock(
-				protocolName,
-				lambda,
-				attributes
-			);
-		}
 	}
 
 	@Override

@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.observability.trace;
 
 import io.evitadb.api.observability.trace.TracingContext;
-import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
 import io.evitadb.api.observability.trace.TracingContextProvider;
 import io.evitadb.api.query.head.Label;
 import io.evitadb.externalApi.configuration.HeaderOptions;
@@ -46,10 +45,10 @@ import static java.util.Optional.ofNullable;
  * Implementation of {@link ExternalApiTracingContext} for gRPC API.
  *
  * Besides opening the trace span, this context publishes the caller's client context - IP address, addressed URI,
- * labels and the start of the request being served - into the MDC for **every** {@code executeWithinBlock} overload,
- * mirroring what {@link JsonApiTracingContext} does for the JSON APIs. Why it has to be every overload, and not only
- * the ones evitaDB's own services happen to call, is explained on the private {@code withClientContext} helper they
- * all route through.
+ * labels and the start of the request being served - into the MDC for **every** entry point this context offers,
+ * mirroring what {@link JsonApiTracingContext} does for the JSON APIs. Why it has to be every one of them, and not
+ * only the ones evitaDB's own services happen to call, is explained on the private {@code withClientContext} helper
+ * they all route through.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
@@ -105,78 +104,6 @@ public class GrpcTracingContext implements ExternalApiTracingContext<Metadata> {
 	}
 
 	@Override
-	public void executeWithinBlock(
-		@Nonnull String protocolName,
-		@Nonnull Metadata context,
-		@Nonnull Runnable runnable,
-		@Nullable SpanAttribute... attributes
-	) {
-		withClientContext(context, () -> {
-			if (OpenTelemetryTracerSetup.isTracingEnabled()) {
-				try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-					this.tracingContext.executeWithinBlock(protocolName, runnable, attributes);
-				}
-			} else {
-				runnable.run();
-			}
-			return null;
-		});
-	}
-
-	@Override
-	public <T> T executeWithinBlock(
-		@Nonnull String protocolName,
-		@Nonnull Metadata context,
-		@Nonnull Supplier<T> lambda,
-		@Nullable SpanAttribute... attributes
-	) {
-		return withClientContext(context, () -> {
-			if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
-				return lambda.get();
-			}
-			try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-				return this.tracingContext.executeWithinBlock(protocolName, lambda, attributes);
-			}
-		});
-	}
-
-	@Override
-	public void executeWithinBlock(
-		@Nonnull String protocolName,
-		@Nonnull Metadata context,
-		@Nonnull Runnable runnable,
-		@Nullable Supplier<SpanAttribute[]> attributes
-	) {
-		withClientContext(context, () -> {
-			if (OpenTelemetryTracerSetup.isTracingEnabled()) {
-				try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-					this.tracingContext.executeWithinBlock(protocolName, runnable, attributes);
-				}
-			} else {
-				runnable.run();
-			}
-			return null;
-		});
-	}
-
-	@Override
-	public <T> T executeWithinBlock(
-		@Nonnull String protocolName,
-		@Nonnull Metadata context,
-		@Nonnull Supplier<T> lambda,
-		@Nullable Supplier<SpanAttribute[]> attributes
-	) {
-		return withClientContext(context, () -> {
-			if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
-				return lambda.get();
-			}
-			try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-				return this.tracingContext.executeWithinBlock(protocolName, lambda, attributes);
-			}
-		});
-	}
-
-	@Override
 	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull Metadata context, @Nonnull Runnable runnable) {
 		withClientContext(context, () -> {
 			if (OpenTelemetryTracerSetup.isTracingEnabled()) {
@@ -208,11 +135,11 @@ public class GrpcTracingContext implements ExternalApiTracingContext<Metadata> {
 	 * publish theirs, so that log lines and traffic recordings made underneath it can report who called and what
 	 * they called.
 	 *
-	 * **Every overload above routes through here.** Which one a caller lands on depends only on whether its lambda
-	 * returns a value and whether it passes span attributes - distinctions that say nothing about whether client
-	 * metadata is wanted. Instrumenting a subset would leave the paths that happen to use the other overloads
-	 * silently without context; evitaDB's own gRPC services reach this class exclusively through the
-	 * {@link Runnable} variants.
+	 * **Every entry point above routes through here.** Which one a caller lands on depends only on whether its lambda
+	 * returns a value and whether it completes synchronously - distinctions that say nothing about whether client
+	 * metadata is wanted. Instrumenting a subset would leave the paths that happen to use the others silently
+	 * without context; evitaDB's own gRPC services reach this class exclusively through the {@link Runnable}
+	 * variant.
 	 *
 	 * This runs on every gRPC call, including the default deployment with tracing switched off, so the extraction
 	 * underneath it allocates only what it actually publishes.

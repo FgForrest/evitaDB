@@ -67,11 +67,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * to the MDC, the way the JSON APIs already do, so that traffic recordings and any operator-supplied log layout can
  * see who called and how far into the request a line was written.
  *
- * The dynamic test over every entry point is the point of this class rather than an afterthought: which overload a
- * gRPC service lands on is decided purely by whether its lambda returns a value and whether it passes span
- * attributes, neither of which says anything about whether client context is wanted. evitaDB's own services reach
- * this class exclusively through the {@link Runnable} variants, so instrumenting only the
- * {@link java.util.function.Supplier} ones would leave every real call site without context while looking correct.
+ * The dynamic test over every entry point is the point of this class rather than an afterthought: which one a gRPC
+ * service lands on is decided purely by whether its lambda returns a value and whether it completes synchronously,
+ * neither of which says anything about whether client context is wanted. evitaDB's own services reach this class
+ * exclusively through the {@link Runnable} variant, so instrumenting only the
+ * {@link java.util.function.Supplier} one would leave every real call site without context while looking correct.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -434,17 +434,8 @@ class GrpcTracingContextClientMetadataTest {
 		@DisplayName("publishes the client context whichever entry point the caller lands on")
 		Stream<DynamicTest> shouldPublishClientMetadataFromEveryEntryPoint() {
 			final Metadata metadata = metadata("192.168.1.9", "/overload");
-			final TracingContext.SpanAttribute[] attributes = TracingContext.SpanAttribute.EMPTY_ARRAY;
 
 			final List<EntryPoint> entryPoints = List.of(
-				new EntryPoint("Runnable + attributes", md -> viaRunnable(
-					runnable -> this.tracingContext.executeWithinBlock("gRPC", md, runnable, attributes))),
-				new EntryPoint("Supplier + attributes", md ->
-					this.tracingContext.executeWithinBlock("gRPC", md, ContextSnapshot::current, attributes)),
-				new EntryPoint("Runnable + attribute supplier", md -> viaRunnable(
-					runnable -> this.tracingContext.executeWithinBlock("gRPC", md, runnable, () -> attributes))),
-				new EntryPoint("Supplier + attribute supplier", md ->
-					this.tracingContext.executeWithinBlock("gRPC", md, ContextSnapshot::current, () -> attributes)),
 				new EntryPoint("Runnable", md -> viaRunnable(
 					runnable -> this.tracingContext.executeWithinBlock("gRPC", md, runnable))),
 				new EntryPoint("Supplier", md ->

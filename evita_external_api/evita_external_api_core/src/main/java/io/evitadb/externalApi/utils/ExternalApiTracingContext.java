@@ -27,7 +27,6 @@ import com.linecorp.armeria.common.logging.RequestLogAccess;
 import com.linecorp.armeria.common.logging.RequestLogProperty;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.observability.trace.TracingContext;
-import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 
 import javax.annotation.Nonnull;
@@ -122,34 +121,6 @@ public interface ExternalApiTracingContext<C> {
 	 * @param headerOptions header options to be used for tracing
 	 */
 	void configureHeaders(@Nonnull HeaderOptions headerOptions);
-
-	/**
-	 * Sets the passed task name and attributes to the trace BEFORE the lambda is executed. Within the method,
-	 * the lambda with passed logic will be traced and properly executed.
-	 */
-	void executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Runnable runnable, @Nullable SpanAttribute... attributes);
-
-	/**
-	 * Sets the passed task name and attributes to the trace BEFORE the lambda is executed. Within the method,
-	 * the lambda with passed logic will be traced and properly executed.
-	 */
-	<T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Supplier<T> lambda, @Nullable SpanAttribute... attributes);
-
-	/**
-	 * Sets the passed task name and attributes to the trace AFTER the lambda is executed. Within the method,
-	 * the lambda with passed logic will be traced and properly executed. After the method successfully finishes,
-	 * the attributes will be set to the trace. The attributes may take advantage of the data computed in the lambda
-	 * itself.
-	 */
-	void executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Runnable runnable, @Nullable Supplier<SpanAttribute[]> attributes);
-
-	/**
-	 * Sets the passed task name and attributes to the trace AFTER the lambda is executed. Within the method,
-	 * the lambda with passed logic will be traced and properly executed. After the method successfully finishes,
-	 * the attributes will be set to the trace. The attributes may take advantage of the data computed in the lambda
-	 * itself.
-	 */
-	<T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Supplier<T> lambda, @Nullable Supplier<SpanAttribute[]> attributes);
 
 	/**
 	 * Executes the given lambda within the tracing block. It requires the client ID to be provided by the client and his
