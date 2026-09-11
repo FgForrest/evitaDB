@@ -1,7 +1,7 @@
 ---
 title: Bound the cross-entity facet walk with a size-thresholded owner→partition index, not a blanket one
 date: 2026-09-09
-updated: 2026-09-11 17:45
+updated: 2026-09-11 19:20
 status: accepted
 kind: optimization
 issues: [1529]
@@ -474,7 +474,8 @@ without a performance claim was the right call — the claim it was never given 
   the dense shape has 57,962. **A primitive int-keyed map is a separate, unmeasured lever.**
 - **The dense shape is bound by the accumulator, not by the walk, and `T` cannot move it.** Once the harness
   was corrected (2026-09-11) the dense rows fell to 1.07–1.09× and 1.34–1.50×. The reason is
-  `ReevaluateExpressionExecutor#addSibling`: it runs once per `(owner, partition)` pair of the *answer*, and
+  `ReevaluateExpressionExecutor#probeReducedIndexForAffectedOwners`: its accumulation runs once per
+  `(owner, partition)` pair of the *answer*, and
   both the lookup and the walk must produce that answer in full. Raising the coverage threshold changes which
   partitions are probed; it cannot change how many pairs exist.
 - **The accumulator was profiled, and its cost was a de-duplication scan that never de-duplicated anything —
@@ -486,10 +487,22 @@ without a performance claim was the right call — the claim it was never given 
   The scan was then shown to be dead rather than merely expensive. A `COUNT_DEDUP` variant tallying its
   rejections reported **0 out of 1,568,849,000 offered pairs** across both arms and both shapes on the
   production catalog; replacing it with a throwing premise left the conditional-facet suite green at 287 tests,
-  after a counterfactual run proved that same suite reaches the code 48 times. The reason is structural: one
-  reduced index primary key reaches the probe **at most once per sibling reference** — the covered half
-  collects into a bitmap before probing, the residual set is a bitmap disjoint from the covered one, and the
-  walk's two families advertise primary keys drawn from one collection-wide sequence and never collide.
+  after a counterfactual run proved that same suite reaches the code 48 times, and a wider run of the same
+  premise over 350 tests offered no duplicate pair either. The reason is structural: one reduced index primary
+  key reaches the probe **at most once per sibling reference** — the covered half collects its selected keys
+  into a bitmap before probing, the residual set is itself a bitmap, and the walk's two families advertise
+  primary keys drawn from one collection-wide sequence and never collide.
+  **That argument has one seam, and stating it as unconditional disjointness — as this record and the code
+  comment both first did — is wrong.** The covered half selects out of `ReducedIndexMembership`'s owner→index
+  map, *never* out of `getCoveredIndexPrimaryKeys()`, and the two are never intersected; so the disjointness of
+  the covered and residual *sets* does not by itself bound what the two halves probe. `dropCoverage` forgets
+  one entry per member of the membership handed to it, so an entry built from a membership the index did not
+  actually have would outlive the promotion that made the index residual, and both halves would then probe it.
+  No engine path is known to reach that state — every caller passes `referenceIndex.getAllPrimaryKeys()`, the
+  live membership, so entries and members move in lockstep — and it is harmless if it ever does, for the reason
+  given below. It is constructible through the map's own API, and
+  `ReducedIndexMembershipTest#promotionKeepsAnEntryBuiltFromDriftedMembership` pins it so that a future change
+  which starts *relying* on pair uniqueness has something to fail against.
   The scan's own comment (`references sharing a reduced group index resolve to the same instance more than
   once`) described a real phenomenon attached to the wrong traversal: several of **one owner's references** do
   resolve to a single `ReducedGroupEntityIndex`, which is why `ReferenceIndexMutator#forEachUniqueReferenceIndex`

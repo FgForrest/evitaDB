@@ -417,9 +417,17 @@ public class ReducedIndexMembership implements VoidTransactionMemoryProducer<Red
 	}
 
 	/**
-	 * Returns `true` when this map already knows the reduced index, whether as covered or as residual. Used by
-	 * the load-time build to skip a primary key the type index advertises more than once — a group reduced
-	 * index is advertised once per referenced entity filed under it.
+	 * Returns `true` when this map already knows the reduced index, whether as covered or as residual.
+	 *
+	 * **Nothing in production consults it.** Both sites that fill a map — `EntityCollection#registerReducedIndex`
+	 * at load and `ReferenceIndexMutator#seedFromAdvertisedIndexes` on the write path — register every advertised
+	 * primary key unguarded, because the traversal cannot advertise one twice: a reduced index is filed in its
+	 * type index under exactly one referenced (or group) primary key, and the two families draw their keys from
+	 * one collection-wide sequence. A repeat is therefore a programming error, and {@link #registerIndex} and
+	 * {@link #registerIndexAsResidual} refuse it rather than letting a pre-check swallow it.
+	 *
+	 * What it is for is asking what a map holds without deciding anything — tests and the measurement harnesses
+	 * that reproduce the load-time build outside the engine.
 	 *
 	 * @param indexPrimaryKey primary key of the reduced index
 	 * @return `true` when the index is already known

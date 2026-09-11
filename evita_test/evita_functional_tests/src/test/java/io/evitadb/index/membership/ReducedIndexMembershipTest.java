@@ -234,6 +234,48 @@ class ReducedIndexMembershipTest {
 		}
 
 		@Test
+		@DisplayName("promotion keeps an entry built from a membership the index never had")
+		void promotionKeepsAnEntryBuiltFromDriftedMembership() {
+			// The companion to the test above, and the limit of what it proves. `dropCoverage` forgets one entry
+			// per member of the bitmap it is handed — the membership the index has AFTER the insert — so an entry
+			// built from a membership the index did not actually have survives the promotion, and the owner map
+			// goes on naming an index that is now RESIDUAL.
+			//
+			// The structure tolerates that by design: nothing it records is an answer, and a stale entry costs a
+			// probe that finds no affected owner. What it is NOT is disjointness at the level the sibling
+			// resolver uses. `ReevaluateExpressionExecutor#collectOwnersFromMembership` selects the indexes to
+			// probe out of THIS map rather than out of {@link ReducedIndexMembership#getCoveredIndexPrimaryKeys()},
+			// and never intersects the two — so in this state one index is probed by the covered half and by the
+			// residual half, and every owner it really holds is offered to
+			// `ReevaluateExpressionExecutor#probeReducedIndexForAffectedOwners` twice.
+			//
+			// That is free today, because `ReferenceIndexMutator#applyFacetDecisionMatrix` short-circuits through
+			// pure reads when the facet is already in its target bucket. This test pins the state so that a change
+			// which starts relying on those pairs being unique has something to fail against.
+			final ReducedIndexMembership tested = new ReducedIndexMembership(SMALL_THRESHOLD);
+			tested.registerIndex(INDEX_PK, new BaseBitmap(1, 2));
+			// an entry built from a membership naming an owner the index does not hold
+			tested.ownerAdded(INDEX_PK, 99, new BaseBitmap(1, 2, 99));
+			assertEquals(Set.of(INDEX_PK), toSet(tested.getIndexPrimaryKeys(99)));
+
+			// the index crosses the threshold, carrying its REAL membership - which never included 99
+			tested.ownerAdded(INDEX_PK, 5, new BaseBitmap(1, 2, 3, 4, 5));
+
+			assertEquals(Set.of(INDEX_PK), toSet(tested.getResidualIndexPrimaryKeys()));
+			assertEquals(Set.of(), toSet(tested.getCoveredIndexPrimaryKeys()));
+			assertEquals(
+				Set.of(INDEX_PK), toSet(tested.getIndexPrimaryKeys(99)),
+				"the drifted entry survives the promotion, so the covered half of the resolution still selects " +
+					"an index the residual half probes as well"
+			);
+			assertTrue(
+				tested.getCoveredOwners().contains(99),
+				"and the owner stays in the union the affected set is intersected against, which is what puts " +
+					"the entry in front of the resolver at all"
+			);
+		}
+
+		@Test
 		@DisplayName("the hysteresis band is crossed once, not once per write")
 		void hysteresisBandDoesNotOscillate() {
 			// the shipped threshold, because the amortisation claim is made about this value

@@ -631,11 +631,23 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		final SiblingReducedIndex sibling = new SiblingReducedIndex(
 			target.getOrCreateIndexByPrimaryKey(reducedIndexPK), siblingSchema
 		);
-		// Appended without a duplicate check, because one reduced index primary key reaches this method at
-		// most once per sibling reference and a `SiblingReducedIndex` carries that reference's own schema -
-		// so no owner can be offered the same pair twice. The three producers each guarantee it: the covered
-		// half collects into a bitmap before probing, the residual set IS a bitmap and is disjoint from the
-		// covered one, and the unaccelerated walk's two families advertise disjoint primary keys.
+		// Appended without a duplicate check. One reduced index primary key reaches this method at most once
+		// per sibling reference and a `SiblingReducedIndex` carries that reference's own schema, so an owner
+		// is not normally offered the same pair twice: the covered half collects its selected keys into a
+		// bitmap before probing, the residual set IS a bitmap, and the unaccelerated walk's two families draw
+		// their primary keys from one collection-wide sequence and never collide.
+		// What that argument does NOT cover is the seam between the two accelerated halves. The covered half
+		// selects out of the owner -> index map, never out of `ReducedIndexMembership#getCoveredIndexPrimaryKeys`,
+		// and it never intersects the two - so an entry naming an index that has since been promoted to residual
+		// puts that index in front of both halves. `dropCoverage` forgets one entry per member of the membership
+		// handed to it, so such an entry survives a promotion whenever the entry was built from a membership the
+		// index did not actually have. **No engine path is known to produce that state**: every caller passes
+		// `referenceIndex.getAllPrimaryKeys()`, the live membership, so entries and members move in lockstep. It
+		// is constructible through `ReducedIndexMembership`'s own API, which is what
+		// `ReducedIndexMembershipTest#promotionKeepsAnEntryBuiltFromDriftedMembership` pins - and it is harmless
+		// if it ever arises, because `ReferenceIndexMutator#applyFacetDecisionMatrix` short-circuits through pure
+		// reads when the facet is already in its target bucket and so never reaches `addFacet` or
+		// `removeFromCurrentGroup`.
 		for (final int owner : owners) {
 			result.computeIfAbsent(owner, __ -> new ArrayList<>(4)).add(sibling);
 		}
