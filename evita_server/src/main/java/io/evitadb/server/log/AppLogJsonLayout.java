@@ -29,10 +29,10 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.CoreConstants;
 import ch.qos.logback.core.LayoutBase;
 import ch.qos.logback.core.util.CachingDateFormatter;
-import com.linecorp.armeria.common.RequestContext;
 import com.linecorp.armeria.common.logging.RequestLog;
 import com.linecorp.armeria.common.logging.RequestLogAccess;
 import com.linecorp.armeria.common.logging.RequestLogProperty;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.utils.StringUtils;
 import lombok.Setter;
@@ -111,8 +111,8 @@ public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
 			buf.append("\"");
 		}
 
-		// Add duration_ms field only if Armeria RequestContext is available and request is complete
-		final Long durationMs = getRequestDurationMs();
+		// Add duration_ms field only if the line belongs to a request whose start instant is known
+		final Long durationMs = getRequestDurationMs(event);
 		if (durationMs != null) {
 			buf.append(",");
 			buf.append("\"duration_ms\":");
@@ -138,14 +138,30 @@ public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
 	}
 
 	/**
-	 * Retrieves the request duration in milliseconds from the current Armeria RequestContext.
-	 * Returns null if no request context is available or if the request has not yet completed.
+	 * Resolves how long the request this line belongs to had been running when the line was written.
 	 *
-	 * @return the request duration in milliseconds, or null if unavailable
+	 * Three sources are consulted, in descending order of accuracy:
+	 *
+	 * 1. A completed Armeria request whose context is current on this thread — Armeria's own
+	 *    {@link RequestLog#totalDurationNanos()}, measured monotonically. This is what the access log line gets.
+	 * 2. An in-flight Armeria request whose context is current — the difference between the event's timestamp and
+	 *    the request start. Covers every line written on the event loop and on a gRPC listener callback.
+	 * 3. {@link TracingContext#MDC_REQUEST_START_PROPERTY} carried in the event's MDC — the only source available on
+	 *    an evitaDB worker thread, which never has an Armeria context pushed.
+	 *
+	 * Note that {@link ServiceRequestContext} is deliberately narrower than `RequestContext`: the latter also matches
+	 * an *outbound* client call current on this thread, whose duration has nothing to do with the request being
+	 * served.
+	 *
+	 * Sources 2 and 3 subtract two wall-clock readings, so a backward clock adjustment can make them negative; the
+	 * result is clamped at zero rather than reported as a nonsensical duration.
+	 *
+	 * @param event the event being rendered, supplying the timestamp the elapsed time is measured to
+	 * @return milliseconds since the request started, or null when this line does not belong to a request
 	 */
 	@Nullable
-	private static Long getRequestDurationMs() {
-		final RequestContext requestContext = RequestContext.currentOrNull();
+	private static Long getRequestDurationMs(@Nonnull ILoggingEvent event) {
+		final ServiceRequestContext requestContext = ServiceRequestContext.currentOrNull();
 		if (requestContext != null) {
 			final RequestLogAccess logAccess = requestContext.log();
 			if (logAccess.isAvailable(RequestLogProperty.RESPONSE_END_TIME)) {
@@ -153,11 +169,38 @@ public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
 				if (partialLog.isRequestComplete()) {
 					final long durationNanos = partialLog.totalDurationNanos();
 					return durationNanos / 1_000_000L;
-				} else {
-					return null;
 				}
 			}
+			// the request is still running - REQUEST_START_TIME is set inside the ServiceRequestContext constructor,
+			// so it is available to anything that can observe the context at all
+			if (logAccess.isAvailable(RequestLogProperty.REQUEST_START_TIME)) {
+				return Math.max(0L, event.getTimeStamp() - logAccess.partial().requestStartTimeMillis());
+			}
 		}
-		return null;
+		return getElapsedSinceCapturedRequestStart(event);
+	}
+
+	/**
+	 * Computes the elapsed time from the request start recorded in the event's MDC, which is how the value reaches
+	 * worker threads that never see an Armeria context.
+	 *
+	 * The key is read with a null check rather than a containment check on purpose: the context restored onto a
+	 * worker writes every key unconditionally, so a key whose value was never set is *present* with a null value.
+	 * A malformed value is ignored rather than propagated - rendering a log line must not throw.
+	 *
+	 * @param event the event being rendered
+	 * @return milliseconds since the request started, or null when no usable request start is recorded
+	 */
+	@Nullable
+	private static Long getElapsedSinceCapturedRequestStart(@Nonnull ILoggingEvent event) {
+		final String requestStart = event.getMDCPropertyMap().get(TracingContext.MDC_REQUEST_START_PROPERTY);
+		if (requestStart == null) {
+			return null;
+		}
+		try {
+			return Math.max(0L, event.getTimeStamp() - Long.parseLong(requestStart));
+		} catch (NumberFormatException ex) {
+			return null;
+		}
 	}
 }
