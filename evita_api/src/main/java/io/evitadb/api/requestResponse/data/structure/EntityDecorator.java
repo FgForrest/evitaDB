@@ -639,21 +639,25 @@ public class EntityDecorator implements SealedEntity {
 		final EntitySchemaContract schema = this.delegate.getSchema();
 		ReferenceSchemaContract lastResolvedSchema = null;
 		String lastResolvedSchemaName = null;
+		// the array is grouped by reference name, so the target list changes only when the name does -
+		// `computeIfAbsent` here evaluated a capturing lambda once per reference, not once per name
+		List<ReferenceContract> currentNameBucket = null;
 		for (int i = 0; i < length; i++) {
 			final ReferenceDecorator reference = filteredSortedAndFetchedReferences[i];
 			final String referenceName = reference.getReferenceName();
-			indexByName
-				.computeIfAbsent(
-					referenceName,
-					s -> new ArrayList<>(averageExpectedCount)
-				)
-				.add(reference);
 
 			// resolve schema only when a reference name changes
-			if (lastResolvedSchema == null || !referenceName.equals(lastResolvedSchemaName)) {
+			//noinspection StringEquality
+			if (lastResolvedSchema == null ||
+				(referenceName != lastResolvedSchemaName && !referenceName.equals(lastResolvedSchemaName))) {
 				lastResolvedSchema = schema.getReference(referenceName).orElse(null);
 				lastResolvedSchemaName = referenceName;
+				currentNameBucket = indexByName.computeIfAbsent(
+					referenceName,
+					s -> new ArrayList<>(averageExpectedCount)
+				);
 			}
+			Objects.requireNonNull(currentNameBucket).add(reference);
 			final boolean duplicatesAllowed = lastResolvedSchema == null
 				? Cardinality.ZERO_OR_MORE.allowsDuplicates()
 				: lastResolvedSchema.getCardinality().allowsDuplicates();
