@@ -153,6 +153,7 @@ import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.MapChanges.ValueMerger;
 import io.evitadb.index.map.PersistentTransactionalProducerMap;
 import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
+import io.evitadb.index.mutation.ContributionVerdicts;
 import io.evitadb.index.mutation.EntityIndexMutation;
 import io.evitadb.index.mutation.IndexMutation;
 import io.evitadb.index.mutation.IndexMutationExecutor;
@@ -1942,11 +1943,11 @@ public final class EntityCollection implements
 	 *
 	 * @param mutation the cross-entity re-evaluation signal about to be applied
 	 * @param session  active session for query evaluation, may be null during WAL replay
-	 * @return owner PKs whose condition currently holds, keyed by histogram name, or `null` when the reference
+	 * @return the condition's answer, keyed by histogram name, or `null` when the reference
 	 *         declares no histogram trigger and there is therefore nothing to guard
 	 */
 	@Nullable
-	public Map<String, Bitmap> evaluateHistogramConditionState(
+	public Map<String, ContributionVerdicts> evaluateHistogramConditionState(
 		@Nonnull ReevaluateExpressionMutation mutation,
 		@Nullable EvitaSessionContract session
 	) {

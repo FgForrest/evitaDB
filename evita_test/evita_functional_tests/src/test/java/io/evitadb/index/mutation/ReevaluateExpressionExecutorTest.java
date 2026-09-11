@@ -188,7 +188,7 @@ class ReevaluateExpressionExecutorTest {
 			// only include entries with ownerPK 20 or 30
 			final Bitmap filter = new BaseBitmap(20, 30);
 			final List<AffectedReferenceEntry> entries = collectEntries(
-				resolution.entriesForOwnerPKs(filter)
+				resolution.entriesForOwnerPKs(ContributionVerdicts.ownerLevel(filter))
 			);
 
 			// group1: PK 20 and 30 match; group2: PK 20 matches
@@ -210,7 +210,7 @@ class ReevaluateExpressionExecutorTest {
 
 			final Bitmap filter = new BaseBitmap(99);
 			final List<AffectedReferenceEntry> entries = collectEntries(
-				resolution.entriesForOwnerPKs(filter)
+				resolution.entriesForOwnerPKs(ContributionVerdicts.ownerLevel(filter))
 			);
 
 			assertTrue(entries.isEmpty());
@@ -227,7 +227,7 @@ class ReevaluateExpressionExecutorTest {
 			);
 
 			final List<AffectedReferenceEntry> entries = collectEntries(
-				resolution.entriesForOwnerPKs(new BaseBitmap(10))
+				resolution.entriesForOwnerPKs(ContributionVerdicts.ownerLevel(new BaseBitmap(10)))
 			);
 
 			assertEquals(1, entries.size());
@@ -237,7 +237,7 @@ class ReevaluateExpressionExecutorTest {
 
 	/**
 	 * Tests for the filtered entry iterator returned by
-	 * {@link AffectedEntityResolution#entriesForOwnerPKs(Bitmap)}.
+	 * {@link AffectedEntityResolution#entriesForOwnerPKs(ContributionVerdicts)}.
 	 */
 	@Nested
 	@DisplayName("FilteredEntryIterator")
@@ -253,7 +253,7 @@ class ReevaluateExpressionExecutorTest {
 				List.of(group)
 			);
 			final Iterator<AffectedReferenceEntry> iterator =
-				resolution.entriesForOwnerPKs(new BaseBitmap(10)).iterator();
+				resolution.entriesForOwnerPKs(ContributionVerdicts.ownerLevel(new BaseBitmap(10))).iterator();
 
 			// consume the single entry
 			assertTrue(iterator.hasNext());
@@ -278,7 +278,7 @@ class ReevaluateExpressionExecutorTest {
 
 			// filter only includes PKs from matchingGroup
 			final List<AffectedReferenceEntry> entries = collectEntries(
-				resolution.entriesForOwnerPKs(new BaseBitmap(10, 20))
+				resolution.entriesForOwnerPKs(ContributionVerdicts.ownerLevel(new BaseBitmap(10, 20)))
 			);
 
 			assertEquals(2, entries.size());
@@ -290,7 +290,9 @@ class ReevaluateExpressionExecutorTest {
 		@DisplayName("iterator handles empty resolution")
 		void shouldHandleEmptyResolution() {
 			final Iterator<AffectedReferenceEntry> iterator =
-				AffectedEntityResolution.EMPTY.entriesForOwnerPKs(new BaseBitmap(1, 2, 3)).iterator();
+				AffectedEntityResolution.EMPTY
+					.entriesForOwnerPKs(ContributionVerdicts.ownerLevel(new BaseBitmap(1, 2, 3)))
+					.iterator();
 
 			assertFalse(iterator.hasNext());
 		}
@@ -309,14 +311,63 @@ class ReevaluateExpressionExecutorTest {
 			final Bitmap shouldBe = new BaseBitmap(10, 20);
 			final Bitmap shouldNotBe = new BaseBitmap(30, 40);
 
-			final ConditionalSplit split = new ConditionalSplit(shouldBe, shouldNotBe);
+			final ConditionalSplit split = new ConditionalSplit(
+				ContributionVerdicts.ownerLevel(shouldBe),
+				ContributionVerdicts.ownerLevel(shouldNotBe)
+			);
 
-			assertEquals(2, split.shouldBeIndexed().size());
-			assertEquals(2, split.shouldNotBeIndexed().size());
-			assertTrue(split.shouldBeIndexed().contains(10));
-			assertTrue(split.shouldBeIndexed().contains(20));
-			assertTrue(split.shouldNotBeIndexed().contains(30));
-			assertTrue(split.shouldNotBeIndexed().contains(40));
+			assertEquals(2, split.shouldBeIndexed().allOwnerPKs().size());
+			assertEquals(2, split.shouldNotBeIndexed().allOwnerPKs().size());
+			assertTrue(split.shouldBeIndexed().allOwnerPKs().contains(10));
+			assertTrue(split.shouldBeIndexed().allOwnerPKs().contains(20));
+			assertTrue(split.shouldNotBeIndexed().allOwnerPKs().contains(30));
+			assertTrue(split.shouldNotBeIndexed().allOwnerPKs().contains(40));
+		}
+	}
+
+	/**
+	 * Pins the three-way contract of {@link ContributionVerdicts}: owner-level answers apply to every
+	 * referenced entity, reference-grained answers apply only to the reference they were computed for, and a
+	 * referenced entity the answer never mentions gets nothing rather than the owner-level fallback.
+	 */
+	@Nested
+	@DisplayName("ContributionVerdicts")
+	class ContributionVerdictsTest {
+
+		@Test
+		@DisplayName("an owner-level answer applies to every referenced entity")
+		void shouldApplyOwnerLevelAnswerToEveryReferencedEntity() {
+			final ContributionVerdicts verdicts = ContributionVerdicts.ownerLevel(new BaseBitmap(10, 20));
+
+			assertArrayEquals(new int[]{10, 20}, verdicts.forReferencedEntity(1).getArray());
+			assertArrayEquals(new int[]{10, 20}, verdicts.forReferencedEntity(999).getArray());
+			assertFalse(verdicts.isEmpty());
+		}
+
+		@Test
+		@DisplayName("a reference-grained answer keeps two references of one owner apart")
+		void shouldKeepTwoReferencesOfOneOwnerApart() {
+			// owner 10 holds two references; the condition holds for one of them and not the other
+			final ContributionVerdicts verdicts = new ContributionVerdicts(
+				new BaseBitmap(10),
+				Map.of(1, new BaseBitmap(10), 2, new BaseBitmap())
+			);
+
+			assertArrayEquals(new int[]{10}, verdicts.forReferencedEntity(1).getArray());
+			assertArrayEquals(new int[0], verdicts.forReferencedEntity(2).getArray());
+		}
+
+		@Test
+		@DisplayName("a referenced entity the answer never mentions gets nothing, not the owner-level set")
+		void shouldAnswerUnknownReferencedEntityWithNothing() {
+			// the decisive property: falling back to `allOwnerPKs` here would reinstate the owner-level
+			// collapse the reference-grained answer exists to prevent
+			final ContributionVerdicts verdicts = new ContributionVerdicts(
+				new BaseBitmap(10, 20),
+				Map.of(1, new BaseBitmap(10, 20))
+			);
+
+			assertArrayEquals(new int[0], verdicts.forReferencedEntity(2).getArray());
 		}
 	}
 
@@ -542,9 +593,11 @@ class ReevaluateExpressionExecutorTest {
 		}
 
 		@Test
-		@DisplayName("global evaluation used when filter has no groupHaving")
-		void shouldUseGlobalEvaluationWhenNoGroupHaving() {
-			// Filter without groupHaving — only entityHaving
+		@DisplayName("per-contribution evaluation used when the condition reads the referenced entity")
+		void shouldEvaluatePerContributionWhenConditionReadsReferencedEntity() {
+			// Filter without groupHaving — only entityHaving. It still reads the referenced entity, so it can
+			// tell one of an owner's references from another and must be answered per contribution: a single
+			// global run would hand both contributions the verdict computed for whichever one matched.
 			final FilterBy triggerFilter = new FilterBy(
 				new ReferenceHaving(
 					REFERENCE_NAME,
@@ -558,8 +611,6 @@ class ReevaluateExpressionExecutorTest {
 				REFERENCE_NAME, triggerFilter, DependencyType.REFERENCED_ENTITY_ATTRIBUTE
 			);
 
-			// Even though groups have non-null groupPK, the filter has no groupHaving
-			// so global evaluation should be used (single evaluateFilter call)
 			final AffectedReferenceGroup group1 = new AffectedReferenceGroup(
 				3, 1, new BaseBitmap(100)
 			);
@@ -579,7 +630,7 @@ class ReevaluateExpressionExecutorTest {
 			// Pre-seed: product 200 was previously indexed in group=2 (will be removed)
 			seedFacet(testTarget.globalIndex(), testTarget.refSchema(), 3, 2, 200);
 
-			// Global evaluation returns product 100 as matching
+			// each contribution's evaluation returns product 100 as matching
 			when(target.evaluateFilter(any(FilterBy.class), eq(Scope.LIVE)))
 				.thenReturn(new BaseBitmap(100));
 			when(target.getFacetTrigger(REFERENCE_NAME, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE))
@@ -590,12 +641,52 @@ class ReevaluateExpressionExecutorTest {
 			// Act
 			ReevaluateExpressionExecutorTest.this.executor.execute(mutation, target);
 
-			// Assert: evaluateFilter called exactly ONCE (global evaluation, not per-group)
-			verify(target, times(1)).evaluateFilter(any(), any());
+			// Assert: one evaluation per resolved contribution, not one for the whole mutation
+			verify(target, times(2)).evaluateFilter(any(), any());
 
 			// Product 100 should be added, product 200 should not be present
 			assertFacetPresent(testTarget.globalIndex(), REFERENCE_NAME, 1, 3, 100);
 			assertFacetAbsent(testTarget.globalIndex(), REFERENCE_NAME, 3, 200);
+		}
+
+		@Test
+		@DisplayName("global evaluation used when the condition reads neither the referenced entity nor the group")
+		void shouldUseGlobalEvaluationWhenConditionCannotTellReferencesApart() {
+			// An owner-level predicate: every reference of an owner shares one verdict by construction, so a
+			// single filter run is the exact answer and per-contribution evaluation would buy nothing.
+			final FilterBy triggerFilter = new FilterBy(
+				new AttributeEquals("isActive", true)
+			);
+
+			final StubFacetTrigger facetTrigger = new StubFacetTrigger(
+				REFERENCE_NAME, triggerFilter, DependencyType.REFERENCED_ENTITY_ATTRIBUTE
+			);
+
+			final AffectedEntityResolution affected = new AffectedEntityResolution(
+				List.of(
+					new AffectedReferenceGroup(3, 1, new BaseBitmap(100)),
+					new AffectedReferenceGroup(3, 2, new BaseBitmap(200))
+				)
+			);
+
+			final TestTarget testTarget = createTestTarget(affected, ReferenceIndexType.FOR_FILTERING);
+			final IndexMutationTarget target = testTarget.target();
+			final ReevaluateExpressionMutation mutation = ReevaluateExpressionMutation.withoutOldValues(
+				REFERENCE_NAME, 3, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE
+			);
+
+			when(target.evaluateFilter(any(FilterBy.class), eq(Scope.LIVE)))
+				.thenReturn(new BaseBitmap(100, 200));
+			when(target.getFacetTrigger(REFERENCE_NAME, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE))
+				.thenReturn(facetTrigger);
+			when(target.getHistogramTriggers(REFERENCE_NAME, Scope.LIVE))
+				.thenReturn(Collections.emptyList());
+
+			ReevaluateExpressionExecutorTest.this.executor.execute(mutation, target);
+
+			verify(target, times(1)).evaluateFilter(any(), any());
+			assertFacetPresent(testTarget.globalIndex(), REFERENCE_NAME, 1, 3, 100);
+			assertFacetPresent(testTarget.globalIndex(), REFERENCE_NAME, 2, 3, 200);
 		}
 
 		@Test
@@ -1053,7 +1144,7 @@ class ReevaluateExpressionExecutorTest {
 			);
 
 			// groupPK is non-null so the resolution-index mock fixtures fire, but the trigger
-			// filter has no GroupHaving — so `needsPerGroupEvaluation` is still false and the
+			// filter has no GroupHaving — so the per-contribution gate is still not tripped and the
 			// global path runs (which is where the recursive rewrite traverses arbitrary nesting).
 			final AffectedReferenceGroup group = new AffectedReferenceGroup(
 				3, 1, new BaseBitmap(100)
@@ -1813,7 +1904,7 @@ class ReevaluateExpressionExecutorTest {
 			when(target.getHistogramTriggers(REFERENCE_NAME, Scope.LIVE))
 				.thenReturn(List.of(trigger));
 
-			final Map<String, Bitmap> conditionState =
+			final Map<String, ContributionVerdicts> conditionState =
 				ReevaluateExpressionExecutor.evaluateHistogramConditionState(
 					ReevaluateExpressionMutation.withoutOldValues(
 						REFERENCE_NAME, 3, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE
@@ -1841,7 +1932,7 @@ class ReevaluateExpressionExecutorTest {
 			when(target.getHistogramTriggers(REFERENCE_NAME, Scope.LIVE))
 				.thenReturn(List.of(trigger));
 
-			final Map<String, Bitmap> conditionState =
+			final Map<String, ContributionVerdicts> conditionState =
 				ReevaluateExpressionExecutor.evaluateHistogramConditionState(
 					ReevaluateExpressionMutation.withoutOldValues(
 						REFERENCE_NAME, 3, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE
@@ -1852,7 +1943,7 @@ class ReevaluateExpressionExecutorTest {
 			assertNotNull(conditionState);
 			assertArrayEquals(
 				new int[]{100, 200},
-				conditionState.get(HISTOGRAM_NAME).getArray(),
+				conditionState.get(HISTOGRAM_NAME).allOwnerPKs().getArray(),
 				"an unconditional trigger qualifies every affected owner"
 			);
 			// the pre-pass must not have touched a single index
@@ -1866,7 +1957,7 @@ class ReevaluateExpressionExecutorTest {
 				REFERENCE_NAME, 3, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE
 			);
 			final ReevaluateExpressionMutation enriched = bare.withPreviouslyIndexedOwnerPKs(
-				Map.of(HISTOGRAM_NAME, new BaseBitmap(100))
+				Map.of(HISTOGRAM_NAME, ContributionVerdicts.ownerLevel(new BaseBitmap(100)))
 			);
 
 			assertEquals(
@@ -1876,7 +1967,7 @@ class ReevaluateExpressionExecutorTest {
 			assertEquals(bare.hashCode(), enriched.hashCode());
 			assertNull(bare.previouslyIndexedOwnerPKs());
 			assertArrayEquals(
-				new int[]{100}, enriched.previouslyIndexedOwnerPKs().get(HISTOGRAM_NAME).getArray()
+				new int[]{100}, enriched.previouslyIndexedOwnerPKs().get(HISTOGRAM_NAME).allOwnerPKs().getArray()
 			);
 		}
 
