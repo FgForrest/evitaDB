@@ -28,6 +28,7 @@ import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingWithLabels;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.session.EvitaInternalSessionContract;
@@ -51,6 +52,8 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.VersionUtils.SemVer;
+import io.grpc.Metadata;
+import io.grpc.stub.MetadataUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -68,12 +71,16 @@ import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import static io.evitadb.api.query.Query.query;
+import static io.evitadb.externalApi.grpc.query.QueryConverter.convertQueryParam;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
@@ -81,6 +88,7 @@ import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.TRAFFIC_ENGINE;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -105,6 +113,14 @@ import static org.junit.jupiter.api.Assertions.fail;
 public class EvitaGrpcTrafficRecordingExportIntegrationTest {
 	private static final String GRPC_TRAFFIC_EXPORT_DATASET = "GrpcTrafficRecordingExportIntegrationTest";
 	private static final String GRPC_STOP_RECORDING_DATASET = "GrpcTrafficRecordingStopIntegrationTest";
+	private static final String GRPC_CLIENT_LABEL_DATASET = "GrpcTrafficRecordingClientLabelIntegrationTest";
+	/**
+	 * Header carrying a client label, and the label it carries. These are the shipped defaults of
+	 * `api.headers.label` - the test asserts the stock configuration works, not a bespoke one.
+	 */
+	private static final String LABEL_HEADER = "X-EvitaDB-Label";
+	private static final String LABEL_NAME = "tenant";
+	private static final String LABEL_VALUE = "acme";
 
 	@DataSet(value = GRPC_TRAFFIC_EXPORT_DATASET, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, readOnly = false, destroyAfterClass = true)
 	GrpcClientBuilder setUp(Evita evita, EvitaServer evitaServer) {
@@ -134,6 +150,22 @@ public class EvitaGrpcTrafficRecordingExportIntegrationTest {
 		);
 	}
 
+	/**
+	 * Dedicated (unshared) dataset for the client-label test below - like the stop-recording test it
+	 * activates the recorder, which is catalog-wide singleton state.
+	 */
+	@DataSet(value = GRPC_CLIENT_LABEL_DATASET, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, readOnly = false, destroyAfterClass = true)
+	GrpcClientBuilder setUpForClientLabel(Evita evita, EvitaServer evitaServer) {
+		new TestDataProvider().generateEntities(evita, 5);
+		return TestGrpcClientBuilderCreator.getBuilder(
+			new ClientSessionInterceptor(
+				EvitaClientConfiguration.builder().build().clientId(),
+				new SemVer(2025, 4)
+			),
+			evitaServer.getExternalApiServer()
+		);
+	}
+
 	@AfterEach
 	public void afterEach() {
 		SessionIdHolder.reset();
@@ -149,6 +181,11 @@ public class EvitaGrpcTrafficRecordingExportIntegrationTest {
 
 	}
 
+	@OnDataSetTearDown(GRPC_CLIENT_LABEL_DATASET)
+	void onClientLabelDataSetTearDown(GrpcClientBuilder clientBuilder) {
+
+	}
+
 	@Test
 	@UseDataSet(GRPC_TRAFFIC_EXPORT_DATASET)
 	@DisplayName("Should export the on-demand traffic recording over gRPC and fetch the resulting zip archive")
@@ -161,23 +198,7 @@ public class EvitaGrpcTrafficRecordingExportIntegrationTest {
 				((EvitaInternalSessionContract) session).startRecording(100, false, null, null, 16_000L);
 			}
 		);
-		// startRecording only submits an asynchronous TrafficRecorderTask to the scheduler and returns
-		// immediately; the rich recorder is not swapped in until that task runs. Wait until recording is
-		// genuinely active before generating traffic, otherwise the queries below race ahead of activation,
-		// get handled by the no-op recorder, and the exported zip comes back empty (totalRecordCount == 0).
-		final TrafficRecordingEngine recordingEngine =
-			((Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow()).getTrafficRecordingEngine();
-		final long recordingActivationStart = System.currentTimeMillis();
-		while (!recordingEngine.isRecordingActive()
-			&& System.currentTimeMillis() - recordingActivationStart < 30_000L) {
-			try {
-				Thread.sleep(20L);
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
-				throw new IllegalStateException("Interrupted while waiting for traffic recording to activate", e);
-			}
-		}
-		assertTrue(recordingEngine.isRecordingActive(), "Traffic recording did not activate within 30s");
+		awaitRecordingActive(evita);
 		for (int i = 0; i < 5; i++) {
 			final int primaryKey = i + 1;
 			evita.queryCatalog(
@@ -195,15 +216,159 @@ public class EvitaGrpcTrafficRecordingExportIntegrationTest {
 			);
 		}
 
+		final ExportedArchive exported = readArchive(exportTrafficRecordingArchive(clientBuilder));
+
+		assertTrue(exported.metadataPresent(), "Exported zip must contain a metadata.txt entry");
+		assertFalse(
+			exported.recordings().isEmpty(),
+			"Exported zip must contain at least one traffic recording record"
+		);
+	}
+
+	@Test
+	@UseDataSet(GRPC_STOP_RECORDING_DATASET)
+	@DisplayName("Should send exactly one response when stopping traffic recording over gRPC (regression)")
+	void shouldSendExactlyOneResponseWhenStoppingTrafficRecordingOverGrpc(GrpcClientBuilder clientBuilder) {
 		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = clientBuilder.build(EvitaServiceGrpc.EvitaServiceBlockingStub.class);
+		final GrpcEvitaTrafficRecordingServiceGrpc.GrpcEvitaTrafficRecordingServiceBlockingStub trafficStub =
+			clientBuilder.build(GrpcEvitaTrafficRecordingServiceGrpc.GrpcEvitaTrafficRecordingServiceBlockingStub.class);
+
+		final GrpcEvitaSessionResponse sessionResponse = evitaBlockingStub.createReadWriteSession(
+			GrpcEvitaSessionRequest.newBuilder().setCatalogName(TEST_CATALOG).build()
+		);
+		SessionIdHolder.setSessionId(sessionResponse.getSessionId());
+		try {
+			final GetTrafficRecordingStatusResponse startResponse = trafficStub.startTrafficRecording(
+				GrpcStartTrafficRecordingRequest.newBuilder()
+					.setSamplingRate(100)
+					.setExportFile(false)
+					.build()
+			);
+			final GrpcUuid taskId = startResponse.getTaskStatus().getTaskId();
+
+			// a unary blocking-stub call throws (client-side) if the server sends more than one response
+			// message before completing - exactly what regresses if `stopTrafficRecording` ever calls
+			// `onNext` twice again
+			final GetTrafficRecordingStatusResponse stopResponse = assertDoesNotThrow(
+				() -> trafficStub.stopTrafficRecording(
+					GrpcStopTrafficRecordingRequest.newBuilder().setTaskStatusId(taskId).build()
+				),
+				"stopTrafficRecording must send exactly one response message"
+			);
+			assertNotNull(stopResponse.getTaskStatus());
+		} finally {
+			clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class)
+				.close(GrpcCloseRequest.newBuilder().setCatalogName(TEST_CATALOG).build());
+			SessionIdHolder.reset();
+		}
+	}
+
+	@Test
+	@UseDataSet(GRPC_CLIENT_LABEL_DATASET)
+	@DisplayName("Should carry a client label sent as a gRPC header all the way into the traffic recording")
+	void shouldRecordClientLabelSentAsGrpcHeader(GrpcClientBuilder clientBuilder, Evita evita) throws IOException {
+		// this is the whole chain in one test: a header on the wire -> ObservabilityInterceptor ->
+		// GrpcTracingContext -> the client-label thread local -> TrafficRecordingEngine#collectSystemLabels
+		// -> the recorded query. Every hop is unit-tested on its own; nothing but this proves they are joined up
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				((EvitaInternalSessionContract) session).startRecording(100, false, null, null, 16_000L);
+			}
+		);
+		awaitRecordingActive(evita);
+
+		// the label is attached to the query call alone, never to the whole client. Putting it on the shared
+		// builder would also stamp it on the export session below, and the assertion would then pass on the
+		// exporter's own traffic without the query path having propagated anything
+		final Metadata labelHeader = new Metadata();
+		labelHeader.put(
+			Metadata.Key.of(LABEL_HEADER, Metadata.ASCII_STRING_MARSHALLER),
+			LABEL_NAME + "=" + LABEL_VALUE
+		);
+
+		final GrpcEvitaSessionResponse sessionResponse = clientBuilder
+			.build(EvitaServiceGrpc.EvitaServiceBlockingStub.class)
+			.createReadOnlySession(GrpcEvitaSessionRequest.newBuilder().setCatalogName(TEST_CATALOG).build());
+		SessionIdHolder.setSessionId(sessionResponse.getSessionId());
+		try {
+			clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class)
+				.withInterceptors(MetadataUtils.newAttachHeadersInterceptor(labelHeader))
+				.queryOne(
+					GrpcQueryRequest.newBuilder()
+						// the query API runs in SAFE mode, which refuses inlined literals outright
+						.setQuery("query(collection(?), filterBy(entityPrimaryKeyInSet(?)))")
+						.addAllPositionalQueryParams(
+							List.of(convertQueryParam(Entities.PRODUCT), convertQueryParam(1))
+						)
+						.build()
+				);
+		} finally {
+			// the recorder flushes whole sessions, so nothing this session did is readable until it closes
+			clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class)
+				.close(GrpcCloseRequest.newBuilder().setCatalogName(TEST_CATALOG).build());
+			SessionIdHolder.reset();
+		}
+
+		// the export drains every closed session to disk before reading, which is what makes the query above
+		// visible at all - a plain `getRecordings` triggers no drain and legitimately sees nothing yet
+		final List<String> recordedLabels = readArchive(exportTrafficRecordingArchive(clientBuilder))
+			.recordings()
+			.stream()
+			.filter(TrafficRecordingWithLabels.class::isInstance)
+			.flatMap(recording -> Arrays.stream(((TrafficRecordingWithLabels) recording).labels()))
+			.map(label -> label.name() + "=" + label.value())
+			.distinct()
+			.toList();
+
+		assertTrue(
+			recordedLabels.contains(LABEL_NAME + "=" + LABEL_VALUE),
+			"The `" + LABEL_HEADER + ": " + LABEL_NAME + "=" + LABEL_VALUE + "` header the gRPC caller sent " +
+				"never reached the traffic recording. Labels actually recorded: " + recordedLabels
+		);
+	}
+
+	/**
+	 * Starts blocking until the on-demand recorder is genuinely recording.
+	 *
+	 * {@code startRecording} only submits an asynchronous {@code TrafficRecorderTask} to the scheduler and returns
+	 * immediately; the rich recorder is not swapped in until that task runs. Traffic generated before then is
+	 * handled by the no-op recorder and is silently absent from everything downstream - which reads as a failing
+	 * assertion about the feature under test rather than as the race it is.
+	 *
+	 * @param evita the server whose test catalog is being recorded
+	 */
+	private static void awaitRecordingActive(@Nonnull Evita evita) {
+		final TrafficRecordingEngine recordingEngine =
+			((Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow()).getTrafficRecordingEngine();
+		final long start = System.currentTimeMillis();
+		while (!recordingEngine.isRecordingActive() && System.currentTimeMillis() - start < 30_000L) {
+			sleepBriefly("waiting for traffic recording to activate");
+		}
+		assertTrue(recordingEngine.isRecordingActive(), "Traffic recording did not activate within 30s");
+	}
+
+	/**
+	 * Drives the on-demand export RPC flow end to end and returns the zip archive it produced.
+	 *
+	 * Reading traffic through the export rather than through {@code getRecordings} is deliberate: the exporter
+	 * synchronously drains every closed session from the off-heap buffer to disk before it walks it, so traffic
+	 * generated moments earlier is guaranteed to be included. A direct read triggers no drain and will simply
+	 * come back empty until a background flush happens to run.
+	 *
+	 * @param clientBuilder builder for the gRPC stubs, pointed at the test server
+	 * @return the raw bytes of the exported zip archive
+	 */
+	@Nonnull
+	private static byte[] exportTrafficRecordingArchive(@Nonnull GrpcClientBuilder clientBuilder) {
 		final GrpcEvitaTrafficRecordingServiceGrpc.GrpcEvitaTrafficRecordingServiceBlockingStub trafficStub =
 			clientBuilder.build(GrpcEvitaTrafficRecordingServiceGrpc.GrpcEvitaTrafficRecordingServiceBlockingStub.class);
 		final EvitaManagementServiceGrpc.EvitaManagementServiceBlockingStub managementStub =
 			clientBuilder.build(EvitaManagementServiceGrpc.EvitaManagementServiceBlockingStub.class);
 
-		final GrpcEvitaSessionResponse sessionResponse = evitaBlockingStub.createReadWriteSession(
-			GrpcEvitaSessionRequest.newBuilder().setCatalogName(TEST_CATALOG).build()
-		);
+		final GrpcEvitaSessionResponse sessionResponse = clientBuilder
+			.build(EvitaServiceGrpc.EvitaServiceBlockingStub.class)
+			.createReadWriteSession(GrpcEvitaSessionRequest.newBuilder().setCatalogName(TEST_CATALOG).build());
 		SessionIdHolder.setSessionId(sessionResponse.getSessionId());
 
 		final GetTrafficRecordingStatusResponse exportResponse = trafficStub.exportTrafficRecording(
@@ -242,11 +407,23 @@ public class EvitaGrpcTrafficRecordingExportIntegrationTest {
 			GrpcFetchFileRequest.newBuilder().setFileId(exportedFile.getFileId()).build()
 		);
 		fetchIterator.forEachRemaining(chunk -> fileContent.writeBytes(chunk.getFileContents().toByteArray()));
+		return fileContent.toByteArray();
+	}
 
-		int totalRecordCount = 0;
+	/**
+	 * Unpacks an exported archive, round-tripping every {@code .bin} entry back through
+	 * {@link InputStreamTrafficRecordReader}.
+	 *
+	 * @param archive the raw bytes of an exported zip archive
+	 * @return every recording the archive carries, and whether it declared its metadata entry
+	 * @throws IOException when the archive cannot be unpacked or a record file cannot be read
+	 */
+	@Nonnull
+	private static ExportedArchive readArchive(@Nonnull byte[] archive) throws IOException {
+		final List<TrafficRecording> allRecordings = new ArrayList<>(64);
 		boolean metadataPresent = false;
 		final byte[] buffer = new byte[4_096];
-		try (final ZipInputStream zipInputStream = new ZipInputStream(new ByteArrayInputStream(fileContent.toByteArray()))) {
+		try (final ZipInputStream zipInputStream = new ZipInputStream(new ByteArrayInputStream(archive))) {
 			ZipEntry entry;
 			while ((entry = zipInputStream.getNextEntry()) != null) {
 				if (entry.getName().endsWith(".bin")) {
@@ -264,7 +441,7 @@ public class EvitaGrpcTrafficRecordingExportIntegrationTest {
 									TrafficRecordingCaptureRequest.builder().build()
 								)
 							) {
-								totalRecordCount += recordings.toList().size();
+								allRecordings.addAll(recordings.toList());
 							}
 						}
 					} finally {
@@ -276,46 +453,33 @@ public class EvitaGrpcTrafficRecordingExportIntegrationTest {
 				zipInputStream.closeEntry();
 			}
 		}
-
-		assertTrue(metadataPresent, "Exported zip must contain a metadata.txt entry");
-		assertTrue(totalRecordCount > 0, "Exported zip must contain at least one traffic recording record");
+		return new ExportedArchive(allRecordings, metadataPresent);
 	}
 
-	@Test
-	@UseDataSet(GRPC_STOP_RECORDING_DATASET)
-	@DisplayName("Should send exactly one response when stopping traffic recording over gRPC (regression)")
-	void shouldSendExactlyOneResponseWhenStoppingTrafficRecordingOverGrpc(GrpcClientBuilder clientBuilder) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = clientBuilder.build(EvitaServiceGrpc.EvitaServiceBlockingStub.class);
-		final GrpcEvitaTrafficRecordingServiceGrpc.GrpcEvitaTrafficRecordingServiceBlockingStub trafficStub =
-			clientBuilder.build(GrpcEvitaTrafficRecordingServiceGrpc.GrpcEvitaTrafficRecordingServiceBlockingStub.class);
+	/**
+	 * What an exported traffic-recording archive was found to contain.
+	 *
+	 * @param recordings      every recording read out of the archive's `.bin` entries
+	 * @param metadataPresent whether the archive declared its `metadata.txt` entry
+	 */
+	private record ExportedArchive(
+		@Nonnull List<TrafficRecording> recordings,
+		boolean metadataPresent
+	) {
+	}
 
-		final GrpcEvitaSessionResponse sessionResponse = evitaBlockingStub.createReadWriteSession(
-			GrpcEvitaSessionRequest.newBuilder().setCatalogName(TEST_CATALOG).build()
-		);
-		SessionIdHolder.setSessionId(sessionResponse.getSessionId());
+	/**
+	 * Sleeps for a poll interval, converting an interruption into a failure of the test rather than a silent
+	 * early exit from the surrounding loop.
+	 *
+	 * @param what what the caller was waiting for, for the failure message
+	 */
+	private static void sleepBriefly(@Nonnull String what) {
 		try {
-			final GetTrafficRecordingStatusResponse startResponse = trafficStub.startTrafficRecording(
-				GrpcStartTrafficRecordingRequest.newBuilder()
-					.setSamplingRate(100)
-					.setExportFile(false)
-					.build()
-			);
-			final GrpcUuid taskId = startResponse.getTaskStatus().getTaskId();
-
-			// a unary blocking-stub call throws (client-side) if the server sends more than one response
-			// message before completing - exactly what regresses if `stopTrafficRecording` ever calls
-			// `onNext` twice again
-			final GetTrafficRecordingStatusResponse stopResponse = assertDoesNotThrow(
-				() -> trafficStub.stopTrafficRecording(
-					GrpcStopTrafficRecordingRequest.newBuilder().setTaskStatusId(taskId).build()
-				),
-				"stopTrafficRecording must send exactly one response message"
-			);
-			assertNotNull(stopResponse.getTaskStatus());
-		} finally {
-			clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class)
-				.close(GrpcCloseRequest.newBuilder().setCatalogName(TEST_CATALOG).build());
-			SessionIdHolder.reset();
+			Thread.sleep(20L);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new IllegalStateException("Interrupted while " + what, e);
 		}
 	}
 
