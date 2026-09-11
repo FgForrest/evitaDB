@@ -55,7 +55,7 @@ import java.math.BigDecimal;
  * binary measures both paths at the same fan-out, against the same mutation, on the same data — a sharper
  * comparison than an A/B across two commits, and immune to unrelated drift between them.
  *
- * Only the reference {@link #granularity} names exists in a given trial, so the measured mutation fires
+ * Only the reference named by {@link #granularity} exists in a given trial, so the measured mutation fires
  * exactly one of the paths rather than several at once.
  *
  * **Three points, because the obvious two confound two factors.** A condition that reads the referenced entity
