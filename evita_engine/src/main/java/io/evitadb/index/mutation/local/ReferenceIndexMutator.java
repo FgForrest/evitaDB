@@ -1358,6 +1358,12 @@ public interface ReferenceIndexMutator {
 	 * here. It does not need to: {@link ReducedIndexMembership#ownerAdded} demotes a small residual index into
 	 * coverage the next time it is written, so a seeded slice acquires coverage as its indexes are touched.
 	 *
+	 * Each advertised key is registered unguarded. The map is empty — the sole caller
+	 * {@link #recordOwnerEnteredReducedIndex} seeds only on the branch that just created it, and applies
+	 * `ownerAdded` afterwards — and a reduced index is filed in its type index under exactly one referenced or
+	 * group primary key, so no key arrives twice. A repeat would be a corrupt advertisement, and
+	 * {@link ReducedIndexMembership#registerIndexAsResidual} refuses one rather than letting it pass unnoticed.
+	 *
 	 * @param executor        the mutation executor
 	 * @param referenceSchema schema of the reference being seeded
 	 * @param scope           the scope whose indexes are inspected
@@ -1383,11 +1389,9 @@ public interface ReferenceIndexMutator {
 				() -> "Invalid type of the index (`" + typeIndex.getClass() + "`) registered under `" +
 					typeIndexKey + "`."
 			);
-			((ReferencedTypeEntityIndex) typeIndex).forEachReferenceIndexPrimaryKey(reducedIndexPk -> {
-				if (!membership.isKnown(reducedIndexPk)) {
-					membership.registerIndexAsResidual(reducedIndexPk);
-				}
-			});
+			((ReferencedTypeEntityIndex) typeIndex).forEachReferenceIndexPrimaryKey(
+				membership::registerIndexAsResidual
+			);
 		}
 	}
 
