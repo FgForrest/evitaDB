@@ -40,6 +40,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static java.util.Optional.ofNullable;
 
@@ -243,8 +245,15 @@ public class GrpcTracingContext implements ExternalApiTracingContext<Metadata> {
 			.orElse(null);
 		final Label[] labels = this.headerOptions.label()
 			.stream()
-			.map(headerName -> CONTEXT_GETTER.get(metadata, headerName))
-			.filter(Objects::nonNull)
+			// a label header may legitimately repeat - every occurrence carries one label, exactly as on the JSON
+			// side, so the single-valued getter used for the IP and URI is not enough here
+			.flatMap(headerName -> {
+				final Iterable<String> values = metadata.getAll(
+					Metadata.Key.of(headerName, Metadata.ASCII_STRING_MARSHALLER)
+				);
+				return values == null ?
+					Stream.<String>empty() : StreamSupport.stream(values.spliterator(), false);
+			})
 			.map(header -> {
 				final int index = header.indexOf('=');
 				return index < 0 ?
