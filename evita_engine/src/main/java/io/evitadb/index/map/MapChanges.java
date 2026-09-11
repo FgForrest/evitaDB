@@ -90,9 +90,11 @@ public class MapChanges<K, V>
 	 * - a REPLACEMENT value (the key was overwritten, or removed and re-inserted) that is then REMOVED again — the
 	 *   base-map loop of {@link #createMergedMap(TransactionalLayerMaintainer)} visits the key, but the instance it
 	 *   finds under it is the delegate's ORIGINAL, so the replacement is never visited either;
-	 * - a value DISPLACED by a plain overwrite — the key survives, but the base-map loop skips it precisely because
-	 *   it is now in {@link #modifiedKeys}, and that loop merges the new value, so the displaced instance is
-	 *   visited by neither.
+	 * - a value DISPLACED by a write — whether the key was overwritten outright or removed earlier in this
+	 *   transaction and re-inserted, the key survives and the base-map loop skips it precisely because it is now in
+	 *   {@link #modifiedKeys}, while the {@link #modifiedKeys} loop merges the NEW value, so the displaced instance
+	 *   is visited by neither. The two are one shape and are stashed by one rule; see {@link #put(Object, Object)}
+	 *   for why the release cannot be taken at the moment of the write.
 	 *
 	 * In all three the discarded instance's nested diff layer would orphan and fail the commit with
 	 * `StaleTransactionMemoryException`. Such an instance is stashed here the moment the transaction discards it —
@@ -259,6 +261,11 @@ public class MapChanges<K, V>
 	/**
 	 * Method records insertion / update of the record with particular key. The update is trapped within this object
 	 * data. If the record was not in original map the {@link #createdKeyCount} is incremented.
+	 *
+	 * It also owns half of the transactional-layer lifecycle this class maintains: a {@link TransactionalStateProducer}
+	 * value that the write DISPLACES is stashed into {@link #discardedProducers} for the survivor-guarded release at
+	 * commit, because after the write no commit-time loop visits it. {@link #remove(Object)} owns the other two
+	 * shapes. The body says why the release cannot be taken here.
 	 */
 	@Nullable
 	V put(@Nonnull K key, @Nullable V value) {
@@ -275,24 +282,30 @@ public class MapChanges<K, V>
 		}
 		// record the pending removed-key mutation so a savepoint rollback can reinstate it
 		journalRemovedKeyMembership(key);
-		if (this.removedKeys.remove(key)) {
-			// the key was removed earlier in this transaction and is now being re-inserted with a (potentially)
-			// different value — the original instance is discarded, so release its layer. The release is
-			// identity-based: keep the layer if some surviving key still references the very same instance.
-			if (originalValue instanceof TransactionalStateProducer<?> transactionalLayerProducer
-				&& originalValue != value
-				&& isInstanceNotReferencedBySurvivingKey(key, originalValue)
-			) {
-				transactionalLayerProducer.removeLayer();
-			}
-		} else if (originalValue instanceof TransactionalStateProducer && originalValue != value) {
-			// A PLAIN overwrite, with no removal anywhere: the key now resolves to the new value, so the
-			// commit-time base-map loop skips it (it is in `modifiedKeys`) while the `modifiedKeys` loop merges
-			// the NEW value — the displaced instance is visited by neither, and its nested diff layer orphans.
-			// `ProducerMapChanges#createMergedChampMap` skips it in the same way. Stashed rather than released
-			// here for the same reason removals are: callers may still read the displaced value's live
-			// in-transaction state, and the commit-time release is survivor-guarded, so an instance a surviving
-			// key still references keeps its layer.
+		// a key removed earlier in this transaction is being re-inserted, so it is no longer removed
+		this.removedKeys.remove(key);
+		if (originalValue instanceof TransactionalStateProducer && originalValue != value) {
+			// Whether the key was removed earlier in this transaction and is now re-inserted, or simply
+			// overwritten, the outcome is identical: the key resolves to the NEW value, so the commit-time
+			// base-map loop skips it (it is in `modifiedKeys`) while the `modifiedKeys` loop merges the new
+			// value — the displaced instance is visited by neither, and its nested diff layer orphans.
+			// `ProducerMapChanges#createMergedChampMap` skips it in the same way. Both shapes are therefore
+			// handled by ONE rule: stash the displaced instance and let `releaseOrphanedDiscardedLayers` release
+			// it at commit, under the identity-based survivor guard.
+			//
+			// Deferring is not a stylistic preference. Evaluated here, that guard answers from a key → value
+			// mapping that is not yet final, so an alias created LATER in the same transaction is invisible to it
+			// and the layer is released out from under a key that survives — after which `copyWithOwnLayer` finds
+			// no entry, `TransactionalLayerProducer#createCopyWithMergedTransactionalMemory` is handed a `null`
+			// layer, and the transaction commits having silently dropped the change. Nothing raises, because a
+			// released layer is exactly what `verifyLayerWasFullySwept` is looking for. At commit the mapping is
+			// final and the same guard sees every alias. It also keeps the value readable: callers legitimately
+			// read a discarded value's live in-transaction state afterwards (`HierarchyIndex
+			// #makeOrphansRecursively` iterates the removed `TransactionalIntArray`, then releases its layer
+			// itself — `removeLayer` is idempotent, so that explicit release simply makes this one a no-op).
+			//
+			// The cost is retention: the stash holds a strong reference to every displaced producer until commit,
+			// so a transaction churning many keys under one map holds more than an eager release would.
 			stashDiscardedProducer(originalValue);
 		}
 		return originalValue;
@@ -358,6 +371,19 @@ public class MapChanges<K, V>
 	 * just that set is both correct and `O(modifiedKeys)` rather than `O(mapDelegate)`; the latter would silently
 	 * degrade producer-map removals to `O(removed · N)` and defeat {@link ProducerMapChanges#createMergedChampMap}'s
 	 * intended `O(Δ·log₃₂N)` commit.
+	 *
+	 * **{@link ProducerMapChanges#markValueMutated} keys are deliberately not scanned either, and adding them would
+	 * not help.** A dirty key's value still lives in {@link #mapDelegate} — the very map excluded above — so a scan
+	 * of the dirty set would reach the same instances by a different route while missing the case that matters: a
+	 * mark records the key the *caller* used, so a second, unmarked delegate key can hold the same instance whether
+	 * or not the first was marked. Aliasing is a property of the delegate, not of dirtiness; only a full delegate
+	 * scan would close it, and that is the cost the design bought its way out of.
+	 *
+	 * **When the answer is taken matters as much as what is scanned.** Every caller evaluates this at commit, on
+	 * the final key → value mapping — the removal loops of both merge paths and the discarded-producer sweep.
+	 * Asking mid transaction would answer from a mapping that is not final yet, so an alias introduced by a later
+	 * statement would be invisible and its layer released out from under it; {@link #put(Object, Object)} carries
+	 * the worked example of why that failure is silent.
 	 *
 	 * @param removedKey the key being removed (excluded from the survivor scan); pass `null` to exclude nothing
 	 *                   (used by the discarded-producer stash sweep, where the instance no longer lives under any

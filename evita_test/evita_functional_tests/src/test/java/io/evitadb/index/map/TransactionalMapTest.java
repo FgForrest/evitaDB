@@ -1482,17 +1482,34 @@ class TransactionalMapTest {
 			// per owner, drops the entry when the owner leaves its last covered index, re-creates it when the owner
 			// joins another, and drops it again when that one goes - all inside one entity mutation. Every such
 			// second removal used to orphan the re-inserted bitmap's layer and suspend the catalog at commit.
+			//
+			// The delegate's own instance is mutated first so that BOTH discarded instances carry a live layer:
+			// without that, the re-insert has nothing to dispose of and the test agrees with its code whatever the
+			// code does. It also makes the read-after-remove assertion below reachable.
+			final TransactionalBitmap displaced = new TransactionalBitmap(1);
 			final Map<String, TransactionalBitmap> delegate = new LinkedHashMap<>();
-			delegate.put("a", new TransactionalBitmap(1));
+			delegate.put("a", displaced);
 			final TransactionalMap<String, TransactionalBitmap> map = producerMap(delegate);
 
 			assertStateAfterCommit(
 				map,
 				original -> {
+					// open an ALIVE nested layer on the instance the delegate holds
+					displaced.add(2);
 					// drop the original entry, then put a fresh producer instance back under the same key
-					original.remove("a");
+					final TransactionalBitmap removed = original.remove("a");
+					assertSame(displaced, removed, "remove() must hand back the instance the delegate held");
 					final TransactionalBitmap reinserted = new TransactionalBitmap(5);
 					original.put("a", reinserted);
+					// The read-after-remove every discard site in `MapChanges` promises: the write that discarded
+					// the instance must not take its layer with it, or a caller holding the reference - as
+					// `HierarchyIndex#makeOrphansRecursively` does across recursive removes - silently reverts to
+					// the pre-transaction content.
+					assertArrayEquals(
+						new int[]{1, 2}, removed.getArray(),
+						"the displaced instance must still report its live in-transaction state after the "
+							+ "re-insert that discarded it"
+					);
 					// open an ALIVE nested layer on the re-inserted instance, leaving its content unchanged
 					reinserted.add(6);
 					reinserted.remove(6);
@@ -1503,6 +1520,52 @@ class TransactionalMapTest {
 					assertEquals(1, original.size());
 					assertArrayEquals(new int[]{1}, original.get("a").getArray());
 					assertTrue(committed.isEmpty());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a value displaced by a re-insert keeps its layer when the alias appears afterwards")
+		void shouldNotReleaseLayerOfADisplacedValueWhenTheAliasAppearsAfterTheReinsert() {
+			// `MapChanges#put` stashes the displaced instance and lets the identity-based survivor guard run at
+			// commit, on the final key -> value mapping. The statement order below is what that buys and is the
+			// whole point: the alias under "b" is introduced AFTER the re-insert, so a guard evaluated at the
+			// moment of the put would not see it and would release a layer a surviving key still needs. Swapping
+			// the last two statements exercises the same code with the alias already in place, so the two orders
+			// must agree - an outcome that depends on statement order inside one transaction is the failure this
+			// pins. The plain-overwrite arm is the same arm and carries the same guarantee.
+			final TransactionalBitmap displaced = new TransactionalBitmap(1);
+			final Map<String, TransactionalBitmap> delegate = new LinkedHashMap<>();
+			delegate.put("a", displaced);
+			final TransactionalMap<String, TransactionalBitmap> map = producerMap(delegate);
+
+			assertStateAfterCommit(
+				map,
+				original -> {
+					// open an ALIVE nested layer on the instance the delegate holds
+					displaced.add(2);
+					// remove the key and put a different instance back under it - the displaced instance is
+					// stashed here, not released
+					original.remove("a");
+					original.put("a", new TransactionalBitmap(9));
+					// ... and only now does a surviving key start referencing the displaced instance
+					original.put("b", displaced);
+				},
+				(original, committed) -> {
+					assertEquals(1, original.size());
+					assertArrayEquals(new int[]{1}, original.get("a").getArray());
+					assertEquals(2, committed.size());
+					assertArrayEquals(new int[]{9}, committed.get("a").getArray());
+					// Releasing the layer here instead would be SILENT: with the layer gone
+					// `verifyLayerWasFullySwept` finds nothing to complain about and
+					// `TransactionalBitmap#createCopyWithMergedTransactionalMemory` answers a null layer with the
+					// unmerged instance, so the transaction would commit having dropped the mutation. That is why
+					// this asserts the committed content rather than expecting a throw.
+					assertArrayEquals(
+						new int[]{1, 2}, committed.get("b").getArray(),
+						"the alias introduced after the re-insert must carry the in-transaction mutation - the "
+							+ "survivor guard is evaluated at commit, on the final mapping"
+					);
 				}
 			);
 		}
@@ -1535,6 +1598,46 @@ class TransactionalMapTest {
 					assertTrue(committed.containsKey("b"));
 					assertFalse(committed.containsKey("a"));
 					assertArrayEquals(new int[]{7, 8}, committed.get("b").getArray());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a delegate aliasing one producer across two keys is outside the survivor scan's premise")
+		void shouldLoseTheSharedLayerWhenTheDelegateAliasesOneInstanceAcrossTwoKeys() {
+			// `MapChanges#isInstanceNotReferencedBySurvivingKey` scans the in-transaction diff layer alone, on the
+			// premise that a committed or constructed delegate mints one producer instance per key and therefore
+			// never holds a cross-key alias. That premise is stated in the method contract and enforced nowhere:
+			// the only thing that could enforce it is a full delegate scan, which would make producer-map removals
+			// `O(removed * N)` and defeat the `O(d * log32 N)` commit the persistent map exists for.
+			//
+			// This pins what a violation costs, so a change that starts aliasing producers across delegate keys
+			// fails here rather than losing data silently at a customer's commit. Removing "a" finds no surviving
+			// reference in the diff layer, releases the shared layer, and the still-mapped "b" is then merged from
+			// a null layer - committing the pre-transaction content with nothing raised. It is order-dependent as
+			// well: merging "b" before visiting the removed "a" would commit `{7, 8}` instead, and only the
+			// delegate's `LinkedHashMap` ordering decides which happens. An outcome that turns on iteration order
+			// is exactly why the premise is load-bearing rather than a nicety.
+			final TransactionalBitmap shared = new TransactionalBitmap(7);
+			final Map<String, TransactionalBitmap> delegate = new LinkedHashMap<>();
+			delegate.put("a", shared);
+			delegate.put("b", shared);
+			final TransactionalMap<String, TransactionalBitmap> map = producerMap(delegate);
+
+			assertStateAfterCommit(
+				map,
+				original -> {
+					shared.add(8);
+					original.remove("a");
+				},
+				(original, committed) -> {
+					assertEquals(2, original.size());
+					assertEquals(1, committed.size());
+					assertArrayEquals(
+						new int[]{7}, committed.get("b").getArray(),
+						"the surviving key commits the pre-transaction content, because the layer its value owns "
+							+ "was released together with the removed key the scan could not see past"
+					);
 				}
 			);
 		}
