@@ -61,8 +61,9 @@ import static io.evitadb.roaringbitmap.PersistentRoaringBitmap.and;
 import static io.evitadb.roaringbitmap.PersistentRoaringBitmap.intersects;
 
 /**
- * Times the sibling-resolver walk of issue #1529 against a real catalog, in the three shapes that matter, and
- * reports the one number the whole decision still lacks: **nanoseconds per probed partition**.
+ * Times the sibling-resolver walk of issue #1529 against a real catalog, in both affected-owner shapes that
+ * matter — the sparse and the dense end of the mutated reference's partition-size distribution — and reports
+ * the one number the whole decision still lacks: **nanoseconds per probed partition**.
  *
  * # The arms
  *
@@ -100,7 +101,8 @@ import static io.evitadb.roaringbitmap.PersistentRoaringBitmap.intersects;
  * still see the transaction's own writes. They exist to bound what step 1 of the #1529 plan (hoisting the
  * loop-invariant transaction resolution) could ever be worth, before that seam is cut into the engine.
  *
- * All three are **probe-only**: they stop at the intersection and never call `getOrCreateIndexByPrimaryKey`.
+ * Every arm, A through G, is **probe-only**: they stop at the intersection and never call
+ * `getOrCreateIndexByPrimaryKey`.
  * That matches how the 2026-09-09 decomposition defined "the walk" (0.47 ms) against the whole resolver
  * (2.0 ms), and it keeps the arms read-only so they can share one live catalog.
  *

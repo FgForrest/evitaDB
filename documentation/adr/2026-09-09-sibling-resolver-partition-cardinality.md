@@ -1,7 +1,7 @@
 ---
 title: Bound the cross-entity facet walk with a size-thresholded owner→partition index, not a blanket one
 date: 2026-09-09
-updated: 2026-09-10 13:40
+updated: 2026-09-10 20:10
 status: accepted
 kind: optimization
 issues: [1529]
@@ -181,8 +181,17 @@ an `Integer` box per call. All of that together is the 39 ns/partition of `B −
 
 ### The implementation, measured against the model that justified it
 
-`ConditionalFacetMembershipReport` runs the shipped resolver and the walk it replaces in one process, with a
-bound transaction and rotated arm order, checksum-compared.
+`ConditionalFacetMembershipReport` runs a *probe-only approximation* of the shipped resolver against the walk
+it replaces, in one process, with a bound transaction and rotated arm order, checksum-compared.
+
+> **The lookup figures below are a lower bound, and every speedup ratio is an upper bound.** The harness's
+> covered half emits the map's `(owner, index)` pairs directly, where the shipped
+> `ReevaluateExpressionExecutor#collectOwnersFromMembership` collects the selected keys and hands them to
+> `collectOwnersOfProbedIndexes`, which *resolves each index and intersects its members against the affected
+> set*. Neither arm pays the registering re-fetch or the per-owner de-duplication either. The checksum gate
+> cannot catch this: on freshly loaded, unmutated data both arms compute the same answer while doing different
+> amounts of work to reach it. The harness must be corrected to match the shipped resolver and re-run before
+> any figure here is quoted as the implementation's cost.
 
 | `P` | shape | walk | lookup | |
 |---|---|---|---|---|
@@ -195,12 +204,19 @@ Memory: **4.3 MiB** on the shipping schema, **25.0 MiB** with every reference pa
 lookup over 188,387 reduced indexes costs **173.5 ms**, against a 26 s catalog load.
 
 **Holding the model to account.** Arm C predicted the sparse case to 3.5 % (1.72 vs 1.78 ms), the memory to
-1.6 % (24.6 vs 25.0 MiB) and the residual walk exactly (2,912). It was **40 % optimistic in the dense
-shape** — 10.65 ms modelled against 14.89 ms measured — because the model emitted a pair and moved on where
-the implementation must resolve each emitted index through `getOrCreateIndexByPrimaryKey` (the registering
-accessor that enrols it in the dirty set, not optional) and de-duplicate siblings per owner. At 57,962
-affected owners that is paid tens of thousands of times. The decision stands; **arm C's dense figure must
-not be quoted for the implementation.**
+1.6 % (24.6 vs 25.0 MiB) and the residual walk exactly (2,912). It was **40 % optimistic in the dense shape**
+— 10.65 ms modelled against 14.89 ms measured.
+
+**The reason originally given for that 40 % was wrong, and is retracted.** It attributed the gap to the
+implementation resolving each emitted index through `getOrCreateIndexByPrimaryKey` and de-duplicating siblings
+per owner. `ConditionalFacetMembershipReport` does neither — `getOrCreateIndexByPrimaryKey` does not appear in
+it, and its own `reportTimings` javadoc states both arms are probe-only. So the 14.89 ms it measured is not
+the implementation's cost either; it is a lower bound on it, and whatever produced the 40 % gap has not been
+identified. What survives unchanged is the conclusion: **arm C's dense figure must not be quoted for the
+implementation** — and neither, now, may this row's. The 8.3× and 58× cases carry the decision comfortably at
+any plausible correction; the **1.41x** dense case at `P` = 4,633 is the one to re-take first, being the
+smallest reported gain and therefore the one a missing per-index resolve-and-intersect erodes proportionally
+most.
 
 **Absolute figures do not transfer between the two spikes.** The same walk measures 1.76 ms here and 836 µs
 in `ConditionalFacetSiblingResolverReport`, 103 ms here and 80.7 ms there. Only ratios within one run mean

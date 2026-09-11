@@ -396,8 +396,9 @@ public class ConditionalFacetPartitionCensus {
 	 *
 	 * 1. **A sibling is partitioned.** Its partitions join the walk of every existing trigger.
 	 * 2. **A second reference gains a `facetedPartially` expression.** The reference that carries today's trigger is
-	 *    excluded from its own walk (`resolveSiblingReducedIndexes:449`) — but it is *not* excluded from anybody
-	 *    else's. A second trigger makes today's protected reference somebody else's sibling.
+	 *    excluded from its own walk — `ReevaluateExpressionExecutor#resolveSiblingReducedIndexes` skips the sibling
+	 *    whose name equals the mutated reference's — but it is *not* excluded from anybody else's. A second trigger
+	 *    makes today's protected reference somebody else's sibling.
 	 *
 	 * @param collection   the collection whose references fan out
 	 * @param partitioned  references currently `FOR_FILTERING_AND_PARTITIONING`
@@ -499,10 +500,12 @@ public class ConditionalFacetPartitionCensus {
 	}
 
 	/**
-	 * Returns up to {@link #FANOUT_SAMPLES} partition primary keys of a type index, spread across its
-	 * advertisement order so the sample is not all taken from one end.
+	 * Returns up to {@link #FANOUT_LARGEST_SAMPLES} + {@link #FANOUT_SAMPLES} partition primary keys of a type
+	 * index: the largest partitions by owner count, followed by a sample spread across the advertisement order
+	 * so the rest is not all taken from one end.
 	 *
-	 * @param typeIndex the type index to sample
+	 * @param collection the collection holding the indexes, needed to size each partition
+	 * @param typeIndex  the type index to sample
 	 * @return the sampled reduced-index primary keys
 	 */
 	@Nonnull

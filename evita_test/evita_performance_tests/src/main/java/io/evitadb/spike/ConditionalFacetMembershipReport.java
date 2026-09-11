@@ -60,24 +60,44 @@ import static io.evitadb.index.bitmap.RoaringBitmapBackedBitmap.getRoaringBitmap
 import static io.evitadb.roaringbitmap.PersistentRoaringBitmap.and;
 
 /**
- * Measures the **shipped** reduced-index membership lookup on a real catalog — what it costs in memory, and
+ * Measures the **shipped** reduced-index membership structure on a real catalog — what it costs in memory, and
  * what the trigger's sibling resolution costs with it against the walk it replaces.
  *
- * This is deliberately separate from `ConditionalFacetSiblingResolverReport`, whose arm C is a *simulation*
- * built by the harness itself. The real structure does strictly more work than that simulation — it resolves
- * every emitted index through the registering accessor and de-duplicates siblings per owner — so quoting arm
- * C's numbers for the implementation would be quoting a model, which is the mistake this whole line of work
- * has already made three times.
+ * The STRUCTURE measured is the shipped one. Slices are filled through the very
+ * {@link ReducedIndexMembership#registerIndex} call `EntityCollection#rebuildReducedIndexMembership` makes on
+ * the load path, so the threshold decisions, the covered/residual split and the heap figure are all real, at
+ * real cardinality. This is what separates the report from `ConditionalFacetSiblingResolverReport`, whose
+ * arm C is a reverse map the harness invents.
  *
- * # Raising the schema
+ * # What the timed arms measure, and where they diverge from the shipped resolver
  *
- * The high-cardinality case is reached by passing references to raise to
- * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}. Because the engine does not rebuild indexes on a
- * schema change (issue #409), the raise is followed by a **close and reopen**, which is what makes the
- * load-time build run over the newly-admitted reduced indexes. That is the supported path — a full reindex —
- * compressed to its essential step, and it exercises the build at real cardinality rather than simulating it.
+ * The RESOLUTION measured is **not** the shipped one. Both arms are re-implementations local to this class,
+ * and they diverge from `ReevaluateExpressionExecutor` in two ways, in increasing order of consequence:
  *
- * Run it against a DISPOSABLE copy of the dataset: it writes a schema mutation.
+ * - **Both arms are probe-only.** They stop at the intersection and never call `getOrCreateIndexByPrimaryKey`,
+ *   so neither pays the registering re-fetch nor the per-owner de-duplication of `SiblingReducedIndex`
+ *   instances the shipped resolver pays. That matches how the 2026-09-09 decomposition defined "the walk"
+ *   against the whole resolver, and it costs both arms the same, so it does not tilt one against the other.
+ * - **The lookup arm's COVERED half diverges further, and only that half.** {@link #resolveWithLookup} emits
+ *   the map's `(owner, index)` pairs straight out of {@link ReducedIndexMembership#getIndexPrimaryKeys},
+ *   whereas `ReevaluateExpressionExecutor#collectOwnersFromMembership` uses the map as an index *selector*
+ *   only — it collects the selected primary keys, then resolves each index and intersects its member bitmap
+ *   against the affected owners, exactly as the residual half does. This arm performs none of that resolve
+ *   and intersect.
+ *
+ * The emitted pairs are the same either way, and the checksum proves it; the work is not. So the lookup arm's
+ * timings are a **lower bound** on what the shipped lookup costs, and — because the walk arm is not short-cut
+ * in the same way — the lookup-over-walk speedup printed here is an **upper bound** on the shipped one. Every
+ * figure carried into `documentation/adr/2026-09-09-sibling-resolver-partition-cardinality.md` inherits both
+ * bounds. Bringing the covered half in line with the shipped selector changes what is measured rather than how
+ * it is described, so it is left to a deliberate re-measurement instead of being done in passing.
+ *
+ * # Reaching the high-cardinality case
+ *
+ * No schema is raised and nothing is written — the report is read-only. References named on the command line
+ * get a STANDALONE slice built for them by {@link #buildSlicesFor} out of their live indexes, which reaches
+ * the end state a raise-and-reload would leave behind without the schema write the production export cannot
+ * accept. That method's javadoc carries the reasoning and says what the substitution does not exercise.
  *
  * ```
  * java -Xmx48g -cp <cp> io.evitadb.spike.ConditionalFacetMembershipReport <dir> <catalog> <collection> [refs]
@@ -150,6 +170,8 @@ public class ConditionalFacetMembershipReport {
 	 *
 	 * @param collection  the measured collection
 	 * @param globalIndex the collection's global index, which carries the lookup
+	 * @param simulated   standalone slices built by {@link #buildSlicesFor}, keyed by reference name; each one
+	 *                    takes precedence over the slice the global index carries for that reference
 	 */
 	private static void reportCoverage(
 		@Nonnull EntityCollection collection,
@@ -193,11 +215,16 @@ public class ConditionalFacetMembershipReport {
 	 * Times the sibling resolution the trigger performs, with the lookup and without it, over the sparse and
 	 * dense affected-owner shapes of the reference carrying the conditional facet.
 	 *
-	 * Both arms are probe-only and emit the same `(owner, index)` pairs; the checksum is compared so an arm
-	 * computing a different answer is never reported as merely faster.
+	 * Both arms emit the same `(owner, index)` pairs; the checksum is compared so an arm computing a different
+	 * answer is never reported as merely faster. Both are also probe-only — they stop at the intersection and
+	 * never call `getOrCreateIndexByPrimaryKey` — and {@link #resolveWithLookup}'s covered half does not even
+	 * probe. Neither figure is the shipped resolver's; see the class javadoc for what that costs the reading.
 	 *
-	 * @param collection  the measured collection
-	 * @param globalIndex the collection's global index, which carries the lookup
+	 * @param collection    the measured collection
+	 * @param globalIndex   the collection's global index, which carries the lookup
+	 * @param simulated     standalone slices built by {@link #buildSlicesFor}, keyed by reference name
+	 * @param extraSiblings references named on the command line, added to the sibling set even when the schema
+	 *                      does not index them at `FOR_FILTERING_AND_PARTITIONING`
 	 */
 	private static void reportTimings(
 		@Nonnull EntityCollection collection,
@@ -280,10 +307,24 @@ public class ConditionalFacetMembershipReport {
 	}
 
 	/**
-	 * Resolves the sibling reduced indexes the way the shipped executor does, through the lookup.
+	 * Resolves the sibling reduced indexes through the lookup, in two halves that do NOT cost the same:
+	 *
+	 * - the **residual** half probes, exactly as the shipped resolver does: it resolves each residual index and
+	 *   intersects its member bitmap against the affected owners;
+	 * - the **covered** half does not. It intersects the affected set against the lookup's covered-owner union,
+	 *   then emits `pair(owner, indexPk)` straight out of {@link ReducedIndexMembership#getIndexPrimaryKeys} —
+	 *   no index is resolved and no bitmap is intersected.
+	 *
+	 * `ReevaluateExpressionExecutor#collectOwnersFromMembership` probes both halves: it treats the lookup as an
+	 * index selector, collects the primary keys it names and hands them to the same probe the residual half
+	 * uses. The pairs agree, so the checksum passes; the cost does not, and this arm's covered half is the
+	 * reason every figure here is a lower bound on the shipped resolver. Fixing it is a measurement change and
+	 * is deliberately not made here — see the class javadoc.
 	 *
 	 * @param collection  the measured collection
 	 * @param globalIndex the collection's global index
+	 * @param simulated   standalone slices built by {@link #buildSlicesFor}, taking precedence over the global
+	 *                    index's own slice for the references they name
 	 * @param siblings    the partitioned sibling references
 	 * @param affected    affected owner primary keys
 	 * @return checksum of the emitted `(owner, index)` pairs
@@ -429,9 +470,9 @@ public class ConditionalFacetMembershipReport {
 	 * is a two-line schema test rather than a performance question, and
 	 * `ReducedIndexMembershipCompletenessTest` covers it.
 	 *
-	 * @param collection  the measured collection
-	 * @param globalIndex the collection's global index
-	 * @param references  references to build slices for
+	 * @param collection the measured collection
+	 * @param references references to build slices for
+	 * @return the built slices, keyed by reference name
 	 */
 	@Nonnull
 	private static Map<String, ReducedIndexMembership> buildSlicesFor(
@@ -440,12 +481,15 @@ public class ConditionalFacetMembershipReport {
 	) {
 		final Map<String, ReducedIndexMembership> built = new HashMap<>(references.size());
 		for (final String referenceName : references) {
-			// A STANDALONE instance, deliberately not the one hanging off the global index. That one already
-			// holds this reference's indexes as residual - the load build records every reference's
-			// advertisement so an absent slice always means "no indexes" - and `registerIndex` rightly
-			// refuses to re-register them. On a genuinely raised-and-reloaded catalog the load build would
-			// see the reference as partitioned and decide coverage in the first place; this reproduces that
-			// end state without needing the schema write the export cannot accept.
+			// A STANDALONE instance, deliberately not the one hanging off the global index. The global index
+			// holds no slice for these references at all: `EntityCollection#rebuildReducedIndexMembership`
+			// builds one only for a reference indexed at FOR_FILTERING_AND_PARTITIONING, and these are the
+			// ones that are not. Note that an absent slice is NOT "no indexes" - to the shipped resolver it
+			// means "walk the whole advertisement", which is precisely the baseline being measured against.
+			// Calling `getOrCreateReducedIndexMembership` here would therefore create a slice on a live index
+			// and change the very thing under measurement. On a genuinely raised-and-reloaded catalog the load
+			// build would see the reference as partitioned and decide coverage in the first place; this
+			// reproduces that end state without needing the schema write the export cannot accept.
 			final ReducedIndexMembership membership = new ReducedIndexMembership();
 			built.put(referenceName, membership);
 			for (final EntityIndexType family : new EntityIndexType[]{

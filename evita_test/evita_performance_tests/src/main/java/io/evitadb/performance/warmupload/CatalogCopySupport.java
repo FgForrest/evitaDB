@@ -87,6 +87,18 @@ import static io.evitadb.api.query.QueryConstraints.referenceContentWithAttribut
 public class CatalogCopySupport {
 
 	/**
+	 * Reference names promoted from `FOR_FILTERING` to `FOR_FILTERING_AND_PARTITIONING` on the target schema,
+	 * parsed once from the `evita.warmup.raiseReferences` system property. A single `*` promotes every plain
+	 * reference; an empty value (the default) replicates the source index types faithfully.
+	 *
+	 * This exists to measure the write path in the shape a client creates by flipping that one schema flag.
+	 * Raising a reference on an already-populated catalog is not supported (the engine does not rebuild
+	 * indexes on a schema change - issue #409), but the target catalog here is created empty and populated
+	 * afterwards, which is precisely the full-reindex path that *is* supported.
+	 */
+	private static final Set<String> RAISED_REFERENCES = parseRaisedReferences();
+
+	/**
 	 * Purely static helper - never instantiated.
 	 */
 	private CatalogCopySupport() {
@@ -380,18 +392,6 @@ public class CatalogCopySupport {
 			);
 		}
 	}
-
-	/**
-	 * Reference names promoted from `FOR_FILTERING` to `FOR_FILTERING_AND_PARTITIONING` on the target schema,
-	 * parsed once from the `evita.warmup.raiseReferences` system property. A single `*` promotes every plain
-	 * reference; an empty value (the default) replicates the source index types faithfully.
-	 *
-	 * This exists to measure the write path in the shape a client creates by flipping that one schema flag.
-	 * Raising a reference on an already-populated catalog is not supported (the engine does not rebuild
-	 * indexes on a schema change - issue #409), but the target catalog here is created empty and populated
-	 * afterwards, which is precisely the full-reindex path that *is* supported.
-	 */
-	private static final Set<String> RAISED_REFERENCES = parseRaisedReferences();
 
 	/**
 	 * Parses {@link #RAISED_REFERENCES} from the `evita.warmup.raiseReferences` system property.

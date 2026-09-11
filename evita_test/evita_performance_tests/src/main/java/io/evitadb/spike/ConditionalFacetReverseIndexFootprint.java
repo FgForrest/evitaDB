@@ -59,10 +59,13 @@ import java.util.PrimitiveIterator.OfInt;
  * # The question
  *
  * The reverse map turns the sibling resolver's walk from `O(all partitions of the collection)` into
- * `O(affected owners x partitions per owner)`. The cost is a permanent, resident structure on every
- * {@link ReferencedTypeEntityIndex}. Whether that trade is worth taking cannot be argued from the shape of the
- * structure — it depends on how many *owners* a real reference has and how many partitions each sits in, which is
- * a property of somebody's catalog.
+ * `O(affected owners x partitions per owner)`. The cost is a permanent, resident structure, priced here at the
+ * placement this harness was written to evaluate — one per {@link ReferencedTypeEntityIndex}. That is a
+ * *candidate* placement and not where the structure landed: `ReducedIndexMembership` hangs off
+ * `GlobalEntityIndex`, keyed by reference name. The pricing carries over unchanged, because it is a function of
+ * the owners and partitions of one reference either way. Whether the trade is worth taking cannot be argued
+ * from the shape of the structure — it depends on how many *owners* a real reference has and how many
+ * partitions each sits in, which is a property of somebody's catalog.
  *
  * # Why it is built the expensive way
  *
@@ -209,6 +212,8 @@ public class ConditionalFacetReverseIndexFootprint {
 	 *
 	 * @param collection    the collection holding the indexes
 	 * @param referenceName the reference to price
+	 * @param threshold     maximum owners a partition may hold and still be covered by the map; larger ones are
+	 *                      counted as residual probes instead
 	 * @return the reading for this reference
 	 */
 	@Nonnull

@@ -58,11 +58,14 @@ import java.util.TreeMap;
  *   reduced index only when a reference is written — so the partitions accumulate as entities are rewritten,
  *   and the exposure is one schema edit *plus a republish cycle* away.
  *
- * `ReferenceIndexMutator#collectOwnerReducedIndexes` documents the second answer ("the only ones for which
- * reduced indexes exist at all"), while the `#1529` census counted 183,754 resolvable partition primary keys
- * advertised by `FOR_FILTERING` references' type indexes. Both cannot be right, and a timing harness that
- * walks partitions which would not exist measures nothing. Hence this probe, which resolves every advertised
- * primary key and reports what it actually found.
+ * The two answers were once in open contradiction: `ReferenceIndexMutator#collectOwnerReducedIndexes` claimed
+ * the second ("the only ones for which reduced indexes exist at all"), while the `#1529` census counted
+ * 183,754 resolvable partition primary keys advertised by `FOR_FILTERING` references' type indexes. This probe
+ * settled it by resolving every advertised primary key and reporting what it actually found: **the partitions
+ * already exist at `FOR_FILTERING`** — the first answer. That javadoc was corrected accordingly and now says
+ * what the restriction really is (reduced indexes exist for every reference indexed at `FOR_FILTERING` or
+ * above; only the FACETS inside them are confined to `FOR_FILTERING_AND_PARTITIONING`). The probe is kept
+ * because it is the measurement behind that correction, and re-running it is how the answer stays checked.
  *
  * ```
  * java -Xmx32g -cp <cp> io.evitadb.spike.ConditionalFacetPartitionExistenceProbe <dir> <catalog> <collection>
