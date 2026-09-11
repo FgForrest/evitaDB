@@ -1915,8 +1915,23 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Registers one reduced index into the membership lookup, skipping primary keys the type index advertises
-	 * more than once — a group index is advertised once per referenced entity filed under it.
+	 * Registers one reduced index into the membership lookup.
+	 *
+	 * The traversal cannot in fact advertise a primary key twice. A reduced index is filed in its type index
+	 * under exactly one referenced (or group) primary key — `ReferenceIndexMutator#referenceInsertPerComponent`
+	 * is the only writer and always pairs the index with the key it was resolved by — so
+	 * {@link ReferencedTypeEntityIndex#forEachReferenceIndexPrimaryKey} emits each key once, and the entity and
+	 * group families draw from one primary-key sequence and never collide.
+	 *
+	 * The index sharing this check was once justified by is real, but it belongs to the OWNER side: several of
+	 * one owner's references resolve to a single {@link ReducedGroupEntityIndex}, which is why
+	 * `ReferenceIndexMutator#forEachUniqueReferenceIndex` de-duplicates by identity. It cannot reach a walk over
+	 * *advertised indexes*, which is what this one is.
+	 *
+	 * The pre-check is kept regardless, because this is the load path:
+	 * {@link ReducedIndexMembership#registerIndex} refuses a repeat by design, and raising there would take the
+	 * whole catalog offline over a structure that is only an accelerator. Skipping a repeat would rebuild the
+	 * identical map.
 	 *
 	 * @param membership      the lookup being built
 	 * @param reducedIndexPk  primary key of the advertised reduced index

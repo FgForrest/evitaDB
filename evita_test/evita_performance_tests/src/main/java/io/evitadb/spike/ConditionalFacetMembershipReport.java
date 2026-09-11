@@ -126,6 +126,14 @@ public class ConditionalFacetMembershipReport {
 	 */
 	private static final int WARMUP_ROUNDS = 100;
 
+	/**
+	 * `(owner, index)` pairs offered to the de-duplicating accumulator, and how many of them it rejected as
+	 * already present. Written only by the `COUNT_DEDUP` variant, so the timed variants stay untouched;
+	 * static because one accumulator lives for one resolution while the question spans the whole series.
+	 */
+	private static long dedupCalls;
+	private static long dedupHits;
+
 	public static void main(@Nonnull String[] args) {
 		if (args.length < 3) {
 			System.err.println(
@@ -307,6 +315,14 @@ public class ConditionalFacetMembershipReport {
 			});
 			report("lookup", withLookup);
 			report("walk", withoutLookup);
+			if ("COUNT_DEDUP".equals(System.getProperty("spike.accumulator"))) {
+				System.out.printf(
+					"    %-8s %,d of %,d offered pairs rejected as already present%n",
+					"dedup", dedupHits, dedupCalls
+				);
+				dedupCalls = 0L;
+				dedupHits = 0L;
+			}
 			System.out.println();
 		}
 	}
@@ -476,7 +492,8 @@ public class ConditionalFacetMembershipReport {
 	}
 
 	/**
-	 * The per-pair bookkeeping `ReevaluateExpressionExecutor#addSibling` performs, behind a seam so its cost
+	 * The per-pair bookkeeping `ReevaluateExpressionExecutor#probeReducedIndexForAffectedOwners` performs
+	 * for every affected owner a probed partition holds, behind a seam so its cost
 	 * can be attributed rather than argued about.
 	 *
 	 * The checksum is computed OUTSIDE this interface, so swapping variants cannot change what the arms
@@ -498,9 +515,15 @@ public class ConditionalFacetMembershipReport {
 	/**
 	 * Builds the accumulator named by `-Dspike.accumulator`, defaulting to the executor-faithful `FULL`.
 	 *
-	 * The four variants exist to subtract from one another: `FULL - OFF` is the accumulator's whole cost,
-	 * `FULL - NO_DEDUP` the linear `contains` scan alone, and `FULL - INT_KEYED` what the boxed `Integer` key
-	 * and its `HashMap` lookup cost over a primitive-keyed table.
+	 * The variants exist to subtract from one another: `FULL - OFF` is the accumulator's whole cost, and
+	 * `FULL - INT_KEYED` what the boxed `Integer` key and its `HashMap` lookup cost over a primitive-keyed
+	 * table.
+	 *
+	 * `DEDUP_SCAN` and `COUNT_DEDUP` are about the linear `indexes.contains(sibling)` scan the executor USED
+	 * to perform per pair. `DEDUP_SCAN - FULL` prices it; `COUNT_DEDUP` tallies how often it actually rejected
+	 * anything, which is what retired it — 0 rejections in 1,568,849,000 offered pairs on a production
+	 * catalog, because one reduced index primary key reaches the probe at most once per sibling reference.
+	 * Both are kept so the removal stays re-checkable rather than a claim in a commit message.
 	 *
 	 * @return a fresh accumulator for one resolution
 	 */
@@ -508,33 +531,44 @@ public class ConditionalFacetMembershipReport {
 	private static Accumulator newAccumulator() {
 		final String variant = System.getProperty("spike.accumulator", "FULL");
 		return switch (variant) {
-			case "FULL" -> new BoxedAccumulator(true);
-			case "NO_DEDUP" -> new BoxedAccumulator(false);
+			case "FULL" -> new BoxedAccumulator(false, false);
+			case "DEDUP_SCAN" -> new BoxedAccumulator(true, false);
+			case "COUNT_DEDUP" -> new BoxedAccumulator(true, true);
 			case "INT_KEYED" -> new IntKeyedAccumulator();
 			case "OFF" -> (owner, sibling) -> { };
 			default -> throw new IllegalArgumentException(
-				"unknown -Dspike.accumulator=" + variant + " (FULL|NO_DEDUP|INT_KEYED|OFF)"
+				"unknown -Dspike.accumulator=" + variant + " (FULL|DEDUP_SCAN|COUNT_DEDUP|INT_KEYED|OFF)"
 			);
 		};
 	}
 
 	/**
 	 * The executor's own structure: a `HashMap` keyed by a boxed owner primary key, holding a four-slot
-	 * `ArrayList` scanned linearly for duplicates.
+	 * `ArrayList` appended to directly. `dedup` restores the linear duplicate scan the executor performed
+	 * before 2026-09-11, so what was removed can still be priced.
 	 */
 	private static final class BoxedAccumulator implements Accumulator {
 		private final Map<Integer, List<SiblingIndex>> result = new HashMap<>();
 		private final boolean dedup;
+		private final boolean count;
 
-		BoxedAccumulator(boolean dedup) {
+		BoxedAccumulator(boolean dedup, boolean count) {
 			this.dedup = dedup;
+			this.count = count;
 		}
 
 		@Override
 		public void record(int owner, @Nonnull SiblingIndex sibling) {
 			final List<SiblingIndex> indexes = this.result.computeIfAbsent(owner, __ -> new ArrayList<>(4));
 			if (this.dedup && indexes.contains(sibling)) {
+				if (this.count) {
+					dedupCalls++;
+					dedupHits++;
+				}
 				return;
+			}
+			if (this.count) {
+				dedupCalls++;
 			}
 			indexes.add(sibling);
 		}
@@ -560,10 +594,7 @@ public class ConditionalFacetMembershipReport {
 			int slot = mix(owner) & this.mask;
 			while (this.keys[slot] != 0) {
 				if (this.keys[slot] == owner) {
-					final List<SiblingIndex> indexes = (List<SiblingIndex>) this.values[slot];
-					if (!indexes.contains(sibling)) {
-						indexes.add(sibling);
-					}
+					((List<SiblingIndex>) this.values[slot]).add(sibling);
 					return;
 				}
 				slot = (slot + 1) & this.mask;

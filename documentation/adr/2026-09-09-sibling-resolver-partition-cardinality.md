@@ -1,7 +1,7 @@
 ---
 title: Bound the cross-entity facet walk with a size-thresholded owner→partition index, not a blanket one
 date: 2026-09-09
-updated: 2026-09-11 15:30
+updated: 2026-09-11 17:45
 status: accepted
 kind: optimization
 issues: [1529]
@@ -188,14 +188,34 @@ resolve the dense high-cardinality walk better than ~11 %.
 
 | `P` | shape | walk | lookup | |
 |---|---|---|---|---|
-| 4,633 | sparse | 653 / 681 µs | **232 / 232 µs** | 2.8–2.9× |
-| 4,633 | dense | 12.02 / 12.06 ms | **11.22 / 11.02 ms** | 1.07–1.09× |
-| 188,387 | sparse | 82.4 / 85.4 ms | **1.50 / 1.60 ms** | **54–55×** |
-| 188,387 | dense | 259.6 / 230.2 ms | **173.0 / 172.2 ms** | **1.34–1.50×** |
+| 4,633 | sparse | 807 / 798 µs | **268 / 283 µs** | 2.8–3.0× |
+| 4,633 | dense | 10.32 / 10.33 ms | **9.71 / 9.62 ms** | 1.06–1.07× |
+| 188,387 | sparse | 84.0 / 87.3 ms | **1.55 / 1.53 ms** | **54–57×** |
+| 188,387 | dense | 159.6 / 158.8 ms | **105.5 / 101.2 ms** | **1.51–1.57×** |
 
 Memory: **4.2 MiB** on the shipping schema, **24.9 MiB** with every reference partitioned. Rebuilding the
 lookup over 188,387 reduced indexes costs **156.0 ms**, against a 26 s catalog load. Coverage reproduced
 exactly across both runs and both configurations — 2,697 covered / 1,936 residual, and 185,475 / **2,912**.
+
+These are the timings **after** the per-pair de-duplication scan was removed from the accumulator (see below).
+The same harness, same box and same session, with the scan restored via `-Dspike.accumulator=DEDUP_SCAN`:
+
+| `P` | shape | walk | lookup |
+|---|---|---|---|
+| 4,633 | sparse | 793 / 655 µs | 274 / 226 µs |
+| 4,633 | dense | 11.83 / 12.02 ms | 10.95 / 11.27 ms |
+| 188,387 | sparse | 82.8 ms | 1.59 ms |
+| 188,387 | dense | 228.5 ms | 168.1 ms |
+
+So the removal is worth **−13 %** on both arms at `P`=4,633 dense and **−38 % / −30 %** (lookup / walk) at
+`P`=188,387 dense, and nothing at all in the sparse shapes. **The ratio barely moves** — 1.34× to 1.51–1.57×
+at high `P` — because both arms were paying the scan; the gain is absolute milliseconds off every dense
+trigger, on the unaccelerated walk as much as on the lookup. An estimate that subtracted the scan from the
+lookup arm alone predicted 1.9–2.1× and was wrong for exactly that reason.
+
+**Cross-session comparison at `P`=4,633 sparse is not meaningful and must not be quoted.** That shape swings
+~20 % run to run *within* one session (control runs 655 µs and 793 µs on the same build), which is larger than
+any effect being looked for. Only the same-session control pairs above support a claim.
 
 **These figures supersede the ones this record carried until 2026-09-11, which were too high.** The harness
 had diverged from `ReevaluateExpressionExecutor` in two ways its checksum gate could not see, because that
@@ -205,8 +225,9 @@ gate compares the emitted `(owner, index)` pairs and the pairs were identical ei
   *selector* and probing what it named — so only one arm was short-changed, and the ratio was inflated
   directly;
 - **neither** arm ran the executor's accumulator, the owner-keyed `Map<Integer, List<SiblingReducedIndex>>`
-  built by `addSibling`. That one is symmetric — both arms emit the same pair set — but omitting a cost
-  common to both inflates a ratio just the same.
+  built per emitted pair in `ReevaluateExpressionExecutor#probeReducedIndexForAffectedOwners`. That one is
+  symmetric — both arms emit the same pair set — but omitting a cost common to both inflates a ratio just the
+  same.
 
 The superseded row that mattered most was `188,387 dense`, published as **8.3×** and actually **1.34–1.50×**.
 The `4,633 dense` row went from 1.41× to 1.07–1.09×. The two sparse rows barely moved.
@@ -424,6 +445,17 @@ index or the global index.
 205,315 partitions of `FOR_FILTERING` references already exist and resolve to live indexes; it prints its
 own verdict line so the claim can be re-checked in one run rather than re-derived.
 
+**The de-duplication removal is proved dead before being deleted, not after.** Three independent legs, because
+this method had already produced two wrong conclusions from inspection alone: a `COUNT_DEDUP` tally on the
+production catalog (**0 rejections / 1,568,849,000 offered pairs**, both arms, both shapes); a counterfactual
+pair on the conditional-facet suite — an unconditional throw errors 12 tests across 4 classes including
+`ConditionalFacetGroupPartitionGapTest`, proving the path is reached, after which a throw-on-duplicate leaves
+all 287 green; and two independent static traces of every writer of
+`ReferenceTypeCardinalityIndex.referencedPrimaryKeysIndex`, both finding a single writer
+(`ReferenceIndexMutator#referenceInsertPerComponent`) that files each reduced index under exactly the key it
+was resolved by. Full suite after the change: **23,782 tests, 0 failures**, one environmental error
+(`ExportS3ServiceTest`, needs Docker) — the same count and the same single error as before it.
+
 **The constant-factor change that shipped unmeasured (PRs #1524 / #1525, `5db4385e1`) is now quantified:**
 its cost model claimed 20-35 % of the walk; measured **4.7 %** (P=4,633 sparse warm), **3.6 %** cold,
 **0.0 %** in the dense shape, **3.1 %** at P=188,387. A real, consistent, small improvement. Shipping it
@@ -445,18 +477,27 @@ without a performance claim was the right call — the claim it was never given 
   `ReevaluateExpressionExecutor#addSibling`: it runs once per `(owner, partition)` pair of the *answer*, and
   both the lookup and the walk must produce that answer in full. Raising the coverage threshold changes which
   partitions are probed; it cannot change how many pairs exist.
-- **The accumulator is profiled, and its cost is the linear de-duplication scan.** Measured by running
-  `ConditionalFacetMembershipReport` with `-Dspike.accumulator=FULL|OFF|NO_DEDUP|INT_KEYED`, which swaps the
-  per-pair bookkeeping behind a seam while leaving the checksum outside it. At `P`=188,387 dense, on the
-  lookup arm: whole accumulator **116 ms**, of which the `indexes.contains(sibling)` scan is **65 ms (56 %)**,
-  map insertion plus `ArrayList` allocation and growth **51 ms**, and the boxed `Integer` key only **4 ms
-  (3 %)**. In the sparse shape every variant is identical within noise.
-  **So de-boxing the map is not worth doing, and the scan is.** It is `O(k)` per pair for an owner in `k`
-  partitions, i.e. `O(k²)` per owner, and `new ArrayList<>(4)` is an initial capacity rather than a bound.
-  The duplicate it exists to catch arises only when two references share a reduced group index, so the
-  promising direction is to establish that once per probed partition instead of once per emitted pair —
-  **not** a `LinkedHashSet`, whose hashing would be paid on every pair to avoid a scan that is only sometimes
-  long.
+- **The accumulator was profiled, and its cost was a de-duplication scan that never de-duplicated anything —
+  now removed.** Profiling with `-Dspike.accumulator=FULL|OFF|DEDUP_SCAN|INT_KEYED`, a seam that swaps the
+  per-pair bookkeeping while leaving the checksum outside it, put the whole accumulator at **116 ms** of a
+  171 ms dense lookup, of which the `indexes.contains(sibling)` scan was **65 ms (56 %)**, map insertion plus
+  `ArrayList` growth **51 ms**, and the boxed `Integer` key only **4 ms (3 %)** — so de-boxing the map is not
+  worth doing.
+  The scan was then shown to be dead rather than merely expensive. A `COUNT_DEDUP` variant tallying its
+  rejections reported **0 out of 1,568,849,000 offered pairs** across both arms and both shapes on the
+  production catalog; replacing it with a throwing premise left the conditional-facet suite green at 287 tests,
+  after a counterfactual run proved that same suite reaches the code 48 times. The reason is structural: one
+  reduced index primary key reaches the probe **at most once per sibling reference** — the covered half
+  collects into a bitmap before probing, the residual set is a bitmap disjoint from the covered one, and the
+  walk's two families advertise primary keys drawn from one collection-wide sequence and never collide.
+  The scan's own comment (`references sharing a reduced group index resolve to the same instance more than
+  once`) described a real phenomenon attached to the wrong traversal: several of **one owner's references** do
+  resolve to a single `ReducedGroupEntityIndex`, which is why `ReferenceIndexMutator#forEachUniqueReferenceIndex`
+  de-duplicates by identity — but this walk iterates *advertised indexes*, not an owner's references. The same
+  misconception was restated in `EntityCollection#registerReducedIndex`'s javadoc and has been corrected there.
+  Had a duplicate ever arisen it would have cost nothing anyway: `ReferenceIndexMutator#applyFacetDecisionMatrix`
+  short-circuits through pure reads when the facet is already in its target bucket, so a repeat never reaches
+  `addFacet` or `removeFromCurrentGroup`.
 - **`DEFAULT_COVERAGE_THRESHOLD` = 16 has never been swept against the shipped implementation.** Every
   threshold figure in this record comes from `ConditionalFacetReverseIndexFootprint`, which models memory
   only. `ReducedIndexMembership(int)` exists, but both real construction sites — `GlobalEntityIndex:476` and
@@ -502,3 +543,7 @@ without a performance claim was the right call — the claim it was never given 
 - **2026-09-09** — cost decomposed into its parts (arms D/E); Options C and F measured and both declined;
   partition existence at `FOR_FILTERING` verified, two committed comments corrected; decision narrowed to
   Option A alone
+- **2026-09-11** — harness found to diverge from the shipped resolver in two ways its checksum gate could not
+  see; corrected and every ratio re-measured downward, the dense high-cardinality row from 8.3× to 1.34–1.50×
+- **2026-09-11** — accumulator profiled behind a variant seam; the per-pair de-duplication scan measured at
+  56 % of it, then shown to reject nothing and removed, worth −13 % to −38 % on the dense shapes

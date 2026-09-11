@@ -631,27 +631,13 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		final SiblingReducedIndex sibling = new SiblingReducedIndex(
 			target.getOrCreateIndexByPrimaryKey(reducedIndexPK), siblingSchema
 		);
+		// Appended without a duplicate check, because one reduced index primary key reaches this method at
+		// most once per sibling reference and a `SiblingReducedIndex` carries that reference's own schema -
+		// so no owner can be offered the same pair twice. The three producers each guarantee it: the covered
+		// half collects into a bitmap before probing, the residual set IS a bitmap and is disjoint from the
+		// covered one, and the unaccelerated walk's two families advertise disjoint primary keys.
 		for (final int owner : owners) {
-			addSibling(result, owner, sibling);
-		}
-	}
-
-	/**
-	 * Records one `(owner, reduced index)` pair into the accumulator.
-	 *
-	 * @param result  accumulator, keyed by owner PK
-	 * @param owner   primary key of the affected owner
-	 * @param sibling the reduced index holding it, already resolved through the registering accessor
-	 */
-	private static void addSibling(
-		@Nonnull Map<Integer, List<SiblingReducedIndex>> result,
-		int owner,
-		@Nonnull SiblingReducedIndex sibling
-	) {
-		final List<SiblingReducedIndex> indexes = result.computeIfAbsent(owner, __ -> new ArrayList<>(4));
-		// references sharing a reduced group index resolve to the same instance more than once
-		if (!indexes.contains(sibling)) {
-			indexes.add(sibling);
+			result.computeIfAbsent(owner, __ -> new ArrayList<>(4)).add(sibling);
 		}
 	}
 
