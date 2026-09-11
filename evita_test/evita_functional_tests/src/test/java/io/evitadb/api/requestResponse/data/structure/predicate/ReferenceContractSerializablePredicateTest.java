@@ -130,7 +130,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldReturnTrueWhenRequired() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, Collections.emptySet()
 				);
 
@@ -144,7 +144,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldReturnFalseWhenNotRequired() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, false,
+					Collections.emptyMap(), Collections.emptySet(), null, false,
 					null, Collections.emptySet()
 				);
 
@@ -159,7 +159,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldReturnTrueForAnyNameWhenSetEmpty() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, Collections.emptySet()
 				);
 
@@ -176,6 +176,7 @@ class ReferenceContractSerializablePredicateTest {
 					toAttributeRequestIndex(
 						getDefaultRequirementContext()
 					),
+					Collections.emptySet(),
 					null, true, null, Collections.emptySet()
 				);
 
@@ -190,7 +191,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldReturnFalseForNameWhenNotRequired() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, false,
+					Collections.emptyMap(), Collections.emptySet(), null, false,
 					null, Collections.emptySet()
 				);
 
@@ -209,7 +210,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldThrowWhenNotRequired() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, false,
+					Collections.emptyMap(), Collections.emptySet(), null, false,
 					null, Collections.emptySet()
 				);
 
@@ -224,7 +225,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldNotThrowWhenRequired() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, Collections.emptySet()
 				);
 
@@ -241,6 +242,7 @@ class ReferenceContractSerializablePredicateTest {
 					toAttributeRequestIndex(
 						getDefaultRequirementContext()
 					),
+					Collections.emptySet(),
 					null, true, null, Collections.emptySet()
 				);
 
@@ -260,6 +262,7 @@ class ReferenceContractSerializablePredicateTest {
 					toAttributeRequestIndex(
 						getDefaultRequirementContext()
 					),
+					Collections.emptySet(),
 					null, true, null, Collections.emptySet()
 				);
 
@@ -276,7 +279,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldReturnFalseWhenNotRequired() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, false,
+					Collections.emptyMap(), Collections.emptySet(), null, false,
 					null, Collections.emptySet()
 				);
 
@@ -296,7 +299,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldReturnTrueWhenSetEmpty() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, Collections.emptySet()
 				);
 
@@ -314,7 +317,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldReturnFalseForDropped() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, Collections.emptySet()
 				);
 
@@ -337,6 +340,7 @@ class ReferenceContractSerializablePredicateTest {
 					toAttributeRequestIndex(
 						getDefaultRequirementContext()
 					),
+					Collections.emptySet(),
 					null, true, null, Collections.emptySet()
 				);
 
@@ -361,7 +365,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldReturnTrueForAnyNameWhenEmpty() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, Collections.emptySet()
 				);
 
@@ -373,7 +377,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldReturnFalseWhenNotRequired() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, false,
+					Collections.emptyMap(), Collections.emptySet(), null, false,
 					null, Collections.emptySet()
 				);
 
@@ -390,6 +394,7 @@ class ReferenceContractSerializablePredicateTest {
 					toAttributeRequestIndex(
 						getDefaultRequirementContext()
 					),
+					Collections.emptySet(),
 					null, true, null, Collections.emptySet()
 				);
 
@@ -415,6 +420,7 @@ class ReferenceContractSerializablePredicateTest {
 						createRequirementContext("x", "y")
 							.attributeRequest()
 					),
+					Collections.emptySet(),
 					null, true, null, Collections.emptySet()
 				);
 
@@ -440,6 +446,7 @@ class ReferenceContractSerializablePredicateTest {
 						createRequirementContext("x")
 							.attributeRequest()
 					),
+					Collections.emptySet(),
 					null, true, null, Collections.emptySet()
 				);
 
@@ -457,7 +464,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldReturnAllAttributePredicate() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, Collections.emptySet()
 				);
 
@@ -487,7 +494,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldReturnNullWhenNoLocales() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, null
 				);
 
@@ -502,7 +509,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldReturnImplicitLocaleWhenLocalesNull() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					Locale.ENGLISH, null
 				);
 
@@ -519,7 +526,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldMergeImplicitLocaleWithLocales() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					Locale.ENGLISH, Set.of(Locale.FRENCH)
 				);
 
@@ -541,7 +548,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldCreateRicherCopyForNoReferences() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, false,
+					Collections.emptyMap(), Collections.emptySet(), null, false,
 					null, Collections.emptySet()
 				);
 
@@ -571,7 +578,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldNotCreateRicherCopyForNoReferences() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, Collections.emptySet()
 				);
 
@@ -602,7 +609,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldNotCreateRicherCopyWhenAlreadyPresent() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, Collections.emptySet()
 				);
 
@@ -630,7 +637,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldCreateRicherCopyForReferences() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, Collections.emptySet()
 				);
 
@@ -663,6 +670,7 @@ class ReferenceContractSerializablePredicateTest {
 					toAttributeRequestIndex(
 						getDefaultRequirementContext()
 					),
+					Collections.emptySet(),
 					null, true, null, Collections.emptySet()
 				);
 
@@ -697,6 +705,7 @@ class ReferenceContractSerializablePredicateTest {
 							Arrays.asList("A", "B")
 						)
 					),
+					Collections.emptySet(),
 					null, true, null, Collections.emptySet()
 				);
 
@@ -730,7 +739,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldCreateRicherCopyForLocales() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, Collections.emptySet()
 				);
 
@@ -763,7 +772,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldCreateRicherCopyForAdditionalLocales() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null,
 					new HashSet<>(
 						Collections.singletonList(Locale.ENGLISH)
@@ -802,7 +811,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldNotCreateRicherCopyWhenLocalesMatch() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null,
 					new HashSet<>(
 						Arrays.asList(Locale.ENGLISH, Locale.CANADA)
@@ -837,7 +846,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldNotCreateRicherCopyWhenLocaleSubset() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null,
 					new HashSet<>(
 						Arrays.asList(Locale.ENGLISH, Locale.CANADA)
@@ -870,7 +879,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldCreateRicherCopyForAttributesByName() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, false,
+					Collections.emptyMap(), Collections.emptySet(), null, false,
 					null,
 					new HashSet<>(
 						Collections.singletonList(Locale.ENGLISH)
@@ -918,6 +927,7 @@ class ReferenceContractSerializablePredicateTest {
 						createRequirementContext("D", "E")
 							.attributeRequest()
 					),
+					Collections.emptySet(),
 					null, true, null,
 					new HashSet<>(
 						Collections.singletonList(Locale.ENGLISH)
@@ -965,6 +975,7 @@ class ReferenceContractSerializablePredicateTest {
 						createRequirementContext("D", "E")
 							.attributeRequest()
 					),
+					Collections.emptySet(),
 					null, true, null,
 					new HashSet<>(
 						Collections.singletonList(Locale.ENGLISH)
@@ -1013,6 +1024,7 @@ class ReferenceContractSerializablePredicateTest {
 						"A",
 						createRequirementContext().attributeRequest()
 					),
+					Collections.emptySet(),
 					null, true, null,
 					new HashSet<>(
 						Collections.singletonList(Locale.ENGLISH)
@@ -1051,7 +1063,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldMergeImplicitLocaleFromRequest() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, Collections.emptySet()
 				);
 

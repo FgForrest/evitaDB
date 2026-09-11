@@ -345,6 +345,26 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 	}
 
 	/**
+	 * Tells whether `candidates` are all already present in `existing`, i.e. whether merging them in would leave
+	 * the predicate observably unchanged.
+	 *
+	 * @param existing   price lists this predicate already carries, may be {@code null} when none were requested
+	 * @param candidates price lists the incoming request would add
+	 * @return true when `existing` already covers every entry of `candidates`
+	 */
+	private static boolean alreadyCovers(@Nullable String[] existing, @Nonnull String[] candidates) {
+		if (existing == null) {
+			return false;
+		}
+		for (final String candidate : candidates) {
+			if (ArrayUtils.indexOf(candidate, existing) < 0) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
 	 * Creates and returns a richer copy of the current PriceContractSerializablePredicate instance with properties
 	 * updated or augmented based on the provided EvitaRequest.
 	 *
@@ -375,6 +395,12 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 		if (this.priceContentMode.ordinal() >= requiresEntityPrices.ordinal()) {
 			if (ArrayUtils.isEmpty(fetchesAdditionalPriceLists) && ArrayUtils.isEmpty(accompanyingPrices)) {
 				// this predicate cannot change since everything is taken from the filter and this cannot change in time
+				return this;
+			} else if (ArrayUtils.isEmpty(accompanyingPrices) && alreadyCovers(this.additionalPriceLists, fetchesAdditionalPriceLists)) {
+				// the request asks for nothing this predicate does not already carry: repeating the merge would build
+				// an equal predicate with duplicated entries in `additionalPriceLists`, and - because a non-identical
+				// predicate is what tells the fetch pipeline that the entity has to be enriched - would trigger
+				// a storage round trip that provably fetches nothing
 				return this;
 			} else {
 				return new PriceContractSerializablePredicate(

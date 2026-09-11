@@ -37,6 +37,7 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.function.IntSupplier;
 
 /**
  * Event that is fired when an evitaDB query is finished.
@@ -174,8 +175,8 @@ public class FinishedEvent extends AbstractQueryEvent {
 		int recordsScannedTotal,
 		int recordsReturnedTotal,
 		int recordsFoundTotal,
-		int recordsFetchedTotal,
-		int fetchedSizeBytes,
+		@Nonnull IntSupplier recordsFetchedTotal,
+		@Nonnull IntSupplier fetchedSizeBytes,
 		long estimatedComplexityInfo,
 		long complexityInfo
 	) {
@@ -185,8 +186,13 @@ public class FinishedEvent extends AbstractQueryEvent {
 		this.scanned = recordsScannedTotal;
 		this.returned = recordsReturnedTotal;
 		this.found = recordsFoundTotal;
-		this.fetched = recordsFetchedTotal;
-		this.fetchedSizeBytes = fetchedSizeBytes;
+		// resolving these two aggregates walks the reference graph of every returned entity, so they are asked for
+		// only when this event is going to be written - `shouldCommit` is false whenever neither a JFR recording
+		// nor the metric exporter is subscribed to it
+		if (shouldCommit()) {
+			this.fetched = recordsFetchedTotal.getAsInt();
+			this.fetchedSizeBytes = fetchedSizeBytes.getAsInt();
+		}
 		this.estimatedComplexity = estimatedComplexityInfo;
 		this.realComplexity = complexityInfo;
 		return this;

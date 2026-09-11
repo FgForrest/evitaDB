@@ -95,14 +95,6 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 */
 	@Nullable private ServerEntityDecorator deferredIoStatisticsSource;
 	/**
-	 * Memoized ioFetchCount when {@link #getIoFetchCount()} is called for the first time.
-	 */
-	private int memoizedIoFetchCount = -1;
-	/**
-	 * Memoized ioFetchedBytes when {@link #getIoFetchedBytes()} is called for the first time.
-	 */
-	private int memoizedIoFetchedBytes = -1;
-	/**
 	 * Specialized reference sets accessible by reference content instance name.
 	 */
 	@Nullable private Map<ReferenceContentKey, DataChunk<ReferenceContract>> namedReferenceSets;
@@ -126,7 +118,43 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		int ioFetchCount,
 		int ioFetchedBytes
 	) {
-		return new ServerEntityDecorator(
+		return decorate(
+			entity, entitySchema, parentEntity,
+			localePredicate, hierarchyPredicate,
+			attributePredicate, associatedDataValuePredicate,
+			referencePredicate, pricePredicate,
+			alignedNow,
+			ioFetchCount, ioFetchedBytes, null
+		);
+	}
+
+	/**
+	 * Method allows creating the entityDecorator object with up-to-date schema definition. Data of the entity are kept
+	 * untouched.
+	 *
+	 * @param ioFetchCount               reads performed to produce THIS decorator, excluding those already accounted
+	 *                                   for by `deferredIoStatisticsSource`
+	 * @param deferredIoStatisticsSource decorator whose aggregated statistics complete this one's, resolved only if
+	 *                                   somebody actually asks for {@link #getIoFetchCount()}; see
+	 *                                   {@link #deferredIoStatisticsSource}
+	 */
+	@Nonnull
+	public static ServerEntityDecorator decorate(
+		@Nonnull Entity entity,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable EntityClassifierWithParent parentEntity,
+		@Nonnull LocaleSerializablePredicate localePredicate,
+		@Nonnull HierarchySerializablePredicate hierarchyPredicate,
+		@Nonnull AttributeValueSerializablePredicate attributePredicate,
+		@Nonnull AssociatedDataValueSerializablePredicate associatedDataValuePredicate,
+		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
+		@Nonnull PriceContractSerializablePredicate pricePredicate,
+		@Nonnull OffsetDateTime alignedNow,
+		int ioFetchCount,
+		int ioFetchedBytes,
+		@Nullable ServerEntityDecorator deferredIoStatisticsSource
+	) {
+		final ServerEntityDecorator result = new ServerEntityDecorator(
 			entity, entitySchema, parentEntity,
 			localePredicate, hierarchyPredicate,
 			attributePredicate, associatedDataValuePredicate,
@@ -134,6 +162,8 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 			alignedNow,
 			ioFetchCount, ioFetchedBytes
 		);
+		result.deferredIoStatisticsSource = deferredIoStatisticsSource;
+		return result;
 	}
 
 	/**
@@ -154,7 +184,42 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		int ioFetchCount,
 		int ioFetchedBytes
 	) {
-		return new ServerEntityDecorator(
+		return decorate(
+			entity, parentEntity,
+			localePredicate, hierarchyPredicate,
+			attributePredicate, associatedDataValuePredicate,
+			referencePredicate, pricePredicate,
+			alignedNow,
+			ioFetchCount, ioFetchedBytes, null
+		);
+	}
+
+	/**
+	 * Method allows creating the entityDecorator object with up-to-date schema definition. Data of the entity are kept
+	 * untouched.
+	 *
+	 * @param ioFetchCount               reads performed to produce THIS decorator, excluding those already accounted
+	 *                                   for by `deferredIoStatisticsSource`
+	 * @param deferredIoStatisticsSource decorator whose aggregated statistics complete this one's, resolved only if
+	 *                                   somebody actually asks for {@link #getIoFetchCount()}; see
+	 *                                   {@link #deferredIoStatisticsSource}
+	 */
+	@Nonnull
+	public static ServerEntityDecorator decorate(
+		@Nonnull ServerEntityDecorator entity,
+		@Nullable EntityClassifierWithParent parentEntity,
+		@Nonnull LocaleSerializablePredicate localePredicate,
+		@Nonnull HierarchySerializablePredicate hierarchyPredicate,
+		@Nonnull AttributeValueSerializablePredicate attributePredicate,
+		@Nonnull AssociatedDataValueSerializablePredicate associatedDataValuePredicate,
+		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
+		@Nonnull PriceContractSerializablePredicate pricePredicate,
+		@Nonnull OffsetDateTime alignedNow,
+		int ioFetchCount,
+		int ioFetchedBytes,
+		@Nullable ServerEntityDecorator deferredIoStatisticsSource
+	) {
+		final ServerEntityDecorator result = new ServerEntityDecorator(
 			entity, parentEntity,
 			localePredicate, hierarchyPredicate,
 			attributePredicate, associatedDataValuePredicate,
@@ -163,6 +228,8 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 			ioFetchCount, ioFetchedBytes,
 			entity.namedReferenceSets
 		);
+		result.deferredIoStatisticsSource = deferredIoStatisticsSource;
+		return result;
 	}
 
 	public ServerEntityDecorator(
@@ -177,15 +244,19 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	}
 
 	/**
-	 * Pulls the wrapped decorator's aggregated I/O statistics across, at most once. No-op for decorators that were
-	 * handed their statistics directly.
+	 * Adds the wrapped decorator's aggregated I/O statistics to this decorator's own, at most once. No-op for
+	 * decorators that were handed their statistics directly.
+	 *
+	 * <p>The source's numbers are <em>added</em> rather than assigned: a decorator produced by an enrichment step
+	 * carries the reads that step performed itself, while the reads that produced its input are still owed by the
+	 * input decorator. Resolving them here - and only here - is what keeps the whole chain lazy.</p>
 	 */
 	private void resolveDeferredIoStatistics() {
 		final ServerEntityDecorator source = this.deferredIoStatisticsSource;
 		if (source != null) {
 			this.deferredIoStatisticsSource = null;
-			this.ioFetchCount = source.getIoFetchCount();
-			this.ioFetchedBytes = source.getIoFetchedBytes();
+			this.ioFetchCount += source.getIoFetchCount();
+			this.ioFetchedBytes += source.getIoFetchedBytes();
 		}
 	}
 
@@ -376,65 +447,14 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 
 	@Override
 	public int getIoFetchCount() {
-		if (this.memoizedIoFetchCount == -1) {
-			resolveDeferredIoStatistics();
-			this.memoizedIoFetchCount = this.ioFetchCount +
-				(
-					parentAvailable() ?
-						getParentEntity()
-							.filter(ServerEntityDecorator.class::isInstance)
-							.map(ServerEntityDecorator.class::cast)
-							.map(ServerEntityDecorator::getIoFetchCount)
-							.orElse(0)
-						:
-						0
-				) +
-				(
-					referencesAvailable() ?
-						getReferences().stream()
-							.map(ReferenceContract::getReferencedEntity)
-							.filter(Optional::isPresent)
-							.map(Optional::get)
-							.filter(ServerEntityDecorator.class::isInstance)
-							.map(ServerEntityDecorator.class::cast)
-							.mapToInt(ServerEntityDecorator::getIoFetchCount)
-							.sum()
-						:
-						0
-				);
-		}
-		return this.memoizedIoFetchCount;
+		resolveDeferredIoStatistics();
+		return this.ioFetchCount;
 	}
 
 	@Override
 	public int getIoFetchedBytes() {
-		if (this.memoizedIoFetchedBytes == -1) {
-			resolveDeferredIoStatistics();
-			this.memoizedIoFetchedBytes = this.ioFetchedBytes +
-				(
-					parentAvailable() ?
-						getParentEntity()
-							.filter(ServerEntityDecorator.class::isInstance)
-							.map(ServerEntityDecorator.class::cast)
-							.map(ServerEntityDecorator::getIoFetchedBytes)
-							.orElse(0)
-						:
-						0
-				) +
-				(
-					referencesAvailable() ?
-						getReferences().stream()
-							.map(ReferenceContract::getReferencedEntity)
-							.filter(Optional::isPresent)
-							.map(Optional::get)
-							.filter(ServerEntityDecorator.class::isInstance)
-							.map(ServerEntityDecorator.class::cast)
-							.mapToInt(ServerEntityDecorator::getIoFetchedBytes)
-							.sum()
-						:
-						0
-				);
-		}
-		return this.memoizedIoFetchedBytes;
+		resolveDeferredIoStatistics();
+		return this.ioFetchedBytes;
 	}
+
 }

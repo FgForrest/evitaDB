@@ -37,6 +37,7 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.function.IntSupplier;
 
 /**
  * Event that is fired when an evitaDB entity is enriched.
@@ -87,12 +88,17 @@ public class EntityEnrichEvent extends AbstractQueryEvent {
 	 */
 	@Nonnull
 	public EntityEnrichEvent finish(
-		int recordsFetchedTotal,
-		int fetchedSizeBytes
+		@Nonnull IntSupplier recordsFetchedTotal,
+		@Nonnull IntSupplier fetchedSizeBytes
 	) {
 		this.end();
-		this.records = recordsFetchedTotal;
-		this.sizeBytes = fetchedSizeBytes;
+		// resolving these two aggregates walks the reference graph of the entity, so they are asked for only when
+		// this event is going to be written - `shouldCommit` is false whenever neither a JFR recording nor the
+		// metric exporter is subscribed to it
+		if (shouldCommit()) {
+			this.records = recordsFetchedTotal.getAsInt();
+			this.sizeBytes = fetchedSizeBytes.getAsInt();
+		}
 		return this;
 	}
 

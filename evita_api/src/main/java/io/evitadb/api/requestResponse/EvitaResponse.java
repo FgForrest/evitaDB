@@ -227,6 +227,19 @@ public abstract sealed class EvitaResponse<T extends Serializable>
 	}
 
 	/**
+	 * Records the I/O statistics measured while this response was produced. The engine counts records at the point
+	 * where they are read, which is both cheaper and more complete than adding up what the returned entities happen
+	 * to remember - records read for entities that were filtered out of the result are counted too.
+	 *
+	 * @param ioFetchCount        number of storage records read
+	 * @param ioFetchedSizeBytes  number of Bytes those records occupied
+	 */
+	public void setIoFetchStatistics(int ioFetchCount, int ioFetchedSizeBytes) {
+		this.ioFetchCount = ioFetchCount;
+		this.ioFetchedSizeBytes = ioFetchedSizeBytes;
+	}
+
+	/**
 	 * Retrieves the total size in bytes of data fetched during
 	 * input/output operations within the processing of this response.
 	 * If the size has not been calculated yet, it will trigger the
