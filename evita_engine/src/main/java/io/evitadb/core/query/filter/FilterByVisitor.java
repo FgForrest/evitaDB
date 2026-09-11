@@ -843,6 +843,32 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull Set<Scope> scope,
 		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex> missingReferencedIndexSupplier
 	) {
+		return getReferencedRecordEntityIndexes(
+			referenceHaving,
+			scope,
+			missingReferencedIndexSupplier,
+			null
+		);
+	}
+
+	/**
+	 * Method returns all {@link EntityIndex} that contain subset of data that satisfy the passed filtering constraint.
+	 *
+	 * @param nestedQueryFormulaEnricher optional transformation applied to the filter of a nested query planned for
+	 *                                   an {@link EntityHaving} inside `referenceHaving`. Pass the key set the result
+	 *                                   is intersected with anyway to keep the nested query from being evaluated over
+	 *                                   the whole referenced collection - see
+	 *                                   {@link ProcessingScope#getNestedQueryFormulaEnricher()}.
+	 * @return entity indexes that contains parts of indexed data
+	 */
+	@Nonnull
+	public List<ReducedEntityIndex> getReferencedRecordEntityIndexes(
+		@Nonnull ReferenceHaving referenceHaving,
+		@Nonnull Set<Scope> scope,
+		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex>
+			missingReferencedIndexSupplier,
+		@Nullable Function<FilterConstraint, FilterConstraint> nestedQueryFormulaEnricher
+	) {
 		final ReferenceSchemaContract referenceSchema = resolveReferenceSchema(
 			getProcessingScope().getEntitySchema(), referenceHaving
 		);
@@ -856,7 +882,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				referenceSchema,
 				new FilterBy(referenceHaving.getChildren()),
 				EntityIndexType.REFERENCED_ENTITY_TYPE,
-				missingReferencedIndexSupplier
+				missingReferencedIndexSupplier,
+				nestedQueryFormulaEnricher
 			)
 		);
 
@@ -918,7 +945,10 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				referenceSchema,
 				new FilterBy(referenceHaving.getChildren()),
 				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE,
-				missingReferencedIndexSupplier
+				missingReferencedIndexSupplier,
+				// the group filter is keyed by group primary keys, so the caller's referenced-entity key set
+				// is not a valid restriction here
+				null
 			)
 		);
 
@@ -985,7 +1015,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		final Formula reducedEntityIndexPrimaryKeys = getReducedIndexPrimaryKeyFormula(
 			entitySchema, referenceSchema, filterBy,
 			EntityIndexType.REFERENCED_ENTITY_TYPE,
-			THROWING_MISSING_RTEI_SUPPLIER
+			THROWING_MISSING_RTEI_SUPPLIER,
+			// public entry point - the caller passes the whole filter and holds no key set to narrow it with
+			null
 		);
 		// we need to translate entity index primary keys to referenced entity primary keys
 		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
@@ -1007,6 +1039,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * @param filterBy                           the filter constraint to evaluate
 	 * @param indexType                          the type of reference index to use
 	 * @param missingReferencedTypeIndexSupplier supplier for missing indexes
+	 * @param nestedQueryFormulaEnricher         optional transformation applied to the filter of a nested query planned
+	 *                                           for an {@link EntityHaving} inside `filterBy`; {@code null} leaves the
+	 *                                           nested filter untouched
 	 * @return formula computing matching index primary keys
 	 */
 	@Nonnull
@@ -1015,7 +1050,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterBy filterBy,
 		@Nonnull EntityIndexType indexType,
-		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex> missingReferencedTypeIndexSupplier
+		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex>
+			missingReferencedTypeIndexSupplier,
+		@Nullable Function<FilterConstraint, FilterConstraint> nestedQueryFormulaEnricher
 	) {
 		final String referenceName = referenceSchema.getName();
 		final Set<Scope> scopesToLookUp = this.getProcessingScope().getScopes();
@@ -1054,7 +1091,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 						ReferenceContent.ALL_REFERENCES,
 						entitySchema,
 						referenceSchema,
-						null, null,
+						nestedQueryFormulaEnricher,
+						null,
 						getProcessingScope().withReferenceSchemaAccessor(referenceSchema.getName()),
 						(theEntity, attributeName, locale) ->
 							theEntity.getReferences(referenceName)

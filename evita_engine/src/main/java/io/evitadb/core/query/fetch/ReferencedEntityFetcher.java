@@ -789,7 +789,12 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 										and(havingChildren)
 									),
 									examinedScopes,
-									(es, eik) -> null
+									(es, eik) -> null,
+									// the same restriction `computeResultWithPassedIndex` gets: without it this pass
+									// plans the nested `entityHaving` against the referenced collection's GLOBAL index
+									// and evaluates it over every entity there, only to intersect the result with
+									// `pkConstraint` - which is already a sibling conjunct - a few operations later.
+									nestedQueryPkRestriction
 								);
 							// pre-filter by group constraint before sorting to reduce sort size
 							if (allowedByGroupFilter != null && !referencedEntityIndexes.isEmpty()) {
