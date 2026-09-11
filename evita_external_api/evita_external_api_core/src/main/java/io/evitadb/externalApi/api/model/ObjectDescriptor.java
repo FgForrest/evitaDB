@@ -210,7 +210,7 @@ public record ObjectDescriptor(@Nonnull String name,
 		if (this.description == null) {
 			return null;
 		}
-		return String.format(this.description, args);
+		return DescriptionFormatter.format(this.description, args);
 	}
 
 	/**

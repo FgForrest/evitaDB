@@ -192,7 +192,7 @@ public record EndpointDescriptor(@Nonnull String operation,
 
 	@Nonnull
 	public String description(@Nonnull Object... args) {
-		return String.format(this.description, args);
+		return DescriptionFormatter.format(this.description, args);
 	}
 
 	@Nullable
