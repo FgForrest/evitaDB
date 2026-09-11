@@ -71,26 +71,30 @@ import static io.evitadb.roaringbitmap.PersistentRoaringBitmap.and;
  *
  * # What the timed arms measure, and where they diverge from the shipped resolver
  *
- * The RESOLUTION measured is **not** the shipped one. Both arms are re-implementations local to this class,
- * and they diverge from `ReevaluateExpressionExecutor` in two ways, in increasing order of consequence:
+ * Both arms are re-implementations local to this class. As of 2026-09-11 they mirror
+ * `ReevaluateExpressionExecutor` in everything that costs, with ONE deliberate exception named below.
  *
- * - **Both arms are probe-only.** They stop at the intersection and never call `getOrCreateIndexByPrimaryKey`,
- *   so neither pays the registering re-fetch nor the per-owner de-duplication of `SiblingReducedIndex`
- *   instances the shipped resolver pays. That matches how the 2026-09-09 decomposition defined "the walk"
- *   against the whole resolver, and it costs both arms the same, so it does not tilt one against the other.
- * - **The lookup arm's COVERED half diverges further, and only that half.** {@link #resolveWithLookup} emits
- *   the map's `(owner, index)` pairs straight out of {@link ReducedIndexMembership#getIndexPrimaryKeys},
- *   whereas `ReevaluateExpressionExecutor#collectOwnersFromMembership` uses the map as an index *selector*
- *   only — it collects the selected primary keys, then resolves each index and intersects its member bitmap
- *   against the affected owners, exactly as the residual half does. This arm performs none of that resolve
- *   and intersect.
+ * **What is mirrored.** Both arms reach every reduced index through the same {@link #probe} — resolve, intersect
+ * against the affected owners, allocate one sibling record per index that yields an owner, and accumulate into
+ * an owner-keyed map with the executor's own linear `contains` de-duplication. The lookup arm's covered half
+ * uses the map as an index *selector* only, collecting the keys the affected covered owners name and handing
+ * them to that same probe, which is what `collectOwnersFromMembership` does.
  *
- * The emitted pairs are the same either way, and the checksum proves it; the work is not. So the lookup arm's
- * timings are a **lower bound** on what the shipped lookup costs, and — because the walk arm is not short-cut
- * in the same way — the lookup-over-walk speedup printed here is an **upper bound** on the shipped one. Every
- * figure carried into `documentation/adr/2026-09-09-sibling-resolver-partition-cardinality.md` inherits both
- * bounds. Bringing the covered half in line with the shipped selector changes what is measured rather than how
- * it is described, so it is left to a deliberate re-measurement instead of being done in passing.
+ * **What is not, and why it cannot be.** Neither arm calls `getOrCreateIndexByPrimaryKey`, the registering
+ * accessor the executor uses once per yielding index. Calling it here would not measure the shipped cost, it
+ * would destroy the series: the accessor enrols the index in the bound transaction's dirty set, and this report
+ * runs 500 rounds inside ONE transaction, so the set would grow monotonically and every round would measure a
+ * different structure from the one before it. The shipped resolver enrols into a transaction that commits after
+ * a single trigger. That cost is therefore absent from both arms, and absent identically.
+ *
+ * **History of this section, because the numbers moved.** Until 2026-09-11 the covered half emitted the map's
+ * `(owner, index)` pairs straight out of {@link ReducedIndexMembership#getIndexPrimaryKeys}, resolving no index
+ * and intersecting no bitmap, and neither arm ran the accumulator. The emitted pairs were identical either way
+ * — the checksum gate proves the pairs, never the work — so the shortfall was invisible, and every lookup
+ * figure was a lower bound with every speedup an upper bound. The accumulator's absence did not tilt one arm
+ * against the other, both arms emitting the same pair set, but it inflated the RATIO by omitting a cost common
+ * to both. Figures in `documentation/adr/2026-09-09-sibling-resolver-partition-cardinality.md` taken before
+ * that date are not comparable with figures taken after it.
  *
  * # Reaching the high-cardinality case
  *
@@ -216,9 +220,9 @@ public class ConditionalFacetMembershipReport {
 	 * dense affected-owner shapes of the reference carrying the conditional facet.
 	 *
 	 * Both arms emit the same `(owner, index)` pairs; the checksum is compared so an arm computing a different
-	 * answer is never reported as merely faster. Both are also probe-only — they stop at the intersection and
-	 * never call `getOrCreateIndexByPrimaryKey` — and {@link #resolveWithLookup}'s covered half does not even
-	 * probe. Neither figure is the shipped resolver's; see the class javadoc for what that costs the reading.
+	 * answer is never reported as merely faster. It proves the PAIRS and nothing about the work done to reach
+	 * them, which is why the arms are held to the shipped resolver's shape by construction rather than by the
+	 * gate — see the class javadoc for the one cost both arms still omit, and why it cannot be added here.
 	 *
 	 * @param collection    the measured collection
 	 * @param globalIndex   the collection's global index, which carries the lookup
@@ -307,19 +311,26 @@ public class ConditionalFacetMembershipReport {
 	}
 
 	/**
-	 * Resolves the sibling reduced indexes through the lookup, in two halves that do NOT cost the same:
+	 * Resolves the sibling reduced indexes through the lookup, in the two halves the shipped resolver uses and
+	 * at the same cost as it pays for them:
 	 *
-	 * - the **residual** half probes, exactly as the shipped resolver does: it resolves each residual index and
-	 *   intersects its member bitmap against the affected owners;
-	 * - the **covered** half does not. It intersects the affected set against the lookup's covered-owner union,
-	 *   then emits `pair(owner, indexPk)` straight out of {@link ReducedIndexMembership#getIndexPrimaryKeys} —
-	 *   no index is resolved and no bitmap is intersected.
+	 * - the **residual** half resolves each residual index and intersects its member bitmap against the
+	 *   affected owners — `ReevaluateExpressionExecutor#collectOwnersOfProbedIndexes`;
+	 * - the **covered** half intersects the affected set against the lookup's covered-owner union, collects the
+	 *   distinct index keys those owners name, and hands them to the SAME probe —
+	 *   `ReevaluateExpressionExecutor#collectOwnersFromMembership`.
 	 *
-	 * `ReevaluateExpressionExecutor#collectOwnersFromMembership` probes both halves: it treats the lookup as an
-	 * index selector, collects the primary keys it names and hands them to the same probe the residual half
-	 * uses. The pairs agree, so the checksum passes; the cost does not, and this arm's covered half is the
-	 * reason every figure here is a lower bound on the shipped resolver. Fixing it is a measurement change and
-	 * is deliberately not made here — see the class javadoc.
+	 * Both halves therefore treat the lookup as an index SELECTOR rather than as the answer. That distinction
+	 * is the whole reason this method is shaped the way it is: emitting `pair(owner, indexPk)` straight out of
+	 * {@link ReducedIndexMembership#getIndexPrimaryKeys} produces the identical checksum while resolving no
+	 * index and intersecting no bitmap, so the gate cannot tell the two apart and every figure silently
+	 * becomes a lower bound. It measured that way until 2026-09-11; the numbers taken before that date are not
+	 * comparable with the ones taken after.
+	 *
+	 * One divergence from the shipped resolver remains, deliberately, and it is symmetric: neither arm here
+	 * accumulates into the `Map<Integer, List<SiblingReducedIndex>>` keyed by owner that the executor builds.
+	 * The walk pays that cost in the executor too, so including it would move both arms in the same direction
+	 * and the ratio — which is the only thing either arm is quoted for — is what this spike is protecting.
 	 *
 	 * @param collection  the measured collection
 	 * @param globalIndex the collection's global index
@@ -336,28 +347,38 @@ public class ConditionalFacetMembershipReport {
 		@Nonnull List<ReferenceSchemaContract> siblings,
 		@Nonnull PersistentRoaringBitmap affected
 	) {
+		// one accumulator per resolution, exactly as the executor builds one per trigger
+		final Map<Integer, List<SiblingIndex>> result = new HashMap<>();
 		long checksum = 0L;
 		for (final ReferenceSchemaContract sibling : siblings) {
 			final ReducedIndexMembership membership = simulated.containsKey(sibling.getName())
 				? simulated.get(sibling.getName())
 				: globalIndex.getReducedIndexMembership(sibling.getName());
 			if (membership == null) {
-				checksum += walkReference(collection, sibling.getName(), affected);
+				checksum += walkReference(collection, sibling.getName(), affected, result);
 				continue;
 			}
 			final Bitmap coveredOwners = membership.getCoveredOwners();
 			if (!coveredOwners.isEmpty()) {
+				// The lookup NAMES indexes; it does not answer the query. Collect the distinct keys the
+				// affected covered owners name, then probe each one exactly as the residual half does - which
+				// is `ReevaluateExpressionExecutor#collectOwnersFromMembership` handing its selected set to
+				// `collectOwnersOfProbedIndexes`. Collecting before probing is not an optimisation bolted on
+				// here: a covered index is named by up to `T` owners, so it turns `O(affected owners)` index
+				// resolutions into `O(indexes actually named)` ones, and the shipped resolver does it too.
+				final BaseBitmap selectedIndexPKs = new BaseBitmap();
 				for (final int owner : and(getRoaringBitmap(coveredOwners), affected).toArray()) {
-					final OfInt it = membership.getIndexPrimaryKeys(owner).iterator();
-					while (it.hasNext()) {
-						checksum += pair(owner, it.nextInt());
-					}
+					selectedIndexPKs.addAll(membership.getIndexPrimaryKeys(owner));
+				}
+				final OfInt selectedIt = selectedIndexPKs.iterator();
+				while (selectedIt.hasNext()) {
+					checksum += probe(collection, sibling.getName(), selectedIt.nextInt(), affected, result);
 				}
 			}
 			final OfInt residualIt = membership.getResidualIndexPrimaryKeys().iterator();
 			while (residualIt.hasNext()) {
 				final int indexPk = residualIt.nextInt();
-				checksum += probe(collection, indexPk, affected);
+				checksum += probe(collection, sibling.getName(), indexPk, affected, result);
 			}
 		}
 		return checksum;
@@ -377,9 +398,11 @@ public class ConditionalFacetMembershipReport {
 		@Nonnull List<ReferenceSchemaContract> siblings,
 		@Nonnull PersistentRoaringBitmap affected
 	) {
+		// one accumulator per resolution, exactly as the executor builds one per trigger
+		final Map<Integer, List<SiblingIndex>> result = new HashMap<>();
 		long checksum = 0L;
 		for (final ReferenceSchemaContract sibling : siblings) {
-			checksum += walkReference(collection, sibling.getName(), affected);
+			checksum += walkReference(collection, sibling.getName(), affected, result);
 		}
 		return checksum;
 	}
@@ -390,12 +413,14 @@ public class ConditionalFacetMembershipReport {
 	 * @param collection    the measured collection
 	 * @param referenceName the reference to walk
 	 * @param affected      affected owner primary keys
+	 * @param result        accumulator, keyed by owner PK, mirroring the executor's own
 	 * @return checksum contribution
 	 */
 	private static long walkReference(
 		@Nonnull EntityCollection collection,
 		@Nonnull String referenceName,
-		@Nonnull PersistentRoaringBitmap affected
+		@Nonnull PersistentRoaringBitmap affected,
+		@Nonnull Map<Integer, List<SiblingIndex>> result
 	) {
 		final long[] checksum = new long[1];
 		for (final EntityIndexType family : new EntityIndexType[]{
@@ -406,7 +431,7 @@ public class ConditionalFacetMembershipReport {
 				continue;
 			}
 			typeIndex.forEachReferenceIndexPrimaryKey(
-				pk -> checksum[0] += probe(collection, pk, affected)
+				pk -> checksum[0] += probe(collection, referenceName, pk, affected, result)
 			);
 		}
 		return checksum[0];
@@ -415,25 +440,57 @@ public class ConditionalFacetMembershipReport {
 	/**
 	 * Intersects one reduced index against the affected owners and folds the matches into a checksum.
 	 *
-	 * @param collection the measured collection
-	 * @param indexPk    primary key of the reduced index
-	 * @param affected   affected owner primary keys
+	 * @param collection    the measured collection
+	 * @param referenceName the reference the index was created for
+	 * @param indexPk       primary key of the reduced index
+	 * @param affected      affected owner primary keys
+	 * @param result        accumulator, keyed by owner PK, mirroring the executor's own
 	 * @return checksum contribution
 	 */
 	private static long probe(
 		@Nonnull EntityCollection collection,
+		@Nonnull String referenceName,
 		int indexPk,
-		@Nonnull PersistentRoaringBitmap affected
+		@Nonnull PersistentRoaringBitmap affected,
+		@Nonnull Map<Integer, List<SiblingIndex>> result
 	) {
 		final EntityIndex index = collection.getIndexByPrimaryKeyIfExists(indexPk);
 		if (index == null) {
 			return 0L;
 		}
+		final int[] owners = and(getRoaringBitmap(index.getAllPrimaryKeys()), affected).toArray();
+		if (owners.length == 0) {
+			return 0L;
+		}
+		// Mirrors `ReevaluateExpressionExecutor#probeReducedIndexForAffectedOwners`, which allocates its
+		// `SiblingReducedIndex` once per index that YIELDS an owner rather than once per probe - so an
+		// arm probing many barren indexes is not charged for them.
+		final SiblingIndex sibling = new SiblingIndex(index, referenceName);
 		long checksum = 0L;
-		for (final int owner : and(getRoaringBitmap(index.getAllPrimaryKeys()), affected).toArray()) {
+		for (final int owner : owners) {
+			// Mirrors `ReevaluateExpressionExecutor#addSibling`, including its LINEAR `contains` de-duplication:
+			// references sharing a reduced group index resolve to the same instance more than once. Both arms
+			// emit the identical pair set, so both are charged identically - the accumulator cannot tilt one
+			// against the other, but it is large enough at high affected-owner counts to compress the RATIO,
+			// which is why leaving it out overstated the speedup.
+			final List<SiblingIndex> indexes = result.computeIfAbsent(owner, __ -> new ArrayList<>(4));
+			if (!indexes.contains(sibling)) {
+				indexes.add(sibling);
+			}
 			checksum += pair(owner, indexPk);
 		}
 		return checksum;
+	}
+
+	/**
+	 * Stand-in for `ReevaluateExpressionExecutor`'s own `SiblingReducedIndex`, which is a private record and
+	 * cannot be reached from here. It carries the same two fields and therefore the same `equals` cost, which
+	 * is what the accumulator's linear de-duplication actually pays for.
+	 *
+	 * @param index         the reduced index holding the owner
+	 * @param referenceName the reference the index was created for, standing in for its schema
+	 */
+	private record SiblingIndex(@Nonnull EntityIndex index, @Nonnull String referenceName) {
 	}
 
 	/**
