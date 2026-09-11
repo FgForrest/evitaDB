@@ -1,7 +1,7 @@
 ---
 title: Bound the cross-entity facet walk with a size-thresholded owner→partition index, not a blanket one
 date: 2026-09-09
-updated: 2026-09-10 20:10
+updated: 2026-09-11 15:10
 status: accepted
 kind: optimization
 issues: [1529]
@@ -181,42 +181,51 @@ an `Integer` box per call. All of that together is the 39 ns/partition of `B −
 
 ### The implementation, measured against the model that justified it
 
-`ConditionalFacetMembershipReport` runs a *probe-only approximation* of the shipped resolver against the walk
-it replaces, in one process, with a bound transaction and rotated arm order, checksum-compared.
-
-> **The lookup figures below are a lower bound, and every speedup ratio is an upper bound.** The harness's
-> covered half emits the map's `(owner, index)` pairs directly, where the shipped
-> `ReevaluateExpressionExecutor#collectOwnersFromMembership` collects the selected keys and hands them to
-> `collectOwnersOfProbedIndexes`, which *resolves each index and intersects its members against the affected
-> set*. Neither arm pays the registering re-fetch or the per-owner de-duplication either. The checksum gate
-> cannot catch this: on freshly loaded, unmutated data both arms compute the same answer while doing different
-> amounts of work to reach it. The harness must be corrected to match the shipped resolver and re-run before
-> any figure here is quoted as the implementation's cost.
+`ConditionalFacetMembershipReport` runs the shipped resolver's own shape against the walk it replaces, in one
+process, with a bound transaction and rotated arm order, checksum-compared. Figures below are **two
+independent runs**, 2026-09-11, same box, reported as `run A / run B` — a single run of this harness does not
+resolve the dense high-cardinality walk better than ~11 %.
 
 | `P` | shape | walk | lookup | |
 |---|---|---|---|---|
-| 4,633 | sparse | 1.76 ms | **391 µs** | 4.5× |
-| 4,633 | dense | 7.45 ms | **5.28 ms** | 1.41× |
-| 188,387 | sparse | 103.18 ms | **1.78 ms** | **58×** |
-| 188,387 | dense | 123.73 ms | **14.89 ms** | **8.3×** |
+| 4,633 | sparse | 653 / 681 µs | **232 / 232 µs** | 2.8–2.9× |
+| 4,633 | dense | 12.02 / 12.06 ms | **11.22 / 11.02 ms** | 1.07–1.09× |
+| 188,387 | sparse | 82.4 / 85.4 ms | **1.50 / 1.60 ms** | **54–55×** |
+| 188,387 | dense | 259.6 / 230.2 ms | **173.0 / 172.2 ms** | **1.34–1.50×** |
 
-Memory: **4.3 MiB** on the shipping schema, **25.0 MiB** with every reference partitioned. Rebuilding the
-lookup over 188,387 reduced indexes costs **173.5 ms**, against a 26 s catalog load.
+Memory: **4.2 MiB** on the shipping schema, **24.9 MiB** with every reference partitioned. Rebuilding the
+lookup over 188,387 reduced indexes costs **156.0 ms**, against a 26 s catalog load. Coverage reproduced
+exactly across both runs and both configurations — 2,697 covered / 1,936 residual, and 185,475 / **2,912**.
 
-**Holding the model to account.** Arm C predicted the sparse case to 3.5 % (1.72 vs 1.78 ms), the memory to
-1.6 % (24.6 vs 25.0 MiB) and the residual walk exactly (2,912). It was **40 % optimistic in the dense shape**
-— 10.65 ms modelled against 14.89 ms measured.
+**These figures supersede the ones this record carried until 2026-09-11, which were too high.** The harness
+had diverged from `ReevaluateExpressionExecutor` in two ways its checksum gate could not see, because that
+gate compares the emitted `(owner, index)` pairs and the pairs were identical either way:
 
-**The reason originally given for that 40 % was wrong, and is retracted.** It attributed the gap to the
-implementation resolving each emitted index through `getOrCreateIndexByPrimaryKey` and de-duplicating siblings
-per owner. `ConditionalFacetMembershipReport` does neither — `getOrCreateIndexByPrimaryKey` does not appear in
-it, and its own `reportTimings` javadoc states both arms are probe-only. So the 14.89 ms it measured is not
-the implementation's cost either; it is a lower bound on it, and whatever produced the 40 % gap has not been
-identified. What survives unchanged is the conclusion: **arm C's dense figure must not be quoted for the
-implementation** — and neither, now, may this row's. The 8.3× and 58× cases carry the decision comfortably at
-any plausible correction; the **1.41x** dense case at `P` = 4,633 is the one to re-take first, being the
-smallest reported gain and therefore the one a missing per-index resolve-and-intersect erodes proportionally
-most.
+- the lookup arm's covered half emitted the map's pairs directly rather than using the map as an index
+  *selector* and probing what it named — so only one arm was short-changed, and the ratio was inflated
+  directly;
+- **neither** arm ran the executor's accumulator, the owner-keyed `Map<Integer, List<SiblingReducedIndex>>`
+  built by `addSibling`. That one is symmetric — both arms emit the same pair set — but omitting a cost
+  common to both inflates a ratio just the same.
+
+The superseded row that mattered most was `188,387 dense`, published as **8.3×** and actually **1.34–1.50×**.
+The `4,633 dense` row went from 1.41× to 1.07–1.09×. The two sparse rows barely moved.
+
+**What the correction did not change: the decision.** The lookup is faster in all four shapes, nothing is a
+regression, and the sparse cases — the ones a real conditional-facet trigger produces most often, since a
+trigger names the owners of one changed attribute value — remain 2.8× and 54×.
+
+**Why the dense rows are bounded, and why no threshold setting rescues them.** The accumulator's cost is
+proportional to the number of `(owner, partition)` pairs in the *answer*, which both arms must produce in
+full. `T` decides which partitions are probed; it cannot decide how large the answer is. In the dense shape
+the affected set is 57,962 owners out of 160,216 entities — roughly 36 % of the collection — so most sibling
+partitions genuinely hold an affected owner and there is nothing to skip. Subtracting the accumulator (about
+136 ms, derived as the walk's before/after difference rather than measured directly) leaves the probe work
+alone at roughly 3.3×, which is the optimization's actual contribution; the accumulator dilutes it to the
+measured 1.34–1.50×.
+
+**Absolute figures are not comparable across the harness correction.** Any number quoted from this record
+before 2026-09-11 is a lower bound on the lookup and an upper bound on the speedup.
 
 **Absolute figures do not transfer between the two spikes.** The same walk measures 1.76 ms here and 836 µs
 in `ConditionalFacetSiblingResolverReport`, 103 ms here and 80.7 ms there. Only ratios within one run mean
@@ -429,6 +438,22 @@ without a performance claim was the right call — the claim it was never given 
 - **The hybrid's own cost scales with affected owners.** Arm C is 47 × faster than `HEAD` in the sparse
   shape but 10.6 × in the dense one, because it performs one boxed `HashMap` lookup per affected owner and
   the dense shape has 57,962. **A primitive int-keyed map is a separate, unmeasured lever.**
+- **The dense shape is bound by the accumulator, not by the walk, and `T` cannot move it.** Once the harness
+  was corrected (2026-09-11) the dense rows fell to 1.07–1.09× and 1.34–1.50×. The reason is
+  `ReevaluateExpressionExecutor#addSibling`: it runs once per `(owner, partition)` pair of the *answer*, and
+  both the lookup and the walk must produce that answer in full, so it is a constant common to both and
+  dilutes any ratio built on top of it. Raising the coverage threshold changes which partitions are probed;
+  it cannot change how many pairs exist. **Roughly 136 ms of the 188,387-dense figure is this, derived as the
+  walk's before/after difference across the harness correction and never profiled directly.** The candidate
+  on inspection is the boxed `Map<Integer, List<SiblingReducedIndex>>` and its per-pair `computeIfAbsent` —
+  not the `contains` de-duplication beside it, which scans a four-element list of identity-compared records.
+  **Measure before changing either.**
+- **`DEFAULT_COVERAGE_THRESHOLD` = 16 has never been swept against the shipped implementation.** Every
+  threshold figure in this record comes from `ConditionalFacetReverseIndexFootprint`, which models memory
+  only. `ReducedIndexMembership(int)` exists, but both real construction sites — `GlobalEntityIndex:476` and
+  the spike's `buildSlicesFor` — call the no-argument constructor, so the value is not reachable without
+  plumbing it through. A sweep would trade memory against the residual probe and is the one lever that
+  genuinely improves the **sparse** cases, which are the shape a real trigger produces most often.
 - **Schema evolution changing `ReferenceIndexType` is now traced.** It does move the map's domain, and the
   resolution is deliberately *not* to react to it — see *Key technical details*. **The completeness test
   must pin the degradation property instead**: with a reference raised on a populated collection and no
