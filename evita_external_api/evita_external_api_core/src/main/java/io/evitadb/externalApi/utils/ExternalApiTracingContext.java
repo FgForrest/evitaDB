@@ -23,6 +23,9 @@
 
 package io.evitadb.externalApi.utils;
 
+import com.linecorp.armeria.common.logging.RequestLogAccess;
+import com.linecorp.armeria.common.logging.RequestLogProperty;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
 import io.evitadb.externalApi.configuration.HeaderOptions;
@@ -53,6 +56,34 @@ public interface ExternalApiTracingContext<C> {
 	 */
 	@Nonnull
 	Class<C> contextType();
+
+	/**
+	 * Returns the instant the request currently being served started, as epoch milliseconds rendered to a string
+	 * ready for {@link TracingContext#MDC_REQUEST_START_PROPERTY}.
+	 *
+	 * Returns {@code null} when this thread is not serving a request, and the caller must then leave any request
+	 * start already recorded alone. It deliberately does **not** fall back to the current time: a thread that cannot
+	 * see the request context is, by definition, one the request was handed to later, so "now" would record the
+	 * hand-off instant as the start of the request and under-report every duration derived from it.
+	 *
+	 * Only a {@link ServiceRequestContext} qualifies. `RequestContext.currentOrNull()` would also match an *outbound*
+	 * client call this thread happens to be making, whose start has nothing to do with the request being served.
+	 *
+	 * @return epoch milliseconds of the request start as a string, or null when no served request is current
+	 */
+	@Nullable
+	static String currentRequestStart() {
+		final ServiceRequestContext requestContext = ServiceRequestContext.currentOrNull();
+		if (requestContext == null) {
+			return null;
+		}
+		final RequestLogAccess logAccess = requestContext.log();
+		// REQUEST_START_TIME is set inside the ServiceRequestContext constructor, so this holds for anything that can
+		// observe the context at all - the guard is what keeps `partial()` from throwing if that ever changes
+		return logAccess.isAvailable(RequestLogProperty.REQUEST_START_TIME) ?
+			Long.toString(logAccess.partial().requestStartTimeMillis()) : null;
+	}
+
 	/**
 	 * Format of the client ID used by the server.
 	 */

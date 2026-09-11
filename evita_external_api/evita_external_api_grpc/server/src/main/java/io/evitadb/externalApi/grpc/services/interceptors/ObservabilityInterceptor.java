@@ -23,12 +23,14 @@
 
 package io.evitadb.externalApi.grpc.services.interceptors;
 
+import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.core.session.EvitaInternalSessionContract;
 import io.evitadb.externalApi.event.ResponseStatus;
 import io.evitadb.externalApi.grpc.metric.event.AbstractProcedureCalledEvent;
 import io.evitadb.externalApi.grpc.metric.event.AbstractProcedureCalledEvent.InitiatorType;
 import io.evitadb.externalApi.grpc.metric.event.EvitaProcedureCalledEvent;
 import io.evitadb.externalApi.grpc.metric.event.SessionProcedureCalledEvent;
+import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.grpc.ForwardingServerCall.SimpleForwardingServerCall;
 import io.grpc.ForwardingServerCallListener;
 import io.grpc.Metadata;
@@ -43,6 +45,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * Logs access log messages to Slf4J logger marked with `ACCESS_LOG` and `GRPC_ACCESS_LOG`.
@@ -94,9 +97,46 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 				)
 			);
 		final ObservabilityServerCall<ReqT, RespT> loggingServerCall = new ObservabilityServerCall<>(call, event);
-		return new ObservabilityListener<>(
-			next.startCall(loggingServerCall, headers), event
+		// `startCall` is where a client-streaming or bidi service method body actually executes - grpc-java invokes
+		// the user method before it constructs the listener - so the request start has to be recorded around it and
+		// not only around the listener callbacks below.
+		return withRequestStart(
+			() -> new ObservabilityListener<>(
+				next.startCall(loggingServerCall, headers), event
+			)
 		);
+	}
+
+	/**
+	 * Records the start of the request being served in the MDC for the duration of {@code lambda}, so that anything
+	 * logged underneath it - and any task submitted to an evitaDB executor from underneath it, which snapshots the
+	 * MDC as it is constructed - can report how far into the request it happened.
+	 *
+	 * Armeria pushes the {@link com.linecorp.armeria.server.ServiceRequestContext} around `startCall` and around
+	 * every listener callback except `onReady`, so the request start is readable at each of the sites this is used.
+	 * When it is not readable the MDC is left exactly as it was, which matters because these scopes nest: a listener
+	 * callback runs inside the same request as the `startCall` that preceded it.
+	 *
+	 * @param lambda the work to run with the request start recorded
+	 * @param <T>    the result type
+	 * @return whatever {@code lambda} returns
+	 */
+	private static <T> T withRequestStart(@Nonnull Supplier<T> lambda) {
+		return TracingContext.executeWithRequestStart(
+			ExternalApiTracingContext.currentRequestStart(), lambda
+		);
+	}
+
+	/**
+	 * Void-returning counterpart of {@link #withRequestStart(Supplier)}, for the listener callbacks.
+	 *
+	 * @param lambda the work to run with the request start recorded
+	 */
+	private static void withRequestStart(@Nonnull Runnable lambda) {
+		withRequestStart(() -> {
+			lambda.run();
+			return null;
+		});
 	}
 
 	/**
@@ -162,18 +202,25 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 
 		@Override
 		public void onHalfClose() {
-			try {
-				super.onHalfClose();
-			} catch (RuntimeException ex) {
-				this.event.setGrpcResponseStatus(ResponseStatus.ERROR);
-				throw ex;
-			}
+			withRequestStart(() -> {
+				try {
+					super.onHalfClose();
+				} catch (RuntimeException ex) {
+					this.event.setGrpcResponseStatus(ResponseStatus.ERROR);
+					throw ex;
+				}
+			});
 		}
 
 		@Override
 		public void onCancel() {
 			this.event.setGrpcResponseStatus(ResponseStatus.CANCELLED);
-			super.onCancel();
+			withRequestStart(() -> super.onCancel());
+		}
+
+		@Override
+		public void onComplete() {
+			withRequestStart(() -> super.onComplete());
 		}
 
 		@Override
@@ -186,7 +233,7 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 			if (this.event.streamsRequests() || this.event.unaryCall()) {
 				this.event.setInitiator(InitiatorType.CLIENT);
 			}
-			super.onMessage(request);
+			withRequestStart(() -> super.onMessage(request));
 		}
 
 	}
