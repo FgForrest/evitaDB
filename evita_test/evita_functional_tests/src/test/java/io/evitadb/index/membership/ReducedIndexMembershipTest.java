@@ -120,15 +120,21 @@ class ReducedIndexMembershipTest {
 		}
 
 		@Test
-		@DisplayName("an index with no members enters neither set and stays unknown")
-		void registerIndexWithNoMembersLeavesItUnknown() {
+		@DisplayName("an index with no members is recorded as residual")
+		void registerIndexWithNoMembersRecordsItAsResidual() {
 			final ReducedIndexMembership tested = new ReducedIndexMembership(SMALL_THRESHOLD);
 			tested.registerIndex(INDEX_PK, EmptyBitmap.INSTANCE);
 
-			// deliberate, and load-bearing for the caller: the only consumer treats "not covered, not residual" as
-			// "walk it", so an empty index must not be made to look like a suppressed one
-			assertFalse(tested.isKnown(INDEX_PK));
-			assertTrue(tested.isEmpty());
+			// Accounted for rather than dropped, which is what makes `covered u residual == advertised` hold on
+			// this class's own terms instead of resting on an argument about the un-advertise lockstep upstream.
+			// Residual is the right half: coverage of an index holding nobody would record no owner entry, so the
+			// index would be selected for no probe at all - and an index in NEITHER set is never visited, since
+			// only the absence of the whole slice restores the walk. The cost when it fires is one probe that
+			// yields nothing.
+			assertTrue(tested.isKnown(INDEX_PK));
+			assertEquals(Set.of(INDEX_PK), toSet(tested.getResidualIndexPrimaryKeys()));
+			assertEquals(Set.of(), toSet(tested.getCoveredIndexPrimaryKeys()));
+			assertTrue(tested.getCoveredOwners().isEmpty());
 		}
 
 		@Test
@@ -181,8 +187,9 @@ class ReducedIndexMembershipTest {
 			tested.unregisterIndex(INDEX_PK + 1, EmptyBitmap.INSTANCE);
 			assertFalse(tested.isKnown(INDEX_PK + 1));
 
-			// an index that was never known is a silent no-op, not a raise - `ownerRemoved` reaches this for an
-			// index the map declined to cover
+			// an index that was never known is a silent no-op, not a raise. Production cannot reach it -
+			// `ownerRemoved`'s two calls are both inside a `contains(...)` test - but the method is public and
+			// the map is an accelerator, so a caller unregistering something twice must not fail a commit over it
 			tested.unregisterIndex(INDEX_PK + 2, new BaseBitmap(9));
 			assertTrue(tested.isEmpty());
 		}
@@ -293,6 +300,14 @@ class ReducedIndexMembershipTest {
 		@Test
 		@DisplayName("the last owner leaving forgets the index entirely")
 		void lastOwnerRemovalForgetsTheIndexEntirely() {
+			// Forgetting is the contract here, and the reason lives upstream rather than in this class:
+			// `ReferenceIndexMutator#referenceRemovalPerComponent` un-advertises the reduced index in the same
+			// synchronous step in which its last owner leaves, so what is dropped here is an index the reference
+			// no longer advertises either - and `covered u residual == advertised` stays true. Keeping such an
+			// index accounted would leak one residual entry per dropped index for the life of the collection and
+			// break that equality in the other direction, which is why this arm does NOT follow the empty-membership
+			// arm of `registerIndex` into residual. The lockstep is asserted rather than argued, end to end, by
+			// `ReducedIndexMembershipCompletenessTest#lastOwnerLeavingAReducedIndexKeepsTheLookupComplete`.
 			final ReducedIndexMembership tested = new ReducedIndexMembership(SMALL_THRESHOLD);
 			tested.registerIndex(INDEX_PK, new BaseBitmap(1, 2));
 			tested.registerIndex(INDEX_PK + 1, new BaseBitmap(1));

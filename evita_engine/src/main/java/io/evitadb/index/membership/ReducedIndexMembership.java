@@ -24,9 +24,9 @@
 package io.evitadb.index.membership;
 
 import io.evitadb.api.index.EntityIndexType;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -34,7 +34,7 @@ import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
-import io.evitadb.utils.MemoryMeasuringConstants;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
@@ -100,9 +100,9 @@ import java.util.PrimitiveIterator.OfInt;
  * adding another site that builds, seeds or maintains a slice has no safety net downstream of it at run time:
  * that test is what has to be made to fail first.
  *
- * That property is what makes the structure safe to ship against transactional memory, and it is what
- * `ReducedIndexMembershipCompletenessTest` asserts — against the reduced indexes themselves as ground truth,
- * rather than against this map's own bookkeeping.
+ * The accelerator property — **slower**, never wrong — is what makes the structure safe to ship against
+ * transactional memory, and that test is what holds it to it: against the reduced indexes themselves as ground
+ * truth, rather than against this map's own bookkeeping.
  *
  * # Derived state
  *
@@ -163,15 +163,32 @@ public class ReducedIndexMembership implements VoidTransactionMemoryProducer<Red
 	@Nonnull private final TransactionalBitmap coveredOwners;
 
 	/**
-	 * Primary keys of the reduced indexes this map covers. Exposed so a caller can tell "covered" from
-	 * "never seen" — the latter must be walked.
+	 * Primary keys of the reduced indexes this map covers. Exposed as a pair with
+	 * {@link #residualIndexPrimaryKeys} so a caller can tell "covered" from "residual", and so the union of the
+	 * two can be checked against the reference's advertisement.
+	 *
+	 * It is **not** a fall-back signal. A slice that exists is probed exactly as it stands — the resolver never
+	 * re-derives the advertisement, because reading it would pay the very traversal this structure removes — so
+	 * an index in neither set is not walked, it is never visited at all. Only the absence of the whole slice
+	 * restores the walk.
 	 */
 	@Nonnull private final TransactionalBitmap coveredIndexPrimaryKeys;
 
 	/**
-	 * Primary keys of the reduced indexes known to be above the threshold. Iterated directly by the trigger,
-	 * which is why it is materialised rather than derived by filtering the reference's full advertisement —
-	 * deriving it would pay exactly the `O(total indexes)` traversal this structure exists to remove.
+	 * Primary keys of the reduced indexes left on the walk. An index above the threshold is always here, but the
+	 * converse does not hold: size is only ONE of the reasons an index lands in this set, so reading membership
+	 * of it as "this index holds more than `T` owners" is wrong.
+	 *
+	 * - {@link #registerIndexAsResidual} records an index whose membership the caller could not read at all, so
+	 *   a slice seeded by `ReferenceIndexMutator#seedFromAdvertisedIndexes` has EVERY advertised index here
+	 *   regardless of size, and so does one whose index failed to resolve at load;
+	 * - {@link #registerIndex}'s third arm records an index that arrived holding nobody;
+	 * - a small index registered either way stays here until it is written again — only {@link #ownerAdded} and
+	 *   {@link #ownerRemoved} demote, so a slice whose indexes are never written again never converges.
+	 *
+	 * Iterated directly by the trigger, which is why it is materialised rather than derived by filtering the
+	 * reference's full advertisement — deriving it would pay exactly the `O(total indexes)` traversal this
+	 * structure exists to remove.
 	 */
 	@Nonnull private final TransactionalBitmap residualIndexPrimaryKeys;
 
@@ -244,6 +261,9 @@ public class ReducedIndexMembership implements VoidTransactionMemoryProducer<Red
 	 * to. Rather than leave that silently stale, this refuses: a caller that wants to re-decide an index's
 	 * coverage must {@link #unregisterIndex(int, Bitmap) unregister} it first, with the membership it had.
 	 *
+	 * An index arriving with an EMPTY membership is accounted for as residual rather than dropped — see the
+	 * third arm for why that state is unreachable and why it is nevertheless handled rather than raised on.
+	 *
 	 * @param indexPrimaryKey primary key of the reduced index
 	 * @param members         the owners the reduced index currently holds
 	 * @throws GenericEvitaInternalError when the index is already known to this map
@@ -262,6 +282,23 @@ public class ReducedIndexMembership implements VoidTransactionMemoryProducer<Red
 			this.residualIndexPrimaryKeys.add(indexPrimaryKey);
 		} else if (!members.isEmpty()) {
 			addCoverage(indexPrimaryKey, members);
+		} else {
+			// An advertised index holding nobody. Upstream it does not arise: `ReferenceIndexMutator
+			// #referenceRemovalPerComponent` un-advertises the reduced index in the same synchronous step in
+			// which its last owner leaves, because `ReferencedTypeEntityIndex` counts owners per (index,
+			// referenced entity) tuple and drops the advertisement on the 1 -> 0 crossing. So an index that is
+			// advertised has an owner, and this arm is dead.
+			// It is accounted for rather than raised on all the same. The only caller that could reach it is the
+			// load path (`EntityCollection#registerReducedIndex`), where refusing would take the whole catalog
+			// offline over an index that holds nobody - and one that holds nobody can hold no affected owner
+			// either, so the trigger skipping it produces no wrong answer. Recording it as residual is not a
+			// silent skip: it accounts for the index, keeps `covered ∪ residual == advertised` true
+			// UNCONDITIONALLY rather than by inherited argument, and leaves it on the probe, which is where it
+			// was before this structure existed. Coverage would be the wrong half - an index with no owners
+			// records no owner entry, so it would be selected for no probe at all. The cost when it fires is one
+			// probe that yields nothing; the lockstep itself is asserted, not argued, by
+			// `ReducedIndexMembershipCompletenessTest#assertMembershipMatchesIndexes`.
+			this.residualIndexPrimaryKeys.add(indexPrimaryKey);
 		}
 	}
 
@@ -326,9 +363,10 @@ public class ReducedIndexMembership implements VoidTransactionMemoryProducer<Red
 		} else if (this.residualIndexPrimaryKeys.contains(indexPrimaryKey)) {
 			// A residual index grows on insert and so cannot outgrow anything - but it may be residual for a
 			// reason other than size: a slice seeded from a reference's advertisement records every index as
-			// residual without inspecting it, because seeding cannot resolve them. Demoting here is what lets
-			// such a slice acquire coverage as its indexes are written, and it cannot oscillate: promotion
-			// needs `T` owners and demotion `T/2`, so the two boundaries never meet.
+			// residual without inspecting it, because seeding cannot resolve them, and `registerIndex` records
+			// an index that arrived with no members the same way. Demoting here is what lets such a
+			// slice acquire coverage as its indexes are written, and it cannot oscillate: promotion needs `T`
+			// owners and demotion `T/2`, so the two boundaries never meet.
 			if (size <= this.demotionThreshold) {
 				this.residualIndexPrimaryKeys.remove(indexPrimaryKey);
 				addCoverage(indexPrimaryKey, membersAfter);
@@ -341,6 +379,17 @@ public class ReducedIndexMembership implements VoidTransactionMemoryProducer<Red
 
 	/**
 	 * Records that an owner has left a reduced index, and re-decides that index's coverage.
+	 *
+	 * **Unregistering on an empty `membersAfter` is correct only because of an upstream lockstep**, and the two
+	 * sites do not otherwise mention each other: `ReferenceIndexMutator#referenceRemovalPerComponent`
+	 * un-advertises the same reduced index a few lines before it reaches this method, on the 1 -> 0 crossing of
+	 * `ReferencedTypeEntityIndex`'s per-tuple owner counter. So what is dropped here is an index the reference
+	 * no longer advertises either, and `covered ∪ residual == advertised` survives the drop. A change that
+	 * defers or conditions that un-advertise leaves an advertised index in neither set — after which the trigger
+	 * never visits it — so it is the one remaining way to break the invariant, and
+	 * `ReducedIndexMembershipCompletenessTest#assertMembershipMatchesIndexes` is what catches it. Keeping such
+	 * an index accounted instead is not the answer: {@link #unregisterIndex(int, Bitmap)} has no other caller,
+	 * so it would leak one residual entry per dropped index for the life of the collection.
 	 *
 	 * @param indexPrimaryKey primary key of the reduced index the owner left
 	 * @param ownerPrimaryKey primary key of the owner entity
@@ -361,6 +410,10 @@ public class ReducedIndexMembership implements VoidTransactionMemoryProducer<Red
 				addCoverage(indexPrimaryKey, membersAfter);
 			}
 		}
+		// An index in neither set falls through deliberately, and must NOT raise. This path's job is to absorb
+		// drift: the map is an accelerator whose entries are allowed to be stale, so a removal naming an index
+		// it never knew about has nothing to correct. Raising would convert benign staleness into a failed
+		// commit, which is a strictly worse trade than the wasted call.
 	}
 
 	/**
@@ -387,8 +440,10 @@ public class ReducedIndexMembership implements VoidTransactionMemoryProducer<Red
 	}
 
 	/**
-	 * Returns the primary keys of the reduced indexes left on the walk because they hold more owners than the
-	 * threshold allows.
+	 * Returns the primary keys of the reduced indexes left on the walk — those known to hold more owners than
+	 * the threshold allows, AND those accounted for without their membership being readable. A caller must not
+	 * infer a size from membership of this set; see {@link #residualIndexPrimaryKeys} for the full list of ways
+	 * an index arrives here.
 	 *
 	 * @return residual reduced-index primary keys; never `null`
 	 */
@@ -435,17 +490,22 @@ public class ReducedIndexMembership implements VoidTransactionMemoryProducer<Red
 	}
 
 	/**
-	 * Estimates the heap this map occupies, using the engine's own accounting so the figure is comparable
-	 * with every other index structure's.
+	 * Estimates the heap this map occupies, through {@link VMLayout} — the accounting the enclosing sum uses.
+	 * The figure is added straight into `GlobalEntityIndex#getHeapSizeInBytes`, whose other terms are all
+	 * {@link VMLayout}-based, so measuring this one against different header and reference widths would report
+	 * a single number assembled from two models.
 	 *
 	 * @return estimated size in bytes
 	 */
 	public long getHeapSizeInBytes() {
-		return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
-			2 * MemoryMeasuringConstants.INT_SIZE +
-			4 * MemoryMeasuringConstants.REFERENCE_SIZE +
+		final VMLayout layout = VMLayout.current();
+		// the map charges its own keys: an owner primary key is boxed once per entry and held here alone
+		final long boxedInteger = layout.sizeOfObject(Integer.BYTES);
+		// the two thresholds, plus the indexPrimaryKeysByOwner / coveredOwners / coveredIndexPrimaryKeys /
+		// residualIndexPrimaryKeys slots
+		return layout.sizeOfObject(2L * Integer.BYTES + 4L * layout.referenceSize()) +
 			this.indexPrimaryKeysByOwner.getHeapSizeInBytes(
-				key -> (long) MemoryMeasuringConstants.OBJECT_HEADER_SIZE + MemoryMeasuringConstants.INT_SIZE,
+				key -> boxedInteger,
 				TransactionalBitmap::getHeapSizeInBytes
 			) +
 			this.coveredOwners.getHeapSizeInBytes() +
@@ -544,6 +604,12 @@ public class ReducedIndexMembership implements VoidTransactionMemoryProducer<Red
 	private void forgetMembership(int ownerPrimaryKey, int indexPrimaryKey) {
 		final TransactionalBitmap existing = this.indexPrimaryKeysByOwner.get(ownerPrimaryKey);
 		if (existing == null) {
+			// Reachable and correct, so it must not raise. The promotion path is where it happens: `ownerAdded`
+			// hands `dropCoverage` the membership AFTER the insert, which includes the owner that has just
+			// crossed the index above the threshold - and that owner never got an entry,
+			// because the promotion branch replaced the `recordMembership` call that would have made one. Every
+			// other member of the set does have one. Raising here would fail the very commit that promotes an
+			// index out of coverage.
 			return;
 		}
 		existing.remove(indexPrimaryKey);
