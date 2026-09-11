@@ -23,18 +23,22 @@
 
 package io.evitadb.externalApi.observability.trace;
 
+import com.linecorp.armeria.common.HttpHeaderNames;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
 import io.evitadb.api.observability.trace.TracingContextProvider;
+import io.evitadb.api.query.head.Label;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.grpc.Metadata;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.TextMapGetter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 import static java.util.Optional.ofNullable;
@@ -46,6 +50,11 @@ import static java.util.Optional.ofNullable;
  */
 public class GrpcTracingContext implements ExternalApiTracingContext<Metadata> {
 	private static final String CLIENT_ID_HEADER = "clientId";
+
+	/**
+	 * Header configuration. Initialized with default settings that gets overwritten once the context is prepared.
+	 */
+	@Setter private HeaderOptions headerOptions = HeaderOptions.builder().build();
 
 	private final TracingContext tracingContext;
 
@@ -72,7 +81,7 @@ public class GrpcTracingContext implements ExternalApiTracingContext<Metadata> {
 
 	@Override
 	public void configureHeaders(@Nonnull HeaderOptions headerOptions) {
-		// do nothing
+		this.headerOptions = headerOptions;
 	}
 
 	@Override
@@ -82,17 +91,16 @@ public class GrpcTracingContext implements ExternalApiTracingContext<Metadata> {
 		@Nonnull Runnable runnable,
 		@Nullable SpanAttribute... attributes
 	) {
-		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
-			runnable.run();
-			return;
-		}
-		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-			this.tracingContext.executeWithinBlock(
-				protocolName,
-				runnable,
-				attributes
-			);
-		}
+		withClientContext(context, () -> {
+			if (OpenTelemetryTracerSetup.isTracingEnabled()) {
+				try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
+					this.tracingContext.executeWithinBlock(protocolName, runnable, attributes);
+				}
+			} else {
+				runnable.run();
+			}
+			return null;
+		});
 	}
 
 	@Override
@@ -102,16 +110,14 @@ public class GrpcTracingContext implements ExternalApiTracingContext<Metadata> {
 		@Nonnull Supplier<T> lambda,
 		@Nullable SpanAttribute... attributes
 	) {
-		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
-			return lambda.get();
-		}
-		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-			return this.tracingContext.executeWithinBlock(
-				protocolName,
-				lambda,
-				attributes
-			);
-		}
+		return withClientContext(context, () -> {
+			if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
+				return lambda.get();
+			}
+			try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
+				return this.tracingContext.executeWithinBlock(protocolName, lambda, attributes);
+			}
+		});
 	}
 
 	@Override
@@ -121,17 +127,16 @@ public class GrpcTracingContext implements ExternalApiTracingContext<Metadata> {
 		@Nonnull Runnable runnable,
 		@Nullable Supplier<SpanAttribute[]> attributes
 	) {
-		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
-			runnable.run();
-			return;
-		}
-		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-			this.tracingContext.executeWithinBlock(
-				protocolName,
-				runnable,
-				attributes
-			);
-		}
+		withClientContext(context, () -> {
+			if (OpenTelemetryTracerSetup.isTracingEnabled()) {
+				try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
+					this.tracingContext.executeWithinBlock(protocolName, runnable, attributes);
+				}
+			} else {
+				runnable.run();
+			}
+			return null;
+		});
 	}
 
 	@Override
@@ -141,44 +146,113 @@ public class GrpcTracingContext implements ExternalApiTracingContext<Metadata> {
 		@Nonnull Supplier<T> lambda,
 		@Nullable Supplier<SpanAttribute[]> attributes
 	) {
-		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
-			return lambda.get();
-		}
-		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-			return this.tracingContext.executeWithinBlock(
-				protocolName,
-				lambda,
-				attributes
-			);
-		}
+		return withClientContext(context, () -> {
+			if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
+				return lambda.get();
+			}
+			try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
+				return this.tracingContext.executeWithinBlock(protocolName, lambda, attributes);
+			}
+		});
 	}
 
 	@Override
 	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull Metadata context, @Nonnull Runnable runnable) {
-		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
-			runnable.run();
-			return;
-		}
-		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-			this.tracingContext.executeWithinBlock(
-				protocolName,
-				runnable
-			);
-		}
+		withClientContext(context, () -> {
+			if (OpenTelemetryTracerSetup.isTracingEnabled()) {
+				try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
+					this.tracingContext.executeWithinBlock(protocolName, runnable);
+				}
+			} else {
+				runnable.run();
+			}
+			return null;
+		});
 	}
 
 	@Nullable
 	@Override
 	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull Metadata context, @Nonnull Supplier<T> lambda) {
-		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
-			return lambda.get();
-		}
-		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-			return this.tracingContext.executeWithinBlock(
-				protocolName,
-				lambda
-			);
-		}
+		return withClientContext(context, () -> {
+			if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
+				return lambda.get();
+			}
+			try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
+				return this.tracingContext.executeWithinBlock(protocolName, lambda);
+			}
+		});
+	}
+
+	/**
+	 * Runs {@code lambda} with the client metadata of the gRPC call published to the MDC, exactly as the JSON APIs
+	 * publish theirs, so that log lines and traffic recordings made underneath it can report who called and what
+	 * they called.
+	 *
+	 * **Every overload above routes through here.** Which one a caller lands on depends only on whether its lambda
+	 * returns a value and whether it passes span attributes - distinctions that say nothing about whether client
+	 * metadata is wanted. Instrumenting a subset would leave the paths that happen to use the other overloads
+	 * silently without context; evitaDB's own gRPC services reach this class exclusively through the
+	 * {@link Runnable} variants.
+	 *
+	 * @param metadata the gRPC call metadata carrying the client headers
+	 * @param lambda   the work to run with the client context published
+	 * @param <T>      the result type
+	 * @return whatever {@code lambda} returns
+	 */
+	private <T> T withClientContext(@Nonnull Metadata metadata, @Nonnull Supplier<T> lambda) {
+		final ClientMetadata clientMetadata = extractClientMetadata(metadata);
+		return TracingContext.executeWithClientContext(
+			ExternalApiTracingContext.currentRequestStart(),
+			clientMetadata.clientIpAddress(),
+			clientMetadata.clientUri(),
+			clientMetadata.labels(),
+			lambda
+		);
+	}
+
+	/**
+	 * Client metadata carried by the headers of an incoming gRPC call.
+	 *
+	 * @param clientIpAddress the client IP from the `X-Forwarded-For` header
+	 * @param clientUri       the client URI from the configured forwarded-uri headers
+	 * @param labels          client-provided labels from the configured label headers
+	 */
+	private record ClientMetadata(
+		@Nullable String clientIpAddress,
+		@Nullable String clientUri,
+		@Nonnull Label[] labels
+	) {}
+
+	/**
+	 * Extracts client metadata (IP address, URI and labels) from the given gRPC metadata using the configured header
+	 * options - the same headers, read the same way, as `JsonApiTracingContext` reads from an HTTP request. gRPC
+	 * requests reach evitaDB through the same Armeria pipeline, so the `X-Forwarded-For` header the tracing decorator
+	 * writes is present here too.
+	 *
+	 * @param metadata the gRPC call metadata to extract from
+	 * @return the extracted client metadata
+	 */
+	@Nonnull
+	private ClientMetadata extractClientMetadata(@Nonnull Metadata metadata) {
+		final String clientIpAddress = CONTEXT_GETTER.get(metadata, HttpHeaderNames.X_FORWARDED_FOR.toString());
+		final String clientUri = this.headerOptions.forwardedUri()
+			.stream()
+			.map(headerName -> CONTEXT_GETTER.get(metadata, headerName))
+			.filter(Objects::nonNull)
+			.findFirst()
+			.orElse(null);
+		final Label[] labels = this.headerOptions.label()
+			.stream()
+			.map(headerName -> CONTEXT_GETTER.get(metadata, headerName))
+			.filter(Objects::nonNull)
+			.map(header -> {
+				final int index = header.indexOf('=');
+				return index < 0 ?
+					null : new Label(header.substring(0, index), header.substring(index + 1));
+			})
+			.filter(Objects::nonNull)
+			.toArray(Label[]::new);
+		return new ClientMetadata(clientIpAddress, clientUri, labels);
 	}
 
 	/**

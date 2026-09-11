@@ -213,9 +213,11 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 		@Nonnull Supplier<T> lambda
 	) {
 		final ClientMetadata metadata = extractClientMetadata(context.headers());
+		final String requestStart = ExternalApiTracingContext.currentRequestStart();
 
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
 			return TracingContext.executeWithClientContext(
+				requestStart,
 				metadata.clientIpAddress(),
 				metadata.clientUri(),
 				metadata.labels(),
@@ -224,6 +226,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 		}
 		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
 			return TracingContext.executeWithClientContext(
+				requestStart,
 				metadata.clientIpAddress(),
 				metadata.clientUri(),
 				metadata.labels(),
@@ -254,10 +257,12 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 		@Nonnull Supplier<CompletableFuture<T>> asyncLambda
 	) {
 		final ClientMetadata metadata = extractClientMetadata(context.headers());
+		final String requestStart = ExternalApiTracingContext.currentRequestStart();
 
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
 			// no tracing -- executeWithClientContext sets/clears MDC synchronously
 			return TracingContext.executeWithClientContext(
+				requestStart,
 				metadata.clientIpAddress(),
 				metadata.clientUri(),
 				metadata.labels(),
@@ -269,6 +274,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 		// Only span.end() is deferred to when the async future completes.
 		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
 			return TracingContext.executeWithClientContext(
+				requestStart,
 				metadata.clientIpAddress(),
 				metadata.clientUri(),
 				metadata.labels(),
@@ -316,7 +322,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 	 *
 	 * @param clientIpAddress the client IP from X-Forwarded-For header
 	 * @param clientUri       the client URI from configured forwarded-uri headers
-	 * @param labels          client-provided labels from configured forwarded-for headers
+	 * @param labels          client-provided labels from the configured label headers
 	 */
 	private record ClientMetadata(
 		@Nullable String clientIpAddress,
@@ -340,7 +346,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 			.filter(Objects::nonNull)
 			.findFirst()
 			.orElse(null);
-		final Label[] labels = this.headerOptions.forwardedFor()
+		final Label[] labels = this.headerOptions.label()
 			.stream()
 			.flatMap(name -> headers.getAll(name).stream())
 			.map(header -> {
