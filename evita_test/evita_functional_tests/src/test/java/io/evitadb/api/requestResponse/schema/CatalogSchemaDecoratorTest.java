@@ -39,6 +39,7 @@ import java.util.List;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -220,6 +221,62 @@ class CatalogSchemaDecoratorTest {
 
 			assertNotNull(builder);
 			assertEquals(APITestConstants.TEST_CATALOG, builder.getName());
+		}
+	}
+
+	@Nested
+	@DisplayName("Equality and string representation")
+	class EqualityAndToStringTest {
+
+		@Test
+		@DisplayName("two decorators wrapping value-equal but distinct delegate instances are equal")
+		void shouldConsiderDecoratorsWrappingEqualDelegatesEqual() {
+			final CatalogSchemaDecorator decorator1 = new CatalogSchemaDecorator(
+				CatalogSchema._internalBuild(
+					APITestConstants.TEST_CATALOG,
+					NamingConvention.generate(APITestConstants.TEST_CATALOG),
+					null,
+					EnumSet.allOf(CatalogEvolutionMode.class),
+					EmptyEntitySchemaAccessor.INSTANCE
+				)
+			);
+			final CatalogSchemaDecorator decorator2 = new CatalogSchemaDecorator(
+				CatalogSchema._internalBuild(
+					APITestConstants.TEST_CATALOG,
+					NamingConvention.generate(APITestConstants.TEST_CATALOG),
+					null,
+					EnumSet.allOf(CatalogEvolutionMode.class),
+					EmptyEntitySchemaAccessor.INSTANCE
+				)
+			);
+
+			assertEquals(decorator1, decorator2);
+			assertEquals(decorator1.hashCode(), decorator2.hashCode());
+		}
+
+		@Test
+		@DisplayName("decorators wrapping delegates with different names are not equal")
+		void shouldConsiderDecoratorsWrappingDifferentDelegatesNotEqual() {
+			final CatalogSchemaDecorator decorator1 = new CatalogSchemaDecorator(CATALOG_SCHEMA);
+			final CatalogSchemaDecorator decorator2 = new CatalogSchemaDecorator(
+				CatalogSchema._internalBuild(
+					"differentCatalog",
+					NamingConvention.generate("differentCatalog"),
+					null,
+					EnumSet.allOf(CatalogEvolutionMode.class),
+					EmptyEntitySchemaAccessor.INSTANCE
+				)
+			);
+
+			assertFalse(decorator1.equals(decorator2));
+		}
+
+		@Test
+		@DisplayName("toString() matches the delegate's toString() rather than the decorator's own identity")
+		void shouldDelegateToString() {
+			final CatalogSchemaDecorator decorator = new CatalogSchemaDecorator(CATALOG_SCHEMA);
+
+			assertEquals(CATALOG_SCHEMA.toString(), decorator.toString());
 		}
 	}
 }

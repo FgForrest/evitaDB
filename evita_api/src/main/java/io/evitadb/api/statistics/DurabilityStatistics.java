@@ -44,6 +44,13 @@ import java.util.Optional;
  * from the other - a handful of large transactions and a flood of small ones give the same version lag and very
  * different fence depths - so a management screen wanting the operator-legible number wants this one.
  *
+ * **Read the two intervals together, and read the fence one first.** `lastFenceDepthMillis` never exceeds
+ * `lastCadenceMillis`, and the difference between them is time in which nothing was owed to the device. A fence
+ * depth close to the cadence means the catalog was writing throughout the window; a fence depth far below it means
+ * the catalog was mostly quiet. This is why a large cadence on its own says nothing: it is produced both by a
+ * catalog too busy to checkpoint on time and by one with nothing to checkpoint at all, and only the fence depth
+ * separates the two.
+ *
  * **The counters are process-scoped** and `countingSince` is what makes them readable: `checkpointsCompleted` starts
  * at zero when the catalog is opened and is not persisted, so reading it as "checkpoints this catalog has ever taken"
  * is wrong by everything before that open. Same treatment as {@link ActivityStatistics}.
@@ -60,10 +67,15 @@ import java.util.Optional;
  *                                 on how long a change may wait to become durable, and therefore the knob that trades
  *                                 write throughput against crash-replay cost
  * @param lastCadenceMillis        time between the last two completed checkpoints (milliseconds); `0` before the first
- *                                 one completes. Sustained values above `checkpointIntervalMillis` mean checkpointing
- *                                 is not keeping up with the write rate
+ *                                 one completes, and measured from the catalog's open for the first one. A value above
+ *                                 `checkpointIntervalMillis` is **not** a problem signal on its own - it is the normal
+ *                                 reading for a catalog that is written to rarely, where every round checkpoints inline
+ *                                 and the fence depth stays `0`. Alone this figure cannot tell an idle catalog from an
+ *                                 overloaded one; {@link #fenceOverdue()} is the signal to act on
  * @param lastFenceDepthMillis     how long the oldest change covered by the last checkpoint waited to become durable
- *                                 (milliseconds); `0` when that round checkpointed without deferring anything
+ *                                 (milliseconds); `0` when that round checkpointed without deferring anything. Measured
+ *                                 from the end of the first round that deferred, so it is a lower bound on the age of
+ *                                 the oldest change a crash at that moment would have replayed
  * @param lastFilesForced          number of files the last checkpoint forced to the device
  * @param lastForceDurationMillis  wall-clock time those forces took (milliseconds) - the cost the interval exists to
  *                                 amortise, paid once per checkpoint instead of once per round

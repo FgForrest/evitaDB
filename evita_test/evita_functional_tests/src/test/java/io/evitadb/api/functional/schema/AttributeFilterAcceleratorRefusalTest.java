@@ -24,6 +24,7 @@
 package io.evitadb.api.functional.schema;
 
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
@@ -929,51 +930,55 @@ class AttributeFilterAcceleratorRefusalTest implements EvitaTestSupport {
 				}
 			);
 
-			final InvalidSchemaMutationException exception = assertThrows(
-				InvalidSchemaMutationException.class,
-				() -> AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
-					TEST_CATALOG,
-					session -> {
-						session.updateEntitySchema(
-							new ModifyEntitySchemaMutation(
-								Entities.PRODUCT,
-								new SetAttributeSchemaAcceleratedMutation(
-									ATTRIBUTE_CODE,
-									new ScopedAttributeFilterAccelerators(
-										Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH
+			// the barrier is asserted explicitly, not merely the exception: `SetAttributeSchemaAcceleratedMutation`
+			// deliberately skips its own pre-flight applicability check today (its sibling
+			// `CreateAttributeSchemaMutation` already has one), so a refusal here is confirmed post-exchange rather
+			// than assumed - see CatalogUnpublishableBarrierAssertions
+			final InvalidSchemaMutationException exception =
+				CatalogUnpublishableBarrierAssertions.assertRefusalRaisesTheBarrier(
+					AttributeFilterAcceleratorRefusalTest.this.evita, TEST_CATALOG,
+					InvalidSchemaMutationException.class,
+					() -> AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
+						TEST_CATALOG,
+						session -> {
+							session.updateEntitySchema(
+								new ModifyEntitySchemaMutation(
+									Entities.PRODUCT,
+									new SetAttributeSchemaAcceleratedMutation(
+										ATTRIBUTE_CODE,
+										new ScopedAttributeFilterAccelerators(
+											Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH
+										)
 									)
 								)
-							)
-						);
-					}
-				)
-			);
+							);
+						}
+					)
+				);
 			// asserted on the message rather than on the type alone: the collection-emptiness refusal throws the
 			// same exception, and it would satisfy a bare assertThrows while proving something else entirely
 			assertTrue(exception.getMessage().contains(AttributeFilterAccelerator.SUBSTRING_SEARCH.name()));
 			assertTrue(exception.getMessage().contains("no filter index"));
 
 			// reopening over the same storage directory is the only honest way to ask what the refused session
-			// actually left behind - the in-memory catalog would answer for a schema that was never written
-			AttributeFilterAcceleratorRefusalTest.this.evita.close();
-			AttributeFilterAcceleratorRefusalTest.this.evita = new Evita(configuration());
+			// actually left behind - the in-memory catalog would answer for a schema that was never written. The
+			// barrier assertion above already waited for the deactivation to settle, so unlike the general case
+			// `reopenOverTheSameStorage` documents, this reopen is not racing it
+			AttributeFilterAcceleratorRefusalTest.this.reopenOverTheSameStorage();
 
 			AttributeFilterAcceleratorRefusalTest.this.evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
-					// the refusal above precedes the refused session's own write - a warming-up close validates
-					// before `Catalog#flush` - but it cannot take back the schema exchange that
-					// `EntityCollection#updateSchema` has already performed on the running catalog, and warm-up
-					// catalog termination flushes whatever sits in memory without consulting the same rule. So a
-					// clean shutdown still writes the orphan out, and the reopened catalog is past the schema
-					// version gate that decides whether to validate at all, which is why it loads without
-					// complaint. Asserted rather than left to be discovered: closing the gap needs an undo for a
-					// warm-up schema exchange, which does not exist today, and validating each
-					// `updateEntitySchema` batch instead would refuse the legitimate sequence of declaring the
-					// accelerator in one call and the filterability that licenses it in the next. Tracked as #1466 -
-					// flip this assertion to `Set.of()` when that issue is closed
+					// the refusal precedes the refused session's own write - a warming-up close validates before
+					// `Catalog#flush` - and it cannot take back the schema exchange that
+					// `EntityCollection#updateSchema` has already performed on the running catalog. What keeps that
+					// exchange off the disk is the unpublishable barrier the refusal raises: warm-up catalog
+					// termination consults it and skips its flush, as does every other route that would write a
+					// bootstrap record. The reopened catalog therefore carries the newest state that reached the
+					// disk. See WarmUpRefusedSchemaPersistenceTest for the same guarantee proven on a second,
+					// unrelated validation rule
 					assertEquals(
-						Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+						Set.of(),
 						session.getEntitySchemaOrThrow(Entities.PRODUCT)
 							.getAttribute(ATTRIBUTE_CODE).orElseThrow()
 							.getAcceleratorsInScope(Scope.LIVE)
@@ -1031,6 +1036,27 @@ class AttributeFilterAcceleratorRefusalTest implements EvitaTestSupport {
 				);
 			}
 		);
+	}
+
+	/**
+	 * Closes the running instance and opens a fresh one over the same storage directory, leaving the catalog loaded
+	 * and queryable however the previous instance shut down.
+	 *
+	 * The refusal under test raises the unpublishable barrier, and the barrier schedules a deactivation - so whether
+	 * this test's `close()` outruns that deactivation is a race, and both outcomes are correct. When the
+	 * deactivation lands first the `INACTIVE` state is persisted and the reopened engine leaves the catalog
+	 * unloaded; when the close wins, the catalog comes back loaded. Both sides read the same bootstrap record, which
+	 * is the state under assertion, so the reopen simply has to tolerate either.
+	 */
+	private void reopenOverTheSameStorage() {
+		this.evita.close();
+		this.evita = new Evita(configuration());
+		// deterministic rather than a wait: the constructor schedules the initial catalog load and this joins the
+		// futures it created, so the state read below is the settled one
+		this.evita.waitUntilFullyInitialized();
+		if (this.evita.getCatalogState(TEST_CATALOG).orElse(null) == CatalogState.INACTIVE) {
+			CatalogUnpublishableBarrierAssertions.activateWithConflictRetry(this.evita, TEST_CATALOG);
+		}
 	}
 
 	/**

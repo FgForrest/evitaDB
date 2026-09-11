@@ -41,6 +41,7 @@ import java.util.List;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -236,6 +237,43 @@ class EntitySchemaDecoratorTest {
 			decorator.openForWrite();
 
 			assertEquals(2, callCount[0]);
+		}
+	}
+
+	@Nested
+	@DisplayName("Equality and string representation")
+	class EqualityAndToStringTest {
+
+		@Test
+		@DisplayName("two decorators wrapping value-equal but distinct delegate instances are equal")
+		void shouldConsiderDecoratorsWrappingEqualDelegatesEqual() {
+			final EntitySchemaDecorator decorator1 =
+				new EntitySchemaDecorator(() -> CATALOG_SCHEMA, EntitySchema._internalBuild(Entities.PRODUCT));
+			final EntitySchemaDecorator decorator2 =
+				new EntitySchemaDecorator(() -> CATALOG_SCHEMA, EntitySchema._internalBuild(Entities.PRODUCT));
+
+			assertEquals(decorator1, decorator2);
+			assertEquals(decorator1.hashCode(), decorator2.hashCode());
+		}
+
+		@Test
+		@DisplayName("decorators wrapping delegates with different names are not equal")
+		void shouldConsiderDecoratorsWrappingDifferentDelegatesNotEqual() {
+			final EntitySchemaDecorator decorator1 =
+				new EntitySchemaDecorator(() -> CATALOG_SCHEMA, EntitySchema._internalBuild(Entities.PRODUCT));
+			final EntitySchemaDecorator decorator2 =
+				new EntitySchemaDecorator(() -> CATALOG_SCHEMA, EntitySchema._internalBuild(Entities.BRAND));
+
+			assertFalse(decorator1.equals(decorator2));
+		}
+
+		@Test
+		@DisplayName("toString() matches the delegate's toString() rather than the decorator's own identity")
+		void shouldDelegateToString() {
+			final EntitySchemaDecorator decorator =
+				new EntitySchemaDecorator(() -> CATALOG_SCHEMA, ENTITY_SCHEMA);
+
+			assertEquals(ENTITY_SCHEMA.toString(), decorator.toString());
 		}
 	}
 }

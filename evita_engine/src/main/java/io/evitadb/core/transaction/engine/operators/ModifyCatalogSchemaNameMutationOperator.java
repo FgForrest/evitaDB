@@ -94,6 +94,13 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 	 * wrappers a nested future adds, and finite so a self-referencing chain cannot hang the failure path.
 	 */
 	private static final int MAX_INSPECTED_CAUSE_DEPTH = 32;
+	/**
+	 * Warned when releasing a catalog whose failed handover left its persistence service open fails - see
+	 * {@link CatalogTerminationHelper#terminateQuietly} for why the failure is not propagated.
+	 */
+	private static final String TERMINATION_FAILURE = "Failed to terminate catalog `{}` after declaring it " +
+		"unusable - the handles its persistence service holds into the storage folder stay open until the " +
+		"server is restarted, and a later attempt to delete that folder may be refused as a result.";
 
 	private final CatalogFolderContext folderContext;
 
@@ -302,14 +309,18 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 					// Guarded rather than caught, so the already-closed windows do not log a warning about
 					// handles that are not held.
 					if (!catalogToBeReplacedWith.isTerminated()) {
-						terminateQuietly(catalogToBeReplacedWith, catalogNameToBeReplacedWith);
+						CatalogTerminationHelper.terminateQuietly(
+							log, catalogToBeReplacedWith, catalogNameToBeReplacedWith, TERMINATION_FAILURE
+						);
 					}
 					// The *replacement* service, which is what leaks when the handover succeeded and the commit
 					// failed: `replaceWith` opened it and handed it to a catalog the commit never published, so
 					// nothing else holds a reference that would ever close it.
 					final CatalogContract replacement = replacementCatalog.get();
 					if (replacement != null && !replacement.isTerminated()) {
-						terminateQuietly(replacement, catalogNameToBeReplaced);
+						CatalogTerminationHelper.terminateQuietly(
+							log, replacement, catalogNameToBeReplaced, TERMINATION_FAILURE
+						);
 					}
 				}
 			}
@@ -712,26 +723,6 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 			current = cause == current ? null : cause;
 		}
 		return false;
-	}
-
-	/**
-	 * Terminates a catalog whose failed handover left its persistence service open, reporting a refusal rather
-	 * than propagating it.
-	 *
-	 * @param catalog     catalog to release
-	 * @param catalogName name to report it under, which is the name it answered to rather than the one it holds
-	 */
-	private static void terminateQuietly(@Nonnull CatalogContract catalog, @Nonnull String catalogName) {
-		try {
-			catalog.terminate();
-		} catch (Throwable terminationFailure) {
-			log.warn(
-				"Failed to terminate catalog `{}` after declaring it unusable - the handles its persistence " +
-					"service holds into the storage folder stay open until the server is restarted, and a " +
-					"later attempt to delete that folder may be refused as a result.",
-				catalogName, terminationFailure
-			);
-		}
 	}
 
 	@Nonnull

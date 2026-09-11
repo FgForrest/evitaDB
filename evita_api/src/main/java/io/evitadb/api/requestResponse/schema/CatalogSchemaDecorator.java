@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBu
 import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.experimental.Delegate;
 
@@ -41,6 +42,7 @@ import java.util.Collection;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@EqualsAndHashCode(of = "delegate")
 public class CatalogSchemaDecorator implements SealedCatalogSchema {
 	@Serial private static final long serialVersionUID = 8854250508519097535L;
 	@Delegate(types = CatalogSchemaContract.class)
@@ -73,6 +75,11 @@ public class CatalogSchemaDecorator implements SealedCatalogSchema {
 		return new InternalCatalogSchemaBuilder(
 			this.delegate, schemaMutations
 		);
+	}
+
+	@Override
+	public String toString() {
+		return this.delegate.toString();
 	}
 
 }

@@ -99,8 +99,11 @@ private static final long serialVersionUID = 0L;
   private long lastCadenceMillis_ = 0L;
   /**
    * <pre>
-   * Time between the last two completed checkpoints (milliseconds); `0` before the first one completes. Sustained
-   * values above `checkpointIntervalMillis` mean checkpointing is not keeping up with the write rate.
+   * Time between the last two completed checkpoints (milliseconds); `0` before the first one completes, and measured
+   * from the catalog's open for the first one. A value above `checkpointIntervalMillis` is NOT a problem signal on its
+   * own - it is the normal reading for a catalog that is written to rarely, where every round checkpoints inline and
+   * the fence depth stays `0`. Alone this figure cannot tell an idle catalog from an overloaded one; alert on
+   * `lastFenceDepthMillis` exceeding `checkpointIntervalMillis` instead, and read this one alongside it.
    * </pre>
    *
    * <code>int64 lastCadenceMillis = 2;</code>
@@ -116,7 +119,10 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * How long the oldest change covered by the last checkpoint waited to become durable (milliseconds); `0` when that
-   * round checkpointed without deferring anything.
+   * round checkpointed without deferring anything. Measured from the end of the first round that deferred, so it is a
+   * lower bound on the age of the oldest change a crash at that moment would have replayed - NOT the duration of the
+   * device force, which is `lastForceDurationMillis`. Never greater than `lastCadenceMillis`; the difference between
+   * the two is time in which nothing was owed to the device.
    * </pre>
    *
    * <code>int64 lastFenceDepthMillis = 3;</code>
@@ -858,8 +864,11 @@ private static final long serialVersionUID = 0L;
     private long lastCadenceMillis_ ;
     /**
      * <pre>
-     * Time between the last two completed checkpoints (milliseconds); `0` before the first one completes. Sustained
-     * values above `checkpointIntervalMillis` mean checkpointing is not keeping up with the write rate.
+     * Time between the last two completed checkpoints (milliseconds); `0` before the first one completes, and measured
+     * from the catalog's open for the first one. A value above `checkpointIntervalMillis` is NOT a problem signal on its
+     * own - it is the normal reading for a catalog that is written to rarely, where every round checkpoints inline and
+     * the fence depth stays `0`. Alone this figure cannot tell an idle catalog from an overloaded one; alert on
+     * `lastFenceDepthMillis` exceeding `checkpointIntervalMillis` instead, and read this one alongside it.
      * </pre>
      *
      * <code>int64 lastCadenceMillis = 2;</code>
@@ -871,8 +880,11 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Time between the last two completed checkpoints (milliseconds); `0` before the first one completes. Sustained
-     * values above `checkpointIntervalMillis` mean checkpointing is not keeping up with the write rate.
+     * Time between the last two completed checkpoints (milliseconds); `0` before the first one completes, and measured
+     * from the catalog's open for the first one. A value above `checkpointIntervalMillis` is NOT a problem signal on its
+     * own - it is the normal reading for a catalog that is written to rarely, where every round checkpoints inline and
+     * the fence depth stays `0`. Alone this figure cannot tell an idle catalog from an overloaded one; alert on
+     * `lastFenceDepthMillis` exceeding `checkpointIntervalMillis` instead, and read this one alongside it.
      * </pre>
      *
      * <code>int64 lastCadenceMillis = 2;</code>
@@ -888,8 +900,11 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Time between the last two completed checkpoints (milliseconds); `0` before the first one completes. Sustained
-     * values above `checkpointIntervalMillis` mean checkpointing is not keeping up with the write rate.
+     * Time between the last two completed checkpoints (milliseconds); `0` before the first one completes, and measured
+     * from the catalog's open for the first one. A value above `checkpointIntervalMillis` is NOT a problem signal on its
+     * own - it is the normal reading for a catalog that is written to rarely, where every round checkpoints inline and
+     * the fence depth stays `0`. Alone this figure cannot tell an idle catalog from an overloaded one; alert on
+     * `lastFenceDepthMillis` exceeding `checkpointIntervalMillis` instead, and read this one alongside it.
      * </pre>
      *
      * <code>int64 lastCadenceMillis = 2;</code>
@@ -906,7 +921,10 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * How long the oldest change covered by the last checkpoint waited to become durable (milliseconds); `0` when that
-     * round checkpointed without deferring anything.
+     * round checkpointed without deferring anything. Measured from the end of the first round that deferred, so it is a
+     * lower bound on the age of the oldest change a crash at that moment would have replayed - NOT the duration of the
+     * device force, which is `lastForceDurationMillis`. Never greater than `lastCadenceMillis`; the difference between
+     * the two is time in which nothing was owed to the device.
      * </pre>
      *
      * <code>int64 lastFenceDepthMillis = 3;</code>
@@ -919,7 +937,10 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * How long the oldest change covered by the last checkpoint waited to become durable (milliseconds); `0` when that
-     * round checkpointed without deferring anything.
+     * round checkpointed without deferring anything. Measured from the end of the first round that deferred, so it is a
+     * lower bound on the age of the oldest change a crash at that moment would have replayed - NOT the duration of the
+     * device force, which is `lastForceDurationMillis`. Never greater than `lastCadenceMillis`; the difference between
+     * the two is time in which nothing was owed to the device.
      * </pre>
      *
      * <code>int64 lastFenceDepthMillis = 3;</code>
@@ -936,7 +957,10 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * How long the oldest change covered by the last checkpoint waited to become durable (milliseconds); `0` when that
-     * round checkpointed without deferring anything.
+     * round checkpointed without deferring anything. Measured from the end of the first round that deferred, so it is a
+     * lower bound on the age of the oldest change a crash at that moment would have replayed - NOT the duration of the
+     * device force, which is `lastForceDurationMillis`. Never greater than `lastCadenceMillis`; the difference between
+     * the two is time in which nothing was owed to the device.
      * </pre>
      *
      * <code>int64 lastFenceDepthMillis = 3;</code>

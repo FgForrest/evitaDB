@@ -42,11 +42,15 @@ import javax.annotation.Nonnull;
  *
  * Read the two gauges together - they answer different questions:
  *
- * - **Cadence** says whether checkpoints are happening as often as configured. Sustained values far above
- *   the configured interval mean checkpointing cannot keep up with the write rate.
+ * - **Cadence** says how often checkpoints are actually happening. It is *not* a health signal on its own: a value
+ *   far above the configured interval is equally the reading of a catalog too busy to checkpoint on time and of one
+ *   with nothing to checkpoint at all, and nothing in this gauge separates the two.
  * - **Fence depth** says how far behind durability is running, and therefore bounds both how much write-ahead log
- *   must be retained and how much of it a restart has to replay. On a quiet catalog it should show roughly one
- *   interval and then stay flat.
+ *   must be retained and how much of it a restart has to replay. This is the gauge to alert on: it exceeds the
+ *   configured interval only when durability really is falling behind the configured policy. On a quiet catalog it
+ *   sits at zero, because every round checkpoints inline and nothing is ever deferred.
+ *
+ * Fence depth never exceeds cadence; the difference between them is time in which nothing was owed to the device.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -63,12 +67,12 @@ public class CatalogCheckpointEvent extends AbstractStorageEvent {
 	private long forceDurationMilliseconds;
 
 	@Label("Checkpoint cadence in milliseconds")
-	@Description("The time elapsed since the previous completed checkpoint. Compare against the configured checkpoint interval - sustained higher values mean checkpointing is not keeping up with the write rate.")
+	@Description("The time elapsed since the previous completed checkpoint. On its own this says only how often checkpoints happen, not whether that is healthy - a value above the configured checkpoint interval is the normal reading for a rarely written catalog. Alert on fence depth instead, and read this alongside it.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private long cadenceMilliseconds;
 
 	@Label("Fence depth in milliseconds")
-	@Description("How long the oldest change covered by this checkpoint waited to become durable. Bounds both the write-ahead log retention and the amount of replay a restart has to perform. Zero when the round checkpointed without deferring.")
+	@Description("How long the oldest change covered by this checkpoint waited to become durable - measured from the end of the first round that deferred, not from the start of the force. Bounds both the write-ahead log retention and the amount of replay a restart has to perform. Zero when the round checkpointed without deferring.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private long fenceDepthMilliseconds;
 
