@@ -151,8 +151,9 @@ public class ConditionalFacetMembershipReport {
 				return;
 			}
 			System.out.printf(
-				"catalog v%d %s | collection `%s` | load %,.1f s%n%n",
-				catalog.getVersion(), catalog.getCatalogState(), collectionName, loadNanos / 1_000_000_000.0
+				"catalog v%d %s | collection `%s` | load %,.1f s | accumulator %s%n%n",
+				catalog.getVersion(), catalog.getCatalogState(), collectionName, loadNanos / 1_000_000_000.0,
+				System.getProperty("spike.accumulator", "FULL")
 			);
 
 			final long buildStart = System.nanoTime();
@@ -348,7 +349,7 @@ public class ConditionalFacetMembershipReport {
 		@Nonnull PersistentRoaringBitmap affected
 	) {
 		// one accumulator per resolution, exactly as the executor builds one per trigger
-		final Map<Integer, List<SiblingIndex>> result = new HashMap<>();
+		final Accumulator result = newAccumulator();
 		long checksum = 0L;
 		for (final ReferenceSchemaContract sibling : siblings) {
 			final ReducedIndexMembership membership = simulated.containsKey(sibling.getName())
@@ -399,7 +400,7 @@ public class ConditionalFacetMembershipReport {
 		@Nonnull PersistentRoaringBitmap affected
 	) {
 		// one accumulator per resolution, exactly as the executor builds one per trigger
-		final Map<Integer, List<SiblingIndex>> result = new HashMap<>();
+		final Accumulator result = newAccumulator();
 		long checksum = 0L;
 		for (final ReferenceSchemaContract sibling : siblings) {
 			checksum += walkReference(collection, sibling.getName(), affected, result);
@@ -413,14 +414,14 @@ public class ConditionalFacetMembershipReport {
 	 * @param collection    the measured collection
 	 * @param referenceName the reference to walk
 	 * @param affected      affected owner primary keys
-	 * @param result        accumulator, keyed by owner PK, mirroring the executor's own
+	 * @param result        accumulator mirroring the executor's own per-pair bookkeeping
 	 * @return checksum contribution
 	 */
 	private static long walkReference(
 		@Nonnull EntityCollection collection,
 		@Nonnull String referenceName,
 		@Nonnull PersistentRoaringBitmap affected,
-		@Nonnull Map<Integer, List<SiblingIndex>> result
+		@Nonnull Accumulator result
 	) {
 		final long[] checksum = new long[1];
 		for (final EntityIndexType family : new EntityIndexType[]{
@@ -444,7 +445,7 @@ public class ConditionalFacetMembershipReport {
 	 * @param referenceName the reference the index was created for
 	 * @param indexPk       primary key of the reduced index
 	 * @param affected      affected owner primary keys
-	 * @param result        accumulator, keyed by owner PK, mirroring the executor's own
+	 * @param result        accumulator mirroring the executor's own per-pair bookkeeping
 	 * @return checksum contribution
 	 */
 	private static long probe(
@@ -452,7 +453,7 @@ public class ConditionalFacetMembershipReport {
 		@Nonnull String referenceName,
 		int indexPk,
 		@Nonnull PersistentRoaringBitmap affected,
-		@Nonnull Map<Integer, List<SiblingIndex>> result
+		@Nonnull Accumulator result
 	) {
 		final EntityIndex index = collection.getIndexByPrimaryKeyIfExists(indexPk);
 		if (index == null) {
@@ -468,18 +469,146 @@ public class ConditionalFacetMembershipReport {
 		final SiblingIndex sibling = new SiblingIndex(index, referenceName);
 		long checksum = 0L;
 		for (final int owner : owners) {
-			// Mirrors `ReevaluateExpressionExecutor#addSibling`, including its LINEAR `contains` de-duplication:
-			// references sharing a reduced group index resolve to the same instance more than once. Both arms
-			// emit the identical pair set, so both are charged identically - the accumulator cannot tilt one
-			// against the other, but it is large enough at high affected-owner counts to compress the RATIO,
-			// which is why leaving it out overstated the speedup.
-			final List<SiblingIndex> indexes = result.computeIfAbsent(owner, __ -> new ArrayList<>(4));
-			if (!indexes.contains(sibling)) {
-				indexes.add(sibling);
-			}
+			result.record(owner, sibling);
 			checksum += pair(owner, indexPk);
 		}
 		return checksum;
+	}
+
+	/**
+	 * The per-pair bookkeeping `ReevaluateExpressionExecutor#addSibling` performs, behind a seam so its cost
+	 * can be attributed rather than argued about.
+	 *
+	 * The checksum is computed OUTSIDE this interface, so swapping variants cannot change what the arms
+	 * agree on and the gate cannot catch a variant that records the wrong thing. These are cost probes only:
+	 * `FULL` is the one that mirrors the executor, and it is the default.
+	 */
+	private interface Accumulator {
+
+		/**
+		 * Records that one affected owner is held by one sibling reduced index.
+		 *
+		 * @param owner   primary key of the affected owner
+		 * @param sibling the reduced index holding it
+		 */
+		void record(int owner, @Nonnull SiblingIndex sibling);
+
+	}
+
+	/**
+	 * Builds the accumulator named by `-Dspike.accumulator`, defaulting to the executor-faithful `FULL`.
+	 *
+	 * The four variants exist to subtract from one another: `FULL - OFF` is the accumulator's whole cost,
+	 * `FULL - NO_DEDUP` the linear `contains` scan alone, and `FULL - INT_KEYED` what the boxed `Integer` key
+	 * and its `HashMap` lookup cost over a primitive-keyed table.
+	 *
+	 * @return a fresh accumulator for one resolution
+	 */
+	@Nonnull
+	private static Accumulator newAccumulator() {
+		final String variant = System.getProperty("spike.accumulator", "FULL");
+		return switch (variant) {
+			case "FULL" -> new BoxedAccumulator(true);
+			case "NO_DEDUP" -> new BoxedAccumulator(false);
+			case "INT_KEYED" -> new IntKeyedAccumulator();
+			case "OFF" -> (owner, sibling) -> { };
+			default -> throw new IllegalArgumentException(
+				"unknown -Dspike.accumulator=" + variant + " (FULL|NO_DEDUP|INT_KEYED|OFF)"
+			);
+		};
+	}
+
+	/**
+	 * The executor's own structure: a `HashMap` keyed by a boxed owner primary key, holding a four-slot
+	 * `ArrayList` scanned linearly for duplicates.
+	 */
+	private static final class BoxedAccumulator implements Accumulator {
+		private final Map<Integer, List<SiblingIndex>> result = new HashMap<>();
+		private final boolean dedup;
+
+		BoxedAccumulator(boolean dedup) {
+			this.dedup = dedup;
+		}
+
+		@Override
+		public void record(int owner, @Nonnull SiblingIndex sibling) {
+			final List<SiblingIndex> indexes = this.result.computeIfAbsent(owner, __ -> new ArrayList<>(4));
+			if (this.dedup && indexes.contains(sibling)) {
+				return;
+			}
+			indexes.add(sibling);
+		}
+	}
+
+	/**
+	 * The same bookkeeping over an open-addressed primitive table, so the boxed key's cost can be priced.
+	 * Owner primary keys are positive in evitaDB, which is what lets `0` serve as the empty slot marker.
+	 *
+	 * This is a COST PROBE, not a proposed implementation - it is deliberately minimal, so the figure it
+	 * yields is an optimistic bound on what de-boxing could save rather than a prediction of any real
+	 * replacement.
+	 */
+	private static final class IntKeyedAccumulator implements Accumulator {
+		private int[] keys = new int[1 << 16];
+		private Object[] values = new Object[1 << 16];
+		private int mask = (1 << 16) - 1;
+		private int size;
+
+		@Override
+		@SuppressWarnings("unchecked")
+		public void record(int owner, @Nonnull SiblingIndex sibling) {
+			int slot = mix(owner) & this.mask;
+			while (this.keys[slot] != 0) {
+				if (this.keys[slot] == owner) {
+					final List<SiblingIndex> indexes = (List<SiblingIndex>) this.values[slot];
+					if (!indexes.contains(sibling)) {
+						indexes.add(sibling);
+					}
+					return;
+				}
+				slot = (slot + 1) & this.mask;
+			}
+			final List<SiblingIndex> indexes = new ArrayList<>(4);
+			indexes.add(sibling);
+			this.keys[slot] = owner;
+			this.values[slot] = indexes;
+			if (++this.size > (this.mask + 1) * 2 / 3) {
+				grow();
+			}
+		}
+
+		/**
+		 * Doubles the table and re-inserts every occupied slot.
+		 */
+		private void grow() {
+			final int[] oldKeys = this.keys;
+			final Object[] oldValues = this.values;
+			final int capacity = (this.mask + 1) << 1;
+			this.keys = new int[capacity];
+			this.values = new Object[capacity];
+			this.mask = capacity - 1;
+			for (int i = 0; i < oldKeys.length; i++) {
+				if (oldKeys[i] != 0) {
+					int slot = mix(oldKeys[i]) & this.mask;
+					while (this.keys[slot] != 0) {
+						slot = (slot + 1) & this.mask;
+					}
+					this.keys[slot] = oldKeys[i];
+					this.values[slot] = oldValues[i];
+				}
+			}
+		}
+
+		/**
+		 * Fibonacci-style scramble, so sequential primary keys do not cluster under linear probing.
+		 *
+		 * @param key the owner primary key
+		 * @return its scrambled hash
+		 */
+		private static int mix(int key) {
+			final int h = key * 0x9E3779B9;
+			return h ^ (h >>> 16);
+		}
 	}
 
 	/**

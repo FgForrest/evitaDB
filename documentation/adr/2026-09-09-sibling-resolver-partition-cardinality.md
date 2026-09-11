@@ -1,7 +1,7 @@
 ---
 title: Bound the cross-entity facet walk with a size-thresholded owner→partition index, not a blanket one
 date: 2026-09-09
-updated: 2026-09-11 15:10
+updated: 2026-09-11 15:30
 status: accepted
 kind: optimization
 issues: [1529]
@@ -220,9 +220,11 @@ proportional to the number of `(owner, partition)` pairs in the *answer*, which 
 full. `T` decides which partitions are probed; it cannot decide how large the answer is. In the dense shape
 the affected set is 57,962 owners out of 160,216 entities — roughly 36 % of the collection — so most sibling
 partitions genuinely hold an affected owner and there is nothing to skip. Subtracting the accumulator (about
-136 ms, derived as the walk's before/after difference rather than measured directly) leaves the probe work
-alone at roughly 3.3×, which is the optimization's actual contribution; the accumulator dilutes it to the
-measured 1.34–1.50×.
+129 ms on the walk and 116 ms on the lookup, measured directly by running the harness with the accumulator
+disabled) leaves the probe work alone at **1.84×**, which is the optimization's actual contribution; the
+accumulator dilutes it to the measured 1.34–1.50×. Note the two arms are **not** charged equally despite
+emitting the same pair set — 129 ms against 116 ms — so a ratio cannot be reconstructed by subtracting one
+figure from both.
 
 **Absolute figures are not comparable across the harness correction.** Any number quoted from this record
 before 2026-09-11 is a lower bound on the lookup and an upper bound on the speedup.
@@ -441,13 +443,20 @@ without a performance claim was the right call — the claim it was never given 
 - **The dense shape is bound by the accumulator, not by the walk, and `T` cannot move it.** Once the harness
   was corrected (2026-09-11) the dense rows fell to 1.07–1.09× and 1.34–1.50×. The reason is
   `ReevaluateExpressionExecutor#addSibling`: it runs once per `(owner, partition)` pair of the *answer*, and
-  both the lookup and the walk must produce that answer in full, so it is a constant common to both and
-  dilutes any ratio built on top of it. Raising the coverage threshold changes which partitions are probed;
-  it cannot change how many pairs exist. **Roughly 136 ms of the 188,387-dense figure is this, derived as the
-  walk's before/after difference across the harness correction and never profiled directly.** The candidate
-  on inspection is the boxed `Map<Integer, List<SiblingReducedIndex>>` and its per-pair `computeIfAbsent` —
-  not the `contains` de-duplication beside it, which scans a four-element list of identity-compared records.
-  **Measure before changing either.**
+  both the lookup and the walk must produce that answer in full. Raising the coverage threshold changes which
+  partitions are probed; it cannot change how many pairs exist.
+- **The accumulator is profiled, and its cost is the linear de-duplication scan.** Measured by running
+  `ConditionalFacetMembershipReport` with `-Dspike.accumulator=FULL|OFF|NO_DEDUP|INT_KEYED`, which swaps the
+  per-pair bookkeeping behind a seam while leaving the checksum outside it. At `P`=188,387 dense, on the
+  lookup arm: whole accumulator **116 ms**, of which the `indexes.contains(sibling)` scan is **65 ms (56 %)**,
+  map insertion plus `ArrayList` allocation and growth **51 ms**, and the boxed `Integer` key only **4 ms
+  (3 %)**. In the sparse shape every variant is identical within noise.
+  **So de-boxing the map is not worth doing, and the scan is.** It is `O(k)` per pair for an owner in `k`
+  partitions, i.e. `O(k²)` per owner, and `new ArrayList<>(4)` is an initial capacity rather than a bound.
+  The duplicate it exists to catch arises only when two references share a reduced group index, so the
+  promising direction is to establish that once per probed partition instead of once per emitted pair —
+  **not** a `LinkedHashSet`, whose hashing would be paid on every pair to avoid a scan that is only sometimes
+  long.
 - **`DEFAULT_COVERAGE_THRESHOLD` = 16 has never been swept against the shipped implementation.** Every
   threshold figure in this record comes from `ConditionalFacetReverseIndexFootprint`, which models memory
   only. `ReducedIndexMembership(int)` exists, but both real construction sites — `GlobalEntityIndex:476` and
