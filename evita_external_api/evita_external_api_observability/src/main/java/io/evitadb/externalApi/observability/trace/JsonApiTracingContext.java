@@ -79,7 +79,13 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 		};
 
 	/**
-	 * Header configuration. Initialized with default settings that gets overwritten once the context is prepared.
+	 * Names of the headers the client context is read from. Initialized with **no** header names — the builder starts
+	 * every list empty, so a context nobody has configured recognises no forwarded-URI, label or client-id header at
+	 * all; the documented defaults (`X-Forwarded-Uri`, `X-EvitaDB-Label`, `X-EvitaDB-ClientID`, …) live in the
+	 * {@link HeaderOptions#HeaderOptions()} constructor and reach this field only through the configuration.
+	 *
+	 * The value is installed by {@link #configureHeaders(HeaderOptions)} while the API is being set up, and read from
+	 * request threads afterwards.
 	 */
 	@Setter private HeaderOptions headerOptions = HeaderOptions.builder().build();
 	/**
@@ -260,7 +266,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 		final String requestStart = ExternalApiTracingContext.currentRequestStart();
 
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
-			// no tracing -- executeWithClientContext sets/clears MDC synchronously
+			// no tracing -- executeWithClientContext sets and restores the MDC synchronously
 			return TracingContext.executeWithClientContext(
 				requestStart,
 				metadata.clientIpAddress(),
@@ -318,19 +324,6 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 	}
 
 	/**
-	 * Client metadata extracted from HTTP request headers for tracing and MDC.
-	 *
-	 * @param clientIpAddress the client IP from X-Forwarded-For header
-	 * @param clientUri       the client URI from configured forwarded-uri headers
-	 * @param labels          client-provided labels from the configured label headers
-	 */
-	private record ClientMetadata(
-		@Nullable String clientIpAddress,
-		@Nullable String clientUri,
-		@Nonnull Label[] labels
-	) {}
-
-	/**
 	 * Extracts client metadata (IP address, URI, and labels) from the given request headers using
 	 * the configured header options.
 	 *
@@ -349,17 +342,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 		final Label[] labels = this.headerOptions.label()
 			.stream()
 			.flatMap(name -> headers.getAll(name).stream())
-			.map(header -> {
-				final int index = header.indexOf('=');
-				if (index < 0) {
-					return null;
-				} else {
-					return new Label(
-						header.substring(0, index),
-						header.substring(index + 1)
-					);
-				}
-			})
+			.map(ClientMetadata::parseLabel)
 			.filter(Objects::nonNull)
 			.toArray(Label[]::new);
 		return new ClientMetadata(clientIpAddress, clientUri, labels);

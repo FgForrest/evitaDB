@@ -55,8 +55,9 @@ import java.util.function.Supplier;
  * threads, API boundaries, and asynchronous operations. This interface provides methods to
  * capture and restore context.
  *
- * 3. **MDC Integration:** Client metadata (trace ID, client ID, IP address, URI) is stored in
- * SLF4J's MDC (Mapped Diagnostic Context) to enable structured logging with trace correlation.
+ * 3. **MDC Integration:** Client metadata (trace ID, client ID, IP address, URI) and the start of the request being
+ * served are stored in SLF4J's MDC (Mapped Diagnostic Context) to enable structured logging with trace correlation
+ * and to let a log line report how far into its request it was written.
  *
  * **Usage Patterns:**
  *
@@ -137,6 +138,13 @@ public interface TracingContext {
 	 * Consumers compute "how far into the request did this happen" by subtracting it from the timestamp of the event
 	 * they are rendering. Because it is a wall-clock reading it can, in principle, be later than that timestamp after
 	 * a backward clock adjustment — consumers must clamp the difference at zero.
+	 *
+	 * **Who participates.** The value is written by the API entry points — `JsonApiTracingContext` and
+	 * `GrpcTracingContext` in the observability module, and the gRPC `ObservabilityInterceptor` — and read by
+	 * `io.evitadb.server.log.AppLogJsonLayout`, which turns it into the `duration_ms` field of a log line. It is
+	 * also readable by **any layout an operator writes**: the key name and its value contract are published in
+	 * `documentation/user/en/operate/observe.md` ("Writing a custom layout"), so renaming or dropping the key is a
+	 * user-visible change and that document has to move with it.
 	 */
 	String MDC_REQUEST_START_PROPERTY = "requestStart";
 
@@ -154,8 +162,13 @@ public interface TracingContext {
 	 *
 	 * **Use Case:**
 	 * Called at API entry points (REST, gRPC, GraphQL handlers) to propagate client metadata
-	 * through the request lifecycle. The metadata is automatically cleared after execution,
-	 * preventing cross-request contamination.
+	 * through the request lifecycle.
+	 *
+	 * Delegates to {@link #executeWithClientContext(String, String, String, Label[], Supplier)} with a {@code null}
+	 * request start, so a request start already recorded by an enclosing scope is left untouched. The client IP, URI
+	 * and labels are written unconditionally, and on exit the **previously observed values are restored** rather than
+	 * dropped — at the outermost scope there was nothing to observe, so restoring means removal and the
+	 * no-cross-request-contamination guarantee holds; at an inner scope it means the enclosing scope survives intact.
 	 *
 	 * **MDC Keys Set:**
 	 * - {@link #MDC_CLIENT_IP_ADDRESS}
@@ -248,21 +261,21 @@ public interface TracingContext {
 	 *
 	 * @param requestStart epoch milliseconds at which the request started, as a string; {@code null} leaves any
 	 *                     value already present untouched
-	 * @param runnable     the operation to execute
+	 * @param lambda       the operation to execute
 	 * @param <T>          return type
 	 * @return the result of invoking the supplier
 	 */
 	static <T> T executeWithRequestStart(
 		@Nullable String requestStart,
-		@Nonnull Supplier<T> runnable
+		@Nonnull Supplier<T> lambda
 	) {
 		if (requestStart == null) {
-			return runnable.get();
+			return lambda.get();
 		}
 		final String previousRequestStart = MDC.get(MDC_REQUEST_START_PROPERTY);
 		MDC.put(MDC_REQUEST_START_PROPERTY, requestStart);
 		try {
-			return runnable.get();
+			return lambda.get();
 		} finally {
 			restoreOrRemove(MDC_REQUEST_START_PROPERTY, previousRequestStart);
 		}
@@ -298,7 +311,14 @@ public interface TracingContext {
 	 * - {@link #MDC_CLIENT_ID_PROPERTY}
 	 * - {@link #MDC_CLIENT_IP_ADDRESS}
 	 * - {@link #MDC_CLIENT_URI}
+	 * - {@link #MDC_REQUEST_START_PROPERTY}
 	 * - {@link #CLIENT_LABELS} (ThreadLocal)
+	 *
+	 * **This overload does not nest.** Unlike
+	 * {@link #executeWithClientContext(String, String, String, Label[], Supplier)}, it ends in {@link #clearContext()},
+	 * which removes every key above outright instead of restoring what was there before. That is correct for its
+	 * purpose — a worker thread taken from a pool carries no request of its own, so there is no enclosing scope to
+	 * preserve — but it makes the method unsuitable for wrapping a block *inside* an already established context.
 	 *
 	 * @param context  the captured context from {@link #captureContext()}
 	 * @param runnable the operation to execute with restored context
@@ -983,6 +1003,10 @@ public interface TracingContext {
 		 * callers compiled against the earlier signature keep working — both at source level and, because the
 		 * original constructor descriptor survives, at binary level.
 		 *
+		 * The instance it produces carries **no request start**: a caller still using this shape hands its worker
+		 * threads a context without {@link TracingContext#MDC_REQUEST_START_PROPERTY}, and every log line written
+		 * on those threads loses its duration. Prefer the canonical constructor wherever the request start is known.
+		 *
 		 * @param traceId         the trace identifier from active span (may be null)
 		 * @param clientId        the client identifier from session (may be null)
 		 * @param clientIpAddress the client IP address (may be null)
@@ -1003,7 +1027,11 @@ public interface TracingContext {
 		 * Returns true if all context fields are null — i.e., no tracing context was active when captured.
 		 *
 		 * This is not a convenience: {@code ObservableThreadExecutor} skips restoring the context altogether when it
-		 * reports true, so a component omitted here is a component that never reaches a worker thread.
+		 * reports true, so a component omitted here is a component that never reaches a worker thread. **Every
+		 * component added to this record must be added to the condition below**, or a context carrying only that
+		 * component reports itself empty and is silently dropped at the thread hand-off.
+		 *
+		 * @return true when no context component was set at capture time
 		 */
 		public boolean isEmpty() {
 			return this.traceId == null &&

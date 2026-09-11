@@ -25,12 +25,15 @@ package io.evitadb.server.log;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.classic.spi.ThrowableProxy;
 import com.linecorp.armeria.client.ClientRequestContext;
 import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.logging.RequestLog;
 import com.linecorp.armeria.common.util.SafeCloseable;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.observability.trace.TracingContext;
+import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -38,24 +41,29 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.HashMap;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import static io.evitadb.test.TestTags.OBSERVABILITY;
 import static io.evitadb.test.TestTags.SERVER;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Verifies the JSON {@link AppLogJsonLayout} renders, with particular attention to `duration_ms` - which of the three
- * possible sources it comes from, and when it must be absent.
+ * Verifies the JSON that {@link AppLogJsonLayout} renders, with particular attention to `duration_ms` - which of the
+ * three possible sources it comes from, and when it must be absent.
  *
- * Nothing else in the codebase asserts the shape of these lines, so the first test deliberately asserts the whole
+ * Nothing else in the codebase asserts the shape of these lines, so several tests deliberately assert the whole
  * rendered string rather than the presence of a single field: this class is what pins the format that log aggregators
- * consume.
+ * consume, escaping included - an unescaped quote or newline in a message turns one log line into two unparseable
+ * ones.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -63,6 +71,21 @@ import static org.mockito.Mockito.when;
 @Tag(SERVER)
 @Tag(OBSERVABILITY)
 class AppLogJsonLayoutTest {
+
+	/**
+	 * Shape the `timestamp` field is declared to carry - `yyyy-MM-dd'T'HH:mm:ss.SSSZ`.
+	 */
+	private static final Pattern TIMESTAMP_SHAPE =
+		Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}[+-]\\d{4}");
+
+	/**
+	 * Name of the field the duration is rendered under, and the exact text introducing it in a rendered line.
+	 *
+	 * The name is what log aggregators consume, so it is written once here: the extractor below and every assertion
+	 * that checks for the field's presence or absence then cannot end up talking about different fields.
+	 */
+	private static final String DURATION_FIELD = "duration_ms";
+	private static final String DURATION_FIELD_PREFIX = "\"" + DURATION_FIELD + "\":";
 
 	/**
 	 * Builds the layout under test with timestamps suppressed, so assertions can compare whole lines without
@@ -74,6 +97,18 @@ class AppLogJsonLayoutTest {
 	private static AppLogJsonLayout timestamplessLayout() {
 		final AppLogJsonLayout layout = new AppLogJsonLayout();
 		layout.setLogTimestamp(false);
+		layout.start();
+		return layout;
+	}
+
+	/**
+	 * Builds the layout under test in its default configuration, which renders the timestamp field.
+	 *
+	 * @return a started layout that emits the timestamp field
+	 */
+	@Nonnull
+	private static AppLogJsonLayout timestampedLayout() {
+		final AppLogJsonLayout layout = new AppLogJsonLayout();
 		layout.start();
 		return layout;
 	}
@@ -110,6 +145,24 @@ class AppLogJsonLayoutTest {
 	}
 
 	/**
+	 * Builds a logging event that carries a throwable, which the layout appends to the message before escaping it.
+	 *
+	 * @param message   the formatted message
+	 * @param throwable the throwable the event carries
+	 * @return a mock event suitable for {@link AppLogJsonLayout#doLayout(ILoggingEvent)}
+	 */
+	@Nonnull
+	private static ILoggingEvent eventWithThrowable(@Nonnull String message, @Nonnull Throwable throwable) {
+		final ILoggingEvent event = mock(ILoggingEvent.class);
+		when(event.getTimeStamp()).thenReturn(System.currentTimeMillis());
+		when(event.getLevel()).thenReturn(Level.ERROR);
+		when(event.getFormattedMessage()).thenReturn(message);
+		when(event.getMDCPropertyMap()).thenReturn(Map.of());
+		when(event.getThrowableProxy()).thenReturn(new ThrowableProxy(throwable));
+		return event;
+	}
+
+	/**
 	 * Builds an MDC map with a single request-start entry, mirroring what a restored captured context looks like on
 	 * a worker thread.
 	 *
@@ -118,7 +171,7 @@ class AppLogJsonLayoutTest {
 	 */
 	@Nonnull
 	private static Map<String, String> mdcWithRequestStart(@Nullable String requestStart) {
-		final Map<String, String> mdc = new HashMap<>(4);
+		final Map<String, String> mdc = CollectionUtils.createHashMap(1);
 		mdc.put(TracingContext.MDC_REQUEST_START_PROPERTY, requestStart);
 		return mdc;
 	}
@@ -126,13 +179,21 @@ class AppLogJsonLayoutTest {
 	/**
 	 * Extracts the numeric `duration_ms` value from a rendered line.
 	 *
+	 * The field is asserted to be present first: without that the caller gets a parse failure instead of an
+	 * assertion message, and a negative value is accepted so that a clamping defect reports the number it produced.
+	 *
 	 * @param renderedLine the line produced by the layout
 	 * @return the parsed value
 	 */
 	private static long durationOf(@Nonnull String renderedLine) {
-		final int start = renderedLine.indexOf("\"duration_ms\":") + "\"duration_ms\":".length();
+		final int fieldIndex = renderedLine.indexOf(DURATION_FIELD_PREFIX);
+		assertTrue(fieldIndex >= 0, "no " + DURATION_FIELD + " field in the rendered line: " + renderedLine);
+		final int start = fieldIndex + DURATION_FIELD_PREFIX.length();
 		int end = start;
-		while (end < renderedLine.length() && (Character.isDigit(renderedLine.charAt(end)))) {
+		if (end < renderedLine.length() && renderedLine.charAt(end) == '-') {
+			end++;
+		}
+		while (end < renderedLine.length() && Character.isDigit(renderedLine.charAt(end))) {
 			end++;
 		}
 		return Long.parseLong(renderedLine.substring(start, end));
@@ -153,7 +214,7 @@ class AppLogJsonLayoutTest {
 		@Test
 		@DisplayName("renders client_id and trace_id from the MDC")
 		void shouldRenderClientAndTraceIdentifiers() {
-			final Map<String, String> mdc = new HashMap<>();
+			final Map<String, String> mdc = CollectionUtils.createHashMap(2);
 			mdc.put(TracingContext.MDC_CLIENT_ID_PROPERTY, "client-a");
 			mdc.put(TracingContext.MDC_TRACE_ID_PROPERTY, "trace-b");
 
@@ -163,6 +224,54 @@ class AppLogJsonLayoutTest {
 				"{\"level\":\"INFO\",\"message\":\"hello\",\"client_id\":\"client-a\",\"trace_id\":\"trace-b\"}"
 					+ System.lineSeparator(),
 				line
+			);
+		}
+
+		@Test
+		@DisplayName("escapes quotes, newlines and tabs so one event stays one parseable line")
+		void shouldEscapeControlCharactersInTheMessage() {
+			final String line = timestamplessLayout().doLayout(
+				event("he said \"hi\"\n\tindented", Map.of())
+			);
+
+			assertEquals(
+				"{\"level\":\"INFO\",\"message\":\"he said \\\"hi\\\"\\n   indented\"}" + System.lineSeparator(),
+				line
+			);
+		}
+
+		@Test
+		@DisplayName("appends the stack trace to the message and leaves the line parseable")
+		void shouldRenderThrowableInsideTheMessageField() {
+			final String line = timestamplessLayout().doLayout(
+				eventWithThrowable("boom", new IllegalStateException("kaboom"))
+			);
+
+			final String separator = System.lineSeparator();
+			assertTrue(line.endsWith("\"}" + separator), line);
+			// the stack trace is appended *inside* the message field, behind an escaped newline
+			assertTrue(line.startsWith("{\"level\":\"ERROR\",\"message\":\"boom\\n"), line);
+			assertTrue(line.contains("java.lang.IllegalStateException"), line);
+			assertTrue(line.contains("kaboom"), line);
+			// everything the throwable contributed is escaped: the only real line break is the terminator
+			final String body = line.substring(0, line.length() - separator.length());
+			assertFalse(body.contains("\n"), body);
+			assertFalse(body.contains("\r"), body);
+			assertFalse(body.contains("\t"), body);
+		}
+
+		@Test
+		@DisplayName("renders the timestamp under the declared pattern when timestamps are enabled")
+		void shouldRenderTimestampUnderTheDeclaredPattern() {
+			final String line = timestampedLayout().doLayout(event("hello", Map.of()));
+
+			final String prefix = "{\"timestamp\":\"";
+			assertTrue(line.startsWith(prefix), line);
+			final String rendered = line.substring(prefix.length(), line.indexOf('"', prefix.length()));
+			assertTrue(TIMESTAMP_SHAPE.matcher(rendered).matches(), rendered);
+			assertDoesNotThrow(
+				() -> DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ").parse(rendered),
+				"the rendered timestamp does not parse under the pattern the layout declares"
 			);
 		}
 	}
@@ -179,7 +288,7 @@ class AppLogJsonLayoutTest {
 				event("working", mdcWithRequestStart(Long.toString(now - 250L)), now)
 			);
 
-			assertTrue(line.contains("\"duration_ms\":"), line);
+			assertTrue(line.contains(DURATION_FIELD_PREFIX), line);
 			assertEquals(250L, durationOf(line));
 		}
 
@@ -188,7 +297,7 @@ class AppLogJsonLayoutTest {
 		void shouldOmitDurationWhenRequestStartIsAbsent() {
 			final String line = timestamplessLayout().doLayout(event("working", Map.of()));
 
-			assertFalse(line.contains("duration_ms"), line);
+			assertFalse(line.contains(DURATION_FIELD), line);
 		}
 
 		@Test
@@ -201,7 +310,7 @@ class AppLogJsonLayoutTest {
 
 			final String line = timestamplessLayout().doLayout(event("working", mdc));
 
-			assertFalse(line.contains("duration_ms"), line);
+			assertFalse(line.contains(DURATION_FIELD), line);
 		}
 
 		@Test
@@ -209,7 +318,7 @@ class AppLogJsonLayoutTest {
 		void shouldOmitDurationWhenRequestStartIsMalformed() {
 			final String line = timestamplessLayout().doLayout(event("working", mdcWithRequestStart("not-a-number")));
 
-			assertFalse(line.contains("duration_ms"), line);
+			assertFalse(line.contains(DURATION_FIELD), line);
 		}
 
 		@Test
@@ -222,11 +331,47 @@ class AppLogJsonLayoutTest {
 
 			assertEquals(0L, durationOf(line));
 		}
+
+		@Test
+		@DisplayName("omits the field when the recorded request start is not a real instant")
+		void shouldOmitDurationWhenRequestStartIsNotARealInstant() {
+			// a value that parses but cannot be an instant is dropped rather than clamped: clamping only the
+			// *difference* would render roughly the whole epoch and hand the aggregator a plausible-looking number
+			final long now = System.currentTimeMillis();
+
+			final String negative = timestamplessLayout().doLayout(event("working", mdcWithRequestStart("-1"), now));
+			assertFalse(negative.contains(DURATION_FIELD), negative);
+
+			final String zero = timestamplessLayout().doLayout(event("working", mdcWithRequestStart("0"), now));
+			assertFalse(zero.contains(DURATION_FIELD), zero);
+		}
 	}
 
 	@Nested
 	@DisplayName("duration_ms from the Armeria request context")
 	class DurationFromArmeriaContext {
+
+		@Test
+		@DisplayName("reports Armeria's own measurement once the request has completed")
+		void shouldReportCompletedRequestDurationMeasuredByArmeria() {
+			final ServiceRequestContext ctx = ServiceRequestContext.builder(
+				HttpRequest.of(HttpMethod.GET, "/whatever")
+			).build();
+			ctx.logBuilder().endRequest();
+			ctx.logBuilder().endResponse();
+
+			try (SafeCloseable ignored = ctx.push()) {
+				final RequestLog log = ctx.log().partial();
+				// the event is stamped a minute and a half past the request start, so the in-flight source would
+				// answer 90000 - a completed request must be answered from Armeria's monotonic measurement instead
+				final String line = timestamplessLayout().doLayout(
+					event("working", Map.of(), log.requestStartTimeMillis() + 90_000L)
+				);
+
+				assertEquals(log.totalDurationNanos() / 1_000_000L, durationOf(line));
+				assertTrue(durationOf(line) < 90_000L, line);
+			}
+		}
 
 		@Test
 		@DisplayName("reports the elapsed time of an in-flight request")
@@ -264,23 +409,53 @@ class AppLogJsonLayoutTest {
 		}
 
 		@Test
-		@DisplayName("ignores an outbound client call current on the logging thread")
-		void shouldIgnoreOutboundClientContext() {
-			// RequestContext.currentOrNull() would match this; ServiceRequestContext.currentOrNull() must not, because
-			// the duration of a call evitaDB is *making* says nothing about the request it is serving
-			final ClientRequestContext clientContext = ClientRequestContext.builder(
-				HttpRequest.of(HttpMethod.GET, "/outbound")
+		@DisplayName("reports the served request's duration for a line written during an outbound call")
+		void shouldReportServedRequestDurationUnderANestedOutboundCall() {
+			final ServiceRequestContext serviceContext = ServiceRequestContext.builder(
+				HttpRequest.of(HttpMethod.GET, "/served")
 			).build();
 
-			try (SafeCloseable ignored = clientContext.push()) {
-				final String line = timestamplessLayout().doLayout(event("working", Map.of()));
+			try (SafeCloseable ignoredService = serviceContext.push()) {
+				// Armeria resolves the root of a client context at construction time, so a call *made from inside*
+				// a served request keeps that request as its root - this is what `ServiceRequestContext
+				// .currentOrNull()` returns while the outbound call is current, and the duration reported here is
+				// therefore the served request's, not the outbound call's
+				final ClientRequestContext clientContext = ClientRequestContext.builder(
+					HttpRequest.of(HttpMethod.GET, "/outbound")
+				).build();
+				assertSame(serviceContext, clientContext.root());
 
-				assertFalse(line.contains("duration_ms"), line);
+				try (SafeCloseable ignoredClient = clientContext.push()) {
+					final long requestStart = serviceContext.log().partial().requestStartTimeMillis();
+					final String line = timestamplessLayout().doLayout(
+						event("working", Map.of(), requestStart + 40L)
+					);
+
+					assertEquals(40L, durationOf(line));
+				}
 			}
 		}
 
 		@Test
-		@DisplayName("falls back to the captured request start when only an outbound call is current")
+		@DisplayName("omits the field for an outbound call made outside any served request")
+		void shouldOmitDurationUnderARootlessOutboundCall() {
+			// `ServiceRequestContext.currentOrNull()` is `RequestContext.currentOrNull()` followed by `root()`, so
+			// it does not reject a client context - it resolves one to the request behind it. A client context
+			// built with no served request current has no root, which is what makes this case yield nothing.
+			final ClientRequestContext clientContext = ClientRequestContext.builder(
+				HttpRequest.of(HttpMethod.GET, "/outbound")
+			).build();
+			assertNull(clientContext.root(), "the outbound call unexpectedly has a served request behind it");
+
+			try (SafeCloseable ignored = clientContext.push()) {
+				final String line = timestamplessLayout().doLayout(event("working", Map.of()));
+
+				assertFalse(line.contains(DURATION_FIELD), line);
+			}
+		}
+
+		@Test
+		@DisplayName("falls back to the captured request start when only a rootless outbound call is current")
 		void shouldFallBackToCapturedRequestStartUnderOutboundCall() {
 			final ClientRequestContext clientContext = ClientRequestContext.builder(
 				HttpRequest.of(HttpMethod.GET, "/outbound")

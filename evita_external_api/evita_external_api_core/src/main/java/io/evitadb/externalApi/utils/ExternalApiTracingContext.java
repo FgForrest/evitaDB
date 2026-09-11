@@ -58,33 +58,6 @@ public interface ExternalApiTracingContext<C> {
 	Class<C> contextType();
 
 	/**
-	 * Returns the instant the request currently being served started, as epoch milliseconds rendered to a string
-	 * ready for {@link TracingContext#MDC_REQUEST_START_PROPERTY}.
-	 *
-	 * Returns {@code null} when this thread is not serving a request, and the caller must then leave any request
-	 * start already recorded alone. It deliberately does **not** fall back to the current time: a thread that cannot
-	 * see the request context is, by definition, one the request was handed to later, so "now" would record the
-	 * hand-off instant as the start of the request and under-report every duration derived from it.
-	 *
-	 * Only a {@link ServiceRequestContext} qualifies. `RequestContext.currentOrNull()` would also match an *outbound*
-	 * client call this thread happens to be making, whose start has nothing to do with the request being served.
-	 *
-	 * @return epoch milliseconds of the request start as a string, or null when no served request is current
-	 */
-	@Nullable
-	static String currentRequestStart() {
-		final ServiceRequestContext requestContext = ServiceRequestContext.currentOrNull();
-		if (requestContext == null) {
-			return null;
-		}
-		final RequestLogAccess logAccess = requestContext.log();
-		// REQUEST_START_TIME is set inside the ServiceRequestContext constructor, so this holds for anything that can
-		// observe the context at all - the guard is what keeps `partial()` from throwing if that ever changes
-		return logAccess.isAvailable(RequestLogProperty.REQUEST_START_TIME) ?
-			Long.toString(logAccess.partial().requestStartTimeMillis()) : null;
-	}
-
-	/**
 	 * Format of the client ID used by the server.
 	 */
 	String SERVER_CLIENT_ID_FORMAT = "%s|%s";
@@ -114,6 +87,34 @@ public interface ExternalApiTracingContext<C> {
 		}
 		return ID_FORBIDDEN_CHARACTERS.matcher(idFromClient)
 			.replaceAll("-");
+	}
+
+	/**
+	 * Returns the instant the request currently being served started, as epoch milliseconds rendered to a string
+	 * ready for {@link TracingContext#MDC_REQUEST_START_PROPERTY}.
+	 *
+	 * Returns {@code null} when this thread is not serving a request, and the caller must then leave any request
+	 * start already recorded alone. It deliberately does **not** fall back to the current time: a thread that cannot
+	 * see the request context is, by definition, one the request was handed to later, so "now" would record the
+	 * hand-off instant as the start of the request and under-report every duration derived from it.
+	 *
+	 * `ServiceRequestContext.currentOrNull()` resolves to the **root** service context, so an outbound client call
+	 * made from inside a served request still reports that request's start - which is what a line logged while the
+	 * server talks to something else should say. Only a client call with no served request behind it yields null.
+	 *
+	 * @return epoch milliseconds of the request start as a string, or null when no served request is current
+	 */
+	@Nullable
+	static String currentRequestStart() {
+		final ServiceRequestContext requestContext = ServiceRequestContext.currentOrNull();
+		if (requestContext == null) {
+			return null;
+		}
+		final RequestLogAccess logAccess = requestContext.log();
+		// REQUEST_START_TIME is set inside the ServiceRequestContext constructor, so this holds for anything that can
+		// observe the context at all - the guard is what keeps `partial()` from throwing if that ever changes
+		return logAccess.isAvailable(RequestLogProperty.REQUEST_START_TIME) ?
+			Long.toString(logAccess.partial().requestStartTimeMillis()) : null;
 	}
 
 	/**

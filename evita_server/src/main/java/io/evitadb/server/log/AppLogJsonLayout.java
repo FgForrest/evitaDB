@@ -45,6 +45,22 @@ import javax.annotation.Nullable;
  * Logs events as JSON objects for easier digestion by log aggregators like Loki. We construct the JSON manually
  * so we don't slow down the logging process by using Jackson.
  *
+ * **Fields written**, in this order, each omitted when its condition does not hold:
+ *
+ * - `timestamp` — always, unless the `logTimestamp` property is set to `false` in the logback configuration
+ * - `level` — always
+ * - `message` — always; a stack trace is appended to it, and the whole thing is escaped
+ * - `client_id` — a client identifier is known for the request
+ * - `trace_id` — tracing is enabled and a span is active
+ * - `duration_ms` — the line belongs to a request whose start instant is known; see
+ *   {@link #getRequestDurationMs(ILoggingEvent)} for the three sources that instant can come from and the order they
+ *   are consulted in
+ *
+ * **This is an operator-facing contract.** The layout is named from a logback configuration file, and the same set
+ * of fields - plus the MDC keys a layout of the operator's own may read instead - is published in
+ * `documentation/user/en/operate/observe.md` ("Tooling for log aggregators"). A field added, renamed or dropped here
+ * is a user-visible change, and that document has to move with it.
+ *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
@@ -65,6 +81,13 @@ public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
 		super.start();
 	}
 
+	/**
+	 * Renders one logging event as a single-line JSON object, in the field order the class documentation lists.
+	 *
+	 * @param event the event to render, supplying the level, the message, the MDC and the timestamp every duration is
+	 *              measured to
+	 * @return the JSON object followed by the platform line separator
+	 */
 	@Override
 	public String doLayout(ILoggingEvent event) {
 		final StringBuilder buf = new StringBuilder(512);
@@ -149,9 +172,9 @@ public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
 	 * 3. {@link TracingContext#MDC_REQUEST_START_PROPERTY} carried in the event's MDC — the only source available on
 	 *    an evitaDB worker thread, which never has an Armeria context pushed.
 	 *
-	 * Note that {@link ServiceRequestContext} is deliberately narrower than `RequestContext`: the latter also matches
-	 * an *outbound* client call current on this thread, whose duration has nothing to do with the request being
-	 * served.
+	 * {@link ServiceRequestContext#currentOrNull()} resolves to the **root** service context, so a line written
+	 * while this thread makes an outbound client call still reports the duration of the request being served. Only
+	 * a client call with no served request behind it yields null and falls through to source 3.
 	 *
 	 * Sources 2 and 3 subtract two wall-clock readings, so a backward clock adjustment can make them negative; the
 	 * result is clamped at zero rather than reported as a nonsensical duration.
@@ -164,41 +187,46 @@ public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
 		final ServiceRequestContext requestContext = ServiceRequestContext.currentOrNull();
 		if (requestContext != null) {
 			final RequestLogAccess logAccess = requestContext.log();
-			if (logAccess.isAvailable(RequestLogProperty.RESPONSE_END_TIME)) {
-				final RequestLog partialLog = logAccess.partial();
-				if (partialLog.isRequestComplete()) {
-					final long durationNanos = partialLog.totalDurationNanos();
-					return durationNanos / 1_000_000L;
-				}
+			final RequestLog partialLog = logAccess.partial();
+			if (logAccess.isAvailable(RequestLogProperty.RESPONSE_END_TIME) && partialLog.isRequestComplete()) {
+				return partialLog.totalDurationNanos() / 1_000_000L;
 			}
 			// the request is still running - REQUEST_START_TIME is set inside the ServiceRequestContext constructor,
 			// so it is available to anything that can observe the context at all
 			if (logAccess.isAvailable(RequestLogProperty.REQUEST_START_TIME)) {
-				return Math.max(0L, event.getTimeStamp() - logAccess.partial().requestStartTimeMillis());
+				return Math.max(0L, event.getTimeStamp() - partialLog.requestStartTimeMillis());
 			}
 		}
-		return getElapsedSinceCapturedRequestStart(event);
+		return getCapturedRequestDurationMs(event);
 	}
 
 	/**
-	 * Computes the elapsed time from the request start recorded in the event's MDC, which is how the value reaches
-	 * worker threads that never see an Armeria context.
+	 * Computes how long the request had been running when the line was written from the request start recorded in the
+	 * event's MDC, which is how the value reaches worker threads that never see an Armeria context.
 	 *
 	 * The key is read with a null check rather than a containment check on purpose: the context restored onto a
 	 * worker writes every key unconditionally, so a key whose value was never set is *present* with a null value.
 	 * A malformed value is ignored rather than propagated - rendering a log line must not throw.
 	 *
+	 * Unlike the Armeria sources above, this one reads a value anyone with an MDC-populating logging filter can
+	 * write, so a value that is not a real instant is dropped rather than clamped: clamping the *difference* would
+	 * turn a negative reading into an epoch-sized duration and hand the aggregator a plausible-looking number.
+	 *
 	 * @param event the event being rendered
 	 * @return milliseconds since the request started, or null when no usable request start is recorded
 	 */
 	@Nullable
-	private static Long getElapsedSinceCapturedRequestStart(@Nonnull ILoggingEvent event) {
+	private static Long getCapturedRequestDurationMs(@Nonnull ILoggingEvent event) {
 		final String requestStart = event.getMDCPropertyMap().get(TracingContext.MDC_REQUEST_START_PROPERTY);
 		if (requestStart == null) {
 			return null;
 		}
 		try {
-			return Math.max(0L, event.getTimeStamp() - Long.parseLong(requestStart));
+			final long start = Long.parseLong(requestStart);
+			if (start <= 0L) {
+				return null;
+			}
+			return Math.max(0L, event.getTimeStamp() - start);
 		} catch (NumberFormatException ex) {
 			return null;
 		}
