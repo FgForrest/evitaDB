@@ -33,6 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-09-11 | [Decode only the reference names a projection asks for, rather than deriving reference keys from the indexes](2026-09-11-reference-name-narrowing.md) | optimization | accepted | #1547, #1554, PR #1548 |
 | 2026-09-07 | [Equalized histograms bucket on the quantile function and report a kernel density, not a per-bucket ratio](2026-09-07-equalized-histogram-density-and-quantile-bucketing.md) | fix | accepted | #1501 |
 | 2026-08-31 | [Gate cross-entity histogram removal on a pre-mutation condition pre-pass, not bucket membership](2026-08-31-cross-entity-histogram-removal-pre-pass.md) | fix | accepted | #1467, PR #1468, PR #1469 |
 | 2026-08-28 | [Count each evitaDB error once, at the hierarchy root, and record where it was created](2026-08-28-attributable-internal-error-metrics.md) | fix | accepted | #1461, PR #1462, PR #1463 |
