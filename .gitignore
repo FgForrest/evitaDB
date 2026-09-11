@@ -121,6 +121,10 @@ mcp-jdwp-inspector.log
 /evita_server/logs
 /evita_test/evita_functional_tests/export/*
 /evita_test/evita_functional_tests/data/*
+/logs/
+/export/
+# restored production catalogue archives - hundreds of MB, and their names carry customer identifiers
+/full_backup_*.zip
 
 ### Agent plans and reproduction notes (never committed)
 
