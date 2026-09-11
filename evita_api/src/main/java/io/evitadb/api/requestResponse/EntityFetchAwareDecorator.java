@@ -35,14 +35,16 @@ package io.evitadb.api.requestResponse;
 public interface EntityFetchAwareDecorator {
 
 	/**
-	 * The count of I/O fetches used to load this entity and all
-	 * referenced entities from underlying storage.
+	 * The count of I/O fetches used to load this entity itself from the underlying storage - the records read for
+	 * entities it references are NOT included, because finding them would mean walking the whole reference graph.
+	 * The aggregate for a whole operation is counted where the reads happen and reported by
+	 * {@link EvitaResponse#getIoFetchCount()}.
 	 */
 	int getIoFetchCount();
 
 	/**
-	 * The count of bytes fetched from underlying storage to load
-	 * this entity and all referenced entities.
+	 * The count of bytes fetched from the underlying storage to load this entity itself - the records read for
+	 * entities it references are NOT included; see {@link #getIoFetchCount()}.
 	 */
 	int getIoFetchedBytes();
 

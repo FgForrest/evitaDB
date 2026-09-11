@@ -33,15 +33,20 @@ import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReferenc
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.spi.store.catalog.persistence.ReferenceNameFilterContext;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link Reference} from/to binary format.
@@ -75,11 +80,26 @@ public class ReferenceSerializer extends Serializer<Reference> {
 	}
 
 	@Override
+	@Nullable
 	public Reference read(Kryo kryo, Input input, Class<? extends Reference> type) {
-		final EntitySchema schema = io.evitadb.spi.store.catalog.persistence.EntitySchemaContext.getEntitySchema();
 		final int version = input.readVarInt(true);
 		final int internalPrimaryKey = input.readVarInt(true);
 		final String referenceName = input.readString();
+		final Set<String> referenceNameFilter = ReferenceNameFilterContext.getReferenceNameFilter();
+		if (referenceNameFilter != null && !referenceNameFilter.contains(referenceName)) {
+			// the caller cannot see this reference, so only advance the stream past it - not materializing it is
+			// the whole point of the filter, and it is what makes a projection over an entity carrying tens of
+			// thousands of back-references cost the handful of references it actually asked for
+			skipReferenceBody(kryo, input);
+			return null;
+		}
+		// deliberately resolved *after* the skip decision: the accessor builds three Optionals per call and a
+		// skipped reference has no use for the schema, so hoisting it above the filter made the narrowing pay a
+		// schema lookup for every reference it was created to avoid touching
+		final EntitySchema schema = io.evitadb.spi.store.catalog.persistence.EntitySchemaContext.getEntitySchema();
+		// resolved once - the schema lookup used to run twice per reference (group type plus construction),
+		// and this method decodes every reference of every entity the query touches
+		final ReferenceSchema referenceSchema = schema.getReferenceOrThrowException(referenceName);
 		final int entityPrimaryKey = input.readInt();
 		final boolean dropped = input.readBoolean();
 		final boolean groupExists = input.readBoolean();
@@ -88,7 +108,7 @@ public class ReferenceSerializer extends Serializer<Reference> {
 			final int groupVersion = input.readVarInt(true);
 			final int groupPrimaryKey = input.readInt();
 			final boolean groupDropped = input.readBoolean();
-			final String groupType = Objects.requireNonNull(schema.getReferenceOrThrowException(referenceName).getReferencedGroupType());
+			final String groupType = Objects.requireNonNull(referenceSchema.getReferencedGroupType());
 			group = new GroupEntityReference(groupType, groupPrimaryKey, groupVersion, groupDropped);
 		} else {
 			group = null;
@@ -102,11 +122,40 @@ public class ReferenceSerializer extends Serializer<Reference> {
 
 		return new Reference(
 			schema,
-			schema.getReferenceOrThrowException(referenceName),
+			referenceSchema,
 			version,
-			new ReferenceKey(referenceName, entityPrimaryKey, internalPrimaryKey),
+			// the schema's own name instance, not the one just decoded: `input.readString()` hands back a fresh
+			// String for every reference, so keeping it would retain one per reference and force every later
+			// name comparison through String.equals instead of settling on identity
+			new ReferenceKey(referenceSchema.getName(), entityPrimaryKey, internalPrimaryKey),
 			group, attributes, dropped
 		);
+	}
+
+	/**
+	 * Advances the input past the body of a reference whose header (version, internal primary key and name) has
+	 * already been consumed, without materializing anything from it.
+	 *
+	 * The binary layout is written by {@link #write(Kryo, Output, Reference)} and must be mirrored field for field -
+	 * the stream is not self-delimiting, so an incorrect skip desynchronizes the rest of the storage part rather
+	 * than failing at the reference itself. Attribute values are the one part that still has to be decoded: they are
+	 * variable length records with no length prefix, so the only way past them is through their own serializer.
+	 *
+	 * @param kryo  the Kryo instance used to decode the skipped attribute values
+	 * @param input the input positioned right after the reference name
+	 */
+	private static void skipReferenceBody(@Nonnull Kryo kryo, @Nonnull Input input) {
+		input.readInt();
+		input.readBoolean();
+		if (input.readBoolean()) {
+			input.readVarInt(true);
+			input.readInt();
+			input.readBoolean();
+		}
+		final int attributeCount = input.readVarInt(true);
+		for (int i = 0; i < attributeCount; i++) {
+			kryo.readObject(input, AttributeValue.class);
+		}
 	}
 
 }

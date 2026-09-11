@@ -122,6 +122,7 @@ import io.evitadb.core.catalog.VolatileStateProjection;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
+import io.evitadb.core.buffer.StorageAccessScope;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.QueryPlanningContext;
@@ -736,7 +737,7 @@ public final class EntityCollection implements
 			evitaRequest,
 			() -> applyReferenceFetcher(
 				evitaRequest,
-				enrichEntityInternal(entity, evitaRequest),
+				enrichEntityInternal(entity, evitaRequest, false),
 				referenceFetcher
 			)
 		);
@@ -1706,7 +1707,7 @@ public final class EntityCollection implements
 					return wrapToDecorator(evitaRequest, internalEntity, null);
 				}
 			},
-			theEntity -> enrichEntityInternal(theEntity, evitaRequest)
+			theEntity -> enrichEntityInternal(theEntity, evitaRequest, false)
 		);
 	}
 
@@ -1816,10 +1817,11 @@ public final class EntityCollection implements
 					partiallyLoadedEntity.getPricePredicate(),
 					// propagate original date time
 					partiallyLoadedEntity.getAlignedNow(),
-					// propagate information about I/O fetch count
+					// the reads this enrichment performed itself; the ones that produced its input stay owed by the
+					// input decorator and are resolved only if somebody asks for the aggregate
 					entityWithFetchCount.ioFetchCount(),
-					// propagate information about I/O fetched bytes
-					entityWithFetchCount.ioFetchedBytes()
+					entityWithFetchCount.ioFetchedBytes(),
+					partiallyLoadedEntity
 				);
 			}
 		} else {
@@ -2016,7 +2018,7 @@ public final class EntityCollection implements
 			fetchRequest,
 			entities
 				.stream()
-				.map(it -> enrichEntityInternal(it, fetchRequest))
+				.map(it -> enrichEntityInternal(it, fetchRequest, true))
 				.map(it -> limitEntityInternal(it, fetchRequest))
 				.map(SealedEntity.class::cast)
 				.toList(),
@@ -2895,10 +2897,9 @@ public final class EntityCollection implements
 			newPricePredicate,
 			// propagate original date time
 			entity.getAlignedNow(),
-			// propagate original I/O fetch count
-			entity.getIoFetchCount(),
-			// propagate original I/O fetched bytes
-			entity.getIoFetchedBytes()
+			// this decorator performs no I/O of its own - it only narrows the predicates of an entity that is
+			// already in memory, so the whole statistic is owed by the entity it wraps and is resolved lazily
+			0, 0, entity
 		);
 	}
 
@@ -2907,15 +2908,20 @@ public final class EntityCollection implements
 	 * are missing, but are known to exist in the underlying storage. Or it simply widens the predicate scope, if
 	 * the data are present, but are hidden by predicates.
 	 *
-	 * @param sealedEntity the entity to be enriched
-	 * @param evitaRequest the request containing parameters for enriching the entity
+	 * @param sealedEntity          the entity to be enriched
+	 * @param evitaRequest           the request containing parameters for enriching the entity
+	 * @param skipWhenNothingWidens  when true the entity is returned untouched if the request widens none of its
+	 *                               predicates; only safe for callers whose entities were loaded from the catalog
+	 *                               version the enrichment would read, since the skipped round trip is also what
+	 *                               refreshes an entity whose stored version has moved on
 	 * @return an enriched ServerEntityDecorator instance based on the provided entity and request
 	 * @throws EntityAlreadyRemovedException if the entity has been removed
 	 */
 	@Nonnull
 	private ServerEntityDecorator enrichEntityInternal(
 		@Nonnull EntityContract sealedEntity,
-		@Nonnull EvitaRequest evitaRequest
+		@Nonnull EvitaRequest evitaRequest,
+		boolean skipWhenNothingWidens
 	) throws EntityAlreadyRemovedException {
 		final ServerEntityDecorator partiallyLoadedEntity = (ServerEntityDecorator) sealedEntity;
 		// return decorator that hides information not requested by original query
@@ -2925,6 +2931,24 @@ public final class EntityCollection implements
 		final AssociatedDataValueSerializablePredicate newAssociatedDataPredicate = partiallyLoadedEntity.createAssociatedDataPredicateRicherCopyWith(evitaRequest);
 		final ReferenceContractSerializablePredicate newReferenceContractPredicate = partiallyLoadedEntity.createReferencePredicateRicherCopyWith(evitaRequest);
 		final PriceContractSerializablePredicate newPriceContractPredicate = partiallyLoadedEntity.createPricePredicateRicherCopyWith(evitaRequest);
+
+		// every `createRicherCopyWith` returns the very same instance when the request asks for nothing the entity
+		// does not already carry, so identity across all six is an exact test for "this entity is already at the
+		// requested scope". Enriching it anyway costs a storage round trip that provably fetches nothing - it can
+		// only re-read the body to compare versions, and inside the query pipeline every entity was loaded from
+		// the same pinned catalog version, so that comparison cannot come out different. The public enrichment
+		// entry points keep the round trip (they may be handed an entity from an older catalog version).
+		if (skipWhenNothingWidens &&
+			newLocalePredicate == partiallyLoadedEntity.getLocalePredicate() &&
+			newHierarchyPredicate == partiallyLoadedEntity.getHierarchyPredicate() &&
+			newAttributePredicate == partiallyLoadedEntity.getAttributePredicate() &&
+			newAssociatedDataPredicate == partiallyLoadedEntity.getAssociatedDataPredicate() &&
+			newReferenceContractPredicate == partiallyLoadedEntity.getReferencePredicate() &&
+			newPriceContractPredicate == partiallyLoadedEntity.getPricePredicate()
+		) {
+			return partiallyLoadedEntity;
+		}
+
 		final EntitySchema internalSchema = getInternalSchema();
 
 		final EntityWithFetchCount entityWithFetchCount = this.persistenceService.enrichEntity(
@@ -2960,10 +2984,11 @@ public final class EntityCollection implements
 			newPriceContractPredicate,
 			// propagate original date time
 			partiallyLoadedEntity.getAlignedNow(),
-			// propagate information about I/O fetch count
+			// the reads this enrichment performed itself; the ones that produced its input stay owed by the input
+			// decorator and are resolved only if somebody asks for the aggregate
 			entityWithFetchCount.ioFetchCount(),
-			// propagate information about I/O fetched bytes
-			entityWithFetchCount.ioFetchedBytes()
+			entityWithFetchCount.ioFetchedBytes(),
+			partiallyLoadedEntity
 		);
 	}
 
@@ -3738,6 +3763,25 @@ public final class EntityCollection implements
 		@Nullable
 		@Override
 		public <T extends StoragePart> T fetch(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
+			final StorageAccessScope cache = StorageAccessScope.getIfActive();
+			return cache == null ?
+				doFetch(catalogVersion, primaryKey, containerType) :
+				cache.fetch(
+					this, containerType, primaryKey, null,
+					() -> doFetch(catalogVersion, primaryKey, containerType)
+				);
+		}
+
+		/**
+		 * Performs the actual read of a storage part addressed by its numeric key.
+		 *
+		 * @param catalogVersion version of the catalog the record is read at
+		 * @param primaryKey     numeric key of the record
+		 * @param containerType  type of the requested storage part
+		 * @return the record or NULL when it does not exist
+		 */
+		@Nullable
+		private <T extends StoragePart> T doFetch(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
 			return EntitySchemaContext.executeWithSchemaContext(
 				this.schemaSupplier.get(),
 				() -> this.dataStoreReader.fetch(catalogVersion, primaryKey, containerType)
@@ -3756,6 +3800,31 @@ public final class EntityCollection implements
 		@Nullable
 		@Override
 		public <T extends StoragePart, U extends Comparable<U>> T fetch(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer) {
+			final StorageAccessScope cache = StorageAccessScope.getIfActive();
+			return cache == null ?
+				doFetch(catalogVersion, originalKey, containerType, compressedKeyComputer) :
+				cache.fetch(
+					this, containerType, Long.MIN_VALUE, originalKey,
+					() -> doFetch(catalogVersion, originalKey, containerType, compressedKeyComputer)
+				);
+		}
+
+		/**
+		 * Performs the actual read of a storage part addressed by a non-numeric key.
+		 *
+		 * @param catalogVersion         version of the catalog the record is read at
+		 * @param originalKey            key of the record before compression
+		 * @param containerType          type of the requested storage part
+		 * @param compressedKeyComputer  translates `originalKey` into the compressed numeric key
+		 * @return the record or NULL when it does not exist
+		 */
+		@Nullable
+		private <T extends StoragePart, U extends Comparable<U>> T doFetch(
+			long catalogVersion,
+			@Nonnull U originalKey,
+			@Nonnull Class<T> containerType,
+			@Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer
+		) {
 			return EntitySchemaContext.executeWithSchemaContext(
 				this.schemaSupplier.get(),
 				() -> this.dataStoreReader.fetch(catalogVersion, originalKey, containerType, compressedKeyComputer)
