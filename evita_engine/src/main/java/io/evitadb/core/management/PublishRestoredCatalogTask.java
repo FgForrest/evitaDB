@@ -23,6 +23,7 @@
 
 package io.evitadb.core.management;
 
+import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.task.ServerTask;
@@ -33,6 +34,7 @@ import io.evitadb.core.executor.SequentialTask;
 import io.evitadb.core.management.RestorationSteps.RestorationStepsFactory;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.export.ExportService;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.IOUtils;
 import lombok.extern.slf4j.Slf4j;
 
@@ -41,7 +43,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
 import java.nio.file.Path;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -137,9 +138,12 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 		final PublishSettings settings = getStatus().settings();
 		final String temporaryCatalogName = settings.temporaryCatalogName();
 		final String targetCatalogName = settings.targetCatalogName();
-		final FileForFetch archive = Objects.requireNonNull(
-			this.backupTask.getFutureResult().getNow(null),
-			"The backup step completed without producing an archive!"
+		// the enclosing sequence stops at the first step that fails, so reaching this one means the backup both ran
+		// and succeeded - a missing archive here is a broken invariant rather than a runtime outcome
+		final FileForFetch archive = this.backupTask.getFutureResult().getNow(null);
+		Assert.isPremiseValid(
+			archive != null,
+			"The backup step of the restore sequence completed without producing an archive!"
 		);
 
 		boolean published = false;
@@ -160,8 +164,8 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 			activate(temporaryCatalogName);
 			updateProgress(PROGRESS_ACTIVATED);
 
-			// past this point there is nothing to compensate: the swap either happens or it does not, and the
-			// temporary catalog is cleaned up below in either case
+			// the swap is the only client-visible moment of the whole operation, and the last one that can be
+			// abandoned cleanly - once it commits, the temporary name no longer denotes anything to clean up
 			abortIfCancelled();
 			this.evita.replaceCatalogWithProgress(temporaryCatalogName, targetCatalogName)
 				.onCompletion()
@@ -185,6 +189,19 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 		final Path localArchive = this.fileManagementService.createTempFile(archive.fileId() + ".zip");
 		try (final InputStream inputStream = this.exportService.fetchFile(archive.fileId())) {
 			IOUtils.copy(inputStream, localArchive);
+		} catch (FileForFetchNotFoundException e) {
+			// The archive was written moments ago by this very operation, so it going missing means something
+			// removed it - and the export service's own retention is the only thing that does. `purgeFiles` drops
+			// the oldest files whenever the export directory exceeds its size limit, holding no reference count, so
+			// a catalog whose archive alone outgrows that limit cannot be restored this way at all. Saying so is
+			// the difference between an operator raising the limit and an operator hunting a phantom.
+			throw new UnexpectedIOException(
+				"The backup archive of catalog `" + getStatus().catalogName() + "` disappeared before it could be " +
+					"restored - the export directory's size limit is most likely smaller than the catalog.",
+				"The backup archive disappeared before it could be restored - the export directory's size limit " +
+					"is most likely smaller than the catalog.",
+				e
+			);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Failed to read back the backup archive of catalog `" + getStatus().catalogName() +

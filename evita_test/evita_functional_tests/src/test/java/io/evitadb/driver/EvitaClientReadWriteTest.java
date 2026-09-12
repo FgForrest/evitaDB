@@ -1795,7 +1795,9 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		final EvitaManagementContract management = evitaClient.management();
 		final String targetCatalogName = TEST_CATALOG + "Snapshot";
 		final Long currentVersion = evitaClient.queryCatalog(
-			TEST_CATALOG, EvitaSessionContract::getCatalogVersion
+			TEST_CATALOG, session -> {
+				return session.getCatalogVersion();
+			}
 		);
 
 		final Task<?, Void> task = management.restoreCatalogToVersion(
@@ -1816,13 +1818,17 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		assertEquals(
 			Integer.valueOf(PRODUCT_COUNT),
 			evitaClient.queryCatalog(
-				targetCatalogName, session -> session.getEntityCollectionSize(Entities.PRODUCT)
+				targetCatalogName, session -> {
+					return session.getEntityCollectionSize(Entities.PRODUCT);
+				}
 			)
 		);
 		assertEquals(
 			Integer.valueOf(PRODUCT_COUNT),
 			evitaClient.queryCatalog(
-				TEST_CATALOG, session -> session.getEntityCollectionSize(Entities.PRODUCT)
+				TEST_CATALOG, session -> {
+					return session.getEntityCollectionSize(Entities.PRODUCT);
+				}
 			)
 		);
 	}
@@ -1851,7 +1857,9 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		assertEquals(
 			Integer.valueOf(PRODUCT_COUNT),
 			evitaClient.queryCatalog(
-				TEST_CATALOG, session -> session.getEntityCollectionSize(Entities.PRODUCT)
+				TEST_CATALOG, session -> {
+					return session.getEntityCollectionSize(Entities.PRODUCT);
+				}
 			)
 		);
 	}

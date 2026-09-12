@@ -27,6 +27,8 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
@@ -50,6 +52,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -100,15 +103,29 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 	 * `1..i+1` exist.
 	 */
 	private List<Long> versions;
+	/**
+	 * Wall-clock moment recorded right after each commit - `momentsAfterCommit.get(i)` falls after the version in
+	 * `versions.get(i)` was recorded and before the next one was.
+	 */
+	private List<OffsetDateTime> momentsAfterCommit;
 
 	@BeforeEach
-	void setUp() {
+	void setUp() throws InterruptedException {
 		this.paths = createTestPaths("CatalogRestoreToVersionTest");
 		this.evita = new Evita(getEvitaConfiguration(true));
 		this.evita.defineCatalog(TEST_CATALOG);
-		this.evita.updateCatalog(TEST_CATALOG, session -> session.defineEntitySchema(Entities.BRAND));
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
+			session.defineEntitySchema(Entities.BRAND);
+		});
 		this.evita.updateCatalog(TEST_CATALOG, EvitaSessionContract::goLiveAndClose);
 		this.versions = commitOneBrandPerVersion(TEST_CATALOG, BRAND_COUNT);
+		// Only a version a bootstrap record names can be restored to, and which commits get one is a property of
+		// the checkpoint cadence rather than of this fixture. Asserting it here makes a cadence change surface as
+		// "the fixture stopped producing restorable versions" instead of as nine unrelated-looking failures.
+		assertEquals(
+			BRAND_COUNT, this.versions.stream().distinct().count(),
+			"Every commit must have produced a distinct catalog version!"
+		);
 	}
 
 	@AfterEach
@@ -146,9 +163,14 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("Selecting the state by moment lands on the same version as selecting it by number")
 		void shouldRestoreToTheSameStateWhenSelectedByMoment() throws Exception {
-			// the moment recorded *after* the third brand was committed and before the fourth one was: any
-			// implementation resolving it must land on the third version
-			final OffsetDateTime momentAfterThirdBrand = versionIntroducedAt(versions.get(2));
+			// the moment recorded after the third brand was committed and before the fourth one was
+			final OffsetDateTime momentAfterThirdBrand = momentsAfterCommit.get(2);
+			// Pinned down first, so a failure below can only mean the restore landed somewhere other than where
+			// the engine itself resolves this moment to - rather than the fixture having picked an ambiguous one.
+			assertEquals(
+				versions.get(2).longValue(), versionValidAt(momentAfterThirdBrand),
+				"The fixture's moment must unambiguously identify the third version!"
+			);
 
 			awaitCompletion(
 				evita.management().restoreCatalogToVersion(TEST_CATALOG, momentAfterThirdBrand, null, null)
@@ -160,7 +182,7 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("An explicit version wins over a moment naming a different one")
 		void shouldPreferTheVersionOverTheMoment() throws Exception {
-			final OffsetDateTime momentOfTheFifthBrand = versionIntroducedAt(versions.get(4));
+			final OffsetDateTime momentOfTheFifthBrand = momentsAfterCommit.get(4);
 
 			awaitCompletion(
 				evita.management().restoreCatalogToVersion(
@@ -183,7 +205,9 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 
 			evita.updateCatalog(
 				TEST_CATALOG,
-				session -> session.upsertEntity(session.createNewEntity(Entities.BRAND, 100))
+				session -> {
+					session.upsertEntity(session.createNewEntity(Entities.BRAND, 100));
+				}
 			);
 			assertEquals(4, brandCount(TEST_CATALOG));
 
@@ -323,12 +347,13 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		@DisplayName("A new target name colliding with an existing catalog in some naming convention is refused")
 		void shouldRefuseATargetNameCollidingInANamingConvention() {
 			final EvitaManagement management = evita.management();
-			// differs from TEST_CATALOG only by case convention, so both map to the same name in at least one
-			// convention - the check the replacement itself deliberately skips
-			final String collidingName = TEST_CATALOG.toUpperCase();
+			// `testCatalog` and `test_catalog` are the same name in the snake-case convention, so registering the
+			// second one would be refused - and this is exactly the check the replacement skips when it overwrites,
+			// which is why the operation has to make it itself
+			final String collidingName = "test_catalog";
 
 			assertThrows(
-				EvitaInvalidUsageException.class,
+				CatalogAlreadyPresentException.class,
 				() -> management.restoreCatalogToVersion(TEST_CATALOG, null, versions.get(1), collidingName)
 			);
 
@@ -362,6 +387,41 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 			final TaskStatus<?, ?> finalStatus = management.getTaskStatus(task.getStatus().taskId()).orElseThrow();
 			assertEquals(TaskSimplifiedState.FINISHED, finalStatus.simplifiedState());
 			assertEquals(100, finalStatus.progress());
+		}
+
+		/**
+		 * Cancellation is checked at phase boundaries only - `CompletableFuture#join` ignores interrupts, so a
+		 * cancel landing inside an engine mutation is not seen until that mutation returns. This test therefore
+		 * asserts the *invariant* rather than a timing: whichever boundary the cancel lands on (including "after
+		 * the last one", where it lands on an operation that already finished), the engine is left in one of the
+		 * two legal end states and never in between.
+		 *
+		 * Deliberately not a test that the operation stops. Pinning that would need a cancel injected at a known
+		 * phase, and a test named for a window it does not reliably reach reports coverage that does not exist.
+		 */
+		@Test
+		@DisplayName("Cancelling leaves the engine in one of the two legal end states, never in between")
+		void shouldLeaveNoResidueWhenCancelled() {
+			final EvitaManagement management = evita.management();
+			final Task<?, Void> task = management.restoreCatalogToVersion(
+				TEST_CATALOG, null, versions.get(2), null
+			);
+
+			task.cancel();
+			// the task's own future may complete either way; what matters is what it leaves on disk and in the
+			// engine, which is settled once the task is no longer running
+			awaitSettled(task);
+
+			assertEquals(
+				Set.of(TEST_CATALOG), evita.getCatalogNames(),
+				"A cancelled restore must never leave its scratch catalog behind!"
+			);
+			final int brands = brandCount(TEST_CATALOG);
+			assertTrue(
+				brands == BRAND_COUNT || brands == 3,
+				() -> "The catalog must be either untouched (" + BRAND_COUNT + " brands) or fully restored " +
+					"(3 brands), never anything in between - but held " + brands + "!"
+			);
 		}
 
 		@Test
@@ -413,38 +473,47 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 	 * @return the version after each commit, in commit order
 	 */
 	@Nonnull
-	private List<Long> commitOneBrandPerVersion(@Nonnull String catalogName, int brandCount) {
+	private List<Long> commitOneBrandPerVersion(@Nonnull String catalogName, int brandCount)
+		throws InterruptedException {
 		final List<Long> committedVersions = new ArrayList<>(brandCount);
+		this.momentsAfterCommit = new ArrayList<>(brandCount);
 		for (int i = 1; i <= brandCount; i++) {
 			final int brandId = i;
 			// the default commit behaviour waits for the changes to become visible, so the version read straight
 			// afterwards is the one this commit produced rather than whatever happens to be current
 			this.evita.updateCatalog(
 				catalogName,
-				session -> session.upsertEntity(session.createNewEntity(Entities.BRAND, brandId))
+				session -> {
+					session.upsertEntity(session.createNewEntity(Entities.BRAND, brandId));
+				}
 			);
 			committedVersions.add(
 				this.evita.queryCatalog(catalogName, EvitaSessionContract::getCatalogVersion)
 			);
+			this.momentsAfterCommit.add(OffsetDateTime.now());
+			// Version timestamps carry millisecond precision, so two commits landing inside the same millisecond
+			// would make the moment recorded above ambiguous between them - and a point-in-time test resolving to
+			// the neighbouring version would look like a bug in the feature rather than in the fixture.
+			Thread.sleep(2);
 		}
 		return committedVersions;
 	}
 
 	/**
-	 * Returns the moment the given catalog version was introduced, as recorded in the catalog's own history.
+	 * Returns the catalog version the engine considers current at the given moment.
 	 *
-	 * @param catalogVersion version to look up
-	 * @return the moment that version became the catalog's state
+	 * Asked of the engine rather than computed here on purpose: this is the same history a point-in-time backup
+	 * consults, so it is the only answer that says what a restore *should* land on.
+	 *
+	 * @param moment moment to resolve
+	 * @return the version valid at that moment
 	 */
-	@Nonnull
-	private OffsetDateTime versionIntroducedAt(long catalogVersion) {
+	private long versionValidAt(@Nonnull OffsetDateTime moment) {
 		return this.evita.queryCatalog(
 			TEST_CATALOG,
-			session -> session.getCatalogVersionDescriptors(catalogVersion)
-				.stream()
-				.findFirst()
-				.orElseThrow()
-				.introducedAt()
+			session -> {
+				return session.getLastCatalogVersionBefore(moment).endVersion();
+			}
 		);
 	}
 
@@ -457,7 +526,9 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 	private int brandCount(@Nonnull String catalogName) {
 		return this.evita.queryCatalog(
 			catalogName,
-			session -> session.getEntityCollectionSize(Entities.BRAND)
+			session -> {
+				return session.getEntityCollectionSize(Entities.BRAND);
+			}
 		);
 	}
 
@@ -483,6 +554,27 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		task.getFutureResult().get(OPERATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 	}
 
+	/**
+	 * Waits for the operation to stop running, whatever its outcome.
+	 *
+	 * Unlike {@link #awaitCompletion(Task)} this tolerates a failure or a cancellation - it is for tests that
+	 * assert on the state the operation left behind rather than on it succeeding.
+	 *
+	 * @param task the operation to wait for
+	 */
+	private static void awaitSettled(@Nonnull Task<?, Void> task) {
+		try {
+			task.getFutureResult().get(OPERATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+		} catch (ExecutionException | CancellationException e) {
+			// an expected outcome for a cancelled or failed operation - the assertions are on what it left behind
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new IllegalStateException("Interrupted while waiting for the operation to settle!", e);
+		} catch (TimeoutException e) {
+			throw new IllegalStateException("The operation never stopped running!", e);
+		}
+	}
+
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration(boolean timeTravelEnabled) {
 		return newTestEvitaConfigurationBuilder(this.paths)
@@ -491,6 +583,15 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 					.storageDirectory(this.paths.storage())
 					.workDirectory(this.paths.work())
 					.timeTravelEnabled(timeTravelEnabled)
+					.build()
+			)
+			.transaction(
+				TransactionOptions.builder()
+					// A version can only be restored to if a bootstrap record names it, and in the live state
+					// publication is deferred - at the default one-second cadence all five of this fixture's commits
+					// land inside a single checkpoint and only the last of them gets a record. Checkpointing every
+					// round is what gives each commit a version a client could actually ask for.
+					.checkpointIntervalInMillis(0)
 					.build()
 			)
 			.build();

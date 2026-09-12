@@ -44,6 +44,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.test.TestTags.ENGINE;
@@ -62,10 +63,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the sequence (which also cancels every step, so the pre-existing `QUEUED` guard would stop the remaining steps
  * anyway), the other cancels only the sequence's result future and therefore isolates the boundary check itself.
  *
- * No assertion in this class touches {@link SequentialTask#getStatus()}'s progress value: it aggregates step progress
- * with a bitwise OR rather than a sum, so two steps at 50 % and 100 % report 59 %. A "between min and max" assertion
- * would hold for both that and a correct average, and would read to the next person as deliberate coverage of
- * behaviour nobody actually asserted.
+ * Progress aggregation gets its own nested class, and the assertion there is deliberately an exact equality on a
+ * pair of values where a sum and a bitwise OR disagree. The aggregation used to be an OR - two steps at 50 % and
+ * 100 % reported 59 % - and a "between min and max" assertion would have held for both that and a correct average,
+ * which is why it went unnoticed.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -77,8 +78,8 @@ class SequentialTaskTest {
 	/**
 	 * Builds a step that records its own execution in the given list.
 	 *
-	 * Every step carries at least one {@link TaskTrait}, because {@link SequentialTask}'s constructor funnels the union
-	 * of its steps' traits through `EnumSet.copyOf(Collection)`, which rejects an empty collection.
+	 * Every step carries at least one {@link TaskTrait} because a real one does; the sequence itself tolerates a
+	 * trait-less step, and {@link ProgressAggregation} pins that.
 	 *
 	 * @param name       the step name
 	 * @param executions the list each execution appends its name to
@@ -115,6 +116,60 @@ class SequentialTaskTest {
 			assertEquals(List.of("first", "second"), executions, "the steps ran out of order or not at all");
 			assertEquals(TaskSimplifiedState.FINISHED, sequence.getStatus().simplifiedState());
 			assertEquals(42, sequence.getFutureResult().getNow(null));
+		}
+	}
+
+	@Nested
+	@DisplayName("Progress aggregation")
+	class ProgressAggregation {
+
+		@Test
+		@DisplayName("averages the steps' progress rather than OR-ing it together")
+		void shouldAverageStepProgressRatherThanOrItTogether() {
+			// A sequence only recomputes its progress while it is RUNNING, and it is RUNNING only while a step is
+			// executing - so the reading has to be taken from inside one. The first step sets both steps'
+			// percentages and samples the sequence on the spot.
+			final AtomicReference<SequentialTask<Void>> holder = new AtomicReference<>();
+			final AtomicInteger sampledProgress = new AtomicInteger(-1);
+			final ClientRunnableTask<Void> step2 = recordingStep("second", new ArrayList<>(1));
+			final ClientRunnableTask<Void> step1 = new ClientRunnableTask<>(
+				"step", "first", null,
+				theTask -> {
+					theTask.updateProgress(100);
+					step2.updateProgress(50);
+					sampledProgress.set(holder.get().getStatus().progress());
+				},
+				TaskTrait.CAN_BE_CANCELLED
+			);
+			final SequentialTask<Void> sequence = new SequentialTask<>(null, "type", "Sequence", step1, step2);
+			holder.set(sequence);
+			sequence.transitionToIssued();
+
+			sequence.execute();
+
+			// 100 and 50 are chosen because a sum and a bitwise OR disagree on them: (100 + 50) / 2 = 75, while
+			// (100 | 50) / 2 = 59. Reverting the aggregation to `|=` is what this assertion catches - the common
+			// `100 | 0` shape the sequence used to be built in cannot tell the two apart, which is exactly why the
+			// defect survived until a wider sequence needed the number to mean something.
+			assertEquals(
+				75, sampledProgress.get(),
+				"the sequence must report the mean of its steps' progress"
+			);
+		}
+
+		@Test
+		@DisplayName("accepts a step that declares no traits at all")
+		void shouldAcceptATraitlessStep() {
+			final ClientRunnableTask<Void> traitless = new ClientRunnableTask<>(
+				"step", "traitless", null, () -> {
+				}
+			);
+			final SequentialTask<Void> sequence = new SequentialTask<>(null, "type", "Sequence", traitless);
+
+			assertTrue(
+				sequence.getStatus().traits().isEmpty(),
+				"a sequence of trait-less steps must simply carry no traits"
+			);
 		}
 	}
 

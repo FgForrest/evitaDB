@@ -114,11 +114,20 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 	 */
 	public static final String RESTORE_TO_VERSION_TASK_TYPE = "RestoreCatalogToVersionTask";
 	/**
-	 * Longest prefix of a source catalog name that may be carried into the temporary catalog's name. The classifier
-	 * format admits 255 characters and the suffix costs nine of them, so a source name longer than this is truncated
-	 * rather than allowed to produce an unvalidatable name.
+	 * Infix marking a catalog as the scratch copy a restore-to-version unpacks into before it swaps it in.
+	 *
+	 * Deliberately a word rather than a bare random suffix. A crash between the temporary catalog being registered
+	 * and the swap committing leaves it behind as an ordinary, fully-registered catalog that nothing sweeps - so
+	 * the one thing that makes it recoverable is that an operator scanning the catalog listing can tell what it is
+	 * and where it came from. It carries no meaning to the engine.
 	 */
-	private static final int MAX_TEMPORARY_NAME_PREFIX_LENGTH = 246;
+	private static final String TEMPORARY_NAME_INFIX = "_restore_";
+	/**
+	 * Longest prefix of a source catalog name that may be carried into the temporary catalog's name. The classifier
+	 * format admits 255 characters and the rest of the name costs seventeen of them, so a source name longer than
+	 * this is truncated rather than allowed to produce an unvalidatable name.
+	 */
+	private static final int MAX_TEMPORARY_NAME_PREFIX_LENGTH = 238;
 	/**
 	 * How many suffixes are tried before inventing a temporary catalog name is given up on. A collision needs both a
 	 * matching random suffix and a matching prefix, so more than one attempt is already close to unreachable.
@@ -342,6 +351,9 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		}
 
 		final String temporaryCatalogName = generateTemporaryCatalogName(catalogName);
+		final CatalogConsumerControl consumerControl = this.evita.obtainCatalogSessionRegistry(catalogName)
+			.map(registry -> registry.createCatalogConsumerControl(catalogName))
+			.orElseThrow(() -> new CatalogNotFoundException(catalogName));
 		// Built rather than submitted, so the archive is produced as the first step of the sequence below. The
 		// construction is what resolves the requested version, so an unavailable one is raised *here*, synchronously,
 		// instead of failing a task the client has already been handed.
@@ -349,9 +361,6 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		// The WAL is deliberately excluded. Including it copies every log file wholesale, and a restore of such an
 		// archive replays them forward to the head of the log - which lands on the current state and undoes the very
 		// point-in-time this operation exists to reach.
-		final CatalogConsumerControl consumerControl = this.evita.obtainCatalogSessionRegistry(catalogName)
-			.map(registry -> registry.createCatalogConsumerControl(catalogName))
-			.orElseThrow(() -> new CatalogNotFoundException(catalogName));
 		final ServerTask<?, FileForFetch> backupTask = ((Catalog) sourceCatalog).createBackupTask(
 			// the backup holds the version it copies against reclamation, but it is not a session at that version -
 			// registering it as one would make it a phantom read-write consumer of that version for the whole copy
@@ -386,11 +395,12 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 	/**
 	 * Invents a name for the catalog a restore unpacks into before it is swapped into its final name.
 	 *
-	 * The name is an implementation detail with one hard requirement - nothing else may be using it - and two soft
-	 * ones: it should be recognisable as belonging to the catalog being restored, and it must survive
-	 * {@link ClassifierUtils#validateClassifierFormat}. The prefix is therefore truncated rather than appended to
-	 * blindly, because a source catalog already near the classifier length limit would otherwise produce a name that
-	 * cannot be validated at all.
+	 * The name has one hard requirement - nothing else may be using it, in any naming convention - and one that
+	 * matters only when something goes wrong: it must say what it is. A crash between the temporary catalog being
+	 * registered and the swap committing leaves it behind as an ordinary catalog nothing sweeps, so
+	 * `<source>_restore_<hex>` is what lets an operator recognise the leftover and delete it. The prefix is
+	 * truncated rather than appended to blindly, because a source catalog already near the classifier length limit
+	 * would otherwise produce a name {@link ClassifierUtils#validateClassifierFormat} rejects.
 	 *
 	 * @param catalogName name of the catalog being restored
 	 * @return a name no catalog currently holds, in any naming convention
@@ -400,7 +410,8 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		final String prefix = catalogName.length() > MAX_TEMPORARY_NAME_PREFIX_LENGTH ?
 			catalogName.substring(0, MAX_TEMPORARY_NAME_PREFIX_LENGTH) : catalogName;
 		for (int attempt = 0; attempt < TEMPORARY_NAME_ATTEMPTS; attempt++) {
-			final String candidate = prefix + "_" + UUIDUtil.randomUUID().toString().substring(0, 8);
+			final String candidate = prefix + TEMPORARY_NAME_INFIX +
+				UUIDUtil.randomUUID().toString().substring(0, 8);
 			if (this.evita.getCatalogNames().contains(candidate)) {
 				continue;
 			}
