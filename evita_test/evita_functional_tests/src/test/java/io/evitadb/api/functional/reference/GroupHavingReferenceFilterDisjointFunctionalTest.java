@@ -26,6 +26,8 @@ package io.evitadb.api.functional.reference;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
@@ -43,6 +45,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -535,6 +538,73 @@ public class GroupHavingReferenceFilterDisjointFunctionalTest {
 		}
 	}
 
+	@Nested
+	@DisplayName("groupHaving inside a referenceContent filter")
+	class ReferenceContentGroupHaving {
+
+		@DisplayName("Should narrow reference content when the group constraint is the only child of the filter")
+		@UseDataSet(DISJOINT_PK_PARAMETERS)
+		@Test
+		void shouldFilterReferenceContentByGroupHaving(@Nonnull Evita evita) {
+			// a group constraint sitting directly under the reference filter is lifted out and evaluated on its own
+			// against the group collection - the same answer the `and`-wrapped shape below produces, because where
+			// the constraint sits must not change what it means
+			final Map<Integer, Set<Integer>> actual = queryProductReferences(
+				evita,
+				query(
+					collection(PRODUCT),
+					filterBy(entityPrimaryKeyInSet(allProductPks())),
+					require(
+						page(1, 50),
+						entityFetch(
+							referenceContent(
+								PARAMETER_VALUES_REF,
+								filterBy(groupHaving(attributeEquals(ATTR_CODE, "ram-memory")))
+							)
+						)
+					)
+				)
+			);
+
+			assertEquals(expectedRamMemoryReferences(), actual);
+		}
+
+		@DisplayName("Should narrow reference content when the group constraint sits below the top level")
+		@UseDataSet(DISJOINT_PK_PARAMETERS)
+		@Test
+		void shouldFilterReferenceContentByGroupHavingNestedBelowTopLevel(@Nonnull Evita evita) {
+			// the separation pass that lifts a group constraint out of the reference filter scans only the direct
+			// children of `filterBy`, so wrapping it in `and` is what carries it into the entity-level evaluation
+			final Map<Integer, Set<Integer>> actual = queryProductReferences(
+				evita,
+				query(
+					collection(PRODUCT),
+					filterBy(entityPrimaryKeyInSet(allProductPks())),
+					require(
+						page(1, 50),
+						entityFetch(
+							referenceContent(
+								PARAMETER_VALUES_REF,
+								filterBy(
+									and(
+										groupHaving(attributeEquals(ATTR_CODE, "ram-memory")),
+										entityHaving(attributeStartsWith(ATTR_CODE, "ram-"))
+									)
+								)
+							)
+						)
+					)
+				)
+			);
+
+			// the key set the engine injects to keep a nested `entityHaving` off the whole referenced collection is
+			// made of *referenced entity* primary keys, so it is not a valid restriction for a nested query over the
+			// *group* collection - here the two universes are disjoint, which turns a silent over-restriction into a
+			// visible empty result
+			assertEquals(expectedRamMemoryReferences(), actual);
+		}
+	}
+
 	// --- helpers ----------------------------------------------------------------
 
 	/**
@@ -576,6 +646,61 @@ public class GroupHavingReferenceFilterDisjointFunctionalTest {
 					.stream()
 					.map(EntityReferenceContract::getPrimaryKey)
 					.toList();
+			}
+		);
+	}
+
+
+	/**
+	 * Returns the primary keys of every {@link #PRODUCT} the fixture creates.
+	 */
+	@Nonnull
+	private static Integer[] allProductPks() {
+		return IntStream.rangeClosed(1, PRODUCT_COUNT).boxed().toArray(Integer[]::new);
+	}
+
+	/**
+	 * Returns, per product primary key, the {@link #PARAMETER_VALUE} primary keys the product references through the
+	 * RAM group - the answer a reference content filtered by `groupHaving(code = ram-memory)` has to produce. Odd
+	 * products carry no RAM value at all and therefore map to an empty set.
+	 */
+	@Nonnull
+	private static Map<Integer, Set<Integer>> expectedRamMemoryReferences() {
+		return IntStream.rangeClosed(1, PRODUCT_COUNT)
+			.boxed()
+			.collect(
+				Collectors.toMap(
+					pk -> pk,
+					pk -> pk % 2 == 0 ?
+						Set.of((pk / 2) % 2 == 0 ? PARAMETER_VALUE_PK_BASE + 1 : PARAMETER_VALUE_PK_BASE + 2) :
+						Set.of()
+				)
+			);
+	}
+
+	/**
+	 * Executes the given query against the {@link #PRODUCT} collection and collects the {@link #PARAMETER_VALUES_REF}
+	 * references each returned product carries, keyed by the product primary key.
+	 */
+	@Nonnull
+	private static Map<Integer, Set<Integer>> queryProductReferences(
+		@Nonnull Evita evita, @Nonnull io.evitadb.api.query.Query queryToRun
+	) {
+		return evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> response = session.querySealedEntity(queryToRun);
+				return response.getRecordData()
+					.stream()
+					.collect(
+						Collectors.toMap(
+							SealedEntity::getPrimaryKeyOrThrowException,
+							it -> it.getReferences(PARAMETER_VALUES_REF)
+								.stream()
+								.map(ReferenceContract::getReferencedPrimaryKey)
+								.collect(Collectors.toUnmodifiableSet())
+						)
+					);
 			}
 		);
 	}

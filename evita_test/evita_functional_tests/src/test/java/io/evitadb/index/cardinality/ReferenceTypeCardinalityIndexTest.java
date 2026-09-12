@@ -392,6 +392,77 @@ class ReferenceTypeCardinalityIndexTest {
 			);
 			assertTrue(result.isEmpty());
 		}
+
+		@Test
+		@DisplayName(
+			"getIndexPrimaryKeys: single match is not aliased onto the index"
+		)
+		void shouldNotAliasIndexBitmapIntoSingleMatchResult() {
+			// a single matching referenced primary key answers straight from one partition, and that partition is
+			// the index's own live bitmap - handing it out unwrapped would let any caller corrupt the index
+			final ReferenceTypeCardinalityIndex index =
+				new ReferenceTypeCardinalityIndex();
+			index.addRecord(1, 100);
+			index.addRecord(2, 100);
+
+			final Bitmap first = index.getIndexPrimaryKeys(
+				PersistentRoaringBitmap.bitmapOf(100)
+			);
+			first.add(999);
+
+			final Bitmap second = index.getIndexPrimaryKeys(
+				PersistentRoaringBitmap.bitmapOf(100)
+			);
+			assertArrayEquals(new int[]{1, 2}, second.getArray());
+			assertFalse(second.contains(999));
+		}
+
+		@Test
+		@DisplayName(
+			"getIndexPrimaryKeys: unioning leaves the source partitions untouched"
+		)
+		void shouldNotMutateSourcePartitionsWhenUnioning() {
+			final ReferenceTypeCardinalityIndex index =
+				new ReferenceTypeCardinalityIndex();
+			index.addRecord(1, 100);
+			index.addRecord(2, 100);
+			index.addRecord(3, 200);
+			index.addRecord(4, 200);
+
+			final Bitmap union = index.getIndexPrimaryKeys(
+				PersistentRoaringBitmap.bitmapOf(100, 200)
+			);
+			assertArrayEquals(new int[]{1, 2, 3, 4}, union.getArray());
+
+			// each partition still answers exactly what it did before it was fed to the aggregation
+			assertArrayEquals(
+				new int[]{1, 2},
+				index.getIndexPrimaryKeys(PersistentRoaringBitmap.bitmapOf(100)).getArray()
+			);
+			assertArrayEquals(
+				new int[]{3, 4},
+				index.getIndexPrimaryKeys(PersistentRoaringBitmap.bitmapOf(200)).getArray()
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"getIndexPrimaryKeys: overlapping partitions are deduplicated"
+		)
+		void shouldDeduplicateOverlappingPartitions() {
+			final ReferenceTypeCardinalityIndex index =
+				new ReferenceTypeCardinalityIndex();
+			index.addRecord(1, 100);
+			index.addRecord(2, 100);
+			index.addRecord(2, 200);
+			index.addRecord(3, 200);
+
+			final Bitmap union = index.getIndexPrimaryKeys(
+				PersistentRoaringBitmap.bitmapOf(100, 200)
+			);
+
+			assertArrayEquals(new int[]{1, 2, 3}, union.getArray());
+		}
 	}
 
 	@Nested

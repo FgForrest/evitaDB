@@ -49,14 +49,18 @@ public class ConstantFormula extends AbstractFormula {
 	 */
 	@Getter private final Bitmap delegate;
 	/**
-	 * Memoized {@link #getEstimatedCardinality()}.
+	 * Memoized {@link #getEstimatedCardinality()} - `-1` until the first call, a value no real cardinality can take
+	 * because the constructor rejects an empty delegate.
 	 *
-	 * <p>The delegate is final and a constant formula is built fresh per query, so the value cannot change over
-	 * the instance's lifetime - and {@code estimatedCost}, derived from the very same {@code delegate.size()}, is
-	 * already frozen at construction time by {@link io.evitadb.core.query.algebra.AbstractFormula#initFields}.
-	 * Worth memoizing because {@link io.evitadb.index.bitmap.TransactionalBitmap#size()} probes the transactional
-	 * memory layer's ThreadLocal on every call before it ever reaches its own cached cardinality, and a filter
-	 * over a reference fans out to one constant formula per reduced index - hundreds of thousands of them.</p>
+	 * The class already treats `delegate.size()` as fixed for the instance's lifetime: the delegate is final,
+	 * `estimatedCost` is derived from that very same call and frozen at construction time by
+	 * {@link AbstractFormula#initFields}, and {@link AbstractFormula#clearMemory()} deliberately does not reset it.
+	 * The memo only makes that standing assumption explicit, and therefore stays correct even for a caller that
+	 * retains a constant formula across several computations.
+	 *
+	 * Worth memoizing because {@link TransactionalBitmap#size()} probes the transactional memory layer's ThreadLocal
+	 * on every call before it ever reaches its own cached cardinality, and a filter over a reference fans out to one
+	 * constant formula per reduced index - hundreds of thousands of them.
 	 */
 	private int memoizedCardinality = -1;
 

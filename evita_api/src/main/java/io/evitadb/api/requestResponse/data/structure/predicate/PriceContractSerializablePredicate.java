@@ -368,6 +368,14 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 	 * Creates and returns a richer copy of the current PriceContractSerializablePredicate instance with properties
 	 * updated or augmented based on the provided EvitaRequest.
 	 *
+	 * The copy only ever **widens**. Its single production caller is the enrichment path
+	 * ({@link EntityDecorator#createPricePredicateRicherCopyWith(EvitaRequest)}),
+	 * which adds data to an entity that is already loaded - a request asking for a narrower
+	 * {@link PriceContentMode} than this predicate carries must therefore never take the wider one away, whether or
+	 * not the request widens something else at the same time. Narrowing a view of an entity is what
+	 * {@link io.evitadb.api.EntityCollectionContract#limitEntity} does, through the underlying-predicate constructor
+	 * rather than through here.
+	 *
 	 * @param evitaRequest the request containing additional details or constraints such as required entity prices,
 	 *                     additional price lists, or accompanying price lists which affect the returned predicate.
 	 * @return a new PriceContractSerializablePredicate instance that has been enriched with the provided properties
@@ -404,7 +412,10 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 				return this;
 			} else {
 				return new PriceContractSerializablePredicate(
-					requiresEntityPrices,
+					// the request asks for no more prices than this predicate already lets through, so the copy keeps
+					// the wider mode - the two short-circuits above return `this` for the same reason, and enrichment
+					// widening the price lists must not narrow the content mode behind the caller's back
+					this.priceContentMode,
 					this.currency, this.validIn, this.priceLists,
 					this.additionalPriceLists == null ? fetchesAdditionalPriceLists : ArrayUtils.mergeArrays(this.additionalPriceLists, fetchesAdditionalPriceLists),
 					mergedAccompanyingPrices,

@@ -94,6 +94,7 @@ import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.AbstractHierarchyTranslator.TraversalDirection;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
+import io.evitadb.core.query.filter.NestedQueryRestriction;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
@@ -841,11 +842,16 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 							// referenced collection's GLOBAL index, so it evaluates the predicate
 							// over every entity there even though the owners between them reference
 							// only a handful. Restricting it to exactly those keys is what the
-							// `nestedQueryFormulaEnricher` seam exists for, and it is safe because
+							// `nestedQueryRestriction` seam exists for, and it is safe because
 							// the nested result is intersected with this same set afterwards.
 							// A deeper nested level targeting a different collection builds its own
 							// FilterByVisitor with a fresh root scope, so this cannot leak into it.
-							final Function<FilterConstraint, FilterConstraint> nestedQueryPkRestriction =
+							// The restriction names the query it belongs to, because the very same
+							// scope also plans `groupHaving` against the reference's GROUP
+							// collection, where these keys mean nothing.
+							final NestedQueryRestriction nestedQueryPkRestriction = new NestedQueryRestriction(
+								referenceSchema.getName(),
+								referenceSchema.getReferencedEntityType(),
 								nestedFilter -> nestedFilter instanceof FilterBy nestedBy ?
 									new FilterBy(
 										ArrayUtils.mergeArrays(
@@ -853,7 +859,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 											nestedBy.getChildren()
 										)
 									) :
-									and(pkConstraint, nestedFilter);
+									and(pkConstraint, nestedFilter)
+							);
 							final FilterConstraint[] havingChildren = entityLevelChildren.length == 0
 								? new FilterConstraint[]{pkConstraint}
 								: ArrayUtils.mergeArrays(new FilterConstraint[]{pkConstraint}, entityLevelChildren);
@@ -1086,14 +1093,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			? null
 			: new FilterBy(entityLevel.toArray(FilterConstraint[]::new));
 
-		// evaluate group constraints against group-level indexes
+		// evaluate the group constraints against the group collection. The `groupHaving` container is unwrapped
+		// above, so what is handed over is its bare children - and they mean "attributes of the group entity",
+		// which only a nested query over that collection can answer
 		final Bitmap matchingGroupPks = filterByVisitor.getMatchingGroupEntityPrimaryKeys(
-			new ReferenceHaving(
-				referenceSchema.getName(),
-				and(finalGroupChildren)
-			),
-			examinedScopes,
-			(es, eik) -> null
+			referenceSchema,
+			and(finalGroupChildren),
+			examinedScopes
 		);
 
 		if (matchingGroupPks.isEmpty()) {
@@ -1319,9 +1325,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param entityNestedQueryComparator comparator that holds information about requested ordering so that we can
 	 *                                    apply it during entity filtering (if it's performed) and pre-initialize it
 	 *                                    in an optimal way
-	 * @param nestedQueryFormulaEnricher  optional transformation applied to the filter of a nested query planned for
-	 *                                    an `entityHaving` constraint - it allows narrowing that query down to the
-	 *                                    keys the owners actually reference instead of the whole target collection
+	 * @param nestedQueryRestriction      optional narrowing applied to the filter of a nested query planned for an
+	 *                                    `entityHaving` constraint - it takes that query down to the keys the owners
+	 *                                    actually reference instead of the whole target collection
 	 * @return formula that calculates the result
 	 */
 	@Nullable
@@ -1332,7 +1338,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull FilterBy filterBy,
 		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
-		@Nullable Function<FilterConstraint, FilterConstraint> nestedQueryFormulaEnricher
+		@Nullable NestedQueryRestriction nestedQueryRestriction
 	) {
 		// compute the result formula in the initialized context
 		final String referenceName = referenceSchema.getName();
@@ -1343,7 +1349,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			ReferenceContent.ALL_REFERENCES,
 			entitySchema,
 			referenceSchema,
-			nestedQueryFormulaEnricher,
+			nestedQueryRestriction,
 			entityNestedQueryComparator,
 			processingScope.withReferenceSchemaAccessor(referenceName),
 			(entityContract, attributeName, locale) -> entityContract.getReferences(referenceName)

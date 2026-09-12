@@ -32,8 +32,6 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Closeable;
-import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -83,9 +81,14 @@ public final class StorageAccessScope implements Closeable {
 
 	private final Map<RecordKey, Object> records = CollectionUtils.createHashMap(512);
 	/**
-	 * Records already counted towards the statistics below, held by identity - see {@link #noteRecordRead}.
+	 * The record the most recent {@link #fetch} answered from {@link #records} instead of going to the storage,
+	 * awaiting the {@link #noteRecordRead} the caller issues for it - see there for why this single slot is all the
+	 * accounting needs, and why an identity set of everything ever read would defeat {@link #MAX_RECORDS}.
+	 *
+	 * It never retains anything the scope is not already holding: the record it points at is, by construction, one
+	 * {@link #records} has cached.
 	 */
-	private final Set<Object> accountedRecords = Collections.newSetFromMap(new IdentityHashMap<>());
+	@Nullable private Object recordServedFromScope;
 	/**
 	 * Number of storage records read within this scope.
 	 */
@@ -133,17 +136,19 @@ public final class StorageAccessScope implements Closeable {
 	/**
 	 * Returns the record for the passed key, loading it through `loader` on the first ask.
 	 *
-	 * @param owner         the reader the record belongs to - records of different collections share container types
-	 *                      and primary keys, so the reader identity is part of the key
-	 * @param containerType type of the requested storage part
-	 * @param primaryKey    numeric key of the record, or {@link Long#MIN_VALUE} when addressed by `originalKey`
-	 * @param originalKey   non-numeric key of the record, NULL when addressed by `primaryKey`
-	 * @param loader        performs the actual read on a cache miss
+	 * @param owner          the reader the record belongs to - records of different collections share container types
+	 *                       and primary keys, so the reader identity is part of the key
+	 * @param catalogVersion version of the catalog the record is read at
+	 * @param containerType  type of the requested storage part
+	 * @param primaryKey     numeric key of the record, or {@link Long#MIN_VALUE} when addressed by `originalKey`
+	 * @param originalKey    non-numeric key of the record, NULL when addressed by `primaryKey`
+	 * @param loader         performs the actual read on a cache miss
 	 * @return the loaded record, may be NULL when no such record exists
 	 */
 	@Nullable
 	public <T extends StoragePart> T fetch(
 		@Nonnull Object owner,
+		long catalogVersion,
 		@Nonnull Class<T> containerType,
 		long primaryKey,
 		@Nullable Object originalKey,
@@ -154,13 +159,19 @@ public final class StorageAccessScope implements Closeable {
 		// the way it was obtained (see ReferenceNameFilterContext). Reads of every other container type run with no
 		// filter bound and are therefore keyed exactly as before.
 		final RecordKey key = new RecordKey(
-			owner, containerType, primaryKey, originalKey, ReferenceNameFilterContext.getReferenceNameFilter()
+			owner, catalogVersion, containerType, primaryKey, originalKey,
+			ReferenceNameFilterContext.getReferenceNameFilter()
 		);
 		final Object cached = this.records.get(key);
 		if (cached != null) {
+			// this answer costs no I/O - remember it so the note the caller is about to make for it is not billed
+			this.recordServedFromScope = cached == MISSING ? null : cached;
 			//noinspection unchecked
 			return cached == MISSING ? null : (T) cached;
 		}
+		// everything from here on is a genuine read, and so is anything noted before the next fetch answers from
+		// the cache again
+		this.recordServedFromScope = null;
 		final T loaded = loader.get();
 		if (this.records.size() < MAX_RECORDS) {
 			this.records.put(key, loaded == null ? MISSING : loaded);
@@ -169,23 +180,35 @@ public final class StorageAccessScope implements Closeable {
 	}
 
 	/**
-	 * Records that `record` has been read from the storage, at the given size. Called from the layer that performs
-	 * the read and knows the record framing overhead; a no-op when no scope is bound to the current thread.
+	 * Records that `record` has been obtained, at the given size. Called from the layer that performs the read and
+	 * knows the record framing overhead; a no-op when no scope is bound to the current thread.
 	 *
-	 * The record itself identifies the read: a record this scope has already accounted for is one that was served
-	 * from {@link #records this scope's own cache} rather than from the storage, and must not be counted twice -
-	 * a fresh read always produces a fresh instance. Identity is what distinguishes the two, so identity is what
-	 * this is keyed on.
+	 * Only reads that actually went to the storage are counted, and the decision is made where the read happens:
+	 * {@link #fetch} knows whether it had to call its loader, and a record it answered from {@link #records its own
+	 * cache} is parked in {@link #recordServedFromScope} for exactly this call to recognise and skip. Reads that
+	 * never pass through the scope at all - binary fetches and reads issued with no scope bound - are physical by
+	 * construction and are counted as they come.
+	 *
+	 * Deciding it here rather than remembering every record ever accounted for is what makes {@link #MAX_RECORDS}
+	 * mean something: an identity set of the latter kind grows without a ceiling and pins every storage part and
+	 * every raw byte array the query ever touched for the whole execution, which is the exact footprint the ceiling
+	 * on {@link #records} exists to bound.
 	 *
 	 * @param record      the record that was obtained
 	 * @param sizeInBytes size it occupied in the storage, including its framing overhead
 	 */
 	public static void noteRecordRead(@Nonnull Object record, int sizeInBytes) {
 		final StorageAccessScope scope = CURRENT.get();
-		if (scope != null && scope.accountedRecords.add(record)) {
-			scope.ioFetchCount++;
-			scope.ioFetchedBytes += sizeInBytes;
+		if (scope == null) {
+			return;
 		}
+		if (scope.recordServedFromScope == record) {
+			// the scope answered this one itself - no I/O happened, and the next ask has to be judged on its own
+			scope.recordServedFromScope = null;
+			return;
+		}
+		scope.ioFetchCount++;
+		scope.ioFetchedBytes += sizeInBytes;
 	}
 
 	@Override
@@ -195,21 +218,25 @@ public final class StorageAccessScope implements Closeable {
 		} else {
 			CURRENT.remove();
 			this.records.clear();
-			this.accountedRecords.clear();
+			this.recordServedFromScope = null;
 		}
 	}
 
 	/**
 	 * Identity of a single storage record within one query execution.
 	 *
-	 * @param owner         reader the record belongs to, compared by identity (readers define no equality)
-	 * @param containerType type of the storage part
-	 * @param primaryKey    numeric key, {@link Long#MIN_VALUE} when the record is addressed by `originalKey`
-	 * @param originalKey   non-numeric key, NULL when the record is addressed by `primaryKey`
+	 * @param owner               reader the record belongs to, compared by identity (readers define no equality)
+	 * @param catalogVersion      version the record was read at - one execution normally pins a single version, but
+	 *                            that invariant is stated in prose and enforced nowhere, and a nested execution
+	 *                            joining this scope widens the window in which it would have to hold
+	 * @param containerType       type of the storage part
+	 * @param primaryKey          numeric key, {@link Long#MIN_VALUE} when the record is addressed by `originalKey`
+	 * @param originalKey         non-numeric key, NULL when the record is addressed by `primaryKey`
 	 * @param referenceNameFilter reference names the record was decoded for, NULL when it was decoded whole
 	 */
 	private record RecordKey(
 		@Nonnull Object owner,
+		long catalogVersion,
 		@Nonnull Class<?> containerType,
 		long primaryKey,
 		@Nullable Object originalKey,

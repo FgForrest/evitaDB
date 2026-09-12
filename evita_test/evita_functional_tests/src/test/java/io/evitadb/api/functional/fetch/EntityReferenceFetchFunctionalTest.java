@@ -47,12 +47,14 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.IntPredicate;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.Query.query;
@@ -600,6 +602,155 @@ class EntityReferenceFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 				return null;
 			}
 		);
+	}
+
+	@DisplayName("Store references filtered by a disjunctive entityHaving return exactly the matching ones")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFilterReferencesByDisjunctiveEntityHaving(
+		Evita evita, List<SealedEntity> originalProducts, List<SealedEntity> originalStores
+	) {
+		final SealedEntity firstStore = originalStores.get(0);
+		final SealedEntity secondStore = originalStores.get(1);
+		final String firstCode = firstStore.getAttribute(ATTRIBUTE_CODE, String.class);
+		final String secondCode = secondStore.getAttribute(ATTRIBUTE_CODE, String.class);
+		final Set<Integer> acceptedStorePks = Set.of(
+			firstStore.getPrimaryKeyOrThrowException(), secondStore.getPrimaryKeyOrThrowException()
+		);
+
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> it.getReferences(Entities.STORE)
+				.stream()
+				.anyMatch(ref -> acceptedStorePks.contains(ref.getReferencedPrimaryKey()))
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(entityPrimaryKeyInSet(entitiesMatchingTheRequirements)),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.STORE,
+									filterBy(
+										entityHaving(
+											or(
+												attributeEquals(ATTRIBUTE_CODE, firstCode),
+												attributeEquals(ATTRIBUTE_CODE, secondCode)
+											)
+										)
+									)
+								)
+							),
+							page(1, Integer.MAX_VALUE)
+						)
+					)
+				);
+
+				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getRecordData().size());
+
+				// the engine narrows the nested query behind an `entityHaving` to the keys the owners actually
+				// reference. That key set has to be AND-ed *alongside* the disjunction, never folded into it - a fold
+				// would widen the result to every store the owners reference, which is what this comparison against
+				// the original data catches
+				for (SealedEntity product : productByPk.getRecordData()) {
+					assertEquals(
+						expectedReferencedPks(originalProducts, product, acceptedStorePks::contains),
+						actualReferencedPks(product)
+					);
+				}
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Store references filtered by a negated entityHaving return every reference but one")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFilterReferencesByNegatedEntityHaving(
+		Evita evita, List<SealedEntity> originalProducts, List<SealedEntity> originalStores
+	) {
+		final SealedEntity excludedStore = originalStores.get(0);
+		final String excludedCode = excludedStore.getAttribute(ATTRIBUTE_CODE, String.class);
+		final int excludedPk = excludedStore.getPrimaryKeyOrThrowException();
+
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> it.getReferences(Entities.STORE)
+				.stream()
+				.anyMatch(ref -> ref.getReferencedPrimaryKey() == excludedPk)
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(entityPrimaryKeyInSet(entitiesMatchingTheRequirements)),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.STORE,
+									filterBy(entityHaving(not(attributeEquals(ATTRIBUTE_CODE, excludedCode))))
+								)
+							),
+							page(1, Integer.MAX_VALUE)
+						)
+					)
+				);
+
+				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getRecordData().size());
+
+				// a negation takes its superset from the conjuncts beside it, so injecting the owners' key set
+				// changes what that superset *is*. The outer intersection is what makes the two agree again, and
+				// this is the shape where it would show if it did not
+				for (SealedEntity product : productByPk.getRecordData()) {
+					assertEquals(
+						expectedReferencedPks(originalProducts, product, pk -> pk != excludedPk),
+						actualReferencedPks(product)
+					);
+				}
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Returns the {@link Entities#STORE} primary keys the passed product carries in the original (unfiltered) data,
+	 * kept only where the predicate accepts them - the answer a filtered reference content has to produce.
+	 */
+	@Nonnull
+	private static Set<Integer> expectedReferencedPks(
+		@Nonnull List<SealedEntity> originalProducts,
+		@Nonnull SealedEntity product,
+		@Nonnull IntPredicate acceptedReferencedPk
+	) {
+		return originalProducts.stream()
+			.filter(it -> Objects.equals(it.getPrimaryKey(), product.getPrimaryKey()))
+			.findFirst()
+			.orElseThrow()
+			.getReferences(Entities.STORE)
+			.stream()
+			.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+			.filter(acceptedReferencedPk)
+			.boxed()
+			.collect(Collectors.toUnmodifiableSet());
+	}
+
+	/**
+	 * Returns the {@link Entities#STORE} primary keys the passed product actually carries after the query ran.
+	 */
+	@Nonnull
+	private static Set<Integer> actualReferencedPks(@Nonnull SealedEntity product) {
+		return product.getReferences(Entities.STORE)
+			.stream()
+			.map(ReferenceContract::getReferencedPrimaryKey)
+			.collect(Collectors.toUnmodifiableSet());
 	}
 
 	@DisplayName("Category references filtered by entityPrimaryKeyInSet should return only references matching specified PKs")

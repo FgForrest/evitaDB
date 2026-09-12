@@ -33,6 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-09-12 | [Derive the enrichment shortcut from committed-snapshot provenance, not from a caller-supplied flag](2026-09-12-committed-snapshot-provenance-for-enrichment.md) | fix | accepted | #1547, #1559, PR #1548 |
 | 2026-09-11 | [Decode only the reference names a projection asks for, rather than deriving reference keys from the indexes](2026-09-11-reference-name-narrowing.md) | optimization | accepted | #1547, #1554, PR #1548 |
 | 2026-09-08 | [A warm-up schema change refused by validation raises the unpublishable barrier, so the catalog deactivates and recovers by reload rather than by an undo](2026-09-08-warm-up-invalid-schema-refuses-to-publish.md) | fix | accepted | #1466, PR #1520 |
 | 2026-09-07 | [Equalized histograms bucket on the quantile function and report a kernel density, not a per-bucket ratio](2026-09-07-equalized-histogram-density-and-quantile-bucketing.md) | fix | accepted | #1501 |
