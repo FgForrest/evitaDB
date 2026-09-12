@@ -679,9 +679,18 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * @return TRUE when the reference was fetched along with the entity
 	 */
 	private boolean isReferenceCovered(@Nonnull String referenceName) {
-		return this.referenceSet.isEmpty() ||
-			this.referenceSet.containsKey(referenceName) ||
-			this.defaultAttributeRequest != null;
+		// this must admit exactly the names `getVisibleReferenceNames()` narrows the storage read to, or the entity
+		// reports a name as fetched that was never read and answers an empty chunk instead of raising
+		// ContextMissingException. A named `referenceContent` requirement never reaches `referenceSet`, so testing
+		// that set alone would let every name through for a named-only query.
+		if (this.defaultAttributeRequest != null) {
+			// a catch-all requirement fetches every reference the specific entries do not name
+			return true;
+		}
+		if (this.namedReferenceNames.isEmpty()) {
+			return this.referenceSet.isEmpty() || this.referenceSet.containsKey(referenceName);
+		}
+		return this.namedReferenceNames.contains(referenceName) || this.referenceSet.containsKey(referenceName);
 	}
 
 }
