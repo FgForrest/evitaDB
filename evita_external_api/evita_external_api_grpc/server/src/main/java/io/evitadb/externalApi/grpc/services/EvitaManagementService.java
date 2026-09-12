@@ -873,6 +873,43 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	}
 
 	/**
+	 * Puts a catalog back to the state it was in at an earlier version, replacing the catalog currently served
+	 * under the target name with it.
+	 *
+	 * Nothing is uploaded here - the server produces the backup of the requested version itself and restores it in
+	 * the same operation, which is what distinguishes this from the three `restoreCatalog*` procedures.
+	 *
+	 * @param request          naming the catalog, the version or moment to go back to, and where the result lands
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 */
+	@Override
+	public void restoreCatalogToVersion(
+		GrpcRestoreCatalogToVersionRequest request,
+		StreamObserver<GrpcRestoreCatalogToVersionResponse> responseObserver
+	) {
+		executeWithClientContext(
+			() -> {
+				final Task<?, Void> restorationTask = this.management.restoreCatalogToVersion(
+					request.getCatalogName(),
+					request.hasPastMoment() ?
+						EvitaDataTypesConverter.toOffsetDateTime(request.getPastMoment()) : null,
+					request.hasCatalogVersion() ? request.getCatalogVersion().getValue() : null,
+					request.hasTargetCatalogName() ? request.getTargetCatalogName().getValue() : null
+				);
+				responseObserver.onNext(
+					GrpcRestoreCatalogToVersionResponse.newBuilder()
+						.setTask(toGrpcTaskStatus(restorationTask.getStatus()))
+						.build()
+				);
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
 	 * Method is used to list asynchronous job statuses.
 	 */
 	@Override

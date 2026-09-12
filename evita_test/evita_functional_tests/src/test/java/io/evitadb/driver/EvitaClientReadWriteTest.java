@@ -1778,6 +1778,84 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * The combined backup-restore-swap, driven the way evitaLab drives it: one call, one task to watch, and a
+	 * catalog that is ready to serve when the task finishes - no separate activation step.
+	 *
+	 * The version is named explicitly even though it is the catalog's current one. That is deliberate: it puts the
+	 * `catalogVersion` wrapper on the wire and through the server's `hasCatalogVersion()` branch, which is what this
+	 * test is here to prove, without depending on retained history that the shared test server does not configure.
+	 * Which *past* version a restore lands on is settled by `CatalogRestoreToVersionTest`, where time travel is on.
+	 */
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	void shouldRestoreCatalogToVersionUnderANewNameViaDriver(
+		EvitaClient evitaClient
+	) throws ExecutionException, InterruptedException, TimeoutException {
+		final EvitaManagementContract management = evitaClient.management();
+		final String targetCatalogName = TEST_CATALOG + "Snapshot";
+		final Long currentVersion = evitaClient.queryCatalog(
+			TEST_CATALOG, EvitaSessionContract::getCatalogVersion
+		);
+
+		final Task<?, Void> task = management.restoreCatalogToVersion(
+			TEST_CATALOG, null, currentVersion, targetCatalogName
+		);
+		assertTrue(
+			management.getTaskStatus(task.getStatus().taskId()).isPresent(),
+			"The task must be trackable by its id, which is how a monitoring client follows it!"
+		);
+
+		task.getFutureResult().get(3, TimeUnit.MINUTES);
+
+		final Set<String> catalogNames = evitaClient.getCatalogNames();
+		assertTrue(catalogNames.contains(TEST_CATALOG));
+		assertTrue(catalogNames.contains(targetCatalogName));
+
+		// no activateCatalog call here on purpose - unlike a plain restore, this operation leaves the catalog ready
+		assertEquals(
+			Integer.valueOf(PRODUCT_COUNT),
+			evitaClient.queryCatalog(
+				targetCatalogName, session -> session.getEntityCollectionSize(Entities.PRODUCT)
+			)
+		);
+		assertEquals(
+			Integer.valueOf(PRODUCT_COUNT),
+			evitaClient.queryCatalog(
+				TEST_CATALOG, session -> session.getEntityCollectionSize(Entities.PRODUCT)
+			)
+		);
+	}
+
+	/**
+	 * The in-place form, which is the one the `Restore to this version` button triggers: the catalog keeps its name
+	 * and the swap is the only thing a client could notice.
+	 */
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	void shouldRestoreCatalogToVersionInPlaceViaDriver(
+		EvitaClient evitaClient
+	) throws ExecutionException, InterruptedException, TimeoutException {
+		final EvitaManagementContract management = evitaClient.management();
+		final Set<String> catalogNamesBefore = evitaClient.getCatalogNames();
+
+		management.restoreCatalogToVersion(TEST_CATALOG, null, null, null)
+			.getFutureResult()
+			.get(3, TimeUnit.MINUTES);
+
+		assertEquals(
+			catalogNamesBefore, evitaClient.getCatalogNames(),
+			"An in-place restore must leave the catalog listing exactly as it found it - no temporary catalog " +
+				"may survive it!"
+		);
+		assertEquals(
+			Integer.valueOf(PRODUCT_COUNT),
+			evitaClient.queryCatalog(
+				TEST_CATALOG, session -> session.getEntityCollectionSize(Entities.PRODUCT)
+			)
+		);
+	}
+
 	@Test
 	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
 	void shouldReplaceCollection(EvitaClient evitaClient) {

@@ -35,6 +35,7 @@ import io.evitadb.api.exception.IndexNotFoundException;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
+import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.system.EngineSettings;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.api.statistics.CatalogIdentity;
@@ -52,6 +53,7 @@ import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.catalog.CatalogConsumerControl;
 import io.evitadb.core.engine.CatalogFolderReservation;
 import io.evitadb.core.exception.ExportServiceImplementationNotFoundException;
 import io.evitadb.core.executor.ClientRunnableTask;
@@ -60,6 +62,7 @@ import io.evitadb.core.executor.SequentialTask;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.ExportServiceFactory;
@@ -105,6 +108,22 @@ import java.util.function.Supplier;
  */
 @Slf4j
 public class EvitaManagement implements EvitaManagementContract, Closeable {
+	/**
+	 * Task type reported for the composed backup-restore-swap operation. Stated once and never derived from the
+	 * steps it happens to be built from, because clients filter their task listings by it.
+	 */
+	public static final String RESTORE_TO_VERSION_TASK_TYPE = "RestoreCatalogToVersionTask";
+	/**
+	 * Longest prefix of a source catalog name that may be carried into the temporary catalog's name. The classifier
+	 * format admits 255 characters and the suffix costs nine of them, so a source name longer than this is truncated
+	 * rather than allowed to produce an unvalidatable name.
+	 */
+	private static final int MAX_TEMPORARY_NAME_PREFIX_LENGTH = 246;
+	/**
+	 * How many suffixes are tried before inventing a temporary catalog name is given up on. A collision needs both a
+	 * matching random suffix and a matching prefix, so more than one attempt is already close to unreachable.
+	 */
+	private static final int TEMPORARY_NAME_ATTEMPTS = 100;
 	/**
 	 * Contains reference to the main evita service.
 	 */
@@ -293,6 +312,114 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		}
 	}
 
+	@Nonnull
+	@Override
+	public Task<?, Void> restoreCatalogToVersion(
+		@Nonnull String catalogName,
+		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
+		@Nullable String targetCatalogName
+	) throws TemporalDataNotAvailableException, CatalogNotFoundException {
+		this.evita.assertActiveAndWritable();
+
+		final CatalogContract sourceCatalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
+		// a placeholder has no persistence service and therefore no history to go back to - and it would fail deep
+		// inside the backup task rather than here, where the client can still be told something useful
+		Assert.isTrue(
+			sourceCatalog instanceof Catalog,
+			() -> new EvitaInvalidUsageException(
+				"Catalog `" + catalogName + "` cannot be restored to an earlier version - it is not in a usable state."
+			)
+		);
+		final String theTargetCatalogName = targetCatalogName == null ? catalogName : targetCatalogName;
+		// The swap runs with `overwriteTarget`, which deliberately skips every check on the target name - it has to,
+		// because overwriting an existing catalog is the whole point. That leaves a *new* target name unvalidated,
+		// so it is validated here instead: a malformed one would otherwise only surface after the archive had been
+		// written and unpacked, and a name colliding in some naming convention would not surface at all.
+		ClassifierUtils.validateClassifierFormat(ClassifierType.CATALOG, theTargetCatalogName);
+		if (!this.evita.getCatalogNames().contains(theTargetCatalogName)) {
+			CatalogSchema.checkCatalogNameIsAvailable(this.evita, theTargetCatalogName);
+		}
+
+		final String temporaryCatalogName = generateTemporaryCatalogName(catalogName);
+		// Built rather than submitted, so the archive is produced as the first step of the sequence below. The
+		// construction is what resolves the requested version, so an unavailable one is raised *here*, synchronously,
+		// instead of failing a task the client has already been handed.
+		//
+		// The WAL is deliberately excluded. Including it copies every log file wholesale, and a restore of such an
+		// archive replays them forward to the head of the log - which lands on the current state and undoes the very
+		// point-in-time this operation exists to reach.
+		final CatalogConsumerControl consumerControl = this.evita.obtainCatalogSessionRegistry(catalogName)
+			.map(registry -> registry.createCatalogConsumerControl(catalogName))
+			.orElseThrow(() -> new CatalogNotFoundException(catalogName));
+		final ServerTask<?, FileForFetch> backupTask = ((Catalog) sourceCatalog).createBackupTask(
+			// the backup holds the version it copies against reclamation, but it is not a session at that version -
+			// registering it as one would make it a phantom read-write consumer of that version for the whole copy
+			pastMoment, catalogVersion, false, consumerControl::pinCatalogVersion
+		);
+		try {
+			final SequentialTask<Void> task = new SequentialTask<>(
+				catalogName,
+				RESTORE_TO_VERSION_TASK_TYPE,
+				"Restoring catalog `" + theTargetCatalogName + "` from catalog `" + catalogName + "` " +
+					(catalogVersion == null ?
+						(pastMoment == null ? "at its current state" : "as of " + pastMoment) :
+						"at version " + catalogVersion) + ".",
+				backupTask,
+				new PublishRestoredCatalogTask(
+					catalogName, temporaryCatalogName, theTargetCatalogName,
+					this.evita, this.exportService, this.fileManagementService,
+					this::createRestorationSteps, backupTask
+				)
+			);
+			this.scheduler.submit(task);
+			return task;
+		} catch (RuntimeException ex) {
+			// the backup task pinned the version it is going to read the moment it was constructed, and only running
+			// it or cancelling it gives that pin back. A sequence that never reached the queue will never run it, so
+			// without this the catalog's retention floor stays frozen at that version for the rest of its life
+			backupTask.cancel();
+			throw ex;
+		}
+	}
+
+	/**
+	 * Invents a name for the catalog a restore unpacks into before it is swapped into its final name.
+	 *
+	 * The name is an implementation detail with one hard requirement - nothing else may be using it - and two soft
+	 * ones: it should be recognisable as belonging to the catalog being restored, and it must survive
+	 * {@link ClassifierUtils#validateClassifierFormat}. The prefix is therefore truncated rather than appended to
+	 * blindly, because a source catalog already near the classifier length limit would otherwise produce a name that
+	 * cannot be validated at all.
+	 *
+	 * @param catalogName name of the catalog being restored
+	 * @return a name no catalog currently holds, in any naming convention
+	 */
+	@Nonnull
+	private String generateTemporaryCatalogName(@Nonnull String catalogName) {
+		final String prefix = catalogName.length() > MAX_TEMPORARY_NAME_PREFIX_LENGTH ?
+			catalogName.substring(0, MAX_TEMPORARY_NAME_PREFIX_LENGTH) : catalogName;
+		for (int attempt = 0; attempt < TEMPORARY_NAME_ATTEMPTS; attempt++) {
+			final String candidate = prefix + "_" + UUIDUtil.randomUUID().toString().substring(0, 8);
+			if (this.evita.getCatalogNames().contains(candidate)) {
+				continue;
+			}
+			try {
+				// not merely "no catalog is called this": two names that differ only in convention collide at
+				// registration time, and that failure would land halfway through the restore rather than here
+				CatalogSchema.checkCatalogNameIsAvailable(this.evita, candidate);
+				return candidate;
+			} catch (EvitaInvalidUsageException ignored) {
+				// try another suffix
+			}
+		}
+		throw new GenericEvitaInternalError(
+			"Failed to invent a free temporary catalog name for catalog `" + catalogName + "` in " +
+				TEMPORARY_NAME_ATTEMPTS + " attempts!",
+			"Failed to invent a free temporary catalog name for the restored catalog!"
+		);
+	}
+
 	/**
 	 * Creates a restoration task for a catalog, which consists of multiple sequential steps:
 	 * restoring the catalog from a backup and loading the catalog. This method does not submit the task to the executor.
@@ -312,6 +439,43 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		long totalBytesExpected,
 		boolean deleteAfterRestore
 	) {
+		final RestorationSteps steps = createRestorationSteps(
+			catalogName, fileId, pathToFile, totalBytesExpected, deleteAfterRestore
+		);
+		final SequentialTask<Void> restorationTask = new SequentialTask<>(
+			catalogName,
+			"Restore catalog " + catalogName + " from backup.",
+			steps.unpackStep(),
+			steps.registerStep()
+		);
+		restorationTask.getFutureResult().whenComplete((result, ex) -> steps.releaseClaim());
+		return restorationTask;
+	}
+
+	/**
+	 * Builds the pair of steps that unpack a backup archive into a freshly allocated folder and then bind
+	 * a catalog of the given name to it, together with the folder claim that spans them.
+	 *
+	 * Handed out as steps rather than as a finished task because the same pair is used by two different
+	 * sequences - a plain restore, and the restore-to-version operation that wraps four more steps around it.
+	 * Each of them assembles its own {@link SequentialTask} and **must** attach {@link RestorationSteps#releaseClaim()}
+	 * to that task's own completion, for the reasons spelled out on {@link RestorationSteps}.
+	 *
+	 * @param catalogName        name of the catalog to restore into
+	 * @param fileId             id of the archive being restored
+	 * @param pathToFile         path to the ZIP archive
+	 * @param totalBytesExpected total bytes expected to be read from the archive
+	 * @param deleteAfterRestore whether to delete the archive once it has been unpacked
+	 * @return the two steps and the claim spanning them
+	 */
+	@Nonnull
+	RestorationSteps createRestorationSteps(
+		@Nonnull String catalogName,
+		@Nonnull UUID fileId,
+		@Nonnull Path pathToFile,
+		long totalBytesExpected,
+		boolean deleteAfterRestore
+	) {
 		// The name is client-supplied and reaches folder allocation before any mutation validates it -
 		// `RestoreCatalogSchemaMutation` runs its check at *registration*, which is after a folder has been
 		// created and the whole archive written into it. Checking here makes a malformed name a client error
@@ -323,9 +487,7 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		// restore actually starts, and `claim` is what carries it from there to whichever of the registering
 		// step and the release hook gets to it first.
 		final RestoreFolderClaim claim = new RestoreFolderClaim();
-		final SequentialTask<Void> restorationTask = new SequentialTask<>(
-			catalogName,
-			"Restore catalog " + catalogName + " from backup.",
+		return new RestorationSteps(
 			Catalog.createRestoreCatalogTask(
 				catalogName,
 				() -> claim.allocate(this.evita.getCatalogFolderContext(), catalogName),
@@ -338,30 +500,9 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 				"Registering restored catalog " + catalogName + ".",
 				Void.class,
 				session -> registerRestoredCatalogHoldingItsFolder(catalogName, claim)
-			)
+			),
+			claim
 		);
-		// This is the one materialising path whose claim has to outlive the call that took it: the registering
-		// step runs later, so releasing any earlier would let a second restore in while this one is still writing.
-		// The task's own future is the release point, and it completes on failure as well as on success -
-		// including a first step that failed, which never reaches the registering step at all. A task that never
-		// ran holds nothing, so an abandoned upload finds nothing to release.
-		//
-		// This hook can fire *while* the registering step runs: `SequentialTask#cancel()` completes the future
-		// without stopping a step already executing. `takeClaim` is therefore a handover, not a read - whichever
-		// of the two gets there first owns the release, and the other finds nothing.
-		//
-		// It can also fire before there is anything to take, when the cancel lands inside the allocation itself.
-		// This hook runs once and cannot come back for a claim published after it, so `allocate` compare-and-sets
-		// its publication and releases on the spot when it loses - see `RestoreFolderClaim`.
-		restorationTask.getFutureResult().whenComplete(
-			(result, ex) -> {
-				final CatalogFolderReservation reservation = claim.takeClaim();
-				if (reservation != null) {
-					reservation.close();
-				}
-			}
-		);
-		return restorationTask;
 	}
 
 	/**
@@ -394,6 +535,7 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 			this.evita.registerRestoredCatalog(catalogName);
 		}
 	}
+
 
 	/**
 	 * Returns the task statuses of the given task type.

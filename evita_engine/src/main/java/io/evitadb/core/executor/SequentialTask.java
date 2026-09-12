@@ -27,12 +27,15 @@ import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
+import io.evitadb.api.task.TaskStatus.TaskTrait;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.UUIDUtil;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -59,7 +62,7 @@ public class SequentialTask<T> implements ServerTask<Void, T>, InterruptibleServ
 	 */
 	private final AtomicReference<TaskStatus<Void, T>> status;
 	/**
-	 * The two steps executed in sequence by {@link #execute()}, in declaration order. The last step's result becomes
+	 * The steps executed in sequence by {@link #execute()}, in declaration order. The last step's result becomes
 	 * this task's result.
 	 */
 	private final ServerTask<?, ?>[] steps;
@@ -84,11 +87,64 @@ public class SequentialTask<T> implements ServerTask<Void, T>, InterruptibleServ
 	 */
 	@Nullable private volatile Future<?> executionHandle;
 
+	/**
+	 * Unions the traits of every step into a single set.
+	 *
+	 * Built by accumulation rather than by {@link EnumSet#copyOf(java.util.Collection)}, which refuses an empty
+	 * collection - a sequence whose steps happen to declare no traits at all is legal and must not blow up in
+	 * a constructor.
+	 *
+	 * @param steps the steps whose traits to union
+	 * @return the union, possibly empty
+	 */
+	@Nonnull
+	private static EnumSet<TaskTrait> collectTraits(@Nonnull ServerTask<?, ?>[] steps) {
+		final EnumSet<TaskTrait> traits = EnumSet.noneOf(TaskTrait.class);
+		for (ServerTask<?, ?> step : steps) {
+			traits.addAll(step.getStatus().traits());
+		}
+		return traits;
+	}
+
 	public SequentialTask(@Nullable String catalogName, @Nonnull String taskName, @Nonnull ServerTask<?, ?> step1, @Nonnull ServerTask<?, T> step2) {
+		this(
+			catalogName,
+			step1.getStatus().taskType() + ", " + step2.getStatus().taskType(),
+			taskName,
+			step1, step2
+		);
+	}
+
+	/**
+	 * Creates a sequence of an arbitrary number of steps under an explicitly stated task type.
+	 *
+	 * The task type is named rather than derived from the steps, because a sequence assembled from several
+	 * heterogeneous steps is one *operation* as far as a client is concerned - and
+	 * {@link io.evitadb.api.EvitaManagementContract#listTaskStatuses} filters by that type. A type concatenated
+	 * from the steps changes whenever the composition does, which would silently break every client filtering
+	 * on it.
+	 *
+	 * The result of the **last** step becomes the result of this task, so that step must produce `T`. This cannot
+	 * be expressed in a varargs signature and is therefore checked at runtime by {@link #execute()}, which casts
+	 * the last step's result - the two-step constructor above is the type-safe form and stays the one to prefer
+	 * where a sequence really is two steps.
+	 *
+	 * @param catalogName name of the catalog this sequence operates on, or `null` when it is instance-wide
+	 * @param taskType    stable type identifier clients filter by
+	 * @param taskName    human-readable name displayed to clients
+	 * @param steps       the steps to execute, in order; at least one is required
+	 */
+	public SequentialTask(
+		@Nullable String catalogName,
+		@Nonnull String taskType,
+		@Nonnull String taskName,
+		@Nonnull ServerTask<?, ?>... steps
+	) {
+		Assert.isPremiseValid(steps.length > 0, "At least one step is required to form a sequential task!");
 		this.taskName = taskName;
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
-				step1.getStatus().taskType() + ", " + step2.getStatus().taskType(),
+				taskType,
 				taskName,
 				UUIDUtil.randomUUID(),
 				catalogName,
@@ -101,25 +157,24 @@ public class SequentialTask<T> implements ServerTask<Void, T>, InterruptibleServ
 				null,
 				null,
 				null,
-				EnumSet.copyOf(
-					Stream.concat(
-						step1.getStatus().traits().stream(),
-						step2.getStatus().traits().stream()
-					).toList()
-				)
+				collectTraits(steps)
 			)
 		);
 		this.currentStep = new AtomicReference<>();
-		this.steps = new ServerTask[]{step1, step2};
+		this.steps = Arrays.copyOf(steps, steps.length, ServerTask[].class);
 		this.futureResult = new CompletableFuture<>();
 	}
 
 	@Nonnull
 	@Override
 	public TaskStatus<Void, T> getStatus() {
+		// summed, not OR-ed: the steps' percentages are numbers, and `|` is not addition. Two steps at 100 % and
+		// 50 % used to report `(100 | 50) / 2` = 59 % instead of 75 %, and the error grows with the step count -
+		// it only stayed invisible while the common case was `100 | 0`, where OR and addition happen to agree.
+		// Covered by SequentialTaskTest#shouldAverageStepProgressRatherThanOrItTogether
 		int overallProgress = 0;
 		for (Task<?, ?> step : this.steps) {
-			overallProgress |= step.getStatus().progress();
+			overallProgress += step.getStatus().progress();
 		}
 		final int newProgress = overallProgress / this.steps.length;
 		final TaskStatus<Void, T> currentStatus = this.status.get();
