@@ -154,15 +154,19 @@ class ConstantFormulaTest {
 		}
 
 		@Test
-		@DisplayName("should gather no transactional ids for a plain bitmap")
-		void shouldGatherNoTransactionalIdsForPlainBitmap() {
-			assertEquals(0, new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).gatherTransactionalIds().length);
+		@DisplayName("should gather one content-derived staleness token for a plain bitmap")
+		void shouldGatherOneStalenessTokenForPlainBitmap() {
+			// a plain bitmap carries no transactional id, but it must still contribute a staleness dependency:
+			// an empty set would make a cached answer that no write could ever invalidate, so the content hash
+			// stands in for an id
+			assertEquals(1, new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).gatherTransactionalIds().length);
 		}
 
 		@Test
 		@DisplayName("should hash equal contents alike and differing contents apart")
 		void shouldHashByDelegateContents() {
-			// a plain bitmap carries no transactional id, so its contents are the only cache discriminator
+			// a plain bitmap has no transactional id, so its contents are the only cache discriminator - the same
+			// token the staleness set above is built from
 			assertEquals(
 				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).getHash(),
 				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).getHash()
