@@ -1390,6 +1390,7 @@ class ReferenceContractSerializablePredicateTest {
 		) {
 			return new ReferenceContractSerializablePredicate(
 				Map.of("A", createRequirementContext("D", "E").attributeRequest()),
+				Collections.emptySet(),
 				createRequirementContext(defaultAttributes).attributeRequest(),
 				true, null, Collections.emptySet()
 			);
@@ -1472,6 +1473,7 @@ class ReferenceContractSerializablePredicateTest {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
 					Map.of("A", createRequirementContext("D", "E").attributeRequest()),
+					Collections.emptySet(),
 					null, true, null, Collections.emptySet()
 				);
 
@@ -1495,6 +1497,7 @@ class ReferenceContractSerializablePredicateTest {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
 					Collections.emptyMap(),
+					Collections.emptySet(),
 					createRequirementContext("F").attributeRequest(),
 					true, null, Collections.emptySet()
 				);
@@ -1514,6 +1517,7 @@ class ReferenceContractSerializablePredicateTest {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
 					Map.of("A", createRequirementContext("D", "E").attributeRequest()),
+					Collections.emptySet(),
 					createRequirementContext("F").attributeRequest(),
 					false, null, Collections.emptySet()
 				);
@@ -1548,6 +1552,7 @@ class ReferenceContractSerializablePredicateTest {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
 					Map.of("A", createRequirementContext("D", "E").attributeRequest()),
+					Collections.emptySet(),
 					null, true, null, Collections.emptySet()
 				);
 
@@ -1564,7 +1569,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldRequestEverySchemaReferenceWhenNothingWasNamed() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true, null, Collections.emptySet()
+					Collections.emptyMap(), Collections.emptySet(), null, true, null, Collections.emptySet()
 				);
 
 			assertEquals(
@@ -1666,6 +1671,7 @@ class ReferenceContractSerializablePredicateTest {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
 					Collections.emptyMap(),
+					Collections.emptySet(),
 					createRequirementContext().attributeRequest(),
 					true, null, Collections.emptySet()
 				);
@@ -1690,6 +1696,7 @@ class ReferenceContractSerializablePredicateTest {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
 					Collections.emptyMap(),
+					Collections.emptySet(),
 					createRequirementContext("F").attributeRequest(),
 					true, null, Collections.emptySet()
 				);
@@ -1715,6 +1722,7 @@ class ReferenceContractSerializablePredicateTest {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
 					Map.of(NAMED_REFERENCE, createRequirementContext("D", "E").attributeRequest()),
+					Collections.emptySet(),
 					null, true, null, Collections.emptySet()
 				);
 
@@ -1739,6 +1747,7 @@ class ReferenceContractSerializablePredicateTest {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
 					Map.of(NAMED_REFERENCE, createRequirementContext("D", "E").attributeRequest()),
+					Collections.emptySet(),
 					null, true, null, Collections.emptySet()
 				);
 
@@ -1763,6 +1772,7 @@ class ReferenceContractSerializablePredicateTest {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
 					Map.of(NAMED_REFERENCE, createRequirementContext("D", "E").attributeRequest()),
+					Collections.emptySet(),
 					null, true, null, Collections.emptySet()
 				);
 
