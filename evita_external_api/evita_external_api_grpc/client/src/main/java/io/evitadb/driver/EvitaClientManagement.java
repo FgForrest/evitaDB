@@ -52,6 +52,7 @@ import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.driver.exception.EvitaClientServerCallException;
 import io.evitadb.driver.exception.EvitaClientTimedOutException;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
@@ -349,7 +350,7 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 		@Nullable OffsetDateTime pastMoment,
 		@Nullable Long catalogVersion,
 		@Nullable String targetCatalogName
-	) throws TemporalDataNotAvailableException, CatalogNotFoundException {
+	) throws TemporalDataNotAvailableException, CatalogNotFoundException, EvitaInvalidUsageException {
 		this.evitaClient.assertActive();
 
 		final GrpcRestoreCatalogToVersionRequest.Builder request = GrpcRestoreCatalogToVersionRequest.newBuilder()

@@ -328,7 +328,7 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		@Nullable OffsetDateTime pastMoment,
 		@Nullable Long catalogVersion,
 		@Nullable String targetCatalogName
-	) throws TemporalDataNotAvailableException, CatalogNotFoundException {
+	) throws TemporalDataNotAvailableException, CatalogNotFoundException, EvitaInvalidUsageException {
 		this.evita.assertActiveAndWritable();
 
 		final CatalogContract sourceCatalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
