@@ -124,10 +124,14 @@ public class SequentialTask<T> implements ServerTask<Void, T>, InterruptibleServ
 	 * from the steps changes whenever the composition does, which would silently break every client filtering
 	 * on it.
 	 *
-	 * The result of the **last** step becomes the result of this task, so that step must produce `T`. This cannot
-	 * be expressed in a varargs signature and is therefore checked at runtime by {@link #execute()}, which casts
-	 * the last step's result - the two-step constructor above is the type-safe form and stays the one to prefer
-	 * where a sequence really is two steps.
+	 * The result of the **last** step becomes the result of this task, so that step must produce `T`. **Nothing
+	 * verifies that.** A varargs signature cannot express it, and erasure removes the `(T)` cast {@link #execute()}
+	 * applies to the last step's result, so it checks nothing at runtime either: a sequence whose last step produces
+	 * something else completes normally and hands the wrong object back, and the {@link ClassCastException} surfaces
+	 * at whichever caller first uses the value as `T` - or never, when `T` is {@link Void} and the value is only
+	 * joined for its completion. Ordering the steps so the last one produces `T` is therefore the caller's
+	 * obligation, which is why the two-step constructor above stays the one to prefer wherever a sequence really is
+	 * two steps: there the compiler checks it.
 	 *
 	 * @param catalogName name of the catalog this sequence operates on, or `null` when it is instance-wide
 	 * @param taskType    stable type identifier clients filter by
@@ -267,6 +271,12 @@ public class SequentialTask<T> implements ServerTask<Void, T>, InterruptibleServ
 				this.currentStep.set(null);
 			}
 		} else {
+			// a task runs only while it is QUEUED, and returning null for anything else is the contract every
+			// server task keeps (see AbstractServerTask#execute). **This branch settles nothing**: on the states a
+			// scheduler reaches it in - FAILED after a cancel, FINISHED after a run - the future is already settled
+			// by whoever put the task there, but on a sequence that was never issued it is not, and never will be.
+			// Anyone driving a sequence by hand must therefore call transitionToIssued() immediately before
+			// execute(), or a later join() on the result waits for a completion nothing is going to deliver
 			return null;
 		}
 	}

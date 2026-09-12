@@ -39,6 +39,7 @@ import io.evitadb.utils.IOUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
@@ -147,11 +148,17 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 		);
 
 		boolean published = false;
+		// held outside the `try` so the clean-up reclaims the local copy on every outcome. The unpacking step
+		// deletes it - it opens the file with DELETE_ON_CLOSE - but only on the one path where it gets to open it
+		// at all, and this task owns the file for its whole life rather than only until the step that consumes it
+		Path localArchive = null;
 		try {
 			// the archive is pulled through the export service rather than read from a path we compute ourselves:
 			// the service may be backed by object storage, where no local path exists, and RestoreTask needs a
-			// local file to unpack
-			final Path localArchive = fetchArchiveLocally(archive);
+			// local file to unpack. The file is allocated before the copy runs, so a copy that fails leaves
+			// a path the clean-up can still reach
+			localArchive = this.fileManagementService.createManagedTempFile(archive.fileId() + ".zip");
+			fetchArchiveInto(archive, localArchive);
 			updateProgress(PROGRESS_ARCHIVE_FETCHED);
 
 			abortIfCancelled();
@@ -174,35 +181,40 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 			published = true;
 			updateProgress(100);
 		} finally {
-			cleanUp(published, archive.fileId(), temporaryCatalogName);
+			cleanUp(published, archive.fileId(), temporaryCatalogName, localArchive);
 		}
 	}
 
 	/**
-	 * Copies the archive out of the export service into the work directory, where it can be unpacked.
+	 * Copies the archive out of the export service into the already allocated work-directory file, where it can be
+	 * unpacked.
 	 *
-	 * @param archive descriptor of the archive the backup step produced
-	 * @return path of the local copy
+	 * @param archive      descriptor of the archive the backup step produced
+	 * @param localArchive work-directory file the archive is copied into
 	 */
-	@Nonnull
-	private Path fetchArchiveLocally(@Nonnull FileForFetch archive) {
-		final Path localArchive = this.fileManagementService.createTempFile(archive.fileId() + ".zip");
+	private void fetchArchiveInto(@Nonnull FileForFetch archive, @Nonnull Path localArchive) {
 		try (final InputStream inputStream = this.exportService.fetchFile(archive.fileId())) {
 			IOUtils.copy(inputStream, localArchive);
 		} catch (FileForFetchNotFoundException e) {
 			// The archive was written moments ago by this very operation, so it going missing means something
-			// removed it - and the export service's own retention is the only thing that does. `purgeFiles` drops
-			// the oldest files whenever the export directory exceeds its size limit, holding no reference count, so
-			// a catalog whose archive alone outgrows that limit cannot be restored this way at all. Saying so is
-			// the difference between an operator raising the limit and an operator hunting a phantom.
+			// removed it. Three things can: the export service's retention dropping the oldest files once the
+			// export storage exceeds its size limit, the same retention purging by age past
+			// `historyExpirationSeconds`, and a client calling `EvitaManagementContract#deleteFile` - which reaches
+			// the archive because a failed run deliberately leaves it listed. Only the size limit removes it
+			// without anyone having asked for anything, so it is the one worth naming: it is the difference between
+			// an operator raising a limit and an operator hunting a phantom.
 			throw new UnexpectedIOException(
-				"The backup archive of catalog `" + getStatus().catalogName() + "` disappeared before it could be " +
-					"restored - the export directory's size limit is most likely smaller than the catalog.",
-				"The backup archive disappeared before it could be restored - the export directory's size limit " +
-					"is most likely smaller than the catalog.",
+				"The backup archive of catalog `" + getStatus().catalogName() + "` is no longer available from the " +
+					"export service - its storage size limit is most likely smaller than the catalog.",
+				"The backup archive is no longer available from the export service - the export storage's size " +
+					"limit is most likely smaller than the catalog.",
 				e
 			);
-		} catch (IOException e) {
+		} catch (UnexpectedIOException | IOException e) {
+			// `IOUtils#copy` catches the IOException itself and rethrows it as the unchecked UnexpectedIOException,
+			// so a work directory that is full, read-only or gone arrives here as that rather than as an
+			// IOException - the checked branch would never see it. The checked type is kept for the implicit
+			// `close()` of the stream above, which is the only other thing in this block declared to throw one
 			throw new UnexpectedIOException(
 				"Failed to read back the backup archive of catalog `" + getStatus().catalogName() +
 					"`: " + e.getMessage(),
@@ -210,7 +222,6 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 				e
 			);
 		}
-		return localArchive;
 	}
 
 	/**
@@ -235,19 +246,18 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 		final RestorationSteps steps = this.restorationStepsFactory.create(
 			temporaryCatalogName, fileId, localArchive, totalSizeInBytes, true
 		);
-		final SequentialTask<Void> restoration = new SequentialTask<>(
-			temporaryCatalogName,
-			"Restoring catalog `" + temporaryCatalogName + "` from the backup archive.",
-			steps.unpackStep(),
-			steps.registerStep()
+		final SequentialTask<Void> restoration = steps.asSequentialTask(
+			temporaryCatalogName, "Restoring catalog `" + temporaryCatalogName + "` from the backup archive."
 		);
-		restoration.getFutureResult().whenComplete((result, ex) -> steps.releaseClaim());
 		// a task only runs while its status is QUEUED, and it is the scheduler that normally puts it there. This
 		// sequence is never submitted - it runs inline on this task's thread - so it has to be issued by hand
 		restoration.transitionToIssued();
 		restoration.execute();
-		// `execute` swallows nothing, but a sequence that was cancelled returns null rather than throwing - reading
-		// the future is what turns that into the CancellationException this task must unwind with
+		// `execute` rethrows whatever a step failed with, so this join is not what surfaces a failed step. It covers
+		// the other way the sequence can come back without having run to completion: a cancelled result future,
+		// which `execute` reports by answering null rather than by throwing. Nothing reaches this sequence to cancel
+		// it - it is local to this method and never submitted - so the join is defensive, and it is the only thing
+		// that would stop a half-unpacked temporary catalog from being handed on to the loading step below
 		restoration.getFutureResult().join();
 	}
 
@@ -284,22 +294,38 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 	/**
 	 * Removes what this task must not leave behind.
 	 *
-	 * On success the archive is an implementation detail nobody asked for, so it goes; on failure it is kept, since
-	 * it is a complete backup of the requested version and the operator's cheapest way to retry by hand. The
-	 * temporary catalog is the mirror image: it is dropped whenever the swap did not happen, and after a swap it
-	 * no longer exists under that name at all.
+	 * The local copy of the archive goes on every outcome - it is a work-directory file of this task's own making
+	 * and nothing outside the operation ever refers to it. The archive *in the export service* is the opposite: on
+	 * success it is an implementation detail nobody asked for, so it goes, while on failure it is kept, since it is
+	 * a complete backup of the requested version and the operator's cheapest way to retry by hand. The temporary
+	 * catalog is the mirror image of that: it is dropped whenever the swap did not happen, and after a swap it no
+	 * longer exists under that name at all.
 	 *
-	 * Neither removal may mask the failure that brought us here, so both are logged rather than thrown.
+	 * No removal may mask the failure that brought us here, so all of them are logged rather than thrown.
 	 *
 	 * @param published            whether the swap completed
 	 * @param archiveFileId        id of the intermediate archive
 	 * @param temporaryCatalogName name of the temporary catalog
+	 * @param localArchive         local copy of the archive, or `null` when it was never allocated
 	 */
 	private void cleanUp(
 		boolean published,
 		@Nonnull UUID archiveFileId,
-		@Nonnull String temporaryCatalogName
+		@Nonnull String temporaryCatalogName,
+		@Nullable Path localArchive
 	) {
+		if (localArchive != null) {
+			try {
+				// idempotent - on the ordinary path the unpacking step has already removed the file by closing it
+				this.fileManagementService.purgeManagedTempFile(localArchive);
+			} catch (RuntimeException e) {
+				log.warn(
+					"Failed to remove the local copy `{}` of the backup archive of catalog `{}` - it stays in the " +
+						"work directory and has to be removed manually.",
+					localArchive, getStatus().catalogName(), e
+				);
+			}
+		}
 		if (published) {
 			try {
 				this.exportService.deleteFile(archiveFileId);

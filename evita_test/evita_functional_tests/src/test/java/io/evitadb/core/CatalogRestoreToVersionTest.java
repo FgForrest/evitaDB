@@ -23,6 +23,7 @@
 
 package io.evitadb.core;
 
+import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
@@ -32,9 +33,11 @@ import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
+import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
+import io.evitadb.core.catalog.CatalogConsumerControl;
 import io.evitadb.core.management.EvitaManagement;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -439,6 +442,84 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 				() -> "The intermediate archive is an implementation detail and must not be left for download, " +
 					"but found: " + filesLeft
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Ownership of the backup step")
+	class BackupTaskOwnership {
+
+		/**
+		 * Not queueing is the *only* difference between `createBackupTask` and `backup`, and it is the reason the
+		 * method was split out at all - the restore runs the backup as one step of its own sequence, so a copy
+		 * queued here as well would run twice. Nothing else asserts it, so an edit submitting the task "for
+		 * symmetry" would be caught by no test.
+		 *
+		 * The version pin the task takes in its constructor is deliberately *not* re-tested here - that mechanism
+		 * is proven at `DefaultCatalogPersistenceServiceTest`, which reads the retention floor back directly. This
+		 * asserts only the hand-off the new method introduced.
+		 */
+		@Test
+		@DisplayName("The backup task is built unqueued, so only the sequence that owns it can run it")
+		void shouldNotQueueTheBackupTaskItCreates() {
+			final EvitaManagement management = evita.management();
+			final CatalogContract sourceCatalog = evita.getCatalogInstanceOrThrowException(TEST_CATALOG);
+			final CatalogConsumerControl consumerControl = evita.obtainCatalogSessionRegistry(TEST_CATALOG)
+				.map(registry -> registry.createCatalogConsumerControl(TEST_CATALOG))
+				.orElseThrow();
+
+			final ServerTask<?, FileForFetch> backupTask = sourceCatalog.createBackupTask(
+				null, versions.get(2), false, consumerControl::pinCatalogVersion
+			);
+			try {
+				assertEquals(
+					TaskSimplifiedState.WAITING_FOR_PRECONDITION, backupTask.getStatus().simplifiedState(),
+					"A task the scheduler never received must not report itself as queued!"
+				);
+				assertTrue(
+					management.listTaskStatuses(1, 100, (String[]) null).getData().stream()
+						.noneMatch(it -> it.taskId().equals(backupTask.getStatus().taskId())),
+					"The backup task must not appear among the scheduler's tasks - nobody queued it!"
+				);
+			} finally {
+				// the constructor already pinned the version this copy would have read, and only running the task
+				// or cancelling it gives that pin back
+				backupTask.cancel();
+			}
+		}
+	}
+
+	@Nested
+	@DisplayName("The state the restored catalog comes back in")
+	class RestoredState {
+
+		@Test
+		@DisplayName("A source that never went live comes back in the state it was left in")
+		void shouldLeaveTheRestoredCatalogInTheStateTheSourceHeld() throws Exception {
+			final String warmUpCatalogName = TEST_CATALOG + "WarmUp";
+			evita.defineCatalog(warmUpCatalogName);
+			evita.updateCatalog(
+				warmUpCatalogName,
+				session -> {
+					session.defineEntitySchema(Entities.BRAND);
+					session.upsertEntity(session.createNewEntity(Entities.BRAND, 1));
+				}
+			);
+			assertEquals(CatalogState.WARMING_UP, catalogState(warmUpCatalogName));
+
+			awaitCompletion(
+				evita.management().restoreCatalogToVersion(warmUpCatalogName, null, null, null)
+			);
+
+			// the archive carries whatever state the source held, registering applies the schema only, and
+			// activating is not `goLive` - so a catalog the operator deliberately left in bulk-load mode comes back
+			// in bulk-load mode, which is what `EvitaManagementContract#restoreCatalogToVersion` promises. This
+			// fails the moment someone slips a `goLive` into the sequence to make a shorter promise true.
+			assertEquals(
+				CatalogState.WARMING_UP, catalogState(warmUpCatalogName),
+				"The restored catalog must carry the state its source held at the selected version!"
+			);
+			assertEquals(1, brandCount(warmUpCatalogName));
 		}
 	}
 

@@ -181,7 +181,7 @@ straight off the collection size — an off-by-one restore fails rather than loo
   oldest files whenever the directory exceeds `export.sizeLimitBytes` (1 GiB by default) and holds no
   reference count, despite the interface javadoc suggesting it spares files a reader needs. A catalog
   whose archive alone outgrows that limit cannot be restored this way. Not fixed — reference-counting
-  the export directory is its own piece of work — but `PublishRestoredCatalogTask#fetchArchiveLocally`
+  the export directory is its own piece of work — but `PublishRestoredCatalogTask#fetchArchiveInto`
   turns the resulting `FileForFetchNotFoundException` into a message that names the cause, so the
   operator raises the limit instead of hunting a phantom.
 - **Unpacking progress is not forwarded.** The client sees the archive-fetch, unpack, activate and

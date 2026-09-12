@@ -453,14 +453,7 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		final RestorationSteps steps = createRestorationSteps(
 			catalogName, fileId, pathToFile, totalBytesExpected, deleteAfterRestore
 		);
-		final SequentialTask<Void> restorationTask = new SequentialTask<>(
-			catalogName,
-			"Restore catalog " + catalogName + " from backup.",
-			steps.unpackStep(),
-			steps.registerStep()
-		);
-		restorationTask.getFutureResult().whenComplete((result, ex) -> steps.releaseClaim());
-		return restorationTask;
+		return steps.asSequentialTask(catalogName, "Restore catalog " + catalogName + " from backup.");
 	}
 
 	/**
@@ -468,9 +461,10 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 	 * a catalog of the given name to it, together with the folder claim that spans them.
 	 *
 	 * Handed out as steps rather than as a finished task because the same pair is used by two different
-	 * sequences - a plain restore, and the restore-to-version operation that wraps four more steps around it.
-	 * Each of them assembles its own {@link SequentialTask} and **must** attach {@link RestorationSteps#releaseClaim()}
-	 * to that task's own completion, for the reasons spelled out on {@link RestorationSteps}.
+	 * sequences - a plain restore, and the restore-to-version operation that wraps four more steps around it. Each
+	 * of them turns the pair into its own {@link SequentialTask} through {@link RestorationSteps#asSequentialTask}
+	 * rather than assembling one by hand, so the {@link RestorationSteps#releaseClaim()} wiring spelled out on
+	 * {@link RestorationSteps} is guaranteed rather than a caller obligation.
 	 *
 	 * @param catalogName        name of the catalog to restore into
 	 * @param fileId             id of the archive being restored
@@ -546,7 +540,6 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 			this.evita.registerRestoredCatalog(catalogName);
 		}
 	}
-
 
 	/**
 	 * Returns the task statuses of the given task type.

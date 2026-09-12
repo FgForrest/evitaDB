@@ -134,6 +134,7 @@ import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -1858,6 +1859,38 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			Integer.valueOf(PRODUCT_COUNT),
 			evitaClient.queryCatalog(
 				TEST_CATALOG, session -> {
+					return session.getEntityCollectionSize(Entities.PRODUCT);
+				}
+			)
+		);
+	}
+
+	/**
+	 * The third and last shape the request can take on the wire: a moment rather than a version.
+	 *
+	 * `pastMoment` is its own optional field on the request, and it round-trips through the timestamp converter in
+	 * both directions - so it is the one branch of the server's three that the version-named tests above cannot
+	 * reach. The moment is `now` because the shared test server retains no history: which *past* moment maps to
+	 * which version is settled by `CatalogRestoreToVersionTest`, where time travel is configured on, so this test
+	 * deliberately asserts the outcome rather than a resolved version number.
+	 */
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	void shouldRestoreCatalogToVersionSelectedByMomentViaDriver(
+		EvitaClient evitaClient
+	) throws ExecutionException, InterruptedException, TimeoutException {
+		final EvitaManagementContract management = evitaClient.management();
+		final String targetCatalogName = TEST_CATALOG + "AtMoment";
+
+		management.restoreCatalogToVersion(TEST_CATALOG, OffsetDateTime.now(), null, targetCatalogName)
+			.getFutureResult()
+			.get(3, TimeUnit.MINUTES);
+
+		assertTrue(evitaClient.getCatalogNames().contains(targetCatalogName));
+		assertEquals(
+			Integer.valueOf(PRODUCT_COUNT),
+			evitaClient.queryCatalog(
+				targetCatalogName, session -> {
 					return session.getEntityCollectionSize(Entities.PRODUCT);
 				}
 			)

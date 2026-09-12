@@ -38,6 +38,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -52,11 +53,16 @@ import static io.evitadb.test.TestTags.TASK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Covers {@link SequentialTask} — the two-step sequence wrapper — with emphasis on what happens when a cancellation
- * lands at a step boundary.
+ * Covers {@link SequentialTask} — the sequence wrapper — with emphasis on what happens when a cancellation lands at
+ * a step boundary.
+ *
+ * Sequences of a length other than two get their own nested class, because the two-step shape hides most of what the
+ * general constructor does: with two steps a mean is indistinguishable from a halving, a trait union from "whatever
+ * the first step declared", and the stated task type from one concatenated out of the steps.
  *
  * Both cancellation cases run single-threaded on the test thread: a step body that cancels the sequence it belongs to
  * reaches the step-boundary check without a pool or a timing window. The two are not interchangeable — one cancels
@@ -90,6 +96,19 @@ class SequentialTaskTest {
 		return new ClientRunnableTask<>(
 			"step", name, null, () -> executions.add(name), TaskTrait.CAN_BE_CANCELLED
 		);
+	}
+
+	/**
+	 * Builds a step that does nothing but declare the given traits.
+	 *
+	 * @param name   the step name
+	 * @param traits the traits the step declares
+	 * @return the step
+	 */
+	@Nonnull
+	private static ClientRunnableTask<Void> traitedStep(@Nonnull String name, @Nonnull TaskTrait... traits) {
+		return new ClientRunnableTask<>("step", name, null, () -> {
+		}, traits);
 	}
 
 	@Nested
@@ -170,6 +189,166 @@ class SequentialTaskTest {
 				sequence.getStatus().traits().isEmpty(),
 				"a sequence of trait-less steps must simply carry no traits"
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Sequences of any length")
+	class AnyLengthSequences {
+
+		@Test
+		@DisplayName("reports the task type it was given rather than one derived from its steps")
+		void shouldReportTheTaskTypeItWasGiven() {
+			// the type and the name are adjacent String parameters: transposing them compiles, every other test
+			// here still passes, and every monitoring client filtering `listTaskStatuses` by type stops finding
+			// this operation
+			final SequentialTask<Void> sequence = new SequentialTask<>(
+				null, "aType", "A name", recordingStep("only", new ArrayList<>(1))
+			);
+
+			assertEquals("aType", sequence.getStatus().taskType());
+			assertEquals("A name", sequence.getStatus().taskName());
+		}
+
+		@Test
+		@DisplayName("runs a single-step sequence and reports that step's result and progress")
+		void shouldRunAndReportTheResultOfASingleStepSequence() {
+			// a sequence only recomputes its progress while it is RUNNING, so the reading is taken from inside the
+			// step - and with one step the mean must be that step's own percentage rather than half of it
+			final AtomicReference<SequentialTask<Integer>> holder = new AtomicReference<>();
+			final AtomicInteger sampledProgress = new AtomicInteger(-1);
+			final ClientCallableTask<Void, Integer> onlyStep = new ClientCallableTask<>(
+				"step", "only", null,
+				theTask -> {
+					theTask.updateProgress(40);
+					sampledProgress.set(holder.get().getStatus().progress());
+					return 42;
+				},
+				TaskTrait.CAN_BE_CANCELLED
+			);
+			final SequentialTask<Integer> sequence = new SequentialTask<>(null, "aType", "A name", onlyStep);
+			holder.set(sequence);
+			sequence.transitionToIssued();
+
+			assertEquals(42, sequence.execute(), "a one-step sequence must report its only step's result");
+			assertEquals(40, sampledProgress.get(), "a one-step sequence must report its only step's progress");
+			assertEquals(TaskSimplifiedState.FINISHED, sequence.getStatus().simplifiedState());
+		}
+
+		@Test
+		@DisplayName("runs three steps in declaration order and reports the last one's result")
+		void shouldRunThreeStepsInDeclarationOrderAndReportTheLastStepsResult() {
+			final List<String> executions = new ArrayList<>(3);
+			final ClientRunnableTask<Void> step1 = recordingStep("first", executions);
+			final ClientRunnableTask<Void> step2 = recordingStep("second", executions);
+			final ClientCallableTask<Void, String> step3 = new ClientCallableTask<>(
+				"step", "third", null,
+				theTask -> {
+					executions.add("third");
+					return "the third step's result";
+				},
+				TaskTrait.CAN_BE_CANCELLED
+			);
+			final SequentialTask<String> sequence = new SequentialTask<>(
+				null, "aType", "A name", step1, step2, step3
+			);
+			sequence.transitionToIssued();
+
+			assertEquals("the third step's result", sequence.execute());
+			assertEquals(List.of("first", "second", "third"), executions, "the steps ran out of order");
+			assertTrue(sequence.matches(task -> task == step3), "the sequence must match its third step");
+
+			// a failure has to reach every step, not merely the two the older constructor could hold
+			final ClientRunnableTask<Void> laterStep = recordingStep("third", new ArrayList<>(1));
+			final SequentialTask<Void> failing = new SequentialTask<>(
+				null, "aType", "A name",
+				recordingStep("first", new ArrayList<>(1)), recordingStep("second", new ArrayList<>(1)), laterStep
+			);
+
+			failing.fail(new IllegalStateException("boom"));
+
+			assertEquals(TaskSimplifiedState.FAILED, laterStep.getStatus().simplifiedState());
+		}
+
+		@Test
+		@DisplayName("averages the progress across more than two steps")
+		void shouldAverageProgressAcrossMoreThanTwoSteps() {
+			// 90, 60 and 30 average to 60 - a number no pair of them reaches, so a divisor hard-wired to two
+			// cannot produce it
+			final AtomicReference<SequentialTask<Void>> holder = new AtomicReference<>();
+			final AtomicInteger sampledProgress = new AtomicInteger(-1);
+			final ClientRunnableTask<Void> step2 = recordingStep("second", new ArrayList<>(1));
+			final ClientRunnableTask<Void> step3 = recordingStep("third", new ArrayList<>(1));
+			final ClientRunnableTask<Void> step1 = new ClientRunnableTask<>(
+				"step", "first", null,
+				theTask -> {
+					theTask.updateProgress(90);
+					step2.updateProgress(60);
+					step3.updateProgress(30);
+					sampledProgress.set(holder.get().getStatus().progress());
+				},
+				TaskTrait.CAN_BE_CANCELLED
+			);
+			final SequentialTask<Void> sequence = new SequentialTask<>(
+				null, "aType", "A name", step1, step2, step3
+			);
+			holder.set(sequence);
+			sequence.transitionToIssued();
+
+			sequence.execute();
+
+			assertEquals(60, sampledProgress.get(), "the sequence must divide by the number of steps it holds");
+		}
+
+		@Test
+		@DisplayName("carries the union of every step's traits")
+		void shouldUnionTheTraitsOfEveryStep() {
+			// every step of every other sequence here declares the same single trait, so a union is
+			// indistinguishable from "whatever the first step declared" - including in production, where both real
+			// steps declare the same pair
+			final ClientRunnableTask<Void> startable = traitedStep("startable", TaskTrait.CAN_BE_STARTED);
+			final ClientRunnableTask<Void> cancellable = traitedStep("cancellable", TaskTrait.CAN_BE_CANCELLED);
+
+			final SequentialTask<Void> sequence = new SequentialTask<>(
+				null, "aType", "A name", startable, cancellable
+			);
+
+			assertEquals(
+				EnumSet.of(TaskTrait.CAN_BE_STARTED, TaskTrait.CAN_BE_CANCELLED),
+				sequence.getStatus().traits(),
+				"the sequence must offer every action any of its steps offers"
+			);
+		}
+
+		@Test
+		@DisplayName("refuses a sequence holding no steps at all")
+		void shouldRefuseASequenceWithNoSteps() {
+			// load-bearing rather than cosmetic: `getStatus()` divides by the step count unconditionally, so an
+			// empty sequence would turn every status read into an ArithmeticException
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new SequentialTask<Void>(null, "aType", "A name")
+			);
+		}
+
+		@Test
+		@DisplayName("leaves the last step's type to the caller instead of checking it")
+		void shouldLeaveTheLastStepsTypeToTheCaller() {
+			final ClientCallableTask<Void, String> typedStep = new ClientCallableTask<>(
+				"step", "typed", null, theTask -> "not a number", TaskTrait.CAN_BE_CANCELLED
+			);
+			final SequentialTask<Integer> sequence = new SequentialTask<>(null, "aType", "A name", typedStep);
+			sequence.transitionToIssued();
+
+			// erasure removes the `(T)` cast in `execute()`, so ordering the steps so the last one produces `T` is
+			// the caller's obligation and nothing else's - which is exactly what the varargs constructor documents.
+			// This pins that contract: a mis-ordered sequence completes normally and hands the wrong object back,
+			// and the ClassCastException surfaces at whichever caller first uses the value as `T`, or never at all
+			// when `T` is `Void` and the value is only joined for its completion. Anyone adding a runtime check
+			// here - it would need a `Class<T>` to check against - must correct that javadoc in the same change.
+			final SequentialTask<?> erased = sequence;
+			assertEquals("not a number", erased.execute());
+			assertEquals(TaskSimplifiedState.FINISHED, sequence.getStatus().simplifiedState());
 		}
 	}
 

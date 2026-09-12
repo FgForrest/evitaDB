@@ -25,8 +25,10 @@ package io.evitadb.core.management;
 
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.engine.CatalogFolderReservation;
+import io.evitadb.core.executor.SequentialTask;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.nio.file.Path;
 import java.util.UUID;
 
@@ -72,6 +74,26 @@ record RestorationSteps(
 		if (reservation != null) {
 			reservation.close();
 		}
+	}
+
+	/**
+	 * Assembles this pair into a {@link SequentialTask} under the given name, with {@link #releaseClaim()}
+	 * already attached to its completion.
+	 *
+	 * The one call every caller of this pair must make - see {@link #releaseClaim()} - is wired here instead of
+	 * at each call site, so a future caller cannot build the sequence and forget to attach it.
+	 *
+	 * @param catalogName name of the catalog the sequence operates on, or `null` when it is instance-wide
+	 * @param taskName    human-readable name displayed to clients
+	 * @return the sequence, ready to be issued and executed, or submitted to a scheduler
+	 */
+	@Nonnull
+	SequentialTask<Void> asSequentialTask(@Nullable String catalogName, @Nonnull String taskName) {
+		final SequentialTask<Void> task = new SequentialTask<>(
+			catalogName, taskName, this.unpackStep, this.registerStep
+		);
+		task.getFutureResult().whenComplete((result, ex) -> releaseClaim());
+		return task;
 	}
 
 	/**
