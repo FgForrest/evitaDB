@@ -623,12 +623,46 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 */
 	private void resolveDeferredIoStatistics() {
 		final ServerEntityDecorator source = this.deferredIoStatisticsSource;
+		final ServerEntityDecorator ownParent = unreportedParentBody();
 		if (this.resolvedIoFetchCount == NOT_RESOLVED) {
-			this.resolvedIoFetchCount = this.ioFetchCount + (source == null ? 0 : source.getIoFetchCount());
+			this.resolvedIoFetchCount = this.ioFetchCount +
+				(source == null ? 0 : source.getIoFetchCount()) +
+				(ownParent == null ? 0 : ownParent.getIoFetchCount());
 		}
 		if (this.resolvedIoFetchedBytes == NOT_RESOLVED) {
-			this.resolvedIoFetchedBytes = this.ioFetchedBytes + (source == null ? 0 : source.getIoFetchedBytes());
+			this.resolvedIoFetchedBytes = this.ioFetchedBytes +
+				(source == null ? 0 : source.getIoFetchedBytes()) +
+				(ownParent == null ? 0 : ownParent.getIoFetchedBytes());
 		}
+	}
+
+	/**
+	 * Returns the parent body whose reads this decorator owes, or NULL when it owes none.
+	 *
+	 * A parent body is read only because the request asked for it, so its cost belongs to the statistics of the
+	 * entity that carried the requirement. It is owed by exactly the decorator that *introduces* the chain - the one
+	 * re-attaching a resolved parent to an entity whose own parent slot holds no body. A decorator that merely
+	 * narrows or enriches an entity is handed the very same parent instance its
+	 * {@link #deferredIoStatisticsSource} already reports, and counting it again would count the whole chain twice.
+	 * Comparing the two instances is what tells those two cases apart.
+	 *
+	 * @return parent decorator this one has to account for, or NULL
+	 */
+	@Nullable
+	private ServerEntityDecorator unreportedParentBody() {
+		if (!parentAvailable()) {
+			return null;
+		}
+		final EntityClassifierWithParent parent = getParentEntity().orElse(null);
+		if (!(parent instanceof ServerEntityDecorator parentBody)) {
+			// a bodyless pointer costs nothing - nothing was read to produce it
+			return null;
+		}
+		final ServerEntityDecorator source = this.deferredIoStatisticsSource;
+		if (source != null && source.parentAvailable() && source.getParentEntity().orElse(null) == parent) {
+			return null;
+		}
+		return parentBody;
 	}
 
 }
