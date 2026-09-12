@@ -90,7 +90,7 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 			ReferenceContent.ALL_REFERENCES,
 			entitySchema,
 			referenceSchema,
-			processingScope.getNestedQueryFormulaEnricher(),
+			processingScope.getNestedQueryRestriction(),
 			processingScope.getEntityNestedQueryComparator(),
 			processingScope.withReferenceSchemaAccessor(referenceName),
 			(entityContract, attributeName, locale) -> {

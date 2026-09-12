@@ -511,14 +511,18 @@ public class EntityDecorator implements SealedEntity {
 			evitaRequest
 		);
 
+		// the names the predicate lets through are the names chunks are built for - read through the predicate's own
+		// accessor rather than from `referenceSet`, which describes only the unnamed requirements and stays populated
+		// from an earlier, narrower fetch even after a later `referenceContent()` widened the entity to everything
+		final Set<String> visibleReferenceNames = referencePredicate.getVisibleReferenceNames();
 		indexFilteredSortedAndFetchedReferences(
 			entity,
 			entitySchema,
-			referencePredicate.getReferenceSet().isEmpty() ?
+			visibleReferenceNames == null ?
 				// client requests all references
 				entitySchema.getReferences().keySet() :
 				// client requests references with specific names
-				referencePredicate.getReferenceSet().keySet(),
+				visibleReferenceNames,
 			referenceFetcher,
 			outputReferences,
 			filteredOutReferences

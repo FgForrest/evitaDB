@@ -146,6 +146,14 @@ public class QueryExecutionContext implements Closeable {
 	 * Opened only for real executions; a planning context never reads entity bodies.
 	 */
 	private StorageAccessScope storageAccessScope;
+	/**
+	 * The scope's counters as they stood when {@link #openStorageAccessScope()} ran. A nested execution **joins** the
+	 * scope the outer one opened rather than starting its own, so the counters it finds there already hold everything
+	 * the outer query read before it started; subtracting this baseline is what makes the numbers below describe this
+	 * execution and not its parent.
+	 */
+	private int ioFetchCountAtScopeOpen;
+	private int ioFetchedBytesAtScopeOpen;
 
 	/**
 	 * Returns true if the context is inside {@link QueryPlanner#verifyConsistentResultsInAllPlans(QueryPlanningContext, List, List, QueryPlanBuilder)}  method.
@@ -507,24 +515,30 @@ public class QueryExecutionContext implements Closeable {
 	public void openStorageAccessScope() {
 		Assert.isPremiseValid(this.storageAccessScope == null, "Storage record cache has already been opened!");
 		this.storageAccessScope = StorageAccessScope.install();
+		this.ioFetchCountAtScopeOpen = this.storageAccessScope.getIoFetchCount();
+		this.ioFetchedBytesAtScopeOpen = this.storageAccessScope.getIoFetchedBytes();
 	}
 
 	/**
 	 * Returns the number of storage records read while executing this query, accumulated at the point of the read.
+	 * A nested execution reports only what it read itself - see {@link #ioFetchCountAtScopeOpen}.
 	 *
 	 * @return number of records read, zero when no scope was opened
 	 */
 	public int getIoFetchCount() {
-		return this.storageAccessScope == null ? 0 : this.storageAccessScope.getIoFetchCount();
+		return this.storageAccessScope == null ?
+			0 : this.storageAccessScope.getIoFetchCount() - this.ioFetchCountAtScopeOpen;
 	}
 
 	/**
 	 * Returns the number of Bytes the records read while executing this query occupied in the storage.
+	 * A nested execution reports only what it read itself - see {@link #ioFetchedBytesAtScopeOpen}.
 	 *
 	 * @return number of Bytes read, zero when no scope was opened
 	 */
 	public int getIoFetchedBytes() {
-		return this.storageAccessScope == null ? 0 : this.storageAccessScope.getIoFetchedBytes();
+		return this.storageAccessScope == null ?
+			0 : this.storageAccessScope.getIoFetchedBytes() - this.ioFetchedBytesAtScopeOpen;
 	}
 
 	@Override

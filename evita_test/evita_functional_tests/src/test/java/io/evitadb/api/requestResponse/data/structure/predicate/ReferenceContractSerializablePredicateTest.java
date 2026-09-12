@@ -28,6 +28,7 @@ import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.AttributeRequest;
+import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.chunk.NoTransformer;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -48,6 +49,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Tag;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -119,6 +121,79 @@ class ReferenceContractSerializablePredicateTest {
 			new AttributeContent(attributes),
 			null, null, null, null, NoTransformer.INSTANCE
 		);
+	}
+
+	/**
+	 * Builds the named reference content requirements a query carrying reference content instance names produces -
+	 * a GraphQL field alias or a REST projection name becomes the instance name, and the requirement lands in
+	 * a map of its own rather than in the plain reference set.
+	 *
+	 * @param referenceNames reference names the named requirements point at
+	 * @return named requirement map keyed by the instance name and the reference name
+	 */
+	@Nonnull
+	private static Map<ReferenceContentKey, RequirementContext> namedRequirementContext(
+		@Nonnull String... referenceNames
+	) {
+		return Arrays.stream(referenceNames)
+			.collect(
+				Collectors.toMap(
+					it -> new ReferenceContentKey(it + "Alias", it),
+					it -> createRequirementContext()
+				)
+			);
+	}
+
+	/**
+	 * Builds a predicate whose reference content was requested entirely through named requirements, which is what
+	 * every externally issued query produces.
+	 *
+	 * @param referenceNames reference names the named requirements point at
+	 * @return predicate with an empty reference set and the passed named reference names
+	 */
+	@Nonnull
+	private static ReferenceContractSerializablePredicate namedOnlyPredicate(
+		@Nonnull String... referenceNames
+	) {
+		return new ReferenceContractSerializablePredicate(
+			Collections.emptyMap(),
+			new HashSet<>(Arrays.asList(referenceNames)),
+			null, true, null, Collections.emptySet()
+		);
+	}
+
+	/**
+	 * Builds an existing reference of the passed name, the only two things
+	 * {@link ReferenceContractSerializablePredicate#test(ReferenceContract)} looks at.
+	 *
+	 * @param referenceName name the reference carries
+	 * @return reference stub that exists and carries the passed name
+	 */
+	@Nonnull
+	private static ReferenceContract existingReference(@Nonnull String referenceName) {
+		final ReferenceContract reference = Mockito.mock(ReferenceContract.class);
+		Mockito.when(reference.exists()).thenReturn(true);
+		Mockito.when(reference.getReferenceName()).thenReturn(referenceName);
+		return reference;
+	}
+
+	/**
+	 * Builds a request that requires references and carries the passed named reference requirements and nothing else.
+	 *
+	 * @param referenceNames reference names the named requirements point at
+	 * @return request stub with the named requirements only
+	 */
+	@Nonnull
+	private static EvitaRequest namedOnlyRequest(@Nonnull String... referenceNames) {
+		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
+		Mockito.when(evitaRequest.isRequiresEntityReferences()).thenReturn(true);
+		Mockito.when(evitaRequest.getReferenceEntityFetch()).thenReturn(Collections.emptyMap());
+		Mockito.when(evitaRequest.getNamedReferenceEntityFetch())
+			.thenReturn(namedRequirementContext(referenceNames));
+		Mockito.when(evitaRequest.getImplicitLocale()).thenReturn(null);
+		Mockito.when(evitaRequest.getRequiredLocales()).thenReturn(Collections.emptySet());
+		Mockito.when(evitaRequest.getDefaultReferenceRequirement()).thenReturn(null);
+		return evitaRequest;
 	}
 
 	@Nested
@@ -1090,6 +1165,205 @@ class ReferenceContractSerializablePredicateTest {
 				Locale.ENGLISH,
 				richerCopy.getImplicitLocale()
 			);
+		}
+
+		@Test
+		@DisplayName("merges named reference names of both sides")
+		void shouldCombineNamedReferenceNamesOnEnrichment() {
+			final ReferenceContractSerializablePredicate predicate = namedOnlyPredicate("A");
+
+			final ReferenceContractSerializablePredicate richerCopy =
+				predicate.createRicherCopyWith(namedOnlyRequest("B"));
+
+			assertNotSame(predicate, richerCopy);
+			assertEquals(
+				Set.of("A", "B"),
+				richerCopy.getVisibleReferenceNames()
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"returns same when the named reference names do not widen"
+		)
+		void shouldReturnSameInstanceWhenNamedReferenceNamesUnchanged() {
+			// the identity is load bearing - it is what tells the enrichment that the previous read already brought
+			// everything the new request asks for, so an equal-but-distinct copy would reinstate a storage round trip
+			final ReferenceContractSerializablePredicate predicate = namedOnlyPredicate("A");
+
+			assertSame(
+				predicate,
+				predicate.createRicherCopyWith(namedOnlyRequest("A"))
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"never narrows the named reference names below what was fetched"
+		)
+		void shouldNotNarrowNamedReferenceNamesOnEnrichment() {
+			final ReferenceContractSerializablePredicate predicate = namedOnlyPredicate("A", "B");
+
+			final ReferenceContractSerializablePredicate richerCopy =
+				predicate.createRicherCopyWith(namedOnlyRequest("A"));
+
+			assertSame(predicate, richerCopy);
+			assertEquals(
+				Set.of("A", "B"),
+				richerCopy.getVisibleReferenceNames()
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Visible reference names")
+	class VisibleReferenceNamesTest {
+
+		@Test
+		@DisplayName(
+			"returns null when every reference is allowed"
+		)
+		void shouldReturnNullWhenAllReferencesAreAllowed() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					Collections.emptyMap(), Collections.emptySet(), null, true,
+					null, Collections.emptySet()
+				);
+
+			assertNull(predicate.getVisibleReferenceNames());
+		}
+
+		@Test
+		@DisplayName(
+			"returns null when a default requirement is present"
+		)
+		void shouldReturnNullWhenDefaultRequirementIsPresent() {
+			// a plain referenceContent() asks for every reference there is and must never produce a narrowed read,
+			// whatever else the request happens to name
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					toAttributeRequestIndex(getDefaultRequirementContext()),
+					Set.of("B"),
+					AttributeRequest.EMPTY, true, null, Collections.emptySet()
+				);
+
+			assertNull(predicate.getVisibleReferenceNames());
+		}
+
+		@Test
+		@DisplayName(
+			"returns null when references are not required at all"
+		)
+		void shouldReturnNullWhenReferencesAreNotRequired() {
+			// null here does not mean "read everything" - the storage layer checks isRequiresEntityReferences()
+			// first and never reaches this method for such a predicate
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					toAttributeRequestIndex(getDefaultRequirementContext()),
+					Collections.emptySet(), null, false,
+					null, Collections.emptySet()
+				);
+
+			assertNull(predicate.getVisibleReferenceNames());
+		}
+
+		@Test
+		@DisplayName(
+			"returns the keys of an unnamed reference set"
+		)
+		void shouldReturnUnnamedReferenceSetKeys() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					toAttributeRequestIndex(getDefaultRequirementContext()),
+					Collections.emptySet(), null, true,
+					null, Collections.emptySet()
+				);
+
+			assertEquals(Set.of("A"), predicate.getVisibleReferenceNames());
+		}
+
+		@Test
+		@DisplayName(
+			"returns the names of a named-only requirement"
+		)
+		void shouldReturnNamedReferenceNames() {
+			assertEquals(
+				Set.of("A"),
+				namedOnlyPredicate("A").getVisibleReferenceNames()
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"unions named and unnamed reference names"
+		)
+		void shouldUnionNamedAndUnnamedReferenceNames() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					toAttributeRequestIndex(getDefaultRequirementContext()),
+					Set.of("B"), null, true,
+					null, Collections.emptySet()
+				);
+
+			assertEquals(
+				Set.of("A", "B"),
+				predicate.getVisibleReferenceNames()
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"an unnamed reference set hides every name outside it"
+		)
+		void shouldHideReferenceNameOutsideUnnamedReferenceSet() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					toAttributeRequestIndex(getDefaultRequirementContext()),
+					Collections.emptySet(), null, true,
+					null, Collections.emptySet()
+				);
+
+			assertEquals(Set.of("A"), predicate.getVisibleReferenceNames());
+			assertFalse(predicate.isReferenceRequested("B"));
+			assertFalse(predicate.wasFetched("B"));
+			assertThrows(
+				ContextMissingException.class,
+				() -> predicate.checkFetched("B")
+			);
+			assertFalse(predicate.test(existingReference("B")));
+		}
+
+		@Test
+		@DisplayName(
+			"the named reference itself stays visible"
+		)
+		void shouldAdmitTheNamedReferenceItself() {
+			final ReferenceContractSerializablePredicate predicate = namedOnlyPredicate("A");
+
+			assertTrue(predicate.isReferenceRequested("A"));
+			assertTrue(predicate.wasFetched("A"));
+			assertDoesNotThrow(() -> predicate.checkFetched("A"));
+			assertTrue(predicate.test(existingReference("A")));
+		}
+
+		@Test
+		@DisplayName(
+			"a named-only requirement hides every name its narrowed read skipped"
+		)
+		void shouldHideReferenceNameOutsideTheNarrowedRead() {
+			// the read this predicate narrows brings in `A` alone, so `B` is absent from the composed entity even
+			// when the entity has such references - reporting it as fetched would answer an empty result for data
+			// that was never read
+			final ReferenceContractSerializablePredicate predicate = namedOnlyPredicate("A");
+
+			assertEquals(Set.of("A"), predicate.getVisibleReferenceNames());
+			assertFalse(predicate.isReferenceRequested("B"));
+			assertFalse(predicate.wasFetched("B"));
+			assertThrows(
+				ContextMissingException.class,
+				() -> predicate.checkFetched("B")
+			);
+			assertFalse(predicate.test(existingReference("B")));
 		}
 	}
 }

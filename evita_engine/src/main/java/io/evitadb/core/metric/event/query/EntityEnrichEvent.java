@@ -56,11 +56,20 @@ public class EntityEnrichEvent extends AbstractQueryEvent {
 	@ExportMetricLabel
 	private final String entityType;
 
+	/**
+	 * Populated by {@link #finish} **only when the event is going to be written** - resolving it walks the entity's
+	 * reference graph and is not worth doing for an event nobody reads. A reader that inspects the object returned
+	 * by `finish` rather than the recorded event therefore sees `0` here whenever `shouldCommit()` was false, which
+	 * means "not measured" and not "nothing was enriched".
+	 */
 	@Label("Records enriched total")
 	@Description("The total number of records that were enriched.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	private int records;
 
+	/**
+	 * Measured under the same condition as {@link #records} - see there.
+	 */
 	@Label("Enrichment size in bytes")
 	@Description("The size in Bytes of the additional fetched and enriched data.")
 	@HistogramSettings(unit = "bytes", factor = 3)
