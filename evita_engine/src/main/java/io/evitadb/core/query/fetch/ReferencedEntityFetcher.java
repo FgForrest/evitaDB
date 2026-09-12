@@ -1452,9 +1452,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				entityDecorator.getReferencePredicate(),
 				entityDecorator.getPricePredicate(),
 				entityDecorator.getAlignedNow(),
-				// this decorator performs no I/O of its own - it only re-attaches the resolved parent chain. The
-				// parent's own statistics are added by ServerEntityDecorator#getIoFetchCount, which walks the parent
-				// it is given, so adding them here as well counted the whole parent chain twice.
+				// this decorator performs no I/O of its own - it only re-attaches the resolved parent chain, whose
+				// reads ServerEntityDecorator#getIoFetchCount accounts for because this is the decorator that
+				// introduces that chain. Adding them here as well would count the whole parent chain twice.
 				0, 0, entityDecorator
 			)
 		);
