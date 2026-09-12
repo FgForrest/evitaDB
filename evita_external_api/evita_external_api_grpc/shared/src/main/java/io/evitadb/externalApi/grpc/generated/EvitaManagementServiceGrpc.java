@@ -442,6 +442,37 @@ public final class EvitaManagementServiceGrpc {
     return getRestoreCatalogFromServerFileMethod;
   }
 
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionResponse> getRestoreCatalogToVersionMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "RestoreCatalogToVersion",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionResponse> getRestoreCatalogToVersionMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionRequest, io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionResponse> getRestoreCatalogToVersionMethod;
+    if ((getRestoreCatalogToVersionMethod = EvitaManagementServiceGrpc.getRestoreCatalogToVersionMethod) == null) {
+      synchronized (EvitaManagementServiceGrpc.class) {
+        if ((getRestoreCatalogToVersionMethod = EvitaManagementServiceGrpc.getRestoreCatalogToVersionMethod) == null) {
+          EvitaManagementServiceGrpc.getRestoreCatalogToVersionMethod = getRestoreCatalogToVersionMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionRequest, io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "RestoreCatalogToVersion"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaManagementServiceMethodDescriptorSupplier("RestoreCatalogToVersion"))
+              .build();
+        }
+      }
+    }
+    return getRestoreCatalogToVersionMethod;
+  }
+
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesRequest,
       io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse> getListTaskStatusesMethod;
 
@@ -955,6 +986,18 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to put a catalog back to an earlier version of itself, replacing the catalog
+     * currently served under the target name. Nothing is uploaded - the server backs up the requested
+     * version and restores it in one tracked operation. BEWARE: this purges the replaced catalog.
+     * </pre>
+     */
+    default void restoreCatalogToVersion(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getRestoreCatalogToVersionMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
      * Procedure used to get listing of task statuses.
      * </pre>
      */
@@ -1259,6 +1302,19 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to put a catalog back to an earlier version of itself, replacing the catalog
+     * currently served under the target name. Nothing is uploaded - the server backs up the requested
+     * version and restores it in one tracked operation. BEWARE: this purges the replaced catalog.
+     * </pre>
+     */
+    public void restoreCatalogToVersion(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getRestoreCatalogToVersionMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
      * Procedure used to get listing of task statuses.
      * </pre>
      */
@@ -1546,6 +1602,18 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to put a catalog back to an earlier version of itself, replacing the catalog
+     * currently served under the target name. Nothing is uploaded - the server backs up the requested
+     * version and restores it in one tracked operation. BEWARE: this purges the replaced catalog.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionResponse restoreCatalogToVersion(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
+          getChannel(), getRestoreCatalogToVersionMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
      * Procedure used to get listing of task statuses.
      * </pre>
      */
@@ -1809,6 +1877,18 @@ public final class EvitaManagementServiceGrpc {
     public io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse restoreCatalogFromServerFile(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
           getChannel(), getRestoreCatalogFromServerFileMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to put a catalog back to an earlier version of itself, replacing the catalog
+     * currently served under the target name. Nothing is uploaded - the server backs up the requested
+     * version and restores it in one tracked operation. BEWARE: this purges the replaced catalog.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionResponse restoreCatalogToVersion(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getRestoreCatalogToVersionMethod(), getCallOptions(), request);
     }
 
     /**
@@ -2091,6 +2171,19 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to put a catalog back to an earlier version of itself, replacing the catalog
+     * currently served under the target name. Nothing is uploaded - the server backs up the requested
+     * version and restores it in one tracked operation. BEWARE: this purges the replaced catalog.
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionResponse> restoreCatalogToVersion(
+        io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionRequest request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getRestoreCatalogToVersionMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
      * Procedure used to get listing of task statuses.
      * </pre>
      */
@@ -2190,16 +2283,17 @@ public final class EvitaManagementServiceGrpc {
   private static final int METHODID_LIST_SCHEMA_CAPABILITY_USAGE = 9;
   private static final int METHODID_RESTORE_CATALOG_UNARY = 10;
   private static final int METHODID_RESTORE_CATALOG_FROM_SERVER_FILE = 11;
-  private static final int METHODID_LIST_TASK_STATUSES = 12;
-  private static final int METHODID_GET_TASK_STATUS = 13;
-  private static final int METHODID_GET_TASK_STATUSES = 14;
-  private static final int METHODID_CANCEL_TASK = 15;
-  private static final int METHODID_LIST_FILES_TO_FETCH = 16;
-  private static final int METHODID_GET_FILE_TO_FETCH = 17;
-  private static final int METHODID_FETCH_FILE = 18;
-  private static final int METHODID_DELETE_FILE = 19;
-  private static final int METHODID_LIST_RESERVED_KEYWORDS = 20;
-  private static final int METHODID_RESTORE_CATALOG = 21;
+  private static final int METHODID_RESTORE_CATALOG_TO_VERSION = 12;
+  private static final int METHODID_LIST_TASK_STATUSES = 13;
+  private static final int METHODID_GET_TASK_STATUS = 14;
+  private static final int METHODID_GET_TASK_STATUSES = 15;
+  private static final int METHODID_CANCEL_TASK = 16;
+  private static final int METHODID_LIST_FILES_TO_FETCH = 17;
+  private static final int METHODID_GET_FILE_TO_FETCH = 18;
+  private static final int METHODID_FETCH_FILE = 19;
+  private static final int METHODID_DELETE_FILE = 20;
+  private static final int METHODID_LIST_RESERVED_KEYWORDS = 21;
+  private static final int METHODID_RESTORE_CATALOG = 22;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -2265,6 +2359,10 @@ public final class EvitaManagementServiceGrpc {
         case METHODID_RESTORE_CATALOG_FROM_SERVER_FILE:
           serviceImpl.restoreCatalogFromServerFile((io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse>) responseObserver);
+          break;
+        case METHODID_RESTORE_CATALOG_TO_VERSION:
+          serviceImpl.restoreCatalogToVersion((io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionResponse>) responseObserver);
           break;
         case METHODID_LIST_TASK_STATUSES:
           serviceImpl.listTaskStatuses((io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesRequest) request,
@@ -2415,6 +2513,13 @@ public final class EvitaManagementServiceGrpc {
               io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse>(
                 service, METHODID_RESTORE_CATALOG_FROM_SERVER_FILE)))
         .addMethod(
+          getRestoreCatalogToVersionMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogToVersionResponse>(
+                service, METHODID_RESTORE_CATALOG_TO_VERSION)))
+        .addMethod(
           getListTaskStatusesMethod(),
           io.grpc.stub.ServerCalls.asyncUnaryCall(
             new MethodHandlers<
@@ -2538,6 +2643,7 @@ public final class EvitaManagementServiceGrpc {
               .addMethod(getRestoreCatalogMethod())
               .addMethod(getRestoreCatalogUnaryMethod())
               .addMethod(getRestoreCatalogFromServerFileMethod())
+              .addMethod(getRestoreCatalogToVersionMethod())
               .addMethod(getListTaskStatusesMethod())
               .addMethod(getGetTaskStatusMethod())
               .addMethod(getGetTaskStatusesMethod())

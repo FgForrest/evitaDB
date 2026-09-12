@@ -303,6 +303,17 @@ public final class UnusableCatalog implements CatalogContract {
 
 	@Nonnull
 	@Override
+	public ServerTask<Void, FileForFetch> createBackupTask(
+		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
+		boolean includingWAL,
+		@Nullable LongFunction<CatalogVersionPin> onStart
+	) throws TemporalDataNotAvailableException {
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
+	}
+
+	@Nonnull
+	@Override
 	public ServerTask<?, FileForFetch> fullBackup(
 		@Nullable LongFunction<CatalogVersionPin> onStart
 	) {

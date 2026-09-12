@@ -138,6 +138,19 @@ class ReadOnlyEvitaTest implements EvitaTestSupport {
 		assertThrows(ReadOnlyException.class, () -> this.evita.createSession(new SessionTraits(TEST_CATALOG, SessionFlags.READ_WRITE)));
 	}
 
+	/**
+	 * Restoring a catalog to an earlier version replaces - and therefore purges - a catalog, so a read-only engine
+	 * has to refuse it outright rather than getting as far as producing the backup archive.
+	 */
+	@Test
+	@Tag(MANAGEMENT)
+	void shouldFailToRestoreExistingCatalogToAnEarlierVersion() {
+		assertThrows(
+			ReadOnlyException.class,
+			() -> this.evita.management().restoreCatalogToVersion(TEST_CATALOG, null, 1L, null)
+		);
+	}
+
 	@Test
 	void shouldAllowToQueryExistingCatalog() {
 		assertNotNull(this.evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogSchema));

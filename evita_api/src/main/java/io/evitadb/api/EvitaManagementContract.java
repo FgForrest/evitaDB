@@ -220,6 +220,66 @@ public interface EvitaManagementContract {
 	) throws FileForFetchNotFoundException;
 
 	/**
+	 * Puts a catalog back to the state it was in at an earlier version, replacing the catalog currently served under
+	 * `targetCatalogName` with it.
+	 *
+	 * This is {@link #backupCatalog} and {@link #restoreCatalog(String, UUID)} and
+	 * {@link EvitaContract#activateCatalog} and {@link EvitaContract#replaceCatalog} run as one tracked operation,
+	 * which is the only way to reach a past state of a *live* catalog without taking it out of service: the archive
+	 * is unpacked into a temporary catalog and loaded there while the catalog being replaced keeps answering
+	 * queries, and only the final swap - a pointer swap, near-instant regardless of catalog size - makes the
+	 * restored data the answer clients get.
+	 *
+	 * **Selecting the state.** `catalogVersion` names the version to go back to and is what the mutation history
+	 * reports; `pastMoment` names a moment and lets the engine resolve the version. When both are given
+	 * `catalogVersion` wins, exactly as in {@link #backupCatalog}. Passing neither restores the current state, which
+	 * is a valid if unusual way of asking for a defensive copy under another name. How far back either may reach is
+	 * bounded by the retained history - see the *time-travel* options in the storage configuration.
+	 *
+	 * **Where it lands.** `targetCatalogName` names the catalog that ends up holding the restored data; leaving it
+	 * unset - or setting it to `catalogName` - replaces the catalog the state was taken from, which is the ordinary
+	 * use. A different name is equally accepted whether or not a catalog already holds it: an existing one is
+	 * replaced on the same terms as the source would be, and a free one is simply created. The restored catalog is
+	 * registered, loaded and ready to serve, in the {@link CatalogState} its source held at the selected version -
+	 * a source still {@link CatalogState#WARMING_UP} comes back warming up, and nothing here takes it live.
+	 *
+	 * **This destroys data, in three ways that are easy to overlook:**
+	 *
+	 * - The catalog replaced under `targetCatalogName` is **purged entirely**, along with every version of it. Take
+	 *   a {@link #fullBackupCatalog} first if that state may be wanted back.
+	 * - The restored catalog carries **no mutation history**: the log is deliberately excluded, because a restore
+	 *   that included it would replay forward to the head of the log and land back on the state being escaped. So
+	 *   the result cannot itself be restored to an earlier version - its history starts here.
+	 * - Writes committed to the replaced catalog **after** the selected version - including those committed while
+	 *   this operation runs, since the catalog keeps accepting them throughout - go with it, without warning.
+	 *
+	 * **Asynchronous execution.** A task is returned immediately; track it via {@link #getTaskStatus(UUID)} or wait
+	 * on {@link Task#getFutureResult()}. Cancelling it is observed at the next phase boundary rather than
+	 * immediately, so it leaves the catalog under `targetCatalogName` untouched only up to the final swap - once
+	 * that swap has started, it commits regardless and cancellation no longer undoes it. A failed or cancelled run
+	 * keeps the intermediate backup archive among {@link #listFilesToFetch}, so the restore can be retried from it
+	 * by hand; a successful one removes it.
+	 *
+	 * @param catalogName       name of the catalog whose past state is to be restored
+	 * @param pastMoment        moment to restore the catalog to, or null; ignored when `catalogVersion` is set
+	 * @param catalogVersion    version to restore the catalog to, or null to use `pastMoment` or the current state
+	 * @param targetCatalogName name of the catalog the restored state replaces, or null to replace `catalogName`
+	 * @return task tracking the whole operation, completing once the restored catalog is the one being served
+	 * @throws TemporalDataNotAvailableException when the requested version or moment is no longer retained
+	 * @throws CatalogNotFoundException          when no catalog of name `catalogName` exists
+	 * @throws EvitaInvalidUsageException        when `catalogName` is not in a usable state, or `targetCatalogName`
+	 *                                           is malformed or collides with a different catalog under another
+	 *                                           naming convention
+	 */
+	@Nonnull
+	Task<?, Void> restoreCatalogToVersion(
+		@Nonnull String catalogName,
+		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
+		@Nullable String targetCatalogName
+	) throws TemporalDataNotAvailableException, CatalogNotFoundException, EvitaInvalidUsageException;
+
+	/**
 	 * Retrieves paginated list of background task statuses for monitoring long-running operations. Tasks represent
 	 * asynchronous operations like catalog backups, restores, migrations, and other resource-intensive activities.
 	 *

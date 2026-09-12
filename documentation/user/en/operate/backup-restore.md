@@ -42,3 +42,34 @@ You can include transaction log (WAL) files in the PIT snapshot backup as well, 
 ## Full file system copy
 
 The full file system copy is the simplest way to back up the database. It copies and compresses the entire catalog storage directory, with files processed in the correct order. It might be quite large, but it contains all data, including historical data. When you restore from such a backup, the database is restored to the exact state it was in at the moment of backup creation. You can still perform PIT backups from a database restored this way, as all historical data is still present.
+
+## Restoring a catalog to a past version
+
+A catalog that is in service can be put back to the state it had at an earlier version in a single operation - the one behind the *Restore to this version* action in evitaLab. You name the catalog, the version (or the moment) you want it returned to, and optionally the catalog the result should be served under; everything else is done for you:
+
+1. a point-in-time snapshot of the requested version is created,
+2. the snapshot is restored into a temporary catalog,
+3. the temporary catalog is loaded and its indexes are built,
+4. the temporary catalog takes the place of the target catalog.
+
+Only the last step is visible to your clients, and it is a pointer swap that takes the same negligible time whatever the size of the catalog. Everything before it happens beside the running catalog, which keeps answering queries and accepting writes throughout. Sessions open across the swap are closed and have to be reopened; a query already in flight always finishes.
+
+The whole operation is tracked as a single background task, so a user interface can show its progress and report when the catalog is ready.
+
+<Note type="warning">
+
+**This operation destroys data, and none of it can be recovered afterwards.**
+
+- The catalog being replaced is **removed together with its entire history**. Create a [full file system copy](#full-file-system-copy) first if you may want that state back.
+- The restored catalog carries **no transaction log**. Its history begins at the moment it is restored, so it cannot itself be taken back to a version older than that. The log is excluded on purpose: a restore that included it would replay the log forward and end up at the state you are trying to leave.
+- Writes committed to the replaced catalog after the selected version are discarded with it. This includes writes committed while the operation is running, as the catalog keeps accepting them until the swap.
+
+</Note>
+
+How far back you may go is bounded by the retained history, exactly as it is for a [point-in-time snapshot](#point-in-time-snapshot): asking for a version that is no longer retained fails immediately, before any work is done. Asking for no version at all copies the catalog as it currently stands, which needs no retained history and is a way of taking a defensive copy of a catalog under another name.
+
+Naming a target catalog other than the source leaves the source untouched and puts the restored state under that name instead - replacing whatever catalog held it, or creating it when the name is free.
+
+If the operation fails or is cancelled, the catalog it was going to replace is left exactly as it was, and the intermediate snapshot stays among the files available for download so the restore can be repeated by hand. A successful operation removes it.
+
+The temporary catalog is named after the catalog being restored, followed by `_restore_` and eight hexadecimal characters — `myCatalog_restore_3f7a1c02`, say. It is created and removed by the operation itself, with one exception: **if the server is stopped or crashes while a restore is in progress, the temporary catalog survives the restart** and appears in the catalog listing like any other. It is safe to delete. A crash can leave one other artefact beside it — a copy of the snapshot in the work directory, named after the snapshot's file id — which is equally safe to delete; a clean stop, a cancellation and an ordinary failure all clear that one for you. Two further details make the size of the snapshot worth checking before you start: the snapshot is written into the export directory, and that directory is [size-limited](configure.md#file-system-export-configuration) — a catalog whose snapshot alone exceeds the limit cannot be restored this way until the limit is raised.
