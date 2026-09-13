@@ -771,10 +771,8 @@ public class DefaultEntityCollectionPersistenceService
 		final IoFetchStatistics ioFetchStatistics = new IoFetchStatistics();
 
 		// body part is fetched everytime - we need to at least test the version
-		final EntityBodyStoragePart bodyPart = ioFetchStatistics.record(
-			dataStoreReader.fetch(
-				catalogVersion, entityPrimaryKey, EntityBodyStoragePart.class
-			)
+		final EntityBodyStoragePart bodyPart = dataStoreReader.fetch(
+			catalogVersion, entityPrimaryKey, EntityBodyStoragePart.class
 		);
 
 		if (bodyPart == null || bodyPart.isMarkedForRemoval()) {
@@ -784,6 +782,14 @@ public class DefaultEntityCollectionPersistenceService
 		}
 
 		final boolean versionDiffers = bodyPart.getVersion() != entityDecorator.version();
+		if (versionDiffers) {
+			// the entity is rebuilt from this part, so obtaining it is a genuine cost of the enriched entity
+			ioFetchStatistics.record(bodyPart);
+		} else {
+			// the entity already holds this part and keeps it - the read only established that it is still
+			// current, and an entity fetched in one shot never pays for that, so neither may this one
+			ioFetchStatistics.note(bodyPart);
+		}
 
 		// fetch additional data if requested and not already present
 		final ReferencesStoragePart referencesStorageContainer = fetchReferences(
@@ -1357,6 +1363,23 @@ public class DefaultEntityCollectionPersistenceService
 				this.ioFetchedBytes += sizeInBytes;
 				return storagePart;
 			}
+		}
+
+		/**
+		 * Notes the read in the query-wide totals without billing it to the entity being composed - for a part the
+		 * entity already holds, re-read only to establish that it is still current.
+		 *
+		 * The storage did perform the read, so the query total must see it. The entity must not: fetched in one
+		 * shot it reads that part once, and an enrichment re-reading it to compare versions would otherwise make
+		 * the same entity at the same richness report more than the one-shot fetch of it - which is precisely what
+		 * the standalone-cost definition of this statistic forbids.
+		 *
+		 * @param storagePart the storage part that was fetched
+		 */
+		public void note(@Nonnull EntityStoragePart storagePart) {
+			StorageAccessScope.noteRecordRead(
+				storagePart, StorageRecord.getOverheadSize() + 8 + storagePart.sizeInBytes().orElse(0)
+			);
 		}
 
 		/**

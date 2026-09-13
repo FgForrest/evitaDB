@@ -50,7 +50,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Pins the provenance a {@link ServerEntityDecorator} carries and the behaviour of the shortcut in
@@ -395,11 +394,15 @@ class EntityEnrichmentVersionGuardFunctionalTest implements EvitaTestSupport {
 					// shortcut's identity test compares two different objects and can never match. The shortcut is
 					// therefore unreachable through the public enrichment entry point, and the reads it saves are
 					// the ones inside the query pipeline, on entities that carry no narrowing wrapper yet.
+					// a different instance is the whole proof that the fall-through happened, because the shortcut
+					// returns its input unchanged. The I/O statistic deliberately cannot show it: the fall-through
+					// re-reads the body only to compare versions, and re-reading a part the entity already holds
+					// does not change what that entity would have cost fetched on its own
 					assertNotSame(fetched, enriched);
-					assertTrue(
-						((ServerEntityDecorator) enriched).getIoFetchCount() >
-							((ServerEntityDecorator) fetched).getIoFetchCount(),
-						"Expected the fall-through to cost at least one extra read!"
+					assertEquals(
+						((ServerEntityDecorator) fetched).getIoFetchCount(),
+						((ServerEntityDecorator) enriched).getIoFetchCount(),
+						"Re-reading a part the entity already holds must not change what the entity cost!"
 					);
 					assertEquals(
 						ORIGINAL_CODE,
