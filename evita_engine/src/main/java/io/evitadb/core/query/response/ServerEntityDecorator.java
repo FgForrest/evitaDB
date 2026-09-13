@@ -643,7 +643,8 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 						// only the references this entity kept - the group prefetch index is shared by the whole
 						// batch, so a reference a filterBy excluded says nothing about what this entity read
 						noteUnexposedGroups(
-							referenceSchema, entityGroupFetcher, outputReferences, 0, size - filteredOutReferences
+							mrf, referenceSchema, entityGroupFetcher,
+							outputReferences, 0, size - filteredOutReferences
 						);
 						final List<ReferenceContract> namedReferences = Arrays.asList(
 							Arrays.copyOf(outputReferences, size - filteredOutReferences)

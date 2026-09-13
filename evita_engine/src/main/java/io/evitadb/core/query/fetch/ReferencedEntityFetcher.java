@@ -2203,6 +2203,11 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		return requireFetchedEntities().getEntityGroupFetcher(referenceSchema);
 	}
 
+	@Override
+	public boolean mayCarryGroupBodies(@Nonnull ReferenceSchemaContract referenceSchema) {
+		return requireFetchedEntities().mayCarryGroupBodies(referenceSchema);
+	}
+
 	@Nullable
 	@Override
 	public ReferenceComparator getEntityComparator(@Nonnull ReferenceSchemaContract referenceSchema) {
