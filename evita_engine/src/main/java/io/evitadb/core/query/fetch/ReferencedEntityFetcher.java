@@ -1546,10 +1546,15 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		final EntityClassifierWithParent enrichedParentEntity = resolveAncestors(
 			entityReference, parentBodies, parentsBehaviour
 		);
-		// an entity decorator already accumulates the IO statistics of everything above it - but only through a slot
-		// it can read as a decorator, so the read-time walk stops dead at a bodyless pointer. The tail is therefore
-		// folded into the counters here exactly when read time cannot reach it, and never when it can, which would
-		// count the ancestor directly above twice
+		// this decorator performs no I/O of its own - it only re-attaches the resolved parent chain, whose reads
+		// ServerEntityDecorator#getIoFetchCount reaches by walking the chain this decorator exposes, and whose own
+		// reads it reaches through the decorator handed in as the deferred statistics source. Passing the wrapped
+		// decorator's own total here instead would bill every body it attaches twice, once inlined and once walked.
+		//
+		// The walk stops dead at a bodyless pointer, though: an ancestor above one is reachable through no slot
+		// this decorator exposes, so nothing else will ever count it. That tail alone is folded into the counters
+		// here - exactly when the walk cannot reach it, and never when it can, which would count the ancestor
+		// directly above twice.
 		final ServerEntityDecorator unreachedAncestor = enrichedParentEntity instanceof ServerEntityDecorator ?
 			null : findNearestDecoratedAncestor(enrichedParentEntity);
 		return ServerEntityDecorator.decorate(
@@ -1562,10 +1567,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			entityDecorator.getReferencePredicate(),
 			entityDecorator.getPricePredicate(),
 			entityDecorator.getAlignedNow(),
-			entityDecorator.getIoFetchCount() +
-				(unreachedAncestor == null ? 0 : unreachedAncestor.getIoFetchCount()),
-			entityDecorator.getIoFetchedBytes() +
-				(unreachedAncestor == null ? 0 : unreachedAncestor.getIoFetchedBytes())
+			unreachedAncestor == null ? 0 : unreachedAncestor.getIoFetchCount(),
+			unreachedAncestor == null ? 0 : unreachedAncestor.getIoFetchedBytes(),
+			entityDecorator, null
 		);
 	}
 
