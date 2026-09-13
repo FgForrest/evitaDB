@@ -26,6 +26,7 @@ package io.evitadb.api.functional.fetch;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.ReferenceContent;
@@ -34,6 +35,7 @@ import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesAvailabilityChecker;
 import io.evitadb.api.requestResponse.data.AttributesContract;
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -44,17 +46,22 @@ import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import lombok.extern.slf4j.Slf4j;
+import one.edee.oss.pmptt.model.Hierarchy;
+import one.edee.oss.pmptt.model.HierarchyItem;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Map;
 import java.util.Objects;
@@ -66,6 +73,8 @@ import java.util.stream.Collectors;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
+import static io.evitadb.test.generator.DataGenerator.CZECH_LOCALE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -89,6 +98,7 @@ class EntityReferenceFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 	 * Instance name of the named reference set the I/O accounting tests declare over {@link Entities#STORE}.
 	 */
 	private static final String MY_STORES = "myStores";
+	private static final String MY_CATEGORIES = "myCategories";
 
 	@DisplayName("Multiple entities with references by their primary keys should be found")
 	@UseDataSet(HUNDRED_PRODUCTS)
@@ -1442,6 +1452,258 @@ class EntityReferenceFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 	}
 
 	/**
+	 * Pins that bodies read and then dropped by paging are still reported by the entity whose requirement read
+	 * them.
+	 *
+	 * An ordering that ranks references by a property of their **group** cannot rank anything before every
+	 * candidate group is known, so the engine has to read all of them and only then sort and slice. Asking for the
+	 * first five of a hundred therefore reads a hundred, and the ninety-five the page dropped are exposed by
+	 * nobody. The per-entity statistic reports what obtaining this entity cost, which the page size does not
+	 * change - so the paged arm has to report exactly what the unpaged one does.
+	 */
+	@DisplayName("Should count bodies the requested page dropped")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldCountBodiesTheRequestedPageDropped(Evita evita, List<SealedEntity> originalProducts) {
+		final int pageSize = 2;
+		// every reference has to carry a group, or the ordering below has nothing to rank by
+		final int productPk = productMatching(
+			originalProducts,
+			it -> it.getLocales().contains(CZECH_LOCALE) &&
+				it.getReferences(Entities.PARAMETER).size() > pageSize &&
+				it.getReferences(Entities.PARAMETER).stream().allMatch(ref -> ref.getGroup().isPresent()),
+			"a product with more grouped parameter references than fit one page"
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final ServerEntityDecorator wholeSet = fetchGroupOrderedParameters(session, productPk, null);
+				final ServerEntityDecorator onePage = fetchGroupOrderedParameters(session, productPk, pageSize);
+
+				assertEquals(
+					pageSize, onePage.getReferences(Entities.PARAMETER).size(),
+					"The paged arm must expose fewer references than the whole set, or it drops nothing."
+				);
+				assertTrue(
+					wholeSet.getReferences(Entities.PARAMETER).size() > pageSize,
+					"The unpaged arm must expose the whole set, or the arms do not differ."
+				);
+
+				assertEquals(
+					wholeSet.getIoFetchCount(),
+					onePage.getIoFetchCount(),
+					"Paging the reference set changes what the entity exposes, not what obtaining it cost."
+				);
+				assertEquals(
+					wholeSet.getIoFetchedBytes(),
+					onePage.getIoFetchedBytes(),
+					"Paging the reference set changes what the entity exposes, not what it read."
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Pins that an owner exposing two **disjoint** views of one referenced entity reports the union of what they
+	 * read, not the larger of the two.
+	 *
+	 * Ordinary and named reference requirements are held in independent maps with independent prefetch indexes, so
+	 * one request really can ask for a referenced entity's Czech attributes through one and its English attributes
+	 * through the other. The two views then describe the same entity, share its body, and each hold one attribute
+	 * record the other does not - so neither contains the other, and keeping the richer of the two silently drops
+	 * whatever the poorer one alone had to read. Asking for both locales through a single view reads exactly the
+	 * union, which is what the two-view arm has to report.
+	 */
+	@DisplayName("Should count the union of two disjoint views of one referenced entity")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldCountTheUnionOfTwoDisjointViewsOfOneReferencedEntity(
+		Evita evita, List<SealedEntity> originalProducts
+	) {
+		final int productPk = productMatching(
+			originalProducts,
+			it -> !it.getReferences(Entities.CATEGORY).isEmpty(),
+			"a product referencing at least one category"
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// one view reads the Czech attribute record, the other the English one, and both read the body
+				final ServerEntityDecorator twoDisjointViews = fetchProductWith(
+					session, productPk,
+					referenceContent(
+						Entities.CATEGORY, entityFetch(attributeContentAll(), dataInLocales(CZECH_LOCALE))
+					),
+					namedCategorySet(entityFetch(attributeContentAll(), dataInLocales(Locale.ENGLISH)))
+				);
+				// the same records, reached through a single view of the same entity
+				final ServerEntityDecorator oneRicherView = fetchProductWith(
+					session, productPk,
+					referenceContent(
+						Entities.CATEGORY, entityFetch(attributeContentAll(), dataInLocalesAll())
+					),
+					namedCategorySet()
+				);
+
+				assertFalse(
+					twoDisjointViews.getReferences(Entities.CATEGORY).isEmpty(),
+					"The fixture must expose the referenced categories at all."
+				);
+				assertTrue(
+					oneRicherView.getIoFetchCount() > 0,
+					"Reading the referenced categories has to cost something at all."
+				);
+
+				assertEquals(
+					oneRicherView.getIoFetchCount(),
+					twoDisjointViews.getIoFetchCount(),
+					"Two disjoint views of one entity cost their union, which is what one richer view reads."
+				);
+				assertEquals(
+					oneRicherView.getIoFetchedBytes(),
+					twoDisjointViews.getIoFetchedBytes(),
+					"Two disjoint views of one entity read their union, which is what one richer view reads."
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Pins that an entity reachable through two different bodies of this one is counted once, not once per path.
+	 *
+	 * Two of the categories this product references sit under one and the same parent, so that parent is reachable
+	 * through two of the product's bodies. De-duplicating only among the bodies the product carries cannot see it -
+	 * the parent is not one of them, it hangs off each of them - and adding up what each body reports bills the
+	 * shared parent once per category leading to it. The arms differ solely in whether the parent bodies are
+	 * materialized, so whatever the second reports over the first is exactly what those parents cost, and the
+	 * expectation is summed over the **distinct** parents.
+	 */
+	@DisplayName("Should count a body two referenced bodies share exactly once")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldCountABodyTwoReferencedBodiesShareExactlyOnce(
+		Evita evita, List<SealedEntity> originalProducts, Hierarchy categoryHierarchy
+	) {
+		final int productPk = productMatching(
+			originalProducts,
+			it -> sharesAParent(categoryHierarchy, it.getReferences(Entities.CATEGORY)),
+			"a product referencing two categories that sit under one parent"
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final ServerEntityDecorator withoutParentBodies = fetchProductWith(
+					session, productPk,
+					referenceContent(Entities.CATEGORY, entityFetch(hierarchyContent()))
+				);
+				final ServerEntityDecorator withParentBodies = fetchProductWith(
+					session, productPk,
+					referenceContent(
+						Entities.CATEGORY,
+						entityFetch(
+							hierarchyContent(stopAt(distance(1)), entityFetch(attributeContentAll()))
+						)
+					)
+				);
+
+				// one parent body per referenced category, indexed by the entity it is rather than by the object
+				// carrying it - which is the whole point, since two categories reach the same parent
+				final Map<Integer, ServerEntityDecorator> distinctParents = new HashMap<>(8);
+				int categoriesCarryingAParent = 0;
+				for (ReferenceContract reference : withParentBodies.getReferences(Entities.CATEGORY)) {
+					final SealedEntity category = reference.getReferencedEntity().orElseThrow();
+					final EntityClassifierWithParent parent = category.getParentEntity().orElse(null);
+					if (parent instanceof ServerEntityDecorator parentBody) {
+						categoriesCarryingAParent++;
+						distinctParents.putIfAbsent(parentBody.getPrimaryKeyOrThrowException(), parentBody);
+					}
+				}
+				assertTrue(
+					distinctParents.size() < categoriesCarryingAParent,
+					"The fixture must offer a parent that two referenced categories share."
+				);
+
+				int expectedFetchCount = 0;
+				int expectedFetchedBytes = 0;
+				for (ServerEntityDecorator parent : distinctParents.values()) {
+					expectedFetchCount += parent.getIoFetchCount();
+					expectedFetchedBytes += parent.getIoFetchedBytes();
+				}
+				assertTrue(
+					expectedFetchCount > 0,
+					"Reading the parent bodies has to cost at least one fetch."
+				);
+
+				assertEquals(
+					expectedFetchCount,
+					withParentBodies.getIoFetchCount() - withoutParentBodies.getIoFetchCount(),
+					"A parent two referenced categories share must contribute its fetch count exactly once."
+				);
+				assertEquals(
+					expectedFetchedBytes,
+					withParentBodies.getIoFetchedBytes() - withoutParentBodies.getIoFetchedBytes(),
+					"A parent two referenced categories share must contribute its fetched Bytes exactly once."
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Pins that reaching a given richness by enrichment costs the entity exactly what reaching it in one fetch
+	 * costs.
+	 *
+	 * The per-entity statistic reports what the entity would have cost fetched on its own, so the route taken to
+	 * it is not allowed to show up in the number: the same entity, at the same richness, is the same entity. Both
+	 * arms end at `attributeContentAll()` plus the store bodies; the first asks for all of it at once, the second
+	 * asks for the attributes and then widens. Whatever the second reports over the first is work the enrichment
+	 * did that the entity did not need - re-reading parts it already held.
+	 */
+	@DisplayName("Should cost the same whether reached by one fetch or by an enrichment")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldCostTheSameWhetherReachedByFetchOrByEnrichment(Evita evita, List<SealedEntity> originalProducts) {
+		final int productPk = productMatching(
+			originalProducts,
+			it -> it.getReferences(Entities.STORE).size() >= 2,
+			"a product with several store references"
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final ReferenceContent stores = referenceContent(
+					Entities.STORE, entityFetch(attributeContentAll(), dataInLocalesAll())
+				);
+
+				final ServerEntityDecorator inOneFetch = fetchProductWith(
+					session, productPk, attributeContentAll(), dataInLocalesAll(), stores
+				);
+				final ServerEntityDecorator byEnrichment = enrichProductWith(
+					session, productPk, attributeContentAll(), dataInLocalesAll(), stores
+				);
+
+				assertEquals(
+					inOneFetch.getIoFetchCount(),
+					byEnrichment.getIoFetchCount(),
+					"The route to a given richness must not change what the entity cost."
+				);
+				assertEquals(
+					inOneFetch.getIoFetchedBytes(),
+					byEnrichment.getIoFetchedBytes(),
+					"The route to a given richness must not change what the entity read."
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
 	 * Builds the named reference set over {@link Entities#STORE} the accounting tests declare, with or without the
 	 * referenced bodies.
 	 *
@@ -1538,6 +1800,94 @@ class EntityReferenceFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 				.ifPresent(bodies::add);
 		}
 		return bodies;
+	}
+
+	/**
+	 * Fetches a product's parameter references ordered by a property of their group, optionally limited to a single
+	 * page. The ordering is what forces every candidate body to be read before anything can be sliced away.
+	 *
+	 * @param session    session to query through
+	 * @param primaryKey primary key of the product to fetch
+	 * @param pageSize   size of the requested page, or NULL to ask for the whole set
+	 * @return the returned entity, as the decorator that carries its I/O statistics
+	 */
+	@Nonnull
+	private static ServerEntityDecorator fetchGroupOrderedParameters(
+		@Nonnull EvitaSessionContract session,
+		int primaryKey,
+		@Nullable Integer pageSize
+	) {
+		final EvitaResponse<SealedEntity> response = session.querySealedEntity(
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					and(
+						entityPrimaryKeyInSet(primaryKey),
+						entityLocaleEquals(CZECH_LOCALE)
+					)
+				),
+				require(
+					entityFetch(
+						referenceContent(
+							Entities.PARAMETER,
+							orderBy(entityGroupProperty(attributeNatural(ATTRIBUTE_NAME, OrderDirection.ASC))),
+							entityFetchAll(),
+							entityGroupFetchAll(),
+							pageSize == null ? null : page(1, pageSize)
+						)
+					)
+				)
+			)
+		);
+		assertEquals(1, response.getRecordData().size());
+		return assertInstanceOf(ServerEntityDecorator.class, response.getRecordData().get(0));
+	}
+
+	/**
+	 * Builds a named reference set over {@link Entities#CATEGORY}, optionally materializing the referenced bodies.
+	 *
+	 * The `strip` is what makes the set require prefetching at all, so that both arms of the caller run the same
+	 * machinery and differ solely in what the bodies are fetched with.
+	 *
+	 * @param bodyRequirements what the referenced bodies are to be fetched with, none to leave them unfetched
+	 * @return the requirement to put into `entityFetch`
+	 */
+	@Nonnull
+	private static ReferenceContent namedCategorySet(@Nonnull RequireConstraint... bodyRequirements) {
+		final RequireConstraint[] requirements = new RequireConstraint[bodyRequirements.length + 1];
+		System.arraycopy(bodyRequirements, 0, requirements, 0, bodyRequirements.length);
+		requirements[bodyRequirements.length] = strip(0, 100);
+		return new ReferenceContent(
+			MY_CATEGORIES,
+			ManagedReferencesBehaviour.ANY,
+			new String[]{Entities.CATEGORY},
+			requirements,
+			new Constraint[0]
+		);
+	}
+
+	/**
+	 * Tells whether two of the passed category references sit under one and the same parent in the fixture
+	 * hierarchy, which is what makes that parent reachable through two bodies of the referencing entity.
+	 *
+	 * @param categoryHierarchy   the fixture hierarchy
+	 * @param categoryReferences  the category references of one product
+	 * @return TRUE when at least two of them share a parent
+	 */
+	private static boolean sharesAParent(
+		@Nonnull Hierarchy categoryHierarchy,
+		@Nonnull Collection<ReferenceContract> categoryReferences
+	) {
+		final Set<String> parentCodes = new HashSet<>(categoryReferences.size());
+		for (ReferenceContract reference : categoryReferences) {
+			final HierarchyItem parent = categoryHierarchy.getParentItem(
+				String.valueOf(reference.getReferencedPrimaryKey())
+			);
+			if (parent != null && !parentCodes.add(parent.getCode())) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**

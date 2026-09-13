@@ -1,8 +1,8 @@
 ---
 title: Define the per-entity I/O statistic as standalone cost and attribute it at the read, not by walking the returned object graph
 date: 2026-09-13
-updated: 2026-09-13 10:40
-status: partially-implemented
+updated: 2026-09-13 11:20
+status: accepted
 kind: refactor
 issues: [1547, 1561, 1562, 1563, 1564, 1565, 1566, 1567]
 prs: [1548]
@@ -175,22 +175,47 @@ That is the trigger for an ADR superseding this one.
 - `EvitaResponse#getIoFetchCount()` / `#getIoFetchedBytes()` — **physical cost** of the whole query,
   including filtering, prefetch and extra-result work that belongs to no single returned entity.
   Unchanged by this decision.
-- `ServerEntityDecorator#attachedBodies()` — de-duplicates by the **entity** a body describes, its
-  type and primary key, never by the object carrying it. Where two views of one entity account for
-  different amounts, the larger is kept.
+- `EntityCollectionPersistenceService.ReadRecord` — the identity of one storage record that was
+  read, as `(containerType, storagePartPk, size)`. It deliberately **names** the record rather than
+  holding it: a storage part is the bulk of what an entity is made of, and a decorator outlives the
+  response, so holding the part would pin every byte the query read for as long. Reads that carry no
+  key of their own — binary fetches, parts not yet assigned one — take a descending negative
+  sequence and therefore de-duplicate against nothing, which is the honest answer for them.
+- `ServerEntityDecorator#reachableBodies()` — de-duplicates by the **entity** a body describes, its
+  type and primary key, never by the object carrying it, and does so over the whole **reachable**
+  graph rather than the immediate children. `BodyCost#combine` then takes the **union** of what two
+  views of one entity read. Union, not maximum and not sum: a sum bills the body both views started
+  by reading twice, and a maximum drops whatever the smaller view alone had to read.
+- `ServerEntityDecorator#ownReadRecords()` — the own half is the set of **distinct records** read
+  along the `deferredIoStatisticsSource` chain, not the sum of reads along it. That is what makes
+  the same entity at the same richness cost the same by every route, without a special case for
+  each way a route can re-read something.
 - `DefaultEntityCollectionPersistenceService.IoFetchStatistics#record` — bills the entity every part
-  it had to obtain, including one the scope served. `StorageAccessScope#noteRecordRead` keeps the
-  query-wide total physical and no longer reports its decision to the caller.
-- Whether a read was **physical** must be reported by the persistence boundary that performed it,
-  not inferred from a scope miss: the scope's loader can be satisfied by another in-memory layer
-  (`DataStoreChanges.trappedChanges` during a transaction), and binary reads bypass the scope
-  entirely. Both remain open.
+  it had to obtain, including one the scope served, and records which part it was.
+  `StorageAccessScope#noteRecordRead` keeps the query-wide total physical.
+- Whether a read was **physical** is reported by the boundary that performed it:
+  `DataStoreChanges#getStoragePart` calls `StorageAccessScope#noteRecordServedFromMemory` when it
+  answers from a transaction's trapped changes. A scope miss is not proof of a physical read, and
+  nothing outside that boundary may claim a read cost nothing.
+- `EntityDecorator#areReferenceBodiesAttached()` — set by `fetchReference`, the single place a body
+  is ever attached to a reference. It is an **observation**, not a prediction from the request or
+  the constructor, and that distinction is the whole lesson of this record: an
+  `attributeContent`-only `referenceContent` over a hundred references can then skip the walk
+  entirely, and the flag cannot claim there are no bodies while some were attached.
+- `EntityDecorator#getChunkedOutReferences()` — references fetched and then dropped by the requested
+  chunk, offered once to the decorator that accounts for them and released immediately. Retaining a
+  discarded page of bodies for a decorator's whole life is the exact footprint paging exists to
+  avoid.
 - **Invariant a future change must preserve:** a decorator that only narrows or re-wraps an entity
   performs no read and must contribute nothing beyond what the entity it wraps already counts.
   Three mechanisms tried to *detect* such a decorator after the fact and all three failed; keying on
   entity identity makes re-wrapping irrelevant rather than detectable.
-- Reading the statistic must be `O(1)` and must not force materialization —
-  `io.evitadb.core.metric.event.query` resolves it after every fetch when traffic recording is on.
+- **Trap:** a decorator that attaches a **parent chain** is not the one that ran the reference
+  fetcher — `ReferencedEntityFetcher` re-attaches a resolved chain through the re-wrapping factory.
+  A rule that lets every non-fetching decorator inherit what it reaches therefore drops the parent
+  chain silently; `attachesBodies` accounts for both, and
+  `EntityHierarchyFetchFunctionalTest#shouldCountTheIoStatisticsOfARequestedParentChainExactlyOnce`
+  is what catches it (`expected: <2> but was: <0>`).
 
 ## Verification
 
@@ -201,19 +226,44 @@ Acceptance criteria for the whole line of work, and where each one stands.
 | a per-entity number is unchanged by what else shares its page | **met** | `EntityHierarchyFetchFunctionalTest#shouldNotLetAPageMateChangeWhatAnEntityCost` |
 | an entity exposing one referenced entity through two views counts it once | **met** | `EntityReferenceFetchFunctionalTest#shouldNotCountAReWrappedBodyTwiceOnEnrichment`, `#shouldNotCountARepeatedCompositionOfTheSameBodyTwice` |
 | the query-wide total stays physical | **met** | `StorageAccessScopeTest#shouldNotAddAServedRecordToTheQueryTotal` |
-| reaching a richness by enrichment costs what reaching it in one fetch costs | **partly met** | `EntityEnrichmentVersionGuardFunctionalTest#shouldNotTakeTheShortcutForAnEntityReturnedByAQuery` — the unconditional version probe no longer bills; the predicate-driven re-reads still do (#1565) |
-| a descendant reachable through two bodies contributes once, not once per path | open | — (#1567) |
-| an over-fetching reference fetch reports all N candidates, not the K it exposes | open | — |
-| a body-only binary query reports a non-zero count | open | — |
-| an in-transaction read-after-write reports no physical reads for trapped parts | open | — |
-| resolving the statistic on an entity with no attached bodies does not call `getReferences()` | open | — |
+| reaching a richness by enrichment costs what reaching it in one fetch costs | **met** | `EntityReferenceFetchFunctionalTest#shouldCostTheSameWhetherReachedByFetchOrByEnrichment` — 21 by either route |
+| an entity a query returned can take the enrichment shortcut | **met** | `EntityEnrichmentVersionGuardFunctionalTest#shouldTakeTheShortcutForAnEntityReturnedByAQuery` (#1565) |
+| a descendant reachable through two bodies contributes once, not once per path | **met** | `EntityReferenceFetchFunctionalTest#shouldCountABodyTwoReferencedBodiesShareExactlyOnce` (#1567) |
+| an over-fetching reference fetch reports all N candidates, not the K it exposes | **met** | `EntityReferenceFetchFunctionalTest#shouldCountBodiesTheRequestedPageDropped` (#1561) |
+| two disjoint views of one entity report their union | **met** | `EntityReferenceFetchFunctionalTest#shouldCountTheUnionOfTwoDisjointViewsOfOneReferencedEntity` (#1566) |
+| a body-only binary query reports a non-zero count | **met** | `EntityBasicFetchFunctionalTest#shouldCountTheBinaryEntityBodyRead` (#1562) |
+| an in-transaction read-after-write reports no physical reads for trapped parts | **met** | `EntityIoStatisticsFunctionalTest#shouldNotBillAReadAfterWriteAsPhysicalIo` (#1563) |
+| resolving the statistic on an entity with no attached bodies does not call `getReferences()` | **met** | `EntityDecorator#areReferenceBodiesAttached()` short-circuits the walk (#1564) |
+
+Every one of these was watched fail before it was believed. Reverting all four production fixes at
+once and running the tests together:
+
+| test | without its fix |
+|---|---|
+| `shouldNotBillAReadAfterWriteAsPhysicalIo` | `expected: <0> but was: <2>` |
+| `shouldCountTheBinaryEntityBodyRead` | `expected: <true> but was: <false>` |
+| `shouldCountBodiesTheRequestedPageDropped` | `expected: <98> but was: <14>` |
+| `shouldCountABodyTwoReferencedBodiesShareExactlyOnce` | `expected: <2> but was: <4>` |
+
+`shouldTakeTheShortcutForAnEntityReturnedByAQuery` carries its own proof in this file's history: it
+asserted `assertNotSame` and passed, and now asserts `assertSame` and passes.
+
+**The numbers quoted in #1565 were not evidence of what that issue claimed.** It reported a product
+costing 2 alone, 3 fetched with its store bodies and 5 reached by enrichment, and read the gap as
+parts being re-read and re-billed. It is not: `session.enrichEntity` derives a request covering every
+data locale, so the enriched entity reads the localized attribute records the one-shot query never
+asked for. Pin the locale scope equal on both arms and the two routes agree exactly, at 21. The
+predicate-identity defect the issue *names* was real and is fixed; its measurement was measuring
+something else, which is worth recording because the next reader would otherwise hunt a bug that is
+not there.
 
 `EntityReferenceFetchFunctionalTest#shouldNotCountARepeatedCompositionOfTheSameBodyTwice` was
 written under Option A — it passed because the scope suppressed the second composition's reads. It
 now passes for the opposite reason, because the two views describe one entity, and it fails if the
-entity-identity keying is reverted. `ServerEntityDecoratorIoStatisticsTest` still builds its fixture
-with a `null` parent and an empty `References`, so it exercises only the deferred chain and none of
-the attached half; it needs coverage.
+entity-identity keying is reverted. `ServerEntityDecoratorIoStatisticsTest` builds its fixture with
+a `null` parent and an empty `References` and hands its decorators raw counts with no record
+identities, so it is now the coverage of the **fall-back** path — the one taken by a decorator whose
+reads were never identified.
 
 ## Consequences & open follow-ups
 
@@ -226,38 +276,32 @@ the attached half; it needs coverage.
   enrichment parent-chain truncation in `ExistingEntityDecoratorProvider#getExistingParentEntity`
   (a data defect — an enrichment silently returned a one-link chain where several links were
   requested) and the named-reference-set `NullPointerException` (#1560).
-- Deferred, each with its own issue, to close as consequences of the remaining work rather than as
-  point fixes: group-sort over-fetch invisibility (#1561), the binary-fetch bypass (#1562), phantom
-  billing of transactional trapped parts (#1563), and the `O(references)` statistic resolution
-  (#1564).
-- Per-entity numbers remain an approximation until the three open criteria above are met: they can
-  still under-report an over-fetching reference fetch and a binary body fetch. The contract javadoc
-  says so, and must stop saying so when it stops being true.
-- De-duplication keeps the **larger** of two views of one entity, deciding fetch count and fetched
-  bytes independently — views fetched under different requirements need not order the same way on
-  both, and choosing one view by its record count then reading its bytes off that same object
-  reports the smaller figure by an arbitrary margin.
-- Where two views genuinely read **disjoint** parts of one entity, keeping the larger under-reports
-  the union. An earlier draft of this record claimed no such shape was known; one does exist, since
-  ordinary and named reference requirements are held in independent maps and can carry different
-  requirements for the same referenced entity (#1566).
-- An enrichment re-reads parts the entity already holds, because the narrowing predicates a query
-  result carries defeat the "already fetched" comparison, and those re-reads are billed (#1565).
-  The unconditional body re-read that establishes whether the decorator is still current is fixed
-  here: `IoFetchStatistics#note` puts it in the query total without billing the entity.
-- De-duplication covers the **immediate** children only. Two bodies of one owner that share a
-  descendant each carry that descendant inside their own aggregate, and summing the two bills it
-  twice (#1567). Pushing the de-duplication one level deeper only moves the problem; the root's cost
-  has to become a union over the reachable graph rather than a sum of child aggregates.
+- `IoFetchStatistics#note` — which puts the enrichment's version probe into the query total without
+  billing the entity — is now **redundant but retained**. Record-level de-duplication makes a
+  re-read of a part the entity already holds idempotent by construction, so the special case no
+  longer carries the property on its own. It is kept because it still says the right thing about
+  the query-wide total, which counts reads rather than records.
+- A decorator whose reads were never identified — restored from `CacheEden`, rebuilt on the driver
+  side from the wire — falls back to raw counts and to keeping the **larger** of two views. That is
+  the older, weaker answer, now confined to the cases that cannot do better. Anything inside the
+  engine's own read path carries identities and gets the union.
+- **`ReadRecord` identity is `(containerType, key)` within a pinned catalog version.** Two reads of
+  one key at two different versions can legitimately differ in size and will count twice. That is
+  correct — a version change means the record changed — but it is worth knowing before reading a
+  cross-version number as a discrepancy.
+- The binary read path still bypasses `StorageAccessScope`'s de-duplication entirely (it is counted,
+  but not cached or keyed). Adding it to the scope needs a discriminator in `RecordKey`: a binary
+  and a deserialized read of the same part share every other component, and serving one where the
+  other is expected is a `ClassCastException` rather than a wrong number.
 
-**The pattern across the open items is the finding.** Five independent shapes now break this design
-— over-fetch (#1561), binary reads (#1562), enrichment re-reads (#1565), disjoint views (#1566),
-shared descendants (#1567) — and every one of them is a place where the exposed object graph does
-not carry the information the statistic needs. Each is cheap to describe and none is cheap to fix
-here, because the fix is the same in every case: have the prefetch and the storage boundary report
-what they read and for whom, rather than reconstructing it afterwards from what survived into the
-result. A sixth point fix inside this design should be treated as evidence the boundary work is
-overdue, not as progress.
+**What made this line of work hard is worth keeping.** Five independent shapes broke the previous
+design — over-fetch (#1561), binary reads (#1562), disjoint views (#1566), shared descendants
+(#1567), and the unreachable enrichment shortcut (#1565) — and every one of them was a place where
+the exposed object graph did not carry the information the statistic needed. They are closed by the
+same move in every case: the layer that performs a read says what it read, and the layer that
+attaches a body says that it attached one, instead of anything downstream reconstructing either from
+what survived into the result. A future point fix that infers one of these again should be read as
+evidence the inference is back, not as progress.
 
 ## Related work
 
@@ -274,3 +318,6 @@ overdue, not as progress.
 - **2026-09-13** — own/attached split implemented; an adversarial review and a four-agent quality
   pass over it returned seven findings, three high, agreeing on one
 - **2026-09-13** — decision accepted: define the metric first, attribute at the read
+- **2026-09-13** — the seven shapes the decision left open (#1561 — #1567) closed together, by
+  carrying record identities out of the storage layer and observing body attachment at the single
+  place it happens, rather than by seven point fixes

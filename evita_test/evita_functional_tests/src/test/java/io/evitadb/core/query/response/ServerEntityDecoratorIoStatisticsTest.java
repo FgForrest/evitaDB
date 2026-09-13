@@ -126,7 +126,9 @@ class ServerEntityDecoratorIoStatisticsTest {
 			ALIGNED_NOW,
 			CATALOG_ID,
 			CATALOG_VERSION,
-			ioFetchCount, ioFetchedBytes, deferredIoStatisticsSource
+			ioFetchCount, ioFetchedBytes, deferredIoStatisticsSource,
+			// a decorator handed raw counts and no record identities is the fall-back shape this class covers
+			null
 		);
 	}
 

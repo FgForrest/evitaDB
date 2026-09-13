@@ -1455,7 +1455,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				// this decorator performs no I/O of its own - it only re-attaches the resolved parent chain, whose
 				// reads ServerEntityDecorator#getIoFetchCount reaches by walking the chain this decorator exposes.
 				// Adding them here as well would count the whole parent chain twice.
-				0, 0, entityDecorator
+				0, 0, entityDecorator, null
 			)
 		);
 	}

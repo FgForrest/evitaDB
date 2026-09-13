@@ -33,7 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
-| 2026-09-13 | [Define the per-entity I/O statistic as standalone cost and attribute it at the read, not by walking the returned object graph](2026-09-13-per-entity-io-statistics-attribution.md) | refactor | partially-implemented | #1547, #1561, #1562, #1563, #1564, #1565, #1566, #1567, PR #1548 |
+| 2026-09-13 | [Define the per-entity I/O statistic as standalone cost and attribute it at the read, not by walking the returned object graph](2026-09-13-per-entity-io-statistics-attribution.md) | refactor | accepted | #1547, #1561, #1562, #1563, #1564, #1565, #1566, #1567, PR #1548 |
 | 2026-09-12 | [Derive the enrichment shortcut from committed-snapshot provenance, not from a caller-supplied flag](2026-09-12-committed-snapshot-provenance-for-enrichment.md) | fix | accepted | #1547, #1559, PR #1548 |
 | 2026-09-11 | [Decode only the reference names a projection asks for, rather than deriving reference keys from the indexes](2026-09-11-reference-name-narrowing.md) | optimization | accepted | #1547, #1554, PR #1548 |
 | 2026-09-07 | [Equalized histograms bucket on the quantile function and report a kernel density, not a per-bucket ratio](2026-09-07-equalized-histogram-density-and-quantile-bucketing.md) | fix | accepted | #1501 |
