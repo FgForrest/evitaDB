@@ -149,6 +149,33 @@ public class EntityDecorator implements SealedEntity {
 	 */
 	private Map<ReferenceKey, ReferenceContract> filteredReferences;
 	/**
+	 * References this decorator had fetched and then dropped because they fall outside the requested chunk, held
+	 * only until the decorator that accounts for them has taken them; NULL whenever nothing was dropped, which is
+	 * the overwhelmingly common case.
+	 *
+	 * A reference can be dropped only after its body has been read, and on the paths where the engine cannot slice
+	 * before fetching - an ordering that ranks by a group property has to see every candidate before it can rank
+	 * them - that is a real read of a body nobody ends up exposing. It is reachable nowhere else once the chunk is
+	 * built, so a subclass that reports what an entity cost has this one chance to look at it, through
+	 * {@link #getChunkedOutReferences()}, and is expected to release it with {@link #forgetChunkedOutReferences()}
+	 * immediately afterwards - retaining the bodies for the decorator's whole life is exactly the footprint paging
+	 * exists to avoid.
+	 */
+	@Nullable private List<ReferenceContract> chunkedOutReferences;
+	/**
+	 * Whether any reference this decorator built carries a referenced or group body.
+	 *
+	 * It is an observation rather than a prediction: {@link #fetchReference} is the single place a body is attached
+	 * to a reference, so the flag cannot claim there are none while some were attached. That matters because what
+	 * it saves is a walk of the whole reference set - an `attributeContent`-only `referenceContent` over a hundred
+	 * references attaches no body at all, and a statistic that walks them anyway pays for materializing every one
+	 * of them to find nothing.
+	 *
+	 * Meaningful only on a decorator that built its own references; one that inherits them from the decorator it
+	 * wraps has attached nothing itself and must not read this as "nothing is there".
+	 */
+	private boolean referenceBodiesAttached;
+	/**
 	 * Optimization that ensures that expensive reference filtering using predicates happens only once.
 	 */
 	private Map<ReferenceKey, List<ReferenceContract>> filteredDuplicateReferences = Collections.emptyMap();
@@ -288,7 +315,7 @@ public class EntityDecorator implements SealedEntity {
 	 * @param filteredReferences   Map of filtered references to be updated. Must not be null.
 	 * @param duplicatedReferences Map of duplicated references to be updated. Must not be null.
 	 */
-	private static void removeReferencesNotPresentInChunk(
+	private void removeReferencesNotPresentInChunk(
 		@Nonnull DataChunk<ReferenceContract> chunk,
 		@Nonnull List<ReferenceContract> references,
 		@Nonnull Map<ReferenceKey, ReferenceContract> filteredReferences,
@@ -309,6 +336,8 @@ public class EntityDecorator implements SealedEntity {
 						if (removedReference == DUPLICATE_REFERENCE) {
 							duplicatedReferences.remove(referenceKey);
 						}
+						// whatever was read to produce this one has been read whether it is exposed or not
+						noteChunkedOutReference(reference);
 					}
 				}
 			}
@@ -705,6 +734,45 @@ public class EntityDecorator implements SealedEntity {
 	}
 
 	/**
+	 * Notes a reference this decorator had fetched and is dropping because it falls outside the requested chunk.
+	 *
+	 * @param reference the reference being dropped
+	 */
+	protected void noteChunkedOutReference(@Nonnull ReferenceContract reference) {
+		if (this.chunkedOutReferences == null) {
+			this.chunkedOutReferences = new ArrayList<>(8);
+		}
+		this.chunkedOutReferences.add(reference);
+	}
+
+	/**
+	 * Tells whether any reference this decorator built carries a referenced or group body.
+	 *
+	 * @return TRUE when at least one body was attached while this decorator was being built
+	 */
+	protected boolean areReferenceBodiesAttached() {
+		return this.referenceBodiesAttached;
+	}
+
+	/**
+	 * Returns the references this decorator fetched and then dropped because they fall outside the requested chunk.
+	 *
+	 * @return the dropped references, empty when the chunk kept everything or they have already been released
+	 */
+	@Nonnull
+	protected Collection<ReferenceContract> getChunkedOutReferences() {
+		return this.chunkedOutReferences == null ? Collections.emptyList() : this.chunkedOutReferences;
+	}
+
+	/**
+	 * Releases the references reported by {@link #getChunkedOutReferences()}, which are of no use to anything but
+	 * the accounting that has just read them and would otherwise keep every body the chunk discarded alive.
+	 */
+	protected void forgetChunkedOutReferences() {
+		this.chunkedOutReferences = null;
+	}
+
+	/**
 	 * Returns {@link LocaleSerializablePredicate} that represents the scope of the fetched data of the underlying entity.
 	 */
 	@Nonnull
@@ -718,6 +786,41 @@ public class EntityDecorator implements SealedEntity {
 	@Nonnull
 	public HierarchySerializablePredicate getHierarchyPredicate() {
 		return ofNullable(this.hierarchyPredicate.getUnderlyingPredicate()).orElse(this.hierarchyPredicate);
+	}
+
+	/**
+	 * Tells whether the passed predicates are exactly the ones this decorator already applies, so that a request
+	 * shaped by them asks for nothing this decorator does not already expose.
+	 *
+	 * The test is by identity and that is what makes it exact: every `create*PredicateRicherCopyWith` returns the
+	 * very instance it was called on when the request widens nothing, and a fresh instance otherwise. Comparing
+	 * against the predicates the `get*Predicate` accessors return would answer a different question - those report
+	 * the scope the underlying data were **fetched** at, which for an entity narrowed by
+	 * {@link io.evitadb.api.EntityCollectionContract#limitEntity} is a wider predicate than the one being applied
+	 * and therefore never the instance a richer copy of the applied one can be.
+	 *
+	 * @param localePredicate          locale predicate the caller intends to apply
+	 * @param hierarchyPredicate       hierarchy predicate the caller intends to apply
+	 * @param attributePredicate       attribute predicate the caller intends to apply
+	 * @param associatedDataPredicate  associated data predicate the caller intends to apply
+	 * @param referencePredicate       reference predicate the caller intends to apply
+	 * @param pricePredicate           price predicate the caller intends to apply
+	 * @return TRUE when this decorator already applies every one of them
+	 */
+	public boolean appliesExactly(
+		@Nonnull LocaleSerializablePredicate localePredicate,
+		@Nonnull HierarchySerializablePredicate hierarchyPredicate,
+		@Nonnull AttributeValueSerializablePredicate attributePredicate,
+		@Nonnull AssociatedDataValueSerializablePredicate associatedDataPredicate,
+		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
+		@Nonnull PriceContractSerializablePredicate pricePredicate
+	) {
+		return localePredicate == this.localePredicate &&
+			hierarchyPredicate == this.hierarchyPredicate &&
+			attributePredicate == this.attributePredicate &&
+			associatedDataPredicate == this.associatedDataPredicate &&
+			referencePredicate == this.referencePredicate &&
+			pricePredicate == this.pricePredicate;
 	}
 
 	/**
@@ -1957,7 +2060,7 @@ public class EntityDecorator implements SealedEntity {
 	 * is a request for fetching their bodies in input request.
 	 */
 	@Nullable
-	protected static ReferenceDecorator fetchReference(
+	protected ReferenceDecorator fetchReference(
 		@Nonnull ReferenceContract reference,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Function<Integer, SealedEntity> referenceEntityFetcher,
@@ -1970,6 +2073,9 @@ public class EntityDecorator implements SealedEntity {
 		final SealedEntity referencedGroupEntity = referenceSchema.isReferencedGroupTypeManaged() && referencedEntity != null ?
 			reference.getGroup().map(group -> referenceGroupEntityFetcher.apply(group.primaryKey())).orElse(null) :
 			null;
+		// this is the only place a referenced or group body is ever put onto a reference, so it is the only place
+		// that can say whether this entity carries any - see #referenceBodiesAttached
+		this.referenceBodiesAttached |= referencedEntity != null || referencedGroupEntity != null;
 		return new ReferenceDecorator(
 			reference,
 			referencedEntity,

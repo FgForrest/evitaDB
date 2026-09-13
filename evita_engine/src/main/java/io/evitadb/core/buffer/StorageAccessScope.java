@@ -81,14 +81,17 @@ public final class StorageAccessScope implements Closeable {
 
 	private final Map<RecordKey, Object> records = CollectionUtils.createHashMap(512);
 	/**
-	 * The record the most recent {@link #fetch} answered from {@link #records} instead of going to the storage,
-	 * awaiting the {@link #noteRecordRead} the caller issues for it - see there for why this single slot is all the
-	 * accounting needs, and why an identity set of everything ever read would defeat {@link #MAX_RECORDS}.
+	 * The record the most recent read produced **without touching the storage**, awaiting the
+	 * {@link #noteRecordRead} the caller issues for it - see there for why this single slot is all the accounting
+	 * needs, and why an identity set of everything ever read would defeat {@link #MAX_RECORDS}.
 	 *
-	 * It never retains anything the scope is not already holding: the record it points at is, by construction, one
-	 * {@link #records} has cached.
+	 * Two layers park a record here, and they are the only two that can answer a read from memory: {@link #fetch}
+	 * when {@link #records} already holds it, and the transaction overlay through
+	 * {@link #noteRecordServedFromMemory} when the query reads back what its own transaction has written. Neither
+	 * retains anything that is not already held elsewhere for at least as long - the scope's own cache in the first
+	 * case, the transaction's trapped changes in the second.
 	 */
-	@Nullable private Object recordServedFromScope;
+	@Nullable private Object recordServedWithoutIo;
 	/**
 	 * Number of storage records read within this scope.
 	 */
@@ -165,13 +168,13 @@ public final class StorageAccessScope implements Closeable {
 		final Object cached = this.records.get(key);
 		if (cached != null) {
 			// this answer costs no I/O - remember it so the note the caller is about to make for it is not billed
-			this.recordServedFromScope = cached == MISSING ? null : cached;
+			this.recordServedWithoutIo = cached == MISSING ? null : cached;
 			//noinspection unchecked
 			return cached == MISSING ? null : (T) cached;
 		}
-		// everything from here on is a genuine read, and so is anything noted before the next fetch answers from
-		// the cache again
-		this.recordServedFromScope = null;
+		// the loader is about to run, and only the loader knows whether it reaches the storage - it parks the
+		// record here itself when it answers from memory instead (see #noteRecordServedFromMemory)
+		this.recordServedWithoutIo = null;
 		final T loaded = loader.get();
 		if (this.records.size() < MAX_RECORDS) {
 			this.records.put(key, loaded == null ? MISSING : loaded);
@@ -180,19 +183,42 @@ public final class StorageAccessScope implements Closeable {
 	}
 
 	/**
+	 * Reports that `record` was produced **without touching the storage**, so the {@link #noteRecordRead} the
+	 * caller is about to issue for it adds nothing to the query's physical totals.
+	 *
+	 * Called from the layer that actually decides it - the transaction overlay, which answers a read from its own
+	 * uncommitted changes and never reaches the persistence service. Whether a read was physical cannot be
+	 * inferred from a miss in {@link #records}: a miss says only that this scope had not seen the record before,
+	 * and the loader it then calls may well answer it from memory too. A read-after-write inside one transaction
+	 * is exactly that shape, and inferring made the query report physical I/O the storage never performed.
+	 *
+	 * Nothing else in the pipeline may call this: it claims a read cost nothing, and a claim made anywhere other
+	 * than at the boundary that performed it is the inference this exists to replace.
+	 *
+	 * @param record the record that was produced without a storage read
+	 */
+	public static void noteRecordServedFromMemory(@Nonnull Object record) {
+		final StorageAccessScope scope = CURRENT.get();
+		if (scope != null) {
+			scope.recordServedWithoutIo = record;
+		}
+	}
+
+	/**
 	 * Records that `record` has been obtained, at the given size, into the **query-wide** totals. Called from the
 	 * layer that performs the read and knows the record framing overhead.
 	 *
-	 * Only reads that actually went to the storage reach these totals, and the decision is made where the read
-	 * happens: {@link #fetch} knows whether it had to call its loader, and a record it answered from
-	 * {@link #records its own cache} is parked in {@link #recordServedFromScope} for exactly this call to recognise
-	 * and skip. Reads that never pass through the scope at all - binary fetches and reads issued with no scope
-	 * bound - are physical by construction and are counted as they come.
+	 * Only reads that actually went to the storage reach these totals, and every layer that can answer without one
+	 * says so rather than being guessed at: {@link #fetch} parks a record it served from {@link #records its own
+	 * cache}, and the transaction overlay parks one it served from its uncommitted changes
+	 * ({@link #noteRecordServedFromMemory}). Either way the record sits in {@link #recordServedWithoutIo} for
+	 * exactly this call to recognise and skip. Reads that reach neither layer - binary fetches and reads issued
+	 * with no scope bound - went to the storage by construction and are counted as they come.
 	 *
 	 * These totals describe what the query cost the storage. They are deliberately **not** the sum of the
 	 * per-entity statistics, which report what each entity would have cost fetched on its own and therefore report
 	 * a shared record once per entity that needed it. The caller bills its entity separately and unconditionally;
-	 * whether this scope served the record is this scope's business alone.
+	 * whether the record cost anything to obtain is this scope's business alone.
 	 *
 	 * Deciding it here rather than remembering every record ever accounted for is what makes {@link #MAX_RECORDS}
 	 * mean something: an identity set of the latter kind grows without a ceiling and pins every storage part and
@@ -208,9 +234,9 @@ public final class StorageAccessScope implements Closeable {
 			// nothing de-duplicates reads outside a scope, so there is no scope-wide total to add to either
 			return;
 		}
-		if (scope.recordServedFromScope == record) {
-			// the scope answered this one itself - no I/O happened, and the next ask has to be judged on its own
-			scope.recordServedFromScope = null;
+		if (scope.recordServedWithoutIo == record) {
+			// somebody answered this one from memory - no I/O happened, and the next ask has to be judged on its own
+			scope.recordServedWithoutIo = null;
 			return;
 		}
 		scope.ioFetchCount++;
@@ -224,7 +250,7 @@ public final class StorageAccessScope implements Closeable {
 		} else {
 			CURRENT.remove();
 			this.records.clear();
-			this.recordServedFromScope = null;
+			this.recordServedWithoutIo = null;
 		}
 	}
 

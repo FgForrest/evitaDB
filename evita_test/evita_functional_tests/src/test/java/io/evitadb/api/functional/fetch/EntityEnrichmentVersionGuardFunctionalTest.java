@@ -48,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -62,10 +63,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * would be believed and should not be - a warming-up catalog whose version never moves, an uncommitted transaction
  * overlay, a rolled-back transaction, and a decorator carried between two catalogs that sit at the same number.
  *
- * Two routes produce a decorator, and they behave differently: a mutation result
+ * Two routes produce a decorator, and they carry different predicates: a mutation result
  * (`upsertAndFetchEntity` and friends) is handed straight out of `wrapToDecorator`, while a query or `getEntity`
- * result is additionally narrowed by `limitEntity`. Only the first can take the shortcut - see
- * {@link EnrichmentShortcut} for why.
+ * result is additionally narrowed by `limitEntity`. Both can take the shortcut, and {@link EnrichmentShortcut}
+ * pins what the second one has to be compared against for that to be true.
  *
  * Every scenario mutates its catalog, so the class builds its own embedded instance rather than borrowing a shared
  * read-only dataset - mutating one of those would force a rebuild for every other consumer.
@@ -374,9 +375,9 @@ class EntityEnrichmentVersionGuardFunctionalTest implements EvitaTestSupport {
 	@DisplayName("Enrichment shortcut")
 	class EnrichmentShortcut {
 
-		@DisplayName("Entity returned by a query never takes the shortcut, even when it widens nothing")
+		@DisplayName("Entity returned by a query takes the shortcut when it widens nothing")
 		@Test
-		void shouldNotTakeTheShortcutForAnEntityReturnedByAQuery() {
+		void shouldTakeTheShortcutForAnEntityReturnedByAQuery() {
 			createCatalogWithSingleProduct(TEST_CATALOG, ORIGINAL_CODE);
 			goLive(TEST_CATALOG);
 
@@ -389,21 +390,42 @@ class EntityEnrichmentVersionGuardFunctionalTest implements EvitaTestSupport {
 					);
 
 					// `limitEntity` wraps every query result in narrowing predicates that keep the unnarrowed ones
-					// as their `underlyingPredicate`. `getXPredicate()` then answers with the underlying instance
-					// while `createXPredicateRicherCopyWith(...)` widens - and returns - the narrowing one, so the
-					// shortcut's identity test compares two different objects and can never match. The shortcut is
-					// therefore unreachable through the public enrichment entry point, and the reads it saves are
-					// the ones inside the query pipeline, on entities that carry no narrowing wrapper yet.
-					// a different instance is the whole proof that the fall-through happened, because the shortcut
-					// returns its input unchanged. The I/O statistic deliberately cannot show it: the fall-through
-					// re-reads the body only to compare versions, and re-reading a part the entity already holds
-					// does not change what that entity would have cost fetched on its own
-					assertNotSame(fetched, enriched);
+					// as their `underlyingPredicate`, and that is precisely why the shortcut has to compare a
+					// richer copy of each *narrowing* predicate against the narrowing predicate it was copied from.
+					// Comparing it against `getXPredicate()` - which answers with the underlying, wider instance -
+					// pits two objects that can never be the same against each other, and made the shortcut
+					// unreachable through the public enrichment entry point for every entity a query returned.
+					// The same instance coming back is the whole proof, because falling through to the storage
+					// builds a new decorator even when it fetches nothing.
+					assertSame(fetched, enriched);
 					assertEquals(
-						((ServerEntityDecorator) fetched).getIoFetchCount(),
-						((ServerEntityDecorator) enriched).getIoFetchCount(),
-						"Re-reading a part the entity already holds must not change what the entity cost!"
+						ORIGINAL_CODE,
+						enriched.getAttribute(ATTRIBUTE_CODE, String.class)
 					);
+				}
+			);
+		}
+
+		@DisplayName("Entity returned by a query still falls through when the request widens it")
+		@Test
+		void shouldNotTakeTheShortcutWhenTheRequestWidensAnEntityReturnedByAQuery() {
+			createCatalogWithSingleProduct(TEST_CATALOG, ORIGINAL_CODE);
+			goLive(TEST_CATALOG);
+
+			EntityEnrichmentVersionGuardFunctionalTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					// narrower than the schema allows, so the enrichment below genuinely widens it
+					final SealedEntity fetched = session
+						.getEntity(Entities.PRODUCT, PRODUCT_PK)
+						.orElseThrow();
+					final SealedEntity enriched = session.enrichEntity(
+						fetched, attributeContentAll(), dataInLocalesAll()
+					);
+
+					// a request that asks for more than the entity applies produces fresh predicates, so the
+					// shortcut declines and the widened data really do arrive
+					assertNotSame(fetched, enriched);
 					assertEquals(
 						ORIGINAL_CODE,
 						enriched.getAttribute(ATTRIBUTE_CODE, String.class)

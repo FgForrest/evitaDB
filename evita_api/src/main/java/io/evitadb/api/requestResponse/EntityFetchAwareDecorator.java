@@ -36,10 +36,15 @@ public interface EntityFetchAwareDecorator {
 
 	/**
 	 * What this entity would have cost had it been fetched on its own - the I/O fetches that produced its own
-	 * storage records, plus those of every body hanging off it because the request asked for one: the parent chain
-	 * of a `hierarchyContent`, and the referenced and group entities of a `referenceContent`, named sets included.
-	 * Each distinct entity counts once, however many references point at it and however many views of it this
-	 * entity exposes.
+	 * storage records, plus those of every body the request caused to be read for it: the parent chain of a
+	 * `hierarchyContent`, and the referenced and group entities of a `referenceContent`, named sets included, and
+	 * recursively whatever those bodies reach in turn. Each distinct entity counts once, however many references
+	 * point at it, however many paths lead to it, and however many views of it this entity exposes; where two
+	 * views of one entity read different records, the union of what they read is counted.
+	 *
+	 * Bodies the request **caused to be read and then discarded** count too. An ordering that ranks references by
+	 * a property of their group cannot rank anything until every candidate is known, so asking for the first five
+	 * of a hundred reads a hundred; the page size changes what this entity exposes, not what obtaining it cost.
 	 *
 	 * This is deliberately **not** a share of the operation's real I/O and does not add up to one. A record that
 	 * two returned entities both needed is reported by both, because an entity's cost must not move with whatever

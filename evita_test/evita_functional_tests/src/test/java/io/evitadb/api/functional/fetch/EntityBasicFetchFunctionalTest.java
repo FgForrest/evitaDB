@@ -24,6 +24,7 @@
 package io.evitadb.api.functional.fetch;
 
 import io.evitadb.api.SessionTraits.SessionFlags;
+import io.evitadb.api.requestResponse.EntityFetchAwareDecorator;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -45,6 +46,7 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -192,6 +194,59 @@ class EntityBasicFetchFunctionalTest extends AbstractEntityFetchingFunctionalTes
 				assertTrue(binaryEntity.getAssociatedDataStorageParts().length > 0);
 				assertNotNull(binaryEntity.getPriceStoragePart());
 				assertNotNull(binaryEntity.getReferenceStoragePart());
+				return null;
+			},
+			SessionFlags.BINARY
+		);
+	}
+
+	/**
+	 * Pins that reading an entity body in binary form is counted, both by the entity that read it and by the
+	 * response that returned it.
+	 *
+	 * A binary fetch reads the body through a code path of its own - one that neither routes through the query's
+	 * record de-duplicating scope nor hands the bytes to the collector assembling the entity's statistic. The read
+	 * happened all the same, and an entity asking for nothing but its body is the shape where that read is the only
+	 * one there is: whatever both numbers report here, they report about it alone.
+	 */
+	@DisplayName("Reading an entity body in binary form should be counted in the IO statistics")
+	@Test
+	void shouldCountTheBinaryEntityBodyRead(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<BinaryEntity> productByPk = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(2)
+						),
+						require(
+							entityFetch()
+						)
+					),
+					BinaryEntity.class
+				);
+				assertEquals(1, productByPk.getRecordData().size());
+
+				final BinaryEntity binaryEntity = productByPk.getRecordData().get(0);
+				assertNotNull(binaryEntity.getEntityStoragePart());
+
+				final EntityFetchAwareDecorator fetchAware = assertInstanceOf(
+					EntityFetchAwareDecorator.class, binaryEntity
+				);
+				assertTrue(
+					fetchAware.getIoFetchCount() > 0,
+					"The body this entity is made of was read and has to be counted."
+				);
+				assertTrue(
+					fetchAware.getIoFetchedBytes() > 0,
+					"The body this entity is made of occupied Bytes that have to be counted."
+				);
+				assertTrue(
+					productByPk.getIoFetchCount() > 0,
+					"The response has to report the read its only entity performed."
+				);
 				return null;
 			},
 			SessionFlags.BINARY

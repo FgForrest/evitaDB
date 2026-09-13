@@ -1824,7 +1824,8 @@ public final class EntityCollection implements
 					// input decorator and are resolved only if somebody asks for the aggregate
 					entityWithFetchCount.ioFetchCount(),
 					entityWithFetchCount.ioFetchedBytes(),
-					partiallyLoadedEntity
+					partiallyLoadedEntity,
+					entityWithFetchCount.readRecords()
 				);
 			}
 		} else {
@@ -2949,7 +2950,7 @@ public final class EntityCollection implements
 			entity.getCatalogVersion(),
 			// this decorator performs no I/O of its own - it only narrows the predicates of an entity that is
 			// already in memory, so the whole statistic is owed by the entity it wraps and is resolved lazily
-			0, 0, entity
+			0, 0, entity, null
 		);
 	}
 
@@ -2997,7 +2998,11 @@ public final class EntityCollection implements
 
 		// every `createRicherCopyWith` returns the very same instance when the request asks for nothing the entity
 		// does not already carry, so identity across all six is an exact test for "this entity is already at the
-		// requested scope". Enriching such an entity anyway costs a storage round trip that provably fetches
+		// requested scope" - provided each is compared against the predicate it was copied from, which is what
+		// `appliesExactly` does. An entity a query returned is narrowed by `limitEntity` and keeps the scope it was
+		// fetched at as the narrowing predicate's underlying one, so comparing against the *fetched* scope instead
+		// pits a copy of the narrowing predicate against the underlying one and can never match, whatever the
+		// request asks for. Enriching such an entity anyway costs a storage round trip that provably fetches
 		// nothing - all it can do is re-read the body to compare versions.
 		//
 		// That comparison is worth skipping only when its outcome is known in advance, which is what the first
@@ -3019,12 +3024,10 @@ public final class EntityCollection implements
 		// signal and would turn any concurrent commit into a failed read.
 		if (partiallyLoadedEntity.isMaterialisedFrom(this.catalog.getCatalogId(), catalogVersion) &&
 			!Transaction.isTransactionAvailable() &&
-			newLocalePredicate == partiallyLoadedEntity.getLocalePredicate() &&
-			newHierarchyPredicate == partiallyLoadedEntity.getHierarchyPredicate() &&
-			newAttributePredicate == partiallyLoadedEntity.getAttributePredicate() &&
-			newAssociatedDataPredicate == partiallyLoadedEntity.getAssociatedDataPredicate() &&
-			newReferenceContractPredicate == partiallyLoadedEntity.getReferencePredicate() &&
-			newPriceContractPredicate == partiallyLoadedEntity.getPricePredicate()
+			partiallyLoadedEntity.appliesExactly(
+				newLocalePredicate, newHierarchyPredicate, newAttributePredicate,
+				newAssociatedDataPredicate, newReferenceContractPredicate, newPriceContractPredicate
+			)
 		) {
 			return partiallyLoadedEntity;
 		}
@@ -3071,7 +3074,8 @@ public final class EntityCollection implements
 			// decorator and are resolved only if somebody asks for the aggregate
 			entityWithFetchCount.ioFetchCount(),
 			entityWithFetchCount.ioFetchedBytes(),
-			partiallyLoadedEntity
+			partiallyLoadedEntity,
+			entityWithFetchCount.readRecords()
 		);
 	}
 
@@ -3219,7 +3223,9 @@ public final class EntityCollection implements
 			materialisedCatalogId(),
 			materialisedCatalogVersion(),
 			fullEntityWithCount.ioFetchCount(),
-			fullEntityWithCount.ioFetchedBytes()
+			fullEntityWithCount.ioFetchedBytes(),
+			null,
+			fullEntityWithCount.readRecords()
 		);
 	}
 

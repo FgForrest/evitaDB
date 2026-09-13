@@ -400,6 +400,58 @@ class StorageAccessScopeTest {
 		}
 
 		@Test
+		@DisplayName("a record the loader answered from memory is not billed")
+		void shouldNotBillRecordTheLoaderServedFromMemory() {
+			// a miss in the scope's own cache says only that this scope had not seen the record - the loader it
+			// then calls may still answer from memory, and a transaction reading back what it has written is
+			// exactly that. Only the loader knows, so only the loader may say
+			final Object owner = new Object();
+			final TestStoragePart record = new TestStoragePart(1L);
+
+			try (final StorageAccessScope scope = StorageAccessScope.install()) {
+				StorageAccessScope.noteRecordRead(
+					scope.fetch(
+						owner, CATALOG_VERSION, TestStoragePart.class, 1L, null,
+						() -> {
+							StorageAccessScope.noteRecordServedFromMemory(record);
+							return record;
+						}
+					),
+					100
+				);
+
+				assertEquals(0, scope.getIoFetchCount(), "The storage was never reached.");
+				assertEquals(0, scope.getIoFetchedBytes(), "The storage was never reached.");
+			}
+		}
+
+		@Test
+		@DisplayName("a report of a memory hit is spent on the very next record it names")
+		void shouldNotLetAMemoryHitAbsolveAnUnrelatedRead() {
+			// the report names one record, and the read that follows it has to be judged on its own - carrying it
+			// over would silently discount whatever came next
+			final TestStoragePart fromMemory = new TestStoragePart(1L);
+			final TestStoragePart fromStorage = new TestStoragePart(2L);
+
+			try (final StorageAccessScope scope = StorageAccessScope.install()) {
+				StorageAccessScope.noteRecordServedFromMemory(fromMemory);
+				StorageAccessScope.noteRecordRead(fromMemory, 100);
+				StorageAccessScope.noteRecordRead(fromStorage, 40);
+
+				assertEquals(1, scope.getIoFetchCount());
+				assertEquals(40, scope.getIoFetchedBytes());
+			}
+		}
+
+		@Test
+		@DisplayName("a memory hit reported outside any execution is harmless")
+		void shouldIgnoreMemoryHitReportedOutsideAnyScope() {
+			assertNull(StorageAccessScope.getIfActive());
+
+			assertDoesNotThrow(() -> StorageAccessScope.noteRecordServedFromMemory(new TestStoragePart(1L)));
+		}
+
+		@Test
 		@DisplayName("a read issued outside any execution reaches no total at all")
 		void shouldIgnoreReadOutsideAnyScopeInTheQueryTotal() {
 			// there is no query in progress to attribute it to - the entity composing it still bills it to itself

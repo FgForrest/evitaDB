@@ -559,9 +559,13 @@ public class DataStoreChanges
 			if (trappedChanges != null) {
 				final StoragePart storagePart = trappedChanges.get(primaryKey);
 				if (storagePart != null) {
-					return storagePart instanceof RemovedStoragePart ?
-						null :
-						containerType.cast(storagePart);
+					if (storagePart instanceof RemovedStoragePart) {
+						return null;
+					}
+					// this transaction wrote the part and is now reading it back - the storage was never touched,
+					// and only this layer can say so (see StorageAccessScope#noteRecordServedFromMemory)
+					StorageAccessScope.noteRecordServedFromMemory(storagePart);
+					return containerType.cast(storagePart);
 				}
 			}
 		}
@@ -586,9 +590,14 @@ public class DataStoreChanges
 			if (trappedChanges != null) {
 				final StoragePart storagePart = trappedChanges.get(primaryKey);
 				if (storagePart != null) {
-					return storagePart instanceof RemovedStoragePart ?
-						null :
-						this.persistenceService.serializeStoragePart(storagePart);
+					if (storagePart instanceof RemovedStoragePart) {
+						return null;
+					}
+					// serializing a part this transaction is holding in memory reads nothing - the bytes the caller
+					// will note are the ones parked here, not ones that came off the disk
+					final byte[] serialized = this.persistenceService.serializeStoragePart(storagePart);
+					StorageAccessScope.noteRecordServedFromMemory(serialized);
+					return serialized;
 				}
 			}
 		}

@@ -360,7 +360,8 @@ public class DefaultEntityCollectionPersistenceService
 						new ServerChunkTransformerAccessor(evitaRequest)
 					),
 					ioFetchStatistics.getIoFetchCount(),
-					ioFetchStatistics.getIoFetchedBytes()
+					ioFetchStatistics.getIoFetchedBytes(),
+					ioFetchStatistics.readRecords()
 				)
 			);
 		}
@@ -888,7 +889,8 @@ public class DefaultEntityCollectionPersistenceService
 					referenceChunkTransformer
 				),
 				ioFetchStatistics.getIoFetchCount(),
-				ioFetchStatistics.getIoFetchedBytes()
+				ioFetchStatistics.getIoFetchedBytes(),
+				ioFetchStatistics.readRecords()
 			);
 		} else if (referencesStorageContainer != null || priceStorageContainer != null ||
 			!attributesStorageContainers.isEmpty() || !associatedDataStorageContainers.isEmpty()) {
@@ -904,14 +906,16 @@ public class DefaultEntityCollectionPersistenceService
 					priceStorageContainer
 				),
 				ioFetchStatistics.getIoFetchCount(),
-				ioFetchStatistics.getIoFetchedBytes()
+				ioFetchStatistics.getIoFetchedBytes(),
+				ioFetchStatistics.readRecords()
 			);
 		} else {
 			// return original entity - nothing has been fetched
 			return new EntityWithFetchCount(
 				entityDecorator.getDelegate(),
 				ioFetchStatistics.getIoFetchCount(),
-				ioFetchStatistics.getIoFetchedBytes()
+				ioFetchStatistics.getIoFetchedBytes(),
+				ioFetchStatistics.readRecords()
 			);
 		}
 	}
@@ -1372,6 +1376,9 @@ public class DefaultEntityCollectionPersistenceService
 		@Nonnull DataStoreReader dataStoreReader
 	) {
 		final IoFetchStatistics ioFetchStatistics = new IoFetchStatistics();
+		// the caller read the body before it could know whose it was, and this is the first point that does - an
+		// entity asking for nothing else is made of that read alone, and would otherwise report costing nothing
+		ioFetchStatistics.record(entityStorageContainer);
 		final EntityBodyStoragePart deserializedEntityBody = this.storagePartPersistenceService.deserializeStoragePart(
 			entityStorageContainer, EntityBodyStoragePart.class
 		);
@@ -1497,10 +1504,21 @@ public class DefaultEntityCollectionPersistenceService
 	 */
 	@Getter
 	@NoArgsConstructor
-	@AllArgsConstructor
 	private static final class IoFetchStatistics {
 		private int ioFetchCount;
 		private int ioFetchedBytes;
+		/**
+		 * Identities of the records billed so far, in the order they were read. They are what lets a second
+		 * composition of the same entity be combined with this one into the union of the two - see
+		 * {@link ReadRecord}.
+		 */
+		private final List<ReadRecord> readRecords = new ArrayList<>(8);
+		/**
+		 * Source of keys for reads that carry none of their own. Binary reads hand back raw bytes rather than a
+		 * keyed storage part, so nothing identifies them; a descending sequence keeps each of them distinct from
+		 * every other record, which is the honest answer - two such reads are two reads.
+		 */
+		private long unkeyedReadSequence;
 
 		/**
 		 * Records the I/O fetch with particular size in Bytes.
@@ -1524,8 +1542,29 @@ public class DefaultEntityCollectionPersistenceService
 				StorageAccessScope.noteRecordRead(storagePart, sizeInBytes);
 				this.ioFetchCount++;
 				this.ioFetchedBytes += sizeInBytes;
+				final Long storagePartPk = storagePart.getStoragePartPK();
+				this.readRecords.add(
+					new ReadRecord(
+						storagePart.getClass(),
+						// a part that has not been assigned a key yet identifies nothing, so it is given one that
+						// collides with nothing rather than being left out of the accounting
+						storagePartPk == null ? --this.unkeyedReadSequence : storagePartPk,
+						sizeInBytes
+					)
+				);
 				return storagePart;
 			}
+		}
+
+		/**
+		 * Returns the records billed so far, identifying what this composition read.
+		 *
+		 * @return the read records, empty when nothing was read
+		 */
+		@Nonnull
+		public ReadRecord[] readRecords() {
+			return this.readRecords.isEmpty() ?
+				ReadRecord.NONE : this.readRecords.toArray(ReadRecord[]::new);
 		}
 
 		/**
@@ -1560,6 +1599,10 @@ public class DefaultEntityCollectionPersistenceService
 				StorageAccessScope.noteRecordRead(storagePart, sizeInBytes);
 				this.ioFetchCount++;
 				this.ioFetchedBytes += sizeInBytes;
+				// raw bytes carry no key, so this read de-duplicates against nothing - see #unkeyedReadSequence
+				this.readRecords.add(
+					new ReadRecord(byte[].class, --this.unkeyedReadSequence, sizeInBytes)
+				);
 				return storagePart;
 			}
 		}
