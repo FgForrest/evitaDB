@@ -24,6 +24,7 @@
 package io.evitadb.api.functional.fetch;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.requestResponse.EntityFetchAwareDecorator;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -45,6 +46,8 @@ import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.hierarchyContent;
+import static io.evitadb.api.query.QueryConstraints.referenceContent;
 import static io.evitadb.api.query.QueryConstraints.referenceContentAll;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
@@ -73,7 +76,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class EntityIoStatisticsFunctionalTest implements EvitaTestSupport {
 	private static final String REFERENCE_CATEGORIES = "categories";
 	private static final String REFERENCE_PRODUCTS = "products";
+	private static final String REFERENCE_RELATED_PRODUCTS = "relatedProducts";
 	private static final int CATEGORY_PK = 1;
+	private static final int CHILD_CATEGORY_PK = 2;
 	private static final int PRODUCT_PK = 1;
 
 	private TestPaths paths;
@@ -91,6 +96,9 @@ class EntityIoStatisticsFunctionalTest implements EvitaTestSupport {
 				// so through an implicit mutation, which is the write that traps its part in memory
 				session.defineEntitySchema(Entities.CATEGORY)
 					.withoutGeneratedPrimaryKey()
+					/* a category that is both a child and a referenced entity is the shape that tells a decorator
+					   re-attaching a parent apart from one attaching references */
+					.withHierarchy()
 					.withReflectedReferenceToEntity(
 						REFERENCE_PRODUCTS, Entities.PRODUCT, REFERENCE_CATEGORIES,
 						whichIs -> whichIs.withAttributesInherited()
@@ -102,8 +110,16 @@ class EntityIoStatisticsFunctionalTest implements EvitaTestSupport {
 						REFERENCE_CATEGORIES, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs.indexedForFilteringAndPartitioning()
 					)
+					/* a reference back into the same collection is what lets an entity reach itself */
+					.withReferenceToEntity(
+						REFERENCE_RELATED_PRODUCTS, Entities.PRODUCT, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.indexedForFilteringAndPartitioning()
+					)
 					.updateVia(session);
 				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, CATEGORY_PK));
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, CHILD_CATEGORY_PK).setParent(CATEGORY_PK)
+				);
 			}
 		);
 	}
@@ -206,6 +222,166 @@ class EntityIoStatisticsFunctionalTest implements EvitaTestSupport {
 		return assertInstanceOf(
 			EntityFetchAwareDecorator.class, response.getRecordData().get(0)
 		).getIoFetchCount();
+	}
+
+	/**
+	 * Pins that re-attaching a parent does not lose what the referenced bodies cost.
+	 *
+	 * A decorator that narrows an entity it was handed attaches no references of its own - it exposes the ones it
+	 * inherited - so the cost of everything those reach is owed by the entity it wraps. A decorator that is *also*
+	 * handed a parent body must still inherit that, because attaching a parent says nothing about the references.
+	 * Conflating the two makes an enrichment of a hierarchical entity silently drop every referenced body, which is
+	 * the one shape the shipped datasets cannot express: their hierarchical collection has no references at all.
+	 */
+	@DisplayName("An enrichment that re-attaches a parent keeps what the referenced bodies cost")
+	@Test
+	void shouldKeepReferencedBodiesWhenAnEnrichmentReAttachesTheParent() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, PRODUCT_PK)
+						.setReference(REFERENCE_CATEGORIES, CHILD_CATEGORY_PK)
+				);
+				return null;
+			}
+		);
+
+		this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EntityContentRequire[] richness = {
+					hierarchyContent(entityFetch()),
+					referenceContent(REFERENCE_PRODUCTS, entityFetch())
+				};
+
+				final EntityFetchAwareDecorator inOneFetch = fetchChildCategoryWith(session, richness);
+				final EntityFetchAwareDecorator byEnrichment = assertInstanceOf(
+					EntityFetchAwareDecorator.class,
+					session.enrichEntity((SealedEntity) fetchChildCategoryWith(session), richness)
+				);
+
+				assertTrue(
+					inOneFetch.getIoFetchCount() > 0,
+					"Reading the parent and the referenced body has to cost something, or the parity below proves nothing."
+				);
+				assertEquals(
+					1,
+					((SealedEntity) inOneFetch).getReferences(REFERENCE_PRODUCTS).stream()
+						.filter(it -> it.getReferencedEntity().isPresent())
+						.count(),
+					"The fixture has to attach a referenced body, or the parity below proves nothing."
+				);
+				assertEquals(
+					inOneFetch.getIoFetchCount(),
+					byEnrichment.getIoFetchCount(),
+					"Reaching a richness by enrichment must cost what reaching it in one fetch costs."
+				);
+				assertEquals(
+					inOneFetch.getIoFetchedBytes(),
+					byEnrichment.getIoFetchedBytes(),
+					"Reaching a richness by enrichment must read what reaching it in one fetch reads."
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Fetches the seeded child category - the one that has both a parent and a referenced body.
+	 *
+	 * @param session      session to read through
+	 * @param requirements richness to fetch the category at
+	 * @return the entity, as the decorator that carries its I/O statistics
+	 */
+	@Nonnull
+	private static EntityFetchAwareDecorator fetchChildCategoryWith(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull EntityContentRequire... requirements
+	) {
+		final EvitaResponse<SealedEntity> response = session.querySealedEntity(
+			query(
+				collection(Entities.CATEGORY),
+				filterBy(entityPrimaryKeyInSet(CHILD_CATEGORY_PK)),
+				require(entityFetch(requirements))
+			)
+		);
+		assertEquals(1, response.getRecordData().size());
+		return assertInstanceOf(EntityFetchAwareDecorator.class, response.getRecordData().get(0));
+	}
+
+	/**
+	 * Pins that an entity reaching itself is counted once.
+	 *
+	 * The aggregate adds the owner's own parts to the parts of everything it reaches. An entity that references
+	 * itself - or a nesting that closes the loop a level further down - puts a view of the owner into the owner's
+	 * own reachable set, and the two are views of one entity rather than two entities. Summing them bills the
+	 * entity's body once for being the owner and a second time for being its own referenced entity.
+	 */
+	@DisplayName("An entity that references itself counts its own body once")
+	@Test
+	void shouldCountAnEntityReachingItselfExactlyOnce() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, PRODUCT_PK)
+						.setReference(REFERENCE_RELATED_PRODUCTS, PRODUCT_PK)
+				);
+				return null;
+			}
+		);
+
+		this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EntityFetchAwareDecorator withoutTheBody = fetchProductWith(
+					session, referenceContent(REFERENCE_RELATED_PRODUCTS)
+				);
+				final EntityFetchAwareDecorator withTheBody = fetchProductWith(
+					session, referenceContent(REFERENCE_RELATED_PRODUCTS, entityFetch())
+				);
+
+				assertTrue(
+					withoutTheBody.getIoFetchCount() > 0,
+					"Reading the entity and its reference part has to cost something, or the parity below proves nothing."
+				);
+				assertEquals(
+					withoutTheBody.getIoFetchCount(),
+					withTheBody.getIoFetchCount(),
+					"The body an entity reaches through itself is the body it already read - it costs nothing twice."
+				);
+				assertEquals(
+					withoutTheBody.getIoFetchedBytes(),
+					withTheBody.getIoFetchedBytes(),
+					"The body an entity reaches through itself reads no Bytes twice."
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Fetches the seeded product at the passed richness.
+	 *
+	 * @param session      session to read through
+	 * @param requirements richness to fetch the product at
+	 * @return the entity, as the decorator that carries its I/O statistics
+	 */
+	@Nonnull
+	private static EntityFetchAwareDecorator fetchProductWith(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull EntityContentRequire... requirements
+	) {
+		final EvitaResponse<SealedEntity> response = session.querySealedEntity(
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(entityPrimaryKeyInSet(PRODUCT_PK)),
+				require(entityFetch(requirements))
+			)
+		);
+		assertEquals(1, response.getRecordData().size());
+		return assertInstanceOf(EntityFetchAwareDecorator.class, response.getRecordData().get(0));
 	}
 
 }

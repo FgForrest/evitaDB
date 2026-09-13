@@ -163,6 +163,18 @@ public class EntityDecorator implements SealedEntity {
 	 */
 	@Nullable private List<ReferenceContract> chunkedOutReferences;
 	/**
+	 * Bodies this entity's requirements caused to be read but which no reference it exposes carries, held only until
+	 * the decorator that fetched them has taken their cost; NULL when there are none.
+	 *
+	 * Group bodies are prefetched for every reference that passed the filter, while referenced entity bodies are
+	 * prefetched only for the page that survives slicing. A group reached solely through a reference whose own body
+	 * was sliced away is therefore read - on this entity's behalf - and then exposed by nobody, so nothing walking
+	 * the exposed graph can find it. Like {@link #chunkedOutReferences} this field deliberately has **no
+	 * initialiser**: it is written from `super(...)` while the reference set is being built, and an initialiser
+	 * would run afterwards and wipe what was recorded.
+	 */
+	@Nullable private List<SealedEntity> unexposedBodies;
+	/**
 	 * Whether any reference this decorator built carries a referenced or group body.
 	 *
 	 * It is an observation rather than a prediction: {@link #fetchReference} is the single place a body is attached
@@ -768,6 +780,31 @@ public class EntityDecorator implements SealedEntity {
 	 * Releases the references reported by {@link #getChunkedOutReferences()}, which are of no use to anything but
 	 * the accounting that has just read them and would otherwise keep every body the chunk discarded alive.
 	 */
+	protected void noteUnexposedBody(@Nonnull SealedEntity body) {
+		if (this.unexposedBodies == null) {
+			this.unexposedBodies = new ArrayList<>(8);
+		}
+		this.unexposedBodies.add(body);
+	}
+
+	/**
+	 * Returns the bodies read on this entity's behalf that no reference it exposes carries.
+	 *
+	 * @return the unexposed bodies, empty when there are none
+	 */
+	@Nonnull
+	protected Collection<SealedEntity> getUnexposedBodies() {
+		return this.unexposedBodies == null ? Collections.emptyList() : this.unexposedBodies;
+	}
+
+	/**
+	 * Releases the bodies reported by {@link #getUnexposedBodies()}, which are of no use to anything but the
+	 * accounting that has just taken their cost.
+	 */
+	protected void forgetUnexposedBodies() {
+		this.unexposedBodies = null;
+	}
+
 	protected void forgetChunkedOutReferences() {
 		this.chunkedOutReferences = null;
 	}
@@ -2070,9 +2107,26 @@ public class EntityDecorator implements SealedEntity {
 		final SealedEntity referencedEntity = referenceSchema.isReferencedEntityTypeManaged() ?
 			referenceEntityFetcher.apply(reference.getReferenceKey().primaryKey()) : null;
 
-		final SealedEntity referencedGroupEntity = referenceSchema.isReferencedGroupTypeManaged() && referencedEntity != null ?
-			reference.getGroup().map(group -> referenceGroupEntityFetcher.apply(group.primaryKey())).orElse(null) :
-			null;
+		final SealedEntity referencedGroupEntity;
+		if (referenceSchema.isReferencedGroupTypeManaged()) {
+			final SealedEntity groupBody = reference.getGroup()
+				.map(group -> referenceGroupEntityFetcher.apply(group.primaryKey()))
+				.orElse(null);
+			if (referencedEntity == null) {
+				// the group was prefetched because this reference passed the filter, while the reference's own
+				// body was not because it fell outside the page. Attaching the group to a reference carrying no
+				// referenced entity would expose data the request cannot otherwise see, so it is only noted: the
+				// read happened on this entity's behalf and has to be counted exactly like a body chunking dropped
+				if (groupBody != null) {
+					noteUnexposedBody(groupBody);
+				}
+				referencedGroupEntity = null;
+			} else {
+				referencedGroupEntity = groupBody;
+			}
+		} else {
+			referencedGroupEntity = null;
+		}
 		// this is the only place a referenced or group body is ever put onto a reference, so it is the only place
 		// that can say whether this entity carries any - see #referenceBodiesAttached
 		this.referenceBodiesAttached |= referencedEntity != null || referencedGroupEntity != null;
