@@ -625,7 +625,8 @@ public class EntityDecorator implements SealedEntity {
 					index, subListEnd
 				);
 				noteUnexposedGroups(
-					referenceSchema, entityGroupFetcher, outputReferences, index, subListEnd - removedHere
+					referenceFetcher, referenceSchema, entityGroupFetcher,
+					outputReferences, index, subListEnd - removedHere
 				);
 				filteredOutReferences += removedHere;
 				index = i - filteredOutReferences;
@@ -658,7 +659,8 @@ public class EntityDecorator implements SealedEntity {
 				index, subListEnd
 			);
 			noteUnexposedGroups(
-				referenceSchema, entityGroupFetcher, outputReferences, index, subListEnd - removedHere
+				referenceFetcher, referenceSchema, entityGroupFetcher,
+				outputReferences, index, subListEnd - removedHere
 			);
 			filteredOutReferences += removedHere;
 		}
@@ -803,6 +805,8 @@ public class EntityDecorator implements SealedEntity {
 	 * nothing about what this entity caused to be read. Noting while the raw references are still being built
 	 * would bill an owner whose reference a `filterBy` excluded for a group body some other owner reached.
 	 *
+	 * @param referenceFetcher            fetcher that prefetched the bodies, asked whether it holds any group body
+	 *                                    for this reference name at all
 	 * @param referenceSchema             schema of the references in the range
 	 * @param referenceGroupEntityFetcher fetcher the group bodies were prefetched into
 	 * @param references                  the reference array being built
@@ -810,23 +814,37 @@ public class EntityDecorator implements SealedEntity {
 	 * @param toExclusive                 index just past the last surviving reference of this reference name
 	 */
 	protected void noteUnexposedGroups(
+		@Nonnull ReferenceSetFetcher referenceFetcher,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Function<Integer, SealedEntity> referenceGroupEntityFetcher,
 		@Nonnull ReferenceDecorator[] references,
 		int from,
 		int toExclusive
 	) {
-		if (!referenceSchema.isReferencedGroupTypeManaged()) {
+		// bail before the loop rather than inside it: with no group bodies prefetched - which is every
+		// `referenceContent` that asks for no `entityGroupFetch`, the commonest shape there is - the per-reference
+		// lookup below could only ever reach NULL, and the fetcher itself cannot say so (one over an empty index
+		// is indistinguishable from one over a full index that misses)
+		if (!referenceSchema.isReferencedGroupTypeManaged()
+			|| !referenceFetcher.mayCarryGroupBodies(referenceSchema)) {
 			return;
 		}
 		for (int i = from; i < toExclusive; i++) {
 			final ReferenceDecorator reference = references[i];
-			if (reference == null || reference.getReferencedEntity().isPresent()) {
+			if (reference.getReferencedEntity().isPresent()) {
+				// the group is already exposed beside its referenced entity, so the walk will find it. This test
+				// stands in for "does this reference already expose its group", which holds only while
+				// `fetchReference` attaches a group solely beside a referenced entity - should that ever change,
+				// this has to become `getGroupEntity().isPresent()` or the exposed group is noted a second time
 				continue;
 			}
-			final SealedEntity groupBody = reference.getGroup()
-				.map(group -> referenceGroupEntityFetcher.apply(group.primaryKey()))
-				.orElse(null);
+			// deliberately not `getGroup().map(...).orElse(null)`: that allocates an Optional and a capturing
+			// lambda per reference on a path taken once per reference of every fetched entity
+			final ReferenceContract.GroupEntityReference group = reference.getGroup().orElse(null);
+			if (group == null) {
+				continue;
+			}
+			final SealedEntity groupBody = referenceGroupEntityFetcher.apply(group.primaryKey());
 			if (groupBody != null) {
 				noteUnexposedBody(groupBody);
 			}

@@ -65,4 +65,13 @@ record PrefetchedEntities(
 		return this.entityGroupIndex.get(entityPrimaryKey);
 	}
 
+	/**
+	 * Tells whether any group body was prefetched at all.
+	 *
+	 * @return TRUE when the group index holds at least one body
+	 */
+	public boolean hasGroupBodies() {
+		return !this.entityGroupIndex.isEmpty();
+	}
+
 }

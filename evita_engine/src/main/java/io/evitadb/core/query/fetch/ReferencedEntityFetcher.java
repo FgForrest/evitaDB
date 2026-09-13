@@ -2526,6 +2526,17 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	}
 
 	/**
+	 * Tells whether the prefetch could have resolved a group body for the passed reference at all. It is `false`
+	 * when no group bodies were prefetched for the reference, which lets the caller skip a scan that could only
+	 * find nothing. Requires a preceding `initReferenceIndex` call - fails with
+	 * {@link GenericEvitaInternalError} otherwise.
+	 */
+	@Override
+	public boolean mayCarryGroupBodies(@Nonnull ReferenceSchemaContract referenceSchema) {
+		return requireFetchedEntities().mayCarryGroupBodies(referenceSchema);
+	}
+
+	/**
 	 * Returns the comparator ordering the references of the passed reference schema, or `null` when the reference was
 	 * not prefetched at all or no ordering was requested for it. Requires a preceding `initReferenceIndex` call -
 	 * fails with {@link GenericEvitaInternalError} otherwise.

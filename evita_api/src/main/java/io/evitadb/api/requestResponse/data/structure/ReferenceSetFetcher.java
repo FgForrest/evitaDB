@@ -85,6 +85,20 @@ public interface ReferenceSetFetcher {
 	Function<Integer, SealedEntity> getEntityGroupFetcher(@Nonnull ReferenceSchemaContract referenceSchema);
 
 	/**
+	 * Tells whether this fetcher prefetched any group body for the passed reference at all.
+	 *
+	 * Answering FALSE lets a caller skip a per-reference lookup that could only ever return NULL - the group
+	 * fetcher itself cannot be asked, because one over an empty index is indistinguishable from one over a full
+	 * index that happens to miss. The default is the safe answer for a fetcher that does not know.
+	 *
+	 * @param referenceSchema the reference schema being fetched
+	 * @return FALSE only when it is certain no group body was prefetched for this reference
+	 */
+	default boolean mayCarryGroupBodies(@Nonnull ReferenceSchemaContract referenceSchema) {
+		return true;
+	}
+
+	/**
 	 * Creates a comparator that orders the references according to requirements.
 	 * The comparator is created during `initReferenceIndex` methods invocation, and takes advantage of the indexes.
 	 *
