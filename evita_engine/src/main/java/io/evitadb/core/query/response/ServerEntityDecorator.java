@@ -110,6 +110,12 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 * neither statistic can legitimately be negative.
 	 */
 	private static final int NOT_RESOLVED = -1;
+	/**
+	 * Sentinel telling {@link #resolvedOwnReadRecords} apart from a chain that resolved to no identities at all.
+	 * Distinct from {@link ReadRecord#NONE} by identity on purpose: "resolved to nothing" and "cannot be resolved"
+	 * lead to opposite accounting, the first to a union and the second to the summed-ints fall-back.
+	 */
+	private static final ReadRecord[] UNIDENTIFIED_READ_RECORDS = new ReadRecord[0];
 
 	/**
 	 * The count of I/O fetches used to load this entity from underlying storage, **excluding** those its
@@ -174,8 +180,13 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 * Every entity this one reaches through the bodies it exposes, keyed by the entity it is and mapped to what
 	 * that entity's **own** storage parts cost, memoized on the first ask; NULL until then. See
 	 * {@link #reachableBodies()}.
+	 *
+	 * `volatile` because the memoized value is a map rather than an `int`: a reader seeing the reference before the
+	 * map's own contents would iterate an empty or half-filled table and memoize a too-small aggregate, and unlike
+	 * the `int` memos nothing would ever recompute it - the reference is already non-null. A shared referenced body
+	 * is exactly the object several owners resolve at once.
 	 */
-	@Nullable private Map<BodyKey, BodyCost> resolvedReachableBodies;
+	@Nullable private volatile Map<BodyKey, BodyCost> resolvedReachableBodies;
 	/**
 	 * Identities of the records **this** decorator's own composition read, or NULL when the caller did not carry
 	 * them. A decorator that read nothing needs none, which is why NULL alone does not mean "unknown" - see
@@ -184,14 +195,15 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	@Nullable private final ReadRecord[] ownReadRecords;
 	/**
 	 * {@link #ownReadRecords} de-duplicated along the {@link #deferredIoStatisticsSource} chain, resolved on the
-	 * first ask; NULL when the chain does not carry them for every link that read something.
+	 * first ask; NULL until then, {@link #UNIDENTIFIED_READ_RECORDS} once the chain turns out not to carry them for
+	 * every link that read something.
+	 *
+	 * One field carrying both facts, rather than a value beside a `resolved` flag, and `volatile` rather than plain.
+	 * "Resolved" and "unidentified" are both legitimate outcomes here, so a reader that saw the flag set before the
+	 * value it guards would read a torn state as the real answer and memoize the summed-ints fall-back for good -
+	 * a permanently wrong number rather than the benign repeated computation the `int` memos risk.
 	 */
-	@Nullable private ReadRecord[] resolvedOwnReadRecords;
-	/**
-	 * Whether {@link #resolvedOwnReadRecords} has been resolved - it resolves legitimately to NULL, so the field
-	 * alone cannot say.
-	 */
-	private boolean ownReadRecordsResolved;
+	@Nullable private volatile ReadRecord[] resolvedOwnReadRecords;
 	/**
 	 * Whether this decorator attached the bodies it exposes rather than inheriting them from the one it wraps.
 	 *
@@ -413,6 +425,12 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 			dropped = collectReferenceBodies(dropped, chunkedOut);
 		}
 		forgetChunkedOutReferences();
+		// groups read for references whose own body the slicing dropped are carried by no reference at all - see
+		// EntityDecorator#getUnexposedBodies
+		for (SealedEntity unexposed : getUnexposedBodies()) {
+			dropped = collectBody(dropped, unexposed);
+		}
+		forgetUnexposedBodies();
 		this.chunkedOutBodies = dropped;
 		this.catalogId = entity.catalogId;
 		this.catalogVersion = entity.catalogVersion;
@@ -743,14 +761,24 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 */
 	private void resolveDeferredIoStatistics() {
 		if (this.resolvedIoFetchCount == NOT_RESOLVED || this.resolvedIoFetchedBytes == NOT_RESOLVED) {
+			final BodyKey ownKey = new BodyKey(getType(), getPrimaryKeyOrThrowException());
+			BodyCost own = BodyCost.of(this);
 			int attachedFetchCount = 0;
 			int attachedFetchedBytes = 0;
-			for (BodyCost attachedBody : reachableBodies().values()) {
-				attachedFetchCount += attachedBody.ioFetchCount();
-				attachedFetchedBytes += attachedBody.ioFetchedBytes();
+			for (Entry<BodyKey, BodyCost> attachedBody : reachableBodies().entrySet()) {
+				if (ownKey.equals(attachedBody.getKey())) {
+					// this entity reached itself - a reference pointing back at its owner, or a nesting that
+					// closes the loop a level further down. The two views are views of one entity, so what they
+					// read is one set: adding the reached view on top of the own half would bill this entity's
+					// body once for being the owner and once again for being its own referenced entity
+					own = BodyCost.combine(own, attachedBody.getValue());
+				} else {
+					attachedFetchCount += attachedBody.getValue().ioFetchCount();
+					attachedFetchedBytes += attachedBody.getValue().ioFetchedBytes();
+				}
 			}
-			this.resolvedIoFetchCount = ownIoFetchCount() + attachedFetchCount;
-			this.resolvedIoFetchedBytes = ownIoFetchedBytes() + attachedFetchedBytes;
+			this.resolvedIoFetchCount = own.ioFetchCount() + attachedFetchCount;
+			this.resolvedIoFetchedBytes = own.ioFetchedBytes() + attachedFetchedBytes;
 		}
 	}
 
@@ -809,7 +837,8 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 */
 	@Nullable
 	private ReadRecord[] ownReadRecords() {
-		if (!this.ownReadRecordsResolved) {
+		ReadRecord[] resolved = this.resolvedOwnReadRecords;
+		if (resolved == null) {
 			LinkedHashSet<ReadRecord> collected = null;
 			boolean identified = true;
 			for (ServerEntityDecorator link = this; link != null; link = link.deferredIoStatisticsSource) {
@@ -827,12 +856,12 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 					Collections.addAll(collected, link.ownReadRecords);
 				}
 			}
-			this.resolvedOwnReadRecords = !identified ?
-				null :
+			resolved = !identified ?
+				UNIDENTIFIED_READ_RECORDS :
 				(collected == null ? ReadRecord.NONE : collected.toArray(ReadRecord[]::new));
-			this.ownReadRecordsResolved = true;
+			this.resolvedOwnReadRecords = resolved;
 		}
-		return this.resolvedOwnReadRecords;
+		return resolved == UNIDENTIFIED_READ_RECORDS ? null : resolved;
 	}
 
 	/**
@@ -871,8 +900,11 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 * group body; a named set and the ordinary set reach the same referenced entity through separate prefetch
 	 * indexes; and an enrichment re-wraps a body it reused rather than reading it again. The same entity therefore
 	 * arrives here as several distinct objects, which object identity cannot collapse. Where two views of one
-	 * entity account for different amounts, because they were fetched under different requirements, the larger is
-	 * kept: this entity needed everything the richer view had to read.
+	 * entity account for different amounts, because they were fetched under different requirements, their records
+	 * are **united**: this entity needed everything either view had to read, and neither summing (which bills the
+	 * body both views share twice) nor taking the larger (which drops what the smaller view alone read) says that.
+	 * Only where a view carries no record identities at all does the larger of the two stand in - see
+	 * {@link BodyCost#combine(BodyCost, BodyCost)}.
 	 *
 	 * The map is memoized per decorator, which is what keeps the transitive walk affordable: a body shared by every
 	 * entity of a page resolves its own reachable set once, and every owner merges the finished map.
@@ -881,14 +913,16 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 */
 	@Nonnull
 	private Map<BodyKey, BodyCost> reachableBodies() {
-		if (this.resolvedReachableBodies == null) {
+		Map<BodyKey, BodyCost> resolved = this.resolvedReachableBodies;
+		if (resolved == null) {
 			final ServerEntityDecorator source = this.deferredIoStatisticsSource;
 			if (!this.attachesBodies && source != null) {
 				// this decorator put nothing in place; it re-applied predicates over bodies that were already
 				// there, so what it reaches is what the decorator it wraps reaches - and deriving that again here
 				// would make every getter walk, and materialize, a reference set somebody else has already walked
-				this.resolvedReachableBodies = source.reachableBodies();
-				return this.resolvedReachableBodies;
+				resolved = source.reachableBodies();
+				this.resolvedReachableBodies = resolved;
+				return resolved;
 			}
 			// a decorator that built its own references knows whether any of them carries a body; when none does,
 			// there is nothing for the reference walk below to find and every reference it would materialize to
@@ -916,9 +950,12 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 					}
 				}
 			}
-			this.resolvedReachableBodies = bodies == null ? Collections.emptyMap() : bodies;
+			// unmodifiable because the fast path above shares this very map by reference with every decorator
+			// wrapping this one
+			resolved = bodies == null ? Collections.emptyMap() : Collections.unmodifiableMap(bodies);
+			this.resolvedReachableBodies = resolved;
 		}
-		return this.resolvedReachableBodies;
+		return resolved;
 	}
 
 	/**

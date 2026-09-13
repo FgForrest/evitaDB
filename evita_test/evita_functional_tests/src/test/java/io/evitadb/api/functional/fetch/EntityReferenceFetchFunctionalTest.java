@@ -1958,4 +1958,104 @@ class EntityReferenceFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 		);
 	}
 
+	/**
+	 * Pins that the groups read for references the page sliced away are counted.
+	 *
+	 * When a paged `referenceContent` carries no ordering, the engine slices the reference set **before** fetching
+	 * and reads only the page's referenced entity bodies - so the paged arm legitimately costs less than the
+	 * unpaged one. The group bodies are the exception: `BitmapSlicer#getGroupIds` returns the groups of the whole
+	 * filtered set whichever slicing path ran, so every filtered reference's group is read regardless of the page.
+	 * A group reached solely through a reference the page dropped is then carried by no reference at all - the
+	 * reference that would have carried it has no referenced entity, and a group is only ever attached beside one -
+	 * so nothing walking the exposed graph can find it. Isolating the group half of the cost is what makes the two
+	 * arms comparable: the entity bodies differ between them by design, the groups must not.
+	 */
+	@DisplayName("Should count group bodies read for references the page sliced away")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldCountGroupBodiesReadForReferencesThePageSlicedAway(Evita evita, List<SealedEntity> originalProducts) {
+		final int pageSize = 1;
+		// several distinct groups are required, or the page's own group is the whole set and nothing is dropped
+		final int productPk = productMatching(
+			originalProducts,
+			it -> it.getReferences(Entities.PARAMETER).size() > pageSize &&
+				it.getReferences(Entities.PARAMETER).stream().allMatch(ref -> ref.getGroup().isPresent()) &&
+				it.getReferences(Entities.PARAMETER).stream()
+					.map(ref -> ref.getGroup().orElseThrow().primaryKey())
+					.distinct()
+					.count() > 1,
+			"a product whose parameter references span several groups and outnumber one page"
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final ServerEntityDecorator wholeSetWithGroups = fetchPagedParameters(session, productPk, null, true);
+				final ServerEntityDecorator wholeSetBare = fetchPagedParameters(session, productPk, null, false);
+				final ServerEntityDecorator onePageWithGroups = fetchPagedParameters(session, productPk, pageSize, true);
+				final ServerEntityDecorator onePageBare = fetchPagedParameters(session, productPk, pageSize, false);
+
+				assertEquals(
+					pageSize, onePageWithGroups.getReferences(Entities.PARAMETER).size(),
+					"The paged arm must expose one reference, or it drops nothing."
+				);
+
+				final int groupCostWholeSet = wholeSetWithGroups.getIoFetchCount() - wholeSetBare.getIoFetchCount();
+				final int groupCostOnePage = onePageWithGroups.getIoFetchCount() - onePageBare.getIoFetchCount();
+				assertTrue(
+					groupCostWholeSet > 1,
+					"The whole set has to read more than one group body, or the arms cannot differ."
+				);
+				assertEquals(
+					groupCostWholeSet, groupCostOnePage,
+					"Every filtered reference's group is read whatever the page shows, so the page must not change what the groups cost."
+				);
+				assertEquals(
+					wholeSetWithGroups.getIoFetchedBytes() - wholeSetBare.getIoFetchedBytes(),
+					onePageWithGroups.getIoFetchedBytes() - onePageBare.getIoFetchedBytes(),
+					"Every filtered reference's group is read whatever the page shows, so the page must not change what the groups read."
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Fetches the product's parameter references, optionally paged and optionally with the group bodies, and
+	 * deliberately **without** an ordering so the order-free pre-fetch slice engages.
+	 *
+	 * @param session         session to query through
+	 * @param primaryKey      primary key of the product to fetch
+	 * @param pageSize        size of the requested page, or NULL for the whole set
+	 * @param withGroupBodies whether the group bodies are to be materialized
+	 * @return the entity, as the decorator that carries its I/O statistics
+	 */
+	@Nonnull
+	private static ServerEntityDecorator fetchPagedParameters(
+		@Nonnull EvitaSessionContract session,
+		int primaryKey,
+		@Nullable Integer pageSize,
+		boolean withGroupBodies
+	) {
+		final EvitaResponse<SealedEntity> response = session.querySealedEntity(
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(entityPrimaryKeyInSet(primaryKey)),
+				require(
+					entityFetch(
+						referenceContent(
+							Entities.PARAMETER,
+							(io.evitadb.api.query.order.OrderBy) null,
+							entityFetchAll(),
+							withGroupBodies ? entityGroupFetchAll() : (io.evitadb.api.query.require.EntityGroupFetch) null,
+							pageSize == null ? null : page(1, pageSize)
+						)
+					)
+				)
+			)
+		);
+		assertEquals(1, response.getRecordData().size());
+		return assertInstanceOf(ServerEntityDecorator.class, response.getRecordData().get(0));
+	}
+
 }
