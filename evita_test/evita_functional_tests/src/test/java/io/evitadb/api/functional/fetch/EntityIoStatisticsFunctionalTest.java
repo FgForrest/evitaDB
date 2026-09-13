@@ -79,6 +79,7 @@ class EntityIoStatisticsFunctionalTest implements EvitaTestSupport {
 	private static final String REFERENCE_RELATED_PRODUCTS = "relatedProducts";
 	private static final int CATEGORY_PK = 1;
 	private static final int CHILD_CATEGORY_PK = 2;
+	private static final int GRANDCHILD_CATEGORY_PK = 3;
 	private static final int PRODUCT_PK = 1;
 
 	private TestPaths paths;
@@ -119,6 +120,11 @@ class EntityIoStatisticsFunctionalTest implements EvitaTestSupport {
 				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, CATEGORY_PK));
 				session.upsertEntity(
 					session.createNewEntity(Entities.CATEGORY, CHILD_CATEGORY_PK).setParent(CATEGORY_PK)
+				);
+				// a third level is required to exercise a chain link that is neither the leaf nor the root: only
+				// such a link is re-wrapped with a parent that is itself a body
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, GRANDCHILD_CATEGORY_PK).setParent(CHILD_CATEGORY_PK)
 				);
 			}
 		);
@@ -377,6 +383,80 @@ class EntityIoStatisticsFunctionalTest implements EvitaTestSupport {
 			query(
 				collection(Entities.PRODUCT),
 				filterBy(entityPrimaryKeyInSet(PRODUCT_PK)),
+				require(entityFetch(requirements))
+			)
+		);
+		assertEquals(1, response.getRecordData().size());
+		return assertInstanceOf(EntityFetchAwareDecorator.class, response.getRecordData().get(0));
+	}
+
+	/**
+	 * Pins that a parent-chain link between the leaf and the root keeps what its own referenced bodies cost.
+	 *
+	 * `ReferencedEntityFetcher#replaceWithSealedEntities` re-wraps every link of a resolved parent chain, handing
+	 * each one the link above it as its parent. The root receives `CONCEALED_ENTITY`, which is no body, so the root
+	 * link inherits what it reaches from the decorator it wraps. Every link **between** the leaf and the root
+	 * receives a real body instead - and a decorator that is handed a parent body derives its reachable set rather
+	 * than inheriting it, while the flag saying whether its references carry bodies belongs to whoever attached
+	 * them and is not carried across the re-wrap. A chain exactly two links deep never shows this, because its only
+	 * link is the root; three levels are the shallowest chain that has a middle.
+	 */
+	@DisplayName("A parent chain link between the leaf and the root keeps its own referenced bodies")
+	@Test
+	void shouldKeepTheReferencedBodiesOfAParentChainLink() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// the middle link is the one that carries a referenced body
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, PRODUCT_PK)
+						.setReference(REFERENCE_CATEGORIES, CHILD_CATEGORY_PK)
+				);
+				return null;
+			}
+		);
+
+		this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// both arms read the middle link's reference part; only the richer one reads the product body
+				final EntityFetchAwareDecorator withoutBodies = fetchGrandchildCategoryWith(
+					session, hierarchyContent(entityFetch(referenceContent(REFERENCE_PRODUCTS)))
+				);
+				final EntityFetchAwareDecorator withBodies = fetchGrandchildCategoryWith(
+					session, hierarchyContent(entityFetch(referenceContent(REFERENCE_PRODUCTS, entityFetch())))
+				);
+
+				assertTrue(
+					withoutBodies.getIoFetchCount() > 0,
+					"Reading the chain has to cost something, or the difference below proves nothing."
+				);
+				assertEquals(
+					1,
+					withBodies.getIoFetchCount() - withoutBodies.getIoFetchCount(),
+					"The body a chain link references is read on the leaf's behalf and has to be counted."
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Fetches the deepest seeded category - the leaf of a three-level chain.
+	 *
+	 * @param session      session to read through
+	 * @param requirements richness to fetch the category at
+	 * @return the entity, as the decorator that carries its I/O statistics
+	 */
+	@Nonnull
+	private static EntityFetchAwareDecorator fetchGrandchildCategoryWith(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull EntityContentRequire... requirements
+	) {
+		final EvitaResponse<SealedEntity> response = session.querySealedEntity(
+			query(
+				collection(Entities.CATEGORY),
+				filterBy(entityPrimaryKeyInSet(GRANDCHILD_CATEGORY_PK)),
 				require(entityFetch(requirements))
 			)
 		);

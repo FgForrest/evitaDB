@@ -2114,4 +2114,128 @@ class EntityReferenceFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 		return assertInstanceOf(ServerEntityDecorator.class, response.getRecordData().get(0));
 	}
 
+	/**
+	 * Pins that an entity is not billed for a group body only its page-mate reached.
+	 *
+	 * One group prefetch index serves every owner entity in the batch, while which references a given owner keeps
+	 * is decided per owner by the reference `filterBy`. An owner whose own reference to a group was filtered away
+	 * caused none of that group's read - its page-mate did - so the owner's standalone cost must be exactly what it
+	 * is when that page-mate is not in the query at all.
+	 */
+	@DisplayName("Should not bill an entity for a group only its page-mate reached")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldNotBillAnEntityForAGroupOnlyItsPageMateReached(Evita evita, List<SealedEntity> originalProducts) {
+		Integer excludedOwnerPk = null;
+		Integer mateOwnerPk = null;
+		Integer keptParameterPk = null;
+
+		// two products sharing a parameter group, through parameters that are not the same parameter: the filter
+		// below keeps the mate's parameter, so the shared group enters the index without the other owner's doing
+		outer:
+		for (SealedEntity candidate : originalProducts) {
+			final Collection<ReferenceContract> candidateRefs = candidate.getReferences(Entities.PARAMETER);
+			final Set<Integer> ownParameters = candidateRefs.stream()
+				.map(it -> it.getReferenceKey().primaryKey())
+				.collect(Collectors.toSet());
+			final Set<Integer> ownGroups = candidateRefs.stream()
+				.filter(it -> it.getGroup().isPresent())
+				.map(it -> it.getGroup().orElseThrow().primaryKey())
+				.collect(Collectors.toSet());
+			if (ownGroups.isEmpty()) {
+				continue;
+			}
+			for (SealedEntity mate : originalProducts) {
+				if (mate.getPrimaryKeyOrThrowException() == candidate.getPrimaryKeyOrThrowException()) {
+					continue;
+				}
+				for (ReferenceContract mateRef : mate.getReferences(Entities.PARAMETER)) {
+					final int mateParameter = mateRef.getReferenceKey().primaryKey();
+					if (ownParameters.contains(mateParameter) || mateRef.getGroup().isEmpty()) {
+						continue;
+					}
+					if (ownGroups.contains(mateRef.getGroup().orElseThrow().primaryKey())) {
+						excludedOwnerPk = candidate.getPrimaryKeyOrThrowException();
+						mateOwnerPk = mate.getPrimaryKeyOrThrowException();
+						keptParameterPk = mateParameter;
+						break outer;
+					}
+				}
+			}
+		}
+		assertNotNull(
+			excludedOwnerPk,
+			"the dataset must hold two products reaching one parameter group through different parameters"
+		);
+
+		final int excludedOwner = excludedOwnerPk;
+		final int mateOwner = mateOwnerPk;
+		final int keptParameter = keptParameterPk;
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final ServerEntityDecorator alone = productFromBatch(
+					session, new int[]{excludedOwner}, keptParameter, excludedOwner
+				);
+				final ServerEntityDecorator besideItsMate = productFromBatch(
+					session, new int[]{excludedOwner, mateOwner}, keptParameter, excludedOwner
+				);
+
+				assertEquals(
+					alone.getIoFetchCount(),
+					besideItsMate.getIoFetchCount(),
+					"A group its page-mate reached is not this entity's cost."
+				);
+				assertEquals(
+					alone.getIoFetchedBytes(),
+					besideItsMate.getIoFetchedBytes(),
+					"A group its page-mate reached is not this entity's read."
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Queries the passed products together, keeping only the named parameter on every one of them, and returns the
+	 * one asked for.
+	 *
+	 * @param session         session to query through
+	 * @param primaryKeys     products to put in one batch
+	 * @param keptParameterPk the only parameter the reference filter keeps
+	 * @param wantedPk        primary key of the product to return
+	 * @return the wanted entity, as the decorator that carries its I/O statistics
+	 */
+	@Nonnull
+	private static ServerEntityDecorator productFromBatch(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull int[] primaryKeys,
+		int keptParameterPk,
+		int wantedPk
+	) {
+		final EvitaResponse<SealedEntity> response = session.querySealedEntity(
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(entityPrimaryKeyInSet(primaryKeys)),
+				require(
+					entityFetch(
+						referenceContent(
+							Entities.PARAMETER,
+							filterBy(entityHaving(entityPrimaryKeyInSet(keptParameterPk))),
+							entityFetch(attributeContent()),
+							entityGroupFetch(attributeContent())
+						)
+					),
+					page(1, Integer.MAX_VALUE)
+				)
+			)
+		);
+		return response.getRecordData().stream()
+			.filter(it -> it.getPrimaryKeyOrThrowException() == wantedPk)
+			.findFirst()
+			.map(it -> assertInstanceOf(ServerEntityDecorator.class, it))
+			.orElseThrow(() -> new AssertionError("product " + wantedPk + " missing from the response"));
+	}
+
 }

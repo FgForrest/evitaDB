@@ -235,6 +235,12 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 * pipeline wraps every entity several times over (limit, enrich, decorate), so the walk was repeated once per
 	 * wrapping rather than once per entity. Deferring it means an entity nobody asks about pays nothing, and the
 	 * response-level aggregate walks the graph once.
+	 *
+	 * The `decorate` factories assign this **after** the constructor returns, so no statistic may be resolved in
+	 * between: {@link #ownReadRecords()} and {@link #reachableBodies()} memoize permanently, and one resolved
+	 * while this is still NULL would pin a source-less answer for the decorator's whole life. This field is safe
+	 * unsynchronized only because it is written before the decorator escapes - not by the argument that made those
+	 * two memos `volatile`.
 	 */
 	@Nullable private ServerEntityDecorator deferredIoStatisticsSource;
 	/**
@@ -633,6 +639,11 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 							referenceFilter,
 							fetchedReferenceComparator,
 							0, size
+						);
+						// only the references this entity kept - the group prefetch index is shared by the whole
+						// batch, so a reference a filterBy excluded says nothing about what this entity read
+						noteUnexposedGroups(
+							referenceSchema, entityGroupFetcher, outputReferences, 0, size - filteredOutReferences
 						);
 						final List<ReferenceContract> namedReferences = Arrays.asList(
 							Arrays.copyOf(outputReferences, size - filteredOutReferences)

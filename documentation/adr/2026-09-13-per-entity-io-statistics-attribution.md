@@ -1,7 +1,7 @@
 ---
 title: Define the per-entity I/O statistic as standalone cost and attribute it at the read, not by walking the returned object graph
 date: 2026-09-13
-updated: 2026-09-13 12:10
+updated: 2026-09-13 12:40
 status: accepted
 kind: refactor
 issues: [1547, 1561, 1562, 1563, 1564, 1565, 1566, 1567]
@@ -211,9 +211,17 @@ That is the trigger for an ADR superseding this one.
   filtered set whichever slicing path ran, whereas referenced entity bodies are prefetched only for
   the page that survives an order-free slice. A group reached solely through a reference the page
   sliced away is therefore read and then carried by nothing, and no walk of the exposed graph can
-  find it. `EntityDecorator#getUnexposedBodies()` carries exactly those, noted by `fetchReference`
-  at the one point the group is resolved and released by the fetch constructor that accounts for
-  them, on the same terms as `getChunkedOutReferences()`.
+  find it. `EntityDecorator#getUnexposedBodies()` carries exactly those, released by the fetch
+  constructor that accounts for them, on the same terms as `getChunkedOutReferences()`.
+- **Ordering constraint on the above, and the reason `noteUnexposedGroups` sits where it does:** one
+  group prefetch index serves **every owner entity in the batch** (`createPrefetchedEntities` takes
+  the whole `entityPrimaryKey` map), while which references a given owner keeps is decided per owner
+  by the reference `filterBy`. The note must therefore run **after** `sortAndFilterSubList`, over the
+  survivors, and never while the raw references are being built: a lookup in a batch-global index
+  says only that *somebody* caused the read. Noting during `fetchReference` bills an owner whose
+  reference a `filterBy` excluded for a group its page-mate reached — `expected: <2> but was: <4>`,
+  pinned by
+  `EntityReferenceFetchFunctionalTest#shouldNotBillAnEntityForAGroupOnlyItsPageMateReached`.
 - **Trap:** an entity can appear in its **own** reachable set — a reference pointing back at its
   owner, or a nesting that closes the loop a level further down. The aggregate is therefore not
   `own + Σ reachable`: the self-entry is a second *view of the same entity*, so it is united into the
@@ -223,7 +231,10 @@ That is the trigger for an ADR superseding this one.
   `resolvedReachableBodies` — are `volatile`, and the first carries its "cannot be identified"
   answer as a sentinel rather than a companion flag. Unlike the `int` memos, whose only risk is a
   duplicated computation, these resolve to values a torn read cannot be told apart from a real
-  answer, and would memoize a wrong number permanently. Do not relax either to a plain field.
+  answer, and would memoize a wrong number permanently. Do not relax either to a plain field. The
+  other fields the same computation reads — `chunkedOutBodies`, `namedReferenceSets`,
+  `deferredIoStatisticsSource` — are safe unsynchronized only because each is written before the
+  decorator escapes; making any of them lazy needs the same treatment as the two memos.
 - **Invariant a future change must preserve:** a decorator that only narrows or re-wraps an entity
   performs no read and must contribute nothing beyond what the entity it wraps already counts.
   Three mechanisms tried to *detect* such a decorator after the fact and all three failed; keying on
@@ -234,6 +245,14 @@ That is the trigger for an ADR superseding this one.
   chain silently; `attachesBodies` accounts for both, and
   `EntityHierarchyFetchFunctionalTest#shouldCountTheIoStatisticsOfARequestedParentChainExactlyOnce`
   is what catches it (`expected: <2> but was: <0>`).
+- **Trap, the other half of the same flag:** `attachesBodies` is true for a decorator handed a
+  parent body as well as for the one that ran the fetcher, and such a decorator therefore neither
+  inherits its source's reachable set nor — unless `areReferenceBodiesAttached()` says so — walks its
+  own references. The flag must therefore travel with the **reference set**: `EntityDecorator`'s copy
+  constructor takes over `filteredReferences` bodies and all, so it takes over
+  `referenceBodiesAttached` with them. Without that, every parent-chain link between the leaf and the
+  root loses the cost of everything it references — the root is safe only because it is handed
+  `CONCEALED_ENTITY`, which is no body, so **a two-level hierarchy cannot show this at all**.
 
 ## Verification
 
@@ -249,6 +268,8 @@ Acceptance criteria for the whole line of work, and where each one stands.
 | an entity that reaches itself counts its own body once | **met** | `EntityIoStatisticsFunctionalTest#shouldCountAnEntityReachingItselfExactlyOnce` — 3 without the union, 2 with it |
 | a page does not change what the groups cost | **met** | `EntityReferenceFetchFunctionalTest#shouldCountGroupBodiesReadForReferencesThePageSlicedAway` — 4 of 36 group reads counted before the fix |
 | a hierarchical entity's referenced bodies survive an enrichment | **met** | `EntityIoStatisticsFunctionalTest#shouldKeepReferencedBodiesWhenAnEnrichmentReAttachesTheParent` — the shipped datasets have no hierarchical collection carrying references, so this shape had no coverage at all |
+| a page-mate does not change what an entity cost, through a shared group index | **met** | `EntityReferenceFetchFunctionalTest#shouldNotBillAnEntityForAGroupOnlyItsPageMateReached` — 4 against 2 before the fix |
+| a parent-chain link keeps what its own referenced bodies cost | **met** | `EntityIoStatisticsFunctionalTest#shouldKeepTheReferencedBodiesOfAParentChainLink` — 0 of 1 counted before the fix; needs a **three**-level chain, a two-level one passes regardless |
 | a descendant reachable through two bodies contributes once, not once per path | **met** | `EntityReferenceFetchFunctionalTest#shouldCountABodyTwoReferencedBodiesShareExactlyOnce` (#1567) |
 | an over-fetching reference fetch reports all N candidates, not the K it exposes | **met** | `EntityReferenceFetchFunctionalTest#shouldCountBodiesTheRequestedPageDropped` (#1561) |
 | two disjoint views of one entity report their union | **met** | `EntityReferenceFetchFunctionalTest#shouldCountTheUnionOfTwoDisjointViewsOfOneReferencedEntity` (#1566) |
