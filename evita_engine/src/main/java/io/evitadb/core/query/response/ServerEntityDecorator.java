@@ -56,10 +56,13 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
@@ -144,15 +147,26 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 */
 	@Nullable private final UUID catalogId;
 	/**
-	 * {@link #ioFetchCount} completed with the aggregate the {@link #deferredIoStatisticsSource} owes, memoized on
-	 * the first ask; {@link #NOT_RESOLVED} until then.
+	 * {@link #ioFetchCount} completed with the whole of {@link #attachedBodies()}, memoized on the first ask;
+	 * {@link #NOT_RESOLVED} until then. This is what {@link #getIoFetchCount()} answers.
 	 */
 	private int resolvedIoFetchCount = NOT_RESOLVED;
 	/**
-	 * {@link #ioFetchedBytes} completed with the aggregate the {@link #deferredIoStatisticsSource} owes, memoized on
-	 * the first ask; {@link #NOT_RESOLVED} until then.
+	 * {@link #ioFetchedBytes} completed with the whole of {@link #attachedBodies()}, memoized on the first ask;
+	 * {@link #NOT_RESOLVED} until then. This is what {@link #getIoFetchedBytes()} answers.
 	 */
 	private int resolvedIoFetchedBytes = NOT_RESOLVED;
+	/**
+	 * {@link #ioFetchCount} summed along the {@link #deferredIoStatisticsSource} chain and **excluding** every
+	 * attached body, memoized on the first ask; {@link #NOT_RESOLVED} until then. See
+	 * {@link #resolveDeferredIoStatistics()} for why the two halves are kept apart.
+	 */
+	private int resolvedOwnIoFetchCount = NOT_RESOLVED;
+	/**
+	 * {@link #ioFetchedBytes} summed along the {@link #deferredIoStatisticsSource} chain and **excluding** every
+	 * attached body, memoized on the first ask; {@link #NOT_RESOLVED} until then.
+	 */
+	private int resolvedOwnIoFetchedBytes = NOT_RESOLVED;
 	/**
 	 * Decorator this one wraps, whose aggregated I/O statistics form the base of this decorator's own. NULL for
 	 * a decorator that was handed its statistics directly; otherwise it stays in place for the decorator's whole life,
@@ -609,60 +623,155 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	}
 
 	/**
-	 * Completes this decorator's own I/O statistics with the aggregate of the decorator it wraps, memoizing the
-	 * result. A decorator produced by an enrichment step carries the reads that step performed itself, while the
-	 * reads that produced its input are still owed by the input decorator - resolving them here, and only here, is
-	 * what keeps the whole chain lazy.
+	 * Completes this decorator's own I/O statistics with everything else the request had to read to produce the data
+	 * this decorator exposes, memoizing the result.
 	 *
-	 * The memo is **computed and assigned**, never accumulated into the decorator's own numbers, and the source is
-	 * deliberately left in place. Both getters are public and reachable from response serialization, traffic
-	 * recording and the metric events at once, and an accumulation guarded only by nulling the source doubles the
-	 * entity's statistics permanently whenever two of them interleave. Assignment makes a duplicated resolution
-	 * recompute the identical value instead, which is the benign race this used to have - the memos need no
-	 * publication guarantee because a thread that misses one simply computes it again.
+	 * The statistic is split in two halves that are resolved by different rules, because they are owed by different
+	 * decorators:
+	 *
+	 * - the **own** half is every read that produced this entity's own storage parts - body, attributes, associated
+	 *   data, prices, references. The fetch pipeline wraps an entity several times over (limit, enrich, decorate) and
+	 *   each step contributes the reads it performed itself, so this half is simply summed along the
+	 *   {@link #deferredIoStatisticsSource} chain by {@link #ownIoFetchCount()};
+	 * - the **attached** half is every read that produced a body hanging off this entity - a parent in the chain
+	 *   `hierarchyContent` asked for, a referenced or group entity a `referenceContent` asked for, in the ordinary
+	 *   reference set or in a named one. These are counted by walking what this decorator actually carries, in
+	 *   {@link #attachedBodies()}.
+	 *
+	 * Keeping them apart is what makes the arithmetic hold across enrichment. An enrichment reuses the bodies its
+	 * input already resolved and re-attaches them to the decorator it produces, so the same bodies are reachable
+	 * from both ends of the chain - and a scheme that lets the source contribute its attached bodies too counts them
+	 * twice. Ownership is therefore never inferred from the source, neither by comparing instances (a re-wrapped
+	 * body is a different instance carrying the same reads) nor by a flag on the decorator that attached them
+	 * (the decorator above it is handed them just the same): whoever exposes a body counts it, and the chain
+	 * contributes nothing but its own reads.
+	 *
+	 * The memo is **computed and assigned**, never accumulated into the decorator's own numbers. Both getters are
+	 * public and reachable from response serialization, traffic recording and the metric events at once, and an
+	 * accumulation doubles the entity's statistics permanently whenever two of them interleave. Assignment makes
+	 * a duplicated resolution recompute the identical value instead, which is the benign race this used to have -
+	 * the memos need no publication guarantee because a thread that misses one simply computes it again.
 	 */
 	private void resolveDeferredIoStatistics() {
-		final ServerEntityDecorator source = this.deferredIoStatisticsSource;
-		final ServerEntityDecorator ownParent = unreportedParentBody();
-		if (this.resolvedIoFetchCount == NOT_RESOLVED) {
-			this.resolvedIoFetchCount = this.ioFetchCount +
-				(source == null ? 0 : source.getIoFetchCount()) +
-				(ownParent == null ? 0 : ownParent.getIoFetchCount());
-		}
-		if (this.resolvedIoFetchedBytes == NOT_RESOLVED) {
-			this.resolvedIoFetchedBytes = this.ioFetchedBytes +
-				(source == null ? 0 : source.getIoFetchedBytes()) +
-				(ownParent == null ? 0 : ownParent.getIoFetchedBytes());
+		if (this.resolvedIoFetchCount == NOT_RESOLVED || this.resolvedIoFetchedBytes == NOT_RESOLVED) {
+			int attachedFetchCount = 0;
+			int attachedFetchedBytes = 0;
+			for (ServerEntityDecorator attachedBody : attachedBodies()) {
+				attachedFetchCount += attachedBody.getIoFetchCount();
+				attachedFetchedBytes += attachedBody.getIoFetchedBytes();
+			}
+			this.resolvedIoFetchCount = ownIoFetchCount() + attachedFetchCount;
+			this.resolvedIoFetchedBytes = ownIoFetchedBytes() + attachedFetchedBytes;
 		}
 	}
 
 	/**
-	 * Returns the parent body whose reads this decorator owes, or NULL when it owes none.
+	 * Returns the reads that produced this entity's own storage parts, summed along the
+	 * {@link #deferredIoStatisticsSource} chain and excluding every attached body.
 	 *
-	 * A parent body is read only because the request asked for it, so its cost belongs to the statistics of the
-	 * entity that carried the requirement. It is owed by exactly the decorator that *introduces* the chain - the one
-	 * re-attaching a resolved parent to an entity whose own parent slot holds no body. A decorator that merely
-	 * narrows or enriches an entity is handed the very same parent instance its
-	 * {@link #deferredIoStatisticsSource} already reports, and counting it again would count the whole chain twice.
-	 * Comparing the two instances is what tells those two cases apart.
+	 * @return this entity's own fetch count
+	 */
+	private int ownIoFetchCount() {
+		if (this.resolvedOwnIoFetchCount == NOT_RESOLVED) {
+			final ServerEntityDecorator source = this.deferredIoStatisticsSource;
+			this.resolvedOwnIoFetchCount = this.ioFetchCount + (source == null ? 0 : source.ownIoFetchCount());
+		}
+		return this.resolvedOwnIoFetchCount;
+	}
+
+	/**
+	 * Returns the Bytes that producing this entity's own storage parts cost, summed along the
+	 * {@link #deferredIoStatisticsSource} chain and excluding every attached body.
 	 *
-	 * @return parent decorator this one has to account for, or NULL
+	 * @return this entity's own fetched Bytes
+	 */
+	private int ownIoFetchedBytes() {
+		if (this.resolvedOwnIoFetchedBytes == NOT_RESOLVED) {
+			final ServerEntityDecorator source = this.deferredIoStatisticsSource;
+			this.resolvedOwnIoFetchedBytes = this.ioFetchedBytes + (source == null ? 0 : source.ownIoFetchedBytes());
+		}
+		return this.resolvedOwnIoFetchedBytes;
+	}
+
+	/**
+	 * Collects every entity body attached to this decorator, each exactly once.
+	 *
+	 * A body hangs off this entity only because the request asked for it - `hierarchyContent` for the parent chain,
+	 * `entityFetch` / `entityGroupFetch` inside a `referenceContent` for a referenced or group body - so its reads
+	 * belong to the statistics of the entity that carried the requirement. Named reference sets are walked
+	 * alongside the ordinary one: a named `referenceContent` fetches bodies of its own, into a set the ordinary
+	 * traversal never reaches.
+	 *
+	 * De-duplication is by **instance**, and it is load-bearing rather than defensive: every reference sharing
+	 * a group points at one and the same group body, a named set and the ordinary set hold the same referenced
+	 * bodies under different {@link ReferenceDecorator}s, and summing per reference would bill one read once per
+	 * reference pointing at it. Two bodies that were genuinely read twice are two distinct instances and stay
+	 * counted twice - where the second read was served from the query's {@link io.evitadb.core.buffer.StorageAccessScope},
+	 * it is that scope, not this traversal, that makes it cost nothing.
+	 *
+	 * @return the attached bodies, or an empty collection when nothing is attached
+	 */
+	@Nonnull
+	private Collection<ServerEntityDecorator> attachedBodies() {
+		Set<ServerEntityDecorator> bodies = null;
+		if (parentAvailable()) {
+			// a bodyless pointer costs nothing - nothing was read to produce it
+			bodies = collectBody(bodies, getParentEntity().orElse(null));
+		}
+		if (referencesAvailable()) {
+			for (ReferenceContract reference : getReferences()) {
+				bodies = collectReferenceBodies(bodies, reference);
+			}
+		}
+		if (this.namedReferenceSets != null) {
+			for (DataChunk<ReferenceContract> namedReferenceSet : this.namedReferenceSets.values()) {
+				for (ReferenceContract reference : namedReferenceSet) {
+					bodies = collectReferenceBodies(bodies, reference);
+				}
+			}
+		}
+		return bodies == null ? Collections.emptyList() : bodies;
+	}
+
+	/**
+	 * Collects both bodies a single reference may carry - the referenced entity and its group - into `bodies`.
+	 *
+	 * @param bodies    set collected so far, NULL until the first body is found
+	 * @param reference reference to take the bodies from
+	 * @return the set to carry on with
 	 */
 	@Nullable
-	private ServerEntityDecorator unreportedParentBody() {
-		if (!parentAvailable()) {
-			return null;
+	private static Set<ServerEntityDecorator> collectReferenceBodies(
+		@Nullable Set<ServerEntityDecorator> bodies,
+		@Nonnull ReferenceContract reference
+	) {
+		return collectBody(
+			collectBody(bodies, reference.getReferencedEntity().orElse(null)),
+			reference.getGroupEntity().orElse(null)
+		);
+	}
+
+	/**
+	 * Adds `candidate` to `bodies` when it is a body carrying I/O statistics of its own, creating the set on first
+	 * use so an entity with nothing attached allocates nothing.
+	 *
+	 * @param bodies    set collected so far, NULL until the first body is found
+	 * @param candidate what is attached at the examined slot, NULL or a bodyless pointer when nothing was read
+	 * @return the set to carry on with
+	 */
+	@Nullable
+	private static Set<ServerEntityDecorator> collectBody(
+		@Nullable Set<ServerEntityDecorator> bodies,
+		@Nullable Object candidate
+	) {
+		if (candidate instanceof ServerEntityDecorator body) {
+			final Set<ServerEntityDecorator> result = bodies == null ?
+				Collections.newSetFromMap(new IdentityHashMap<>()) : bodies;
+			result.add(body);
+			return result;
+		} else {
+			return bodies;
 		}
-		final EntityClassifierWithParent parent = getParentEntity().orElse(null);
-		if (!(parent instanceof ServerEntityDecorator parentBody)) {
-			// a bodyless pointer costs nothing - nothing was read to produce it
-			return null;
-		}
-		final ServerEntityDecorator source = this.deferredIoStatisticsSource;
-		if (source != null && source.parentAvailable() && source.getParentEntity().orElse(null) == parent) {
-			return null;
-		}
-		return parentBody;
 	}
 
 }

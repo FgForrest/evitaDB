@@ -1336,6 +1336,12 @@ public class DefaultEntityCollectionPersistenceService
 		/**
 		 * Records the I/O fetch with particular size in Bytes.
 		 *
+		 * Only a part that was genuinely read from the storage is added up. The very same record is reached again
+		 * whenever one query composes the same entity twice - from two reference names, or as both a referenced
+		 * entity and a parent - and the second composition is served by
+		 * {@link StorageAccessScope} without touching the storage. Counting it anyway would let two entities each
+		 * report a read that happened once.
+		 *
 		 * @param storagePart The storage part that was fetched.
 		 */
 		@Nullable
@@ -1343,17 +1349,18 @@ public class DefaultEntityCollectionPersistenceService
 			if (storagePart == null) {
 				return null;
 			} else {
-				this.ioFetchCount++;
 				// we need to count the overhead size of the storage part and serialUUID header along with the storage part itself
 				final int sizeInBytes = StorageRecord.getOverheadSize() + 8 + storagePart.sizeInBytes().orElse(0);
-				this.ioFetchedBytes += sizeInBytes;
-				StorageAccessScope.noteRecordRead(storagePart, sizeInBytes);
+				if (StorageAccessScope.noteRecordRead(storagePart, sizeInBytes)) {
+					this.ioFetchCount++;
+					this.ioFetchedBytes += sizeInBytes;
+				}
 				return storagePart;
 			}
 		}
 
 		/**
-		 * Records the I/O fetch with particular size in Bytes.
+		 * Records the I/O fetch with particular size in Bytes, on the same terms as {@link #record(EntityStoragePart)}.
 		 *
 		 * @param storagePart The storage part that was fetched.
 		 */
@@ -1362,11 +1369,12 @@ public class DefaultEntityCollectionPersistenceService
 			if (storagePart == null) {
 				return null;
 			} else {
-				this.ioFetchCount++;
 				// we need to count the overhead size of the storage part and serialUUID header along with the storage part itself
 				final int sizeInBytes = StorageRecord.getOverheadSize() + 8 + storagePart.length;
-				this.ioFetchedBytes += sizeInBytes;
-				StorageAccessScope.noteRecordRead(storagePart, sizeInBytes);
+				if (StorageAccessScope.noteRecordRead(storagePart, sizeInBytes)) {
+					this.ioFetchCount++;
+					this.ioFetchedBytes += sizeInBytes;
+				}
 				return storagePart;
 			}
 		}
