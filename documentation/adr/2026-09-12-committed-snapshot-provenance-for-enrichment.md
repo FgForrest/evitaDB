@@ -1,7 +1,7 @@
 ---
 title: Derive the enrichment shortcut from committed-snapshot provenance, not from a caller-supplied flag
 date: 2026-09-12
-updated: 2026-09-12 18:30
+updated: 2026-09-13 09:55
 status: accepted
 kind: fix
 issues: [1547, 1559]
@@ -9,7 +9,7 @@ prs: [1548]
 areas: [evita_engine/src/main/java/io/evitadb/core/collection, evita_engine/src/main/java/io/evitadb/core/query/response, evita_engine/src/main/java/io/evitadb/core/query/filter, evita_engine/src/main/java/io/evitadb/core/query/fetch]
 supersedes: []
 superseded-by: []
-relates: [2026-09-11-reference-name-narrowing]
+relates: [2026-09-11-reference-name-narrowing, 2026-09-13-per-entity-io-statistics-attribution]
 ---
 
 # Derive the enrichment shortcut from committed-snapshot provenance

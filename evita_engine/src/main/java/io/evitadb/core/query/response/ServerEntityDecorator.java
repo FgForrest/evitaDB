@@ -58,11 +58,9 @@ import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
@@ -680,10 +678,10 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	}
 
 	/**
-	 * Returns the Bytes that producing this entity's own storage parts cost, summed along the
+	 * Returns the bytes that producing this entity's own storage parts cost, summed along the
 	 * {@link #deferredIoStatisticsSource} chain and excluding every attached body.
 	 *
-	 * @return this entity's own fetched Bytes
+	 * @return this entity's own fetched bytes
 	 */
 	private int ownIoFetchedBytes() {
 		if (this.resolvedOwnIoFetchedBytes == NOT_RESOLVED) {
@@ -702,18 +700,20 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 * alongside the ordinary one: a named `referenceContent` fetches bodies of its own, into a set the ordinary
 	 * traversal never reaches.
 	 *
-	 * De-duplication is by **instance**, and it is load-bearing rather than defensive: every reference sharing
-	 * a group points at one and the same group body, a named set and the ordinary set hold the same referenced
-	 * bodies under different {@link ReferenceDecorator}s, and summing per reference would bill one read once per
-	 * reference pointing at it. Two bodies that were genuinely read twice are two distinct instances and stay
-	 * counted twice - where the second read was served from the query's {@link io.evitadb.core.buffer.StorageAccessScope},
-	 * it is that scope, not this traversal, that makes it cost nothing.
+	 * De-duplication is by the **entity** a body describes - its type and primary key - rather than by the object
+	 * carrying it, and it is load-bearing rather than defensive. Every reference sharing a group points at one and
+	 * the same group body; a named set and the ordinary set reach the same referenced entity through separate
+	 * prefetch indexes; and an enrichment re-wraps a body it reused rather than reading it again. The same entity
+	 * therefore arrives here as several distinct objects, which object identity cannot collapse - and summing them
+	 * would bill one entity's reads once per view exposing it. Where two views of one entity account for different
+	 * amounts, because they were fetched under different requirements, the larger is kept: this entity needed
+	 * everything the richer view had to read.
 	 *
 	 * @return the attached bodies, or an empty collection when nothing is attached
 	 */
 	@Nonnull
 	private Collection<ServerEntityDecorator> attachedBodies() {
-		Set<ServerEntityDecorator> bodies = null;
+		Map<BodyKey, ServerEntityDecorator> bodies = null;
 		if (parentAvailable()) {
 			// a bodyless pointer costs nothing - nothing was read to produce it
 			bodies = collectBody(bodies, getParentEntity().orElse(null));
@@ -730,7 +730,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 				}
 			}
 		}
-		return bodies == null ? Collections.emptyList() : bodies;
+		return bodies == null ? Collections.emptyList() : bodies.values();
 	}
 
 	/**
@@ -741,8 +741,8 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 * @return the set to carry on with
 	 */
 	@Nullable
-	private static Set<ServerEntityDecorator> collectReferenceBodies(
-		@Nullable Set<ServerEntityDecorator> bodies,
+	private static Map<BodyKey, ServerEntityDecorator> collectReferenceBodies(
+		@Nullable Map<BodyKey, ServerEntityDecorator> bodies,
 		@Nonnull ReferenceContract reference
 	) {
 		return collectBody(
@@ -760,18 +760,32 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 * @return the set to carry on with
 	 */
 	@Nullable
-	private static Set<ServerEntityDecorator> collectBody(
-		@Nullable Set<ServerEntityDecorator> bodies,
+	private static Map<BodyKey, ServerEntityDecorator> collectBody(
+		@Nullable Map<BodyKey, ServerEntityDecorator> bodies,
 		@Nullable Object candidate
 	) {
 		if (candidate instanceof ServerEntityDecorator body) {
-			final Set<ServerEntityDecorator> result = bodies == null ?
-				Collections.newSetFromMap(new IdentityHashMap<>()) : bodies;
-			result.add(body);
+			final Map<BodyKey, ServerEntityDecorator> result = bodies == null ?
+				CollectionUtils.createHashMap(8) : bodies;
+			result.merge(
+				new BodyKey(body.getType(), body.getPrimaryKeyOrThrowException()),
+				body,
+				// two views of one entity describe one set of reads - keep the view that accounts for more of them
+				(left, right) -> left.getIoFetchCount() >= right.getIoFetchCount() ? left : right
+			);
 			return result;
 		} else {
 			return bodies;
 		}
+	}
+
+	/**
+	 * Identity of an attached body, as the entity it is rather than as the object carrying it.
+	 *
+	 * @param entityType  type of the attached entity
+	 * @param primaryKey  primary key of the attached entity
+	 */
+	private record BodyKey(@Nonnull String entityType, int primaryKey) {
 	}
 
 }

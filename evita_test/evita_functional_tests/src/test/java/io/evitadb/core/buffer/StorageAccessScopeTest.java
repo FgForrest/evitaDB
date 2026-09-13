@@ -44,12 +44,11 @@ import java.util.function.Supplier;
 import static io.evitadb.test.TestTags.CACHE;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies the per-execution storage record scope: what it serves from its own memory, what it refuses to serve, and
@@ -380,36 +379,33 @@ class StorageAccessScopeTest {
 		}
 
 		@Test
-		@DisplayName("the answer tells the caller whether the read was physical")
-		void shouldReportWhetherTheReadWasPhysical() {
-			// the caller bills the very same read to the entity it is composing, so it has to learn what the scope
-			// decided - otherwise one physical read is described twice, once per entity that reached it
+		@DisplayName("a record the scope answered itself adds nothing to the query total")
+		void shouldNotAddAServedRecordToTheQueryTotal() {
+			// the query total describes what the storage was asked for - a record this scope answered from its own
+			// cache cost the storage nothing, however many entities go on to report it as their own cost
 			final Object owner = new Object();
 			final TestStoragePart record = new TestStoragePart(1L);
 
 			try (final StorageAccessScope scope = StorageAccessScope.install()) {
-				assertTrue(
-					StorageAccessScope.noteRecordRead(
-						scope.fetch(owner, CATALOG_VERSION, TestStoragePart.class, 1L, null, () -> record), 100
-					),
-					"The first ask went to the storage."
+				StorageAccessScope.noteRecordRead(
+					scope.fetch(owner, CATALOG_VERSION, TestStoragePart.class, 1L, null, () -> record), 100
 				);
-				assertFalse(
-					StorageAccessScope.noteRecordRead(
-						scope.fetch(owner, CATALOG_VERSION, TestStoragePart.class, 1L, null, failingLoader()), 100
-					),
-					"The second ask was answered by the scope and cost no I/O at all."
+				StorageAccessScope.noteRecordRead(
+					scope.fetch(owner, CATALOG_VERSION, TestStoragePart.class, 1L, null, failingLoader()), 100
 				);
+
+				assertEquals(1, scope.getIoFetchCount(), "Only the first ask went to the storage.");
+				assertEquals(100, scope.getIoFetchedBytes(), "Only the first ask went to the storage.");
 			}
 		}
 
 		@Test
-		@DisplayName("a read issued outside any execution is reported as physical")
-		void shouldReportReadOutsideAnyScopeAsPhysical() {
-			// nothing de-duplicates reads outside a scope, so a caller has to keep billing them
+		@DisplayName("a read issued outside any execution reaches no total at all")
+		void shouldIgnoreReadOutsideAnyScopeInTheQueryTotal() {
+			// there is no query in progress to attribute it to - the entity composing it still bills it to itself
 			assertNull(StorageAccessScope.getIfActive());
 
-			assertTrue(StorageAccessScope.noteRecordRead(new TestStoragePart(1L), 100));
+			assertDoesNotThrow(() -> StorageAccessScope.noteRecordRead(new TestStoragePart(1L), 100));
 		}
 
 		@Test

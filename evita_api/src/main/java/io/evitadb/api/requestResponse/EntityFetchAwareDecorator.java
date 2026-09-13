@@ -35,15 +35,18 @@ package io.evitadb.api.requestResponse;
 public interface EntityFetchAwareDecorator {
 
 	/**
-	 * The count of I/O fetches the request performed to produce the data this entity exposes - its own storage
-	 * records, plus those of every body hanging off it because the request asked for one: the parent chain of
-	 * a `hierarchyContent`, and the referenced and group entities of a `referenceContent`, named sets included.
-	 * Each such body is counted once, however many references point at it.
+	 * What this entity would have cost had it been fetched on its own - the I/O fetches that produced its own
+	 * storage records, plus those of every body hanging off it because the request asked for one: the parent chain
+	 * of a `hierarchyContent`, and the referenced and group entities of a `referenceContent`, named sets included.
+	 * Each distinct entity counts once, however many references point at it and however many views of it this
+	 * entity exposes.
 	 *
-	 * This is not the aggregate for a whole operation and does not add up to one: records read for entities that
-	 * were filtered out belong to no returned entity at all, and one physical read serving two entities is
-	 * attributed to both. The operation's real I/O is counted where the reads happen and reported by
-	 * {@link EvitaResponse#getIoFetchCount()}.
+	 * This is deliberately **not** a share of the operation's real I/O and does not add up to one. A record that
+	 * two returned entities both needed is reported by both, because an entity's cost must not move with whatever
+	 * else happens to share its page - that is what makes the number comparable across the entities of one
+	 * response, which is the only context it is read in. Records read for entities that were filtered out belong
+	 * to no returned entity at all. The operation's physical I/O is counted where the reads happen and reported by
+	 * {@link EvitaResponse#getIoFetchCount()}; the two are different metrics and are not expected to reconcile.
 	 */
 	int getIoFetchCount();
 

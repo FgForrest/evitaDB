@@ -180,20 +180,19 @@ public final class StorageAccessScope implements Closeable {
 	}
 
 	/**
-	 * Records that `record` has been obtained, at the given size, and answers whether obtaining it cost any I/O.
-	 * Called from the layer that performs the read and knows the record framing overhead.
+	 * Records that `record` has been obtained, at the given size, into the **query-wide** totals. Called from the
+	 * layer that performs the read and knows the record framing overhead.
 	 *
-	 * Only reads that actually went to the storage are counted, and the decision is made where the read happens:
-	 * {@link #fetch} knows whether it had to call its loader, and a record it answered from {@link #records its own
-	 * cache} is parked in {@link #recordServedFromScope} for exactly this call to recognise and skip. Reads that
-	 * never pass through the scope at all - binary fetches and reads issued with no scope bound - are physical by
-	 * construction and are counted as they come.
+	 * Only reads that actually went to the storage reach these totals, and the decision is made where the read
+	 * happens: {@link #fetch} knows whether it had to call its loader, and a record it answered from
+	 * {@link #records its own cache} is parked in {@link #recordServedFromScope} for exactly this call to recognise
+	 * and skip. Reads that never pass through the scope at all - binary fetches and reads issued with no scope
+	 * bound - are physical by construction and are counted as they come.
 	 *
-	 * The **return value is what keeps the per-entity statistics honest**. The caller adds the same read to the
-	 * statistics of the entity it is composing, and a record this scope served is no more I/O for that entity than
-	 * it is for the query: one owner reaching the same referenced entity through two reference names composes it
-	 * twice, and billing both compositions would describe a single physical read as two. Only the composition that
-	 * actually read it is billed, so the per-entity numbers reconcile with the scope's own.
+	 * These totals describe what the query cost the storage. They are deliberately **not** the sum of the
+	 * per-entity statistics, which report what each entity would have cost fetched on its own and therefore report
+	 * a shared record once per entity that needed it. The caller bills its entity separately and unconditionally;
+	 * whether this scope served the record is this scope's business alone.
 	 *
 	 * Deciding it here rather than remembering every record ever accounted for is what makes {@link #MAX_RECORDS}
 	 * mean something: an identity set of the latter kind grows without a ceiling and pins every storage part and
@@ -202,22 +201,20 @@ public final class StorageAccessScope implements Closeable {
 	 *
 	 * @param record      the record that was obtained
 	 * @param sizeInBytes size it occupied in the storage, including its framing overhead
-	 * @return TRUE when obtaining the record went to the storage, FALSE when this scope served it
 	 */
-	public static boolean noteRecordRead(@Nonnull Object record, int sizeInBytes) {
+	public static void noteRecordRead(@Nonnull Object record, int sizeInBytes) {
 		final StorageAccessScope scope = CURRENT.get();
 		if (scope == null) {
-			// nothing de-duplicates reads outside a scope, so the read was physical by construction
-			return true;
+			// nothing de-duplicates reads outside a scope, so there is no scope-wide total to add to either
+			return;
 		}
 		if (scope.recordServedFromScope == record) {
 			// the scope answered this one itself - no I/O happened, and the next ask has to be judged on its own
 			scope.recordServedFromScope = null;
-			return false;
+			return;
 		}
 		scope.ioFetchCount++;
 		scope.ioFetchedBytes += sizeInBytes;
-		return true;
 	}
 
 	@Override

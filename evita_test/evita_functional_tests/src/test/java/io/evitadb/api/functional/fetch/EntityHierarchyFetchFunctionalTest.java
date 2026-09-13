@@ -44,6 +44,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import javax.annotation.Nonnull;
@@ -57,7 +58,6 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
@@ -1292,6 +1292,81 @@ class EntityHierarchyFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 				return null;
 			}
 		);
+	}
+	/**
+	 * Pins that an entity reports what it would have cost fetched on its own, whatever else shares its page.
+	 *
+	 * A page holding a category and its own ancestor reaches the ancestor's storage parts twice: once for the
+	 * ancestor as a returned entity, once for the child's parent chain. Only one of those asks goes to the storage,
+	 * and an accounting that bills whoever got there first would report the child's chain as free - making the same
+	 * entity cost different amounts depending on its page-mates, which is precisely what the per-entity statistic
+	 * must not do.
+	 */
+	@DisplayName("Should report the same cost for an entity whether or not its own ancestor shares the page")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldNotLetAPageMateChangeWhatAnEntityCost(Evita evita, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final int deepChildPk = deepestCategoryPk(categoryHierarchy);
+				final HierarchyContent wholeChain = hierarchyContent(entityFetch(attributeContentAll()));
+
+				final EntityFetchAwareDecorator alone = fetchCategoryWith(session, deepChildPk, wholeChain);
+				final int parentPk = ((SealedEntity) parentBodyOf(alone)).getPrimaryKeyOrThrowException();
+
+				final EntityFetchAwareDecorator besideItsParent = categoryFromPageWith(
+					session, wholeChain, deepChildPk, deepChildPk, parentPk
+				);
+
+				assertTrue(
+					alone.getIoFetchCount() > 0,
+					"The fixture must make fetching the chain cost something at all."
+				);
+				assertEquals(
+					alone.getIoFetchCount(),
+					besideItsParent.getIoFetchCount(),
+					"What one entity cost must not move with what else happens to share its page."
+				);
+				assertEquals(
+					alone.getIoFetchedBytes(),
+					besideItsParent.getIoFetchedBytes(),
+					"What one entity cost in Bytes must not move with what else happens to share its page."
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Fetches several categories in one page and returns the one asked for.
+	 *
+	 * @param session      session to query through
+	 * @param hierarchy    the hierarchy requirement shaping the parent chain
+	 * @param wantedPk     primary key of the category to return
+	 * @param primaryKeys  primary keys making up the page
+	 * @return the wanted entity, as the decorator that carries its I/O statistics
+	 */
+	@Nonnull
+	private static EntityFetchAwareDecorator categoryFromPageWith(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull HierarchyContent hierarchy,
+		int wantedPk,
+		@Nonnull int... primaryKeys
+	) {
+		final EvitaResponse<SealedEntity> response = session.querySealedEntity(
+			query(
+				collection(Entities.CATEGORY),
+				filterBy(entityPrimaryKeyInSet(Arrays.stream(primaryKeys).boxed().toArray(Integer[]::new))),
+				require(entityFetch(hierarchy))
+			)
+		);
+		final SealedEntity wanted = response.getRecordData()
+			.stream()
+			.filter(it -> it.getPrimaryKeyOrThrowException() == wantedPk)
+			.findFirst()
+			.orElseThrow(() -> new AssertionError("The page must contain the entity under test."));
+		return assertInstanceOf(EntityFetchAwareDecorator.class, wanted);
 	}
 
 	/**

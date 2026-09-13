@@ -331,11 +331,12 @@ public abstract sealed class EvitaResponse<T extends Serializable>
 	 *
 	 * This is an **approximation**, not the operation's real I/O, and it is only ever reached by a response nobody
 	 * called {@link #setIoFetchStatistics(int, int)} on - a response assembled outside the engine, such as one
-	 * rebuilt on the driver side from the wire. It misses the records read for entities that were filtered out of
-	 * the result, which are attributed to no returned entity at all; and it counts a record twice when one physical
-	 * read served two returned entities, because each of them reports the body it exposes
-	 * ({@link EntityFetchAwareDecorator#getIoFetchCount()}). A response the engine produced always carries the
-	 * measured numbers instead, counted where the reads happened.
+	 * rebuilt on the driver side from the wire. It sums a per-entity statistic that deliberately reports what each
+	 * entity would have cost on its own ({@link EntityFetchAwareDecorator#getIoFetchCount()}), so a record two
+	 * entities both needed is counted once per entity; and it misses the records read for entities that were
+	 * filtered out of the result, which are attributed to no returned entity at all. It can therefore land on
+	 * either side of the truth. A response the engine produced always carries the measured numbers instead,
+	 * counted where the reads happened.
 	 */
 	private void computeIoFetchStats() {
 		int ioFetchCount = 0;
