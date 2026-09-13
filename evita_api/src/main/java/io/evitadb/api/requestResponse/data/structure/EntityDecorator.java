@@ -167,9 +167,8 @@ public class EntityDecorator implements SealedEntity {
 	 * Group bodies are prefetched for every reference that passed the filter, while referenced entity bodies are
 	 * prefetched only for the page that survives slicing. A group reached solely through a reference whose own body
 	 * was sliced away is therefore read - on this entity's behalf - and then exposed by nobody, so nothing walking
-	 * the exposed graph can find it. Like {@link #chunkedOutReferences} this field deliberately has **no
-	 * initialiser**: it is written from `super(...)` while the reference set is being built, and an initialiser
-	 * would run afterwards and wipe what was recorded.
+	 * the exposed graph can find it. Allocated lazily, like {@link #chunkedOutReferences}: most entities note
+	 * nothing at all, and the list would otherwise be allocated once per decorator for nothing.
 	 */
 	@Nullable private List<SealedEntity> unexposedBodies;
 	/**
@@ -463,6 +462,12 @@ public class EntityDecorator implements SealedEntity {
 		this.filteredReferences = decorator.filteredReferences;
 		this.filteredDuplicateReferences = decorator.filteredDuplicateReferences;
 		this.filteredReferencesByName = decorator.filteredReferencesByName;
+		// the reference set is taken over wholesale, bodies and all, so whether any of it carries a body is taken
+		// over with it. The flag answers "is there anything in getReferences() worth walking", which is a property
+		// of the reference set rather than of whoever attached the bodies - and a decorator that is also handed
+		// a parent body derives its reachable set instead of inheriting one, so a false here loses every
+		// referenced body it exposes
+		this.referenceBodiesAttached = decorator.referenceBodiesAttached;
 	}
 
 	/**
@@ -612,14 +617,19 @@ public class EntityDecorator implements SealedEntity {
 				entityFilter = referenceFetcher.getEntityFilter(referenceSchema);
 				fetchedReferenceComparator = referenceFetcher.getEntityComparator(referenceSchema);
 			} else if (!referenceSchema.getName().equals(thisReferenceName)) {
-				filteredOutReferences += sortAndFilterSubList(
+				final int subListEnd = i - filteredOutReferences;
+				final int removedHere = sortAndFilterSubList(
 					entityPrimaryKey,
 					outputReferences,
 					referencePredicate,
 					entityFilter,
 					fetchedReferenceComparator,
-					index, i - filteredOutReferences
+					index, subListEnd
 				);
+				noteUnexposedGroups(
+					referenceSchema, entityGroupFetcher, outputReferences, index, subListEnd - removedHere
+				);
+				filteredOutReferences += removedHere;
 				index = i - filteredOutReferences;
 				referenceSchema = entitySchema
 					.getReference(thisReferenceName)
@@ -640,14 +650,19 @@ public class EntityDecorator implements SealedEntity {
 			));
 		}
 		if (referenceSchema != null) {
-			filteredOutReferences += sortAndFilterSubList(
+			final int subListEnd = outputReferences.length - filteredOutReferences;
+			final int removedHere = sortAndFilterSubList(
 				entityPrimaryKey,
 				outputReferences,
 				referencePredicate,
 				entityFilter,
 				fetchedReferenceComparator,
-				index, outputReferences.length - filteredOutReferences
+				index, subListEnd
 			);
+			noteUnexposedGroups(
+				referenceSchema, entityGroupFetcher, outputReferences, index, subListEnd - removedHere
+			);
+			filteredOutReferences += removedHere;
 		}
 		return filteredOutReferences;
 	}
@@ -779,8 +794,51 @@ public class EntityDecorator implements SealedEntity {
 	}
 
 	/**
-	 * Releases the references reported by {@link #getChunkedOutReferences()}, which are of no use to anything but
-	 * the accounting that has just read them and would otherwise keep every body the chunk discarded alive.
+	 * Notes the group bodies of references that survived this entity's filtering but carry no referenced entity.
+	 *
+	 * A group is only ever attached beside a referenced entity, so a reference that kept its place and lost its
+	 * body exposes its group nowhere - while the group was resolved all the same, because groups are resolved for
+	 * the whole filtered set whichever slicing path ran.
+	 *
+	 * This runs **after** `sortAndFilterSubList` and never before it, and that ordering is the point: one group
+	 * prefetch index is shared by every owner entity in the batch, so a reference this entity did not keep says
+	 * nothing about what this entity caused to be read. Noting while the raw references are still being built
+	 * would bill an owner whose reference a `filterBy` excluded for a group body some other owner reached.
+	 *
+	 * @param referenceSchema             schema of the references in the range
+	 * @param referenceGroupEntityFetcher fetcher the group bodies were prefetched into
+	 * @param references                  the reference array being built
+	 * @param from                        index of the first surviving reference of this reference name
+	 * @param toExclusive                 index just past the last surviving reference of this reference name
+	 */
+	protected void noteUnexposedGroups(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Function<Integer, SealedEntity> referenceGroupEntityFetcher,
+		@Nonnull ReferenceDecorator[] references,
+		int from,
+		int toExclusive
+	) {
+		if (!referenceSchema.isReferencedGroupTypeManaged()) {
+			return;
+		}
+		for (int i = from; i < toExclusive; i++) {
+			final ReferenceDecorator reference = references[i];
+			if (reference == null || reference.getReferencedEntity().isPresent()) {
+				continue;
+			}
+			final SealedEntity groupBody = reference.getGroup()
+				.map(group -> referenceGroupEntityFetcher.apply(group.primaryKey()))
+				.orElse(null);
+			if (groupBody != null) {
+				noteUnexposedBody(groupBody);
+			}
+		}
+	}
+
+	/**
+	 * Notes a body read on this entity's behalf that no reference this decorator exposes can carry.
+	 *
+	 * @param body the body being dropped
 	 */
 	protected void noteUnexposedBody(@Nonnull SealedEntity body) {
 		if (this.unexposedBodies == null) {
@@ -807,6 +865,10 @@ public class EntityDecorator implements SealedEntity {
 		this.unexposedBodies = null;
 	}
 
+	/**
+	 * Releases the references reported by {@link #getChunkedOutReferences()}, which are of no use to anything but
+	 * the accounting that has just read them and would otherwise keep every body the chunk discarded alive.
+	 */
 	protected void forgetChunkedOutReferences() {
 		this.chunkedOutReferences = null;
 	}
@@ -2091,26 +2153,9 @@ public class EntityDecorator implements SealedEntity {
 		final SealedEntity referencedEntity = referenceSchema.isReferencedEntityTypeManaged() ?
 			referenceEntityFetcher.apply(reference.getReferenceKey().primaryKey()) : null;
 
-		final SealedEntity referencedGroupEntity;
-		if (referenceSchema.isReferencedGroupTypeManaged()) {
-			final SealedEntity groupBody = reference.getGroup()
-				.map(group -> referenceGroupEntityFetcher.apply(group.primaryKey()))
-				.orElse(null);
-			if (referencedEntity == null) {
-				// the group was prefetched because this reference passed the filter, while the reference's own
-				// body was not because it fell outside the page. Attaching the group to a reference carrying no
-				// referenced entity would expose data the request cannot otherwise see, so it is only noted: the
-				// read happened on this entity's behalf and has to be counted exactly like a body chunking dropped
-				if (groupBody != null) {
-					noteUnexposedBody(groupBody);
-				}
-				referencedGroupEntity = null;
-			} else {
-				referencedGroupEntity = groupBody;
-			}
-		} else {
-			referencedGroupEntity = null;
-		}
+		final SealedEntity referencedGroupEntity = referenceSchema.isReferencedGroupTypeManaged() && referencedEntity != null ?
+			reference.getGroup().map(group -> referenceGroupEntityFetcher.apply(group.primaryKey())).orElse(null) :
+			null;
 		// this is the only place a referenced or group body is ever put onto a reference, so it is the only place
 		// that can say whether this entity carries any - see #referenceBodiesAttached
 		this.referenceBodiesAttached |= referencedEntity != null || referencedGroupEntity != null;
