@@ -1205,13 +1205,7 @@ class EntityHierarchyFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 			TEST_CATALOG,
 			session -> {
 				// a category deep enough to have a genuine root above its immediate parent
-				final HierarchyItem deepChild = categoryHierarchy
-					.getAllChildItems(categoryHierarchy.getRootItems().get(0).getCode())
-					.stream()
-					.max(Comparator.comparingInt(HierarchyItem::getLevel))
-					.orElseThrow();
-				assertTrue(deepChild.getLevel() >= 3, "The fixture must offer a chain of at least two ancestors.");
-				final int deepChildPk = Integer.parseInt(deepChild.getCode());
+				final int deepChildPk = deepestCategoryPk(categoryHierarchy);
 
 				final EntityFetchAwareDecorator withoutChain = fetchCategoryWith(
 					session, deepChildPk, hierarchyContent()
@@ -1248,6 +1242,97 @@ class EntityHierarchyFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 				return null;
 			}
 		);
+	}
+
+	/**
+	 * Pins that a parent chain carried over into an **enrichment** is still reported exactly once.
+	 *
+	 * An enrichment does not re-read a parent it already has: the reference fetcher reuses the bodies the input
+	 * decorator resolved and re-attaches them to the decorator it produces, so the very same chain is reachable from
+	 * both ends of the deferred statistics chain - and the re-attached one is a freshly wrapped instance, which is
+	 * why telling the two apart by comparing instances against the input does not hold. The arms differ only in how
+	 * far the chain reaches, so whatever the unbounded arm reports over the bounded one is exactly what the chain
+	 * above the immediate parent contributed, enrichment or not.
+	 */
+	@DisplayName("Should count the IO statistics of a parent chain carried into an enrichment exactly once")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldCountTheIoStatisticsOfAParentChainCarriedIntoAnEnrichmentExactlyOnce(
+		Evita evita, Hierarchy categoryHierarchy
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final int deepChildPk = deepestCategoryPk(categoryHierarchy);
+
+				final EntityFetchAwareDecorator boundedChain = enrichCategoryWith(
+					session, deepChildPk, hierarchyContent(stopAt(distance(1)), entityFetch(attributeContentAll()))
+				);
+				final EntityFetchAwareDecorator wholeChain = enrichCategoryWith(
+					session, deepChildPk, hierarchyContent(entityFetch(attributeContentAll()))
+				);
+
+				// everything above the immediate parent is exactly the aggregate of the immediate parent's own
+				// parent, whatever the depth - that aggregate already carries its own ancestors
+				final EntityFetchAwareDecorator aboveImmediate = parentBodyOf(parentBodyOf(wholeChain));
+				assertTrue(
+					aboveImmediate.getIoFetchCount() > 0,
+					"Reading the chain above the immediate parent has to cost at least one fetch."
+				);
+				assertEquals(
+					aboveImmediate.getIoFetchCount(),
+					wholeChain.getIoFetchCount() - boundedChain.getIoFetchCount(),
+					"The chain above the immediate parent must survive an enrichment counted exactly once."
+				);
+				assertEquals(
+					aboveImmediate.getIoFetchedBytes(),
+					wholeChain.getIoFetchedBytes() - boundedChain.getIoFetchedBytes(),
+					"The chain above the immediate parent must survive an enrichment counted exactly once in Bytes."
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Returns the primary key of the deepest category the fixture offers, which therefore has a genuine ancestor
+	 * above its immediate parent.
+	 *
+	 * @param categoryHierarchy the fixture hierarchy
+	 * @return primary key of the deepest category
+	 */
+	private static int deepestCategoryPk(@Nonnull Hierarchy categoryHierarchy) {
+		final HierarchyItem deepChild = categoryHierarchy
+			.getAllChildItems(categoryHierarchy.getRootItems().get(0).getCode())
+			.stream()
+			.max(Comparator.comparingInt(HierarchyItem::getLevel))
+			.orElseThrow();
+		assertTrue(deepChild.getLevel() >= 3, "The fixture must offer a chain of at least two ancestors.");
+		return Integer.parseInt(deepChild.getCode());
+	}
+
+	/**
+	 * Fetches a single category carrying the passed parent chain and then enriches it with its own attributes, so
+	 * the result is produced by the enrichment path rather than by a single fetch.
+	 *
+	 * @param session    session to query through
+	 * @param primaryKey primary key of the category to fetch
+	 * @param hierarchy  the hierarchy requirement shaping the parent chain
+	 * @return the enriched entity, as the decorator that carries its I/O statistics
+	 */
+	@Nonnull
+	private static EntityFetchAwareDecorator enrichCategoryWith(
+		@Nonnull EvitaSessionContract session,
+		int primaryKey,
+		@Nonnull HierarchyContent hierarchy
+	) {
+		final SealedEntity fetched = (SealedEntity) fetchCategoryWith(session, primaryKey, hierarchy);
+		final SealedEntity enriched = session.enrichEntity(
+			fetched,
+			attributeContentAll(),
+			hierarchy
+		);
+		return assertInstanceOf(EntityFetchAwareDecorator.class, enriched);
 	}
 
 	/**

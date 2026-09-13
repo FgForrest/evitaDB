@@ -45,9 +45,11 @@ import static io.evitadb.test.TestTags.CACHE;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies the per-execution storage record scope: what it serves from its own memory, what it refuses to serve, and
@@ -375,6 +377,39 @@ class StorageAccessScopeTest {
 				assertEquals(1, scope.getIoFetchCount());
 				assertEquals(100, scope.getIoFetchedBytes());
 			}
+		}
+
+		@Test
+		@DisplayName("the answer tells the caller whether the read was physical")
+		void shouldReportWhetherTheReadWasPhysical() {
+			// the caller bills the very same read to the entity it is composing, so it has to learn what the scope
+			// decided - otherwise one physical read is described twice, once per entity that reached it
+			final Object owner = new Object();
+			final TestStoragePart record = new TestStoragePart(1L);
+
+			try (final StorageAccessScope scope = StorageAccessScope.install()) {
+				assertTrue(
+					StorageAccessScope.noteRecordRead(
+						scope.fetch(owner, CATALOG_VERSION, TestStoragePart.class, 1L, null, () -> record), 100
+					),
+					"The first ask went to the storage."
+				);
+				assertFalse(
+					StorageAccessScope.noteRecordRead(
+						scope.fetch(owner, CATALOG_VERSION, TestStoragePart.class, 1L, null, failingLoader()), 100
+					),
+					"The second ask was answered by the scope and cost no I/O at all."
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("a read issued outside any execution is reported as physical")
+		void shouldReportReadOutsideAnyScopeAsPhysical() {
+			// nothing de-duplicates reads outside a scope, so a caller has to keep billing them
+			assertNull(StorageAccessScope.getIfActive());
+
+			assertTrue(StorageAccessScope.noteRecordRead(new TestStoragePart(1L), 100));
 		}
 
 		@Test

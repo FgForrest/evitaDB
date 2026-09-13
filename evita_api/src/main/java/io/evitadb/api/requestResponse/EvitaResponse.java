@@ -329,12 +329,13 @@ public abstract sealed class EvitaResponse<T extends Serializable>
 	 * are then stored in the instance variables {@code ioFetchCount}
 	 * and {@code ioFetchedSizeBytes}.
 	 *
-	 * This is a **lower bound**, not the operation's real I/O, and it is only ever reached by a response nobody
+	 * This is an **approximation**, not the operation's real I/O, and it is only ever reached by a response nobody
 	 * called {@link #setIoFetchStatistics(int, int)} on - a response assembled outside the engine, such as one
-	 * rebuilt on the driver side from the wire. Two things it cannot see: the per-entity numbers deliberately
-	 * exclude the entity's reference graph ({@link EntityFetchAwareDecorator#getIoFetchCount()}), and records read
-	 * for entities that were filtered out of the result are attributed to no returned entity at all. A response the
-	 * engine produced always carries the measured numbers instead, counted where the reads happened.
+	 * rebuilt on the driver side from the wire. It misses the records read for entities that were filtered out of
+	 * the result, which are attributed to no returned entity at all; and it counts a record twice when one physical
+	 * read served two returned entities, because each of them reports the body it exposes
+	 * ({@link EntityFetchAwareDecorator#getIoFetchCount()}). A response the engine produced always carries the
+	 * measured numbers instead, counted where the reads happened.
 	 */
 	private void computeIoFetchStats() {
 		int ioFetchCount = 0;

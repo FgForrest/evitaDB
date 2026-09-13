@@ -26,8 +26,10 @@ package io.evitadb.api.functional.fetch;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.ReferenceContent;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesAvailabilityChecker;
@@ -49,11 +51,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.stream.Collectors;
 
@@ -79,6 +85,10 @@ import static io.evitadb.test.TestTags.REFERENCE;
 @Tag(QUERY)
 @Tag(REFERENCE)
 class EntityReferenceFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest {
+	/**
+	 * Instance name of the named reference set the I/O accounting tests declare over {@link Entities#STORE}.
+	 */
+	private static final String MY_STORES = "myStores";
 
 	@DisplayName("Multiple entities with references by their primary keys should be found")
 	@UseDataSet(HUNDRED_PRODUCTS)
@@ -1199,6 +1209,324 @@ class EntityReferenceFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 				return null;
 			}
 		);
+	}
+
+	/**
+	 * Pins that the reads a requested referenced body costs are reported by the entity that asked for it, and are
+	 * reported exactly once.
+	 *
+	 * A referenced entity's body is read only because `referenceContent` carried an `entityFetch`, so its cost
+	 * belongs to the statistics of the entity that carried the requirement. Both arms fetch the very same product
+	 * and the very same reference set; the only difference is whether the referenced bodies are materialized, so
+	 * whatever the second arm reports over the first is exactly what those bodies cost.
+	 */
+	@DisplayName("Should count the IO statistics of requested referenced bodies exactly once")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldCountTheIoStatisticsOfRequestedReferencedBodiesExactlyOnce(
+		Evita evita, List<SealedEntity> originalProducts
+	) {
+		final int productPk = productMatching(
+			originalProducts,
+			it -> it.getReferences(Entities.STORE).size() >= 2,
+			"a product with several store references"
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final ServerEntityDecorator withoutBodies = fetchProductWith(
+					session, productPk, referenceContent(Entities.STORE)
+				);
+				final ServerEntityDecorator withBodies = fetchProductWith(
+					session, productPk, referenceContent(Entities.STORE, entityFetch(attributeContentAll()))
+				);
+
+				assertAttachedBodiesCountedOnce(
+					withoutBodies, withBodies,
+					distinctBodies(withBodies.getReferences(Entities.STORE), ReferenceContract::getReferencedEntity),
+					"Requested referenced bodies"
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Pins that the reads a requested **group** body costs are reported by the entity that asked for it, and are
+	 * reported exactly once.
+	 *
+	 * A group body is reached through `ReferenceContract#getGroupEntity()`, which is a slot of its own - an
+	 * accounting that walks only the referenced entities misses it entirely, and with it every attribute, price and
+	 * reference the group body itself carries. The arms differ solely in `entityGroupFetch`, and one group is
+	 * routinely shared by many references, so the expected cost is summed over *distinct* group bodies.
+	 */
+	@DisplayName("Should count the IO statistics of requested group bodies exactly once")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldCountTheIoStatisticsOfRequestedGroupBodiesExactlyOnce(
+		Evita evita, List<SealedEntity> originalProducts
+	) {
+		final int productPk = productMatching(
+			originalProducts,
+			it -> it.getReferences(Entities.PARAMETER).stream().anyMatch(ref -> ref.getGroup().isPresent()),
+			"a product whose parameter references carry a group"
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final ServerEntityDecorator withoutGroups = fetchProductWith(
+					session, productPk,
+					referenceContent(Entities.PARAMETER, entityFetch(attributeContent()))
+				);
+				final ServerEntityDecorator withGroups = fetchProductWith(
+					session, productPk,
+					referenceContent(
+						Entities.PARAMETER, entityFetch(attributeContent()), entityGroupFetch(attributeContent())
+					)
+				);
+
+				assertAttachedBodiesCountedOnce(
+					withoutGroups, withGroups,
+					distinctBodies(withGroups.getReferences(Entities.PARAMETER), ReferenceContract::getGroupEntity),
+					"Requested group bodies"
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Pins that bodies fetched into a **named** reference set are reported by the entity that asked for them, and
+	 * are reported exactly once.
+	 *
+	 * A named `referenceContent` fetches bodies into a set of its own, keyed by instance name, which the ordinary
+	 * reference traversal never reaches. Both arms declare the same named set over the same reference name; only
+	 * the second asks for the bodies.
+	 */
+	@DisplayName("Should count the IO statistics of bodies fetched into a named reference set exactly once")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldCountTheIoStatisticsOfNamedReferenceSetBodiesExactlyOnce(
+		Evita evita, List<SealedEntity> originalProducts
+	) {
+		final int productPk = productMatching(
+			originalProducts,
+			it -> it.getReferences(Entities.STORE).size() >= 2,
+			"a product with several store references"
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final ServerEntityDecorator withoutBodies = fetchProductWith(
+					session, productPk, namedStoreReferenceSet(false)
+				);
+				final ServerEntityDecorator withBodies = fetchProductWith(
+					session, productPk, namedStoreReferenceSet(true)
+				);
+
+				final DataChunk<ReferenceContract> namedSet = withBodies
+					.getReferencesForReferenceContentInstance(new ReferenceContentKey(MY_STORES, Entities.STORE))
+					.orElseThrow();
+				assertAttachedBodiesCountedOnce(
+					withoutBodies, withBodies,
+					distinctBodies(namedSet.getData(), ReferenceContract::getReferencedEntity),
+					"Bodies of a named reference set"
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Pins that a body the query composed twice is billed once.
+	 *
+	 * Each named reference set is composed on its own, so two named sets over the same reference name reach the very
+	 * same storage records twice. The second composition is served by the query's
+	 * {@link io.evitadb.core.buffer.StorageAccessScope} without touching the storage, and a read that did not happen
+	 * may not be billed to the entity either - otherwise one physical read is described as two.
+	 */
+	@DisplayName("Should not count a body the query composed twice as two reads")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldNotCountARepeatedCompositionOfTheSameBodyTwice(Evita evita, List<SealedEntity> originalProducts) {
+		final int productPk = productMatching(
+			originalProducts,
+			it -> it.getReferences(Entities.STORE).size() >= 2,
+			"a product with several store references"
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final ServerEntityDecorator composedOnce = fetchProductWith(
+					session, productPk, namedStoreReferenceSet(true)
+				);
+				final ServerEntityDecorator composedTwice = fetchProductWith(
+					session, productPk,
+					namedStoreReferenceSet(true),
+					namedStoreReferenceSet(MY_STORES + "Again", true)
+				);
+
+				assertEquals(
+					composedOnce.getIoFetchCount(),
+					composedTwice.getIoFetchCount(),
+					"Composing the same bodies a second time reads nothing and must cost nothing."
+				);
+				assertEquals(
+					composedOnce.getIoFetchedBytes(),
+					composedTwice.getIoFetchedBytes(),
+					"Composing the same bodies a second time reads nothing and must cost no Bytes."
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Builds the named reference set over {@link Entities#STORE} the accounting tests declare, with or without the
+	 * referenced bodies.
+	 *
+	 * @param withBodies whether the referenced bodies are to be materialized
+	 * @return the requirement to put into `entityFetch`
+	 */
+	@Nonnull
+	private static ReferenceContent namedStoreReferenceSet(boolean withBodies) {
+		return namedStoreReferenceSet(MY_STORES, withBodies);
+	}
+
+	/**
+	 * Builds a named reference set over {@link Entities#STORE} under the passed instance name, with or without the
+	 * referenced bodies.
+	 *
+	 * The `strip` is not incidental: a named reference content that asks for no bodies, no filter, no order and no
+	 * paging needs no prefetching at all, and the engine then builds no fetcher for it - so the arms would differ in
+	 * more than the bodies. Both arms carry it, so the only difference between them stays the `entityFetch`.
+	 *
+	 * @param instanceName name of the reference content instance
+	 * @param withBodies   whether the referenced bodies are to be materialized
+	 * @return the requirement to put into `entityFetch`
+	 */
+	@Nonnull
+	private static ReferenceContent namedStoreReferenceSet(@Nonnull String instanceName, boolean withBodies) {
+		return new ReferenceContent(
+			instanceName,
+			ManagedReferencesBehaviour.ANY,
+			new String[]{Entities.STORE},
+			withBodies ?
+				new RequireConstraint[]{attributeContentAll(), entityFetch(attributeContentAll()), strip(0, 100)} :
+				new RequireConstraint[]{attributeContentAll(), strip(0, 100)},
+			new Constraint[0]
+		);
+	}
+
+	/**
+	 * Asserts that `attachedBodies` contribute their reads to `withBodies` exactly once, taking `withoutBodies` -
+	 * the same fetch with the bodies left out - as the baseline everything else is common to.
+	 *
+	 * @param withoutBodies  the arm that did not materialize the bodies
+	 * @param withBodies     the arm that did
+	 * @param attachedBodies the bodies that arm materialized, each exactly once
+	 * @param subject        what the bodies are, for the assertion messages
+	 */
+	private static void assertAttachedBodiesCountedOnce(
+		@Nonnull ServerEntityDecorator withoutBodies,
+		@Nonnull ServerEntityDecorator withBodies,
+		@Nonnull Collection<ServerEntityDecorator> attachedBodies,
+		@Nonnull String subject
+	) {
+		assertFalse(attachedBodies.isEmpty(), subject + " must have been materialized at all.");
+
+		int expectedFetchCount = 0;
+		int expectedFetchedBytes = 0;
+		for (ServerEntityDecorator body : attachedBodies) {
+			expectedFetchCount += body.getIoFetchCount();
+			expectedFetchedBytes += body.getIoFetchedBytes();
+		}
+		assertTrue(expectedFetchCount > 0, "Reading " + subject.toLowerCase() + " has to cost at least one fetch.");
+
+		assertEquals(
+			expectedFetchCount,
+			withBodies.getIoFetchCount() - withoutBodies.getIoFetchCount(),
+			subject + " must contribute their fetch count exactly once."
+		);
+		assertEquals(
+			expectedFetchedBytes,
+			withBodies.getIoFetchedBytes() - withoutBodies.getIoFetchedBytes(),
+			subject + " must contribute their fetched Bytes exactly once."
+		);
+	}
+
+	/**
+	 * Collects the distinct bodies the passed slot of the passed references carries.
+	 *
+	 * Distinctness is by instance and is load-bearing: one group body is routinely shared by many references, and
+	 * summing per reference would expect a single read to be billed once per reference pointing at it.
+	 *
+	 * @param references   references to walk
+	 * @param bodyAccessor the slot to read off each of them
+	 * @return the distinct bodies found there
+	 */
+	@Nonnull
+	private static Collection<ServerEntityDecorator> distinctBodies(
+		@Nonnull Collection<ReferenceContract> references,
+		@Nonnull Function<ReferenceContract, Optional<SealedEntity>> bodyAccessor
+	) {
+		final Set<ServerEntityDecorator> bodies = Collections.newSetFromMap(new IdentityHashMap<>());
+		for (ReferenceContract reference : references) {
+			bodyAccessor.apply(reference)
+				.map(ServerEntityDecorator.class::cast)
+				.ifPresent(bodies::add);
+		}
+		return bodies;
+	}
+
+	/**
+	 * Returns the primary key of the first product the passed predicate accepts.
+	 *
+	 * @param originalProducts the fixture products
+	 * @param predicate        what the product has to offer
+	 * @param expectation      description of the expectation, for the failure message
+	 * @return primary key of the matching product
+	 */
+	private static int productMatching(
+		@Nonnull List<SealedEntity> originalProducts,
+		@Nonnull java.util.function.Predicate<SealedEntity> predicate,
+		@Nonnull String expectation
+	) {
+		return originalProducts
+			.stream()
+			.filter(predicate)
+			.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
+			.findFirst()
+			.orElseThrow(() -> new AssertionError("The fixture must offer " + expectation + "."));
+	}
+
+	/**
+	 * Fetches a single product by primary key under the passed requirements.
+	 *
+	 * @param session            session to query through
+	 * @param primaryKey         primary key of the product to fetch
+	 * @param entityRequirements the requirements shaping what is materialized
+	 * @return the returned entity, as the decorator that carries its I/O statistics
+	 */
+	@Nonnull
+	private static ServerEntityDecorator fetchProductWith(
+		@Nonnull EvitaSessionContract session,
+		int primaryKey,
+		@Nonnull EntityContentRequire... entityRequirements
+	) {
+		final EvitaResponse<SealedEntity> response = session.querySealedEntity(
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(entityPrimaryKeyInSet(primaryKey)),
+				require(entityFetch(entityRequirements))
+			)
+		);
+		assertEquals(1, response.getRecordData().size());
+		return assertInstanceOf(ServerEntityDecorator.class, response.getRecordData().get(0));
 	}
 
 }
