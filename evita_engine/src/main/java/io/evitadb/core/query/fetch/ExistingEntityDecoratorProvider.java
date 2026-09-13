@@ -52,11 +52,16 @@ class ExistingEntityDecoratorProvider implements ExistingEntityProvider {
 	private final EntityDecorator entityDecorator;
 
 	/**
-	 * Walks the whole parent chain the decorator already holds rather than answering with its immediate parent.
+	 * Returns the already-fetched body of the ancestor carrying `primaryKey`, if the decorator this provider wraps
+	 * holds one, by walking the whole parent chain rather than answering with its immediate parent.
 	 *
 	 * The caller asks for one ancestor at a time and indexes the answers by the primary key they came back with, so
 	 * answering every ask with the immediate parent leaves every ancestor above it unindexed - and a body nobody
 	 * indexed is neither reused nor fetched, which silently truncates a requested chain to its first link.
+	 *
+	 * @param primaryKey primary key of the ancestor the caller is looking for
+	 * @return the ancestor's body, or empty when the chain holds no body under that key - including when the link
+	 * is present but carries no body at all
 	 */
 	@Nonnull
 	@Override

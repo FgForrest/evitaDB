@@ -1402,12 +1402,13 @@ class EntityReferenceFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 	}
 
 	/**
-	 * Pins that a body the query composed twice is billed once.
+	 * Pins that an entity this one exposes through two views is counted once.
 	 *
-	 * Each named reference set is composed on its own, so two named sets over the same reference name reach the very
-	 * same storage records twice. The second composition is served by the query's
-	 * {@link io.evitadb.core.buffer.StorageAccessScope} without touching the storage, and a read that did not happen
-	 * may not be billed to the entity either - otherwise one physical read is described as two.
+	 * Each named reference set is composed on its own, through its own prefetch index, so two named sets over the
+	 * same reference name arrive as two distinct decorator objects describing the very same referenced entities.
+	 * The per-entity statistic reports what this product would have cost fetched alone, and fetching it alone reads
+	 * each referenced entity once however many views of it the request happens to ask for - so the two arms must
+	 * report the same number. Object identity cannot collapse those views; only the entity they describe can.
 	 */
 	@DisplayName("Should not count a body the query composed twice as two reads")
 	@UseDataSet(HUNDRED_PRODUCTS)
@@ -1434,12 +1435,62 @@ class EntityReferenceFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 				assertEquals(
 					composedOnce.getIoFetchCount(),
 					composedTwice.getIoFetchCount(),
-					"Composing the same bodies a second time reads nothing and must cost nothing."
+					"A second view of the same entities describes the same reads and must count once."
 				);
 				assertEquals(
 					composedOnce.getIoFetchedBytes(),
 					composedTwice.getIoFetchedBytes(),
-					"Composing the same bodies a second time reads nothing and must cost no Bytes."
+					"A second view of the same entities describes the same Bytes and must count once."
+				);
+				return null;
+			}
+		);
+	}
+	/**
+	 * Pins that an enrichment adding a second view of bodies it already holds costs nothing extra.
+	 *
+	 * An enrichment does not re-read the bodies its input resolved - it hands the very same ones to the ordinary
+	 * prefetch and to each named prefetch, which wrap them again into decorators of their own. The product then
+	 * exposes one referenced entity through two objects that describe a single set of reads, and counting both is
+	 * how the two mechanisms this one replaced went wrong.
+	 */
+	@DisplayName("Should not count a body a second reference set only re-wraps")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldNotCountAReWrappedBodyTwiceOnEnrichment(Evita evita, List<SealedEntity> originalProducts) {
+		final int productPk = productMatching(
+			originalProducts,
+			it -> it.getReferences(Entities.STORE).size() >= 2,
+			"a product with several store references"
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final ReferenceContent ordinaryStores = referenceContent(
+					Entities.STORE, entityFetch(attributeContentAll())
+				);
+
+				final ServerEntityDecorator ordinaryOnly = enrichProductWith(
+					session, productPk, ordinaryStores
+				);
+				final ServerEntityDecorator ordinaryAndNamed = enrichProductWith(
+					session, productPk, ordinaryStores, namedStoreReferenceSet(true)
+				);
+
+				assertTrue(
+					ordinaryOnly.getIoFetchCount() > 0,
+					"The fixture must make fetching the store bodies cost something at all."
+				);
+				assertEquals(
+					ordinaryOnly.getIoFetchCount(),
+					ordinaryAndNamed.getIoFetchCount(),
+					"A named set re-wrapping bodies the entity already holds must add nothing."
+				);
+				assertEquals(
+					ordinaryOnly.getIoFetchedBytes(),
+					ordinaryAndNamed.getIoFetchedBytes(),
+					"A named set re-wrapping bodies the entity already holds must add no Bytes."
 				);
 				return null;
 			}
@@ -1589,6 +1640,28 @@ class EntityReferenceFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 		);
 		assertEquals(1, response.getRecordData().size());
 		return assertInstanceOf(ServerEntityDecorator.class, response.getRecordData().get(0));
+	}
+
+	/**
+	 * Fetches the product bare and then enriches it with the passed requirements, so the bodies the enrichment
+	 * needs are resolved by an enrichment rather than by the original fetch.
+	 *
+	 * @param session            session to query through
+	 * @param primaryKey         primary key of the product to fetch
+	 * @param entityRequirements requirements the enrichment widens the entity by
+	 * @return the enriched entity, as the decorator that carries its I/O statistics
+	 */
+	@Nonnull
+	private static ServerEntityDecorator enrichProductWith(
+		@Nonnull EvitaSessionContract session,
+		int primaryKey,
+		@Nonnull EntityContentRequire... entityRequirements
+	) {
+		final SealedEntity fetched = fetchProductWith(session, primaryKey, attributeContentAll());
+		return assertInstanceOf(
+			ServerEntityDecorator.class,
+			session.enrichEntity(fetched, entityRequirements)
+		);
 	}
 
 }
