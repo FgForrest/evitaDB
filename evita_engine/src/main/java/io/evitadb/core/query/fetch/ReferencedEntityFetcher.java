@@ -2239,8 +2239,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 *
 	 * @param instanceName the name of the instance to fetch the ReferenceSetFetcher for, must not be null
 	 * @return the ReferenceSetFetcher associated with the given instance name, never null
-	 * @throws GenericEvitaInternalError if {@link #prefetchEntities} has not been called prior to this method
-	 * @throws NullPointerException      if no ReferenceSetFetcher is found for the given instance name
+	 * @throws GenericEvitaInternalError if {@link #prefetchEntities} has not been called prior to this method, or
+	 *                                   if it prepared no fetcher for the passed instance name
 	 */
 	@Nonnull
 	public ReferenceSetFetcher getMinimalReferenceFetcher(@Nonnull String instanceName) {
@@ -2249,7 +2249,14 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			() -> new GenericEvitaInternalError(
 				"Method `prefetchEntities` must be called prior creating named fetchers!")
 		);
-		return Objects.requireNonNull(this.namedFetchedEntities.get(instanceName));
+		final ReferenceSetFetcher namedFetcher = this.namedFetchedEntities.get(instanceName);
+		Assert.isPremiseValid(
+			namedFetcher != null,
+			() -> new GenericEvitaInternalError(
+				"No reference fetcher was prepared for reference content instance `" + instanceName + "`!"
+			)
+		);
+		return namedFetcher;
 	}
 
 	/**
@@ -2341,35 +2348,40 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			for (Entry<ReferenceContentKey, RequirementContext> namedEntry : namedReferenceFetch.entrySet()) {
 				final ReferenceContentKey rck = namedEntry.getKey();
 				final RequirementContext namedRequirementContext = namedEntry.getValue();
-				if (namedRequirementContext.requiresInit()) {
-					final ChunkTransformer namedChunkTransformer = namedEntry.getValue().referenceChunkTransformer();
-					final ChunkTransformerAccessor namedChunkTransformerAccessor = referenceName -> namedChunkTransformer;
-					final DefaultPrefetchRequirementCollector namedCollector = new DefaultPrefetchRequirementCollector();
-					this.namedFetchedEntities.put(
-						rck.instanceName(),
-						new ReferencedSetEntityFetcher(
-							Map.of(
-								rck.referenceName(),
-								createPrefetchedEntities(
-									executionContext,
-									entitySchema,
-									existingEntityRetriever,
-									referencedEntityIdsFormula,
-									referenceContractsAccessor,
-									groupToReferencedEntityIdTranslator,
-									referencedEntityToGroupIdTranslator,
-									entityPrimaryKey,
-									rck.referenceName(),
-									namedRequirementContext,
-									namedCollector,
-									filterByVisitor
-								)
-							),
-							namedChunkTransformerAccessor,
-							namedCollector
+				final ChunkTransformer namedChunkTransformer = namedRequirementContext.referenceChunkTransformer();
+				final ChunkTransformerAccessor namedChunkTransformerAccessor = referenceName -> namedChunkTransformer;
+				final DefaultPrefetchRequirementCollector namedCollector = new DefaultPrefetchRequirementCollector();
+				// a named set asking for attributes and nothing else needs no referenced entity index built for it,
+				// and gets an empty one - `ReferencedSetEntityFetcher` answers a reference name it holds nothing for
+				// with no-op entity fetchers and no narrowing, which is precisely what such a set asked for. The
+				// fetcher itself must exist either way, because every named set is composed through its own.
+				final Map<String, PrefetchedEntities> namedPrefetchedEntities = namedRequirementContext.requiresInit() ?
+					Map.of(
+						rck.referenceName(),
+						createPrefetchedEntities(
+							executionContext,
+							entitySchema,
+							existingEntityRetriever,
+							referencedEntityIdsFormula,
+							referenceContractsAccessor,
+							groupToReferencedEntityIdTranslator,
+							referencedEntityToGroupIdTranslator,
+							entityPrimaryKey,
+							rck.referenceName(),
+							namedRequirementContext,
+							namedCollector,
+							filterByVisitor
 						)
-					);
-				}
+					) :
+					Map.of();
+				this.namedFetchedEntities.put(
+					rck.instanceName(),
+					new ReferencedSetEntityFetcher(
+						namedPrefetchedEntities,
+						namedChunkTransformerAccessor,
+						namedCollector
+					)
+				);
 			}
 		}
 
