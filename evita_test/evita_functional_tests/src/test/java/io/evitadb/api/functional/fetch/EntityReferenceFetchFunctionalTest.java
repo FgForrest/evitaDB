@@ -436,6 +436,67 @@ class EntityReferenceFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 			}
 		);
 	}
+	@DisplayName("In internal API, a named reference set that requires no initialization could be fetched")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFetchNamedReferenceSetRequiringNoInitialization(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> !it.getReferences(Entities.CATEGORY).isEmpty()
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements)
+						),
+						require(
+							entityFetch(
+								// asks for attributes only - no bodies, no filter, no order, no paging, which is
+								// the one shape whose requirements need no referenced entity index built for them
+								new ReferenceContent(
+									"plainCategories",
+									ManagedReferencesBehaviour.ANY,
+									new String[]{Entities.CATEGORY},
+									new RequireConstraint[]{attributeContentAll()},
+									new Constraint[0]
+								)
+							),
+							page(1, 4)
+						)
+					)
+				);
+
+				assertEquals(4, productByPk.getRecordData().size());
+
+				for (SealedEntity product : productByPk.getRecordData()) {
+					assertInstanceOf(ServerEntityDecorator.class, product);
+					final ServerEntityDecorator serverEntity = (ServerEntityDecorator) product;
+					final DataChunk<ReferenceContract> plainCategories = serverEntity
+						.getReferencesForReferenceContentInstance(
+							new ReferenceContentKey("plainCategories", Entities.CATEGORY)
+						)
+						.orElseThrow();
+					final Collection<ReferenceContract> allCategories = product.getReferences(Entities.CATEGORY);
+					assertFalse(allCategories.isEmpty());
+					// nothing narrows the set, so it holds every reference of that name, unpaginated
+					assertEquals(allCategories.size(), plainCategories.getData().size());
+					assertEquals(allCategories.size(), plainCategories.getTotalRecordCount());
+					for (ReferenceContract category : plainCategories) {
+						// the attributes were asked for and must be there
+						assertNotNull(category.getAttributeValue(ATTRIBUTE_CATEGORY_SHADOW));
+						// the bodies were not
+						assertFalse(category.getReferencedEntity().isPresent());
+					}
+				}
+				return null;
+			}
+		);
+	}
 
 	@DisplayName("Multiple entities with specific references with all attributes can be retrieved")
 	@UseDataSet(HUNDRED_PRODUCTS)
@@ -1402,8 +1463,9 @@ class EntityReferenceFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 	 * referenced bodies.
 	 *
 	 * The `strip` is not incidental: a named reference content that asks for no bodies, no filter, no order and no
-	 * paging needs no prefetching at all, and the engine then builds no fetcher for it - so the arms would differ in
-	 * more than the bodies. Both arms carry it, so the only difference between them stays the `entityFetch`.
+	 * paging requires no prefetching at all, and the engine then reads nothing on its behalf - so the arms would
+	 * differ in more than the bodies. Both arms carry it, so the only difference between them stays the
+	 * `entityFetch`.
 	 *
 	 * @param instanceName name of the reference content instance
 	 * @param withBodies   whether the referenced bodies are to be materialized
