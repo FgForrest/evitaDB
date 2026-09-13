@@ -654,9 +654,9 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		if (this.resolvedIoFetchCount == NOT_RESOLVED || this.resolvedIoFetchedBytes == NOT_RESOLVED) {
 			int attachedFetchCount = 0;
 			int attachedFetchedBytes = 0;
-			for (ServerEntityDecorator attachedBody : attachedBodies()) {
-				attachedFetchCount += attachedBody.getIoFetchCount();
-				attachedFetchedBytes += attachedBody.getIoFetchedBytes();
+			for (BodyCost attachedBody : attachedBodies()) {
+				attachedFetchCount += attachedBody.ioFetchCount();
+				attachedFetchedBytes += attachedBody.ioFetchedBytes();
 			}
 			this.resolvedIoFetchCount = ownIoFetchCount() + attachedFetchCount;
 			this.resolvedIoFetchedBytes = ownIoFetchedBytes() + attachedFetchedBytes;
@@ -712,8 +712,8 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 * @return the attached bodies, or an empty collection when nothing is attached
 	 */
 	@Nonnull
-	private Collection<ServerEntityDecorator> attachedBodies() {
-		Map<BodyKey, ServerEntityDecorator> bodies = null;
+	private Collection<BodyCost> attachedBodies() {
+		Map<BodyKey, BodyCost> bodies = null;
 		if (parentAvailable()) {
 			// a bodyless pointer costs nothing - nothing was read to produce it
 			bodies = collectBody(bodies, getParentEntity().orElse(null));
@@ -741,8 +741,8 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 * @return the set to carry on with
 	 */
 	@Nullable
-	private static Map<BodyKey, ServerEntityDecorator> collectReferenceBodies(
-		@Nullable Map<BodyKey, ServerEntityDecorator> bodies,
+	private static Map<BodyKey, BodyCost> collectReferenceBodies(
+		@Nullable Map<BodyKey, BodyCost> bodies,
 		@Nonnull ReferenceContract reference
 	) {
 		return collectBody(
@@ -760,18 +760,17 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 * @return the set to carry on with
 	 */
 	@Nullable
-	private static Map<BodyKey, ServerEntityDecorator> collectBody(
-		@Nullable Map<BodyKey, ServerEntityDecorator> bodies,
+	private static Map<BodyKey, BodyCost> collectBody(
+		@Nullable Map<BodyKey, BodyCost> bodies,
 		@Nullable Object candidate
 	) {
 		if (candidate instanceof ServerEntityDecorator body) {
-			final Map<BodyKey, ServerEntityDecorator> result = bodies == null ?
+			final Map<BodyKey, BodyCost> result = bodies == null ?
 				CollectionUtils.createHashMap(8) : bodies;
 			result.merge(
 				new BodyKey(body.getType(), body.getPrimaryKeyOrThrowException()),
-				body,
-				// two views of one entity describe one set of reads - keep the view that accounts for more of them
-				(left, right) -> left.getIoFetchCount() >= right.getIoFetchCount() ? left : right
+				new BodyCost(body.getIoFetchCount(), body.getIoFetchedBytes()),
+				BodyCost::larger
 			);
 			return result;
 		} else {
@@ -786,6 +785,35 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 * @param primaryKey  primary key of the attached entity
 	 */
 	private record BodyKey(@Nonnull String entityType, int primaryKey) {
+	}
+
+	/**
+	 * What obtaining one attached entity cost, taken from a body that carries it.
+	 *
+	 * @param ioFetchCount   number of records read to produce that entity
+	 * @param ioFetchedBytes number of Bytes those records occupied
+	 */
+	private record BodyCost(int ioFetchCount, int ioFetchedBytes) {
+
+		/**
+		 * Combines two views of one and the same entity, keeping the larger of **each** statistic.
+		 *
+		 * The two are decided separately on purpose: views fetched under different requirements need not order the
+		 * same way on both, and a view reading fewer records can easily have read more Bytes - a single associated
+		 * data record against several attribute ones, say. Picking one view by its record count and then reading
+		 * its Bytes off the same object would report the smaller figure by an arbitrary margin.
+		 *
+		 * @param left  one view of the entity
+		 * @param right the other view of the same entity
+		 * @return the combined cost
+		 */
+		@Nonnull
+		static BodyCost larger(@Nonnull BodyCost left, @Nonnull BodyCost right) {
+			return new BodyCost(
+				Math.max(left.ioFetchCount(), right.ioFetchCount()),
+				Math.max(left.ioFetchedBytes(), right.ioFetchedBytes())
+			);
+		}
 	}
 
 }

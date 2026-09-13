@@ -1,10 +1,10 @@
 ---
 title: Define the per-entity I/O statistic as standalone cost and attribute it at the read, not by walking the returned object graph
 date: 2026-09-13
-updated: 2026-09-13 10:20
+updated: 2026-09-13 10:40
 status: partially-implemented
 kind: refactor
-issues: [1547, 1561, 1562, 1563, 1564]
+issues: [1547, 1561, 1562, 1563, 1564, 1565, 1566, 1567]
 prs: [1548]
 areas: [evita_engine/src/main/java/io/evitadb/core/query/response, evita_engine/src/main/java/io/evitadb/core/buffer, evita_engine/src/main/java/io/evitadb/core/query/fetch, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog, evita_api/src/main/java/io/evitadb/api/requestResponse]
 supersedes: []
@@ -201,6 +201,8 @@ Acceptance criteria for the whole line of work, and where each one stands.
 | a per-entity number is unchanged by what else shares its page | **met** | `EntityHierarchyFetchFunctionalTest#shouldNotLetAPageMateChangeWhatAnEntityCost` |
 | an entity exposing one referenced entity through two views counts it once | **met** | `EntityReferenceFetchFunctionalTest#shouldNotCountAReWrappedBodyTwiceOnEnrichment`, `#shouldNotCountARepeatedCompositionOfTheSameBodyTwice` |
 | the query-wide total stays physical | **met** | `StorageAccessScopeTest#shouldNotAddAServedRecordToTheQueryTotal` |
+| reaching a richness by enrichment costs what reaching it in one fetch costs | **partly met** | `EntityEnrichmentVersionGuardFunctionalTest#shouldNotTakeTheShortcutForAnEntityReturnedByAQuery` — the unconditional version probe no longer bills; the predicate-driven re-reads still do (#1565) |
+| a descendant reachable through two bodies contributes once, not once per path | open | — (#1567) |
 | an over-fetching reference fetch reports all N candidates, not the K it exposes | open | — |
 | a body-only binary query reports a non-zero count | open | — |
 | an in-transaction read-after-write reports no physical reads for trapped parts | open | — |
@@ -231,10 +233,31 @@ the attached half; it needs coverage.
 - Per-entity numbers remain an approximation until the three open criteria above are met: they can
   still under-report an over-fetching reference fetch and a binary body fetch. The contract javadoc
   says so, and must stop saying so when it stops being true.
-- De-duplication keeps the **larger** of two views of one entity. Where two views genuinely read
-  disjoint parts of the same entity — separate reference sets asking for different requirements —
-  that under-reports by the smaller view. No shape producing it is known; it is recorded here
-  because the rule is a choice, not a derivation.
+- De-duplication keeps the **larger** of two views of one entity, deciding fetch count and fetched
+  bytes independently — views fetched under different requirements need not order the same way on
+  both, and choosing one view by its record count then reading its bytes off that same object
+  reports the smaller figure by an arbitrary margin.
+- Where two views genuinely read **disjoint** parts of one entity, keeping the larger under-reports
+  the union. An earlier draft of this record claimed no such shape was known; one does exist, since
+  ordinary and named reference requirements are held in independent maps and can carry different
+  requirements for the same referenced entity (#1566).
+- An enrichment re-reads parts the entity already holds, because the narrowing predicates a query
+  result carries defeat the "already fetched" comparison, and those re-reads are billed (#1565).
+  The unconditional body re-read that establishes whether the decorator is still current is fixed
+  here: `IoFetchStatistics#note` puts it in the query total without billing the entity.
+- De-duplication covers the **immediate** children only. Two bodies of one owner that share a
+  descendant each carry that descendant inside their own aggregate, and summing the two bills it
+  twice (#1567). Pushing the de-duplication one level deeper only moves the problem; the root's cost
+  has to become a union over the reachable graph rather than a sum of child aggregates.
+
+**The pattern across the open items is the finding.** Five independent shapes now break this design
+— over-fetch (#1561), binary reads (#1562), enrichment re-reads (#1565), disjoint views (#1566),
+shared descendants (#1567) — and every one of them is a place where the exposed object graph does
+not carry the information the statistic needs. Each is cheap to describe and none is cheap to fix
+here, because the fix is the same in every case: have the prefetch and the storage boundary report
+what they read and for whom, rather than reconstructing it afterwards from what survived into the
+result. A sixth point fix inside this design should be treated as evidence the boundary work is
+overdue, not as progress.
 
 ## Related work
 
