@@ -458,6 +458,19 @@ fixture was not the *only* thing wrong then, not that the run still fails for th
 
 ## Consequences & open follow-ups
 
+- **This work falsified a comment in the gRPC subscriber, and the comment was left standing.**
+  `AbstractChangeCaptureSubscriber#onSubscribe` (`evita_external_api_grpc/server`, `:256-259`) defers its
+  `markStreamDead` through `CompletableFuture.runAsync` and explains why: *"this method runs inside
+  `DefaultChangeCaptureSubscription`'s constructor which is itself inside `ConcurrentHashMap.computeIfAbsent`;
+  a synchronous `subscription.cancel()` would re-enter the map and deadlock."* That premise no longer holds —
+  `onSubscribe` moved into `activate()`, which both publishers call only after `computeIfAbsent` has returned.
+  The deferral is now harmless belt-and-braces, but its stated reason is wrong, and the two synchronous
+  `subscription.cancel()` calls beside it at `:242` and `:248` are no longer the hazard the asymmetry implies.
+  **Not fixed here** because it is in a different module and outside the footprint of the PR that changed the
+  premise. Whoever touches that file should correct the comment first: a comment naming a mechanism that has
+  since been removed is the exact trap that cost a day on this issue, and this one now reads as authoritative
+  evidence for a constraint that was lifted.
+
 - **The capture-lifecycle work is not backported to 2026.2, and the one gate that was backportable was
   declined with it.** The release branch carries a genuine double decrement: `unsubscribe` cancels the
   departing subscription, the cancel releases it, and the release re-enters `unsubscribe` through the
