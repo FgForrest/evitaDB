@@ -34,6 +34,7 @@ import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import net.openhft.hashing.LongHashFunction;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -45,6 +46,8 @@ import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.CACHE;
+
+import java.io.IOException;
 
 /**
  * This test verifies behaviour of {@link FormulaCacheVisitor}.
@@ -79,6 +82,14 @@ class FormulaCacheVisitorTest {
 			this.cacheEden,
 			scheduler
 		);
+	}
+
+	@AfterEach
+	void tearDown() throws IOException {
+		// the anteroom owns the eden, and closing it hands the eden's Flight Recorder periodic hook back.
+		// A hook left registered sits in a JVM-lifetime static and keeps this cache alive for the whole run -
+		// see documentation/adr/2026-09-14-closed-engine-resource-release.md
+		this.cacheAnteroom.close();
 	}
 
 	@Test

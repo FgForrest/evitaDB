@@ -24,7 +24,10 @@
 package io.evitadb.core;
 
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.core.cache.CacheEden;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,9 +61,15 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * public API to count: what matters is not how many hooks were handed back but whether anything at all still
  * holds the engine, and a weak reference answers exactly that question without caring which retainer was at fault.
  *
+ * It takes two tests, because reachability can only catch a retainer that reaches the object being watched. Three
+ * of the four registration sites capture the engine - the engine-wide hooks and the per-catalog hook hold it
+ * directly, and the change observer's hook reaches it through its shared publisher - so watching the engine covers
+ * them. {@link CacheEden}'s hook does not: the cache holds its records, its counters and its own hook and nothing
+ * that leads back to an engine, so a leak there is invisible to a weak reference to the engine and needs its own.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Engine retention after close")
+@DisplayName("Flight Recorder hook retention")
 @Tag(ENGINE)
 @Tag(OBSERVABILITY)
 class EvitaJfrHookRetentionTest implements EvitaTestSupport {
@@ -98,6 +107,39 @@ class EvitaJfrHookRetentionTest implements EvitaTestSupport {
 		);
 	}
 
+	@Test
+	@DisplayName("should let a closed cache eden be collected once its Flight Recorder hook is handed back")
+	void shouldNotRetainClosedCacheEden() {
+		final WeakReference<CacheEden> edenReference = buildAndCloseCacheEden();
+		assertCollectable(
+			edenReference,
+			"A closed cache is still reachable. Its statistics hook is registered with the same JVM-lifetime " +
+				"registry as the engine's, and holds the cache - and everything it has memoized - for the rest " +
+				"of the process unless close() hands it back."
+		);
+	}
+
+	/**
+	 * Builds a cache eden, closes it, and hands back only a weak reference to it.
+	 *
+	 * Nothing but the hook can retain it: the eden stores its records, its sizing, its counters and its own hook,
+	 * and it does not keep the scheduler it is handed. That is what makes this a clean read on the hook alone.
+	 *
+	 * @return weak reference to the cache that has just been closed
+	 */
+	@Nonnull
+	private static WeakReference<CacheEden> buildAndCloseCacheEden() {
+		final Scheduler scheduler = new Scheduler(
+			ThreadPoolOptions.requestThreadPoolBuilder()
+				.minThreadCount(1)
+				.maxThreadCount(1)
+				.build()
+		);
+		final CacheEden cacheEden = new CacheEden(1_000_000, 1, 100L, scheduler);
+		cacheEden.close();
+		return new WeakReference<>(cacheEden);
+	}
+
 	/**
 	 * Boots an engine, gives it the hooks a real deployment would register, closes it, and hands back only a weak
 	 * reference to it.
@@ -105,9 +147,9 @@ class EvitaJfrHookRetentionTest implements EvitaTestSupport {
 	 * The engine is confined to this method on purpose: a local variable in the *calling* frame would keep it
 	 * strongly reachable for the whole test and the assertion could never fail, whichever way the code behaved.
 	 *
-	 * Every path that registers a hook is walked, because the claim under test is a quantifier - that *no* hook
-	 * survives the close - and a test that only ever created one catalog would pass with three of the four
-	 * registration sites still leaking.
+	 * Every path that registers a hook *on the engine* is walked, because the claim under test is a quantifier -
+	 * that no such hook survives the close - and a test that only ever created one catalog would pass with two of
+	 * those three sites still leaking.
 	 *
 	 * @return weak reference to the engine that has just been closed
 	 */
