@@ -13,7 +13,7 @@ areas:
   - evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver
 supersedes: []
 superseded-by: []
-relates: [2026-08-05-streaming-calls-must-not-be-retry-decorated, 2026-09-13-recoverable-wal-tail-reads-must-not-mint-internal-errors]
+relates: [2026-08-05-streaming-calls-must-not-be-retry-decorated, 2026-09-13-off-record-reads-must-not-restore-an-invalidated-buffer-limit]
 ---
 
 # Pace gRPC server-streaming producers with a readiness gate that parks the worker

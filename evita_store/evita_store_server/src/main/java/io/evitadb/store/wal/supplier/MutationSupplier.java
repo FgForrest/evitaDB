@@ -137,6 +137,14 @@ public final class MutationSupplier<T extends Mutation> extends AbstractMutation
 		if (this.transactionMutation == null) {
 			return null;
 		} else if (this.transactionMutationRead == 0) {
+			// the version ceiling has to be tested here as well as in the advance below, because the transaction
+			// the CONSTRUCTOR landed on never passes through that test - it is delivered straight out of Phase 1.
+			// When the start version sits above the ceiling the interval is empty, and without this the reader
+			// answers it with the start transaction and all of its mutations, which is the one thing a bound is
+			// supposed to prevent
+			if (this.requestedVersion != null && this.transactionMutation.getVersion() > this.requestedVersion) {
+				return null;
+			}
 			// Phase 1: return the transaction mutation header
 			this.transactionMutationRead++;
 			//noinspection unchecked
@@ -246,10 +254,20 @@ public final class MutationSupplier<T extends Mutation> extends AbstractMutation
 					} else {
 						return null;
 					}
-				} catch (WriteAheadLogCorruptedException | EvitaInvalidUsageException ex) {
-					// a cumulative-checksum mismatch is a hard corruption regardless of position, and a bound the
-					// client got wrong is a usage error — both are verdicts already reached, so neither may be
-					// re-swallowed as an end-of-stream or re-wrapped into something it is not
+				} catch (WriteAheadLogCorruptedException ex) {
+					// a cumulative-checksum mismatch is a hard corruption regardless of position — never swallow it
+					throw ex;
+				} catch (EvitaInvalidUsageException ex) {
+					// this method's own "the version you named is not there" verdict for a client-supplied bound
+					// comes back through here, and it is already the right answer — re-wrapping it below would
+					// bury it inside a second exception. But it is NOT the only thing of this type that can
+					// arrive: `kryo.readClassAndObject` raises EvitaInvalidUsageException subclasses of its own
+					// (UnsupportedDataTypeException among them) from deeper in the read path, and for a reader
+					// that named no version those are simply where the data stops making sense. So the graceful
+					// arm still wins wherever it applies, and only a caller still owed a version sees this.
+					if (mayEndGracefully) {
+						return null;
+					}
 					throw ex;
 				} catch (Exception ex) {
 					if (mayEndGracefully) {

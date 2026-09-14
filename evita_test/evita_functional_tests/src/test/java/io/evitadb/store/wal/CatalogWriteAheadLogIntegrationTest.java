@@ -40,9 +40,11 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.session.EvitaSession;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.wal.VersionSource;
+import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.catalog.DefaultIsolatedWalService;
 import io.evitadb.store.checksum.Crc32CChecksumFactory;
 import io.evitadb.store.compression.CompressionFactory;
@@ -99,7 +101,6 @@ import java.util.stream.Stream;
 
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.WAL_FILE_SUFFIX;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getWalFileName;
-import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException;
 
 import static io.evitadb.store.wal.CatalogWriteAheadLog.getFirstAndLastVersionsFromWalFile;
 import static io.evitadb.store.wal.CatalogWriteAheadLog.getIndexFromWalFileName;
@@ -476,6 +477,101 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 	@Nested
 	@DisplayName("Multi-File WAL Tests")
 	class MultiFileWalTests {
+
+		/**
+		 * A version whose WAL file retention has already reclaimed must be reported, not answered with an
+		 * empty stream — and this is the path on which that most often goes wrong.
+		 *
+		 * `AbstractMutationLog#createSupplier` resolves the file index through `resolveWalFileIndex`, which
+		 * returns **-1** once the file holding the start version is gone. `-1` is a perfectly well-formed
+		 * file index, so the name it produces is a file that simply does not exist, and the supplier's
+		 * constructor takes its "no WAL file here" branch rather than the forward scan. The scan is where the
+		 * obvious not-found guard lives, so without a second guard on the missing-file branch this case stays
+		 * silent — which is how it read before, and it is the case `VersionSource` was introduced for.
+		 *
+		 * Silence here is not merely an under-reported error. `TransactionManager` re-derives the conflict
+		 * keys of aged-out transactions by reading this range, so an empty stream lets a commit through
+		 * without the conflict scan it was supposed to pass, with nothing anywhere saying so.
+		 *
+		 * The third read is the negative control and is the reason the other two can be trusted: on the same
+		 * trimmed log, a caller whose start version sits *above* its own ceiling has asked for an empty
+		 * interval and must still get an empty stream. Without it, a guard that threw on every trimmed log —
+		 * including for callers who asked for nothing — would pass the first two assertions.
+		 */
+		@Test
+		@DisplayName("a version whose WAL file retention has reclaimed must be reported, not silently empty")
+		void shouldReportAVersionWhoseWalFileHasBeenReclaimedByRetention() throws IOException {
+			CatalogWriteAheadLogIntegrationTest.this.wal.close();
+			CatalogWriteAheadLogIntegrationTest.this.wal = createCatalogWriteAheadLogOfSmallSize();
+
+			final int[] transactionSizes = {10, 15, 20, 15, 10};
+			writeWal(CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager, transactionSizes);
+
+			final File[] walFiles = sortedWalFiles();
+			assertTrue(
+				walFiles.length > 1,
+				"this test needs the WAL to have rotated, so that deleting the oldest file leaves a log whose " +
+					"earliest versions are genuinely unreachable; it produced " + walFiles.length + " file(s)"
+			);
+			assertTrue(
+				walFiles[0].delete(),
+				"the oldest WAL file was supposed to be deletable, standing in for a retention sweep"
+			);
+
+			final long lastVersion = transactionSizes.length;
+
+			// the engine asking for a version it believes it wrote: damage
+			assertThrows(
+				WriteAheadLogCorruptedException.class,
+				() -> {
+					try (
+						final Stream<CatalogBoundMutation> stream = CatalogWriteAheadLogIntegrationTest.this.wal
+							.getCommittedLiveMutationStream(1L, lastVersion, VersionSource.INTERNAL)
+					) {
+						stream.toList();
+					}
+				},
+				"Version 1's WAL file is gone, and the caller named a range starting there. An empty stream " +
+					"tells the engine \"nothing to process\", which is indistinguishable from \"everything is " +
+					"processed\" - and on the conflict-detection path that silently accepts a commit whose " +
+					"aged-out conflict scan never ran."
+			);
+
+			// a client asking for the same thing: a bad argument, and never an internal error
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> {
+					try (
+						final Stream<CatalogBoundMutation> stream = CatalogWriteAheadLogIntegrationTest.this.wal
+							.getCommittedLiveMutationStream(1L, lastVersion, VersionSource.CLIENT)
+					) {
+						stream.toList();
+					}
+				},
+				"A subscriber whose pointer has fallen out of retention is asking for something that is not " +
+					"there. It has to be told - but it is not a fault an operator can clear, so it must not " +
+					"reach the internal-error metric."
+			);
+
+			// negative control: an empty interval is not a missing version, trimmed log or not
+			final List<CatalogBoundMutation> emptyInterval = assertDoesNotThrow(
+				() -> {
+					try (
+						final Stream<CatalogBoundMutation> stream = CatalogWriteAheadLogIntegrationTest.this.wal
+							.getCommittedLiveMutationStream(lastVersion, 1L, VersionSource.CLIENT)
+					) {
+						return stream.toList();
+					}
+				},
+				"A start version above its own ceiling describes an empty interval, which is what a " +
+					"mutation-history query whose time frame begins after the last commit resolves to. There " +
+					"is nothing in that range by construction, so it is an empty answer and not an error."
+			);
+			assertTrue(
+				emptyInterval.isEmpty(),
+				"An empty interval returned " + emptyInterval.size() + " mutation(s)."
+			);
+		}
 
 		@Test
 		@DisplayName("should write and read WAL over multiple files")

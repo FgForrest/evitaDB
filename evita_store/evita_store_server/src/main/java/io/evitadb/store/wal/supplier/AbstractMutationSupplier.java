@@ -311,6 +311,25 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 			this.kryo = null;
 			this.observableInput = null;
 			this.transactionMutation = null;
+			// This branch is how a named version most often goes missing, and the reason is not obvious:
+			// `AbstractMutationLog#createSupplier` resolves the file index with `resolveWalFileIndex`, which
+			// returns -1 once retention has trimmed away the file the start version lived in. `apply(-1)` is a
+			// perfectly well-formed name for a file that cannot exist, so the supplier lands here rather than in
+			// the scan below - and the scan is where the other not-found guard sits. Without this, the
+			// aged-out-of-retention case, which is precisely the one VersionSource.CLIENT exists to report,
+			// would still end in a silent empty stream. A greedy read keeps that silence: it named nothing, so
+			// there is nothing it can be missing.
+			if (requestedVersion != null && version <= requestedVersion) {
+				// nothing was acquired on this path - kryo was never obtained and no input was opened - so
+				// there is nothing to release before throwing
+				throw missingBoundedVersion(
+					"Catalog version " + requestedVersion + " cannot be read: " + this.walKind.fileLabel +
+						" `" + this.walFile.getName() + "` holding the requested range is not present under `" +
+						storageFolder + "` (reading forward from version " + version + "). The most likely " +
+						"cause is that the range has been trimmed by WAL retention.",
+					"requested version is no longer available in the log"
+				);
+			}
 		} else {
 			this.catalogKryoPool = catalogKryoPool;
 			this.kryo = catalogKryoPool.obtain();
@@ -408,6 +427,14 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 				this.transactionMutation = null;
 				this.observableInput = null;
 			} catch (IOException e) {
+				// same reasoning as the not-found throw above, and it applied here long before that one existed:
+				// this constructor is about to fail, so close() will never run and both the pooled Kryo and the
+				// open file would be lost
+				if (this.observableInput != null) {
+					this.observableInput.close();
+					this.observableInput = null;
+				}
+				catalogKryoPool.free(this.kryo);
 				throw new UnexpectedIOException(
 					"Failed to read WAL file `" + this.walFile.getName() + "`!",
 					"Failed to read WAL file!",
@@ -602,7 +629,7 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 		// reader that miscounted, and neither may be handled quietly: reporting an expected short read as a
 		// fault is the failure this guard was once suspected of, but the cause turned out to be the reader
 		// miscounting (see
-		// documentation/adr/2026-09-13-recoverable-wal-tail-reads-must-not-mint-internal-errors.md), which a
+		// documentation/adr/2026-09-13-off-record-reads-must-not-restore-an-invalidated-buffer-limit.md), which a
 		// guard here would only have hidden.
 		Assert.isPremiseValid(
 			contentLength + 4 == leadTransactionMutationSize + transactionMutation.getWalSizeInBytes(),

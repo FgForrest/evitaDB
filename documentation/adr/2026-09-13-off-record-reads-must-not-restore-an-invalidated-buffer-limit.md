@@ -1,7 +1,7 @@
 ---
 title: Off-record number reads must not restore a buffer limit the read has invalidated
 date: 2026-09-13
-updated: 2026-09-14 09:35
+updated: 2026-09-14 10:08
 status: accepted
 kind: fix
 issues: [1551]
@@ -298,6 +298,18 @@ into a question. Note the limit of that argument in light of the re-measurement 
 fixture was not the *only* thing wrong then, not that the run still fails for the reason it failed then.
 
 ## Consequences & open follow-ups
+
+- **`VersionSource` is chosen per read, not per bound, and that was a decision rather than an oversight.**
+  `EvitaSession#getMutationsHistoryForward` passes two version bounds with different origins — the floor is the
+  client's `criteria.sinceVersion()`, the ceiling is the engine's own `catalog.getVersion()` — and labels the
+  whole read `CLIENT`. Splitting them was considered: the supplier's two constructor guards are about reaching
+  the *floor* and `MutationSupplier#get()`'s throws are about reaching the *ceiling*, so a second field would
+  map cleanly and would let genuine damage met on the way to the engine's own version report as corruption.
+  **Rejected because** it re-opens the door this record exists to shut — a client-initiated request that can
+  raise an operator alarm — in exchange for better attribution of a failure that is rare on that path. The cost
+  is real and accepted: damage discovered while serving a mutation-history query is reported as invalid usage
+  and lands in `io_evitadb_client_errors_total` rather than the internal-error metric. Revisit only if that
+  under-counting is ever observed to hide a real incident; the call site carries the same note.
 
 - **The invariant now holds and is what the greedy stream rests on**: *a block that is safely written is
   immediately safe to read*. What guards it is `ObservableInputTest$BoundaryReadTests`, deterministically, in
