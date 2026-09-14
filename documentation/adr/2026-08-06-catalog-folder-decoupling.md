@@ -1,7 +1,7 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-08-14 14:20
+updated: 2026-09-12 07:10
 status: partially-implemented
 kind: refactor
 issues: [649]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_engine/src/main/java/io/evitadb/core/engine, evita_engine/src/main/java/io/evitadb/core/session, evita_engine/src/main/java/io/evitadb/spi/store/engine, evita_engine/src/main/java/io/evitadb/core/transaction/engine/operators, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog, evita_store/evita_store_server/src/main/java/io/evitadb/store/engine]
 supersedes: []
 superseded-by: []
-relates: []
+relates: [2026-09-12-restore-catalog-to-earlier-version]
 ---
 
 # Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap

@@ -1634,10 +1634,22 @@ public final class Catalog
 		boolean includingWAL,
 		@Nullable LongFunction<CatalogVersionPin> onStart
 	) throws TemporalDataNotAvailableException {
-		final ServerTask<?, FileForFetch> backupTask = this.persistenceService.createBackupTask(
+		return submitBackupTask(
+			createBackupTask(pastMoment, catalogVersion, includingWAL, onStart)
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ServerTask<?, FileForFetch> createBackupTask(
+		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
+		boolean includingWAL,
+		@Nullable LongFunction<CatalogVersionPin> onStart
+	) throws TemporalDataNotAvailableException {
+		return this.persistenceService.createBackupTask(
 			pastMoment, catalogVersion, includingWAL, onStart
 		);
-		return submitBackupTask(backupTask);
 	}
 
 	@Nonnull
