@@ -137,6 +137,10 @@ class EvitaJfrHookRetentionTest implements EvitaTestSupport {
 		);
 		final CacheEden cacheEden = new CacheEden(1_000_000, 1, 100L, scheduler);
 		cacheEden.close();
+		// this scheduler constructor schedules a purging task that re-plans itself forever, so the pool and its
+		// threads outlive the whole suite unless it is shut down. It cannot retain the eden - the eden never
+		// stores it - but leaving it running is the same kind of omission this test exists to catch
+		scheduler.shutdown();
 		return new WeakReference<>(cacheEden);
 	}
 
