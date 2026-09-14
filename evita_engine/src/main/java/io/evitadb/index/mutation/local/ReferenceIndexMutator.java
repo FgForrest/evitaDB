@@ -51,6 +51,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.HistogramCapableEntityIndex;
 import io.evitadb.index.HistogramIndex;
@@ -61,6 +62,7 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.facet.FacetGroupIndex;
 import io.evitadb.index.facet.FacetIdIndex;
 import io.evitadb.index.facet.FacetReferenceIndex;
+import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor.RepresentativeReferenceKeys;
 import io.evitadb.index.mutation.local.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.index.mutation.local.dataAccess.ExistingDataSupplierFactory;
@@ -151,6 +153,14 @@ import static io.evitadb.utils.Assert.isPremiseValid;
  * `isIndexedReferenceForFilteringAndPartitioning`, `isIndexedForEntityComponent`,
  * `isIndexedForGroupComponent`: evaluate whether a reference schema is configured for the requested
  * indexing level or component in the given scope, used heavily as guards throughout the other methods.
+ *
+ * **Reduced-index membership maintenance** — `recordOwnerEnteredReducedIndex`,
+ * `recordOwnerLeftReducedIndex`, `isReducedIndexMembershipMaintained`, `seedFromAdvertisedIndexes`,
+ * `hasReducedIndexMembership`: keep the reverse lookup the cross-entity conditional-facet trigger consults
+ * ({@link io.evitadb.index.membership.ReducedIndexMembership}) in step with the reduced indexes the lifecycle
+ * operations above have just changed. Both boundaries are gated on the collection declaring a conditional
+ * facet and on the reference being indexed for partitioning, so a collection that can never fire the trigger
+ * pays a single bit test here and nothing else.
  *
  * ## Thread safety
  *
@@ -798,13 +808,14 @@ public interface ReferenceIndexMutator {
 		);
 
 		// index entity primary key into the reduced index and populate with existing data
+		final boolean entityFirstIndexedInTargetIndex;
 		if (referenceIndex instanceof ReducedGroupEntityIndex rgei) {
 			// group indexes need cardinality tracking — use two-arg version
 			// `entityFirstIndexedInTargetIndex` is true only when this insert causes the entity to
 			// enter this group reduced index for the first time (cardinality 0 -> 1); subsequent
 			// references contributing to the same group still need per-reference indexing (facets,
 			// reference attributes) but must skip entity-level data that was already populated
-			final boolean entityFirstIndexedInTargetIndex =
+			entityFirstIndexedInTargetIndex =
 				rgei.insertPrimaryKeyIfMissing(entityPrimaryKey, referenceKey.primaryKey())
 					== CardinalityChange.BOUNDARY_CROSSED;
 			indexAllExistingData(
@@ -816,7 +827,7 @@ public interface ReferenceIndexMutator {
 				existingDataSupplierFactory
 			);
 		} else {
-			final boolean entityFirstIndexedInTargetIndex =
+			entityFirstIndexedInTargetIndex =
 				referenceIndex.insertPrimaryKeyIfMissing(entityPrimaryKey);
 			// REI indexes are keyed per-reference so no duplicate refs can land here; always run the
 			// full entity-level + reference-level population when the entity is freshly inserted
@@ -830,6 +841,11 @@ public interface ReferenceIndexMutator {
 					existingDataSupplierFactory
 				);
 			}
+		}
+		// the owner-membership boundary the cross-entity facet trigger's reverse lookup is maintained from -
+		// exactly the 0 -> 1 transition, for both index families, and for no other event
+		if (entityFirstIndexedInTargetIndex) {
+			recordOwnerEnteredReducedIndex(executor, referenceSchema, referenceIndex, entityPrimaryKey);
 		}
 
 		// add facet to reduced index
@@ -931,7 +947,12 @@ public interface ReferenceIndexMutator {
 		int referencedPrimaryKey,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
-		// remove reduced index PK → referenced primary key mapping from the type index
+		// Remove reduced index PK → referenced primary key mapping from the type index. This is unconditional
+		// and it happens FIRST, which is what `ReducedIndexMembership#ownerRemoved` relies on: the counter
+		// behind it drops the index from the reference's advertisement on the 1 -> 0 crossing, in the same
+		// synchronous step in which the membership map forgets it below, so `covered ∪ residual == advertised`
+		// holds across the removal. Deferring or conditioning this un-advertise would leave an advertised index
+		// in neither of that map's sets - a reduced index the cross-entity facet trigger then never visits.
 		final int pkForReferenceTypeIndex = referenceIndex.getPrimaryKey();
 		referenceTypeIndex.removePrimaryKey(pkForReferenceTypeIndex, referencedPrimaryKey);
 
@@ -962,13 +983,14 @@ public interface ReferenceIndexMutator {
 		);
 
 		// remove entity primary key from the reduced index
+		final boolean entityFullyRemovedFromTargetIndex;
 		if (referenceIndex instanceof ReducedGroupEntityIndex rgei) {
 			// group indexes need cardinality tracking — use two-arg version
 			// `entityFullyRemovedFromTargetIndex` is true only when this removal causes the entity
 			// to leave this group reduced index entirely (cardinality 1 -> 0); earlier removals on
 			// the same (entity, RGEI) pair still need per-reference cleanup (facets, reference
 			// attributes) but must skip entity-level data that other references still rely on
-			final boolean entityFullyRemovedFromTargetIndex =
+			entityFullyRemovedFromTargetIndex =
 				rgei.removePrimaryKey(entityPrimaryKey, referenceKey.primaryKey())
 					== CardinalityChange.BOUNDARY_CROSSED;
 			removeAllExistingData(
@@ -980,7 +1002,7 @@ public interface ReferenceIndexMutator {
 				existingDataSupplierFactory
 			);
 		} else {
-			final boolean entityFullyRemovedFromTargetIndex =
+			entityFullyRemovedFromTargetIndex =
 				referenceIndex.removePrimaryKey(entityPrimaryKey);
 			if (entityFullyRemovedFromTargetIndex) {
 				removeAllExistingData(
@@ -992,6 +1014,10 @@ public interface ReferenceIndexMutator {
 					existingDataSupplierFactory
 				);
 			}
+		}
+		// the symmetric 1 -> 0 boundary; see the insert counterpart
+		if (entityFullyRemovedFromTargetIndex) {
+			recordOwnerLeftReducedIndex(executor, referenceSchema, referenceIndex, entityPrimaryKey);
 		}
 	}
 
@@ -1242,10 +1268,237 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
+	 * Records that an owner entity has entered a reduced index, into the reverse lookup the cross-entity
+	 * conditional-facet trigger consults instead of walking every reduced index of the collection.
+	 *
+	 * Maintained **only** for a collection that declares a conditional facet in the scope — the trigger cannot
+	 * fire anywhere else, so a lookup built there would be maintained on every write for a reader that never
+	 * comes. That gate is the same one `EntityCollection#rebuildReducedIndexMembership` applies at load, and the
+	 * two must agree: a collection skipped at load and maintained on write would carry a lookup whose contents
+	 * begin at an arbitrary moment in its life.
+	 *
+	 * Within such a collection it is maintained **only** for references indexed at
+	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}, because those are the only ones the trigger's
+	 * sibling walk visits. A reference that has never been indexed at that level therefore has no slice at all,
+	 * and its reduced indexes are walked exactly as they were before — correct, merely unaccelerated, which is
+	 * the intended behaviour for a schema change the engine does not rebuild indexes for (issue #409).
+	 *
+	 * A reference that was *lowered* out of that level does have a slice, built while it was still watched, and it
+	 * must not be trusted if the reference is raised again. Nothing is done about that here: both gates read the
+	 * schema and nothing else, so maintenance can only ever stop at a **schema change**, and that is where such a
+	 * lookup is dropped — `EntityCollection#discardUnmaintainedReducedIndexMemberships`, hung off `exchangeSchema`
+	 * so that a reflected reference resolved without passing through `updateSchema` is covered too. Keeping the
+	 * write path free of that removal is deliberate: it costs a lookup per reference write, and a structural
+	 * removal from a transactional map is work worth confining to a rare, discrete event.
+	 *
+	 * @param executor          the mutation executor, which owns the global index the lookup hangs off
+	 * @param referenceSchema   schema of the reference whose reduced index was joined
+	 * @param referenceIndex    the reduced index the owner entered
+	 * @param entityPrimaryKey  primary key of the owner entity
+	 */
+	private static void recordOwnerEnteredReducedIndex(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull AbstractReducedEntityIndex referenceIndex,
+		int entityPrimaryKey
+	) {
+		final Scope scope = executor.getScope();
+		if (!isReducedIndexMembershipMaintained(executor, referenceSchema, scope)) {
+			return;
+		}
+		final GlobalEntityIndex globalIndex = resolveGlobalIndex(executor, scope);
+		ReducedIndexMembership membership =
+			globalIndex.getReducedIndexMembership(referenceSchema.getName());
+		if (membership == null) {
+			membership = globalIndex.getOrCreateReducedIndexMembership(referenceSchema.getName());
+			seedFromAdvertisedIndexes(executor, referenceSchema, scope, membership);
+		}
+		membership.ownerAdded(
+			referenceIndex.getPrimaryKey(), entityPrimaryKey, referenceIndex.getAllPrimaryKeys()
+		);
+	}
+
+	/**
+	 * Tells whether the reverse lookup of this reference is kept current in this scope — the pair of gates both
+	 * maintenance boundaries open with, in the order they evaluate them.
+	 *
+	 * The first is memoized on the schema, so a collection that declares no conditional facet pays a bit test and
+	 * nothing else: the trigger never fires there, and `EntityCollection#rebuildReducedIndexMembership` skips such
+	 * a collection at load for the same reason, so there is nothing to maintain and nothing to discard. The second
+	 * confines the lookup to the references the trigger's sibling walk actually visits.
+	 *
+	 * Both read the schema and nothing else, which is what makes maintenance stoppable only at a schema change —
+	 * see {@link #recordOwnerEnteredReducedIndex} for where a lookup nothing maintains any more is dropped.
+	 *
+	 * @param executor        the mutation executor, which carries the entity schema
+	 * @param referenceSchema schema of the reference whose lookup would be maintained
+	 * @param scope           the scope the write lands in
+	 * @return `true` when a write to this reference has to be recorded into the lookup
+	 */
+	private static boolean isReducedIndexMembershipMaintained(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Scope scope
+	) {
+		return executor.getEntitySchema().declaresConditionalFacetInScope(scope)
+			&& isIndexedReferenceForFilteringAndPartitioning(referenceSchema, scope);
+	}
+
+	/**
+	 * Seeds a freshly created membership map with every reduced index the reference already advertises,
+	 * recorded as residual.
+	 *
+	 * This is what keeps the map honest when a slice is created outside the load-time build — a reference that
+	 * only became partitioned after the collection was loaded, say. Without it the slice would know about the
+	 * one index being written and nothing else, and the trigger would skip every index that already existed:
+	 * a **wrong facet**, not a slow one. Recording them as residual instead leaves them on the walk, which is
+	 * exactly where they were before the map existed.
+	 *
+	 * Seeding cannot decide coverage, because it has no way to resolve a reduced index from its primary key
+	 * here. It does not need to: {@link ReducedIndexMembership#ownerAdded} demotes a small residual index into
+	 * coverage the next time it is written, so a seeded slice acquires coverage as its indexes are touched.
+	 *
+	 * Each advertised key is registered unguarded. The map is empty — the sole caller
+	 * {@link #recordOwnerEnteredReducedIndex} seeds only on the branch that just created it, and applies
+	 * `ownerAdded` afterwards — and a reduced index is filed in its type index under exactly one referenced or
+	 * group primary key, so no key arrives twice. A repeat would be a corrupt advertisement, and
+	 * {@link ReducedIndexMembership#registerIndexAsResidual} refuses one rather than letting it pass unnoticed.
+	 *
+	 * @param executor        the mutation executor
+	 * @param referenceSchema schema of the reference being seeded
+	 * @param scope           the scope whose indexes are inspected
+	 * @param membership      the freshly created map to seed
+	 */
+	private static void seedFromAdvertisedIndexes(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Scope scope,
+		@Nonnull ReducedIndexMembership membership
+	) {
+		for (final EntityIndexType family : ReducedIndexMembership.REFERENCED_TYPE_INDEX_FAMILIES) {
+			final EntityIndexKey typeIndexKey = new EntityIndexKey(family, scope, referenceSchema.getName());
+			// absence is legitimate - the reference has no partitions of this family yet - but an index
+			// registered under a REFERENCED_*_TYPE key is a ReferencedTypeEntityIndex by construction, so any
+			// other type is a programming error and must not be skipped silently
+			final EntityIndex typeIndex = executor.getIndexIfExists(typeIndexKey);
+			if (typeIndex == null) {
+				continue;
+			}
+			isPremiseValid(
+				typeIndex instanceof ReferencedTypeEntityIndex,
+				() -> "Invalid type of the index (`" + typeIndex.getClass() + "`) registered under `" +
+					typeIndexKey + "`."
+			);
+			((ReferencedTypeEntityIndex) typeIndex).forEachReferenceIndexPrimaryKey(
+				membership::registerIndexAsResidual
+			);
+		}
+	}
+
+	/**
+	 * Tells whether the reference carries a reverse lookup in this scope, **without** enrolling the global
+	 * index for modification, so a reference that holds no lookup pays two map lookups and nothing at commit.
+	 * That is the state of every partitioned reference of a conditional-facet collection until its first
+	 * recorded insert, and again after a schema change discards its lookup.
+	 *
+	 * Deliberately answers `boolean` rather than handing back the lookup itself. The index was read through
+	 * {@link EntityIndexLocalMutationExecutor#getIndexIfExists(EntityIndexKey)}, which does **not** enrol it
+	 * in the dirty set, so nothing would sweep its transactional layer at commit; writing through an object
+	 * obtained here would strand that layer and fail the commit with a `StaleTransactionMemoryException`
+	 * after the version already reached disk. Returning a boolean makes that mistake unavailable rather than
+	 * merely forbidden — a caller that needs to write must re-read through {@link #resolveGlobalIndex}.
+	 *
+	 * @param executor        the mutation executor, which owns the global index the lookup hangs off
+	 * @param referenceSchema schema of the reference whose lookup is probed
+	 * @param scope           the scope whose lookup is probed
+	 * @return `true` when the reference carries a lookup in this scope
+	 */
+	private static boolean hasReducedIndexMembership(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Scope scope
+	) {
+		final EntityIndexKey globalIndexKey = new EntityIndexKey(EntityIndexType.GLOBAL, scope);
+		// absence is legitimate - the scope holds no entity yet - but an index registered under a GLOBAL key is
+		// a GlobalEntityIndex by construction, so any other type is a programming error
+		final EntityIndex globalIndex = executor.getIndexIfExists(globalIndexKey);
+		if (globalIndex == null) {
+			return false;
+		}
+		isPremiseValid(
+			globalIndex instanceof GlobalEntityIndex,
+			() -> "Invalid type of the index (`" + globalIndex.getClass() + "`) registered under `" +
+				globalIndexKey + "`."
+		);
+		return ((GlobalEntityIndex) globalIndex).getReducedIndexMembership(referenceSchema.getName()) != null;
+	}
+
+	/**
+	 * Records that an owner entity has left a reduced index. Symmetric counterpart of
+	 * {@link #recordOwnerEnteredReducedIndex}; see that method for why only partitioned references are kept, and
+	 * where a lookup that maintenance has stopped following is dropped instead.
+	 *
+	 * @param executor          the mutation executor, which owns the global index the lookup hangs off
+	 * @param referenceSchema   schema of the reference whose reduced index was left
+	 * @param referenceIndex    the reduced index the owner left
+	 * @param entityPrimaryKey  primary key of the owner entity
+	 */
+	private static void recordOwnerLeftReducedIndex(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull AbstractReducedEntityIndex referenceIndex,
+		int entityPrimaryKey
+	) {
+		final Scope scope = executor.getScope();
+		if (!isReducedIndexMembershipMaintained(executor, referenceSchema, scope)) {
+			return;
+		}
+		if (!hasReducedIndexMembership(executor, referenceSchema, scope)) {
+			// Nothing was ever recorded for this reference - the index is walked, so there is nothing to undo.
+			// Probed through the non-registering accessor on purpose: a removal is the one boundary that can
+			// arrive before any insert has created the lookup, and it arrives again for every reference of a
+			// collection whose lookups a schema change has just discarded. Enrolling the global index for
+			// modification on those would buy nothing and cost its merge at commit.
+			return;
+		}
+		// re-read through the registering accessor - that registration is what enrols the global index in the
+		// dirty set, and hence what gets its transactional layer swept at commit
+		final ReducedIndexMembership membership = resolveGlobalIndex(executor, scope)
+			.getReducedIndexMembership(referenceSchema.getName());
+		isPremiseValid(
+			membership != null,
+			() -> "The reduced-index membership lookup of `" + referenceSchema.getName() +
+				"` disappeared between the probe and the registration."
+		);
+		membership.ownerRemoved(
+			referenceIndex.getPrimaryKey(), entityPrimaryKey, referenceIndex.getAllPrimaryKeys()
+		);
+	}
+
+	/**
+	 * Resolves the collection's global index for the given scope, which is where the reduced-index membership
+	 * lookup lives.
+	 *
+	 * @param executor the mutation executor
+	 * @param scope    the scope whose global index is resolved
+	 * @return the global index, never `null`
+	 */
+	@Nonnull
+	private static GlobalEntityIndex resolveGlobalIndex(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull Scope scope
+	) {
+		return (GlobalEntityIndex) executor.getOrCreateIndex(
+			new EntityIndexKey(EntityIndexType.GLOBAL, scope)
+		);
+	}
+
+	/**
 	 * Collects every {@link AbstractReducedEntityIndex} the owning entity is currently a member of - one entry
 	 * per unique index instance, across both the entity and the group path, restricted to references indexed at
-	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} level (the only ones for which reduced indexes
-	 * exist at all).
+	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} level - the only ones whose reduced indexes carry
+	 * facets. Reduced indexes themselves exist for every reference indexed at {@link ReferenceIndexType#FOR_FILTERING}
+	 * or above, so this restriction narrows the collected set and does not merely describe what is there.
 	 *
 	 * Resolution is delegated to {@link #forEachUniqueReferenceIndex} so this shares one traversal - including
 	 * its representative-key resolution and its identity dedup of shared

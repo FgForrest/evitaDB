@@ -43,6 +43,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.component.PriceIndexComponent;
+import io.evitadb.index.component.ReducedIndexMembershipMapComponent;
 import io.evitadb.index.component.TrigramIndexMapComponent;
 import io.evitadb.index.component.loader.AttributeIndexLoader;
 import io.evitadb.index.component.loader.FacetIndexLoader;
@@ -53,12 +54,14 @@ import io.evitadb.index.component.loader.PriceSuperIndexLoader;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.map.TransactionalMap;
+import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.trigram.TrigramIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
+import io.evitadb.utils.MemoryMeasuringConstants;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -185,6 +188,25 @@ public class GlobalEntityIndex extends EntityIndex
 	 * shared value tree it indexes is dropped, which is the moment its value ids stop meaning anything.
 	 */
 	@Nonnull private final TransactionalMap<AttributeIndexKey, TrigramIndex> trigramIndex;
+	/**
+	 * Per-reference reverse lookup of "which reduced indexes hold this owner", keyed by reference name, used
+	 * by the cross-entity conditional-facet trigger to avoid walking every reduced index of the collection.
+	 *
+	 * Derived state, never persisted, and an **accelerator rather than an authority** — nothing it records is
+	 * taken as an answer, and every index it names is asked itself who is in it, so a stale entry costs a probe
+	 * and never correctness.
+	 *
+	 * What that does **not** license is an incomplete entry. An absent entry is safe — with no lookup the
+	 * trigger walks every index the reference advertises, exactly as it did before this map existed — but an
+	 * entry that EXISTS is probed exactly as it stands, so a reduced index missing from it is never visited and
+	 * the trigger writes a wrong facet rather than a slow one. Absence of the whole entry is therefore the safe
+	 * state, and the one this map is left in when maintenance stops. See {@link ReducedIndexMembership} for the
+	 * whole contract.
+	 *
+	 * Empty for every collection that never fires such a trigger, where it is charged its own map object and
+	 * nothing per reference — a `HashMap` allocates its table on the first put.
+	 */
+	@Nonnull private final TransactionalMap<String, ReducedIndexMembership> reducedIndexMembership;
 
 	@Nonnull
 	@Override
@@ -265,6 +287,11 @@ public class GlobalEntityIndex extends EntityIndex
 		// nowhere is charged the map object alone
 		this.trigramIndex = new TransactionalMap<>(new HashMap<>(), TrigramIndex.class, Function.identity());
 		addComponent(new TrigramIndexMapComponent(this.trigramIndex));
+		// likewise allocated empty: a collection with no cross-entity conditional facet never puts anything here
+		this.reducedIndexMembership = new TransactionalMap<>(
+			new HashMap<>(), ReducedIndexMembership.class, Function.identity()
+		);
+		addComponent(new ReducedIndexMembershipMapComponent(this.reducedIndexMembership));
 		// fresh empty index — every component contributes an empty manifest, so the baseline
 		// captured here is the immutable empty set, preventing spurious manifest emits
 		captureOriginalsFromComponents();
@@ -290,17 +317,19 @@ public class GlobalEntityIndex extends EntityIndex
 	) {
 		this(
 			primaryKey, entityIndexKey, version, entityIds, entityIdsByLanguage,
-			attributeIndex, priceIndex, hierarchyIndex, facetIndex, Map.of(), activity
+			attributeIndex, priceIndex, hierarchyIndex, facetIndex, Map.of(), Map.of(), activity
 		);
 	}
 
 	/**
-	 * Reconstructs a global entity index from persisted or committed state, together with its substring-search
-	 * accelerators.
+	 * Reconstructs a global entity index from persisted or committed state, together with the two derived
+	 * structures it hosts — the substring-search accelerators and the reduced-index membership lookup.
 	 *
 	 * @param trigramIndexes the per-`(attribute, locale)` trigram indexes — the committed ones on the merge copy, the
 	 *                       ones {@link TrigramIndex#rebuildAll} derived from the reloaded shared value trees on a cold
 	 *                       load, and empty for a caller that maintains none
+	 * @param reducedIndexMembership the per-reference reverse lookup of owners to the reduced indexes holding
+	 *                               them — derived state, empty on a freshly loaded index until it is rebuilt
 	 * @param activity       the activity holder to keep counting into — the copied index's own instance on the
 	 *                       commit-time merge copy, a fresh one when loading from disk; see
 	 *                       {@link io.evitadb.index.IndexActivity}
@@ -316,6 +345,7 @@ public class GlobalEntityIndex extends EntityIndex
 		@Nonnull HierarchyIndex hierarchyIndex,
 		@Nonnull FacetIndex facetIndex,
 		@Nonnull Map<AttributeIndexKey, TrigramIndex> trigramIndexes,
+		@Nonnull Map<String, ReducedIndexMembership> reducedIndexMembership,
 		@Nullable IndexActivity activity
 	) {
 		super(
@@ -329,6 +359,10 @@ public class GlobalEntityIndex extends EntityIndex
 			new HashMap<>(trigramIndexes), TrigramIndex.class, Function.identity()
 		);
 		addComponent(new TrigramIndexMapComponent(this.trigramIndex));
+		this.reducedIndexMembership = new TransactionalMap<>(
+			new HashMap<>(reducedIndexMembership), ReducedIndexMembership.class, Function.identity()
+		);
+		addComponent(new ReducedIndexMembershipMapComponent(this.reducedIndexMembership));
 		// re-capture the change-detection baseline from the components now that the price super
 		// index is registered, so the baseline includes every persisted sub-index
 		captureOriginalsFromComponents();
@@ -389,11 +423,94 @@ public class GlobalEntityIndex extends EntityIndex
 					manifest.getEntityIndexKey().scope(),
 					attributes.sharedValueIndexes()
 				),
+				// likewise derived state, but derived from the REDUCED indexes rather than from anything this
+				// index carries - and those are loaded independently of it, so there is nothing to rebuild from
+				// here. It starts empty, which costs correctness nothing (an uncovered reduced index is walked)
+				// and is filled by `EntityCollection` once the collection's indexes are all in place.
+				Map.of(),
 				// loaded from disk — the counters start over, which is what "since catalog load" means, and are
 				// not opened at all when the server does not track usage statistics
 				context.createActivity()
 			);
 		});
+
+	/**
+	 * Returns the reverse lookup of "which reduced indexes of this reference hold this owner", or `null` when
+	 * nothing has been recorded for the reference yet.
+	 *
+	 * A `null` result is not an error and never becomes one: with no lookup the trigger walks every reduced
+	 * index the reference advertises, exactly as it did before this structure existed. Absence costs speed,
+	 * never correctness.
+	 *
+	 * A non-`null` result is a different matter, and the asymmetry is the whole contract. What comes back is
+	 * probed as it stands — the caller never re-derives the reference's advertisement to check it against, since
+	 * that is the `O(total reduced indexes)` traversal the structure exists to remove — so an index the slice
+	 * names in neither its covered nor its residual set is simply never visited. An index left *uncovered* is
+	 * safe because it is *residual*, and residual is probed whole; it is not safe merely by virtue of being
+	 * absent from the covered set. The extreme case is a slice present with both sets empty while its reference
+	 * still advertises indexes: that skips every one of them, which is a wrong facet rather than a slow one.
+	 * The invariant `covered ∪ residual == advertised` is what rules it out, and
+	 * `ReducedIndexMembershipCompletenessTest#assertMembershipMatchesIndexes` is what enforces it — see
+	 * {@link ReducedIndexMembership} for the reasoning in full.
+	 *
+	 * @param referenceName name of the reference whose membership is requested
+	 * @return the membership map, or `null` when the reference has none
+	 */
+	@Nullable
+	public ReducedIndexMembership getReducedIndexMembership(@Nonnull String referenceName) {
+		return this.reducedIndexMembership.get(referenceName);
+	}
+
+	/**
+	 * Returns the reverse lookup for the given reference, creating an empty one when it does not exist yet.
+	 *
+	 * @param referenceName name of the reference whose membership is maintained
+	 * @return the membership map, never `null`
+	 */
+	@Nonnull
+	public ReducedIndexMembership getOrCreateReducedIndexMembership(@Nonnull String referenceName) {
+		final ReducedIndexMembership existing = this.reducedIndexMembership.get(referenceName);
+		if (existing != null) {
+			return existing;
+		}
+		final ReducedIndexMembership created = new ReducedIndexMembership();
+		this.reducedIndexMembership.put(referenceName, created);
+		return created;
+	}
+
+	/**
+	 * Drops the reverse lookup of the given reference, returning the trigger to walking every reduced index the
+	 * reference advertises.
+	 *
+	 * Called when a schema change stops maintenance following the reference — either the reference itself fell
+	 * below {@link io.evitadb.api.requestResponse.schema.ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}, or
+	 * the collection's last conditional facet in this scope went away. Both gates are read on every write, so a
+	 * lookup kept past either of them would freeze while the reduced indexes went on changing — and a frozen
+	 * lookup is consulted as an authority the moment the gate comes back. A dropped one is rebuilt from the
+	 * reference's own advertisement by `ReferenceIndexMutator#seedFromAdvertisedIndexes`, on the first write
+	 * after that happens.
+	 *
+	 * @param referenceName name of the reference whose lookup is dropped
+	 */
+	public void removeReducedIndexMembership(@Nonnull String referenceName) {
+		this.reducedIndexMembership.remove(referenceName);
+	}
+
+	/**
+	 * Returns the names of the references this index holds a reverse lookup for.
+	 *
+	 * A copy rather than a live view, because the caller that needs it iterates while dropping: a schema change
+	 * asks this index which lookups it is still holding and removes the ones the new schema stops maintaining
+	 * (`EntityCollection#discardUnmaintainedReducedIndexMemberships`). The completeness verification in tests
+	 * uses it for the other direction, comparing the map's reference names against the schema and against the
+	 * reduced indexes themselves.
+	 *
+	 * @return reference names with a membership map; never `null`
+	 */
+	@Nonnull
+	public Set<String> getReducedIndexMembershipReferenceNames() {
+		return Set.copyOf(this.reducedIndexMembership.keySet());
+	}
 
 	/*
 		TRANSACTIONAL MEMORY IMPLEMENTATION
@@ -416,6 +533,7 @@ public class GlobalEntityIndex extends EntityIndex
 			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.trigramIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.reducedIndexMembership),
 			// the very same holder, not a copy: this is one logical index carried into the next catalog version
 			getActivity()
 		);
@@ -770,8 +888,8 @@ public class GlobalEntityIndex extends EntityIndex
 	@Override
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// the priceIndex and trigramIndex slots
-		return getBaseHeapSizeInBytes(2L * layout.referenceSize())
+		// the priceIndex, trigramIndex and reducedIndexMembership slots
+		return getBaseHeapSizeInBytes(3L * layout.referenceSize())
 			+ this.priceIndex.getHeapSizeInBytes()
 			// the price component this class registers, holding the price index alone
 			+ layout.sizeOfObject(layout.referenceSize())
@@ -781,6 +899,12 @@ public class GlobalEntityIndex extends EntityIndex
 			// AttributeIndex#getHeapSizeInBytes) - charging it here as well would report one object twice in one figure
 			+ this.trigramIndex.getHeapSizeInBytes(key -> 0L, TrigramIndex::getHeapSizeInBytes)
 			// the trigram component this class registers, holding the map alone
+			+ layout.sizeOfObject(layout.referenceSize())
+			// the membership map charges its own keys: a reference name is held here and nowhere else in this index
+			+ this.reducedIndexMembership.getHeapSizeInBytes(
+				MemoryMeasuringConstants::computeStringSize, ReducedIndexMembership::getHeapSizeInBytes
+			)
+			// the membership component this class registers, holding the map alone
 			+ layout.sizeOfObject(layout.referenceSize());
 	}
 
