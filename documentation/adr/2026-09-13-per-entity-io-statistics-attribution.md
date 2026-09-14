@@ -1,7 +1,7 @@
 ---
 title: Define the per-entity I/O statistic as standalone cost and attribute it at the read, not by walking the returned object graph
 date: 2026-09-13
-updated: 2026-09-13 12:40
+updated: 2026-09-14 09:19
 status: accepted
 kind: refactor
 issues: [1547, 1561, 1562, 1563, 1564, 1565, 1566, 1567]
@@ -323,10 +323,16 @@ reads were never identified.
   re-read of a part the entity already holds idempotent by construction, so the special case no
   longer carries the property on its own. It is kept because it still says the right thing about
   the query-wide total, which counts reads rather than records.
-- A decorator whose reads were never identified — restored from `CacheEden`, rebuilt on the driver
-  side from the wire — falls back to raw counts and to keeping the **larger** of two views. That is
-  the older, weaker answer, now confined to the cases that cannot do better. Anything inside the
-  engine's own read path carries identities and gets the union.
+- **The raw-count fallback** — adding counts up rather than unioning records, and keeping the
+  **larger** of two views — is reached only by a link that *read something and kept no record of
+  what*. A link reporting no reads at all is not such a link: it identifies nothing because it has
+  nothing to identify, contributes an empty set, and leaves the chain identified. A `CacheEden`
+  restore is exactly that shape — `enrichCachedEntityIfNecessary` decorates with zero counts and no
+  records — so a cache hit takes the **union** path with an empty contribution, not the fallback.
+  Every production call site of `ServerEntityDecorator.decorate` either carries its `ReadRecord`s or
+  passes `0, 0`, which leaves the fallback with no production producer today; it survives because
+  nothing in the type system prevents a future one, and `ServerEntityDecoratorIoStatisticsTest` is
+  what keeps it honest.
 - **`ReadRecord` identity is `(containerType, key)` within a pinned catalog version.** Two reads of
   one key at two different versions can legitimately differ in size and will count twice. That is
   correct — a version change means the record changed — but it is worth knowing before reading a
