@@ -1,11 +1,11 @@
 ---
 title: Bound the cross-entity facet walk with a size-thresholded owner→partition index, not a blanket one
 date: 2026-09-09
-updated: 2026-09-11 19:20
+updated: 2026-09-14 11:05
 status: accepted
 kind: optimization
 issues: [1529]
-prs: []
+prs: [1557]
 areas:
   - evita_engine/src/main/java/io/evitadb/index/mutation
   - evita_engine/src/main/java/io/evitadb/index
@@ -197,6 +197,14 @@ Memory: **4.2 MiB** on the shipping schema, **24.9 MiB** with every reference pa
 lookup over 188,387 reduced indexes costs **156.0 ms**, against a 26 s catalog load. Coverage reproduced
 exactly across both runs and both configurations — 2,697 covered / 1,936 residual, and 185,475 / **2,912**.
 
+**These two figures are not the two in the Option A cost table below, and the record quotes both.** This pair
+is the timing series' own corpus, `P`=188,387. The cost table and *Consequences* quote a later, larger
+snapshot, `P`=209,948 — hence 4.0 MiB / 36.3 MiB there against 4.2 MiB / 24.9 MiB here. Same structure, same
+threshold, different corpus; the "every reference partitioned" half moves most because it scales with `P`
+directly. Where a single number is wanted, **the `P`=209,948 pair is the one the decision rests on**, since it
+is the larger snapshot and the one the maintainable-structure scoping was worked out against. Both pairs are
+lower bounds — see the tooling caveat in *Verification*.
+
 These are the timings **after** the per-pair de-duplication scan was removed from the accumulator (see below).
 The same harness, same box and same session, with the scan restored via `-Dspike.accumulator=DEDUP_SCAN`:
 
@@ -266,8 +274,10 @@ walk. Derived at catalog open, maintained at the existing owner-membership bound
   partitions are all large disqualify themselves automatically — `stocks`, `stockVisibilities` and
   `bonusVisibilities` each produce a **112-byte map covering zero owners** — so no per-reference heuristic is
   needed.
-- **Cost: 36.3 MiB, not the 24.6 MiB an earlier draft of this record quoted.** The two figures scope the map
-  differently and only one of them is a structure that can be maintained. 24.6 MiB covers one trigger's
+- **Cost: 36.3 MiB at `P`=209,948, not the 24.6 MiB an earlier draft of this record quoted.** The two figures
+  scope the map differently and only one of them is a structure that can be maintained. (Neither is the
+  24.9 MiB of the measured-results section above — that is the same "all references" scoping at the timing
+  series' smaller corpus, `P`=188,387.) 24.6 MiB covers one trigger's
   sibling set, with the mutated reference excluded at *build* time — but which reference is mutated changes
   per trigger, so no such map exists. The maintainable structure covers every reference whose partitions the
   walk could ever visit (`P`=209,948) and filters the mutated one **at use**: 36.3 MiB, 8,308 residual
@@ -393,7 +403,8 @@ references of a single collection.
   exactly today's behaviour and the right failure mode for a state the engine does not support.
   **When #409 lands, this map is one of the structures it must rebuild.**
 - **Resident cost tracks what the client turned on:** 4.0 MiB on today's schema (three partitioned
-  references), 36.3 MiB only if every reference is raised and the catalog reindexed.
+  references), 36.3 MiB only if every reference is raised and the catalog reindexed. Both at `P`=209,948, and
+  both lower bounds — see the tooling caveat in *Verification*.
 - **Derived at load, not persisted.** Deriving costs one pass over the partitions — the same traversal the
   walk does, paid once per collection load — which avoids a storage format change for a structure that is
   pure acceleration.
@@ -420,8 +431,21 @@ references of a single collection.
 
 ## Verification
 
-Measurement only; no production code changed. Every arm is checksum-gated on the `(owner, partition)` pairs
-it emits and all runs agreed, so no arm was compared while computing a different answer.
+Two phases, and they must not be read as one. The **measurement** phase changed no production code: every arm
+is checksum-gated on the `(owner, partition)` pairs it emits and all runs agreed, so no arm was compared while
+computing a different answer. The **implementation** phase that followed ships the structure those measurements
+argued for — `ReducedIndexMembership`, its resolver integration and its write-path maintenance — and is verified
+by the counterfactual-proved tests described at the end of this section, not by the measurements above.
+
+> **The memory figures in this record predate a correction to the tool that produced them and have not been
+> re-measured.** `ConditionalFacetReverseIndexFootprint` priced a hand-built map that charged only the
+> `ownerPK -> reduced-index-PK` entries, omitting the `coveredOwners`, `coveredIndexPrimaryKeys` and
+> `residualIndexPrimaryKeys` bitmaps that `ReducedIndexMembership#getHeapSizeInBytes` also charges. The omission
+> grows with the residual set, so it is largest at the low thresholds — which is the part of the sweep the
+> `T`=16 choice was argued from. The tool now registers into a real `ReducedIndexMembership` and reports its own
+> accounting; **every MiB figure below is therefore a lower bound until the sweep is re-run.** The *decision* is
+> not in doubt — the gap between the hybrid and the 274.7 MiB blanket structure is far larger than the
+> under-count — but the individual numbers are.
 
 Six arms, all checksum-gated against each other: the pre-#1524 walk, current `HEAD`, the hybrid, the two
 unimplementable bounds (D, E) and the `intersects` gate (F). Run-to-run reproducibility across independent
