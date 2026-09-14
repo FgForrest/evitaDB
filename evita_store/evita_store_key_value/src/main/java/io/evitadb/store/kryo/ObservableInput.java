@@ -691,13 +691,14 @@ public class ObservableInput<T extends InputStream> extends Input {
 		this.payloadPrefixLength = computeReadLengthUpTo(this.payloadStartPosition);
 		this.actualLimit = this.limit > 0 ? this.limit : -1;
 		// cap at the current limit to avoid extending beyond actual data in partially filled buffers
-		this.limit = Math.min(this.limit, constraintLimitWithRecordLength(0) + this.payloadPrefixLength);
+		final int cappedLimit = Math.min(this.limit, constraintLimitWithRecordLength(0) + this.payloadPrefixLength);
+		this.limit = cappedLimit;
+		final long totalBeforeRead = this.total;
 		this.readingTail = true;
 		try {
 			return readInt();
 		} finally {
-			this.limit = this.actualLimit >= 0 ? this.actualLimit : this.limit;
-			this.actualLimit = -1;
+			restoreLimitAfterOffRecordRead(cappedLimit, totalBeforeRead);
 			this.startPosition = -1;
 			this.expectedLength = -1;
 			this.accumulatedLength = 0;
@@ -724,13 +725,14 @@ public class ObservableInput<T extends InputStream> extends Input {
 		this.payloadPrefixLength = computeReadLengthUpTo(this.payloadStartPosition);
 		this.actualLimit = this.limit > 0 ? this.limit : -1;
 		// cap at the current limit to avoid extending beyond actual data in partially filled buffers
-		this.limit = Math.min(this.limit, constraintLimitWithRecordLength(0) + this.payloadPrefixLength);
+		final int cappedLimit = Math.min(this.limit, constraintLimitWithRecordLength(0) + this.payloadPrefixLength);
+		this.limit = cappedLimit;
+		final long totalBeforeRead = this.total;
 		this.readingTail = true;
 		try {
 			return readLong();
 		} finally {
-			this.limit = this.actualLimit >= 0 ? this.actualLimit : this.limit;
-			this.actualLimit = -1;
+			restoreLimitAfterOffRecordRead(cappedLimit, totalBeforeRead);
 			this.startPosition = -1;
 			this.expectedLength = -1;
 			this.accumulatedLength = 0;
@@ -738,6 +740,37 @@ public class ObservableInput<T extends InputStream> extends Input {
 			this.payloadPrefixLength = 0;
 			this.readingTail = false;
 		}
+	}
+
+	/**
+	 * Undoes the limit cap that {@link #simpleIntRead()} and {@link #simpleLongRead()} install for the duration of
+	 * a single number read taken from outside any {@link StorageRecord} lifecycle.
+	 *
+	 * The cap exists only so that {@link #require(int)} is consulted at the end of the bytes the buffer actually
+	 * holds rather than at the end of the record, and it is undone afterwards by putting back the value captured
+	 * before it was applied. That restore is correct **only while the buffer has not moved underneath the read**.
+	 * If the read had to call {@link #require(int)}, the buffer was refilled - and possibly compacted, which resets
+	 * `position` to zero and shifts the remaining bytes down to the front - and `limit` has already been set to a
+	 * value that describes the buffer as it now is. The captured number describes a buffer that no longer exists,
+	 * and after a compaction it is not even measured from the same origin.
+	 *
+	 * Putting it back regardless leaves `position` past `limit`, and nothing downstream recovers from that: every
+	 * later {@link #require(int)} derives `remaining = limit - position` from it, which is then negative, so the
+	 * fill branch is skipped and `System.arraycopy` is handed a negative length. Milder skews are worse than the
+	 * crash, because they are silent - an overstated limit hands Kryo bytes that were never fetched, and an
+	 * understated one makes the next fill land at a stale offset and skip bytes that were never read.
+	 *
+	 * @param cappedLimit     the limit the caller installed before the read
+	 * @param totalBeforeRead {@link #total} as it stood before the read; a compaction advances it by `position`
+	 */
+	private void restoreLimitAfterOffRecordRead(int cappedLimit, long totalBeforeRead) {
+		// `limit` is only left untouched when require() either was not called at all or returned from the bytes
+		// already buffered: the fill branch raises it by a non-zero count, and the compaction branch both raises
+		// it and advances `total`. Either way what it holds now is the honest end of the data and must stand.
+		if (this.actualLimit >= 0 && this.limit == cappedLimit && this.total == totalBeforeRead) {
+			this.limit = this.actualLimit;
+		}
+		this.actualLimit = -1;
 	}
 
 	/**

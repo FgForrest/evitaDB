@@ -126,7 +126,22 @@ import static io.evitadb.test.TestTags.WAL;
 @Tag(WAL)
 public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 	private final Path walDirectory = getTestDirectory().resolve(getClass().getSimpleName());
-	private final Pool<Kryo> catalogKryoPool = new Pool<>(false, false, 1) {
+
+	/**
+	 * Built with the same shape production uses - `new Pool<>(true, false, 16)`, a
+	 * {@link java.util.concurrent.LinkedBlockingQueue} ({@code DefaultCatalogPersistenceService:505},
+	 * {@code DefaultEnginePersistenceService:134}) - and not the `new Pool<>(false, false, 1)` the WAL tests
+	 * carried before, which is a bare {@link java.util.ArrayDeque} with unsynchronized `poll()`/`offer()`.
+	 *
+	 * The writer and every reader draw their Kryo from this one pool ({@code AbstractMutationLog:1345},
+	 * {@code AbstractMutationSupplier:233}), so under the unsynchronized shape a racing obtain hands ONE Kryo to
+	 * two threads - and a Kryo is not thread-safe. The garbage that follows is indistinguishable from a WAL read
+	 * defect while proving nothing about one, and it cost this line of work a day of misattributed evidence.
+	 * Nothing here needs the single-threaded shape, so no test gets to opt into it. The identity probe that caught
+	 * the original double hand-out lives next to the only reader that can make it fire -
+	 * {@code ConcurrentWalTailReadStressTest} in `evita_long_running_tests`.
+	 */
+	private final Pool<Kryo> catalogKryoPool = new Pool<>(true, false, 16) {
 		@Override
 		protected Kryo create() {
 			return KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
@@ -624,7 +639,7 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 			Exception thrown = null;
 			try (
 				final Stream<CatalogBoundMutation> stream = CatalogWriteAheadLogIntegrationTest.this.wal
-					.getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(1L, 2L)
+					.getCommittedLiveMutationStream(1L, 2L)
 			) {
 				mutations = stream.toList();
 			} catch (Exception ex) {
@@ -633,7 +648,7 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 
 			assertNotNull(
 				thrown,
-				"getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(1, 2) silently ended the " +
+				"getCommittedLiveMutationStream(1, 2) silently ended the " +
 					"stream after " + (mutations == null ? "?" : mutations.size()) + " element(s) " +
 					"(transaction 1 only) instead of surfacing the read failure it hit while advancing " +
 					"into transaction 2's genuinely underflowing header. A broad catch-and-return-null " +
@@ -642,6 +657,96 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 					"instead of a failure. A caller that already believes the requested version was " +
 					"durably written cannot distinguish this from \"nothing more to process\" and would " +
 					"silently finalize at a stale version instead of retrying or failing loudly."
+			);
+		}
+	}
+
+	/**
+	 * Tests for the content-length consistency check in
+	 * {@link io.evitadb.store.wal.supplier.AbstractMutationSupplier#readAndRecordTransactionMutation(long, long)}.
+	 *
+	 * The check compares the transaction's 4-byte framing prefix against the leading record's own declared
+	 * length plus the declared size of the individual mutations.
+	 *
+	 * Issue #1551 was filed believing that a reader tailing a live WAL meets this mismatch routinely - that it
+	 * had read a prefix the writer had not finished backing with bytes - and that the check therefore had to
+	 * learn to tell an unfinished append from real damage. It does not: the writer
+	 * emits the 4-byte prefix and the whole leading record from one buffer in a single write loop, and a file
+	 * too short for the transaction is rejected by an earlier guard - so a mismatch reaching this point means
+	 * the bytes are all present and disagree. The real cause was a reader miscounting its own buffer, fixed in
+	 * {@link io.evitadb.store.kryo.ObservableInput}. What remains to be tested here is simply that genuine
+	 * corruption still fails loudly.
+	 *
+	 * The test drives {@link CatalogWriteAheadLog#getCommittedMutationStream(long)} positioned so the mismatch
+	 * is met while the supplier's constructor scans for the requested version - the one path on which the
+	 * outcome is externally observable, since the constructor catches only `BufferUnderflowException` while
+	 * `MutationSupplier#get()` swallows everything into a graceful end-of-stream.
+	 */
+	@Nested
+	@DisplayName("Content-length mismatch must fail loudly")
+	class ContentLengthMismatchTests {
+		/**
+		 * Deliberately small lie written over a transaction's 4-byte content-length prefix. It has to be small
+		 * enough to satisfy the coarse pre-check that precedes deserialization, so that execution reaches the
+		 * consistency check under test rather than bailing out earlier.
+		 */
+		private static final int LYING_CONTENT_LENGTH = 4;
+
+		/**
+		 * Writes three transactions and returns the on-disk span of the last one, whose prefix the tests then
+		 * falsify. The last transaction is used so that truncating the file cannot damage any other.
+		 */
+		@Nonnull
+		private TransactionMutationWithLocation writeThreeTransactionsAndReturnLastSpan() {
+			final int[] txSizes = {2, 3, 4};
+			final Map<Long, List<Mutation>> txInMutations = writeWal(
+				CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager, txSizes
+			);
+			return (TransactionMutationWithLocation) txInMutations.get((long) txSizes.length).get(0);
+		}
+
+		/**
+		 * Overwrites the transaction's content-length prefix with {@link #LYING_CONTENT_LENGTH}, leaving every
+		 * other byte of the file untouched.
+		 */
+		private void falsifyContentLengthPrefix(long startingPosition) throws IOException {
+			final Path walFilePath = CatalogWriteAheadLogIntegrationTest.this.wal.getWalFilePath();
+			try (RandomAccessFile raf = new RandomAccessFile(walFilePath.toFile(), "rw")) {
+				raf.seek(startingPosition);
+				raf.write(
+					ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+						.putInt(LYING_CONTENT_LENGTH).array()
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("must still fail loudly when the whole transaction is present and the prefix disagrees")
+		void shouldStillFailWhenContentLengthDisagreesOnAFullyVisibleTransaction() throws IOException {
+			final TransactionMutationWithLocation lastTx = writeThreeTransactionsAndReturnLastSpan();
+
+			// The file is left wholly intact - every byte the leading record declares is on disk - so the
+			// falsified prefix contradicts a record that passed its own length and CRC32C checks, which no
+			// concurrent append can explain.
+			falsifyContentLengthPrefix(lastTx.getTransactionSpan().startingPosition());
+
+			Exception thrown = null;
+			try (
+				final Stream<CatalogBoundMutation> stream = CatalogWriteAheadLogIntegrationTest.this.wal
+					.getCommittedMutationStream(lastTx.getVersion())
+			) {
+				stream.forEach(it -> {
+				});
+			} catch (Exception ex) {
+				thrown = ex;
+			}
+
+			assertNotNull(
+				thrown,
+				"A content-length prefix that disagrees with a fully-visible transaction was accepted " +
+					"silently. This is genuine corruption - durable bytes contradicting a record that passed " +
+					"its own length and checksum checks - and it must stay loud: the premise here is the only " +
+					"thing standing between a damaged WAL and a clean-looking end-of-stream."
 			);
 		}
 	}

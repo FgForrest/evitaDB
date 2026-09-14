@@ -9,7 +9,7 @@ prs: [1293, 1284]
 areas: [evita_engine/index, evita_engine/store, evita_engine/core/transaction, evita_engine/core/session]
 supersedes: []
 superseded-by: []
-relates: [2026-07-10-more-optimized-data-structures, 2026-07-27-write-path-performance-tuning, 2026-09-03-content-sized-value-tree-columns, 2026-09-04-millisecond-temporal-precision, 2026-09-08-warm-up-invalid-schema-refuses-to-publish]
+relates: [2026-07-10-more-optimized-data-structures, 2026-07-27-write-path-performance-tuning, 2026-09-03-content-sized-value-tree-columns, 2026-09-04-millisecond-temporal-precision, 2026-09-08-warm-up-invalid-schema-refuses-to-publish, 2026-09-13-recoverable-wal-tail-reads-must-not-mint-internal-errors]
 ---
 
 # Paged-index corruption on warm-up flush, and the failure boundary for a failed flush

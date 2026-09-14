@@ -656,7 +656,7 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(N,N) must not go dry for a " +
+		@DisplayName("getCommittedLiveMutationStream(N,N) must not go dry for a " +
 			"version whose content is on disk but whose trailing checksum has not landed yet")
 		void shouldNotReturnDryStreamForLastAppendedVersionMissingOnlyTrailingChecksum() throws IOException {
 			// version = 1 + transactionIndex in setUp(), so the last transaction appended is at this version
@@ -673,14 +673,14 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 			final List<CatalogBoundMutation> mutations;
 			try (
 				final Stream<CatalogBoundMutation> stream = CatalogWriteAheadLogTest.this.tested
-					.getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(lastAppendedVersion, lastAppendedVersion)
+					.getCommittedLiveMutationStream(lastAppendedVersion, lastAppendedVersion)
 			) {
 				mutations = stream.toList();
 			}
 
 			assertFalse(
 				mutations.isEmpty(),
-				"getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(" + lastAppendedVersion + ", " +
+				"getCommittedLiveMutationStream(" + lastAppendedVersion + ", " +
 					lastAppendedVersion + ") returned a DRY stream even though transaction " +
 					lastAppendedVersion + "'s header and content are durably on disk (only its trailing " +
 					"checksum is momentarily missing). A caller that already believes this version is " +

@@ -3163,7 +3163,7 @@ public class DefaultCatalogPersistenceService
 		if (theCatalogWal == null) {
 			return Stream.empty();
 		} else {
-			return theCatalogWal.getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(
+			return theCatalogWal.getCommittedLiveMutationStream(
 				startCatalogVersion, requestedCatalogVersion
 			);
 		}

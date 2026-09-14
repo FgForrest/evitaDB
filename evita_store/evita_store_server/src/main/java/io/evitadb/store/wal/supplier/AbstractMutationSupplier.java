@@ -82,10 +82,19 @@ import static java.util.Optional.ofNullable;
 abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Supplier<T>, Closeable
 	permits MutationSupplier, ReverseMutationSupplier {
 	/**
-	 * This flag is used to prevent the observable input from reading the next transaction mutation if there is not
-	 * enough data already written to fully fill the buffer of the observable input.
+	 * The version the caller asserts is already durably written, or {@code null} for a greedy read that makes no
+	 * such assertion.
+	 *
+	 * It is a promise, not a filter, and everything that distinguishes a live read from a greedy one follows from
+	 * it. A caller that names a version is telling the supplier that the transaction is on disk and that only the
+	 * reader's own view of the file may still lag, which buys two things: a record may be delivered once its
+	 * CONTENT is present, without waiting for the trailing cumulative checksum that the writer emits in a later
+	 * `FileChannel.write` (see {@link #requiredEndPosition}), and failing to reach that version is reported as a
+	 * {@link io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException} rather than as an exhausted
+	 * stream (see {@code MutationSupplier#get()}). A greedy read gets neither: it treats a transaction as
+	 * complete only once its checksum is present too, and a torn tail is simply where the data ends.
 	 */
-	protected final boolean avoidPartiallyFilledBuffer;
+	@Nullable protected final Long requestedVersion;
 	/**
 	 * The Kryo pool for serializing {@link TransactionMutation} (given by outside).
 	 */
@@ -173,8 +182,8 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 	/**
 	 * Returns the file position the given transaction must reach on disk to be considered readable at the current
 	 * position: the full record end (including the trailing cumulative checksum) for a greedy read, or the content
-	 * end (checksum excluded) in {@link #avoidPartiallyFilledBuffer} mode, where the trailing checksum of a
-	 * known-written requested transaction may momentarily lag the reader's file-length view.
+	 * end (checksum excluded) when a {@link #requestedVersion} was named, in which case the trailing checksum of a
+	 * known-written transaction may momentarily lag the reader's file-length view.
 	 *
 	 * @param startPosition                   the byte position where the transaction begins in the WAL file
 	 * @param transactionMutationWithLocation the transaction whose required end position is being computed
@@ -184,7 +193,7 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 		long startPosition, @Nonnull TransactionMutationWithLocation transactionMutationWithLocation
 	) {
 		final long fullEnd = calculateNextTransactionStartPosition(startPosition, transactionMutationWithLocation);
-		return this.avoidPartiallyFilledBuffer ? fullEnd - CUMULATIVE_CRC32_SIZE : fullEnd;
+		return this.requestedVersion == null ? fullEnd : fullEnd - CUMULATIVE_CRC32_SIZE;
 	}
 
 	/**
@@ -197,7 +206,8 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 	 * @param walFileIndex                   the index of the WAL file to read
 	 * @param catalogKryoPool                pool of Kryo instances for deserialization
 	 * @param transactionLocationsCache      cache of transaction locations within WAL files
-	 * @param avoidPartiallyFilledBuffer     whether to avoid partially filled buffers during reads
+	 * @param requestedVersion               the version the caller asserts is durably written, {@code null} for a
+	 *                                       greedy read — see {@link #requestedVersion}
 	 * @param onClose                        optional callback to run when the supplier is closed
 	 * @param walKind                        flavor of WAL being read — stamped on every corruption exception
 	 */
@@ -209,7 +219,7 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 		int walFileIndex,
 		@Nonnull Pool<Kryo> catalogKryoPool,
 		@Nonnull ConcurrentHashMap<Integer, TransactionLocations> transactionLocationsCache,
-		boolean avoidPartiallyFilledBuffer,
+		@Nullable Long requestedVersion,
 		@Nullable Runnable onClose,
 		@Nonnull WalKind walKind
 	) {
@@ -219,7 +229,7 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 		this.storageFolder = storageFolder;
 		this.storageSettings = storageSettings;
 		this.transactionLocationsCache = transactionLocationsCache;
-		this.avoidPartiallyFilledBuffer = avoidPartiallyFilledBuffer;
+		this.requestedVersion = requestedVersion;
 		this.onClose = onClose;
 		this.walKind = walKind;
 		// WAL file must exist and have at least 4 bytes (minimum for a content length prefix)
@@ -276,8 +286,8 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 						this.cumulativeChecksum.update(actualCumulativeChecksum);
 						initialTransactionMutation = readAndRecordTransactionMutation(this.filePosition, walFileLength);
 						// verify the file has enough room for the required portion of the transaction — the full
-						// record (incl. trailing checksum) for a greedy read, only the content in
-						// avoidPartiallyFilledBuffer mode where the checksum of a known-written tail may still be pending
+						// record (incl. trailing checksum) for a greedy read, only the content when a version was
+						// requested, where the checksum of a known-written tail may still be pending
 						if (
 							initialTransactionMutation
 								.map(it -> walFileLength < requiredEndPosition(this.filePosition, it))
@@ -454,14 +464,14 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 		// content = 4 (length prefix) + leading TransactionMutation + individual mutations (no trailing checksum)
 		final int contentRecordLength = 4 + contentLength;
 
-		// In avoidPartiallyFilledBuffer mode the caller guarantees the requested transaction is durably
-		// written, so a transaction whose CONTENT is fully on disk may be read even when its trailing
-		// cumulative checksum has not yet landed in the reader's (possibly lagging) file-length view: the
-		// writer flushes the length prefix and content before the trailing checksum, and a same-JVM reader's
-		// cached file length can observe that intermediate state. A greedy read (recovery/replay) treats a
-		// transaction as complete only once its trailing checksum is present too, so a genuinely torn tail
-		// is not delivered prematurely.
-		final int requiredRecordLength = this.avoidPartiallyFilledBuffer ? contentRecordLength : fullRecordLength;
+		// A caller that named a requested version guarantees that transaction is durably written, so a
+		// transaction whose CONTENT is fully on disk may be read even when its trailing cumulative checksum has
+		// not yet landed in the reader's (possibly lagging) file-length view: the writer flushes the length
+		// prefix and content before the trailing checksum, and a same-JVM reader's cached file length can
+		// observe that intermediate state. A greedy read (recovery/replay) makes no such promise and treats a
+		// transaction as complete only once its trailing checksum is present too, so a genuinely torn tail is
+		// not delivered prematurely.
+		final int requiredRecordLength = this.requestedVersion == null ? fullRecordLength : contentRecordLength;
 		if (startPosition + requiredRecordLength > fileSize) {
 			// file is truncated — not enough room for the required portion of the record
 			return empty();
@@ -485,6 +495,14 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 		// read for the leading mutation (leadTransactionMutationSize) plus the declared size of all
 		// individual mutations (walSizeInBytes)
 		final int leadTransactionMutationSize = Math.toIntExact(theObservableInput.total() - totalBefore);
+		// The framing prefix must agree with the record just read. It always can: the writer emits the 4-byte
+		// prefix and the whole leading record from one ByteBuffer in a single write loop (AbstractMutationLog
+		// :1381-1393), and a file too short for the transaction was already rejected above - so by this point
+		// every byte of both is on disk. A mismatch therefore means either genuine damage or a reader that
+		// miscounted, and neither may be handled quietly: reporting an expected short read as a fault is what
+		// issue #1551 was filed for, but the cause turned out to be the reader miscounting (see
+		// documentation/adr/2026-09-13-recoverable-wal-tail-reads-must-not-mint-internal-errors.md), which a
+		// guard here would only have hidden.
 		Assert.isPremiseValid(
 			contentLength + 4 == leadTransactionMutationSize + transactionMutation.getWalSizeInBytes(),
 			"Invalid WAL file on position `" + this.filePosition + "`!"
