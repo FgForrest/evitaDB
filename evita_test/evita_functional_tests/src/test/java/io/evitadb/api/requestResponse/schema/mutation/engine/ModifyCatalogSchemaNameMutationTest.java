@@ -23,14 +23,23 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.engine;
 
+import io.evitadb.api.EvitaContract;
+import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.junit.jupiter.api.Tag;
 
+import javax.annotation.Nonnull;
+
+import java.util.Set;
+
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.SCHEMA;
 
@@ -53,6 +62,76 @@ public class ModifyCatalogSchemaNameMutationTest {
 		assertNull(result.entitySchemaMutations());
 		assertEquals(2, newCatalogSchema.version());
 		assertEquals("newCatalog", newCatalogSchema.getName());
+	}
+
+	@Test
+	void shouldRefuseAFreeTargetNameThatCollidesInANamingConvention() {
+		// `overwriteTarget` says the caller is willing to take a target over - it does not say there is one to
+		// take over. With nothing holding `myCatalog`, this is a rename into a new name, and a new name has to
+		// clear the same uniqueness bar as any other: `my_catalog` already occupies it in camel case.
+		final ModifyCatalogSchemaNameMutation mutation =
+			new ModifyCatalogSchemaNameMutation("catalog", "myCatalog", true);
+
+		assertThrows(
+			CatalogAlreadyPresentException.class,
+			() -> mutation.verifyApplicability(evitaHolding("catalog", "my_catalog"))
+		);
+	}
+
+	@Test
+	void shouldNotRevalidateTheNameOfAnOccupiedTarget() {
+		// The opposite case, and the reason the check cannot simply be run unconditionally: `myCatalog` is held
+		// by the catalog being replaced, so it collides with itself in every convention. Replacing it only
+		// removes a name from the set, which cannot break a uniqueness that already held.
+		final ModifyCatalogSchemaNameMutation mutation =
+			new ModifyCatalogSchemaNameMutation("catalog", "myCatalog", true);
+
+		assertDoesNotThrow(() -> mutation.verifyApplicability(evitaHolding("catalog", "myCatalog")));
+	}
+
+	@Test
+	void shouldAllowAReplaceWhoseOnlyCollisionIsTheDepartingSource() {
+		// `my-catalog` and `myCatalog` are the same name in camel case, and the catalog holding the second one is
+		// the very catalog this mutation renames away. The name it collides with leaves the set in the same act
+		// that introduces the new one, so the set that results is unique and the operation is legitimate.
+		final ModifyCatalogSchemaNameMutation mutation =
+			new ModifyCatalogSchemaNameMutation("myCatalog", "my-catalog", true);
+
+		assertDoesNotThrow(() -> mutation.verifyApplicability(evitaHolding("myCatalog")));
+	}
+
+	@Test
+	void shouldAllowARenameWhoseOnlyCollisionIsTheDepartingSource() {
+		// the same thing without the overwrite flag: a plain rename between two spellings of one name. This path
+		// has always run the uniqueness check, so it refused this rename for as long as it existed.
+		final ModifyCatalogSchemaNameMutation mutation =
+			new ModifyCatalogSchemaNameMutation("myCatalog", "my-catalog", false);
+
+		assertDoesNotThrow(() -> mutation.verifyApplicability(evitaHolding("myCatalog")));
+	}
+
+	@Test
+	void shouldRefuseAnOccupiedTargetWithoutTheOverwriteFlag() {
+		final ModifyCatalogSchemaNameMutation mutation =
+			new ModifyCatalogSchemaNameMutation("catalog", "myCatalog", false);
+
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> mutation.verifyApplicability(evitaHolding("catalog", "myCatalog"))
+		);
+	}
+
+	/**
+	 * Builds an engine answering with exactly the given catalog names.
+	 *
+	 * @param catalogNames names the engine is to report
+	 * @return the mock
+	 */
+	@Nonnull
+	private static EvitaContract evitaHolding(@Nonnull String... catalogNames) {
+		final EvitaContract evita = Mockito.mock(EvitaContract.class);
+		Mockito.when(evita.getCatalogNames()).thenReturn(Set.of(catalogNames));
+		return evita;
 	}
 
 }

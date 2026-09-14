@@ -33,7 +33,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import io.evitadb.utils.NamingConvention;
 import java.util.Currency;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -79,6 +82,81 @@ class ConflictKeyTest implements EvitaTestSupport {
 			final CatalogConflictKey key = new CatalogConflictKey("testCatalog");
 
 			assertTrue(key.toString().contains("testCatalog"));
+		}
+	}
+
+	@Nested
+	@DisplayName("Claiming an introduced catalog name")
+	class IntroducedCatalogNameTest {
+
+		@Test
+		@DisplayName("should claim the name in every naming convention")
+		void shouldClaimEveryConvention() {
+			final Set<ConflictKey> keys = CatalogConflictKey
+				.forIntroducedCatalogName("reportsArchive")
+				.collect(Collectors.toSet());
+
+			// catalog names are unique convention-wide, so a key set narrower than this would let two creates whose
+			// names differ only in convention run concurrently and both pass a uniqueness check neither could see
+			for (final String variant : NamingConvention.generate("reportsArchive").values()) {
+				assertTrue(
+					keys.contains(new CatalogConflictKey(variant)),
+					"Introducing `reportsArchive` must claim its `" + variant + "` form too, but claimed: " + keys
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should claim the raw name even when no convention reproduces it")
+		void shouldClaimTheRawNameEvenWhenNoConventionReproducesIt() {
+			// `ClassifierUtils` admits this name and none of the five conventions generates it back; a variant-only
+			// claim would therefore stop intersecting every catalog-scoped mutation, which keys the literal name
+			final String awkward = "Reports_Archive";
+			assertFalse(
+				NamingConvention.generate(awkward).containsValue(awkward),
+				"This test is pointless unless the name really is absent from its own variants."
+			);
+
+			final Set<ConflictKey> keys = CatalogConflictKey
+				.forIntroducedCatalogName(awkward)
+				.collect(Collectors.toSet());
+
+			assertTrue(
+				keys.contains(new CatalogConflictKey(awkward)),
+				"The literal name must be claimed alongside the variants, or widening trades one race for another."
+			);
+		}
+
+		@Test
+		@DisplayName("should make convention-colliding introductions conflict with each other")
+		void shouldMakeConventionCollidingIntroductionsConflict() {
+			// the defect this exists to close: a create of `reportsArchive` and a swap into `reports_archive` name
+			// the same catalog as far as uniqueness is concerned, so their claims have to overlap
+			final Set<ConflictKey> creating = CatalogConflictKey
+				.forIntroducedCatalogName("reportsArchive")
+				.collect(Collectors.toSet());
+			final Set<ConflictKey> swapping = CatalogConflictKey
+				.forIntroducedCatalogName("reports_archive")
+				.collect(Collectors.toSet());
+
+			assertTrue(
+				creating.stream().anyMatch(swapping::contains),
+				"Two operations introducing names that collide by convention must share a key, or nothing " +
+					"serialises them: " + creating + " vs " + swapping
+			);
+		}
+
+		@Test
+		@DisplayName("should not claim names of unrelated catalogs")
+		void shouldNotClaimUnrelatedNames() {
+			final Set<ConflictKey> keys = CatalogConflictKey
+				.forIntroducedCatalogName("reportsArchive")
+				.collect(Collectors.toSet());
+
+			assertFalse(
+				keys.contains(new CatalogConflictKey("orders")),
+				"Widening must stay within the name's own conventions, or it serialises unrelated work: " + keys
+			);
 		}
 	}
 

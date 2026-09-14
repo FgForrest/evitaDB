@@ -701,12 +701,20 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * attribute fires the trigger. This is safe over-firing: the target-side executor performs
 	 * idempotent operations, so unnecessary triggers result in a no-op rather than incorrect state.
 	 *
-	 * @param inputMutations list of local mutations that were applied
+	 * `implicitMutations` are the local mutations synthesised from `inputMutations` by
+	 * `ContainerizedLocalMutationExecutor#popImplicitMutations` — a defaulted attribute is as capable of
+	 * invalidating another collection's histogram as one the caller wrote. They are joined to the input list
+	 * only *after* the registry check, so a catalog that declares no expression trigger — the overwhelming
+	 * majority — pays no allocation for a feature it does not use.
+	 *
+	 * @param inputMutations    list of local mutations that were applied
+	 * @param implicitMutations local mutations derived from them, or `null` when none were generated
 	 * @return index mutations to dispatch to target collections
 	 */
 	@Nonnull
 	public IndexImplicitMutations popIndexImplicitMutations(
-		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations
+		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations,
+		@Nullable LocalMutation<?, ?>[] implicitMutations
 	) {
 		// early return if no registry
 		final CatalogExpressionTriggerRegistry registry = getCatalogExpressionTriggerRegistry();
@@ -721,7 +729,31 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		}
 
 		// branch: attribute change path — iterate input mutations directly
-		return buildAttributeChangeMutations(registry, entityPK, inputMutations);
+		return buildAttributeChangeMutations(
+			registry, entityPK, concatLocalMutations(inputMutations, implicitMutations)
+		);
+	}
+
+	/**
+	 * Joins a batch's root local mutations with the implicit ones derived from it. Returns `first` itself
+	 * when there is nothing to append, so the common case allocates nothing.
+	 *
+	 * @param first  the root batch's local mutations
+	 * @param second the implicit local mutations derived from it, or `null` when none were generated
+	 * @return the mutations trigger discovery should run over
+	 */
+	@Nonnull
+	private static List<? extends LocalMutation<?, ?>> concatLocalMutations(
+		@Nonnull List<? extends LocalMutation<?, ?>> first,
+		@Nullable LocalMutation<?, ?>[] second
+	) {
+		if (second == null || second.length == 0) {
+			return first;
+		}
+		final List<LocalMutation<?, ?>> combined = new ArrayList<>(first.size() + second.length);
+		combined.addAll(first);
+		combined.addAll(Arrays.asList(second));
+		return combined;
 	}
 
 	/**

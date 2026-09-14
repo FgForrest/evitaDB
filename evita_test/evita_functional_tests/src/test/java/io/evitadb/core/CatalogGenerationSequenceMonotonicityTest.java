@@ -44,27 +44,30 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
- * Verifies that the engine-scoped folder generation counters are reclaimed when the catalog names they belong to
- * stop being referenced, and — just as importantly — that they are *not* reclaimed while a tombstone still names a
- * folder the counter could hand out again.
+ * Verifies that a catalog name's folder generation counter only ever moves forwards, so that no folder token is
+ * ever handed out twice for the same name while the process runs.
+ *
+ * That is not bookkeeping: a `CatalogFolderId` embeds the generation, so monotonicity is the whole reason the
+ * token can identify one *incarnation* of a catalog rather than merely its name. A counter that restarted would
+ * let a catalog dropped and recreated under the same name be bound to a token identical to the one the previous
+ * incarnation had, and any expectation recorded against the old catalog would then be satisfied by the new one -
+ * the substitution such an expectation exists to detect.
  *
  * The counter itself is not observable and deliberately gets no inspection API: the assertions read the folder a
- * recreated catalog is actually bound to, which is the only thing the counter is for. That also keeps the test on
- * the production path — `SequenceService#removeSequences` is covered directly by `SequenceServiceTest`, and a test
- * that called it by hand here would prove nothing about whether anything calls it.
+ * recreated catalog is actually bound to, which is the only thing the counter is for.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Catalog folder generation sequence reclamation")
+@DisplayName("Catalog folder generation sequence monotonicity")
 @Tag(ENGINE)
 @Tag(MANAGEMENT)
-class CatalogGenerationSequenceReclamationTest implements EvitaTestSupport {
+class CatalogGenerationSequenceMonotonicityTest implements EvitaTestSupport {
 	private TestPaths testPaths;
 	private Path storageDirectory;
 
 	@BeforeEach
 	void setUp() throws IOException {
-		this.testPaths = createTestPaths(CatalogGenerationSequenceReclamationTest.class.getSimpleName());
+		this.testPaths = createTestPaths(CatalogGenerationSequenceMonotonicityTest.class.getSimpleName());
 		this.storageDirectory = this.testPaths.storage();
 		Files.createDirectories(this.storageDirectory);
 	}
@@ -75,8 +78,8 @@ class CatalogGenerationSequenceReclamationTest implements EvitaTestSupport {
 	}
 
 	@Test
-	@DisplayName("should restart a catalog's generations once its last tombstone is discharged")
-	void shouldRestartGenerationsOnceTheTombstoneIsDischarged() {
+	@DisplayName("should not restart a catalog's generations once its last tombstone is discharged")
+	void shouldNotRestartGenerationsOnceTheTombstoneIsDischarged() {
 		try (final Evita evita = bootEvita()) {
 			evita.waitUntilFullyInitialized();
 
@@ -86,14 +89,17 @@ class CatalogGenerationSequenceReclamationTest implements EvitaTestSupport {
 			dropCatalog(evita, "products");
 			// The removal commits the tombstone and only *then* deletes the folder, so the confirmation that the
 			// folder is gone arrives with no commit left to carry it. Any later engine mutation discharges it —
-			// here, creating an unrelated catalog — and that is the commit at which the counter may be retired.
+			// here, creating an unrelated catalog. Discharging the last tombstone of a name is the one moment at
+			// which nothing in the durable state refers to it any more, and so the only moment at which retiring
+			// its counter would ever have looked safe.
 			evita.defineCatalog("orders");
 
 			evita.defineCatalog("products");
 			assertEquals(
-				"products_1", boundFolderOf(evita, "products"),
-				"Nothing references `products` any more, so its counter went with the tombstone and the name " +
-					"starts from its first generation again."
+				"products_2", boundFolderOf(evita, "products"),
+				"Nothing references `products` any more, but its counter is kept regardless: restarting it here " +
+					"would rebuild `products_1` for a different catalog, and a folder token is what tells one " +
+					"incarnation of a name from another."
 			);
 		}
 	}
@@ -115,14 +121,13 @@ class CatalogGenerationSequenceReclamationTest implements EvitaTestSupport {
 			evita.defineCatalog("products");
 			assertEquals("products_2", boundFolderOf(evita, "products"));
 
-			// The commit that just discharged `products_1` also nominated `products` for retirement, and the live
-			// binding it had just recorded is the only thing that refused it. Round two is what makes that refusal
-			// load-bearing: a counter wrongly retired above would restart here at `products_1` instead.
+			// Round two walks the same ground with a tombstone discharged in between, which is what makes the
+			// assertion load-bearing rather than a restatement of the one above.
 			dropCatalog(evita, "products");
 			evita.defineCatalog("products");
 			assertEquals(
 				"products_3", boundFolderOf(evita, "products"),
-				"The counter survived the discharge because the name was bound again in that same commit."
+				"The counter keeps climbing across any number of drop/recreate rounds."
 			);
 		}
 	}
