@@ -71,6 +71,7 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.Functions;
 import io.evitadb.utils.IOUtils;
+import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.UUIDUtil;
 import io.evitadb.utils.VersionUtils;
 import lombok.Setter;
@@ -90,6 +91,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
@@ -409,6 +411,13 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 	 * because retiring the superseded folder would destroy the surviving catalog. It fails safely rather than
 	 * silently, but it fails on a coincidence, and one comparison is cheaper than the explanation.
 	 *
+	 * That comparison spans naming conventions rather than spelling, because the swap's own applicability check
+	 * does. A scratch name merely *convention-equivalent* to the target - `foo_restore_1a2b3c4d` against a target
+	 * of `fooRestore1a2b3c4d` - passes an equality test and is then refused by
+	 * {@link io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation}, which sees a
+	 * live catalog colliding with the name it is asked to take. Refusing here costs one more comparison; refusing
+	 * there costs the backup, the unpacking and the load that preceded it.
+	 *
 	 * @param catalogName       name of the catalog being restored
 	 * @param targetCatalogName name the restored catalog is to be served under, which the result must not equal
 	 * @return a name no catalog currently holds, in any naming convention
@@ -423,7 +432,8 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		for (int attempt = 0; attempt < TEMPORARY_NAME_ATTEMPTS; attempt++) {
 			final String candidate = prefix + TEMPORARY_NAME_INFIX +
 				UUIDUtil.randomUUID().toString().substring(0, 8);
-			if (candidate.equals(targetCatalogName) || this.evita.getCatalogNames().contains(candidate)) {
+			if (collidesInAnyConvention(candidate, targetCatalogName) ||
+				this.evita.getCatalogNames().contains(candidate)) {
 				continue;
 			}
 			try {
@@ -440,6 +450,25 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 				TEMPORARY_NAME_ATTEMPTS + " attempts!",
 			"Failed to invent a free temporary catalog name for the restored catalog!"
 		);
+	}
+
+	/**
+	 * Tells whether two catalog names would be treated as one, in any naming convention.
+	 *
+	 * This is the same question {@link CatalogSchema#checkCatalogNameIsAvailable} asks of the *registered*
+	 * catalogs, asked of a single name that need not be registered at all - which is why it cannot simply call
+	 * that method.
+	 *
+	 * @param left  first name to compare
+	 * @param right second name to compare
+	 * @return true when the two agree in at least one naming convention
+	 */
+	private static boolean collidesInAnyConvention(@Nonnull String left, @Nonnull String right) {
+		final Map<NamingConvention, String> leftVariants = NamingConvention.generate(left);
+		return NamingConvention.generate(right)
+			.entrySet()
+			.stream()
+			.anyMatch(variant -> variant.getValue().equals(leftVariants.get(variant.getKey())));
 	}
 
 	/**

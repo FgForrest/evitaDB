@@ -32,6 +32,7 @@ import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.core.Evita;
 import io.evitadb.core.engine.CatalogFolderContext;
+import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.engine.CatalogFolderReservation;
 import io.evitadb.core.engine.TestCatalogFolderContexts;
 import io.evitadb.core.executor.ClientCallableTask;
@@ -39,6 +40,7 @@ import io.evitadb.core.executor.ClientRunnableTask;
 import io.evitadb.core.management.RestorationSteps.RestorationStepsFactory;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
@@ -132,6 +134,14 @@ class PublishRestoredCatalogTaskTest {
 	private Evita evita;
 	private RecordingExportService exportService;
 	private FileForFetch archive;
+	/**
+	 * Folder the engine currently binds {@link #TEMPORARY_CATALOG} to, as the clean-up sees it.
+	 *
+	 * The task removes its scratch catalog only while the name still denotes the folder it allocated, so a test
+	 * that expects a removal has to publish that binding the way a real registering step would. Left empty, the
+	 * name denotes nothing and nothing is removed.
+	 */
+	private AtomicReference<CatalogFolderId> scratchFolderBinding;
 
 	/**
 	 * Builds a progress that is already complete, the shape every engine mutation takes on the happy path here.
@@ -247,6 +257,13 @@ class PublishRestoredCatalogTaskTest {
 				.build()
 		);
 		this.evita = mock(Evita.class);
+		this.scratchFolderBinding = new AtomicReference<>();
+		final ExpandedEngineState engineState = mock(ExpandedEngineState.class);
+		when(engineState.boundFolderIdFor(anyString())).thenAnswer(
+			invocation -> TEMPORARY_CATALOG.equals(invocation.getArgument(0)) ?
+				this.scratchFolderBinding.get() : null
+		);
+		when(this.evita.getEngineState()).thenReturn(engineState);
 		this.exportService = new RecordingExportService();
 		this.archive = new FileForFetch(
 			UUIDUtil.randomUUID(), "archive.zip", null, "application/zip",
@@ -297,10 +314,11 @@ class PublishRestoredCatalogTaskTest {
 	/**
 	 * Builds restoration steps that record their execution and take the folder claim, but touch nothing else.
 	 *
-	 * The claim is allocated rather than left untaken because the real unpacking step always allocates it, and
-	 * the clean-up reads it to decide whether the scratch catalog is this task's to remove. Steps that skipped
-	 * the allocation would put every test that uses them on the "somebody else holds this name" branch, where
-	 * nothing is removed - which is the opposite of what most of them are written to observe.
+	 * The claim is allocated, and the resulting folder published as the scratch name's binding, because that is
+	 * what the real unpacking and registering steps do between them - and together they are what the clean-up
+	 * consults before removing anything. Steps that skipped either half would put every test that uses them on
+	 * the "that name is somebody else's" branch, where nothing is removed, which is the opposite of what most of
+	 * them are written to observe.
 	 *
 	 * @param unpackRan   flipped when the unpacking step runs
 	 * @param registerRan flipped when the registering step runs
@@ -318,6 +336,8 @@ class PublishRestoredCatalogTaskTest {
 				"restoreCatalog", "unpack", null,
 				() -> {
 					claim.allocate(folderContext, catalogName);
+					// what the real registering step does next: the name now denotes this restore's own folder
+					this.scratchFolderBinding.set(claim.allocatedFolderId());
 					unpackRan.set(true);
 				},
 				TaskTrait.CAN_BE_CANCELLED
@@ -532,6 +552,42 @@ class PublishRestoredCatalogTaskTest {
 				exportService.deletedFiles.isEmpty(),
 				"A restore that failed must keep its archive so it can be retried by hand."
 			);
+		}
+
+		@Test
+		@DisplayName("Leaves the temporary name alone when another catalog has taken it since")
+		void shouldNotRemoveACatalogThatTookTheScratchNameLater() {
+			// The folder claim is given back the moment the registering step finishes, so from then on the
+			// scratch name is an ordinary catalog name: another operation may drop this restore's catalog and
+			// create its own under it. That catalog is bound to a folder of its own, which is what tells the two
+			// apart - "this restore once allocated something" cannot, and would delete a stranger's catalog.
+			final CatalogFolderContext folderContext = TestCatalogFolderContexts.onDirectory(storageDirectory);
+			final RestorationStepsFactory hijackedSteps =
+				(catalogName, fileId, pathToFile, totalBytesExpected, deleteAfterRestore) -> {
+					final RestoreFolderClaim claim = new RestoreFolderClaim();
+					return new RestorationSteps(
+						new ClientRunnableTask<>(
+							"restoreCatalog", "unpack", null,
+							() -> {
+								claim.allocate(folderContext, catalogName);
+								// the name now denotes somebody else's folder, not the one just allocated
+								scratchFolderBinding.set(new CatalogFolderId(catalogName + "_99"));
+							},
+							TaskTrait.CAN_BE_CANCELLED
+						),
+						recordingStep("register", new AtomicBoolean()),
+						claim
+					);
+				};
+			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
+			when(evita.replaceCatalogWithProgress(TEMPORARY_CATALOG, SOURCE_CATALOG))
+				.thenReturn(failedProgress(new IllegalStateException("the swap failed")));
+			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), hijackedSteps);
+			task.transitionToIssued();
+
+			assertThrows(CompletionException.class, task::execute);
+
+			verify(evita, never()).deleteCatalogIfExistsWithProgress(anyString());
 		}
 
 		@Test

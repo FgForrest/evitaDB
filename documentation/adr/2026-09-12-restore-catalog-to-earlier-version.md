@@ -1,7 +1,7 @@
 ---
 title: Restore a live catalog to an earlier version by composing backup, restore, activate and replace
 date: 2026-09-12
-updated: 2026-09-14 08:10
+updated: 2026-09-14 09:05
 status: accepted
 kind: feature
 issues: [1553]
@@ -114,8 +114,9 @@ documentation and here.
   necessarily a local file system, and `RestoreTask` needs a local file. The copy that looks redundant
   is what makes the operation work on an object-store deployment.
 - **`replaceCatalog` tolerates a target name no catalog holds.**
-  `ModifyCatalogSchemaNameMutation#verifyApplicability` requires only the *source* to exist and, with
-  `overwriteTarget`, skips every target check; the operator reads the target via
+  `ModifyCatalogSchemaNameMutation#verifyApplicability` requires only the *source* to exist; a target
+  nothing holds is validated for uniqueness like any new name, and an occupied one needs
+  `overwriteTarget` and is otherwise taken as it stands. The operator reads the target via
   `getCatalogInstance(...).orElse(null)` and null-guards each use. One uniform flow therefore covers
   replace-in-place, replace-another-catalog and create-new — **do not add branching for the three
   cases**, they are the same case.
@@ -189,6 +190,12 @@ straight off the collection size — an off-by-one restore fails rather than loo
   state rather than to the intent: an occupied target skips it, a free one clears the same bar a
   rename does. Two questions that had been conflated, separated - whether an occupied target may be
   taken over is the caller's to declare, whether the resulting names are unique is not.
+  The check measures the new name against every catalog *except the one being renamed away*, which is
+  a second defect the first one had been masking: `checkCatalogNameIsAvailable` compares against the
+  whole live set, so a rename of `myCatalog` to `my_catalog` asks whether the catalog collides with
+  itself and is refused, even though the name it collides with leaves the set in the same act. The
+  replace path had never reached that code before and so had never shown it; the rename path had, and
+  was wrong for as long as it existed.
 - **The target name is checked when the operation is submitted and never reserved.** Minutes pass
   before the swap uses it, and a catalog created under exactly that name in the meantime is replaced.
   That is what the operation promises to do with an occupied target; what is surprising is only that
@@ -196,16 +203,24 @@ straight off the collection size — an off-by-one restore fails rather than loo
   alone for the same reason as the concurrent-restore case below: the engine has no per-catalog
   *operation* lock to hang a reservation on, and the up-front check still buys the thing that matters,
   which is failing on a malformed or colliding name before minutes of copying rather than after.
-- **A failure inside the swap can leave the target corrupted while the task reports failure.**
+- **A failure inside the swap discards the restored copy; the target survives.**
   `ModifyCatalogSchemaNameMutationOperator` has a point of no return - the storage handover - and a
-  failure past it deliberately declares the target `CORRUPTED` instead of compensating, because
-  resuming its sessions against a folder whose stored identity no longer agrees with engine state is
-  the worse outcome. So the guarantee that a failed restore leaves the target untouched holds only up
-  to that handover. The restored state is not lost - the folder already carries its new name, so a
-  restart rebuilds the catalog from it, which is to say a restore that reports failure may in fact have
-  succeeded and be one restart away from showing it. Nothing is done about it here: it is the
-  operator's designed behaviour and predates this feature. What this work adds is contract and
-  user-documentation wording that says so, rather than a promise the engine cannot keep.
+  failure past it declares a catalog `CORRUPTED` instead of compensating, because resuming sessions
+  against a folder whose stored identity no longer agrees with engine state is the worse outcome. The
+  catalog it declares corrupted is `catalogNameToBeReplacedWith`, which is the **source** - the
+  restore's scratch copy - not the target: `mutation.getCatalogName()` is the replacement and
+  `getNewCatalogName()` the name it is taking over. So the target keeps serving its previous contents,
+  the engine-state exchange having never committed, and the restore's clean-up then drops the scratch
+  catalog that held the restored data.
+  A restart does not adopt that data either. Names are bound to folders in engine state, that binding
+  never changed, and `DefaultCatalogPersistenceService#reconcileStoredCatalogIdentity` resolves a
+  folder whose stored name disagrees with its binding by rewriting the *stored* name to match - so the
+  relabelled folder is renamed back to the scratch name rather than claiming the target's.
+  Nothing is done about it here: it is the operator's designed behaviour and predates this feature.
+  What this work adds is contract and user-documentation wording that says so. An earlier draft of that
+  wording had it backwards - it named the target as the corrupted catalog and promised a restart would
+  surface the restored data - which is why the direction is spelled out here rather than left to the
+  reader to re-derive.
 - **The intermediate archive competes with the export directory's size limit.** `purgeFiles` drops the
   oldest files whenever the directory exceeds `export.sizeLimitBytes` (1 GiB by default) and holds no
   reference count, despite the interface javadoc suggesting it spares files a reader needs. A catalog

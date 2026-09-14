@@ -130,20 +130,25 @@ final class RestoreFolderClaim {
 	}
 
 	/**
-	 * Tells whether this restore ever took the folder - and therefore the catalog name - for itself.
+	 * Answers which folder this restore took for itself, or `null` when it never got one.
 	 *
 	 * The folder token is written once, after `allocateFolderFor` returns, and never cleared, so this keeps
-	 * answering `true` long after the claim itself has changed hands. That is what makes it usable as an
-	 * ownership test at clean-up time, when the claim is always gone.
+	 * answering long after the claim itself has changed hands. That is what makes it usable at clean-up time,
+	 * when the claim is always gone.
 	 *
-	 * The distinction it draws is the one that matters when a restore fails: allocation refuses a name somebody
-	 * else already holds, so a `null` answer means the catalog now sitting under that name was **not** put there
-	 * by this operation and must not be removed on its behalf.
+	 * **The folder, not a flag, and the difference is the whole point.** "This restore once allocated something"
+	 * and "the catalog answering to the scratch name right now is the one this restore put there" are different
+	 * statements, and only the second licenses a deletion. The claim is released as soon as the registering step
+	 * finishes, so between then and the clean-up the name is ordinary: another operation may drop the scratch
+	 * catalog and create its own under the same name. A caller that deleted on the strength of a boolean would
+	 * destroy that one. Comparing this token against the folder the engine currently binds the name to is what
+	 * turns the question into one about identity - see `PublishRestoredCatalogTask#scratchIsStillOurs`.
 	 *
-	 * @return `true` when the folder was allocated by this restore
+	 * @return token of the folder allocated by this restore, or `null` when allocation never happened
 	 */
-	boolean isAllocated() {
-		return this.folderId != null;
+	@Nullable
+	CatalogFolderId allocatedFolderId() {
+		return this.folderId;
 	}
 
 	/**

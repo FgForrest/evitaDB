@@ -34,6 +34,7 @@ import io.evitadb.core.executor.SequentialTask;
 import io.evitadb.core.management.RestorationSteps.RestorationStepsFactory;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.export.ExportService;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.IOUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -152,9 +153,8 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 		// deletes it - it opens the file with DELETE_ON_CLOSE - but only on the one path where it gets to open it
 		// at all, and this task owns the file for its whole life rather than only until the step that consumes it
 		Path localArchive = null;
-		// held outside the `try` for a second reason: the clean-up has to know whether the catalog sitting under
-		// the temporary name was put there by *this* task. Allocation refuses a name somebody else already holds,
-		// so a restoration that never allocated is one whose scratch name belongs to someone else
+		// held outside the `try` for a second reason: the clean-up has to know which folder this task allocated,
+		// so it can tell whether the catalog sitting under the temporary name is still the one it put there
 		RestorationSteps restoration = null;
 		try {
 			// the archive is pulled through the export service rather than read from a path we compute ourselves:
@@ -192,7 +192,7 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 		} finally {
 			cleanUp(
 				published, archive.fileId(), temporaryCatalogName, localArchive,
-				restoration != null && restoration.claim().isAllocated()
+				restoration == null ? null : restoration.claim().allocatedFolderId()
 			);
 		}
 	}
@@ -317,22 +317,23 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 	 * operation is submitted, but nothing reserves it until the unpacking step allocates its folder, minutes
 	 * later - and a failure to allocate is precisely the case where something else has taken the name in the
 	 * meantime. Deleting by name alone would then destroy an unrelated catalog on the strength of a name
-	 * collision, so the removal is conditioned on this task having allocated the folder itself.
+	 * collision, so the removal is conditioned on the name still denoting the folder this task allocated.
 	 *
 	 * No removal may mask the failure that brought us here, so all of them are logged rather than thrown.
 	 *
-	 * @param published            whether the swap completed
-	 * @param archiveFileId        id of the intermediate archive
-	 * @param temporaryCatalogName name of the temporary catalog
-	 * @param localArchive         local copy of the archive, or `null` when it was never allocated
-	 * @param scratchOwned         whether this task allocated the folder behind `temporaryCatalogName`
+	 * @param published              whether the swap completed
+	 * @param archiveFileId          id of the intermediate archive
+	 * @param temporaryCatalogName   name of the temporary catalog
+	 * @param localArchive           local copy of the archive, or `null` when it was never allocated
+	 * @param allocatedScratchFolder folder this task allocated for the scratch catalog, or `null` when it never
+	 *                               allocated one
 	 */
 	private void cleanUp(
 		boolean published,
 		@Nonnull UUID archiveFileId,
 		@Nonnull String temporaryCatalogName,
 		@Nullable Path localArchive,
-		boolean scratchOwned
+		@Nullable CatalogFolderId allocatedScratchFolder
 	) {
 		if (localArchive != null) {
 			try {
@@ -356,7 +357,7 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 					archiveFileId, getStatus().catalogName(), e
 				);
 			}
-		} else if (scratchOwned) {
+		} else if (scratchIsStillOurs(temporaryCatalogName, allocatedScratchFolder)) {
 			try {
 				this.evita.deleteCatalogIfExistsWithProgress(temporaryCatalogName)
 					.ifPresent(progress -> progress.onCompletion().toCompletableFuture().join());
@@ -368,6 +369,38 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 				);
 			}
 		}
+	}
+
+	/**
+	 * Tells whether the catalog answering to the scratch name is the one this task put there.
+	 *
+	 * Having allocated a folder once is not the same as still holding the name, and only the second licenses a
+	 * deletion. The folder claim is released the moment the registering step finishes, so from then until this
+	 * check the scratch name is an ordinary catalog name: another operation may drop this task's catalog and
+	 * create its own under the same name, and a restore that later fails would delete *that* one. Comparing the
+	 * engine's current binding for the name against the folder this task allocated is what makes the question one
+	 * about identity rather than about spelling - a different catalog is bound to a different folder, whatever it
+	 * calls itself.
+	 *
+	 * This narrows the window rather than closing it: the binding could still change between this answer and the
+	 * removal that follows. Closing it entirely needs a compare-and-delete the engine does not currently offer,
+	 * and the remaining window is microseconds against the minutes the old signal left open.
+	 *
+	 * @param temporaryCatalogName   name the scratch catalog was registered under
+	 * @param allocatedScratchFolder folder this task allocated, or `null` when it never allocated one
+	 * @return true when the name still denotes this task's own folder
+	 */
+	private boolean scratchIsStillOurs(
+		@Nonnull String temporaryCatalogName,
+		@Nullable CatalogFolderId allocatedScratchFolder
+	) {
+		// asked first, so a task that failed before allocating anything never touches the engine at all
+		if (allocatedScratchFolder == null) {
+			return false;
+		}
+		return allocatedScratchFolder.equals(
+			this.evita.getEngineState().boundFolderIdFor(temporaryCatalogName)
+		);
 	}
 
 	/**

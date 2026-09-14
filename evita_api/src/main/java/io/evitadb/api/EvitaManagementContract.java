@@ -261,12 +261,14 @@ public interface EvitaManagementContract {
 	 * from it by hand. A run that reaches the swap gives the archive up, on a best-effort basis: a removal that
 	 * fails is logged rather than failing the task, so the archive can outlive a successful run.
 	 *
-	 * **One failure does not leave the target as it was.** The swap has a point of no return - the storage
-	 * handover - and a failure after it is still reported as a failed task, but the catalog under
-	 * `targetCatalogName` is left {@link CatalogState#CORRUPTED} and refuses sessions until the server restarts.
-	 * The restored data is not lost in that window: the folder already carries its new name, so the restart
-	 * rebuilds the catalog from it. Until the restart, a failure reported by this task is therefore not on its own
-	 * proof that nothing happened.
+	 * **A failure inside the swap discards the restored data rather than publishing it.** The swap has a point of
+	 * no return - the storage handover, which relabels the restored catalog's folder before the exchange is
+	 * recorded in engine state - and a failure after it cannot be compensated. What survives is the *target*: it
+	 * keeps the contents it already had, because the exchange never committed. What does not is the restored
+	 * copy, which is declared {@link CatalogState#CORRUPTED} under the operation's internal scratch name and then
+	 * dropped by the clean-up. A restart does not recover it either - the engine binds catalog names to storage
+	 * folders, that binding never changed, and a folder whose stored name disagrees with its binding is renamed
+	 * back to agree with it. The archive is kept in this case, so the restore can be retried from it by hand.
 	 *
 	 * @param catalogName       name of the catalog whose past state is to be restored
 	 * @param pastMoment        moment to restore the catalog to, or null; ignored when `catalogVersion` is set

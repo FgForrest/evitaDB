@@ -109,7 +109,12 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 			// A name nothing holds is a new name whatever `overwriteTarget` says, so it has to clear the same
 			// bar a rename does. Skipping this on the strength of the flag alone is how an overwrite aimed at a
 			// free name could introduce a catalog colliding with an existing one in some naming convention.
-			CatalogSchema.checkCatalogNameIsAvailable(evita, this.newCatalogName);
+			//
+			// Measured against every catalog *except* the one this mutation renames away. That catalog's name
+			// leaves the set in the same act that introduces the new one, so counting it makes the operation
+			// collide with itself: `myCatalog` to `my_catalog` is a legitimate rename that a check including
+			// the source refuses, because the two agree in camel case.
+			CatalogSchema.checkCatalogNameIsAvailable(evita, this.newCatalogName, this.catalogName);
 		}
 	}
 

@@ -90,6 +90,27 @@ public class ModifyCatalogSchemaNameMutationTest {
 	}
 
 	@Test
+	void shouldAllowAReplaceWhoseOnlyCollisionIsTheDepartingSource() {
+		// `my-catalog` and `myCatalog` are the same name in camel case, and the catalog holding the second one is
+		// the very catalog this mutation renames away. The name it collides with leaves the set in the same act
+		// that introduces the new one, so the set that results is unique and the operation is legitimate.
+		final ModifyCatalogSchemaNameMutation mutation =
+			new ModifyCatalogSchemaNameMutation("myCatalog", "my-catalog", true);
+
+		assertDoesNotThrow(() -> mutation.verifyApplicability(evitaHolding("myCatalog")));
+	}
+
+	@Test
+	void shouldAllowARenameWhoseOnlyCollisionIsTheDepartingSource() {
+		// the same thing without the overwrite flag: a plain rename between two spellings of one name. This path
+		// has always run the uniqueness check, so it refused this rename for as long as it existed.
+		final ModifyCatalogSchemaNameMutation mutation =
+			new ModifyCatalogSchemaNameMutation("myCatalog", "my-catalog", false);
+
+		assertDoesNotThrow(() -> mutation.verifyApplicability(evitaHolding("myCatalog")));
+	}
+
+	@Test
 	void shouldRefuseAnOccupiedTargetWithoutTheOverwriteFlag() {
 		final ModifyCatalogSchemaNameMutation mutation =
 			new ModifyCatalogSchemaNameMutation("catalog", "myCatalog", false);
