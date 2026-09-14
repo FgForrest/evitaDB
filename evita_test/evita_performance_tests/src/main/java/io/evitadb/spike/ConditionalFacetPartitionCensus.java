@@ -43,6 +43,7 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -412,10 +413,12 @@ public class ConditionalFacetPartitionCensus {
 		@Nonnull List<String> triggers
 	) {
 		System.out.printf("%n  --- counterfactual walk size (no schema change; counts read off live indexes) ---%n");
+		final Map<String, Long> advertisedByReference = CollectionUtils.createLinkedHashMap(everyIndexed.size());
 		long currentTotal = 0L;
 		long ifAllPartitioned = 0L;
 		for (final String reference : everyIndexed) {
 			final long advertised = advertisedPartitions(collection, reference);
+			advertisedByReference.put(reference, advertised);
 			final boolean isPartitioned = partitioned.contains(reference);
 			final boolean isTrigger = triggers.contains(reference);
 			if (isPartitioned) {
@@ -430,13 +433,24 @@ public class ConditionalFacetPartitionCensus {
 			);
 		}
 		System.out.printf(
-			"    %-24s %,9d  (walk today, minus whichever reference the trigger fires for)%n",
+			"    %-24s %,9d  (every reference partitioned today, no trigger exclusion applied)%n",
 			"TOTAL partitioned", currentTotal
 		);
 		System.out.printf(
 			"    %-24s %,9d  (every indexed reference switched to FOR_FILTERING_AND_PARTITIONING)%n",
 			"TOTAL if all switched", ifAllPartitioned
 		);
+		// The exclusion is per trigger, so it cannot be folded into either total above: `resolveSiblingReducedIndexes`
+		// skips the sibling whose name equals the MUTATED reference's, which subtracts a different reference for
+		// every trigger - and subtracts nothing at all for a trigger on a reference that is not partitioned, since
+		// such a reference contributes no partitions to the total in the first place.
+		for (final String trigger : triggers) {
+			final long own = partitioned.contains(trigger) ? advertisedByReference.getOrDefault(trigger, 0L) : 0L;
+			System.out.printf(
+				"    %-24s %,9d  (walk when the trigger on `%s` fires; its own %,d partitions excluded)%n",
+				"WALK for " + trigger, currentTotal - own, trigger, own
+			);
+		}
 	}
 
 	/**
