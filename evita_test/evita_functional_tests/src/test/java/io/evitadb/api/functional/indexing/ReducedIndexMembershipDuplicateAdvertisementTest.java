@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -79,6 +80,7 @@ import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -271,6 +273,40 @@ class ReducedIndexMembershipDuplicateAdvertisementTest implements EvitaTestSuppo
 		assertAdvertisementNeverRepeats();
 		assertMembershipAccountsForEveryAdvertisedIndex();
 		assertBothFamiliesAreAccountedFor();
+	}
+
+	@Test
+	@DisplayName("a duplicate reaching the load-path call site refuses, rather than being silently skipped")
+	void aDuplicateDrivenThroughTheLoadPathRefuses() {
+		// Every other test here asserts the PREMISE - that the advertisement never repeats a primary key. This
+		// one asserts the CLAIM that rests on it: that a repeat which did reach a fill site is refused there,
+		// instead of being absorbed. The two are independent. A stray try/catch in
+		// `EntityCollection#registerReducedIndex`, or a refactor that stopped propagating, would restore the
+		// silent no-op the `isKnown` pre-check used to produce, and no assertion on the premise could tell.
+		//
+		// The duplicate is genuine and needs neither reflection nor a test-only seam:
+		// `rebuildReducedIndexMembership` resolves its slice with `getOrCreateReducedIndexMembership`, which
+		// returns the EXISTING slice and does not clear it. Running the load-time build a second time over a
+		// collection that already holds one therefore re-registers every advertised index into a lookup that
+		// already holds it - which is exactly the shape of the corruption the refusal exists to catch, driven
+		// through the real call site rather than around it.
+		prepare(CatalogState.ALIVE, "CHECKBOX");
+		writeTheRichFixture();
+		assertAdvertisementNeverRepeats();
+
+		final EntityCollection collection = (EntityCollection) getProductCollection();
+		final GenericEvitaInternalError refusal = assertThrows(
+			GenericEvitaInternalError.class,
+			collection::rebuildReducedIndexMembership,
+			"rebuilding an already-built lookup re-registers every advertised index; the second registration "
+				+ "must be refused, or a corrupt advertisement would be absorbed at the one moment the whole "
+				+ "structure is built from scratch"
+		);
+		assertTrue(
+			refusal.getPrivateMessage().contains("already known to the membership map"),
+			"the refusal must be the membership map's own, not an unrelated failure that happens to throw the "
+				+ "same type - got: " + refusal.getPrivateMessage()
+		);
 	}
 
 	@Test
