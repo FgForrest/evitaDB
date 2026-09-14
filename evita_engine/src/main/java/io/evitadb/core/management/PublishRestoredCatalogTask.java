@@ -28,6 +28,7 @@ import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.task.ServerTask;
+import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.core.Evita;
 import io.evitadb.core.executor.ClientRunnableTask;
@@ -50,6 +51,7 @@ import java.nio.file.Path;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Turns a freshly created backup archive into the catalog served under a given name.
@@ -116,6 +118,17 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 	 * tell it from any later catalog wearing the same name. See {@link #swapIntoTarget}.
 	 */
 	@Nullable private final CatalogFolderId expectedTargetFolderId;
+	/**
+	 * The unpack-and-register sequence while it is running, and `null` at every other moment.
+	 *
+	 * Published so that {@link #getStatus()} can read the unpacking's own progress out of it. That progress is
+	 * byte-accurate - the archive's size is threaded all the way down to the unpacking step for exactly this
+	 * purpose - but a {@link ServerTask} offers no way to *subscribe* to it, only to ask. And nothing running on
+	 * this task's own thread can ask: the sequence executes inline, so this thread is *inside* it for the whole
+	 * phase. The question is therefore answered when a monitoring client asks it, which is the only moment the
+	 * number is wanted anyway.
+	 */
+	private final AtomicReference<SequentialTask<Void>> unpackingInFlight = new AtomicReference<>();
 
 	PublishRestoredCatalogTask(
 		@Nonnull String catalogName,
@@ -142,6 +155,27 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 		this.restorationStepsFactory = restorationStepsFactory;
 		this.backupTask = backupTask;
 		this.expectedTargetFolderId = expectedTargetFolderId;
+	}
+
+	/**
+	 * Reports this task's progress, taking the unpacking phase's share of it from the sequence doing that work.
+	 *
+	 * Every other phase *pushes*: the phase boundaries are stamped by `updateProgress`, and the loading phase
+	 * forwards its inner {@link Progress} through a listener. The unpacking phase has no such listener to offer -
+	 * {@link SequentialTask} publishes its progress only through {@link SequentialTask#getStatus()} - so it is
+	 * pulled here instead, one level up, at the moment somebody actually asks.
+	 *
+	 * @return the status, carrying the unpacking's live progress for as long as the unpacking runs
+	 */
+	@Nonnull
+	@Override
+	public TaskStatus<PublishSettings, Void> getStatus() {
+		final SequentialTask<Void> unpacking = this.unpackingInFlight.get();
+		if (unpacking != null) {
+			final int band = PROGRESS_UNPACKED - PROGRESS_ARCHIVE_FETCHED;
+			updateProgress(PROGRESS_ARCHIVE_FETCHED + (unpacking.getStatus().progress() * band) / 100);
+		}
+		return super.getStatus();
 	}
 
 	/**
@@ -270,16 +304,25 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 		final SequentialTask<Void> restoration = steps.asSequentialTask(
 			temporaryCatalogName, "Restoring catalog `" + temporaryCatalogName + "` from the backup archive."
 		);
-		// a task only runs while its status is QUEUED, and it is the scheduler that normally puts it there. This
-		// sequence is never submitted - it runs inline on this task's thread - so it has to be issued by hand
-		restoration.transitionToIssued();
-		restoration.execute();
-		// `execute` rethrows whatever a step failed with, so this join is not what surfaces a failed step. It covers
-		// the other way the sequence can come back without having run to completion: a cancelled result future,
-		// which `execute` reports by answering null rather than by throwing. Nothing reaches this sequence to cancel
-		// it - it is local to this method and never submitted - so the join is defensive, and it is the only thing
-		// that would stop a half-unpacked temporary catalog from being handed on to the loading step below
-		restoration.getFutureResult().join();
+		// published for `getStatus()` to read from, and taken back on every outcome. A sequence left here after it
+		// finished would peg this task at the end of the unpacking band for the rest of its life, swallowing
+		// everything the loading phase reports afterwards - which is why the reset belongs in a `finally`
+		this.unpackingInFlight.set(restoration);
+		try {
+			// a task only runs while its status is QUEUED, and it is the scheduler that normally puts it there. This
+			// sequence is never submitted - it runs inline on this task's thread - so it has to be issued by hand
+			restoration.transitionToIssued();
+			restoration.execute();
+			// `execute` rethrows whatever a step failed with, so this join is not what surfaces a failed step. It
+			// covers the other way the sequence can come back without having run to completion: a cancelled result
+			// future, which `execute` reports by answering null rather than by throwing. Nothing reaches this
+			// sequence to cancel it - it is local to this method and never submitted - so the join is defensive, and
+			// it is the only thing that would stop a half-unpacked temporary catalog from being handed on to the
+			// loading step below
+			restoration.getFutureResult().join();
+		} finally {
+			this.unpackingInFlight.set(null);
+		}
 	}
 
 	/**

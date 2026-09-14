@@ -545,6 +545,52 @@ class PublishRestoredCatalogTaskTest {
 		}
 
 		@Test
+		@DisplayName("Reports the unpacking progress inside its own band rather than raw")
+		void shouldForwardTheUnpackingProgressIntoItsOwnBand() {
+			// The unpacking is the widest band of the operation and it already knows exactly how far it has got -
+			// the archive's size is threaded down to it for that very purpose. Dropping the number leaves the task
+			// sitting at the fetched mark for however long the archive takes to unpack, which on a large catalog is
+			// the longest stretch a monitoring client sees without a single update.
+			final List<Integer> reportedProgress = new ArrayList<>(1);
+			final AtomicReference<PublishRestoredCatalogTask> holder = new AtomicReference<>();
+			final CatalogFolderContext folderContext = TestCatalogFolderContexts.onDirectory(storageDirectory);
+			final RestorationStepsFactory reportingSteps =
+				(catalogName, fileId, pathToFile, totalBytesExpected, deleteAfterRestore) -> {
+					final RestoreFolderClaim claim = new RestoreFolderClaim();
+					return new RestorationSteps(
+						new ClientRunnableTask<Void>(
+							"restoreCatalog", "unpack", null,
+							(Consumer<ClientRunnableTask<Void>>) step -> {
+								claim.allocate(folderContext, catalogName);
+								scratchFolderBinding.set(claim.allocatedFolderId());
+								// read from inside the step, the only moment the sequence is in flight - the phase
+								// runs inline on this very thread, so there is no later point to observe it from
+								step.updateProgress(100);
+								reportedProgress.add(holder.get().getStatus().progress());
+							},
+							TaskTrait.CAN_BE_CANCELLED
+						),
+						recordingStep("register", new AtomicBoolean()),
+						claim
+					);
+				};
+			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
+			stubSwap();
+			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), reportingSteps);
+			holder.set(task);
+			task.transitionToIssued();
+
+			task.execute();
+
+			// the unpacking step finished and the registering step not yet started puts the sequence at its own
+			// (100 + 0) / 2 = 50 %, which lands halfway up the 10..55 band: 10 + (50 * 45) / 100
+			assertEquals(
+				List.of(32), reportedProgress,
+				"The unpacking must be reported between the fetched and unpacked marks, never as its own percentage."
+			);
+		}
+
+		@Test
 		@DisplayName("Reports the load progress inside its own band rather than raw")
 		void shouldForwardTheActivationProgressIntoItsOwnBand() {
 			// the band is arithmetic over three private constants nothing reads back, so an inverted band or a
