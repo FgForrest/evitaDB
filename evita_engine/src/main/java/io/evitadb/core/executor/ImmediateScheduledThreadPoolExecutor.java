@@ -55,6 +55,14 @@ public class ImmediateScheduledThreadPoolExecutor extends ScheduledThreadPoolExe
 
 	public ImmediateScheduledThreadPoolExecutor() {
 		super(4);
+		// A task with a positive delay is handed to the real ScheduledThreadPoolExecutor below, which spawns worker
+		// threads that park on the delayed queue. ScheduledThreadPoolExecutor's DEFAULT policy keeps those tasks
+		// scheduled across `shutdown()`, so the pool stays alive until each delay elapses and its threads - which are
+		// GC roots - go on retaining whatever the owning Evita instance reaches, in this suite roughly 2 MB of pooled
+		// Kryo output buffers per instance. Nothing scheduled through a test executor has any business outliving the
+		// shutdown that discards it, so both policies are turned off and `shutdown()` really does terminate.
+		setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+		setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
 	}
 
 	@Nonnull
@@ -119,13 +127,17 @@ public class ImmediateScheduledThreadPoolExecutor extends ScheduledThreadPoolExe
 	}
 
 	@Override
-	public boolean awaitTermination(long timeout, TimeUnit unit) {
-		return true; // Always terminated since tasks are executed immediately
+	public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+		// this used to return `true` unconditionally, which is only correct for the zero-delay tasks this class runs
+		// inline. A positive-delay task goes to the superclass and keeps real threads alive, and claiming termination
+		// here made `Evita#shutdownScheduler` skip its `shutdownNow()` fallback - so the escape hatch could never
+		// fire and the pool was never forced down. Report what actually happened instead.
+		return super.awaitTermination(timeout, unit);
 	}
 
 	@Override
 	public boolean isTerminated() {
-		return this.shutdown; // Terminated if shutdown has been called
+		return super.isTerminated();
 	}
 
 	@Override
