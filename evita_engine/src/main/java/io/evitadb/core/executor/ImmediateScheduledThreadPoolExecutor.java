@@ -63,6 +63,15 @@ public class ImmediateScheduledThreadPoolExecutor extends ScheduledThreadPoolExe
 		// shutdown that discards it, so both policies are turned off and `shutdown()` really does terminate.
 		setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
 		setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
+		// the third of the three policies the production pool sets, so this stand-in does not quietly differ from
+		// what it stands in for. It costs footprint, not retention: a cancelled task releases what it captured
+		// either way, because the JDK nulls a cancelled task's callable, so the entry left behind is an empty
+		// husk. Without this policy that husk sits in the delayed queue until its delay elapses - up to five
+		// minutes for an output keeper's cut task - lengthening every scan of the queue, and the executor-taking
+		// `Scheduler` constructor creates no periodic purge to sweep it up. It buys nothing at engine close,
+		// where both shutdown policies above already clear the queue outright; it is for tasks cancelled while
+		// the engine is still alive, such as a catalog closing or a keeper going idle.
+		setRemoveOnCancelPolicy(true);
 	}
 
 	@Nonnull
