@@ -1,11 +1,11 @@
 ---
 title: Conditional histogram triggers answer per contribution, and the mutated entity's PK is pinned inside the scope container
 date: 2026-09-08
-updated: 2026-09-11 19:25
+updated: 2026-09-14 07:15
 status: accepted
 kind: fix
 issues: [1470]
-prs: []
+prs: [1555]
 areas: [evita_engine/src/main/java/io/evitadb/index/mutation, evita_engine/src/main/java/io/evitadb/core/collection]
 supersedes: []
 superseded-by: []
