@@ -67,13 +67,10 @@ jobs:
         # surefire.useUnlimitedThreads/threadCount cap test-thread fan-out to this runner's actual
         # core count (nproc, printed by the step above) - unbounded fan-out on a 4-core runner can
         # balloon off-heap memory (Netty/gRPC buffers per concurrently-alive embedded test instance)
-        # well past -Xmx and get the whole job OS-killed; see the surefire-plugin comment in pom.xml.
-        # surefire.maxHeapSize takes the fork one step above the 8g pom default, because 8g has since
-        # produced a contained `OutOfMemoryError: Java heap space` in the functional suite. 9g is a
-        # deliberately small step: it still leaves ~5.7 GB of the runner's ~14.7 GB to the off-heap
-        # driver, which is the resource that actually decides whether the job survives.
+        # well past -Xmx and get the whole job OS-killed; see the surefire-plugin comment in pom.xml,
+        # which also carries the fork heap (surefire.maxHeapSize) those caps are sized against.
         run: |
-          mvn -T 1C -B package -P unitAndFunctional,full jacoco:report-aggregate -V --fail-at-end -Dmaven.test.skip=false -Dsurefire.useUnlimitedThreads=false -Dsurefire.threadCount=4 -Dsurefire.maxHeapSize=9g -DroaringBitmap.skipTests=${{ steps.roaring-filter.outputs.changed == 'true' && 'false' || 'true' }} --file pom.xml
+          mvn -T 1C -B package -P unitAndFunctional,full jacoco:report-aggregate -V --fail-at-end -Dmaven.test.skip=false -Dsurefire.useUnlimitedThreads=false -Dsurefire.threadCount=4 -DroaringBitmap.skipTests=${{ steps.roaring-filter.outputs.changed == 'true' && 'false' || 'true' }} --file pom.xml
           jacoco/jacoco-summary.sh jacoco/target/site/jacoco-aggregate/jacoco.csv
 
       - name: Upload test results
