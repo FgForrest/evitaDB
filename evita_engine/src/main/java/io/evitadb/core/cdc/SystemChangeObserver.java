@@ -92,6 +92,13 @@ public class SystemChangeObserver
 	 * Whether this observer is still active and can fire new events.
 	 */
 	private final AtomicBoolean active = new AtomicBoolean(true);
+	/**
+	 * The JFR periodic hook emitting {@link ChangeCatalogCaptureStatisticsEvent}, kept so that {@link #close()}
+	 * can hand it back. {@link FlightRecorder} files hooks in a registry that lives as long as the JVM and releases
+	 * one only against the very instance that was registered, so the reference cannot be re-derived on close - and
+	 * a hook left behind keeps this observer, its publisher and its subscribers alive for the whole process.
+	 */
+	private final Runnable statisticsHook;
 
 	/**
 	 * Creates a new system-stream observer. Wires up the underlying
@@ -125,9 +132,10 @@ public class SystemChangeObserver
 			1, TimeUnit.MINUTES
 		);
 		this.cleaner.schedule();
+		this.statisticsHook = this::emitChangeCaptureStatistics;
 		FlightRecorder.addPeriodicEvent(
 			ChangeCatalogCaptureStatisticsEvent.class,
-			this::emitChangeCaptureStatistics
+			this.statisticsHook
 		);
 	}
 
@@ -210,6 +218,7 @@ public class SystemChangeObserver
 	@Override
 	public void close() {
 		if (this.active.compareAndSet(true, false)) {
+			FlightRecorder.removePeriodicEvent(this.statisticsHook);
 			IOUtils.closeQuietly(
 				this.sharedPublisher::close,
 				this.cleaner::close

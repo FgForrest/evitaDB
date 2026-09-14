@@ -33,6 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-09-14 | [A resource handed to a JVM-lifetime registry is released by its owner's close, never by the registry](2026-09-14-closed-engine-resource-release.md) | fix | accepted | — |
 | 2026-09-12 | [Restore a live catalog to an earlier version by composing backup, restore, activate and replace](2026-09-12-restore-catalog-to-earlier-version.md) | feature | accepted | #1553 |
 | 2026-09-08 | [Conditional histogram triggers answer per contribution, and the mutated entity's PK is pinned inside the scope container](2026-09-08-conditional-histogram-per-contribution-verdicts.md) | fix | accepted | #1470, PR #1555 |
 | 2026-09-08 | [A warm-up schema change refused by validation raises the unpublishable barrier, so the catalog deactivates and recovers by reload rather than by an undo](2026-09-08-warm-up-invalid-schema-refuses-to-publish.md) | fix | accepted | #1466, PR #1520 |
