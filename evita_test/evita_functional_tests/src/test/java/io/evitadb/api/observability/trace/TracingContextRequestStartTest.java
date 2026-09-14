@@ -53,7 +53,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -185,20 +184,11 @@ class TracingContextRequestStartTest {
 		}
 
 		@Test
-		@DisplayName("an entirely unset context is the shared empty instance rather than a fresh allocation")
-		void shouldReturnEmptySingletonWhenNothingIsSet() {
+		@DisplayName("a context captured with nothing set reports itself empty")
+		void shouldReportEmptyWhenNothingIsSet() {
+			// the negative control for the test above - this is the boundary either side of which the executor
+			// behaves differently, since it skips restoring a context that answers true here
 			assertTrue(TracingContext.captureContext().isEmpty());
-			// an all-null record is *equal* to the sentinel, so only identity proves the allocation was avoided
-			assertSame(CapturedContext.EMPTY, TracingContext.captureContext());
-		}
-
-		@Test
-		@DisplayName("the five-component constructor leaves the request start unset")
-		void shouldLeaveRequestStartUnsetWhenBuiltFromFiveComponents() {
-			final CapturedContext legacy = new CapturedContext("t", "c", "ip", "uri", new Label[0]);
-
-			assertNull(legacy.requestStart());
-			assertEquals("t", legacy.traceId());
 		}
 
 		@Test

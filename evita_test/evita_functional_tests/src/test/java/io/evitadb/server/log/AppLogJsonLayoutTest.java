@@ -85,6 +85,12 @@ class AppLogJsonLayoutTest {
 	 * that checks for the field's presence or absence then cannot end up talking about different fields.
 	 */
 	private static final String DURATION_FIELD = "duration_ms";
+	/**
+	 * How long a request is held open when the test needs Armeria's own measurement to be distinguishable from
+	 * zero. Small enough not to matter to the suite's runtime, large enough that scheduling noise cannot close the
+	 * gap to zero.
+	 */
+	private static final long MEASURABLE_REQUEST_DURATION_MS = 25L;
 	private static final String DURATION_FIELD_PREFIX = "\"" + DURATION_FIELD + "\":";
 
 	/**
@@ -353,23 +359,33 @@ class AppLogJsonLayoutTest {
 
 		@Test
 		@DisplayName("reports Armeria's own measurement once the request has completed")
-		void shouldReportCompletedRequestDurationMeasuredByArmeria() {
+		void shouldReportCompletedRequestDurationMeasuredByArmeria() throws InterruptedException {
 			final ServiceRequestContext ctx = ServiceRequestContext.builder(
 				HttpRequest.of(HttpMethod.GET, "/whatever")
 			).build();
 			ctx.logBuilder().endRequest();
+			Thread.sleep(MEASURABLE_REQUEST_DURATION_MS);
+			// a request completed in the same instant it arrived measures zero, and zero is what a layout that
+			// reported nothing at all would also produce - the response is therefore ended a measurable interval
+			// later, so that the assertion below can only hold for a layout reading Armeria's measurement
 			ctx.logBuilder().endResponse();
 
 			try (SafeCloseable ignored = ctx.push()) {
 				final RequestLog log = ctx.log().partial();
+				final long measured = log.totalDurationNanos() / 1_000_000L;
+				assertTrue(
+					measured >= MEASURABLE_REQUEST_DURATION_MS - 5L,
+					"Armeria measured " + measured + " ms for a request held open for "
+						+ MEASURABLE_REQUEST_DURATION_MS + " ms"
+				);
+
 				// the event is stamped a minute and a half past the request start, so the in-flight source would
 				// answer 90000 - a completed request must be answered from Armeria's monotonic measurement instead
 				final String line = timestamplessLayout().doLayout(
 					event("working", Map.of(), log.requestStartTimeMillis() + 90_000L)
 				);
 
-				assertEquals(log.totalDurationNanos() / 1_000_000L, durationOf(line));
-				assertTrue(durationOf(line) < 90_000L, line);
+				assertEquals(measured, durationOf(line));
 			}
 		}
 
