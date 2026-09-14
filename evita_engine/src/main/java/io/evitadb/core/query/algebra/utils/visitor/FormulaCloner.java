@@ -28,14 +28,15 @@ import io.evitadb.core.query.algebra.FormulaVisitor;
 import io.evitadb.core.query.algebra.base.DisentangleFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
+import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.IdentityHashMap;
-import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
@@ -257,7 +258,7 @@ public class FormulaCloner implements FormulaVisitor {
 	 * @see io.evitadb.core.cache.FormulaCacheVisitor
 	 */
 	protected void pushContext(@Nonnull Deque<SubTree> stack, @Nonnull Formula formula) {
-		stack.push(new DefaultSubTree());
+		stack.push(new DefaultSubTree(formula.getInnerFormulas().length));
 	}
 
 	/**
@@ -307,11 +308,34 @@ public class FormulaCloner implements FormulaVisitor {
 	 * Default implementation of {@link SubTree} contract used in the formula cloner.
 	 */
 	private static class DefaultSubTree implements SubTree {
-		@Getter private final Set<Formula> children = new LinkedHashSet<>(16);
+		/**
+		 * How many children this sub-tree can expect - the visited formula's inner formula count.
+		 */
+		private final int expectedChildren;
+		/**
+		 * Created by the first {@link #add(Formula)} and left NULL when none arrives. One sub-tree is pushed per
+		 * visited node, and the leaves - the majority of a formula tree - never register a child, so a set created
+		 * in the constructor was allocated for nothing on every one of them.
+		 */
+		@Nullable private Set<Formula> children;
+
+		DefaultSubTree(int expectedChildren) {
+			this.expectedChildren = expectedChildren;
+		}
 
 		@Override
 		public void add(@Nonnull Formula formula) {
+			if (this.children == null) {
+				this.children = CollectionUtils.createLinkedHashSet(Math.max(this.expectedChildren, 1));
+			}
 			this.children.add(formula);
+		}
+
+		@Nonnull
+		@Override
+		public Set<Formula> getChildren() {
+			// callers only ever read this set - see the `updatedChildren` uses in #visit
+			return this.children == null ? Collections.emptySet() : this.children;
 		}
 
 	}
