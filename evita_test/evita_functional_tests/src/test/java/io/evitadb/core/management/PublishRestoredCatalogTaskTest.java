@@ -41,7 +41,10 @@ import io.evitadb.core.management.RestorationSteps.RestorationStepsFactory;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.core.transaction.engine.EngineMutationPrecondition;
+import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
+import io.evitadb.spi.store.engine.model.CatalogFolderBinding;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
+import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
@@ -65,6 +68,7 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -262,12 +266,10 @@ class PublishRestoredCatalogTaskTest {
 		);
 		this.evita = mock(Evita.class);
 		this.scratchFolderBinding = new AtomicReference<>();
-		final ExpandedEngineState engineState = mock(ExpandedEngineState.class);
-		when(engineState.boundFolderIdFor(anyString())).thenAnswer(
-			invocation -> TEMPORARY_CATALOG.equals(invocation.getArgument(0)) ?
-				this.scratchFolderBinding.get() : null
-		);
-		when(this.evita.getEngineState()).thenReturn(engineState);
+		// answered rather than returned: an engine state is an immutable snapshot, and the binding it has to carry
+		// changes while the task runs - the unpacking step publishes it - so each read builds the state as it is
+		// at that moment
+		when(this.evita.getEngineState()).thenAnswer(invocation -> currentEngineState());
 		this.exportService = new RecordingExportService();
 		this.archive = new FileForFetch(
 			UUIDUtil.randomUUID(), "archive.zip", null, "application/zip",
@@ -278,6 +280,30 @@ class PublishRestoredCatalogTaskTest {
 	@AfterEach
 	void tearDown() {
 		this.fileManagementService.close();
+	}
+
+	/**
+	 * Builds the engine state as the task would find it at this moment: binding {@link #TEMPORARY_CATALOG} to
+	 * whatever the restoration steps have published for it, and nothing else to anything.
+	 *
+	 * A real state rather than a stubbed one, so the clean-up's ownership question is put to the engine's own
+	 * binding lookup instead of to an answer this test wrote.
+	 *
+	 * @return state carrying the scratch name's current binding, if it has one
+	 */
+	@Nonnull
+	private ExpandedEngineState currentEngineState() {
+		final CatalogFolderId scratchFolder = this.scratchFolderBinding.get();
+		return ExpandedEngineState.create(
+			EngineState.<LogRecordReference>builder()
+				.catalogFolders(
+					scratchFolder == null ?
+						EngineState.NO_FOLDER_BINDINGS :
+						new CatalogFolderBinding[]{new CatalogFolderBinding(TEMPORARY_CATALOG, scratchFolder)}
+				)
+				.build(),
+			Map.of()
+		);
 	}
 
 	/**

@@ -25,21 +25,23 @@ package io.evitadb.core.transaction.engine;
 
 import io.evitadb.api.exception.UnexpectedCatalogIncarnationException;
 import io.evitadb.core.engine.ExpandedEngineState;
+import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
+import io.evitadb.spi.store.engine.model.CatalogFolderBinding;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
+import io.evitadb.spi.store.engine.model.EngineState;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Map;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Covers what an {@link EngineMutationPrecondition} accepts and refuses.
@@ -119,14 +121,25 @@ class EngineMutationPreconditionTest {
 	/**
 	 * Builds an engine state that binds {@link #CATALOG} to the passed folder.
 	 *
+	 * A real state rather than a stubbed one, because the lookup is part of what is being tested: the binding is
+	 * resolved by binary search over a sorted array, and an answer supplied by the test would assert nothing about
+	 * whether an unbound name really comes back as `null`.
+	 *
 	 * @param folderId folder the catalog name is bound to, or `null` when nothing holds it
-	 * @return state answering that one question
+	 * @return state carrying exactly that binding
 	 */
 	@Nonnull
 	private static ExpandedEngineState stateBinding(@Nullable CatalogFolderId folderId) {
-		final ExpandedEngineState engineState = mock(ExpandedEngineState.class);
-		when(engineState.boundFolderIdFor(CATALOG)).thenReturn(folderId);
-		return engineState;
+		return ExpandedEngineState.create(
+			EngineState.<LogRecordReference>builder()
+				.catalogFolders(
+					folderId == null ?
+						EngineState.NO_FOLDER_BINDINGS :
+						new CatalogFolderBinding[]{new CatalogFolderBinding(CATALOG, folderId)}
+				)
+				.build(),
+			Map.of()
+		);
 	}
 
 }
