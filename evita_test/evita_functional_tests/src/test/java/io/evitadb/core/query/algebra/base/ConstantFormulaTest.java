@@ -30,9 +30,13 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
+
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -158,8 +162,20 @@ class ConstantFormulaTest {
 		void shouldGatherOneStalenessTokenForPlainBitmap() {
 			// a plain bitmap carries no transactional id, but it must still contribute a staleness dependency:
 			// an empty set would make a cached answer that no write could ever invalidate, so the content hash
-			// stands in for an id
-			assertEquals(1, new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).gatherTransactionalIds().length);
+			// stands in for an id. Pinning the count alone would be satisfied by a constant, which is the one
+			// value that would reintroduce exactly the defect the token exists to prevent - hence both directions
+			final long[] token = new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).gatherTransactionalIds();
+
+			assertEquals(1, token.length);
+			assertArrayEquals(
+				token,
+				new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 8)).gatherTransactionalIds(),
+				"Equal contents must derive the same token - an unchanged bitmap must not invalidate its own answer."
+			);
+			assertFalse(
+				Arrays.equals(token, new ConstantFormula(new BaseBitmap(1, 3, 4, 5, 9)).gatherTransactionalIds()),
+				"Differing contents must derive differing tokens - otherwise no write could ever invalidate the answer."
+			);
 		}
 
 		@Test
