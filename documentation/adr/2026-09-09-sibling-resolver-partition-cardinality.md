@@ -298,7 +298,7 @@ The same harness, same box and same session, with the scan restored via `-Dspike
 | 188,387 | dense | 228.5 ms | 168.1 ms |
 
 So the removal is worth **−13 %** on both arms at `P`=4,633 dense and **−38 % / −30 %** (lookup / walk) at
-`P`=188,387 dense, and nothing at all in the sparse shapes. **The ratio barely moves** — 1.34× to 1.51–1.57×
+`P`=188,387 dense, and nothing at all in the sparse shapes *(entity-family shape — see [The dense shape was sampled from the wrong index family](#the-dense-shape-was-sampled-from-the-wrong-index-family--and-the-decision-survives-it); not re-measured)*. **The ratio barely moves** — 1.34× to 1.51–1.57×
 at high `P` — because both arms were paying the scan; the gain is absolute milliseconds off every dense
 trigger, on the unaccelerated walk as much as on the lookup. An estimate that subtracted the scan from the
 lookup arm alone predicted 1.9–2.1× and was wrong for exactly that reason.
@@ -321,6 +321,8 @@ gate compares the emitted `(owner, index)` pairs and the pairs were identical ei
 
 The superseded row that mattered most was `188,387 dense`, published as **8.3×** and actually **1.34–1.50×**.
 The `4,633 dense` row went from 1.41× to 1.07–1.09×. The two sparse rows barely moved.
+All three dense figures here are entity-family shapes — see *The dense shape was sampled from the wrong index
+family* — and only the `P`=4,708 case has since been re-measured on the correct one.
 
 **What the correction did not change: the decision.** The lookup is faster in all four shapes, nothing is a
 regression, and the sparse cases — the ones a real conditional-facet trigger produces most often, since a
@@ -329,11 +331,11 @@ trigger names the owners of one changed attribute value — remain 2.8× and 54�
 **Why the dense rows are bounded, and why no threshold setting rescues them.** The accumulator's cost is
 proportional to the number of `(owner, partition)` pairs in the *answer*, which both arms must produce in
 full. `T` decides which partitions are probed; it cannot decide how large the answer is. In the dense shape
-the affected set is 57,962 owners out of 160,216 entities — roughly 36 % of the collection — so most sibling
+the affected set is 57,962 owners out of 160,216 entities — roughly 36 % of the collection *(entity-family shape — see [The dense shape was sampled from the wrong index family](#the-dense-shape-was-sampled-from-the-wrong-index-family--and-the-decision-survives-it); not re-measured)* — so most sibling
 partitions genuinely hold an affected owner and there is nothing to skip. Subtracting the accumulator (about
 129 ms on the walk and 116 ms on the lookup, measured directly by running the harness with the accumulator
 disabled) leaves the probe work alone at **1.84×**, which is the optimization's actual contribution; the
-accumulator dilutes it to the measured 1.34–1.50×. Note the two arms are **not** charged equally despite
+accumulator dilutes it to the measured 1.34–1.50× *(entity-family shape — see [The dense shape was sampled from the wrong index family](#the-dense-shape-was-sampled-from-the-wrong-index-family--and-the-decision-survives-it); not re-measured)*. Note the two arms are **not** charged equally despite
 emitting the same pair set — 129 ms against 116 ms — so a ratio cannot be reconstructed by subtracting one
 figure from both.
 
@@ -591,9 +593,9 @@ without a performance claim was the right call — the claim it was never given 
   fixture. Report the walk in **absolute milliseconds**; that is what this record does.
 - **The hybrid's own cost scales with affected owners.** Arm C is 47 × faster than `HEAD` in the sparse
   shape but 10.6 × in the dense one, because it performs one boxed `HashMap` lookup per affected owner and
-  the dense shape has 57,962. **A primitive int-keyed map is a separate, unmeasured lever.**
+  the dense shape has 57,962 *(entity-family shape — see [The dense shape was sampled from the wrong index family](#the-dense-shape-was-sampled-from-the-wrong-index-family--and-the-decision-survives-it); not re-measured)*. **A primitive int-keyed map is a separate, unmeasured lever.**
 - **The dense shape is bound by the accumulator, not by the walk, and `T` cannot move it.** Once the harness
-  was corrected (2026-09-11) the dense rows fell to 1.07–1.09× and 1.34–1.50×. The reason is
+  was corrected (2026-09-11) the dense rows fell to 1.07–1.09× and 1.34–1.50× *(entity-family shape — see [The dense shape was sampled from the wrong index family](#the-dense-shape-was-sampled-from-the-wrong-index-family--and-the-decision-survives-it); not re-measured)*. The reason is
   `ReevaluateExpressionExecutor#probeReducedIndexForAffectedOwners`: its accumulation runs once per
   `(owner, partition)` pair of the *answer*, and
   both the lookup and the walk must produce that answer in full. Raising the coverage threshold changes which
@@ -678,5 +680,6 @@ without a performance claim was the right call — the claim it was never given 
   Option A alone
 - **2026-09-11** — harness found to diverge from the shipped resolver in two ways its checksum gate could not
   see; corrected and every ratio re-measured downward, the dense high-cardinality row from 8.3× to 1.34–1.50×
+  (all entity-family shapes — see *The dense shape was sampled from the wrong index family*)
 - **2026-09-11** — accumulator profiled behind a variant seam; the per-pair de-duplication scan measured at
   56 % of it, then shown to reject nothing and removed, worth −13 % to −38 % on the dense shapes
