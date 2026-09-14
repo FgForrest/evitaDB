@@ -38,10 +38,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.ReferencedTypeEntityIndex;
-import io.evitadb.index.bitmap.BaseBitmap;
-import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.utils.CollectionUtils;
+import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
@@ -49,7 +46,6 @@ import javax.annotation.Nullable;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.PrimitiveIterator.OfInt;
 
 /**
@@ -69,17 +65,24 @@ import java.util.PrimitiveIterator.OfInt;
  *
  * # Why it is built the expensive way
  *
- * The map is built here as a {@link TransactionalMap} of {@link TransactionalBitmap}, which is the **only** shape
- * that could ship. A plain {@code Map<Integer, int[]>} would be roughly half the size, and is disqualified: it is not a
+ * The structure that ships is a {@link ReducedIndexMembership}, and this harness registers into a real one rather
+ * than into a stand-in. That is deliberate and was not always so: pricing a hand-built map here charged only the
+ * `ownerPK -> reduced-index-PK` entries and silently omitted the three bitmaps
+ * {@link ReducedIndexMembership#getHeapSizeInBytes()} also charges — `coveredOwners`, `coveredIndexPrimaryKeys`
+ * and `residualIndexPrimaryKeys`. Those grow with the residual set, so the understatement was worst at exactly
+ * the low thresholds the sweep exists to compare. Registering into the object removes the divergence by
+ * construction: the coverage decision, the residual accounting and the heap figure all come from shipped code,
+ * and a duplicate advertisement raises here exactly as it does at load.
+ *
+ * A plain {@code Map<Integer, int[]>} would be smaller, and is disqualified: it is not a
  * `TransactionalLayerCreator`, so it never reaches `WarmUpSavepoint#verifyRollbackSupported`, and a rolled-back
  * transaction or a failed warm-up mutation would leave it silently diverged from the indexes it mirrors. The
  * `int[]` figure is still reported, as the floor a bespoke rollback-capable structure could aim at — never as a
  * candidate.
  *
- * Pricing goes through the engine's **own** heap accounting
- * ({@link TransactionalMap#getHeapSizeInBytes}, {@link TransactionalBitmap#getHeapSizeInBytes}), the same call the
- * index-detail statistics surface uses — not JOL, whose graph walk dies on the decorator's lambda and which would
- * in any case follow references the map merely borrows.
+ * Pricing goes through the engine's **own** heap accounting, the same call the index-detail statistics surface
+ * uses — not JOL, whose graph walk dies on the decorator's lambda and which would in any case follow references
+ * the structure merely borrows.
  *
  * # Every reference, not only the partitioned ones
  *
@@ -230,9 +233,14 @@ public class ConditionalFacetReverseIndexFootprint {
 		@Nonnull String referenceName,
 		int threshold
 	) {
-		final Map<Integer, TransactionalBitmap> reverse = CollectionUtils.createHashMap(1024);
+		// The structure itself, not a stand-in for it. Pricing a hand-built `TransactionalMap` here used to omit
+		// `coveredOwners`, `coveredIndexPrimaryKeys` and `residualIndexPrimaryKeys`, which
+		// `ReducedIndexMembership#getHeapSizeInBytes` charges and which grow with the residual set - so the
+		// understatement was worst at exactly the low thresholds the sweep exists to compare. Registering into the
+		// real object removes the divergence by construction: the coverage decision, the residual accounting and
+		// the heap figure all come from the shipped code.
+		final ReducedIndexMembership membership = new ReducedIndexMembership(threshold);
 		long partitions = 0L;
-		long residualProbes = 0L;
 		for (final EntityIndexType family : new EntityIndexType[]{
 			EntityIndexType.REFERENCED_ENTITY_TYPE, EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE
 		}) {
@@ -240,50 +248,41 @@ public class ConditionalFacetReverseIndexFootprint {
 			if (typeIndex == null) {
 				continue;
 			}
-			final long[] counter = new long[2];
+			final long[] counter = new long[1];
 			typeIndex.forEachReferenceIndexPrimaryKey(reducedIndexPk -> {
 				final EntityIndex partition = collection.getIndexByPrimaryKeyIfExists(reducedIndexPk);
 				if (partition == null) {
 					return;
 				}
 				counter[0]++;
-				// The hybrid split. A partition contributes one entry per owner to the map but saves exactly ONE
-				// probe, so covering a large partition is the worst possible trade - it is left to the walk
-				// instead, and the residual walk is bounded by (total memberships / threshold).
-				final int size = partition.getAllPrimaryKeys().size();
-				if (size > threshold) {
-					counter[1]++;
-					return;
-				}
-				// this is the maintenance the write path would perform at each owner-membership boundary:
-				// one entry per (owner, partition) pair the owner belongs to
-				final OfInt owners = partition.getAllPrimaryKeys().iterator();
-				while (owners.hasNext()) {
-					reverse.computeIfAbsent(owners.nextInt(), __ -> new TransactionalBitmap(new BaseBitmap()))
-						.add(reducedIndexPk);
-				}
+				// The hybrid split is the object's own: a partition holding more owners than the threshold
+				// contributes one entry per owner but saves exactly ONE probe, so it is left on the walk instead
+				// and the residual walk stays bounded by (total memberships / threshold). A duplicate
+				// advertisement raises here exactly as it does at load - a measurement that silently skipped one
+				// would price a structure the engine would refuse to build.
+				membership.registerIndex(reducedIndexPk, partition.getAllPrimaryKeys());
 			});
 			partitions += counter[0];
-			residualProbes += counter[1];
 		}
 
 		final VMLayout layout = VMLayout.current();
 		final long boxedInteger = layout.sizeOfObject(Integer.BYTES);
 		long memberships = 0L;
 		long intArrayFloor = 0L;
-		for (final TransactionalBitmap bitmap : reverse.values()) {
-			final int size = bitmap.size();
+		final OfInt coveredOwners = membership.getCoveredOwners().iterator();
+		while (coveredOwners.hasNext()) {
+			final int size = membership.getIndexPrimaryKeys(coveredOwners.nextInt()).size();
 			memberships += size;
 			// what a sorted int[] per owner would cost instead: the array object plus its payload. Reported as a
 			// floor only - a plain int[] map cannot ship, see the class javadoc
 			intArrayFloor += layout.sizeOfObject((long) size * Integer.BYTES) + boxedInteger;
 		}
 
-		final long transactionalBytes = new TransactionalMap<>(reverse)
-			.getHeapSizeInBytes(key -> boxedInteger, TransactionalBitmap::getHeapSizeInBytes);
-
-		return new Reading(partitions, reverse.size(), memberships, transactionalBytes, intArrayFloor,
-			residualProbes);
+		return new Reading(
+			partitions, membership.getCoveredOwners().size(), memberships,
+			membership.getHeapSizeInBytes(), intArrayFloor,
+			membership.getResidualIndexPrimaryKeys().size()
+		);
 	}
 
 	/**
@@ -362,7 +361,7 @@ public class ConditionalFacetReverseIndexFootprint {
 	 * @param partitions         how many partitions the reference advertises
 	 * @param owners             distinct owner PKs the reverse map would key on
 	 * @param memberships        total `(owner, partition)` pairs the map would hold
-	 * @param transactionalBytes owned heap of the shippable `TransactionalMap`/`TransactionalBitmap` shape
+	 * @param transactionalBytes owned heap of the shipped `ReducedIndexMembership`, by its own accounting
 	 * @param intArrayFloorBytes owned heap a sorted `int[]` per owner would need instead — a floor, not an option
 	 * @param residualProbes     partitions left above the threshold, which the walk must still visit
 	 */
