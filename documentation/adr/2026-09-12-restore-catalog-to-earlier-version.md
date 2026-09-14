@@ -1,7 +1,7 @@
 ---
 title: Restore a live catalog to an earlier version by composing backup, restore, activate and replace
 date: 2026-09-12
-updated: 2026-09-14 11:44
+updated: 2026-09-14 11:49
 status: accepted
 kind: feature
 issues: [1553]
@@ -196,7 +196,8 @@ straight off the collection size — an off-by-one restore fails rather than loo
   itself and is refused, even though the name it collides with leaves the set in the same act. The
   replace path had never reached that code before and so had never shown it; the rename path had, and
   was wrong for as long as it existed.
-- **Follow-up: make the folder generation engine-global instead of per-name.** The asymmetry recorded
+- **Follow-up ([#1573](https://github.com/FgForrest/evitaDB/issues/1573)): make the folder generation
+  engine-global instead of per-name.** The asymmetry recorded
   below — a minted name may be retired, a client-chosen one may not — is a rule a future reader can
   get wrong, and it exists only because the counter is keyed by name. One engine-wide counter removes
   the question entirely: nothing accumulates, so nothing needs retiring, and "a token never repeats"
