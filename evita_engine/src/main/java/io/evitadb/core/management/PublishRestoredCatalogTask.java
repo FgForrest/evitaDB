@@ -423,6 +423,12 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 	 * meantime. Deleting by name alone would then destroy an unrelated catalog on the strength of a name
 	 * collision, so the removal is conditioned on the name still denoting the folder this task allocated.
 	 *
+	 * **The scratch name's generation counter goes too, on every outcome.** It is the one piece of this operation
+	 * that outlives the storage it names: the name is minted per invocation, so a counter left behind is an entry
+	 * the engine carries for the rest of the process, once per restore ever performed. See
+	 * {@link Evita#retireCatalogGenerationSequence} for why giving it back here is safe when doing the same for a
+	 * client-chosen name would not be.
+	 *
 	 * No removal may mask the failure that brought us here, so all of them are logged rather than thrown.
 	 *
 	 * @param published              whether the swap completed
@@ -473,6 +479,13 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 				);
 			}
 		}
+		// Last, and on every outcome. The scratch name is minted per invocation, so leaving its counter behind
+		// grows the engine's generation map by one entry on every restore for the life of the process - the one
+		// name that escapes the "bounded by the set of catalog names" reasoning those counters are kept under.
+		// Safe precisely here: the only expectation ever recorded against this name is the swap's own, and by now
+		// it has either been consumed or was never created. Not wrapped in a `catch` like its neighbours because
+		// it cannot throw - it removes keys from a `ConcurrentHashMap`, whose iterator tolerates concurrent writes.
+		this.evita.retireCatalogGenerationSequence(temporaryCatalogName);
 	}
 
 	/**

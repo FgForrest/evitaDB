@@ -281,6 +281,13 @@ public final class Evita implements EvitaContract {
 	 * million times adds one entry, not a million. The number of distinct catalog names a database uses is small
 	 * and does not grow with traffic, which is what makes keeping them the cheap side of this trade.
 	 *
+	 * **A name that is minted rather than chosen escapes that bound, and is given back explicitly.** A restore
+	 * unpacks into a scratch catalog whose name carries random hex and is fresh per invocation, so the set of
+	 * names the process has materialised grows by one on every restore and never stops - the reasoning above
+	 * holds for names a client chooses and for nothing else. Such a name is retired through
+	 * {@link #retireCatalogGenerationSequence(String)} when the operation that minted it ends; see that method
+	 * for why giving it back cannot cost the guarantee above.
+	 *
 	 * The guarantee is bounded by the process because it is the *counter* that carries it and the counter is
 	 * in-memory: across a restart the seeding above is all that keeps generations from repeating, and no
 	 * production path records a peak (see `seedCatalogGenerationSequences`). Everything that compares a folder
@@ -1499,6 +1506,33 @@ public final class Evita implements EvitaContract {
 			},
 			this.serviceExecutor
 		);
+	}
+
+	/**
+	 * Gives back the folder generation counter of a catalog name, so the name stops occupying an entry for the
+	 * rest of the process.
+	 *
+	 * **Only for a name nothing can still hold an expectation against.** Discarding a counter restarts it, so the
+	 * generations it already handed out become drawable again, and an `EngineMutationPrecondition` still carrying
+	 * one would then be satisfied by a catalog it was never issued against - the exact substitution these counters
+	 * exist to make impossible. The filesystem covers part of that on its own, because allocation burns a
+	 * generation whose directory it cannot create and draws the next, so a number is only genuinely redrawable
+	 * once its folder is gone. That is not something to lean on, and it is the wrong question anyway: what
+	 * licenses this call is that **no expectation against the name can be outstanding**, never what the storage
+	 * directory happens to look like.
+	 *
+	 * The restore's scratch name satisfies that by construction. It is minted per invocation and published to
+	 * nobody; the only expectation ever recorded against it is the restore's own, which the swap has consumed by
+	 * the time this is called, or which was never created because the restore failed earlier; and a second
+	 * restore that drew the same name would be refused by `CatalogFolderContext#allocateFolderFor`'s reservation
+	 * before it could record one. A name a *client* chose satisfies none of this - an operation may hold an
+	 * expectation against it for as long as a backup, an unpack and a load take, and nothing tracks that it
+	 * does - so **this must not be called for one**.
+	 *
+	 * @param catalogName name whose folder generation counter is to be discarded
+	 */
+	public void retireCatalogGenerationSequence(@Nonnull String catalogName) {
+		this.catalogGenerationSequences.removeSequences(catalogName);
 	}
 
 	/**

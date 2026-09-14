@@ -545,6 +545,25 @@ class PublishRestoredCatalogTaskTest {
 		}
 
 		@Test
+		@DisplayName("Gives the scratch name's generation counter back once the restore is over")
+		void shouldRetireTheScratchGenerationCounter() {
+			// The scratch name is minted per invocation rather than chosen by a client, so it is the one name that
+			// escapes the bound the engine's generation counters are otherwise kept under - a counter left behind
+			// is an entry carried for the rest of the process, once per restore ever performed.
+			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
+			stubSwap();
+			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), noOpSteps());
+			task.transitionToIssued();
+
+			task.execute();
+
+			verify(evita).retireCatalogGenerationSequence(TEMPORARY_CATALOG);
+			// the other half of the rule, and the dangerous one: a client-chosen name may have an expectation
+			// outstanding against it for as long as a backup, an unpack and a load take
+			verify(evita, never()).retireCatalogGenerationSequence(SOURCE_CATALOG);
+		}
+
+		@Test
 		@DisplayName("Reports the unpacking progress inside its own band rather than raw")
 		void shouldForwardTheUnpackingProgressIntoItsOwnBand() {
 			// The unpacking is the widest band of the operation and it already knows exactly how far it has got -
@@ -646,6 +665,23 @@ class PublishRestoredCatalogTaskTest {
 				"A failed restore must keep its archive - it is the operator's cheapest way to retry."
 			);
 			assertEquals(TaskSimplifiedState.FAILED, task.getStatus().simplifiedState());
+		}
+
+		@Test
+		@DisplayName("Gives the scratch name's generation counter back even when the restore failed")
+		void shouldRetireTheScratchGenerationCounterWhenTheSwapFailed() {
+			// a failed restore mints a scratch name exactly as a successful one does, so a retirement attached to
+			// the success path alone would move the leak rather than close it
+			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
+			stubFailingSwap(new IllegalStateException("the swap failed"));
+			when(evita.deleteCatalogIfExistsWithProgress(TEMPORARY_CATALOG))
+				.thenReturn(Optional.of(completedProgress()));
+			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), noOpSteps());
+			task.transitionToIssued();
+
+			assertThrows(CompletionException.class, task::execute);
+
+			verify(evita).retireCatalogGenerationSequence(TEMPORARY_CATALOG);
 		}
 
 		@Test
