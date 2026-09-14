@@ -1,12 +1,12 @@
 ---
 title: Off-record number reads must not restore a buffer limit the read has invalidated
 date: 2026-09-13
-updated: 2026-09-14 05:40
+updated: 2026-09-14 09:35
 status: accepted
 kind: fix
 issues: [1551]
 prs: []
-areas: [evita_store/evita_store_key_value/src/main/java/io/evitadb/store/kryo, evita_store/evita_store_server/src/main/java/io/evitadb/store/wal, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog, evita_engine/src/main/java/io/evitadb/core/cdc]
+areas: [evita_store/evita_store_key_value/src/main/java/io/evitadb/store/kryo, evita_engine/src/main/java/io/evitadb/spi/store/catalog/wal, evita_store/evita_store_server/src/main/java/io/evitadb/store/wal, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog, evita_engine/src/main/java/io/evitadb/core/cdc]
 supersedes: []
 superseded-by: []
 relates: [2026-08-28-attributable-internal-error-metrics, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-24-grpc-streaming-backpressure-readiness-gate]
@@ -39,9 +39,10 @@ the commit pipeline had not finished writing. **That reading is wrong**, and the
 of this record:
 
 - The writer emits the 4-byte prefix **and** the whole leading `TransactionMutation` record from one
-  `ByteBuffer` in a single write loop (`AbstractMutationLog:1381-1393`). A reader cannot observe half of them.
-- A file too short for the transaction is already rejected upstream by the guards at
-  `AbstractMutationSupplier:441` and `:465`, which return `empty()` before the premise is reached.
+  `ByteBuffer` in a single write loop (`AbstractMutationLog#doAppend`). A reader cannot observe half of them.
+- A file too short for the transaction is already rejected upstream by the end-of-file guards in
+  `AbstractMutationSupplier#readAndRecordTransactionMutation`, which return `empty()` before the premise is
+  reached.
 
 So the premise can only fail on a file whose bytes are all present — which means the *reader* miscounted, not
 the writer. It did: given an understated content length, the truncation guard at `:465` passes trivially, the
@@ -100,9 +101,12 @@ written to"*.
 - **Rejected because:** it does not fix the symptom and adds a worse failure. `WriteAheadLogCorruptedException`
   is also an `EvitaInternalError` carrying no `@NotMonitored`, so it moves the same counter and raises the same
   gauge — the fix would only change the `error_type` label. The bound does not prevent the read either:
-  `MutationSupplier` parses transaction N+1's header at `:202` and applies the version bound only at `:236`, so
-  bounding at N still reads N+1. Safe mode is in fact *more* eager, requiring `contentRecordLength` rather than
-  `fullRecordLength` — eight bytes less on disk before it deserializes.
+  `MutationSupplier#get()` parses transaction N+1's header before it applies the version bound, so bounding at
+  N still reads N+1. At the time this option was weighed, the bounded path was in fact *more* eager than the
+  greedy one, requiring the record's content but not its trailing checksum — eight bytes less on disk before
+  it deserialized. **That last asymmetry no longer exists**: both paths now require the whole record (see *The
+  workaround*), which removes the sharpest edge of this objection without rescuing the option, since the first
+  two reasons are untouched.
 
 ### Option D — mark the tail-read failure `@NotMonitored` (declined)
 
@@ -134,20 +138,76 @@ that no longer routes around anything, still consulted on the read path, is a wo
 introduced for, because it invites the next reader to reason about a buffer condition that no longer exists.
 
 What the flag *actually* controlled by the time it was deleted had nothing to do with buffer filling — that
-meaning drifted away when `880e6a142` re-purposed it. It carried two real behaviours, both of which survive
-unchanged, now derived from the one fact they were always about:
+meaning drifted away when `880e6a142` re-purposed it. It carried two behaviours, and separating them is the
+substance of this record, because **only one of them turned out to be sound**:
 
-- a caller that names a `requestedVersion` is **asserting that version is durably written**, which lets the
-  reader deliver a record whose content is on disk without waiting for the trailing cumulative checksum the
-  writer emits in a later `FileChannel.write`;
-- and failing to reach that version is surfaced as a `WriteAheadLogCorruptedException` rather than an
-  exhausted stream — the loud-vs-graceful contract `880e6a142` introduced to stop the trunk-incorporation
-  stage misreading a durably-written transaction as "already processed" and spinning forever.
+- a caller that names a `requestedVersion` is **asserting that version is durably written**, which was taken
+  to license delivering a record whose content is on disk without waiting for the trailing cumulative
+  checksum. **This is removed.** See below — the premise does not survive reading the writer;
+- and failing to reach that version is surfaced loudly rather than as an exhausted stream — the
+  loud-vs-graceful contract `880e6a142` introduced to stop the trunk-incorporation stage misreading a
+  durably-written transaction as "already processed" and spinning forever. **This is kept**, and sharpened:
+  *which* exception is raised now depends on who named the version.
 
-Both now read directly off `AbstractMutationSupplier#requestedVersion`, a `@Nullable Long` that is `null` for
-a greedy read. The boolean was derived from `requestedVersion != null` at the only place it was set
-(`AbstractMutationLog#createSupplier`), so this removes a parameter that could disagree with the field it
-shadowed, and nothing else.
+#### The checksum relaxation was never load-bearing
+
+`AbstractMutationLog#doAppend` writes the record head, the content, and then the 8-byte trailing cumulative
+checksum, and only afterwards calls `forceDurable`. `appendDeferringSync` defers the **force**, never the
+bytes — it is `doAppend(…, false)`, and its only caller reads the returned record length immediately. So in
+both append variants the record is length-complete on the channel before anything downstream can learn the
+version exists.
+
+The interval in which content is on disk and the checksum is not therefore belongs to an append that has not
+returned, carrying a version nobody has been handed and no caller is in a position to name. The relaxation
+guarded a window no legitimate caller could observe, and in exchange it made the reader willing to deliver a
+record whose integrity it could not check. **Every read now requires the whole record**, and
+`AbstractMutationSupplier#requiredEndPosition`, `#readAndRecordTransactionMutation` and
+`MutationSupplier#get()` no longer branch on whether a version was named.
+
+The one test that pinned the old behaviour asserted the opposite — that such a record *was* delivered — and
+its own comment claimed the file shape it built mirrored "the moment `append()` has written everything except
+the final checksum write". Per the above that moment is unreachable by a caller who can name the version, so
+the test was inverted rather than deleted: the shape it constructs is reachable only by a crash mid-append or
+by deliberate truncation, and in both cases it is damage.
+
+#### Loud-vs-graceful now splits by caller, not by whether a version was named
+
+Two real use cases were being served by one flag:
+
+- the stream is acquired **internally**, from the transaction-processing pipeline. The version is the
+  engine's own, already observed to be durable. Not finding it is damage — `WriteAheadLogCorruptedException`,
+  an `EvitaInternalError`, counted by `io_evitadb_errors_total`;
+- the stream is acquired **over an external API**, where the caller supplies the version and the database has
+  no control over what it contains. It may name a version rotated out of retention, or one that never
+  existed. Not finding it is a bad argument — `EvitaInvalidUsageException`, which the error counter ignores,
+  because no amount of operator attention makes a client stop sending it.
+
+The distinction is carried by `VersionSource` (`INTERNAL` | `CLIENT`), threaded from the entry point down to
+the supplier. **It has to travel down rather than be translated on the way back up**, and that is the
+non-obvious part: `WriteAheadLogCorruptedException` extends `EvitaInternalError`, and the Byte Buddy advice
+instruments `EvitaInternalError` *constructors* — so an exception built internally and converted at the
+session boundary has already moved the counter. Constructing the right type the first time is the only fix
+that works.
+
+`EvitaSession#getMutationsHistoryForward` is the sole `CLIENT` call site today. Note the axis is the **start**
+position, not `requestedVersion`: all three named-version call sites derive the ceiling internally, and what
+differs is that `criteria.sinceVersion()` comes off a client request.
+
+Two boundaries were established by measurement rather than argument, each after a test failed:
+
+- **an empty interval is not a missing version.** When the start version is above the requested ceiling —
+  which is what a mutation-history query whose time frame begins after the last committed transaction
+  resolves to — the range is empty by construction and the answer is an empty stream. Raising there turned an
+  ordinary "no results" page into a gRPC `INVALID_ARGUMENT`;
+- **a greedy read stays silent.** Recovery, replay and change-data-capture promise nothing about where the
+  log ends, so a torn tail is simply the end of the data for them. Only a caller that named a version gets
+  the loud treatment.
+
+Both survive `requestedVersion`, a `@Nullable Long` that is `null` for a greedy read. The boolean was derived
+from `requestedVersion != null` at the only place it was set (`AbstractMutationLog#createSupplier`), so its
+removal takes away a parameter that could disagree with the field it shadowed. `VersionSource` is an **enum
+rather than a second boolean**, deliberately: a boolean that bundled two orthogonal axes is what produced
+this issue, and repeating the shape would have been the same mistake one axis over.
 
 `AbstractMutationLog#getCommittedMutationStreamAvoidingPartiallyWrittenBuffer` is renamed to
 `getCommittedLiveMutationStream`, matching the SPI method it implements
@@ -190,16 +250,31 @@ Every test was run against the unfixed code first and shown failing, so none can
   cases of a wrong value returned with no exception at all**. After: passes.
 - Whole `ObservableInputTest` class after the fix: **27 tests, 0 failures**, including the pre-existing
   trickle-stream, compressed, uncompressed and partially-filled-buffer suites.
-- `ConcurrentWalTailReadStressTest` — one writer appending 400 transactions of varied sizes while three
-  readers tail through the greedy stream. Before the fix it failed with `KryoException: Buffer underflow` at
-  `ObservableInput.require`; after, **3 consecutive runs green** with `escapedFailures=0; constructedErrors=0`,
-  and a post-quiesce read returning every committed version in order. It lives in `evita_long_running_tests`:
-  it costs ~9 s alone but was measured at **28.9 s** inside a full functional run, and tagging it `slow` where
-  it was first written would have meant it never ran, since `unitAndFunctional` excludes that tag.
+- `LongRunningConcurrentWalTailReadStressTest` — one writer appending 400 transactions of varied sizes while
+  three readers tail through the greedy stream, asserting that no internal error is ever *constructed*. It is
+  the only test in the repository that drives a real writer and real readers against one file, and it is what
+  exposed the fixture fault recorded below. It lives in `evita_long_running_tests`: it costs ~7 s alone but was
+  measured at **28.9 s** inside a full functional run, and tagging it `slow` where it was first written would
+  have meant it never ran at all, since `unitAndFunctional` excludes that tag.
+  **It is not a regression guard for this fix, and an earlier revision of this record wrongly said it was.**
+  Re-measured against the counterfactual — the unconditional restore this change superseded — it stayed green
+  over **three consecutive runs** on an idle box (`escapedFailures=0; constructedErrors=0`, all 400 versions
+  returned in order), while `ObservableInputTest$BoundaryReadTests` failed hard on that same mutant in that same
+  reactor. A `KryoException: Buffer underflow` at `ObservableInput.require` *was* observed from this scenario
+  before the fix, under a fixture and a machine load that have both since changed; it has not reproduced since,
+  and why is unsettled — see the open follow-up below.
 - `ChangeCaptureSubscriptionFillFailureTest` — with the catch removed, fails with the fill exception escaping
   `Subscription#request(long)`.
-- Full `wal | cdc` tag sweep: **635 tests, 0 failures, 1 skipped**, including the gRPC and GraphQL subscription
+- Full `wal | cdc` tag sweep: **640 tests, 0 failures, 1 skipped**, including the gRPC and GraphQL subscription
   functional tests that exercise CDC end to end.
+- The two behaviours introduced by *The workaround* are each pinned by a mutant, run in this reactor:
+  collapsing `VersionSource` so every failure is a `WriteAheadLogCorruptedException` fails exactly
+  `CatalogWriteAheadLogTest$DryReadVisibilityRaceTests#shouldReportAClientSuppliedBoundAsInvalidUsageRatherThanCorruption`
+  (1 of 50); disabling the constructor's not-found guard fails **3** of 50, adding
+  `#shouldRaiseRatherThanGoDryForLastAppendedVersionMissingOnlyTrailingChecksum` and
+  `CatalogWriteAheadLogIntegrationTest$MultiFileWalTests#shouldNotRaiseARawKryoFailureWhenTheNextWalFileIsStillAnEmptyStub`.
+  The `CLIENT` test and its `INTERNAL` twin run against byte-identical on-disk state and differ only in the
+  declared source, so a change that collapses the two arms cannot leave both green.
 - Full functional suite: **23,756 tests, 0 failures**, 39 skipped, with the only error the Docker-dependent
   `ExportS3ServiceTest` that does not run in this environment.
 
@@ -216,17 +291,29 @@ thread-safe. An identity-tracking probe added to the pool recorded four such vio
 proving nothing about one. It cost a day of misattributed analysis.
 
 The pool is now pinned to the production shape with no opt-out, and `KRYO_POOL_VIOLATIONS` stays in the fixture
-so a recurrence is reported rather than inferred. **Removing it did not make the stress test pass** — that is
-what isolated the real defect, and it is why the probe earns its place: a concurrency fixture that differs from
-production silently converts every result into a question.
+so a recurrence is reported rather than inferred. **Removing the pool fault did not make the stress test pass**,
+which is what ruled the fixture out as the whole story at the time and sent the search back to the reader. It is
+why the probe earns its place: a concurrency fixture that differs from production silently converts every result
+into a question. Note the limit of that argument in light of the re-measurement above — it establishes that the
+fixture was not the *only* thing wrong then, not that the run still fails for the reason it failed then.
 
 ## Consequences & open follow-ups
 
 - **The invariant now holds and is what the greedy stream rests on**: *a block that is safely written is
-  immediately safe to read*. `ConcurrentWalTailReadStressTest` is the standing guard — it tails through the
-  **greedy** stream, which is the variant with no durability assertion to fall back on, so a regression in the
-  buffer bookkeeping fails there first. If that test is ever weakened, the case for having deleted the
-  workaround goes with it.
+  immediately safe to read*. What guards it is `ObservableInputTest$BoundaryReadTests`, deterministically, in
+  the fast loop — **not** the concurrent stress test, which does not fail on this defect's counterfactual. Do
+  not read a green stress run as cover for a change to the buffer bookkeeping. The case for deleting
+  `avoidPartiallyFilledBuffer` does not rest on the stress test either: it rests on the cause being found and
+  covered, and on the flag carrying nothing about buffer filling by the time it was removed.
+- **Why the stress test does not reproduce the defect is open, and worth settling before it is relied on.**
+  Four experiments, cheapest first: re-run the counterfactual against the old unsynchronized
+  `new Pool<>(false, false, 1)` fixture, which distinguishes a fixture fault in a single run; raise
+  `TRANSACTION_COUNT` by an order of magnitude; run it under full-suite contention, where it was measured at
+  28.9 s against ~7 s alone, since descheduling mid-read is what widens the window the defect needs. The fourth
+  answers the question rather than bisecting it: instrument `require(int)` to count boundary reads that land in
+  its fill or compaction branch during a stress run. Zero would settle it outright — it would mean no run length
+  can help, because the supplier's `StorageRecord` reads realign the buffer to record boundaries and a WAL
+  reader's 4- and 8-byte boundary reads then never straddle a refill.
 - **Two further bookkeeping inconsistencies in `ObservableInput` were found by inspection and could not be made
   to fire.** They are recorded here so the next reader does not have to re-derive them, and **not** changed,
   because a hot path does not get edited on an argument:

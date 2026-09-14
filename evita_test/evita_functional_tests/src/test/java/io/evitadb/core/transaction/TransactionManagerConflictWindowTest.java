@@ -384,7 +384,7 @@ class TransactionManagerConflictWindowTest {
 			when(catalog.getLastCatalogVersionInMutationStream()).thenReturn(RECOMPUTE_LIVING_VERSION);
 			when(catalog.getFirstCatalogVersionInMutationStream()).thenReturn(RECOMPUTE_LIVING_VERSION);
 			when(catalog.getEntitySchema(anyString())).thenReturn(Optional.empty());
-			when(catalog.getCommittedLiveMutationStream(anyLong(), anyLong()))
+			when(catalog.getCommittedLiveMutationStream(anyLong(), anyLong(), any()))
 				.thenReturn(Stream.of(committedMutation));
 
 			final EvitaConfiguration configuration = EvitaConfiguration.builder()

@@ -40,7 +40,9 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.session.EvitaSession;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.store.catalog.DefaultIsolatedWalService;
 import io.evitadb.store.checksum.Crc32CChecksumFactory;
 import io.evitadb.store.compression.CompressionFactory;
@@ -81,6 +83,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -134,12 +137,12 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 	 * carried before, which is a bare {@link java.util.ArrayDeque} with unsynchronized `poll()`/`offer()`.
 	 *
 	 * The writer and every reader draw their Kryo from this one pool ({@code AbstractMutationLog:1345},
-	 * {@code AbstractMutationSupplier:233}), so under the unsynchronized shape a racing obtain hands ONE Kryo to
-	 * two threads - and a Kryo is not thread-safe. The garbage that follows is indistinguishable from a WAL read
-	 * defect while proving nothing about one, and it cost this line of work a day of misattributed evidence.
+	 * {@code AbstractMutationSupplier}'s constructor), so under the unsynchronized shape a racing obtain hands
+	 * ONE Kryo to two threads - and a Kryo is not thread-safe. The garbage that follows is indistinguishable from
+	 * a WAL read defect while proving nothing about one, and it cost this line of work a day of misattributed evidence.
 	 * Nothing here needs the single-threaded shape, so no test gets to opt into it. The identity probe that caught
 	 * the original double hand-out lives next to the only reader that can make it fire -
-	 * {@code ConcurrentWalTailReadStressTest} in `evita_long_running_tests`.
+	 * {@code LongRunningConcurrentWalTailReadStressTest} in `evita_long_running_tests`.
 	 */
 	private final Pool<Kryo> catalogKryoPool = new Pool<>(true, false, 16) {
 		@Override
@@ -259,6 +262,43 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 		return txInMutations;
 	}
 
+	/**
+	 * Deliberately small lie written over a transaction's 4-byte content-length prefix. It has to be small enough
+	 * to satisfy the coarse pre-check that precedes deserialization, so that execution reaches the consistency
+	 * check under test rather than bailing out earlier.
+	 */
+	private static final int LYING_CONTENT_LENGTH = 4;
+
+	/**
+	 * Overwrites the content-length prefix of the transaction starting at `startingPosition` with
+	 * {@link #LYING_CONTENT_LENGTH}, leaving every other byte of the file untouched.
+	 *
+	 * Shared by every test that needs the lie, so the two of them cannot drift apart into two subtly different
+	 * falsifications and then be read as covering the same thing.
+	 *
+	 * @param startingPosition byte offset of the transaction whose prefix is falsified
+	 */
+	private void falsifyContentLengthPrefix(long startingPosition) throws IOException {
+		try (final RandomAccessFile raf = new RandomAccessFile(this.wal.getWalFilePath().toFile(), "rw")) {
+			raf.seek(startingPosition);
+			raf.write(
+				ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+					.putInt(LYING_CONTENT_LENGTH).array()
+			);
+		}
+	}
+
+	/**
+	 * Cuts the current WAL file down to `length` bytes, standing in for a tail that is not (yet) on disk.
+	 *
+	 * @param length the length the WAL file is truncated to
+	 */
+	private void truncateWalFileTo(long length) throws IOException {
+		try (final RandomAccessFile raf = new RandomAccessFile(this.wal.getWalFilePath().toFile(), "rw")) {
+			raf.setLength(length);
+		}
+	}
+
 	@BeforeEach
 	void setUp() throws IOException {
 		cleanTestSubDirectory(getClass().getSimpleName());
@@ -319,7 +359,11 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 	private void createCachedSupplierReadAndVerifyFrom(
 		Map<Long, List<Mutation>> txInMutations, int[] transactionSizes, int index
 	) {
-		try (final MutationSupplier<CatalogBoundMutation> supplier = this.wal.createSupplier(index + 1, null)) {
+		try (
+			final MutationSupplier<CatalogBoundMutation> supplier = this.wal.createSupplier(
+				index + 1, null, VersionSource.INTERNAL
+			)
+		) {
 			assertEquals(1, supplier.getTransactionsRead());
 			readAndVerifyWal(txInMutations, transactionSizes, index);
 		}
@@ -533,6 +577,225 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 				CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager, transactionSizes);
 			readAndVerifyWalInReverse(txInMutations, transactionSizes, 4);
 		}
+
+		/**
+		 * Pins the end-of-file guards of the FIRST record of a rotated file, which is the one record whose
+		 * delivery is decided immediately after {@link MutationSupplier#get()} has swapped WAL files.
+		 *
+		 * Every other rotation test in this repository is a happy path, and the guards only ever make a delivery
+		 * stricter - so all of them pass whether the length `get()` hands to
+		 * `readAndRecordTransactionMutation` and to its own `canProceed` test describes the new file or still
+		 * describes the previous one. This test separates the two, because a rotated file is shorter than the
+		 * rotation threshold exactly while it is still being filled: the last file is cut back to the content
+		 * end of its first transaction, so the previous file's length vouches for a trailing checksum that is
+		 * not on disk while the new file's own length does not.
+		 */
+		@Test
+		@DisplayName("must not deliver a rotated file's first transaction using the stale file length")
+		void shouldNotDeliverARotatedFilesFirstTransactionUsingTheStaleFileLength() throws IOException {
+			CatalogWriteAheadLogIntegrationTest.this.wal.close();
+			CatalogWriteAheadLogIntegrationTest.this.wal = createCatalogWriteAheadLogOfSmallSize();
+
+			final int[] transactionSizes = {10, 15, 20, 15, 10};
+			writeWal(CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager, transactionSizes);
+
+			final File[] walFiles = sortedWalFiles();
+			assertEquals(3, walFiles.length, "the fixture is supposed to produce three WAL files");
+			final File lastWalFile = walFiles[walFiles.length - 1];
+			final File previousWalFile = walFiles[walFiles.length - 2];
+			final long firstVersionInLastFile = CatalogWriteAheadLogIntegrationTest.this.wal.getFirstVersionOf(
+				getIndexFromWalFileName(lastWalFile.getName())
+			);
+
+			// cut the last file back to the content end of its first transaction: every byte the transaction
+			// declares is on disk, its trailing cumulative checksum is not - the state a file is in between the
+			// writer flushing a record and flushing the checksum that closes it
+			final long contentEnd = AbstractMutationLog.CUMULATIVE_CRC32_SIZE + 4 +
+				readContentLengthPrefixAt(lastWalFile, AbstractMutationLog.CUMULATIVE_CRC32_SIZE);
+			final long requiredEndPosition = contentEnd + AbstractMutationLog.CUMULATIVE_CRC32_SIZE;
+			assertTrue(
+				previousWalFile.length() >= requiredEndPosition,
+				"the previous WAL file is no longer long enough to vouch for the truncated transaction, so this " +
+					"test can no longer tell a stale file length from a fresh one - resize the fixture"
+			);
+			try (final RandomAccessFile raf = new RandomAccessFile(lastWalFile, "rw")) {
+				raf.setLength(contentEnd);
+			}
+
+			final List<Long> deliveredVersions = new ArrayList<>(transactionSizes.length);
+			try (
+				final Stream<CatalogBoundMutation> stream = CatalogWriteAheadLogIntegrationTest.this.wal
+					.getCommittedMutationStream(1L)
+			) {
+				stream.forEach(
+					mutation -> {
+						if (mutation instanceof TransactionMutation transactionMutation) {
+							deliveredVersions.add(transactionMutation.getVersion());
+						}
+					}
+				);
+			}
+
+			final List<Long> expectedVersions = new ArrayList<>(transactionSizes.length);
+			for (long version = 1L; version < firstVersionInLastFile; version++) {
+				expectedVersions.add(version);
+			}
+			assertEquals(
+				expectedVersions,
+				deliveredVersions,
+				"A greedy read delivered transaction " + firstVersionInLastFile + " even though its trailing " +
+					"cumulative checksum is not on disk. The only length that says it is complete is the " +
+					"PREVIOUS WAL file's - the one the reader was looking at before it rotated - so the " +
+					"end-of-file guards were answered about the wrong file, and the caller was handed a " +
+					"transaction whose tail may still be being written."
+			);
+		}
+
+		/**
+		 * Rotation creates the next WAL file and only afterwards writes the 8-byte seed cumulative checksum into
+		 * it, so a reader that crosses the boundary in that window meets a file too short to carry it - and a
+		 * crash between the two leaves one behind for good. A reader decides to rotate exactly when the file it
+		 * holds has its tail written, which is to say inside that window by construction rather than by
+		 * coincidence.
+		 *
+		 * The window has to read as "the next file is not there yet", the same as no next file at all: the seed
+		 * read is what would otherwise fail, and it fails as a raw Kryo buffer underflow on a supplier whose WAL
+		 * file, index and position have already been swapped to the stub - a recoverable transient, reported as
+		 * a hard read failure, on a half-rotated reader. Rejecting the stub before any of that is reassigned is
+		 * also what keeps the input for it from being opened, and so from being leaked when the read fails.
+		 */
+		@Test
+		@DisplayName("a next WAL file that is still an empty stub must read as no next file at all")
+		void shouldNotRaiseARawKryoFailureWhenTheNextWalFileIsStillAnEmptyStub() throws IOException {
+			CatalogWriteAheadLogIntegrationTest.this.wal.close();
+			CatalogWriteAheadLogIntegrationTest.this.wal = createCatalogWriteAheadLogOfSmallSize();
+
+			final int[] transactionSizes = {10, 15, 20, 15, 10};
+			writeWal(CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager, transactionSizes);
+
+			final File[] walFiles = sortedWalFiles();
+			final int stubIndex = getIndexFromWalFileName(walFiles[walFiles.length - 1].getName()) + 1;
+			final File stubWalFile = CatalogWriteAheadLogIntegrationTest.this.walDirectory
+				.resolve(getWalFileName(TEST_CATALOG, stubIndex)).toFile();
+			assertTrue(stubWalFile.createNewFile(), "the stub WAL file was supposed to be created by this test");
+
+			final List<CatalogBoundMutation> greedilyRead = assertDoesNotThrow(
+				() -> {
+					try (
+						final Stream<CatalogBoundMutation> stream = CatalogWriteAheadLogIntegrationTest.this.wal
+							.getCommittedMutationStream(transactionSizes.length + 1L)
+					) {
+						return stream.toList();
+					}
+				},
+				"A WAL file that rotation has created but not yet seeded raised a read failure instead of " +
+					"reading as a file that is not there yet. The reader crosses the boundary precisely while " +
+					"the writer is inside that window, so this is a transient a retry clears - and it arrives " +
+					"as a raw Kryo buffer underflow, on a supplier already swapped over to the stub."
+			);
+			assertTrue(
+				greedilyRead.isEmpty(),
+				"A transaction was delivered out of a WAL file that holds no record at all."
+			);
+
+			// The live entry point is bounded by the LAST WRITTEN version, not by one past it: a caller naming a
+			// version is asserting that version is durable, and `transactionSizes.length + 1` never existed, so
+			// naming it would be a false assertion rather than a rotation transient (the read below pins what
+			// happens then). Bounded honestly, the reader still walks off the end of the last real file and into
+			// the stub - which is the boundary crossing this test is about - and must come back cleanly.
+			final List<CatalogBoundMutation> liveRead = assertDoesNotThrow(
+				() -> {
+					try (
+						final Stream<CatalogBoundMutation> stream = CatalogWriteAheadLogIntegrationTest.this.wal
+							.getCommittedLiveMutationStream(
+								(long) transactionSizes.length, (long) transactionSizes.length,
+								VersionSource.INTERNAL
+							)
+					) {
+						return stream.toList();
+					}
+				},
+				"The same rotation stub raised a read failure on the live-stream entry point, which is the one " +
+					"the transaction manager and the session read a moving tail through. The bound names the " +
+					"last durably written version, so the stub is reached by advancing past it - exactly as a " +
+					"tailing reader reaches it in production - and must read as a file that is not there yet."
+			);
+			assertFalse(
+				liveRead.isEmpty(),
+				"The live read was bounded by version " + transactionSizes.length + ", which is durably on " +
+					"disk, so it had to be delivered. An empty result means the stub swallowed a transaction " +
+					"that precedes it."
+			);
+			assertTrue(
+				liveRead.stream()
+					.filter(TransactionMutation.class::isInstance)
+					.map(TransactionMutation.class::cast)
+					.noneMatch(it -> it.getVersion() > transactionSizes.length),
+				"A transaction beyond the requested bound was delivered, which means the reader read into the " +
+					"stub rather than stopping at it. Delivered versions: " + liveRead.stream()
+					.filter(TransactionMutation.class::isInstance)
+					.map(it -> String.valueOf(((TransactionMutation) it).getVersion()))
+					.toList()
+			);
+
+			// the other half of the contract, and the reason the bound above had to be honest: a caller that
+			// names a version the log does not hold is making a false assertion of durability, and that is
+			// reported rather than answered with an empty stream - otherwise the caller cannot tell "your
+			// version is gone" from "nothing left to process", which is the confusion this whole line of work
+			// exists to remove. The stub must not turn that into a raw Kryo failure either.
+			final WriteAheadLogCorruptedException corrupted = assertThrows(
+				WriteAheadLogCorruptedException.class,
+				() -> {
+					try (
+						final Stream<CatalogBoundMutation> stream = CatalogWriteAheadLogIntegrationTest.this.wal
+							.getCommittedLiveMutationStream(
+								transactionSizes.length + 1L, transactionSizes.length + 1L,
+								VersionSource.INTERNAL
+							)
+					) {
+						stream.toList();
+					}
+				},
+				"A read bounded by version " + (transactionSizes.length + 1) + " - which was never written - " +
+					"ended silently instead of reporting that the version it was promised is not in the log."
+			);
+			assertTrue(
+				corrupted.getMessage().contains(String.valueOf(transactionSizes.length + 1)),
+				"The failure must name the version that could not be found. Message was: " +
+					corrupted.getMessage()
+			);
+		}
+
+		/**
+		 * Lists the WAL files of the test directory ordered by their file index.
+		 *
+		 * @return the WAL files, oldest first
+		 */
+		@Nonnull
+		private File[] sortedWalFiles() {
+			final File[] walFiles = CatalogWriteAheadLogIntegrationTest.this.walDirectory.toFile().listFiles(
+				(dir, name) -> name.endsWith(WAL_FILE_SUFFIX)
+			);
+			assertNotNull(walFiles, "the WAL directory could not be listed");
+			Arrays.sort(walFiles, Comparator.comparingInt(f -> getIndexFromWalFileName(f.getName())));
+			return walFiles;
+		}
+
+		/**
+		 * Reads the 4-byte little-endian content-length prefix a transaction record starts with.
+		 *
+		 * @param walFile  the WAL file to read from
+		 * @param position byte offset of the transaction record
+		 * @return the declared content length
+		 */
+		private int readContentLengthPrefixAt(@Nonnull File walFile, long position) throws IOException {
+			try (final RandomAccessFile raf = new RandomAccessFile(walFile, "r")) {
+				raf.seek(position);
+				final byte[] prefix = new byte[4];
+				raf.readFully(prefix);
+				return ByteBuffer.wrap(prefix).order(ByteOrder.LITTLE_ENDIAN).getInt();
+			}
+		}
 	}
 
 	/**
@@ -621,25 +884,20 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 				(TransactionMutationWithLocation) txInMutations.get(2L).get(0);
 			final long tx2Start = tx2Location.getTransactionSpan().startingPosition();
 
-			final Path walFilePath = CatalogWriteAheadLogIntegrationTest.this.wal.getWalFilePath();
-			try (RandomAccessFile raf = new RandomAccessFile(walFilePath.toFile(), "rw")) {
-				// lie about transaction 2's declared content length so the coarse length pre-check
-				// is satisfied by a handful of genuine (unmodified) leading bytes, then truncate the
-				// file to match the lie - Kryo will start deserializing real bytes and run out
-				// part-way through, exactly like a torn concurrent write would look
-				final int lyingContentLength = 4;
-				raf.seek(tx2Start);
-				final byte[] prefix = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-					.putInt(lyingContentLength).array();
-				raf.write(prefix);
-				raf.setLength(tx2Start + 4 + lyingContentLength + AbstractMutationLog.CUMULATIVE_CRC32_SIZE);
-			}
+			// lie about transaction 2's declared content length so the coarse length pre-check is satisfied by a
+			// handful of genuine (unmodified) leading bytes, then truncate the file to match the lie - Kryo will
+			// start deserializing real bytes and run out part-way through, exactly like a torn concurrent write
+			// would look
+			falsifyContentLengthPrefix(tx2Start);
+			truncateWalFileTo(
+				tx2Start + 4 + LYING_CONTENT_LENGTH + AbstractMutationLog.CUMULATIVE_CRC32_SIZE
+			);
 
 			List<CatalogBoundMutation> mutations = null;
 			Exception thrown = null;
 			try (
 				final Stream<CatalogBoundMutation> stream = CatalogWriteAheadLogIntegrationTest.this.wal
-					.getCommittedLiveMutationStream(1L, 2L)
+					.getCommittedLiveMutationStream(1L, 2L, VersionSource.INTERNAL)
 			) {
 				mutations = stream.toList();
 			} catch (Exception ex) {
@@ -662,15 +920,61 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Pins the version bound a caller names when it asks for a live mutation stream.
+	 *
+	 * `getCommittedLiveMutationStream(start, requested)` carries two promises at once: the requested transaction
+	 * is durably written (which licenses delivering a record whose trailing checksum has not landed yet), and the
+	 * stream stops at it. The second one is the easier to lose, because every other test in the repository asks
+	 * for a version at or past the end of the file, where stopping at it and running out of data are the same
+	 * outcome. These tests ask for one strictly short of the end, where they are not.
+	 */
+	@Nested
+	@DisplayName("Live mutation stream: the requested version is an upper bound, not a hint")
+	class LiveMutationStreamBoundsTests {
+
+		@Test
+		@DisplayName("must stop at the requested version even when later transactions are on disk")
+		void shouldStopAtTheRequestedVersionWhenLaterTransactionsExist() {
+			final int[] transactionSizes = {2, 3, 4, 3, 2};
+			writeWal(CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager, transactionSizes);
+
+			final long requestedVersion = 3L;
+			final List<Long> deliveredVersions = new ArrayList<>(transactionSizes.length);
+			try (
+				final Stream<CatalogBoundMutation> stream = CatalogWriteAheadLogIntegrationTest.this.wal
+					.getCommittedLiveMutationStream(1L, requestedVersion, VersionSource.INTERNAL)
+			) {
+				stream.forEach(
+					mutation -> {
+						if (mutation instanceof TransactionMutation transactionMutation) {
+							deliveredVersions.add(transactionMutation.getVersion());
+						}
+					}
+				);
+			}
+
+			assertEquals(
+				List.of(1L, 2L, 3L),
+				deliveredVersions,
+				"getCommittedLiveMutationStream(1, " + requestedVersion + ") did not stop at the version it was " +
+					"asked for even though transactions 4 and 5 are fully durable behind it. The requested " +
+					"version is the caller's assertion about what it knows to be written, not a floor: a caller " +
+					"that receives transactions past it advances its own pointer beyond what it was prepared to " +
+					"process."
+			);
+		}
+	}
+
+	/**
 	 * Tests for the content-length consistency check in
 	 * {@link io.evitadb.store.wal.supplier.AbstractMutationSupplier#readAndRecordTransactionMutation(long, long)}.
 	 *
 	 * The check compares the transaction's 4-byte framing prefix against the leading record's own declared
 	 * length plus the declared size of the individual mutations.
 	 *
-	 * Issue #1551 was filed believing that a reader tailing a live WAL meets this mismatch routinely - that it
-	 * had read a prefix the writer had not finished backing with bytes - and that the check therefore had to
-	 * learn to tell an unfinished append from real damage. It does not: the writer
+	 * The check was once believed to be met routinely by a reader tailing a live WAL - that such a reader had
+	 * read a prefix the writer had not finished backing with bytes - and that it therefore had to learn to tell
+	 * an unfinished append from real damage. It does not: the writer
 	 * emits the 4-byte prefix and the whole leading record from one buffer in a single write loop, and a file
 	 * too short for the transaction is rejected by an earlier guard - so a mismatch reaching this point means
 	 * the bytes are all present and disagree. The real cause was a reader miscounting its own buffer, fixed in
@@ -686,13 +990,6 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 	@DisplayName("Content-length mismatch must fail loudly")
 	class ContentLengthMismatchTests {
 		/**
-		 * Deliberately small lie written over a transaction's 4-byte content-length prefix. It has to be small
-		 * enough to satisfy the coarse pre-check that precedes deserialization, so that execution reaches the
-		 * consistency check under test rather than bailing out earlier.
-		 */
-		private static final int LYING_CONTENT_LENGTH = 4;
-
-		/**
 		 * Writes three transactions and returns the on-disk span of the last one, whose prefix the tests then
 		 * falsify. The last transaction is used so that truncating the file cannot damage any other.
 		 */
@@ -703,21 +1000,6 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 				CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager, txSizes
 			);
 			return (TransactionMutationWithLocation) txInMutations.get((long) txSizes.length).get(0);
-		}
-
-		/**
-		 * Overwrites the transaction's content-length prefix with {@link #LYING_CONTENT_LENGTH}, leaving every
-		 * other byte of the file untouched.
-		 */
-		private void falsifyContentLengthPrefix(long startingPosition) throws IOException {
-			final Path walFilePath = CatalogWriteAheadLogIntegrationTest.this.wal.getWalFilePath();
-			try (RandomAccessFile raf = new RandomAccessFile(walFilePath.toFile(), "rw")) {
-				raf.seek(startingPosition);
-				raf.write(
-					ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-						.putInt(LYING_CONTENT_LENGTH).array()
-				);
-			}
 		}
 
 		@Test
@@ -747,6 +1029,22 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 					"silently. This is genuine corruption - durable bytes contradicting a record that passed " +
 					"its own length and checksum checks - and it must stay loud: the premise here is the only " +
 					"thing standing between a damaged WAL and a clean-looking end-of-stream."
+			);
+			// Naming the class and the message is the whole point. Falsifying the prefix also poisons the
+			// cumulative checksum, so a WriteAheadLogCorruptedException raised later by the trailing-checksum
+			// comparison would satisfy a bare assertNotNull while saying nothing about the premise under test -
+			// and WHICH error class a WAL read mints is precisely what is under test.
+			assertInstanceOf(
+				GenericEvitaInternalError.class,
+				thrown,
+				"The content-length premise no longer decides this read - something else failed first, so the " +
+					"guard this test exists for was never reached. Observed: " + thrown
+			);
+			assertTrue(
+				thrown.getMessage() != null && thrown.getMessage().contains("Invalid WAL file on position"),
+				"The failure did not come from the content-length premise in " +
+					"AbstractMutationSupplier#readAndRecordTransactionMutation. Observed message: " +
+					thrown.getMessage()
 			);
 		}
 	}

@@ -521,6 +521,16 @@ public class ObservableInput<T extends InputStream> extends Input {
 			count = fill(this.buffer, remaining, this.capacity - remaining);
 			if (count == -1) {
 				if (remaining >= required) break;
+				/* EXTENSION */
+				// the compaction above shifted the surviving bytes to the front of the buffer and put `position`
+				// back to zero, but `limit` still describes the buffer as it was before that - so on the way out
+				// it names bytes that have already been delivered. A later require() would find
+				// `limit - position` large enough and answer straight out of them without fetching anything,
+				// handing the caller an earlier part of the stream a second time with nothing to say it did.
+				// restoreLimitAfterOffRecordRead() cannot repair this: it declines to touch `limit` precisely
+				// because `total` has moved, which is the same fact that makes the value wrong.
+				this.limit = remaining;
+				/* END OF EXTENSION */
 				throw new KryoException("Buffer underflow.");
 			}
 			remaining += count;
@@ -759,6 +769,17 @@ public class ObservableInput<T extends InputStream> extends Input {
 	 * fill branch is skipped and `System.arraycopy` is handed a negative length. Milder skews are worse than the
 	 * crash, because they are silent - an overstated limit hands Kryo bytes that were never fetched, and an
 	 * understated one makes the next fill land at a stale offset and skip bytes that were never read.
+	 *
+	 * **What guards this, and what does not.** The deterministic cover is `ObservableInputTest$BoundaryReadTests`
+	 * in the fast loop, which drives a boundary read down each branch of {@link #require(int)} and fails on the
+	 * counterfactual - replacing the guard below with the unconditional
+	 * `this.limit = this.actualLimit >= 0 ? this.actualLimit : this.limit` it superseded. Re-measure that
+	 * counterfactual whenever this method changes; a guard that survives its own removal is guarding nothing.
+	 *
+	 * `LongRunningConcurrentWalTailReadStressTest` looks like the concurrent counterpart, and on an idle box it is
+	 * not one: measured against that same counterfactual it stayed green over three consecutive runs. Its own
+	 * javadoc records the measurement, how it squares with the decision record for this fix, and what
+	 * recalibrating it would take. Do not read a green stress run as cover for a change here.
 	 *
 	 * @param cappedLimit     the limit the caller installed before the read
 	 * @param totalBeforeRead {@link #total} as it stood before the read; a compaction advances it by `position`

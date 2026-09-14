@@ -103,6 +103,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.UUIDUtil;
@@ -1456,7 +1457,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			criteria.sinceVersion() : this.catalog.getFirstCatalogVersionAfter(null).startVersion();
 		return registerStreamAndReturnCloseableStream(
 			this.catalog
-				.getCommittedLiveMutationStream(sinceVersion, this.catalog.getVersion())
+				// `sinceVersion` came straight off the client's request, so a version that is not in the log
+				// (rotated out of retention, never existed, not reached yet) is the caller's mistake and must
+				// not be reported as catalog damage or counted against the engine's internal-error metric
+				.getCommittedLiveMutationStream(sinceVersion, this.catalog.getVersion(), VersionSource.CLIENT)
 				.flatMap(it -> it.toChangeCatalogCapture(mutationPredicate, criteria.content()))
 		);
 	}

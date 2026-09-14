@@ -57,6 +57,7 @@ import io.evitadb.spi.store.catalog.header.model.CollectionReference;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.StringUtils;
@@ -580,7 +581,9 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
-	Stream<CatalogBoundMutation> getCommittedLiveMutationStream(long startCatalogVersion, long requestedCatalogVersion);
+	Stream<CatalogBoundMutation> getCommittedLiveMutationStream(
+		long startCatalogVersion, long requestedCatalogVersion, @Nonnull VersionSource versionSource
+	);
 
 	/**
 	 * Retrieves the last catalog version written in the WAL stream.

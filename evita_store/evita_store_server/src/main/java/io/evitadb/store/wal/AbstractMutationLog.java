@@ -43,6 +43,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.checksum.ChecksumFactory;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException;
 import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException.WalKind;
 import io.evitadb.store.kryo.ObservableInput;
@@ -1511,29 +1512,36 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 */
 	@Nonnull
 	public Stream<T> getCommittedMutationStream(long startCatalogVersion) {
-		return getCommittedMutationStream(startCatalogVersion, null);
+		// a greedy read names no version, so it can never report one as missing - the source it passes only
+		// selects the flavor of an exception this path has no way to reach
+		return getCommittedMutationStream(startCatalogVersion, null, VersionSource.INTERNAL);
 	}
 
 	/**
 	 * Retrieves a stream of committed mutations starting from the given catalog version, for a log that is being
 	 * appended to while it is read.
 	 *
-	 * `requestedCatalogVersion` is an assertion of durability rather than a filter: the caller states that the
-	 * transaction carrying that version is already written, so the reader may deliver a record whose content is on
-	 * disk without waiting for the trailing cumulative checksum the writer emits in a later `FileChannel.write`,
-	 * and an inability to reach the version surfaces as a
-	 * {@link io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException} instead of an exhausted
-	 * stream. Pass a version this log has actually made durable — `TransactionManager` uses the last durable
-	 * catalog version for exactly this reason.
+	 * `requestedCatalogVersion` is an assertion rather than a filter: the caller states that the transaction
+	 * carrying that version is already written, and an inability to reach it surfaces as an exception instead of
+	 * an exhausted stream, so the caller cannot mistake "not there" for "nothing left to process". It is
+	 * additionally an upper bound - transactions beyond it are not delivered. It does **not** relax how much of a
+	 * record must be on disk: every read requires the whole record, trailing cumulative checksum included.
+	 *
+	 * `versionSource` decides what a version that cannot be found *means*. Pass
+	 * {@link VersionSource#INTERNAL} only for a version this log has actually made durable - `TransactionManager`
+	 * uses the last durable catalog version for exactly this reason - because its absence is then reported as
+	 * corruption and counted as an internal error. Anything a client supplied must pass
+	 * {@link VersionSource#CLIENT}.
 	 *
 	 * @param startCatalogVersion     the catalog version to start reading from
 	 * @param requestedCatalogVersion the minimal catalog version to finish reading
+	 * @param versionSource           who chose those versions
 	 * @return a stream of committed mutations
 	 */
 	@Nonnull
 	public Stream<T> getCommittedLiveMutationStream(
-		long startCatalogVersion, long requestedCatalogVersion) {
-		return getCommittedMutationStream(startCatalogVersion, requestedCatalogVersion);
+		long startCatalogVersion, long requestedCatalogVersion, @Nonnull VersionSource versionSource) {
+		return getCommittedMutationStream(startCatalogVersion, requestedCatalogVersion, versionSource);
 	}
 
 	/**
@@ -2025,10 +2033,14 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 *
 	 * @param startVersion     the catalog version to start reading from
 	 * @param requestedVersion the minimal catalog version to finish reading
+	 * @param versionSource    who chose those versions - decides whether a version that is not in the log is
+	 *                         reported as damage or as a bad argument
 	 * @return a new MutationSupplier object
 	 */
 	@Nonnull
-	MutationSupplier<T> createSupplier(long startVersion, @Nullable Long requestedVersion) {
+	MutationSupplier<T> createSupplier(
+		long startVersion, @Nullable Long requestedVersion, @Nonnull VersionSource versionSource
+	) {
 		// a requested version means we may be reading a log that is being appended to, but may rely on the
 		// transaction carrying that version already being written and readable
 		final int walFileIndex = resolveWalFileIndex(startVersion);
@@ -2037,6 +2049,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			startVersion, requestedVersion,
 			this.walFileNameProvider, this.storageFolder, this.storageSettings,
 			walFileIndex, this.kryoPool, this.transactionLocationsCache,
+			versionSource,
 			() -> emitCacheSizeEvent(this.transactionLocationsCache.size()),
 			this.walKind
 		);
@@ -2458,6 +2471,8 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				this.storageFolder, this.storageSettings,
 				AbstractMutationLog.getIndexFromWalFileName(walFile.getName()),
 				this.kryoPool, this.transactionLocationsCache,
+				// a housekeeping read of a file this class picked itself - no client is involved
+				VersionSource.INTERNAL,
 				() -> emitCacheSizeEvent(this.transactionLocationsCache.size()),
 				this.walKind
 			)
@@ -2485,9 +2500,10 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	@Nonnull
 	private Stream<T> getCommittedMutationStream(
 		long startVersion,
-		@Nullable Long requestedVersion
+		@Nullable Long requestedVersion,
+		@Nonnull VersionSource versionSource
 	) {
-		final MutationSupplier<T> supplier = createSupplier(startVersion, requestedVersion);
+		final MutationSupplier<T> supplier = createSupplier(startVersion, requestedVersion, versionSource);
 		this.cutWalCacheTask.schedule();
 		return Stream.generate(supplier)
 			.takeWhile(Objects::nonNull)

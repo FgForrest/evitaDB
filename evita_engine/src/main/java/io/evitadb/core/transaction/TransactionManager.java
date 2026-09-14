@@ -82,6 +82,7 @@ import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
 import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException;
 import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException.WalKind;
@@ -1144,7 +1145,8 @@ public class TransactionManager implements Closeable {
 		final long livingCatalogVersion = theLivingCatalog.getVersion();
 		long processedCatalogVersion = sessionCatalogVersion;
 		final Iterator<CatalogBoundMutation> mutationIterator = getLivingCatalog()
-			.getCommittedLiveMutationStream(sessionCatalogVersion, until.catalogVersion())
+			// both bounds are the engine's own bookkeeping, so a version missing from the log is genuine damage
+			.getCommittedLiveMutationStream(sessionCatalogVersion, until.catalogVersion(), VersionSource.INTERNAL)
 			.iterator();
 
 		while (mutationIterator.hasNext()) {
@@ -1437,7 +1439,7 @@ public class TransactionManager implements Closeable {
 						// only in the page cache, and a crash in that window would leave a catalog claiming a
 						// version its own WAL no longer reaches
 						committedMutationStream = latestCatalog.getCommittedLiveMutationStream(
-							readFromVersion, getLastDurableCatalogVersion()
+							readFromVersion, getLastDurableCatalogVersion(), VersionSource.INTERNAL
 						);
 					} else {
 						committedMutationStream = latestCatalog.getCommittedMutationStream(

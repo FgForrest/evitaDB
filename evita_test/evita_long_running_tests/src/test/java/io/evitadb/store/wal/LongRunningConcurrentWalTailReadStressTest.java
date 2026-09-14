@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.store.checksum.Crc32CChecksumFactory;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.model.reference.LogFileRecordReference;
@@ -67,6 +68,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getWalFileName;
@@ -77,6 +79,7 @@ import static net.bytebuddy.matcher.ElementMatchers.is;
 import static net.bytebuddy.matcher.ElementMatchers.isConstructor;
 import static net.bytebuddy.matcher.ElementMatchers.nameStartsWith;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -87,9 +90,9 @@ import static org.junit.jupiter.api.Assertions.fail;
  * Every other torn-tail test manufactures the damage on a quiesced file: it falsifies a length prefix or truncates
  * the file and then reads. That reproduces the *signature* of the production failure but not its *mechanism*, and
  * the two can diverge - a reader that is genuinely racing an appender may reach the failing consistency check by a
- * path that deliberate file surgery never takes, with different values in hand. Since the fix for issue #1551
- * decides what to do from those values, a synthetic reproduction cannot by itself show that the production error is
- * the one being fixed. This test is what closes that gap.
+ * path that deliberate file surgery never takes, with different values in hand. Since the fix decides what to do
+ * from those values, a synthetic reproduction cannot by itself show that the production error is the one being
+ * fixed. This test is what closes that gap.
  *
  * What it asserts is deliberately not "no exception was thrown". A torn tail read is handled internally and
  * reported as a graceful end-of-stream, so a purely thrown-exception assertion passes while the defect is
@@ -102,13 +105,36 @@ import static org.junit.jupiter.api.Assertions.fail;
  * in the functional module would have meant it never ran at all, since the default `unitAndFunctional` profile
  * excludes that tag.
  *
+ * **Calibration, as measured - read this before trusting a green run.** The counterfactual this test was written
+ * for is the unconditional limit restore `ObservableInput#simpleIntRead()`/`#simpleLongRead()` performed before
+ * the fix, i.e. reducing `ObservableInput#restoreLimitAfterOffRecordRead`'s three-part guard to its
+ * `actualLimit >= 0` conjunct - which is exactly the pre-fix behaviour. Against that revert, running this class
+ * **alone on an otherwise idle box**, it does not fail: three consecutive runs of ~7 s each reported zero
+ * constructed errors, zero escaped failures and a clean quiesced read. That is the configuration the weekly
+ * long-running workflow uses, so treat a green run from it as "concurrent tailing did not regress", never as
+ * "the limit-restore guard is still in place".
+ *
+ * The decision record for this fix reports this test failing on the pre-fix code with `KryoException: Buffer
+ * underflow`, and the run it reports took 28.9 s under full-suite contention rather than ~7 s alone.
+ * Descheduling mid-read is what widens the window, so the two observations are consistent with each other and
+ * with the test needing contention it no longer gets. Either way, the guard's real cover is
+ * `ObservableInputTest$BoundaryReadTests` in the fast loop, which pins it branch by branch and reports 93
+ * inconsistencies across its 54 buffer/chunk combinations against the same revert - deterministically, with
+ * no box to be idle or busy.
+ *
+ * Recalibrating this one means establishing which buffer offsets a WAL reader's boundary reads actually land on
+ * (the defect needs one that straddles a `require()` refill, and the supplier's record reads may be realigning
+ * the buffer so that they never do), then whether widening {@link #TRANSACTION_SIZES} or
+ * {@link #TRANSACTION_COUNT} reaches those offsets. Until that is done, do not shorten the run or make the
+ * readers faster on the strength of a green result.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
 @DisplayName("Concurrent WAL tail read: live writer against readers tailing the same log")
 @Tag(STORAGE)
 @Tag(WAL)
-public class ConcurrentWalTailReadStressTest implements EvitaTestSupport {
+public class LongRunningConcurrentWalTailReadStressTest implements EvitaTestSupport {
 	/**
 	 * Transaction sizes cycled through by the writer. Deliberately uneven and mostly small, so that records land at
 	 * awkward offsets and a reader's buffer is routinely filled only partially - the condition
@@ -182,9 +208,9 @@ public class ConcurrentWalTailReadStressTest implements EvitaTestSupport {
 	 * carried before, which is a bare {@link java.util.ArrayDeque} with unsynchronized `poll()`/`offer()`.
 	 *
 	 * The writer and every reader draw their Kryo from this one pool ({@code AbstractMutationLog:1345},
-	 * {@code AbstractMutationSupplier:233}), so under the unsynchronized shape a racing obtain hands ONE Kryo to two
-	 * threads - and a Kryo is not thread-safe. The garbage that follows is indistinguishable from a WAL read defect
-	 * while proving nothing about one: it cost this line of work a day of misattributed evidence, with the
+	 * {@code AbstractMutationSupplier}'s constructor), so under the unsynchronized shape a racing obtain hands ONE
+	 * Kryo to two threads - and a Kryo is not thread-safe. The garbage that follows is indistinguishable from a WAL
+	 * read defect while proving nothing about one: it cost this line of work a day of misattributed evidence, with the
 	 * {@link #KRYO_POOL_VIOLATIONS} probe below added to catch it if it ever comes back. Nothing here needs the
 	 * single-threaded shape, so there is no way to opt into it.
 	 */
@@ -239,10 +265,22 @@ public class ConcurrentWalTailReadStressTest implements EvitaTestSupport {
 
 		@Advice.OnMethodExit
 		public static void after(@Advice.This Object thiz) {
-			if (ConcurrentWalTailReadStressTest.RECORDING_ERRORS
-				&& Thread.currentThread().getName()
-				.startsWith(ConcurrentWalTailReadStressTest.STRESS_THREAD_PREFIX)) {
-				ConcurrentWalTailReadStressTest.CONSTRUCTED_ERRORS.add(String.valueOf(thiz));
+			// The whole body is guarded, and deliberately so: this runs at the exit of EVERY EvitaInternalError
+			// constructor, which is before any subclass has initialised its own fields. Anything thrown here
+			// escapes that constructor and turns a recoverable internal error into a hard failure anywhere in the
+			// surefire fork for as long as the transformer is installed. For the same reason the class name and
+			// the message are recorded rather than `toString()`, which a subclass may compute from fields that
+			// are still null at this point.
+			try {
+				if (LongRunningConcurrentWalTailReadStressTest.RECORDING_ERRORS
+					&& Thread.currentThread().getName()
+					.startsWith(LongRunningConcurrentWalTailReadStressTest.STRESS_THREAD_PREFIX)) {
+					LongRunningConcurrentWalTailReadStressTest.CONSTRUCTED_ERRORS.add(
+						thiz.getClass().getName() + ": " + ((Throwable) thiz).getMessage()
+					);
+				}
+			} catch (Throwable ignored) {
+				// recording is diagnostics; it must never change what the code under test does
 			}
 		}
 
@@ -292,9 +330,17 @@ public class ConcurrentWalTailReadStressTest implements EvitaTestSupport {
 		final AtomicBoolean writerFinished = new AtomicBoolean();
 		final List<Throwable> escapedFailures = Collections.synchronizedList(new ArrayList<>());
 		final Set<Long> versionsSeenWhileRacing = ConcurrentHashMap.newKeySet();
+		// the highest version the writer has finished appending; a live reader may name it, because naming a
+		// version is the caller's assertion that it is durably written
+		final AtomicLong lastConfirmedVersion = new AtomicLong();
 
 		CONSTRUCTED_ERRORS.clear();
 		KRYO_POOL_VIOLATIONS.clear();
+		// the in-flight set is the state the violation probe is computed from, so it has to be reset with the
+		// queue it feeds - a leftover entry from a previous method in this fork would be reported as a violation
+		synchronized (KRYO_IN_FLIGHT) {
+			KRYO_IN_FLIGHT.clear();
+		}
 		RECORDING_ERRORS = true;
 		try {
 			final Thread writer = new Thread(
@@ -309,6 +355,7 @@ public class ConcurrentWalTailReadStressTest implements EvitaTestSupport {
 								this.observableOutputKeeper,
 								this.wal
 							);
+							lastConfirmedVersion.set(i + 1L);
 						}
 					} catch (Throwable ex) {
 						escapedFailures.add(ex);
@@ -339,7 +386,12 @@ public class ConcurrentWalTailReadStressTest implements EvitaTestSupport {
 										final CatalogBoundMutation mutation = iterator.next();
 										if (mutation instanceof TransactionMutation transactionMutation) {
 											final long version = transactionMutation.getVersion();
-											versionsSeenWhileRacing.add(version);
+											if (!writerFinished.get()) {
+												// recorded only while the writer is genuinely still appending,
+												// so a non-empty set is evidence of overlap rather than of a
+												// reader that started after everything had been written
+												versionsSeenWhileRacing.add(version);
+											}
 											nextVersion = Math.max(nextVersion, version);
 										}
 									}
@@ -354,6 +406,55 @@ public class ConcurrentWalTailReadStressTest implements EvitaTestSupport {
 				);
 			}
 
+			// One more reader, on the other production read path. getCommittedLiveMutationStream(start, requested)
+			// is what TransactionManager and EvitaSession use against a moving tail, and the branches that tell it
+			// apart from the greedy stream - the content-only required end position, and the three loud throw
+			// sites in MutationSupplier#get() that fire while the requested version has not been delivered yet -
+			// exist ONLY for a racing reader. Nothing else exercises them outside quiesced, surgically damaged
+			// files. Naming a version is an assertion that it is durably written, which is why this reader may
+			// only name a version the writer has already finished appending.
+			readers.add(
+				new Thread(
+					() -> {
+						long nextVersion = 1L;
+						while (!writerFinished.get()) {
+							final long confirmedVersion = lastConfirmedVersion.get();
+							if (confirmedVersion < nextVersion) {
+								// nothing new has been confirmed since the last pass - yield rather than
+								// re-opening a stream that can only repeat what this reader already saw
+								Thread.onSpinWait();
+								continue;
+							}
+							try (
+								final Stream<CatalogBoundMutation> stream =
+									// both bounds are this test's own bookkeeping and `confirmedVersion` is only
+								// published once append() has returned, so a version missing here is a real
+								// fault and SHOULD raise - which is what the internal-error probe then catches
+								this.wal.getCommittedLiveMutationStream(
+									nextVersion, confirmedVersion, VersionSource.INTERNAL
+								)
+							) {
+								final Iterator<CatalogBoundMutation> iterator = stream.iterator();
+								while (iterator.hasNext()) {
+									final CatalogBoundMutation mutation = iterator.next();
+									if (mutation instanceof TransactionMutation transactionMutation) {
+										final long version = transactionMutation.getVersion();
+										if (!writerFinished.get()) {
+											versionsSeenWhileRacing.add(version);
+										}
+										nextVersion = Math.max(nextVersion, version);
+									}
+								}
+							} catch (Throwable ex) {
+								escapedFailures.add(ex);
+								return;
+							}
+						}
+					},
+					STRESS_THREAD_PREFIX + "live-reader"
+				)
+			);
+
 			writer.start();
 			for (final Thread reader : readers) {
 				reader.start();
@@ -364,6 +465,15 @@ public class ConcurrentWalTailReadStressTest implements EvitaTestSupport {
 			}
 
 			assertTrue(writerFinished.get(), "The writer did not finish within " + JOIN_TIMEOUT_MS + " ms.");
+			for (final Thread reader : readers) {
+				assertFalse(
+					reader.isAlive(),
+					"Reader `" + reader.getName() + "` was still running " + JOIN_TIMEOUT_MS + " ms after it was " +
+						"joined. Thread#join returns silently on timeout, so a hung reader is otherwise " +
+						"indistinguishable from one that finished - which is the failure mode the timeout exists " +
+						"to catch in the first place."
+				);
+			}
 		} finally {
 			log.info(
 				"[stress] kryoPoolViolations={}; escapedFailures={}; constructedErrors={}",
@@ -374,6 +484,20 @@ public class ConcurrentWalTailReadStressTest implements EvitaTestSupport {
 				instrumentation, AgentBuilder.RedefinitionStrategy.RETRANSFORMATION, errorRootOnly
 			);
 		}
+
+		// FIRST, before anything else is read: a fixture that hands one Kryo to two threads produces
+		// deserialization garbage that surfaces as constructed internal errors, i.e. as a product defect. That
+		// misattribution cost this line of work a day, so it gets its own assertion and its own message ahead of
+		// every other claim this test makes.
+		assertTrue(
+			KRYO_POOL_VIOLATIONS.isEmpty(),
+			"The FIXTURE is at fault, not the code under test: the Kryo pool handed the same instance to two " +
+				"threads at once, or took back one it had never handed out, " + KRYO_POOL_VIOLATIONS.size() +
+				" time(s). A Kryo is not thread-safe, so every failure downstream of that - corrupted records, " +
+				"internal errors, lost transactions - says nothing whatsoever about reading a WAL tail. Fix the " +
+				"pool before reading any other assertion in this class. Violations: " +
+				KRYO_POOL_VIOLATIONS.stream().limit(10).toList()
+		);
 
 		if (!escapedFailures.isEmpty()) {
 			final StringBuilder detail = new StringBuilder(2048);
@@ -388,6 +512,30 @@ public class ConcurrentWalTailReadStressTest implements EvitaTestSupport {
 				.append(' ').append(KRYO_POOL_VIOLATIONS.stream().limit(10).toList());
 			fail(detail.toString());
 		}
+
+		// The claim below is only worth anything if the readers were genuinely tailing a MOVING file. A run in
+		// which every reader started after the writer had finished, or whose first stream came back dry, would
+		// construct no errors and go green having read a quiesced file - coverage that does not exist, reported
+		// as coverage that does. Hence this precondition: versions are recorded only at moments when the writer
+		// had not yet set its finished flag.
+		assertFalse(
+			versionsSeenWhileRacing.isEmpty(),
+			"No reader read a single transaction while the writer was still appending, so this run never " +
+				"reproduced the condition it exists for and the assertion that follows would have passed on a " +
+				"quiesced file. Either the readers start too late, or their first stream came back dry and they " +
+				"exited before the writer produced anything."
+		);
+		final long lowestVersionSeenWhileRacing = versionsSeenWhileRacing.stream()
+			.mapToLong(Long::longValue)
+			.min()
+			.orElse(Long.MAX_VALUE);
+		assertTrue(
+			lowestVersionSeenWhileRacing < TRANSACTION_COUNT,
+			"The readers only ever caught up with the writer at its very last transaction (lowest version read " +
+				"while it was still appending: " + lowestVersionSeenWhileRacing + " of " + TRANSACTION_COUNT +
+				"). That is a quiesced read wearing a stress test's name - the overlap has to span the run, not " +
+				"its final moment."
+		);
 
 		assertTrue(
 			CONSTRUCTED_ERRORS.isEmpty(),
@@ -427,8 +575,14 @@ public class ConcurrentWalTailReadStressTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Creates a WAL whose rotation threshold is high enough that the whole run stays in a single file - rotation is
-	 * covered elsewhere, and a rotation here would make the quiesced verification at the end ambiguous.
+	 * Creates a WAL whose rotation threshold is high enough that the whole run stays in a single file, because a
+	 * rotation here would make the quiesced verification at the end ambiguous.
+	 *
+	 * Rotation is therefore NOT covered by this test, and what covers it is deterministic rather than concurrent:
+	 * `CatalogWriteAheadLogIntegrationTest$MultiFileWalTests` pins the end-of-file guards of the first record of a
+	 * rotated file - the one record whose delivery is decided immediately after the supplier swaps files - by
+	 * cutting the new file back to that record's content end. A concurrent reader crossing a rotation boundary is
+	 * still uncovered; see the rotation-stub limitation pinned in the same nested class.
 	 *
 	 * @return the write-ahead log under test
 	 */

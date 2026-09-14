@@ -27,7 +27,10 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
+import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException;
 import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException.WalKind;
 import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.kryo.ObservableInput;
@@ -55,6 +58,7 @@ import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 import static io.evitadb.store.wal.AbstractMutationLog.CUMULATIVE_CRC32_SIZE;
+import static io.evitadb.store.wal.AbstractMutationLog.TRANSACTION_PREFIX_SIZE;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -85,16 +89,31 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 	 * The version the caller asserts is already durably written, or {@code null} for a greedy read that makes no
 	 * such assertion.
 	 *
-	 * It is a promise, not a filter, and everything that distinguishes a live read from a greedy one follows from
-	 * it. A caller that names a version is telling the supplier that the transaction is on disk and that only the
-	 * reader's own view of the file may still lag, which buys two things: a record may be delivered once its
-	 * CONTENT is present, without waiting for the trailing cumulative checksum that the writer emits in a later
-	 * `FileChannel.write` (see {@link #requiredEndPosition}), and failing to reach that version is reported as a
+	 * It is a promise, not a filter. A caller that names a version is telling the supplier the transaction is on
+	 * disk, and the supplier holds it to that: failing to reach the named version is reported as a
 	 * {@link io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException} rather than as an exhausted
-	 * stream (see {@code MutationSupplier#get()}). A greedy read gets neither: it treats a transaction as
-	 * complete only once its checksum is present too, and a torn tail is simply where the data ends.
+	 * stream (see {@code MutationSupplier#get()}), because a caller that already believes the version was written
+	 * cannot tell a silent end-of-stream apart from "nothing left to process". A greedy read gets no such
+	 * treatment - for it a torn tail is simply where the data ends. The version is additionally an upper bound:
+	 * transactions beyond it are not delivered even when they are complete on disk.
+	 *
+	 * **It does not relax how much of a record must be present.** Every read, named or greedy, requires the
+	 * record to be whole - length prefix, content and trailing cumulative CRC32C. It once excused the trailing
+	 * checksum on the theory that a named version's checksum could still be lagging the reader's file-length
+	 * view, but {@code AbstractMutationLog#doAppend} writes that checksum *before* the force that makes the
+	 * transaction durable, and {@code appendDeferringSync} defers only the force, never the bytes. The window
+	 * that excuse covered therefore belongs to a transaction that has not been reported to anyone yet, and no
+	 * caller is in a position to name it.
 	 */
 	@Nullable protected final Long requestedVersion;
+	/**
+	 * Who chose the versions this read is bounded by - the engine itself, or a client over an external API.
+	 *
+	 * It decides nothing about *what* is read and everything about how a version that cannot be found is
+	 * reported: as damage the operator must look at, or as an argument the caller got wrong. See
+	 * {@link VersionSource} for why that choice has to be made here rather than translated further up.
+	 */
+	@Nonnull protected final VersionSource versionSource;
 	/**
 	 * The Kryo pool for serializing {@link TransactionMutation} (given by outside).
 	 */
@@ -181,9 +200,9 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 
 	/**
 	 * Returns the file position the given transaction must reach on disk to be considered readable at the current
-	 * position: the full record end (including the trailing cumulative checksum) for a greedy read, or the content
-	 * end (checksum excluded) when a {@link #requestedVersion} was named, in which case the trailing checksum of a
-	 * known-written transaction may momentarily lag the reader's file-length view.
+	 * position - the full record end, trailing cumulative checksum included, whether or not a
+	 * {@link #requestedVersion} was named. A record whose tail has not landed is not there yet, and naming a
+	 * version does not change that; see {@link #requestedVersion} for why it cannot.
 	 *
 	 * @param startPosition                   the byte position where the transaction begins in the WAL file
 	 * @param transactionMutationWithLocation the transaction whose required end position is being computed
@@ -192,8 +211,58 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 	private long requiredEndPosition(
 		long startPosition, @Nonnull TransactionMutationWithLocation transactionMutationWithLocation
 	) {
-		final long fullEnd = calculateNextTransactionStartPosition(startPosition, transactionMutationWithLocation);
-		return this.requestedVersion == null ? fullEnd : fullEnd - CUMULATIVE_CRC32_SIZE;
+		return calculateNextTransactionStartPosition(startPosition, transactionMutationWithLocation);
+	}
+
+	/**
+	 * Builds the exception for "the version this read was bounded by is not in the log", picking the kind that
+	 * matches who chose that version.
+	 *
+	 * Both arms describe the same on-disk situation; they differ in who is being told and what it costs. An
+	 * {@link VersionSource#INTERNAL} bound is one the engine observed to be durable, so its absence is damage -
+	 * {@link WriteAheadLogCorruptedException}, an {@link io.evitadb.exception.EvitaInternalError}, counted by
+	 * `io_evitadb_errors_total` and worth waking someone for. A {@link VersionSource#CLIENT} bound was never
+	 * promised by anyone, so its absence is a bad argument - {@link EvitaInvalidUsageException}, which the error
+	 * counter ignores, because a client that keeps asking for a rotated-out version is not a fault an operator
+	 * can clear.
+	 *
+	 * The choice is made here, at construction, and not by translating on the way out: constructing an
+	 * `EvitaInternalError` is itself what moves the counter, so an exception built first and converted later has
+	 * already done the damage this split exists to prevent.
+	 *
+	 * @param privateMessage the full diagnostic text, including positions and versions - never shown to a client
+	 * @param publicSuffix   the client-safe explanation, appended to the flavor-specific prefix
+	 * @return the exception to throw; never thrown by this method itself
+	 */
+	@Nonnull
+	protected RuntimeException missingBoundedVersion(
+		@Nonnull String privateMessage, @Nonnull String publicSuffix
+	) {
+		return this.versionSource == VersionSource.CLIENT ?
+			new EvitaInvalidUsageException(privateMessage, publicSuffix) :
+			new WriteAheadLogCorruptedException(
+				this.walKind, privateMessage, this.walKind.corruptedLabel + ": " + publicSuffix
+			);
+	}
+
+	/**
+	 * Cause-carrying variant of {@link #missingBoundedVersion(String, String)}, for the case where the version
+	 * could not be reached because a read beneath it failed rather than because the record was simply absent.
+	 *
+	 * @param privateMessage the full diagnostic text, including positions and versions - never shown to a client
+	 * @param publicSuffix   the client-safe explanation, appended to the flavor-specific prefix
+	 * @param cause          the failure that stopped the read from advancing
+	 * @return the exception to throw; never thrown by this method itself
+	 */
+	@Nonnull
+	protected RuntimeException missingBoundedVersion(
+		@Nonnull String privateMessage, @Nonnull String publicSuffix, @Nonnull Throwable cause
+	) {
+		return this.versionSource == VersionSource.CLIENT ?
+			new EvitaInvalidUsageException(privateMessage, publicSuffix, cause) :
+			new WriteAheadLogCorruptedException(
+				this.walKind, privateMessage, this.walKind.corruptedLabel + ": " + publicSuffix, cause
+			);
 	}
 
 	/**
@@ -208,6 +277,8 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 	 * @param transactionLocationsCache      cache of transaction locations within WAL files
 	 * @param requestedVersion               the version the caller asserts is durably written, {@code null} for a
 	 *                                       greedy read — see {@link #requestedVersion}
+	 * @param versionSource                  who chose the versions this read is bounded by — decides whether a
+	 *                                       version that cannot be found is damage or a bad argument
 	 * @param onClose                        optional callback to run when the supplier is closed
 	 * @param walKind                        flavor of WAL being read — stamped on every corruption exception
 	 */
@@ -220,6 +291,7 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 		@Nonnull Pool<Kryo> catalogKryoPool,
 		@Nonnull ConcurrentHashMap<Integer, TransactionLocations> transactionLocationsCache,
 		@Nullable Long requestedVersion,
+		@Nonnull VersionSource versionSource,
 		@Nullable Runnable onClose,
 		@Nonnull WalKind walKind
 	) {
@@ -230,6 +302,7 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 		this.storageSettings = storageSettings;
 		this.transactionLocationsCache = transactionLocationsCache;
 		this.requestedVersion = requestedVersion;
+		this.versionSource = versionSource;
 		this.onClose = onClose;
 		this.walKind = walKind;
 		// WAL file must exist and have at least 4 bytes (minimum for a content length prefix)
@@ -285,9 +358,8 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 						this.cumulativeChecksum.reset(actualCumulativeChecksum);
 						this.cumulativeChecksum.update(actualCumulativeChecksum);
 						initialTransactionMutation = readAndRecordTransactionMutation(this.filePosition, walFileLength);
-						// verify the file has enough room for the required portion of the transaction — the full
-						// record (incl. trailing checksum) for a greedy read, only the content when a version was
-						// requested, where the checksum of a known-written tail may still be pending
+						// verify the file has enough room for the whole transaction, trailing cumulative checksum
+						// included — a record whose tail has not landed is not there yet, whoever is asking
 						if (
 							initialTransactionMutation
 								.map(it -> walFileLength < requiredEndPosition(this.filePosition, it))
@@ -302,6 +374,31 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 						// target version not found in this file — try the next WAL file
 						moveToNextWalFile(1)
 				);
+				// A greedy read that finds nothing has merely caught up with the writer - the ordinary state of
+				// a log being tailed - so it ends the stream and says nothing. A read that NAMED a version makes
+				// a different claim, and by this point every WAL file has been scanned without finding it.
+				// Ending silently here is what lets a caller mistake "the version you named is gone" for
+				// "nothing left to process": the trunk-incorporation stage spun on exactly that, and a
+				// change-data-capture subscriber whose pointer has fallen out of retention still does.
+				// `version > requestedVersion` is not a missing version, it is an empty interval: the caller has
+				// asked for everything between a floor and a ceiling that are the wrong way round, which is what
+				// a mutation-history query whose time frame starts after the last committed transaction resolves
+				// to. There is nothing in that range by construction, so the answer is an empty stream - raising
+				// would turn an ordinary "no results" page into an error.
+				if (initialTransactionMutation.isEmpty() && requestedVersion != null && version <= requestedVersion) {
+					// nothing escapes a constructor that throws, so close() will never run for this instance -
+					// hand the Kryo back to the pool and release the file here or both leak. A Kryo left out of
+					// the pool is not merely garbage: the pool hands out a fresh one, and a leak on a hot path
+					// quietly multiplies the instances a writer and its readers are sharing
+					this.observableInput.close();
+					this.observableInput = null;
+					catalogKryoPool.free(this.kryo);
+					throw missingBoundedVersion(
+						"Catalog version " + requestedVersion + " was not found in any " + this.walKind.fileLabel +
+							" under `" + storageFolder + "` when reading forward from version " + version + ".",
+						"requested version is not present in the log"
+					);
+				}
 				this.transactionMutation = initialTransactionMutation.orElse(null);
 			} catch (BufferUnderflowException e) {
 				// incomplete write or premature EOF — treat as no data available
@@ -368,8 +465,9 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 	 * cumulative checksum. The direction is controlled by the {@code delta} parameter.
 	 *
 	 * @param delta positive to move forward (e.g. {@code +1}), negative to move backward (e.g. {@code -1})
-	 * @return {@code true} if the adjacent WAL file exists and was successfully opened,
-	 *         {@code false} otherwise
+	 * @return {@code true} if the adjacent WAL file exists, carries at least one record and was successfully
+	 *         opened, {@code false} otherwise - including for a file still too short to hold its seed cumulative
+	 *         checksum and a record behind it, which rotation leaves behind for a moment
 	 */
 	protected boolean moveToNextWalFile(int delta) {
 		if (this.observableInput != null) {
@@ -380,7 +478,15 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 			this.walFileNameProvider.apply(this.walFileIndex + delta)
 		).toFile();
 
-		if (nextWalFile.exists()) {
+		// rotation creates the next WAL file and writes its 8-byte seed cumulative checksum into it only
+		// afterwards, so a reader that crosses the boundary in that window meets a file with nothing to read -
+		// and a crash between the two leaves one at exactly that length for good. A file with no room for a
+		// record behind its seed is therefore "not there yet" rather than a file to read: the seed read below is
+		// unguarded and would surface a recoverable transient as a raw Kryo buffer underflow, on a supplier this
+		// method has already half-rotated. The sibling reader AbstractMutationLog#getFirstVersionOf rejects the
+		// same shape at the same threshold. Rejecting here, before anything below is reassigned, makes this
+		// behave exactly like the non-existent-file path, whose `false` every caller already handles.
+		if (nextWalFile.exists() && nextWalFile.length() > CUMULATIVE_CRC32_SIZE + TRANSACTION_PREFIX_SIZE) {
 			try {
 				this.walFile = nextWalFile;
 				this.walFileIndex += delta;
@@ -459,21 +565,15 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 		final int contentLength = theObservableInput.simpleIntRead();
 		this.cumulativeChecksum.update(contentLength);
 
-		// full record = 4 (length prefix) + content + 8 (trailing cumulative CRC32C)
+		// full record = 4 (length prefix) + content + 8 (trailing cumulative CRC32C). A transaction counts as
+		// present only once all three are on disk, and that holds whether or not the caller named a version:
+		// `doAppend` writes the trailing checksum before the force that makes the transaction durable, so the
+		// moment at which content is written and checksum is not belongs to an append still in progress -
+		// nobody has been handed that version yet, so nobody can name it. Delivering a record on the strength
+		// of its content alone would hand out bytes whose integrity cannot be checked.
 		final int fullRecordLength = 4 + contentLength + CUMULATIVE_CRC32_SIZE;
-		// content = 4 (length prefix) + leading TransactionMutation + individual mutations (no trailing checksum)
-		final int contentRecordLength = 4 + contentLength;
-
-		// A caller that named a requested version guarantees that transaction is durably written, so a
-		// transaction whose CONTENT is fully on disk may be read even when its trailing cumulative checksum has
-		// not yet landed in the reader's (possibly lagging) file-length view: the writer flushes the length
-		// prefix and content before the trailing checksum, and a same-JVM reader's cached file length can
-		// observe that intermediate state. A greedy read (recovery/replay) makes no such promise and treats a
-		// transaction as complete only once its trailing checksum is present too, so a genuinely torn tail is
-		// not delivered prematurely.
-		final int requiredRecordLength = this.requestedVersion == null ? fullRecordLength : contentRecordLength;
-		if (startPosition + requiredRecordLength > fileSize) {
-			// file is truncated — not enough room for the required portion of the record
+		if (startPosition + fullRecordLength > fileSize) {
+			// file is truncated — not enough room for the whole record
 			return empty();
 		}
 
@@ -496,11 +596,12 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 		// individual mutations (walSizeInBytes)
 		final int leadTransactionMutationSize = Math.toIntExact(theObservableInput.total() - totalBefore);
 		// The framing prefix must agree with the record just read. It always can: the writer emits the 4-byte
-		// prefix and the whole leading record from one ByteBuffer in a single write loop (AbstractMutationLog
-		// :1381-1393), and a file too short for the transaction was already rejected above - so by this point
-		// every byte of both is on disk. A mismatch therefore means either genuine damage or a reader that
-		// miscounted, and neither may be handled quietly: reporting an expected short read as a fault is what
-		// issue #1551 was filed for, but the cause turned out to be the reader miscounting (see
+		// prefix and the whole leading record from one ByteBuffer in a single write loop
+		// (AbstractMutationLog#doAppend), and a file too short for the transaction was already rejected above -
+		// so by this point every byte of both is on disk. A mismatch therefore means either genuine damage or a
+		// reader that miscounted, and neither may be handled quietly: reporting an expected short read as a
+		// fault is the failure this guard was once suspected of, but the cause turned out to be the reader
+		// miscounting (see
 		// documentation/adr/2026-09-13-recoverable-wal-tail-reads-must-not-mint-internal-errors.md), which a
 		// guard here would only have hidden.
 		Assert.isPremiseValid(

@@ -26,6 +26,8 @@ package io.evitadb.store.wal.supplier;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException;
 import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException.WalKind;
 import io.evitadb.store.checksum.Checksum;
@@ -60,12 +62,17 @@ import java.util.function.IntFunction;
  * {@link #requestedVersion} has been reached.
  *
  * **End-of-stream vs. failure.** A caller that names a {@link #requestedVersion} is asserting that the version
- * has already been durably written and may only lag in what the reader's cached file-length view can currently
- * observe. Until that version has actually been delivered, any inability to advance — a truncated read, a
- * not-yet-visible next record, or running out of WAL files — is surfaced as a
- * {@link WriteAheadLogCorruptedException} rather than a silent {@code null}, so such a caller cannot mistake
- * "not visible yet" for "nothing left to process". Once the requested version has been delivered, or when none
- * was named (a greedy read), the same conditions are treated as a normal, graceful end of the stream.
+ * has already been durably written. Until it has actually been delivered, any inability to advance — a truncated
+ * read, a next record that is not there, or running out of WAL files — is surfaced as an exception rather than a
+ * silent {@code null}, so such a caller cannot mistake "not there" for "nothing left to process". Once the
+ * requested version has been delivered, or when none was named (a greedy read), the same conditions are treated
+ * as a normal, graceful end of the stream.
+ *
+ * **Which exception depends on who named the version**, not on what the log looks like: see
+ * {@link #missingBoundedVersion(String, String)}. A bound the engine chose for itself is one it has already
+ * observed to be durable, so its absence is a {@link WriteAheadLogCorruptedException}; a bound that arrived from
+ * a client is an {@link io.evitadb.exception.EvitaInvalidUsageException}, because nobody promised it and no
+ * operator can act on it.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -83,6 +90,8 @@ public final class MutationSupplier<T extends Mutation> extends AbstractMutation
 	 * @param walFileIndex                the index of the WAL file to start reading from
 	 * @param catalogKryoPool             pool of Kryo instances for deserialization
 	 * @param transactionLocationsCache   cache of transaction locations within WAL files
+	 * @param versionSource               who chose the versions this read is bounded by — decides whether a
+	 *                                    version that cannot be found is damage or a bad argument
 	 * @param onClose                     optional callback to run when the supplier is closed
 	 * @param walKind                     flavor of WAL being read — stamped on every corruption exception
 	 */
@@ -95,13 +104,14 @@ public final class MutationSupplier<T extends Mutation> extends AbstractMutation
 		int walFileIndex,
 		@Nonnull Pool<Kryo> catalogKryoPool,
 		@Nonnull ConcurrentHashMap<Integer, TransactionLocations> transactionLocationsCache,
+		@Nonnull VersionSource versionSource,
 		@Nullable Runnable onClose,
 		@Nonnull WalKind walKind
 	) {
 		super(
 			catalogVersion, walFileNameProvider, catalogStoragePath, storageSettings,
 			walFileIndex, catalogKryoPool, transactionLocationsCache,
-			requestedVersion, onClose, walKind
+			requestedVersion, versionSource, onClose, walKind
 		);
 	}
 
@@ -178,13 +188,12 @@ public final class MutationSupplier<T extends Mutation> extends AbstractMutation
 							// the current WAL ends without room for another transaction before the caller's
 							// requested version was reached, and there is no next file — the requested
 							// transaction is missing or truncated, surface it instead of ending silently
-							throw new WriteAheadLogCorruptedException(
-								this.walKind,
+							throw missingBoundedVersion(
 								"Reached the end of " + this.walKind.fileLabel + " `" + this.walFile.getName() +
 									"` at position " + this.filePosition + " before the requested catalog version " +
 									theRequestedVersion + " was read (last delivered version " +
 									lastDeliveredVersion + ").",
-								this.walKind.corruptedLabel + ": requested version missing before end of file"
+								"requested version missing before end of file"
 							);
 						}
 						// moveToNextWalFile swapped `walFile` and reset `filePosition` to the start of the new
@@ -198,10 +207,10 @@ public final class MutationSupplier<T extends Mutation> extends AbstractMutation
 						this.filePosition, currentFileLength
 					).orElse(null);
 
-					// Guard against partially written transactions and an ObservableInput buffer
-					// misalignment issue: when the remaining file data doesn't fully fill the read
-					// buffer, concurrent writes can cause pointer misalignment. This check ensures
-					// we only proceed when sufficient data is available.
+					// Guard against a partially written or not-yet-durable next transaction:
+					// readAndRecordTransactionMutation returns empty when the file doesn't yet hold the full
+					// record it needs (see its own end-of-file guards); this treats that as a legitimate end
+					// only once mayEndGracefully holds.
 					if (this.transactionMutation == null) {
 						if (mayEndGracefully) {
 							// greedy/recovery read, or the caller's requested version has already been
@@ -213,27 +222,23 @@ public final class MutationSupplier<T extends Mutation> extends AbstractMutation
 						// from "nothing left to process" to a caller that already believes this version was
 						// durably written, causing it to finalize prematurely at a stale version instead of
 						// retrying — surface it loudly, exactly like the sibling end-of-data branches above
-						throw new WriteAheadLogCorruptedException(
-							this.walKind,
+						throw missingBoundedVersion(
 							"Reached a truncated or unreadable transaction record in " + this.walKind.fileLabel +
 								" `" + this.walFile.getName() + "` at position " + this.filePosition +
 								" before the requested catalog version " + theRequestedVersion +
 								" was read (last delivered version " + lastDeliveredVersion + ").",
-							this.walKind.corruptedLabel + ": requested version not fully on disk before end of data"
+							"requested version not fully on disk before end of data"
 						);
 					}
 					final long requiredEndPosition = this.transactionMutation.getTransactionSpan().endPosition();
-					final boolean canProceed;
-					if (theRequestedVersion == null) {
-						// greedy read: proceed as long as the full transaction (incl. checksum) is written
-						canProceed = currentFileLength >= requiredEndPosition;
-					} else {
-						// the caller guarantees the requested transaction is written: proceed once its version is
-						// within the requested range AND its CONTENT is on disk (the trailing checksum of a
-						// just-written tail may still be lagging the reader's file-length view)
-						canProceed = this.transactionMutation.getVersion() <= theRequestedVersion
-							&& currentFileLength >= requiredEndPosition - AbstractMutationLog.CUMULATIVE_CRC32_SIZE;
-					}
+					// the whole transaction - trailing cumulative checksum included - must be written before it
+					// is delivered. Naming a version does not lower that bar: the writer emits the checksum
+					// before the force that makes the transaction durable, so a record that is content-complete
+					// and checksum-short belongs to an append still in flight, which no caller can yet name. What
+					// a named version does change is the upper end: transactions past it are not this caller's.
+					final boolean canProceed = currentFileLength >= requiredEndPosition
+						&& (theRequestedVersion == null
+						|| this.transactionMutation.getVersion() <= theRequestedVersion);
 					if (canProceed) {
 						this.transactionMutationRead = 1;
 						//noinspection unchecked
@@ -241,8 +246,10 @@ public final class MutationSupplier<T extends Mutation> extends AbstractMutation
 					} else {
 						return null;
 					}
-				} catch (WriteAheadLogCorruptedException ex) {
-					// a cumulative-checksum mismatch is a hard corruption regardless of position — never swallow it
+				} catch (WriteAheadLogCorruptedException | EvitaInvalidUsageException ex) {
+					// a cumulative-checksum mismatch is a hard corruption regardless of position, and a bound the
+					// client got wrong is a usage error — both are verdicts already reached, so neither may be
+					// re-swallowed as an end-of-stream or re-wrapped into something it is not
 					throw ex;
 				} catch (Exception ex) {
 					if (mayEndGracefully) {
@@ -252,12 +259,11 @@ public final class MutationSupplier<T extends Mutation> extends AbstractMutation
 					}
 					// a transaction the caller explicitly requested could not be read — surface it loudly instead
 					// of reporting an exhausted stream that the caller would misread as "nothing left to process"
-					throw new WriteAheadLogCorruptedException(
-						this.walKind,
+					throw missingBoundedVersion(
 						"Failed to read " + this.walKind.fileLabel + " `" + this.walFile.getName() +
 							"` while advancing towards requested catalog version " + theRequestedVersion +
 							" (last delivered version " + lastDeliveredVersion + ") at position " + this.filePosition + ".",
-						this.walKind.corruptedLabel + ": read failed before the requested version was reached",
+						"read failed before the requested version was reached",
 						ex
 					);
 				}

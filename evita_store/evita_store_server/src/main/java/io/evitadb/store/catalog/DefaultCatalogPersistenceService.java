@@ -102,6 +102,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueI
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueLeafStreamKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
 import io.evitadb.spi.store.engine.CatalogFolderOperations;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
@@ -3158,13 +3159,13 @@ public class DefaultCatalogPersistenceService
 	@Nonnull
 	@Override
 	public Stream<CatalogBoundMutation> getCommittedLiveMutationStream(
-		long startCatalogVersion, long requestedCatalogVersion) {
+		long startCatalogVersion, long requestedCatalogVersion, @Nonnull VersionSource versionSource) {
 		final CatalogWriteAheadLog theCatalogWal = this.catalogWal;
 		if (theCatalogWal == null) {
 			return Stream.empty();
 		} else {
 			return theCatalogWal.getCommittedLiveMutationStream(
-				startCatalogVersion, requestedCatalogVersion
+				startCatalogVersion, requestedCatalogVersion, versionSource
 			);
 		}
 	}

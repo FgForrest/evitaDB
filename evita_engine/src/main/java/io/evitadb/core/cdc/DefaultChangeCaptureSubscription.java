@@ -42,6 +42,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscriber;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
@@ -188,8 +189,11 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	 * Requests a specified number of catalog change events to be delivered to the subscriber.
 	 * This method is part of the reactive streams specification for handling backpressure.
 	 *
+	 * A non-positive {@code n} is a protocol violation on the subscriber's side, and it is reported rather than
+	 * thrown: an {@link EvitaInvalidUsageException} is handed to {@link #onError(Throwable)}, which terminates
+	 * the subscription. {@link Flow.Subscription#request(long)} must never throw, so this method does not.
+	 *
 	 * @param n the number of items to request; must be > 0
-	 * @throws EvitaInvalidUsageException if n <= 0
 	 */
 	@Override
 	public void request(long n) {
@@ -230,10 +234,10 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 		if (this.finished.compareAndSet(false, true)) {
 			// Clear the queue to release memory
 			this.queue.clear();
-			this.onCancellation.accept(this.subscriptionId);
-			if (this.subscriber instanceof AutoCloseable closeable) {
-				IOUtils.closeQuietly(closeable::close);
-			}
+			// cancel() is invoked by whoever owns the subscription, from outside the delivery path, so the
+			// release may run on the calling thread - unlike the two terminal signals, see
+			// #releaseRegistrationLater()
+			releaseRegistration();
 		}
 	}
 
@@ -251,17 +255,18 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	 * This method should be called by the publisher when there are no more events to deliver.
 	 */
 	public void onComplete() {
-		try {
-			// Atomically set the finished flag to true if it was false
-			if (this.finished.compareAndSet(false, true)) {
-				// Clear the queue to release memory
-				this.queue.clear();
+		// Atomically set the finished flag to true if it was false
+		if (this.finished.compareAndSet(false, true)) {
+			// Clear the queue to release memory
+			this.queue.clear();
+			try {
 				// Notify the subscriber that the publisher has completed
 				this.subscriber.onComplete();
+			} catch (Throwable onCompleteException) {
+				// Log any errors that occur during completion notification
+				log.error("Error while notifying the subscriber about the completion.", onCompleteException);
 			}
-		} catch (Throwable onCompleteException) {
-			// Log any errors that occur during completion notification
-			log.error("Error while notifying the subscriber about the completion.", onCompleteException);
+			releaseRegistrationLater();
 		}
 	}
 
@@ -272,17 +277,90 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	 * @param ex the exception that occurred
 	 */
 	public void onError(Throwable ex) {
-		try {
-			// Atomically set the finished flag to true if it was false
-			if (this.finished.compareAndSet(false, true)) {
-				// Clear the queue to release memory
-				this.queue.clear();
+		// Atomically set the finished flag to true if it was false
+		if (this.finished.compareAndSet(false, true)) {
+			// Clear the queue to release memory
+			this.queue.clear();
+			try {
 				// Notify the subscriber about the error
 				this.subscriber.onError(ex);
+			} catch (Throwable onErrorException) {
+				// Log any errors that occur during error notification
+				log.error("Error while notifying the subscriber about the error.", onErrorException);
 			}
-		} catch (Throwable onErrorException) {
-			// Log any errors that occur during error notification
-			log.error("Error while notifying the subscriber about the error.", onErrorException);
+			releaseRegistrationLater();
+		}
+	}
+
+	/**
+	 * Releases everything this subscription holds outside itself: its registration with the publisher - which is
+	 * what keeps the WAL version it last read pinned in the publisher's ring buffer - and the subscriber, when
+	 * that owns a closeable resource such as a transport stream.
+	 *
+	 * All three terminal signals must reach this, not only {@link #cancel()}. The `finished` CAS lets exactly one
+	 * of `cancel()`, {@link #onComplete()} and {@link #onError(Throwable)} win, and whichever wins it is the last
+	 * thing that ever runs for this subscription - a later `cancel()`, including the one the transport layer makes
+	 * when it notices the stream is dead, returns immediately because `finished` is already set. So a terminal
+	 * signal that skips the release leaves the entry in the publisher's subscribers map for the lifetime of the
+	 * process: the shared publisher can never be retired, the ring buffer can never be trimmed past the dead
+	 * subscriber's tracked version, and the subscriber statistics keep counting it.
+	 */
+	private void releaseRegistration() {
+		this.onCancellation.accept(this.subscriptionId);
+		if (this.subscriber instanceof AutoCloseable closeable) {
+			IOUtils.closeQuietly(closeable::close);
+		}
+	}
+
+	/**
+	 * Performs {@link #releaseRegistration()} on the capture executor rather than on the calling thread. The
+	 * terminal signals must not release inline, for two independent reasons - either of which is enough on its
+	 * own:
+	 *
+	 * - they are raised from {@link #consumeQueue()} and {@link #deliverImmediate(ChangeCapture)} while this
+	 *   subscription's lock is held, and the release goes on to take the publisher's lock, while the publisher
+	 *   takes its own lock before it calls into a subscription - taking the two in both orders is a deadlock
+	 *   waiting for the load to produce it;
+	 * - {@link #request(long)} reaches `consumeQueue()` from the subscriber's own `onSubscribe`, which runs
+	 *   inside the `ConcurrentHashMap#computeIfAbsent` that is registering this very subscription, and the
+	 *   release removes that same key - a recursive update of the map from within its own mapping function. The
+	 *   gRPC subscriber already defers a cancel for exactly this reason.
+	 *
+	 * It goes to the engine's own capture executor - the one {@link #notifySubscriber()} already submits to -
+	 * and not to a shared pool: the release exists to stop a WAL version being pinned, so a release that waits
+	 * behind unrelated work, or that is dropped at shutdown because nothing owns the thread running it,
+	 * reproduces the very leak it is there to prevent. Queueing behind a `consumeQueue()` already running on
+	 * that executor is safe, because nothing here waits for the submitted task.
+	 *
+	 * The release is therefore eventual rather than immediate: a subscriber observing its terminal signal cannot
+	 * assume the publisher has already forgotten the subscription. Once that executor has been shut down the
+	 * release is skipped altogether, which costs nothing: the engine is going away, and with it every publisher
+	 * the registration could have pinned anything in.
+	 */
+	private void releaseRegistrationLater() {
+		try {
+			this.executorService.submit(
+				() -> {
+					try {
+						releaseRegistration();
+					} catch (Throwable releaseException) {
+						// nothing waits on the result, so an unlogged failure here would leave a permanently
+						// pinned WAL version with nothing anywhere to say why
+						log.error(
+							"Failed to release the terminated capture subscription `{}`.",
+							this.subscriptionId, releaseException
+						);
+					}
+				}
+			);
+		} catch (RejectedExecutionException ex) {
+			// the capture executor is shutting down, which means the engine is going away and every publisher
+			// the registration could have pinned anything in is going with it - there is nothing left to release
+			log.debug(
+				"Capture subscription `{}` terminated after its executor had been shut down, so its " +
+					"registration was not released.",
+				this.subscriptionId
+			);
 		}
 	}
 
@@ -358,7 +436,16 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	 * 2. Filling the queue with new events when it's empty
 	 * 3. Delivering events to the subscriber
 	 * 4. Tracking the last processed version and index
-	 * 5. Handling errors during delivery
+	 * 5. Reporting a failure of either the fill or the delivery to the subscriber through
+	 *    {@link #onError(Throwable)} and leaving the loop
+	 *
+	 * Neither failure may escape this method, and both entry points explain why. {@link #request(long)} calls it
+	 * on the caller's thread, and {@link Flow.Subscription#request(long)} must never throw - so a throw would
+	 * reach the gRPC producer loop or embedded application code. {@link #notifySubscriber()} submits it to the
+	 * capture executor instead, where a throw would die inside the task with nothing to observe it, leaving the
+	 * subscription registered with its publisher and the WAL version it tracks pinned for the lifetime of the
+	 * process. Routing both to {@link #onError(Throwable)} terminates the subscription and releases that
+	 * registration - see {@link #releaseRegistrationLater()} for why the release does not run on this thread.
 	 */
 	private void consumeQueue() {
 		// Synchronize consumption to ensure thread safety
