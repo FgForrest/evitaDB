@@ -215,7 +215,16 @@ catch any retainer, not merely a JFR hook.
   attach needs `ptrace`.
 - **~52 `Evita` objects never reached `Evita.java:608`**, where `changeObserver` is assigned — partly
   constructed instances that are still held. They cost almost nothing, since the heavy fields were never
-  assigned, and they were invisible under the JFR husks.
+  assigned, and they were invisible under the JFR husks. **Neither registry in this record can hold them**,
+  which is worth knowing before anyone re-treads it: every construction step in that window was enumerated,
+  and the only one that both captures the engine and installs itself somewhere with an independent lifetime
+  is `SessionKiller` — which the functional harness disables, since `EvitaParameterResolver` sets
+  `closeSessionsAfterSecondsOfInactivity(-1)` and `Evita.java:524` builds one only above zero. Confirmed
+  against a heap histogram: 10 live `SessionKiller` against 52 unexplained engines. The persistence-service
+  factory takes no `Evita` parameter, so nothing it builds can capture the engine either; the cache is off
+  in that configuration; and `SystemChangeObserver` equals `EngineTransactionManager` in every snapshot, so
+  no engine sits between `:608` and `:615`. The realistic throw sites are the persistence-service creation
+  and the engine-state read that follows it.
 - **A constructor that throws leaks everything it had already acquired, and nothing can release it.**
   `Evita` sets `active` only at the end of its constructor, and `close()` is
   `if (active.compareAndSet(true, false))` — so a construction that threw cannot be closed. It is worse than
@@ -230,6 +239,17 @@ catch any retainer, not merely a JFR hook.
   Deliberately **not** done here: it is wider than hook lifecycle, it needs a test that deliberately fails
   a construction (nothing in the suite does that today), and a guard releasing only the hooks would read as
   "handled" while the folder lock still leaked.
+- **The strongest named candidate for the engines still reachable is the scheduler's delayed queue, and it
+  is not the same defect as this record.** `DelayedAsyncTask#runTask` re-enqueues itself whenever its
+  `LongSupplier` returns zero or more, and `SystemChangeObserver#cleanSubscribers` returns `0L`
+  unconditionally — so that cleaner is a permanent queue resident, and the queue entry's callable reaches
+  the engine through the observer's shared publisher, which holds an `Evita` field. For an engine whose
+  `close()` is never called this roots the entire engine graph with no Flight Recorder hook involved.
+  Cancellation is not the issue: the JDK nulls a cancelled task's callable, so a closed engine releases
+  normally. What this would catch is engines finished with but never closed. **It is a candidate, not a
+  conclusion** — the obvious benign explanation was tested and does not fit, since at one snapshot only 19
+  datasets held an engine against 129 fully-constructed live ones, so residency by design accounts for a
+  small fraction of them.
 - **The deduplication half has no regression test** — Fork 3 Option C above is the shape it should take.
 - **The `isActive()` guard alone was not enough**, and the first draft of this change shipped two ways to
   strand a hook: a call past the guard could register after `retireStatisticsHooks()` had drained, and
