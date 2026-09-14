@@ -25,6 +25,7 @@ package io.evitadb.core.transaction.engine;
 
 
 import io.evitadb.api.exception.ConflictingEngineMutationException;
+import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.TransactionTimedOutException;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
@@ -491,13 +492,22 @@ public class EngineTransactionManager implements Closeable {
 	/**
 	 * Closes the transaction manager and releases all resources associated with it. This method ensures that the
 	 * underlying persistence service is properly closed to prevent resource leaks.
+	 *
+	 * It waits for every engine mutation still in flight to reach **completion**, which is not the same as reaching
+	 * success: a mutation caught by the shutdown fails by construction, and its failure neither propagates out of
+	 * this method nor delays the release below. That is a contract rather than an implementation detail - letting a
+	 * failure escape the wait is precisely what leaves the engine's folder lock held for the life of the process.
 	 */
 	public void close() {
-		// wait for all engine level tasks to complete
+		// wait for all engine level tasks to complete - for their COMPLETION, not for their success. A mutation still
+		// in flight when the engine goes down fails by construction (`Evita#closeCatalogs` clears the engine state
+		// before this runs, so the state update below it has nothing to build on), and propagating that failure here
+		// would skip the release below and leave the engine's folder lock held - which the next start reports as
+		// `FolderAlreadyUsedException` against a process that has already exited
 		CompletableFuture.allOf(
 			this.currentCatalogMutations.values()
 				.stream()
-				.map(it -> it.onCompletion().toCompletableFuture())
+				.map(it -> it.onCompletion().toCompletableFuture().exceptionally(ex -> null))
 				.toArray(CompletableFuture[]::new)
 		).join();
 		// close the engine executor
@@ -783,13 +793,23 @@ public class EngineTransactionManager implements Closeable {
 	 * to derive the next engine state, and updates the engine with the new state.
 	 *
 	 * @param engineStateUpdater a function that modifies the current engine state and returns the updated state; must not be null
+	 * @throws InstanceTerminatedException when the engine has already been shut down and its state cleared, so
+	 *                                     there is no state left for the mutation to build on
 	 */
 	private void updateEngineStateBeforeEngineMutation(@Nonnull EngineStateUpdater engineStateUpdater) {
 		this.engineStateLock.lock();
 		try {
+			// same refusal as in `updateEngineStateAfterEngineMutation`, and for the same reason: the transition
+			// phase of a mutation submitted as the engine goes down finds the state already cleared, and refusing
+			// by name reads in an operator's log where a `NullPointerException` does not
+			final ExpandedEngineState currentEngineState = this.evita.getEngineState();
+			//noinspection ConstantValue
+			if (currentEngineState == null) {
+				throw new InstanceTerminatedException("instance");
+			}
 			this.evita.setNextEngineState(
 				engineStateUpdater.apply(
-					this.lastStoredEngineStateVersion + 1, this.evita.getEngineState()
+					this.lastStoredEngineStateVersion + 1, currentEngineState
 				)
 			);
 		} finally {
@@ -803,10 +823,31 @@ public class EngineTransactionManager implements Closeable {
 	 * observers about the change.
 	 *
 	 * @param engineStateUpdater A function that takes the current engine state and returns an updated version of it.
+	 * @throws InstanceTerminatedException when the engine has already been shut down and its state cleared, so
+	 *                                     there is no state left for the mutation to build on
 	 */
 	private void updateEngineStateAfterEngineMutation(@Nonnull EngineStateUpdater engineStateUpdater) {
 		this.engineStateLock.lock();
 		try {
+			// `Evita#closeCatalogs` clears the engine state before draining the mutations still in flight, so
+			// a mutation that reaches here during shutdown has nothing to build its next state on. Refusing by
+			// name rather than dereferencing the null keeps the operator's log readable.
+			//
+			// **The refusal is about the ENGINE record, and claims nothing wider.** Refusing ahead of the append
+			// below means no write-ahead-log entry and no engine bootstrap record - this mutation leaves no
+			// engine-level trace, which is what makes reporting it as failed accurate. It is emphatically NOT a
+			// claim that the mutation had no effect: the operator's work phase ran before this callback and may
+			// already have published at the CATALOG level - `Catalog#goLive()` writes the ALIVE bootstrap record
+			// and `CreateCatalogMutationOperator` creates and completes the folder, both before the completion
+			// updater reaches here. Those effects are durable and stay durable, and a catalog whose own bootstrap
+			// record says ALIVE reloads ALIVE whatever the engine did or did not record. What the operator is
+			// being told is that the ENGINE did not record the transition, and that is exactly true
+			final ExpandedEngineState currentEngineState = this.evita.getEngineState();
+			//noinspection ConstantValue
+			if (currentEngineState == null) {
+				throw new InstanceTerminatedException("instance");
+			}
+
 			final long nextStateVersion = this.lastStoredEngineStateVersion + 1;
 
 			// Build the next in-memory engine state up-front. The persistence-layer
@@ -822,7 +863,7 @@ public class EngineTransactionManager implements Closeable {
 			// is left for the following commit rather than being forgotten below without having been pruned.
 			final Set<CatalogFolderId> drainedFolders = Set.copyOf(this.folderContext.getDrainedFolders());
 			final ExpandedEngineState mutatedEngineState = engineStateUpdater.apply(
-				nextStateVersion, this.evita.getEngineState()
+				nextStateVersion, currentEngineState
 			);
 			final ExpandedEngineState nextEngineState = drainedFolders.isEmpty() ?
 				mutatedEngineState :

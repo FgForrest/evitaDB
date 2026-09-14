@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuil
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.experimental.Delegate;
 
@@ -42,6 +43,7 @@ import java.util.function.Supplier;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@EqualsAndHashCode(of = "delegate")
 public class EntitySchemaDecorator implements SealedEntitySchema {
 	@Serial private static final long serialVersionUID = -5581711006960936882L;
 
@@ -87,6 +89,11 @@ public class EntitySchemaDecorator implements SealedEntitySchema {
 			this.delegate,
 			schemaMutations
 		);
+	}
+
+	@Override
+	public String toString() {
+		return this.delegate.toString();
 	}
 
 }
