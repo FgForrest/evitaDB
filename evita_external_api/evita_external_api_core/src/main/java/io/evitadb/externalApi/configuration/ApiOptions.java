@@ -246,7 +246,10 @@ public record ApiOptions(
 					)
 				);
 			this.enabledProviders = CollectionUtils.createHashMap(this.apiProviders.size());
-			this.headers = new HeaderOptions.Builder().build();
+			// the documented defaults, matching what evita-configuration.yaml names for a shipped server.
+			// An empty-by-default header configuration reads no client labels, no forwarded-for and no client
+			// id, and says nothing about it - an embedded server would silently lose them
+			this.headers = new HeaderOptions();
 			this.certificate = new CertificateOptions.Builder().build();
 		}
 

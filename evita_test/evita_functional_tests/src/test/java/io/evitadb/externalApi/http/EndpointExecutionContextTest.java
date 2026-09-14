@@ -23,8 +23,10 @@
 
 package io.evitadb.externalApi.http;
 
+import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.server.ServiceRequestContext;
+import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.core.Evita;
 import io.evitadb.core.executor.CancellableRunnable;
 import io.evitadb.core.executor.ObservableExecutorServiceWithCancellationSupport;
@@ -33,6 +35,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.stubbing.Answer;
+import org.slf4j.MDC;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -46,6 +49,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -77,6 +82,16 @@ class EndpointExecutionContextTest {
 	private ObservableExecutorServiceWithCancellationSupport transactionExecutor;
 	private CompletableFuture<Throwable> cancelFuture;
 	private TestEndpointExecutionContext context;
+	/**
+	 * A genuine served-request context, standing in for the request log of the mocked one. The request start is read
+	 * off that log, so a mock returning a bare null log would make every assertion below vacuous.
+	 */
+	private ServiceRequestContext servedRequestContext;
+	/**
+	 * What the MDC held at the moment the executor task was **constructed** - the moment
+	 * {@link io.evitadb.core.executor.ObservableThreadExecutor} captures the tracing context to restore on its worker.
+	 */
+	private final AtomicReference<String> requestStartAtTaskCreation = new AtomicReference<>();
 
 	@BeforeEach
 	void setUp() {
@@ -90,6 +105,16 @@ class EndpointExecutionContextTest {
 		when(this.evita.getRequestExecutor()).thenReturn(this.requestExecutor);
 		when(this.evita.getTransactionExecutor()).thenReturn(this.transactionExecutor);
 		when(this.serviceRequestContext.whenRequestCancelling()).thenReturn(this.cancelFuture);
+
+		this.servedRequestContext = ServiceRequestContext.builder(
+			HttpRequest.of(HttpMethod.POST, "/test")
+		).build();
+		when(this.serviceRequestContext.log()).thenReturn(this.servedRequestContext.log());
+
+		this.requestStartAtTaskCreation.set(null);
+		// an ambient value left by a sibling class on this surefire worker would satisfy the assertions below
+		// without the code under test doing anything
+		MDC.remove(TracingContext.MDC_REQUEST_START_PROPERTY);
 
 		this.context = new TestEndpointExecutionContext(
 			this.httpRequest, this.evita, this.serviceRequestContext
@@ -287,6 +312,101 @@ class EndpointExecutionContextTest {
 	}
 
 	@Nested
+	@DisplayName("request start hand-off")
+	class RequestStartHandOff {
+
+		/**
+		 * The condition every test here runs under, and the one that makes them worth having: the submitting thread
+		 * has no Armeria context and no request start in its MDC.
+		 *
+		 * That is the real shape of the hand-off, not a contrived one. A handler that reads a request body chains its
+		 * work onto the body-aggregation future, so it resumes from Armeria's aggregation callback - after
+		 * `serve(...)` returned and the entry point's MDC scope unwound. Reading the request start from the thread
+		 * local there yields null, which is why the context has to read the one it **holds**.
+		 */
+		private void assertSubmittingThreadIsDetached() {
+			assertNull(
+				ServiceRequestContext.currentOrNull(),
+				"The test must submit without an Armeria context current, or it proves nothing"
+			);
+			assertNull(
+				MDC.get(TracingContext.MDC_REQUEST_START_PROPERTY),
+				"The test must submit with no request start already in the MDC, or it proves nothing"
+			);
+		}
+
+		@Nonnull
+		private String expectedRequestStart() {
+			return Long.toString(servedRequestContext.log().partial().requestStartTimeMillis());
+		}
+
+		@Test
+		@DisplayName("carries the held request start into a request-pool submission")
+		void shouldCarryRequestStartIntoRequestPoolSubmission() throws Exception {
+			configureMockExecutor(requestExecutor);
+			assertSubmittingThreadIsDetached();
+
+			context.executeAsyncInRequestThreadPool(() -> "x").get(5, TimeUnit.SECONDS);
+
+			assertEquals(
+				expectedRequestStart(), requestStartAtTaskCreation.get(),
+				"The task was constructed without the request start, so its captured context cannot carry one"
+			);
+		}
+
+		@Test
+		@DisplayName("carries the held request start into a transaction-pool submission")
+		void shouldCarryRequestStartIntoTransactionPoolSubmission() throws Exception {
+			configureMockExecutor(transactionExecutor);
+			assertSubmittingThreadIsDetached();
+
+			context.executeAsyncInTransactionThreadPool(() -> "x").get(5, TimeUnit.SECONDS);
+
+			assertEquals(
+				expectedRequestStart(), requestStartAtTaskCreation.get(),
+				"The task was constructed without the request start, so its captured context cannot carry one"
+			);
+		}
+
+		@Test
+		@DisplayName("carries the held request start into an async-supplier submission")
+		void shouldCarryRequestStartIntoAsyncSupplierSubmission() throws Exception {
+			configureMockExecutor(requestExecutor);
+			assertSubmittingThreadIsDetached();
+
+			final CompletableFuture<String> inner = new CompletableFuture<>();
+			final CompletableFuture<String> result =
+				context.executeAsyncSupplierInRequestThreadPool(() -> inner);
+			inner.complete("async-value");
+			result.get(5, TimeUnit.SECONDS);
+
+			// this is the path GraphQL takes, and the one measured to lose the request start before the fix
+			assertEquals(
+				expectedRequestStart(), requestStartAtTaskCreation.get(),
+				"The task was constructed without the request start, so its captured context cannot carry one"
+			);
+		}
+
+		@Test
+		@DisplayName("leaves the submitting thread's MDC as it found it")
+		void shouldNotLeakRequestStartOntoTheSubmittingThread() throws Exception {
+			configureMockExecutor(requestExecutor);
+			assertSubmittingThreadIsDetached();
+
+			context.executeAsyncInRequestThreadPool(() -> "x").get(5, TimeUnit.SECONDS);
+
+			assertNotNull(
+				requestStartAtTaskCreation.get(),
+				"Guard against the assertion below passing because nothing was ever set"
+			);
+			assertNull(
+				MDC.get(TracingContext.MDC_REQUEST_START_PROPERTY),
+				"The submission scope must unwind - an event loop serves many requests in turn"
+			);
+		}
+	}
+
+	@Nested
 	@DisplayName("notifyError")
 	class NotifyError {
 
@@ -317,6 +437,7 @@ class EndpointExecutionContextTest {
 		when(executor.createTask(any(Runnable.class)))
 			.thenAnswer((Answer<CancellableRunnable>) inv -> {
 				final Runnable lambda = inv.getArgument(0);
+				this.requestStartAtTaskCreation.set(MDC.get(TracingContext.MDC_REQUEST_START_PROPERTY));
 				final TestCancellableRunnable task =
 					new TestCancellableRunnable(lambda);
 				capturedTask.set(task);

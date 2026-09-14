@@ -54,7 +54,11 @@ public record HeaderOptions(
     }
 
     /**
-     * Default constructor that initializes all arrays as empty.
+     * Default constructor carrying the header names a shipped server reads - the same ones
+     * `evita-configuration.yaml` names under `api.headers`.
+     *
+     * Use {@link #builder()} only to state a configuration explicitly: it starts every list **empty**, and a
+     * context configured with empty lists reads no client labels, no forwarded address and no client id at all.
      */
     public HeaderOptions() {
         this(
