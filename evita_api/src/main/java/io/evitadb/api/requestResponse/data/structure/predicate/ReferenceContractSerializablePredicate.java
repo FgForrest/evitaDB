@@ -74,15 +74,14 @@ import static java.util.Optional.ofNullable;
  * **Underlying predicate pattern**: Supports an optional underlying predicate that represents the original entity's
  * complete reference scope. This pattern is used when creating limited views from fully-fetched entities.
  *
- * **Empty map semantics**: An empty `referenceSet` map means "all references are allowed" when
- * `requiresEntityReferences` is true. A non-empty map does **not** mean the opposite on its own: a present
- * `defaultAttributeRequest` says the query also carried a catch-all `referenceContent` requirement, and the fetcher
- * loads every reference the specific entries do not name from that requirement. Such a reference is therefore
- * visible too, and it is the default request - not an empty one - that shapes its attributes; the specific entries
- * only override the baseline for the references they name. The rule is stated twice and nowhere else - by
- * {@link #isReferenceCovered(String)} for one reference at a time, and by
- * {@link #getRequestedReferenceNames(EntitySchemaContract)} for the whole schema at once, which is what a caller
- * needs when it indexes references by name before it holds any of them.
+ * **Empty map semantics**: An empty `referenceSet` map does **not** mean "all references are allowed", and a
+ * non-empty one does not mean the opposite. A present `defaultAttributeRequest` says the query also carried a
+ * catch-all `referenceContent` requirement, and the fetcher loads every reference the specific entries do not name
+ * from that requirement. Such a reference is therefore visible too, and it is the default request - not an empty
+ * one - that shapes its attributes; the specific entries only override the baseline for the references they name.
+ * A **named** requirement, meanwhile, narrows the entity without reaching `referenceSet` at all. The rule is
+ * therefore stated once and nowhere else - by {@link #visibleReferenceNames}, which every name question is
+ * answered from, one reference at a time or a whole schema at once.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -138,6 +137,49 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * Must not be nested (only one level allowed).
 	 */
 	@Nullable @Getter private final ReferenceContractSerializablePredicate underlyingPredicate;
+	/**
+	 * The reference names this predicate lets through, NULL when it lets **all** of them through. Computed once in
+	 * the constructor because it is consulted per reference on the entity composition path and the union of
+	 * {@link #referenceSet} and {@link #namedReferenceNames} would otherwise be rebuilt on every single call.
+	 *
+	 * This is the single source of truth of *what this predicate is about*. Every question about names is answered
+	 * from it - the storage layer decodes only these names through {@link #getVisibleReferenceNames()}, the entity
+	 * indexes exactly these names through {@link #getRequestedReferenceNames(EntitySchemaContract)}, and the
+	 * visibility methods hide everything else through {@link #isReferenceCovered(String)}. Keeping all three on one
+	 * field is what stops them from drifting apart: a name the entity indexes but the predicate hides is answered
+	 * with a {@link ContextMissingException} for a reference the entity was asked for and does hold.
+	 */
+	@Nullable private final Set<String> visibleReferenceNames;
+
+	/**
+	 * Computes {@link #visibleReferenceNames} - the union of the explicitly requested reference names and the names
+	 * of the named reference requirements, or NULL when the predicate does not narrow by name at all.
+	 *
+	 * Reads {@link #requiresEntityReferences}, {@link #defaultAttributeRequest}, {@link #referenceSet} and
+	 * {@link #namedReferenceNames} directly - every constructor calls this as its last statement, once those four
+	 * fields are already assigned.
+	 *
+	 * @return the allowed reference names, or NULL when every name is allowed
+	 */
+	@Nullable
+	private Set<String> computeVisibleReferenceNames() {
+		if (!this.requiresEntityReferences || this.defaultAttributeRequest != null) {
+			// a default `referenceContent()` requirement asks for every reference there is
+			return null;
+		}
+		if (this.namedReferenceNames.isEmpty()) {
+			return this.referenceSet.isEmpty() ? null : this.referenceSet.keySet();
+		}
+		if (this.referenceSet.isEmpty()) {
+			return this.namedReferenceNames;
+		}
+		final Set<String> result = CollectionUtils.createHashSet(
+			this.referenceSet.size() + this.namedReferenceNames.size()
+		);
+		result.addAll(this.referenceSet.keySet());
+		result.addAll(this.namedReferenceNames);
+		return result;
+	}
 
 	/**
 	 * Creates a map of reference names to their associated attribute requests based on the entity fetch
@@ -233,6 +275,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		this.implicitLocale = null;
 		this.locales = Collections.emptySet();
 		this.underlyingPredicate = null;
+		this.visibleReferenceNames = computeVisibleReferenceNames();
 	}
 
 	/**
@@ -254,6 +297,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		this.implicitLocale = evitaRequest.getImplicitLocale();
 		this.locales = evitaRequest.getRequiredLocales();
 		this.underlyingPredicate = null;
+		this.visibleReferenceNames = computeVisibleReferenceNames();
 	}
 
 	/**
@@ -283,6 +327,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		this.implicitLocale = evitaRequest.getImplicitLocale();
 		this.locales = evitaRequest.getRequiredLocales();
 		this.underlyingPredicate = null;
+		this.visibleReferenceNames = computeVisibleReferenceNames();
 	}
 
 	/**
@@ -300,6 +345,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		this.implicitLocale = null;
 		this.locales = Collections.emptySet();
 		this.underlyingPredicate = null;
+		this.visibleReferenceNames = computeVisibleReferenceNames();
 	}
 
 	/**
@@ -331,6 +377,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		this.implicitLocale = evitaRequest.getImplicitLocale();
 		this.locales = evitaRequest.getRequiredLocales();
 		this.underlyingPredicate = underlyingPredicate;
+		this.visibleReferenceNames = computeVisibleReferenceNames();
 	}
 
 	ReferenceContractSerializablePredicate(
@@ -348,6 +395,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		this.implicitLocale = implicitLocale;
 		this.locales = locales;
 		this.underlyingPredicate = null;
+		this.visibleReferenceNames = computeVisibleReferenceNames();
 	}
 
 	/**
@@ -435,22 +483,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 */
 	@Nullable
 	public Set<String> getVisibleReferenceNames() {
-		if (!this.requiresEntityReferences || this.defaultAttributeRequest != null) {
-			// a default `referenceContent()` requirement asks for every reference there is
-			return null;
-		}
-		if (this.namedReferenceNames.isEmpty()) {
-			return this.referenceSet.isEmpty() ? null : this.referenceSet.keySet();
-		}
-		if (this.referenceSet.isEmpty()) {
-			return this.namedReferenceNames;
-		}
-		final Set<String> result = CollectionUtils.createHashSet(
-			this.referenceSet.size() + this.namedReferenceNames.size()
-		);
-		result.addAll(this.referenceSet.keySet());
-		result.addAll(this.namedReferenceNames);
-		return result;
+		return this.visibleReferenceNames;
 	}
 
 	/**
@@ -540,19 +573,22 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * Returns names of the references the query asked for, i.e. the names a fetched entity has to expose - every one
 	 * of them, including those that came back holding nothing.
 	 *
-	 * This is {@link #isReferenceCovered(String)} answered for the whole schema at once, and it exists because the
-	 * caller needs the names before it has any reference in hand: an entity indexes its references by name, and a
-	 * name missing from that index reads as "no such references" rather than "none matched". Deriving the names from
-	 * `referenceSet` alone would therefore hide every reference covered only by the catch-all requirement.
+	 * This is {@link #isReferenceCovered(String)} answered for the whole schema at once - it reads the same
+	 * {@link #visibleReferenceNames} and therefore cannot disagree with it - and it exists because the caller needs
+	 * the names before it has any reference in hand: an entity indexes its references by name, and a name missing
+	 * from that index reads as "no such references" rather than "none matched".
 	 *
 	 * @param entitySchema schema whose reference names are returned when the query asked for all of them
 	 * @return names of the references the query asked for
 	 */
 	@Nonnull
 	public Set<String> getRequestedReferenceNames(@Nonnull EntitySchemaContract entitySchema) {
-		return this.referenceSet.isEmpty() || this.defaultAttributeRequest != null ?
+		// deriving this from `referenceSet` alone names every reference in the schema for a named-only query, whose
+		// requirements never reach that map - and the entity then indexes a name `isReferenceCovered` refuses to
+		// hand back, which surfaces as a ContextMissingException for a reference the query did ask for
+		return this.visibleReferenceNames == null ?
 			entitySchema.getReferences().keySet() :
-			this.referenceSet.keySet();
+			this.visibleReferenceNames;
 	}
 
 	/**
@@ -679,18 +715,10 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * @return TRUE when the reference was fetched along with the entity
 	 */
 	private boolean isReferenceCovered(@Nonnull String referenceName) {
-		// this must admit exactly the names `getVisibleReferenceNames()` narrows the storage read to, or the entity
-		// reports a name as fetched that was never read and answers an empty chunk instead of raising
-		// ContextMissingException. A named `referenceContent` requirement never reaches `referenceSet`, so testing
-		// that set alone would let every name through for a named-only query.
-		if (this.defaultAttributeRequest != null) {
-			// a catch-all requirement fetches every reference the specific entries do not name
-			return true;
-		}
-		if (this.namedReferenceNames.isEmpty()) {
-			return this.referenceSet.isEmpty() || this.referenceSet.containsKey(referenceName);
-		}
-		return this.namedReferenceNames.contains(referenceName) || this.referenceSet.containsKey(referenceName);
+		// this admits exactly the names the storage read was narrowed to, because it reads the very set that
+		// narrowed it - deciding it a second time from `referenceSet` is what let a named-only query report every
+		// schema reference as fetched while the read had skipped all but the named ones
+		return this.visibleReferenceNames == null || this.visibleReferenceNames.contains(referenceName);
 	}
 
 }

@@ -1581,6 +1581,63 @@ class ReferenceContractSerializablePredicateTest {
 		}
 
 		@Test
+		@DisplayName("only the named references are requested by a named-only query")
+		void shouldRequestOnlyNamedReferencesForNamedOnlyQuery() {
+			// a named requirement never reaches the reference set, so reading emptiness of that set as "nothing was
+			// asked for" names every reference in the schema for the query shape every external API produces
+			final ReferenceContractSerializablePredicate predicate = namedOnlyPredicate("A");
+
+			assertEquals(
+				Set.of("A"),
+				predicate.getRequestedReferenceNames(
+					createSchemaWithReferences("A", COVERED_BY_DEFAULT)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("the named and the specifically requested references are requested together")
+		void shouldRequestNamedAndSpecificReferencesTogether() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					Map.of(COVERED_BY_DEFAULT, createRequirementContext("D").attributeRequest()),
+					Set.of("A"),
+					null, true, null, Collections.emptySet()
+				);
+
+			assertEquals(
+				Set.of("A", COVERED_BY_DEFAULT),
+				predicate.getRequestedReferenceNames(
+					createSchemaWithReferences("A", COVERED_BY_DEFAULT, "C")
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("no requested reference name is one the predicate would refuse to hand back")
+		void shouldRequestNoReferenceNameThePredicateRefuses() {
+			// the entity indexes its references under exactly these names and answers `getReferenceChunk` for each
+			// of them - a name in here that `checkFetched` refuses is a ContextMissingException raised for
+			// a reference the query did ask for, which is what naming them from the reference set alone caused
+			final ReferenceContractSerializablePredicate predicate = namedOnlyPredicate("A");
+
+			final Set<String> requested = predicate.getRequestedReferenceNames(
+				createSchemaWithReferences("A", COVERED_BY_DEFAULT)
+			);
+			assertFalse(requested.isEmpty(), "The query named a reference, so something has to be requested.");
+			for (final String referenceName : requested) {
+				assertTrue(
+					predicate.wasFetched(referenceName),
+					"Reference `" + referenceName + "` is requested but reported as not fetched."
+				);
+				assertDoesNotThrow(
+					() -> predicate.checkFetched(referenceName),
+					"Reference `" + referenceName + "` is requested but refused by the predicate."
+				);
+			}
+		}
+
+		@Test
 		@DisplayName("richer copy keeps the default beside the specific entries")
 		void shouldKeepDefaultBesideSpecificEntriesInRicherCopy() {
 			final ReferenceContractSerializablePredicate predicate =
