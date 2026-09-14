@@ -1,7 +1,7 @@
 ---
 title: Restore a live catalog to an earlier version by composing backup, restore, activate and replace
 date: 2026-09-12
-updated: 2026-09-14 10:52
+updated: 2026-09-14 11:38
 status: accepted
 kind: feature
 issues: [1553]
@@ -196,6 +196,22 @@ straight off the collection size — an off-by-one restore fails rather than loo
   itself and is refused, even though the name it collides with leaves the set in the same act. The
   replace path had never reached that code before and so had never shown it; the rename path had, and
   was wrong for as long as it existed.
+- **Follow-up: make the folder generation engine-global instead of per-name.** The asymmetry recorded
+  below — a minted name may be retired, a client-chosen one may not — is a rule a future reader can
+  get wrong, and it exists only because the counter is keyed by name. One engine-wide counter removes
+  the question entirely: nothing accumulates, so nothing needs retiring, and "a token never repeats"
+  stops being a promise kept by abstinence and becomes a property of a counter that only moves
+  forward. It would delete `SequenceService#removeSequences`,
+  `Evita#retireCatalogGenerationSequence` and the per-name `CatalogGenerationPeak` seeding. The window
+  is open and cheap: `CatalogFolderId` and the `<name>_<generation>` convention landed on 2026-08-06
+  and are contained in no release branch and no tag, so no installation has a generation-suffixed
+  folder produced by a released build, and `generationPeaks` is a 2026.3-only field whose released
+  reader (`EngineStateSerializer_2026_2`) never saw it. The costs are small: the folder suffix becomes
+  sparser and shared across names — it is already an *allocation-attempt* counter rather than an
+  incarnation count, so little is lost — and the boot seed becomes a global maximum. **It does not
+  close the cross-restart half**, which stands exactly as recorded below. Deliberately kept out of
+  this line of work: it touches the boot seed and folder classification, where a mistake makes
+  catalogs unloadable, and it is a genuine fork that deserves its own record.
 - **A name is not an identity, and the swap now says which catalog it meant.** The target is chosen
   when the operation is submitted and used minutes later, after a backup, an unpack and a load. In
   between the name may be dropped, dropped and recreated, or — if it was free — taken. Acting on the
@@ -218,13 +234,28 @@ straight off the collection size — an off-by-one restore fails rather than loo
   dropped, drained and recreated redrew generation 1 and reproduced a byte-identical token. An
   expectation recorded against the old catalog would have been satisfied by the new one: an ABA, and
   reachable exactly in the common case where the observed catalog was the name's first incarnation.
-  The retirement is therefore gone, and the memory it was protecting turns out not to need
-  protecting. It existed to stop a server that churns catalogs from retaining counters forever — but
-  the engine-scoped service holds only `CATALOG_GENERATION`, so it keeps one entry per *distinct*
-  catalog name, not one per create/drop cycle. Creating and dropping the same catalog a million times
-  costs one entry. The distinct-name set of a database is small and does not grow with traffic, so
-  the retirement was buying a bounded handful of entries and paying for them with the only property
-  that makes a folder token an identity rather than a label.
+  The retirement is therefore gone. Most of what it protected is not worth protecting: the
+  engine-scoped service holds only `CATALOG_GENERATION`, so it keeps one entry per *distinct* catalog
+  name rather than one per create/drop cycle — creating and dropping the same catalog a million times
+  costs one entry — and the set of names a client chooses is small and does not grow with traffic.
+  **That reasoning covers names a client chooses, and this feature mints names it does not.** The
+  scratch catalog is `<source>_restore_<hex>`, fresh per invocation precisely so it can never collide,
+  so the set of names the process has materialised grows by one on every restore and never shrinks.
+  The bound above simply does not apply to it — caught in review, after the first version of this
+  record claimed it did. `PublishRestoredCatalogTask` therefore hands the scratch name's counter back
+  through `Evita#retireCatalogGenerationSequence` when the task ends, on every outcome.
+  **What licenses that is the absence of a holder, not the state of the disk.** Retiring a counter
+  lets it restart, so the generations it handed out become drawable again; allocation burns a
+  generation whose directory it cannot create, which means a number is only genuinely redrawable once
+  its folder is gone. That is the wrong question to ask, and asking it gets the answer backwards — a
+  folder still present is what makes a redraw harmless. The condition that matters is that nothing can
+  still hold an expectation against the name. The scratch name satisfies it by construction: it is
+  published to nobody, the only expectation ever recorded against it is the swap's own — consumed by
+  then, or never created because the restore failed earlier — and a second restore drawing the same
+  name is refused by `CatalogFolderContext#allocateFolderFor`'s reservation before it could record
+  one. A client-chosen name satisfies none of this, because an operation may hold an expectation
+  against it for as long as a backup, an unpack and a load take and nothing tracks that it does, so
+  those counters stay for the life of the process.
   **The guarantee is bounded by the process**, deliberately. The counter is in memory and nothing
   records a durable `CatalogGenerationPeak`, so generations can repeat across a restart. That is
   sound here because an in-flight restore cannot outlive the process that started it — but it is a
