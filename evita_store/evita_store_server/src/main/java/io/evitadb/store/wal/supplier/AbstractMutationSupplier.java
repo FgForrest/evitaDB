@@ -24,6 +24,7 @@
 package io.evitadb.store.wal.supplier;
 
 import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
@@ -49,7 +50,6 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.nio.BufferUnderflowException;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.Optional;
@@ -333,6 +333,9 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 		} else {
 			this.catalogKryoPool = catalogKryoPool;
 			this.kryo = catalogKryoPool.obtain();
+			// nothing escapes a constructor that throws: while this stays false the finally below hands back
+			// everything acquired here, because close() never runs for an instance that was never published
+			boolean constructionCompleted = false;
 			try {
 				this.observableInput = new ObservableInput<>(
 					new RandomAccessFileInputStream(
@@ -405,13 +408,6 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 				// to. There is nothing in that range by construction, so the answer is an empty stream - raising
 				// would turn an ordinary "no results" page into an error.
 				if (initialTransactionMutation.isEmpty() && requestedVersion != null && version <= requestedVersion) {
-					// nothing escapes a constructor that throws, so close() will never run for this instance -
-					// hand the Kryo back to the pool and release the file here or both leak. A Kryo left out of
-					// the pool is not merely garbage: the pool hands out a fresh one, and a leak on a hot path
-					// quietly multiplies the instances a writer and its readers are sharing
-					this.observableInput.close();
-					this.observableInput = null;
-					catalogKryoPool.free(this.kryo);
 					throw missingBoundedVersion(
 						"Catalog version " + requestedVersion + " was not found in any " + this.walKind.fileLabel +
 							" under `" + storageFolder + "` when reading forward from version " + version + ".",
@@ -419,27 +415,52 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 					);
 				}
 				this.transactionMutation = initialTransactionMutation.orElse(null);
-			} catch (BufferUnderflowException e) {
-				// incomplete write or premature EOF — treat as no data available
-				if (this.observableInput != null) {
-					this.observableInput.close();
+				constructionCompleted = true;
+			} catch (KryoException e) {
+				// Kryo is how this read path reports a premature end: ObservableInput raises
+				// KryoException("Buffer underflow.") when a fill comes up short, and readClassAndObject raises the
+				// same type for bytes that do not decode. Neither can be told from the other here, so the verdict
+				// follows the rule MutationSupplier#get() already applies to its own failures: a greedy read has
+				// merely caught up with the writer and ends quietly, while a read that NAMED a version was promised
+				// those bytes and has to say so rather than hand back a log that only looks exhausted.
+				if (requestedVersion != null && version <= requestedVersion) {
+					throw missingBoundedVersion(
+						"Failed to read " + this.walKind.fileLabel + " `" + this.walFile.getName() +
+							"` while scanning forward from version " + version + " towards requested catalog version " +
+							requestedVersion + " at position " + this.filePosition + ".",
+						"read failed before the requested version was reached",
+						e
+					);
 				}
-				this.transactionMutation = null;
-				this.observableInput = null;
-			} catch (IOException e) {
-				// same reasoning as the not-found throw above, and it applied here long before that one existed:
-				// this constructor is about to fail, so close() will never run and both the pooled Kryo and the
-				// open file would be lost
+				// the instance IS constructed on this arm - it simply supplies nothing - so its owner calls close()
+				// in due course and the Kryo goes back to the pool from there. Releasing it here as well would hand
+				// the same instance to two callers.
 				if (this.observableInput != null) {
 					this.observableInput.close();
 					this.observableInput = null;
 				}
-				catalogKryoPool.free(this.kryo);
+				this.transactionMutation = null;
+				constructionCompleted = true;
+			} catch (IOException e) {
 				throw new UnexpectedIOException(
 					"Failed to read WAL file `" + this.walFile.getName() + "`!",
 					"Failed to read WAL file!",
 					e
 				);
+			} finally {
+				if (!constructionCompleted) {
+					// every exit from the try that is not a completed construction arrives here: the not-found
+					// verdict above, the IO failure beside it, a checksum verifier reporting genuine corruption, a
+					// content-length premise violation. Those must stay loud, but loud still means released - the
+					// instance is never published, so close() will never run for it. A Kryo left out of the pool is
+					// not merely garbage: the pool hands out a fresh one, so a leak on a hot path quietly multiplies
+					// the instances a writer and its readers are sharing.
+					if (this.observableInput != null) {
+						this.observableInput.close();
+						this.observableInput = null;
+					}
+					this.catalogKryoPool.free(this.kryo);
+				}
 			}
 		}
 	}

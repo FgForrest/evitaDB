@@ -1013,6 +1013,76 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 					"silently finalize at a stale version instead of retrying or failing loudly."
 			);
 		}
+
+		/**
+		 * The same genuine underflow as above, met one method earlier. The supplier's constructor scans forward
+		 * for the version it is given, so asking to START at the corrupted transaction runs the failure inside
+		 * the constructor rather than inside {@link MutationSupplier#get()}.
+		 *
+		 * That path used to catch `java.nio.BufferUnderflowException`, which nothing on it can raise - a short
+		 * fill arrives as {@link com.esotericsoftware.kryo.KryoException}. So the raw Kryo failure escaped the
+		 * constructor unconverted, and since nothing escapes a constructor that throws, it took the pooled Kryo
+		 * and the open file with it. Both halves are asserted: a version the engine named must come back as this
+		 * WAL's own corruption verdict, and the pool must come back whole.
+		 */
+		@Test
+		@DisplayName("must report a named version loudly - and release the Kryo - when the constructor's scan underflows")
+		void shouldReportNamedVersionAndReleaseKryoWhenConstructorScanUnderflows() throws IOException {
+			final int[] txSizes = {2, 3};
+			final Map<Long, List<Mutation>> txInMutations = writeWal(
+				CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager, txSizes
+			);
+
+			final TransactionMutationWithLocation tx2Location =
+				(TransactionMutationWithLocation) txInMutations.get(2L).get(0);
+			final long tx2Start = tx2Location.getTransactionSpan().startingPosition();
+			falsifyContentLengthPrefix(tx2Start);
+			truncateWalFileTo(
+				tx2Start + 4 + LYING_CONTENT_LENGTH + AbstractMutationLog.CUMULATIVE_CRC32_SIZE
+			);
+
+			// prime the pool so its free count is a stable, non-zero baseline - a leak shows up as one Kryo fewer
+			// afterwards, which a zero baseline cannot tell apart from "never pooled in the first place"
+			final Pool<Kryo> pool = CatalogWriteAheadLogIntegrationTest.this.catalogKryoPool;
+			pool.free(pool.obtain());
+			final int freeBefore = pool.getFree();
+			assertTrue(
+				freeBefore > 0,
+				"The pooled-Kryo baseline is zero, so the leak assertion below could not fail however the " +
+					"constructor behaved. The test would pass without testing anything."
+			);
+
+			Exception thrown = null;
+			try (
+				final Stream<CatalogBoundMutation> stream = CatalogWriteAheadLogIntegrationTest.this.wal
+					.getCommittedLiveMutationStream(2L, 2L, VersionSource.INTERNAL)
+			) {
+				stream.forEach(it -> {
+				});
+			} catch (Exception ex) {
+				thrown = ex;
+			}
+
+			assertNotNull(
+				thrown,
+				"A read that named catalog version 2 ended silently although the transaction carrying that " +
+					"version underflows mid-record. The caller has been told that version is durably written, so " +
+					"an exhausted stream reads to it as \"nothing left to process\"."
+			);
+			assertInstanceOf(
+				WriteAheadLogCorruptedException.class,
+				thrown,
+				"The constructor handed back the raw deserialization failure instead of this WAL's own " +
+					"corruption verdict for a version the engine named. Observed: " + thrown
+			);
+			assertEquals(
+				freeBefore, pool.getFree(),
+				"The constructor failed without handing its Kryo back to the pool. Nothing escapes a " +
+					"constructor that throws, so close() never runs for that instance: the pool then builds a " +
+					"fresh one for the next read, and the leak quietly multiplies the Kryo instances a writer " +
+					"and its readers are sharing."
+			);
+		}
 	}
 
 	/**
@@ -1079,7 +1149,8 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 	 *
 	 * The test drives {@link CatalogWriteAheadLog#getCommittedMutationStream(long)} positioned so the mismatch
 	 * is met while the supplier's constructor scans for the requested version - the one path on which the
-	 * outcome is externally observable, since the constructor catches only `BufferUnderflowException` while
+	 * outcome is externally observable: the constructor ends quietly only for a premature end reported as a
+	 * {@link com.esotericsoftware.kryo.KryoException}, so a premise violation still escapes it, while
 	 * `MutationSupplier#get()` swallows everything into a graceful end-of-stream.
 	 */
 	@Nested
