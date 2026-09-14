@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.executor.ImmediateExecutorService;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.annotation.DataSet;
@@ -54,6 +55,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Flow.Subscriber;
+import java.util.concurrent.Flow.Subscription;
 import java.util.function.BiFunction;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -608,6 +611,87 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 
 		// Verify the subscriber still has only the original mutations
 		assertEquals(5, subscriber.getItems().size(), "Should still have only 5 mutations after unregistering");
+	}
+
+	/**
+	 * The sweep must remove the registration itself, not trust the subscription's own "released" flag.
+	 *
+	 * A subscription is constructed inside {@code ConcurrentHashMap#computeIfAbsent}, and its constructor calls
+	 * {@code Subscriber#onSubscribe}. A subscriber that requests from there - the engine's own
+	 * {@code EngineStatisticsPublisher} does, and so does the gRPC one - can drive the subscription to a terminal
+	 * signal before `computeIfAbsent` has installed the entry. The release then runs against a map that does not
+	 * yet contain it, so `unsubscribe` finds nothing and returns false into a Consumer that discards the result,
+	 * while the subscription records itself as released.
+	 *
+	 * This is not a narrow race here: the capture executor is an {@link ImmediateExecutorService}, exactly as it
+	 * is throughout the functional suite, so the deferred release runs inline and the ordering is guaranteed.
+	 *
+	 * If the sweep believed the flag, the entry would stay in the subscribers map for the lifetime of the
+	 * process - pinning the version it tracks in the ring buffer and keeping the publisher from being retired -
+	 * which is the exact leak the sweep exists to close.
+	 *
+	 * @param evita the Evita database instance with the test dataset already loaded
+	 */
+	@UseDataSet(value = CDC_TRANSACTIONS)
+	@Test
+	@DisplayName("sweep a registration whose release ran before the subscription was registered")
+	void shouldSweepARegistrationWhoseReleaseRanBeforeItWasRegistered(Evita evita) {
+		final Catalog catalog = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+
+		final ChangeCatalogCaptureSharedPublisher publisher = new ChangeCatalogCaptureSharedPublisher(
+			catalog,
+			new ImmediateExecutorService(),
+			16,
+			16,
+			ChangeCatalogCriteriaBundle.CATCH_ALL,
+			capture -> {
+			},
+			criteria -> {
+			}
+		);
+
+		// a non-positive request from inside onSubscribe terminates the subscription while the publisher is
+		// still inside computeIfAbsent, which is the ordering this test exists for
+		publisher.subscribe(
+			new Subscriber<ChangeCatalogCapture>() {
+				@Override
+				public void onSubscribe(Subscription subscription) {
+					subscription.request(-1);
+				}
+
+				@Override
+				public void onNext(ChangeCatalogCapture item) {
+				}
+
+				@Override
+				public void onError(Throwable throwable) {
+				}
+
+				@Override
+				public void onComplete() {
+				}
+			},
+			new WalPointerWithContent(catalog.getVersion() + 1, 0, ChangeCaptureContent.BODY)
+		);
+
+		assertEquals(
+			1,
+			publisher.getSubscribersCount(),
+			"The registration was already gone before the sweep ran, so this test is no longer reproducing " +
+				"the state it was written for - the release must have found the entry, which means the " +
+				"ordering it depends on has changed."
+		);
+
+		publisher.cleanFinishedSubscriptions();
+
+		assertEquals(
+			0,
+			publisher.getSubscribersCount(),
+			"The sweep left a terminated subscription registered. It trusted the subscription's own released " +
+				"flag, which was set by a release that ran before the entry existed and therefore removed " +
+				"nothing. The entry now pins the version it tracks in the ring buffer and keeps the publisher " +
+				"from ever being retired - the exact leak the sweep was added to close."
+		);
 	}
 
 	/**

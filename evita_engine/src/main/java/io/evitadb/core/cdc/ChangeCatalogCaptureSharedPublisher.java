@@ -216,11 +216,33 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 * registers a subscription, which are the two reasons the terminal signals may not release inline.
 	 *
 	 * Each release routes back through {@link #unsubscribe(UUID)}, so there is one implementation of the
-	 * bookkeeping rather than a second copy that can drift from it.
+	 * bookkeeping rather than a second copy that can drift from it. That also means {@link
+	 * #checkSubscribersLeft()} runs once per released subscription; the caller still has to invoke it
+	 * explicitly afterwards, because a publisher whose map was already empty releases nothing here.
 	 */
 	public void cleanFinishedSubscriptions() {
-		for (DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription : this.subscribers.values()) {
-			subscription.releaseIfTerminated();
+		for (Entry<UUID, DefaultChangeCaptureSubscription<ChangeCatalogCapture>> entry : this.subscribers.entrySet()) {
+			final UUID theSubscriptionId = entry.getKey();
+			try {
+				// The map is the authority, not the subscription's own flag. A subscription's release can run
+				// before `computeIfAbsent` has installed its entry - the constructor calls `onSubscribe`, a
+				// subscriber may `request(n)` from there, and on the direct executor the tests run with, the
+				// deferred release then executes inline - in which case `unsubscribe` found nothing to remove
+				// and returned false into a Consumer that discards it. The subscription has marked itself
+				// released (its transport is closed, correctly) while its registration is still held here.
+				if (entry.getValue().releaseIfTerminated() && this.subscribers.containsKey(theSubscriptionId)) {
+					unsubscribe(theSubscriptionId);
+				}
+			} catch (Throwable releaseException) {
+				// one entry must not end the sweep. An escape would skip every later subscription and, through
+				// the observer's `removeIf`, every later publisher - and the cleaner driving this is scheduled
+				// exactly once at construction and pauses rather than re-plans when its task throws, so a single
+				// escape would remove this guarantee for the lifetime of the process.
+				log.error(
+					"Failed to release the terminated capture subscription `{}`.",
+					theSubscriptionId, releaseException
+				);
+			}
 		}
 	}
 

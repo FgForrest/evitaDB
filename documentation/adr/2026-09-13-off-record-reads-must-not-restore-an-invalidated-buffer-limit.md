@@ -1,7 +1,7 @@
 ---
 title: Off-record number reads must not restore a buffer limit the read has invalidated
 date: 2026-09-13
-updated: 2026-09-14 10:58
+updated: 2026-09-14 11:35
 status: accepted
 kind: fix
 issues: [1551]
@@ -251,6 +251,20 @@ need.
   refused with nothing left to retry it. The sweep runs on the `Scheduler`, whose `ScheduledThreadPoolExecutor`
   has an unbounded delay queue, so it cannot be starved by the saturation that causes the leak. `releaseRegistration`
   is idempotent because both paths can reach it for the same subscription.
+- **The publisher's map is the authority on whether a registration is still held, not the subscription's own
+  flag.** A subscription is built inside `ConcurrentHashMap#computeIfAbsent` and its constructor calls
+  `Subscriber#onSubscribe`; a subscriber that requests from there - `EngineStatisticsPublisher` does, and so does
+  the gRPC one - can drive it to a terminal signal before the mapping is installed. The release then runs against
+  a map that cannot yet see the entry, `unsubscribe` returns `false` into a `Consumer<UUID>` that discards it, and
+  the subscription records itself released. So the sweep re-checks `containsKey` and unsubscribes itself. This is
+  not a narrow race: the capture executor is an `ImmediateExecutorService` throughout the functional suite, so the
+  deferred release runs inline and the ordering is guaranteed there.
+- **The system shared publisher must not retire itself when its last subscriber leaves.** It is a singleton -
+  `SystemChangeObserver` builds it once and `ChangeSystemCapturePublisher` holds it in a plain `final` field with
+  no renewal, unlike `ChangeCatalogCapturePublisher#getSharedPublisher`, which re-creates a closed one - and
+  `subscribe` throws `InstanceTerminatedException` once closed. `checkSubscribersLeft` therefore only trims the
+  ring buffer on that side; the observer owns the lifetime and closes it in its own `close()`. What had been
+  hiding this is that the engine's boot-time subscriber normally keeps the map non-empty forever.
 
 ## Verification
 
@@ -282,7 +296,7 @@ Every test was run against the unfixed code first and shown failing, so none can
   executor, so the premise behind the sweep is measured rather than assumed. Two mutants pin it: dropping the
   idempotence CAS releases twice (`expected: <[id]> but was: <[id, id]>`), and a sweep that recognises
   termination without releasing leaves the registration held (`but was: <[]>`).
-- `wal | cdc | serialization | transaction` sweep: **3,238 tests, 0 failures, 2 skipped**. Full `wal | cdc`
+- `wal | cdc | serialization | transaction` sweep: **3,239 tests, 0 failures, 2 skipped**. Full `wal | cdc`
   tag sweep: **640 tests, 0 failures, 1 skipped**, including the gRPC and GraphQL subscription
   functional tests that exercise CDC end to end.
 - The two behaviours introduced by *The workaround* are each pinned by a mutant, run in this reactor:

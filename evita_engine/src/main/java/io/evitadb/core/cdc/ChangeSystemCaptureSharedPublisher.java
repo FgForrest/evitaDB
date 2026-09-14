@@ -264,24 +264,50 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 	 * registers a subscription, which are the two reasons the terminal signals may not release inline.
 	 *
 	 * Each release routes back through {@link #unsubscribe(UUID)}, so there is one implementation of the
-	 * bookkeeping rather than a second copy that can drift from it.
+	 * bookkeeping rather than a second copy that can drift from it. That also means {@link
+	 * #checkSubscribersLeft()} runs once per released subscription; the caller still has to invoke it
+	 * explicitly afterwards, because a publisher whose map was already empty releases nothing here.
 	 */
 	public void cleanFinishedSubscriptions() {
-		for (DefaultChangeCaptureSubscription<ChangeSystemCapture> subscription : this.subscribers.values()) {
-			subscription.releaseIfTerminated();
+		for (Entry<UUID, DefaultChangeCaptureSubscription<ChangeSystemCapture>> entry : this.subscribers.entrySet()) {
+			final UUID theSubscriptionId = entry.getKey();
+			try {
+				// The map is the authority, not the subscription's own flag. A subscription's release can run
+				// before `computeIfAbsent` has installed its entry - the constructor calls `onSubscribe`, a
+				// subscriber may `request(n)` from there, and on the direct executor the tests run with, the
+				// deferred release then executes inline - in which case `unsubscribe` found nothing to remove
+				// and returned false into a Consumer that discards it. The subscription has marked itself
+				// released (its transport is closed, correctly) while its registration is still held here.
+				if (entry.getValue().releaseIfTerminated() && this.subscribers.containsKey(theSubscriptionId)) {
+					unsubscribe(theSubscriptionId);
+				}
+			} catch (Throwable releaseException) {
+				// one entry must not end the sweep. An escape would skip every later subscription and, through
+				// the observer's `removeIf`, every later publisher - and the cleaner driving this is scheduled
+				// exactly once at construction and pauses rather than re-plans when its task throws, so a single
+				// escape would remove this guarantee for the lifetime of the process.
+				log.error(
+					"Failed to release the terminated capture subscription `{}`.",
+					theSubscriptionId, releaseException
+				);
+			}
 		}
 	}
 
 	/**
-	 * Checks whether there is any subscriber left. If there are no subscribers, it closes the publisher.
+	 * Trims the ring buffer down to the oldest version any subscriber still needs.
+	 *
+	 * Deliberately does NOT retire the publisher when the last subscriber leaves, which is where this differs
+	 * from its catalog counterpart. This one is a singleton: {@link SystemChangeObserver} builds it once in its
+	 * constructor, {@link ChangeSystemCapturePublisher} holds it in a plain final field with no renewal path -
+	 * unlike {@code ChangeCatalogCapturePublisher#getSharedPublisher()}, which re-creates a closed one - and
+	 * {@link #subscribe} throws {@link InstanceTerminatedException} once it is closed. Retiring it here would
+	 * therefore make every later system capture subscription fail for the lifetime of the process, and the only
+	 * thing that has been hiding that is the engine's own boot-time subscriber keeping the map non-empty. Its
+	 * lifetime belongs to the observer, which closes it in its own {@code close()}.
 	 */
 	public void checkSubscribersLeft() {
-		// if no subscriber is left, close this publisher
-		if (this.subscribers.isEmpty()) {
-			close();
-		} else {
-			clearUnusedDataInRingBuffer();
-		}
+		clearUnusedDataInRingBuffer();
 	}
 
 	/**
