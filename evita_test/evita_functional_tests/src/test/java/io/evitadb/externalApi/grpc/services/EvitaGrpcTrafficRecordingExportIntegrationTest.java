@@ -80,8 +80,8 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import static io.evitadb.api.query.Query.query;
-import static io.evitadb.externalApi.grpc.query.QueryConverter.convertQueryParam;
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.externalApi.grpc.query.QueryConverter.convertQueryParam;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.GRPC;
