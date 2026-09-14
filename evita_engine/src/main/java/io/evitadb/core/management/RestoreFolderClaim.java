@@ -130,6 +130,23 @@ final class RestoreFolderClaim {
 	}
 
 	/**
+	 * Tells whether this restore ever took the folder - and therefore the catalog name - for itself.
+	 *
+	 * The folder token is written once, after `allocateFolderFor` returns, and never cleared, so this keeps
+	 * answering `true` long after the claim itself has changed hands. That is what makes it usable as an
+	 * ownership test at clean-up time, when the claim is always gone.
+	 *
+	 * The distinction it draws is the one that matters when a restore fails: allocation refuses a name somebody
+	 * else already holds, so a `null` answer means the catalog now sitting under that name was **not** put there
+	 * by this operation and must not be removed on its behalf.
+	 *
+	 * @return `true` when the folder was allocated by this restore
+	 */
+	boolean isAllocated() {
+		return this.folderId != null;
+	}
+
+	/**
 	 * Takes ownership of the claim, so that the caller — and only the caller — is responsible for releasing it.
 	 *
 	 * Marks the holder handed over even when there was nothing to hand over, so an allocation still in flight

@@ -190,6 +190,23 @@ class PublishRestoredCatalogTaskTest {
 	}
 
 	/**
+	 * Builds a restoration step that fails without having claimed anything.
+	 *
+	 * @param failure raised as soon as the step runs
+	 * @return the step
+	 */
+	@Nonnull
+	private static ClientRunnableTask<Void> failingStep(@Nonnull Supplier<RuntimeException> failure) {
+		return new ClientRunnableTask<>(
+			"restoreCatalog", "unpack", null,
+			() -> {
+				throw failure.get();
+			},
+			TaskTrait.CAN_BE_CANCELLED
+		);
+	}
+
+	/**
 	 * Builds a restoration step that takes the folder claim exactly as the real unpacking step does, and then
 	 * optionally fails.
 	 *
@@ -278,7 +295,12 @@ class PublishRestoredCatalogTaskTest {
 	}
 
 	/**
-	 * Builds restoration steps that record their execution but touch nothing.
+	 * Builds restoration steps that record their execution and take the folder claim, but touch nothing else.
+	 *
+	 * The claim is allocated rather than left untaken because the real unpacking step always allocates it, and
+	 * the clean-up reads it to decide whether the scratch catalog is this task's to remove. Steps that skipped
+	 * the allocation would put every test that uses them on the "somebody else holds this name" branch, where
+	 * nothing is removed - which is the opposite of what most of them are written to observe.
 	 *
 	 * @param unpackRan   flipped when the unpacking step runs
 	 * @param registerRan flipped when the registering step runs
@@ -289,10 +311,19 @@ class PublishRestoredCatalogTaskTest {
 		@Nonnull AtomicBoolean unpackRan,
 		@Nonnull AtomicBoolean registerRan
 	) {
+		final CatalogFolderContext folderContext = TestCatalogFolderContexts.onDirectory(this.storageDirectory);
+		final RestoreFolderClaim claim = new RestoreFolderClaim();
 		return (catalogName, fileId, pathToFile, totalBytesExpected, deleteAfterRestore) -> new RestorationSteps(
-			recordingStep("unpack", unpackRan),
+			new ClientRunnableTask<>(
+				"restoreCatalog", "unpack", null,
+				() -> {
+					claim.allocate(folderContext, catalogName);
+					unpackRan.set(true);
+				},
+				TaskTrait.CAN_BE_CANCELLED
+			),
 			recordingStep("register", registerRan),
-			new RestoreFolderClaim()
+			claim
 		);
 	}
 
@@ -479,6 +510,31 @@ class PublishRestoredCatalogTaskTest {
 		}
 
 		@Test
+		@DisplayName("Leaves the temporary name alone when the unpacking never claimed it")
+		void shouldNotRemoveACatalogItNeverClaimed() {
+			// The temporary name is checked for availability when the operation is submitted and only claimed
+			// minutes later, by the unpacking step. Failing to claim it is precisely the case where somebody
+			// else got there first - so the catalog answering to that name is theirs, and removing it on this
+			// restore's behalf would destroy a catalog that has nothing to do with the restore.
+			final RestorationStepsFactory unclaimedSteps =
+				(catalogName, fileId, pathToFile, totalBytesExpected, deleteAfterRestore) -> new RestorationSteps(
+					failingStep(() -> new IllegalStateException("Catalog `" + catalogName + "` is already claimed!")),
+					recordingStep("register", new AtomicBoolean()),
+					new RestoreFolderClaim()
+				);
+			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), unclaimedSteps);
+			task.transitionToIssued();
+
+			assertThrows(IllegalStateException.class, task::execute);
+
+			verify(evita, never()).deleteCatalogIfExistsWithProgress(anyString());
+			assertTrue(
+				exportService.deletedFiles.isEmpty(),
+				"A restore that failed must keep its archive so it can be retried by hand."
+			);
+		}
+
+		@Test
 		@DisplayName("Lets the original failure out when the clean-up fails as well")
 		void shouldNotMaskTheOriginalFailureWhenTheCleanUpAlsoFails() {
 			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
@@ -513,8 +569,6 @@ class PublishRestoredCatalogTaskTest {
 			// cancelling from inside the fetch puts the cancel at a boundary the test names, instead of wherever a
 			// second thread would have happened to land
 			exportService.beforeFetch = () -> holder.get().cancel();
-			when(evita.deleteCatalogIfExistsWithProgress(TEMPORARY_CATALOG))
-				.thenReturn(Optional.of(completedProgress()));
 			final PublishRestoredCatalogTask task = taskWith(
 				completedBackupTask(), noOpSteps(unpackRan, registerRan)
 			);
@@ -527,7 +581,10 @@ class PublishRestoredCatalogTaskTest {
 			assertFalse(unpackRan.get(), "The archive was unpacked after the task had been cancelled.");
 			assertFalse(registerRan.get(), "The temporary catalog was registered after the task was cancelled.");
 			verify(evita, never()).replaceCatalogWithProgress(anyString(), anyString());
-			verify(evita).deleteCatalogIfExistsWithProgress(TEMPORARY_CATALOG);
+			// cancelled before the unpacking step, so the folder was never allocated and nothing was ever
+			// registered under this name. Removing it regardless would be removing whatever else happens to
+			// answer to it - see the clean-up's ownership test below
+			verify(evita, never()).deleteCatalogIfExistsWithProgress(anyString());
 			assertTrue(
 				exportService.deletedFiles.isEmpty(),
 				"A cancelled restore keeps its archive on the same terms as a failed one."
@@ -539,8 +596,6 @@ class PublishRestoredCatalogTaskTest {
 		void shouldNotLeaveTheFetchedArchiveInTheWorkDirectoryWhenCancelled() {
 			final AtomicReference<PublishRestoredCatalogTask> holder = new AtomicReference<>();
 			exportService.beforeFetch = () -> holder.get().cancel();
-			when(evita.deleteCatalogIfExistsWithProgress(TEMPORARY_CATALOG))
-				.thenReturn(Optional.of(completedProgress()));
 			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), noOpSteps());
 			holder.set(task);
 			task.transitionToIssued();

@@ -1,7 +1,7 @@
 ---
 title: Restore a live catalog to an earlier version by composing backup, restore, activate and replace
 date: 2026-09-12
-updated: 2026-09-12 07:10
+updated: 2026-09-14 08:10
 status: accepted
 kind: feature
 issues: [1553]
@@ -177,6 +177,35 @@ straight off the collection size — an off-by-one restore fails rather than loo
   restore is silently undone. Left alone: the engine has no per-catalog *operation* lock to hang this
   on, and the scenario requires two administrators pressing the same button at once. Untested, and
   stated here as reasoning from the conflict keys rather than as a measured result.
+- **`ModifyCatalogSchemaNameMutation` was waiving a uniqueness check on a flag that does not speak to
+  it.** `verifyApplicability` skipped `checkCatalogNameIsAvailable` whenever `overwriteTarget` was set.
+  The reasoning behind that skip is sound but narrower than the condition expressing it: replacing an
+  *existing* catalog only ever removes a name from the set - the old name of the catalog moving in -
+  and a set that was unique cannot stop being unique that way, so the target's own name needs no
+  re-validation. What the flag actually says is that the caller *intends* to take a target over, not
+  that there is one there. `replaceCatalog` accepts an absent target and renames into it, which is a
+  genuinely new name entering the set with nothing having checked it - and this feature depends on
+  that path for its "create the target when the name is free" case. The check is now keyed to the
+  state rather than to the intent: an occupied target skips it, a free one clears the same bar a
+  rename does. Two questions that had been conflated, separated - whether an occupied target may be
+  taken over is the caller's to declare, whether the resulting names are unique is not.
+- **The target name is checked when the operation is submitted and never reserved.** Minutes pass
+  before the swap uses it, and a catalog created under exactly that name in the meantime is replaced.
+  That is what the operation promises to do with an occupied target; what is surprising is only that
+  the decision "occupied or free" was taken much earlier, by someone who never saw that catalog. Left
+  alone for the same reason as the concurrent-restore case below: the engine has no per-catalog
+  *operation* lock to hang a reservation on, and the up-front check still buys the thing that matters,
+  which is failing on a malformed or colliding name before minutes of copying rather than after.
+- **A failure inside the swap can leave the target corrupted while the task reports failure.**
+  `ModifyCatalogSchemaNameMutationOperator` has a point of no return - the storage handover - and a
+  failure past it deliberately declares the target `CORRUPTED` instead of compensating, because
+  resuming its sessions against a folder whose stored identity no longer agrees with engine state is
+  the worse outcome. So the guarantee that a failed restore leaves the target untouched holds only up
+  to that handover. The restored state is not lost - the folder already carries its new name, so a
+  restart rebuilds the catalog from it, which is to say a restore that reports failure may in fact have
+  succeeded and be one restart away from showing it. Nothing is done about it here: it is the
+  operator's designed behaviour and predates this feature. What this work adds is contract and
+  user-documentation wording that says so, rather than a promise the engine cannot keep.
 - **The intermediate archive competes with the export directory's size limit.** `purgeFiles` drops the
   oldest files whenever the directory exceeds `export.sizeLimitBytes` (1 GiB by default) and holds no
   reference count, despite the interface javadoc suggesting it spares files a reader needs. A catalog

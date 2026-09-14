@@ -341,16 +341,16 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 			)
 		);
 		final String theTargetCatalogName = targetCatalogName == null ? catalogName : targetCatalogName;
-		// The swap runs with `overwriteTarget`, which deliberately skips every check on the target name - it has to,
-		// because overwriting an existing catalog is the whole point. That leaves a *new* target name unvalidated,
-		// so it is validated here instead: a malformed one would otherwise only surface after the archive had been
-		// written and unpacked, and a name colliding in some naming convention would not surface at all.
+		// Validated here as well as at the swap, and the point is *when*. The swap is minutes away - the archive
+		// has to be written, fetched, unpacked and loaded first - so a name that was never going to be accepted
+		// would otherwise be discovered only after all of that work had been done and thrown away. Refusing it
+		// while the client is still holding the call costs one comparison.
 		ClassifierUtils.validateClassifierFormat(ClassifierType.CATALOG, theTargetCatalogName);
 		if (!this.evita.getCatalogNames().contains(theTargetCatalogName)) {
 			CatalogSchema.checkCatalogNameIsAvailable(this.evita, theTargetCatalogName);
 		}
 
-		final String temporaryCatalogName = generateTemporaryCatalogName(catalogName);
+		final String temporaryCatalogName = generateTemporaryCatalogName(catalogName, theTargetCatalogName);
 		final CatalogConsumerControl consumerControl = this.evita.obtainCatalogSessionRegistry(catalogName)
 			.map(registry -> registry.createCatalogConsumerControl(catalogName))
 			.orElseThrow(() -> new CatalogNotFoundException(catalogName));
@@ -402,17 +402,28 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 	 * truncated rather than appended to blindly, because a source catalog already near the classifier length limit
 	 * would otherwise produce a name {@link ClassifierUtils#validateClassifierFormat} rejects.
 	 *
-	 * @param catalogName name of the catalog being restored
+	 * The name the restore is heading for is excluded as well, even though no catalog need hold it yet. A client
+	 * is free to ask for a target of exactly the shape this method invents, and were the two to coincide the swap
+	 * would be handed the same catalog as both its source and its destination - which
+	 * {@link io.evitadb.core.transaction.engine.operators.ModifyCatalogSchemaNameMutationOperator} refuses,
+	 * because retiring the superseded folder would destroy the surviving catalog. It fails safely rather than
+	 * silently, but it fails on a coincidence, and one comparison is cheaper than the explanation.
+	 *
+	 * @param catalogName       name of the catalog being restored
+	 * @param targetCatalogName name the restored catalog is to be served under, which the result must not equal
 	 * @return a name no catalog currently holds, in any naming convention
 	 */
 	@Nonnull
-	private String generateTemporaryCatalogName(@Nonnull String catalogName) {
+	private String generateTemporaryCatalogName(
+		@Nonnull String catalogName,
+		@Nonnull String targetCatalogName
+	) {
 		final String prefix = catalogName.length() > MAX_TEMPORARY_NAME_PREFIX_LENGTH ?
 			catalogName.substring(0, MAX_TEMPORARY_NAME_PREFIX_LENGTH) : catalogName;
 		for (int attempt = 0; attempt < TEMPORARY_NAME_ATTEMPTS; attempt++) {
 			final String candidate = prefix + TEMPORARY_NAME_INFIX +
 				UUIDUtil.randomUUID().toString().substring(0, 8);
-			if (this.evita.getCatalogNames().contains(candidate)) {
+			if (candidate.equals(targetCatalogName) || this.evita.getCatalogNames().contains(candidate)) {
 				continue;
 			}
 			try {

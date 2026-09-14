@@ -256,9 +256,17 @@ public interface EvitaManagementContract {
 	 * **Asynchronous execution.** A task is returned immediately; track it via {@link #getTaskStatus(UUID)} or wait
 	 * on {@link Task#getFutureResult()}. Cancelling it is observed at the next phase boundary rather than
 	 * immediately, so it leaves the catalog under `targetCatalogName` untouched only up to the final swap - once
-	 * that swap has started, it commits regardless and cancellation no longer undoes it. A failed or cancelled run
-	 * keeps the intermediate backup archive among {@link #listFilesToFetch}, so the restore can be retried from it
-	 * by hand; a successful one removes it.
+	 * that swap has started, it commits regardless and cancellation no longer undoes it. A run that ends before the
+	 * swap keeps the intermediate backup archive among {@link #listFilesToFetch}, so the restore can be retried
+	 * from it by hand. A run that reaches the swap gives the archive up, on a best-effort basis: a removal that
+	 * fails is logged rather than failing the task, so the archive can outlive a successful run.
+	 *
+	 * **One failure does not leave the target as it was.** The swap has a point of no return - the storage
+	 * handover - and a failure after it is still reported as a failed task, but the catalog under
+	 * `targetCatalogName` is left {@link CatalogState#CORRUPTED} and refuses sessions until the server restarts.
+	 * The restored data is not lost in that window: the folder already carries its new name, so the restart
+	 * rebuilds the catalog from it. Until the restart, a failure reported by this task is therefore not on its own
+	 * proof that nothing happened.
 	 *
 	 * @param catalogName       name of the catalog whose past state is to be restored
 	 * @param pastMoment        moment to restore the catalog to, or null; ignored when `catalogVersion` is set

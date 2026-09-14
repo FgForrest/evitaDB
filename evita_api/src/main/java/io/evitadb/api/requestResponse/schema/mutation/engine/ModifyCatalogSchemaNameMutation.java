@@ -92,14 +92,23 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 		if (!evita.getCatalogNames().contains(this.catalogName)) {
 			throw new InvalidSchemaMutationException("Catalog `" + this.catalogName + "` doesn't exist!");
 		}
-		if (!this.overwriteTarget) {
-			if (evita.getCatalogNames().contains(this.newCatalogName)) {
+		// Two different questions, and only the first of them is about what the caller intended. Whether an
+		// occupied target may be taken over is the caller's to declare; whether the resulting name set still
+		// holds unique names is a property of the state and cannot be waived by a flag.
+		if (evita.getCatalogNames().contains(this.newCatalogName)) {
+			if (!this.overwriteTarget) {
 				throw new InvalidSchemaMutationException(
 					"Catalog `" + this.newCatalogName + "` already exists! " +
 						"Use `overwriteTarget` flag to overwrite existing catalog."
 				);
 			}
-			// check the names in all naming conventions are unique among catalogs
+			// Nothing to check: the name is already held by the catalog being replaced, so its uniqueness was
+			// settled when that catalog was created, and replacing it only ever *removes* a name from the set -
+			// the old name of the catalog moving in. A set that was unique cannot stop being unique that way.
+		} else {
+			// A name nothing holds is a new name whatever `overwriteTarget` says, so it has to clear the same
+			// bar a rename does. Skipping this on the strength of the flag alone is how an overwrite aimed at a
+			// free name could introduce a catalog colliding with an existing one in some naming convention.
 			CatalogSchema.checkCatalogNameIsAvailable(evita, this.newCatalogName);
 		}
 	}

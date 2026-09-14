@@ -152,6 +152,10 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 		// deletes it - it opens the file with DELETE_ON_CLOSE - but only on the one path where it gets to open it
 		// at all, and this task owns the file for its whole life rather than only until the step that consumes it
 		Path localArchive = null;
+		// held outside the `try` for a second reason: the clean-up has to know whether the catalog sitting under
+		// the temporary name was put there by *this* task. Allocation refuses a name somebody else already holds,
+		// so a restoration that never allocated is one whose scratch name belongs to someone else
+		RestorationSteps restoration = null;
 		try {
 			// the archive is pulled through the export service rather than read from a path we compute ourselves:
 			// the service may be backed by object storage, where no local path exists, and RestoreTask needs a
@@ -162,7 +166,12 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 			updateProgress(PROGRESS_ARCHIVE_FETCHED);
 
 			abortIfCancelled();
-			unpackInto(temporaryCatalogName, archive.fileId(), localArchive, archive.totalSizeInBytes());
+			// built before it is run, so that a failure *inside* the unpacking still leaves the folder claim
+			// reachable from here - it is the only thing that says whether the name ever became ours
+			restoration = this.restorationStepsFactory.create(
+				temporaryCatalogName, archive.fileId(), localArchive, archive.totalSizeInBytes(), true
+			);
+			unpackInto(restoration, temporaryCatalogName);
 			updateProgress(PROGRESS_UNPACKED);
 
 			// loading is the expensive half of the operation - it reads the whole catalog back and rebuilds its
@@ -181,7 +190,10 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 			published = true;
 			updateProgress(100);
 		} finally {
-			cleanUp(published, archive.fileId(), temporaryCatalogName, localArchive);
+			cleanUp(
+				published, archive.fileId(), temporaryCatalogName, localArchive,
+				restoration != null && restoration.claim().isAllocated()
+			);
 		}
 	}
 
@@ -232,20 +244,13 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 	 * folder-claim release to a future that completes on every outcome - including the unpacking failing and the
 	 * registering step never running at all.
 	 *
+	 * @param steps                the unpack-and-register pair to run
 	 * @param temporaryCatalogName name the archive is unpacked under
-	 * @param fileId               id of the archive
-	 * @param localArchive         local copy of the archive
-	 * @param totalSizeInBytes     size of the archive, used to report unpacking progress
 	 */
 	private void unpackInto(
-		@Nonnull String temporaryCatalogName,
-		@Nonnull UUID fileId,
-		@Nonnull Path localArchive,
-		long totalSizeInBytes
+		@Nonnull RestorationSteps steps,
+		@Nonnull String temporaryCatalogName
 	) {
-		final RestorationSteps steps = this.restorationStepsFactory.create(
-			temporaryCatalogName, fileId, localArchive, totalSizeInBytes, true
-		);
 		final SequentialTask<Void> restoration = steps.asSequentialTask(
 			temporaryCatalogName, "Restoring catalog `" + temporaryCatalogName + "` from the backup archive."
 		);
@@ -269,6 +274,13 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 	private void activate(@Nonnull String temporaryCatalogName) {
 		final int band = PROGRESS_ACTIVATED - PROGRESS_UNPACKED;
 		final Progress<Void> activation = this.evita.activateCatalogWithProgress(temporaryCatalogName);
+		// `Progress#addProgressListener` does not replay what a listener was not there to hear, so whatever the
+		// activation reports between starting and this line is not forwarded. Left as it is: the load is the
+		// phase that takes minutes, the listener attaches within microseconds of submitting it, and the
+		// `updateProgress(PROGRESS_ACTIVATED)` below restates the band's end regardless. Closing the gap means
+		// passing the observer into `Evita#applyMutation` and naming the mutation behind
+		// `activateCatalogWithProgress` here - trading a public operation for an implementation detail, which
+		// costs more clarity than the missing fraction of a percent is worth.
 		activation.addProgressListener(
 			percent -> updateProgress(PROGRESS_UNPACKED + (percent * band) / 100)
 		);
@@ -301,18 +313,26 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 	 * catalog is the mirror image of that: it is dropped whenever the swap did not happen, and after a swap it no
 	 * longer exists under that name at all.
 	 *
+	 * **Only ever this task's own scratch catalog.** The temporary name is checked for availability when the
+	 * operation is submitted, but nothing reserves it until the unpacking step allocates its folder, minutes
+	 * later - and a failure to allocate is precisely the case where something else has taken the name in the
+	 * meantime. Deleting by name alone would then destroy an unrelated catalog on the strength of a name
+	 * collision, so the removal is conditioned on this task having allocated the folder itself.
+	 *
 	 * No removal may mask the failure that brought us here, so all of them are logged rather than thrown.
 	 *
 	 * @param published            whether the swap completed
 	 * @param archiveFileId        id of the intermediate archive
 	 * @param temporaryCatalogName name of the temporary catalog
 	 * @param localArchive         local copy of the archive, or `null` when it was never allocated
+	 * @param scratchOwned         whether this task allocated the folder behind `temporaryCatalogName`
 	 */
 	private void cleanUp(
 		boolean published,
 		@Nonnull UUID archiveFileId,
 		@Nonnull String temporaryCatalogName,
-		@Nullable Path localArchive
+		@Nullable Path localArchive,
+		boolean scratchOwned
 	) {
 		if (localArchive != null) {
 			try {
@@ -336,7 +356,7 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 					archiveFileId, getStatus().catalogName(), e
 				);
 			}
-		} else {
+		} else if (scratchOwned) {
 			try {
 				this.evita.deleteCatalogIfExistsWithProgress(temporaryCatalogName)
 					.ifPresent(progress -> progress.onCompletion().toCompletableFuture().join());
