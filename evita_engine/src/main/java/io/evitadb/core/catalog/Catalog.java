@@ -175,6 +175,7 @@ import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.VolatileDataFootprint;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.utils.ArrayUtils;
@@ -2502,12 +2503,17 @@ public final class Catalog
 	 *
 	 * @param startCatalogVersion     the catalog version to start reading from
 	 * @param requestedCatalogVersion the minimal catalog version to finish reading
+	 * @param versionSource           who chose those versions - {@link VersionSource#CLIENT} whenever either of
+	 *                                them came in over an external API, so that a version which is not in the log
+	 *                                is reported as a bad argument rather than as catalog damage
 	 * @return The stream of committed mutations since the given catalogVersion
 	 */
 	@Nonnull
 	public Stream<CatalogBoundMutation> getCommittedLiveMutationStream(
-		long startCatalogVersion, long requestedCatalogVersion) {
-		return this.persistenceService.getCommittedLiveMutationStream(startCatalogVersion, requestedCatalogVersion);
+		long startCatalogVersion, long requestedCatalogVersion, @Nonnull VersionSource versionSource) {
+		return this.persistenceService.getCommittedLiveMutationStream(
+			startCatalogVersion, requestedCatalogVersion, versionSource
+		);
 	}
 
 	/**

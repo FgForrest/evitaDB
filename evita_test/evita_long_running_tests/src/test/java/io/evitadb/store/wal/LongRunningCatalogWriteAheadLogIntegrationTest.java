@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.session.EvitaSession;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.store.catalog.DefaultIsolatedWalService;
 import io.evitadb.store.checksum.Crc32CChecksumFactory;
 import io.evitadb.store.compression.CompressionFactory;
@@ -264,7 +265,7 @@ public class LongRunningCatalogWriteAheadLogIntegrationTest implements EvitaTest
 	private void createCachedSupplierReadAndVerifyFrom(
 		Map<Long, List<Mutation>> txInMutations, int[] transactionSizes, int index
 	) {
-		try (final MutationSupplier<CatalogBoundMutation> supplier = this.wal.createSupplier(index + 1, null)) {
+		try (final MutationSupplier<CatalogBoundMutation> supplier = this.wal.createSupplier(index + 1, null, VersionSource.INTERNAL)) {
 			assertEquals(1, supplier.getTransactionsRead());
 			readAndVerifyWal(txInMutations, transactionSizes, index);
 		}

@@ -243,6 +243,12 @@ public class SystemChangeObserver
 	 * @return the milliseconds deviation to the next scheduled run (always zero)
 	 */
 	long cleanSubscribers() {
+		// the sweep releases the registrations of subscriptions that terminated but whose release the capture
+		// executor refused; until it does, each holds its tracked version and the ring buffer can never be
+		// trimmed past it. The order of the two calls is convention rather than a requirement - every release
+		// the sweep performs already ends in checkSubscribersLeft() through unsubscribe, and the explicit call
+		// is for the tick that releases nothing
+		this.sharedPublisher.cleanFinishedSubscriptions();
 		this.sharedPublisher.checkSubscribersLeft();
 		return 0L;
 	}

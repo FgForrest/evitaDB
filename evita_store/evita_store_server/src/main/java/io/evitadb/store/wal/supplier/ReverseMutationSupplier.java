@@ -26,6 +26,7 @@ package io.evitadb.store.wal.supplier;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException;
 import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException.WalKind;
 import io.evitadb.store.checksum.Checksum;
@@ -108,9 +109,13 @@ public final class ReverseMutationSupplier<T extends Mutation> extends AbstractM
 		@Nonnull WalKind walKind
 	) {
 		super(
+			// reverse reads walk finished history backwards, never a moving tail, so there is no version whose
+			// durability the caller could be asserting
 			catalogVersion, walFileNameProvider, catalogStoragePath, storageSettings,
 			walFileIndex, catalogKryoPool, transactionLocationsCache,
-			false, onClose, walKind
+			// a reverse read never names a version, so it never reports one as missing; the source it carries
+			// only decides the flavor of an exception this supplier has no path to throw
+			null, VersionSource.INTERNAL, onClose, walKind
 		);
 		this.mutationIndex = this.transactionMutation == null ?
 			0: this.transactionMutation.getMutationCount();

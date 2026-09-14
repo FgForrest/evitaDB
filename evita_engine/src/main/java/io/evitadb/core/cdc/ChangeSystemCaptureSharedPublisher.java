@@ -49,8 +49,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.AbstractQueue;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -249,15 +251,64 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 	}
 
 	/**
-	 * Checks whether there is any subscriber left. If there are no subscribers, it closes the publisher.
+	 * Releases every subscription that has already terminated but whose registration is still held here.
+	 *
+	 * A terminated subscription normally releases itself, but it does so by handing the work to the capture
+	 * executor, which refuses the submission both at shutdown and when its bounded queue is full. `finished` is
+	 * set by then, so nothing else ever runs for that subscription to retry: the entry stays in
+	 * {@link #subscribers} for the lifetime of the process, {@link #versionSubscribersCount} keeps its tracked
+	 * version, and the ring buffer can never be trimmed past it.
+	 *
+	 * This sweep is the guarantee behind that best-effort path. It is driven by the observer's periodic cleaner,
+	 * which runs on the scheduler - a ScheduledThreadPoolExecutor with an unbounded delay queue - so it cannot be
+	 * starved by the very saturation that causes the leak. It also runs off the delivery path, holding no
+	 * subscription lock - so unlike an inline release from a terminal signal it cannot reach this publisher's
+	 * lock from under one.
+	 *
+	 * Each release routes back through {@link #unsubscribe(UUID)}, so there is one implementation of the
+	 * bookkeeping rather than a second copy that can drift from it. That also means {@link
+	 * #checkSubscribersLeft()} runs once per released subscription; the caller still has to invoke it
+	 * explicitly afterwards, because a publisher whose map was already empty releases nothing here.
+	 */
+	public void cleanFinishedSubscriptions() {
+		for (Entry<UUID, DefaultChangeCaptureSubscription<ChangeSystemCapture>> entry : this.subscribers.entrySet()) {
+			final UUID theSubscriptionId = entry.getKey();
+			try {
+				// The map is the authority, not the subscription's own flag. `releaseIfTerminated` reports that
+				// the subscription has terminated, not that this call was the one that released it - a release
+				// that ran earlier, or that this call just performed, has already unsubscribed through
+				// `onCancellation`. Re-checking the map is what keeps this from calling `unsubscribe` a second
+				// time for an entry that is already gone.
+				if (entry.getValue().releaseIfTerminated() && this.subscribers.containsKey(theSubscriptionId)) {
+					unsubscribe(theSubscriptionId);
+				}
+			} catch (Throwable releaseException) {
+				// one entry must not end the sweep. An escape would skip every later subscription and, through
+				// the observer's `removeIf`, every later publisher - and the cleaner driving this is scheduled
+				// exactly once at construction and pauses rather than re-plans when its task throws, so a single
+				// escape would remove this guarantee for the lifetime of the process.
+				log.error(
+					"Failed to release the terminated capture subscription `{}`.",
+					theSubscriptionId, releaseException
+				);
+			}
+		}
+	}
+
+	/**
+	 * Trims the ring buffer down to the oldest version any subscriber still needs.
+	 *
+	 * Deliberately does NOT retire the publisher when the last subscriber leaves, which is where this differs
+	 * from its catalog counterpart. This one is a singleton: {@link SystemChangeObserver} builds it once in its
+	 * constructor, {@link ChangeSystemCapturePublisher} holds it in a plain final field with no renewal path -
+	 * unlike {@code ChangeCatalogCapturePublisher#getSharedPublisher()}, which re-creates a closed one - and
+	 * {@link #subscribe} throws {@link InstanceTerminatedException} once it is closed. Retiring it here would
+	 * therefore make every later system capture subscription fail for the lifetime of the process, and the only
+	 * thing that has been hiding that is the engine's own boot-time subscriber keeping the map non-empty. Its
+	 * lifetime belongs to the observer, which closes it in its own {@code close()}.
 	 */
 	public void checkSubscribersLeft() {
-		// if no subscriber is left, close this publisher
-		if (this.subscribers.isEmpty()) {
-			close();
-		} else {
-			clearUnusedDataInRingBuffer();
-		}
+		clearUnusedDataInRingBuffer();
 	}
 
 	/**
@@ -339,7 +390,9 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 			} catch (Throwable submitFailure) {
 				// Submission failure (e.g. executor saturated / shutting down) — best-effort fall
 				// back to synchronous delivery on the engine thread so a saturated executor does
-				// not silently drop the host event.
+				// not silently drop the host event. A subscription still inside onSubscribe only
+				// retains the event and returns, but an activated subscription may make this engine
+				// thread wait behind or invoke subscriber onNext code.
 				log.warn(
 					"cdcExecutor rejected host-event delivery task for subscriber {} — falling " +
 						"back to synchronous deliverImmediate.",
@@ -376,21 +429,45 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 	 */
 	@Override
 	public void subscribe(Subscriber<? super ChangeSystemCapture> subscriber) {
-		this.lock.lock();
-		try {
-			assertActive();
-			final long version = this.version.get();
-			// Subscribe starting from the next version after the current catalog version.
-			// Anonymous subscriptions follow the engine-only default — they never opt into host
-			// events and never reject engine mutations (mirrors the legacy default-criteria flow).
-			subscribe(
-				subscriber,
-				new WalPointerWithContent(version + 1, 0, ChangeCaptureContent.BODY),
-				event -> false,
-				capture -> true
+		final long version = this.version.get();
+		// Subscribe starting from the next version after the current catalog version.
+		// Anonymous subscriptions follow the engine-only default — they never opt into host
+		// events and never reject engine mutations (mirrors the legacy default-criteria flow).
+		subscribe(
+			subscriber,
+			new WalPointerWithContent(version + 1, 0, ChangeCaptureContent.BODY),
+			event -> false,
+			capture -> true
+		);
+	}
+
+	/**
+	 * Undoes a registration this publisher is refusing, without signalling the subscriber.
+	 *
+	 * Deliberately NOT {@code unsubscribe}. That cancels the subscription, and cancelling releases it, and the
+	 * release closes an {@link AutoCloseable} subscriber - which the gRPC one is, and whose {@code close()}
+	 * sends the client {@code UNAVAILABLE}. Rolling back that way would end the client's stream and then hand
+	 * the caller a refusal to retry on a renewed publisher, so the retry could never help: the subscriber it
+	 * retried with is already finalised. The subscriber was never given this subscription, so the retraction
+	 * simply takes the registration back. Both per-subscriber filters go with it.
+	 *
+	 * @param subscriptionId the identifier of the registration being withdrawn
+	 * @param subscription   the subscription that was installed for it
+	 */
+	private void retractRegistration(
+		@Nonnull UUID subscriptionId,
+		@Nonnull DefaultChangeCaptureSubscription<ChangeSystemCapture> subscription
+	) {
+		subscription.retract();
+		if (this.subscribers.remove(subscriptionId) != null) {
+			this.hostEventFilters.remove(subscriptionId);
+			this.mutationFilters.remove(subscriptionId);
+			subscription.releaseAccounting(
+				trackedVersion -> this.versionSubscribersCount.compute(
+					trackedVersion,
+					(version, count) -> count == null || count == 1 ? null : count - 1
+				)
 			);
-		} finally {
-			this.lock.unlock();
 		}
 	}
 
@@ -405,19 +482,42 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 	 * {@code false} if no subscription exists for the given ID
 	 */
 	public boolean unsubscribe(@Nonnull UUID subscriptionId) {
+		// The lookup stays a `get`, and only the caller that wins the later `remove` does the accounting. This
+		// method re-enters itself on the ordinary disconnect path: `cancel()` below releases the registration
+		// inline, and that release calls straight back in here. The inner call removes the entry and accounts for
+		// it, so a `remove` returning null in the outer one says the work is already done - decrementing a second
+		// time would drop a version slot a surviving subscriber still holds. The periodic sweep and an explicit
+		// cancel race in the same shape.
+		//
+		// It must also stay a `get` if a subscriber callback is ever invoked from inside the registering
+		// `computeIfAbsent` again. It no longer is - `subscribe` publishes the entry first and only then calls
+		// `DefaultChangeCaptureSubscription#activate()` - but removing a key whose mapping function is still
+		// running throws IllegalStateException("Recursive update") whenever that bin holds only the reservation,
+		// which for random UUID keys is nearly always (measured on JDK 17 and 21; `get` returns null in the same
+		// state), and the escape would leave a pinned version with no entry for the sweep to ever find.
 		final DefaultChangeCaptureSubscription<ChangeSystemCapture> subscription = this.subscribers.get(subscriptionId);
 		if (subscription != null) {
 			subscription.cancel();
-			this.subscribers.remove(subscriptionId);
-			// drop the per-subscriber filters — no further dispatch should happen
-			this.hostEventFilters.remove(subscriptionId);
-			this.mutationFilters.remove(subscriptionId);
-			// decrement the subscriber count for the version
-			this.versionSubscribersCount.compute(
-				subscription.getTrackedVersion(),
-				(version, count) -> count == null || count == 1 ? null : count - 1
-			);
-			checkSubscribersLeft();
+			// Only the caller that actually removes the mapping does the accounting. `cancel()` above releases
+			// inline and the release calls back into this method, so on the ordinary disconnect path the
+			// re-entrant call removes the entry and accounts for it; `remove` returning null here says it
+			// already did, and a second decrement would drop a version slot a surviving subscriber still holds.
+			if (this.subscribers.remove(subscriptionId) != null) {
+				// drop the per-subscriber filters — no further dispatch should happen
+				this.hostEventFilters.remove(subscriptionId);
+				this.mutationFilters.remove(subscriptionId);
+				// give back this subscription's single unit of version accounting. The subscription reports the
+				// version it actually holds and locks out any fill still in flight from moving it afterwards - a
+				// move landing after this decrement would take the slot of a subscriber still sitting on it, and
+				// the lowest key of this map is the only thing stopping the ring buffer being trimmed past it.
+				subscription.releaseAccounting(
+					trackedVersion -> this.versionSubscribersCount.compute(
+						trackedVersion,
+						(version, count) -> count == null || count == 1 ? null : count - 1
+					)
+				);
+				checkSubscribersLeft();
+			}
 			return true;
 		} else {
 			return false;
@@ -431,21 +531,30 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 	 */
 	@Override
 	public void close() {
+		final List<DefaultChangeCaptureSubscription<ChangeSystemCapture>> subscriptionsToCancel;
 		this.lock.lock();
 		try {
 			// Atomically set closed flag to true if it was false
-			if (this.closed.compareAndSet(false, true)) {
-				this.versionSubscribersCount.clear();
-				this.hostEventFilters.clear();
-				this.mutationFilters.clear();
-				this.lastCaptures.clearAll();
-				// cancel all subscriptions
-				for (DefaultChangeCaptureSubscription<ChangeSystemCapture> subscription : this.subscribers.values()) {
-					subscription.cancel();
-				}
+			if (!this.closed.compareAndSet(false, true)) {
+				return;
 			}
+			this.versionSubscribersCount.clear();
+			this.hostEventFilters.clear();
+			this.mutationFilters.clear();
+			this.lastCaptures.clearAll();
+			subscriptionsToCancel = new ArrayList<>(this.subscribers.values());
 		} finally {
 			this.lock.unlock();
+		}
+		// Cancelling happens outside the lock on purpose, so this publisher never holds its own lock while
+		// entering a subscription. The reverse direction does occur: a terminal signal raised under a
+		// subscription's delivery lock reaches `unsubscribe` and from there `checkSubscribersLeft()`, which takes
+		// this lock. That only happens when the capture executor runs the release inline - which the
+		// `ImmediateExecutorService` the functional suite boots with does, on every release - because
+		// `releaseRegistrationLater()` otherwise hands it to another thread. Keeping the cancel loop outside the
+		// lock means the two directions never both exist, whichever executor is installed.
+		for (DefaultChangeCaptureSubscription<ChangeSystemCapture> subscription : subscriptionsToCancel) {
+			subscription.cancel();
 		}
 	}
 
@@ -534,37 +643,82 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 		UUID subscriberId;
 		DefaultChangeCaptureSubscription<ChangeSystemCapture> subscription;
 		final AtomicBoolean created = new AtomicBoolean(false);
-		// Keep trying until we successfully create a subscription with a unique ID
-		do {
-			subscriberId = UUIDUtil.randomUUID();
-			final UUID candidateId = subscriberId;
-			subscription = this.subscribers.computeIfAbsent(
-				subscriberId,
-				uuid -> {
-					created.set(true);
-					// optimization - we track the number of subscribers for each version
-					// to know when we can safely discard older versions
-					this.versionSubscribersCount.compute(
-						specification.version(),
-						(version, count) -> count == null ? 1 : count + 1
-					);
-					// register the per-subscriber filters so dispatch / fanout can honor them
-					this.hostEventFilters.put(candidateId, hostEventFilter);
-					this.mutationFilters.put(candidateId, mutationFilter);
-					// this is a costly operation since it allocates a buffer
-					return new DefaultChangeCaptureSubscription<>(
-						uuid,
-						this.subscriberBufferSize,
-						specification,
-						subscriber,
-						this.cdcExecutor,
-						this::fillBuffer,
-						this.onNextConsumer,
-						this::unsubscribe
-					);
-				}
-			);
-		} while (!created.get());
+		// Registration and retirement take this publisher's lock, so one of them always sees the other. A
+		// registration still inside `computeIfAbsent` is invisible to every read of the map - `isEmpty()`,
+		// `size()`, `containsKey()` and the entry iterator all skip the reservation until the mapping function
+		// returns (measured on JDK 17 and 21) - so without this the observer's cleaner could retire the publisher
+		// between `assertActive()` above and the insertion below, after which `processMutation` never reaches the
+		// new subscription and a client waits forever on a subscribe call that reported success.
+		//
+		// Nothing inside the mapping function calls user code or takes a subscription's delivery lock, and
+		// `activate()` is deliberately left outside this block, so holding the lock here adds no
+		// publisher -> subscription edge. The retraction below reaches only the subscription's accounting lock,
+		// which is a leaf.
+		this.lock.lock();
+		try {
+			// Keep trying until we successfully create a subscription with a unique ID
+			do {
+				subscriberId = UUIDUtil.randomUUID();
+				final UUID candidateId = subscriberId;
+				subscription = this.subscribers.computeIfAbsent(
+					subscriberId,
+					uuid -> {
+						created.set(true);
+						// Construct first: ArrayBlockingQueue rejects a non-positive capacity, and a constructor
+						// failure must leave no version accounting or filters without a map entry to release them.
+						final DefaultChangeCaptureSubscription<ChangeSystemCapture> newSubscription =
+							new DefaultChangeCaptureSubscription<>(
+								uuid,
+								this.subscriberBufferSize,
+								specification,
+								subscriber,
+								this.cdcExecutor,
+								this::fillBuffer,
+								this.onNextConsumer,
+								this::unsubscribe
+							);
+						// optimization - we track the number of subscribers for each version
+						// to know when we can safely discard older versions
+						this.versionSubscribersCount.compute(
+							specification.version(),
+							(version, count) -> count == null ? 1 : count + 1
+						);
+						// register the per-subscriber filters so dispatch / fanout can honor them
+						this.hostEventFilters.put(candidateId, hostEventFilter);
+						this.mutationFilters.put(candidateId, mutationFilter);
+						return newSubscription;
+					}
+				);
+			} while (!created.get());
+
+			// Re-check under the same lock. The cleaner can have retired this publisher between the
+			// `assertActive()` above and this point; taking the registration back is cheaper than holding the
+			// lock across `activate()`, which calls subscriber code. This one is a singleton that only the observer
+			// closes, at shutdown, so the throw is terminal by design - there is nothing to renew.
+			if (this.closed.get()) {
+				retractRegistration(subscriberId, subscription);
+				throw new InstanceTerminatedException("CDC shared publisher");
+			}
+		} finally {
+			this.lock.unlock();
+		}
+
+		// Hand the subscription to the subscriber only now that its entry is published - see
+		// DefaultChangeCaptureSubscription#activate(). Calling `onSubscribe` from the constructor ran subscriber
+		// code inside the `computeIfAbsent` above, so a throw escaped it with the version slot already
+		// incremented and both per-subscriber filters installed, yet no entry installed for the periodic sweep
+		// to ever find. Rolling back through `unsubscribe` keeps one implementation of that bookkeeping rather
+		// than a second copy here, and closing the subscriber's transport is right when `onSubscribe` threw.
+		try {
+			subscription.activate();
+		} catch (Throwable activationException) {
+			try {
+				unsubscribe(subscriberId);
+			} catch (Throwable rollbackException) {
+				activationException.addSuppressed(rollbackException);
+			}
+			throw activationException;
+		}
 
 		return subscription;
 	}
