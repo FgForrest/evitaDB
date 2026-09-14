@@ -120,6 +120,7 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ExceptionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.StringUtils;
+import jdk.jfr.Event;
 import jdk.jfr.FlightRecorder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -143,6 +144,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -329,6 +331,28 @@ public final class Evita implements EvitaContract {
 	 * Callback that will be called when an old session is closed.
 	 */
 	private final Consumer<EvitaSessionContract> onSessionTerminationCallback;
+	/**
+	 * Engine-wide JFR periodic hooks this instance registered through {@link #emitStartObservabilityEvents()},
+	 * kept so that {@link #retireStatisticsHooks()} can hand them back.
+	 *
+	 * {@link FlightRecorder#addPeriodicEvent(Class, Runnable)} appends to a registry that lives as long as the JVM
+	 * (`jdk.jfr.internal.RequestEngine#entries`), and the only way out of it is
+	 * {@link FlightRecorder#removePeriodicEvent(Runnable)}, which matches on object identity. Every hook here
+	 * captures this instance or one of its executors, so a hook left behind pins the whole engine graph - its
+	 * catalogs, their persistence services and the output buffers those hold - until the process ends. The hooks
+	 * have to be stored rather than re-derived on close: a method reference yields a fresh object on every
+	 * evaluation, so `removePeriodicEvent(this::emitEvitaStatistics)` would remove nothing and report no error.
+	 */
+	private final List<Runnable> engineStatisticsHooks = new CopyOnWriteArrayList<>();
+	/**
+	 * Per-catalog JFR periodic hooks, keyed by catalog name. At most one hook exists per name; see
+	 * {@link #engineStatisticsHooks} for why one that is never handed back costs the whole engine graph.
+	 *
+	 * The keying is what bounds the registry: {@link #emitCatalogStatistics(String)} runs on every catalog schema
+	 * modification, not only on creation, so registering unconditionally would add a hook per schema change - each
+	 * one emitting the same catalog's statistics again on every JFR period, and none of them ever released.
+	 */
+	private final Map<String, Runnable> catalogStatisticsHooks = CollectionUtils.createConcurrentHashMap(16);
 
 	/**
 	 * Shuts down passed executor service in a safe manner.
@@ -651,7 +675,8 @@ public final class Evita implements EvitaContract {
 		).subscribe(
 			new EngineStatisticsPublisher(
 				this::emitEvitaStatistics,
-				this::emitCatalogStatistics
+				this::emitCatalogStatistics,
+				this::retireCatalogStatistics
 			)
 		);
 
@@ -738,22 +763,10 @@ public final class Evita implements EvitaContract {
 	 */
 	public void emitStartObservabilityEvents() {
 		// emit the statistics event
-		FlightRecorder.addPeriodicEvent(
-			EvitaStatisticsEvent.class,
-			this::emitEvitaStatistics
-		);
-		FlightRecorder.addPeriodicEvent(
-			RequestThreadPoolStatisticsEvent.class,
-			this.requestExecutor::emitStatistics
-		);
-		FlightRecorder.addPeriodicEvent(
-			TransactionThreadPoolStatisticsEvent.class,
-			this.transactionExecutor::emitStatistics
-		);
-		FlightRecorder.addPeriodicEvent(
-			ScheduledExecutorStatisticsEvent.class,
-			this.serviceExecutor::emitStatistics
-		);
+		registerEngineStatisticsHook(EvitaStatisticsEvent.class, this::emitEvitaStatistics);
+		registerEngineStatisticsHook(RequestThreadPoolStatisticsEvent.class, this.requestExecutor::emitStatistics);
+		registerEngineStatisticsHook(TransactionThreadPoolStatisticsEvent.class, this.transactionExecutor::emitStatistics);
+		registerEngineStatisticsHook(ScheduledExecutorStatisticsEvent.class, this.serviceExecutor::emitStatistics);
 	}
 
 	/**
@@ -2135,48 +2148,91 @@ public final class Evita implements EvitaContract {
 	 * @param catalogName name of the catalog
 	 */
 	private void emitCatalogStatistics(@Nonnull String catalogName) {
-		// register regular metrics extraction of the catalog
-		FlightRecorder.addPeriodicEvent(
-			CatalogStatisticsEvent.class,
-			new Runnable() {
-				@Override
-				public void run() {
-					try {
-						if (Evita.this.isActive()) {
-							final ExpandedEngineState theEngineState = Evita.this.getEngineState();
-							// in very rare race conditions the engine state may be null here
-							// (if evita is closed already)
-							// noinspection ConstantValue
-							if (theEngineState != null) {
-								theEngineState
-									.getCatalog(catalogName)
-									.ifPresentOrElse(
-										catalogContract -> {
-											if (catalogContract instanceof Catalog monitoredCatalog) {
-												monitoredCatalog.emitObservabilityEvents();
-											} else {
-												FlightRecorder.removePeriodicEvent(this);
-											}
-										},
-										() -> {
-											log.warn("Catalog {} does not exist, cannot emit statistics!", catalogName);
-											FlightRecorder.removePeriodicEvent(this);
-										}
-									);
-							}
-						}
-					} catch (Throwable t) {
-						log.error("Emitting observability events failed!", t);
-					}
-				}
-			}
-		);
+		// a closing engine has already drained its hooks; one registered after that drain would never be handed
+		// back, because nothing walks the registry again and periodic hooks run only while a recording is active
+		if (!isActive()) {
+			return;
+		}
+		// register regular metrics extraction of the catalog - at most once per catalog name, because this method
+		// also runs on every schema modification and a JFR hook is never released unless we hand it back
+		final CatalogStatisticsHook hook = new CatalogStatisticsHook(catalogName);
+		// register first and record second: a hook that reaches the JFR registry without reaching the map would be
+		// invisible to #retireStatisticsHooks, whereas a map entry whose hook is not yet registered is inert
+		FlightRecorder.addPeriodicEvent(CatalogStatisticsEvent.class, hook);
+		if (this.catalogStatisticsHooks.putIfAbsent(catalogName, hook) != null) {
+			// another registration for this catalog won the race - only one hook per name may survive
+			FlightRecorder.removePeriodicEvent(hook);
+		} else if (!isActive()) {
+			// `close()` ran between the check at the top of this method and the write above, so its drain has
+			// already passed this entry and nothing will walk the map again. Retire the hook here instead.
+			hook.retire();
+		}
+	}
+
+	/**
+	 * Registers an engine-wide JFR periodic hook and remembers it for {@link #retireStatisticsHooks()}.
+	 *
+	 * @param eventType type of the event the hook emits
+	 * @param hook      the hook itself - the very instance that will have to be handed back on close
+	 */
+	private void registerEngineStatisticsHook(@Nonnull Class<? extends Event> eventType, @Nonnull Runnable hook) {
+		// see #emitCatalogStatistics for why a closed engine must not register anything further
+		if (!isActive()) {
+			return;
+		}
+		// register first and record second, for the same reason as #emitCatalogStatistics: the reverse order lets
+		// a concurrent `retireStatisticsHooks()` read this hook out of the list and call `removePeriodicEvent` on
+		// it before it is registered - a no-op - and then clear the list, stranding the registration that follows
+		FlightRecorder.addPeriodicEvent(eventType, hook);
+		this.engineStatisticsHooks.add(hook);
+		if (!isActive()) {
+			// `close()` ran between the check above and the write, so the drain has already passed this list.
+			// The two orders interlock: this thread writes the list then reads `active`, while `close()` writes
+			// `active` then reads the list, so at least one of the two always observes the other.
+			this.engineStatisticsHooks.remove(hook);
+			FlightRecorder.removePeriodicEvent(hook);
+		}
+	}
+
+	/**
+	 * Hands the statistics hook of a single catalog back to {@link FlightRecorder}. Called when the catalog stops
+	 * existing under this name - it is dropped, or renamed away - so that neither the hook nor the engine it
+	 * captures waits for a JFR period that may never come to notice.
+	 *
+	 * @param catalogName name of the catalog whose hook is no longer wanted
+	 */
+	private void retireCatalogStatistics(@Nonnull String catalogName) {
+		final Runnable hook = this.catalogStatisticsHooks.remove(catalogName);
+		if (hook != null) {
+			FlightRecorder.removePeriodicEvent(hook);
+		}
+	}
+
+	/**
+	 * Hands every JFR periodic hook this instance has registered back to {@link FlightRecorder}.
+	 *
+	 * This is the counterpart of the registrations described on {@link #engineStatisticsHooks}, and the only thing
+	 * that keeps a closed engine collectable: the JFR registry is a static of the JDK and therefore a GC root, so
+	 * a hook that stays in it holds this instance - and everything it owns - for the life of the process.
+	 */
+	private void retireStatisticsHooks() {
+		for (Runnable hook : this.engineStatisticsHooks) {
+			FlightRecorder.removePeriodicEvent(hook);
+		}
+		this.engineStatisticsHooks.clear();
+		for (String catalogName : this.catalogStatisticsHooks.keySet()) {
+			retireCatalogStatistics(catalogName);
+		}
 	}
 
 	/**
 	 * Attempts to close all resources of evitaDB.
 	 */
 	private void closeInternal() {
+		// hand the JFR hooks back first - they are held by a static of the JDK, so one left behind outlives every
+		// other resource released below and pins this instance along with it
+		retireStatisticsHooks();
+
 		RuntimeException exception = null;
 		try {
 			// first close all sessions
@@ -2312,6 +2368,72 @@ public final class Evita implements EvitaContract {
 		@Override
 		public void close() {
 			this.session.close();
+		}
+
+	}
+
+	/**
+	 * JFR periodic hook that emits {@link CatalogStatisticsEvent} for one catalog of this engine.
+	 *
+	 * It is an inner class on purpose - it needs the engine to reach the catalog - and that is exactly what makes
+	 * it dangerous to leave registered: the JFR registry is a JVM-lifetime static, so a live hook is a GC root for
+	 * the whole engine. {@link Evita#catalogStatisticsHooks} tracks every instance so that
+	 * {@link Evita#retireStatisticsHooks()} can release them all; {@link #retire()} is the second line of defence,
+	 * for a catalog that disappeared through a path that did not announce itself.
+	 */
+	private final class CatalogStatisticsHook implements Runnable {
+		/**
+		 * Name of the catalog whose statistics this hook emits, and the key it is filed under.
+		 */
+		private final String catalogName;
+
+		CatalogStatisticsHook(@Nonnull String catalogName) {
+			this.catalogName = catalogName;
+		}
+
+		@Override
+		public void run() {
+			try {
+				if (!Evita.this.isActive()) {
+					// the engine is gone; retire rather than return, because nothing else will come back for this
+					// hook - and while it stays registered, the closed engine it captures cannot be collected
+					retire();
+					return;
+				}
+				final ExpandedEngineState theEngineState = Evita.this.getEngineState();
+				// in very rare race conditions the engine state may be null here
+				// (if evita is closed already)
+				// noinspection ConstantValue
+				if (theEngineState == null) {
+					return;
+				}
+				theEngineState
+					.getCatalog(this.catalogName)
+					.ifPresentOrElse(
+						catalogContract -> {
+							if (catalogContract instanceof Catalog monitoredCatalog) {
+								monitoredCatalog.emitObservabilityEvents();
+							} else {
+								retire();
+							}
+						},
+						() -> {
+							log.warn("Catalog {} does not exist, cannot emit statistics!", this.catalogName);
+							retire();
+						}
+					);
+			} catch (Throwable t) {
+				log.error("Emitting observability events failed!", t);
+			}
+		}
+
+		/**
+		 * Unregisters this hook, and drops the map entry only if it still points at this instance - a catalog
+		 * dropped and recreated under the same name is served by a different hook, which must not be retired here.
+		 */
+		private void retire() {
+			Evita.this.catalogStatisticsHooks.remove(this.catalogName, this);
+			FlightRecorder.removePeriodicEvent(this);
 		}
 
 	}

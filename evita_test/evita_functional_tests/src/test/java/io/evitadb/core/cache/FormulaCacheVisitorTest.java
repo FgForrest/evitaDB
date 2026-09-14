@@ -34,6 +34,7 @@ import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import net.openhft.hashing.LongHashFunction;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -45,6 +46,8 @@ import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.CACHE;
+
+import java.io.IOException;
 
 /**
  * This test verifies behaviour of {@link FormulaCacheVisitor}.
@@ -59,6 +62,7 @@ class FormulaCacheVisitorTest {
 	private static final int MINIMAL_USAGE_THRESHOLD = 1;
 	private CacheAnteroom cacheAnteroom;
 	private CacheEden cacheEden;
+	private Scheduler scheduler;
 
 	@Nonnull
 	static ConstantFormula toConstantFormula(int... recordIds) {
@@ -67,18 +71,29 @@ class FormulaCacheVisitorTest {
 
 	@BeforeEach
 	void setUp() {
-		final Scheduler scheduler = new Scheduler(
+		this.scheduler = new Scheduler(
 			ThreadPoolOptions.requestThreadPoolBuilder()
 				.minThreadCount(4)
 				.maxThreadCount(4)
 				.build()
 		);
-		this.cacheEden = new CacheEden(1_000_000, MINIMAL_USAGE_THRESHOLD, 100L, scheduler);
+		this.cacheEden = new CacheEden(1_000_000, MINIMAL_USAGE_THRESHOLD, 100L, this.scheduler);
 		this.cacheAnteroom = new CacheAnteroom(
 			10_000, 30L,
 			this.cacheEden,
-			scheduler
+			this.scheduler
 		);
+	}
+
+	@AfterEach
+	void tearDown() throws IOException {
+		// the anteroom owns the eden, and closing it hands the eden's Flight Recorder periodic hook back.
+		// A hook left registered sits in a JVM-lifetime static and keeps this cache alive for the whole run -
+		// see documentation/adr/2026-09-14-closed-engine-resource-release.md
+		this.cacheAnteroom.close();
+		// the pool this scheduler owns runs a purging task that re-plans itself forever, so without this the
+		// threads and the task outlive every test in the suite
+		this.scheduler.shutdown();
 	}
 
 	@Test

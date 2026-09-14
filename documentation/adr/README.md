@@ -33,6 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-09-14 | [A resource handed to a JVM-lifetime registry is released by its owner's close, never by the registry](2026-09-14-closed-engine-resource-release.md) | fix | accepted | — |
 | 2026-09-12 | [Restore a live catalog to an earlier version by composing backup, restore, activate and replace](2026-09-12-restore-catalog-to-earlier-version.md) | feature | accepted | #1553 |
 | 2026-09-09 | [Bound the cross-entity facet walk with a size-thresholded owner→partition index, not a blanket one](2026-09-09-sibling-resolver-partition-cardinality.md) | optimization | accepted | #1529, PR #1557 |
 | 2026-09-08 | [Conditional histogram triggers answer per contribution, and the mutated entity's PK is pinned inside the scope container](2026-09-08-conditional-histogram-per-contribution-verdicts.md) | fix | accepted | #1470, PR #1555 |

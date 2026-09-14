@@ -57,6 +57,7 @@ import net.openhft.hashing.LongHashFunction;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+import java.io.Closeable;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -80,7 +81,7 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 @Slf4j
 @ThreadSafe
-public class CacheEden {
+public class CacheEden implements Closeable {
 	/**
 	 * Threshold that controls how many iterations {@link #evaluateAdepts()} may remain any of {@link CachedRecord}
 	 * unused until it is evicted from the cache.
@@ -158,6 +159,14 @@ public class CacheEden {
 	 */
 	private final AtomicReference<Map<Long, CacheRecordAdept>> nextAdeptsToEvaluate = new AtomicReference<>();
 
+	/**
+	 * The JFR periodic hook reporting cache statistics, kept so that {@link #close()} can hand it back.
+	 * {@link FlightRecorder} files hooks in a registry that lives as long as the JVM and releases one only against
+	 * the very instance registered, so a method reference cannot be re-derived on close - and a hook left behind
+	 * keeps this cache, and everything it has memoized, alive for the whole process.
+	 */
+	private final Runnable statisticsHook;
+
 	public CacheEden(
 		long maximalByteSize,
 		int minimalUsageThreshold,
@@ -170,10 +179,16 @@ public class CacheEden {
 		this.minimalUsageThreshold = minimalUsageThreshold;
 		this.minimalSpaceToPerformanceRatio = minimalSpaceToPerformanceRatio;
 
+		this.statisticsHook = this::reportStatistics;
 		FlightRecorder.addPeriodicEvent(
 			CacheStatisticsUpdatedEvent.class,
-			this::reportStatistics
+			this.statisticsHook
 		);
+	}
+
+	@Override
+	public void close() {
+		FlightRecorder.removePeriodicEvent(this.statisticsHook);
 	}
 
 	/**

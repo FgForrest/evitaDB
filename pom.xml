@@ -158,10 +158,13 @@
 		<surefire.useUnlimitedThreads>true</surefire.useUnlimitedThreads>
 		<surefire.threadCount>4</surefire.threadCount>
 		<!--
-			Heap of the single surefire fork. Defaults to 8g; CI (ci-dev.yml / pr-review.yml) raises
-			it to 9g via -D on the command line - see the surefire-plugin comment below for the
-			ceiling that sizing sits under, and why on a GitHub-hosted runner a bigger heap is not
-			automatically the better one. Locally, raise it ONLY through the `largeMachine` profile.
+			Heap of the single surefire fork - one number for local builds and CI alike, deliberately
+			a single property rather than a -D override on each CI command line, so that a workflow
+			added later cannot inherit a different heap in silence.
+
+			8g, and raising it is not the lever it looks like - see the surefire-plugin comment below,
+			which records both a 12g and a 9g attempt failing on the GitHub-hosted runners. Raise it
+			ONLY through the `largeMachine` profile, on a developer box.
 		-->
 		<surefire.maxHeapSize>8g</surefire.maxHeapSize>
 		<!--
@@ -581,8 +584,8 @@
 			deliberately not the default: the whole functional suite fans out to one test class per
 			core in a single fork, so on a many-core workstation the 8g default is marginal and the
 			suite dies with an OutOfMemoryError three minutes in - while on the GitHub-hosted runners
-			a larger heap is the wrong medicine and has already got a build OS-killed (see the
-			surefire-plugin comment). Use as `mvn test -P unitAndFunctional,largeMachine` on a
+			a larger heap is the wrong medicine and has now got a build killed twice, at 12g and at
+			9g (see the surefire-plugin comment). Use as `mvn test -P unitAndFunctional,largeMachine` on a
 			developer box; never in CI.
 		-->
 		<profile>
@@ -717,16 +720,22 @@
 						cap concurrency to the runner's actual core count, which bounds the off-heap
 						driver and makes 8g a safe, comfortable step up from the previous 5g.
 
-						8g has since stopped being enough: the functional suite now hits a *contained*
-						`OutOfMemoryError: Java heap space` on the runner, which is the opposite failure
-						mode from the 12g OS-kill above - the fork died inside its own heap budget, so
-						the answer here really is more heap. Both CI workflows therefore also pass
-						`-Dsurefire.maxHeapSize=9g`. The step is deliberately one gigabyte and not more:
-						the thing that killed the 12g attempt was off-heap growth outside -Xmx, so every
-						gigabyte handed to the heap is one taken away from the driver that decides
-						whether the job survives at all. If 9g stops being enough, prefer lowering
-						`surefire.threadCount` over raising this again - fewer concurrently-alive
-						embedded instances shrinks both budgets at once.
+						A 9g attempt was made and reverted, and it is worth knowing why it looked
+						reasonable. The prompt was a *contained* `OutOfMemoryError: Java heap space` in
+						the functional suite - the fork dying inside its own budget rather than the OS
+						taking the job, which is the opposite of the 12g failure above and therefore
+						looks like the one case where more heap is the answer. It is not. 9g failed
+						`dev` and three branches, four runs out of four, each dying 8-13 minutes in
+						where the same suite at 8g finishes green in 16-25. One of the four was a
+						config-only branch off clean `dev`, so the heap was the variable and no
+						feature's footprint was involved.
+
+						Read with the 12g result, that is the whole rule for this runner: the ceiling
+						is set by total RAM, not by -Xmx, and every gigabyte handed to the heap is one
+						taken from the off-heap driver that decides whether the job survives. So when
+						the suite outgrows this heap, the lever is `surefire.threadCount` and not this
+						number - fewer concurrently-alive embedded instances shrink the heap working
+						set and the off-heap footprint at the same time.
 					-->
 					<!--
 						`jol.magicFieldOffset` lets JOL resolve field offsets on classes where
