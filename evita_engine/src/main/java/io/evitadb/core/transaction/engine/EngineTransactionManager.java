@@ -424,6 +424,12 @@ public class EngineTransactionManager implements Closeable {
 		try {
 			if (this.engineStateLock.tryLock(this.engineMutationWaitIntervalInMillis, TimeUnit.MILLISECONDS)) {
 				transactionId = UUIDUtil.randomUUID();
+				// **Two acquisitions, and the second one is what holds the lock past the block below.** `tryLock`
+				// above already acquired it - the call is a bounded wait, not a test - so this raises the hold
+				// count to two and the `finally` below lowers it back to one rather than releasing it. The lock is
+				// therefore still held while the operator's synchronous half runs, and only the outer `finally`
+				// hands it to a competing thread. Read as "acquire, then release at the end of the block", this
+				// reads as if operators ran unlocked, which is the opposite of the truth.
 				this.engineStateLock.lock();
 				try {
 					// verify that we can perform the mutation
