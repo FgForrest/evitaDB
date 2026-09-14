@@ -2156,11 +2156,16 @@ public final class Evita implements EvitaContract {
 		// register regular metrics extraction of the catalog - at most once per catalog name, because this method
 		// also runs on every schema modification and a JFR hook is never released unless we hand it back
 		final CatalogStatisticsHook hook = new CatalogStatisticsHook(catalogName);
-		// register first and retract on loss: a hook that reaches the JFR registry without reaching the map would
-		// be invisible to #retireStatisticsHooks, whereas a map entry whose hook is not (yet) registered is inert
+		// register first and record second: a hook that reaches the JFR registry without reaching the map would be
+		// invisible to #retireStatisticsHooks, whereas a map entry whose hook is not yet registered is inert
 		FlightRecorder.addPeriodicEvent(CatalogStatisticsEvent.class, hook);
 		if (this.catalogStatisticsHooks.putIfAbsent(catalogName, hook) != null) {
+			// another registration for this catalog won the race - only one hook per name may survive
 			FlightRecorder.removePeriodicEvent(hook);
+		} else if (!isActive()) {
+			// `close()` ran between the check at the top of this method and the write above, so its drain has
+			// already passed this entry and nothing will walk the map again. Retire the hook here instead.
+			hook.retire();
 		}
 	}
 
@@ -2175,8 +2180,18 @@ public final class Evita implements EvitaContract {
 		if (!isActive()) {
 			return;
 		}
-		this.engineStatisticsHooks.add(hook);
+		// register first and record second, for the same reason as #emitCatalogStatistics: the reverse order lets
+		// a concurrent `retireStatisticsHooks()` read this hook out of the list and call `removePeriodicEvent` on
+		// it before it is registered - a no-op - and then clear the list, stranding the registration that follows
 		FlightRecorder.addPeriodicEvent(eventType, hook);
+		this.engineStatisticsHooks.add(hook);
+		if (!isActive()) {
+			// `close()` ran between the check above and the write, so the drain has already passed this list.
+			// The two orders interlock: this thread writes the list then reads `active`, while `close()` writes
+			// `active` then reads the list, so at least one of the two always observes the other.
+			this.engineStatisticsHooks.remove(hook);
+			FlightRecorder.removePeriodicEvent(hook);
+		}
 	}
 
 	/**
