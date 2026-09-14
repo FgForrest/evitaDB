@@ -106,9 +106,25 @@ public interface ExternalApiTracingContext<C> {
 	@Nullable
 	static String currentRequestStart() {
 		final ServiceRequestContext requestContext = ServiceRequestContext.currentOrNull();
-		if (requestContext == null) {
-			return null;
-		}
+		return requestContext == null ? null : requestStartOf(requestContext);
+	}
+
+	/**
+	 * Returns the instant the given request started, as epoch milliseconds rendered to a string ready for
+	 * {@link TracingContext#MDC_REQUEST_START_PROPERTY}.
+	 *
+	 * This is the form to reach for whenever the request context is **held** rather than current. A thread serving
+	 * an HTTP request only has the context in a thread local for as long as Armeria's `serve(...)` call is on its
+	 * stack: a handler that chains its work onto the request body - every JSON API endpoint that reads one does -
+	 * resumes from the aggregation callback *after* that call returned, on a thread where
+	 * {@link #currentRequestStart()} can only answer null. The context object itself is still reachable there, and
+	 * it still knows when the request started.
+	 *
+	 * @param requestContext the context of the request being served
+	 * @return epoch milliseconds of the request start as a string, or null when the context cannot report one
+	 */
+	@Nullable
+	static String requestStartOf(@Nonnull ServiceRequestContext requestContext) {
 		final RequestLogAccess logAccess = requestContext.log();
 		// REQUEST_START_TIME is set inside the ServiceRequestContext constructor, so this holds for anything that can
 		// observe the context at all - the guard is what keeps `partial()` from throwing if that ever changes
