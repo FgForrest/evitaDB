@@ -40,6 +40,7 @@ import io.evitadb.core.executor.ClientRunnableTask;
 import io.evitadb.core.management.RestorationSteps.RestorationStepsFactory;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.core.transaction.engine.EngineMutationPrecondition;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.export.ExportService;
@@ -84,8 +85,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import org.mockito.ArgumentCaptor;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -288,10 +292,70 @@ class PublishRestoredCatalogTaskTest {
 		@Nonnull ServerTask<?, FileForFetch> backupTask,
 		@Nonnull RestorationStepsFactory stepsFactory
 	) {
+		return taskWith(backupTask, stepsFactory, null);
+	}
+
+	/**
+	 * Builds the task under test, saying which catalog held the target name when the operation was submitted.
+	 *
+	 * @param backupTask             the preceding step, consulted for the archive it produced
+	 * @param stepsFactory           builds the unpack-and-register steps
+	 * @param expectedTargetFolderId folder the target name was bound to at submission, or `null` when nothing
+	 *                               held it
+	 * @return the task, not yet issued
+	 */
+	@Nonnull
+	private PublishRestoredCatalogTask taskWith(
+		@Nonnull ServerTask<?, FileForFetch> backupTask,
+		@Nonnull RestorationStepsFactory stepsFactory,
+		@Nullable CatalogFolderId expectedTargetFolderId
+	) {
 		return new PublishRestoredCatalogTask(
-			SOURCE_CATALOG, TEMPORARY_CATALOG, SOURCE_CATALOG,
+			SOURCE_CATALOG, TEMPORARY_CATALOG, SOURCE_CATALOG, expectedTargetFolderId,
 			this.evita, this.exportService, this.fileManagementService, stepsFactory, backupTask
 		);
+	}
+
+	/**
+	 * Stubs the swap so that it reports success whatever expectations it is handed. The expectations are what the
+	 * tests below assert on, so the stub must not constrain them.
+	 */
+	private void stubSwap() {
+		when(
+			this.evita.replaceCatalogWithProgress(
+				eq(TEMPORARY_CATALOG), eq(SOURCE_CATALOG), any(EngineMutationPrecondition[].class)
+			)
+		).thenReturn(completedProgress());
+	}
+
+	/**
+	 * Reads back the expectations the task handed to the swap.
+	 *
+	 * @return every precondition passed, in the order given
+	 */
+	@Nonnull
+	private List<EngineMutationPrecondition> capturedPreconditions() {
+		// captured as the array rather than as the component type: a component-typed captor stands for exactly one
+		// vararg, so it would not match the two expectations the swap actually hands over
+		final ArgumentCaptor<EngineMutationPrecondition[]> captor =
+			ArgumentCaptor.forClass(EngineMutationPrecondition[].class);
+		verify(this.evita).replaceCatalogWithProgress(
+			eq(TEMPORARY_CATALOG), eq(SOURCE_CATALOG), captor.capture()
+		);
+		return List.of(captor.getValue());
+	}
+
+	/**
+	 * Stubs the swap so that it reports the passed failure whatever expectations it is handed.
+	 *
+	 * @param cause failure the swap reports
+	 */
+	private void stubFailingSwap(@Nonnull RuntimeException cause) {
+		when(
+			this.evita.replaceCatalogWithProgress(
+				eq(TEMPORARY_CATALOG), eq(SOURCE_CATALOG), any(EngineMutationPrecondition[].class)
+			)
+		).thenReturn(failedProgress(cause));
 	}
 
 	/**
@@ -362,11 +426,82 @@ class PublishRestoredCatalogTaskTest {
 	class Publishing {
 
 		@Test
+		@DisplayName("Demands the target name is still free when nothing held it at submission")
+		void shouldDemandTheTargetIsStillFreeWhenItWasFree() {
+			// Minutes pass before the swap runs, and another operation may create a catalog under the name in
+			// between. Swapping on the name alone would destroy it on the strength of an observation made before
+			// it existed, so the swap has to say it expected the name to be free rather than merely to be free of
+			// anything it recognises.
+			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
+			stubSwap();
+			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), noOpSteps(), null);
+			task.transitionToIssued();
+
+			task.execute();
+
+			final List<EngineMutationPrecondition> preconditions = capturedPreconditions();
+			assertTrue(
+				preconditions.contains(EngineMutationPrecondition.expectingUnbound(SOURCE_CATALOG)),
+				"A restore aimed at a free name must require it to still be free at the swap, otherwise it " +
+					"overwrites whatever took the name meanwhile. Handed: " + preconditions
+			);
+		}
+
+		@Test
+		@DisplayName("Demands the target is still the very catalog that held the name at submission")
+		void shouldDemandTheTargetIsStillTheSameCatalog() {
+			// `overwriteTarget` says *that name*, not *that catalog*. A catalog dropped and recreated under the
+			// target name while the restore ran is a different catalog, and replacing it was never what the client
+			// asked for - so the expectation is pinned to the folder, which never repeats for a name.
+			final CatalogFolderId targetAtSubmission = new CatalogFolderId(SOURCE_CATALOG + "_7");
+			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
+			stubSwap();
+			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), noOpSteps(), targetAtSubmission);
+			task.transitionToIssued();
+
+			task.execute();
+
+			final List<EngineMutationPrecondition> preconditions = capturedPreconditions();
+			assertTrue(
+				preconditions.contains(
+					EngineMutationPrecondition.expectingBoundTo(SOURCE_CATALOG, targetAtSubmission)
+				),
+				"A restore aimed at an occupied name must require that very catalog to still be there, not " +
+					"merely the name. Handed: " + preconditions
+			);
+		}
+
+		@Test
+		@DisplayName("Demands the scratch catalog is still the one this restore created")
+		void shouldDemandTheScratchIsStillOurs() {
+			// The other end of the same swap, and previously unguarded: the scratch name is ordinary once the
+			// claim is released, so another operation may drop this restore's scratch catalog and create its own
+			// under the same name. Publishing that one under the target name would serve a stranger's data as the
+			// restored result.
+			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
+			stubSwap();
+			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), noOpSteps(), null);
+			task.transitionToIssued();
+
+			task.execute();
+
+			final CatalogFolderId ourScratch = scratchFolderBinding.get();
+			assertNotNull(ourScratch, "The restoration steps must have recorded the folder they allocated.");
+			final List<EngineMutationPrecondition> preconditions = capturedPreconditions();
+			assertTrue(
+				preconditions.contains(
+					EngineMutationPrecondition.expectingBoundTo(TEMPORARY_CATALOG, ourScratch)
+				),
+				"The swap must require the scratch name to still hold this restore's own catalog. Handed: " +
+					preconditions
+			);
+		}
+
+		@Test
 		@DisplayName("Removes the intermediate archive once the swap has committed")
 		void shouldRemoveTheArchiveOnceTheSwapCommits() {
 			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
-			when(evita.replaceCatalogWithProgress(TEMPORARY_CATALOG, SOURCE_CATALOG))
-				.thenReturn(completedProgress());
+			stubSwap();
 			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), noOpSteps());
 			task.transitionToIssued();
 
@@ -400,8 +535,7 @@ class PublishRestoredCatalogTaskTest {
 					}
 				)
 			);
-			when(evita.replaceCatalogWithProgress(TEMPORARY_CATALOG, SOURCE_CATALOG))
-				.thenReturn(completedProgress());
+			stubSwap();
 			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), noOpSteps());
 			holder.set(task);
 			task.transitionToIssued();
@@ -423,8 +557,7 @@ class PublishRestoredCatalogTaskTest {
 		@DisplayName("Drops the temporary catalog and keeps the archive when the swap fails")
 		void shouldDropTheTemporaryCatalogAndKeepTheArchiveWhenTheSwapFails() {
 			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
-			when(evita.replaceCatalogWithProgress(TEMPORARY_CATALOG, SOURCE_CATALOG))
-				.thenReturn(failedProgress(new IllegalStateException("the swap failed")));
+			stubFailingSwap(new IllegalStateException("the swap failed"));
 			when(evita.deleteCatalogIfExistsWithProgress(TEMPORARY_CATALOG))
 				.thenReturn(Optional.of(completedProgress()));
 			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), noOpSteps());
@@ -456,7 +589,8 @@ class PublishRestoredCatalogTaskTest {
 			final CompletionException thrown = assertThrows(CompletionException.class, task::execute);
 
 			assertEquals("the catalog could not be loaded", thrown.getCause().getMessage());
-			verify(evita, never()).replaceCatalogWithProgress(anyString(), anyString());
+			verify(evita, never()).replaceCatalogWithProgress(
+				anyString(), anyString(), any(EngineMutationPrecondition[].class));
 			verify(evita).deleteCatalogIfExistsWithProgress(TEMPORARY_CATALOG);
 			assertTrue(exportService.deletedFiles.isEmpty());
 		}
@@ -580,8 +714,7 @@ class PublishRestoredCatalogTaskTest {
 					);
 				};
 			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
-			when(evita.replaceCatalogWithProgress(TEMPORARY_CATALOG, SOURCE_CATALOG))
-				.thenReturn(failedProgress(new IllegalStateException("the swap failed")));
+			stubFailingSwap(new IllegalStateException("the swap failed"));
 			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), hijackedSteps);
 			task.transitionToIssued();
 
@@ -594,8 +727,7 @@ class PublishRestoredCatalogTaskTest {
 		@DisplayName("Lets the original failure out when the clean-up fails as well")
 		void shouldNotMaskTheOriginalFailureWhenTheCleanUpAlsoFails() {
 			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
-			when(evita.replaceCatalogWithProgress(TEMPORARY_CATALOG, SOURCE_CATALOG))
-				.thenReturn(failedProgress(new IllegalStateException("the swap failed")));
+			stubFailingSwap(new IllegalStateException("the swap failed"));
 			when(evita.deleteCatalogIfExistsWithProgress(TEMPORARY_CATALOG))
 				.thenThrow(new IllegalStateException("the temporary catalog could not be dropped"));
 			final PublishRestoredCatalogTask task = taskWith(completedBackupTask(), noOpSteps());
@@ -636,7 +768,8 @@ class PublishRestoredCatalogTaskTest {
 			assertTrue(task.getFutureResult().isCancelled(), "The result future was not cancelled.");
 			assertFalse(unpackRan.get(), "The archive was unpacked after the task had been cancelled.");
 			assertFalse(registerRan.get(), "The temporary catalog was registered after the task was cancelled.");
-			verify(evita, never()).replaceCatalogWithProgress(anyString(), anyString());
+			verify(evita, never()).replaceCatalogWithProgress(
+				anyString(), anyString(), any(EngineMutationPrecondition[].class));
 			// cancelled before the unpacking step, so the folder was never allocated and nothing was ever
 			// registered under this name. Removing it regardless would be removing whatever else happens to
 			// answer to it - see the clean-up's ownership test below
@@ -678,8 +811,7 @@ class PublishRestoredCatalogTaskTest {
 			final CatalogFolderContext folderContext = TestCatalogFolderContexts.onDirectory(storageDirectory);
 			final RestoreFolderClaim claim = new RestoreFolderClaim();
 			when(evita.activateCatalogWithProgress(TEMPORARY_CATALOG)).thenReturn(completedProgress());
-			when(evita.replaceCatalogWithProgress(TEMPORARY_CATALOG, SOURCE_CATALOG))
-				.thenReturn(completedProgress());
+			stubSwap();
 			final PublishRestoredCatalogTask task = taskWith(
 				completedBackupTask(), claimingSteps(claim, folderContext, () -> null)
 			);

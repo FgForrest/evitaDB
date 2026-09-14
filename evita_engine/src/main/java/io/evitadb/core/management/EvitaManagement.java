@@ -67,6 +67,7 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.ExportServiceFactory;
 import io.evitadb.spi.store.engine.model.EngineState;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.Functions;
@@ -348,7 +349,15 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		// would otherwise be discovered only after all of that work had been done and thrown away. Refusing it
 		// while the client is still holding the call costs one comparison.
 		ClassifierUtils.validateClassifierFormat(ClassifierType.CATALOG, theTargetCatalogName);
-		if (!this.evita.getCatalogNames().contains(theTargetCatalogName)) {
+		// Remembered, not merely tested, and remembered as an *identity* rather than as a name or a yes/no. The
+		// swap is minutes away, and by then the target name may hold a different catalog than the one the client
+		// is looking at right now - or hold one where it was free. Told only "overwrite", the swap would take the
+		// name over in every case and destroy whatever had arrived in the meantime, on the strength of an
+		// observation made before that catalog existed. Carrying the folder the name is bound to turns that into
+		// a refusal: `null` records a name that was free, and anything else records the very catalog to replace.
+		final CatalogFolderId expectedTargetFolderId = this.evita.getEngineState()
+			.boundFolderIdFor(theTargetCatalogName);
+		if (expectedTargetFolderId == null) {
 			CatalogSchema.checkCatalogNameIsAvailable(this.evita, theTargetCatalogName);
 		}
 
@@ -378,7 +387,7 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 						"at version " + catalogVersion) + ".",
 				backupTask,
 				new PublishRestoredCatalogTask(
-					catalogName, temporaryCatalogName, theTargetCatalogName,
+					catalogName, temporaryCatalogName, theTargetCatalogName, expectedTargetFolderId,
 					this.evita, this.exportService, this.fileManagementService,
 					this::createRestorationSteps, backupTask
 				)

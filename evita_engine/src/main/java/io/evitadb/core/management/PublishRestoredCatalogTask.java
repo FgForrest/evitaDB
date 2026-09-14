@@ -23,6 +23,7 @@
 
 package io.evitadb.core.management;
 
+import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.progress.Progress;
@@ -34,6 +35,7 @@ import io.evitadb.core.executor.SequentialTask;
 import io.evitadb.core.management.RestorationSteps.RestorationStepsFactory;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.export.ExportService;
+import io.evitadb.core.transaction.engine.EngineMutationPrecondition;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.IOUtils;
@@ -107,11 +109,19 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 	 * The backup step of the enclosing sequence, consulted for the archive it produced.
 	 */
 	private final ServerTask<?, FileForFetch> backupTask;
+	/**
+	 * Folder the target name was bound to when the operation was submitted, or `null` when no catalog held it.
+	 *
+	 * This is the catalog the client asked to replace, pinned by identity rather than by name so that the swap can
+	 * tell it from any later catalog wearing the same name. See {@link #swapIntoTarget}.
+	 */
+	@Nullable private final CatalogFolderId expectedTargetFolderId;
 
 	PublishRestoredCatalogTask(
 		@Nonnull String catalogName,
 		@Nonnull String temporaryCatalogName,
 		@Nonnull String targetCatalogName,
+		@Nullable CatalogFolderId expectedTargetFolderId,
 		@Nonnull Evita evita,
 		@Nonnull ExportService exportService,
 		@Nonnull FileManagementService fileManagementService,
@@ -131,6 +141,7 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 		this.fileManagementService = fileManagementService;
 		this.restorationStepsFactory = restorationStepsFactory;
 		this.backupTask = backupTask;
+		this.expectedTargetFolderId = expectedTargetFolderId;
 	}
 
 	/**
@@ -183,7 +194,12 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 			// the swap is the only client-visible moment of the whole operation, and the last one that can be
 			// abandoned cleanly - once it commits, the temporary name no longer denotes anything to clean up
 			abortIfCancelled();
-			this.evita.replaceCatalogWithProgress(temporaryCatalogName, targetCatalogName)
+			final CatalogFolderId scratchFolderId = restoration.claim().allocatedFolderId();
+			Assert.isPremiseValid(
+				scratchFolderId != null,
+				"Restored catalog `" + temporaryCatalogName + "` was activated without a folder allocation!"
+			);
+			swapIntoTarget(temporaryCatalogName, targetCatalogName, scratchFolderId)
 				.onCompletion()
 				.toCompletableFuture()
 				.join();
@@ -285,6 +301,51 @@ class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatal
 			percent -> updateProgress(PROGRESS_UNPACKED + (percent * band) / 100)
 		);
 		activation.onCompletion().toCompletableFuture().join();
+	}
+
+	/**
+	 * Makes the restored catalog the one served under the target name.
+	 *
+	 * One operation covers every case - replace-in-place, replace-another-catalog and create-new are the same
+	 * request - and what makes it safe is not the operation but the two expectations handed to it. Both names are
+	 * chosen long before they are used: the target when the client submits the operation, the scratch when the
+	 * restore allocates it. By the time the swap runs, minutes later after a backup, an unpack and a load, either
+	 * name may have come to hold something else. Swapping on the names alone would take over a catalog nobody
+	 * asked about, and report success for it.
+	 *
+	 * So the swap states what it means rather than what it is aimed at:
+	 *
+	 * - the **target** must still be bound to whatever it was bound to at submission - the catalog the client
+	 *   asked to replace, or nothing at all if the client aimed at a free name;
+	 * - the **scratch** must still be bound to the folder this restore allocated, so that a scratch catalog
+	 *   dropped and recreated by another operation is never the thing published under the target name.
+	 *
+	 * A restore aimed at a free name therefore fails rather than overwriting a stranger, and one aimed at an
+	 * occupied name replaces exactly the catalog the client meant - not merely the name it wore.
+	 *
+	 * The refusal is decided atomically with the swap, not merely earlier than it: the expectations are tested
+	 * inside the engine-state lock, in the same critical section that registers the mutation's catalog conflict
+	 * keys, and those keys then hold both names until the operation completes.
+	 *
+	 * @param temporaryCatalogName name the restored catalog currently answers to
+	 * @param targetCatalogName    name it is to be served under
+	 * @param scratchFolderId      folder this restore allocated for the scratch catalog
+	 * @return progress of the engine mutation performing the swap
+	 */
+	@Nonnull
+	private Progress<CommitVersions> swapIntoTarget(
+		@Nonnull String temporaryCatalogName,
+		@Nonnull String targetCatalogName,
+		@Nonnull CatalogFolderId scratchFolderId
+	) {
+		return this.evita.replaceCatalogWithProgress(
+			temporaryCatalogName,
+			targetCatalogName,
+			EngineMutationPrecondition.expectingBoundTo(temporaryCatalogName, scratchFolderId),
+			this.expectedTargetFolderId == null ?
+				EngineMutationPrecondition.expectingUnbound(targetCatalogName) :
+				EngineMutationPrecondition.expectingBoundTo(targetCatalogName, this.expectedTargetFolderId)
+		);
 	}
 
 	/**

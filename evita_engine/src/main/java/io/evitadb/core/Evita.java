@@ -101,6 +101,7 @@ import io.evitadb.core.session.SessionRegistry;
 import io.evitadb.core.session.SuspendOperation;
 import io.evitadb.core.session.SuspensionInformation;
 import io.evitadb.core.session.task.SessionKiller;
+import io.evitadb.core.transaction.engine.EngineMutationPrecondition;
 import io.evitadb.core.transaction.engine.EngineTransactionManager;
 import io.evitadb.core.transaction.engine.operators.DefaultUpgradeExecutor;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -265,8 +266,27 @@ public final class Evita implements EvitaContract {
 	 * object that occupied it, because a folder left behind by a failed operation is exactly what the next
 	 * allocation must not collide with. Its counters burn a number per attempt rather than per success, and are
 	 * seeded at boot from the peaks the engine state carries.
+	 *
+	 * **A counter is never retired while the process runs**, so a generation this instance has handed out for
+	 * a name is never handed out for that name again. That is what lets a {@link CatalogFolderId} serve as the
+	 * identity of one *incarnation* of a catalog rather than merely of its name: the token embeds the generation,
+	 * so a catalog dropped and recreated under the same name is necessarily bound to a different token, and an
+	 * expectation recorded against the old one can no longer be satisfied by the new catalog. Retiring the
+	 * counters of names nothing refers to any more would cost exactly that guarantee - a recreated catalog would
+	 * restart at the first generation and reproduce a token a caller may still be holding an expectation against.
+	 *
+	 * **The retention this gives up is bounded by the set of catalog names, not by how often they churn.** Only
+	 * {@link SequenceType#CATALOG_GENERATION} is recorded here, so the map holds one `SequenceKey` and one
+	 * counter per *distinct* name the process has ever materialised - creating and dropping the same catalog a
+	 * million times adds one entry, not a million. The number of distinct catalog names a database uses is small
+	 * and does not grow with traffic, which is what makes keeping them the cheap side of this trade.
+	 *
+	 * The guarantee is bounded by the process because it is the *counter* that carries it and the counter is
+	 * in-memory: across a restart the seeding above is all that keeps generations from repeating, and no
+	 * production path records a peak (see `seedCatalogGenerationSequences`). Everything that compares a folder
+	 * token to one captured earlier is therefore required to be work that cannot outlive the process.
 	 */
-	@Getter private final SequenceService catalogGenerationSequences = new SequenceService();
+	private final SequenceService catalogGenerationSequences = new SequenceService();
 	/**
 	 * List of futures that are used to load all catalogs in parallel during startup and when all are completed
 	 * the list is cleared.
@@ -858,6 +878,41 @@ public final class Evita implements EvitaContract {
 		assertActive();
 		return applyMutation(
 			new ModifyCatalogSchemaNameMutation(catalogNameToBeReplacedWith, catalogNameToBeReplaced, true));
+	}
+
+	/**
+	 * Replaces one catalog with another, but only while both names still hold the catalogs the caller issued the
+	 * operation against.
+	 *
+	 * This is the engine-internal form of {@link #replaceCatalogWithProgress(String, String)}, for work that
+	 * chooses its catalogs long before it swaps them - a restore names its target when it is requested and acts on
+	 * it once the data has been loaded, which can be minutes later. A name is not an identity over such an
+	 * interval: the target may be dropped, replaced, or - if it was free - taken. Replacing on the name alone
+	 * would then discard a catalog nobody asked to be discarded, and report success.
+	 *
+	 * Deliberately absent from {@link io.evitadb.api.EvitaContract}: an expectation is stated in terms of
+	 * {@link io.evitadb.spi.store.engine.model.CatalogFolderId}, which is the engine's private way of telling one
+	 * incarnation of a name from another, and it is only meaningful within the process that captured it. See
+	 * {@link EngineMutationPrecondition} for why the token is the identity used and what bounds that carries.
+	 *
+	 * @param catalogNameToBeReplacedWith name of the catalog that will take the other one's place
+	 * @param catalogNameToBeReplaced     name of the catalog that will be replaced
+	 * @param preconditions               what each name must still be bound to for the swap to go ahead
+	 * @return progress of the replacement
+	 * @throws io.evitadb.api.exception.UnexpectedCatalogIncarnationException when either name was substituted
+	 */
+	@Nonnull
+	public Progress<CommitVersions> replaceCatalogWithProgress(
+		@Nonnull String catalogNameToBeReplacedWith,
+		@Nonnull String catalogNameToBeReplaced,
+		@Nonnull EngineMutationPrecondition... preconditions
+	) {
+		assertActiveAndWritable();
+		return this.engineTransactionManager.applyMutation(
+			new ModifyCatalogSchemaNameMutation(catalogNameToBeReplacedWith, catalogNameToBeReplaced, true),
+			null,
+			preconditions
+		);
 	}
 
 	@Nonnull

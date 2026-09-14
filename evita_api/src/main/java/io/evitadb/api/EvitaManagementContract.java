@@ -239,8 +239,15 @@ public interface EvitaManagementContract {
 	 * **Where it lands.** `targetCatalogName` names the catalog that ends up holding the restored data; leaving it
 	 * unset - or setting it to `catalogName` - replaces the catalog the state was taken from, which is the ordinary
 	 * use. A different name is equally accepted whether or not a catalog already holds it: an existing one is
-	 * replaced on the same terms as the source would be, and a free one is simply created. The restored catalog is
-	 * registered, loaded and ready to serve, in the {@link CatalogState} its source held at the selected version -
+	 * replaced on the same terms as the source would be, and a free one is simply created. **Which catalog is to be
+	 * replaced is decided when this call is made, and held to at the swap - by identity rather than by name.** The
+	 * swap happens minutes later, and a name is not an identity over such an interval, so the operation fails
+	 * instead of publishing whenever the target stopped being what it was: a name that was free and has since been
+	 * taken, a catalog that has since been dropped, and a name now held by a *different* catalog all refuse alike.
+	 * Note the third case in particular - a target dropped and recreated under the same name is a different catalog,
+	 * and replacing it was never what was asked for. The failure arrives on the returned task rather than from this
+	 * call, and the restored data is discarded as described below. The restored
+	 * catalog is registered, loaded and ready to serve, in the {@link CatalogState} its source held at that version -
 	 * a source still {@link CatalogState#WARMING_UP} comes back warming up, and nothing here takes it live.
 	 *
 	 * **This destroys data, in three ways that are easy to overlook:**
