@@ -119,6 +119,9 @@ mcp-jdwp-inspector.log
 /data/*
 /**/evita-server-certificates/*
 /evita_server/logs
+# The server writes `logs/` relative to its working directory, so launching it from the reactor
+# root (as the benchmark scripts do) drops one here rather than under /evita_server.
+/logs/
 /evita_test/evita_functional_tests/export/*
 /evita_test/evita_functional_tests/data/*
 

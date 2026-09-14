@@ -667,6 +667,26 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	}
 
 	/**
+	 * Finds the reference identified by `referenceKey` in this container, **including one that has been
+	 * dropped**.
+	 *
+	 * {@link #findReference(ReferenceKey)} collapses "this container never held such a reference" and "it held
+	 * one and the batch removed it" into the same empty result, which is the right reading for a caller that
+	 * wants a usable reference. A caller that needs to tell a *stale key* from a *removal* cannot use it: a
+	 * batch removing a reference would look indistinguishable from one naming a key the container cannot
+	 * resolve. This accessor answers the position question instead and leaves the `exists()` decision to the
+	 * caller.
+	 *
+	 * @param referenceKey the key to locate
+	 * @return the reference the key resolves to, dropped or not, or `null` when the container holds none
+	 */
+	@Nullable
+	public Reference findReferenceIncludingDropped(@Nonnull ReferenceKey referenceKey) {
+		final int index = findReferenceIndex(referenceKey);
+		return index < 0 ? null : getReferences()[index];
+	}
+
+	/**
 	 * Finds a reference within the storage part that matches the given `referenceSchema`, `referenceKey`,
 	 * and the required `representativeAttributeValues`. If no matching reference is found, an exception
 	 * is thrown.

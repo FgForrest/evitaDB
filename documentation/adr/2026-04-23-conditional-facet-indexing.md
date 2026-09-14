@@ -1,7 +1,7 @@
 ---
 title: Conditional (partial) facet indexing via schema-compiled expression triggers, not per-mutation full-entity evaluation
 date: 2026-04-23
-updated: 2026-09-09 12:41
+updated: 2026-09-09 19:12
 status: accepted
 kind: feature
 issues: [8]
@@ -9,7 +9,11 @@ prs: [1136]
 areas: [evita_api/src/main/java/io/evitadb/api/requestResponse/mutation, evita_engine/src/main/java/io/evitadb/core/expression, evita_engine/src/main/java/io/evitadb/core/catalog, evita_engine/src/main/java/io/evitadb/index/mutation]
 supersedes: []
 superseded-by: []
-relates: [2026-04-23-bucketed-histogram-indexing, 2026-05-06-reference-histogram-statistics, 2026-05-27-range-and-multi-histogram-schema]
+relates:
+  - 2026-04-23-bucketed-histogram-indexing
+  - 2026-05-06-reference-histogram-statistics
+  - 2026-05-27-range-and-multi-histogram-schema
+  - 2026-09-09-sibling-resolver-partition-cardinality
 ---
 
 # Conditional (partial) facet indexing
@@ -295,6 +299,12 @@ not a parallel mechanism.
     trade reverses - and note the map need not be persisted, since every entity index is loaded eagerly at
     catalog open and it is therefore derivable, which removes the storage-format and BWC burden the
     original assessment assumed.
+  - **Answered on 2026-09-09 by `2026-09-09-sibling-resolver-partition-cardinality`.** Measured against a
+    production catalog: the walk is 0.78 ms at that catalog's 4,633 partitions, and 81-113 ms after one
+    schema edit that switches high-cardinality references to `FOR_FILTERING_AND_PARTITIONING`. Scaling is
+    **super-linear** - 40.7x the partitions costs 104.8x the time. The constant-factor change measured here
+    at 20-35 % by cost model is worth **4.7 %**. The reverse index is worth building only in a
+    size-thresholded form; the blanket structure costs 274.7 MiB against 24.6 MiB for 96 % of the benefit.
 
 - **Second post-ship bug, fixed 2026-09-08: a conditional facet never reached the owner's *sibling*
   partitions.** Reported as edee/eshop#2933 against `2026.2.6`, seen in production on two unrelated
