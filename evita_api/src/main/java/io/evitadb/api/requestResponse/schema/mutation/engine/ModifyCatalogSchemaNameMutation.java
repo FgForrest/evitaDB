@@ -92,15 +92,29 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 		if (!evita.getCatalogNames().contains(this.catalogName)) {
 			throw new InvalidSchemaMutationException("Catalog `" + this.catalogName + "` doesn't exist!");
 		}
-		if (!this.overwriteTarget) {
-			if (evita.getCatalogNames().contains(this.newCatalogName)) {
+		// Two different questions, and only the first of them is about what the caller intended. Whether an
+		// occupied target may be taken over is the caller's to declare; whether the resulting name set still
+		// holds unique names is a property of the state and cannot be waived by a flag.
+		if (evita.getCatalogNames().contains(this.newCatalogName)) {
+			if (!this.overwriteTarget) {
 				throw new InvalidSchemaMutationException(
 					"Catalog `" + this.newCatalogName + "` already exists! " +
 						"Use `overwriteTarget` flag to overwrite existing catalog."
 				);
 			}
-			// check the names in all naming conventions are unique among catalogs
-			CatalogSchema.checkCatalogNameIsAvailable(evita, this.newCatalogName);
+			// Nothing to check: the name is already held by the catalog being replaced, so its uniqueness was
+			// settled when that catalog was created, and replacing it only ever *removes* a name from the set -
+			// the old name of the catalog moving in. A set that was unique cannot stop being unique that way.
+		} else {
+			// A name nothing holds is a new name whatever `overwriteTarget` says, so it has to clear the same
+			// bar a rename does. Skipping this on the strength of the flag alone is how an overwrite aimed at a
+			// free name could introduce a catalog colliding with an existing one in some naming convention.
+			//
+			// Measured against every catalog *except* the one this mutation renames away. That catalog's name
+			// leaves the set in the same act that introduces the new one, so counting it makes the operation
+			// collide with itself: `myCatalog` to `my_catalog` is a legitimate rename that a check including
+			// the source refuses, because the two agree in camel case.
+			CatalogSchema.checkCatalogNameIsAvailable(evita, this.newCatalogName, this.catalogName);
 		}
 	}
 
@@ -141,9 +155,11 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 	public Stream<ConflictKey> collectConflictKeys(
 		@Nonnull ConflictGenerationContext context
 	) {
-		return Stream.of(
-			new CatalogConflictKey(this.catalogName),
-			new CatalogConflictKey(this.newCatalogName)
+		// the source name is given up rather than introduced, so it keeps a literal key; the target is introduced
+		// - including when it takes over an existing catalog - and claims every name it would occupy
+		return Stream.concat(
+			Stream.of(new CatalogConflictKey(this.catalogName)),
+			CatalogConflictKey.forIntroducedCatalogName(this.newCatalogName)
 		);
 	}
 

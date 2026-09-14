@@ -119,7 +119,8 @@ public class RestoreCatalogSchemaMutation implements TopLevelCatalogSchemaMutati
 	public Stream<ConflictKey> collectConflictKeys(
 		@Nonnull ConflictGenerationContext context
 	) {
-		return Stream.of(new CatalogConflictKey(this.catalogName));
+		// a restore materialises a new catalog under this name, so it claims the whole name space, not the literal
+		return CatalogConflictKey.forIntroducedCatalogName(this.catalogName);
 	}
 
 	@Override

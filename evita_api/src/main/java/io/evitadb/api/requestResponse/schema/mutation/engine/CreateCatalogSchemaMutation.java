@@ -135,9 +135,9 @@ public class CreateCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 	public Stream<ConflictKey> collectConflictKeys(
 		@Nonnull ConflictGenerationContext context
 	) {
-		return Stream.of(
-			new CatalogConflictKey(this.catalogName)
-		);
+		// every name this catalog would occupy, not just the literal one - see the factory for why a literal key
+		// lets two convention-colliding creates run concurrently and both succeed
+		return CatalogConflictKey.forIntroducedCatalogName(this.catalogName);
 	}
 
 	@Override

@@ -158,9 +158,10 @@
 		<surefire.useUnlimitedThreads>true</surefire.useUnlimitedThreads>
 		<surefire.threadCount>4</surefire.threadCount>
 		<!--
-			Heap of the single surefire fork. Defaults to 8g, which is what the GitHub-hosted CI
-			runners can carry - see the surefire-plugin comment below for why a bigger heap is
-			actively harmful there. Raise it ONLY through the `largeMachine` profile.
+			Heap of the single surefire fork. Defaults to 8g; CI (ci-dev.yml / pr-review.yml) raises
+			it to 9g via -D on the command line - see the surefire-plugin comment below for the
+			ceiling that sizing sits under, and why on a GitHub-hosted runner a bigger heap is not
+			automatically the better one. Locally, raise it ONLY through the `largeMachine` profile.
 		-->
 		<surefire.maxHeapSize>8g</surefire.maxHeapSize>
 		<!--
@@ -715,6 +716,17 @@
 						`surefire.useUnlimitedThreads`/`surefire.threadCount` (see root <properties>) to
 						cap concurrency to the runner's actual core count, which bounds the off-heap
 						driver and makes 8g a safe, comfortable step up from the previous 5g.
+
+						8g has since stopped being enough: the functional suite now hits a *contained*
+						`OutOfMemoryError: Java heap space` on the runner, which is the opposite failure
+						mode from the 12g OS-kill above - the fork died inside its own heap budget, so
+						the answer here really is more heap. Both CI workflows therefore also pass
+						`-Dsurefire.maxHeapSize=9g`. The step is deliberately one gigabyte and not more:
+						the thing that killed the 12g attempt was off-heap growth outside -Xmx, so every
+						gigabyte handed to the heap is one taken away from the driver that decides
+						whether the job survives at all. If 9g stops being enough, prefer lowering
+						`surefire.threadCount` over raising this again - fewer concurrently-alive
+						embedded instances shrinks both budgets at once.
 					-->
 					<!--
 						`jol.magicFieldOffset` lets JOL resolve field offsets on classes where
