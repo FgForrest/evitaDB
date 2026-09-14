@@ -1,7 +1,7 @@
 ---
 title: Restore a live catalog to an earlier version by composing backup, restore, activate and replace
 date: 2026-09-12
-updated: 2026-09-14 09:05
+updated: 2026-09-14 10:52
 status: accepted
 kind: feature
 issues: [1553]
@@ -196,13 +196,95 @@ straight off the collection size — an off-by-one restore fails rather than loo
   itself and is refused, even though the name it collides with leaves the set in the same act. The
   replace path had never reached that code before and so had never shown it; the rename path had, and
   was wrong for as long as it existed.
-- **The target name is checked when the operation is submitted and never reserved.** Minutes pass
-  before the swap uses it, and a catalog created under exactly that name in the meantime is replaced.
-  That is what the operation promises to do with an occupied target; what is surprising is only that
-  the decision "occupied or free" was taken much earlier, by someone who never saw that catalog. Left
-  alone for the same reason as the concurrent-restore case below: the engine has no per-catalog
-  *operation* lock to hang a reservation on, and the up-front check still buys the thing that matters,
-  which is failing on a malformed or colliding name before minutes of copying rather than after.
+- **A name is not an identity, and the swap now says which catalog it meant.** The target is chosen
+  when the operation is submitted and used minutes later, after a backup, an unpack and a load. In
+  between the name may be dropped, dropped and recreated, or — if it was free — taken. Acting on the
+  name alone destroys a catalog nobody asked about and reports success for it. The same is true at
+  the other end: the scratch name is ordinary once `RestoreFolderClaim` is released, so another
+  operation may drop this restore's scratch catalog and create its own under that name.
+  Both ends are now closed by one mechanism. `EngineMutationPrecondition` records what a name must
+  still be bound to, and `EngineTransactionManager#applyMutation` tests it **after**
+  `verifyApplicability` and **before** conflict-key registration, inside `engineStateLock`. That
+  placement is the point: from registration onwards the mutation's own `CatalogConflictKey`s hold
+  both names until it completes, so the precondition covers exactly the interval the keys do not —
+  submission to acceptance — and the two compose with no gap and no overlap.
+  **The identity compared is the folder token**, not the catalog's UUID and not its health.
+  `UnusableCatalog#getCatalogId` throws, and a corrupted target is precisely when getting this wrong
+  costs most; the question being asked is whether the catalog was *substituted*, not whether it is
+  well. A folder token answers it for a catalog in any state.
+  **That required making folder generations monotonic**, which is a change to pre-existing engine
+  behaviour and the part most likely to surprise. A token is `name_generation`, and the generation
+  came from a counter that was *retired* once a name's last tombstone was discharged — so a catalog
+  dropped, drained and recreated redrew generation 1 and reproduced a byte-identical token. An
+  expectation recorded against the old catalog would have been satisfied by the new one: an ABA, and
+  reachable exactly in the common case where the observed catalog was the name's first incarnation.
+  The retirement is therefore gone, and the memory it was protecting turns out not to need
+  protecting. It existed to stop a server that churns catalogs from retaining counters forever — but
+  the engine-scoped service holds only `CATALOG_GENERATION`, so it keeps one entry per *distinct*
+  catalog name, not one per create/drop cycle. Creating and dropping the same catalog a million times
+  costs one entry. The distinct-name set of a database is small and does not grow with traffic, so
+  the retirement was buying a bounded handful of entries and paying for them with the only property
+  that makes a folder token an identity rather than a label.
+  **The guarantee is bounded by the process**, deliberately. The counter is in memory and nothing
+  records a durable `CatalogGenerationPeak`, so generations can repeat across a restart. That is
+  sound here because an in-flight restore cannot outlive the process that started it — but it is a
+  precondition on *use*, written on `EngineMutationPrecondition`: the mechanism must not be given to
+  anything resumed from durable state.
+  **Rejected: recording generation peaks** to close the cross-restart half too. The record, its
+  serialization and `Evita#seedCatalogGenerationSequences` all already exist and only the write is
+  missing, so it is smaller than it sounds — but it puts a new obligation on every operation that
+  draws a generation, for a case no current caller can reach. Worth doing when a preconditioned
+  operation needs to survive a restart; not before.
+  **Rejected: a per-catalog incarnation UUID in engine state.** The cleanest semantics and immune to
+  both ABA paths, but it changes the `EngineState` format and its serializer for a property the
+  folder token already carries once the counter stops going backwards.
+  **Rejected: reserving the target name** through `CatalogFolderContext#allocateFolderFor`, the
+  mechanism `RestoreFolderClaim` already uses for the scratch name. It creates a provisional
+  directory purely as a mutex — one the restore never writes to and has to reclaim — it holds a name
+  for minutes, and it guards only *materialisation*, so it says nothing about a target that already
+  exists.
+- **Refusing an absent target is a behaviour change, and the intended one.** `replaceCatalog`
+  tolerates a target name no catalog holds, and a restore aimed at an occupied name that has since
+  been dropped could therefore still publish into the free name. It no longer does: the request was
+  compare-and-replace of the catalog observed at submission, and once that catalog is gone,
+  degrading to "publish into whatever name is free" is not the same operation. Documented on
+  `EvitaManagementContract#restoreCatalogToVersion`.
+- **Conflict keys were exact-name while applicability is convention-wide; they now agree.**
+  `CatalogConflictKey` wraps one `String`, so a swap into `reports_archive` and a create of
+  `reportsArchive` emitted disjoint keys and were never serialised against each other — while
+  `checkCatalogNameIsAvailable` treats them as the same name. Both passed a uniqueness check that
+  neither could yet see the other's result, and both committed, leaving two catalogs whose names
+  collide by convention, durably and across restart.
+  The race was **asymmetric**, which is why it had gone unnoticed: a create accepted first installs
+  its `BEING_CREATED` placeholder synchronously, while still holding `engineStateLock`
+  (`CreateCatalogMutationOperator:124`, before its future at `:131`), so a later swap fails its
+  convention scan. But `ModifyCatalogSchemaNameMutationOperator` runs its transition updater zero
+  times on the success path — its comment at `:243` calls this the codebase's only such exception —
+  and publishes at `:493` inside its asynchronous completion. So a swap accepted first is invisible
+  to a later create.
+  `CatalogConflictKey#forIntroducedCatalogName` now returns the raw name plus every
+  `NamingConvention` variant, and the four mutations that *introduce* a name use it: create,
+  restore, duplicate (for `newCatalogName`) and rename/replace (for `newCatalogName`). This works
+  despite the asymmetry, because `verifyEngineMutationIsNotInConflictWithOthers` consults the
+  registered key map rather than engine state, so it does not care that the rename has published
+  nothing yet.
+  **The raw name is claimed alongside the variants, and that is not redundant.**
+  `ClassifierUtils#validateClassifierFormat` admits names no convention reproduces —
+  `Reports_Archive` generates none of itself — so a variant-only claim would stop intersecting the
+  keys of every catalog-scoped mutation, which key the literal name (`AbstractAttributeSchemaMutation`
+  and the four evolution/description mutations beside it). That would have traded one race for
+  another.
+  **A name that is given up, or merely acted on, keeps its literal key.** Only the introduced name is
+  widened — the rename's source, the duplicate's source, and every single-catalog mutation are
+  already unique by construction, so widening them would serialise unrelated work for no benefit.
+  The transactional commit path is untouched: `DefaultIsolatedWalService` still keys the literal
+  catalog name.
+  **The claim is marginally wider than the uniqueness rule, not identical to it.** Uniqueness
+  compares two names *within one convention* (`CatalogSchema` looks the new name up by the existing
+  variant's own convention); intersecting key sets also match across conventions. No pair of names is
+  believed to satisfy the second without the first, since the conventions render into mutually
+  exclusive character shapes — but it is a superset, so this must not be read as licence to answer
+  the uniqueness question with a key lookup.
 - **A failure inside the swap discards the restored copy; the target survives.**
   `ModifyCatalogSchemaNameMutationOperator` has a point of no return - the storage handover - and a
   failure past it declares a catalog `CORRUPTED` instead of compensating, because resuming sessions
