@@ -181,7 +181,13 @@ public interface TracingContext {
 	 * @param runnable        the operation to execute with client context
 	 * @param <T>             return type
 	 * @return the result of invoking the supplier
+	 * @deprecated an entry point that knows who called also knows when the call arrived, and publishing the one
+	 * without the other costs every log line written on a worker thread its duration. Both of evitaDB's own entry
+	 * points therefore call {@link #executeWithClientContext(String, String, String, Label[], Supplier)} instead,
+	 * leaving this shape with no caller; it is retained only because it shipped in `2026.2`. Pass an explicit
+	 * {@code null} request start to get the behaviour this overload provided.
 	 */
+	@Deprecated(since = "2026.3")
 	static <T> T executeWithClientContext(
 		@Nullable String clientIpAddress,
 		@Nullable String clientUri,
@@ -324,7 +330,11 @@ public interface TracingContext {
 	 * @param runnable the operation to execute with restored context
 	 * @param <T>      return type
 	 * @return the result of invoking the supplier
+	 * @deprecated nothing calls this - the one place that restores a captured context, `ObservableThreadExecutor`,
+	 * pairs {@link #setContext(CapturedContext)} with {@link #clearContext()} itself, because it has to restore the
+	 * context around a task it did not build the body of. Retained only because it shipped in `2026.2`.
 	 */
+	@Deprecated(since = "2026.3")
 	static <T> T executeWithClientContext(
 		@Nonnull CapturedContext context,
 		@Nonnull Supplier<T> runnable
@@ -1012,7 +1022,10 @@ public interface TracingContext {
 		 * @param clientIpAddress the client IP address (may be null)
 		 * @param clientUri       the request URI or endpoint path (may be null)
 		 * @param clientLabels    custom client-provided labels (may be null)
+		 * @deprecated retained only because this shape shipped in `2026.2` — nothing in evitaDB constructs it, and
+		 * a context built this way carries no request start. Use the canonical constructor.
 		 */
+		@Deprecated(since = "2026.3")
 		public CapturedContext(
 			@Nullable String traceId,
 			@Nullable String clientId,
