@@ -1595,8 +1595,14 @@ public final class ContainerizedLocalMutationExecutor
 						this.referencesStorageContainer, List.of(), mutationCollector,
 						EnumSet.of(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES)
 					);
-				} else if (this.referencesStorageContainer != null && this.referencesStorageContainer.isDirty()) {
-					if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFLECTED_REFERENCES)) {
+				} else {
+					final boolean referencesDirty = this.referencesStorageContainer != null
+						&& this.referencesStorageContainer.isDirty();
+					// Reflected-reference propagation is driven purely by the batch's own
+					// `InsertReferenceMutation` / `RemoveReferenceMutation` entries, so a batch that names no
+					// reference has nothing for it to do. It keeps the dirty trigger it has always had.
+					if (referencesDirty
+						&& implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFLECTED_REFERENCES)) {
 						verifyReflectedReferences(
 							this.entityPrimaryKey, this.initialEntityScope, targetEntityScope,
 							inputMutations, mutationCollector,
@@ -1604,10 +1610,32 @@ public final class ContainerizedLocalMutationExecutor
 						);
 					}
 					if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES)) {
+						// Attribute verification does NOT share that trigger, because an added entity locale makes
+						// references non-compliant without touching any of them:
+						// `processReferenceAttributesWithDefaultValue` iterates the ENTITY locales for every
+						// localized mandatory / default-valued attribute. A batch that only writes a localized
+						// attribute or associated-data value in a locale the entity did not yet declare therefore
+						// leaves every existing reference short of that locale's value, and the reference container
+						// never becomes dirty to say so - it is usually not even loaded.
+						//
+						// Gating on the dirty flag alone made the outcome depend on an unrelated co-mutation: the
+						// same locale introduced alongside any reference write repaired EVERY reference, and
+						// introduced on its own repaired none. Loading the container for the locale-added case
+						// costs one storage read on a batch that adds an entity locale, which is rare; a clean
+						// container is never persisted (`addIfDirty`) and never sorted again
+						// (`assignMissingIdsAndSort` short-circuits once primary keys are assigned).
+						final ReferencesStoragePart referencesToVerify;
+						if (referencesDirty) {
+							referencesToVerify = this.referencesStorageContainer;
+						} else if (hasAddedEntityLocale()) {
+							referencesToVerify = getReferencesStoragePart(this.entityType, this.entityPrimaryKey);
+						} else {
+							referencesToVerify = null;
+						}
 						verifyReferenceAttributes(
 							targetEntityScope,
 							this.entityContainer,
-							this.referencesStorageContainer,
+							referencesToVerify,
 							inputMutations,
 							missingMandatedAttributes,
 							mutationCollector,
@@ -2801,6 +2829,11 @@ public final class ContainerizedLocalMutationExecutor
 	 *
 	 * Only {@link LocaleScope#ENTITY} counts: it is registered solely when the entity's own locale set actually
 	 * changed, so an attribute written in a locale the entity already declares does not trigger it.
+	 *
+	 * Answers two questions in {@link #popImplicitMutations}, and they are easy to confuse. It decides **whether**
+	 * an existing entity's references are verified at all when the reference container is clean - a locale-only
+	 * batch would otherwise be skipped entirely - and, once verification runs, **how much** of the container it
+	 * covers, by sending {@link #verifyReferenceAttributes} back to the full scan.
 	 *
 	 * @return true when at least one added locale carries {@link LocaleScope#ENTITY}
 	 */

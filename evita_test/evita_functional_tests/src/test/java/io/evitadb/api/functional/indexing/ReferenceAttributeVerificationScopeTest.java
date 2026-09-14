@@ -201,6 +201,95 @@ class ReferenceAttributeVerificationScopeTest implements EvitaTestSupport {
 	}
 
 	@Test
+	@DisplayName("a locale added on its own defaults every reference, exactly as a mixed batch does")
+	void untouchedReferencesAreDefaultedWhenAnEntityLocaleAppearsOnItsOwn() {
+		createProductWithTwoCategories();
+
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// The SAME locale introduction as the test above, with the one reference write removed - which is
+				// the whole point. Nothing here touches the reference container, so the batch is carried into
+				// verification by `hasAddedEntityLocale()` alone. Before that, the outcome of introducing a locale
+				// depended on whether the batch happened to write an unrelated reference as well: the mixed batch
+				// above repaired EVERY reference, this one repaired none.
+				session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_LABEL, GERMAN, "deutsches label")
+					.upsertVia(session);
+			}
+		);
+
+		this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity product = session
+					.getEntity(Entities.PRODUCT, 10, entityFetchAllContent())
+					.orElseThrow();
+				// guards the premise rather than the behaviour: were the locale not actually added, every
+				// assertion below would pass for the wrong reason
+				assertTrue(
+					product.getLocales().contains(GERMAN),
+					"the batch did not add the GERMAN entity locale - the rest of this test proves nothing"
+				);
+				assertEquals(
+					"default note", findReference(product, 1).getAttribute(ATTRIBUTE_NOTE, GERMAN),
+					"category 1 is missing its GERMAN default"
+				);
+				assertEquals(
+					"default note", findReference(product, 2).getAttribute(ATTRIBUTE_NOTE, GERMAN),
+					"category 2 is missing its GERMAN default"
+				);
+				assertEquals(
+					"default note", findReference(product, 1).getAttribute(ATTRIBUTE_NOTE, ENGLISH),
+					"category 1 lost its ENGLISH default"
+				);
+				assertEveryReferenceCompliant(product, schemaOf(session));
+			}
+		);
+	}
+
+	@Test
+	@DisplayName("a batch changing nothing about locales still verifies only what it named")
+	void batchWithoutANewLocaleStillVerifiesOnlyTheReferencesItNamed() {
+		createProductWithTwoCategories();
+		addLateDefaultValuedAttributeToReferenceSchema();
+
+		// The negative control for the test above: an entity attribute written in a locale the entity ALREADY
+		// declares registers no `LocaleScope.ENTITY` addition, so the narrowing must still hold. Without this,
+		// carrying locale-adding batches into verification could quietly widen into "any entity-body write
+		// re-scans every reference", which is the regression #1531 exists to prevent.
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_LABEL, ENGLISH, "changed english label")
+					.upsertVia(session);
+			}
+		);
+
+		this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity product = session
+					.getEntity(Entities.PRODUCT, 10, entityFetchAllContent())
+					.orElseThrow();
+				assertNull(
+					findReference(product, 1).getAttribute(ATTRIBUTE_LATE_NOTE),
+					"a batch that added no entity locale must not re-scan the references it never named"
+				);
+				assertNull(
+					findReference(product, 2).getAttribute(ATTRIBUTE_LATE_NOTE),
+					"a batch that added no entity locale must not re-scan the references it never named"
+				);
+			}
+		);
+	}
+
+	@Test
 	@DisplayName("a reference added to an existing entity is still defaulted")
 	void referenceAddedToExistingEntityIsDefaulted() {
 		this.evita.updateCatalog(
