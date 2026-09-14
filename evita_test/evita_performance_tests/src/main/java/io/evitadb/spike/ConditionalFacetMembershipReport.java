@@ -36,6 +36,7 @@ import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
+import io.evitadb.utils.Assert;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
@@ -245,16 +246,25 @@ public class ConditionalFacetMembershipReport {
 		@Nonnull Map<String, ReducedIndexMembership> simulated,
 		@Nonnull List<String> extraSiblings
 	) {
-		String trigger = null;
+		final List<String> triggers = new ArrayList<>(4);
 		final List<ReferenceSchemaContract> siblings = new ArrayList<>(16);
 		for (final ReferenceSchemaContract reference : collection.getSchema().getReferences().values()) {
 			if (reference.getFacetedPartiallyInScope(Scope.LIVE) != null) {
-				trigger = reference.getName();
+				triggers.add(reference.getName());
 			}
 			if (reference.getReferenceIndexType(Scope.LIVE) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING) {
 				siblings.add(reference);
 			}
 		}
+		// Assigning `trigger` on every match measured only the LAST conditional-facet reference. Each trigger
+		// excludes a different sibling and carries its own affected-owner distribution, so one timing does not
+		// describe the others; ambiguous input fails rather than silently picking one.
+		Assert.isTrue(
+			triggers.size() <= 1,
+			"Collection `" + collection.getSchema().getName() + "` carries " + triggers.size()
+				+ " facetedPartially references " + triggers + " - re-run this report once per trigger."
+		);
+		final String trigger = triggers.isEmpty() ? null : triggers.get(0);
 		for (final String extra : extraSiblings) {
 			final ReferenceSchemaContract reference = collection.getSchema().getReference(extra).orElse(null);
 			if (reference != null && siblings.stream().noneMatch(it -> it.getName().equals(extra))) {
@@ -740,13 +750,24 @@ public class ConditionalFacetMembershipReport {
 	 */
 	@Nonnull
 	private static List<Bitmap> shapes(@Nonnull EntityCollection collection, @Nonnull String mutated) {
-		final ReferencedTypeEntityIndex typeIndex =
-			typeIndex(collection, EntityIndexType.REFERENCED_ENTITY_TYPE, mutated);
-		if (typeIndex == null) {
+		// BOTH families - see `ConditionalFacetSiblingResolverReport#shapes`. A group-dependent trigger draws
+		// its affected owners from REFERENCED_GROUP_ENTITY_TYPE, and sampling only the entity family measured
+		// the wrong owner set without ever looking empty.
+		final List<Integer> pks = new ArrayList<>();
+		boolean anyFamily = false;
+		for (final EntityIndexType family : new EntityIndexType[]{
+			EntityIndexType.REFERENCED_ENTITY_TYPE, EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE
+		}) {
+			final ReferencedTypeEntityIndex typeIndex = typeIndex(collection, family, mutated);
+			if (typeIndex == null) {
+				continue;
+			}
+			anyFamily = true;
+			typeIndex.forEachReferenceIndexPrimaryKey(pks::add);
+		}
+		if (!anyFamily) {
 			return List.of();
 		}
-		final List<Integer> pks = new ArrayList<>();
-		typeIndex.forEachReferenceIndexPrimaryKey(pks::add);
 		Bitmap smallest = null;
 		Bitmap largest = null;
 		for (final int pk : pks) {
@@ -807,7 +828,7 @@ public class ConditionalFacetMembershipReport {
 		Arrays.sort(sorted);
 		System.out.printf(
 			"    %-10s median %,12d ns   p95 %,12d ns%n",
-			label, sorted[sorted.length / 2], sorted[(int) (sorted.length * 0.95)]
+			label, sorted[sorted.length / 2], sorted[p95Index(sorted.length)]
 		);
 	}
 
@@ -898,4 +919,20 @@ public class ConditionalFacetMembershipReport {
 	 */
 	private ConditionalFacetMembershipReport() {
 	}
+
+	/**
+	 * Nearest-rank index of the 95th percentile in a sorted array of `length` samples.
+	 *
+	 * `(int) (length * 0.95)` is NOT that index - it sits one rank high at every length, and for small sample
+	 * counts it degenerates: at `length`=20 it returns the maximum and calls it p95. The nearest-rank
+	 * definition is `ceil(0.95 * length)`, converted to a 0-based index and clamped so an empty or
+	 * single-element array cannot index out of bounds.
+	 *
+	 * @param length number of samples
+	 * @return index of the p95 sample
+	 */
+	private static int p95Index(int length) {
+		return Math.max(0, Math.min(length - 1, (int) Math.ceil(0.95 * length) - 1));
+	}
+
 }

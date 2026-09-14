@@ -45,6 +45,7 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.builder.SortableAttributeCompoundSchemaBuilder;
 import io.evitadb.dataType.Scope;
+import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -404,8 +405,9 @@ public class CatalogCopySupport {
 		if (raw.isBlank()) {
 			return Set.of();
 		}
-		final Set<String> result = new HashSet<>(8);
-		for (final String name : raw.split(",")) {
+		final String[] names = raw.split(",");
+		final Set<String> result = CollectionUtils.createHashSet(names.length);
+		for (final String name : names) {
 			final String trimmed = name.trim();
 			if (!trimmed.isEmpty()) {
 				result.add(trimmed);

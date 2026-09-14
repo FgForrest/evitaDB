@@ -38,6 +38,7 @@ import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.dataType.Scope;
+import io.evitadb.utils.Assert;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.ReferencedTypeEntityIndex;
@@ -205,16 +206,35 @@ public class ConditionalFacetSiblingResolverReport {
 
 			final List<String> partitioned = new ArrayList<>();
 			String trigger = null;
+			final List<String> triggers = new ArrayList<>(4);
 			for (final ReferenceSchemaContract reference : collection.getSchema().getReferences().values()) {
 				if (reference.getReferenceIndexType(Scope.LIVE)
 					== ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING) {
 					partitioned.add(reference.getName());
 				}
 				if (reference.getFacetedPartiallyInScope(Scope.LIVE) != null) {
-					trigger = reference.getName();
+					triggers.add(reference.getName());
 				}
 			}
-			partitioned.addAll(extraSiblings);
+			// Assigning `trigger` on every match measured only the LAST conditional-facet reference in the
+			// schema. Each trigger excludes a different sibling from its own walk and carries its own
+			// affected-owner distribution, so a timing taken for one of them is not valid for the others.
+			// Ambiguous input now fails rather than silently picking one.
+			Assert.isTrue(
+				triggers.size() <= 1,
+				"Collection `" + collection.getSchema().getName() + "` carries " + triggers.size()
+					+ " facetedPartially references " + triggers + " - each is a separate trigger with its own"
+					+ " excluded sibling and owner distribution. Re-run this report once per trigger, naming"
+					+ " the one to measure, rather than accepting a number that describes only one of them."
+			);
+			trigger = triggers.isEmpty() ? null : triggers.get(0);
+			// de-duplicated, so a CLI-supplied extra that is already partitioned cannot be probed twice and
+			// cannot leave a second copy of the mutated reference behind the single `remove` below
+			for (final String extra : extraSiblings) {
+				if (!partitioned.contains(extra)) {
+					partitioned.add(extra);
+				}
+			}
 			partitioned.sort(String::compareTo);
 			// the walk excludes the reference the trigger fires for; on a schema with no conditional facet at
 			// all there is nothing to exclude and every partitioned reference is a sibling
@@ -369,7 +389,7 @@ public class ConditionalFacetSiblingResolverReport {
 		final long median = sorted[sorted.length / 2];
 		System.out.printf(
 			"  %-26s %,12d %,12d %12s %,10d%n",
-			label, median, sorted[(int) (sorted.length * 0.95)],
+			label, median, sorted[p95Index(sorted.length)],
 			probes == 0L ? "n/a" : String.format("%.1f", median / (double) probes), probes
 		);
 	}
@@ -403,14 +423,27 @@ public class ConditionalFacetSiblingResolverReport {
 		if (mutated == null) {
 			return shapes;
 		}
-		final ReferencedTypeEntityIndex typeIndex = typeIndex(
-			collection, EntityIndexType.REFERENCED_ENTITY_TYPE, mutated
-		);
-		if (typeIndex == null) {
+		// BOTH families. Which one supplies a trigger's affected owners depends on its dependency type:
+		// `ReevaluateExpressionExecutor#resolveForGroupEntityAttribute` reads REFERENCED_GROUP_ENTITY_TYPE,
+		// `#resolveForReferencedEntityAttribute` reads REFERENCED_ENTITY_TYPE. Drawing only from the entity
+		// family measured a group-dependent trigger against the wrong owner set - and a reference carrying
+		// both families yields a plausible wrong answer rather than an empty one, which is why it went
+		// unnoticed. Taking the union keeps the sparse and dense ends honest whichever family the trigger uses.
+		final List<Integer> pks = new ArrayList<>();
+		boolean anyFamily = false;
+		for (final EntityIndexType family : new EntityIndexType[]{
+			EntityIndexType.REFERENCED_ENTITY_TYPE, EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE
+		}) {
+			final ReferencedTypeEntityIndex typeIndex = typeIndex(collection, family, mutated);
+			if (typeIndex == null) {
+				continue;
+			}
+			anyFamily = true;
+			typeIndex.forEachReferenceIndexPrimaryKey(pks::add);
+		}
+		if (!anyFamily) {
 			return shapes;
 		}
-		final List<Integer> pks = new ArrayList<>();
-		typeIndex.forEachReferenceIndexPrimaryKey(pks::add);
 		Bitmap smallest = null;
 		Bitmap largest = null;
 		for (final int pk : pks) {
@@ -866,4 +899,20 @@ public class ConditionalFacetSiblingResolverReport {
 	 */
 	private ConditionalFacetSiblingResolverReport() {
 	}
+
+	/**
+	 * Nearest-rank index of the 95th percentile in a sorted array of `length` samples.
+	 *
+	 * `(int) (length * 0.95)` is NOT that index - it sits one rank high at every length, and for small sample
+	 * counts it degenerates: at `length`=20 it returns the maximum and calls it p95. The nearest-rank
+	 * definition is `ceil(0.95 * length)`, converted to a 0-based index and clamped so an empty or
+	 * single-element array cannot index out of bounds.
+	 *
+	 * @param length number of samples
+	 * @return index of the p95 sample
+	 */
+	private static int p95Index(int length) {
+		return Math.max(0, Math.min(length - 1, (int) Math.ceil(0.95 * length) - 1));
+	}
+
 }

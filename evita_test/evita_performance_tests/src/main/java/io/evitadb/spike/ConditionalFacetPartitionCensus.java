@@ -281,7 +281,7 @@ public class ConditionalFacetPartitionCensus {
 		System.out.printf(
 			"      %-30s P=%,d  members=%,d  min=%,d  median=%,d  p95=%,d  largest=[%s]%n",
 			indexType, sizes.length, members, sizes[0], sizes[sizes.length / 2],
-			sizes[(int) (sizes.length * 0.95)], largest
+			sizes[p95Index(sizes.length)], largest
 		);
 	}
 
@@ -329,12 +329,22 @@ public class ConditionalFacetPartitionCensus {
 		// excludes - so simulating any other reference as the mutated one measures a trigger that cannot fire.
 		final List<String> mutatedCandidates = triggers.isEmpty() ? partitioned : triggers;
 		for (final String mutated : mutatedCandidates) {
+			// BOTH families, because which one supplies the affected owners depends on the trigger's dependency
+			// type: `ReevaluateExpressionExecutor#resolveForGroupEntityAttribute` reads
+			// REFERENCED_GROUP_ENTITY_TYPE, while `#resolveForReferencedEntityAttribute` reads
+			// REFERENCED_ENTITY_TYPE. Sampling only the entity family measured a group-dependent trigger
+			// against the wrong owner set - and because a reference carrying both families yields a non-empty
+			// wrong answer rather than no answer, the result looked plausible.
+			for (final EntityIndexType mutatedFamily : new EntityIndexType[]{
+				EntityIndexType.REFERENCED_ENTITY_TYPE, EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE
+			}) {
 			final ReferencedTypeEntityIndex mutatedType = typeIndex(
-				collection, Scope.LIVE, mutated, EntityIndexType.REFERENCED_ENTITY_TYPE
+				collection, Scope.LIVE, mutated, mutatedFamily
 			);
 			if (mutatedType == null) {
 				continue;
 			}
+			System.out.printf("%n  --- mutated `%s`, owners drawn from %s ---%n", mutated, mutatedFamily);
 			final int[] samplePartitions = samplePartitionPks(collection, mutatedType);
 			for (final int samplePk : samplePartitions) {
 				final EntityIndex sample = collection.getIndexByPrimaryKeyIfExists(samplePk);
@@ -379,6 +389,7 @@ public class ConditionalFacetPartitionCensus {
 					totalProbed, totalIntersecting,
 					totalProbed == 0L ? 0.0 : totalIntersecting / (double) totalProbed
 				);
+			}
 			}
 		}
 	}
@@ -540,12 +551,20 @@ public class ConditionalFacetPartitionCensus {
 
 		final int spread = Math.min(FANOUT_SAMPLES, all.size());
 		final int biggest = Math.min(FANOUT_LARGEST_SAMPLES, bySize.size());
-		final int[] sampled = new int[spread + biggest];
+		// De-duplicated, because the two sample sets overlap: a partition that is both among the largest and
+		// hit by the positional stride would otherwise be simulated twice, which the `FANOUT_SAMPLES` javadoc
+		// promises it is not - and a repeat silently doubles that partition's weight in the reported fan-out.
+		final Set<Integer> seen = CollectionUtils.createLinkedHashSet(spread + biggest);
 		for (int i = 0; i < biggest; i++) {
-			sampled[i] = bySize.get(i);
+			seen.add(bySize.get(i));
 		}
 		for (int i = 0; i < spread; i++) {
-			sampled[biggest + i] = all.get((int) ((long) i * all.size() / spread));
+			seen.add(all.get((int) ((long) i * all.size() / spread)));
+		}
+		final int[] sampled = new int[seen.size()];
+		int cursor = 0;
+		for (final int pk : seen) {
+			sampled[cursor++] = pk;
 		}
 		return sampled;
 	}
@@ -654,4 +673,20 @@ public class ConditionalFacetPartitionCensus {
 	 */
 	private ConditionalFacetPartitionCensus() {
 	}
+
+	/**
+	 * Nearest-rank index of the 95th percentile in a sorted array of `length` samples.
+	 *
+	 * `(int) (length * 0.95)` is NOT that index - it sits one rank high at every length, and for small sample
+	 * counts it degenerates: at `length`=20 it returns the maximum and calls it p95. The nearest-rank
+	 * definition is `ceil(0.95 * length)`, converted to a 0-based index and clamped so an empty or
+	 * single-element array cannot index out of bounds.
+	 *
+	 * @param length number of samples
+	 * @return index of the p95 sample
+	 */
+	private static int p95Index(int length) {
+		return Math.max(0, Math.min(length - 1, (int) Math.ceil(0.95 * length) - 1));
+	}
+
 }
