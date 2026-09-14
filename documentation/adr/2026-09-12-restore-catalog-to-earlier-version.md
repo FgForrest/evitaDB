@@ -1,7 +1,7 @@
 ---
 title: Restore a live catalog to an earlier version by composing backup, restore, activate and replace
 date: 2026-09-12
-updated: 2026-09-14 11:38
+updated: 2026-09-14 11:44
 status: accepted
 kind: feature
 issues: [1553]
@@ -341,10 +341,17 @@ straight off the collection size — an off-by-one restore fails rather than loo
   the export directory is its own piece of work — but `PublishRestoredCatalogTask#fetchArchiveInto`
   turns the resulting `FileForFetchNotFoundException` into a message that names the cause, so the
   operator raises the limit instead of hunting a phantom.
-- **Unpacking progress is not forwarded.** The client sees the archive-fetch, unpack, activate and
-  swap boundaries, and fine-grained progress only during the activation — which is the phase that
-  actually takes minutes. `ServerTask` has no progress-listener API to subscribe to for the rest;
-  `Progress#addProgressListener` is what makes the activation phase reportable.
+- **The archive fetch and the swap report only their boundaries; unpacking and activation report
+  fine-grained progress.** The two that report do so by different mechanisms, because the two
+  progress APIs differ in kind. Activation forwards a `Progress`, which can be *subscribed* to via
+  `addProgressListener`. Unpacking has no listener to offer — a `ServerTask` publishes progress only
+  through its status — and it cannot be polled from this task's own thread either, since the sequence
+  runs inline and that thread is inside it for the whole phase. So it is *pulled*:
+  `PublishRestoredCatalogTask#getStatus` derives the unpacking's share of the band from the in-flight
+  `SequentialTask` at the moment a client asks, the same trick `SequentialTask` itself uses to derive
+  from its steps. The archive fetch stays flat because `IOUtils.copy` offers no progress callback, and
+  the swap because it is a single commit with nothing inside it to report. The band widths
+  (10/45/35/10) are an unmeasured guess at relative phase cost.
 - **`SequentialTask#getStatus` was aggregating step progress with `|=` where it meant `+=`** — two
   steps at 100 % and 50 % reported 59 % instead of 75 %. Invisible while the only shape was two steps
   averaging `100 | 0`, where OR and addition agree. Fixed here because this feature made the sequence
