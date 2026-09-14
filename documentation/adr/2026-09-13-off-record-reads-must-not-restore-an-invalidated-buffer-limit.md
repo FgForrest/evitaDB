@@ -1,11 +1,11 @@
 ---
 title: Off-record number reads must not restore a buffer limit the read has invalidated
 date: 2026-09-13
-updated: 2026-09-14 10:08
+updated: 2026-09-14 10:58
 status: accepted
 kind: fix
 issues: [1551]
-prs: []
+prs: [1571, 1572]
 areas: [evita_store/evita_store_key_value/src/main/java/io/evitadb/store/kryo, evita_engine/src/main/java/io/evitadb/spi/store/catalog/wal, evita_store/evita_store_server/src/main/java/io/evitadb/store/wal, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog, evita_engine/src/main/java/io/evitadb/core/cdc]
 supersedes: []
 superseded-by: []
@@ -238,6 +238,19 @@ need.
   it pinned was never released, and the subscriber was told neither `onError` nor `onComplete`. On the
   `request(n)` path the same throw propagated out of `Flow.Subscription#request(long)`, which
   reactive-streams forbids.
+- `DefaultChangeCaptureSubscription` release path — a terminal signal now releases the subscription's
+  registration, and the release is **best-effort plus a guarantee**, not either alone. The signal that wins the
+  `finished` CAS is the last code that ever runs for a subscription, so a signal that skips the release pins the
+  entry — and with it a WAL version — for the lifetime of the process. It cannot release inline either: it is
+  raised under the subscription's lock while the publisher takes its own lock first, and `request(n)` reaches it
+  from inside the `computeIfAbsent` that is registering the subscription. So it defers to the capture executor,
+  and the publisher's periodic sweep (`cleanFinishedSubscriptions`, driven by the observer's existing one-minute
+  cleaner) is what makes a refused deferral survivable. The non-obvious part is *why* the deferral alone is not
+  enough: the capture executor is an `ObservableThreadExecutor`, and `EvitaRejectingExecutorHandler` raises
+  `RejectedExecutionException` on a **full bounded queue**, not only at shutdown — so under load the release is
+  refused with nothing left to retry it. The sweep runs on the `Scheduler`, whose `ScheduledThreadPoolExecutor`
+  has an unbounded delay queue, so it cannot be starved by the saturation that causes the leak. `releaseRegistration`
+  is idempotent because both paths can reach it for the same subscription.
 
 ## Verification
 
@@ -264,8 +277,13 @@ Every test was run against the unfixed code first and shown failing, so none can
   before the fix, under a fixture and a machine load that have both since changed; it has not reproduced since,
   and why is unsettled — see the open follow-up below.
 - `ChangeCaptureSubscriptionFillFailureTest` — with the catch removed, fails with the fill exception escaping
-  `Subscription#request(long)`.
-- Full `wal | cdc` tag sweep: **640 tests, 0 failures, 1 skipped**, including the gRPC and GraphQL subscription
+  `Subscription#request(long)`. Its release tests drive the **production** `EvitaRejectingExecutorHandler` on a
+  genuinely saturated pool (one occupied worker, one filled queue slot) rather than a hand-written throwing
+  executor, so the premise behind the sweep is measured rather than assumed. Two mutants pin it: dropping the
+  idempotence CAS releases twice (`expected: <[id]> but was: <[id, id]>`), and a sweep that recognises
+  termination without releasing leaves the registration held (`but was: <[]>`).
+- `wal | cdc | serialization | transaction` sweep: **3,238 tests, 0 failures, 2 skipped**. Full `wal | cdc`
+  tag sweep: **640 tests, 0 failures, 1 skipped**, including the gRPC and GraphQL subscription
   functional tests that exercise CDC end to end.
 - The two behaviours introduced by *The workaround* are each pinned by a mutant, run in this reactor:
   collapsing `VersionSource` so every failure is a `WriteAheadLogCorruptedException` fails exactly

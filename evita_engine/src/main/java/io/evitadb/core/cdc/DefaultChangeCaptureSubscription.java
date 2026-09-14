@@ -112,6 +112,13 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	@Nonnull private final AtomicBoolean finished = new AtomicBoolean(false);
 
 	/**
+	 * Flag indicating whether {@link #releaseRegistration()} has already run. Distinct from {@link #finished}: a
+	 * subscription is finished the moment a terminal signal wins the CAS, but its registration may be released
+	 * later - or, when the capture executor refuses the deferred task, only by the publisher's periodic sweep.
+	 */
+	@Nonnull private final AtomicBoolean released = new AtomicBoolean(false);
+
+	/**
 	 * Counter tracking the number of items requested by the subscriber but not yet delivered.
 	 */
 	@Nonnull private final AtomicLong requested = new AtomicLong(0L);
@@ -306,9 +313,38 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	 * subscriber's tracked version, and the subscriber statistics keep counting it.
 	 */
 	private void releaseRegistration() {
-		this.onCancellation.accept(this.subscriptionId);
-		if (this.subscriber instanceof AutoCloseable closeable) {
-			IOUtils.closeQuietly(closeable::close);
+		// three callers can reach this - cancel(), the deferred task and the publisher's periodic sweep - and
+		// two of them can reach it for the same subscription, because the sweep exists precisely for the case
+		// where it cannot be known whether the deferred task ran. Releasing twice would unsubscribe an id the
+		// publisher may since have reused and close the subscriber's transport a second time, so exactly one
+		// caller is let through.
+		if (this.released.compareAndSet(false, true)) {
+			this.onCancellation.accept(this.subscriptionId);
+			if (this.subscriber instanceof AutoCloseable closeable) {
+				IOUtils.closeQuietly(closeable::close);
+			}
+		}
+	}
+
+	/**
+	 * Releases this subscription's registration if a terminal signal has already been raised for it, and reports
+	 * whether it had been. Invoked by the shared publisher's periodic sweep - {@link #releaseRegistrationLater()}
+	 * hands the release to the capture executor, which may refuse it, and once `finished` is set nothing else
+	 * ever runs for this subscription to retry it.
+	 *
+	 * Safe to call repeatedly and from any thread: it releases at most once, and it is a no-op on a subscription
+	 * that is still live. The sweep runs on the scheduler rather than on the delivery path, so neither the
+	 * lock-ordering hazard nor the `computeIfAbsent` re-entrancy that forced the deferral applies to it.
+	 *
+	 * @return {@code true} if this subscription had terminated - whether or not this call was the one that
+	 *         released it
+	 */
+	boolean releaseIfTerminated() {
+		if (this.finished.get()) {
+			releaseRegistration();
+			return true;
+		} else {
+			return false;
 		}
 	}
 
@@ -333,9 +369,13 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	 * that executor is safe, because nothing here waits for the submitted task.
 	 *
 	 * The release is therefore eventual rather than immediate: a subscriber observing its terminal signal cannot
-	 * assume the publisher has already forgotten the subscription. Once that executor has been shut down the
-	 * release is skipped altogether, which costs nothing: the engine is going away, and with it every publisher
-	 * the registration could have pinned anything in.
+	 * assume the publisher has already forgotten the subscription.
+	 *
+	 * This path is best-effort and must not be the only one. The capture executor rejects a submission both at
+	 * shutdown and when its bounded queue is full, and by the time either happens `finished` is already set, so
+	 * nothing else would ever run for this subscription to retry - which is the leak this method exists to
+	 * prevent, reproduced under load. The guarantee therefore lives with the publisher's periodic sweep, which
+	 * runs on the scheduler and cannot be starved by the capture executor; see {@link #releaseIfTerminated()}.
 	 */
 	private void releaseRegistrationLater() {
 		try {
@@ -354,11 +394,14 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 				}
 			);
 		} catch (RejectedExecutionException ex) {
-			// the capture executor is shutting down, which means the engine is going away and every publisher
-			// the registration could have pinned anything in is going with it - there is nothing left to release
+			// NOT only shutdown: the capture executor is an ObservableThreadExecutor, whose
+			// EvitaRejectingExecutorHandler throws this same exception when its bounded queue is full. Under load
+			// the release is therefore refused rather than deferred - and `finished` is already set, so no later
+			// cancel() can retry it. The publisher's periodic sweep is what makes that survivable; see
+			// #releaseIfTerminated(). Logged at debug because the sweep picks it up within its interval.
 			log.debug(
-				"Capture subscription `{}` terminated after its executor had been shut down, so its " +
-					"registration was not released.",
+				"Capture subscription `{}` could not hand its release to the capture executor; it will be " +
+					"released by the publisher's periodic sweep.",
 				this.subscriptionId
 			);
 		}

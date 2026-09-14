@@ -249,6 +249,30 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 	}
 
 	/**
+	 * Releases every subscription that has already terminated but whose registration is still held here.
+	 *
+	 * A terminated subscription normally releases itself, but it does so by handing the work to the capture
+	 * executor, which refuses the submission both at shutdown and when its bounded queue is full. `finished` is
+	 * set by then, so nothing else ever runs for that subscription to retry: the entry stays in
+	 * {@link #subscribers} for the lifetime of the process, {@link #versionSubscribersCount} keeps its tracked
+	 * version, and the ring buffer can never be trimmed past it.
+	 *
+	 * This sweep is the guarantee behind that best-effort path. It is driven by the observer's periodic cleaner,
+	 * which runs on the scheduler - a ScheduledThreadPoolExecutor with an unbounded delay queue - so it cannot be
+	 * starved by the very saturation that causes the leak. Running off the delivery path is also what makes the
+	 * release safe here at all: it holds no subscription lock and is not inside the `computeIfAbsent` that
+	 * registers a subscription, which are the two reasons the terminal signals may not release inline.
+	 *
+	 * Each release routes back through {@link #unsubscribe(UUID)}, so there is one implementation of the
+	 * bookkeeping rather than a second copy that can drift from it.
+	 */
+	public void cleanFinishedSubscriptions() {
+		for (DefaultChangeCaptureSubscription<ChangeSystemCapture> subscription : this.subscribers.values()) {
+			subscription.releaseIfTerminated();
+		}
+	}
+
+	/**
 	 * Checks whether there is any subscriber left. If there are no subscribers, it closes the publisher.
 	 */
 	public void checkSubscribersLeft() {

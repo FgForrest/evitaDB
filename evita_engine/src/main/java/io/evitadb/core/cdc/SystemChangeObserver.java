@@ -234,6 +234,10 @@ public class SystemChangeObserver
 	 * @return the milliseconds deviation to the next scheduled run (always zero)
 	 */
 	long cleanSubscribers() {
+		// the sweep must come first: until it releases the registrations of subscriptions that terminated but
+		// whose release the capture executor refused, the publisher never observes an empty subscriber map and
+		// the ring buffer is never trimmed past the version those entries still track
+		this.sharedPublisher.cleanFinishedSubscriptions();
 		this.sharedPublisher.checkSubscribersLeft();
 		return 0L;
 	}

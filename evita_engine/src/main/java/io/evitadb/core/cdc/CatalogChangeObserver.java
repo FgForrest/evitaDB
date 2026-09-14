@@ -261,16 +261,24 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 	}
 
 	/**
-	 * Removes inactive publishers from the list of unique publishers by checking
-	 * if they have been closed. A publisher is considered inactive if its `isClosed`
-	 * method returns true. This method ensures that only active publishers remain in the
+	 * Releases the registrations of subscriptions that have already terminated, then removes inactive publishers
+	 * from the list of unique publishers by checking if they have been closed. A publisher is considered inactive
+	 * if its `isClosed` method returns true. This method ensures that only active publishers remain in the
 	 * collection for further processing.
+	 *
+	 * The sweep must come first and cannot be dropped: a terminated subscription releases itself through the
+	 * capture executor, which refuses the submission when its bounded queue is full, and nothing else ever
+	 * retries it. Until the sweep removes such an entry the publisher never observes an empty subscriber map, so
+	 * it is never closed here and the ring buffer is never trimmed past the version that entry still tracks.
+	 * This runs on the scheduler, whose delay queue is unbounded, so it cannot be starved by the saturation that
+	 * causes the leak.
 	 *
 	 * @return the milliseconds deviation to the next scheduled run (always zero)
 	 */
 	long cleanInactivePublishers() {
 		this.uniquePublishers.values().removeIf(
 			publisher -> {
+				publisher.cleanFinishedSubscriptions();
 				publisher.checkSubscribersLeft();
 				return publisher.isClosed();
 			});

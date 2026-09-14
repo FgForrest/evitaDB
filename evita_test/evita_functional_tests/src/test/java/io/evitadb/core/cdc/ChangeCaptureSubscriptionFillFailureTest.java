@@ -24,6 +24,7 @@
 package io.evitadb.core.cdc;
 
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
+import io.evitadb.core.executor.EvitaRejectingExecutorHandler;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -32,6 +33,7 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -39,6 +41,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -48,7 +53,9 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -285,6 +292,196 @@ class ChangeCaptureSubscriptionFillFailureTest {
 			);
 		} finally {
 			executorService.shutdownNow();
+		}
+	}
+
+	@DisplayName("a capture queue that is genuinely full must raise the rejection the release path has to survive")
+	@Test
+	void shouldRefuseSubmissionWhenTheBoundedCaptureQueueIsFull() throws InterruptedException {
+		try (SaturatedCaptureExecutor saturated = new SaturatedCaptureExecutor()) {
+			assertThrows(
+				RejectedExecutionException.class,
+				() -> saturated.executor().submit(() -> {
+				}),
+				"A saturated capture executor accepted another task. The whole reason a terminated " +
+					"subscription cannot rely on handing its release to that executor is that " +
+					"EvitaRejectingExecutorHandler raises RejectedExecutionException on a full bounded queue " +
+					"and not only at shutdown - if that premise no longer holds, the sweep below is guarding " +
+					"a condition that cannot arise and the deferral could be trusted on its own again."
+			);
+		}
+	}
+
+	@DisplayName("a release the capture executor refuses must still happen, through the publisher's sweep")
+	@Test
+	void shouldReleaseATerminatedSubscriptionFromTheSweepWhenTheExecutorRefusedIt() throws InterruptedException {
+		final RecordingSubscriber subscriber = new RecordingSubscriber();
+		final UUID subscriptionId = UUID.randomUUID();
+		final List<UUID> releasedFor = Collections.synchronizedList(new ArrayList<>());
+
+		try (SaturatedCaptureExecutor saturated = new SaturatedCaptureExecutor()) {
+			final DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription =
+				newSubscription(subscriptionId, subscriber, saturated.executor(), releasedFor);
+
+			// a non-positive request is a protocol violation the subscription reports through onError - the
+			// shortest public route to a terminal signal that defers its release to the capture executor
+			subscription.request(-1);
+
+			assertTrue(
+				subscription.isFinished(),
+				"A non-positive request left the subscription live. It is a protocol violation and must " +
+					"terminate the subscription rather than be ignored."
+			);
+			assertNotNull(
+				subscriber.getError(),
+				"The subscriber was never told its subscription had been terminated by the protocol violation."
+			);
+			assertTrue(
+				releasedFor.isEmpty(),
+				"The registration was released even though the capture executor refused the deferred task. " +
+					"If this ever passes, the test is no longer reproducing the state the sweep exists for."
+			);
+
+			// this is what CatalogChangeObserver#cleanInactivePublishers drives, one publisher at a time
+			assertTrue(
+				subscription.releaseIfTerminated(),
+				"The sweep did not recognise a terminated subscription. `finished` is the only thing that " +
+					"distinguishes one, and it was set above."
+			);
+			assertEquals(
+				List.of(subscriptionId),
+				releasedFor,
+				"The sweep did not release the registration the refused task was supposed to release. Left " +
+					"held, it keeps the entry in the publisher's subscribers map for the lifetime of the " +
+					"process: the ring buffer can never be trimmed past the version that entry still tracks " +
+					"and the shared publisher can never be retired."
+			);
+
+			// the sweep runs every minute and the refused task may yet arrive; neither may release twice
+			assertTrue(subscription.releaseIfTerminated(), "A terminated subscription stopped reporting itself as terminated.");
+			assertEquals(
+				List.of(subscriptionId),
+				releasedFor,
+				"The registration was released more than once. A second release would unsubscribe an id the " +
+					"publisher may since have reused and close the subscriber's transport again."
+			);
+		}
+	}
+
+	@DisplayName("the sweep must leave a subscription that is still live exactly as it found it")
+	@Test
+	void shouldLeaveALiveSubscriptionUntouchedBySweep() throws InterruptedException {
+		final RecordingSubscriber subscriber = new RecordingSubscriber();
+		final List<UUID> releasedFor = Collections.synchronizedList(new ArrayList<>());
+
+		try (SaturatedCaptureExecutor saturated = new SaturatedCaptureExecutor()) {
+			final DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription =
+				newSubscription(UUID.randomUUID(), subscriber, saturated.executor(), releasedFor);
+
+			assertFalse(
+				subscription.releaseIfTerminated(),
+				"The sweep claimed a live subscription had terminated. It runs over every entry in the " +
+					"publisher's map on a timer, so treating a live one as terminated would silently " +
+					"unsubscribe a healthy subscriber."
+			);
+			assertTrue(
+				releasedFor.isEmpty(),
+				"The sweep released a live subscription's registration, cutting off a subscriber that was " +
+					"still being delivered to."
+			);
+			assertFalse(subscription.isFinished(), "The sweep terminated a live subscription.");
+			assertNull(subscriber.getError(), "The sweep reported an error to a live subscriber.");
+			assertFalse(subscriber.isCompleted(), "The sweep completed a live subscriber's stream.");
+		}
+	}
+
+	/**
+	 * Builds a subscription whose queue filler does nothing, for the tests that are about the release rather than
+	 * about the fill.
+	 *
+	 * @param subscriptionId  the id the release is expected to be reported for
+	 * @param subscriber      the subscriber to attach
+	 * @param executorService the capture executor the subscription defers its release to
+	 * @param releasedFor     collects every id the subscription releases, in order, so a double release is visible
+	 * @return the subscription under test
+	 */
+	@Nonnull
+	private static DefaultChangeCaptureSubscription<ChangeCatalogCapture> newSubscription(
+		@Nonnull UUID subscriptionId,
+		@Nonnull RecordingSubscriber subscriber,
+		@Nonnull ExecutorService executorService,
+		@Nonnull List<UUID> releasedFor
+	) {
+		return new DefaultChangeCaptureSubscription<>(
+			subscriptionId,
+			16,
+			new WalPointerWithContent(1L, 0, ChangeCaptureContent.BODY),
+			subscriber,
+			executorService,
+			(walPointer, theSubscription, queue) -> {
+			},
+			capture -> {
+			},
+			releasedFor::add
+		);
+	}
+
+	/**
+	 * A capture executor in the state that makes the deferred release fail: one worker, occupied, and its single
+	 * queue slot taken, behind the production {@link EvitaRejectingExecutorHandler}.
+	 *
+	 * The handler is the real one on purpose. The behaviour under test is not "an executor that throws" - it is
+	 * that evitaDB's own rejection policy raises {@link RejectedExecutionException} on a full queue and not only
+	 * after shutdown, which is what the release path used to assume. A hand-written throwing executor would
+	 * assert that assumption rather than measure it.
+	 */
+	private static final class SaturatedCaptureExecutor implements AutoCloseable {
+		private final ThreadPoolExecutor executor;
+		private final CountDownLatch releaseWorker = new CountDownLatch(1);
+
+		SaturatedCaptureExecutor() throws InterruptedException {
+			this.executor = new ThreadPoolExecutor(
+				1, 1, 0L, TimeUnit.MILLISECONDS,
+				new LinkedBlockingQueue<>(1),
+				runnable -> {
+					final Thread thread = new Thread(runnable, "cdc-saturated-test");
+					thread.setDaemon(true);
+					return thread;
+				},
+				new EvitaRejectingExecutorHandler("cdc-test", () -> {
+				})
+			);
+			// occupy the single worker, and wait until it is genuinely running - submitting the queue filler
+			// below before that would put both tasks in the queue and reject the second one during setup
+			final CountDownLatch workerStarted = new CountDownLatch(1);
+			this.executor.execute(
+				() -> {
+					workerStarted.countDown();
+					try {
+						this.releaseWorker.await();
+					} catch (InterruptedException ex) {
+						Thread.currentThread().interrupt();
+					}
+				}
+			);
+			assertTrue(
+				workerStarted.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS),
+				"The capture executor never started its only worker, so the fixture is not saturated."
+			);
+			// take the one free queue slot behind the occupied worker
+			this.executor.execute(() -> {
+			});
+		}
+
+		@Nonnull
+		ExecutorService executor() {
+			return this.executor;
+		}
+
+		@Override
+		public void close() {
+			this.releaseWorker.countDown();
+			this.executor.shutdownNow();
 		}
 	}
 
