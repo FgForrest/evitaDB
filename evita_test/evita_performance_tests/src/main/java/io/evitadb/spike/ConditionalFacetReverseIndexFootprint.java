@@ -150,15 +150,17 @@ public class ConditionalFacetReverseIndexFootprint {
 					threshold == Integer.MAX_VALUE ? "unbounded (blanket structure)" : Integer.toString(threshold)
 				);
 				System.out.printf(
-					"%-22s %-12s %10s %12s %12s %14s %12s %12s%n",
+					"%-22s %-12s %10s %12s %12s %14s %14s %8s %12s %12s%n",
 					"reference", "state", "partitions", "owners", "memberships", "reverse map",
-					"walk left", "B/probe"
+					"int[] floor", "x floor", "walk left", "B/probe"
 				);
-				System.out.println("-".repeat(112));
+				System.out.println("-".repeat(135));
 				long partitionedBytes = 0L;
+				long partitionedFloorBytes = 0L;
 				long partitionedPartitions = 0L;
 				long partitionedResidual = 0L;
 				long allBytes = 0L;
+				long allFloorBytes = 0L;
 				long allPartitions = 0L;
 				long allResidual = 0L;
 				for (final String reference : references) {
@@ -172,32 +174,38 @@ public class ConditionalFacetReverseIndexFootprint {
 					}
 					final long saved = reading.partitions - reading.residualProbes;
 					System.out.printf(
-						"%-22s %-12s %,10d %,12d %,12d %,11d B %,12d %,12d%n",
+						"%-22s %-12s %,10d %,12d %,12d %,11d B %,11d B %8s %,12d %,12d%n",
 						reference, partitioned ? "PARTITIONED" : "for-filter",
 						reading.partitions, reading.owners, reading.memberships,
-						reading.transactionalBytes, reading.residualProbes,
+						reading.transactionalBytes, reading.intArrayFloorBytes,
+						floorRatio(reading.transactionalBytes, reading.intArrayFloorBytes),
+						reading.residualProbes,
 						saved == 0L ? 0L : reading.transactionalBytes / saved
 					);
 					allBytes += reading.transactionalBytes;
+					allFloorBytes += reading.intArrayFloorBytes;
 					allPartitions += reading.partitions;
 					allResidual += reading.residualProbes;
 					if (partitioned) {
 						partitionedBytes += reading.transactionalBytes;
+						partitionedFloorBytes += reading.intArrayFloorBytes;
 						partitionedPartitions += reading.partitions;
 						partitionedResidual += reading.residualProbes;
 					}
 				}
-				System.out.println("-".repeat(112));
+				System.out.println("-".repeat(135));
 				final long partitionedSaved = partitionedPartitions - partitionedResidual;
 				final long allSaved = allPartitions - allResidual;
 				System.out.printf(
-					"%-35s P=%,9d  map=%,11d B  walk left=%,8d  %,10d B/probe%n",
-					"TOTAL partitioned today", partitionedPartitions, partitionedBytes, partitionedResidual,
+					"%-35s P=%,9d  map=%,11d B  floor=%,11d B (x%s)  walk left=%,8d  %,10d B/probe%n",
+					"TOTAL partitioned today", partitionedPartitions, partitionedBytes, partitionedFloorBytes,
+					floorRatio(partitionedBytes, partitionedFloorBytes), partitionedResidual,
 					partitionedSaved == 0L ? 0L : partitionedBytes / partitionedSaved
 				);
 				System.out.printf(
-					"%-35s P=%,9d  map=%,11d B  walk left=%,8d  %,10d B/probe%n",
-					"TOTAL if all switched", allPartitions, allBytes, allResidual,
+					"%-35s P=%,9d  map=%,11d B  floor=%,11d B (x%s)  walk left=%,8d  %,10d B/probe%n",
+					"TOTAL if all switched", allPartitions, allBytes, allFloorBytes,
+					floorRatio(allBytes, allFloorBytes), allResidual,
 					allSaved == 0L ? 0L : allBytes / allSaved
 				);
 			}
@@ -331,6 +339,21 @@ public class ConditionalFacetReverseIndexFootprint {
 			}
 		}
 		throw new IllegalStateException("Catalog `" + catalogName + "` did not load in time!");
+	}
+
+	/**
+	 * Prices the shippable shape against the `int[]` floor, which is the whole point of carrying the floor: the
+	 * multiple is what says whether rollback capability costs a rounding error or a structure's worth of heap.
+	 *
+	 * @param transactionalBytes owned heap of the shippable shape
+	 * @param intArrayFloorBytes owned heap of the `int[]` floor
+	 * @return the multiple, formatted to one decimal, or `n/a` when the floor is zero
+	 */
+	@Nonnull
+	private static String floorRatio(long transactionalBytes, long intArrayFloorBytes) {
+		return intArrayFloorBytes == 0L
+			? "n/a"
+			: String.format("%.1f", (double) transactionalBytes / (double) intArrayFloorBytes);
 	}
 
 	/**
