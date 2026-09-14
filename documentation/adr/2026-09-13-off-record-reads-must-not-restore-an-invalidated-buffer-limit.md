@@ -1,7 +1,7 @@
 ---
 title: Off-record number reads must not restore a buffer limit the read has invalidated
 date: 2026-09-13
-updated: 2026-09-14 13:58
+updated: 2026-09-14 19:10
 status: accepted
 kind: fix
 issues: [1551]
@@ -416,6 +416,26 @@ Every test was run against the unfixed code first and shown failing, so none can
   39 skipped, with the only error the Docker-dependent `ExportS3ServiceTest` that does not run in this
   environment. That single error is what makes the reactor report `BUILD FAILURE`, so the result has to be
   read from the aggregate rather than from the exit status.
+- **The early-host-capture park** — a capture raised while a subscription is still registering is held in a
+  single slot and flushed once `onSubscribe` returns, rather than the registering thread waiting on the
+  subscriber. `SharedPublisherConcurrencyTest` — **11 tests, 0 failures** — covers the four terminal paths that
+  must clear the slot (cancel before activation, retract, an `onSubscribe` that throws, and a finished
+  subscription) plus the ordering assertion that a parked capture does not overtake one already queued.
+  A `CountDownLatch` design was written first and **rejected because** it parks an engine thread on arbitrary
+  subscriber code: the saturation fallback at `ChangeSystemCaptureSharedPublisher:392-401` runs delivery on the
+  engine thread, so an `onSubscribe` that blocks would have stalled the publisher rather than one subscriber.
+- **The WAL supplier's constructor releases what it acquired** — its forward scan was guarded by
+  `catch (BufferUnderflowException)`, a clause nothing on that path can reach: `ObservableInput extends` Kryo's
+  `Input`, so a short fill arrives as `KryoException("Buffer underflow.")` from `ObservableInput#require`, and
+  `java.nio.BufferUnderflowException` has never been thrown anywhere in this repository. It had been dead since
+  it was written, because `javac` rejects an unreachable catch only for *checked* exceptions. A premature end
+  therefore escaped the constructor unconverted, and since nothing escapes a constructor that throws, it took
+  the pooled Kryo and the open file with it. Two mutants pin the repair against
+  `CatalogWriteAheadLogIntegrationTest$MisalignedReadSwallowTests#shouldReportNamedVersionAndReleaseKryoWhenConstructorScanUnderflows`:
+  restoring the old constructor fails it on the exception type, and disabling only the release fails it on the
+  pool count. `wal` tag group: **181 tests, 0 failures**. The release is a `finally` guarded by a completion
+  flag rather than a trailing `catch`, because the not-found verdict is thrown *inside* the `try` and a sibling
+  catch-all would hand the same Kryo to two callers.
 
 ### A test fixture was corrupting the evidence, and that is worth recording
 
@@ -437,6 +457,45 @@ into a question. Note the limit of that argument in light of the re-measurement 
 fixture was not the *only* thing wrong then, not that the run still fails for the reason it failed then.
 
 ## Consequences & open follow-ups
+
+- **This work falsified a comment in the gRPC subscriber, and the comment was left standing.**
+  `AbstractChangeCaptureSubscriber#onSubscribe` (`evita_external_api_grpc/server`, `:256-259`) defers its
+  `markStreamDead` through `CompletableFuture.runAsync` and explains why: *"this method runs inside
+  `DefaultChangeCaptureSubscription`'s constructor which is itself inside `ConcurrentHashMap.computeIfAbsent`;
+  a synchronous `subscription.cancel()` would re-enter the map and deadlock."* That premise no longer holds —
+  `onSubscribe` moved into `activate()`, which both publishers call only after `computeIfAbsent` has returned.
+  The deferral is now harmless belt-and-braces, but its stated reason is wrong, and the two synchronous
+  `subscription.cancel()` calls beside it at `:242` and `:248` are no longer the hazard the asymmetry implies.
+  **Not fixed here** because it is in a different module and outside the footprint of the PR that changed the
+  premise. Whoever touches that file should correct the comment first: a comment naming a mechanism that has
+  since been removed is the exact trap that cost a day on this issue, and this one now reads as authoritative
+  evidence for a constraint that was lifted.
+
+- **The capture-lifecycle work is not backported to 2026.2, and the one gate that was backportable was
+  declined with it.** The release branch carries a genuine double decrement: `unsubscribe` cancels the
+  departing subscription, the cancel releases it, and the release re-enters `unsubscribe` through the
+  publisher's own `onCancellation` hook while the map entry is still present — so one departing subscriber
+  decrements `versionSubscribersCount` twice. A single subscriber hides it completely, because two decrements
+  of `{V: 1}` both land on "remove the key" and the result is right by accident. It takes two subscribers
+  sharing a tracked version to corrupt the count, and a third to collect the cost: the survivor stops being the
+  lowest key, so `fillBuffer`'s `clearAllUntil(versionSubscribersCount.firstKey())` trims past captures it has
+  not read, and the survivor falls back to a WAL read or stalls where retention has already reclaimed that
+  segment. A gate on winning the removal — `remove` returning null means the re-entrant call already did the
+  work — was written and verified on the release branch: **460 `cdc` tests, 0 failures**, pinned by a
+  counterfactual that fails `CatalogChangeObserverTest#shouldReleaseOnlyTheDepartingSubscribersVersionSlot`.
+  **Rejected because** that branch is a hotfix line, where the risk of introducing a new defect outweighs
+  fixing a latent one. The gate touches no lock, but shipping it alone leaves the accounting still racy —
+  `getTrackedVersion()` stays unsynchronised against a fill in flight — so it buys a partial repair at non-zero
+  risk. Revisit only if the trim gate is observed to misfire in production.
+  The rest is held back for reasons that outlive this record, and each is a trap for anyone who tries again:
+  moving `onSubscribe` out of the subscription constructor restructures the registration protocol on a branch
+  with no periodic sweep to catch a mistake; taking the publisher's lock across registration is safe on `dev`
+  **only** because `activate()` moved subscriber code out of the mapping function *and* the version accounting
+  moved onto a leaf lock — without both it reintroduces the publisher→subscription lock edge that `close()`
+  avoids by cancelling after it releases the lock; `retractRegistration`, the facade's renew-and-retry and the
+  observer factory's `compute` exist only to serve that lock and are dead code without it; and cancelling after
+  releasing the publisher lock addresses a hazard that is latent there rather than live, because `cancel()`
+  takes no subscription lock on that branch.
 
 - **`VersionSource` is chosen per read, not per bound, and that was a decision rather than an oversight.**
   `EvitaSession#getMutationsHistoryForward` passes two version bounds with different origins — the floor is the
@@ -508,3 +567,7 @@ fixture was not the *only* thing wrong then, not that the run still fails for th
 - **2026-09-11** — issue #1551 filed from production metrics
 - **2026-09-13** — the issue's own proposed fix refuted; the tail-read framing refuted; the reader defect
   found, fixed and verified by a single-threaded counterfactual
+- **2026-09-14** — the capture registration lifecycle family found and closed over three adversarial review
+  rounds, the last of which replaced a latch with the early-host-capture park; the 2026.2 backport of the
+  lifecycle work declined on hotfix risk; the WAL supplier constructor's dead catch removed and its resource
+  release closed; PR #1571 merged to `dev`
