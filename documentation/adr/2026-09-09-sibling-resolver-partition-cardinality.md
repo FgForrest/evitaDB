@@ -193,17 +193,40 @@ resolve the dense high-cardinality walk better than ~11 %.
 | 188,387 | sparse | 84.0 / 87.3 ms | **1.55 / 1.53 ms** | **54–57×** |
 | 188,387 | dense | 159.6 / 158.8 ms | **105.5 / 101.2 ms** | **1.51–1.57×** |
 
-Memory: **4.2 MiB** on the shipping schema, **24.9 MiB** with every reference partitioned. Rebuilding the
-lookup over 188,387 reduced indexes costs **156.0 ms**, against a 26 s catalog load. Coverage reproduced
-exactly across both runs and both configurations — 2,697 covered / 1,936 residual, and 185,475 / **2,912**.
+Rebuilding the lookup over 188,387 reduced indexes costs **156.0 ms**, against a 26 s catalog load. Coverage
+reproduced exactly across both runs and both configurations — 2,697 covered / 1,936 residual, and
+185,475 / **2,912**.
 
-**These two figures are not the two in the Option A cost table below, and the record quotes both.** This pair
-is the timing series' own corpus, `P`=188,387. The cost table and *Consequences* quote a later, larger
-snapshot, `P`=209,948 — hence 4.0 MiB / 36.3 MiB there against 4.2 MiB / 24.9 MiB here. Same structure, same
-threshold, different corpus; the "every reference partitioned" half moves most because it scales with `P`
-directly. Where a single number is wanted, **the `P`=209,948 pair is the one the decision rests on**, since it
-is the larger snapshot and the one the maintainable-structure scoping was worked out against. Both pairs are
-lower bounds — see the tooling caveat in *Verification*.
+### Memory, re-measured
+
+Earlier drafts of this record quoted memory from two different corpora and from a tool that undercounted the
+structure. Both are resolved: `ConditionalFacetReverseIndexFootprint` now registers into a real
+`ReducedIndexMembership` and reports its own `getHeapSizeInBytes`, and the figures below are **one sweep over
+one snapshot** — a production e-commerce catalog, `ALIVE`, catalog version 24,304, loaded in 32 s.
+
+`P`=**4,708** partitions across the three references partitioned today; `P`=**211,148** if every indexed
+reference were raised to `FOR_FILTERING_AND_PARTITIONING`.
+
+| `T` | today | all raised | walk left (all raised) | `int[]` floor multiple |
+|---|---|---|---|---|
+| 1 | 0.13 MiB | 18.95 MiB | 29,547 | 7.6–11.2× |
+| 4 | 0.81 MiB | 24.62 MiB | 18,302 | 7.9–9.8× |
+| **16** | **4.23 MiB** | **37.22 MiB** | **8,400** | **8.1–9.7×** |
+| 64 | 12.32 MiB | 56.16 MiB | 3,489 | 8.2–9.3× |
+| 256 | 27.67 MiB | 81.79 MiB | 1,283 | 8.0–9.2× |
+| 1024 | 48.56 MiB | 111.60 MiB | 459 | 7.7–9.0× |
+| 4096 | 73.51 MiB | 148.68 MiB | 133 | 7.4–8.8× |
+| unbounded | 82.04 MiB | **279.21 MiB** | 0 | 6.1–8.4× |
+
+The two headline claims are confirmed arithmetically rather than asserted: at `T`=16 the structure costs
+39,025,992 / 292,736,064 = **13.3 %** of the blanket structure's memory, and leaves 8,400 of 211,148
+partitions on the walk — **96.0 %** removed.
+
+**The correction moved the numbers by about 2 %.** The previous best figures were 4.0 MiB / 36.3 MiB at
+`P`=209,948; this sweep reports 4.23 MiB / 37.22 MiB at `P`=211,148, and the snapshot itself grew 0.6 %. The
+undercounted bitmaps are compact next to the boxed-key map that dominates, so the omission was real but never
+large enough to threaten the decision — which is the opposite of what the sweep's shape would have suggested,
+and the reason it was worth measuring rather than reasoning about.
 
 These are the timings **after** the per-pair de-duplication scan was removed from the accumulator (see below).
 The same harness, same box and same session, with the scan restored via `-Dspike.accumulator=DEDUP_SCAN`:
@@ -272,16 +295,14 @@ walk. Derived at catalog open, maintained at the existing owner-membership bound
 - **Pros:** `T`=16 removes 96 % of the walk for **13 %** of the blanket structure's memory. At P=188,387 it
   takes the sparse walk from 81.4 ms to 1.72 ms and the dense one from 112.8 ms to 10.6 ms. References whose
   partitions are all large disqualify themselves automatically — `stocks`, `stockVisibilities` and
-  `bonusVisibilities` each produce a **112-byte map covering zero owners** — so no per-reference heuristic is
+  `bonusVisibilities` each produce an **840-byte structure covering zero owners** — so no per-reference heuristic is
   needed.
-- **Cost: 36.3 MiB at `P`=209,948, not the 24.6 MiB an earlier draft of this record quoted.** The two figures
-  scope the map differently and only one of them is a structure that can be maintained. (Neither is the
-  24.9 MiB of the measured-results section above — that is the same "all references" scoping at the timing
-  series' smaller corpus, `P`=188,387.) 24.6 MiB covers one trigger's
+- **Cost: 37.2 MiB at `P`=211,148, not the 24.6 MiB an earlier draft of this record quoted.** The two figures
+  scope the map differently and only one of them is a structure that can be maintained. 24.6 MiB covers one trigger's
   sibling set, with the mutated reference excluded at *build* time — but which reference is mutated changes
   per trigger, so no such map exists. The maintainable structure covers every reference whose partitions the
-  walk could ever visit (`P`=209,948) and filters the mutated one **at use**: 36.3 MiB, 8,308 residual
-  partitions. Against 274.7 MiB for the blanket structure the decision is unchanged; the number is not.
+  walk could ever visit (`P`=211,148) and filters the mutated one **at use**: 37.2 MiB, 8,400 residual
+  partitions. Against 279.2 MiB for the blanket structure the decision is unchanged; the number is not.
 - **Cons:** a permanent resident structure; threshold crossings are bulk operations; the map must join
   transactional memory *and* the warm-up savepoint; and it needs a schema hook (see *Key technical details*).
 
@@ -292,9 +313,9 @@ The structure #1529 proposes: cover every partition.
 - **Pros:** removes the walk entirely; simplest to reason about.
 - **Rejected because:** **cost is per membership while benefit is per partition**, and the two are
   decoupled by 40,000 × across references of one collection. A partition with 21,467 owners costs 21,467
-  map entries and saves exactly **one** probe. Measured: 78.2 MiB today (17.7 KB per probe removed) and
-  274.7 MiB if every reference were switched — against 36.3 MiB for Option A at 96 % of the benefit.
-  `stocks` alone would cost 33.4 MiB to remove 9 probes. **Revisit if** a catalog is ever found whose
+  map entries and saves exactly **one** probe. Measured: 82.0 MiB today (17.8 KB per probe removed) and
+  279.2 MiB if every reference were switched — against 37.2 MiB for Option A at 96 % of the benefit.
+  `stocks` alone would cost 34.7 MiB to remove 9 probes. **Revisit if** a catalog is ever found whose
   partitions are uniformly small, where the threshold would cover everything anyway.
 
 ### Option C — hoist the loop-invariant transaction resolution out of the walk (declined)
@@ -352,7 +373,7 @@ write-path fixes prove insufficient.
 ## Decision
 
 **Option A, alone.** It is the only candidate that changes the asymptotics, and the threshold is what makes
-it affordable: 36.3 MiB rather than 274.7 MiB, for 96 % of the benefit.
+it affordable: 37.2 MiB rather than 279.2 MiB, for 96 % of the benefit.
 
 **Every local alternative was measured and every one failed.** C is worth 4.5–6.7 % and nothing at all once
 A ships; F is a regression in the dense shape; the D and E bounds show that even a *perfect* index lookup
@@ -384,7 +405,8 @@ references of a single collection.
   structure.** A plain `Map<Integer,int[]>` is *not* a `TransactionalLayerCreator`, so it never reaches
   `WarmUpSavepoint#verifyRollbackSupported` and would diverge **silently** on a rolled-back transaction or
   a failed warm-up mutation. This is a correctness disqualification, not a footprint trade-off — and it
-  costs 6-8 ×, not the "roughly half" #1529 assumes.
+  costs 6.1-11.2 × across the sweep and 8.1-9.7 × at the shipped `T`=16, not the "roughly half" #1529
+  assumes. (The multiple is now printed per reference and in both totals, so it is readable off the tool.)
 - A new field on `ReferencedTypeEntityIndex` must be threaded through
   `createCopyWithMergedTransactionalMemory` (`:804-823`) and is picked up by `removeLayer` (`:826-831`) via
   component registration.
@@ -402,9 +424,9 @@ references of a single collection.
   yields the ordinary unaccelerated walk over the newly-visited partitions — correct, merely slow, which is
   exactly today's behaviour and the right failure mode for a state the engine does not support.
   **When #409 lands, this map is one of the structures it must rebuild.**
-- **Resident cost tracks what the client turned on:** 4.0 MiB on today's schema (three partitioned
-  references), 36.3 MiB only if every reference is raised and the catalog reindexed. Both at `P`=209,948, and
-  both lower bounds — see the tooling caveat in *Verification*.
+- **Resident cost tracks what the client turned on:** 4.2 MiB on today's schema (three partitioned
+  references), 37.2 MiB only if every reference is raised and the catalog reindexed. Both at `P`=211,148, by
+  the structure's own heap accounting.
 - **Derived at load, not persisted.** Deriving costs one pass over the partitions — the same traversal the
   walk does, paid once per collection load — which avoids a storage format change for a structure that is
   pure acceleration.
@@ -437,15 +459,14 @@ computing a different answer. The **implementation** phase that followed ships t
 argued for — `ReducedIndexMembership`, its resolver integration and its write-path maintenance — and is verified
 by the counterfactual-proved tests described at the end of this section, not by the measurements above.
 
-> **The memory figures in this record predate a correction to the tool that produced them and have not been
-> re-measured.** `ConditionalFacetReverseIndexFootprint` priced a hand-built map that charged only the
-> `ownerPK -> reduced-index-PK` entries, omitting the `coveredOwners`, `coveredIndexPrimaryKeys` and
-> `residualIndexPrimaryKeys` bitmaps that `ReducedIndexMembership#getHeapSizeInBytes` also charges. The omission
-> grows with the residual set, so it is largest at the low thresholds — which is the part of the sweep the
-> `T`=16 choice was argued from. The tool now registers into a real `ReducedIndexMembership` and reports its own
-> accounting; **every MiB figure below is therefore a lower bound until the sweep is re-run.** The *decision* is
-> not in doubt — the gap between the hybrid and the 274.7 MiB blanket structure is far larger than the
-> under-count — but the individual numbers are.
+**The memory figures were re-measured after a correction to the tool that produced them.**
+`ConditionalFacetReverseIndexFootprint` used to price a hand-built map charging only the
+`ownerPK -> reduced-index-PK` entries, omitting the `coveredOwners`, `coveredIndexPrimaryKeys` and
+`residualIndexPrimaryKeys` bitmaps that `ReducedIndexMembership#getHeapSizeInBytes` also charges. It now
+registers into a real `ReducedIndexMembership` and reports that object's own accounting, so the coverage
+decision, the residual count and the heap figure all come from shipped code. The full corrected sweep is in
+*Measured results → Memory, re-measured*; it moved the figures by roughly 2 % and confirmed the 13 % / 96 %
+headline ratios exactly.
 
 Six arms, all checksum-gated against each other: the pre-#1524 walk, current `HEAD`, the hybrid, the two
 unimplementable bounds (D, E) and the `intersects` gate (F). Run-to-run reproducibility across independent
