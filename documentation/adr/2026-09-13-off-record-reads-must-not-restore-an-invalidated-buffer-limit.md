@@ -1,7 +1,7 @@
 ---
 title: Off-record number reads must not restore a buffer limit the read has invalidated
 date: 2026-09-13
-updated: 2026-09-14 11:35
+updated: 2026-09-14 11:50
 status: accepted
 kind: fix
 issues: [1551]
@@ -265,6 +265,16 @@ need.
   `subscribe` throws `InstanceTerminatedException` once closed. `checkSubscribersLeft` therefore only trims the
   ring buffer on that side; the observer owns the lifetime and closes it in its own `close()`. What had been
   hiding this is that the engine's boot-time subscriber normally keeps the map non-empty forever.
+- **A publisher must stop naming a departing subscriber before it cancels it.** `unsubscribe` cancels, cancelling
+  releases, and the release calls back into `unsubscribe` through the publisher's own `onCancellation` hook. With
+  the map entry still present the re-entrant call runs the whole body and the outer call repeats it, so
+  `versionSubscribersCount` is decremented twice for one departing subscriber - `{V: 2}` becomes `{}` rather than
+  `{V: 1}`, and a surviving subscriber's position stops being tracked at all. A single subscriber hides it,
+  because two decrements of `{V: 1}` both land on "remove the key". Removing before cancelling makes the inner
+  call find nothing; it also makes the lookup atomic, so two concurrent callers cannot both claim the same
+  departing subscription. This re-entrancy predates the sweep and is on the ordinary client-disconnect path
+  (`ChangeCatalogCapturePublisher#close`), not on the sweep path, where `finished` is already set and the cancel
+  is skipped.
 
 ## Verification
 
@@ -296,7 +306,7 @@ Every test was run against the unfixed code first and shown failing, so none can
   executor, so the premise behind the sweep is measured rather than assumed. Two mutants pin it: dropping the
   idempotence CAS releases twice (`expected: <[id]> but was: <[id, id]>`), and a sweep that recognises
   termination without releasing leaves the registration held (`but was: <[]>`).
-- `wal | cdc | serialization | transaction` sweep: **3,239 tests, 0 failures, 2 skipped**. Full `wal | cdc`
+- `wal | cdc | serialization | transaction` sweep: **3,240 tests, 0 failures, 2 skipped**. Full `wal | cdc`
   tag sweep: **640 tests, 0 failures, 1 skipped**, including the gRPC and GraphQL subscription
   functional tests that exercise CDC end to end.
 - The two behaviours introduced by *The workaround* are each pinned by a mutant, run in this reactor:

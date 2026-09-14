@@ -695,6 +695,97 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Unsubscribing one of several subscribers must give back exactly one of the tracked version's slots.
+	 *
+	 * `unsubscribe` cancels the departing subscription, and cancelling releases it, and the release calls back
+	 * into `unsubscribe` through the publisher's own `onCancellation` hook. The removal therefore has to happen
+	 * before the cancel, or the re-entrant call runs the whole body while the entry is still present and the
+	 * outer call repeats it - decrementing `versionSubscribersCount` twice for one departing subscriber.
+	 *
+	 * A single subscriber hides this, because two decrements of `{V: 1}` both land on "remove the key" and the
+	 * result is right by accident. It takes two subscribers sharing a tracked version to see it: `{V: 2}` becomes
+	 * `{}` instead of `{V: 1}`, and the survivor's position stops being tracked at all. That map's lowest key is
+	 * what stops the ring buffer being trimmed, so the survivor can lose captures it has not read and fall back
+	 * to reading the write-ahead log - or stall, where retention has already reclaimed that segment.
+	 *
+	 * @param evita the Evita database instance with the test dataset already loaded
+	 */
+	@UseDataSet(value = CDC_TRANSACTIONS)
+	@Test
+	@DisplayName("give back exactly one version slot when one of two subscribers unsubscribes")
+	void shouldReleaseOnlyTheDepartingSubscribersVersionSlot(Evita evita) {
+		final Catalog catalog = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+
+		final ChangeCatalogCaptureSharedPublisher publisher = new ChangeCatalogCaptureSharedPublisher(
+			catalog,
+			new ImmediateExecutorService(),
+			16,
+			16,
+			ChangeCatalogCriteriaBundle.CATCH_ALL,
+			capture -> {
+			},
+			criteria -> {
+			}
+		);
+
+		// both subscribers sit at the same version, and neither requests anything, so both stay live - the
+		// re-entrancy only fires for a subscription `unsubscribe` still has to cancel
+		final long trackedVersion = catalog.getVersion() + 1;
+		final WalPointerWithContent specification =
+			new WalPointerWithContent(trackedVersion, 0, ChangeCaptureContent.BODY);
+		final DefaultChangeCaptureSubscription<ChangeCatalogCapture> departing =
+			publisher.subscribe(new SilentCatalogSubscriber(), specification);
+		publisher.subscribe(new SilentCatalogSubscriber(), specification);
+
+		final ConcurrentSkipListMap<Long, Integer> versionSubscribersCount =
+			getNonnullFieldValue(publisher, "versionSubscribersCount");
+		assertEquals(
+			2,
+			versionSubscribersCount.get(trackedVersion),
+			"Both subscribers were expected to be tracked at the same version; without that this test cannot " +
+				"distinguish one decrement from two."
+		);
+
+		publisher.unsubscribe(departing.getSubscriptionId());
+
+		assertEquals(
+			1,
+			versionSubscribersCount.get(trackedVersion),
+			"One subscriber left and the version lost both of its slots. `unsubscribe` cancelled before " +
+				"removing, so the release re-entered it while the entry was still in the map and the " +
+				"bookkeeping ran twice. The surviving subscriber is now untracked, and the lowest key of this " +
+				"map is the only thing stopping the ring buffer being trimmed past captures it still needs."
+		);
+		assertEquals(
+			1,
+			publisher.getSubscribersCount(),
+			"The surviving subscription was removed along with the departing one."
+		);
+	}
+
+	/**
+	 * A subscriber that accepts its subscription and asks for nothing, so the subscription stays live for the
+	 * duration of the test rather than terminating itself from inside {@code onSubscribe}.
+	 */
+	private static class SilentCatalogSubscriber implements Subscriber<ChangeCatalogCapture> {
+		@Override
+		public void onSubscribe(Subscription subscription) {
+		}
+
+		@Override
+		public void onNext(ChangeCatalogCapture item) {
+		}
+
+		@Override
+		public void onError(Throwable throwable) {
+		}
+
+		@Override
+		public void onComplete() {
+		}
+	}
+
+	/**
 	 * Tests that the {@link CatalogChangeObserver} correctly cleans inactive publishers.
 	 *
 	 * This test:

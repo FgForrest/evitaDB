@@ -266,12 +266,15 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 	 * if its `isClosed` method returns true. This method ensures that only active publishers remain in the
 	 * collection for further processing.
 	 *
-	 * The sweep must come first and cannot be dropped: a terminated subscription releases itself through the
-	 * capture executor, which refuses the submission when its bounded queue is full, and nothing else ever
-	 * retries it. Until the sweep removes such an entry the publisher never observes an empty subscriber map, so
-	 * it is never closed here and the ring buffer is never trimmed past the version that entry still tracks.
+	 * The sweep cannot be dropped: a terminated subscription releases itself through the capture executor, which
+	 * refuses the submission when its bounded queue is full, and nothing else ever retries it - so until the
+	 * sweep removes such an entry it holds its tracked version and the ring buffer can never be trimmed past it.
 	 * This runs on the scheduler, whose delay queue is unbounded, so it cannot be starved by the saturation that
 	 * causes the leak.
+	 *
+	 * Its position relative to `checkSubscribersLeft()` is convention rather than a requirement: every release
+	 * the sweep performs already ends in that call, through `unsubscribe`. The explicit one afterwards exists
+	 * for a publisher that released nothing this tick and would otherwise never be asked.
 	 *
 	 * @return the milliseconds deviation to the next scheduled run (always zero)
 	 */

@@ -455,10 +455,16 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 	 * {@code false} if no subscription exists for the given ID
 	 */
 	public boolean unsubscribe(@Nonnull UUID subscriptionId) {
-		final DefaultChangeCaptureSubscription<ChangeSystemCapture> subscription = this.subscribers.get(subscriptionId);
+		// Remove BEFORE cancelling. `cancel()` releases the subscription, and the release calls straight back
+		// into this method through `onCancellation` - so with the entry still present the re-entrant call runs
+		// the whole body, and the outer call then repeats it. That decrements `versionSubscribersCount` twice
+		// for one departing subscriber: `{V: 2}` becomes `{}` rather than `{V: 1}`, so a surviving subscriber's
+		// position stops being tracked at all and the ring buffer can be trimmed past captures it has not read.
+		// Removing first makes the inner call find nothing and return immediately. `remove` also does the
+		// lookup atomically, so two concurrent callers cannot both claim the same departing subscription.
+		final DefaultChangeCaptureSubscription<ChangeSystemCapture> subscription = this.subscribers.remove(subscriptionId);
 		if (subscription != null) {
 			subscription.cancel();
-			this.subscribers.remove(subscriptionId);
 			// drop the per-subscriber filters — no further dispatch should happen
 			this.hostEventFilters.remove(subscriptionId);
 			this.mutationFilters.remove(subscriptionId);
