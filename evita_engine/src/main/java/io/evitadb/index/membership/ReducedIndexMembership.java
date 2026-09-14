@@ -55,8 +55,8 @@ import java.util.PrimitiveIterator.OfInt;
  * # Why only SOME indexes are covered
  *
  * Cost is per **membership** while benefit is per **index**: covering a reduced index holding 21,467 owners
- * costs 21,467 entries and saves exactly one probe. Covering everything measured at 274.7 MiB against
- * 36.3 MiB for a size threshold that still removes 96 % of the walk. So an index is covered only while it
+ * costs 21,467 entries and saves exactly one probe. Covering everything measured at 279.2 MiB against
+ * 37.2 MiB for a size threshold that still removes 96 % of the walk. So an index is covered only while it
  * holds at most {@link #getCoverageThreshold()} owners; larger ones stay {@link #getResidualIndexPrimaryKeys()
  * on the walk}, and references whose indexes are all large disqualify themselves automatically without any
  * per-reference heuristic.
@@ -350,7 +350,7 @@ public class ReducedIndexMembership implements VoidTransactionMemoryProducer<Red
 	 * @param members         the owners it held, so its entries can be forgotten in one pass over them rather
 	 *                        than a scan of every owner the reference knows
 	 */
-	public void unregisterIndex(int indexPrimaryKey, @Nonnull Bitmap members) {
+	void unregisterIndex(int indexPrimaryKey, @Nonnull Bitmap members) {
 		dropCoverage(indexPrimaryKey, members);
 		this.residualIndexPrimaryKeys.remove(indexPrimaryKey);
 	}

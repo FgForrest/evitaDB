@@ -148,7 +148,8 @@ public class ConditionalFacetSiblingResolverReport {
 	private static final int WARM_ROUNDS = 400;
 
 	/**
-	 * Rounds of the cold series. One arm per round, so the per-arm sample is a third of this; the cold series
+	 * Rounds of the cold series. One arm per round, so the per-arm sample is `COLD_ROUNDS / Arm.values().length`
+	 * of this; the cold series
 	 * needs more rounds than the warm one for the same confidence because it has no pairing.
 	 */
 	private static final int COLD_ROUNDS = 180;
@@ -296,10 +297,11 @@ public class ConditionalFacetSiblingResolverReport {
 		});
 
 		System.out.printf(
-			"  %-26s %12s %12s %12s %10s%n", "series / arm", "median ns", "p95 ns", "ns/probe", "probes"
+			"  %-26s %12s %12s %12s %10s%n  (* ns/probe not comparable: the arm's time also covers map lookups)%n",
+			"series / arm", "median ns", "p95 ns", "ns/probe", "probes"
 		);
 		for (final Arm arm : arms) {
-			report("WARM " + arm.label, warm[arm.ordinal()], walk.probesFor(arm));
+			report("WARM " + arm.label, warm[arm.ordinal()], walk.probesFor(arm), Walk.nsPerProbeComparable(arm));
 		}
 
 		// COLD: one arm per round, working set evicted outside the timed region
@@ -320,7 +322,7 @@ public class ConditionalFacetSiblingResolverReport {
 			}
 		});
 		for (final Arm arm : arms) {
-			report("COLD " + arm.label, cold[arm.ordinal()], walk.probesFor(arm));
+			report("COLD " + arm.label, cold[arm.ordinal()], walk.probesFor(arm), Walk.nsPerProbeComparable(arm));
 		}
 
 		// the same walk with NO transaction bound - the delta against WARM B is the ceiling on what hoisting
@@ -335,7 +337,7 @@ public class ConditionalFacetSiblingResolverReport {
 			}
 			verifyChecksum(checksums, Arm.B_SINGLE_PASS, checksum);
 		}
-		report("WARM B (no transaction)", noTx, walk.probesFor(Arm.B_SINGLE_PASS));
+		report("WARM B (no transaction)", noTx, walk.probesFor(Arm.B_SINGLE_PASS), true);
 
 		// the same, cold: whether the transactional-layer overhead survives once the walk is memory-bound
 		final long[] coldNoTx = new long[perArm];
@@ -346,7 +348,7 @@ public class ConditionalFacetSiblingResolverReport {
 			coldNoTx[round] = System.nanoTime() - start;
 			verifyChecksum(checksums, Arm.B_SINGLE_PASS, checksum);
 		}
-		report("COLD B (no transaction)", coldNoTx, walk.probesFor(Arm.B_SINGLE_PASS));
+		report("COLD B (no transaction)", coldNoTx, walk.probesFor(Arm.B_SINGLE_PASS), true);
 		System.out.println();
 	}
 
@@ -383,14 +385,19 @@ public class ConditionalFacetSiblingResolverReport {
 	 * @param samples the per-round durations
 	 * @param probes  how many partitions this arm actually probes
 	 */
-	private static void report(@Nonnull String label, @Nonnull long[] samples, long probes) {
+	private static void report(@Nonnull String label, @Nonnull long[] samples, long probes, boolean comparable) {
 		final long[] sorted = samples.clone();
 		Arrays.sort(sorted);
 		final long median = sorted[sorted.length / 2];
+		// A hybrid arm's elapsed time also covers the reverse-map lookup of every covered owner, which the
+		// residual probe count does not represent - so its ns/probe is printed suffixed rather than bare, to
+		// stop it being read as if it sat on the same scale as the walking arms' figure.
+		final String nsPerProbe = probes == 0L
+			? "n/a"
+			: String.format("%.1f%s", median / (double) probes, comparable ? "" : "*");
 		System.out.printf(
 			"  %-26s %,12d %,12d %12s %,10d%n",
-			label, median, sorted[p95Index(sorted.length)],
-			probes == 0L ? "n/a" : String.format("%.1f", median / (double) probes), probes
+			label, median, sorted[p95Index(sorted.length)], nsPerProbe, probes
 		);
 	}
 
@@ -678,8 +685,15 @@ public class ConditionalFacetSiblingResolverReport {
 		}
 
 		/**
-		 * Returns how many partitions the given arm actually probes, which is the denominator of its
-		 * nanoseconds-per-probe figure.
+		 * Returns how many partitions the given arm actually probes.
+		 *
+		 * **This is NOT a comparable denominator across arms, which is why
+		 * {@link #nsPerProbeComparable(Arm)} exists.** A hybrid arm's elapsed time pays for the reverse-map
+		 * lookup of every covered owner *in addition to* walking the residual partitions, so dividing that
+		 * whole duration by the residual count alone charges map work to probes that did not do it — and the
+		 * resulting figure reads as though the hybrid were more expensive per probe than the plain walk, when
+		 * it is simply doing different work. The non-hybrid arms divide the same kind of elapsed time by every
+		 * partition they visit, so the two columns measure different things under one heading.
 		 *
 		 * @param arm the arm
 		 * @return the probe count
@@ -687,6 +701,16 @@ public class ConditionalFacetSiblingResolverReport {
 		long probesFor(@Nonnull Arm arm) {
 			return arm == Arm.C_HYBRID_REVERSE || arm == Arm.G_PER_INDEX_HYBRID
 				? this.residualPartitions : this.totalPartitions;
+		}
+
+		/**
+		 * Tells whether an arm's nanoseconds-per-probe figure may be compared with the other arms'.
+		 *
+		 * @param arm the arm
+		 * @return `false` for the hybrid arms, whose elapsed time covers work the probe count does not
+		 */
+		static boolean nsPerProbeComparable(@Nonnull Arm arm) {
+			return arm != Arm.C_HYBRID_REVERSE && arm != Arm.G_PER_INDEX_HYBRID;
 		}
 
 		/**

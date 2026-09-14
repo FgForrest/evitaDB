@@ -568,6 +568,21 @@ without a performance claim was the right call — the claim it was never given 
 
 ## Consequences & open follow-ups
 
+- **A previously-implicit guarantee was narrowed, and this is the only record of it (#1531).** Before this
+  branch, `ContainerizedLocalMutationExecutor#verifyReferenceAttributes` re-scanned an existing entity's
+  **entire** reference container on every application, so any write to an entity re-validated every reference
+  it held. It now verifies only the references the mutations named. The practical effect: **an already-stored
+  reference that a later schema change makes non-compliant is no longer repaired by the next unrelated write
+  to the same entity.** It is repaired by a write that touches that reference, or by one that adds an entity
+  locale — and otherwise not at all.
+  That is deliberate and measured (the full scan was 19.62 % of writer CPU on a production bulk load, and
+  removing it took catalog load from 534 s to 434 s), and it is pinned by
+  `ReferenceAttributeVerificationScopeTest#untouchedReferenceKeepsItsGapAfterTheSchemaGainsADefaultValuedAttribute`.
+  The reasoning lives in that method's javadoc and in `#collectTouchedReferences`; this bullet exists because
+  the narrowing was otherwise discoverable only by reading them, and someone hitting it in production would
+  have had to re-derive it. **Three conditions still force the full scan** — an unresolvable reference key, a
+  key resolving to nothing, and a batch adding an entity locale — all conservative in the same direction.
+
 - **#1529's decision rule cannot be applied as written.** Its second clause requires "the sparse shape
   shows a registration saving too", and no reverse index can deliver one: registration fires for exactly
   the partitions holding an affected owner, and the union of the affected owners' partition sets *is* that
