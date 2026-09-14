@@ -129,6 +129,9 @@ Quiet box, AMD Ryzen AI 9 HX 370, 16 MiB L3, `-Xmx48g`, JDK 21. All arms probe-o
 the `(owner, partition)` pairs emitted; every run agreed. `WARM` = arms back-to-back, order rotated;
 `COLD` = one arm per round with 128 MiB streamed outside the timed region. The two series are never mixed.
 
+> **`dense` rows here were sampled from `REFERENCED_ENTITY_TYPE`, not the family this trigger resolves
+> owners from** — see *The dense shape was sampled from the wrong index family*.
+
 | P | shape | series | pre-#1524 walk | `HEAD` walk | hybrid `T`=16 |
 |---|---|---|---|---|---|
 | 4,633 | sparse (20 owners) | WARM | 814.7 µs | 776.1 µs | **289.1 µs** |
@@ -186,6 +189,10 @@ process, with a bound transaction and rotated arm order, checksum-compared. Figu
 independent runs**, 2026-09-11, same box, reported as `run A / run B` — a single run of this harness does not
 resolve the dense high-cardinality walk better than ~11 %.
 
+
+> **Every `dense` row below was sampled from `REFERENCED_ENTITY_TYPE`, which is not the family this
+> trigger resolves owners from.** See *The dense shape was sampled from the wrong index family*. The
+> `P`=4,708 dense case has since been re-measured on the correct shape; the `P`=188,387 rows have not.
 | `P` | shape | walk | lookup | |
 |---|---|---|---|---|
 | 4,633 | sparse | 807 / 798 µs | **268 / 283 µs** | 2.8–3.0× |
@@ -196,6 +203,58 @@ resolve the dense high-cardinality walk better than ~11 %.
 Rebuilding the lookup over 188,387 reduced indexes costs **156.0 ms**, against a 26 s catalog load. Coverage
 reproduced exactly across both runs and both configurations — 2,697 covered / 1,936 residual, and
 185,475 / **2,912**.
+
+### The dense shape was sampled from the wrong index family — and the decision survives it
+
+**Every "dense" row in this record was measured on an affected-owner set the shipped trigger does not
+produce.** `shapes()` in both report harnesses, and the census's fan-out simulation, drew affected owners from
+`REFERENCED_ENTITY_TYPE`. Which family supplies them depends on the trigger's dependency type:
+`ReevaluateExpressionExecutor#resolveForGroupEntityAttribute:2113` reads `REFERENCED_GROUP_ENTITY_TYPE`. This
+collection's sole `facetedPartially` reference (`parameterValues`) is also the only one carrying a group
+family, so the harness produced a plausible **wrong** owner set rather than an empty one — which is why it
+survived review until the tooling was audited.
+
+Corrected, the two families disagree sharply at the dense end:
+
+| family | three largest affected sets | `intersecting / P` |
+|---|---|---|
+| `REFERENCED_ENTITY_TYPE` (what was measured) | 57,962 / 47,958 / 20,049 | 0.50 / 0.81 / 0.35 |
+| `REFERENCED_GROUP_ENTITY_TYPE` (what the trigger reads) | 119,429 / 119,423 / 119,420 | **1.00 / 1.00 / 1.00** |
+
+A ratio of 1 is the condition this record's own census calls disqualifying: every probed partition intersects
+the affected set, so the covered/residual split filters nothing.
+
+**It does not disqualify the thresholded structure, and the reason is the threshold itself.** Re-measured on
+the corrected shape, `P`=4,708, catalog version 24,304, all seven arms checksum-gated on the `(owner,
+partition)` pairs they emit:
+
+| shape | B single pass (walk) | C hybrid reverse (shipped) | |
+|---|---|---|---|
+| SPARSE — 20 owners, WARM | 590,423 ns | **239,151 ns** | **2.47× faster** |
+| DENSE — 119,429 owners, WARM | 3,156,488 ns | 3,224,216 ns | −2.1 % (C's p95 **16 % better**: 5.22 vs 6.21 ms) |
+| DENSE — 119,429 owners, COLD | 6,471,785 ns | **4,786,088 ns** | **26 % faster** |
+
+Dense is a wash warm and a win cold. The intuition that `ratio`=1 must defeat the lookup — the reverse map
+paying one probe per affected owner, 119,429 of them — is wrong **for the thresholded structure**, and the run
+prints why: at `T`=16 the map holds **16,502 memberships across 13,427 owners**, because every partition
+holding more than 16 owners stays residual by construction. The dense owner set never enters the map; the
+partitions holding those 119,429 owners are exactly the ones the threshold excludes. Probe cost is bounded by
+the map's contents, not by the size of the affected set, and C still visits 2,012 partitions rather than 4,708.
+
+`ratio`=1 **does** defeat a blanket structure, which is Option B and already declined. The hybrid is immune for
+the same reason it is cheap.
+
+**What is therefore still unverified.** The re-measurement covers `P`=4,708, today's schema. Every dense figure
+at `P`=188,387 — the 1.51–1.57× headline, the 1.34–1.50× de-duplication row, the 10.6 ms in Option A's pros —
+was taken on the entity-family shape and has **not** been re-run, because reproducing that configuration means
+raising every reference and reindexing 3.4 GB before measuring. Treat those rows as describing the harness's
+old shape, not the trigger's. The sparse rows are unaffected: sparse ratios sit at 0.001–0.03 in both families.
+
+**One observation worth carrying forward.** Arm `G per-index hybrid` — the per-`ReferencedTypeEntityIndex`
+placement declined below — beat the shipped `C` in both dense series (WARM 2.86 vs 3.22 ms, COLD 4.36 vs
+4.79 ms) and tied it in sparse (241,164 vs 239,151 ns). The placement decision was taken on maintenance
+grounds, not speed, and those grounds are unchanged; but this record's claim that the pricing "carries over
+unchanged" between placements is a memory claim, not a latency one.
 
 ### Memory, re-measured
 
@@ -234,7 +293,7 @@ The same harness, same box and same session, with the scan restored via `-Dspike
 | `P` | shape | walk | lookup |
 |---|---|---|---|
 | 4,633 | sparse | 793 / 655 µs | 274 / 226 µs |
-| 4,633 | dense | 11.83 / 12.02 ms | 10.95 / 11.27 ms |
+| 4,633 | dense | 11.83 / 12.02 ms | 10.95 / 11.27 ms |  <!-- entity-family shape; see the sampling caveat -->
 | 188,387 | sparse | 82.8 ms | 1.59 ms |
 | 188,387 | dense | 228.5 ms | 168.1 ms |
 
@@ -293,7 +352,8 @@ Cover partitions of at most `T` owners in an `ownerPK → partitionPK` map; leav
 walk. Derived at catalog open, maintained at the existing owner-membership boundaries.
 
 - **Pros:** `T`=16 removes 96 % of the walk for **13 %** of the blanket structure's memory. At P=188,387 it
-  takes the sparse walk from 81.4 ms to 1.72 ms and the dense one from 112.8 ms to 10.6 ms. References whose
+  takes the sparse walk from 81.4 ms to 1.72 ms and the dense one from 112.8 ms to 10.6 ms (that dense
+  pair is an entity-family shape and unverified — see the sampling caveat). References whose
   partitions are all large disqualify themselves automatically — `stocks`, `stockVisibilities` and
   `bonusVisibilities` each produce an **840-byte structure covering zero owners** — so no per-reference heuristic is
   needed.
