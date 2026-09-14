@@ -175,9 +175,16 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	}
 
 	/**
-	 * Result of evaluating a trigger's condition against affected owner PKs. Splits the affected set into
-	 * two disjoint bitmaps: entities for which the condition is true (should be indexed) and entities for
-	 * which it is false (should not be indexed).
+	 * Result of evaluating a trigger's condition against affected owner PKs — the contributions for which the
+	 * condition is true (should be indexed) and those for which it is false (should not be indexed).
+	 *
+	 * The two sides are disjoint per referenced entity, never at owner level. An owner holding one qualifying
+	 * and one non-qualifying reference legitimately appears in both, since
+	 * {@link ContributionVerdicts#allOwnerPKs()} unions across contributions — and telling those two references
+	 * apart is the whole reason the answer is carried per contribution. Read a side through
+	 * {@link ContributionVerdicts#forReferencedEntity(int)} or
+	 * {@link AffectedEntityResolution#entriesForOwnerPKs(ContributionVerdicts)}; subtracting one side's
+	 * owner-level bitmap from the other's answers nothing.
 	 *
 	 * @param shouldBeIndexed    contributions for which the condition is now true
 	 * @param shouldNotBeIndexed contributions for which the condition is now false
@@ -810,9 +817,10 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	}
 
 	/**
-	 * Evaluates the trigger's FilterBy constraint against affected owner PKs and splits them into two disjoint
-	 * sets: those for which the condition is now true (should be indexed) and those for which it is false
+	 * Evaluates the trigger's FilterBy constraint against affected owner PKs and splits them into the
+	 * contributions for which the condition is now true (should be indexed) and those for which it is false
 	 * (should not be indexed). For unconditional triggers (no FilterBy), all affected PKs are in the "true" set.
+	 * The two sides are disjoint per referenced entity rather than at owner level — see {@link ConditionalSplit}.
 	 *
 	 * When the condition filter contains a `groupHaving` clause and the mutation fires for a referenced entity
 	 * attribute change (not a group entity change), the evaluation is performed per-group to avoid cross-reference
@@ -826,7 +834,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param target              access to the entity collection's filter evaluator
 	 * @param affected            resolved affected groups with per-group owner PKs
 	 * @param allAffectedOwnerPKs union bitmap of all affected owner PKs
-	 * @return split result with disjoint shouldBeIndexed / shouldNotBeIndexed bitmaps
+	 * @return split result carrying the shouldBeIndexed / shouldNotBeIndexed contributions
 	 */
 	@Nonnull
 	private static ConditionalSplit evaluateCondition(
