@@ -44,6 +44,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -92,7 +93,7 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 	/**
 	 * Map of all active publishers. A unique UUID identifies each publisher.
 	 */
-	private final Map<ChangeCatalogCriteriaBundle, ChangeCatalogCaptureSharedPublisher> uniquePublishers;
+	private final ConcurrentMap<ChangeCatalogCriteriaBundle, ChangeCatalogCaptureSharedPublisher> uniquePublishers;
 	/**
 	 * Cleaning task that removes inactive publishers from the list of unique publishers once a while.
 	 */
@@ -203,12 +204,12 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 						this.cdcOptions.subscriberBufferSize(),
 						cb,
 						this::updateStatistics,
-						publisher -> {
+						closingPublisher -> {
 							log.info(
 								"Closing shared CDC publisher for catalog '{}' and criteria: {}",
 								catalogName, cb
 							);
-							this.uniquePublishers.remove(publisher);
+							this.uniquePublishers.remove(cb, closingPublisher);
 						}
 					);
 				}

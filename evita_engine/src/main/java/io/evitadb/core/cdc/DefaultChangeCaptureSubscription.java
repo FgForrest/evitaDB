@@ -36,6 +36,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -118,6 +119,19 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	 * later - or, when the capture executor refuses the deferred task, only by the publisher's periodic sweep.
 	 */
 	@Nonnull private final AtomicBoolean released = new AtomicBoolean(false);
+
+	/**
+	 * Flag indicating that the subscriber's {@code onSubscribe} callback returned normally. Delivery is gated on
+	 * this state so no {@code onNext} can overlap the callback that hands the subscription to the subscriber.
+	 */
+	@Nonnull private final AtomicBoolean activated = new AtomicBoolean(false);
+
+	/**
+	 * Single host capture received before activation completes. Guarded by {@link #lock}. A newer capture replaces an
+	 * older one because host events are live-tail signals whose version is only for correlation, and they are already
+	 * allowed to be dropped when there is no demand.
+	 */
+	@Nullable private T pendingActivationCapture;
 
 	/**
 	 * Counter tracking the number of items requested by the subscriber but not yet delivered.
@@ -209,14 +223,41 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	 * Activating once the entry is published makes both safe: a re-entrant `cancel()` now unregisters through
 	 * the ordinary path, and a throwing `onSubscribe` leaves a registration the caller can roll back.
 	 *
-	 * **Ordering.** No capture can reach the subscriber before this runs, so the reactive-streams guarantee
-	 * that `onSubscribe` precedes every `onNext` still holds: both delivery paths gate on demand
-	 * ({@link #consumeQueue()} requires `requested > 0`, and the immediate host-event path drops at zero), and
-	 * demand is raised only by {@link #request(long)}, which the subscriber cannot call before it holds this
-	 * subscription.
+	 * **Ordering.** The subscription is visible to concurrent publishers before this method runs. An immediate host
+	 * capture arriving while {@code onSubscribe} is running is retained in a single pending slot rather than delivered
+	 * or made to wait. Once the callback returns, this method takes the delivery lock, enables delivery, drains WAL
+	 * captures for demand raised inside the callback, and only then flushes the pending host capture. Thus the host
+	 * capture cannot overtake an earlier WAL capture or overlap {@code onSubscribe}.
 	 */
 	void activate() {
-		this.subscriber.onSubscribe(this);
+		boolean callbackCompleted = false;
+		try {
+			this.subscriber.onSubscribe(this);
+			callbackCompleted = true;
+		} finally {
+			if (!callbackCompleted) {
+				discardPendingActivationCapture();
+			}
+		}
+
+		this.lock.lock();
+		try {
+			if (this.finished.get()) {
+				this.pendingActivationCapture = null;
+				return;
+			}
+			this.activated.set(true);
+			final T pendingCapture = this.pendingActivationCapture;
+			this.pendingActivationCapture = null;
+			if (this.requested.get() > 0L) {
+				consumeQueue();
+			}
+			if (pendingCapture != null) {
+				deliverImmediate(pendingCapture);
+			}
+		} finally {
+			this.lock.unlock();
+		}
 	}
 
 	/**
@@ -224,7 +265,7 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	 * This method is called when new events become available in the system.
 	 */
 	public void notifySubscriber() {
-		if (!this.finished.get()) {
+		if (this.activated.get() && !this.finished.get()) {
 			if (this.requested.get() > 0 && this.queue.isEmpty()) {
 				// If the subscriber requests new CDC events and the queue is empty,
 				// trigger asynchronous processing to fetch and deliver new events
@@ -260,7 +301,7 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 
 			// If the subscriber requests new CDC events, trigger processing
 			// But only if we're not already inside the onNext method (indicated by lock being held)
-			if (this.lock.tryLock()) {
+			if (this.activated.get() && this.lock.tryLock()) {
 				try {
 					consumeQueue();
 				} finally {
@@ -280,6 +321,7 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	public void cancel() {
 		// Atomically set the finished flag to true if it was false
 		if (this.finished.compareAndSet(false, true)) {
+			discardPendingActivationCapture();
 			// Clear the queue to release memory
 			this.queue.clear();
 			// cancel() is invoked by whoever owns the subscription, from outside the delivery path, so the
@@ -305,6 +347,7 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	public void onComplete() {
 		// Atomically set the finished flag to true if it was false
 		if (this.finished.compareAndSet(false, true)) {
+			discardPendingActivationCapture();
 			// Clear the queue to release memory
 			this.queue.clear();
 			try {
@@ -327,6 +370,7 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	public void onError(Throwable ex) {
 		// Atomically set the finished flag to true if it was false
 		if (this.finished.compareAndSet(false, true)) {
+			discardPendingActivationCapture();
 			// Clear the queue to release memory
 			this.queue.clear();
 			try {
@@ -472,17 +516,20 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	 *
 	 * **Ordering.** Acquires the same lock as `consumeQueue` so the host-event `onNext` cannot
 	 * interleave with a queued mutation `onNext`, preserving the strict-ordering guarantee
-	 * documented on the host-event contract.
+	 * documented on the host-event contract. Before activation it only replaces the pending slot and returns without
+	 * waiting for or invoking subscriber code. After activation it may wait behind a queue fill or another
+	 * {@code onNext}, and its own delivery invokes the subscriber's {@code onNext} on the calling thread.
 	 *
 	 * @param capture the capture to deliver immediately; never `null`
 	 */
 	public void deliverImmediate(@Nonnull T capture) {
-		if (this.finished.get()) {
-			return;
-		}
 		this.lock.lock();
 		try {
 			if (this.finished.get()) {
+				return;
+			}
+			if (!this.activated.get()) {
+				this.pendingActivationCapture = capture;
 				return;
 			}
 			final long demand = this.requested.get();
@@ -504,6 +551,23 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	}
 
 	/**
+	 * Clears a capture retained for post-activation delivery. The terminal flag is set before this method is called,
+	 * so a concurrent pre-activation delivery either observes termination and does nothing or publishes its capture
+	 * under the lock before this method clears it. Once activated, the slot has already been moved to the activation
+	 * thread and there is nothing here to clear.
+	 */
+	private void discardPendingActivationCapture() {
+		if (!this.activated.get()) {
+			this.lock.lock();
+			try {
+				this.pendingActivationCapture = null;
+			} finally {
+				this.lock.unlock();
+			}
+		}
+	}
+
+	/**
 	 * Marks this subscription dead without signalling the subscriber in any way.
 	 *
 	 * For a registration the publisher is retracting before {@link #activate()} ever ran. The subscriber was
@@ -518,6 +582,7 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	void retract() {
 		this.finished.set(true);
 		this.released.set(true);
+		discardPendingActivationCapture();
 		this.queue.clear();
 	}
 
@@ -591,6 +656,9 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	 * registration - see {@link #releaseRegistrationLater()} for why the release does not run on this thread.
 	 */
 	private void consumeQueue() {
+		if (!this.activated.get()) {
+			return;
+		}
 		// Synchronize consumption to ensure thread safety
 		this.lock.lock();
 		try {

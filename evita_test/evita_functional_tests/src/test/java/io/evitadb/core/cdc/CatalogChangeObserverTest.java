@@ -56,16 +56,19 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.utils.ReflectionUtils.getFieldValue;
 import static io.evitadb.test.utils.ReflectionUtils.getNonnullFieldValue;
+import static io.evitadb.test.utils.ReflectionUtils.setFieldValue;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.CDC;
 
@@ -652,7 +655,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 			ChangeCatalogCriteriaBundle.CATCH_ALL,
 			capture -> {
 			},
-			criteria -> {
+			closingPublisher -> {
 			}
 		);
 
@@ -740,7 +743,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 			ChangeCatalogCriteriaBundle.CATCH_ALL,
 			capture -> {
 			},
-			criteria -> {
+			closingPublisher -> {
 			}
 		);
 
@@ -837,7 +840,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 			ChangeCatalogCriteriaBundle.CATCH_ALL,
 			capture -> {
 			},
-			criteria -> {
+			closingPublisher -> {
 			}
 		);
 
@@ -922,7 +925,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 			ChangeCatalogCriteriaBundle.CATCH_ALL,
 			capture -> {
 			},
-			criteria -> {
+			closingPublisher -> {
 			}
 		);
 
@@ -1025,7 +1028,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 					criteriaBundle,
 					capture -> {
 					},
-					criteria -> {
+					closingPublisher -> {
 					}
 				);
 				// the first publisher the facade is handed has already been retired by the cleaner
@@ -1079,6 +1082,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 	void shouldRetractSilentlyWhenThePublisherIsRetiredMidRegistration(Evita evita) {
 		final Catalog catalog = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 		final RetiringDuringRegistrationPublisher publisher = new RetiringDuringRegistrationPublisher(catalog);
+		setFieldValue(publisher, "subscribers", new RetiringSubscriberMap(publisher));
 		final TransportRecordingSubscriber subscriber = new TransportRecordingSubscriber();
 		final long trackedVersion = catalog.getVersion() + 1;
 
@@ -1118,11 +1122,11 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * A shared publisher that retires itself once, from inside the pre-check that every registration makes.
+	 * A shared publisher exposing the package-private activity check as a deterministic retirement seam.
 	 *
-	 * This reproduces the real window without a production seam: the observer's cleaner decides to retire a
-	 * publisher from {@code subscribers.isEmpty()}, and a registration still inside {@code computeIfAbsent} is
-	 * invisible to that check, so a close can land between a registration's pre-check and its insertion.
+	 * {@link RetiringSubscriberMap} invokes the seam while the publisher lock is held and the subscription map still
+	 * hides its in-progress insertion. This keeps the otherwise defensive post-insert closed check executable without
+	 * retaining a redundant production activity assertion after the explicit closed-result branch.
 	 */
 	private static class RetiringDuringRegistrationPublisher extends ChangeCatalogCaptureSharedPublisher {
 		private final AtomicBoolean armed = new AtomicBoolean(true);
@@ -1136,7 +1140,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 				ChangeCatalogCriteriaBundle.CATCH_ALL,
 				capture -> {
 				},
-				criteria -> {
+				closingPublisher -> {
 				}
 			);
 		}
@@ -1147,6 +1151,44 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 			if (this.armed.compareAndSet(true, false)) {
 				close();
 			}
+		}
+	}
+
+	/**
+	 * Subscriber map that retires its publisher after the registration mapping function has constructed the
+	 * subscription but before {@code computeIfAbsent} publishes the entry.
+	 */
+	private static final class RetiringSubscriberMap
+		extends ConcurrentHashMap<UUID, DefaultChangeCaptureSubscription<ChangeCatalogCapture>> {
+		private final RetiringDuringRegistrationPublisher publisher;
+		private final AtomicBoolean retirementTriggered = new AtomicBoolean(false);
+
+		/**
+		 * Creates a map that retires the supplied publisher on its first insertion.
+		 *
+		 * @param publisher publisher to retire through its package-private test seam
+		 */
+		private RetiringSubscriberMap(@Nonnull RetiringDuringRegistrationPublisher publisher) {
+			this.publisher = publisher;
+		}
+
+		/** {@inheritDoc} */
+		@Override
+		public DefaultChangeCaptureSubscription<ChangeCatalogCapture> computeIfAbsent(
+			UUID key,
+			Function<? super UUID, ? extends DefaultChangeCaptureSubscription<ChangeCatalogCapture>> mappingFunction
+		) {
+			return super.computeIfAbsent(
+				key,
+				subscriptionId -> {
+					final DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription =
+						mappingFunction.apply(subscriptionId);
+					if (this.retirementTriggered.compareAndSet(false, true)) {
+						this.publisher.assertActive();
+					}
+					return subscription;
+				}
+			);
 		}
 	}
 

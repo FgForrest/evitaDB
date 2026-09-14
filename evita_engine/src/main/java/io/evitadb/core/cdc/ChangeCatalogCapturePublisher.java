@@ -33,6 +33,7 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.lang.ref.WeakReference;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -119,25 +120,13 @@ public class ChangeCatalogCapturePublisher implements ChangeCapturePublisher<Cha
 	@Override
 	public void subscribe(Subscriber<? super ChangeCatalogCapture> subscriber) {
 		assertActive();
-		final ChangeCatalogCaptureSharedPublisher firstAttempt = getSharedPublisher();
-		try {
-			subscribeToSharedPublisher(firstAttempt, subscriber);
-		} catch (InstanceTerminatedException refused) {
-			// The observer's cleaner retired the shared publisher between {@link #getSharedPublisher()} selecting
-			// it and the registration completing. The shared publisher detects that once its entry is published,
-			// takes the registration back without telling the subscriber anything, and refuses; renewing and
-			// retrying is what turns that into the successful subscribe the caller asked for.
-			//
-			// Only when that publisher really is retired. The same exception type can come out of a subscriber's
-			// own `onSubscribe`, and retrying there would call `onSubscribe` a second time on a subscriber whose
-			// transport the activation rollback has already closed - a reactive-streams violation on top of a
-			// pointless retry.
-			if (!firstAttempt.isClosed()) {
-				throw refused;
+		if (!subscribeToSharedPublisher(getSharedPublisher(), subscriber)) {
+			// The observer's cleaner retired the selected shared publisher before activation. The shared publisher
+			// explicitly reports that refusal with an empty result after silently retracting any bookkeeping, so it
+			// cannot be confused with the same exception type thrown by the subscriber's own onSubscribe callback.
+			if (!subscribeToSharedPublisher(getSharedPublisher(), subscriber)) {
+				throw new InstanceTerminatedException("CDC shared publisher");
 			}
-			// `getSharedPublisher()` renews a retired instance, and the observer's factory treats a retired entry
-			// as absent, so this attempt is against a live publisher rather than the one that just refused.
-			subscribeToSharedPublisher(getSharedPublisher(), subscriber);
 		}
 	}
 
@@ -146,21 +135,27 @@ public class ChangeCatalogCapturePublisher implements ChangeCapturePublisher<Cha
 	 *
 	 * @param theSharedPublisher the shared publisher to register with
 	 * @param subscriber         the subscriber to register
-	 * @throws InstanceTerminatedException if the shared publisher was retired while the registration ran
+	 * @return {@code true} when the subscriber was activated, or {@code false} when the shared publisher retired
+	 *         before activation and refused the registration
 	 */
-	private void subscribeToSharedPublisher(
+	private boolean subscribeToSharedPublisher(
 		@Nonnull ChangeCatalogCaptureSharedPublisher theSharedPublisher,
 		@Nonnull Subscriber<? super ChangeCatalogCapture> subscriber
 	) {
-		final DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription = theSharedPublisher.subscribe(
-			subscriber,
-			new WalPointerWithContent(
-				ofNullable(this.request.sinceVersion()).orElse(theSharedPublisher.getCatalog().getVersion() + 1),
-				ofNullable(this.request.sinceIndex()).orElse(0),
-				this.request.content()
-			)
-		);
-		this.subscribers.add(subscription.getSubscriptionId());
+		final Optional<DefaultChangeCaptureSubscription<ChangeCatalogCapture>> subscription =
+			theSharedPublisher.trySubscribe(
+				subscriber,
+				new WalPointerWithContent(
+					ofNullable(this.request.sinceVersion()).orElse(theSharedPublisher.getCatalog().getVersion() + 1),
+					ofNullable(this.request.sinceIndex()).orElse(0),
+					this.request.content()
+				)
+			);
+		if (subscription.isEmpty()) {
+			return false;
+		}
+		this.subscribers.add(subscription.get().getSubscriptionId());
+		return true;
 	}
 
 	/**

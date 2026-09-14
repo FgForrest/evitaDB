@@ -390,7 +390,9 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 			} catch (Throwable submitFailure) {
 				// Submission failure (e.g. executor saturated / shutting down) — best-effort fall
 				// back to synchronous delivery on the engine thread so a saturated executor does
-				// not silently drop the host event.
+				// not silently drop the host event. A subscription still inside onSubscribe only
+				// retains the event and returns, but an activated subscription may make this engine
+				// thread wait behind or invoke subscriber onNext code.
 				log.warn(
 					"cdcExecutor rejected host-event delivery task for subscriber {} — falling " +
 						"back to synchronous deliverImmediate.",
@@ -427,22 +429,16 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 	 */
 	@Override
 	public void subscribe(Subscriber<? super ChangeSystemCapture> subscriber) {
-		this.lock.lock();
-		try {
-			assertActive();
-			final long version = this.version.get();
-			// Subscribe starting from the next version after the current catalog version.
-			// Anonymous subscriptions follow the engine-only default — they never opt into host
-			// events and never reject engine mutations (mirrors the legacy default-criteria flow).
-			subscribe(
-				subscriber,
-				new WalPointerWithContent(version + 1, 0, ChangeCaptureContent.BODY),
-				event -> false,
-				capture -> true
-			);
-		} finally {
-			this.lock.unlock();
-		}
+		final long version = this.version.get();
+		// Subscribe starting from the next version after the current catalog version.
+		// Anonymous subscriptions follow the engine-only default — they never opt into host
+		// events and never reject engine mutations (mirrors the legacy default-criteria flow).
+		subscribe(
+			subscriber,
+			new WalPointerWithContent(version + 1, 0, ChangeCaptureContent.BODY),
+			event -> false,
+			capture -> true
+		);
 	}
 
 	/**
@@ -668,6 +664,19 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 					subscriberId,
 					uuid -> {
 						created.set(true);
+						// Construct first: ArrayBlockingQueue rejects a non-positive capacity, and a constructor
+						// failure must leave no version accounting or filters without a map entry to release them.
+						final DefaultChangeCaptureSubscription<ChangeSystemCapture> newSubscription =
+							new DefaultChangeCaptureSubscription<>(
+								uuid,
+								this.subscriberBufferSize,
+								specification,
+								subscriber,
+								this.cdcExecutor,
+								this::fillBuffer,
+								this.onNextConsumer,
+								this::unsubscribe
+							);
 						// optimization - we track the number of subscribers for each version
 						// to know when we can safely discard older versions
 						this.versionSubscribersCount.compute(
@@ -677,17 +686,7 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 						// register the per-subscriber filters so dispatch / fanout can honor them
 						this.hostEventFilters.put(candidateId, hostEventFilter);
 						this.mutationFilters.put(candidateId, mutationFilter);
-						// this is a costly operation since it allocates a buffer
-						return new DefaultChangeCaptureSubscription<>(
-							uuid,
-							this.subscriberBufferSize,
-							specification,
-							subscriber,
-							this.cdcExecutor,
-							this::fillBuffer,
-							this.onNextConsumer,
-							this::unsubscribe
-						);
+						return newSubscription;
 					}
 				);
 			} while (!created.get());

@@ -100,7 +100,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 * Consumer that is called when the publisher is closed. This can be used to perform
 	 * cleanup operations or notify other components that the publisher is no longer active.
 	 */
-	@Nonnull private final Consumer<ChangeCatalogCriteriaBundle> onClose;
+	@Nonnull private final Consumer<ChangeCatalogCaptureSharedPublisher> onClose;
 
 	/**
 	 * Map of active subscriptions, keyed by their unique identifier. This allows
@@ -158,6 +158,8 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 * @param bufferSize           the size of the ring buffer for storing recent changes
 	 * @param subscriberBufferSize the size of the buffer for each subscriber
 	 * @param criteria             the criteria used to filter mutations for this publisher
+	 * @param onNextConsumer       consumer invoked after a capture is sent to a subscriber
+	 * @param onClose              consumer invoked with this publisher when it closes
 	 */
 	public ChangeCatalogCaptureSharedPublisher(
 		@Nonnull Catalog catalog,
@@ -166,7 +168,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 		int subscriberBufferSize,
 		@Nonnull ChangeCatalogCriteriaBundle criteria,
 		@Nonnull Consumer<ChangeCatalogCapture> onNextConsumer,
-		@Nonnull Consumer<ChangeCatalogCriteriaBundle> onClose
+		@Nonnull Consumer<ChangeCatalogCaptureSharedPublisher> onClose
 	) {
 		this.currentCatalog = new AtomicReference<>(catalog);
 		this.cdcExecutor = cdcExecutor;
@@ -288,7 +290,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 			this.lock.unlock();
 		}
 		// notify that the publisher is closed
-		this.onClose.accept(this.criteria);
+		this.onClose.accept(this);
 		return true;
 	}
 
@@ -346,18 +348,12 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 */
 	@Override
 	public void subscribe(Subscriber<? super ChangeCatalogCapture> subscriber) {
-		this.lock.lock();
-		try {
-			assertActive();
-			final long version = getCatalog().getVersion();
-			// Subscribe starting from the next version after the current catalog version
-			subscribe(
-				subscriber,
-				new WalPointerWithContent(version + 1, 0, ChangeCaptureContent.BODY)
-			);
-		} finally {
-			this.lock.unlock();
-		}
+		final long version = getCatalog().getVersion();
+		// Subscribe starting from the next version after the current catalog version
+		subscribe(
+			subscriber,
+			new WalPointerWithContent(version + 1, 0, ChangeCaptureContent.BODY)
+		);
 	}
 
 	/**
@@ -473,7 +469,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 			subscription.cancel();
 		}
 		// notify that the publisher is closed
-		this.onClose.accept(this.criteria);
+		this.onClose.accept(this);
 	}
 
 	/**
@@ -546,8 +542,29 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 * @throws InstanceTerminatedException if the publisher is closed
 	 */
 	@Nonnull
-	DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscribe(@Nonnull Subscriber<? super ChangeCatalogCapture> subscriber, @Nonnull WalPointerWithContent specification) {
-		assertActive();
+	DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscribe(
+		@Nonnull Subscriber<? super ChangeCatalogCapture> subscriber,
+		@Nonnull WalPointerWithContent specification
+	) {
+		return trySubscribe(subscriber, specification)
+			.orElseThrow(() -> new InstanceTerminatedException("CDC shared publisher"));
+	}
+
+	/**
+	 * Attempts to register and activate a subscriber, explicitly reporting a publisher-retirement refusal as an
+	 * empty result. An exception thrown by the subscriber's own {@code onSubscribe} is propagated and can therefore
+	 * never be mistaken for a pre-activation refusal.
+	 *
+	 * @param subscriber    the subscriber that will receive the change catalog captures
+	 * @param specification the WAL pointer and content specification indicating where to start capturing changes
+	 * @return the activated subscription, or an empty result when this publisher refused registration because it
+	 *         was retired before activation
+	 */
+	@Nonnull
+	Optional<DefaultChangeCaptureSubscription<ChangeCatalogCapture>> trySubscribe(
+		@Nonnull Subscriber<? super ChangeCatalogCapture> subscriber,
+		@Nonnull WalPointerWithContent specification
+	) {
 		UUID subscriberId;
 		DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription;
 		final AtomicBoolean created = new AtomicBoolean(false);
@@ -555,9 +572,9 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 		// Registration and retirement take this publisher's lock, so one of them always sees the other. A
 		// registration still inside `computeIfAbsent` is invisible to every read of the map - `isEmpty()`,
 		// `size()`, `containsKey()` and the entry iterator all skip the reservation until the mapping function
-		// returns (measured on JDK 17 and 21) - so without this the observer's cleaner could retire the publisher
-		// between `assertActive()` above and the insertion below, after which `processMutation` never reaches the
-		// new subscription and a client waits forever on a subscribe call that reported success.
+		// returns (measured on JDK 17 and 21). Keeping both the active check and insertion under this lock prevents
+		// the observer's cleaner from retiring the publisher between them, after which `processMutation` would never
+		// reach the new subscription and a client would wait forever on a subscribe call that reported success.
 		//
 		// Nothing inside the mapping function calls user code or takes a subscription's delivery lock, and
 		// `activate()` is deliberately left outside this block, so holding the lock here adds no
@@ -565,6 +582,9 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 		// which is a leaf.
 		this.lock.lock();
 		try {
+			if (this.closed.get()) {
+				return Optional.empty();
+			}
 			// Keep trying until we successfully create a subscription with a unique ID
 			do {
 				subscriberId = UUIDUtil.randomUUID();
@@ -572,34 +592,37 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 					subscriberId,
 					uuid -> {
 						created.set(true);
+						// Construct first: ArrayBlockingQueue rejects a non-positive capacity, and a constructor
+						// failure must leave no version accounting behind without a map entry that can release it.
+						final DefaultChangeCaptureSubscription<ChangeCatalogCapture> newSubscription =
+							new DefaultChangeCaptureSubscription<>(
+								uuid,
+								this.subscriberBufferSize,
+								specification,
+								subscriber,
+								this.cdcExecutor,
+								this::fillBuffer,
+								this.onNextConsumer,
+								this::unsubscribe
+							);
 						// optimization - we track number of subscribers for each version
 						// to know when we can safely discard older versions
 						this.versionSubscribersCount.compute(
 							specification.version(),
 							(version, count) -> count == null ? 1 : count + 1
 						);
-						// this is a costly operation since it allocates a buffer
-						return new DefaultChangeCaptureSubscription<>(
-							uuid,
-							this.subscriberBufferSize,
-							specification,
-							subscriber,
-							this.cdcExecutor,
-							this::fillBuffer,
-							this.onNextConsumer,
-							this::unsubscribe
-						);
+						return newSubscription;
 					}
 				);
 			} while (!created.get());
 
-			// Re-check under the same lock. The cleaner can have retired this publisher between the
-			// `assertActive()` above and this point; taking the registration back is cheaper than holding the
-			// lock across `activate()`, which calls subscriber code. `ChangeCatalogCapturePublisher#subscribe` renews
-			// the publisher and retries on this exception.
+			// Defence-in-depth re-check retained for future changes to registration, and for the test seam that retires
+			// this publisher from inside the locked registration. Taking the registration back is cheaper than holding
+			// the lock across `activate()`, which calls subscriber code. `ChangeCatalogCapturePublisher#subscribe`
+			// renews the publisher only for this explicit empty result.
 			if (this.closed.get()) {
 				retractRegistration(subscriberId, subscription);
-				throw new InstanceTerminatedException("CDC shared publisher");
+				return Optional.empty();
 			}
 		} finally {
 			this.lock.unlock();
@@ -627,7 +650,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 			subscription.notifySubscriber();
 		}
 
-		return subscription;
+		return Optional.of(subscription);
 	}
 
 	/**

@@ -138,6 +138,7 @@ class ChangeCaptureSubscriptionFillFailureTest {
 						cancellationLatch.countDown();
 					}
 				);
+			subscription.activate();
 
 			assertDoesNotThrow(
 				() -> subscription.request(1),
@@ -270,6 +271,7 @@ class ChangeCaptureSubscriptionFillFailureTest {
 					subscriptionId -> {
 					}
 				);
+			subscription.activate();
 
 			subscription.request(1);
 			assertNull(
