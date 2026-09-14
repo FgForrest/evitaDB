@@ -119,7 +119,39 @@ public class ChangeCatalogCapturePublisher implements ChangeCapturePublisher<Cha
 	@Override
 	public void subscribe(Subscriber<? super ChangeCatalogCapture> subscriber) {
 		assertActive();
-		final ChangeCatalogCaptureSharedPublisher theSharedPublisher = getSharedPublisher();
+		final ChangeCatalogCaptureSharedPublisher firstAttempt = getSharedPublisher();
+		try {
+			subscribeToSharedPublisher(firstAttempt, subscriber);
+		} catch (InstanceTerminatedException refused) {
+			// The observer's cleaner retired the shared publisher between {@link #getSharedPublisher()} selecting
+			// it and the registration completing. The shared publisher detects that once its entry is published,
+			// takes the registration back without telling the subscriber anything, and refuses; renewing and
+			// retrying is what turns that into the successful subscribe the caller asked for.
+			//
+			// Only when that publisher really is retired. The same exception type can come out of a subscriber's
+			// own `onSubscribe`, and retrying there would call `onSubscribe` a second time on a subscriber whose
+			// transport the activation rollback has already closed - a reactive-streams violation on top of a
+			// pointless retry.
+			if (!firstAttempt.isClosed()) {
+				throw refused;
+			}
+			// `getSharedPublisher()` renews a retired instance, and the observer's factory treats a retired entry
+			// as absent, so this attempt is against a live publisher rather than the one that just refused.
+			subscribeToSharedPublisher(getSharedPublisher(), subscriber);
+		}
+	}
+
+	/**
+	 * Registers the subscriber with the given shared publisher.
+	 *
+	 * @param theSharedPublisher the shared publisher to register with
+	 * @param subscriber         the subscriber to register
+	 * @throws InstanceTerminatedException if the shared publisher was retired while the registration ran
+	 */
+	private void subscribeToSharedPublisher(
+		@Nonnull ChangeCatalogCaptureSharedPublisher theSharedPublisher,
+		@Nonnull Subscriber<? super ChangeCatalogCapture> subscriber
+	) {
 		final DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription = theSharedPublisher.subscribe(
 			subscriber,
 			new WalPointerWithContent(

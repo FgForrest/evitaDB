@@ -45,7 +45,9 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.test.TestTags.CDC;
@@ -396,6 +398,153 @@ class ChangeCaptureSubscriptionFillFailureTest {
 	}
 
 	/**
+	 * Builds a subscription that does nothing on its own, for tests that drive its accounting directly.
+	 *
+	 * @param executorService the executor the subscription would submit asynchronous work to
+	 * @param version         the version the subscription is registered at
+	 * @return a subscription with an inert queue filler and no deregistration hook
+	 */
+	@Nonnull
+	private static DefaultChangeCaptureSubscription<ChangeCatalogCapture> createInertSubscription(
+		@Nonnull ExecutorService executorService,
+		long version
+	) {
+		return new DefaultChangeCaptureSubscription<>(
+			UUID.randomUUID(),
+			16,
+			new WalPointerWithContent(version, 0, ChangeCaptureContent.BODY),
+			new RecordingSubscriber(),
+			executorService,
+			(walPointer, theSubscription, queue) -> {
+			},
+			capture -> {
+			},
+			subscriptionId -> {
+			}
+		);
+	}
+
+	/**
+	 * A subscription owns exactly one unit of the publisher's version accounting, and only one code path may give
+	 * it back.
+	 *
+	 * `unsubscribe` reclaims that unit the moment it wins the removal from the subscribers map. The queue fill that
+	 * moves the unit forward runs on the delivery thread and reads the write-ahead log, so it can still be in
+	 * flight by then - and a move landing afterwards decrements a version this subscription no longer holds, which
+	 * takes the slot of a subscriber still sitting on it. The publisher trims its ring buffer to the lowest key of
+	 * that map, so the survivor is trimmed past captures it has not read, and where write-ahead-log retention has
+	 * already reclaimed that segment it stalls instead of falling back to disk.
+	 *
+	 * Both halves take this subscription's lock, so under concurrency one of the two orderings below is what
+	 * actually happens. This pins the decision each ordering has to reach - which is the whole of the guarantee;
+	 * the lock only decides which of them a given race gets.
+	 */
+	@DisplayName("a version slot must not move after the subscription has given it back, in either ordering")
+	@Test
+	void shouldGiveBackTheVersionSlotExactlyOnce() {
+		final long registeredAt = 100L;
+		final long advancedTo = 140L;
+		final ExecutorService executorService = createDaemonExecutor();
+		try {
+			// ordering A - the release wins the lock first, and a fill still in flight must not move the slot
+			final AtomicBoolean movedAfterRelease = new AtomicBoolean(false);
+			final AtomicLong releaseReportedVersion = new AtomicLong(-1L);
+			final DefaultChangeCaptureSubscription<ChangeCatalogCapture> releasedFirst =
+				createInertSubscription(executorService, registeredAt);
+
+			releasedFirst.releaseAccounting(releaseReportedVersion::set);
+			releasedFirst.setTrackedVersion(advancedTo, (from, to) -> movedAfterRelease.set(true));
+
+			assertEquals(
+				registeredAt, releaseReportedVersion.get(),
+				"The release gave back a version this subscription never held."
+			);
+			assertFalse(
+				movedAfterRelease.get(),
+				"A fill still in flight moved the version slot after `unsubscribe` had already reclaimed it. The " +
+					"decrement lands on a version this subscription no longer holds, so it takes the slot of a " +
+					"subscriber still sitting there - and the lowest key of that map is the only thing stopping the " +
+					"ring buffer being trimmed past captures the survivor has not read."
+			);
+
+			// ordering B - the fill wins, so the release has to give back the version the fill moved to
+			final AtomicBoolean moved = new AtomicBoolean(false);
+			final AtomicLong releaseAfterMoveReportedVersion = new AtomicLong(-1L);
+			final DefaultChangeCaptureSubscription<ChangeCatalogCapture> movedFirst =
+				createInertSubscription(executorService, registeredAt);
+
+			movedFirst.setTrackedVersion(advancedTo, (from, to) -> moved.set(true));
+			movedFirst.releaseAccounting(releaseAfterMoveReportedVersion::set);
+
+			assertTrue(
+				moved.get(),
+				"A live subscription refused to move its version slot forward, so the publisher can never learn " +
+					"that this subscriber has advanced and the ring buffer stays anchored where it registered."
+			);
+			assertEquals(
+				advancedTo, releaseAfterMoveReportedVersion.get(),
+				"The release gave back the version the subscription registered at rather than the one it had " +
+					"advanced to, so the slot it actually held is left pinned for the lifetime of the process."
+			);
+
+			// a second release must do nothing - the sweep and an explicit cancel race in exactly this shape
+			final AtomicInteger secondReleaseCount = new AtomicInteger();
+			movedFirst.releaseAccounting(version -> secondReleaseCount.incrementAndGet());
+
+			assertEquals(
+				0, secondReleaseCount.get(),
+				"The accounting was given back twice for one subscription. The publisher's periodic sweep and an " +
+					"explicit cancel both reach this, so a second decrement drops a version slot that belongs to a " +
+					"different subscriber."
+			);
+		} finally {
+			executorService.shutdownNow();
+		}
+	}
+
+	@DisplayName("a deregistration that throws must still close the subscriber's transport")
+	@Test
+	void shouldCloseTheSubscriberEvenWhenDeregistrationThrows() throws InterruptedException {
+		final RuntimeException deregistrationFailure = new IllegalStateException("publisher refused the removal");
+		final AtomicBoolean subscriberClosed = new AtomicBoolean(false);
+		final RecordingSubscriber subscriber = new ClosingRecordingSubscriber(subscriberClosed);
+
+		try (SaturatedCaptureExecutor saturated = new SaturatedCaptureExecutor()) {
+			final DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription =
+				new DefaultChangeCaptureSubscription<>(
+					UUID.randomUUID(),
+					16,
+					new WalPointerWithContent(1L, 0, ChangeCaptureContent.BODY),
+					subscriber,
+					saturated.executor(),
+					(walPointer, theSubscription, queue) -> {
+					},
+					capture -> {
+					},
+					subscriptionId -> {
+						throw deregistrationFailure;
+					}
+				);
+
+			assertThrows(
+				IllegalStateException.class,
+				subscription::cancel,
+				"The deregistration failure was swallowed. It has to reach the caller - the sweep logs it per " +
+					"entry and carries on - because a release that silently did nothing is the leak this whole " +
+					"mechanism exists to prevent."
+			);
+
+			assertTrue(
+				subscriberClosed.get(),
+				"The subscriber's transport was left open because deregistering it threw first. The release " +
+					"flips its `released` CAS before doing either half, so `cancel()`, the deferred task and " +
+					"the periodic sweep all short-circuit afterwards - nothing can ever retry the close, and " +
+					"the transport stays open for the lifetime of the process."
+			);
+		}
+	}
+
+	/**
 	 * Builds a subscription whose queue filler does nothing, for the tests that are about the release rather than
 	 * about the fill.
 	 *
@@ -482,6 +631,23 @@ class ChangeCaptureSubscriptionFillFailureTest {
 		public void close() {
 			this.releaseWorker.countDown();
 			this.executor.shutdownNow();
+		}
+	}
+
+	/**
+	 * A {@link RecordingSubscriber} that also owns a closeable resource, standing in for a subscriber holding a
+	 * transport stream - which is what {@code releaseRegistration} closes alongside deregistering.
+	 */
+	private static class ClosingRecordingSubscriber extends RecordingSubscriber implements AutoCloseable {
+		private final AtomicBoolean closed;
+
+		ClosingRecordingSubscriber(@Nonnull AtomicBoolean closed) {
+			this.closed = closed;
+		}
+
+		@Override
+		public void close() {
+			this.closed.set(true);
 		}
 	}
 

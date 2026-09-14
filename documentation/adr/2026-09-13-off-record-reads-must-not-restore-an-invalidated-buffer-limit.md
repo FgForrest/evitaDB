@@ -1,7 +1,7 @@
 ---
 title: Off-record number reads must not restore a buffer limit the read has invalidated
 date: 2026-09-13
-updated: 2026-09-14 11:50
+updated: 2026-09-14 13:58
 status: accepted
 kind: fix
 issues: [1551]
@@ -251,30 +251,100 @@ need.
   refused with nothing left to retry it. The sweep runs on the `Scheduler`, whose `ScheduledThreadPoolExecutor`
   has an unbounded delay queue, so it cannot be starved by the saturation that causes the leak. `releaseRegistration`
   is idempotent because both paths can reach it for the same subscription.
+- **A subscriber callback must never run inside the `computeIfAbsent` that registers the subscription.** This is
+  the root of everything below it, and it was only understood after three separate defects traced back to it. The
+  constructor of `DefaultChangeCaptureSubscription` used to call `Subscriber#onSubscribe`, and the constructor
+  runs inside `subscribers.computeIfAbsent(...)`. A subscriber may legally `cancel()` or `request(n)` from there -
+  `EngineStatisticsPublisher` does, and so does the gRPC one - and both re-enter the publisher while that key's
+  mapping function is still running. Three consequences, all measured (`ConcurrentHashMap`, OpenJDK 17.0.20 and
+  21.0.12 alike):
+  - `remove(key)` of the key being computed throws `IllegalStateException("Recursive update")` whenever the bin
+    holds only the `ReservationNode` - with random `UUID` keys, nearly always. `get` returns `null` in the same
+    state, and `isEmpty()`, `size()`, `containsKey()` and the entry iterator all skip the reservation.
+  - The escape is worse than the throw: `versionSubscribersCount` is incremented *before* the constructor inside
+    the same mapping function, so an escape leaves a pinned ring-buffer version with **no** `subscribers` entry -
+    and the sweep walks `subscribers`, so nothing can ever release it. The system side leaks its
+    `hostEventFilters` and `mutationFilters` entries too.
+  - It would surface as a server-side `IllegalStateException` on an ordinary client disconnect - new
+    internal-error and health-probe pollution, which is the very thing this record exists to remove.
+  **The fix is structural**: `onSubscribe` moved out of the constructor into
+  `DefaultChangeCaptureSubscription#activate()`, which both publishers call only after `computeIfAbsent` has
+  published the entry, rolling the registration back through `unsubscribe` if it throws. Reactive-streams
+  ordering survives because no capture can reach a subscriber before then - both delivery paths gate on demand,
+  and demand is raised only by `request(n)`, which a subscriber cannot call before it holds the subscription.
+  It also settles a question this work raised but never recorded as a follow-up:
+  `AbstractChangeCaptureSubscriber` cancels synchronously in two of its three `onSubscribe` branches while the
+  third defers via `CompletableFuture.runAsync` with a comment saying a synchronous cancel "would re-enter the
+  map". With registration no longer calling subscriber code, all three are safe and the gRPC module needs no
+  defensive change.
 - **The publisher's map is the authority on whether a registration is still held, not the subscription's own
-  flag.** A subscription is built inside `ConcurrentHashMap#computeIfAbsent` and its constructor calls
-  `Subscriber#onSubscribe`; a subscriber that requests from there - `EngineStatisticsPublisher` does, and so does
-  the gRPC one - can drive it to a terminal signal before the mapping is installed. The release then runs against
-  a map that cannot yet see the entry, `unsubscribe` returns `false` into a `Consumer<UUID>` that discards it, and
-  the subscription records itself released. So the sweep re-checks `containsKey` and unsubscribes itself. This is
-  not a narrow race: the capture executor is an `ImmediateExecutorService` throughout the functional suite, so the
-  deferred release runs inline and the ordering is guaranteed there.
+  flag.** `releaseIfTerminated` reports that a subscription has terminated, not that this call released it, so
+  the sweep re-checks `containsKey` before unsubscribing. Before `activate()` existed this guarded a sharper
+  hazard - a release running before its own entry was installed, which the `ImmediateExecutorService` used
+  throughout the functional suite made deterministic rather than rare.
 - **The system shared publisher must not retire itself when its last subscriber leaves.** It is a singleton -
   `SystemChangeObserver` builds it once and `ChangeSystemCapturePublisher` holds it in a plain `final` field with
   no renewal, unlike `ChangeCatalogCapturePublisher#getSharedPublisher`, which re-creates a closed one - and
   `subscribe` throws `InstanceTerminatedException` once closed. `checkSubscribersLeft` therefore only trims the
   ring buffer on that side; the observer owns the lifetime and closes it in its own `close()`. What had been
   hiding this is that the engine's boot-time subscriber normally keeps the map non-empty forever.
-- **A publisher must stop naming a departing subscriber before it cancels it.** `unsubscribe` cancels, cancelling
-  releases, and the release calls back into `unsubscribe` through the publisher's own `onCancellation` hook. With
-  the map entry still present the re-entrant call runs the whole body and the outer call repeats it, so
-  `versionSubscribersCount` is decremented twice for one departing subscriber - `{V: 2}` becomes `{}` rather than
-  `{V: 1}`, and a surviving subscriber's position stops being tracked at all. A single subscriber hides it,
-  because two decrements of `{V: 1}` both land on "remove the key". Removing before cancelling makes the inner
-  call find nothing; it also makes the lookup atomic, so two concurrent callers cannot both claim the same
-  departing subscription. This re-entrancy predates the sweep and is on the ordinary client-disconnect path
-  (`ChangeCatalogCapturePublisher#close`), not on the sweep path, where `finished` is already set and the cancel
-  is skipped.
+- **Only the caller that wins the removal may do the accounting.** `unsubscribe` cancels, cancelling releases,
+  and the release calls back into `unsubscribe` through the publisher's own `onCancellation` hook - so the body
+  runs twice for one departing subscriber. Left ungated, `versionSubscribersCount` is decremented twice: `{V: 2}`
+  becomes `{}` rather than `{V: 1}`, and a surviving subscriber's position stops being tracked at all. A single
+  subscriber hides it, because two decrements of `{V: 1}` both land on "remove the key". Gating the bookkeeping
+  on `remove(id) != null` settles it: the re-entrant inner call removes and accounts, the outer call's `remove`
+  returns `null` and does nothing. **Reordering to remove-before-cancel is the trap, not the fix** - it was tried
+  (`9fd5d6814`) and reverted, because `unsubscribe` was then reachable from inside the registering
+  `computeIfAbsent` and `remove` there throws "Recursive update". The lookup must stay a `get`.
+- **A subscription owns exactly one unit of version accounting, and one code path may give it back.** The queue
+  fill that moves that unit forward runs on the delivery thread and reads the WAL, so it can still be in flight
+  after another thread cancelled the subscription and `unsubscribe` reclaimed the unit - `cancel()` takes no
+  subscription lock, `consumeQueue` does. A move landing afterwards decrements a version the subscription no
+  longer holds, taking the slot of a subscriber still sitting on it, and `moveTrackedVersionsInCache` leaves a
+  literal `0` in the map that the trim block then treats as free. `setTrackedVersion` and `releaseAccounting`
+  therefore exclude each other and a flag settles which won - but on a lock of their own, **not** the delivery
+  lock. Using the delivery lock is the obvious version of this and it is wrong: the release runs on the
+  cancelling thread, which for gRPC is the transport's cancel handler, and `consumeQueue` holds the delivery
+  lock across a WAL read. A cancel would then block on disk IO for as long as that fill takes, in a callback
+  that must not block. The accounting lock is a leaf - the only thing called while it is held is the
+  publisher's own `compute` on a `ConcurrentSkipListMap` - so it orders against nothing.
+- **A publisher's `close()` must cancel its subscriptions after releasing its own lock.** Cancelling reaches
+  `unsubscribe` and from there the subscription's lock; holding the publisher lock across that adds a
+  publisher → subscription edge to the subscription → publisher one `consumeQueue` already has through
+  `checkSubscribersLeft()`. Both directions existing is a deadlock waiting for load. Snapshot, unlock, then
+  cancel.
+- **Registration and retirement take the publisher's lock, because otherwise neither can see the other.** The
+  observer's one-minute cleaner retires a publisher from `subscribers.isEmpty()`, and a registration still inside
+  `computeIfAbsent` is invisible to every read of that map (measured above). Unsynchronised, the cleaner closes
+  and drops a publisher between `assertActive()` and the insertion, after which `processMutation` never reaches
+  the new subscription and the client waits forever on a `subscribe` call that reported success -
+  `getSharedPublisher()` cannot rescue it, having tested `isClosed()` before the close. Both publishers now hold
+  the lock across the `computeIfAbsent` loop and the `closed` re-check that follows it.
+  **An earlier revision of this record declined that lock**, on the grounds that it reintroduces the
+  publisher → subscription edge the previous bullet removes. **That objection had expired and the decision is
+  reversed.** It rested on two things that are no longer true: the mapping function calling subscriber code, and
+  the version accounting sharing the delivery lock. With `onSubscribe` moved into `activate()` outside the lock,
+  and the accounting moved onto a leaf lock of its own, nothing reachable while the publisher's lock is held
+  takes a subscription's delivery lock - the edge no longer exists to reintroduce. Holding it across
+  `activate()` *would* recreate it, which is why the re-check takes the registration back inside the lock
+  rather than keeping the lock one line longer.
+- **Undoing a refused registration is not `unsubscribe`, and the difference is visible to the client.**
+  `unsubscribe` cancels, cancelling releases, and the release closes an `AutoCloseable` subscriber - the gRPC
+  one is, and its `close()` sends the client `UNAVAILABLE`. Rolling back that way ends the client's stream and
+  *then* hands the caller a refusal to retry, so the retry cannot help: the subscriber it would retry with is
+  already finalised. `retractRegistration` takes the entry and the version slot back and signals the subscriber
+  nothing, which is correct precisely because the subscriber was never given this subscription - `activate()`
+  has not run. The rollback for an `activate()` that *throws* is the opposite case and does go through
+  `unsubscribe`: there the subscriber already holds the subscription and is owed the terminal signal.
+- **The retry is narrow in both directions, and one attempt is only enough because the factory was fixed.**
+  `ChangeCatalogCapturePublisher#subscribe` retries only when the publisher that refused really is closed - the
+  same `InstanceTerminatedException` can come out of a subscriber's own `onSubscribe`, and retrying there would
+  call `onSubscribe` a second time on a subscriber whose transport the activation rollback has already closed.
+  And a renewal has to actually renew: `close()` removes the publisher from `CatalogChangeObserver`'s map
+  through its `onClose` hook at the *tail* of the close, so between marking itself closed and being forgotten
+  there, a `computeIfAbsent` factory hands the closed instance straight back and the retry is refused again for
+  no reason but losing that race. The factory is therefore a `compute` that counts a retired entry as absent.
 
 ## Verification
 
@@ -306,9 +376,34 @@ Every test was run against the unfixed code first and shown failing, so none can
   executor, so the premise behind the sweep is measured rather than assumed. Two mutants pin it: dropping the
   idempotence CAS releases twice (`expected: <[id]> but was: <[id, id]>`), and a sweep that recognises
   termination without releasing leaves the registration held (`but was: <[]>`).
-- `wal | cdc | serialization | transaction` sweep: **3,240 tests, 0 failures, 2 skipped**. Full `wal | cdc`
-  tag sweep: **640 tests, 0 failures, 1 skipped**, including the gRPC and GraphQL subscription
-  functional tests that exercise CDC end to end.
+- **Every lifecycle fix is pinned by a mutant — six, all killed in one pass**, each restore verified by `cmp`
+  against a pristine copy rather than by timestamp:
+  - `setTrackedVersion` ignoring the release flag, and `releaseAccounting` not being once-only, each fail
+    `ChangeCaptureSubscriptionFillFailureTest#shouldGiveBackTheVersionSlotExactlyOnce` on the ordering they
+    break (`expected: <false> but was: <true>`; `expected: <0> but was: <1>`).
+  - `onSubscribe` back in the constructor without a rollback fails **two** -
+    `shouldRollBackTheRegistrationWhenOnSubscribeThrows` (the version slot stays at `1` instead of being
+    released) and `shouldUnregisterASubscriberThatTerminatesFromInsideOnSubscribe` (the subscription stays
+    registered).
+  - The facade propagating the refusal instead of renewing fails
+    `shouldRenewTheSharedPublisherWhenARegistrationIsRefused` with `InstanceTerminatedException` reaching the
+    client.
+  - The retirement rollback going through `unsubscribe` instead of `retractRegistration` fails
+    `shouldRetractSilentlyWhenThePublisherIsRetiredMidRegistration` on the subscriber having been closed
+    (`expected: <false> but was: <true>`) - the mutant that proves the retry would be inert.
+  - Removing the post-registration retirement check entirely fails that same test with
+    *"Expected InstanceTerminatedException to be thrown, but nothing was thrown"*.
+- **The post-registration `closed` re-check is covered, and an earlier revision of this record wrongly said it
+  could not be.** The claim was that reaching it needs a production seam, since moving `onSubscribe` out of the
+  constructor removed the last place where registration calls test-controllable code. That is false:
+  `assertActive()` is package-private and non-final on a non-final class, so a test subclass closes the
+  publisher from inside it - between the pre-check and the insertion, which is exactly the interleaving the
+  guard exists for. `shouldRetractSilentlyWhenThePublisherIsRetiredMidRegistration` drives it, and the two
+  mutants above are killed by it. No stress loop is involved; the test is deterministic.
+- `wal | cdc | serialization | transaction` sweep: **3,246 tests, 0 failures, 2 skipped** (818 test classes),
+  re-run after the capture-lifecycle fixes landed.
+  Narrow `wal | cdc` tag sweep: **652 tests, 0 failures, 1 skipped**, including the gRPC and GraphQL
+  subscription functional tests that exercise CDC end to end.
 - The two behaviours introduced by *The workaround* are each pinned by a mutant, run in this reactor:
   collapsing `VersionSource` so every failure is a `WriteAheadLogCorruptedException` fails exactly
   `CatalogWriteAheadLogTest$DryReadVisibilityRaceTests#shouldReportAClientSuppliedBoundAsInvalidUsageRatherThanCorruption`
@@ -317,8 +412,10 @@ Every test was run against the unfixed code first and shown failing, so none can
   `CatalogWriteAheadLogIntegrationTest$MultiFileWalTests#shouldNotRaiseARawKryoFailureWhenTheNextWalFileIsStillAnEmptyStub`.
   The `CLIENT` test and its `INTERNAL` twin run against byte-identical on-disk state and differ only in the
   declared source, so a change that collapses the two arms cannot leave both green.
-- Full functional suite: **23,756 tests, 0 failures**, 39 skipped, with the only error the Docker-dependent
-  `ExportS3ServiceTest` that does not run in this environment.
+- Full functional suite, re-run after the capture-lifecycle fixes landed: **23,930 tests, 0 failures**,
+  39 skipped, with the only error the Docker-dependent `ExportS3ServiceTest` that does not run in this
+  environment. That single error is what makes the reactor report `BUILD FAILURE`, so the result has to be
+  read from the aggregate rather than from the exit status.
 
 ### A test fixture was corrupting the evidence, and that is worth recording
 

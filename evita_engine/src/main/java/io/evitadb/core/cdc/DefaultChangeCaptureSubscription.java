@@ -47,6 +47,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 /**
  * Implementation of {@link Flow.Subscription} that manages the subscription between a publisher and a subscriber
@@ -134,6 +135,25 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	private long trackedVersion;
 
 	/**
+	 * Whether this subscription's single unit of version accounting has already been given back to the
+	 * publisher. Guarded by {@link #accountingLock}, together with {@link #trackedVersion}.
+	 */
+	private boolean accountingReleased;
+
+	/**
+	 * Guards {@link #trackedVersion} and {@link #accountingReleased}, and nothing else.
+	 *
+	 * Deliberately not {@link #lock}. That one is held by {@link #consumeQueue()} across a queue fill - a
+	 * write-ahead-log scan that keeps reading until it has a bufferful of *matching* captures, so a selective
+	 * filter makes it unbounded by the buffer size - and across every `onNext`. Reclaiming the accounting from
+	 * `unsubscribe` under that lock would make `cancel()` block for a whole delivery iteration, on threads that
+	 * never blocked before it: the gRPC transport-termination handler, and the heartbeat and capture sweep that
+	 * share the scheduler's service pool. Mutual exclusion is only ever needed between the two methods below,
+	 * so it gets a lock of its own that is never held across I/O.
+	 */
+	@Nonnull private final ReentrantLock accountingLock = new ReentrantLock();
+
+	/**
 	 * The version of the last delivered event.
 	 */
 	private long lastVersion;
@@ -174,7 +194,28 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 		this.onNextConsumer = onNextConsumer;
 		this.onCancellation = onCancellation;
 		this.executorService = executorService;
-		// Register this subscription with the subscriber
+	}
+
+	/**
+	 * Hands this subscription to the subscriber through {@code Subscriber#onSubscribe}.
+	 *
+	 * Deliberately not done by the constructor. The constructor runs inside the publisher's
+	 * {@code subscribers.computeIfAbsent(...)}, and a subscriber may legally cancel or {@link #request(long)}
+	 * from `onSubscribe` - both of which call straight back into the publisher. That put user code inside a
+	 * {@link java.util.concurrent.ConcurrentHashMap} mapping function, where removing the key being computed
+	 * throws {@code IllegalStateException("Recursive update")}, and where any escape leaves the registration's
+	 * bookkeeping applied with no map entry for the periodic sweep to ever find.
+	 *
+	 * Activating once the entry is published makes both safe: a re-entrant `cancel()` now unregisters through
+	 * the ordinary path, and a throwing `onSubscribe` leaves a registration the caller can roll back.
+	 *
+	 * **Ordering.** No capture can reach the subscriber before this runs, so the reactive-streams guarantee
+	 * that `onSubscribe` precedes every `onNext` still holds: both delivery paths gate on demand
+	 * ({@link #consumeQueue()} requires `requested > 0`, and the immediate host-event path drops at zero), and
+	 * demand is raised only by {@link #request(long)}, which the subscriber cannot call before it holds this
+	 * subscription.
+	 */
+	void activate() {
 		this.subscriber.onSubscribe(this);
 	}
 
@@ -319,9 +360,18 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 		// publisher may since have reused and close the subscriber's transport a second time, so exactly one
 		// caller is let through.
 		if (this.released.compareAndSet(false, true)) {
-			this.onCancellation.accept(this.subscriptionId);
-			if (this.subscriber instanceof AutoCloseable closeable) {
-				IOUtils.closeQuietly(closeable::close);
+			// The CAS is flipped before either half runs, so whatever happens here happens once and never
+			// again - `cancel()`, the deferred task and the sweep all short-circuit on it afterwards. Closing
+			// the subscriber therefore cannot sit after the deregistration and depend on it returning: a throw
+			// from `onCancellation` - which reaches the publisher's `checkSubscribersLeft`, `close()` and the
+			// observer's `onClose` lambda, none of them throw-free by construction - would strand the
+			// subscriber's transport for the lifetime of the process, with no caller able to retry it.
+			try {
+				this.onCancellation.accept(this.subscriptionId);
+			} finally {
+				if (this.subscriber instanceof AutoCloseable closeable) {
+					IOUtils.closeQuietly(closeable::close);
+				}
 			}
 		}
 	}
@@ -333,8 +383,8 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	 * ever runs for this subscription to retry it.
 	 *
 	 * Safe to call repeatedly and from any thread: it releases at most once, and it is a no-op on a subscription
-	 * that is still live. The sweep runs on the scheduler rather than on the delivery path, so neither the
-	 * lock-ordering hazard nor the `computeIfAbsent` re-entrancy that forced the deferral applies to it.
+	 * that is still live. The sweep runs on the scheduler rather than on the delivery path, so it holds no
+	 * subscription lock - the reason the terminal signals defer instead of releasing inline.
 	 *
 	 * @return {@code true} if this subscription had terminated - whether or not this call was the one that
 	 *         released it
@@ -349,18 +399,20 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	}
 
 	/**
-	 * Performs {@link #releaseRegistration()} on the capture executor rather than on the calling thread. The
-	 * terminal signals must not release inline, for two independent reasons - either of which is enough on its
-	 * own:
+	 * Performs {@link #releaseRegistration()} on the capture executor rather than on the calling thread, because
+	 * the terminal signals are raised from {@link #consumeQueue()} and the immediate host-event path while this
+	 * subscription's delivery lock is held. The release reaches the publisher's `checkSubscribersLeft()` and
+	 * from there its retirement, which takes the publisher's own lock - so an inline release is the one thing
+	 * that puts a subscription lock beneath a publisher lock. Nothing takes them the other way round (the
+	 * publisher cancels its subscriptions only after letting go of its lock), so this is defence rather than a
+	 * live deadlock, and deferring keeps it that way independently of that choice. Note it is not defence under
+	 * the `ImmediateExecutorService` the functional suite boots with, which runs the deferred task inline: that
+	 * is precisely the configuration that exercises the inline ordering.
 	 *
-	 * - they are raised from {@link #consumeQueue()} and {@link #deliverImmediate(ChangeCapture)} while this
-	 *   subscription's lock is held, and the release goes on to take the publisher's lock, while the publisher
-	 *   takes its own lock before it calls into a subscription - taking the two in both orders is a deadlock
-	 *   waiting for the load to produce it;
-	 * - {@link #request(long)} reaches `consumeQueue()` from the subscriber's own `onSubscribe`, which runs
-	 *   inside the `ConcurrentHashMap#computeIfAbsent` that is registering this very subscription, and the
-	 *   release removes that same key - a recursive update of the map from within its own mapping function. The
-	 *   gRPC subscriber already defers a cancel for exactly this reason.
+	 * A second reason used to apply and no longer does: {@link #request(long)} reaches `consumeQueue()` from the
+	 * subscriber's own `onSubscribe`, which once ran inside the `ConcurrentHashMap#computeIfAbsent` registering
+	 * this subscription, so an inline release removed a key from within its own mapping function.
+	 * {@link #activate()} now runs after that entry is published, which closes it at the source.
 	 *
 	 * It goes to the engine's own capture executor - the one {@link #notifySubscriber()} already submits to -
 	 * and not to a shared pool: the release exists to stop a WAL version being pinned, so a release that waits
@@ -452,23 +504,71 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	}
 
 	/**
-	 * Retrieves the version used for the last pull of the data from the shared publisher.
+	 * Marks this subscription dead without signalling the subscriber in any way.
 	 *
-	 * @return the version used for the last pull
+	 * For a registration the publisher is retracting before {@link #activate()} ever ran. The subscriber was
+	 * never handed this subscription, so there is nothing it may legitimately be told - and telling it is not
+	 * harmless: the gRPC subscriber is {@link AutoCloseable} and its `close()` sends the client
+	 * `UNAVAILABLE`, which would end the very stream the caller is about to retry on a renewed publisher.
+	 * Rolling back through {@code unsubscribe} does exactly that, so retraction must not go near it.
+	 *
+	 * Setting both flags is what makes the retraction final: every terminal signal and every release path
+	 * short-circuits on them, so a publisher close racing this cannot signal the subscriber either.
 	 */
-	long getTrackedVersion() {
-		return this.trackedVersion;
+	void retract() {
+		this.finished.set(true);
+		this.released.set(true);
+		this.queue.clear();
 	}
 
 	/**
-	 * Updates the version used for the last pull of catalog data.
+	 * Moves the version used for the last pull of catalog data, reporting the move so the publisher can
+	 * follow it in the map that gates ring-buffer trimming.
 	 *
-	 * @param trackedVersion the version number representing subscriber in external cache
+	 * A subscription owns exactly one unit of that accounting, and exactly one code path may release it.
+	 * This runs on the delivery thread, from {@link #consumeQueue()} by way of the queue filler, and the
+	 * fill it follows reads the write-ahead log - so it can still be in flight long after another thread
+	 * cancelled this subscription and {@link #releaseAccounting(LongConsumer)} gave the unit back. Moving it
+	 * afterwards would hand a second subscriber's slot away: the decrement lands on a version this
+	 * subscription no longer holds, and the publisher then trims the ring buffer past captures a live
+	 * subscriber still needs. Both halves therefore run under the same lock and the flag settles which won.
+	 *
+	 * @param trackedVersion the version number representing this subscriber in the publisher's cache
+	 * @param onChange       invoked with (previous, next) when the move is accepted; never after release
 	 */
 	void setTrackedVersion(long trackedVersion, @Nonnull BiLongConsumer onChange) {
-		if (this.trackedVersion != trackedVersion) {
-			onChange.accept(this.trackedVersion, trackedVersion);
-			this.trackedVersion = trackedVersion;
+		this.accountingLock.lock();
+		try {
+			if (!this.accountingReleased && this.trackedVersion != trackedVersion) {
+				onChange.accept(this.trackedVersion, trackedVersion);
+				this.trackedVersion = trackedVersion;
+			}
+		} finally {
+			this.accountingLock.unlock();
+		}
+	}
+
+	/**
+	 * Gives back this subscription's single unit of version accounting, exactly once.
+	 *
+	 * Called by the publisher's {@code unsubscribe} once it has won the removal from the subscribers map.
+	 * The release and {@link #setTrackedVersion(long, BiLongConsumer)} share {@link #accountingLock}, so the
+	 * version reported here is the one the subscription actually held: an in-flight fill either completed its
+	 * move before this ran - in which case the later version is reported - or finds the flag set and makes no
+	 * move at all. A second call does nothing, which is what makes the sweep and an explicit cancel safe to
+	 * race. It never takes the delivery lock, so `cancel()` stays non-blocking.
+	 *
+	 * @param onRelease invoked with the version this subscription held, and only on the first call
+	 */
+	void releaseAccounting(@Nonnull LongConsumer onRelease) {
+		this.accountingLock.lock();
+		try {
+			if (!this.accountingReleased) {
+				this.accountingReleased = true;
+				onRelease.accept(this.trackedVersion);
+			}
+		} finally {
+			this.accountingLock.unlock();
 		}
 	}
 

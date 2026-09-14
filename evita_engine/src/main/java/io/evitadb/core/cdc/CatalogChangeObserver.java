@@ -180,9 +180,18 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 		// Specifics related to the start version and index, and provided content are handled in the isolated publisher.
 		final ChangeCatalogCapturePublisher changeCatalogCapturePublisher = new ChangeCatalogCapturePublisher(
 			// create or reuse the shared publisher
-			criteriaBundle -> this.uniquePublishers.computeIfAbsent(
+			// `compute` rather than `computeIfAbsent`: a publisher that has already been retired must count as
+			// absent. `close()` removes itself from this map through its `onClose` hook, and that runs at the tail
+			// of the close - so between the moment a publisher marks itself closed and the moment it is forgotten
+			// here, `computeIfAbsent` would hand the closed instance straight back. A caller renewing after a
+			// refused registration would then be refused a second time by `assertActive()`, for no reason other
+			// than losing that race, which is exactly what the renewal exists to prevent.
+			criteriaBundle -> this.uniquePublishers.compute(
 				criteriaBundle,
-				cb -> {
+				(cb, existingPublisher) -> {
+					if (existingPublisher != null && !existingPublisher.isClosed()) {
+						return existingPublisher;
+					}
 					log.info(
 						"Creating new shared CDC publisher for catalog '{}' and criteria: {}",
 						catalogName, cb

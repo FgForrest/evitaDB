@@ -29,6 +29,7 @@ import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
+import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
@@ -53,7 +54,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.UUID;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
@@ -614,28 +618,30 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * The sweep must remove the registration itself, not trust the subscription's own "released" flag.
+	 * A subscriber that terminates from inside its own {@code onSubscribe} must be fully unregistered by the time
+	 * {@code subscribe} returns.
 	 *
-	 * A subscription is constructed inside {@code ConcurrentHashMap#computeIfAbsent}, and its constructor calls
-	 * {@code Subscriber#onSubscribe}. A subscriber that requests from there - the engine's own
-	 * {@code EngineStatisticsPublisher} does, and so does the gRPC one - can drive the subscription to a terminal
-	 * signal before `computeIfAbsent` has installed the entry. The release then runs against a map that does not
-	 * yet contain it, so `unsubscribe` finds nothing and returns false into a Consumer that discards the result,
-	 * while the subscription records itself as released.
+	 * This used to be the opposite assertion. {@code Subscriber#onSubscribe} was called by
+	 * {@code DefaultChangeCaptureSubscription}'s constructor, which runs inside the
+	 * {@code ConcurrentHashMap#computeIfAbsent} that registers the subscription - so a subscriber that requested
+	 * from there (the engine's own {@code EngineStatisticsPublisher} does, and so does the gRPC one) drove the
+	 * subscription to a terminal signal before the entry existed. The release then found nothing to remove and
+	 * returned false into a Consumer that discards it, leaving the registration behind for the periodic sweep to
+	 * collect.
 	 *
-	 * This is not a narrow race here: the capture executor is an {@link ImmediateExecutorService}, exactly as it
-	 * is throughout the functional suite, so the deferred release runs inline and the ordering is guaranteed.
+	 * The publisher now publishes the entry first and calls {@code DefaultChangeCaptureSubscription#activate()}
+	 * afterwards, so the release always finds its own entry and unregisters through the ordinary path. Nothing is
+	 * left over, and this test pins that: the counts must already be clean before any sweep runs.
 	 *
-	 * If the sweep believed the flag, the entry would stay in the subscribers map for the lifetime of the
-	 * process - pinning the version it tracks in the ring buffer and keeping the publisher from being retired -
-	 * which is the exact leak the sweep exists to close.
+	 * The sweep still exists for the case it cannot reach any other way - a release the capture executor refused -
+	 * which {@code ChangeCaptureSubscriptionFillFailureTest} covers directly.
 	 *
 	 * @param evita the Evita database instance with the test dataset already loaded
 	 */
 	@UseDataSet(value = CDC_TRANSACTIONS)
 	@Test
-	@DisplayName("sweep a registration whose release ran before the subscription was registered")
-	void shouldSweepARegistrationWhoseReleaseRanBeforeItWasRegistered(Evita evita) {
+	@DisplayName("unregister a subscriber that terminates from inside onSubscribe, without waiting for the sweep")
+	void shouldUnregisterASubscriberThatTerminatesFromInsideOnSubscribe(Evita evita) {
 		final Catalog catalog = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 
 		final ChangeCatalogCaptureSharedPublisher publisher = new ChangeCatalogCaptureSharedPublisher(
@@ -650,8 +656,9 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 			}
 		);
 
-		// a non-positive request from inside onSubscribe terminates the subscription while the publisher is
-		// still inside computeIfAbsent, which is the ordering this test exists for
+		final long trackedVersion = catalog.getVersion() + 1;
+		// a non-positive request from inside onSubscribe terminates the subscription immediately, which is the
+		// ordering this test exists for
 		publisher.subscribe(
 			new Subscriber<ChangeCatalogCapture>() {
 				@Override
@@ -671,15 +678,24 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 				public void onComplete() {
 				}
 			},
-			new WalPointerWithContent(catalog.getVersion() + 1, 0, ChangeCaptureContent.BODY)
+			new WalPointerWithContent(trackedVersion, 0, ChangeCaptureContent.BODY)
 		);
 
+		final ConcurrentSkipListMap<Long, Integer> versionSubscribersCount =
+			getNonnullFieldValue(publisher, "versionSubscribersCount");
+
 		assertEquals(
-			1,
+			0,
 			publisher.getSubscribersCount(),
-			"The registration was already gone before the sweep ran, so this test is no longer reproducing " +
-				"the state it was written for - the release must have found the entry, which means the " +
-				"ordering it depends on has changed."
+			"A subscription that terminated from inside onSubscribe was left registered. The release runs after " +
+				"the entry is published, so it must find and remove its own entry rather than depending on the " +
+				"periodic sweep to collect it later."
+		);
+		assertNull(
+			versionSubscribersCount.get(trackedVersion),
+			"The version slot survived a registration that terminated immediately. It is incremented before the " +
+				"subscription is constructed, so it is only ever given back through the subscribers entry - and " +
+				"the lowest key of this map is what anchors the ring buffer."
 		);
 
 		publisher.cleanFinishedSubscriptions();
@@ -687,10 +703,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 		assertEquals(
 			0,
 			publisher.getSubscribersCount(),
-			"The sweep left a terminated subscription registered. It trusted the subscription's own released " +
-				"flag, which was set by a release that ran before the entry existed and therefore removed " +
-				"nothing. The entry now pins the version it tracks in the ring buffer and keeps the publisher " +
-				"from ever being retired - the exact leak the sweep was added to close."
+			"The sweep changed a state that was already clean."
 		);
 	}
 
@@ -698,9 +711,12 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 	 * Unsubscribing one of several subscribers must give back exactly one of the tracked version's slots.
 	 *
 	 * `unsubscribe` cancels the departing subscription, and cancelling releases it, and the release calls back
-	 * into `unsubscribe` through the publisher's own `onCancellation` hook. The removal therefore has to happen
-	 * before the cancel, or the re-entrant call runs the whole body while the entry is still present and the
-	 * outer call repeats it - decrementing `versionSubscribersCount` twice for one departing subscriber.
+	 * into `unsubscribe` through the publisher's own `onCancellation` hook - so the body runs twice for one
+	 * departing subscriber. Only the call that wins the removal from the subscribers map may do the accounting:
+	 * the re-entrant inner call removes the entry and gives the slot back, and the outer call's `remove` then
+	 * returns null and must do nothing. Removing before the cancel instead would be the other way to order this,
+	 * and is not available - `unsubscribe` has to stay a `get` first, because removing a key whose mapping
+	 * function is still running throws IllegalStateException("Recursive update").
 	 *
 	 * A single subscriber hides this, because two decrements of `{V: 1}` both land on "remove the key" and the
 	 * result is right by accident. It takes two subscribers sharing a tracked version to see it: `{V: 2}` becomes
@@ -782,6 +798,395 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 
 		@Override
 		public void onComplete() {
+		}
+	}
+
+	/**
+	 * A subscriber that cancels from inside its own {@code onSubscribe} must not blow up the registration.
+	 *
+	 * `cancel()` releases the registration inline, and the release calls straight back into `unsubscribe`. The
+	 * publisher hands the subscription to the subscriber through
+	 * `DefaultChangeCaptureSubscription#activate()`, after the `computeIfAbsent` that registers it has published
+	 * the entry, so that re-entrant call finds its own entry and removes it through the ordinary path.
+	 *
+	 * It used to happen inside the mapping function, because the constructor made the `onSubscribe` call. Removing
+	 * a key there throws `IllegalStateException("Recursive update")` whenever the bin holds only the reservation,
+	 * which for random UUID keys is nearly always, and the escape was the worse failure by far:
+	 * `versionSubscribersCount` is incremented before the subscription is constructed, so it left that version
+	 * incremented with no `subscribers` entry ever installed - and the periodic sweep walks `subscribers`, so
+	 * nothing could ever release it. The ring buffer stayed anchored there for the lifetime of the process.
+	 *
+	 * This is reachable from the gRPC transport, not only in tests: `AbstractChangeCaptureSubscriber#onSubscribe`
+	 * cancels synchronously when the stream was already finalized, which happens when a client disconnects during
+	 * the hop between the service thread registering the cancel handler and the request executor running
+	 * `subscribe()`.
+	 *
+	 * @param evita the Evita database instance with the test dataset already loaded
+	 */
+	@UseDataSet(value = CDC_TRANSACTIONS)
+	@Test
+	@DisplayName("survive a subscriber that cancels from inside onSubscribe")
+	void shouldSurviveASubscriberThatCancelsFromInsideOnSubscribe(Evita evita) {
+		final Catalog catalog = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+
+		final ChangeCatalogCaptureSharedPublisher publisher = new ChangeCatalogCaptureSharedPublisher(
+			catalog,
+			new ImmediateExecutorService(),
+			16,
+			16,
+			ChangeCatalogCriteriaBundle.CATCH_ALL,
+			capture -> {
+			},
+			criteria -> {
+			}
+		);
+
+		final long trackedVersion = catalog.getVersion() + 1;
+		assertDoesNotThrow(
+			() -> publisher.subscribe(
+				new CancellingCatalogSubscriber(),
+				new WalPointerWithContent(trackedVersion, 0, ChangeCaptureContent.BODY)
+			),
+			"Registering a subscriber that cancels from its own onSubscribe blew up the registration itself. " +
+				"The cancel releases inline and calls back into unsubscribe while computeIfAbsent is still " +
+				"computing this key, so unsubscribe must not touch the map there. The escape also strands the " +
+				"version count that was incremented just above the constructor, with no subscribers entry for " +
+				"the sweep to find - a pinned ring buffer for the lifetime of the process."
+		);
+
+		final ConcurrentSkipListMap<Long, Integer> versionSubscribersCount =
+			getNonnullFieldValue(publisher, "versionSubscribersCount");
+
+		publisher.cleanFinishedSubscriptions();
+
+		assertEquals(
+			0,
+			publisher.getSubscribersCount(),
+			"The sweep did not release a subscription that terminated before it was registered."
+		);
+		assertNull(
+			versionSubscribersCount.get(trackedVersion),
+			"The version slot survived the sweep. It was incremented before the subscription was constructed, " +
+				"so it is only ever given back through the subscribers entry - if the sweep cannot reach it, " +
+				"the ring buffer stays anchored at this version permanently."
+		);
+	}
+
+	/**
+	 * A subscriber that cancels the moment it is handed its subscription, which the publisher does once the
+	 * registration is published.
+	 */
+	private static class CancellingCatalogSubscriber implements Subscriber<ChangeCatalogCapture> {
+		@Override
+		public void onSubscribe(Subscription subscription) {
+			subscription.cancel();
+		}
+
+		@Override
+		public void onNext(ChangeCatalogCapture item) {
+		}
+
+		@Override
+		public void onError(Throwable throwable) {
+		}
+
+		@Override
+		public void onComplete() {
+		}
+	}
+
+	/**
+	 * A subscriber whose {@code onSubscribe} throws must leave nothing of its registration behind.
+	 *
+	 * The publisher increments {@code versionSubscribersCount} inside the {@code computeIfAbsent} that registers
+	 * the subscription - the system publisher installs two per-subscriber filters there as well - and only then
+	 * hands the subscription to the subscriber. An escaping {@code onSubscribe} would otherwise leave that
+	 * bookkeeping applied with no entry behind it: the periodic sweep walks {@code subscribers}, so nothing could
+	 * ever find it, the ring buffer would stay anchored at that version, and a client reconnecting in a loop would
+	 * add another orphan on every attempt. On the system side that is permanent - it is a process-lifetime
+	 * singleton that is never retired.
+	 *
+	 * @param evita the Evita database instance with the test dataset already loaded
+	 */
+	@UseDataSet(value = CDC_TRANSACTIONS)
+	@Test
+	@DisplayName("roll the whole registration back when onSubscribe throws")
+	void shouldRollBackTheRegistrationWhenOnSubscribeThrows(Evita evita) {
+		final Catalog catalog = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+
+		final ChangeCatalogCaptureSharedPublisher publisher = new ChangeCatalogCaptureSharedPublisher(
+			catalog,
+			new ImmediateExecutorService(),
+			16,
+			16,
+			ChangeCatalogCriteriaBundle.CATCH_ALL,
+			capture -> {
+			},
+			criteria -> {
+			}
+		);
+
+		final long trackedVersion = catalog.getVersion() + 1;
+		final IllegalStateException onSubscribeFailure =
+			new IllegalStateException("subscriber refused its own subscription");
+
+		final IllegalStateException propagated = assertThrows(
+			IllegalStateException.class,
+			() -> publisher.subscribe(
+				new ThrowingCatalogSubscriber(onSubscribeFailure),
+				new WalPointerWithContent(trackedVersion, 0, ChangeCaptureContent.BODY)
+			),
+			"A subscriber that refuses its subscription must not have its failure swallowed - the caller is the " +
+				"only party that can report the registration did not happen."
+		);
+		assertSame(
+			onSubscribeFailure,
+			propagated,
+			"The rollback replaced the subscriber's own failure, which is the one that explains what went wrong."
+		);
+
+		final ConcurrentSkipListMap<Long, Integer> versionSubscribersCount =
+			getNonnullFieldValue(publisher, "versionSubscribersCount");
+
+		assertEquals(
+			0,
+			publisher.getSubscribersCount(),
+			"A registration whose onSubscribe threw left an entry in the subscribers map."
+		);
+		assertNull(
+			versionSubscribersCount.get(trackedVersion),
+			"A registration whose onSubscribe threw left its version slot pinned. It is incremented before the " +
+				"subscription is constructed, and the periodic sweep can only reach it through a subscribers entry " +
+				"- which was never installed. The ring buffer is anchored at this version for good, and every " +
+				"further failed registration adds another."
+		);
+	}
+
+	/**
+	 * A subscriber whose {@code onSubscribe} throws rather than accepting the subscription.
+	 */
+	private static class ThrowingCatalogSubscriber implements Subscriber<ChangeCatalogCapture> {
+		private final RuntimeException failure;
+
+		ThrowingCatalogSubscriber(@Nonnull RuntimeException failure) {
+			this.failure = failure;
+		}
+
+		@Override
+		public void onSubscribe(Subscription subscription) {
+			throw this.failure;
+		}
+
+		@Override
+		public void onNext(ChangeCatalogCapture item) {
+		}
+
+		@Override
+		public void onError(Throwable throwable) {
+		}
+
+		@Override
+		public void onComplete() {
+		}
+	}
+
+	/**
+	 * A registration refused because the shared publisher was retired must be retried against a renewed one.
+	 *
+	 * The observer's periodic cleaner retires a shared publisher whose subscribers map it finds empty, and it
+	 * decides that without any lock. A registration still inside {@code ConcurrentHashMap#computeIfAbsent} is
+	 * invisible to that check - {@code isEmpty()}, {@code size()}, {@code containsKey()} and the entry iterator
+	 * all skip the reservation until the mapping function returns - so the publisher the facade selected can be
+	 * closed underneath it. The shared publisher detects that once its entry is published, undoes its own
+	 * registration and refuses with {@link InstanceTerminatedException}; without the retry here the client would
+	 * see that refusal for a subscribe call that had no reason to fail.
+	 *
+	 * The window itself cannot be opened deterministically from outside - nothing in the registration path calls
+	 * out to test code any more, which is the point of the fix. This drives the same refusal through
+	 * {@code assertActive()} instead, which raises the identical exception, and pins that the facade recovers by
+	 * renewing rather than propagating.
+	 *
+	 * @param evita the Evita database instance with the test dataset already loaded
+	 */
+	@UseDataSet(value = CDC_TRANSACTIONS)
+	@Test
+	@DisplayName("renew the shared publisher and retry when a registration is refused")
+	void shouldRenewTheSharedPublisherWhenARegistrationIsRefused(Evita evita) {
+		final Catalog catalog = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final List<ChangeCatalogCaptureSharedPublisher> handedOut = new ArrayList<>();
+
+		final ChangeCatalogCapturePublisher facade = new ChangeCatalogCapturePublisher(
+			criteriaBundle -> {
+				final ChangeCatalogCaptureSharedPublisher created = new ChangeCatalogCaptureSharedPublisher(
+					catalog,
+					new ImmediateExecutorService(),
+					16,
+					16,
+					criteriaBundle,
+					capture -> {
+					},
+					criteria -> {
+					}
+				);
+				// the first publisher the facade is handed has already been retired by the cleaner
+				if (handedOut.isEmpty()) {
+					created.close();
+				}
+				handedOut.add(created);
+				return created;
+			},
+			new ChangeCatalogCaptureRequest(null, null, null, ChangeCaptureContent.BODY)
+		);
+
+		assertDoesNotThrow(
+			() -> facade.subscribe(new SilentCatalogSubscriber()),
+			"Subscribing failed because the shared publisher selected for it had been retired. The facade renews a " +
+				"closed shared publisher, so a refusal has to be retried rather than handed to the client - which " +
+				"would surface as a subscribe call failing for a reason the client can neither see nor act on."
+		);
+
+		assertEquals(
+			2,
+			handedOut.size(),
+			"The facade did not renew the retired shared publisher."
+		);
+		assertEquals(
+			1,
+			handedOut.get(1).getSubscribersCount(),
+			"The subscription did not land on the renewed publisher, so nothing would ever be delivered to it."
+		);
+	}
+
+	/**
+	 * A publisher retired while a registration is in flight must take the registration back in silence.
+	 *
+	 * The rollback cannot go through {@code unsubscribe}. That cancels the subscription, cancelling releases it,
+	 * and the release closes an {@link AutoCloseable} subscriber - and the gRPC subscriber is one:
+	 * {@code AbstractChangeCaptureSubscriber#close()} sends the client {@code UNAVAILABLE}. Rolling back that
+	 * way ends the client's stream and only then hands the caller a refusal to retry, so the retry is inert:
+	 * the subscriber it would retry with has already been finalised, and its {@code onSubscribe} cancels
+	 * immediately on the renewed publisher, retiring that one too. The client sees an error for a subscribe
+	 * that had no reason to fail.
+	 *
+	 * The subscriber was never given the subscription, so there is nothing it may legitimately be told. This
+	 * pins that: no {@code onSubscribe}, no {@code close}, and no bookkeeping left behind.
+	 *
+	 * @param evita the Evita database instance with the test dataset already loaded
+	 */
+	@UseDataSet(value = CDC_TRANSACTIONS)
+	@Test
+	@DisplayName("take a registration back in silence when the publisher is retired mid-registration")
+	void shouldRetractSilentlyWhenThePublisherIsRetiredMidRegistration(Evita evita) {
+		final Catalog catalog = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final RetiringDuringRegistrationPublisher publisher = new RetiringDuringRegistrationPublisher(catalog);
+		final TransportRecordingSubscriber subscriber = new TransportRecordingSubscriber();
+		final long trackedVersion = catalog.getVersion() + 1;
+
+		assertThrows(
+			InstanceTerminatedException.class,
+			() -> publisher.subscribe(
+				subscriber,
+				new WalPointerWithContent(trackedVersion, 0, ChangeCaptureContent.BODY)
+			),
+			"A registration against a publisher retired underneath it must be refused, so the caller can retry " +
+				"against a renewed one."
+		);
+
+		assertFalse(
+			subscriber.wasClosed(),
+			"The retraction closed the subscriber's transport. For the gRPC subscriber that sends the client " +
+				"UNAVAILABLE, which ends the very stream the caller is about to retry on a renewed publisher - so " +
+				"the retry cannot help and the client sees an error for a subscribe that had no reason to fail."
+		);
+		assertFalse(
+			subscriber.wasSubscribed(),
+			"The subscriber was handed a subscription that was then withdrawn. Activation must not happen until " +
+				"the registration is known to have stuck."
+		);
+
+		final ConcurrentSkipListMap<Long, Integer> versionSubscribersCount =
+			getNonnullFieldValue(publisher, "versionSubscribersCount");
+		assertEquals(
+			0,
+			publisher.getSubscribersCount(),
+			"The withdrawn registration was left in the subscribers map."
+		);
+		assertNull(
+			versionSubscribersCount.get(trackedVersion),
+			"The withdrawn registration left its version slot pinned."
+		);
+	}
+
+	/**
+	 * A shared publisher that retires itself once, from inside the pre-check that every registration makes.
+	 *
+	 * This reproduces the real window without a production seam: the observer's cleaner decides to retire a
+	 * publisher from {@code subscribers.isEmpty()}, and a registration still inside {@code computeIfAbsent} is
+	 * invisible to that check, so a close can land between a registration's pre-check and its insertion.
+	 */
+	private static class RetiringDuringRegistrationPublisher extends ChangeCatalogCaptureSharedPublisher {
+		private final AtomicBoolean armed = new AtomicBoolean(true);
+
+		RetiringDuringRegistrationPublisher(@Nonnull Catalog catalog) {
+			super(
+				catalog,
+				new ImmediateExecutorService(),
+				16,
+				16,
+				ChangeCatalogCriteriaBundle.CATCH_ALL,
+				capture -> {
+				},
+				criteria -> {
+				}
+			);
+		}
+
+		@Override
+		void assertActive() {
+			super.assertActive();
+			if (this.armed.compareAndSet(true, false)) {
+				close();
+			}
+		}
+	}
+
+	/**
+	 * A subscriber that records whether it was ever handed a subscription or had its transport closed, the way
+	 * the gRPC subscriber closes its response observer.
+	 */
+	private static class TransportRecordingSubscriber
+		implements Subscriber<ChangeCatalogCapture>, AutoCloseable {
+		private final AtomicBoolean subscribed = new AtomicBoolean(false);
+		private final AtomicBoolean closed = new AtomicBoolean(false);
+
+		boolean wasSubscribed() {
+			return this.subscribed.get();
+		}
+
+		boolean wasClosed() {
+			return this.closed.get();
+		}
+
+		@Override
+		public void onSubscribe(Subscription subscription) {
+			this.subscribed.set(true);
+		}
+
+		@Override
+		public void onNext(ChangeCatalogCapture item) {
+		}
+
+		@Override
+		public void onError(Throwable throwable) {
+		}
+
+		@Override
+		public void onComplete() {
+		}
+
+		@Override
+		public void close() {
+			this.closed.set(true);
 		}
 	}
 
