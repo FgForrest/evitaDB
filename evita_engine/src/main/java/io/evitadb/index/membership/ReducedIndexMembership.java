@@ -202,9 +202,23 @@ public class ReducedIndexMembership implements VoidTransactionMemoryProducer<Red
 	/**
 	 * Creates an empty membership map.
 	 *
+	 * A non-positive threshold is rejected rather than clamped, because {@link #demotionThreshold} floors itself
+	 * at 1 and the two arms would then disagree: with `0` the promotion arm sends every index to the residual set
+	 * while the demotion arm pulls a one-owner index straight back into coverage — a covered index holding more
+	 * than the configured threshold allows. The private merge constructor needs no such check; it only ever
+	 * receives the value an already-validated instance carries.
+	 *
 	 * @param coverageThreshold maximum owners a covered reduced index may hold; must be positive
+	 * @throws GenericEvitaInternalError when the threshold is not positive
 	 */
 	public ReducedIndexMembership(int coverageThreshold) {
+		Assert.isPremiseValid(
+			coverageThreshold > 0,
+			() -> new GenericEvitaInternalError(
+				"Coverage threshold must be positive, got " + coverageThreshold + " - a non-positive threshold " +
+					"leaves the promotion and demotion arms contradicting each other."
+			)
+		);
 		this.coverageThreshold = coverageThreshold;
 		this.demotionThreshold = Math.max(1, coverageThreshold / 2);
 		this.indexPrimaryKeysByOwner = new TransactionalMap<>(

@@ -340,6 +340,18 @@ class ReducedIndexMembershipTest {
 		}
 
 		@Test
+		@DisplayName("a non-positive threshold is refused rather than clamped")
+		void nonPositiveThresholdIsRefused() {
+			// One below the floor asserted by the test above. `demotionThreshold` cannot follow the threshold
+			// any lower - `Math.max(1, 0 / 2)` pins it at 1 - so a threshold of zero would have the promotion arm
+			// send every index to residual while the demotion arm pulls a one-owner index back into coverage,
+			// producing a covered index holding more owners than the configured threshold permits. Clamping would
+			// hide the caller's mistake behind a threshold they did not ask for, so the construction fails instead.
+			assertThrows(GenericEvitaInternalError.class, () -> new ReducedIndexMembership(0));
+			assertThrows(GenericEvitaInternalError.class, () -> new ReducedIndexMembership(-1));
+		}
+
+		@Test
 		@DisplayName("the last owner leaving forgets the index entirely")
 		void lastOwnerRemovalForgetsTheIndexEntirely() {
 			// Forgetting is the contract here, and the reason lives upstream rather than in this class:
