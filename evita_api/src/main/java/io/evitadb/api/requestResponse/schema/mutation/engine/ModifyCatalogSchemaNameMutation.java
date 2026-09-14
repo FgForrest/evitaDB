@@ -155,9 +155,11 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 	public Stream<ConflictKey> collectConflictKeys(
 		@Nonnull ConflictGenerationContext context
 	) {
-		return Stream.of(
-			new CatalogConflictKey(this.catalogName),
-			new CatalogConflictKey(this.newCatalogName)
+		// the source name is given up rather than introduced, so it keeps a literal key; the target is introduced
+		// - including when it takes over an existing catalog - and claims every name it would occupy
+		return Stream.concat(
+			Stream.of(new CatalogConflictKey(this.catalogName)),
+			CatalogConflictKey.forIntroducedCatalogName(this.newCatalogName)
 		);
 	}
 

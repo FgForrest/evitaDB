@@ -24,7 +24,13 @@
 package io.evitadb.api.requestResponse.mutation.conflict;
 
 
+import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.NamingConvention;
+
 import javax.annotation.Nonnull;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * Catalog-level conflict key for serializing concurrent engine mutations.
@@ -54,6 +60,44 @@ public record CatalogConflictKey(
 	@Override
 	public ConflictScope conflictScope() {
 		return ConflictScope.CATALOG;
+	}
+
+	/**
+	 * Returns the keys a mutation must claim when it *introduces* a catalog name - the raw name, plus the name in
+	 * every naming convention.
+	 *
+	 * Catalog names are unique convention-wide, not literally: `CatalogSchema#checkCatalogNameIsAvailable` refuses
+	 * a name that matches an existing one in any convention, so `reportsArchive` and `reports_archive` name the
+	 * same catalog as far as uniqueness is concerned. A single literal key cannot express that. Two mutations
+	 * introducing names that collide only by convention would emit disjoint keys, never be serialised against each
+	 * other, and both pass a uniqueness check that neither could yet see the other's result - leaving two catalogs
+	 * whose names collide, durably.
+	 *
+	 * **The raw name is included deliberately, and it is not redundant.**
+	 * `ClassifierUtils#validateClassifierFormat` admits names no convention reproduces - `Reports_Archive` is
+	 * legal and generates none of itself - so a variant-only key set would stop intersecting with the keys of
+	 * every catalog-scoped mutation, which claim the literal name. Dropping it trades one race for another.
+	 *
+	 * **Only for names being introduced.** A name a mutation merely *acts on*, or one it gives up, stays a literal
+	 * key: it is already unique by construction, so widening it would serialise the mutation against unrelated
+	 * catalogs for no benefit.
+	 *
+	 * Note the claim is marginally wider than the uniqueness rule rather than identical to it. Uniqueness compares
+	 * two names within *one* convention, whereas intersecting key sets also match a variant of one against a
+	 * different convention's variant of the other. No pair of names is believed to satisfy the second without the
+	 * first, because the conventions render into mutually exclusive shapes - but it is a superset, so do not read
+	 * this as licence to answer the uniqueness question with a key lookup.
+	 *
+	 * @param catalogName name the mutation introduces
+	 * @return keys claiming every name that catalog would occupy, without duplicates
+	 */
+	@Nonnull
+	public static Stream<ConflictKey> forIntroducedCatalogName(@Nonnull String catalogName) {
+		final Map<NamingConvention, String> variants = NamingConvention.generate(catalogName);
+		final Set<String> claimed = CollectionUtils.createLinkedHashSet(variants.size() + 1);
+		claimed.add(catalogName);
+		claimed.addAll(variants.values());
+		return claimed.stream().map(CatalogConflictKey::new);
 	}
 
 	/**
