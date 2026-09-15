@@ -33,6 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-09-15 | [Push release_* branches from CI as a GitHub App on the ruleset bypass list, not as GITHUB_TOKEN](2026-09-15-release-branch-pushes-as-a-github-app.md) | infrastructure | accepted | #1591, PR #1592, PR #1593 |
 | 2026-09-15 | [Mark the formulas an optimiser may not collapse, rather than special-casing the container that holds them](2026-09-15-non-collapsible-formula-marker.md) | fix | accepted | #1547, PR #1548, PR #1568 |
 | 2026-09-15 | [Answer a referenceHaving from whichever end of a bidirectional reference is cheaper, and stop emitting provably-empty null subtractions](2026-09-15-bidirectional-reference-counterpart-rewrite.md) | optimization | accepted | #1547, #1583, #1584, #1585, PR #1548, PR #1568 |
 | 2026-09-14 | [A resource handed to a JVM-lifetime registry is released by its owner's close, never by the registry](2026-09-14-closed-engine-resource-release.md) | fix | accepted | — |
@@ -80,7 +81,7 @@ filename date that disagrees with `date:`.
 | 2026-08-03 | [Readiness discovery-phase probe failures log at DEBUG; only a known-good endpoint failing logs ERROR](2026-08-03-readiness-discovery-log-level.md) | fix | proposed | #1364, PR #1366 |
 | 2026-08-03 | [Enforce the test-tag policy from a JUnit PostDiscoveryFilter, because listener exceptions are swallowed](2026-08-03-test-tag-policy-gate-via-post-discovery-filter.md) | fix | accepted | #1374, PR #1382 |
 | 2026-08-03 | [Align client/server keep-alive timing and always retry provably-unprocessed gRPC calls](2026-08-03-driver-connection-resilience.md) | fix | accepted | #1367, #1368, PR #1371 |
-| 2026-08-02 | [Route release cuts through workflow_dispatch on the release_* branch, not workflow_run from master](2026-08-02-ci-release-pipeline-patch-versioning-fix.md) | infrastructure | accepted | #1359, #1362 |
+| 2026-08-02 | [Route release cuts through workflow_dispatch on the release_* branch, not workflow_run from master](2026-08-02-ci-release-pipeline-patch-versioning-fix.md) | infrastructure | superseded | #1359, #1362 |
 | 2026-08-02 | [Keep IDEA and Claude formatting in step with a shared .editorconfig and a diff-scoped hook, not Spotless](2026-08-02-editorconfig-formatting-parity.md) | infrastructure | accepted | #1119 |
 | 2026-08-01 | [Answer the B+ tree insert-boundary asserts from the descent instead of a captured cursor path](2026-08-01-bplustree-cursor-free-insert-path.md) | optimization | accepted | #1333, PR #1356 |
 | 2026-07-31 | [Take the four contained bulk-ingest wins, reject the two that trade an invariant or add complexity, and defer the one worth more than all of them](2026-07-31-bulk-ingest-write-path.md) | optimization | accepted | #1342, PR #1348 |
