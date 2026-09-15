@@ -982,14 +982,34 @@ public final class Catalog
 		for (EntityCollection entityCollection : entityCollections) {
 			entityCollection.attachToCatalog(null, this);
 		}
-		// and retrieve their schemas
-		for (EntityCollection entityCollection : entityCollections) {
-			if (initSchemas) {
-				// and init its schema
-				entityCollection.initSchema();
+		// and retrieve their schemas. `initSchema()` exchanges a collection's schema whenever it resolves a reflected
+		// reference, and an exchange notifies this catalog (`entitySchemaUpdated`), which by default rebuilds that
+		// entity type's index triggers on the spot. **On the spot is too early here**, because a cross-entity trigger -
+		// a histogram whose value is read off an attribute of the *referenced* entity - resolves that entity type
+		// through `entitySchemaIndex`, and the loop below is what fills it. An eager rebuild therefore refuses a schema
+		// that is entirely valid and has been serving, for naming a collection the loop has not reached yet - and in
+		// `replace(...)` that refusal lands past the point of no return, costing the target catalog its availability
+		// until a restart. The frame parks those notifications exactly as a batched `updateSchema(...)` does, and they
+		// are discarded rather than drained because `buildInitialExpressionTriggerRegistry()` below rebuilds every
+		// entity type from the finished index anyway. The load path has never needed this: it fills the index from each
+		// collection's own initialization future, so by the time it calls `initSchema()` the index is already complete.
+		final Deque<Set<String>> rebuildStack = PENDING_TRIGGER_REBUILDS.get();
+		rebuildStack.push(new LazyHashSet<>(entityCollections.size()));
+		try {
+			for (EntityCollection entityCollection : entityCollections) {
+				if (initSchemas) {
+					// and init its schema
+					entityCollection.initSchema();
+				}
+				// when the collection is attached to the catalog, we can access its schema and index it
+				newEntitySchemaIndex.put(entityCollection.getEntityType(), entityCollection.getSchema());
 			}
-			// when the collection is attached to the catalog, we can access its schema and put it into the schema index
-			newEntitySchemaIndex.put(entityCollection.getEntityType(), entityCollection.getSchema());
+		} finally {
+			// discarded, not drained - see above
+			rebuildStack.pop();
+			if (rebuildStack.isEmpty()) {
+				PENDING_TRIGGER_REBUILDS.remove();
+			}
 		}
 		if (initSchemas) {
 			// after all schemas are resolved (including reflected references), rebuild the expression
