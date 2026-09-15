@@ -397,28 +397,90 @@ shift costs 15 merges here (A20 − A21) against 30+ in every symmetric row, for
 
 ### How the hypothesis set is computed — a union of configurations, which is one branching stemmer
 
-The prototype (`HypothesisStemFilter`, nested in `CzechAnalysisApproachMatrixTest`) holds a fixed
-list of `FoldedCzechStemmer` instances — one per combination of the four ambiguous-rule switches
-(`-at` family, `st→sk` palatalization, `u→o` vowel shift, epenthetic `-e-`), i.e. 2⁴ = 16, built
-once when the chain is constructed. **Every** query token is run through **all** of them,
-sequentially, and the outputs are deduplicated into a set; the first survivor replaces the token
-and the rest follow at position increment zero. There is no per-query or per-word choice of
-configuration anywhere.
+*(Rewritten 2026-09-07, twice in one day: run 7's lexicon sweep grew the switch set from the four
+this section was first written around to ten, and the branching-stemmer equivalence claimed at the
+end has since been implemented and machine-proven. The mechanism is unchanged; every number and
+example below is current.)*
+
+The flat prototype (`HypothesisStemFilter`) holds a fixed list of `FoldedCzechStemmer` instances —
+one per combination of the ten fold-ambiguous rule switches (2¹⁰ = 1,024) plus the folded surface
+itself, 1,025 in all (`FoldedCzechStemmer.allHypotheses()`), built once when the chain is
+constructed. **Every** query token is run through **all** of them, sequentially, and the outputs are
+deduplicated into a set; the first survivor replaces the token and the rest follow at position
+increment zero. There is no per-query or per-word choice of configuration anywhere.
 
 The set collapses per word because a switch only changes the output when the rule it controls
-actually *fires* on that word's ending. For `panskych` none of the four rules fires, all sixteen
-runs return `pansk`, and one term is emitted. For `formaty` only the `-at` switch matters — the
-eight configurations with the entries on return `form`, the eight with them off return `format` —
-so sixteen runs yield exactly two distinct strings. No word in the fixture reaches more than one
-fork, which is where the measured 1.30-average/2-maximum fan-out comes from.
+actually *fires* on that word's ending. For `panskych` none of the ten guarded rules fires, all
+1,024 runs return `pansk`, and two terms are emitted (the stem and the surface). For `formaty` only
+the `-at` switch matters — the 512 configurations with the entries on return `form`, the 512 with
+them off return `format` — so 1,024 runs yield exactly two distinct strings, plus the surface.
+Measured fan-out over the fixture's 152 bare-typed forms: **2.32 terms per token on average, never
+more than 4**; over the full cs_CZ lexicon 86.5 % of words fork at all (SK/PL/RO record, §9.8).
 
-The sixteen-run union is **provably equivalent to a single branching stemmer** — one that walks the
-ending tables once and, at each ambiguous decision point it actually reaches, takes *both* branches
-instead of committing. The equivalence holds because each fork point is controlled by exactly one
-flag, so the union of outputs over all flag combinations is exactly the set of all branch outcomes.
-That equivalence matters twice: it is what makes the lazy prototype valid evidence for the
-mechanism, and it is what licenses a production implementation to be a branching pass rather than
-sixteen passes (see the performance subsection below).
+**What the flat filter itself does is unconditional** — it runs all 1,025 and deduplicates, and
+there is no test anywhere in it for whether a rule applied. "Fires" names something one level down,
+inside `FoldedCzechStemmer`: a switch guards an `if`, and when that `if`'s pattern does not match
+the word, the two configurations differing only in that switch execute the same path and return the
+**same string**, so the set collapses them. The fan-out is therefore not a decision, it is `|set|`.
+The four-switch era rendered this as a 16-row configuration-by-word table; at ten switches the
+readable form is one row per word — the surviving set, and the rule families whose forks produced
+it:
+
+| word (bare-typed) | rule families that fork on it | hypothesis set | terms |
+|---|---|---|---|
+| `panskych` | — (surface only) | `pansk` · `panskych` | 2 |
+| `stul` | vowel shift | `stul` · `stol` | 2 |
+| `sluchatek` | epenthetic `-e-` | `sluchatek` · `sluchatk` | 2 |
+| `pansti` | palatalization | `panst` · `pansk` · `pansti` | 3 |
+| `formaty` | neuter `-at-` | `format` · `form` · `formaty` | 3 |
+| `dreveny` | epenthetic `-e-` | `dreven` · `drevn` · `dreveny` | 3 |
+| `otec` | final consonant, epenthetic `-e-` | `otec` · `otc` · `otek` | 3 |
+| `rajcata` | neuter `-at-`, final consonant | `rajcat` · `rajc` · `rajk` · `rajcata` | 4 |
+| `balerinu` | `in` possessive, epenthetic `-e-` | `balerin` · `baler` · `balr` · `balerinu` | 4 |
+| `dojeti` | case-endings gate, epenthetic `-e-` | `dojet` · `dojt` · `doj` · `dojeti` | 4 |
+| `ilicova` | `ov` possessive, final consonant | `ilicov` · `ilic` · `ilik` · `ilicova` | 4 |
+| `surimi` | long `-mi` endings, case-endings gate, vowel shift | `surim` · `suri` · `sur` · `sor` · `surimi` | 5 |
+
+Reading the rows:
+
+- **`panskych`** — the folded ending `-ych` is stripped by a rule no switch guards, and the stem
+  `pansk` matches none of the guarded patterns. All 1,024 configurations agree; only the surface
+  hypothesis joins the stem. This is the ordinary case, and it is why the average is 2.32 rather
+  than something near a thousand. The surface hypothesis keeps every fan-out at ≥ 2 whenever
+  stemming changed the token at all — that is most of the 1.30 → 2.32 growth.
+- **`rajcata`** still shows that a switch being *off* is not the same as *nothing happening*: with
+  the `-at` entries off the ending is not left alone, the final-vowel rule strips instead
+  (`rajcat`), while with them on the `ata` entry strips three and normalization follows. Both
+  branches transform the word — differently. That is precisely the ambiguity the index side must
+  never be asked to answer, because `rajče` is indexed as `rajk` while `kabát` is indexed as
+  `kabat`, and folded both words end in the same three characters.
+- **`otec`** was the four-switch era's showcase of *reachability* — the then-unguarded `c→k`
+  rewrite returned before the epenthetic `if` was ever reached, and the word emitted one term. Run
+  7 made that rewrite the `finalConsonantRewrite` switch (folded foreign `ć` — `ilićová`), and the
+  word now forks on it, which in turn makes the epenthetic rule *reachable* in the rewrite's
+  off-branch: three terms. A rule gaining a switch widens other rules' reach — reachability cuts
+  both ways.
+- **`surimi`** carries the measured maximum: three families fork on one word (the guarded `imi`
+  ending against its unguarded `mi` fallback, the case-endings gate's vowel-strip-only lane, and
+  the vowel shift on the shortest stem), five terms.
+
+Words forking on two or three families at once are real (four of the twelve rows above), which the
+four-switch table could only call "possible in principle" — its fixture never committed one.
+
+The 1,025-run union is **equivalent to a single branching stemmer** — one walk of the ending tables
+that, at each guarded decision point whose pattern actually matches, takes *both* branches instead
+of committing. The equivalence holds because no switch can decide twice on one word: every guarded
+entry strips and returns when it fires, and the skip-branch's surviving suffix never matches a
+second entry of the same family. Since 2026-09-07 this is implementation, not argument:
+`BranchingFoldedCzechStemmer` (+ `BranchingHypothesisStemFilter`, functional-tests prototypes like
+the flat pair) computes the set in one walk with zero steady-state allocation, resting on two
+structural properties of the port — the case and possessive stages never mutate the buffer, and
+every `normalize` rule rewrites at most the stem's final two characters and then returns, so a
+hypothesis is fully described by `(length, final two characters)` over the untouched token.
+`BranchingCzechStemmerEquivalenceTest` pins set-equality word by word over all 260,926 folded cs_CZ
+headwords, plus ending-table boundary words and per-position filter output. The measured price of
+both forms is in the SK/PL/RO record's §9.9 — the flat union is what makes the *prototype* cheap to
+trust, the branching walk is what would make a *production* M7 query side nearly free.
 
 ### The fourth folded ambiguity, and why only M7 could find it
 
@@ -669,6 +731,35 @@ than any single number here: every one of them was a measurement artifact, not a
    stemmer's fourth switch, the hypothesis chain forks on it, and A20 measures 348/348 at 54 merges,
    dominating A18 (112) — `shouldShowHypothesisQueriesDominateTwoStepStemming` pins the domination
    and the ≤ 4-terms fan-out bound.
+
+7. **Run 7 (2026-09-07) verified the M7 hypothesis set against the whole cs_CZ Hunspell lexicon
+   (260,926 headwords) and found it incomplete — six further folded ambiguities the fixture could
+   never commit.** The instrument came from the SK/PL/RO campaign (`LexiconCoverageSweep`, built
+   after the Slovak port's "switch-free" headline fell the same way — see that record's §9.8): for
+   every dictionary word, `fold(CzechStemmer(w))` must be contained in the folded hypothesis set over
+   the bare typing of `w`. The first sweep left 2,678 words uncovered; four correction rounds took it
+   to **zero**, growing `FoldedCzechStemmer` from four switches to ten positions: possessive `in`
+   (⟵ the `-ín`/`-ína` loanword classes — `balerína`), possessives `uv`/`ov` (⟵ exposed stem tails —
+   `docouvat`, `forróvý`), the final `c→k`/`z→h` rewrite (folding maps foreign `ć` onto the `c` the
+   rule reads — `ilićová`, `kopeć`), the `imi`/`ymi`/`emi` endings (no plain twin, or an `é+mi`
+   reading — `surimi`, `veszprémi`), a `caseEndings` gate producing the vowel-strip-only hypothesis
+   (the accented stemmer handles `dojetí`, `bardáma`, `budižkničemu` by the final-vowel rule alone
+   where a folded multi-letter entry would fire), and a **surface hypothesis** — the folded token
+   itself — because the accented stemmer is inert on whole loanword classes (`album`, `almanach`,
+   `akronym`) whose folded image matches a folded table entry. A20 now runs this full set
+   (`FoldedCzechStemmer.allHypotheses()`, the same list `CzechFoldedStemmerLexiconTest` sweeps, so
+   the row and the verifier cannot drift). **No fixture number changed** — A20 remains 119/119,
+   348/348 at 54 merges, because the fixture never carried the new classes; the measured cost is
+   fan-out, 1.30 → 2.32 terms/form average and 2 → 4 max over the fixture's bare-typed forms, with
+   86.5 % of lexicon words producing at least two hypotheses. Unlike runs 2–5 (fixture blindness)
+   and run 6 (mechanism blindness), this artifact was **corpus blindness**: a 32-lemma vocabulary
+   validating a claim quantified over a language. The sweep now stands guard against regressions.
+   The runtime price of the enlarged set is JMH-measured in the SK/PL/RO record's §9.9
+   (`CzechAnalysisPipelineBenchmark`): ~90 µs and ~146 KB of short-lived allocation per 3-token
+   bare query for the flat 1,025-configuration union — acceptable query-side, disqualified for
+   anything index-side or symmetric. The branching form (§9.10, `BranchingFoldedCzechStemmer`)
+   has since removed that price: 0.32 µs and 352 B per query, within 2× of the production chain,
+   with set-equivalence to the flat union machine-checked over the whole lexicon.
 
 Smaller corrections along the way: two assertions written from the survey's predictions were
 disproved by measurement and now carry the measured behaviour with a comment at the site (M1 does not

@@ -23,8 +23,8 @@
 
 package io.evitadb.index.fulltext.analysis;
 
-import io.evitadb.index.fulltext.analysis.CzechAnalysisFixture.MatchStrategy;
-import io.evitadb.index.fulltext.analysis.CzechAnalysisFixture.Measurement;
+import io.evitadb.index.fulltext.analysis.AnalysisApproachMeasurer.MatchStrategy;
+import io.evitadb.index.fulltext.analysis.AnalysisApproachMeasurer.Measurement;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

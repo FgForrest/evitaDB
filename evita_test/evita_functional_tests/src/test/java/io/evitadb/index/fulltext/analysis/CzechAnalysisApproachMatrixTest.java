@@ -23,9 +23,8 @@
 
 package io.evitadb.index.fulltext.analysis;
 
-import io.evitadb.index.fulltext.analysis.CzechAnalysisFixture.MatchStrategy;
-import io.evitadb.index.fulltext.analysis.CzechAnalysisFixture.Measurement;
-import io.evitadb.index.fulltext.analysis.FoldedCzechStemmer.FoldedCzechStemFilter;
+import io.evitadb.index.fulltext.analysis.AnalysisApproachMeasurer.MatchStrategy;
+import io.evitadb.index.fulltext.analysis.AnalysisApproachMeasurer.Measurement;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenFilter;
@@ -43,10 +42,8 @@ import org.apache.lucene.analysis.miscellaneous.KeywordRepeatFilter;
 import org.apache.lucene.analysis.miscellaneous.RemoveDuplicatesTokenFilter;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.AttributeSource;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -60,10 +57,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -212,7 +206,7 @@ class CzechAnalysisApproachMatrixTest {
 		// switch positions, as OR'd terms. The ambiguity is absorbed by the query fan-out instead of being
 		// committed into the index.
 		final FulltextAnalyzer hypothesisQueryFull = chain(
-			"A20 query hypotheses[palat,vowel,at]", hypothesisQueryChain(true, true)
+			"A20 query hypotheses[all]", fullHypothesisQueryChain()
 		);
 		final FulltextAnalyzer hypothesisQueryNoVowel = chain(
 			"A21 query hypotheses[palat,at]", hypothesisQueryChain(true, false)
@@ -391,7 +385,7 @@ class CzechAnalysisApproachMatrixTest {
 				if (keepSurfaceLane) {
 					stream = new KeywordRepeatFilter(stream);
 				}
-				stream = new FoldedCzechStemFilter(stream, stemmer);
+				stream = new FoldedStemFilter(stream, stemmer);
 				if (keepSurfaceLane) {
 					stream = new RemoveDuplicatesTokenFilter(stream);
 				}
@@ -432,8 +426,38 @@ class CzechAnalysisApproachMatrixTest {
 					new LowerCaseFilter(source), CzechAnalyzer.getDefaultStopSet()
 				);
 				stream = new ASCIIFoldingFilter(stream);
-				stream = new FoldedCzechStemFilter(stream, stemmer);
-				stream = new FoldedCzechStemFilter(stream, stemmer);
+				stream = new FoldedStemFilter(stream, stemmer);
+				stream = new FoldedStemFilter(stream, stemmer);
+				return new TokenStreamComponents(source, stream);
+			}
+
+			@Override
+			protected TokenStream normalize(String fieldName, TokenStream in) {
+				return new ASCIIFoldingFilter(new LowerCaseFilter(in));
+			}
+		};
+	}
+
+	/**
+	 * Builds the canonical M7 query chain over {@link FoldedCzechStemmer#allHypotheses()} — every switch
+	 * combination plus the surface hypothesis, the exact set the cs_CZ lexicon sweep
+	 * ({@link CzechFoldedStemmerLexiconTest}) verifies to cover the whole lexicon. The A20 row uses this; the
+	 * A21/A22 rows keep the original two-fork construction below to show what dropping a fork costs.
+	 *
+	 * @return the Lucene chain
+	 */
+	@Nonnull
+	private static Analyzer fullHypothesisQueryChain() {
+		final List<FoldedStemmer> stemmers = FoldedCzechStemmer.allHypotheses();
+		return new Analyzer() {
+			@Override
+			protected TokenStreamComponents createComponents(String fieldName) {
+				final Tokenizer source = new StandardTokenizer();
+				TokenStream stream = new StopFilter(
+					new LowerCaseFilter(source), CzechAnalyzer.getDefaultStopSet()
+				);
+				stream = new ASCIIFoldingFilter(stream);
+				stream = new HypothesisStemFilter(stream, stemmers);
 				return new TokenStreamComponents(source, stream);
 			}
 
@@ -626,7 +650,7 @@ class CzechAnalysisApproachMatrixTest {
 	@Nonnull
 	private static CharArraySet loadStopWords() throws IOException {
 		try (
-			final InputStream stream = resource("stopwords.txt");
+			final InputStream stream = resource("cs_CZ-stopwords.txt");
 			final BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))
 		) {
 			return WordlistLoader.getWordSet(reader);
@@ -821,20 +845,20 @@ class CzechAnalysisApproachMatrixTest {
 		// the cost M7 pays instead of index precision is query fan-out - pin that it stays a handful of
 		// terms per token rather than exploding combinatorially with the number of forked rules
 		final FulltextAnalyzer fanOutProbe = chain(
-			"A20 fan-out probe", hypothesisQueryChain(true, true)
+			"A20 fan-out probe", fullHypothesisQueryChain()
 		);
 		int analyzedFormCount = 0;
 		int emittedTermCount = 0;
 		int maxTermsPerForm = 0;
-		final List<CzechAnalysisFixture.Lemma> allLemmas = new ArrayList<>(
+		final List<AnalysisApproachMeasurer.Lemma> allLemmas = new ArrayList<>(
 			CzechAnalysisFixture.VOCABULARY.size() + CzechAnalysisFixture.CONFUSABLE_LEMMAS.size()
 		);
 		allLemmas.addAll(CzechAnalysisFixture.VOCABULARY);
 		allLemmas.addAll(CzechAnalysisFixture.CONFUSABLE_LEMMAS);
-		for (final CzechAnalysisFixture.Lemma lemma : allLemmas) {
+		for (final AnalysisApproachMeasurer.Lemma lemma : allLemmas) {
 			for (final String form : lemma.forms()) {
-				final Set<String> terms = CzechAnalysisFixture.analyzeWord(
-					fanOutProbe, CzechAnalysisFixture.stripAccents(form)
+				final Set<String> terms = AnalysisApproachMeasurer.analyzeWord(
+					fanOutProbe, AnalysisApproachMeasurer.stripAccents(form)
 				);
 				analyzedFormCount++;
 				emittedTermCount += terms.size();
@@ -893,87 +917,6 @@ class CzechAnalysisApproachMatrixTest {
 		throw new IllegalStateException(
 			"No approach named `" + approachName + "` was measured under " + strategy + "."
 		);
-	}
-
-	/**
-	 * Emits every distinct stem a list of differently-configured {@link FoldedCzechStemmer}s produces for the
-	 * current token, all at the same position — the query half of mechanism M7. The first hypothesis replaces
-	 * the token, the rest are emitted as zero-position-increment followers, exactly the shape a synonym filter
-	 * uses, so downstream consumers treat them as OR'd alternatives of one query word.
-	 */
-	private static final class HypothesisStemFilter extends TokenFilter {
-
-		/**
-		 * The stemmer configurations whose outputs are unioned per token.
-		 */
-		@Nonnull private final List<FoldedCzechStemmer> stemmers;
-		/**
-		 * Term text of the current token.
-		 */
-		@Nonnull private final CharTermAttribute termAttribute = addAttribute(CharTermAttribute.class);
-		/**
-		 * Position increment of the current token, set to zero for every hypothesis after the first.
-		 */
-		@Nonnull private final PositionIncrementAttribute positionIncrementAttribute =
-			addAttribute(PositionIncrementAttribute.class);
-		/**
-		 * Hypotheses of the current token still waiting to be emitted.
-		 */
-		@Nonnull private final ArrayDeque<String> pendingHypotheses = new ArrayDeque<>(4);
-		/**
-		 * Attribute state of the token the pending hypotheses belong to, restored for each of them so that
-		 * offsets and flags stay those of the original token.
-		 */
-		private AttributeSource.State currentTokenState;
-
-		/**
-		 * Creates the filter.
-		 *
-		 * @param input    stream to filter, already lowercased and diacritics-folded
-		 * @param stemmers stemmer configurations to union
-		 */
-		private HypothesisStemFilter(@Nonnull TokenStream input, @Nonnull List<FoldedCzechStemmer> stemmers) {
-			super(input);
-			this.stemmers = stemmers;
-		}
-
-		@Override
-		public boolean incrementToken() throws IOException {
-			if (!this.pendingHypotheses.isEmpty()) {
-				restoreState(this.currentTokenState);
-				this.termAttribute.setEmpty().append(this.pendingHypotheses.poll());
-				this.positionIncrementAttribute.setPositionIncrement(0);
-				return true;
-			}
-			if (!this.input.incrementToken()) {
-				return false;
-			}
-			final int length = this.termAttribute.length();
-			final char[] scratch = new char[length];
-			final Set<String> hypotheses = new LinkedHashSet<>(4);
-			for (final FoldedCzechStemmer stemmer : this.stemmers) {
-				System.arraycopy(this.termAttribute.buffer(), 0, scratch, 0, length);
-				final int stemmedLength = stemmer.stem(scratch, length);
-				hypotheses.add(new String(scratch, 0, stemmedLength));
-			}
-			final Iterator<String> hypothesisIterator = hypotheses.iterator();
-			this.termAttribute.setEmpty().append(hypothesisIterator.next());
-			while (hypothesisIterator.hasNext()) {
-				this.pendingHypotheses.add(hypothesisIterator.next());
-			}
-			if (!this.pendingHypotheses.isEmpty()) {
-				this.currentTokenState = captureState();
-			}
-			return true;
-		}
-
-		@Override
-		public void reset() throws IOException {
-			super.reset();
-			this.pendingHypotheses.clear();
-			this.currentTokenState = null;
-		}
-
 	}
 
 	/**

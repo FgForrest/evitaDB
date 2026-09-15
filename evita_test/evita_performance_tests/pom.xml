@@ -83,6 +83,27 @@
 			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
+			<!--
+				Test-jar of evita_functional_tests carries the fulltext P5 analysis prototypes
+				(FoldedCzechStemmer, HypothesisStemFilter) that CzechAnalysisPipelineBenchmark measures.
+				Compile scope, because benchmarks live in src/main.
+
+				BUILD THIS MODULE TOGETHER WITH evita_functional_tests, never alone:
+
+				    mvn -P full -pl evita_test/evita_functional_tests,evita_test/evita_performance_tests package
+
+				functional_tests sets `maven.install.skip=true` (see its pom), so its test-jar is NEVER
+				refreshed in the local repository - building this module on its own resolves whatever
+				`-tests` jar happens to be sitting there, possibly months old. Only a shared reactor
+				resolves the sibling's fresh `target/` output. See evita_long_running_tests' pom for the
+				long-form description of this trap.
+			-->
+			<groupId>${project.parent.groupId}</groupId>
+			<artifactId>evita_functional_tests</artifactId>
+			<version>${project.parent.version}</version>
+			<type>test-jar</type>
+		</dependency>
+		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_traffic_engine</artifactId>
 			<version>${project.parent.version}</version>

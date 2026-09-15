@@ -32,6 +32,7 @@ import org.apache.lucene.analysis.cz.CzechAnalyzer;
 import org.apache.lucene.analysis.de.GermanAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.pl.PolishAnalyzer;
+import org.apache.lucene.analysis.ro.RomanianAnalyzer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -57,11 +58,19 @@ import java.util.function.Supplier;
  * | `cs`     | `CzechAnalyzer` + folding                      | folded — `CzechAnalyzer` keeps them, see below  |
  * | `en`     | `EnglishAnalyzer`                              | not applicable                                 |
  * | `de`     | `GermanAnalyzer`                               | folded by its own `GermanNormalizationFilter`  |
- * | `pl`     | `PolishAnalyzer` (stempel)                     | left as-is                                     |
+ * | `pl`     | `PolishAnalyzer` (stempel) + folding           | folded — measured, see below                    |
  * | `sk`     | {@link TokenizingAnalyzer} + folding           | folded                                         |
+ * | `ro`     | `RomanianAnalyzer` + folding                   | folded — same reasoning as Czech, see below     |
  *
  * Czech is the one that needs the extra step: `CzechAnalyzer` is `StandardTokenizer`, `LowerCaseFilter`,
- * `StopFilter` and `CzechStemFilter` — accents survive it, so `cerna` would not find `černá` at all. German is
+ * `StopFilter` and `CzechStemFilter` — accents survive it, so `cerna` would not find `černá` at all. Romanian
+ * has the same shape for the same reason (`RomanianAnalyzer` keeps `ă`/`ș`/`ț`, so `masina` would not find
+ * `mașină`); the wiring was measured as row R0 of `RomanianAnalysisApproachMatrixTest` before it shipped —
+ * accent-typed recall moves from 10/49 (bare analyzer) to 47/49 with the wrapper. Polish gets the wrapper for
+ * the same reason with a smaller measured payoff (row P0 of `PolishAnalysisApproachMatrixTest`: 0/62 → 20/62
+ * accent-typed recall): Stempel's statistical trie stems the bare-typed *query* text into garbage patches the
+ * folded index lane cannot meet, which no wrapper can repair — the index-side alternative is recorded in the
+ * SK/PL/RO measurement record. German is
  * the one that must **not** get it, because `GermanNormalizationFilter` already folds umlauts and maps `ß` to
  * `ss`; a second pass would fight it. See {@link DiacriticsFoldingAnalyzerWrapper} for the full argument and for
  * why folding is appended after the stemmer rather than before it.
@@ -101,6 +110,10 @@ public class BuiltInAnalyzers {
 	 * Name of the Slovak analyzer.
 	 */
 	public static final String SLOVAK_ANALYZER_NAME = "slovak";
+	/**
+	 * Name of the Romanian analyzer.
+	 */
+	public static final String ROMANIAN_ANALYZER_NAME = "romanian";
 
 	/**
 	 * The built-in table, keyed by analyzer name. Values are factories, not analyzers: instances are expensive
@@ -112,8 +125,9 @@ public class BuiltInAnalyzers {
 		CZECH_ANALYZER_NAME, () -> new DiacriticsFoldingAnalyzerWrapper(new CzechAnalyzer()),
 		ENGLISH_ANALYZER_NAME, EnglishAnalyzer::new,
 		GERMAN_ANALYZER_NAME, GermanAnalyzer::new,
-		POLISH_ANALYZER_NAME, PolishAnalyzer::new,
-		SLOVAK_ANALYZER_NAME, () -> new DiacriticsFoldingAnalyzerWrapper(new TokenizingAnalyzer())
+		POLISH_ANALYZER_NAME, () -> new DiacriticsFoldingAnalyzerWrapper(new PolishAnalyzer()),
+		SLOVAK_ANALYZER_NAME, () -> new DiacriticsFoldingAnalyzerWrapper(new TokenizingAnalyzer()),
+		ROMANIAN_ANALYZER_NAME, () -> new DiacriticsFoldingAnalyzerWrapper(new RomanianAnalyzer())
 	);
 
 	/**
@@ -126,7 +140,8 @@ public class BuiltInAnalyzers {
 		"en", ENGLISH_ANALYZER_NAME,
 		"de", GERMAN_ANALYZER_NAME,
 		"pl", POLISH_ANALYZER_NAME,
-		"sk", SLOVAK_ANALYZER_NAME
+		"sk", SLOVAK_ANALYZER_NAME,
+		"ro", ROMANIAN_ANALYZER_NAME
 	);
 
 	/**

@@ -279,6 +279,12 @@
 				<version>${lucene.version}</version>
 			</dependency>
 			<dependency>
+				<!-- test scope only: the Morfologik row of PolishAnalysisApproachMatrixTest -->
+				<groupId>org.apache.lucene</groupId>
+				<artifactId>lucene-analysis-morfologik</artifactId>
+				<version>${lucene.version}</version>
+			</dependency>
+			<dependency>
 				<groupId>net.openhft</groupId>
 				<artifactId>zero-allocation-hashing</artifactId>
 				<version>2026.0</version>

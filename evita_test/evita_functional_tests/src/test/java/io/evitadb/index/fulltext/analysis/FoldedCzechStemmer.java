@@ -23,13 +23,9 @@
 
 package io.evitadb.index.fulltext.analysis;
 
-import org.apache.lucene.analysis.TokenFilter;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.analysis.tokenattributes.KeywordAttribute;
-
 import javax.annotation.Nonnull;
-import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.apache.lucene.analysis.util.StemmerUtil.endsWith;
 
@@ -67,7 +63,7 @@ import static org.apache.lucene.analysis.util.StemmerUtil.endsWith;
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
  */
-final class FoldedCzechStemmer {
+final class FoldedCzechStemmer implements FoldedStemmer {
 
 	/**
 	 * Whether the `ct`→`ck` / `st`→`sk` consonant rewrite is applied. See the class javadoc — it buys the Czech
@@ -121,6 +117,51 @@ final class FoldedCzechStemmer {
 	 * hypothesis-emitting query chain can fork on it; every symmetric configuration keeps it enabled.
 	 */
 	private final boolean epentheticERemoval;
+	/**
+	 * Whether the `in` possessive is stripped. **A fifth folded ambiguity, found by the cs_CZ lexicon sweep**
+	 * (2026-09-07): folded `in` is both the genuine possessive (`rodin` → `rod`, which the accented stemmer
+	 * commits too) and the final syllable of the `-ín`/`-ína` loanword classes the accented stemmer never
+	 * touches (`balerína` → accented `balerin`, folded `in`-strip `baler`). Unlike Slovak — where the
+	 * possessive was simply removed — the accented side here is Lucene's upstream `CzechStemmer`, which does
+	 * fire on the genuine class, so the folded port must fork rather than drop.
+	 */
+	private final boolean inPossessive;
+	/**
+	 * Whether the `uv` possessive is stripped. **A sixth folded ambiguity from the same sweep**: folded `uv` is
+	 * both the genuine `ův` possessive and a stem-final `uv` an earlier strip exposes (`docouvat` → `at`-strip
+	 * → `docouv`, which the accented side keeps while the folded possessive eats it to `doco`).
+	 */
+	private final boolean uvPossessive;
+	/**
+	 * Whether the multi-letter case endings are stripped at all. **The seventh finding of the same sweep is a
+	 * whole family, not a single entry**: every folded multi-letter ending whose accented source carries a long
+	 * vowel (`eti`⟵`ětí`?, `emu`⟵`ému`, `ama`⟵`ama`/`ám+a`, `mi`⟵`m+í`, `es`⟵`e+š`, …) collides with a
+	 * plain-spelled stem tail the accented stemmer handles by the final-vowel rule alone (`dojetí` → `dojet` →
+	 * epenthetic `dojt`; `bardáma` → `bardám`). Rather than a switch per entry, this gate produces the
+	 * vowel-strip-only hypothesis that mirrors that accented path — the same shape as the Romanian step gates.
+	 */
+	private final boolean caseEndings;
+	/**
+	 * Whether the `ov` possessive is stripped. **From the same sweep's third round**: folded `ov` is both the
+	 * genuine possessive and the tail of `-óv-` names an earlier vowel strip exposes (`forróvý` → accented
+	 * keeps `forróv`, folded strips to `forr`).
+	 */
+	private final boolean ovPossessive;
+	/**
+	 * Whether the final `c`→`k` / `z`→`h` rewrite is applied. **Also from the third round**: the accented rule
+	 * reads only `c`/`č` and `z`/`ž`, but folding maps the foreign `ć` onto `c` too (`ilićová` → accented keeps
+	 * `ilić`/`ilic`, folded rewrites to `ilik`; `kopeć` → the accented side falls through to the epenthetic
+	 * rule instead).
+	 */
+	private final boolean finalConsonantRewrite;
+	/**
+	 * Whether the `imi`/`ymi`/`emi` endings are stripped. **The last finding of the sweep**: `imi`/`ymi` exist
+	 * only as images of the accented `ími`/`ými` — no plain twin — so on a genuine plain tail the accented side
+	 * takes the shorter `mi` instead (`surimi` → accented `suri`, folded `imi`-strip `sur`); and folded `emi`
+	 * additionally reads as `é+mi` (`veszprémi` → accented `veszpré` via `mi`), which only the shorter fallback
+	 * reaches.
+	 */
+	private final boolean longMiEndings;
 
 	/**
 	 * Creates a stemmer with the three ambiguous rules independently enabled or disabled and the epenthetic
@@ -152,10 +193,71 @@ final class FoldedCzechStemmer {
 		boolean neuterAtParadigm,
 		boolean epentheticERemoval
 	) {
+		this(palatalizationRewrite, penultimateVowelShift, neuterAtParadigm, epentheticERemoval,
+			true, true, true, true, true, true);
+	}
+
+	/**
+	 * Creates a stemmer with all seven fold-ambiguous rules independently enabled or disabled — the last three
+	 * were found by the cs_CZ lexicon sweep, long after the fixture-driven four.
+	 *
+	 * @param palatalizationRewrite whether to apply `ct`→`ck` / `st`→`sk`
+	 * @param penultimateVowelShift whether to apply penultimate `u`→`o`
+	 * @param neuterAtParadigm      whether the `atech`/`atum`/`ata`/`aty`/`at` entries are stripped
+	 * @param epentheticERemoval    whether the epenthetic `-e-` removal is applied
+	 * @param inPossessive          whether the `in` possessive is stripped
+	 * @param uvPossessive          whether the `uv` possessive is stripped
+	 * @param ovPossessive          whether the `ov` possessive is stripped
+	 * @param caseEndings           whether the multi-letter case endings are stripped at all
+	 * @param finalConsonantRewrite whether the final `c`→`k` / `z`→`h` rewrite is applied
+	 * @param longMiEndings         whether the `imi`/`ymi` endings are stripped
+	 */
+	FoldedCzechStemmer(
+		boolean palatalizationRewrite,
+		boolean penultimateVowelShift,
+		boolean neuterAtParadigm,
+		boolean epentheticERemoval,
+		boolean inPossessive,
+		boolean uvPossessive,
+		boolean ovPossessive,
+		boolean caseEndings,
+		boolean finalConsonantRewrite,
+		boolean longMiEndings
+	) {
 		this.palatalizationRewrite = palatalizationRewrite;
 		this.penultimateVowelShift = penultimateVowelShift;
 		this.neuterAtParadigm = neuterAtParadigm;
 		this.epentheticERemoval = epentheticERemoval;
+		this.inPossessive = inPossessive;
+		this.uvPossessive = uvPossessive;
+		this.ovPossessive = ovPossessive;
+		this.caseEndings = caseEndings;
+		this.finalConsonantRewrite = finalConsonantRewrite;
+		this.longMiEndings = longMiEndings;
+	}
+
+	/**
+	 * Builds the full M7 hypothesis set: every switch combination of this stemmer plus the folded surface
+	 * itself, which is the only term that can meet an index word the accented stemmer was inert on (`album`,
+	 * `almanach`, `akronym` — the folded images of accented endings the plain spellings never carried). One
+	 * list shared by the A20 matrix chain and the cs_CZ lexicon sweep, so the two always verify the same set.
+	 * {@link BranchingFoldedCzechStemmer} computes the identical set in one walk — an edit here must keep the
+	 * two in step, and `BranchingCzechStemmerEquivalenceTest` fails the moment they drift.
+	 *
+	 * @return every hypothesis stemmer, surface hypothesis last
+	 */
+	@Nonnull
+	static List<FoldedStemmer> allHypotheses() {
+		final List<FoldedStemmer> hypotheses = new ArrayList<>(1025);
+		for (int mask = 0; mask < 1024; mask++) {
+			hypotheses.add(new FoldedCzechStemmer(
+				(mask & 1) != 0, (mask & 2) != 0, (mask & 4) != 0, (mask & 8) != 0,
+				(mask & 16) != 0, (mask & 32) != 0, (mask & 64) != 0, (mask & 128) != 0,
+				(mask & 256) != 0, (mask & 512) != 0
+			));
+		}
+		hypotheses.add((buffer, length) -> length);
+		return hypotheses;
 	}
 
 	/**
@@ -165,7 +267,8 @@ final class FoldedCzechStemmer {
 	 * @param len length of the input buffer
 	 * @return length of the buffer after stemming
 	 */
-	int stem(@Nonnull char[] s, int len) {
+	@Override
+	public int stem(@Nonnull char[] s, int len) {
 		int length = removeCase(s, len);
 		length = removePossessives(s, length);
 		if (length > 0) {
@@ -182,6 +285,11 @@ final class FoldedCzechStemmer {
 	 * @return length after the ending was stripped
 	 */
 	private int removeCase(@Nonnull char[] s, int len) {
+		if (!this.caseEndings) {
+			// the vowel-strip-only hypothesis: mirror the accented path for words whose folded tail matches a
+			// long-vowel-sourced entry the accented stemmer never had (see the caseEndings javadoc)
+			return removeFinalVowel(s, len);
+		}
 		if (len > 7 && this.neuterAtParadigm && endsWith(s, len, "atech")) {
 			return len - 5;
 		}
@@ -196,12 +304,12 @@ final class FoldedCzechStemmer {
 			&& (endsWith(s, len, "ech")
 			|| endsWith(s, len, "ich")     // ich + ích
 			|| endsWith(s, len, "eho")     // ého
-			|| endsWith(s, len, "emi")     // ěmi + emi
+			|| (this.longMiEndings && endsWith(s, len, "emi"))     // ěmi + emi; also é+mi, see longMiEndings
 			|| endsWith(s, len, "emu")     // ému
 			|| endsWith(s, len, "ete")     // ěte + ete
 			|| endsWith(s, len, "eti")     // ěti + eti
 			|| endsWith(s, len, "iho")     // ího + iho
-			|| endsWith(s, len, "imi")     // ími
+			|| (this.longMiEndings && endsWith(s, len, "imi"))     // ími - no plain twin, see longMiEndings
 			|| endsWith(s, len, "imu")     // ímu + imu
 			|| endsWith(s, len, "ach")     // ách
 			|| (this.neuterAtParadigm && endsWith(s, len, "ata"))
@@ -211,7 +319,7 @@ final class FoldedCzechStemmer {
 			|| endsWith(s, len, "ami")
 			|| endsWith(s, len, "ove")     // ové
 			|| endsWith(s, len, "ovi")
-			|| endsWith(s, len, "ymi"))) { // ými
+			|| (this.longMiEndings && endsWith(s, len, "ymi")))) { // ými - no plain twin
 			return len - 3;
 		}
 
@@ -230,6 +338,18 @@ final class FoldedCzechStemmer {
 			return len - 2;
 		}
 
+		return removeFinalVowel(s, len);
+	}
+
+	/**
+	 * Strips a single final vowel — the last tier of the case table, and the whole of it when
+	 * {@link #caseEndings} is off.
+	 *
+	 * @param s   input buffer
+	 * @param len current length
+	 * @return length after the vowel was stripped
+	 */
+	private static int removeFinalVowel(@Nonnull char[] s, int len) {
 		if (len > 3) {
 			// the accented vowels of the original switch all fold onto these five plus 'y'
 			switch (s[len - 1]) {
@@ -257,8 +377,11 @@ final class FoldedCzechStemmer {
 	 * @param len current length
 	 * @return length after the suffix was stripped
 	 */
-	private static int removePossessives(@Nonnull char[] s, int len) {
-		if (len > 5 && (endsWith(s, len, "ov") || endsWith(s, len, "in") || endsWith(s, len, "uv"))) {
+	private int removePossessives(@Nonnull char[] s, int len) {
+		if (len > 5
+			&& ((this.ovPossessive && endsWith(s, len, "ov"))
+			|| (this.inPossessive && endsWith(s, len, "in"))
+			|| (this.uvPossessive && endsWith(s, len, "uv")))) {
 			return len - 2;
 		}
 		return len;
@@ -287,17 +410,21 @@ final class FoldedCzechStemmer {
 			}
 		}
 
-		// exactly equivalent to the original: it mapped both `c` and `č` to `k`, and both `z` and `ž` to `h`
-		switch (s[len - 1]) {
-			case 'c':
-				s[len - 1] = 'k';
-				return len;
-			case 'z':
-				s[len - 1] = 'h';
-				return len;
-			default:
-				// no final-consonant rewrite applies
-				break;
+		// nearly equivalent to the original - it mapped both `c` and `č` to `k`, and both `z` and `ž` to `h` -
+		// except that folding also maps the foreign `ć` onto `c`, which the accented rule never read; hence
+		// the switch (see finalConsonantRewrite)
+		if (this.finalConsonantRewrite) {
+			switch (s[len - 1]) {
+				case 'c':
+					s[len - 1] = 'k';
+					return len;
+				case 'z':
+					s[len - 1] = 'h';
+					return len;
+				default:
+					// no final-consonant rewrite applies
+					break;
+			}
 		}
 
 		// the epenthetic -e- rule. Folded input reaches it more often than accented input did, because `ě`
@@ -315,51 +442,6 @@ final class FoldedCzechStemmer {
 		}
 
 		return len;
-	}
-
-	/**
-	 * Applies {@link FoldedCzechStemmer} to a token stream, honouring {@link KeywordAttribute} exactly as
-	 * `CzechStemFilter` does so that it can sit behind a `KeywordRepeatFilter` in a two-lane chain.
-	 */
-	static final class FoldedCzechStemFilter extends TokenFilter {
-
-		/**
-		 * The stemmer applied to every non-keyword token.
-		 */
-		@Nonnull private final FoldedCzechStemmer stemmer;
-		/**
-		 * Term text of the current token.
-		 */
-		@Nonnull private final CharTermAttribute termAttribute = addAttribute(CharTermAttribute.class);
-		/**
-		 * Marks tokens that must not be stemmed.
-		 */
-		@Nonnull private final KeywordAttribute keywordAttribute = addAttribute(KeywordAttribute.class);
-
-		/**
-		 * Creates the filter.
-		 *
-		 * @param input   stream to filter
-		 * @param stemmer stemmer to apply
-		 */
-		FoldedCzechStemFilter(@Nonnull TokenStream input, @Nonnull FoldedCzechStemmer stemmer) {
-			super(input);
-			this.stemmer = stemmer;
-		}
-
-		@Override
-		public boolean incrementToken() throws IOException {
-			if (this.input.incrementToken()) {
-				if (!this.keywordAttribute.isKeyword()) {
-					this.termAttribute.setLength(
-						this.stemmer.stem(this.termAttribute.buffer(), this.termAttribute.length())
-					);
-				}
-				return true;
-			}
-			return false;
-		}
-
 	}
 
 }

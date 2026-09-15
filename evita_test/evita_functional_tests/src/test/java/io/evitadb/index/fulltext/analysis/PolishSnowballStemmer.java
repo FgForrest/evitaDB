@@ -1,0 +1,437 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2026
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.index.fulltext.analysis;
+
+import org.tartarus.snowball.Among;
+import org.tartarus.snowball.SnowballStemmer;
+
+import javax.annotation.Nonnull;
+
+/**
+ * **Prototype, test scope only — a vendored copy of the official Snowball Polish stemmer.**
+ *
+ * Upstream Snowball merged `polish.sbl` in 2025-10 (post-3.0.1, in no tagged release yet) and Lucene main
+ * vendored the generated Java in commit `b26f7672981` (2025-12-18) — but the Lucene version this project pins
+ * (9.12.3) predates it, so the generated class is copied here verbatim from the Lucene main checkout
+ * (`lucene/analysis/common/src/java/org/tartarus/snowball/ext/PolishStemmer.java`, generated from `polish.sbl`
+ * by Snowball 3.0.0), with exactly two adaptations:
+ *
+ * 1. the package and class name, because the original sits in Lucene's `org.tartarus.snowball.ext` package and
+ *    a test-scope copy must not shadow a future upstream one;
+ * 2. private {@link #go_out_grouping}/{@link #go_in_grouping} shims copied from Lucene main's
+ *    `SnowballProgram`, because the 9.12.3 runtime predates Snowball 3.0's generated-code contract and lacks
+ *    those two methods — everything else the generated code calls (`find_among_b`, `slice_del`, `slice_from`,
+ *    the `Among` method-handle conditions) is present and compatible in 9.12.3.
+ *
+ * The algorithm is R1-gated suffix stripping over a single big ending table (with the conditional-particle
+ * `by`-family pre-pass and a final-consonant `ć`→`c`/`ń`→`n`/`ś`→`s`/`ź`→`z` normalization applied only to
+ * words that had no ending) — written, like every Snowball module, in **native orthography**: `ą`, `ę`, `ł`,
+ * `ś`, `ó` appear throughout the tables, which is what {@link FoldedPolishStemmer} exists to measure around.
+ *
+ * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
+ */
+@SuppressWarnings({"unused", "checkstyle:all"})
+class PolishSnowballStemmer extends SnowballStemmer {
+
+	private static final long serialVersionUID = 1L;
+	private static final java.lang.invoke.MethodHandles.Lookup methodObject =
+		java.lang.invoke.MethodHandles.lookup();
+
+	private static final Among[] a_0 = {
+		new Among("byście", -1, 1),
+		new Among("bym", -1, 1),
+		new Among("by", -1, 1),
+		new Among("byśmy", -1, 1),
+		new Among("byś", -1, 1)
+	};
+
+	private static final Among[] a_1 = {
+		new Among("ąc", -1, 1),
+		new Among("ając", 0, 1),
+		new Among("sząc", 0, 2),
+		new Among("sz", -1, 1),
+		new Among("iejsz", 3, 1)
+	};
+
+	private static final Among[] a_2 = {
+		new Among("a", -1, 1, "r_R1", methodObject),
+		new Among("ąca", 0, 1),
+		new Among("ająca", 1, 1),
+		new Among("sząca", 1, 2),
+		new Among("ia", 0, 1, "r_R1", methodObject),
+		new Among("sza", 0, 1),
+		new Among("iejsza", 5, 1),
+		new Among("ała", 0, 1),
+		new Among("iała", 7, 1),
+		new Among("iła", 0, 1),
+		new Among("ąc", -1, 1),
+		new Among("ając", 10, 1),
+		new Among("e", -1, 1, "r_R1", methodObject),
+		new Among("ące", 12, 1),
+		new Among("ające", 13, 1),
+		new Among("szące", 13, 2),
+		new Among("ie", 12, 1, "r_R1", methodObject),
+		new Among("cie", 16, 1),
+		new Among("acie", 17, 1),
+		new Among("ecie", 17, 1),
+		new Among("icie", 17, 1),
+		new Among("ajcie", 17, 1),
+		new Among("liście", 17, 4),
+		new Among("aliście", 22, 1),
+		new Among("ieliście", 22, 1),
+		new Among("iliście", 22, 1),
+		new Among("łyście", 17, 4),
+		new Among("ałyście", 26, 1),
+		new Among("iałyście", 27, 1),
+		new Among("iłyście", 26, 1),
+		new Among("sze", 12, 1),
+		new Among("iejsze", 30, 1),
+		new Among("ach", -1, 1, "r_R1", methodObject),
+		new Among("iach", 32, 1, "r_R1", methodObject),
+		new Among("ich", -1, 5),
+		new Among("ych", -1, 5),
+		new Among("i", -1, 1, "r_R1", methodObject),
+		new Among("ali", 36, 1),
+		new Among("ieli", 36, 1),
+		new Among("ili", 36, 1),
+		new Among("ami", 36, 1, "r_R1", methodObject),
+		new Among("iami", 40, 1, "r_R1", methodObject),
+		new Among("imi", 36, 5),
+		new Among("ymi", 36, 5),
+		new Among("owi", 36, 1, "r_R1", methodObject),
+		new Among("iowi", 44, 1, "r_R1", methodObject),
+		new Among("aj", -1, 1),
+		new Among("ej", -1, 5),
+		new Among("iej", 47, 5),
+		new Among("am", -1, 1),
+		new Among("ałam", 49, 1),
+		new Among("iałam", 50, 1),
+		new Among("iłam", 49, 1),
+		new Among("em", -1, 1, "r_R1", methodObject),
+		new Among("iem", 53, 1, "r_R1", methodObject),
+		new Among("ałem", 53, 1),
+		new Among("iałem", 55, 1),
+		new Among("iłem", 53, 1),
+		new Among("im", -1, 5),
+		new Among("om", -1, 1, "r_R1", methodObject),
+		new Among("iom", 59, 1, "r_R1", methodObject),
+		new Among("ym", -1, 5),
+		new Among("o", -1, 1, "r_R1", methodObject),
+		new Among("ego", 62, 5),
+		new Among("iego", 63, 5),
+		new Among("ało", 62, 1),
+		new Among("iało", 65, 1),
+		new Among("iło", 62, 1),
+		new Among("u", -1, 1, "r_R1", methodObject),
+		new Among("iu", 68, 1, "r_R1", methodObject),
+		new Among("emu", 68, 5),
+		new Among("iemu", 70, 5),
+		new Among("ów", -1, 1, "r_R1", methodObject),
+		new Among("y", -1, 5),
+		new Among("amy", 73, 1),
+		new Among("emy", 73, 1),
+		new Among("imy", 73, 1),
+		new Among("liśmy", 73, 4),
+		new Among("aliśmy", 77, 1),
+		new Among("ieliśmy", 77, 1),
+		new Among("iliśmy", 77, 1),
+		new Among("łyśmy", 73, 4),
+		new Among("ałyśmy", 81, 1),
+		new Among("iałyśmy", 82, 1),
+		new Among("iłyśmy", 81, 1),
+		new Among("ały", 73, 1),
+		new Among("iały", 85, 1),
+		new Among("iły", 73, 1),
+		new Among("asz", -1, 1),
+		new Among("esz", -1, 1),
+		new Among("isz", -1, 1),
+		new Among("ą", -1, 1, "r_R1", methodObject),
+		new Among("ącą", 91, 1),
+		new Among("ającą", 92, 1),
+		new Among("szącą", 92, 2),
+		new Among("ią", 91, 1, "r_R1", methodObject),
+		new Among("ają", 91, 1),
+		new Among("szą", 91, 3),
+		new Among("iejszą", 97, 1),
+		new Among("ać", -1, 1),
+		new Among("ieć", -1, 1),
+		new Among("ić", -1, 1),
+		new Among("ąć", -1, 1),
+		new Among("aść", -1, 1),
+		new Among("eść", -1, 1),
+		new Among("ę", -1, 1),
+		new Among("szę", 105, 2),
+		new Among("ał", -1, 1),
+		new Among("iał", 107, 1),
+		new Among("ił", -1, 1),
+		new Among("łaś", -1, 4),
+		new Among("ałaś", 110, 1),
+		new Among("iałaś", 111, 1),
+		new Among("iłaś", 110, 1),
+		new Among("łeś", -1, 4),
+		new Among("ałeś", 114, 1),
+		new Among("iałeś", 115, 1),
+		new Among("iłeś", 114, 1)
+	};
+
+	private static final Among[] a_3 = {
+		new Among("ć", -1, 1),
+		new Among("ń", -1, 2),
+		new Among("ś", -1, 3),
+		new Among("ź", -1, 4)
+	};
+
+	private static final char[] g_v = {
+		17, 65, 16, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 16, 0, 0, 1
+	};
+
+	private int I_p1;
+
+	/**
+	 * Advances the cursor while the current character is **outside** the grouping, stopping at the first
+	 * grouping member — the Snowball 3.0 runtime primitive the 9.12.3 runtime lacks, copied from Lucene main's
+	 * `SnowballProgram`.
+	 *
+	 * @param s   grouping bitmap
+	 * @param min lowest character of the grouping
+	 * @param max highest character of the grouping
+	 * @return true when a grouping member was found before the limit
+	 */
+	private boolean go_out_grouping(@Nonnull char[] s, int min, int max) {
+		final char[] current = getCurrentBuffer();
+		while (this.cursor < this.limit) {
+			final int ch = current[this.cursor];
+			if (ch <= max && ch >= min) {
+				final int bit = ch - min;
+				if ((s[bit >> 3] & (0x1 << (bit & 0x7))) != 0) {
+					return true;
+				}
+			}
+			this.cursor++;
+		}
+		return false;
+	}
+
+	/**
+	 * Advances the cursor while the current character is **inside** the grouping, stopping at the first
+	 * non-member — the second Snowball 3.0 runtime primitive missing from 9.12.3, copied from Lucene main's
+	 * `SnowballProgram`.
+	 *
+	 * @param s   grouping bitmap
+	 * @param min lowest character of the grouping
+	 * @param max highest character of the grouping
+	 * @return true when a non-member was found before the limit
+	 */
+	private boolean go_in_grouping(@Nonnull char[] s, int min, int max) {
+		final char[] current = getCurrentBuffer();
+		while (this.cursor < this.limit) {
+			final int ch = current[this.cursor];
+			if (ch > max || ch < min) {
+				return true;
+			}
+			final int bit = ch - min;
+			if ((s[bit >> 3] & (0x1 << (bit & 0x7))) == 0) {
+				return true;
+			}
+			this.cursor++;
+		}
+		return false;
+	}
+
+	private boolean r_mark_regions() {
+		I_p1 = limit;
+		if (!go_out_grouping(g_v, 97, 281)) {
+			return false;
+		}
+		cursor++;
+		if (!go_in_grouping(g_v, 97, 281)) {
+			return false;
+		}
+		cursor++;
+		I_p1 = cursor;
+		return true;
+	}
+
+	private boolean r_R1() {
+		return I_p1 <= cursor;
+	}
+
+	private boolean r_remove_endings() {
+		int among_var;
+		int v_1 = limit - cursor;
+		lab0:
+		{
+			if (cursor < I_p1) {
+				break lab0;
+			}
+			int v_2 = limit_backward;
+			limit_backward = I_p1;
+			ket = cursor;
+			if (find_among_b(a_0) == 0) {
+				limit_backward = v_2;
+				break lab0;
+			}
+			bra = cursor;
+			limit_backward = v_2;
+			slice_del();
+		}
+		cursor = limit - v_1;
+		ket = cursor;
+		among_var = find_among_b(a_2);
+		if (among_var == 0) {
+			return false;
+		}
+		bra = cursor;
+		switch (among_var) {
+			case 1:
+				slice_del();
+				break;
+			case 2:
+				slice_from("s");
+				break;
+			case 3:
+				lab1:
+				{
+					int v_3 = limit - cursor;
+					lab2:
+					{
+						int v_4 = limit - cursor;
+						if (!r_R1()) {
+							break lab2;
+						}
+						cursor = limit - v_4;
+						slice_del();
+						break lab1;
+					}
+					cursor = limit - v_3;
+					slice_from("s");
+				}
+				break;
+			case 4:
+				slice_from("ł");
+				break;
+			case 5:
+				slice_del();
+				int v_5 = limit - cursor;
+				lab3:
+				{
+					ket = cursor;
+					among_var = find_among_b(a_1);
+					if (among_var == 0) {
+						cursor = limit - v_5;
+						break lab3;
+					}
+					bra = cursor;
+					switch (among_var) {
+						case 1:
+							slice_del();
+							break;
+						case 2:
+							slice_from("s");
+							break;
+					}
+				}
+				break;
+		}
+		return true;
+	}
+
+	private boolean r_normalize_consonant() {
+		int among_var;
+		ket = cursor;
+		among_var = find_among_b(a_3);
+		if (among_var == 0) {
+			return false;
+		}
+		bra = cursor;
+		lab0:
+		{
+			if (cursor > limit_backward) {
+				break lab0;
+			}
+			return false;
+		}
+		switch (among_var) {
+			case 1:
+				slice_from("c");
+				break;
+			case 2:
+				slice_from("n");
+				break;
+			case 3:
+				slice_from("s");
+				break;
+			case 4:
+				slice_from("z");
+				break;
+		}
+		return true;
+	}
+
+	@Override
+	public boolean stem() {
+		int v_1 = cursor;
+		r_mark_regions();
+		cursor = v_1;
+		lab0:
+		{
+			int v_2 = cursor;
+			lab1:
+			{
+				{
+					int c = cursor + 2;
+					if (c > limit) {
+						break lab1;
+					}
+					cursor = c;
+				}
+				limit_backward = cursor;
+				cursor = limit;
+				if (!r_remove_endings()) {
+					break lab1;
+				}
+				cursor = limit_backward;
+				break lab0;
+			}
+			cursor = v_2;
+			limit_backward = cursor;
+			cursor = limit;
+			if (!r_normalize_consonant()) {
+				return false;
+			}
+			cursor = limit_backward;
+		}
+		return true;
+	}
+
+	@Override
+	public boolean equals(Object o) {
+		return o instanceof PolishSnowballStemmer;
+	}
+
+	@Override
+	public int hashCode() {
+		return PolishSnowballStemmer.class.getName().hashCode();
+	}
+}

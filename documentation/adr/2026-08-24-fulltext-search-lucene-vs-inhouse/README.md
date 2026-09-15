@@ -1,7 +1,7 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-08-25 10:45
+updated: 2026-09-07 12:00
 status: proposed
 kind: feature
 issues: [258]
