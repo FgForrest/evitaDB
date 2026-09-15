@@ -68,6 +68,50 @@ The layout is the `io.evitadb.server.log.AppLogJsonLayout` layout to log app log
 </configuration>
 ```
 
+Each line the layout writes is a JSON object with these fields:
+
+| Field | Present when | Meaning |
+|---|---|---|
+| `timestamp` | always, unless `logTimestamp` is set to `false` | when the line was written |
+| `level` | always | log level |
+| `message` | always | the log message, with any stack trace appended and escaped |
+| `client_id` | a client identifier is known for the request | identifier the client sent with the request |
+| `trace_id` | tracing is enabled and a span is active | trace identifier, for correlation with distributed traces |
+| `duration_ms` | the line belongs to a request whose start is known | milliseconds since the request started |
+
+`duration_ms` is measured from the moment the request started to the moment the line was written. On the line the
+access log writes once a request finishes, that is the total duration of the request; on a line written while the
+request is still being processed, it is how far into the request the line was written. The two are told apart by
+which appender the line went to — the layout emits no logger name, so a log aggregator that merges the application
+log and the access log into one index cannot distinguish them by field alone.
+
+Lines that do not belong to a request — background maintenance, startup and shutdown — carry no `duration_ms`.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Writing a custom layout
+</NoteTitle>
+
+The layout above renders a deliberately small set of fields. If you need others, the request context is published to
+[SLF4J's MDC](https://www.slf4j.org/manual.html#mdc) and any layout of your own can read it. These keys are
+populated for the thread handling a request, and are carried over to the worker threads evitaDB processes the
+request on:
+
+| MDC key | Meaning |
+|---|---|
+| `clientId` | identifier the client sent with the request |
+| `traceId` | trace identifier of the active span |
+| `clientIp` | client IP address |
+| `clientUri` | request URI, taken from the configured forwarded-URI header |
+| `requestStart` | epoch milliseconds at which the request started |
+
+`requestStart` is textual and must be parsed; subtract it from the timestamp of the event being rendered to obtain
+the elapsed time, and clamp the result at zero, since both are wall-clock readings.
+
+</Note>
+
 ## Readiness and liveness probes
 
 The evitaDB server provides endpoints for Kubernetes [readiness and liveness probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/). The liveness probe is also 

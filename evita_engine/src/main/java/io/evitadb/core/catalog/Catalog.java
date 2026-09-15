@@ -175,6 +175,7 @@ import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.VolatileDataFootprint;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.utils.ArrayUtils;
@@ -676,6 +677,13 @@ public final class Catalog
 				}
 				// after all schemas are resolved, build the expression trigger registry
 				catalog.buildInitialExpressionTriggerRegistry();
+				// derived state that is not persisted and has to come back with the collection: the reverse
+				// lookup the cross-entity facet trigger uses instead of walking every reduced index. Built
+				// here because it is the one moment that has every index in place, every schema resolved, and
+				// no transaction open - and it must not be built inside one, see the method's javadoc.
+				for (EntityCollection collection : initBulk.collections().values()) {
+					collection.rebuildReducedIndexMembership();
+				}
 				onSuccess.accept(catalogName, catalog);
 				theFuture.updateProgress(1);
 				return catalog;
@@ -974,14 +982,34 @@ public final class Catalog
 		for (EntityCollection entityCollection : entityCollections) {
 			entityCollection.attachToCatalog(null, this);
 		}
-		// and retrieve their schemas
-		for (EntityCollection entityCollection : entityCollections) {
-			if (initSchemas) {
-				// and init its schema
-				entityCollection.initSchema();
+		// and retrieve their schemas. `initSchema()` exchanges a collection's schema whenever it resolves a reflected
+		// reference, and an exchange notifies this catalog (`entitySchemaUpdated`), which by default rebuilds that
+		// entity type's index triggers on the spot. **On the spot is too early here**, because a cross-entity trigger -
+		// a histogram whose value is read off an attribute of the *referenced* entity - resolves that entity type
+		// through `entitySchemaIndex`, and the loop below is what fills it. An eager rebuild therefore refuses a schema
+		// that is entirely valid and has been serving, for naming a collection the loop has not reached yet - and in
+		// `replace(...)` that refusal lands past the point of no return, costing the target catalog its availability
+		// until a restart. The frame parks those notifications exactly as a batched `updateSchema(...)` does, and they
+		// are discarded rather than drained because `buildInitialExpressionTriggerRegistry()` below rebuilds every
+		// entity type from the finished index anyway. The load path has never needed this: it fills the index from each
+		// collection's own initialization future, so by the time it calls `initSchema()` the index is already complete.
+		final Deque<Set<String>> rebuildStack = PENDING_TRIGGER_REBUILDS.get();
+		rebuildStack.push(new LazyHashSet<>(entityCollections.size()));
+		try {
+			for (EntityCollection entityCollection : entityCollections) {
+				if (initSchemas) {
+					// and init its schema
+					entityCollection.initSchema();
+				}
+				// when the collection is attached to the catalog, we can access its schema and index it
+				newEntitySchemaIndex.put(entityCollection.getEntityType(), entityCollection.getSchema());
 			}
-			// when the collection is attached to the catalog, we can access its schema and put it into the schema index
-			newEntitySchemaIndex.put(entityCollection.getEntityType(), entityCollection.getSchema());
+		} finally {
+			// discarded, not drained - see above
+			rebuildStack.pop();
+			if (rebuildStack.isEmpty()) {
+				PENDING_TRIGGER_REBUILDS.remove();
+			}
 		}
 		if (initSchemas) {
 			// after all schemas are resolved (including reflected references), rebuild the expression
@@ -1634,10 +1662,22 @@ public final class Catalog
 		boolean includingWAL,
 		@Nullable LongFunction<CatalogVersionPin> onStart
 	) throws TemporalDataNotAvailableException {
-		final ServerTask<?, FileForFetch> backupTask = this.persistenceService.createBackupTask(
+		return submitBackupTask(
+			createBackupTask(pastMoment, catalogVersion, includingWAL, onStart)
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ServerTask<?, FileForFetch> createBackupTask(
+		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
+		boolean includingWAL,
+		@Nullable LongFunction<CatalogVersionPin> onStart
+	) throws TemporalDataNotAvailableException {
+		return this.persistenceService.createBackupTask(
 			pastMoment, catalogVersion, includingWAL, onStart
 		);
-		return submitBackupTask(backupTask);
 	}
 
 	@Nonnull
@@ -2483,12 +2523,17 @@ public final class Catalog
 	 *
 	 * @param startCatalogVersion     the catalog version to start reading from
 	 * @param requestedCatalogVersion the minimal catalog version to finish reading
+	 * @param versionSource           who chose those versions - {@link VersionSource#CLIENT} whenever either of
+	 *                                them came in over an external API, so that a version which is not in the log
+	 *                                is reported as a bad argument rather than as catalog damage
 	 * @return The stream of committed mutations since the given catalogVersion
 	 */
 	@Nonnull
 	public Stream<CatalogBoundMutation> getCommittedLiveMutationStream(
-		long startCatalogVersion, long requestedCatalogVersion) {
-		return this.persistenceService.getCommittedLiveMutationStream(startCatalogVersion, requestedCatalogVersion);
+		long startCatalogVersion, long requestedCatalogVersion, @Nonnull VersionSource versionSource) {
+		return this.persistenceService.getCommittedLiveMutationStream(
+			startCatalogVersion, requestedCatalogVersion, versionSource
+		);
 	}
 
 	/**

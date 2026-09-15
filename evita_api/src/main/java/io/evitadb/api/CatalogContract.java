@@ -378,6 +378,33 @@ public interface CatalogContract {
 	) throws TemporalDataNotAvailableException;
 
 	/**
+	 * Builds the very same backup task {@link #backup(OffsetDateTime, Long, boolean, LongFunction)} builds, but
+	 * does **not** queue it - for a caller that runs it as one step of a larger sequence rather than on its own.
+	 *
+	 * **The returned task already holds a version pin, and the caller now owns giving it back.** The task takes
+	 * the pin in its constructor and releases it only when it is executed or cancelled, so a task that is built
+	 * and then dropped freezes this catalog's retention floor for the rest of its life. A caller that fails to
+	 * run it - a rejected submission, an exception while assembling the rest of the sequence - must therefore
+	 * cancel it. {@link #backup(OffsetDateTime, Long, boolean, LongFunction)} does exactly that on the submission
+	 * path and is the reference for what "own it" means here.
+	 *
+	 * @param pastMoment     leave null for the current dataset, or specify a past moment to copy the dataset as it
+	 *                       was at that moment
+	 * @param catalogVersion precise catalog version to copy, or null for the latest; when set, `pastMoment` is ignored
+	 * @param includingWAL   if true, the Write-Ahead Log is included and a restore of the result replays it forward
+	 * @param onStart        holds the version being copied against reclamation
+	 * @return the unqueued backup task
+	 * @throws TemporalDataNotAvailableException when the requested historical data is no longer available
+	 */
+	@Nonnull
+	ServerTask<?, FileForFetch> createBackupTask(
+		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
+		boolean includingWAL,
+		@Nullable LongFunction<CatalogVersionPin> onStart
+	) throws TemporalDataNotAvailableException;
+
+	/**
 	 * Creates a full backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
 	 * Full backup includes all data files, WAL files, and the catalog header file from the catalog storage.
 	 * After restoring catalog from the full backup, the catalog will contain all the data - so you should be able to

@@ -33,6 +33,7 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.lang.ref.WeakReference;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -119,16 +120,42 @@ public class ChangeCatalogCapturePublisher implements ChangeCapturePublisher<Cha
 	@Override
 	public void subscribe(Subscriber<? super ChangeCatalogCapture> subscriber) {
 		assertActive();
-		final ChangeCatalogCaptureSharedPublisher theSharedPublisher = getSharedPublisher();
-		final DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription = theSharedPublisher.subscribe(
-			subscriber,
-			new WalPointerWithContent(
-				ofNullable(this.request.sinceVersion()).orElse(theSharedPublisher.getCatalog().getVersion() + 1),
-				ofNullable(this.request.sinceIndex()).orElse(0),
-				this.request.content()
-			)
-		);
-		this.subscribers.add(subscription.getSubscriptionId());
+		if (!subscribeToSharedPublisher(getSharedPublisher(), subscriber)) {
+			// The observer's cleaner retired the selected shared publisher before activation. The shared publisher
+			// explicitly reports that refusal with an empty result after silently retracting any bookkeeping, so it
+			// cannot be confused with the same exception type thrown by the subscriber's own onSubscribe callback.
+			if (!subscribeToSharedPublisher(getSharedPublisher(), subscriber)) {
+				throw new InstanceTerminatedException("CDC shared publisher");
+			}
+		}
+	}
+
+	/**
+	 * Registers the subscriber with the given shared publisher.
+	 *
+	 * @param theSharedPublisher the shared publisher to register with
+	 * @param subscriber         the subscriber to register
+	 * @return {@code true} when the subscriber was activated, or {@code false} when the shared publisher retired
+	 *         before activation and refused the registration
+	 */
+	private boolean subscribeToSharedPublisher(
+		@Nonnull ChangeCatalogCaptureSharedPublisher theSharedPublisher,
+		@Nonnull Subscriber<? super ChangeCatalogCapture> subscriber
+	) {
+		final Optional<DefaultChangeCaptureSubscription<ChangeCatalogCapture>> subscription =
+			theSharedPublisher.trySubscribe(
+				subscriber,
+				new WalPointerWithContent(
+					ofNullable(this.request.sinceVersion()).orElse(theSharedPublisher.getCatalog().getVersion() + 1),
+					ofNullable(this.request.sinceIndex()).orElse(0),
+					this.request.content()
+				)
+			);
+		if (subscription.isEmpty()) {
+			return false;
+		}
+		this.subscribers.add(subscription.get().getSubscriptionId());
+		return true;
 	}
 
 	/**

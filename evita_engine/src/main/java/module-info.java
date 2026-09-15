@@ -79,6 +79,7 @@ module evita.engine {
 	exports io.evitadb.index.hierarchy.predicate;
 	exports io.evitadb.index.list;
 	exports io.evitadb.index.map;
+	exports io.evitadb.index.membership;
 	exports io.evitadb.index.price;
 	exports io.evitadb.index.price.model;
 	exports io.evitadb.index.price.model.priceRecord;

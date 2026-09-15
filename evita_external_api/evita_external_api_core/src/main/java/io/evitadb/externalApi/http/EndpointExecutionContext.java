@@ -25,8 +25,10 @@ package io.evitadb.externalApi.http;
 
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.server.ServiceRequestContext;
+import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.core.Evita;
 import io.evitadb.core.executor.ObservableExecutorServiceWithCancellationSupport;
+import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -170,8 +172,10 @@ public abstract class EndpointExecutionContext implements AutoCloseable {
 	public <T> CompletableFuture<T> executeAsyncSupplierInRequestThreadPool(
 		@Nonnull Supplier<CompletableFuture<T>> asyncSupplier
 	) {
-		return CancellationSupport.submitAsyncWithCancellation(
-			this.serviceRequestContext, this.evita.getRequestExecutor(), asyncSupplier
+		return withRequestStart(
+			() -> CancellationSupport.submitAsyncWithCancellation(
+				this.serviceRequestContext, this.evita.getRequestExecutor(), asyncSupplier
+			)
 		);
 	}
 
@@ -184,6 +188,34 @@ public abstract class EndpointExecutionContext implements AutoCloseable {
 		@Nonnull Supplier<T> supplier,
 		@Nonnull ObservableExecutorServiceWithCancellationSupport executor
 	) {
-		return CancellationSupport.submitWithCancellation(this.serviceRequestContext, executor, supplier);
+		return withRequestStart(
+			() -> CancellationSupport.submitWithCancellation(this.serviceRequestContext, executor, supplier)
+		);
+	}
+
+	/**
+	 * Hands the work off to an executor with the start of the request being served recorded in the MDC.
+	 *
+	 * **The scope has to wrap the submission, not the work.** An executor task captures the tracing context when it
+	 * is *constructed*, on the submitting thread, and restores that capture around its whole body - so a request
+	 * start established here reaches the worker and everything the worker hands on in turn, while one established
+	 * inside the task would arrive too late to be captured.
+	 *
+	 * The value is read from the request context this execution **holds**, never from the thread local. The two
+	 * agree only while Armeria's `serve(...)` is still on the stack, and the handlers that submit here have usually
+	 * left it: an endpoint that reads a request body resumes from the body-aggregation callback, which carries
+	 * neither the Armeria context nor the MDC scope the entry point opened. Reading the held context is what makes
+	 * the hand-off independent of when the body happened to arrive.
+	 *
+	 * @param submission submits the work and returns the future representing it
+	 * @param <T>        the future's result type
+	 * @return whatever {@code submission} returns
+	 */
+	@Nonnull
+	private <T> T withRequestStart(@Nonnull Supplier<T> submission) {
+		return TracingContext.executeWithRequestStart(
+			ExternalApiTracingContext.requestStartOf(this.serviceRequestContext),
+			submission
+		);
 	}
 }

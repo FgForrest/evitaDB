@@ -1,7 +1,7 @@
 ---
 title: Gate cross-entity histogram removal on a pre-mutation condition pre-pass, not bucket membership
 date: 2026-08-31
-updated: 2026-08-31 11:48
+updated: 2026-09-14 10:34
 status: accepted
 kind: fix
 issues: [1467]
@@ -9,7 +9,7 @@ prs: [1468, 1469]
 areas: [evita_engine/src/main/java/io/evitadb/index/mutation, evita_engine/src/main/java/io/evitadb/core/collection]
 supersedes: []
 superseded-by: []
-relates: [2026-04-23-bucketed-histogram-indexing]
+relates: [2026-04-23-bucketed-histogram-indexing, 2026-09-08-conditional-histogram-per-contribution-verdicts, 2026-09-09-sibling-resolver-partition-cardinality]
 ---
 
 # Cross-entity histogram removal is gated on the pre-mutation condition, captured before the batch is applied
@@ -248,10 +248,16 @@ contribution never existed, spending a sibling's cardinality unit.
   here.** `popIndexImplicitMutations` has always scanned only the root batch, so an `AttributeMutation`
   or `ReferenceAttributeMutation` synthesised by `GENERATE_ATTRIBUTES` /
   `GENERATE_REFERENCE_ATTRIBUTES` never reaches trigger discovery, even when it writes an attribute a
-  trigger watches. The mechanism is confirmed by reading the dispatch path; no failing case has been
-  constructed, and the `GENERATE_ATTRIBUTES` half looks benign because it only runs for a *new*
-  entity, which no owner can reference yet. The `GENERATE_REFERENCE_ATTRIBUTES` half is the one worth
-  chasing. Deliberately left out of scope here — closing it means widening dispatch, and the pre-pass
+  trigger watches. The `GENERATE_REFERENCE_ATTRIBUTES` half is confirmed by a failing test
+  (`ConditionalBucketIndexingTest#shouldFireCrossEntityTriggerForImplicitlyDefaultedReferenceAttribute`,
+  #1470). **Correction, 2026-09-08:** this record originally called the `GENERATE_ATTRIBUTES` half
+  benign "because it only runs for a *new* entity, which no owner can reference yet". That is wrong.
+  `ContainerizedLocalMutationExecutor#popImplicitMutations` calls `verifyMandatoryAttributes` from
+  *both* branches of its `entityContainer.isNew()` test — the `else` branch runs it for an existing,
+  non-removed entity whenever a global or localized attribute container is dirty. Both halves of the
+  gap are therefore reachable; the `GENERATE_ATTRIBUTES` half needs schema evolution or a newly-added
+  locale to surface, and no failing case has been constructed for it. Deliberately left out of scope
+  here — closing it means widening dispatch, and the pre-pass
   must widen with it or the new triggers fall straight through to unrestricted removal. Tracked as
   #1470 (milestone 2026.3).
 - **The pre-pass evaluates a superset of triggers**, since it cannot yet know which attribute writes
@@ -265,12 +271,19 @@ The investigation spent most of its time on two wrong theories. Both are the nat
 
 - **It is not a `TransactionalMap` / `MapChanges` bug.** Remove-then-re-add of the same key was walked
   down both branches: created-then-removed (`existing == false`, so `removedKeys` is never touched and
-  the instance is stashed in `createdThenRemovedProducers`, released at commit) and
+  the instance is stashed in `discardedProducers`, released at commit) and
   base-map-remove-then-re-add (`registerModifiedKey` plus `removedKeys.remove(key)`). Neither loses the
   new instance. The eager `removed.removeLayer(transactionalLayer)` in `HistogramIndexOperations` is
   redundant with what `MapChanges.put` already does, but release is documented idempotent. The
   decisive evidence is simpler than any of that: the defect reproduces identically in `WARMING_UP`,
   where there is no transaction at all.
+
+  **Read this bullet narrowly.** It answers one question — *does the new instance get lost?* — and the
+  answer is still no. It is **not** a clearance of `MapChanges`, and it must not be cited as one: two
+  orphaned-**layer** defects were later found in these very branches, where the *displaced* instance,
+  not the new one, is the casualty. See *2026-09-09-sibling-resolver-partition-cardinality*. The
+  `WARMING_UP` reproduction is what actually rules transactional memory out here, and it is the only
+  part of this bullet that generalises.
 - **`HistogramIndexOperations` lines 152-158 are not the bug**, and the evidence that pointed there
   could not have shown it. `SimpleHistogramIndex.getFilterIndex` returns
   `this.filterIndex.isEmpty() ? null : this.filterIndex`, so a `getHistogramFilterIndex(...) == null`

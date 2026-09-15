@@ -94,6 +94,7 @@ import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -153,7 +154,9 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.MapChanges.ValueMerger;
 import io.evitadb.index.map.PersistentTransactionalProducerMap;
+import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
+import io.evitadb.index.mutation.ContributionVerdicts;
 import io.evitadb.index.mutation.EntityIndexMutation;
 import io.evitadb.index.mutation.IndexMutation;
 import io.evitadb.index.mutation.IndexMutationExecutor;
@@ -1852,6 +1855,219 @@ public final class EntityCollection implements
 	}
 
 	/**
+	 * Rebuilds the reduced-index membership lookup the cross-entity conditional-facet trigger consults instead
+	 * of walking every reduced index of this collection. Called once, after a load has put every index in
+	 * place and every schema has been resolved.
+	 *
+	 * # Why this runs at load and never inside a transaction
+	 *
+	 * The lookup is derived state, so it is not persisted and has to be rebuilt when a collection comes back
+	 * from disk. It must be rebuilt **outside** a transaction: building it inside one would record every
+	 * entry into that transaction's diff layer, and merging such a diff would overwrite entries a
+	 * concurrently-committed transaction had already contributed — a whole-structure write racing with
+	 * entry-level ones. At load there is no transaction and no concurrency, which is what makes this the
+	 * single safe moment.
+	 *
+	 * # Why references that are not partitioned get no slice at all
+	 *
+	 * The trigger's sibling walk visits only references indexed at
+	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}, and the maintenance hooks that keep a slice
+	 * current are gated on the same level. A slice built here for a merely filterable reference would
+	 * therefore freeze at its load-time contents while its reduced indexes kept changing — and the moment
+	 * such a reference is raised to partitioning without a reindex (issue #409), the trigger would consult
+	 * that frozen slice instead of walking, and silently skip every index created since the load. Leaving
+	 * the slice absent keeps the reference on the full walk until the first write raises it, at which point
+	 * `ReferenceIndexMutator#seedFromAdvertisedIndexes` records everything already advertised.
+	 *
+	 * The trigger cannot fire in a scope where no reference declares a conditional facet, so such a scope is
+	 * skipped before any index is even resolved — which means a collection that declares one nowhere pays a
+	 * single bit test per scope and nothing else. That gate is the same one
+	 * `ReferenceIndexMutator#recordOwnerEnteredReducedIndex` applies on the write path, and the two must agree:
+	 * a collection skipped here but maintained on write would carry a lookup whose contents begin at an
+	 * arbitrary moment in its life.
+	 */
+	public void rebuildReducedIndexMembership() {
+		final EntitySchema schema = getInternalSchema();
+		for (final Scope scope : Scope.values()) {
+			if (!schema.declaresConditionalFacetInScope(scope)) {
+				continue;
+			}
+			final GlobalEntityIndex typedGlobalIndex = asGlobalEntityIndexIfExists(
+				getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope)), scope
+			);
+			if (typedGlobalIndex == null) {
+				continue;
+			}
+			for (final ReferenceSchemaContract referenceSchema : schema.getReferences().values()) {
+				if (referenceSchema.getReferenceIndexType(scope)
+					!= ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING) {
+					continue;
+				}
+				final ReducedIndexMembership membership =
+					typedGlobalIndex.getOrCreateReducedIndexMembership(referenceSchema.getName());
+				for (final EntityIndexType family : ReducedIndexMembership.REFERENCED_TYPE_INDEX_FAMILIES) {
+					final EntityIndexKey typeIndexKey = new EntityIndexKey(family, scope, referenceSchema.getName());
+					final ReferencedTypeEntityIndex typedTypeIndex = asReferencedTypeEntityIndexIfExists(
+						getIndexByKeyIfExists(typeIndexKey), typeIndexKey
+					);
+					if (typedTypeIndex == null) {
+						continue;
+					}
+					typedTypeIndex.forEachReferenceIndexPrimaryKey(
+						reducedIndexPk -> registerReducedIndex(membership, reducedIndexPk)
+					);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Registers one reduced index into the membership lookup.
+	 *
+	 * The traversal cannot in fact advertise a primary key twice. A reduced index is filed in its type index
+	 * under exactly one referenced (or group) primary key — `ReferenceIndexMutator#referenceInsertPerComponent`
+	 * is the only writer and always pairs the index with the key it was resolved by — so
+	 * {@link ReferencedTypeEntityIndex#forEachReferenceIndexPrimaryKey} emits each key once, and the entity and
+	 * group families draw from one primary-key sequence and never collide.
+	 *
+	 * The index sharing this check was once justified by is real, but it belongs to the OWNER side: several of
+	 * one owner's references resolve to a single {@link ReducedGroupEntityIndex}, which is why
+	 * `ReferenceIndexMutator#forEachUniqueReferenceIndex` de-duplicates by identity. It cannot reach a walk over
+	 * *advertised indexes*, which is what this one is.
+	 *
+	 * A repeat is therefore a programming error, and it is left to surface as one:
+	 * {@link ReducedIndexMembership#registerIndex} and {@link ReducedIndexMembership#registerIndexAsResidual}
+	 * both refuse a primary key they already hold. This method used to swallow the repeat with an
+	 * {@link ReducedIndexMembership#isKnown} pre-check, which turned a corrupt advertisement into a silent
+	 * no-op at the one moment the whole structure is built from scratch.
+	 *
+	 * @param membership      the lookup being built
+	 * @param reducedIndexPk  primary key of the advertised reduced index
+	 */
+	private void registerReducedIndex(
+		@Nonnull ReducedIndexMembership membership,
+		int reducedIndexPk
+	) {
+		final EntityIndex reducedIndex = getIndexByPrimaryKeyIfExists(reducedIndexPk);
+		if (reducedIndex == null) {
+			// Advertised but not resolvable, so its members cannot be read and coverage cannot be decided.
+			// Recording it as residual keeps `covered ∪ residual == advertised` - the invariant that lets a
+			// caller tell "this index is accounted for" from "this index is unknown to the map" - and leaves
+			// the index on the probe, which is exactly where it was before the map existed.
+			membership.registerIndexAsResidual(reducedIndexPk);
+			return;
+		}
+		membership.registerIndex(reducedIndexPk, reducedIndex.getAllPrimaryKeys());
+	}
+
+	/**
+	 * Drops every reduced-index membership lookup this schema change stops maintaining.
+	 *
+	 * The lookup is maintained only while the collection declares a conditional facet in the scope **and** the
+	 * reference is indexed at {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}. Both are pure functions of
+	 * the schema, so a schema change is the only event that can end maintenance — and a lookup kept past it freezes
+	 * while its reduced indexes go on changing. Trusted again when the flag comes back, it makes the trigger skip
+	 * every partition created in between: a **wrong facet**, not a slow one.
+	 *
+	 * Doing it here rather than on the write path is what makes it free. The condition is rare and discrete, so it
+	 * is evaluated once per schema change instead of once per reference write, and the write path keeps the bit test
+	 * it already does. What replaces the dropped lookup is nothing at all: an absent lookup puts the reference back
+	 * on the full walk, and `ReferenceIndexMutator#seedFromAdvertisedIndexes` rebuilds it from the reference's own
+	 * advertisement on the first write after the flag returns.
+	 *
+	 * It hangs off {@link #exchangeSchema} rather than off {@link #updateSchema} because that is where every schema
+	 * change converges: a **reflected** reference inherits its index type from another collection's reference and is
+	 * resolved by `notifyAboutExternalReferenceUpdate` → `exchangeSchema`, a path that never passes through
+	 * `updateSchema` (see the note in `verifyNoAcceleratorAddedToNonEmptyCollection`). Hooked one level up, that
+	 * reference would keep a lookup nothing maintains.
+	 *
+	 * @param updatedSchema the schema this collection has just been exchanged to
+	 */
+	private void discardUnmaintainedReducedIndexMemberships(@Nonnull EntitySchema updatedSchema) {
+		for (final Scope scope : Scope.values()) {
+			final GlobalEntityIndex globalIndex = asGlobalEntityIndexIfExists(
+				getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope)), scope
+			);
+			if (globalIndex == null) {
+				continue;
+			}
+			// a copy, so the removals below cannot disturb the iteration
+			final Set<String> maintainedReferences = globalIndex.getReducedIndexMembershipReferenceNames();
+			if (maintainedReferences.isEmpty()) {
+				continue;
+			}
+			final boolean conditionalFacetDeclared = updatedSchema.declaresConditionalFacetInScope(scope);
+			GlobalEntityIndex writableGlobalIndex = null;
+			for (final String referenceName : maintainedReferences) {
+				final ReferenceSchemaContract referenceSchema = updatedSchema.getReferences().get(referenceName);
+				if (conditionalFacetDeclared && referenceSchema != null &&
+					referenceSchema.getReferenceIndexType(scope) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING) {
+					continue;
+				}
+				if (writableGlobalIndex == null) {
+					// enrolled for modification only once there is something to drop - that registration is what gets
+					// the index's transactional layer swept at commit
+					writableGlobalIndex = (GlobalEntityIndex) this.dataStoreBuffer.getOrCreateIndexForModification(
+						new EntityIndexKey(EntityIndexType.GLOBAL, scope), this.indexes::get
+					);
+				}
+				writableGlobalIndex.removeReducedIndexMembership(referenceName);
+			}
+		}
+	}
+
+	/**
+	 * Casts an index registered under a `GLOBAL` key, or returns `null` when the scope holds none.
+	 *
+	 * Absence is a legitimate state — a scope no entity has entered yet — while an index registered under
+	 * that key and turning out to be something other than a {@link GlobalEntityIndex} is a programming error
+	 * that must surface rather than be skipped.
+	 *
+	 * @param index the index resolved from the `GLOBAL` key, may be `null`
+	 * @param scope the scope the key was read in, for the error message
+	 * @return the cast index, or `null` when there is none
+	 */
+	@Nullable
+	private GlobalEntityIndex asGlobalEntityIndexIfExists(@Nullable EntityIndex index, @Nonnull Scope scope) {
+		if (index == null) {
+			return null;
+		}
+		Assert.isPremiseValid(
+			index instanceof GlobalEntityIndex,
+			() -> "Invalid type of the global index (`" + index.getClass() + "`) in scope `" + scope +
+				"` of entity collection `" + getSchema().getName() + "`."
+		);
+		return (GlobalEntityIndex) index;
+	}
+
+	/**
+	 * Casts an index registered under a `REFERENCED_*_TYPE` key, or returns `null` when there is none.
+	 *
+	 * Absence is a legitimate state — the reference simply has no partitions of that family yet — while an
+	 * index registered under such a key and turning out to be something other than a
+	 * {@link ReferencedTypeEntityIndex} is a programming error that must surface rather than be skipped.
+	 *
+	 * @param index          the index resolved from the key, may be `null`
+	 * @param entityIndexKey the key the index was read under, for the error message
+	 * @return the cast index, or `null` when there is none
+	 */
+	@Nullable
+	private ReferencedTypeEntityIndex asReferencedTypeEntityIndexIfExists(
+		@Nullable EntityIndex index,
+		@Nonnull EntityIndexKey entityIndexKey
+	) {
+		if (index == null) {
+			return null;
+		}
+		Assert.isPremiseValid(
+			index instanceof ReferencedTypeEntityIndex,
+			() -> "Invalid type of the index (`" + index.getClass() + "`) registered under `" + entityIndexKey +
+				"` in entity collection `" + getSchema().getName() + "`."
+		);
+		return (ReferencedTypeEntityIndex) index;
+	}
+
+	/**
 	 * Returns entity index by its storage primary key, or null if not found. Used to resolve `int[]` storage PKs
 	 * returned by `ReferencedTypeEntityIndex.getAllReferenceIndexes(int)` into actual `ReducedGroupEntityIndex` /
 	 * `ReducedEntityIndex` instances.
@@ -1948,11 +2164,11 @@ public final class EntityCollection implements
 	 *
 	 * @param mutation the cross-entity re-evaluation signal about to be applied
 	 * @param session  active session for query evaluation, may be null during WAL replay
-	 * @return owner PKs whose condition currently holds, keyed by histogram name, or `null` when the reference
+	 * @return the condition's answer, keyed by histogram name, or `null` when the reference
 	 *         declares no histogram trigger and there is therefore nothing to guard
 	 */
 	@Nullable
-	public Map<String, Bitmap> evaluateHistogramConditionState(
+	public Map<String, ContributionVerdicts> evaluateHistogramConditionState(
 		@Nonnull ReevaluateExpressionMutation mutation,
 		@Nullable EvitaSessionContract session
 	) {
@@ -2804,6 +3020,10 @@ public final class EntityCollection implements
 	 * leave the registry holding counters for capabilities the schema no longer declares, and leave a newly declared
 	 * capability without the row whose observation window is supposed to open at this very mutation.
 	 *
+	 * {@link #discardUnmaintainedReducedIndexMemberships} rides on the same property, and specifically on the
+	 * reflected-reference half of it: that is the adoption path `updateSchema` never sees, and a reflected reference
+	 * lowered from the collection it reflects is exactly the case a hook one level up would miss.
+	 *
 	 * # What a rollback leaves behind, in both directions
 	 *
 	 * The alignment runs against the schema the exchange has just published, so it precedes the commit of a
@@ -2857,6 +3077,7 @@ public final class EntityCollection implements
 		);
 		// only after the exchange is known to have won the race - a losing exchange changed nothing to align against
 		this.usageRegistry.alignWith(updatedSchema);
+		discardUnmaintainedReducedIndexMemberships(updatedSchema);
 		this.catalog.entitySchemaUpdated(updatedSchema);
 	}
 

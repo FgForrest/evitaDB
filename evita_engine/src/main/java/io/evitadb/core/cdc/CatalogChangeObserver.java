@@ -44,6 +44,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -92,7 +93,7 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 	/**
 	 * Map of all active publishers. A unique UUID identifies each publisher.
 	 */
-	private final Map<ChangeCatalogCriteriaBundle, ChangeCatalogCaptureSharedPublisher> uniquePublishers;
+	private final ConcurrentMap<ChangeCatalogCriteriaBundle, ChangeCatalogCaptureSharedPublisher> uniquePublishers;
 	/**
 	 * Cleaning task that removes inactive publishers from the list of unique publishers once a while.
 	 */
@@ -180,9 +181,18 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 		// Specifics related to the start version and index, and provided content are handled in the isolated publisher.
 		final ChangeCatalogCapturePublisher changeCatalogCapturePublisher = new ChangeCatalogCapturePublisher(
 			// create or reuse the shared publisher
-			criteriaBundle -> this.uniquePublishers.computeIfAbsent(
+			// `compute` rather than `computeIfAbsent`: a publisher that has already been retired must count as
+			// absent. `close()` removes itself from this map through its `onClose` hook, and that runs at the tail
+			// of the close - so between the moment a publisher marks itself closed and the moment it is forgotten
+			// here, `computeIfAbsent` would hand the closed instance straight back. A caller renewing after a
+			// refused registration would then be refused a second time by `assertActive()`, for no reason other
+			// than losing that race, which is exactly what the renewal exists to prevent.
+			criteriaBundle -> this.uniquePublishers.compute(
 				criteriaBundle,
-				cb -> {
+				(cb, existingPublisher) -> {
+					if (existingPublisher != null && !existingPublisher.isClosed()) {
+						return existingPublisher;
+					}
 					log.info(
 						"Creating new shared CDC publisher for catalog '{}' and criteria: {}",
 						catalogName, cb
@@ -194,12 +204,12 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 						this.cdcOptions.subscriberBufferSize(),
 						cb,
 						this::updateStatistics,
-						publisher -> {
+						closingPublisher -> {
 							log.info(
 								"Closing shared CDC publisher for catalog '{}' and criteria: {}",
 								catalogName, cb
 							);
-							this.uniquePublishers.remove(publisher);
+							this.uniquePublishers.remove(cb, closingPublisher);
 						}
 					);
 				}
@@ -261,16 +271,27 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 	}
 
 	/**
-	 * Removes inactive publishers from the list of unique publishers by checking
-	 * if they have been closed. A publisher is considered inactive if its `isClosed`
-	 * method returns true. This method ensures that only active publishers remain in the
+	 * Releases the registrations of subscriptions that have already terminated, then removes inactive publishers
+	 * from the list of unique publishers by checking if they have been closed. A publisher is considered inactive
+	 * if its `isClosed` method returns true. This method ensures that only active publishers remain in the
 	 * collection for further processing.
+	 *
+	 * The sweep cannot be dropped: a terminated subscription releases itself through the capture executor, which
+	 * refuses the submission when its bounded queue is full, and nothing else ever retries it - so until the
+	 * sweep removes such an entry it holds its tracked version and the ring buffer can never be trimmed past it.
+	 * This runs on the scheduler, whose delay queue is unbounded, so it cannot be starved by the saturation that
+	 * causes the leak.
+	 *
+	 * Its position relative to `checkSubscribersLeft()` is convention rather than a requirement: every release
+	 * the sweep performs already ends in that call, through `unsubscribe`. The explicit one afterwards exists
+	 * for a publisher that released nothing this tick and would otherwise never be asked.
 	 *
 	 * @return the milliseconds deviation to the next scheduled run (always zero)
 	 */
 	long cleanInactivePublishers() {
 		this.uniquePublishers.values().removeIf(
 			publisher -> {
+				publisher.cleanFinishedSubscriptions();
 				publisher.checkSubscribersLeft();
 				return publisher.isClosed();
 			});

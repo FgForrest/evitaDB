@@ -410,6 +410,39 @@ message GrpcRestoreCatalogUnaryResponse {
   GrpcTaskStatus task = 3;
 }
 
+// Request to put a catalog back to the state it was in at an earlier version, replacing the catalog
+// currently served under `targetCatalogName` with it. Unlike `GrpcRestoreCatalogRequest` and friends,
+// nothing is uploaded: the server takes the backup of the requested version itself, unpacks it into a
+// temporary catalog, loads it, and swaps it in - all as the one task returned in the response.
+//
+// BEWARE: this destroys data. The catalog replaced under `targetCatalogName` is purged with every
+// version of it; the restored catalog carries no mutation history, so it cannot itself be restored to
+// an earlier version afterwards; and writes committed to the replaced catalog after the selected
+// version - including ones committed while the operation runs - go with it.
+message GrpcRestoreCatalogToVersionRequest {
+  // Name of the catalog whose past state is to be restored.
+  string catalogName = 1;
+  // The moment in time to restore the catalog to. If unset, defaults to the current state (subject
+  // to being overridden by `catalogVersion`, see below).
+  GrpcOffsetDateTime pastMoment = 2;
+  // Precise catalog version to restore to - this is the version reported by the mutation history. If
+  // unset, defaults to the version resolved from `pastMoment`, or to the current state when that is
+  // unset too. When this field is set, `pastMoment` is ignored regardless of whether it is also set.
+  google.protobuf.Int64Value catalogVersion = 3;
+  // Name of the catalog the restored state is to be served under. If unset - or equal to
+  // `catalogName` - the catalog the state was taken from is the one replaced. A different name is
+  // accepted whether or not a catalog already holds it: an existing one is replaced on the same
+  // terms, a free one is created.
+  google.protobuf.StringValue targetCatalogName = 4;
+}
+
+// Response to a request to restore a catalog to an earlier version.
+message GrpcRestoreCatalogToVersionResponse {
+  // The task tracking the whole backup-restore-swap operation; poll its status (`GetTaskStatus`) to
+  // observe progress. It completes once the restored catalog is the one being served.
+  GrpcTaskStatus task = 1;
+}
+
 // Request to list task statuses in paginated form.
 message GrpcTaskStatusesRequest {
   // Page number of the task statuses to be listed. Page-based paging: 1-indexed, page 1 is the
@@ -652,6 +685,10 @@ service EvitaManagementService {
   // Procedure used to restore a catalog from a backup file already stored on the server, without
   // re-uploading it.
   rpc RestoreCatalogFromServerFile(GrpcRestoreCatalogFromServerFileRequest) returns (GrpcRestoreCatalogResponse);
+  // Procedure used to put a catalog back to an earlier version of itself, replacing the catalog
+  // currently served under the target name. Nothing is uploaded - the server backs up the requested
+  // version and restores it in one tracked operation. BEWARE: this purges the replaced catalog.
+  rpc RestoreCatalogToVersion(GrpcRestoreCatalogToVersionRequest) returns (GrpcRestoreCatalogToVersionResponse);
   // Procedure used to get listing of task statuses.
   rpc ListTaskStatuses(GrpcTaskStatusesRequest) returns (GrpcTaskStatusesResponse);
   // Procedure used to get detail of particular task status.
