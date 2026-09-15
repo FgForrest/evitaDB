@@ -512,7 +512,7 @@ public class BidirectionalReferenceRewriter {
 	 *   referenced entity satisfies `A` while a *different* row satisfies `B`. Measured: it does **not**. Two attribute
 	 *   siblings must be satisfied by a *single* reference row - a query naming two values of the same reference
 	 *   attribute returns the empty set, where the cross-row reading predicts a populated one
-	 *   (`BidirectionalReferenceRewriteFunctionalTest#shouldMatchTwoAttributeSiblingsAcrossRowsRatherThanWithinOne`).
+	 *   (`BidirectionalReferenceRewriteFunctionalTest#shouldMatchTwoAttributeSiblingsWithinOneRowRatherThanAcrossRows`).
 	 * - **`not` is excluded.** The original note claimed `NotTranslator`'s `FutureNotFormula`, resolved against the
 	 *   *owner* superset at the enclosing `filterBy`, reads as "no discovered row satisfies A". Measured: it does not
 	 *   read as anything - **a nested `not` does not constrain the owner set at all.** Two queries settle it
