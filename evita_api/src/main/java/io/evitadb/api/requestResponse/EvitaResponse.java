@@ -227,6 +227,19 @@ public abstract sealed class EvitaResponse<T extends Serializable>
 	}
 
 	/**
+	 * Records the I/O statistics measured while this response was produced. The engine counts records at the point
+	 * where they are read, which is both cheaper and more complete than adding up what the returned entities happen
+	 * to remember - records read for entities that were filtered out of the result are counted too.
+	 *
+	 * @param ioFetchCount        number of storage records read
+	 * @param ioFetchedSizeBytes  number of Bytes those records occupied
+	 */
+	public void setIoFetchStatistics(int ioFetchCount, int ioFetchedSizeBytes) {
+		this.ioFetchCount = ioFetchCount;
+		this.ioFetchedSizeBytes = ioFetchedSizeBytes;
+	}
+
+	/**
 	 * Retrieves the total size in bytes of data fetched during
 	 * input/output operations within the processing of this response.
 	 * If the size has not been calculated yet, it will trigger the
@@ -315,6 +328,15 @@ public abstract sealed class EvitaResponse<T extends Serializable>
 	 * {@link EntityFetchAwareDecorator} interface. The computed values
 	 * are then stored in the instance variables {@code ioFetchCount}
 	 * and {@code ioFetchedSizeBytes}.
+	 *
+	 * This is an **approximation**, not the operation's real I/O, and it is only ever reached by a response nobody
+	 * called {@link #setIoFetchStatistics(int, int)} on - a response assembled outside the engine, such as one
+	 * rebuilt on the driver side from the wire. It sums a per-entity statistic that deliberately reports what each
+	 * entity would have cost on its own ({@link EntityFetchAwareDecorator#getIoFetchCount()}), so a record two
+	 * entities both needed is counted once per entity; and it misses the records read for entities that were
+	 * filtered out of the result, which are attributed to no returned entity at all. It can therefore land on
+	 * either side of the truth. A response the engine produced always carries the measured numbers instead,
+	 * counted where the reads happened.
 	 */
 	private void computeIoFetchStats() {
 		int ioFetchCount = 0;

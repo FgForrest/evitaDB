@@ -178,6 +178,77 @@ class FormulaOptimizerTest {
 			assertInstanceOf(EmptyFormula.class, result);
 		}
 
+		/**
+		 * The root-level row above cannot fail. When a node is *dropped* rather than emptied,
+		 * {@link FormulaOptimizer#getPostProcessedFormula()} returns {@link EmptyFormula} for the now-empty tree,
+		 * so the assertion holds either way and the two outcomes are indistinguishable.
+		 *
+		 * Only an enclosing conjunction with a surviving sibling separates them: dropping the disjunction widens
+		 * the `AND` to the sibling alone and the query answers with rows it must not return. That is a defect this
+		 * project has already shipped once, on the `NotFormula` branch - see
+		 * `notWithCollapsingSupersetInsideAnd_shouldCollapseWholeConjunctionToEmpty`, whose comment records the
+		 * same lesson for the neighbouring branch.
+		 */
+		@Test
+		@DisplayName("AND(A, OR(EMPTY, EMPTY)) must empty the conjunction, never drop the OR")
+		void orWithAllEmptyChildrenInsideAnd_shouldEmptyTheConjunction() {
+			final ConstantFormula sibling = constant(1, 2, 3);
+			final Formula input = new AndFormula(
+				sibling,
+				new OrFormula(EmptyFormula.INSTANCE, EmptyFormula.INSTANCE)
+			);
+			final Formula result = optimize(input);
+
+			assertArrayEquals(
+				new int[0], result.compute().getArray(),
+				"An empty disjunction absorbs its conjunction. A result equal to the sibling {1, 2, 3} means the " +
+					"OR was removed from its parent instead of being replaced by EmptyFormula."
+			);
+			assertArrayEquals(input.compute().getArray(), result.compute().getArray());
+		}
+
+		/**
+		 * The *rewritten* route to an all-empty disjunction, as opposed to the pre-empty one covered by the row
+		 * above: the disjuncts are **not** empty when the `OrFormula` is built - each is a conjunction that the
+		 * optimizer later reduces to {@link EmptyFormula}. Both routes exist. `FormulaFactory#or` folds an
+		 * all-empty argument list at construction time, but several call sites build an `OrFormula` directly
+		 * (`ReferenceHavingTranslator`, `RangeIndex`, `InvertedIndex`) and bypass that fold, so neither route can
+		 * be dismissed as unreachable.
+		 *
+		 * **Why the optimizer survives this today, and what would break it.** `FormulaCloner` gathers optimized
+		 * children into an identity-based `LinkedHashSet` - {@link io.evitadb.core.query.algebra.AbstractFormula}
+		 * overrides neither `equals` nor `hashCode` - and {@link EmptyFormula} has a private constructor, so every
+		 * collapsed disjunct is the *same* reference. Two disjuncts collapse to **one** set element, the
+		 * "children have not changed" test turns false, and the clone path rewrites the container through
+		 * `OrFormula#getCloneWithInnerFormulas`, which returns that single child. Correct node, correct semantics.
+		 *
+		 * Give {@link EmptyFormula} a second instance and the set stops merging them: the optimizer's OR branch
+		 * then runs with no non-empty child, returns `null`, and `null` instructs the cloner to drop the node from
+		 * its parent - the widening this row exists to catch. The invariant is therefore load-bearing and
+		 * invisible at the point where it would be broken, which is why it is pinned by a test rather than a
+		 * comment.
+		 */
+		@Test
+		@DisplayName("AND(A, OR(x, y)) where every disjunct collapses during optimization must empty the conjunction")
+		void orWithDisjunctsCollapsingDuringOptimizationInsideAnd_shouldEmptyTheConjunction() {
+			final ConstantFormula sibling = constant(1, 2, 3);
+			final Formula input = new AndFormula(
+				sibling,
+				new OrFormula(
+					new AndFormula(constant(4, 5), EmptyFormula.INSTANCE),
+					new AndFormula(constant(6, 7), EmptyFormula.INSTANCE)
+				)
+			);
+			final Formula result = optimize(input);
+
+			assertArrayEquals(
+				new int[0], result.compute().getArray(),
+				"Both disjuncts reduce to EmptyFormula, so the disjunction is empty and absorbs the conjunction. " +
+					"A result equal to the sibling {1, 2, 3} means the collapsed OR was dropped from its parent."
+			);
+			assertArrayEquals(input.compute().getArray(), result.compute().getArray());
+		}
+
 		@Test
 		@DisplayName("OR(A, B) with multiple non-empty children should remain unchanged")
 		void orWithMultipleNonEmpty_shouldRemainUnchanged() {

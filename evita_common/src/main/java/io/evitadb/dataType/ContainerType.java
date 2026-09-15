@@ -23,8 +23,6 @@
 
 package io.evitadb.dataType;
 
-import javax.annotation.Nonnull;
-
 /**
  * Enumeration of internal evitaDB data container types. These types represent the major structural elements
  * within the evitaDB data model and are used for categorizing mutations, change capture events, and data site

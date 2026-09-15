@@ -340,20 +340,34 @@ public class References implements ReferencesContract {
 			// this is managed on the entity decorator level
 			final HashMap<String, DataChunk<ReferenceContract>> chunksByName =
 				CollectionUtils.createHashMap(this.referencesDefined.size());
+			// the collection is ordered by reference key, so all references of one name arrive in a run -
+			// carrying the current chunk across the run turns a map lookup per reference into one per name
+			String currentName = null;
+			List<ReferenceContract> currentData = null;
 			for (ReferenceContract reference : this.referenceCollection) {
-				chunksByName.computeIfAbsent(
-					            reference.getReferenceKey().referenceName(),
-					            it -> new PlainChunk<>(new ArrayList<>(2))
-				            )
-				            .getData()
-				            .add(reference);
+				final String thisName = reference.getReferenceKey().referenceName();
+				//noinspection StringEquality
+				if (currentData == null || (thisName != currentName && !thisName.equals(currentName))) {
+					currentName = thisName;
+					currentData = chunksByName
+						.computeIfAbsent(thisName, it -> new PlainChunk<>(new ArrayList<>(2)))
+						.getData();
+				}
+				currentData.add(reference);
 			}
 			this.referencesByName = chunksByName;
 		}
-		return this.referencesByName.computeIfAbsent(
-			referenceName,
-			refName -> this.referenceChunkTransformer.apply(refName).createChunk(Collections.emptyList())
-		);
+		// `computeIfAbsent` evaluates its capturing lambda on every call, hit or miss, and this method runs
+		// once per reference name per fetched entity - the hit path must not pay for the miss path
+		final DataChunk<ReferenceContract> chunk = this.referencesByName.get(referenceName);
+		if (chunk != null) {
+			return chunk;
+		}
+		final DataChunk<ReferenceContract> emptyChunk = this.referenceChunkTransformer
+			.apply(referenceName)
+			.createChunk(Collections.emptyList());
+		this.referencesByName.put(referenceName, emptyChunk);
+		return emptyChunk;
 	}
 
 	@Nonnull

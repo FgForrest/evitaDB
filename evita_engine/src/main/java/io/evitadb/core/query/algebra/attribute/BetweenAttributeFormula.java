@@ -95,6 +95,18 @@ public class BetweenAttributeFormula extends AttributeFormula implements Attribu
 		super(targetsGlobalAttribute, attributeKey, innerFormula, requestedPredicate);
 	}
 
+	/**
+	 * Re-asserts the unconditional answer that {@link AttributeRangeCarrierFormula} implies, because a class method
+	 * beats an interface default: without this override the conditional
+	 * {@link AttributeFormula#isNonCollapsible()} would be inherited, and a range carrier over a **non-numeric**
+	 * attribute - which has no histogram predicate but is still peeled by `UserFilterRelaxer` - would become
+	 * collapsible.
+	 */
+	@Override
+	public boolean isNonCollapsible() {
+		return true;
+	}
+
 	@Nonnull
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {

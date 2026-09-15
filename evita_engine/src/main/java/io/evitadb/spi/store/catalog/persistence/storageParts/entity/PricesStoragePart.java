@@ -23,7 +23,6 @@
 
 package io.evitadb.spi.store.catalog.persistence.storageParts.entity;
 
-import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.Entity;

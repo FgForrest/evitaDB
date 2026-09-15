@@ -33,6 +33,7 @@ import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.References.ChunkTransformerAccessor;
@@ -46,6 +47,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.buffer.DataStoreChanges.RemovedStoragePart;
 import io.evitadb.core.buffer.DataStoreReader;
+import io.evitadb.core.buffer.StorageAccessScope;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.CatalogConsumersListener;
@@ -54,23 +56,23 @@ import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.storage.OffsetIndexHistoryKeptEvent;
 import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedEvent;
-import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.EmptyBitmap;
-import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.component.loader.IndexReloadPlan;
 import io.evitadb.index.component.loader.LoadContext;
 import io.evitadb.spi.store.catalog.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.ReferenceNameFilterContext;
 import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart;
@@ -107,7 +109,6 @@ import io.evitadb.store.shared.kryo.VersionedKryoFactory;
 import io.evitadb.store.shared.model.PersistentStorageDescriptor;
 import io.evitadb.store.wal.TransactionalStoragePartPersistenceService;
 import io.evitadb.utils.Functions;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
@@ -344,14 +345,55 @@ public class DefaultEntityCollectionPersistenceService
 						new ServerChunkTransformerAccessor(evitaRequest)
 					),
 					ioFetchStatistics.getIoFetchCount(),
-					ioFetchStatistics.getIoFetchedBytes()
+					ioFetchStatistics.getIoFetchedBytes(),
+					ioFetchStatistics.readRecords()
 				)
 			);
 		}
 	}
 
 	/**
-	 * Fetches reference container from OffsetIndex if it hasn't been already loaded before.
+	 * Decides whether the reference container has to be read from the OffsetIndex, i.e. whether what the new
+	 * predicate lets through is not already covered by what the previous read brought in.
+	 *
+	 * The decision is made on the **name sets**, not on the mere presence of a reference requirement. A read narrowed
+	 * by {@link ReferenceNameFilterContext} brings in only the reference names its predicate lets through, so
+	 * "references were fetched before" no longer implies "all references are present" - an enrichment asking for
+	 * a reference name the previous read skipped has to go back to the storage. Answering it from the narrowed part
+	 * would report the entity as having no such reference, which is a plausible wrong answer rather than a failure.
+	 *
+	 * @param previousReferenceContractPredicate predicate the entity was previously fetched with, NULL for a first read
+	 * @param newReferenceContractPredicate      predicate the entity is being fetched with now
+	 * @return TRUE when the container has to be read
+	 */
+	private static boolean shouldFetchReferences(
+		@Nullable ReferenceContractSerializablePredicate previousReferenceContractPredicate,
+		@Nonnull ReferenceContractSerializablePredicate newReferenceContractPredicate
+	) {
+		if (!newReferenceContractPredicate.isRequiresEntityReferences()) {
+			return false;
+		}
+		if (previousReferenceContractPredicate == null || !previousReferenceContractPredicate.isRequiresEntityReferences()) {
+			return true;
+		}
+		final Set<String> alreadyFetched = previousReferenceContractPredicate.getVisibleReferenceNames();
+		if (alreadyFetched == null) {
+			// the previous read was not narrowed and therefore brought in everything
+			return false;
+		}
+		final Set<String> newlyVisible = newReferenceContractPredicate.getVisibleReferenceNames();
+		// a request for all references is never covered by a narrowed read
+		return newlyVisible == null || !alreadyFetched.containsAll(newlyVisible);
+	}
+
+	/**
+	 * Fetches reference container from OffsetIndex if it hasn't been already loaded before, decoding only the
+	 * reference names the new predicate lets through.
+	 *
+	 * The narrowing is safe precisely because the predicate is also what hides references from the caller: a name
+	 * this read skips is one {@link ReferenceContractSerializablePredicate#test(ReferenceContract)} would have
+	 * filtered out of the composed entity anyway. Consumers that need the complete set - the write path above all -
+	 * never come through here, and {@link ReferencesStoragePart} refuses them if they ever do.
 	 */
 	@Nullable
 	private static <T> T fetchReferences(
@@ -359,10 +401,10 @@ public class DefaultEntityCollectionPersistenceService
 		@Nonnull ReferenceContractSerializablePredicate newReferenceContractPredicate,
 		@Nonnull Supplier<T> fetcher
 	) {
-		if ((previousReferenceContractPredicate == null || !previousReferenceContractPredicate.isRequiresEntityReferences()) &&
-			newReferenceContractPredicate.isRequiresEntityReferences()
-		) {
-			return fetcher.get();
+		if (shouldFetchReferences(previousReferenceContractPredicate, newReferenceContractPredicate)) {
+			return ReferenceNameFilterContext.executeWithReferenceNameFilter(
+				newReferenceContractPredicate.getVisibleReferenceNames(), fetcher
+			);
 		} else {
 			return null;
 		}
@@ -724,14 +766,13 @@ public class DefaultEntityCollectionPersistenceService
 		@Nonnull ChunkTransformerAccessor referenceChunkTransformer
 	) {
 		final int entityPrimaryKey = Objects.requireNonNull(entityDecorator.getPrimaryKey());
-		final IoFetchStatistics ioFetchStatistics = entityDecorator instanceof ServerEntityDecorator sed ?
-			new IoFetchStatistics(sed.getIoFetchCount(), sed.getIoFetchedBytes()) : new IoFetchStatistics();
+		// counts ONLY the reads this enrichment performs; seeding it from the incoming decorator would force that
+		// decorator to aggregate its whole reference graph here, which is the expensive part and is rarely wanted
+		final IoFetchStatistics ioFetchStatistics = new IoFetchStatistics();
 
 		// body part is fetched everytime - we need to at least test the version
-		final EntityBodyStoragePart bodyPart = ioFetchStatistics.record(
-			dataStoreReader.fetch(
-				catalogVersion, entityPrimaryKey, EntityBodyStoragePart.class
-			)
+		final EntityBodyStoragePart bodyPart = dataStoreReader.fetch(
+			catalogVersion, entityPrimaryKey, EntityBodyStoragePart.class
 		);
 
 		if (bodyPart == null || bodyPart.isMarkedForRemoval()) {
@@ -741,6 +782,14 @@ public class DefaultEntityCollectionPersistenceService
 		}
 
 		final boolean versionDiffers = bodyPart.getVersion() != entityDecorator.version();
+		if (versionDiffers) {
+			// the entity is rebuilt from this part, so obtaining it is a genuine cost of the enriched entity
+			ioFetchStatistics.record(bodyPart);
+		} else {
+			// the entity already holds this part and keeps it - the read only established that it is still
+			// current, and an entity fetched in one shot never pays for that, so neither may this one
+			ioFetchStatistics.note(bodyPart);
+		}
 
 		// fetch additional data if requested and not already present
 		final ReferencesStoragePart referencesStorageContainer = fetchReferences(
@@ -791,7 +840,8 @@ public class DefaultEntityCollectionPersistenceService
 					referenceChunkTransformer
 				),
 				ioFetchStatistics.getIoFetchCount(),
-				ioFetchStatistics.getIoFetchedBytes()
+				ioFetchStatistics.getIoFetchedBytes(),
+				ioFetchStatistics.readRecords()
 			);
 		} else if (referencesStorageContainer != null || priceStorageContainer != null ||
 			!attributesStorageContainers.isEmpty() || !associatedDataStorageContainers.isEmpty()) {
@@ -807,14 +857,16 @@ public class DefaultEntityCollectionPersistenceService
 					priceStorageContainer
 				),
 				ioFetchStatistics.getIoFetchCount(),
-				ioFetchStatistics.getIoFetchedBytes()
+				ioFetchStatistics.getIoFetchedBytes(),
+				ioFetchStatistics.readRecords()
 			);
 		} else {
 			// return original entity - nothing has been fetched
 			return new EntityWithFetchCount(
 				entityDecorator.getDelegate(),
 				ioFetchStatistics.getIoFetchCount(),
-				ioFetchStatistics.getIoFetchedBytes()
+				ioFetchStatistics.getIoFetchedBytes(),
+				ioFetchStatistics.readRecords()
 			);
 		}
 	}
@@ -1160,6 +1212,9 @@ public class DefaultEntityCollectionPersistenceService
 		@Nonnull DataStoreReader dataStoreReader
 	) {
 		final IoFetchStatistics ioFetchStatistics = new IoFetchStatistics();
+		// the caller read the body before it could know whose it was, and this is the first point that does - an
+		// entity asking for nothing else is made of that read alone, and would otherwise report costing nothing
+		ioFetchStatistics.record(entityStorageContainer);
 		final EntityBodyStoragePart deserializedEntityBody = this.storagePartPersistenceService.deserializeStoragePart(
 			entityStorageContainer, EntityBodyStoragePart.class
 		);
@@ -1201,30 +1256,28 @@ public class DefaultEntityCollectionPersistenceService
 
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
 		final AtomicReference<ReferencesStoragePart> referencesStoragePartRef = new AtomicReference<>();
-		final byte[] referencesStorageContainer = fetchReferences(
-			null, new ReferenceContractSerializablePredicate(evitaRequest),
-			() -> {
-				if (referenceEntityFetch.isEmpty()) {
-					return ioFetchStatistics.record(
-						dataStoreReader.fetchBinary(
-							catalogVersion, entityPrimaryKey, ReferencesStoragePart.class
-						)
-					);
-				} else {
-					final ReferencesStoragePart fetchedPart = ioFetchStatistics.record(
-						dataStoreReader.fetch(
-							catalogVersion, entityPrimaryKey, ReferencesStoragePart.class
-						)
-					);
-					if (fetchedPart == null) {
-						return null;
-					} else {
-						referencesStoragePartRef.set(fetchedPart);
-						return this.storagePartPersistenceService.serializeStoragePart(fetchedPart);
-					}
+		// deliberately NOT narrowed by ReferenceNameFilterContext: the container is re-serialized verbatim into the
+		// binary entity handed to the client, so it must carry every reference the entity has
+		byte[] referencesStorageContainer = null;
+		if (shouldFetchReferences(null, new ReferenceContractSerializablePredicate(evitaRequest))) {
+			if (referenceEntityFetch.isEmpty()) {
+				referencesStorageContainer = ioFetchStatistics.record(
+					dataStoreReader.fetchBinary(
+						catalogVersion, entityPrimaryKey, ReferencesStoragePart.class
+					)
+				);
+			} else {
+				final ReferencesStoragePart fetchedPart = ioFetchStatistics.record(
+					dataStoreReader.fetch(
+						catalogVersion, entityPrimaryKey, ReferencesStoragePart.class
+					)
+				);
+				if (fetchedPart != null) {
+					referencesStoragePartRef.set(fetchedPart);
+					referencesStorageContainer = this.storagePartPersistenceService.serializeStoragePart(fetchedPart);
 				}
 			}
-		);
+		}
 
 		final BinaryEntity[] referencedEntities = referencesStoragePartRef.get() == null ?
 			new BinaryEntity[0] :
@@ -1287,13 +1340,31 @@ public class DefaultEntityCollectionPersistenceService
 	 */
 	@Getter
 	@NoArgsConstructor
-	@AllArgsConstructor
 	private static final class IoFetchStatistics {
 		private int ioFetchCount;
 		private int ioFetchedBytes;
+		/**
+		 * Identities of the records billed so far, in the order they were read. They are what lets a second
+		 * composition of the same entity be combined with this one into the union of the two - see
+		 * {@link ReadRecord}.
+		 */
+		private final List<ReadRecord> readRecords = new ArrayList<>(8);
+		/**
+		 * Source of keys for reads that carry none of their own. Binary reads hand back raw bytes rather than a
+		 * keyed storage part, so nothing identifies them; a descending sequence keeps each of them distinct from
+		 * every other record, which is the honest answer - two such reads are two reads.
+		 */
+		private long unkeyedReadSequence;
 
 		/**
 		 * Records the I/O fetch with particular size in Bytes.
+		 *
+		 * Every part this entity had to obtain is added up, including one the query's
+		 * {@link StorageAccessScope} served without touching the storage. The per-entity statistic reports what the
+		 * entity would have cost fetched on its own, so a record two entities both needed is reported by both -
+		 * otherwise the same entity would report a different cost depending on what else shared its page, which
+		 * makes the number useless for comparing the entities of one response. The scope keeps the query-wide
+		 * total physical, and the two numbers are not expected to reconcile.
 		 *
 		 * @param storagePart The storage part that was fetched.
 		 */
@@ -1302,15 +1373,55 @@ public class DefaultEntityCollectionPersistenceService
 			if (storagePart == null) {
 				return null;
 			} else {
-				this.ioFetchCount++;
 				// we need to count the overhead size of the storage part and serialUUID header along with the storage part itself
-				this.ioFetchedBytes += StorageRecord.getOverheadSize() + 8 + storagePart.sizeInBytes().orElse(0);
+				final int sizeInBytes = StorageRecord.getOverheadSize() + 8 + storagePart.sizeInBytes().orElse(0);
+				StorageAccessScope.noteRecordRead(storagePart, sizeInBytes);
+				this.ioFetchCount++;
+				this.ioFetchedBytes += sizeInBytes;
+				final Long storagePartPk = storagePart.getStoragePartPK();
+				this.readRecords.add(
+					new ReadRecord(
+						storagePart.getClass(),
+						// a part that has not been assigned a key yet identifies nothing, so it is given one that
+						// collides with nothing rather than being left out of the accounting
+						storagePartPk == null ? --this.unkeyedReadSequence : storagePartPk,
+						sizeInBytes
+					)
+				);
 				return storagePart;
 			}
 		}
 
 		/**
-		 * Records the I/O fetch with particular size in Bytes.
+		 * Returns the records billed so far, identifying what this composition read.
+		 *
+		 * @return the read records, empty when nothing was read
+		 */
+		@Nonnull
+		public ReadRecord[] readRecords() {
+			return this.readRecords.isEmpty() ?
+				ReadRecord.NONE : this.readRecords.toArray(ReadRecord[]::new);
+		}
+
+		/**
+		 * Notes the read in the query-wide totals without billing it to the entity being composed - for a part the
+		 * entity already holds, re-read only to establish that it is still current.
+		 *
+		 * The storage did perform the read, so the query total must see it. The entity must not: fetched in one
+		 * shot it reads that part once, and an enrichment re-reading it to compare versions would otherwise make
+		 * the same entity at the same richness report more than the one-shot fetch of it - which is precisely what
+		 * the standalone-cost definition of this statistic forbids.
+		 *
+		 * @param storagePart the storage part that was fetched
+		 */
+		public void note(@Nonnull EntityStoragePart storagePart) {
+			StorageAccessScope.noteRecordRead(
+				storagePart, StorageRecord.getOverheadSize() + 8 + storagePart.sizeInBytes().orElse(0)
+			);
+		}
+
+		/**
+		 * Records the I/O fetch with particular size in Bytes, on the same terms as {@link #record(EntityStoragePart)}.
 		 *
 		 * @param storagePart The storage part that was fetched.
 		 */
@@ -1319,9 +1430,15 @@ public class DefaultEntityCollectionPersistenceService
 			if (storagePart == null) {
 				return null;
 			} else {
-				this.ioFetchCount++;
 				// we need to count the overhead size of the storage part and serialUUID header along with the storage part itself
-				this.ioFetchedBytes += StorageRecord.getOverheadSize() + 8 + storagePart.length;
+				final int sizeInBytes = StorageRecord.getOverheadSize() + 8 + storagePart.length;
+				StorageAccessScope.noteRecordRead(storagePart, sizeInBytes);
+				this.ioFetchCount++;
+				this.ioFetchedBytes += sizeInBytes;
+				// raw bytes carry no key, so this read de-duplicates against nothing - see #unkeyedReadSequence
+				this.readRecords.add(
+					new ReadRecord(byte[].class, --this.unkeyedReadSequence, sizeInBytes)
+				);
 				return storagePart;
 			}
 		}

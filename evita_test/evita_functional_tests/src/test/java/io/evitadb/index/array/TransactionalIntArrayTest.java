@@ -34,7 +34,6 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator.OfInt;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;

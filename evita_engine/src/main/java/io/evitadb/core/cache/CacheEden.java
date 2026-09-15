@@ -632,6 +632,10 @@ public class CacheEden {
 			cachedPayload.referencePredicate(),
 			cachedPayload.pricePredicate(),
 			entityWrapper.getAlignedNow(),
+			// a cached entity carries no provenance: it was materialised at whatever catalog version happened to be
+			// current when it entered the cache, which is not newer than the one being queried now
+			null,
+			ServerEntityDecorator.UNKNOWN_CATALOG_VERSION,
 			0,
 			0
 		);
