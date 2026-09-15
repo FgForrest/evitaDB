@@ -60,7 +60,6 @@ import static java.util.Optional.of;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class ReferenceHavingTranslator implements FilteringConstraintTranslator<ReferenceHaving>, SelfTraversingTranslator {
-
 	/**
 	 * Applies a search operation on specified indexes based on the given filter constraints, context, and schema
 	 * configurations. The method builds and executes the necessary formulas for filtering and efficiently retrieves
@@ -165,6 +164,16 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 		// the reference content needs to be prefetched in order to bea able to apply the filter on prefetched data
 		// i.e. access the reference attributes
 		filterByVisitor.addRequirementToPrefetch(referenceContent(referenceName));
+
+		// when the reference is one end of a bidirectional pair, the very same question can be answered by visiting one
+		// index per candidate owner instead of one per matching referenced entity - the rewriter returns an empty
+		// optional for every shape it cannot faithfully reproduce
+		final Optional<Formula> rewritten = BidirectionalReferenceRewriter.tryRewrite(
+			referenceHaving, filterByVisitor, entitySchema, referenceSchema, processingScope
+		);
+		if (rewritten.isPresent()) {
+			return rewritten.get();
+		}
 
 		return applySearchOnIndexes(
 			referenceHaving, filterByVisitor, entitySchema, referenceSchema,

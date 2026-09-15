@@ -315,6 +315,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * what makes a second drain of the same context a no-op.
 	 */
 	@Nullable private List<SchemaCapabilityUsage> requestedCapabilities;
+	/**
+	 * Memoized results of per-constraint planning decisions that are asked for twice in a single plan - once while
+	 * index selection decides which indexes it must discover, and again while the filter translator builds the
+	 * formula.
+	 *
+	 * @see #computeOncePerConstraint(Constraint, Set, Supplier) for the contract and why it is not shared with
+	 * {@link #parentContext}
+	 */
+	private Map<ConstraintScopeCacheKey, Object> constraintScopeCache;
 
 
 	/**
@@ -1399,6 +1408,62 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Memoizes a planning decision that is derived twice for the same constraint within a single plan, so that the
+	 * second derivation is a map lookup instead of a repeat of the work.
+	 *
+	 * The canonical case is {@link io.evitadb.core.query.filter.translator.reference.BidirectionalReferenceRewriter}:
+	 * {@link io.evitadb.core.query.indexSelection.IndexSelectionVisitor} asks whether a constraint will be answered
+	 * from the counterpart end - because if it will, the owner-side index set must not be discovered at all - and the
+	 * reference translator then asks for the plan itself. Both derivations read the same schemas and the same
+	 * index cardinalities and cannot disagree.
+	 *
+	 * **Why this is sound.** The supplier must be a pure function of this context's schemas and indexes, the
+	 * constraint and the scopes. Planning runs against a committed catalog snapshot, so no index can change
+	 * underneath it mid-plan and the second evaluation is guaranteed to equal the first. A supplier that reads
+	 * anything else does not belong here.
+	 *
+	 * **Why `scopes` is part of the key.** The same constraint is planned more than once under *different*
+	 * processing scopes, because index selection explores alternative {@link io.evitadb.core.query.indexSelection.TargetIndexes}
+	 * and each alternative carries its own scope set. Keying on the constraint alone would hand back a decision
+	 * taken for a different scope set - a wrong answer rather than a slow one, and one that would stay invisible on
+	 * a single-scope schema where {@link Scope#DEFAULT_SCOPES} makes every alternative agree.
+	 *
+	 * **Why it is not delegated to {@link #parentContext}.** Unlike
+	 * {@link #computeOnlyOnce(List, FilterConstraint, Supplier, long...)}, whose key carries the index identifiers
+	 * and therefore identifies the context too, a decision memoized here is only valid against the schemas and
+	 * indexes of the context that produced it. A nested query has its own, so it gets its own cache.
+	 *
+	 * Constraints do not implement value equality, so the key compares them by identity. That makes a miss possible
+	 * when the same constraint is rebuilt rather than reused - and a miss costs exactly what the call cost before
+	 * this method existed, never a wrong result.
+	 *
+	 * @param constraint the constraint the decision belongs to, compared by identity
+	 * @param scopes     processing scopes the decision was taken under
+	 * @param supplier   derives the decision; may return NULL, which is memoized as such
+	 * @param <T>        type of the memoized decision
+	 * @return the decision, freshly derived or memoized, NULL when the supplier yields NULL
+	 */
+	@Nullable
+	public <T> T computeOncePerConstraint(
+		@Nonnull Constraint<?> constraint,
+		@Nonnull Set<Scope> scopes,
+		@Nonnull Supplier<T> supplier
+	) {
+		if (this.constraintScopeCache == null) {
+			this.constraintScopeCache = new HashMap<>();
+		}
+		final ConstraintScopeCacheKey cacheKey = new ConstraintScopeCacheKey(constraint, scopes);
+		final Object cached = this.constraintScopeCache.get(cacheKey);
+		if (cached != null) {
+			//noinspection unchecked
+			return cached == NULL_DECISION ? null : (T) cached;
+		}
+		final T computed = supplier.get();
+		this.constraintScopeCache.put(cacheKey, computed == null ? NULL_DECISION : computed);
+		return computed;
+	}
+
+	/**
 	 * Returns bitmap with newly generated virtual primary keys using masking function
 	 * {@link #getOrRegisterEntityReferenceMaskId(EntityReferenceContract)}.
 	 *
@@ -1934,6 +1999,40 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @param indexKeys  array of {@link EntityIndex#getId()} that were used for result calculation
 	 * @param constraint the constraint that has been evaluated on those indexes
 	 */
+	/**
+	 * Stands in for a memoized NULL in {@link #constraintScopeCache}, so that "decided, and the answer is no plan"
+	 * is distinguishable from "not decided yet" without a second map lookup.
+	 */
+	private static final Object NULL_DECISION = new Object();
+
+	/**
+	 * Key of {@link #constraintScopeCache}. The constraint is compared by identity - constraints do not implement
+	 * value equality - and the scope set is part of the key because the same constraint is planned under different
+	 * scope sets when index selection explores alternatives.
+	 *
+	 * @param constraint the constraint the memoized decision belongs to
+	 * @param scopes     processing scopes the decision was taken under
+	 */
+	private record ConstraintScopeCacheKey(
+		@Nonnull Constraint<?> constraint,
+		@Nonnull Set<Scope> scopes
+	) {
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (o == null || getClass() != o.getClass()) return false;
+			final ConstraintScopeCacheKey that = (ConstraintScopeCacheKey) o;
+			return this.constraint == that.constraint && this.scopes.equals(that.scopes);
+		}
+
+		@Override
+		public int hashCode() {
+			return 31 * System.identityHashCode(this.constraint) + this.scopes.hashCode();
+		}
+
+	}
+
 	private record InternalCacheKey(
 		@Nonnull long[] indexKeys,
 		@Nonnull Constraint<?> constraint
