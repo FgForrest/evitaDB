@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -43,20 +44,14 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Currency;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
-import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.PRICE;
+import static io.evitadb.test.TestTags.QUERY;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link PriceContractSerializablePredicate} verifying
@@ -970,7 +965,7 @@ class PriceContractSerializablePredicateTest {
 		 * @return the request stub
 		 */
 		@Nonnull
-		private EvitaRequest enrichmentRequest(
+		private static EvitaRequest enrichmentRequest(
 			@Nonnull PriceContentMode requiresEntityPrices,
 			@Nonnull String[] fetchesAdditionalPriceLists,
 			@Nullable AccompanyingPrice[] accompanyingPrices
@@ -998,7 +993,7 @@ class PriceContractSerializablePredicateTest {
 		 * @return the predicate
 		 */
 		@Nonnull
-		private PriceContractSerializablePredicate predicateCarrying(@Nullable String[] additionalPriceLists) {
+		private static PriceContractSerializablePredicate predicateCarrying(@Nullable String[] additionalPriceLists) {
 			final Set<String> priceListsAsSet = new HashSet<>();
 			priceListsAsSet.add("basic");
 			if (additionalPriceLists != null) {
@@ -1136,7 +1131,7 @@ class PriceContractSerializablePredicateTest {
 				new PriceContractSerializablePredicate(
 					PriceContentMode.ALL, null, null, new String[]{"basic"},
 					new String[]{"basic"}, null,
-					new HashSet<>(Arrays.asList("basic")),
+					new HashSet<>(List.of("basic")),
 					QueryPriceMode.WITH_TAX, false
 				);
 

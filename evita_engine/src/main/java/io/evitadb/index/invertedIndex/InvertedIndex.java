@@ -40,7 +40,6 @@ import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.dataType.array.CompositeObjectArray;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.IndexHeapSize;
 import io.evitadb.index.bPlusTree.BucketBPlusTree;

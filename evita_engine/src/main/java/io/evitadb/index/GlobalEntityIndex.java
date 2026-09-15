@@ -69,7 +69,6 @@ import one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator;
 import one.edee.oss.proxycian.util.ReflectionUtils;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.lang.reflect.InvocationTargetException;

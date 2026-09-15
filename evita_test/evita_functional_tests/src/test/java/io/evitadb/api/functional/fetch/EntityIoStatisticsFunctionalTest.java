@@ -29,6 +29,8 @@ import io.evitadb.api.requestResponse.EntityFetchAwareDecorator;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
@@ -50,7 +52,6 @@ import static io.evitadb.api.query.QueryConstraints.hierarchyContent;
 import static io.evitadb.api.query.QueryConstraints.referenceContent;
 import static io.evitadb.api.query.QueryConstraints.referenceContentAll;
 import static io.evitadb.api.query.QueryConstraints.require;
-import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -102,19 +103,19 @@ class EntityIoStatisticsFunctionalTest implements EvitaTestSupport {
 					.withHierarchy()
 					.withReflectedReferenceToEntity(
 						REFERENCE_PRODUCTS, Entities.PRODUCT, REFERENCE_CATEGORIES,
-						whichIs -> whichIs.withAttributesInherited()
+						ReflectedReferenceSchemaEditor::withAttributesInherited
 					)
 					.updateVia(session);
 				session.defineEntitySchema(Entities.PRODUCT)
 					.withoutGeneratedPrimaryKey()
 					.withReferenceToEntity(
 						REFERENCE_CATEGORIES, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.indexedForFilteringAndPartitioning()
+						ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 					)
 					/* a reference back into the same collection is what lets an entity reach itself */
 					.withReferenceToEntity(
 						REFERENCE_RELATED_PRODUCTS, Entities.PRODUCT, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.indexedForFilteringAndPartitioning()
+						ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 					)
 					.updateVia(session);
 				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, CATEGORY_PK));

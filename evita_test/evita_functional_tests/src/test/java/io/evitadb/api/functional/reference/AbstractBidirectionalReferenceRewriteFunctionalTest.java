@@ -320,7 +320,7 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 	 * @return carrier with `originalCategories`, `originalProducts`, `originalBrands` and `originalTaxonomy`
 	 */
 	@Nonnull
-	@DataSet(value = BIDI_REWRITE, readOnly = true)
+	@DataSet(value = BIDI_REWRITE)
 	protected DataCarrier setUpBidirectionalReferenceRewriteDataSet(@Nonnull Evita evita) {
 		return evita.updateCatalog(
 			TEST_CATALOG,
