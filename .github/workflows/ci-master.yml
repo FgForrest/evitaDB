@@ -44,13 +44,17 @@ jobs:
     # `permission-workflows: write` is needed because `.github/**` is in this
     # workflow's `paths` filter — a fast-forward can carry workflow-file
     # changes, which GitHub refuses from a token lacking that permission.
-    # RELEASE_APP_ID is a repository variable and RELEASE_APP_PRIVATE_KEY a
-    # repository secret; both are provisioned by hand by a repository admin.
+    # RELEASE_APP_CLIENT_ID (the App's Client ID) and RELEASE_APP_ID (its
+    # numeric App ID) are repository variables, RELEASE_APP_PRIVATE_KEY a
+    # repository secret; all are provisioned by hand by a repository admin.
+    # The action deprecated `app-id` in favour of `client-id`, but GitHub
+    # accepts either value as the JWT issuer, so the numeric id is a safe
+    # fallback should the Client ID variable ever be missing.
     - name: Mint release bot token
       id: app-token
       uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
       with:
-        app-id: ${{ vars.RELEASE_APP_ID }}
+        client-id: ${{ vars.RELEASE_APP_CLIENT_ID || vars.RELEASE_APP_ID }}
         private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
         permission-contents: write
         permission-workflows: write
