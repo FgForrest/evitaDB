@@ -58,6 +58,22 @@
               "type" : "Category",
               "version" : 2,
               "scope" : "LIVE",
+              "locales" : [
+                "en"
+              ],
+              "allLocales" : [
+                "en"
+              ],
+              "attributes" : {
+                "global" : {
+                  "code" : "macbooks"
+                },
+                "localized" : {
+                  "en" : {
+                    "name" : "Macbooks"
+                  }
+                }
+              },
               "parentEntity" : {
                 "primaryKey" : 66467,
                 "type" : "Category",
@@ -78,22 +94,6 @@
                     "en" : {
                       "name" : "Laptops"
                     }
-                  }
-                }
-              },
-              "locales" : [
-                "en"
-              ],
-              "allLocales" : [
-                "en"
-              ],
-              "attributes" : {
-                "global" : {
-                  "code" : "macbooks"
-                },
-                "localized" : {
-                  "en" : {
-                    "name" : "Macbooks"
                   }
                 }
               }
