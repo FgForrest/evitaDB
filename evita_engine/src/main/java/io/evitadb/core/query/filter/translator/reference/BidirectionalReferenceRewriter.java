@@ -51,9 +51,9 @@ import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper.GlobalIndexAndFormula;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
@@ -849,7 +849,9 @@ public class BidirectionalReferenceRewriter {
 				nestedFormula,
 				(executionContext, formula) -> {
 					try {
-						executionContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, nestedQueryDescription);
+						executionContext.pushStep(
+							QueryPhase.EXECUTION_FILTER_NESTED_QUERY, () -> nestedQueryDescription
+						);
 						return formula.compute();
 					} finally {
 						executionContext.popStep();
