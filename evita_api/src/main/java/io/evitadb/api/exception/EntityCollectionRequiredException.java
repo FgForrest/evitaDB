@@ -23,7 +23,6 @@
 
 package io.evitadb.api.exception;
 
-import io.evitadb.api.CatalogContract;
 import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.exception.EvitaInvalidUsageException;

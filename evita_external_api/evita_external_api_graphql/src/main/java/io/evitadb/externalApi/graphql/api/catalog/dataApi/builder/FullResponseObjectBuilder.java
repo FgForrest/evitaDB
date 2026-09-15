@@ -109,7 +109,6 @@ import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.schema.GraphQLTypeReference.typeRef;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.OBJECT;
-import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.STRING;
 
 /**
  * Builds schema object representing {@link io.evitadb.api.requestResponse.EvitaResponse} with entities and extra results.

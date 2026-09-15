@@ -25,11 +25,9 @@ package io.evitadb.externalApi.api.model.cdc;
 
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import io.evitadb.externalApi.dataType.GenericObject;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
-import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullRef;
 
 /**
  * Descriptor interface that defines common property descriptors for {@link io.evitadb.api.requestResponse.cdc.ChangeCapture}
@@ -51,11 +49,11 @@ public interface ChangeCaptureDescriptor {
             Returns the index of the event within the enclosed version. If the operation is part of the multi-step process,
             the index starts with 0 and increments with each such operation. Next capture with `version` + 1 always
             starts with index 0.
-            
+
             This index allows client to build on the previously interrupted CDC stream even in the middle of the transaction.
             This is beneficial in case of very large transactions that still needs to be fully transferred to the client, but
             could be done so in multiple separate chunks.
-            
+
             Combination of `version` and this index precisely identifies the position of a single operation in
             the CDC stream.
 			""")

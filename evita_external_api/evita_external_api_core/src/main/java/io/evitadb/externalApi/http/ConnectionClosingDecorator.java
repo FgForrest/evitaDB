@@ -33,7 +33,6 @@ import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.SimpleDecoratingHttpService;
 
 import javax.annotation.Nonnull;
-import java.util.Objects;
 
 /**
  * This decorator closes the connection after each request.

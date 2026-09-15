@@ -35,7 +35,6 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.dataType.array.CompositeObjectArray;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bPlusTree.IntRecordBucketTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;

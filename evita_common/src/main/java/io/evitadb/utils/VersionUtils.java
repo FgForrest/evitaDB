@@ -33,8 +33,6 @@ import java.util.Enumeration;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 
-import static java.util.Optional.ofNullable;
-
 /**
  * This utility class allows to extract information about the evitaDB version from the MANIFEST.MF file.
  *

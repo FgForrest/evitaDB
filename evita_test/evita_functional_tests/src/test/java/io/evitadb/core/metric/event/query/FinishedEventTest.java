@@ -84,7 +84,7 @@ class FinishedEventTest {
 		 * @return the counting supplier
 		 */
 		@Nonnull
-		private IntSupplier countingSupplier(@Nonnull AtomicInteger invocations, int answer) {
+		private static IntSupplier countingSupplier(@Nonnull AtomicInteger invocations, int answer) {
 			return () -> {
 				invocations.incrementAndGet();
 				return answer;

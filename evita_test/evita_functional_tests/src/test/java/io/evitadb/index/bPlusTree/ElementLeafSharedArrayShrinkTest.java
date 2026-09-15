@@ -24,7 +24,6 @@
 package io.evitadb.index.bPlusTree;
 
 import io.evitadb.core.transaction.Transaction;
-import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;

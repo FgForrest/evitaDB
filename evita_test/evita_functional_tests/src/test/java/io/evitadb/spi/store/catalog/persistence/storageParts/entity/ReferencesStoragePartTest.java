@@ -42,6 +42,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart.MissingReferenceBehavior;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
@@ -56,13 +57,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.UnaryOperator;
-import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.when;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.EXPORT;
 import static io.evitadb.test.TestTags.REFERENCE;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests for ReferencesStoragePart focusing on sorted order of references and key operations.
@@ -921,7 +921,7 @@ class ReferencesStoragePartTest {
 		 * promises to keep reporting.
 		 */
 		@Nonnull
-		private ReferencesStoragePart narrowedPart() {
+		private static ReferencesStoragePart narrowedPart() {
 			return new ReferencesStoragePart(
 				1, 2,
 				new Reference[]{
@@ -938,7 +938,7 @@ class ReferencesStoragePartTest {
 		 * below is measured against.
 		 */
 		@Nonnull
-		private ReferencesStoragePart completePart() {
+		private static ReferencesStoragePart completePart() {
 			return new ReferencesStoragePart(
 				1, 2,
 				new Reference[]{

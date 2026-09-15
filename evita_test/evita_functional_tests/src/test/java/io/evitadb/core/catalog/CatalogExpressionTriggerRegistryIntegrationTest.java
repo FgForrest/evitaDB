@@ -23,7 +23,6 @@
 
 package io.evitadb.core.catalog;
 
-import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;

@@ -34,7 +34,6 @@ import io.evitadb.api.query.descriptor.ConstraintCreator.ParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ValueParameterDescriptor;
 import io.evitadb.api.query.filter.And;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

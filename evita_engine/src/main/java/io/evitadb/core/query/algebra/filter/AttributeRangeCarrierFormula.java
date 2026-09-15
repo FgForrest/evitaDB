@@ -24,7 +24,6 @@
 package io.evitadb.core.query.algebra.filter;
 
 import io.evitadb.core.query.algebra.NonCollapsibleFormula;
-import io.evitadb.core.query.algebra.Formula;
 
 /**
  * Marker interface tagging formulas that carry an attribute-family range selection (the
