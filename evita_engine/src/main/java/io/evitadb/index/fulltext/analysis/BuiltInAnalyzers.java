@@ -232,7 +232,7 @@ public class BuiltInAnalyzers {
 	 * @return declaration of the built-in analyzer, or null when the name is not a built-in one
 	 */
 	@Nullable
-	public static BuiltInAnalyzer definitionFor(@Nonnull String name) {
+	static BuiltInAnalyzer definitionFor(@Nonnull String name) {
 		return ANALYZERS_BY_NAME.get(name);
 	}
 
@@ -458,7 +458,7 @@ public class BuiltInAnalyzers {
 	 * @param mode    side(s) of the pipeline chains built by `factory` may be used on
 	 * @param factory builds the Lucene chain; called at most once per registry, when the name is first used
 	 */
-	public record BuiltInAnalyzer(
+	record BuiltInAnalyzer(
 		@Nonnull AnalysisMode mode,
 		@Nonnull Supplier<Analyzer> factory
 	) {

@@ -1125,6 +1125,14 @@ What replaced them:
   sk 351/355, pl 148/175, ro 99/120**, false merges **cs 54, sk 0, pl 24, ro 0**. The four fixtures
   survive as its vocabulary; their pending native review (§9.7) may legitimately move the sk/pl/ro
   numbers.
+
+  The Polish **24** is not comparable to the **8** §9.7 records for the shipped `pl` wrapper, and it
+  is not a precision cost of the Stempel → Snowball switch. Every one of the 24 sits inside three
+  planted confusable pairs whose members fold to the *same string before any stemmer runs* —
+  `łoś`/`los` and `skała`/`skala` (18, the stroked `ł`) and `pączek`/`paczka` (6, the nasal `ą`); the
+  merged terms are identical folded surfaces. The count rose because the *query side* changed: it now
+  emits the surface variant and every stem fork, so it reaches more of the same planted collisions
+  than the old symmetric chain did. Slovak and Romanian reach 0 merges on the same measurement.
 - `FulltextAnalyzerTest` gained per-language index-chain expectations and a `VariantChains` class
   pinning the fan-out shape (every variant at position increment 0, surface variant present for
   cs/pl/ro and absent for sk).

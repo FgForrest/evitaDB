@@ -499,7 +499,7 @@ class FulltextAnalyzerTest {
 		void shouldFanOutCzech() {
 			assertIterableEquals(List.of("format", "form", "formaty"), queryTerms(CZECH, "formaty"));
 			assertIterableEquals(List.of("pansk", "panst", "pansti"), queryTerms(CZECH, "pansti"));
-			// what the index side could not converge on its own - see `Czech#shouldNotConvergeBareTypedValues`
+			// what the index side could not converge on its own - see `Czech#shouldNotConvergeBareTypedValuesOnTheIndexSide`
 			assertQueryMeetsIndex(CZECH, "panove", "pánové", "pán", "panove");
 			assertQueryMeetsIndex(CZECH, "cerna", "černá", "černé");
 			assertQueryMeetsIndex(CZECH, "pansti", "pánští", "pánská");

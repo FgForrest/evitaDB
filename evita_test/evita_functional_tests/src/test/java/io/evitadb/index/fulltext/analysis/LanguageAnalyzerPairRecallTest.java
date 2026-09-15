@@ -280,8 +280,12 @@ class LanguageAnalyzerPairRecallTest {
 			);
 			recall.assertAccentTypedMatched(62, 62);
 			recall.assertMatched(148, 175);
-			// the 24 merges come from the fixture's `ł`-probing pairs, which fold onto one another by
-			// construction - folding `ł` to `l` is what makes a bare-typed Polish query possible at all
+			// all 24 merges sit inside three planted confusable pairs whose members fold onto the same string
+			// before any stemmer runs - `łoś`/`los` and `skała`/`skala` (18, the stroked `ł`) and
+			// `pączek`/`paczka` (6, the nasal `ą`). That is the price of having a fold lane at all, not a cost
+			// of the Snowball switch: the merged terms are identical folded surfaces. The count is NOT
+			// comparable to the 8 recorded for the old symmetric Stempel chain - the query side now also emits
+			// the surface variant and every stem fork, so it reaches more of the same planted collisions.
 			recall.assertFalseMergesAtMost(24);
 		}
 
