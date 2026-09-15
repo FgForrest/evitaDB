@@ -136,12 +136,12 @@
 		<maven.compiler.version>3.15.0</maven.compiler.version>
 		<maven.toolchains.version>3.3.0</maven.toolchains.version>
 		<lombok.version>1.18.46</lombok.version>
-		<grpc.version>1.83.1</grpc.version>
+		<grpc.version>1.84.0</grpc.version>
 		<bouncyCastle.version>1.85</bouncyCastle.version>
-		<swagger.version>2.2.54</swagger.version>
+		<swagger.version>2.2.55</swagger.version>
 		<armeria.version>1.41.1</armeria.version>
 		<prometheus.version>1.8.0</prometheus.version>
-		<micrometer.version>1.17.0</micrometer.version>
+		<micrometer.version>1.17.1</micrometer.version>
 		<byteBuddy.version>1.17.8</byteBuddy.version>
 		<graphql.version>25.0</graphql.version>
 		<okhttp.version>5.5.0</okhttp.version>
