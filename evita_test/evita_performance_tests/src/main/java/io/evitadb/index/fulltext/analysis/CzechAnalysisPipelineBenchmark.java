@@ -233,7 +233,7 @@ public class CzechAnalysisPipelineBenchmark {
 						new LowerCaseFilter(source), CzechAnalyzer.getDefaultStopSet()
 					);
 					stream = new ASCIIFoldingFilter(stream);
-					stream = new BranchingHypothesisStemFilter(stream);
+					stream = new BranchingHypothesisStemFilter(stream, new BranchingFoldedCzechStemmer());
 					return new TokenStreamComponents(source, stream);
 				}
 

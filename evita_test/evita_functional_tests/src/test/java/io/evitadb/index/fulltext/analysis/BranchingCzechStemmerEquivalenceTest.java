@@ -203,7 +203,7 @@ class BranchingCzechStemmerEquivalenceTest {
 					source,
 					flatUnion
 						? new HypothesisStemFilter(folded, stemmers)
-						: new BranchingHypothesisStemFilter(folded)
+						: new BranchingHypothesisStemFilter(folded, new BranchingFoldedCzechStemmer())
 				);
 			}
 		};

@@ -64,7 +64,7 @@ import static org.apache.lucene.analysis.util.StemmerUtil.endsWith;
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
  */
-final class BranchingFoldedCzechStemmer {
+final class BranchingFoldedCzechStemmer implements BranchingStemmer {
 
 	/**
 	 * Hard bound on distinct hypotheses per word — see the class javadoc for the derivation (3 case lengths
@@ -119,7 +119,8 @@ final class BranchingFoldedCzechStemmer {
 	 * @param len length of the word in the buffer
 	 * @return number of distinct hypotheses
 	 */
-	int hypothesize(@Nonnull char[] s, int len) {
+	@Override
+	public int hypothesize(@Nonnull char[] s, int len) {
 		this.count = 0;
 		this.caseCount = 0;
 		this.stemCount = 0;
@@ -160,7 +161,8 @@ final class BranchingFoldedCzechStemmer {
 	 * @param hypothesisIndex index of the hypothesis, `0` to `count - 1`
 	 * @return length of the hypothesis
 	 */
-	int length(int hypothesisIndex) {
+	@Override
+	public int length(int hypothesisIndex) {
 		return this.lengths[hypothesisIndex];
 	}
 
@@ -173,7 +175,8 @@ final class BranchingFoldedCzechStemmer {
 	 * @param destination     buffer to write into, at least {@link #length(int)} characters long
 	 * @return length of the hypothesis written
 	 */
-	int materialize(int hypothesisIndex, @Nonnull char[] originalWord, @Nonnull char[] destination) {
+	@Override
+	public int materialize(int hypothesisIndex, @Nonnull char[] originalWord, @Nonnull char[] destination) {
 		final int length = this.lengths[hypothesisIndex];
 		System.arraycopy(originalWord, 0, destination, 0, length);
 		if (length >= 2) {

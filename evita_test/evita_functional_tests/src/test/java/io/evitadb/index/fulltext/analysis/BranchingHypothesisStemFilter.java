@@ -33,13 +33,13 @@ import javax.annotation.Nonnull;
 import java.io.IOException;
 
 /**
- * The optimized query half of mechanism M7: emits every distinct Czech stem hypothesis of the current token at
- * one position, exactly like {@link HypothesisStemFilter} over {@link FoldedCzechStemmer#allHypotheses()}, but
- * computed by the {@link BranchingFoldedCzechStemmer} — one walk that forks only where a fold-ambiguous rule
- * actually matches — instead of 1,025 full stemmer runs deduplicated through strings and a set. The emitted
- * term sets are identical (the lexicon-scale equivalence test pins that); the per-token cost drops from ~1,025
+ * The optimized query half of mechanism M7: emits every distinct stem hypothesis of the current token at one
+ * position, exactly like {@link HypothesisStemFilter} over a flat configuration union, but computed by a
+ * {@link BranchingStemmer} — one walk that forks only where a fold-ambiguous rule actually matches — instead
+ * of hundreds of full stemmer runs deduplicated through strings and a set. The emitted term sets are identical
+ * per language (the lexicon-scale equivalence tests pin that); the per-token cost drops from up to 1,025
  * buffer copies, stems and string materializations to a handful of suffix comparisons and **zero allocation**
- * in steady state.
+ * in steady state (Czech; the Romanian walk copies a few small pooled buffers).
  *
  * Steady-state zero allocation rests on two shortcuts the flat prototype does not take:
  *
@@ -58,7 +58,7 @@ final class BranchingHypothesisStemFilter extends TokenFilter {
 	/**
 	 * The branching stemmer holding the hypotheses of the current token — stateful scratch, one per stream.
 	 */
-	@Nonnull private final BranchingFoldedCzechStemmer stemmer = new BranchingFoldedCzechStemmer();
+	@Nonnull private final BranchingStemmer stemmer;
 	/**
 	 * Term text of the current token.
 	 */
@@ -89,10 +89,12 @@ final class BranchingHypothesisStemFilter extends TokenFilter {
 	/**
 	 * Creates the filter.
 	 *
-	 * @param input stream to filter, already lowercased and diacritics-folded
+	 * @param input   stream to filter, already lowercased and diacritics-folded
+	 * @param stemmer the language's branching stemmer — owned by this filter, one instance per stream
 	 */
-	BranchingHypothesisStemFilter(@Nonnull TokenStream input) {
+	BranchingHypothesisStemFilter(@Nonnull TokenStream input, @Nonnull BranchingStemmer stemmer) {
 		super(input);
+		this.stemmer = stemmer;
 	}
 
 	@Override

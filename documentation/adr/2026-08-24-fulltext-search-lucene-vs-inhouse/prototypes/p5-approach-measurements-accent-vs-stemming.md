@@ -397,10 +397,10 @@ shift costs 15 merges here (A20 − A21) against 30+ in every symmetric row, for
 
 ### How the hypothesis set is computed — a union of configurations, which is one branching stemmer
 
-*(Rewritten 2026-09-07, twice in one day: run 7's lexicon sweep grew the switch set from the four
-this section was first written around to ten, and the branching-stemmer equivalence claimed at the
-end has since been implemented and machine-proven. The mechanism is unchanged; every number and
-example below is current.)*
+*(Rewritten 2026-09-07: run 7's lexicon sweep grew the switch set from the four this section was
+first written around to ten, and the branching-stemmer equivalence claimed at the end has since
+been implemented and machine-proven. The mechanism is unchanged; every number and example below is
+current.)*
 
 The flat prototype (`HypothesisStemFilter`) holds a fixed list of `FoldedCzechStemmer` instances —
 one per combination of the ten fold-ambiguous rule switches (2¹⁰ = 1,024) plus the folded surface

@@ -1,7 +1,7 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-09-07 12:00
+updated: 2026-09-15 14:00
 status: proposed
 kind: feature
 issues: [258]
@@ -266,6 +266,20 @@ Open items, each actionable:
   gate passed on all criteria, the dictionary/positions/posting-representation/early-exit forks
   closed and the brief's falsified claims corrected — recorded as
   `prototypes/p8-trigram-substring-index.md` §35
+- **2026-08-27 → 2026-09-04** — the accent-vs-stemming prior-art survey and its measurement campaign
+  for Czech (mechanism matrix A0–A22, verdict: the asymmetric M7), then the same survey and
+  per-language measurements for Slovak, Polish and Romanian — recorded as
+  `prototypes/p5-prior-art-accent-vs-stemming.md`,
+  `prototypes/p5-approach-measurements-accent-vs-stemming.md` and
+  `prototypes/p5-prior-art-sk-pl-ro.md`
+- **2026-09-07** — the M7 hypothesis sets of all four languages verified against their whole
+  Hunspell lexicons (980,763 headwords, zero uncovered; every fixture-validated fork set proved
+  incomplete on first sweep — SK/PL/RO record §9.8); the flat-union query chain's runtime cost
+  JMH-measured (§9.9) and the Czech **branching stemmer** built, proven set-equivalent over the
+  lexicon and measured within 2× of the production chain (§9.10)
+- **2026-09-15** — branching stemmers for Slovak, Polish and Romanian built — each language needed
+  its own walk design — proven set-equivalent to their flat unions over their whole lexicons and
+  JMH-measured at 0.23–1.84 µs per 3-token query (SK/PL/RO record §9.11)
 
 ## Supporting material
 
@@ -299,7 +313,25 @@ Open items, each actionable:
   bare-typed cross-form query at one term per token, that the second-lane mechanism buys 3 pairs of
   72 for a 1.95x term inflation and therefore has **no** claim on the term dictionary layout, and
   that the remaining open questions are whether we own a Czech stemmer and whether the `ů→o` rule is
-  worth its false merges.
+  worth its false merges. Its run ledger later converged on **mechanism M7** — the index side keeps
+  today's chain (accented stem, then fold) unchanged, the query side emits every stem the folded
+  ambiguities allow as OR'd terms at one position — with the hypothesis set verified against the
+  whole cs_CZ Hunspell lexicon and implemented twice: a flat union of all 1,025 switch
+  configurations serving as the executable specification, and a **branching stemmer** computing the
+  identical set in one walk (~0.32 µs and 352 B per 3-token query, within 2× of the production
+  chain, against the flat union's ~90 µs and 149 KB), the two pinned to each other by a
+  lexicon-scale equivalence test.
+- [`prototypes/p5-prior-art-sk-pl-ro.md`](prototypes/p5-prior-art-sk-pl-ro.md) — the same two
+  questions answered for Slovak, Polish and Romanian: what the surveyed engines ship per language,
+  and what it took to bring each to the Czech M7 quality bar (a folded Slovak stemmer pair, a folded
+  port of the Snowball Polish and Romanian stemmers, per-language fixtures and matrices). Its §9.8
+  verifies all four languages' M7 hypothesis sets against their whole Hunspell lexicons — 980,763
+  headwords, zero uncovered after per-language correction rounds that each falsified fixture-scale
+  results. Its §9.9–§9.11 carry the runtime story: the flat configuration unions are priced by
+  *stemmer complexity × configuration count* (Romanian's 513-configuration union costs 234 µs and
+  897 KB retained per analyzer), while the four branching walks — each demanding its own structural
+  analysis, from Czech's tail-triple trick to Romanian's staged worklist with constraint cells —
+  deliver the same, equivalence-tested term sets at 0.23–1.84 µs per query with ~500 B retained.
 - [`prototypes/p5-word-number-split-comparison.md`](prototypes/p5-word-number-split-comparison.md) —
   the old client's word/number splitter (`UHD7800` found by `7800`) ported and measured against Lucene's
   `WordDelimiterGraphFilter` in two placements. Settles that the step must sit between the tokenizer and

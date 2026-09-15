@@ -980,13 +980,96 @@ Readings:
   every indexed catalog stay untouched, hypothesis-set tuning needs no reindex — but runtime cost
   no longer forces the choice.
 - **The trick is Czech-shaped, the argument is not.** The union-equals-branching-walk equivalence
-  holds for any of the four ports (no flag decides twice — the same single-consultation property the
-  sweeps' fork sets were built on), but the `(length, final-two-characters)` representation rests on
-  the Czech port's tail-only mutations. A Romanian or Polish branching stemmer would need its own
-  representation analysis; Slovak's 8-configuration union (§9.4) is too small to bother. None is
-  needed until a port ships.
+  holds for any of the four ports, but the `(length, final-two-characters)` representation rests on
+  the Czech port's tail-only mutations — a Romanian or Polish branching stemmer needs its own
+  representation analysis. *Since done for all three — §9.11; the Romanian verb table even breaks
+  the "no flag decides twice" property the Czech walk leans on, and needed the heavier machinery.*
 
 The flat union keeps its role: it is the *specification* — trivially correct by construction, the
 thing the sweeps verify and the equivalence test compares against — and the branching walk is the
 *implementation*. Both stay in the tree; an edit to `FoldedCzechStemmer` that reopens a gap fails
 the lexicon sweep, and one that breaks the walk's mirror fails the equivalence test.
+
+### 9.11 Branching walks for Slovak, Polish and Romanian — built and lexicon-proven (2026-09-15)
+
+Before any production change, the branching form now exists for **all four** languages, each proven
+set-equivalent to its flat union word by word over its whole lexicon (980,763 headwords in total,
+zero divergences: cs 260,926 / sk 264,838 / pl 279,452 / ro 175,547), plus per-language boundary
+words chosen from the tables' guard edges and per-position filter output. One
+`BranchingStemmer` interface now fronts all four walks and `BranchingHypothesisStemFilter` drives
+any of them; the flat unions stay in the tree as the executable specifications, and the four
+`Branching*StemmerEquivalenceTest`s chain each pair together. The three new walks are *not* copies
+of the Czech one — each language demanded its own structural analysis, and the differences are the
+finding:
+
+- **Slovak** (`BranchingFoldedSlovakStemmer`) is the Czech shape with one wrinkle: `normalize`
+  **chains** — the `ie`-shortening does not return but falls through into the epenthesis check, so
+  one path can apply both (`stoliciek` → `stolicek` → `stolick`). The composition still rewrites
+  only the result's final two characters, so the `(length, final-two-characters)` triples and the
+  zero-allocation walk carry over. No surface hypothesis, matching the Slovak set (§9.4). Bound:
+  8 outcomes.
+- **Polish** (`BranchingFoldedPolishStemmer`) could not reuse the Czech shape at all: its switches
+  select **which entries exist in the table** (and one entry's R1 condition), under
+  longest-suffix-first, first-match-wins scanning — two configurations differing in one switch can
+  fire entirely different entries. The exact walk is a **constraint scan**: one merged table whose
+  entries carry `needOn`/`needOff` flag masks, scanned by *cells* of configuration space; a matched
+  conditional entry partitions its cell into a firing sub-cell and continuation sub-cells. The
+  three-way `sza`/`sze`/`e` readings become disjoint predicate variants of one suffix. Every action
+  writes at most one character at the final position, so outcomes are `(length, final character)` —
+  still zero-allocation.
+- **Romanian** (`BranchingFoldedRomanianStemmer`) needed the heaviest walk, for two reasons. Its
+  five step gates and buffer-rewriting actions (`icator`→`ic`, `ism`→`ist`, the combo repeat loop)
+  make hypotheses full strings rather than prefix-plus-tail, so the walk is a **staged worklist** of
+  pooled buffer copies — fork at every gate, deduplicate identical states immediately (a stage that
+  matched nothing collapses its fork back to one state, which keeps ordinary words at one or two
+  states). And its verb table is the one place in all four ports where **a flag genuinely can be
+  consulted twice on one path** (`asesi` skipped → the shorter `sesi` matches, both
+  `sVerbEndings`-gated), so the verb scan uses the Polish constraint-cell machinery — the
+  commitment bookkeeping that is provably inert in the Czech walk is load-bearing here.
+
+**Costs, JMH-measured** (`SkPlRoAnalysisPipelineBenchmark`, same harness as §9.9/§9.10 — JDK 21,
+avgt fork 1, `-prof gc`, through `FulltextAnalyzer.analyze()`; per-language 3-token bare query,
+chains in the matrix tests' minimal shape, so the Czech numbers of §9.10 are not directly
+comparable row-for-row — its chains carry a stop filter):
+
+| language (union size) | pipeline | time / analyze | allocation / analyze | retained footprint |
+|---|---|---|---|---|
+| Slovak (8) | flat union | 0.64 µs | 1.9 KB | 680 B |
+| Slovak (8) | **branching** | **0.23 µs** | **160 B** | 504 B |
+| Polish (129) | flat union | 48.5 µs | 20.0 KB | 295.7 KB |
+| Polish (129) | **branching** | **0.58 µs** | **304 B** | 504 B |
+| Romanian (513) | flat union | 234 µs | 75.5 KB | 897.2 KB |
+| Romanian (513) | **branching** | **1.84 µs** | **352 B** | 504 B |
+
+Emitted-term parity holds on every query (SK 3 = 3 — the Slovak benchmark words fork nowhere — PL
+6 = 6, RO 7 = 7). Readings:
+
+- **Branching pays at every union size, including Slovak's 8.** Even the cheapest flat union costs
+  2.8× the walk's time and 12× its allocation; the Slovak walk's 160 B per query is exactly the
+  three emitted term strings — the mechanism itself is allocation-free, as designed.
+- **The flat unions' cost is not proportional to configuration count — per-configuration price
+  dominates.** Romanian's 513 configurations cost 234 µs where Czech's 1,025 cost ~90 µs (§9.9):
+  each Romanian run is a full multi-step Snowball pipeline with region marking, against Czech's
+  single table walk. Polish (129 → 48.5 µs) tells the same story. The flat prototype is priced by
+  *stemmer complexity × configurations*, the branching walk by stemmer complexity alone.
+- **The Polish and Romanian flat unions retain real memory** — 296 KB and 897 KB per analyzer,
+  because every configuration instance holds its own assembled copy of the ending tables (Czech's
+  configurations keep their tables in code as `endsWith` calls and retain only 29 KB, §9.9). This
+  is structural, not sloppy: a flat Polish instance *must* materialize the specific list its seven
+  flags select, because all seven shape the table's content — 128 configurations, 128 distinct
+  lists, nothing to share (Romanian could share — its verb table depends on only three of the nine
+  switches, eight distinct tables behind 512 instances — but stays per-instance as the faithful
+  mirror of its constructor, which is the flat port's whole job). The branching walks dissolve the
+  problem instead of optimizing it: the switch dependence moves out of the table's *content* into
+  per-entry `needOn`/`needOff` predicate masks, so each walk holds **one `static final` merged
+  table** shared by every instance, and the measured 504 B per instance is purely the mutable
+  per-stream scratch (outcome arrays, scan-cell stacks, token buffers) that cannot be shared by
+  design — one instance per token stream, like any Lucene stemmer.
+- **The Romanian walk's heavier machinery costs what it looks like**: 1.84 µs against the Czech
+  walk's 0.32 µs — the pooled-buffer stage forks — yet still ~127× under its own flat union and
+  well inside query-side noise.
+
+One more JOL trap for the file: measuring a graph that contains Java **records** needs
+`-Djol.magicFieldOffset=true`, or `Unsafe` refuses their field offsets and the census dies mid-walk
+— it bit here because the Polish and Romanian ports keep their table entries in records where the
+Czech port uses plain fields.
