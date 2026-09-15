@@ -773,6 +773,54 @@ class BidirectionalReferenceRewriterTest {
 	}
 
 	@Nested
+	@DisplayName("Widened scopes without a counterpart index")
+	class WidenedScopeWithoutCounterpartIndex {
+
+		/**
+		 * Pins that adding a {@link ReferenceIndexedComponents#REFERENCED_ENTITY} check to `counterpartScopes` would
+		 * change nothing, so nobody adds one believing it closes a gap.
+		 *
+		 * `counterpartScopes` widens the scan beyond the requested scopes to every scope where **both** ends are
+		 * `isIndexedInScope` — deliberately mirroring `ContainerizedLocalMutationExecutor#isRelationMaintained`, which
+		 * tests exactly that and nothing more. It does *not* also require `REFERENCED_ENTITY` among the scope's indexed
+		 * components, while `referenceUsableInScopes` does. That asymmetry is real, and this row is what makes it safe
+		 * to leave: a scope is only ever *iterated* by `collectCandidateOwners`, and the first thing that loop does with
+		 * a scope whose `REFERENCED_ENTITY_TYPE` index is absent — which is precisely the scope a components check would
+		 * have excluded — is `continue`. Removing a scope from the set and skipping it inside the loop produce the
+		 * identical candidate union, the identical `crossScope` flag and the identical gate arithmetic.
+		 *
+		 * The requested scopes are not at risk either way: they are added to the set unconditionally, and
+		 * `referenceUsableInScopes` already rejects the whole rewrite at `BidirectionalReferenceRewriter:306` when
+		 * `REFERENCED_ENTITY` is missing from any of them.
+		 *
+		 * **What this row does not claim.** The `continue` rests on "no index there means no rows there", and that
+		 * premise is false — issue #1583 is a reflected reference on an archived owner whose rows exist with no type
+		 * index at all. A reference indexing only `REFERENCED_GROUP_ENTITY` in a scope is a second route to the same
+		 * false premise, since `isRelationMaintained` keeps the relation on `isIndexedInScope` alone. Both under-report
+		 * through the missing index itself, not through the scope set, so neither is addressed by changing this method.
+		 */
+		@Test
+		@DisplayName("should ignore a widened scope that indexes only the group component")
+		void shouldIgnoreAWidenedScopeThatIndexesOnlyTheGroupComponent() {
+			final RewriteFixture fixture = RewriteFixture.baseline(EnumSet.of(Scope.LIVE));
+			// both ends are indexed in ARCHIVED, so `counterpartScopes` widens into it ...
+			when(fixture.ownerReference.isIndexedInScope(Scope.ARCHIVED)).thenReturn(true);
+			when(fixture.counterpart.isIndexedInScope(Scope.ARCHIVED)).thenReturn(true);
+			// ... but the counterpart indexes only the group component there, so no REFERENCED_ENTITY_TYPE index exists
+			when(fixture.counterpart.getIndexedComponents(Scope.ARCHIVED))
+				.thenReturn(Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY));
+			fixture.stubCounterpartTypeIndex(Scope.ARCHIVED, null);
+
+			assertTrue(
+				fixture.isApplicable(),
+				"A widened scope whose counterpart type index is absent must be skipped, not treated as a reason to " +
+					"abandon the rewrite - only a *requested* scope missing its index does that. Declining here would " +
+					"disable the rewrite for every reflected counterpart, which is the case it exists for."
+			);
+		}
+	}
+
+	@Nested
 	@DisplayName("Plan memoisation")
 	class PlanMemoisation {
 
