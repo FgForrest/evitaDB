@@ -320,7 +320,10 @@ public class BidirectionalReferenceRewriter {
 		// the rewrite is a trade, not a free win. The candidate set is now known exactly, so the gate is applied to
 		// the real union cardinality rather than to a per-scope sum - summing double-counts an owner announced in two
 		// scopes and can decline a plan that is provably cheaper.
-		if (!worthRewriting(queryContext, ownerEntitySchema, ownerReference, candidates.announced(), scopes)) {
+		if (!worthRewriting(
+			queryContext, ownerEntitySchema, ownerReference,
+			candidates.announced(), candidates.counterpartIndexes(), scopes
+		)) {
 			return null;
 		}
 		return new RewritePlan(
@@ -353,12 +356,22 @@ public class BidirectionalReferenceRewriter {
 	 * Candidate owners, with the cardinality of the set the counterpart announced before it was narrowed to owners
 	 * that actually exist in the requested scopes.
 	 *
-	 * @param announced  how many distinct owners the counterpart's type-level indexes named across all of its scopes
-	 * @param owners     those of them that exist in the requested scopes, ascending
-	 * @param crossScope TRUE when an index outside the requested scopes announced at least one owner - i.e. when the
-	 *                   relation really does span scopes and the extra scan was not merely defensive
+	 * @param announced         how many distinct owners the counterpart's type-level indexes named across all of its
+	 *                          scopes
+	 * @param counterpartIndexes how many reduced indexes those scopes hold in total - the number the rewrite actually
+	 *                          visits. Without duplicates it equals {@link #announced}, because a pair maps to exactly
+	 *                          one reduced index; with duplicates one owner maps to one index per representative-value
+	 *                          partition, and the two diverge.
+	 * @param owners            those of them that exist in the requested scopes, ascending
+	 * @param crossScope        TRUE when an index outside the requested scopes announced at least one owner - i.e. when
+	 *                          the relation really does span scopes and the extra scan was not merely defensive
 	 */
-	private record CandidateOwners(int announced, @Nonnull int[] owners, boolean crossScope) {
+	private record CandidateOwners(
+		int announced,
+		int counterpartIndexes,
+		@Nonnull int[] owners,
+		boolean crossScope
+	) {
 	}
 
 	/**
@@ -646,6 +659,9 @@ public class BidirectionalReferenceRewriter {
 		@Nonnull Set<Scope> scopes
 	) {
 		PersistentRoaringBitmap candidates = null;
+		// the reduced indexes the rewrite will actually visit - one per (owner, representative-value partition),
+		// which is one per owner only when the counterpart forbids duplicates
+		PersistentRoaringBitmap counterpartIndexes = null;
 		boolean crossScope = false;
 		for (final Scope scope : counterpartScopes) {
 			final Optional<ReferencedTypeEntityIndex> typeIndex = queryContext.getEntityIndex(
@@ -680,6 +696,13 @@ public class BidirectionalReferenceRewriter {
 			final PersistentRoaringBitmap scopeCandidates = RoaringBitmapBackedBitmap.getRoaringBitmap(
 				typeIndex.get().getAllReferencedPrimaryKeys()
 			);
+			// `getAllPrimaryKeys()` yields reduced-index instance keys, which are unique per index, so OR-ing them
+			// across scopes counts each index exactly once
+			final PersistentRoaringBitmap scopeIndexes = RoaringBitmapBackedBitmap.getRoaringBitmap(
+				typeIndex.get().getAllPrimaryKeys()
+			);
+			counterpartIndexes = counterpartIndexes == null ?
+				scopeIndexes : PersistentRoaringBitmap.or(counterpartIndexes, scopeIndexes);
 			if (!scopes.contains(scope) && !scopeCandidates.isEmpty()) {
 				crossScope = true;
 			}
@@ -691,6 +714,7 @@ public class BidirectionalReferenceRewriter {
 			return null;
 		}
 		final int announced = candidates.getCardinality();
+		final int counterpartIndexCount = counterpartIndexes == null ? 0 : counterpartIndexes.getCardinality();
 
 		PersistentRoaringBitmap ownersInScope = null;
 		for (final Scope scope : scopes) {
@@ -707,21 +731,30 @@ public class BidirectionalReferenceRewriter {
 				scopeOwners : PersistentRoaringBitmap.or(ownersInScope, scopeOwners);
 		}
 		if (ownersInScope == null) {
-			return new CandidateOwners(announced, new int[0], crossScope);
+			return new CandidateOwners(announced, counterpartIndexCount, new int[0], crossScope);
 		}
 		return new CandidateOwners(
-			announced, PersistentRoaringBitmap.and(candidates, ownersInScope).toArray(), crossScope
+			announced, counterpartIndexCount,
+			PersistentRoaringBitmap.and(candidates, ownersInScope).toArray(), crossScope
 		);
 	}
 
 	/**
 	 * Decides whether answering the constraint from the counterpart end is actually cheaper.
 	 *
-	 * Both sides of the trade are O(1) bitmap cardinalities available before anything is computed: the owner side
-	 * would visit at most one reduced index per *referenced entity* the owner reference knows about, the counterpart
-	 * side visits exactly one per candidate owner. The owner-side number is an upper bound - the nested query narrows
-	 * it further - which is why a plain "fewer is better" comparison is not enough and a margin is required.
+	 * Both sides of the trade are O(1) bitmap cardinalities available before anything is computed, and **both count
+	 * reduced-index instances** - the unit the work is actually done in. The owner side would visit at most one index
+	 * per *referenced entity* the owner reference knows about; the counterpart side visits every index its type-level
+	 * indexes hold for the candidate owners. The owner-side number is an upper bound - the nested query narrows it
+	 * further - which is why a plain "fewer is better" comparison is not enough and a margin is required.
 	 *
+	 * Counting owners on the counterpart side instead would be wrong as soon as duplicates are allowed: one owner then
+	 * maps to one index per representative-value partition, so a gate demanding a {@link #MINIMAL_GAIN}x win could
+	 * accept a plan doing many times *more* work. Without duplicates the two counts coincide, so this is a
+	 * generalisation rather than a change of behaviour.
+	 *
+	 * @param candidateOwnerCount   how many owners the per-owner loop would run for - bounds the loop, not the cost
+	 * @param counterpartIndexCount how many counterpart reduced indexes that loop would resolve in total
 	 * @return TRUE when the rewrite should be taken
 	 */
 	private static boolean worthRewriting(
@@ -729,6 +762,7 @@ public class BidirectionalReferenceRewriter {
 		@Nonnull EntitySchemaContract ownerEntitySchema,
 		@Nonnull ReferenceSchemaContract ownerReference,
 		int candidateOwnerCount,
+		int counterpartIndexCount,
 		@Nonnull Set<Scope> scopes
 	) {
 		if (candidateOwnerCount == 0 || candidateOwnerCount > MAX_CANDIDATE_OWNERS) {
@@ -754,7 +788,7 @@ public class BidirectionalReferenceRewriter {
 		if (ownerSideBuckets == null) {
 			return false;
 		}
-		return (long) candidateOwnerCount * MINIMAL_GAIN <= ownerSideBuckets.getCardinality();
+		return (long) counterpartIndexCount * MINIMAL_GAIN <= ownerSideBuckets.getCardinality();
 	}
 
 	/**
