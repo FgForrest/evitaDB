@@ -33,6 +33,8 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-09-15 | [Mark the formulas an optimiser may not collapse, rather than special-casing the container that holds them](2026-09-15-non-collapsible-formula-marker.md) | fix | accepted | #1547, PR #1548, PR #1568 |
+| 2026-09-15 | [Answer a referenceHaving from whichever end of a bidirectional reference is cheaper, and stop emitting provably-empty null subtractions](2026-09-15-bidirectional-reference-counterpart-rewrite.md) | optimization | accepted | #1547, #1583, #1584, #1585, PR #1548, PR #1568 |
 | 2026-09-13 | [Define the per-entity I/O statistic as standalone cost and attribute it at the read, not by walking the returned object graph](2026-09-13-per-entity-io-statistics-attribution.md) | refactor | accepted | #1547, #1561, #1562, #1563, #1564, #1565, #1566, #1567, PR #1548 |
 | 2026-09-12 | [Derive the enrichment shortcut from committed-snapshot provenance, not from a caller-supplied flag](2026-09-12-committed-snapshot-provenance-for-enrichment.md) | fix | accepted | #1547, #1559, PR #1548 |
 | 2026-09-11 | [Decode only the reference names a projection asks for, rather than deriving reference keys from the indexes](2026-09-11-reference-name-narrowing.md) | optimization | accepted | #1547, #1554, PR #1548 |
