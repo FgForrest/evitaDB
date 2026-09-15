@@ -187,8 +187,19 @@ The originally planned fix: compute each empty difference at planning time so th
 **Chosen: Option A, gated.** The fan-out is a property of which key the reference partitions by, and
 that property is already known to the planner before anything is computed — so the planner should
 choose. The gate (`MINIMAL_GAIN = 4`) exists because the owner-side count is an *upper* bound that the
-nested query narrows further, so a plain "fewer is better" comparison would take losing trades; the
-measured reverse-direction regression is what set the margin rather than a plain majority. The other
+nested query narrows further, so a plain "fewer is better" comparison would take losing trades.
+
+**Be precise about what is measured here, because the constants read as if they were tuned and they
+were not.** The reverse-direction regression above measures that a margin above 1 is *needed*, and
+that the gate must run on O(1) cardinalities before any candidate is collected. It does not set the
+margin's *size*: the two measured directions sit at roughly 75x and its inverse, so any threshold
+between about 2 and 40 would classify both identically. `MINIMAL_GAIN = 4` is a judgement inside that
+band, and no break-even ratio was ever measured. `MAX_CANDIDATE_OWNERS = 10 000` has no measurement
+behind it at all - it is a round ceiling on planning-time work, justified structurally (one formula is
+built per candidate owner at plan time, and 588 isolated translator runs there are still open) rather
+than empirically. Both err toward declining a rewrite that would have won, which costs time and never
+correctness - but neither should be cited as evidence, and if either ever looks like it is refusing
+good trades, there is nothing to defend it with. The other
 end becoming the cheaper one is not an exception to handle but the normal case in the reverse
 direction, which is why one implementation serves both.
 
@@ -218,7 +229,7 @@ cardinality were lifted without settling how the two index families line up.
   (`FilteringFormulaHierarchyEntityPredicate:149-153`) and no index selection ever runs.
 - `ReferencedOwnerExistenceFormula` — the emitted formula.
 - `AttributeIsTranslator#createNullFilterableSubtractionFormula` / `#createNullUniqueSubtractionFormula` —
-  the null-subtraction skip, plus `subtractionIsProvablyEmpty`.
+  the null-subtraction skip, plus `subtractionMayYieldRecords`.
 
 **Preconditions, all of which must hold** (each is a deliberate fall-through, not an oversight):
 non-empty scope set; neither end allows duplicate cardinality; a counterpart exists and is available;
@@ -337,16 +348,17 @@ predates this work.
 
 ## Consequences & open follow-ups
 
-### Six defects the test suite found, and what fixed them
+### Eight defects the test suite found, and what fixed them
 
 A 124-row suite was built specifically to attack this change (four functional classes plus two unit
-classes, over one shared `BIDI_REWRITE` dataset). It found seven defects, four of them in this work.
+classes, over one shared `BIDI_REWRITE` dataset). It found eight defects, five of them in this work.
 
 | Defect | Fix |
 |---|---|
 | Cross-scope owners silently dropped: the counterpart records its half of a relation in the **target's** scope, so reading it in the owner's requested scopes misses every cross-scope row | `counterpartScopes` — the requested scopes plus every scope where *both* ends are indexed, which is exactly where `isRelationMaintained` permits such a row. Applied to candidate collection, per-owner index lookup **and** the bare narrowing set; any two of the three still drops the owner |
 | The nested `entityHaving` plan was installed as a **visible child**, so passes that match nodes by reference name, facet id or price accessor claimed target-namespace nodes as the owner's — leaking facets into the owner's reference summary and inflating hierarchy statistics | wrap it in a terminal `DeferredFormula`, the same device `HavingTranslatorHelper` already uses on the ordinary path. One change closed the facet leak at both `COUNTS` and `IMPACT` depth *and* the hierarchy inflation |
 | The `attributeIs(NULL)` skip made `userFilter` collapse at **planning** time, and `FormulaOptimizer` replaced the collapsed container with a bare `EmptyFormula` — destroying the marker `ExtraResultPlanningVisitor` uses to compute the mandatory baseline, so facet and reference summaries were computed against nothing | the first fix special-cased `UserFilterFormula` in `FormulaOptimizer.Optimizer.apply`. It was **incomplete** — it guarded the container but not the conjunction *inside* it — and has been replaced by the `NonCollapsibleFormula` marker: `2026-09-15-non-collapsible-formula-marker`. Both shapes also fix a pre-existing instance on the unmatched-unique-lookup path |
+| The `attributeIs(NULL)` skip also broke `UserFilterRelaxer`'s `EmptyFormula` **sentinel**, which meant "relaxation peeled everything, every record passes" and now also arrived meaning "this filter matches nothing". A query returning 0 records reported the histogram of the **entire catalog** | separate the two states at the seam: `relax` returns `Optional<Formula>`, and a `userFilter` already holding `EmptyFormula` on arrival is kept rather than dropped. Measured green on `e554d9974^` and red after, so this work introduced it: `2026-09-15-non-collapsible-formula-marker` |
 | The cost gate summed candidate cardinalities per scope, double-counting an owner announced in two scopes and declining plans up to twice as cheap as the threshold | fold the gate onto the true union cardinality, which the candidate collection already computes |
 
 **One inefficiency of this work was also closed**, and is recorded here because its fix introduced a
