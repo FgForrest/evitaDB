@@ -33,28 +33,25 @@ import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Currency;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
-import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.PRICE;
+import static io.evitadb.test.TestTags.QUERY;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link PriceContractSerializablePredicate} verifying
@@ -956,6 +953,195 @@ class PriceContractSerializablePredicateTest {
 				expectedPriceLists,
 				richerCopy.getPriceListsAsSet()
 			);
+		}
+
+		/**
+		 * Builds a request asking for the passed content mode, additional price lists and accompanying prices, and
+		 * nothing else - the three inputs the enrichment decision is made from.
+		 *
+		 * @param requiresEntityPrices       price content mode the request asks for
+		 * @param fetchesAdditionalPriceLists additional price lists the request asks for
+		 * @param accompanyingPrices         accompanying prices the request asks for, NULL for none
+		 * @return the request stub
+		 */
+		@Nonnull
+		private static EvitaRequest enrichmentRequest(
+			@Nonnull PriceContentMode requiresEntityPrices,
+			@Nonnull String[] fetchesAdditionalPriceLists,
+			@Nullable AccompanyingPrice[] accompanyingPrices
+		) {
+			final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
+			Mockito.when(evitaRequest.isRequiresPriceLists()).thenReturn(true);
+			Mockito.when(evitaRequest.getRequiresPriceLists())
+				.thenReturn(new String[]{"basic"});
+			Mockito.when(evitaRequest.getFetchesAdditionalPriceLists())
+				.thenReturn(fetchesAdditionalPriceLists);
+			Mockito.when(evitaRequest.getAccompanyingPrices())
+				.thenReturn(
+					accompanyingPrices == null ? PricesContract.NO_ACCOMPANYING_PRICES : accompanyingPrices
+				);
+			Mockito.when(evitaRequest.getRequiresCurrency()).thenReturn(null);
+			Mockito.when(evitaRequest.getRequiresPriceValidIn()).thenReturn(null);
+			Mockito.when(evitaRequest.getRequiresEntityPrices()).thenReturn(requiresEntityPrices);
+			return evitaRequest;
+		}
+
+		/**
+		 * Builds a predicate already carrying the passed additional price lists in RESPECTING_FILTER mode.
+		 *
+		 * @param additionalPriceLists additional price lists the predicate already carries, NULL when it carries none
+		 * @return the predicate
+		 */
+		@Nonnull
+		private static PriceContractSerializablePredicate predicateCarrying(@Nullable String[] additionalPriceLists) {
+			final Set<String> priceListsAsSet = new HashSet<>();
+			priceListsAsSet.add("basic");
+			if (additionalPriceLists != null) {
+				priceListsAsSet.addAll(Arrays.asList(additionalPriceLists));
+			}
+			return new PriceContractSerializablePredicate(
+				PriceContentMode.RESPECTING_FILTER, null, null, new String[]{"basic"},
+				additionalPriceLists, null,
+				priceListsAsSet,
+				QueryPriceMode.WITH_TAX, false
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"returns same when the requested price lists are already carried"
+		)
+		void shouldReturnSameInstanceWhenRequestedPriceListsAlreadyCovered() {
+			// a non-identical predicate is what tells the fetch pipeline the entity has to be enriched, so building
+			// an equal copy here would trigger a storage round trip that provably fetches nothing
+			final PriceContractSerializablePredicate predicate =
+				predicateCarrying(new String[]{"basic", "reference"});
+
+			assertSame(
+				predicate,
+				predicate.createRicherCopyWith(
+					enrichmentRequest(PriceContentMode.RESPECTING_FILTER, new String[]{"basic"}, null)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"creates richer copy when a requested price list is missing"
+		)
+		void shouldCreateRicherCopyWhenSomeRequestedPriceListsAreMissing() {
+			final PriceContractSerializablePredicate predicate =
+				predicateCarrying(new String[]{"basic"});
+
+			final PriceContractSerializablePredicate richerCopy = predicate.createRicherCopyWith(
+				enrichmentRequest(PriceContentMode.RESPECTING_FILTER, new String[]{"basic", "vip"}, null)
+			);
+
+			assertNotSame(predicate, richerCopy);
+			assertTrue(richerCopy.getPriceListsAsSet().contains("vip"));
+		}
+
+		@Test
+		@DisplayName(
+			"creates richer copy when accompanying prices are requested"
+		)
+		void shouldCreateRicherCopyWhenAccompanyingPricesAreRequested() {
+			// accompanying prices always widen the predicate, even when every price list they need is carried
+			final PriceContractSerializablePredicate predicate =
+				predicateCarrying(new String[]{"basic", "reference"});
+
+			final PriceContractSerializablePredicate richerCopy = predicate.createRicherCopyWith(
+				enrichmentRequest(
+					PriceContentMode.RESPECTING_FILTER,
+					new String[]{"basic"},
+					new AccompanyingPrice[]{new AccompanyingPrice("discount", "reference")}
+				)
+			);
+
+			assertNotSame(predicate, richerCopy);
+		}
+
+		@Test
+		@DisplayName(
+			"repeated enrichment does not accumulate duplicate price lists"
+		)
+		void shouldNotAccumulateDuplicatePriceListsAcrossRepeatedEnrichment() {
+			PriceContractSerializablePredicate predicate =
+				predicateCarrying(new String[]{"basic", "reference"});
+
+			for (int i = 0; i < 3; i++) {
+				predicate = predicate.createRicherCopyWith(
+					enrichmentRequest(PriceContentMode.RESPECTING_FILTER, new String[]{"reference"}, null)
+				);
+			}
+
+			assertArrayEquals(
+				new String[]{"basic", "reference"},
+				predicate.getAdditionalPriceLists()
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"creates richer copy when no additional price lists were carried"
+		)
+		void shouldCreateRicherCopyWhenNoAdditionalPriceListsWereCarried() {
+			// nothing carried means nothing covered, so even a single requested price list widens the predicate
+			final PriceContractSerializablePredicate predicate = predicateCarrying(null);
+
+			assertNotSame(
+				predicate,
+				predicate.createRicherCopyWith(
+					enrichmentRequest(PriceContentMode.RESPECTING_FILTER, new String[]{"reference"}, null)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"a narrower request never narrows the price content mode"
+		)
+		void shouldKeepWiderContentModeWhenNothingWidens() {
+			// createRicherCopyWith only ever widens: a request for a narrower content mode that adds nothing else
+			// leaves the predicate exactly as it was, prices included
+			final PriceContractSerializablePredicate predicate =
+				new PriceContractSerializablePredicate(
+					PriceContentMode.ALL, null, null, new String[]{"basic"},
+					new String[]{"basic", "reference"}, null,
+					new HashSet<>(Arrays.asList("basic", "reference")),
+					QueryPriceMode.WITH_TAX, false
+				);
+
+			final PriceContractSerializablePredicate richerCopy = predicate.createRicherCopyWith(
+				enrichmentRequest(PriceContentMode.RESPECTING_FILTER, new String[]{"basic"}, null)
+			);
+
+			assertSame(predicate, richerCopy);
+			assertEquals(PriceContentMode.ALL, richerCopy.getPriceContentMode());
+		}
+
+		@Test
+		@DisplayName(
+			"a narrower request that widens something else still keeps the wider content mode"
+		)
+		void shouldKeepWiderContentModeWhenSomethingElseWidens() {
+			// all three ways out of "this predicate is already at least as wide" have to agree: enrichment never
+			// takes prices away, so adding a price list must not also drop the content mode back to the request's
+			final PriceContractSerializablePredicate predicate =
+				new PriceContractSerializablePredicate(
+					PriceContentMode.ALL, null, null, new String[]{"basic"},
+					new String[]{"basic"}, null,
+					new HashSet<>(List.of("basic")),
+					QueryPriceMode.WITH_TAX, false
+				);
+
+			final PriceContractSerializablePredicate richerCopy = predicate.createRicherCopyWith(
+				enrichmentRequest(PriceContentMode.RESPECTING_FILTER, new String[]{"basic", "vip"}, null)
+			);
+
+			assertNotSame(predicate, richerCopy);
+			assertEquals(PriceContentMode.ALL, richerCopy.getPriceContentMode());
+			assertTrue(richerCopy.getPriceListsAsSet().contains("vip"));
 		}
 	}
 }

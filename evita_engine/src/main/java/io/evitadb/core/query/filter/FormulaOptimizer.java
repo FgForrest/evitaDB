@@ -30,6 +30,7 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
+import io.evitadb.core.query.algebra.NonCollapsibleFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.index.bitmap.Bitmap;
@@ -37,6 +38,8 @@ import io.evitadb.index.bitmap.Bitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 
@@ -135,6 +138,54 @@ public class FormulaOptimizer extends FormulaCloner implements FormulaPostProces
 	}
 
 	/**
+	 * Memoizes, per node, whether its subtree holds a {@link NonCollapsibleFormula}.
+	 *
+	 * Keyed by identity - which is what a plain `HashMap` gives here, because no formula this optimizer can reach
+	 * overrides `equals` or `hashCode`. {@link io.evitadb.core.query.algebra.AbstractFormula} does not, and the one
+	 * {@link Formula} in the engine that does - `MutableFormula`, which delegates both to its wrapped
+	 * `FacetGroupFormula` - is built solely by `AbstractFacetFormulaGenerator` during facet-summary generation, long
+	 * after this class has finished with the filtering tree. Reachability is the property being relied on here, not
+	 * the base class: a future formula that overrides equality *and* appears in a filter tree would silently turn this
+	 * memo into a value-keyed one and let two structurally equal subtrees share an answer.
+	 */
+	private final Map<Formula, Boolean> nonCollapsibleSubTrees = new HashMap<>();
+
+	/**
+	 * Returns TRUE when `formula` is a {@link NonCollapsibleFormula} or holds one anywhere beneath it.
+	 *
+	 * **The check has to be transitive.** The carrier is rarely a direct child of the container whose collapse
+	 * would destroy it: `userFilter(facetHaving(...), attributeIs(..., NULL))` plans as a `UserFilterFormula`
+	 * wrapping a *single* `AndFormula`, because `UserFilterTranslator` folds every child into one conjunction via
+	 * `FutureNotFormula#postProcess`. The facet carrier therefore sits two levels below the `userFilter`, and a
+	 * rule that only inspected direct children would miss it.
+	 *
+	 * The optimizer walks bottom-up and memoizes each node as it is asked about, so the whole pass stays linear in
+	 * the size of the tree rather than rescanning a subtree per conjunctive container.
+	 *
+	 * @param formula node to test, together with everything beneath it
+	 * @return TRUE when the subtree carries information later query phases read off the tree structure
+	 */
+	boolean holdsNonCollapsibleFormula(@Nonnull Formula formula) {
+		if (formula instanceof NonCollapsibleFormula nonCollapsibleFormula
+			&& nonCollapsibleFormula.isNonCollapsible()) {
+			return true;
+		}
+		final Boolean memoized = this.nonCollapsibleSubTrees.get(formula);
+		if (memoized != null) {
+			return memoized;
+		}
+		boolean result = false;
+		for (final Formula innerFormula : formula.getInnerFormulas()) {
+			if (holdsNonCollapsibleFormula(innerFormula)) {
+				result = true;
+				break;
+			}
+		}
+		this.nonCollapsibleSubTrees.put(formula, result);
+		return result;
+	}
+
+	/**
 	 * Returns the optimized clone of the input formula tree.
 	 *
 	 * @return optimized formula tree, never {@code null}
@@ -181,6 +232,20 @@ public class FormulaOptimizer extends FormulaCloner implements FormulaPostProces
 				for (final Formula innerFormula : formula.getInnerFormulas()) {
 					// Any EmptyFormula inside AND makes the whole conjunction unsatisfiable.
 					if (innerFormula instanceof EmptyFormula) {
+						// Collapsing the container is a pure win for filtering - same record set, smaller tree -
+						// which is exactly why it is easy to miss that it destroys anything reading the tree's
+						// *structure*: the `userFilter` marker extra-result planning relaxes against, a facet
+						// selection, a histogram range carrier. Those consumers do not fail loudly when a carrier
+						// disappears; a dropped facet selection simply reports `requested = false` for a facet the
+						// user did request. So a container holding a carrier anywhere beneath it is returned
+						// unchanged and left to compute empty on its own, which it still does - the `EmptyFormula`
+						// child makes the conjunction unsatisfiable however many siblings it has, and
+						// `AbstractFormula#computeSortedConjunctionBitmaps` reaches that child first (zero cost,
+						// zero cardinality) and short-circuits without ever computing the carrier beside it.
+						// The cast is safe: `Optimizer.INSTANCE` is installed only by this class's constructor.
+						if (((FormulaOptimizer) formulaCloner).holdsNonCollapsibleFormula(formula)) {
+							return formula;
+						}
 						// in conjunctive scope, replace the entire container with an empty formula
 						return EmptyFormula.INSTANCE;
 					}
@@ -198,7 +263,17 @@ public class FormulaOptimizer extends FormulaCloner implements FormulaPostProces
 						}
 					}
 				}
-				return impactfulChild;
+				// every child was empty, so the disjunction is empty - it is NOT absent. Returning `null` here would
+				// instruct the cloner to remove this node from its parent, and an enclosing conjunction would then
+				// widen to its surviving siblings instead of emptying (`A AND nothing` degrading to `A`) - the same
+				// failure the `NotFormula` branch above guards against, and one this project has shipped once.
+				// Today the branch is unreachable: every collapsed child is the one `EmptyFormula#INSTANCE`
+				// (private constructor), `AbstractFormula` defines no `equals`/`hashCode`, so the cloner's
+				// identity-keyed `LinkedHashSet` merges them into a single entry, `childrenHaveNotChanged` turns
+				// false and the clone path rewrites the container instead. That is three separate facts holding it
+				// up, none of them visible from here - so the case is answered rather than left to them.
+				// `EmptyFormula` and not an exception: "every disjunct is empty" is a legitimate logical state.
+				return impactfulChild == null ? EmptyFormula.INSTANCE : impactfulChild;
 			} else if (formula instanceof NotFormula notFormula) {
 				// DeMorgan's law: S \ (A OR B) -> (S \ A) AND (S \ B)
 				Formula subtracted = notFormula.getSubtractedFormula();

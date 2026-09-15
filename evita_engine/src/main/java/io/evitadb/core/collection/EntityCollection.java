@@ -123,6 +123,7 @@ import io.evitadb.core.catalog.VolatileStateProjection;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
+import io.evitadb.core.buffer.StorageAccessScope;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.QueryPlanningContext;
@@ -1819,10 +1820,15 @@ public final class EntityCollection implements
 					partiallyLoadedEntity.getPricePredicate(),
 					// propagate original date time
 					partiallyLoadedEntity.getAlignedNow(),
-					// propagate information about I/O fetch count
+					// provenance of the data this read produced - recordable only from a committed snapshot
+					materialisedCatalogId(),
+					materialisedCatalogVersion(),
+					// the reads this enrichment performed itself; the ones that produced its input stay owed by the
+					// input decorator and are resolved only if somebody asks for the aggregate
 					entityWithFetchCount.ioFetchCount(),
-					// propagate information about I/O fetched bytes
-					entityWithFetchCount.ioFetchedBytes()
+					entityWithFetchCount.ioFetchedBytes(),
+					partiallyLoadedEntity,
+					entityWithFetchCount.readRecords()
 				);
 			}
 		} else {
@@ -3076,6 +3082,50 @@ public final class EntityCollection implements
 	}
 
 	/**
+	 * Tells whether data read from this collection right now come from a committed, immutable catalog snapshot -
+	 * the only situation in which the catalog version is a token that moves whenever the data move, and therefore
+	 * the only situation in which it can be recorded as an entity's provenance.
+	 *
+	 * Both conditions are load-bearing. A warming-up catalog never advances its version at all
+	 * ({@link Catalog#setVersion(long)} asserts an open transaction and warm-up opens none), so equal versions stop
+	 * implying equal bytes the moment anything is written. Inside a transaction the reader sees an overlay that no
+	 * version describes: the catalog still reports the version the transaction is based on, which is exactly the
+	 * version every concurrent reader of the committed snapshot sits at - and if the transaction rolls back, the
+	 * data it produced never existed anywhere.
+	 *
+	 * @return TRUE when a read performed now yields data belonging to a committed catalog snapshot
+	 */
+	private boolean readsCommittedSnapshot() {
+		return this.catalog.getCatalogState() == CatalogState.ALIVE && !Transaction.isTransactionAvailable();
+	}
+
+	/**
+	 * Returns the identity to record as the provenance of data materialised from this collection right now, or NULL
+	 * when there is no committed snapshot to attribute them to.
+	 *
+	 * @return catalog identity to stamp on a freshly materialised decorator
+	 */
+	@Nullable
+	private UUID materialisedCatalogId() {
+		return readsCommittedSnapshot() ? this.catalog.getCatalogId() : null;
+	}
+
+	/**
+	 * Returns the version to record as the provenance of data materialised from this collection right now, or
+	 * {@link ServerEntityDecorator#UNKNOWN_CATALOG_VERSION} when there is no committed snapshot to attribute them to.
+	 *
+	 * This is deliberately *not* the version a storage read is performed at - that one is always
+	 * {@link Catalog#getVersion()}, whatever the state. The two differ precisely in the cases this method exists to
+	 * catch, and collapsing them into a single local reintroduces the staleness the provenance rule prevents.
+	 *
+	 * @return catalog version to stamp on a freshly materialised decorator
+	 */
+	private long materialisedCatalogVersion() {
+		return readsCommittedSnapshot() ?
+			this.catalog.getVersion() : ServerEntityDecorator.UNKNOWN_CATALOG_VERSION;
+	}
+
+	/**
 	 * Limits the server entity based on the specified request requirements. This method applies or extends various
 	 * predicates to the server entity to ensure that only the required information is included in the response.
 	 * The data present in the internal entity are not modified in any way.
@@ -3116,10 +3166,12 @@ public final class EntityCollection implements
 			newPricePredicate,
 			// propagate original date time
 			entity.getAlignedNow(),
-			// propagate original I/O fetch count
-			entity.getIoFetchCount(),
-			// propagate original I/O fetched bytes
-			entity.getIoFetchedBytes()
+			// narrowing reads nothing, so the data keep the provenance of the entity being narrowed
+			entity.getCatalogId(),
+			entity.getCatalogVersion(),
+			// this decorator performs no I/O of its own - it only narrows the predicates of an entity that is
+			// already in memory, so the whole statistic is owed by the entity it wraps and is resolved lazily
+			0, 0, entity, null
 		);
 	}
 
@@ -3130,8 +3182,12 @@ public final class EntityCollection implements
 	 *
 	 * @param sealedEntity the entity to be enriched
 	 * @param evitaRequest the request containing parameters for enriching the entity
-	 * @return an enriched ServerEntityDecorator instance based on the provided entity and request
+	 * @return an enriched ServerEntityDecorator instance based on the provided entity and request - possibly the very
+	 * instance that was passed in, when the request widens none of its predicates and its data are known to be
+	 * current
 	 * @throws EntityAlreadyRemovedException if the entity has been removed
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException if the entity demonstrably came from another catalog -
+	 * entity versions are numbered per entity, so a foreign entity cannot be enriched here at all
 	 */
 	@Nonnull
 	private ServerEntityDecorator enrichEntityInternal(
@@ -3139,6 +3195,20 @@ public final class EntityCollection implements
 		@Nonnull EvitaRequest evitaRequest
 	) throws EntityAlreadyRemovedException {
 		final ServerEntityDecorator partiallyLoadedEntity = (ServerEntityDecorator) sealedEntity;
+		// an entity that demonstrably belongs to another catalog cannot be enriched here at all. The enrichment
+		// reuses the parts the input decorator already holds whenever the *entity* version of the stored body
+		// matches, and entity versions are numbered per entity - so two catalogs' primary key 1 routinely agree on
+		// it and the foreign entity would be handed back as if it were this catalog's own
+		final UUID entityCatalogId = partiallyLoadedEntity.getCatalogId();
+		Assert.isTrue(
+			entityCatalogId == null || entityCatalogId.equals(this.catalog.getCatalogId()),
+			() -> "Entity `" + partiallyLoadedEntity.getType() + "` with primary key `" +
+				partiallyLoadedEntity.getPrimaryKeyOrThrowException() + "` was fetched from a different catalog " +
+				"than `" + this.catalog.getName() + "` and cannot be enriched by this session!"
+		);
+		// the version every storage read below is performed at - unconditional, whatever the catalog state, and
+		// deliberately NOT the provenance stamped on the result; see materialisedCatalogVersion()
+		final long catalogVersion = this.catalog.getVersion();
 		// return decorator that hides information not requested by original query
 		final LocaleSerializablePredicate newLocalePredicate = partiallyLoadedEntity.createLocalePredicateRicherCopyWith(evitaRequest);
 		final HierarchySerializablePredicate newHierarchyPredicate = partiallyLoadedEntity.createHierarchyPredicateRicherCopyWith(evitaRequest);
@@ -3146,10 +3216,47 @@ public final class EntityCollection implements
 		final AssociatedDataValueSerializablePredicate newAssociatedDataPredicate = partiallyLoadedEntity.createAssociatedDataPredicateRicherCopyWith(evitaRequest);
 		final ReferenceContractSerializablePredicate newReferenceContractPredicate = partiallyLoadedEntity.createReferencePredicateRicherCopyWith(evitaRequest);
 		final PriceContractSerializablePredicate newPriceContractPredicate = partiallyLoadedEntity.createPricePredicateRicherCopyWith(evitaRequest);
+
+		// every `createRicherCopyWith` returns the very same instance when the request asks for nothing the entity
+		// does not already carry, so identity across all six is an exact test for "this entity is already at the
+		// requested scope" - provided each is compared against the predicate it was copied from, which is what
+		// `appliesExactly` does. An entity a query returned is narrowed by `limitEntity` and keeps the scope it was
+		// fetched at as the narrowing predicate's underlying one, so comparing against the *fetched* scope instead
+		// pits a copy of the narrowing predicate against the underlying one and can never match, whatever the
+		// request asks for. Enriching such an entity anyway costs a storage round trip that provably fetches
+		// nothing - all it can do is re-read the body to compare versions.
+		//
+		// That comparison is worth skipping only when its outcome is known in advance, which is what the first
+		// clause below establishes. A committed catalog snapshot is immutable, so an entity carrying the identity
+		// and version of the snapshot this collection would read has, by construction, the same stored bytes that
+		// read would return; and the check costs a pointer compare and a `long` compare instead of the body read it
+		// replaces, which is the whole point (comparing *entity* versions would need that read). Everything that is
+		// not such a snapshot - a warming-up catalog, a transaction overlay, a cache restore - carries
+		// UNKNOWN_CATALOG_VERSION and fails this clause at the source, so the shortcut never sees it.
+		//
+		// The transaction clause covers the remaining direction: an entity materialised from the committed snapshot
+		// *before* a transaction opened still carries that snapshot honestly, but a reader inside the transaction
+		// must see the overlay, which no snapshot describes.
+		//
+		// When either clause fails the method falls through to the ordinary enrichment, which re-reads every part at
+		// the version this collection reads, refetching the whole entity whenever the stored entity version has
+		// moved on, and still raises EntityAlreadyRemovedException for an entity deleted meanwhile. Stale input is
+		// therefore refreshed rather than rejected - deliberately not a conflict exception, which is a writer-side
+		// signal and would turn any concurrent commit into a failed read.
+		if (partiallyLoadedEntity.isMaterialisedFrom(this.catalog.getCatalogId(), catalogVersion) &&
+			!Transaction.isTransactionAvailable() &&
+			partiallyLoadedEntity.appliesExactly(
+				newLocalePredicate, newHierarchyPredicate, newAttributePredicate,
+				newAssociatedDataPredicate, newReferenceContractPredicate, newPriceContractPredicate
+			)
+		) {
+			return partiallyLoadedEntity;
+		}
+
 		final EntitySchema internalSchema = getInternalSchema();
 
 		final EntityWithFetchCount entityWithFetchCount = this.persistenceService.enrichEntity(
-			this.catalog.getVersion(),
+			catalogVersion,
 			// use all data from existing entity
 			partiallyLoadedEntity,
 			newHierarchyPredicate,
@@ -3181,10 +3288,15 @@ public final class EntityCollection implements
 			newPriceContractPredicate,
 			// propagate original date time
 			partiallyLoadedEntity.getAlignedNow(),
-			// propagate information about I/O fetch count
+			// provenance of the data this enrichment produced - recordable only from a committed snapshot
+			materialisedCatalogId(),
+			materialisedCatalogVersion(),
+			// the reads this enrichment performed itself; the ones that produced its input stay owed by the input
+			// decorator and are resolved only if somebody asks for the aggregate
 			entityWithFetchCount.ioFetchCount(),
-			// propagate information about I/O fetched bytes
-			entityWithFetchCount.ioFetchedBytes()
+			entityWithFetchCount.ioFetchedBytes(),
+			partiallyLoadedEntity,
+			entityWithFetchCount.readRecords()
 		);
 	}
 
@@ -3327,8 +3439,14 @@ public final class EntityCollection implements
 			new ReferenceContractSerializablePredicate(evitaRequest),
 			new PriceContractSerializablePredicate(evitaRequest, contextAvailable),
 			evitaRequest.getAlignedNow(),
+			// provenance of the data this read produced - recordable only from a committed snapshot, which a
+			// mutation result never is: in ALIVE a write needs a transaction, and WARMING_UP is not ALIVE
+			materialisedCatalogId(),
+			materialisedCatalogVersion(),
 			fullEntityWithCount.ioFetchCount(),
-			fullEntityWithCount.ioFetchedBytes()
+			fullEntityWithCount.ioFetchedBytes(),
+			null,
+			fullEntityWithCount.readRecords()
 		);
 	}
 
@@ -3959,6 +4077,25 @@ public final class EntityCollection implements
 		@Nullable
 		@Override
 		public <T extends StoragePart> T fetch(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
+			final StorageAccessScope cache = StorageAccessScope.getIfActive();
+			return cache == null ?
+				doFetch(catalogVersion, primaryKey, containerType) :
+				cache.fetch(
+					this, catalogVersion, containerType, primaryKey, null,
+					() -> doFetch(catalogVersion, primaryKey, containerType)
+				);
+		}
+
+		/**
+		 * Performs the actual read of a storage part addressed by its numeric key.
+		 *
+		 * @param catalogVersion version of the catalog the record is read at
+		 * @param primaryKey     numeric key of the record
+		 * @param containerType  type of the requested storage part
+		 * @return the record or NULL when it does not exist
+		 */
+		@Nullable
+		private <T extends StoragePart> T doFetch(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
 			return EntitySchemaContext.executeWithSchemaContext(
 				this.schemaSupplier.get(),
 				() -> this.dataStoreReader.fetch(catalogVersion, primaryKey, containerType)
@@ -3977,6 +4114,31 @@ public final class EntityCollection implements
 		@Nullable
 		@Override
 		public <T extends StoragePart, U extends Comparable<U>> T fetch(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer) {
+			final StorageAccessScope cache = StorageAccessScope.getIfActive();
+			return cache == null ?
+				doFetch(catalogVersion, originalKey, containerType, compressedKeyComputer) :
+				cache.fetch(
+					this, catalogVersion, containerType, Long.MIN_VALUE, originalKey,
+					() -> doFetch(catalogVersion, originalKey, containerType, compressedKeyComputer)
+				);
+		}
+
+		/**
+		 * Performs the actual read of a storage part addressed by a non-numeric key.
+		 *
+		 * @param catalogVersion         version of the catalog the record is read at
+		 * @param originalKey            key of the record before compression
+		 * @param containerType          type of the requested storage part
+		 * @param compressedKeyComputer  translates `originalKey` into the compressed numeric key
+		 * @return the record or NULL when it does not exist
+		 */
+		@Nullable
+		private <T extends StoragePart, U extends Comparable<U>> T doFetch(
+			long catalogVersion,
+			@Nonnull U originalKey,
+			@Nonnull Class<T> containerType,
+			@Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer
+		) {
 			return EntitySchemaContext.executeWithSchemaContext(
 				this.schemaSupplier.get(),
 				() -> this.dataStoreReader.fetch(catalogVersion, originalKey, containerType, compressedKeyComputer)

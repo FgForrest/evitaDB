@@ -42,6 +42,8 @@ import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefiniti
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart.MissingReferenceBehavior;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
@@ -49,17 +51,19 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import org.junit.jupiter.api.Tag;
+import java.util.Set;
+import java.util.function.UnaryOperator;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.when;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.EXPORT;
 import static io.evitadb.test.TestTags.REFERENCE;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests for ReferencesStoragePart focusing on sorted order of references and key operations.
@@ -999,6 +1003,139 @@ class ReferencesStoragePartTest {
 		for (int i = 1; i < arr.length; i++) {
 			assertTrue(
 				ReferenceKey.FULL_COMPARATOR.compare(arr[i - 1].getReferenceKey(), arr[i].getReferenceKey()) < 0);
+		}
+	}
+
+	@Nested
+	@DisplayName("Narrowed view refusals")
+	class NarrowedViewTest {
+		private static final String DECODED = "brand";
+		private static final String UNDECODED = "category";
+
+		/**
+		 * Builds a part carrying only the references of the `brand` name, the shape a read narrowed by a reference
+		 * name filter produces. The size is the one the **whole** record occupied, which is what the narrowing
+		 * promises to keep reporting.
+		 */
+		@Nonnull
+		private static ReferencesStoragePart narrowedPart() {
+			return new ReferencesStoragePart(
+				1, 2,
+				new Reference[]{
+					newRef(DECODED, 100, 1, group(900), false),
+					newRef(DECODED, 101, 2, group(901), false)
+				},
+				512,
+				Set.of(DECODED)
+			);
+		}
+
+		/**
+		 * The same references, but carrying the entity's complete reference set - the counterfactual every refusal
+		 * below is measured against.
+		 */
+		@Nonnull
+		private static ReferencesStoragePart completePart() {
+			return new ReferencesStoragePart(
+				1, 2,
+				new Reference[]{
+					newRef(DECODED, 100, 1, group(900), false),
+					newRef(DECODED, 101, 2, group(901), false)
+				},
+				512
+			);
+		}
+
+		@Test
+		@DisplayName("reports itself incomplete and names what it carries")
+		void shouldReportItselfIncomplete() {
+			final ReferencesStoragePart narrowed = narrowedPart();
+			assertFalse(narrowed.isComplete());
+			assertEquals(Set.of(DECODED), narrowed.getDecodedReferenceNames());
+
+			final ReferencesStoragePart complete = completePart();
+			assertTrue(complete.isComplete());
+			assertNull(complete.getDecodedReferenceNames());
+		}
+
+		@Test
+		@DisplayName("answers normally about a reference name it did decode")
+		void shouldAnswerAboutDecodedReferenceName() {
+			// a guard that rejects too much turns the optimisation into an outage - everything the narrowing kept
+			// must stay as answerable as it was before
+			final ReferencesStoragePart narrowed = narrowedPart();
+
+			assertArrayEquals(new int[]{100, 101}, narrowed.getReferencedIds(DECODED));
+			assertArrayEquals(new int[]{100, 101}, narrowed.getDistinctReferencedIds(DECODED));
+			assertArrayEquals(new int[]{900, 901}, narrowed.getDistinctReferencedGroupIds(DECODED));
+			assertTrue(narrowed.contains(new ReferenceKey(DECODED, 100, 1)));
+			assertTrue(narrowed.findReference(new ReferenceKey(DECODED, 100, 1)).isPresent());
+		}
+
+		@Test
+		@DisplayName("refuses questions that span every reference name")
+		void shouldRefuseWholePartQuestions() {
+			// both of these are called exclusively from the write path, so a failure here is the alarm that says
+			// a narrowed part escaped the read path
+			final ReferencesStoragePart narrowed = narrowedPart();
+
+			assertThrows(GenericEvitaInternalError.class, narrowed::isEmpty);
+			assertThrows(GenericEvitaInternalError.class, () -> narrowed.isLocalePresent(Locale.ENGLISH));
+			assertThrows(GenericEvitaInternalError.class, narrowed::assignMissingIdsAndSort);
+		}
+
+		@Test
+		@DisplayName("refuses to be modified")
+		void shouldRefuseModification() {
+			final ReferencesStoragePart narrowed = narrowedPart();
+
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> narrowed.replaceOrAddReference(
+					new ReferenceKey(DECODED, 100, 1),
+					UnaryOperator.identity(),
+					() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("refuses questions about a reference name it did not decode")
+		void shouldRefuseQuestionsAboutUndecodedReferenceName() {
+			final ReferencesStoragePart narrowed = narrowedPart();
+
+			assertThrows(GenericEvitaInternalError.class, () -> narrowed.getReferencedIds(UNDECODED));
+			assertThrows(GenericEvitaInternalError.class, () -> narrowed.getDistinctReferencedIds(UNDECODED));
+			assertThrows(GenericEvitaInternalError.class, () -> narrowed.getDistinctReferencedGroupIds(UNDECODED));
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> narrowed.contains(new ReferenceKey(UNDECODED, 100, 1))
+			);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> narrowed.findReference(new ReferenceKey(UNDECODED, 100, 1))
+			);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> narrowed.findReferencesOrThrowException(new ReferenceKey(UNDECODED, 100))
+			);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> narrowed.findAllReferences(new ReferenceKey(UNDECODED, 100), Droppable::exists)
+			);
+		}
+
+		@Test
+		@DisplayName("hands over what it carries through the unguarded accessors")
+		void shouldExposeNarrowedReferencesThroughUnguardedAccessors() {
+			// entity composition reads the array itself and must keep working - a well meant guard here would break
+			// every narrowed read
+			final ReferencesStoragePart narrowed = narrowedPart();
+
+			assertEquals(2, narrowed.getReferences().length);
+			final Collection<ReferenceContract> asCollection = narrowed.getReferencesAsCollection();
+			assertEquals(2, asCollection.size());
+			assertEquals(512, narrowed.sizeInBytes().orElse(-1));
 		}
 	}
 

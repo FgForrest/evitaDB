@@ -30,6 +30,7 @@ import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.NonCacheableFormula;
+import io.evitadb.core.query.algebra.NonCollapsibleFormula;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -51,9 +52,22 @@ import static java.util.Optional.ofNullable;
  * in the tree when {@link FacetStatisticsDepth#IMPACT} is requested to be computed and original requirements need to
  * be altered to compute alternative searches.
  *
+ * Carries the {@link NonCollapsibleFormula} marker because two production passes locate these nodes by type and read
+ * an output off finding them: `ReferenceSummaryOfReferenceTranslator:312` walks for them under each
+ * {@link UserFilterFormula} to set the facet `requested` flag, and `FilterFormulaFacetOptimizeVisitor:61` matches on
+ * them directly.
+ *
+ * Marking {@link FacetHavingFormula} alone is **not** enough, and the reason is easy to miss:
+ * `FacetHavingTranslator:429` builds `FacetHavingFormula(referenceName, composed)` where `composed` is an `Or`, an
+ * `And` or a `CombinedFacetFormula` over the groups, and `FormulaOptimizer#holdsNonCollapsibleFormula` searches a
+ * node's subtree *downwards*. That intermediate container holds no marked formula unless the groups themselves carry
+ * the marker, so a marked carrier sitting above it protects nothing. Marking here rather than on the container is
+ * also what keeps `CombinedFacetFormula` correct without marking it: the transitive check finds these groups beneath
+ * it.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface FacetGroupFormula extends NonCacheableFormula {
+public interface FacetGroupFormula extends NonCacheableFormula, NonCollapsibleFormula {
 
 	/**
 	 * Returns a compact string representation of a facet group formula showing per-facet bitmap sizes.

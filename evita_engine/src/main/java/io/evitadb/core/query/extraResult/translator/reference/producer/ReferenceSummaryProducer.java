@@ -49,7 +49,6 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.expression.trigger.HistogramValueDescriptor;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.common.RangeCarrierGroup;
@@ -494,14 +493,14 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 				}
 			}
 			// peel attribute-range carriers so a slider does not contract its own `[min, max]` span;
-			// facet and price carriers stay so the histogram still reflects those picks. Relaxer's
-			// EmptyFormula sentinel means every carrier was peeled — map to null so the accumulator
-			// spans the catalog-wide superset instead of AND-ing against an empty bitmap.
-			final Formula relaxedBaseline = UserFilterRelaxer.relax(
+			// facet and price carriers stay so the histogram still reflects those picks. An EMPTY Optional
+			// means every carrier was peeled and nothing mandatory remains - only that maps to null, the
+			// catalog-wide superset. A relaxed tree that is itself empty means the opposite, a filter that
+			// matches nothing, and is passed through so the accumulator reports no histogram at all rather
+			// than the whole catalog's.
+			final Formula histogramBaseline = UserFilterRelaxer.relax(
 				this.filterFormula, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM
-			);
-			final Formula histogramBaseline = relaxedBaseline == EmptyFormula.INSTANCE
-				? null : relaxedBaseline;
+			).orElse(null);
 			// resolve the request governing each reference that carries histograms exactly once, so the facet
 			// sorter, the group entity fetcher and the group predicate the accumulator asks for can never disagree
 			// about which constraint governs the reference - that drift is what made a histogram-only group come

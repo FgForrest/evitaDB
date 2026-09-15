@@ -1,7 +1,7 @@
 ---
 title: Share schema-derived attribute keys and resolve reference schemas once per run instead of per mutation
 date: 2026-08-05
-updated: 2026-09-04 07:15
+updated: 2026-09-11 13:50
 status: accepted
 kind: optimization
 issues: [1390]
@@ -9,7 +9,7 @@ prs: [1395]
 areas: [evita_api/requestResponse/schema/dto, evita_api/requestResponse/data, evita_engine/index/mutation]
 supersedes: []
 superseded-by: []
-relates: [2026-07-27-write-path-performance-tuning, 2026-08-01-bplustree-cursor-free-insert-path, 2026-08-10-stored-value-normalization-split, 2026-09-04-millisecond-temporal-precision]
+relates: [2026-07-27-write-path-performance-tuning, 2026-08-01-bplustree-cursor-free-insert-path, 2026-08-10-stored-value-normalization-split, 2026-09-04-millisecond-temporal-precision, 2026-09-11-reference-name-narrowing]
 ---
 
 # Share schema-derived attribute keys and resolve reference schemas once per run instead of per mutation

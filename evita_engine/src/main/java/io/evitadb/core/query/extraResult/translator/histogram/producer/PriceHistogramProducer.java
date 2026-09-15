@@ -106,9 +106,14 @@ public class PriceHistogramProducer implements ExtraResultProducer {
 		// peel price-between carriers so the baseline does not contract under the user's own price handles; attribute
 		// and facet carriers stay, so the histogram still narrows by slider and facet picks. The relaxed formula is the
 		// "what prices would be reachable if the user cleared the price slider" set — the span the histogram needs.
+		// `orElse(EmptyFormula.INSTANCE)`, deliberately NOT the `orElse(null)` the two attribute-histogram callers
+		// use: this producer never substitutes a baseline for the filter. The computer below always receives the
+		// genuine `filteringFormula`, and the relaxed tree only ever *widens* it, so an unsatisfiable filter already
+		// yields an empty histogram that `fabricate` drops. Folding both relaxation outcomes onto one value here
+		// therefore changes no answer, and keeps the supplementation check in `getPriceHistogramComputer` intact.
 		final Formula relaxedBaseline = UserFilterRelaxer.relax(
 			this.filteringFormula, RangeCarrierGroup.PRICE_HISTOGRAM
-		);
+		).orElse(EmptyFormula.INSTANCE);
 		final PriceHistogramComputer computer = getPriceHistogramComputer(relaxedBaseline);
 		computer.initialize(context);
 		final CacheableHistogramContract optimalHistogram = context.analyse(computer).compute();

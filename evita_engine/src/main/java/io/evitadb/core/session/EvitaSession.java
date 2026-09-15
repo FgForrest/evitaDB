@@ -733,8 +733,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 			// emit the event
 			enrichEvent.finish(
-				enrichedEntity.getIoFetchCount(),
-				enrichedEntity.getIoFetchedBytes()
+				enrichedEntity::getIoFetchCount,
+				enrichedEntity::getIoFetchedBytes
 			).commit();
 
 			//noinspection unchecked
@@ -753,8 +753,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			);
 			// emit the event
 			enrichEvent.finish(
-				enrichedEntity.getIoFetchCount(),
-				enrichedEntity.getIoFetchedBytes()
+				enrichedEntity::getIoFetchCount,
+				enrichedEntity::getIoFetchedBytes
 			).commit();
 
 			//noinspection unchecked
@@ -793,8 +793,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 			// emit the event
 			enrichEvent.finish(
-				enrichedEntity.getIoFetchCount(),
-				enrichedEntity.getIoFetchedBytes()
+				enrichedEntity::getIoFetchCount,
+				enrichedEntity::getIoFetchedBytes
 			).commit();
 
 			//noinspection unchecked
@@ -814,8 +814,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 			// emit the event
 			enrichEvent.finish(
-				enrichedEntity.getIoFetchCount(),
-				enrichedEntity.getIoFetchedBytes()
+				enrichedEntity::getIoFetchCount,
+				enrichedEntity::getIoFetchedBytes
 			).commit();
 
 			//noinspection unchecked
@@ -2227,12 +2227,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			.map(serverEntityDecoratorExtractor);
 
 		fetchEvent.finish(
-			serverEntityDecorator
-				.map(ServerEntityDecorator::getIoFetchCount)
-				.orElse(0),
-			serverEntityDecorator
-				.map(ServerEntityDecorator::getIoFetchedBytes)
-				.orElse(0)
+			() -> serverEntityDecorator.map(ServerEntityDecorator::getIoFetchCount).orElse(0),
+			() -> serverEntityDecorator.map(ServerEntityDecorator::getIoFetchedBytes).orElse(0)
 		).commit();
 
 		return resultEntity;

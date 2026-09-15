@@ -33,9 +33,14 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-09-15 | [Mark the formulas an optimiser may not collapse, rather than special-casing the container that holds them](2026-09-15-non-collapsible-formula-marker.md) | fix | accepted | #1547, PR #1548, PR #1568 |
+| 2026-09-15 | [Answer a referenceHaving from whichever end of a bidirectional reference is cheaper, and stop emitting provably-empty null subtractions](2026-09-15-bidirectional-reference-counterpart-rewrite.md) | optimization | accepted | #1547, #1583, #1584, #1585, PR #1548, PR #1568 |
 | 2026-09-14 | [A resource handed to a JVM-lifetime registry is released by its owner's close, never by the registry](2026-09-14-closed-engine-resource-release.md) | fix | accepted | — |
 | 2026-09-13 | [Off-record number reads must not restore a buffer limit the read has invalidated](2026-09-13-off-record-reads-must-not-restore-an-invalidated-buffer-limit.md) | fix | accepted | #1551, PR #1571, PR #1572 |
+| 2026-09-13 | [Define the per-entity I/O statistic as standalone cost and attribute it at the read, not by walking the returned object graph](2026-09-13-per-entity-io-statistics-attribution.md) | refactor | accepted | #1547, #1561, #1562, #1563, #1564, #1565, #1566, #1567, PR #1548 |
 | 2026-09-12 | [Restore a live catalog to an earlier version by composing backup, restore, activate and replace](2026-09-12-restore-catalog-to-earlier-version.md) | feature | accepted | #1553 |
+| 2026-09-12 | [Derive the enrichment shortcut from committed-snapshot provenance, not from a caller-supplied flag](2026-09-12-committed-snapshot-provenance-for-enrichment.md) | fix | accepted | #1547, #1559, PR #1548 |
+| 2026-09-11 | [Decode only the reference names a projection asks for, rather than deriving reference keys from the indexes](2026-09-11-reference-name-narrowing.md) | optimization | accepted | #1547, #1554, PR #1548 |
 | 2026-09-09 | [Bound the cross-entity facet walk with a size-thresholded owner→partition index, not a blanket one](2026-09-09-sibling-resolver-partition-cardinality.md) | optimization | accepted | #1529, PR #1557 |
 | 2026-09-08 | [Conditional histogram triggers answer per contribution, and the mutated entity's PK is pinned inside the scope container](2026-09-08-conditional-histogram-per-contribution-verdicts.md) | fix | accepted | #1470, PR #1555 |
 | 2026-09-08 | [A warm-up schema change refused by validation raises the unpublishable barrier, so the catalog deactivates and recovers by reload rather than by an undo](2026-09-08-warm-up-invalid-schema-refuses-to-publish.md) | fix | accepted | #1466, PR #1520 |
