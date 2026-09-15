@@ -1,11 +1,11 @@
 ---
 title: Push release_* branches from CI as a GitHub App on the ruleset bypass list, not as GITHUB_TOKEN
 date: 2026-09-15
-updated: 2026-09-15 21:55
+updated: 2026-09-15 22:10
 status: accepted
 kind: infrastructure
 issues: [1591]
-prs: [1592]
+prs: [1592, 1593]
 areas: [.github/workflows]
 supersedes: [2026-08-02-ci-release-pipeline-patch-versioning-fix]
 superseded-by: []
@@ -68,7 +68,8 @@ Register an App under the organization with repository permissions Contents and 
   dispatch step and its `actions: write` permission disappear and the pipeline has one trigger
   path instead of two; admins stay at "pull requests only".
 - **Cons:** an App registration and a private key live outside version control and must be
-  rotated by hand; the fix only takes effect once the workflow file is on `master`.
+  rotated by hand; the fix only takes effect once the workflow file is on `master` — a re-run of
+  the failed run reuses the workflow file at the commit that triggered it, so it would fail again.
 
 ### Option B — deploy key on the bypass list (declined)
 
@@ -145,8 +146,9 @@ community request); until then the App stays.
   the admin role in `pull_request` mode and `current_user_can_bypass` reported
   `pull_requests_only` for a fine-grained admin PAT — confirming that the ruleset already blocked
   direct user pushes and that the only broken piece was the workflow's identity.
-- Live verification is the first `dev` → `master` merge carrying this change: `CI Master branch`
-  must fast-forward `release_2026-2` as the App, `CI Release branch` must start from the push
+- Live verification is the `CI Master branch` run triggered by merging PR #1593, the workflow-only
+  cherry-pick to `master` (its merge commit touches `.github/**`, so the run starts on its own):
+  it must fast-forward `release_2026-2` as the App, `CI Release branch` must start from the push
   trigger exactly once, and `DockerHub-deploy` must follow. Nothing from the failed run needs
   cleanup — it died at the push, before any Maven Central deploy.
 
@@ -173,4 +175,5 @@ community request); until then the App stays.
 ## Timeline
 
 - **2026-09-15** — release cut rejected by the ruleset; organization owner registered and
-  installed the App; workflows changed; issue #1591 opened; PR #1592 opened.
+  installed the App; workflows changed; issue #1591 opened; PR #1592 (dev, with this record) and
+  PR #1593 (master, workflow files only, cut the pending release without merging `dev`) opened.
