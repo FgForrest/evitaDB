@@ -1990,16 +1990,6 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * The internal caching key.
-	 *
-	 * `equals` and `hashCode` are overridden on purpose: the record's generated implementations compare array
-	 * components by identity, which would make every key unique and turn the cache into a memory leak that never
-	 * hits.
-	 *
-	 * @param indexKeys  array of {@link EntityIndex#getId()} that were used for result calculation
-	 * @param constraint the constraint that has been evaluated on those indexes
-	 */
-	/**
 	 * Stands in for a memoized NULL in {@link #constraintScopeCache}, so that "decided, and the answer is no plan"
 	 * is distinguishable from "not decided yet" without a second map lookup.
 	 */
@@ -2033,6 +2023,12 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 	}
 
+	/**
+	 * The internal caching key.
+	 *
+	 * @param indexKeys  array of {@link EntityIndex#getId()} that were used for result calculation
+	 * @param constraint the constraint that has been evaluated on those indexes
+	 */
 	private record InternalCacheKey(
 		@Nonnull long[] indexKeys,
 		@Nonnull Constraint<?> constraint

@@ -160,7 +160,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 				} else {
 					final Formula subtracted = filterIndex.getAllRecordsFormula();
 					final Formula superSet = it.getAllPrimaryKeysFormula();
-					if (!subtractionIsProvablyEmpty(subtracted, superSet)) {
+					if (subtractionMayYieldRecords(subtracted, superSet)) {
 						subtractions.add(new NotFormula(subtracted, superSet));
 					}
 				}
@@ -170,7 +170,13 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	}
 
 	/**
-	 * Tells whether `superSet \ subtracted` can be seen to be empty without computing it.
+	 * Tells whether `superSet \ subtracted` may still yield records, and therefore whether building a
+	 * {@link NotFormula} for it is worth the nodes it costs.
+	 *
+	 * Answers conservatively, and the asymmetry is deliberate: FALSE is returned only when emptiness is *certain*,
+	 * so anything this method cannot settle cheaply is reported as "may yield records" and left to the execution
+	 * phase, which computes the real difference. A wrong FALSE would silently drop records from the answer; a
+	 * wrong TRUE costs only the nodes it was trying to save.
 	 *
 	 * An index whose every record carries a value for the attribute contributes nothing to an `attributeIs(NULL)`
 	 * disjunction, yet it still costs a {@link NotFormula} and its two operands in the tree - and the enclosing
@@ -185,19 +191,22 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	 *
 	 * @param subtracted the records that do carry a value
 	 * @param superSet   all records tracked by the index
-	 * @return TRUE only when the difference is certainly empty
+	 * @return FALSE only when the difference is certainly empty, TRUE whenever it may hold records
 	 */
-	private static boolean subtractionIsProvablyEmpty(@Nonnull Formula subtracted, @Nonnull Formula superSet) {
+	private static boolean subtractionMayYieldRecords(@Nonnull Formula subtracted, @Nonnull Formula superSet) {
 		if (superSet instanceof EmptyFormula) {
-			return true;
+			// nothing is tracked here, so nothing can remain after the subtraction
+			return false;
 		}
 		if (!(subtracted instanceof ConstantFormula subtractedConstant) ||
 			!(superSet instanceof ConstantFormula superSetConstant)
 		) {
 			// the operands are not plain bitmaps - leave the subtraction to the execution phase
-			return false;
+			return true;
 		}
-		return RoaringBitmapBackedBitmap.getRoaringBitmap(subtractedConstant.getDelegate())
+		// `contains` answers TRUE when every tracked record carries a value - the difference is then empty,
+		// which is precisely the case this method reports as FALSE, hence the negation
+		return !RoaringBitmapBackedBitmap.getRoaringBitmap(subtractedConstant.getDelegate())
 			.contains(RoaringBitmapBackedBitmap.getRoaringBitmap(superSetConstant.getDelegate()));
 	}
 
@@ -252,7 +261,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 				if (uniqueIndex != null) {
 					final Formula subtracted = uniqueIndex.getRecordIdsFormula();
 					final Formula superSet = it.getAllPrimaryKeysFormula();
-					if (!subtractionIsProvablyEmpty(subtracted, superSet)) {
+					if (subtractionMayYieldRecords(subtracted, superSet)) {
 						subtractions.add(new NotFormula(subtracted, superSet));
 					}
 				}
