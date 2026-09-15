@@ -34,7 +34,6 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
@@ -366,12 +365,13 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 
 		// peel attribute-range carriers from userFilter so the baseline does not contract under the user's own slider
 		// picks; facet (FACET_IMPACT) and price-range (PRICE_HISTOGRAM) carriers stay, so the histogram still reflects
-		// those narrowings. Relaxer's EmptyFormula sentinel means every carrier was peeled — map it to null so the
-		// histogram spans the entire catalog.
-		final Formula relaxedBaseline = UserFilterRelaxer.relax(
+		// those narrowings. An EMPTY Optional means relaxation removed every carrier and nothing mandatory is left -
+		// only that maps to `null`, the catalog-wide baseline. A relaxed tree that is itself empty means the opposite,
+		// an unsatisfiable filter, and is passed through so `hasSenseWithMandatoryFilter` omits the histogram rather
+		// than reporting the whole catalog for a query that matched nothing.
+		final Formula histogramBaselineFormula = UserFilterRelaxer.relax(
 			optimizedFormula, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM
-		);
-		final Formula histogramBaselineFormula = relaxedBaseline == EmptyFormula.INSTANCE ? null : relaxedBaseline;
+		).orElse(null);
 
 		return new AttributeHistogram(
 			this.histogramRequests.entrySet()

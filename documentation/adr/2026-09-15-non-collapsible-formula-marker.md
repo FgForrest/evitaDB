@@ -1,7 +1,7 @@
 ---
 title: Mark the formulas an optimiser may not collapse, rather than special-casing the container that holds them
 date: 2026-09-15
-updated: 2026-09-15 08:58
+updated: 2026-09-15 13:05
 status: accepted
 kind: fix
 issues: [1547]
@@ -234,18 +234,84 @@ is built only by `AbstractFacetFormulaGenerator:686` during facet-summary genera
 never meet. The memo's JavaDoc should be read as "no formula reachable by `FormulaOptimizer` overrides
 them", which is the property actually relied on.
 
-**Emptiness has two incompatible meanings on one singleton, and this record does not settle it.**
-`UserFilterRelaxer#relax`'s JavaDoc requires callers to read a returned `EmptyFormula` as *"no
-mandatory filter remains / all records pass, never as empty result"*, and the live call sites obey it
-(`ReferenceSummaryProducer:429` maps it to `null` to span the catalog). `UserFilterRelaxerTest:119-121`
-comments the same sentinel as *"so downstream AND-chains short-circuit correctly"* — an empty result.
-Both readings are in the tree. This matters more now than before, because the `attributeIs(NULL)` skip
-means a user's own query can put an `EmptyFormula` inside a `userFilter`, which `containsEmptyFormula`'s
-JavaDoc explicitly assumes cannot happen. **No defect was demonstrated**: facet counts are computed
-against `getFilteringFormulaWithoutUserFilter()` and so never see it, and the histogram baselines that
-do see it are *designed* to span the catalog when the user filter is relaxed away. A test asserting the
-opposite for facet counts was written, measured against the two green rows that pin the documented
-design, and deleted as a wrong expectation.
+**Emptiness had two incompatible meanings on one singleton, and it was a live wrong-answer defect.**
+An earlier revision of this record described the ambiguity and concluded *"no defect was
+demonstrated"*. That conclusion was wrong, and it was reached through the exact trap recorded two
+paragraphs above: the row that would have shown it asserted `assertNotNull` on the extra result,
+which cannot fail. Both producers build their wrapper unconditionally, and a producer is registered
+from the query's `require` rather than from its filter (`QueryPlanner:562`), so no collapse can make
+an extra result absent.
+
+`UserFilterRelaxer#relax` returned `EmptyFormula.INSTANCE` both when relaxation had peeled every
+carrier — *"no mandatory filter remains, every record passes"* — and, after the `attributeIs(NULL)`
+skip, when the tree handed to it was **already** unsatisfiable — *"matches nothing"*. Its JavaDoc
+defended the single value with *"genuine empty-result formulas can never surface here, because the
+relaxer only removes nodes, it never synthesises an empty one"*: true of what `relax` **produces**,
+silent on what it may be **handed**. Folding at planning time made `EmptyFormula` a routine input,
+and `AttributeHistogramProducer:374` mapped it to `null`, the catalog-wide baseline.
+
+Measured: `filterBy(attributeIsNull(alwaysSet))` returned **0 records together with the histogram of
+all 8 buckets** — byte-identical to the same query carrying no filter at all. Likewise for the
+`userFilter` form. The pre-skip engine (`git show e554d9974^`) answers *"histogram missing
+entirely"*, so this optimisation **introduced** the wrong answer rather than exposing an older one.
+
+The reference that settles such a row is **not** a no-filter baseline. The collapsed query *equals*
+that baseline — which is the bug — so comparing against it pins the defect as correct. The reference
+is a control reaching the same empty answer at **execution** time with its tree intact: two
+`attributeEquals` on one attribute naming different values, so both leaves are populated and their
+conjunction is empty. Its estimated cost must additionally be asserted non-zero, because a single
+leaf whose index lookup is empty is priced at `estimated costs 0` and is therefore indistinguishable
+from a filter the planner folded away.
+
+The fix separates the two states **at the seam** instead of at each caller: `relax` returns
+`Optional<Formula>`, empty meaning "all peeled", present meaning a real tree that may itself be
+unsatisfiable. It also had to change the **drop decision inside the cloner**, where a `userFilter`
+that already contained `EmptyFormula` on arrival is now kept rather than dropped. Both halves were
+required — the return-type change alone fixes the bare-`EmptyFormula` root and leaves the
+`UserFilterFormula(EmptyFormula)` shape broken by a second path through `containsEmptyFormula`, and
+the two shapes fail with identical output, which is what hid the second one.
+
+The keep-rule then needed a third correction, and the way it was found is the point. The first version
+tested "is there an `EmptyFormula` anywhere below this node", justified by the claim that
+`FormulaOptimizer` never leaves one inside a surviving disjunction. **That claim is false**, and
+`FormulaOptimizerTest#orWithTwoNonEmptyAndOneEmpty_shouldKeepOrWithNonEmpty` already pinned the
+opposite: an `OrFormula` with two or more non-empty children is returned untouched, dead child
+included. In a disjunction `EmptyFormula` is the identity element, so the scope-blind test declared
+`userFilter(or(slider, liveAlternative, EmptyFormula))` unsatisfiable, skipped relaxation, and let the
+user's own slider contract the histogram it exists to span - the mirror image of the defect being
+fixed, and reachable at both the keep site and the drop site. An adversarial review constructed the
+shape and verified it against compiled classes; the 2529-row sweep had passed the broken version
+clean, because no existing row puts a folded constraint in an `or` beside a live alternative.
+
+The test is therefore **scope-aware**: a disjunction is empty only when every alternative is, a
+conjunction when any child is, and anything else answers "not provably empty" - `NotFormula` being the
+reason, since `NOT(empty)` is the superset. It reuses `FilterByVisitor#isConjunctiveFormula` so the
+relaxer and the optimizer cannot drift apart on what "conjunctive" means. Note single-child carriers
+(`AttributeFormula`, `FacetHavingFormula`, `SelectionFormula`) cannot discriminate the two rules at
+all - with one child the two coincide - so only multi-child shapes test this.
+
+`PriceHistogramProducer` deliberately keeps the collapsed mapping: it never substitutes a baseline for
+the filter, so both states coincide there and no answer changes.
+
+**The two error directions are not symmetric**, which is what makes the conservative default defensible rather
+than merely cautious. Every caller re-checks the returned formula semantically, so *under*-detecting an emptiness
+costs a wasted peel and nothing else - the real computation still finds it. *Over*-detecting is the only direction
+that yields a wrong answer. A known under-detection is left in place on those grounds: `AndFormula` and `OrFormula`
+have bitmap-only constructors that leave `getInnerFormulas()` empty, so the early return answers "not provably
+empty" for them regardless of their contents. An adversarial pass then failed to break the scope-aware version
+across six constructed shapes, having confirmed by source that every `CONJUNCTIVE_FORMULAS` member really does
+compute an intersection - `ScopeContainerFormula` included, which was the one classified-but-possibly-not-AND risk.
+
+**Open — the conditional `AttributeFormula` arm may now be dead code.** With the seam fixed, forcing
+`AttributeFormula#isNonCollapsible()` to `false` changes no observable across the 134 targeted rows:
+without the marker the conjunction collapses to a bare `EmptyFormula`, which the relaxer now reports
+as present-and-unsatisfiable, so the histogram is omitted either way. That arm's only behavioural
+proof was a row whose observable existed *because* of the defect it was compensating for; the row now
+pins the corrected behaviour instead
+(`shouldOmitTheAttributeHistogramWhenAUserFilterSiblingCollapsesAtPlanningTime`, which carries a
+second query so an absence assertion cannot pass vacuously). Measured on the targeted set only, not
+the broad sweep — removing the arm is a separate decision and is deliberately not taken here.
+
 
 ## Related work
 

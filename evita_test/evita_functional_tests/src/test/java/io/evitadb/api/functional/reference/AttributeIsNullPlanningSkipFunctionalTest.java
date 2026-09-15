@@ -55,12 +55,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
@@ -73,7 +73,7 @@ import static io.evitadb.api.query.QueryConstraints.attributeHistogram;
 import static io.evitadb.api.query.QueryConstraints.attributeIs;
 import static io.evitadb.api.query.QueryConstraints.attributeIsNotNull;
 import static io.evitadb.api.query.QueryConstraints.attributeIsNull;
-import static io.evitadb.api.query.QueryConstraints.attributeLessThanEquals;
+import static io.evitadb.api.query.QueryConstraints.attributeBetween;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.debug;
 import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
@@ -98,6 +98,7 @@ import static io.evitadb.utils.AssertionUtils.assertResultIs;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -771,8 +772,30 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 
 	/**
 	 * Extra-result producers walk the planned filter tree. An `EmptyFormula` standing where an `AttributeFormula`
-	 * used to stand is a shape they may never have been handed before, so this row asserts the query survives it:
-	 * empty record data, and every requested extra result produced rather than a null or an exception.
+	 * used to stand is a shape they may never have been handed before, so this row asserts the query survives it -
+	 * and, beyond that, that it *answers the same thing*.
+	 *
+	 * `assertNotNull` on an extra result cannot carry that claim, which is why this row no longer makes it. Both
+	 * producers build their wrapper unconditionally (`AttributeHistogramProducer:351` returns a new
+	 * `AttributeHistogram` even over zero entries; `ReferenceSummaryProducer:332` is `@Nonnull`), and a producer is
+	 * registered from the query's `require` rather than from its filter (`QueryPlanner:562`), so no collapse can
+	 * make either extra result absent - the assertion would hold just as well in the failure case.
+	 *
+	 * What discriminates is a control that reaches the same empty answer by the other route:
+	 *
+	 * - **A** - `attributeIsNull(alwaysSet)`, folded away during *planning* by the optimisation this class pins.
+	 * - **B** - no `filterBy` at all, the catalog-wide anchor. A is *not* asserted to equal it; it is here to prove
+	 *   the comparison below can fail, because the plausible wrong answer for A is precisely "spans the catalog".
+	 * - **C** - two `attributeEquals` on `alwaysSet` naming *different* values. Each leaf matches exactly one
+	 *   category, so both are populated, yet their conjunction is empty: C answers the empty set like A while the
+	 *   planner still hands the producers a real tree. Its estimated cost is asserted non-zero, and that is the
+	 *   whole reason C is shaped this way - a control that is empty because one leaf matched nothing is priced at
+	 *   zero exactly like a folded filter (measured), so it could not be told apart from A and the comparison
+	 *   would have been an agreement of a formula tree with itself.
+	 *
+	 * A and C differ only in *which phase discovered the emptiness*, so no extra result may tell them apart.
+	 * Whether their shared answer is the catalog-wide one or the narrow one is deliberately not asserted: C is by
+	 * construction the route the optimisation did not touch, so whatever it reports is the unchanged behaviour.
 	 */
 	@DisplayName("Should still produce extra results when the filter collapses to empty")
 	@UseDataSet(BIDI_REWRITE)
@@ -785,34 +808,92 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 			live(originalCategories).stream().allMatch(it -> it.getAttribute(ATTR_ALWAYS_SET) != null),
 			"Fixture guard: every live category must carry `" + ATTR_ALWAYS_SET + "` or the filter never collapses!"
 		);
+		// Two DISTINCT values of `alwaysSet`, which the fixture sets to "always-<pk>" - each matches exactly one
+		// category. Their conjunction is empty, but both leaves are populated, and that is what keeps query C's
+		// estimated cost above zero. A control built from a single leaf matching nothing is priced at zero just
+		// like a folded filter, so it could not be told apart from A at all.
+		final List<String> twoDistinctValues = live(originalCategories).stream()
+			.map(it -> (String) it.getAttribute(ATTR_ALWAYS_SET))
+			.filter(Objects::nonNull)
+			.distinct()
+			.sorted()
+			.limit(2)
+			.toList();
+		assertEquals(
+			2, twoDistinctValues.size(),
+			"Fixture guard: `" + ATTR_ALWAYS_SET + "` must hold at least two distinct values or query C cannot be " +
+				"built from two populated leaves!"
+		);
 
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final EvitaResponse<EntityReference> result = queryEntities(
+				final EvitaResponse<EntityReference> collapsing = queryEntities(
 					session, Entities.CATEGORY,
 					filterBy(attributeIsNull(ATTR_ALWAYS_SET)),
 					referenceSummary(),
 					attributeHistogram(HISTOGRAM_BUCKET_COUNT, ATTR_SOMETIMES_SET),
 					queryTelemetry()
 				);
+				final EvitaResponse<EntityReference> baseline = queryEntities(
+					session, Entities.CATEGORY,
+					null,
+					referenceSummary(),
+					attributeHistogram(HISTOGRAM_BUCKET_COUNT, ATTR_SOMETIMES_SET)
+				);
+				final EvitaResponse<EntityReference> control = queryEntities(
+					session, Entities.CATEGORY,
+					filterBy(
+						attributeEquals(ATTR_ALWAYS_SET, twoDistinctValues.get(0)),
+						attributeEquals(ATTR_ALWAYS_SET, twoDistinctValues.get(1))
+					),
+					referenceSummary(),
+					attributeHistogram(HISTOGRAM_BUCKET_COUNT, ATTR_SOMETIMES_SET),
+					queryTelemetry()
+				);
 
 				assertTrue(
-					result.getRecordData().isEmpty(),
-					"The collapsed filter must still answer with the empty set but returned " +
-						primaryKeysOf(result) + "!"
+					collapsing.getRecordData().isEmpty(),
+					"Query A must answer with the empty set but returned " + primaryKeysOf(collapsing) + "!"
 				);
-				assertNotNull(
-					result.getExtraResult(ReferenceSummary.class),
-					"The reference summary must be produced even when the filter collapsed at planning time!"
+				assertTrue(
+					control.getRecordData().isEmpty(),
+					"Query C must answer with the empty set to control for A but returned " +
+						primaryKeysOf(control) + "!"
 				);
-				assertNotNull(
-					result.getExtraResult(AttributeHistogram.class),
-					"The attribute histogram must be produced even when the filter collapsed at planning time!"
+				assertFilterWasNotFoldedAway(control, "C");
+
+				// the anchor: were B's own extra results empty, an A and a C that both produced nothing would agree
+				// and this row would pass while distinguishing nothing at all.
+				final long liveWithSometimesSet = live(originalCategories).stream()
+					.filter(it -> it.getAttribute(ATTR_SOMETIMES_SET) != null)
+					.count();
+				final List<BucketProjection> baselineHistogram = histogramProjectionOf(
+					baseline.getExtraResult(AttributeHistogram.class), ATTR_SOMETIMES_SET
 				);
-				assertNotNull(
-					result.getExtraResult(QueryTelemetry.class),
-					"The query telemetry must be produced even when the filter collapsed at planning time!"
+				assertEquals(
+					liveWithSometimesSet,
+					baselineHistogram.stream().mapToLong(BucketProjection::occurrences).sum(),
+					"The catalog-wide histogram must account for every live category carrying `" +
+						ATTR_SOMETIMES_SET + "` or the anchor is meaningless. Buckets were " + baselineHistogram + "!"
+				);
+				assertFalse(
+					referenceSummaryProjectionOf(baseline).isEmpty(),
+					"The catalog-wide reference summary must be non-empty or the anchor is meaningless!"
+				);
+
+				assertEquals(
+					referenceSummaryProjectionOf(control), referenceSummaryProjectionOf(collapsing),
+					"The reference summary depends on which phase discovered the empty set: A was folded at " +
+						"planning time, C emptied at execution time, and no extra result may tell the two apart."
+				);
+				assertEquals(
+					histogramProjectionOf(control.getExtraResult(AttributeHistogram.class), ATTR_SOMETIMES_SET),
+					histogramProjectionOf(collapsing.getExtraResult(AttributeHistogram.class), ATTR_SOMETIMES_SET),
+					"The attribute histogram depends on which phase discovered the empty set: A was folded at " +
+						"planning time, C emptied at execution time. An A that spans the whole catalog while C " +
+						"reports the narrow histogram is `AttributeHistogramProducer:374` mapping the " +
+						"`UserFilterRelaxer` sentinel - \"every carrier was peeled\" - onto \"no filter at all\"."
 				);
 				return null;
 			}
@@ -822,15 +903,22 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 	/**
 	 * Histogram production locates `AttributeFormula` nodes by attribute name in order to relax the user filter, and
 	 * the translator now hands it a bare `EmptyFormula` in a case that used to be rare and is now common. This row
-	 * pins what it does with it: the query does not throw, the record set is empty, and the histogram extra result
-	 * is still produced rather than omitted.
+	 * pins what it does with it.
 	 *
-	 * Its *content* is deliberately not asserted here, and that is a design statement rather than a gap. A histogram
-	 * is computed over the **relaxed** baseline — `UserFilterRelaxer` drops a user filter it has emptied, and
-	 * `ReferenceSummaryProducer:429` maps that sentinel to `null` so the accumulator spans the catalog-wide superset.
-	 * A histogram that still spans the catalog while the record set is empty is therefore the intended answer, the
-	 * same way facet counts are computed against `getFilteringFormulaWithoutUserFilter()`: both exist so the user can
-	 * see what releasing their own refinement would give them.
+	 * The observable is a comparison, not a presence check: `assertNotNull` on the extra result cannot fail, since
+	 * `AttributeHistogramProducer:351` constructs its wrapper unconditionally and the producer is registered from
+	 * the query's `require` rather than from its filter (`QueryPlanner:562`). Three queries make the claim
+	 * falsifiable, the same way the reference-summary rows below do it:
+	 *
+	 * - **A** - `userFilter(attributeIs(alwaysSet, NULL))`, folded away during *planning*.
+	 * - **B** - no `filterBy` at all, the catalog-wide anchor, present to prove the comparison can fail.
+	 * - **C** - a `userFilter` holding two `attributeEquals` on `alwaysSet` that name *different* values. Both
+	 *   leaves are populated so the filter is priced above zero, yet their conjunction is empty, so C empties at
+	 *   *execution*. `UserFilterRelaxer` peels only attribute-**range** carriers
+	 *   (`AttributeHistogramProducer:372-376`), so these plain `AttributeFormula` nodes survive into the producer
+	 *   exactly as A's would have before the fold.
+	 *
+	 * A and C differ only in which phase discovered the empty set, so their histograms must not be told apart.
 	 *
 	 * The histogram is requested for `sometimesSet` rather than for the collapsing attribute itself because
 	 * `alwaysSet` is a `String` and an attribute histogram requires a numeric attribute; `sometimesSet` is the only
@@ -847,27 +935,81 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 			live(originalCategories).stream().allMatch(it -> it.getAttribute(ATTR_ALWAYS_SET) != null),
 			"Fixture guard: every live category must carry `" + ATTR_ALWAYS_SET + "` or the filter never collapses!"
 		);
+		// Two DISTINCT values of `alwaysSet`, which the fixture sets to "always-<pk>" - each matches exactly one
+		// category. Their conjunction is empty, but both leaves are populated, and that is what keeps query C's
+		// estimated cost above zero. A control built from a single leaf matching nothing is priced at zero just
+		// like a folded filter, so it could not be told apart from A at all.
+		final List<String> twoDistinctValues = live(originalCategories).stream()
+			.map(it -> (String) it.getAttribute(ATTR_ALWAYS_SET))
+			.filter(Objects::nonNull)
+			.distinct()
+			.sorted()
+			.limit(2)
+			.toList();
+		assertEquals(
+			2, twoDistinctValues.size(),
+			"Fixture guard: `" + ATTR_ALWAYS_SET + "` must hold at least two distinct values or query C cannot be " +
+				"built from two populated leaves!"
+		);
 
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final EvitaResponse<EntityReference> result = queryEntities(
+				final EvitaResponse<EntityReference> collapsing = queryEntities(
 					session, Entities.CATEGORY,
 					filterBy(userFilter(attributeIs(ATTR_ALWAYS_SET, AttributeSpecialValue.NULL))),
 					attributeHistogram(HISTOGRAM_BUCKET_COUNT, ATTR_SOMETIMES_SET),
 					queryTelemetry()
 				);
-
-				assertTrue(
-					result.getRecordData().isEmpty(),
-					"The collapsed user filter must still answer with the empty set but returned " +
-						primaryKeysOf(result) + "!"
+				final EvitaResponse<EntityReference> baseline = queryEntities(
+					session, Entities.CATEGORY,
+					null,
+					attributeHistogram(HISTOGRAM_BUCKET_COUNT, ATTR_SOMETIMES_SET)
+				);
+				final EvitaResponse<EntityReference> control = queryEntities(
+					session, Entities.CATEGORY,
+					filterBy(
+						userFilter(
+							attributeEquals(ATTR_ALWAYS_SET, twoDistinctValues.get(0)),
+							attributeEquals(ATTR_ALWAYS_SET, twoDistinctValues.get(1))
+						)
+					),
+					attributeHistogram(HISTOGRAM_BUCKET_COUNT, ATTR_SOMETIMES_SET),
+					queryTelemetry()
 				);
 
-				final AttributeHistogram histogram = result.getExtraResult(AttributeHistogram.class);
-				assertNotNull(
-					histogram,
-					"The attribute histogram must be produced even when the user filter collapsed at planning time!"
+				assertTrue(
+					collapsing.getRecordData().isEmpty(),
+					"The collapsed user filter must still answer with the empty set but returned " +
+						primaryKeysOf(collapsing) + "!"
+				);
+				assertTrue(
+					control.getRecordData().isEmpty(),
+					"Query C must answer with the empty set to control for A but returned " +
+						primaryKeysOf(control) + "!"
+				);
+				assertFilterWasNotFoldedAway(control, "C");
+
+				final long liveWithSometimesSet = live(originalCategories).stream()
+					.filter(it -> it.getAttribute(ATTR_SOMETIMES_SET) != null)
+					.count();
+				final List<BucketProjection> baselineHistogram = histogramProjectionOf(
+					baseline.getExtraResult(AttributeHistogram.class), ATTR_SOMETIMES_SET
+				);
+				assertEquals(
+					liveWithSometimesSet,
+					baselineHistogram.stream().mapToLong(BucketProjection::occurrences).sum(),
+					"The catalog-wide histogram must account for every live category carrying `" +
+						ATTR_SOMETIMES_SET + "` or the anchor is meaningless. Buckets were " + baselineHistogram + "!"
+				);
+
+				assertEquals(
+					histogramProjectionOf(control.getExtraResult(AttributeHistogram.class), ATTR_SOMETIMES_SET),
+					histogramProjectionOf(collapsing.getExtraResult(AttributeHistogram.class), ATTR_SOMETIMES_SET),
+					"The attribute histogram depends on which phase discovered the empty set: A was folded at " +
+						"planning time, C emptied at execution time. An A that spans the whole catalog while C " +
+						"reports the narrow histogram is `AttributeHistogramProducer:374` mapping the " +
+						"`UserFilterRelaxer` sentinel - \"every carrier was peeled\" - onto \"no filter at all\"."
 				);
 				return null;
 			}
@@ -875,30 +1017,34 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 	}
 
 	/**
-	 * Pins the one carrier the `NonCollapsibleFormula` marker does **not** cover, because it turned out not to need
-	 * covering. `AttributeHistogramProducer:360-364` harvests the per-bucket `requested` predicate by walking
-	 * `FormulaFinder.find(userFilter, AttributeFormula.class, LookUp.DEEP)` and reading
-	 * `AttributeFormula#getRequestedPredicate()`, and that predicate is non-null on two unrelated shapes: on
-	 * `BetweenAttributeFormula` (which is an `AttributeRangeCarrierFormula` and therefore marked), and on a
-	 * **plain** `AttributeFormula` built by `AbstractAttributeComparisonTranslator:110` for
-	 * `attributeLessThan(Equals)` / `attributeGreaterThan(Equals)` over a numeric attribute — which carries no
-	 * marker at all.
+	 * A query whose `userFilter` is unsatisfiable must produce **no** attribute histogram - not the whole catalog's.
 	 *
-	 * The unmarked shape is what this row exercises, and it survives. **Why it survives was not established**, and
-	 * the obvious explanation has been ruled out: the histogram producer does *not* read a different tree from the
-	 * facet path — `QueryPlanner:575` hands `builder.getFilterFormula()` to `ExtraResultPlanningVisitor` and
-	 * `AttributeHistogramTranslator:90` forwards it on, so the `FilterFormulaAttributeOptimizeVisitor` pass at
-	 * `AttributeHistogramProducer:353` sits on top of the optimiser's output rather than replacing it. What remains
-	 * untested is the planned shape of this particular `userFilter`. The row therefore pins the behaviour and
-	 * deliberately claims no mechanism; if it ever turns red, establish that shape before reaching for the marker.
+	 * This row used to assert the opposite, and it was green for a bad reason. Its observable was the per-bucket
+	 * `requested` flag, and it had buckets to inspect at all only because `UserFilterRelaxer`'s "everything was
+	 * peeled" signal was indistinguishable from "the filter matches nothing": the producer read a collapsed filter
+	 * as *no filter at all* and computed the histogram across the entire catalog. Once those two states were
+	 * separated the histogram for this query correctly disappeared - which is also, measured, exactly what the
+	 * pre-optimisation engine returned for it.
 	 *
-	 * The record set is empty under every variant, so nothing about the returned entities can see this — the flag
-	 * is the only observable, exactly as for the facet `requested` flag.
+	 * Releasing the user's own slider cannot rescue this query. `attributeIs(alwaysSet, NULL)` is not a range
+	 * carrier, so `UserFilterRelaxer` never peels it, and it matches nothing however wide the slider is opened.
+	 * An omitted histogram is the correct answer here, not a degraded one.
+	 *
+	 * **Query B carries the falsifiability.** An absence assertion on its own would pass just as happily if
+	 * attribute histograms had stopped working altogether, so B runs the very same slider over the same fixture
+	 * *without* the collapsing sibling and requires the `requested` flag to discriminate. Read together they say
+	 * something neither says alone: the flag works, and A's histogram is missing because of the collapsing sibling
+	 * specifically.
+	 *
+	 * Note this row no longer demonstrates the conditional `AttributeFormula` arm of the `NonCollapsibleFormula`
+	 * marker, which it was originally written to cover - with the relaxer seam fixed, disabling that arm changes
+	 * no observable in this suite. Whether the arm still earns its place is an open question recorded in the ADR,
+	 * deliberately not answered here.
 	 */
-	@DisplayName("Should keep the histogram requested flag when a user-filter sibling collapses at planning time")
+	@DisplayName("Should omit the attribute histogram when a user-filter sibling collapses at planning time")
 	@UseDataSet(BIDI_REWRITE)
 	@Test
-	void shouldKeepTheHistogramRequestedFlagWhenAUserFilterSiblingCollapsesAtPlanningTime(
+	void shouldOmitTheAttributeHistogramWhenAUserFilterSiblingCollapsesAtPlanningTime(
 		Evita evita,
 		List<SealedEntity> originalCategories
 	) {
@@ -912,7 +1058,125 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 				.filter(Objects::nonNull)
 				.anyMatch(it -> it > HISTOGRAM_THRESHOLD),
 			"Fixture guard: some live category must hold `" + ATTR_SOMETIMES_SET + "` above " + HISTOGRAM_THRESHOLD +
-				" or every bucket would be requested and the assertion could not fail!"
+				" or query B's `requested` flag could not discriminate!"
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> collapsing = queryEntities(
+					session, Entities.CATEGORY,
+					filterBy(
+						userFilter(
+							attributeBetween(ATTR_SOMETIMES_SET, 1L, HISTOGRAM_THRESHOLD),
+							attributeIs(ATTR_ALWAYS_SET, AttributeSpecialValue.NULL)
+						)
+					),
+					attributeHistogram(HISTOGRAM_BUCKET_COUNT, ATTR_SOMETIMES_SET)
+				);
+				final EvitaResponse<EntityReference> sliderOnly = queryEntities(
+					session, Entities.CATEGORY,
+					filterBy(userFilter(attributeBetween(ATTR_SOMETIMES_SET, 1L, HISTOGRAM_THRESHOLD))),
+					attributeHistogram(HISTOGRAM_BUCKET_COUNT, ATTR_SOMETIMES_SET)
+				);
+
+				assertTrue(
+					collapsing.getRecordData().isEmpty(),
+					"The collapsing sibling must still empty the conjunction but query A returned " +
+						primaryKeysOf(collapsing) + "!"
+				);
+
+				// B FIRST - it is what makes A's absence mean anything. If the slider, the fixture or the
+				// `requested` predicate were broken, B fails here and A's missing histogram proves nothing.
+				final AttributeHistogram sliderOnlyResult = sliderOnly.getExtraResult(AttributeHistogram.class);
+				assertNotNull(sliderOnlyResult, "Query B must produce an attribute histogram extra result!");
+				final HistogramContract sliderOnlyBuckets = sliderOnlyResult.getHistogram(ATTR_SOMETIMES_SET);
+				assertNotNull(
+					sliderOnlyBuckets,
+					"Query B holds a satisfiable user filter, so `" + ATTR_SOMETIMES_SET + "` must have a histogram " +
+						"- without one this row cannot tell a correctly omitted histogram from a broken producer. " +
+						"The summary held " + sliderOnlyResult.getHistograms().keySet() + "."
+				);
+				// `attributeBetween` is deliberately the only shape the relaxer peels: the carrier set models
+				// the UI control, and a histogram slider is the two-bounded one. A one-sided
+				// `attributeLessThanEquals` is an ordinary filter, builds a plain `AttributeFormula`, and correctly
+				// narrows the histogram like any other constraint - so it cannot be used here, because every bucket
+				// would legitimately come back `requested` and the assertion below could not discriminate (measured
+				// - this row was first written that way). With the carrier peeled the baseline spans the catalog,
+				// so a bucket above the threshold must report NOT requested. `anyMatch(requested)` alone would be
+				// vacuous: a lost predicate falls back to `Functions::alwaysTrue` at
+				// `AttributeHistogramProducer:393-394` and flags every bucket.
+				assertTrue(
+					Arrays.stream(sliderOnlyBuckets.getBuckets()).anyMatch(bucket -> !bucket.requested()),
+					"Every bucket of query B reports `requested`, which is what the `alwaysTrue` fallback produces " +
+						"when no predicate reached the producer. Buckets were " +
+						Arrays.toString(sliderOnlyBuckets.getBuckets()) + "."
+				);
+				assertTrue(
+					Arrays.stream(sliderOnlyBuckets.getBuckets()).anyMatch(Bucket::requested),
+					"No bucket of query B reports `requested` at all, so the threshold no longer selects anything " +
+						"and the flag has stopped discriminating. Buckets were " +
+						Arrays.toString(sliderOnlyBuckets.getBuckets()) + "."
+				);
+
+				// A - the histogram must be GONE, not catalog-wide
+				final AttributeHistogram collapsingResult = collapsing.getExtraResult(AttributeHistogram.class);
+				assertNull(
+					collapsingResult == null ? null : collapsingResult.getHistogram(ATTR_SOMETIMES_SET),
+					"The user filter of query A matches nothing, so its histogram must be omitted entirely. A " +
+						"histogram here means `UserFilterRelaxer`'s ALL-PEELED signal is once again being read as " +
+						"\"no filter at all\", which spans the whole catalog for a query returning no records - " +
+						"compare against query B, whose buckets are " +
+						Arrays.toString(sliderOnlyBuckets.getBuckets()) + "."
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * The positive companion to
+	 * {@link #shouldOmitTheAttributeHistogramWhenAUserFilterSiblingCollapsesAtPlanningTime}, and the row that makes
+	 * that one mean what it claims.
+	 *
+	 * That row asserts a histogram is **absent**. On its own, absence is a weak observable: it would look identical
+	 * under a regression that omitted the histogram whenever a `userFilter` held more than one child, or whenever
+	 * an `attributeIs(NULL)` appeared anywhere in the query regardless of whether *its own* subtraction was
+	 * provably empty. Its query B controls only for "the slider and the flag work when nothing folded at all" -
+	 * it holds no null constraint, so it cannot separate those explanations.
+	 *
+	 * This row supplies the missing case: an `attributeIs(NULL)` that is **not** provably empty and therefore is
+	 * never folded. `uniqueSometimes` is set on 5 of the 12 categories, so `attributeIs(uniqueSometimes, NULL)`
+	 * selects the other 7 and stays a live constraint in the planned tree. The userFilter is consequently
+	 * satisfiable, and the histogram must be **produced** - and produced over the *relaxed* baseline, which is what
+	 * the assertion on buckets above the threshold pins: with the `attributeBetween` carrier peeled the baseline
+	 * spans every category the surviving `uniqueSometimes` constraint admits, so values above the slider's upper
+	 * bound must still appear. Were the carrier not peeled, the buckets would stop at the bound.
+	 *
+	 * Read the three together: the histogram survives a null constraint that does not collapse (here), it
+	 * disappears when one does (row A), and the machinery that produces it is independently sound (row B).
+	 */
+	@DisplayName("Should still produce the histogram when the null constraint is not provably empty")
+	@UseDataSet(BIDI_REWRITE)
+	@Test
+	void shouldStillProduceTheHistogramWhenTheNullConstraintIsNotProvablyEmpty(
+		Evita evita,
+		List<SealedEntity> originalCategories
+	) {
+		assertTrue(
+			live(originalCategories).stream().anyMatch(it -> it.getAttribute(ATTR_UNIQUE_SOMETIMES) != null),
+			"Fixture guard: some live category must carry `" + ATTR_UNIQUE_SOMETIMES + "` or the null constraint " +
+				"would be provably empty and this row would duplicate the collapsing one!"
+		);
+		assertTrue(
+			live(originalCategories).stream()
+				.filter(it -> it.getAttribute(ATTR_UNIQUE_SOMETIMES) == null)
+				.map(it -> (Long) it.getAttribute(ATTR_SOMETIMES_SET))
+				.filter(Objects::nonNull)
+				.anyMatch(it -> it > HISTOGRAM_THRESHOLD),
+			"Fixture guard: some live category must lack `" + ATTR_UNIQUE_SOMETIMES + "` while holding `" +
+				ATTR_SOMETIMES_SET + "` above " + HISTOGRAM_THRESHOLD + ", or no bucket could ever sit above the " +
+				"slider's bound and the peel assertion could not fail!"
 		);
 
 		evita.queryCatalog(
@@ -922,48 +1186,30 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 					session, Entities.CATEGORY,
 					filterBy(
 						userFilter(
-							attributeLessThanEquals(ATTR_SOMETIMES_SET, HISTOGRAM_THRESHOLD),
-							attributeIs(ATTR_ALWAYS_SET, AttributeSpecialValue.NULL)
+							attributeBetween(ATTR_SOMETIMES_SET, 1L, HISTOGRAM_THRESHOLD),
+							attributeIs(ATTR_UNIQUE_SOMETIMES, AttributeSpecialValue.NULL)
 						)
 					),
 					attributeHistogram(HISTOGRAM_BUCKET_COUNT, ATTR_SOMETIMES_SET)
 				);
 
-				assertTrue(
-					result.getRecordData().isEmpty(),
-					"The collapsing sibling must still empty the conjunction but the query returned " +
-						primaryKeysOf(result) + "!"
-				);
-
 				final AttributeHistogram histogram = result.getExtraResult(AttributeHistogram.class);
-				assertNotNull(
-					histogram,
-					"The attribute histogram must be produced even when the user filter collapsed at planning time!"
-				);
+				assertNotNull(histogram, "The attribute histogram extra result must be produced!");
 				final HistogramContract sometimesSet = histogram.getHistogram(ATTR_SOMETIMES_SET);
 				assertNotNull(
 					sometimesSet,
-					"The histogram for `" + ATTR_SOMETIMES_SET + "` is missing entirely - the producer found no " +
-						"baseline to compute it over. The summary held " + histogram.getHistograms().keySet() + "."
-				);
-				// `anyMatch(requested)` would be VACUOUS here and this row would prove nothing: when the predicate
-				// is missing, `AttributeHistogramProducer:393-394` falls back to `Functions::alwaysTrue`, so every
-				// bucket reports `requested` precisely in the failure case. The falsifiable assertion is the
-				// opposite one - the predicate is `<= HISTOGRAM_THRESHOLD`, so at least one bucket above it must
-				// report NOT requested, which only a surviving predicate can produce.
-				assertTrue(
-					Arrays.stream(sometimesSet.getBuckets()).anyMatch(bucket -> !bucket.requested()),
-					"Every bucket reports `requested`, which is exactly what the `alwaysTrue` fallback at " +
-						"`AttributeHistogramProducer:393-394` produces when no predicate was found. The " +
-						"`attributeLessThanEquals` predicate never reached the producer: its plain " +
-						"`AttributeFormula` was destroyed together with the conjunction that held the collapsing " +
-						"sibling. Buckets were " + Arrays.toString(sometimesSet.getBuckets()) + "."
+					"`" + ATTR_UNIQUE_SOMETIMES + "` is set on only 5 of the 12 categories, so this null constraint " +
+						"is NOT provably empty, is never folded, and leaves the user filter satisfiable. A missing " +
+						"histogram here means the producer omits one for the mere presence of an `attributeIs(NULL)` " +
+						"rather than for genuine unsatisfiability. The summary held " +
+						histogram.getHistograms().keySet() + "."
 				);
 				assertTrue(
-					Arrays.stream(sometimesSet.getBuckets()).anyMatch(Bucket::requested),
-					"No bucket reports `requested` at all, so the predicate is not merely lost - the threshold no " +
-						"longer selects anything and this row has stopped discriminating. Buckets were " +
-						Arrays.toString(sometimesSet.getBuckets()) + "."
+					Arrays.stream(sometimesSet.getBuckets())
+						.anyMatch(bucket -> bucket.threshold().longValue() > HISTOGRAM_THRESHOLD),
+					"Every bucket sits at or below the slider's upper bound of " + HISTOGRAM_THRESHOLD + ", so the " +
+						"`attributeBetween` carrier was never peeled and the slider contracted the very histogram " +
+						"it is meant to span. Buckets were " + Arrays.toString(sometimesSet.getBuckets()) + "."
 				);
 				return null;
 			}
@@ -1495,12 +1741,85 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 	}
 
 	/**
+	 * Asserts the planner did **not** fold `response`'s filter away, which is the whole reason a query can serve as
+	 * a control for one that *was* folded. A folded control would take the very same path as the query under test,
+	 * and every comparison between the two would be an agreement of a formula tree with itself.
+	 *
+	 * @param response   the control response, which must have been issued with `queryTelemetry()`
+	 * @param queryLabel the control's label in this row, used in the failure message
+	 */
+	private static void assertFilterWasNotFoldedAway(
+		@Nonnull EvitaResponse<EntityReference> response,
+		@Nonnull String queryLabel
+	) {
+		final QueryTelemetry telemetry = response.getExtraResult(QueryTelemetry.class);
+		assertNotNull(
+			telemetry,
+			"Query " + queryLabel + " must request `queryTelemetry()` - its estimated cost is what proves it is a " +
+				"control!"
+		);
+		final List<String> costs = collectStepArguments(telemetry, QueryPhase.PLANNING_FILTER_ALTERNATIVE);
+		assertFalse(
+			costs.isEmpty(),
+			"The planner must have registered at least one filter alternative for query " + queryLabel + "!"
+		);
+		assertTrue(
+			costs.stream().noneMatch(it -> it.contains(", estimated costs 0")),
+			"Query " + queryLabel + " was priced at zero, so the planner folded it away exactly like the query it " +
+				"is supposed to control for, and it no longer controls for anything. Reported " + costs + "!"
+		);
+	}
+
+	/**
+	 * Projects one attribute histogram into the shape that may be compared **across two responses**.
+	 *
+	 * Two of {@link Bucket}'s four components are deliberately dropped:
+	 *
+	 * - `relativeFrequency` is a per-response rendering scale whose denominator is the curve maximum of *that*
+	 *   response - its own JavaDoc forbids comparing it between two histograms.
+	 * - `requested` is the observable of
+	 *   {@link #shouldOmitTheAttributeHistogramWhenAUserFilterSiblingCollapsesAtPlanningTime} and would agree
+	 *   here no matter what happened: none of the queries in these rows carries a range predicate on the histogram
+	 *   attribute, so every bucket falls to the `Functions::alwaysTrue` default at
+	 *   `AttributeHistogramProducer:393-394`.
+	 *
+	 * @param histogram     the extra result to project, `null` when the producer omitted it
+	 * @param attributeName the attribute whose histogram is wanted
+	 * @return the buckets as (threshold, occurrences) pairs, empty when the histogram is absent
+	 */
+	@Nonnull
+	private static List<BucketProjection> histogramProjectionOf(
+		@Nullable AttributeHistogram histogram,
+		@Nonnull String attributeName
+	) {
+		if (histogram == null) {
+			return List.of();
+		}
+		final HistogramContract attributeHistogram = histogram.getHistogram(attributeName);
+		if (attributeHistogram == null) {
+			return List.of();
+		}
+		return Arrays.stream(attributeHistogram.getBuckets())
+			.map(it -> new BucketProjection(it.threshold(), it.occurrences()))
+			.toList();
+	}
+
+	/**
 	 * One facet row of the projection built by {@link #projectReferenceSummary(ReferenceSummary)}.
 	 *
 	 * @param count     number of entities in the response that possess this facet
 	 * @param requested whether the facet was part of the query's filtering constraints
 	 */
 	private record FacetProjection(int count, boolean requested) {
+	}
+
+	/**
+	 * One bucket row of the projection built by {@link #histogramProjectionOf(AttributeHistogram, String)}.
+	 *
+	 * @param threshold   the bucket's lower bound
+	 * @param occurrences number of entities whose value falls into the bucket
+	 */
+	private record BucketProjection(@Nonnull BigDecimal threshold, int occurrences) {
 	}
 
 	/**

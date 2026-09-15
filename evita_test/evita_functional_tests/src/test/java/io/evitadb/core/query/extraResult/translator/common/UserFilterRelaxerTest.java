@@ -29,10 +29,14 @@ import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.attribute.BetweenAttributeFormula;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
+import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.facet.FacetHavingFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityToBitmapFilter;
@@ -45,13 +49,16 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.util.Optional;
 import javax.annotation.Nullable;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.FILTER;
@@ -97,7 +104,7 @@ class UserFilterRelaxerTest {
 				attributeBetween, facetHaving, priceBetween
 			);
 
-			final Formula result = UserFilterRelaxer.relax(userFilter, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM);
+			final Formula result = UserFilterRelaxer.relax(userFilter, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM).orElseThrow();
 
 			final UserFilterFormula relaxed = assertRelaxedUserFilter(result);
 			assertEquals(
@@ -114,11 +121,16 @@ class UserFilterRelaxerTest {
 			final BetweenAttributeFormula attributeBetween = newAttributeRangeCarrier("price", 10);
 			final Formula userFilter = new UserFilterFormula(attributeBetween);
 
-			final Formula result = UserFilterRelaxer.relax(userFilter, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM);
+			final Optional<Formula> result = UserFilterRelaxer.relax(userFilter, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM);
 
 			// when the rebuilt userFilter has no surviving children, the relaxer drops it entirely and
 			// returns the canonical empty sentinel so downstream AND-chains short-circuit correctly
-			assertSame(EmptyFormula.INSTANCE, result);
+			assertTrue(
+				result.isEmpty(),
+				"a userFilter holding nothing but this group's carriers must relax to the ALL-PEELED signal, " +
+					"which is an empty Optional - not to a present EmptyFormula, which means the opposite " +
+					"(the filter matches nothing)"
+			);
 		}
 
 		@Test
@@ -129,7 +141,7 @@ class UserFilterRelaxerTest {
 			final FacetHavingFormula facetHaving = newFacetCarrier(20);
 			final Formula userFilter = new UserFilterFormula(wrappedCarrier, facetHaving);
 
-			final Formula result = UserFilterRelaxer.relax(userFilter, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM);
+			final Formula result = UserFilterRelaxer.relax(userFilter, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM).orElseThrow();
 
 			final UserFilterFormula relaxed = assertRelaxedUserFilter(result);
 			// the attribute-range carrier wrapped in SelectionFormula must still be stripped — the relaxer
@@ -149,7 +161,7 @@ class UserFilterRelaxerTest {
 			final BetweenAttributeFormula attributeBetween = newAttributeRangeCarrier("price", 10);
 			final Formula userFilter = new UserFilterFormula(plainAttribute, attributeBetween);
 
-			final Formula result = UserFilterRelaxer.relax(userFilter, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM);
+			final Formula result = UserFilterRelaxer.relax(userFilter, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM).orElseThrow();
 
 			final UserFilterFormula relaxed = assertRelaxedUserFilter(result);
 			// plain AttributeFormula (untagged — e.g. from attributeEquals / attributeInSet) must stay:
@@ -169,7 +181,7 @@ class UserFilterRelaxerTest {
 				new UserFilterFormula(attributeBetween, facetHaving)
 			);
 
-			final Formula result = UserFilterRelaxer.relax(tree, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM);
+			final Formula result = UserFilterRelaxer.relax(tree, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM).orElseThrow();
 
 			// the surrounding AND survives (mandatory constraints outside userFilter are always applied);
 			// only the userFilter interior is rebuilt with attribute-range carriers stripped
@@ -198,7 +210,7 @@ class UserFilterRelaxerTest {
 				attributeBetween, facetHaving, priceBetween
 			);
 
-			final Formula result = UserFilterRelaxer.relax(userFilter, RangeCarrierGroup.FACET_IMPACT);
+			final Formula result = UserFilterRelaxer.relax(userFilter, RangeCarrierGroup.FACET_IMPACT).orElseThrow();
 
 			final UserFilterFormula relaxed = assertRelaxedUserFilter(result);
 			assertEquals(
@@ -224,7 +236,7 @@ class UserFilterRelaxerTest {
 				attributeBetween, facetHaving, priceBetween
 			);
 
-			final Formula result = UserFilterRelaxer.relax(userFilter, RangeCarrierGroup.PRICE_HISTOGRAM);
+			final Formula result = UserFilterRelaxer.relax(userFilter, RangeCarrierGroup.PRICE_HISTOGRAM).orElseThrow();
 
 			final UserFilterFormula relaxed = assertRelaxedUserFilter(result);
 			assertEquals(
@@ -251,7 +263,7 @@ class UserFilterRelaxerTest {
 			final ConstantFormula leaf3 = new ConstantFormula(new ArrayBitmap(5, 6));
 			final Formula tree = new OrFormula(leaf1, new AndFormula(leaf2, leaf3));
 
-			final Formula result = UserFilterRelaxer.relax(tree, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM);
+			final Formula result = UserFilterRelaxer.relax(tree, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM).orElseThrow();
 
 			// the cloner may return the same root reference or a structurally identical tree — what
 			// matters is that every leaf survives with its exact instance; allocating new leaves would
@@ -283,7 +295,7 @@ class UserFilterRelaxerTest {
 				new AndFormula(innerLeaf, deepUserFilter)
 			);
 
-			final Formula result = UserFilterRelaxer.relax(tree, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM);
+			final Formula result = UserFilterRelaxer.relax(tree, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM).orElseThrow();
 
 			// outer OR and middle AND must still wrap the result — the rebuild only touches the userFilter
 			assertInstanceOf(OrFormula.class, result);
@@ -310,7 +322,7 @@ class UserFilterRelaxerTest {
 			final BetweenAttributeFormula attributeCarrier = newAttributeRangeCarrier("price", 10);
 			final Formula userFilter = new UserFilterFormula(wrappedPlain, attributeCarrier);
 
-			final Formula result = UserFilterRelaxer.relax(userFilter, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM);
+			final Formula result = UserFilterRelaxer.relax(userFilter, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM).orElseThrow();
 
 			final UserFilterFormula relaxed = assertRelaxedUserFilter(result);
 			// only the attribute-range carrier is stripped; the SelectionFormula wrapper remains with
@@ -331,9 +343,14 @@ class UserFilterRelaxerTest {
 			final FacetHavingFormula facetHaving = newFacetCarrier(20);
 			final Formula userFilter = new UserFilterFormula(facetHaving);
 
-			final Formula result = UserFilterRelaxer.relax(userFilter, RangeCarrierGroup.FACET_IMPACT);
+			final Optional<Formula> result = UserFilterRelaxer.relax(userFilter, RangeCarrierGroup.FACET_IMPACT);
 
-			assertSame(EmptyFormula.INSTANCE, result);
+			assertTrue(
+				result.isEmpty(),
+				"a userFilter holding nothing but this group's carriers must relax to the ALL-PEELED signal, " +
+					"which is an empty Optional - not to a present EmptyFormula, which means the opposite " +
+					"(the filter matches nothing)"
+			);
 		}
 
 		@Test
@@ -344,9 +361,14 @@ class UserFilterRelaxerTest {
 			final PriceBetweenFormula priceBetween = newPriceCarrier(30);
 			final Formula userFilter = new UserFilterFormula(priceBetween);
 
-			final Formula result = UserFilterRelaxer.relax(userFilter, RangeCarrierGroup.PRICE_HISTOGRAM);
+			final Optional<Formula> result = UserFilterRelaxer.relax(userFilter, RangeCarrierGroup.PRICE_HISTOGRAM);
 
-			assertSame(EmptyFormula.INSTANCE, result);
+			assertTrue(
+				result.isEmpty(),
+				"a userFilter holding nothing but this group's carriers must relax to the ALL-PEELED signal, " +
+					"which is an empty Optional - not to a present EmptyFormula, which means the opposite " +
+					"(the filter matches nothing)"
+			);
 		}
 
 		@Test
@@ -363,7 +385,7 @@ class UserFilterRelaxerTest {
 			final UserFilterFormula secondUserFilter = new UserFilterFormula(priceCarrier, plain);
 			final Formula tree = new AndFormula(firstUserFilter, secondUserFilter);
 
-			final Formula result = UserFilterRelaxer.relax(tree, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM);
+			final Formula result = UserFilterRelaxer.relax(tree, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM).orElseThrow();
 
 			// surrounding AND survives; both userFilters are rebuilt independently
 			assertInstanceOf(AndFormula.class, result);
@@ -380,6 +402,180 @@ class UserFilterRelaxerTest {
 			assertEquals(2, secondRebuilt.getInnerFormulas().length);
 			assertSame(priceCarrier, secondRebuilt.getInnerFormulas()[0]);
 			assertSame(plain, secondRebuilt.getInnerFormulas()[1]);
+		}
+	}
+
+
+	/**
+	 * The shapes that reach the relaxer only because the planner folds provably-empty `attributeIs(NULL)`
+	 * subtractions during planning rather than resolving them during execution. Before that fold an `EmptyFormula`
+	 * could not arrive in the relaxer's *input* at all, and every one it saw was its own work - which is why the
+	 * "all peeled" signal used to be allowed to share the `EmptyFormula.INSTANCE` value.
+	 *
+	 * Each row here asserts the relaxer reports a PRESENT value: the filter matches nothing, which is the exact
+	 * opposite of "no mandatory filter remains, every record passes".
+	 */
+	@Nested
+	@DisplayName("EmptyFormula arriving in the input (planning-time fold)")
+	class GenuinelyEmptyInputTest {
+
+		@Test
+		@DisplayName("should pass a bare EmptyFormula input through as a present value")
+		void shouldPassBareEmptyFormulaInputThroughAsPresentValue() {
+			final Optional<Formula> result = UserFilterRelaxer.relax(
+				EmptyFormula.INSTANCE, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM
+			);
+
+			assertTrue(
+				result.isPresent(),
+				"a filter that was already unsatisfiable must not be reported as ALL-PEELED - that reads as " +
+					"\"every record passes\" and widens the histogram baseline to the whole catalog"
+			);
+			assertSame(EmptyFormula.INSTANCE, result.get());
+		}
+
+		@Test
+		@DisplayName("should keep a UserFilterFormula that already holds an EmptyFormula")
+		void shouldKeepUserFilterThatAlreadyHoldsEmptyFormula() {
+			final Formula userFilter = new UserFilterFormula(EmptyFormula.INSTANCE);
+
+			final Optional<Formula> result = UserFilterRelaxer.relax(
+				userFilter, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM
+			);
+
+			assertTrue(
+				result.isPresent(),
+				"the userFilter was unsatisfiable on arrival, not emptied by peeling, so it must survive " +
+					"relaxation rather than be dropped as though nothing constrained the result"
+			);
+			assertInstanceOf(UserFilterFormula.class, result.get());
+		}
+
+
+		@Test
+		@DisplayName("should still peel the carrier when the EmptyFormula sits in a LIVE disjunction")
+		void shouldStillPeelTheCarrierWhenTheEmptyFormulaSitsInALiveDisjunction() {
+			// `FormulaOptimizer:255-264` hands back an `OrFormula` UNTOUCHED, dead child included, as soon as two
+			// of its alternatives are non-empty - so this shape reaches the relaxer verbatim from a real query.
+			// In a disjunction `EmptyFormula` is the identity element: the userFilter is perfectly satisfiable
+			// through `liveAlternative`, and relaxation must proceed normally.
+			final BetweenAttributeFormula carrier = newAttributeRangeCarrier("price", 10);
+			final AttributeFormula liveAlternative = newPlainAttributeFormula("code", 20);
+			final Formula userFilter = new UserFilterFormula(
+				new OrFormula(carrier, liveAlternative, EmptyFormula.INSTANCE)
+			);
+
+			final Optional<Formula> result = UserFilterRelaxer.relax(
+				userFilter, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM
+			);
+
+			assertTrue(
+				result.isPresent(),
+				"the userFilter is satisfiable through its live alternative and must not be dropped - dropping it " +
+					"reads upstream as \"nothing constrains the result\" and widens the baseline to the catalog"
+			);
+			final UserFilterFormula relaxed = assertInstanceOf(UserFilterFormula.class, result.get());
+			assertTrue(
+				FormulaFinder.find(relaxed, BetweenAttributeFormula.class, LookUp.DEEP).isEmpty(),
+				"the range carrier must still have been PEELED. Treating the disjunction's dead branch as " +
+					"unsatisfiability skips relaxation, and the user's own slider then contracts the very " +
+					"histogram it is supposed to span - the self-contraction this class exists to prevent."
+			);
+			assertFalse(
+				FormulaFinder.find(relaxed, AttributeFormula.class, LookUp.DEEP).isEmpty(),
+				"the live alternative must survive relaxation - it is a non-carrier and still constrains the result"
+			);
+		}
+
+
+		@Test
+		@DisplayName("should see through nested AND-in-OR when every alternative is conjunctively empty")
+		void shouldSeeThroughNestedAndInOrWhenEveryAlternativeIsConjunctivelyEmpty() {
+			// neither alternative holds a bare EmptyFormula as a DIRECT child - each is empty only because its own
+			// conjunction is. The recursion has to reach through both levels; stopping at the first container it
+			// does not recognise would answer "not provably empty", relaxation would proceed, and the ALL-PEELED
+			// signal would then widen the baseline to the whole catalog for a filter matching nothing.
+			final Formula userFilter = new UserFilterFormula(
+				new OrFormula(
+					new AndFormula(newAttributeRangeCarrier("price", 10), EmptyFormula.INSTANCE),
+					new AndFormula(newAttributeRangeCarrier("price", 11), EmptyFormula.INSTANCE)
+				)
+			);
+
+			final Optional<Formula> result = UserFilterRelaxer.relax(
+				userFilter, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM
+			);
+
+			assertTrue(result.isPresent(), "every alternative is conjunctively empty, so the userFilter matches nothing");
+			final UserFilterFormula relaxed = assertInstanceOf(UserFilterFormula.class, result.get());
+			assertFalse(
+				FormulaFinder.find(relaxed, BetweenAttributeFormula.class, LookUp.DEEP).isEmpty(),
+				"peeling must be skipped entirely once the userFilter is known to match nothing"
+			);
+		}
+
+		@Test
+		@DisplayName("should not let a NotFormula subtracting EmptyFormula poison its enclosing conjunction")
+		void shouldNotLetANotFormulaSubtractingEmptyFormulaPoisonItsEnclosingConjunction() {
+			// `NOT(empty)` is the SUPERSET - the opposite of empty - so the enclosing AND is perfectly satisfiable
+			// even though an `EmptyFormula` is reachable inside it. Treating `NotFormula` as conjunctive, or
+			// walking through it structurally, would declare this userFilter unsatisfiable and silently drop a
+			// live constraint. This is the arm of `isProvablyEmpty` where a mistake is least visible.
+			final BetweenAttributeFormula carrier = newAttributeRangeCarrier("price", 10);
+			final Formula liveSuperset = new ConstantFormula(new BaseBitmap(1, 2, 3));
+			final Formula userFilter = new UserFilterFormula(
+				new AndFormula(new NotFormula(EmptyFormula.INSTANCE, liveSuperset), carrier)
+			);
+
+			final Optional<Formula> result = UserFilterRelaxer.relax(
+				userFilter, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM
+			);
+
+			assertTrue(result.isPresent(), "the userFilter is satisfiable and must not be dropped");
+			final UserFilterFormula relaxed = assertInstanceOf(UserFilterFormula.class, result.get());
+			assertTrue(
+				FormulaFinder.find(relaxed, BetweenAttributeFormula.class, LookUp.DEEP).isEmpty(),
+				"the carrier must have been PEELED - `NOT(empty)` is the superset, so nothing here is unsatisfiable"
+			);
+		}
+
+		@Test
+		@DisplayName("should treat a disjunction as empty only when EVERY alternative is empty")
+		void shouldTreatADisjunctionAsEmptyOnlyWhenEveryAlternativeIsEmpty() {
+			final Formula userFilter = new UserFilterFormula(
+				new OrFormula(EmptyFormula.INSTANCE, EmptyFormula.INSTANCE)
+			);
+
+			final Optional<Formula> result = UserFilterRelaxer.relax(
+				userFilter, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM
+			);
+
+			assertTrue(
+				result.isPresent(),
+				"every alternative is empty, so the userFilter genuinely matches nothing and must be kept rather " +
+					"than reported as the ALL-PEELED signal"
+			);
+			assertInstanceOf(UserFilterFormula.class, result.get());
+		}
+
+		@Test
+		@DisplayName("should keep a UserFilterFormula holding an EmptyFormula beside a peelable carrier")
+		void shouldKeepUserFilterHoldingEmptyFormulaBesideAPeelableCarrier() {
+			final BetweenAttributeFormula attributeBetween = newAttributeRangeCarrier("price", 10);
+			final Formula userFilter = new UserFilterFormula(attributeBetween, EmptyFormula.INSTANCE);
+
+			final Optional<Formula> result = UserFilterRelaxer.relax(
+				userFilter, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM
+			);
+
+			// the mixed case: releasing the user's own slider cannot rescue a userFilter that is unsatisfiable
+			// for an unrelated reason, so peeling is pointless here and the subtree is kept exactly as it arrived
+			assertTrue(result.isPresent(), "an unsatisfiable userFilter must not relax to the ALL-PEELED signal");
+			final UserFilterFormula relaxed = assertInstanceOf(UserFilterFormula.class, result.get());
+			assertEquals(
+				2, relaxed.getInnerFormulas().length,
+				"peeling must be skipped entirely once the userFilter is known to match nothing"
+			);
 		}
 	}
 
