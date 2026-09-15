@@ -28,6 +28,7 @@ import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.core.query.algebra.AbstractFormula;
+import io.evitadb.core.query.algebra.NonCollapsibleFormula;
 import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.RequirementsDefiner;
@@ -55,7 +56,8 @@ import static io.evitadb.api.query.QueryConstraints.entityFetch;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class AttributeFormula extends AbstractFormula implements ChildrenDependentFormula, RequirementsDefiner {
+public class AttributeFormula extends AbstractFormula implements ChildrenDependentFormula, NonCollapsibleFormula,
+	RequirementsDefiner {
 	/**
 	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
 	 */
@@ -95,6 +97,22 @@ public class AttributeFormula extends AbstractFormula implements ChildrenDepende
 		this.attributeKey = attributeKey;
 		this.requestedPredicate = requestedPredicate;
 		this.initFields(innerFormula);
+	}
+
+	/**
+	 * A plain attribute comparison is a carrier only when it actually holds a histogram `requestedPredicate`.
+	 *
+	 * `AbstractAttributeComparisonTranslator` attaches one for `attributeLessThan(Equals)` /
+	 * `attributeGreaterThan(Equals)` over a **numeric** attribute, and `AttributeHistogramProducer:361` harvests it by
+	 * walking for `AttributeFormula` under each `UserFilterFormula`. Losing it is silent: the producer falls back to
+	 * `Functions::alwaysTrue` at :393-394 and reports *every* histogram bucket as requested.
+	 *
+	 * Answering on the predicate rather than on the type keeps the protection to the instances that need it - marking
+	 * the type would make the commonest leaf in the engine uncollapsible everywhere.
+	 */
+	@Override
+	public boolean isNonCollapsible() {
+		return this.requestedPredicate != null;
 	}
 
 	@Nonnull

@@ -128,31 +128,47 @@ before, and which is why the disjunction branch was hardened in the same change.
   `HashMap` (identity is what a plain `HashMap` gives here: `AbstractFormula` overrides neither
   `equals` nor `hashCode`). The optimizer walks bottom-up, so the pass stays linear rather than
   rescanning a subtree per container.
-- **The four marked carrier types**, chosen by enumerating every `FormulaFinder.find(...)` target in
-  the engine rather than by following the symptom: `AttributeRangeCarrierFormula` (the interface —
-  covers `BetweenAttributeFormula` and `HistogramHavingFormula`), `FacetHavingFormula`,
-  `UserFilterFormula` and `PriceBetweenFormula`. Three of these are `UserFilterRelaxer#carrierTypeFor`'s
-  switch arms; `UserFilterFormula` is what `ExtraResultPlanningVisitor#getUserFilteringFormula` locates.
-- **One structural reader is deliberately left unmarked.** `AttributeHistogramProducer:360-364`
-  searches for `AttributeFormula`, which is wider than the marked set: `AbstractAttributeComparisonTranslator:110`
-  attaches a histogram `requestedPredicate` to a **plain** `AttributeFormula` for
-  `attributeLessThan(Equals)` / `attributeGreaterThan(Equals)` over a numeric attribute, and that shape
-  carries no marker. It was expected to lose its predicate to a collapsing sibling and **measured not
-  to** — pinned by
-  `AttributeIsNullPlanningSkipFunctionalTest#shouldKeepTheHistogramRequestedFlagWhenAUserFilterSiblingCollapsesAtPlanningTime`.
-  **Why it survives is not established, and one plausible explanation has been excluded**: both
-  consumers are handed the same post-processed tree — `QueryPlanner:575` passes
-  `builder.getFilterFormula()` to `ExtraResultPlanningVisitor`, and `AttributeHistogramTranslator:90`
-  forwards `getFilteringFormula()` to the producer — so the extra
-  `FilterFormulaAttributeOptimizeVisitor` pass at `AttributeHistogramProducer:353` is layered on top
-  of the optimizer's output, not instead of it. The remaining candidates are the planned shape of
-  `userFilter` in this case (if the `EmptyFormula` is a direct child of the `UserFilterFormula`, the
-  marked container is the one examined and nothing below it collapses) and `SelectionFormula`
-  wrapping under prefetch. Neither was measured.
+- **The six marked carrier types**, five unconditional and one conditional. `AttributeRangeCarrierFormula` (the interface — covers
+  `BetweenAttributeFormula` and `HistogramHavingFormula`), `FacetHavingFormula`, `FacetGroupFormula`
+  (also an interface — covers `FacetGroupOrFormula` and `FacetGroupAndFormula`),
+  `UserFilterFormula` and `PriceBetweenFormula`. Three are
+  `UserFilterRelaxer#carrierTypeFor`'s switch arms; `UserFilterFormula` is what
+  `ExtraResultPlanningVisitor#getUserFilteringFormula` locates; `FacetGroupFormula` is what
+  `ReferenceSummaryOfReferenceTranslator:312` and `FilterFormulaFacetOptimizeVisitor:61` match on.
 
-  `AttributeFormula` was therefore left unmarked rather than marked speculatively: marking it would
-  protect nearly every filter tree in the engine to fix a defect nobody has shown exists. If that row
-  ever turns red, establish the planned tree shape first — do not reach for the marker.
+  **The rule is "read structurally ⇒ marked", and it must be applied to the node that is read, not to
+  an ancestor of it.** `FacetGroupFormula` was initially left unmarked on the reasoning that
+  `FacetHavingFormula` sits above it and is marked. That reasoning is wrong:
+  `holdsNonCollapsibleFormula` searches a node's subtree **downwards**, and `FacetHavingTranslator:429`
+  builds `FacetHavingFormula(referenceName, composed)` where `composed` is an `Or`, an `And` or a
+  `CombinedFacetFormula` over the groups — so that intermediate container held no marked formula, and a
+  marked carrier above it protects nothing. Marking the groups rather than the container is what makes
+  this robust: `CombinedFacetFormula` is deliberately left unmarked (it is `NonCacheableFormula` only)
+  and is nevertheless protected, because the transitive check finds the marked groups beneath it. The omission was found by an adversarial review of the
+  commits, not by the original enumeration, which *did* return `FacetGroupFormula` and had it reasoned
+  away.
+- **`AttributeFormula` is a *conditional* carrier, and the only one.** `AttributeHistogramProducer:361`
+  harvests the per-bucket `requested` predicate by walking for `AttributeFormula` under each
+  `UserFilterFormula`, and `AbstractAttributeComparisonTranslator:110` attaches one to a **plain**
+  `AttributeFormula` for `attributeLessThan(Equals)` / `attributeGreaterThan(Equals)` over a numeric
+  attribute. Marking the type outright would make the commonest leaf in the engine uncollapsible
+  everywhere, so `NonCollapsibleFormula` carries `isNonCollapsible()`, defaulting to `true`, and
+  `AttributeFormula` answers `requestedPredicate != null`. The value is derived from final constructor
+  state, which the optimizer's per-node memo requires.
+
+  `BetweenAttributeFormula` must **re-assert `true`** — a class method beats an interface default, so it
+  would otherwise inherit the conditional answer, and a range carrier over a non-numeric attribute (no
+  histogram predicate, still peeled by `UserFilterRelaxer`) would become collapsible.
+
+  **How this was nearly missed, twice.** The first pass reasoned the shape was safe. The second wrote a
+  behavioural row that came back green and concluded there was no defect. Both were wrong: the row
+  asserted `anyMatch(bucket.requested())`, and the failure mode is
+  `AttributeHistogramProducer:393-394` falling back to `Functions::alwaysTrue`, which marks **every**
+  bucket requested — so the assertion passed precisely when the predicate was lost. The falsifiable
+  assertion is the opposite one, that a bucket above the threshold reports *not* requested. Rewritten
+  that way the row went red immediately, with all eight buckets flagged. **A green test whose assertion
+  cannot fail is worse than no test**: it retires the question.
+
 - **The disjunction hardening.** `FormulaOptimizer`'s OR branch returned its single surviving
   child, which is `null` when every disjunct collapsed; it now returns `EmptyFormula.INSTANCE`. The
   branch is *currently unreachable* — `EmptyFormula`'s constructor is private, `AbstractFormula`
@@ -185,9 +201,22 @@ silently stopped running.
 
 **The marker is a contract nothing enforces.** A new formula type that later phases locate by walking
 the tree must declare `NonCollapsibleFormula`, and nothing will fail if it does not — the symptom is a
-quietly wrong extra result, never an exception. The carrier list in *Key technical details* is the
-inventory as of this record; it was built by enumerating every `FormulaFinder.find(...)` target in
-`evita_engine`, which is the check to repeat rather than reasoning from the symptom.
+quietly wrong extra result, never an exception.
+
+The check to repeat is: enumerate every `FormulaFinder.find(...)` target and every `instanceof` /
+`Class::isInstance` structural match in `evita_engine`, then confirm **each matched type itself**
+carries the marker. Enumerating is not the hard part — `FacetGroupFormula` was in the first
+enumeration and was still missed, because it was judged covered by the marked `FacetHavingFormula`
+above it. `holdsNonCollapsibleFormula` only ever looks down, so "an ancestor is marked" is never an
+argument. The gap was caught by an adversarial review of the commits, which is the second check worth
+repeating.
+
+**Two independent readers failed to explain a green result that turned out to be a broken test.** The
+`AttributeFormula` case above was declared a non-defect twice — once from reading the code, once from a
+behavioural row — before the assertion was made falsifiable. Both readers had correctly traced that the
+conjunction *should* collapse; neither questioned why the observation disagreed. The lesson for anyone
+extending the marked set: when a trace and an observation disagree, suspect the observation first, and
+check that the assertion can fail before trusting it.
 
 **`RangeCarrierGroup.FACET_IMPACT` has no production caller.** `UserFilterRelaxer#carrierTypeFor` maps
 it to `FacetHavingFormula` and `UserFilterRelaxerTest` covers it, but no code in `src/main` passes it
@@ -196,6 +225,14 @@ to `relax` — the three live call sites pass `ATTRIBUTE_HISTOGRAM` (twice) or `
 `ReferenceSummaryOfReferenceTranslator:306-312`, which locates `FacetGroupFormula` nodes under
 `getUserFilteringFormula()` to set the facet `requested` flag. Noticed while enumerating the carriers;
 not acted on.
+
+**`MutableFormula` is the one `Formula` in the engine that overrides `equals`/`hashCode`** (it delegates
+to its wrapped `FacetGroupFormula`). That matters because `holdsNonCollapsibleFormula`'s memo is a plain
+`HashMap` relying on identity keys. It is safe today and structurally so, not by luck: `MutableFormula`
+is built only by `AbstractFacetFormulaGenerator:686` during facet-summary generation, while
+`FormulaOptimizer` is instantiated only by `QueryPlanner:304` over the filtering tree — the two phases
+never meet. The memo's JavaDoc should be read as "no formula reachable by `FormulaOptimizer` overrides
+them", which is the property actually relied on.
 
 **Emptiness has two incompatible meanings on one singleton, and this record does not settle it.**
 `UserFilterRelaxer#relax`'s JavaDoc requires callers to read a returned `EmptyFormula` as *"no

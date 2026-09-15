@@ -140,8 +140,13 @@ public class FormulaOptimizer extends FormulaCloner implements FormulaPostProces
 	/**
 	 * Memoizes, per node, whether its subtree holds a {@link NonCollapsibleFormula}.
 	 *
-	 * Keyed by identity - which is what a plain `HashMap` gives here, because
-	 * {@link io.evitadb.core.query.algebra.AbstractFormula} overrides neither `equals` nor `hashCode`.
+	 * Keyed by identity - which is what a plain `HashMap` gives here, because no formula this optimizer can reach
+	 * overrides `equals` or `hashCode`. {@link io.evitadb.core.query.algebra.AbstractFormula} does not, and the one
+	 * {@link Formula} in the engine that does - `MutableFormula`, which delegates both to its wrapped
+	 * `FacetGroupFormula` - is built solely by `AbstractFacetFormulaGenerator` during facet-summary generation, long
+	 * after this class has finished with the filtering tree. Reachability is the property being relied on here, not
+	 * the base class: a future formula that overrides equality *and* appears in a filter tree would silently turn this
+	 * memo into a value-keyed one and let two structurally equal subtrees share an answer.
 	 */
 	private final Map<Formula, Boolean> nonCollapsibleSubTrees = new HashMap<>();
 
@@ -161,7 +166,8 @@ public class FormulaOptimizer extends FormulaCloner implements FormulaPostProces
 	 * @return TRUE when the subtree carries information later query phases read off the tree structure
 	 */
 	boolean holdsNonCollapsibleFormula(@Nonnull Formula formula) {
-		if (formula instanceof NonCollapsibleFormula) {
+		if (formula instanceof NonCollapsibleFormula nonCollapsibleFormula
+			&& nonCollapsibleFormula.isNonCollapsible()) {
 			return true;
 		}
 		final Boolean memoized = this.nonCollapsibleSubTrees.get(formula);

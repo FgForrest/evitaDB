@@ -946,11 +946,23 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 					"The histogram for `" + ATTR_SOMETIMES_SET + "` is missing entirely - the producer found no " +
 						"baseline to compute it over. The summary held " + histogram.getHistograms().keySet() + "."
 				);
+				// `anyMatch(requested)` would be VACUOUS here and this row would prove nothing: when the predicate
+				// is missing, `AttributeHistogramProducer:393-394` falls back to `Functions::alwaysTrue`, so every
+				// bucket reports `requested` precisely in the failure case. The falsifiable assertion is the
+				// opposite one - the predicate is `<= HISTOGRAM_THRESHOLD`, so at least one bucket above it must
+				// report NOT requested, which only a surviving predicate can produce.
+				assertTrue(
+					Arrays.stream(sometimesSet.getBuckets()).anyMatch(bucket -> !bucket.requested()),
+					"Every bucket reports `requested`, which is exactly what the `alwaysTrue` fallback at " +
+						"`AttributeHistogramProducer:393-394` produces when no predicate was found. The " +
+						"`attributeLessThanEquals` predicate never reached the producer: its plain " +
+						"`AttributeFormula` was destroyed together with the conjunction that held the collapsing " +
+						"sibling. Buckets were " + Arrays.toString(sometimesSet.getBuckets()) + "."
+				);
 				assertTrue(
 					Arrays.stream(sometimesSet.getBuckets()).anyMatch(Bucket::requested),
-					"No bucket reports `requested`, so the `attributeLessThanEquals` predicate never reached the " +
-						"producer. Its plain `AttributeFormula` was destroyed together with the conjunction that " +
-						"held the collapsing sibling. Buckets were " +
+					"No bucket reports `requested` at all, so the predicate is not merely lost - the threshold no " +
+						"longer selects anything and this row has stopped discriminating. Buckets were " +
 						Arrays.toString(sometimesSet.getBuckets()) + "."
 				);
 				return null;
