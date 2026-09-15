@@ -52,4 +52,29 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public interface NonCollapsibleFormula extends Formula {
+
+	/**
+	 * Whether *this instance* actually carries side-channel information, and so must not be collapsed away.
+	 *
+	 * Almost every implementation is a carrier by virtue of its type and inherits the `true` default. The exception is
+	 * {@link io.evitadb.core.query.algebra.attribute.AttributeFormula}, where the property is per-instance rather than
+	 * per-type: only the ones built with a non-null `requestedPredicate` feed the per-bucket `requested` flag that
+	 * `AttributeHistogramProducer` harvests. Marking the type unconditionally would protect nearly every filter tree in
+	 * the engine, since a plain attribute comparison is the most common leaf there is.
+	 *
+	 * **The answer must be fixed for the life of the instance.** `FormulaOptimizer` memoizes the subtree result per
+	 * node, so a value that could change would produce a stale answer. Every implementation derives it from final
+	 * state assigned in the constructor.
+	 *
+	 * **A subclass of a conditional carrier must re-assert `true` if it is an unconditional one** - a class method
+	 * beats an interface default, so `BetweenAttributeFormula` would otherwise inherit `AttributeFormula`'s
+	 * conditional answer and a range carrier over a non-numeric attribute (null predicate, still peeled by
+	 * `UserFilterRelaxer`) would become collapsible.
+	 *
+	 * @return TRUE when this instance must survive conjunction collapse
+	 */
+	default boolean isNonCollapsible() {
+		return true;
+	}
+
 }
