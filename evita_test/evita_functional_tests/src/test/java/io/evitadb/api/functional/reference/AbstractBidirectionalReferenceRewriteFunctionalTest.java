@@ -278,6 +278,23 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 	public static final int VARIANT_CATEGORY_COUNT = 2;
 
 	/**
+	 * Category whose two `variants` partitions hold **disjoint** product sets, unlike category 1 whose `a` and `b`
+	 * partitions both hold every variant product.
+	 *
+	 * Without it no query can tell a rewrite that keeps every qualifying reduced index from one that keeps only the
+	 * first: on category 1 the two partitions carry identical bitmaps, so dropping either changes no answer.
+	 */
+	public static final int DISJOINT_VARIANT_CATEGORY_PK = 3;
+	/**
+	 * Product carrying the `x` partition of {@link #DISJOINT_VARIANT_CATEGORY_PK}, and no other row on that category.
+	 */
+	public static final int DISJOINT_VARIANT_X_PRODUCT_PK = 1;
+	/**
+	 * Product carrying the `y` partition of {@link #DISJOINT_VARIANT_CATEGORY_PK}, and no other row on that category.
+	 */
+	public static final int DISJOINT_VARIANT_Y_PRODUCT_PK = 2;
+
+	/**
 	 * Highest product primary key carrying a `PRODUCT.weakTags` row.
 	 */
 	public static final int LAST_WEAK_TAG_PRODUCT_PK = 60;
@@ -737,6 +754,14 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 			addVariantReference(builder, 1, "b");
 			addVariantReference(builder, VARIANT_CATEGORY_COUNT, "a");
 		}
+		// exactly one product per partition, so category 3's two reduced indexes hold DISJOINT product sets - the
+		// only shape in this fixture where losing one qualifying index changes the answer
+		if (productPk == DISJOINT_VARIANT_X_PRODUCT_PK) {
+			addVariantReference(builder, DISJOINT_VARIANT_CATEGORY_PK, "x");
+		}
+		if (productPk == DISJOINT_VARIANT_Y_PRODUCT_PK) {
+			addVariantReference(builder, DISJOINT_VARIANT_CATEGORY_PK, "y");
+		}
 
 		if (productPk <= LAST_WEAK_TAG_PRODUCT_PK) {
 			final long weakValue = productPk % 3;
@@ -1074,10 +1099,13 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 				REF_ATTR_OWN_NOTE + "` value."
 		);
 
-		// breaks: the duplicate-cardinality row - 30 products with three rows each, two of them sharing a category
+		// breaks: the duplicate-cardinality row - 30 products with three rows each, two of them sharing a category,
+		// plus the two single rows that give category 3 its disjoint partitions
 		assertEquals(
-			3 * LAST_VARIANT_PRODUCT_PK, referenceRowCount(products, REF_PRODUCT_VARIANTS),
-			"Products 1-30 must carry exactly three `" + REF_PRODUCT_VARIANTS + "` rows each."
+			3 * LAST_VARIANT_PRODUCT_PK + 2, referenceRowCount(products, REF_PRODUCT_VARIANTS),
+			"Products 1-30 must carry exactly three `" + REF_PRODUCT_VARIANTS + "` rows each, and products " +
+				DISJOINT_VARIANT_X_PRODUCT_PK + " and " + DISJOINT_VARIANT_Y_PRODUCT_PK + " one extra row each " +
+				"on category " + DISJOINT_VARIANT_CATEGORY_PK + "."
 		);
 		// breaks: the "no reflected counterpart" decline row
 		assertEquals(

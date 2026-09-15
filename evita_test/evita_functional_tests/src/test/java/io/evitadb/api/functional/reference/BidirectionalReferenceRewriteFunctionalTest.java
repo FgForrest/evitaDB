@@ -1511,28 +1511,27 @@ public class BidirectionalReferenceRewriteFunctionalTest
 	}
 
 	/**
-	 * The duplicate-specific shape: one owner is reached through **several** reduced indexes at once, because every
-	 * one of the thirty variant products carries a `(category 1, a)` row of its own and category 2 is reached by a
-	 * second family entirely.
+	 * An owner whose qualifying rows are spread over many products must still be returned exactly once.
 	 *
-	 * `BidirectionalReferenceRewriter#createPerOwnerFormulas` ORs every reduced index belonging to one owner before
-	 * pairing the result with that owner. A reference without duplicates never exercises the OR with more than one
-	 * index per scope, so this is the row that covers it - and an owner announced by N indexes must still appear
-	 * exactly once in the answer.
+	 * Note what this row does **not** prove, and why the discriminating case is a separate row below. A reduced index
+	 * is keyed by `RepresentativeReferenceKey`, so all thirty `(category 1, a)` rows collapse into a *single* index
+	 * holding products 1-30 - not thirty indexes. Two indexes are resolved for category 1 (`a` and `b`), so the OR in
+	 * `createPerOwnerFormulas` does run with more than one input, but only one of them qualifies for tag `a`, and the
+	 * two carry identical bitmaps anyway. An implementation that kept only the first non-empty qualifying index would
+	 * pass this row.
 	 */
-	@DisplayName("Should rewrite when one owner is reached through several duplicate rows")
+	@DisplayName("Should return an owner once when many products contribute the same qualifying tag")
 	@UseDataSet(BIDI_REWRITE)
 	@Test
-	void shouldRewriteWhenOneOwnerIsReachedThroughSeveralDuplicateRows(
+	void shouldReturnAnOwnerOnceWhenManyProductsContributeTheSameTag(
 		Evita evita,
 		List<SealedEntity> originalCategories
 	) {
-		// guard - the OR over several per-owner indexes is only exercised when an owner really does hold more than
-		// one qualifying duplicate row
+		// guard - the row is only about de-duplicating an owner if several rows really do contribute it
 		assertTrue(
 			originalCategories.stream().anyMatch(category -> variantRowsWithTag(category, "a") > 1),
 			"Some category must be reached by more than one `" + REF_CATEGORY_VARIANT_PRODUCTS + "` row carrying " +
-				"tag `a`, or the multi-index branch of the per-owner formula is never taken!"
+				"tag `a`, or there is nothing to de-duplicate!"
 		);
 		evita.queryCatalog(
 			TEST_CATALOG,
@@ -1562,6 +1561,105 @@ public class BidirectionalReferenceRewriteFunctionalTest
 	}
 
 	/**
+	 * The discriminating duplicate row: the answer depends on a **specific** one of an owner's reduced indexes being
+	 * kept, so an implementation that retained only the first qualifying partition would return the wrong set.
+	 *
+	 * Category {@link #DISJOINT_VARIANT_CATEGORY_PK} is the only owner in the fixture whose two partitions hold
+	 * disjoint products - `x` holds product {@link #DISJOINT_VARIANT_X_PRODUCT_PK} alone and `y` holds product
+	 * {@link #DISJOINT_VARIANT_Y_PRODUCT_PK} alone. Pairing the `Or` over both tags with an `entityHaving` that admits
+	 * only one of those products makes exactly one partition decisive: drop it and the category disappears from the
+	 * answer, keep only it and the category still appears. Everywhere else in this fixture the partitions carry
+	 * identical bitmaps, which is why no other row can make this distinction.
+	 */
+	@DisplayName("Should keep the duplicate partition the answer actually depends on")
+	@UseDataSet(BIDI_REWRITE)
+	@Test
+	void shouldKeepTheDuplicatePartitionTheAnswerDependsOn(
+		Evita evita,
+		List<SealedEntity> originalCategories
+	) {
+		// guard - the two partitions must genuinely be disjoint, or nothing here is decisive
+		final Predicate<SealedEntity> disjointCategory =
+			category -> category.getPrimaryKeyOrThrowException() == DISJOINT_VARIANT_CATEGORY_PK;
+		assertTrue(
+			originalCategories.stream()
+				.filter(disjointCategory)
+				.anyMatch(category -> variantRowsWithTag(category, "x") == 1 && variantRowsWithTag(category, "y") == 1),
+			"Category " + DISJOINT_VARIANT_CATEGORY_PK + " must hold exactly one `x` row and one `y` row, or the " +
+				"two partitions are not disjoint and this row proves nothing!"
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// the `y` partition is the only one admitting product DISJOINT_VARIANT_Y_PRODUCT_PK
+				final EvitaResponse<EntityReference> viaY = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							referenceHaving(
+								REF_CATEGORY_VARIANT_PRODUCTS,
+								entityHaving(entityPrimaryKeyInSet(DISJOINT_VARIANT_Y_PRODUCT_PK)),
+								or(
+									attributeEquals(REF_ATTR_VARIANT_TAG, "x"),
+									attributeEquals(REF_ATTR_VARIANT_TAG, "y")
+								)
+							)
+						),
+						indexScanRequirements()
+					),
+					EntityReference.class
+				);
+				AssertionUtils.assertResultIs(
+					"Only the `y` partition holds product " + DISJOINT_VARIANT_Y_PRODUCT_PK + " - an implementation " +
+						"keeping just the first qualifying reduced index would lose category " +
+						DISJOINT_VARIANT_CATEGORY_PK + " entirely!",
+					originalCategories,
+					liveOwnerWithRow(
+						REF_CATEGORY_VARIANT_PRODUCTS,
+						row -> row.getReferencedPrimaryKey() == DISJOINT_VARIANT_Y_PRODUCT_PK &&
+							("x".equals(row.getAttribute(REF_ATTR_VARIANT_TAG)) ||
+								"y".equals(row.getAttribute(REF_ATTR_VARIANT_TAG)))
+					),
+					viaY.getRecordData()
+				);
+				assertReferenceIndexOptionRegistered(viaY, false);
+
+				// and the mirror image, so the row cannot pass by always answering with the same partition
+				final EvitaResponse<EntityReference> viaX = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							referenceHaving(
+								REF_CATEGORY_VARIANT_PRODUCTS,
+								entityHaving(entityPrimaryKeyInSet(DISJOINT_VARIANT_X_PRODUCT_PK)),
+								or(
+									attributeEquals(REF_ATTR_VARIANT_TAG, "x"),
+									attributeEquals(REF_ATTR_VARIANT_TAG, "y")
+								)
+							)
+						),
+						indexScanRequirements()
+					),
+					EntityReference.class
+				);
+				AssertionUtils.assertResultIs(
+					"The mirror image must resolve through the `x` partition instead",
+					originalCategories,
+					liveOwnerWithRow(
+						REF_CATEGORY_VARIANT_PRODUCTS,
+						row -> row.getReferencedPrimaryKey() == DISJOINT_VARIANT_X_PRODUCT_PK &&
+							("x".equals(row.getAttribute(REF_ATTR_VARIANT_TAG)) ||
+								"y".equals(row.getAttribute(REF_ATTR_VARIANT_TAG)))
+					),
+					viaX.getRecordData()
+				);
+				assertReferenceIndexOptionRegistered(viaX, false);
+			}
+		);
+	}
+
+	/**
 	 * A value no duplicate row carries must come back empty **through the rewrite**, not through the planner giving
 	 * up earlier.
 	 *
@@ -1570,6 +1668,11 @@ public class BidirectionalReferenceRewriteFunctionalTest
 	 * index selection cannot short-circuit here the way it does on a declined shape. Reading the absent reference
 	 * option is therefore still meaningful, and it is what separates "the rewrite computed nothing" from "the
 	 * planner never reached the filter".
+	 *
+	 * **That is the whole of what these two assertions prove.** They say nothing about *which* reduced indexes were
+	 * read: an implementation resolving the primary keys against the wrong collection would also answer empty here,
+	 * because no index anywhere carries this tag. The addressing is pinned by the positive rows, and decisively by
+	 * {@link #shouldKeepTheDuplicatePartitionTheAnswerDependsOn}; this row only rules out the planner short circuit.
 	 */
 	@DisplayName("Should answer empty through the rewrite when no duplicate row carries the value")
 	@UseDataSet(BIDI_REWRITE)

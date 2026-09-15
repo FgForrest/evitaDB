@@ -254,8 +254,29 @@ class BidirectionalReferenceRewriterTest {
 
 		/**
 		 * Replaces the counterpart's type-level index in the given scope. A NULL bitmap stubs the index away entirely.
+		 *
+		 * The reduced-index instances are stubbed to the very same bitmap, which is the shape of a reference that
+		 * forbids duplicates: one index per `(owner, referenced)` pair. Use
+		 * {@link #stubCounterpartTypeIndex(Scope, Bitmap, Bitmap)} when the two have to diverge.
 		 */
 		void stubCounterpartTypeIndex(@Nonnull Scope scope, @Nullable Bitmap referencedPrimaryKeys) {
+			stubCounterpartTypeIndex(scope, referencedPrimaryKeys, referencedPrimaryKeys);
+		}
+
+		/**
+		 * Replaces the counterpart's type-level index, stating separately how many owners it announces and how many
+		 * reduced indexes it actually holds. The two differ exactly when the counterpart allows duplicate rows, where
+		 * one owner maps to one index per representative-value partition - which is the case the cost gate has to
+		 * price on the index count rather than the owner count.
+		 *
+		 * @param referencedPrimaryKeys owners the index announces, or NULL to stub the index away entirely
+		 * @param indexPrimaryKeys      reduced-index instance keys the index holds
+		 */
+		void stubCounterpartTypeIndex(
+			@Nonnull Scope scope,
+			@Nullable Bitmap referencedPrimaryKeys,
+			@Nullable Bitmap indexPrimaryKeys
+		) {
 			final EntityIndexKey indexKey = new EntityIndexKey(
 				EntityIndexType.REFERENCED_ENTITY_TYPE, scope, COUNTERPART_REFERENCE_NAME
 			);
@@ -265,6 +286,8 @@ class BidirectionalReferenceRewriterTest {
 			} else {
 				final ReferencedTypeEntityIndex typeIndex = mock(ReferencedTypeEntityIndex.class);
 				when(typeIndex.getAllReferencedPrimaryKeys()).thenReturn(referencedPrimaryKeys);
+				when(typeIndex.getAllPrimaryKeys())
+					.thenReturn(indexPrimaryKeys == null ? referencedPrimaryKeys : indexPrimaryKeys);
 				when(this.queryContext.getEntityIndex(TARGET_ENTITY_TYPE, indexKey, ReferencedTypeEntityIndex.class))
 					.thenReturn(Optional.of(typeIndex));
 			}
@@ -687,6 +710,43 @@ class BidirectionalReferenceRewriterTest {
 				fixture.isApplicable(),
 				"MAX_CANDIDATE_OWNERS is an absolute ceiling on the number of per-owner formulas built at planning " +
 					"time - it must decline even when the gain ratio is satisfied."
+			);
+		}
+
+		@Test
+		@DisplayName("should price the counterpart side on reduced indexes, not on owners")
+		void shouldPriceTheCounterpartSideOnReducedIndexesRatherThanOwners() {
+			final RewriteFixture fixture = RewriteFixture.baseline(EnumSet.of(Scope.LIVE));
+			// 10 owners, but the counterpart holds 100 reduced indexes for them - the shape a duplicate-allowing
+			// cardinality produces, where one owner maps to one index per representative-value partition
+			fixture.stubCounterpartTypeIndex(
+				Scope.LIVE, ascendingBitmap(1, 10), ascendingBitmap(1, 100)
+			);
+			// 60 owner-side buckets: counting OWNERS the gate reads 10 * 4 <= 60 and takes the rewrite, while the
+			// work it would actually do is 100 index resolutions against the owner side's 60
+			fixture.stubOwnerTypeIndex(Scope.LIVE, ascendingBitmap(1, 60));
+			assertFalse(
+				fixture.isApplicable(),
+				"The counterpart side must be priced in the unit the work is done in - reduced indexes. Counting " +
+					"owners instead lets a gate demanding a 4x win accept a plan doing more work than the path it " +
+					"replaces."
+			);
+		}
+
+		@Test
+		@DisplayName("should still take the rewrite when the index count itself clears the margin")
+		void shouldStillTakeTheRewriteWhenTheIndexCountClearsTheMargin() {
+			final RewriteFixture fixture = RewriteFixture.baseline(EnumSet.of(Scope.LIVE));
+			// same 10 owners and 100 counterpart indexes, but now the owner side is genuinely far worse - this is
+			// the control proving the row above declines on the arithmetic and not on the extra stubbing
+			fixture.stubCounterpartTypeIndex(
+				Scope.LIVE, ascendingBitmap(1, 10), ascendingBitmap(1, 100)
+			);
+			fixture.stubOwnerTypeIndex(Scope.LIVE, ascendingBitmap(1, 400));
+			assertTrue(
+				fixture.isApplicable(),
+				"100 counterpart indexes against 400 owner-side buckets clears the margin exactly, so the rewrite " +
+					"must still be taken - otherwise the fix above would have disabled the optimisation outright."
 			);
 		}
 

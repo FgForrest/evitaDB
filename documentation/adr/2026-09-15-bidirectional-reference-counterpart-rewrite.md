@@ -1,7 +1,7 @@
 ---
 title: Answer a referenceHaving from whichever end of a bidirectional reference is cheaper, and stop emitting provably-empty null subtractions
 date: 2026-09-15
-updated: 2026-09-15 14:15
+updated: 2026-09-15 15:10
 status: accepted
 kind: optimization
 issues: [1547, 1583, 1584, 1585]
@@ -360,6 +360,27 @@ produced a **wrong answer silently**. State C answering correctly is what settle
 `assertResultIs` derives its expectation from the original entities' own bodies, so a reflected side that
 dropped or merged a duplicate row could not have matched it.
 
+**The cost gate had to be re-based on reduced indexes.** Lifting the duplicate decline silently broke the unit
+the gate compares in: `candidateOwnerCount` counts distinct *owners*, while `ownerSideBuckets` counts reduced-index
+*instances*. Those coincide only while a pair maps to exactly one index — i.e. only without duplicates. With them,
+`createPerOwnerFormulas` resolves one index per representative-value partition per owner, so 100 owners each holding
+100 partitions present as 100 candidates against 1 000 owner-side buckets: the gate reads `100 * 4 <= 1000` and takes
+a plan that then processes 10 000 counterpart indexes. A gate demanding a 4x win could accept a ~10x loss. It is a
+performance defect, never a wrong answer, and it was unreachable before duplicates were admitted.
+`collectCandidateOwners` now also unions the counterpart type indexes' `getAllPrimaryKeys()` — instance keys, unique
+per index, so the union counts each exactly once — and the gate prices both sides in indexes. Pinned by
+`BidirectionalReferenceRewriterTest.CostGate.shouldPriceTheCounterpartSideOnReducedIndexesRatherThanOwners`, with
+`shouldStillTakeTheRewriteWhenTheIndexCountClearsTheMargin` as the control proving the decline is arithmetic and not
+the extra stubbing.
+
+**The fixture gained a shape that can tell partitions apart.** A reduced index is keyed by
+`RepresentativeReferenceKey`, so the thirty `(category 1, "a")` rows collapse into **one** index holding products
+1-30, and category 1's `a` and `b` partitions carry *identical* bitmaps. Every positive duplicate row therefore
+passed even for an implementation that kept only the first qualifying index. Category 3 now holds two disjoint
+partitions — `x` for product 1, `y` for product 2 — and
+`shouldKeepTheDuplicatePartitionTheAnswerDependsOn` pairs the `Or` over both tags with an `entityHaving` admitting
+only one of those products, in both directions, so a specific partition is decisive each time.
+
 **Falsifiability of the new rows, measured rather than assumed.** Re-inserting the owner gate turns
 exactly six rows red and no others: the four functional rows asserting the rewrite fires, plus
 `shouldStayApplicableWhenOwnerCardinalityAllowsDuplicates` and `…WhenBothEndsAllowDuplicates`. The
@@ -479,8 +500,18 @@ one caller that broke.
 the two-argument form now delegates to a three-argument one that keeps the per-context map for the
 queried collection and goes through `EntityCollection#getIndexByPrimaryKeyIfExists` for any other. The
 own-collection path is byte-identical, so no existing caller changes behaviour. `getReducedGroupEntityIndexes`
-carried the identical latent bug and was fixed in the same edit — it too named a collection in step 1
-and ignored it in step 2, and it has no caller today that would have noticed.
+carried the identical bug and was fixed in the same edit — it too named a collection in step 1 and ignored it
+in step 2.
+
+**Correction.** The commit message for `210764b69` calls the group variant's bug latent, with "no
+cross-collection caller at all". That is **wrong**, and an adversarial review found the live path:
+`FilteringFormulaHierarchyEntityPredicate:192` evaluates a hierarchy `filterBy` against the *referenced*
+collection through `FilterByVisitor.createFormulaForTheFilter`, which keeps the **outer** `QueryPlanningContext`
+and only swaps the processing scope's schema (`FilterByVisitor:358`). A `groupHaving` inside that filter reaches
+`GroupHavingTranslator:84` → `HavingTranslatorHelper:344` → `getReferencedGroupEntityIndexes` with the foreign
+schema, so a Product-context query resolved Category group-index primary keys against Product's map. The fix is
+therefore a **real defect fix on the group path**, not a symmetry tidy-up — and that path still has no direct
+regression test, which is recorded under *Still open*.
 
 **Rejected: change the accessor's signature at all six call sites.** The other four callers
 (`FilterByVisitor:895`/`:1023`, `ReferencePropertyTranslator:153`, `ReferenceHistogramAccumulator:363`)
@@ -514,6 +545,10 @@ one owner can hold two rows of the *same pair* carrying different values — and
   indexes through the fixed accessor. Those indexes are themselves exercised - the declined variant of the
   pairing row reads them through the owner-side path - but the rewrite reading them is not. Closing this
   needs a fixture where the product end is the cheaper one.
+- **The group cross-collection path has no regression test.** `getReducedGroupEntityIndexes` was resolving
+  foreign primary keys against the queried collection until `210764b69`, reachable through a hierarchy filter
+  carrying a `groupHaving` (chain above). Building a row needs a managed group type on a reference reached
+  through `hierarchyWithin` on another collection; the fixture has no such shape today.
 - **Groups are excluded outright.** Whether per-row group values are mirrored onto reflected rows is
   unresolved — `ReferenceBlock` contains no group handling at all, which suggests they are not. Until
   that is settled, `entityGroupHaving` must remain a hard decline.
