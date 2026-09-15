@@ -77,6 +77,7 @@ import static io.evitadb.api.query.QueryConstraints.fromRoot;
 import static io.evitadb.api.query.QueryConstraints.hierarchyOfReference;
 import static io.evitadb.api.query.QueryConstraints.hierarchyWithin;
 import static io.evitadb.api.query.QueryConstraints.hierarchyWithinSelf;
+import static io.evitadb.api.query.QueryConstraints.or;
 import static io.evitadb.api.query.QueryConstraints.page;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static io.evitadb.api.query.QueryConstraints.referenceSummary;
@@ -806,6 +807,146 @@ public class BidirectionalReferenceRewriteCorrectnessFunctionalTest
 				);
 				return null;
 			}
+		);
+	}
+
+	/**
+	 * The duplicate-cardinality rewrite must answer exactly what the ordinary owner-side path answers.
+	 *
+	 * Duplicates were a hard decline until the by-primary-key index lookup was scoped to the collection the keys
+	 * came from. The concern that kept them declined was never the cost model but whether the *two ends line up* -
+	 * whether the reflected side mirrors every duplicate row with its own per-row reference attributes. That is not
+	 * a question a plan-shape assertion can answer, so this row answers it by comparison: the same question asked
+	 * twice, once rewritten and once forced onto the owner-side path by the decline knob, has to come back with the
+	 * same owners.
+	 *
+	 * The knob is an `entityPrimaryKeyInSet` over the whole referenced collection, which `splitChildren` refuses
+	 * outright - see {@link #shouldAnswerIdenticallyWithAndWithoutTheDeclineKnob} for why a *complete* key list is
+	 * the only inert one.
+	 *
+	 * Three sub-shapes, all on `CATEGORY.variantProducts`: each of the two tags the fixture writes, and the pure
+	 * `Or` of both. Tag `a` is the one that reaches an owner through several duplicate rows at once; tag `b`
+	 * reaches a single category; the disjunction spans two duplicate rows of one `(owner, referenced)` pair.
+	 *
+	 * **What the cost-gate guard below cannot catch.** It proves the shape is economically *worth* rewriting, not
+	 * that the rewrite was actually taken - re-introducing a decline for some unrelated reason would leave this row
+	 * comparing the owner-side path against itself, green and vacuous. Measured: with the duplicate gate restored,
+	 * every assertion here still passes. That is tolerable only because it cannot happen quietly - the same
+	 * condition turns four rows of `BidirectionalReferenceRewriteFunctionalTest` red, starting with
+	 * `shouldRewriteWhenTheReferenceCardinalityAllowsDuplicates`, which reads the planner's own alternative list.
+	 * Those rows own the "did it rewrite" question; this one owns "did it rewrite *correctly*".
+	 */
+	@DisplayName("Should answer a duplicate reference identically with and without the decline knob")
+	@UseDataSet(BIDI_REWRITE)
+	@Test
+	void shouldAnswerADuplicateReferenceIdenticallyWithAndWithoutTheDeclineKnob(
+		Evita evita,
+		List<SealedEntity> originalCategories,
+		List<SealedEntity> originalProducts
+	) {
+		// guard - the plain variant has to clear the cost gate, or both variants run the same owner-side plan and
+		// the comparison proves nothing. `candidates` are the distinct categories `PRODUCT.variants` announces;
+		// `buckets` counts the distinct products `CATEGORY.variantProducts` points at, which under duplicates is a
+		// LOWER bound on the reduced indexes the owner side would visit (one per duplicate row, not one per
+		// referenced entity) - so a guard that holds on this count holds on the real one too.
+		final int candidates = referencedPrimaryKeys(
+			inScope(originalProducts, Scope.LIVE), REF_PRODUCT_VARIANTS
+		).size();
+		final int buckets = referencedPrimaryKeys(
+			inScope(originalCategories, Scope.LIVE), REF_CATEGORY_VARIANT_PRODUCTS
+		).size();
+		assertTrue(
+			(long) candidates * REWRITE_MINIMAL_GAIN <= buckets,
+			"Fixture guard: the duplicate shape must clear the cost gate (" + candidates + " candidates * " +
+				REWRITE_MINIMAL_GAIN + " <= " + buckets + " buckets), otherwise the rewritten variant is not " +
+				"rewritten at all and this row compares a plan against itself"
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertDuplicateDeclineKnobIsInert(
+					session, "single tag reaching one owner through several duplicate rows",
+					attributeEquals(REF_ATTR_VARIANT_TAG, "a")
+				);
+				assertDuplicateDeclineKnobIsInert(
+					session, "single tag reaching exactly one owner",
+					attributeEquals(REF_ATTR_VARIANT_TAG, "b")
+				);
+				assertDuplicateDeclineKnobIsInert(
+					session, "pure Or spanning two duplicate rows of one pair",
+					or(
+						attributeEquals(REF_ATTR_VARIANT_TAG, "a"),
+						attributeEquals(REF_ATTR_VARIANT_TAG, "b")
+					)
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Runs one duplicate-reference sub-shape twice - once rewritten, once with the decline knob - and asserts the
+	 * two answers are identical down to their order.
+	 *
+	 * @param session                      open read session
+	 * @param shapeDescription             readable name of the sub-shape, used in the failure message
+	 * @param referenceAttributeConstraint constraint carried inside the `referenceHaving`
+	 */
+	private static void assertDuplicateDeclineKnobIsInert(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull String shapeDescription,
+		@Nonnull FilterConstraint referenceAttributeConstraint
+	) {
+		final List<Integer> rewritten = resultPrimaryKeyOrder(
+			session.query(
+				categoriesHoldingVariantRowQuery(referenceAttributeConstraint, false),
+				EntityReference.class
+			).getRecordData()
+		);
+		final List<Integer> declined = resultPrimaryKeyOrder(
+			session.query(
+				categoriesHoldingVariantRowQuery(referenceAttributeConstraint, true),
+				EntityReference.class
+			).getRecordData()
+		);
+		assertFalse(
+			rewritten.isEmpty(),
+			"Oracle guard: `" + shapeDescription + "` must answer something, otherwise the comparison is vacuous"
+		);
+		assertEquals(
+			declined, rewritten,
+			"The duplicate-cardinality rewrite answered `" + shapeDescription + "` differently from the ordinary " +
+				"owner-side path - the two ends of the pair do not line up row for row"
+		);
+	}
+
+	/**
+	 * Builds `collection(CATEGORY) + referenceHaving(variantProducts, ...)`, optionally carrying the decline knob.
+	 *
+	 * @param referenceAttributeConstraint constraint carried inside the `referenceHaving`
+	 * @param withDeclineKnob              whether to add the `entityPrimaryKeyInSet` that forces the decline
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query categoriesHoldingVariantRowQuery(
+		@Nonnull FilterConstraint referenceAttributeConstraint,
+		boolean withDeclineKnob
+	) {
+		final List<FilterConstraint> children = new ArrayList<>(2);
+		children.add(referenceAttributeConstraint);
+		if (withDeclineKnob) {
+			children.add(declineKnobOverEveryKeyUpTo(PRODUCT_COUNT));
+		}
+		return query(
+			collection(Entities.CATEGORY),
+			filterBy(
+				referenceHaving(REF_CATEGORY_VARIANT_PRODUCTS, children.toArray(FilterConstraint[]::new))
+			),
+			require(
+				debug(DebugMode.VERIFY_POSSIBLE_CACHING_TREES, DebugMode.PREFER_INDEX_SCAN),
+				page(1, Integer.MAX_VALUE)
+			)
 		);
 	}
 

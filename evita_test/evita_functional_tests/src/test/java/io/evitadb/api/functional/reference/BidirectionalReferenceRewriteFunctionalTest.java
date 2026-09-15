@@ -195,6 +195,11 @@ public class BidirectionalReferenceRewriteFunctionalTest
 	 * is written only for even products, so a locale mix-up returns a visibly wrong set instead of an exception.
 	 */
 	private static final int GERMAN_LABELLED_PRODUCT_PK = 6;
+	/**
+	 * A `variantTag` value the fixture never writes. The duplicate rows carry only `a` and `b`, so this selects
+	 * nothing - which is the point: it makes the rewrite reach an empty answer by itself rather than by declining.
+	 */
+	private static final String ABSENT_VARIANT_TAG = "no-such-variant";
 
 	/* --------------------------------------------------------------------------------------------------------- */
 	/* A-positive - the rewrite fires                                                                              */
@@ -1453,18 +1458,31 @@ public class BidirectionalReferenceRewriteFunctionalTest
 	}
 
 	/**
-	 * Precondition 2 - a reference allowing duplicate rows per `(owner, referenced)` pair shapes the reduced-index
-	 * families differently on the two ends, so `preparePlan` refuses it. Whether the refusal trips on the owner's
-	 * own cardinality or on the counterpart's depends on whether a reflected reference inherits
-	 * `ZERO_OR_MORE_WITH_DUPLICATES` from its original; both checks are present and the row declines either way.
+	 * A reference allowing duplicate rows per `(owner, referenced)` pair used to be a hard decline, on the grounds
+	 * that its reduced-index family is addressed by index primary key rather than by a fully qualified key. That was
+	 * an *addressing* problem, not a semantic one, and it has been fixed in
+	 * {@link io.evitadb.core.query.QueryPlanningContext#getEntityIndexByPrimaryKey(String, int, Class)} by naming the
+	 * collection the keys came from. The rewrite is now taken here.
+	 *
+	 * The fixture writes three `PRODUCT.variants` rows per product 1..{@link #LAST_VARIANT_PRODUCT_PK}: two pointing
+	 * at category 1 (tags `a` and `b`) and one at category 2 (tag `a`). Tag `b` therefore reaches exactly one
+	 * category, which is what makes this row discriminating - a rewrite resolving its per-owner indexes against the
+	 * wrong collection answers with whichever categories the colliding index happened to hold.
 	 */
-	@DisplayName("Should not rewrite when the reference cardinality allows duplicate rows")
+	@DisplayName("Should rewrite when the reference cardinality allows duplicate rows")
 	@UseDataSet(BIDI_REWRITE)
 	@Test
-	void shouldNotRewriteWhenOwnerCardinalityAllowsDuplicates(
+	void shouldRewriteWhenTheReferenceCardinalityAllowsDuplicates(
 		Evita evita,
 		List<SealedEntity> originalCategories
 	) {
+		// guard - tag `b` must separate the categories, or a wrong answer could still look right
+		assertTrue(
+			originalCategories.stream().anyMatch(carriesVariantTag("b")) &&
+				originalCategories.stream().anyMatch(carriesVariantTag("b").negate()),
+			"Tag `b` must be carried by some categories and not by others, or this row cannot tell a correct " +
+				"rewrite from one answering with the whole announced candidate set!"
+		);
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1484,12 +1502,220 @@ public class BidirectionalReferenceRewriteFunctionalTest
 
 				AssertionUtils.assertResultIs(
 					originalCategories,
-					liveOwnerWithRow(
-						REF_CATEGORY_VARIANT_PRODUCTS, row -> "b".equals(row.getAttribute(REF_ATTR_VARIANT_TAG))
-					),
+					carriesVariantTag("b"),
 					response.getRecordData()
 				);
-				assertReferenceIndexOptionRegistered(response, true);
+				assertReferenceIndexOptionRegistered(response, false);
+			}
+		);
+	}
+
+	/**
+	 * The duplicate-specific shape: one owner is reached through **several** reduced indexes at once, because every
+	 * one of the thirty variant products carries a `(category 1, a)` row of its own and category 2 is reached by a
+	 * second family entirely.
+	 *
+	 * `BidirectionalReferenceRewriter#createPerOwnerFormulas` ORs every reduced index belonging to one owner before
+	 * pairing the result with that owner. A reference without duplicates never exercises the OR with more than one
+	 * index per scope, so this is the row that covers it - and an owner announced by N indexes must still appear
+	 * exactly once in the answer.
+	 */
+	@DisplayName("Should rewrite when one owner is reached through several duplicate rows")
+	@UseDataSet(BIDI_REWRITE)
+	@Test
+	void shouldRewriteWhenOneOwnerIsReachedThroughSeveralDuplicateRows(
+		Evita evita,
+		List<SealedEntity> originalCategories
+	) {
+		// guard - the OR over several per-owner indexes is only exercised when an owner really does hold more than
+		// one qualifying duplicate row
+		assertTrue(
+			originalCategories.stream().anyMatch(category -> variantRowsWithTag(category, "a") > 1),
+			"Some category must be reached by more than one `" + REF_CATEGORY_VARIANT_PRODUCTS + "` row carrying " +
+				"tag `a`, or the multi-index branch of the per-owner formula is never taken!"
+		);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							referenceHaving(
+								REF_CATEGORY_VARIANT_PRODUCTS,
+								attributeEquals(REF_ATTR_VARIANT_TAG, "a")
+							)
+						),
+						indexScanRequirements()
+					),
+					EntityReference.class
+				);
+
+				AssertionUtils.assertResultIs(
+					originalCategories,
+					carriesVariantTag("a"),
+					response.getRecordData()
+				);
+				assertReferenceIndexOptionRegistered(response, false);
+			}
+		);
+	}
+
+	/**
+	 * A value no duplicate row carries must come back empty **through the rewrite**, not through the planner giving
+	 * up earlier.
+	 *
+	 * `IndexSelectionVisitor#addReferenceIndexOption` returns before touching the type index whenever the rewrite is
+	 * applicable, and applicability is decided from the candidate owners rather than from the attribute value - so
+	 * index selection cannot short-circuit here the way it does on a declined shape. Reading the absent reference
+	 * option is therefore still meaningful, and it is what separates "the rewrite computed nothing" from "the
+	 * planner never reached the filter".
+	 */
+	@DisplayName("Should answer empty through the rewrite when no duplicate row carries the value")
+	@UseDataSet(BIDI_REWRITE)
+	@Test
+	void shouldAnswerEmptyThroughTheRewriteWhenNoDuplicateRowCarriesTheValue(
+		Evita evita,
+		List<SealedEntity> originalCategories
+	) {
+		// guard - an empty answer must not be able to pass for the wrong reason
+		assertTrue(
+			originalCategories.stream().noneMatch(carriesVariantTag(ABSENT_VARIANT_TAG)),
+			"No category may carry tag `" + ABSENT_VARIANT_TAG + "`, or this row is asserting emptiness against a " +
+				"fixture that could legitimately answer!"
+		);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							referenceHaving(
+								REF_CATEGORY_VARIANT_PRODUCTS,
+								attributeEquals(REF_ATTR_VARIANT_TAG, ABSENT_VARIANT_TAG)
+							)
+						),
+						indexScanRequirements()
+					),
+					EntityReference.class
+				);
+
+				// `AssertionUtils#assertResultIs` refuses an empty expectation by design, so assert directly
+				assertTrue(
+					response.getRecordData().isEmpty(),
+					"No `" + REF_CATEGORY_VARIANT_PRODUCTS + "` row carries tag `" + ABSENT_VARIANT_TAG + "`, so " +
+						"the result must be empty but was " + response.getRecordData() + "!"
+				);
+				assertReferenceIndexOptionRegistered(response, false);
+				// without this, an absent reference option would be equally consistent with the planner never
+				// reaching the filter at all - which is the *other* way to answer empty, and not the one claimed
+				assertPlanningReachedTheFilter(response);
+			}
+		);
+	}
+
+	/**
+	 * A pure `Or` of attribute leaves is the one multi-leaf shape `collectAttributeNames` admits, and duplicates are
+	 * what make it interesting: the two disjuncts are satisfied by **different rows of the same owner**, so the
+	 * answer is only right if the disjunction is evaluated inside each duplicate index and the results unioned
+	 * afterwards - which is exactly the order `createPerOwnerFormulas` produces.
+	 */
+	@DisplayName("Should rewrite a disjunction whose branches land in different duplicate rows")
+	@UseDataSet(BIDI_REWRITE)
+	@Test
+	void shouldRewriteADisjunctionAcrossDuplicateRows(
+		Evita evita,
+		List<SealedEntity> originalCategories
+	) {
+		// guard - the two disjuncts must genuinely be split across two rows of one owner, otherwise the row degrades
+		// into the single-leaf case already covered above
+		assertTrue(
+			originalCategories.stream().anyMatch(carriesVariantTag("a").and(carriesVariantTag("b"))),
+			"Some category must hold one `" + REF_CATEGORY_VARIANT_PRODUCTS + "` row tagged `a` and another tagged " +
+				"`b`, or the disjunction never spans two duplicate rows!"
+		);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							referenceHaving(
+								REF_CATEGORY_VARIANT_PRODUCTS,
+								or(
+									attributeEquals(REF_ATTR_VARIANT_TAG, "a"),
+									attributeEquals(REF_ATTR_VARIANT_TAG, "b")
+								)
+							)
+						),
+						indexScanRequirements()
+					),
+					EntityReference.class
+				);
+
+				AssertionUtils.assertResultIs(
+					originalCategories,
+					carriesVariantTag("a").or(carriesVariantTag("b")),
+					response.getRecordData()
+				);
+				assertReferenceIndexOptionRegistered(response, false);
+			}
+		);
+	}
+
+	/**
+	 * Two attribute siblings stay a hard decline on a duplicate reference, and the answer stays per-row.
+	 *
+	 * This is the invariant that makes duplicates safe to rewrite at all. `splitChildren` refuses more than one
+	 * attribute child because a conjunction is not reproducible from the counterpart end, and duplicates are the
+	 * sharpest form of the question: category 1 holds a row tagged `a` **and** a row tagged `b` for the very same
+	 * product, so a cross-row reading would answer with it while the per-row reading answers nothing. The
+	 * non-duplicate twin of this row - {@link #shouldMatchTwoAttributeSiblingsWithinOneRowRatherThanAcrossRows} -
+	 * can only split the two values across two different referenced entities; here they sit on one
+	 * `(owner, referenced)` pair, which no reference without duplicates can express.
+	 */
+	@DisplayName("Should still decline two attribute siblings on a duplicate reference")
+	@UseDataSet(BIDI_REWRITE)
+	@Test
+	void shouldStillDeclineTwoAttributeSiblingsOnADuplicateReference(
+		Evita evita,
+		List<SealedEntity> originalCategories
+	) {
+		// guard - the cross-row reading would have answered, so the empty result below is a real signal
+		assertTrue(
+			originalCategories.stream().anyMatch(carriesVariantTag("a").and(carriesVariantTag("b"))),
+			"Some category must hold the two tags on two duplicate rows of one pair, or this row cannot tell the " +
+				"per-row reading from the cross-row one!"
+		);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							referenceHaving(
+								REF_CATEGORY_VARIANT_PRODUCTS,
+								attributeEquals(REF_ATTR_VARIANT_TAG, "a"),
+								attributeEquals(REF_ATTR_VARIANT_TAG, "b")
+							)
+						),
+						indexScanRequirements()
+					),
+					EntityReference.class
+				);
+
+				assertTrue(
+					response.getRecordData().isEmpty(),
+					"Two attribute siblings are matched within a single reference row, and no row can hold two " +
+						"different values of one attribute - so the answer must be empty but was " +
+						response.getRecordData() + "!"
+				);
+				// the rewrite declined, so index selection evaluated the type index itself, matched no reduced index
+				// and returned an empty plan before filter planning - the same channel the non-duplicate twin reads
+				assertPlanningShortCircuited(response);
 			}
 		);
 	}
@@ -1929,6 +2155,26 @@ public class BidirectionalReferenceRewriteFunctionalTest
 	 *
 	 * @param response the response whose `queryTelemetry()` extra result is read
 	 */
+	/**
+	 * Asserts the planner really did plan a filter, i.e. that index selection handed it a non-empty plan.
+	 *
+	 * This is the positive counterpart of {@link #assertPlanningShortCircuited} and it exists for one shape only:
+	 * a query whose answer is empty. There, "no reference index option was registered" is ambiguous on its own -
+	 * it is what a taken rewrite looks like, and equally what a short circuit looks like. Pairing the two readings
+	 * is what pins the empty answer on the rewrite rather than on the planner giving up before it.
+	 *
+	 * @param response response whose telemetry is inspected
+	 */
+	private static void assertPlanningReachedTheFilter(@Nonnull EvitaResponse<EntityReference> response) {
+		final QueryTelemetry telemetry = response.getExtraResult(QueryTelemetry.class);
+		assertNotNull(telemetry, "Query telemetry must be present - it is the only channel this class can read!");
+		assertNotNull(
+			findPhase(telemetry, QueryPhase.PLANNING_FILTER),
+			"The planner must have reached filter planning - without a `PLANNING_FILTER` step the empty answer " +
+				"came out of index selection, and the rewrite never ran at all!"
+		);
+	}
+
 	private static void assertPlanningShortCircuited(@Nonnull EvitaResponse<EntityReference> response) {
 		final QueryTelemetry telemetry = response.getExtraResult(QueryTelemetry.class);
 		assertNotNull(telemetry, "Query telemetry must be present - it is the only channel this class can read!");
@@ -2143,6 +2389,34 @@ public class BidirectionalReferenceRewriteFunctionalTest
 	) {
 		final Long value = row.getAttribute(attributeName);
 		return value != null && value == expected;
+	}
+
+	/**
+	 * Oracle for the duplicate-cardinality rows: a LIVE category holding at least one `variantProducts` row tagged
+	 * `expected` in its own entity body.
+	 *
+	 * @param expected value of the representative `variantTag` attribute
+	 * @return predicate over the original categories
+	 */
+	@Nonnull
+	private static Predicate<SealedEntity> carriesVariantTag(@Nonnull String expected) {
+		return liveOwnerWithRow(
+			REF_CATEGORY_VARIANT_PRODUCTS, row -> expected.equals(row.getAttribute(REF_ATTR_VARIANT_TAG))
+		);
+	}
+
+	/**
+	 * Counts the category's `variantProducts` rows carrying the given tag. Used only by fixture guards, to assert
+	 * that an owner really is reached through more than one duplicate row before a row claims to exercise that.
+	 *
+	 * @param category category to inspect
+	 * @param expected value of the representative `variantTag` attribute
+	 * @return number of matching rows
+	 */
+	private static long variantRowsWithTag(@Nonnull SealedEntity category, @Nonnull String expected) {
+		return category.getReferences(REF_CATEGORY_VARIANT_PRODUCTS).stream()
+			.filter(row -> expected.equals(row.getAttribute(REF_ATTR_VARIANT_TAG)))
+			.count();
 	}
 
 	/* --------------------------------------------------------------------------------------------------------- */
