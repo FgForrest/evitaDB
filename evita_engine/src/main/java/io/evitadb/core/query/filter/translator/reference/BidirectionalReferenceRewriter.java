@@ -263,27 +263,6 @@ public class BidirectionalReferenceRewriter {
 		if (scopes.isEmpty()) {
 			return null;
 		}
-		// A duplicate-allowing cardinality is declined because the rewrite's ADDRESSING does not survive swapping the
-		// ends - not because such a relation is semantically un-rewritable.
-		//
-		// `QueryPlanningContext#getReducedEntityIndexes` resolves the ordinary case by a fully qualified key: the
-		// collection name plus `EntityIndexKey(REFERENCED_ENTITY, scope, RepresentativeReferenceKey(...))`. Naming the
-		// collection explicitly is what makes it end-agnostic, and it is exactly what lets this rewrite ask the
-		// *target* collection for the index holding one owner's rows.
-		//
-		// The duplicate branch is shaped differently. One (owner, referenced) pair maps to MANY reduced indexes - one
-		// per duplicate row - and they are addressed by index PRIMARY KEY: `ReferencedTypeEntityIndex
-		// #getAllReferenceIndexes` hands back an `int[]`, each entry resolved through `getEntityIndexByPrimaryKey`,
-		// which reads the per-context `indexesByPk` map and takes no collection argument. Those primary keys belong to
-		// the target collection's indexes while this context plans over the owner's, so the resolution would trip the
-		// premise check there or return an unrelated index that happens to share the number.
-		//
-		// Lifting this needs a collection-scoped by-PK lookup (`EntityCollection#getIndexByPrimaryKeyIfExists`); the
-		// ADR records it as a follow-up.
-		if (ownerReference.getCardinality().allowsDuplicates()) {
-			return null;
-		}
-
 		final SplitChildren split = splitChildren(referenceHaving);
 		if (split == null) {
 			return null;
@@ -303,11 +282,6 @@ public class BidirectionalReferenceRewriter {
 			return null;
 		}
 		final ReferenceSchemaContract counterpart = counterpartRef.get();
-		// gated for the same reason as the owner end above - the rewrite reads THIS end's reduced indexes, and
-		// the duplicate branch addresses them by primary key through a map scoped to the owner's context
-		if (counterpart.getCardinality().allowsDuplicates()) {
-			return null;
-		}
 		final String targetEntityType = ownerReference.getReferencedEntityType();
 		final EntitySchemaContract targetEntitySchema = queryContext.getSchema(targetEntityType);
 		// the owner side has to be usable too - partly for scope symmetry (a reflected row is dropped when either

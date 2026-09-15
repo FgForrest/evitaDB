@@ -420,26 +420,43 @@ class BidirectionalReferenceRewriterTest {
 	class CardinalityPreconditions {
 
 		@Test
-		@DisplayName("should decline when the owner reference allows duplicate rows")
-		void shouldDeclineWhenOwnerCardinalityAllowsDuplicates() {
+		@DisplayName("should stay applicable when the owner reference allows duplicate rows")
+		void shouldStayApplicableWhenOwnerCardinalityAllowsDuplicates() {
 			final RewriteFixture fixture = RewriteFixture.baseline(EnumSet.of(Scope.LIVE));
 			when(fixture.ownerReference.getCardinality()).thenReturn(Cardinality.ZERO_OR_MORE_WITH_DUPLICATES);
-			assertFalse(
+			assertTrue(
 				fixture.isApplicable(),
-				"A reference allowing duplicate (owner, referenced) rows shapes its reduced index families " +
-					"differently on the two ends, so the rewrite is not equivalent there."
+				"Duplicate rows per (owner, referenced) pair were declined only because the reduced indexes of that " +
+					"branch are addressed by index primary key, which used to be resolved against the queried " +
+					"collection. `QueryPlanningContext#getEntityIndexByPrimaryKey(String, int, Class)` now names the " +
+					"collection, so there is nothing left to decline."
 			);
 		}
 
 		@Test
-		@DisplayName("should decline when the counterpart reference allows duplicate rows")
-		void shouldDeclineWhenCounterpartCardinalityAllowsDuplicates() {
+		@DisplayName("should stay applicable when the counterpart reference allows duplicate rows")
+		void shouldStayApplicableWhenCounterpartCardinalityAllowsDuplicates() {
 			final RewriteFixture fixture = RewriteFixture.baseline(EnumSet.of(Scope.LIVE));
 			when(fixture.counterpart.getCardinality()).thenReturn(Cardinality.ONE_OR_MORE_WITH_DUPLICATES);
-			assertFalse(
+			assertTrue(
 				fixture.isApplicable(),
-				"The duplicates check has to be applied to the counterpart as well - this is the direction no legal " +
-					"schema can produce, because the reflected end inherits the original's cardinality."
+				"The counterpart end is the one whose reduced indexes the rewrite actually reads, so it is the end " +
+					"the addressing fix had to reach - a duplicate-allowing counterpart must be accepted too."
+			);
+		}
+
+		@Test
+		@DisplayName("should stay applicable when both ends allow duplicate rows")
+		void shouldStayApplicableWhenBothEndsAllowDuplicates() {
+			final RewriteFixture fixture = RewriteFixture.baseline(EnumSet.of(Scope.LIVE));
+			when(fixture.ownerReference.getCardinality()).thenReturn(Cardinality.ZERO_OR_MORE_WITH_DUPLICATES);
+			when(fixture.counterpart.getCardinality()).thenReturn(Cardinality.ZERO_OR_MORE_WITH_DUPLICATES);
+			assertTrue(
+				fixture.isApplicable(),
+				"This is the only combination a legal schema can actually produce - a reflected reference is forced " +
+					"to allow duplicates when its original does, `ReflectedReferenceSchema#validate` rejecting the " +
+					"schema otherwise - so the two single-ended rows above are hypotheticals and this one is the " +
+					"real shape."
 			);
 		}
 	}

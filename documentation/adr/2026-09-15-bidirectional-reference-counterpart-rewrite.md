@@ -1,12 +1,12 @@
 ---
 title: Answer a referenceHaving from whichever end of a bidirectional reference is cheaper, and stop emitting provably-empty null subtractions
 date: 2026-09-15
-updated: 2026-09-15 08:58
+updated: 2026-09-15 14:15
 status: accepted
 kind: optimization
 issues: [1547, 1583, 1584, 1585]
 prs: [1548, 1568]
-areas: [evita_engine/src/main/java/io/evitadb/core/query/filter/translator/reference, evita_engine/src/main/java/io/evitadb/core/query/algebra/reference, evita_engine/src/main/java/io/evitadb/core/query/indexSelection, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/attribute]
+areas: [evita_engine/src/main/java/io/evitadb/core/query/filter/translator/reference, evita_engine/src/main/java/io/evitadb/core/query/algebra/reference, evita_engine/src/main/java/io/evitadb/core/query/indexSelection, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/attribute, evita_engine/src/main/java/io/evitadb/core/query/QueryPlanningContext.java]
 supersedes: []
 superseded-by: []
 relates: [2026-09-11-reference-name-narrowing, 2026-09-12-committed-snapshot-provenance-for-enrichment, 2026-09-13-per-entity-io-statistics-attribution, 2026-09-15-non-collapsible-formula-marker]
@@ -209,8 +209,9 @@ becomes `EmptyFormula.INSTANCE` — ~133 000 nodes to one — which is the colla
 reach.
 
 For Option A to lose, the counterpart end would have to stop being a faithful partition of the same
-rows — e.g. if reflected rows were ever allowed to diverge from their originals, or if duplicate
-cardinality were lifted without settling how the two index families line up.
+rows — e.g. if reflected rows were ever allowed to diverge from their originals. Duplicate cardinality
+was the other half of that sentence until it was lifted (below); it turned out the two index families
+*do* line up row for row, and the measurement is recorded in Verification.
 
 ## Key technical details
 
@@ -232,7 +233,7 @@ cardinality were lifted without settling how the two index families line up.
   the null-subtraction skip, plus `subtractionMayYieldRecords`.
 
 **Preconditions, all of which must hold** (each is a deliberate fall-through, not an oversight):
-non-empty scope set; neither end allows duplicate cardinality; a counterpart exists and is available;
+non-empty scope set; a counterpart exists and is available;
 both ends are `isIndexedInScope` with `REFERENCED_ENTITY` among their indexed components in *every*
 requested scope; every attribute the constraint names is inherited by the reflected end and is
 filterable or unique on the counterpart; the constraint shape is at most one non-empty `entityHaving`
@@ -339,9 +340,38 @@ differences were empty. The planning-time collapse was verified live: the collap
 returns 0 alone, absorbs correctly in a conjunction, behaves as the identity in a disjunction, and
 extra-result production survives it.
 
+**Duplicate cardinality — the three-state measurement.** The question was whether the reflected end
+mirrors duplicate rows one-for-one with their per-row reference attributes; nothing short of running it
+answers that. The fixture writes three `PRODUCT.variants` rows per product 1..30 — `(category 1, "a")`,
+`(category 1, "b")`, `(category 2, "a")` — so an owner is reached through several duplicate indexes at
+once and the two tags separate the categories.
+
+| state | gates | addressing fix | `shouldRewriteWhenTheReferenceCardinalityAllowsDuplicates` |
+|---|---|---|---|
+| A | in | — | red on the flag assertion — the row can fail |
+| B | **out** | — | `GenericEvitaInternalError`: "Expected index of type `ReducedEntityIndex` but got `ReferencedTypeEntityIndex`" |
+| C | out | **in** | green, and the answer assertion green with it |
+
+State B is the point of the exercise: a PRODUCT reduced-index primary key resolved, inside CATEGORY's
+`indexesByPk`, to one of CATEGORY's *type* indexes carrying the same number. The premise check caught it
+only because the collision happened to land on a different class — CATEGORY holds hundreds of
+`ReducedEntityIndex` instances, and a collision with one of those would have passed the check and
+produced a **wrong answer silently**. State C answering correctly is what settles the mirroring question:
+`assertResultIs` derives its expectation from the original entities' own bodies, so a reflected side that
+dropped or merged a duplicate row could not have matched it.
+
+**Falsifiability of the new rows, measured rather than assumed.** Re-inserting the owner gate turns
+exactly six rows red and no others: the four functional rows asserting the rewrite fires, plus
+`shouldStayApplicableWhenOwnerCardinalityAllowsDuplicates` and `…WhenBothEndsAllowDuplicates`. The
+counterpart-only unit row stays green, correctly — the probe restored only the owner check. The
+conjunction row stays green, correctly — it declines either way. The one row that stays green *and
+should not* is `shouldAnswerADuplicateReferenceIdenticallyWithAndWithoutTheDeclineKnob`, which compares
+the owner-side path against itself once the rewrite declines; that boundary is recorded in its own
+JavaDoc, and it cannot go vacuous quietly because the same condition reddens the four flag rows.
+
 **Automated coverage.** A suite was built specifically to attack both changes — four functional
 classes over one shared `BIDI_REWRITE` dataset plus two unit classes — and is what found the defects
-listed below. The full regression sweep across everything either change can reach stands at **2 525
+listed below. The full regression sweep across everything either change can reach stands at **2 540
 tests, 0 failures, 7 skipped**; the seven skips are the six rows pinning the three pre-existing
 defects filed as issues (kept in the tree, `@Disabled`, each naming its issue) plus one skip that
 predates this work.
@@ -429,13 +459,61 @@ Both exclusions may therefore be conservative rather than necessary: if `and` an
 the rewrite is per-row, the rewrite may faithfully reproduce shapes it currently refuses. **Not acted
 on** — recorded as a follow-up with the two measurements as its evidence.
 
+### Duplicate-allowing cardinality was lifted — it was an addressing bug, not a semantic limit
+
+Both ends were originally declined when `Cardinality#allowsDuplicates()`, on the stated grounds that
+"the reduced-index families are shaped differently on the two ends". That reasoning was wrong in an
+instructive way: the *shape* is fine, the **addressing** was not.
+
+`getReducedEntityIndexes` has two branches. The ordinary one resolves a fully qualified
+`EntityIndexKey(REFERENCED_ENTITY, scope, RepresentativeReferenceKey(...))` against a **named**
+collection, which is what makes it end-agnostic. The duplicate branch cannot: one `(owner, referenced)`
+pair maps to many reduced indexes, so `ReferencedTypeEntityIndex#getAllReferenceIndexes` hands back
+storage primary keys — and those were resolved through `QueryPlanningContext#getEntityIndexByPrimaryKey`,
+which read the per-context `indexesByPk` map and took **no collection argument**. Index primary keys
+come from a per-entity-type sequence, so the same number names a different index in every collection.
+The rewrite is the one caller that asks about a collection other than the queried one, so it was the
+one caller that broke.
+
+**Fixed by giving the accessor the collection**, mirroring `getEntityIndex(String, EntityIndexKey, Class)`:
+the two-argument form now delegates to a three-argument one that keeps the per-context map for the
+queried collection and goes through `EntityCollection#getIndexByPrimaryKeyIfExists` for any other. The
+own-collection path is byte-identical, so no existing caller changes behaviour. `getReducedGroupEntityIndexes`
+carried the identical latent bug and was fixed in the same edit — it too named a collection in step 1
+and ignored it in step 2, and it has no caller today that would have noticed.
+
+**Rejected: change the accessor's signature at all six call sites.** The other four callers
+(`FilterByVisitor:895`/`:1023`, `ReferencePropertyTranslator:153`, `ReferenceHistogramAccumulator:363`)
+resolve keys from their own collection's type index, so naming it would be noise at best and a fresh
+source of wrong answers at worst if one of them were analysed wrongly. The overload keeps the blast
+radius at the two branches that genuinely span collections. `FilterByVisitor:892-901` already branches
+this way inline, so the shape is mirrored rather than invented - but it is *not* folded into the new
+accessor, because it reaches the foreign collection through `getIndexIfExists(int, Function)` rather than
+`getIndexByPrimaryKeyIfExists(int)`, and the two have not been established to be interchangeable.
+
+**What actually had to be measured** was not the addressing — it was whether the reflected side mirrors
+duplicate rows one-for-one *with their per-row reference attributes*. `ReflectedReferenceSchema:1044-1053`
+forces a reflected reference to allow duplicates when its original does, which is suggestive but not
+proof; the analogous question is precisely what keeps groups a hard decline. It is settled empirically
+in Verification below.
+
+The semantic argument that makes this safe is unchanged by duplicates: `splitChildren` admits at most
+one attribute child, a leaf or a pure `Or` of leaves, so the "two siblings must match within one
+reference row" problem never reaches the rewrite. Duplicates make that the sharpest possible question —
+one owner can hold two rows of the *same pair* carrying different values — and the decline still holds.
+
 ### Still open
 
 - **588 isolated translator runs remain at plan time.** The cheaper form computes the leaf bitmaps once
   at planning and keeps `(ownerPk, Bitmap[])`, gathering transactional ids by hand.
-- **Duplicate-allowing cardinality falls through.** Lifting it needs
-  `EntityCollection#getIndexByPrimaryKeyIfExists`, because `getReducedEntityIndexes`' duplicate branch
-  resolves index PKs against the *owner* collection's map.
+- **The reverse orientation with duplicates never executes.** Every functional row runs the forward one -
+  owner is the reflected `CATEGORY.variantProducts`, counterpart the original `PRODUCT.variants`. Asked from
+  the product end the shape is *applicable* (`shouldStayApplicableWhenCounterpartCardinalityAllowsDuplicates`)
+  but declines on fixture economics: 30 candidate products against the 3 reduced indexes `PRODUCT.variants`
+  would visit. So `createPerOwnerFormulas` has never been observed reading **reflected-side** duplicate
+  indexes through the fixed accessor. Those indexes are themselves exercised - the declined variant of the
+  pairing row reads them through the owner-side path - but the rewrite reading them is not. Closing this
+  needs a fixture where the product end is the cheaper one.
 - **Groups are excluded outright.** Whether per-row group values are mirrored onto reflected rows is
   unresolved — `ReferenceBlock` contains no group handling at all, which suggests they are not. Until
   that is settled, `entityGroupHaving` must remain a hard decline.
