@@ -402,10 +402,9 @@ class BidirectionalReferenceRewriterTest {
 
 		@Test
 		@DisplayName("should stay applicable when no owner exists in any requested scope")
-		void shouldDeclineWhenNoOwnerExistsInAnyRequestedScope() {
+		void shouldStayApplicableWhenNoOwnerExistsInAnyRequestedScope() {
 			final RewriteFixture fixture = RewriteFixture.baseline(EnumSet.of(Scope.LIVE));
 			fixture.stubOwnerGlobalIndex(Scope.LIVE, null);
-			// deliberately asserting TRUE despite the row name taken from the design document:
 			// `collectCandidateOwners` returns an *empty* array here, not NULL, so a plan is produced and
 			// `tryRewrite` answers EmptyFormula. Reading this as a decline is what the row exists to rule out.
 			assertTrue(
