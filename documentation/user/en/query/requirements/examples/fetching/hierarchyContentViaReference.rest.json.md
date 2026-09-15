@@ -22,11 +22,45 @@
             "type" : "Category",
             "version" : 2,
             "scope" : "LIVE",
+            "locales" : [
+              "en"
+            ],
+            "allLocales" : [
+              "cs",
+              "de",
+              "en"
+            ],
+            "attributes" : {
+              "global" : {
+                "code" : "smartwatches"
+              },
+              "localized" : {
+                "en" : {
+                  "name" : "Smartwatches"
+                }
+              }
+            },
             "parentEntity" : {
               "primaryKey" : 66481,
               "type" : "Category",
               "version" : 1,
               "scope" : "LIVE",
+              "locales" : [
+                "en"
+              ],
+              "allLocales" : [
+                "en"
+              ],
+              "attributes" : {
+                "global" : {
+                  "code" : "smart-wearable"
+                },
+                "localized" : {
+                  "en" : {
+                    "name" : "Smart wearable"
+                  }
+                }
+              },
               "parentEntity" : {
                 "primaryKey" : 66468,
                 "type" : "Category",
@@ -49,40 +83,6 @@
                       "name" : "Accessories"
                     }
                   }
-                }
-              },
-              "locales" : [
-                "en"
-              ],
-              "allLocales" : [
-                "en"
-              ],
-              "attributes" : {
-                "global" : {
-                  "code" : "smart-wearable"
-                },
-                "localized" : {
-                  "en" : {
-                    "name" : "Smart wearable"
-                  }
-                }
-              }
-            },
-            "locales" : [
-              "en"
-            ],
-            "allLocales" : [
-              "cs",
-              "de",
-              "en"
-            ],
-            "attributes" : {
-              "global" : {
-                "code" : "smartwatches"
-              },
-              "localized" : {
-                "en" : {
-                  "name" : "Smartwatches"
                 }
               }
             }
