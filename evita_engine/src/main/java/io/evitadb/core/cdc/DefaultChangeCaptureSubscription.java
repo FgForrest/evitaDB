@@ -370,7 +370,19 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 				T capture = this.queue.poll();
 				if (capture == null) {
 					// If the queue is empty, fill it with new events starting from the last processed position
-					this.queueFiller.accept(new WalPointer(this.lastVersion, this.lastIndex + 1), this, this.queue);
+					try {
+						this.queueFiller.accept(new WalPointer(this.lastVersion, this.lastIndex + 1), this, this.queue);
+					} catch (Throwable fillException) {
+						// The filler reads the write-ahead log, so it can fail for reasons that have nothing to
+						// do with the subscriber - and that failure has to reach the subscriber all the same.
+						// Left uncaught it escapes this method entirely: `finished` stays false, so the
+						// subscriber is told neither onError nor onComplete and simply stops receiving events
+						// for the lifetime of the process. On the `request(n)` path the same throw also
+						// propagates out of Flow.Subscription#request(long), which reactive-streams forbids from
+						// throwing, into the gRPC producer loop or into embedded caller code.
+						onError(fillException);
+						break;
+					}
 					// Try again to get an event from the now-filled queue
 					capture = this.queue.poll();
 					if (capture == null) {

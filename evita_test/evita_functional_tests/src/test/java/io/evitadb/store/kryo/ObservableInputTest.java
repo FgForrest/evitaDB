@@ -23,6 +23,7 @@
 
 package io.evitadb.store.kryo;
 
+import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.checksum.Crc32CChecksumFactory;
@@ -42,11 +43,15 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.zip.Deflater;
 import org.junit.jupiter.api.Tag;
 
@@ -1014,6 +1019,594 @@ class ObservableInputTest extends AbstractObservableInputOutputTest {
 
 				final long manualChecksum = computeManualCumulativeChecksum(allBytes);
 				assertEquals(manualChecksum, cumulativeChecksum);
+			}
+		}
+	}
+
+	/**
+	 * Reachability probe for the buffer-misalignment hazard `AbstractMutationLog` documented for years as *"there
+	 * is probably some bug in our observable input implementation that is revealed by filling the buffer
+	 * incompletely with the data from the stream"*, describing a 16k buffer, a 2k record, and a 4k record that
+	 * then fails to read *"because the internal pointers are probably somehow misaligned"*.
+	 *
+	 * This sweep never reproduced it, and that is its result rather than a disappointment: whatever the buffer
+	 * does internally, every record comes back byte-for-byte through every combination of a small buffer and
+	 * sub-buffer records. The defect was not on the record path at all - it was in the bare numbers the WAL reads
+	 * *between* records, which {@link BoundaryReadTests} covers. Keep this class as the standing negative
+	 * control: if a future change to the fill or compaction bookkeeping does break the record path, this is what
+	 * says so.
+	 *
+	 * Note what is deliberately NOT claimed to be new here. {@link TrickleStreamTests} already forces partial
+	 * buffer fills (`limit < capacity`) on every single read, which is a harsher version of the same condition,
+	 * and it passes. What neither that class nor the size sweep reproduces is the one property specific to a WAL
+	 * being tailed: a stream that genuinely runs out of bytes and then, a moment later, has more - because the
+	 * writer appended them. {@link #shouldReportBufferUnderflowWhenTheWriterHasNotCaughtUpYet()} covers that gap,
+	 * and proves it reached the condition rather than assuming so: {@link GrowingInputStream} counts its own
+	 * end-of-input reports and the test asserts the count is non-zero.
+	 */
+	@Nested
+	@DisplayName("Partially-filled buffer: record integrity across buffer/record size combinations")
+	class PartiallyFilledBufferProbeTests {
+
+		@DisplayName("every combination of a small read buffer and sub-buffer record sizes must round-trip intact")
+		@Test
+		void shouldReadRecordsIntactAcrossPartiallyFillingSizeCombinations() {
+			// deliberately small, and deliberately including non-power-of-two sizes so a fill can land at an
+			// awkward offset rather than always on a tidy boundary
+			final int[] readBufferSizes = {16, 24, 32, 48, 64, 96, 128, 250, 256};
+			// the documented shape is "a record far smaller than the buffer, then one that does not fit in what
+			// remains", scaled down here, plus the inverse orderings and runs long enough that a one-off skew
+			// would accumulate into a visible corruption rather than cancelling out
+			final int[][] recordPatterns = {
+				{2, 4},
+				{8, 16},
+				{8, 200},
+				{200, 8},
+				{8, 8, 200},
+				{100, 300, 50},
+				{1, 1, 1, 1, 1, 1, 1, 1},
+				{7, 13, 29, 61, 127},
+				{300, 1, 300, 1, 300},
+				{64, 64, 64, 64},
+			};
+
+			for (final int readBufferSize : readBufferSizes) {
+				for (final int[] pattern : recordPatterns) {
+					final byte[] recordBytes = writeRecordsAndGetBytes(
+						512,
+						output -> {
+							for (final int payloadSize : pattern) {
+								writeRandomRecord(output, payloadSize);
+							}
+						}
+					);
+
+					final ObservableInput<?> input = createObservableInputFromBytes(recordBytes, readBufferSize);
+					for (int i = 0; i < pattern.length; i++) {
+						final int recordIndex = i;
+						assertDoesNotThrow(
+							() -> readAndVerifyRecord(input, pattern[recordIndex]),
+							() -> "Record " + recordIndex + " of " + Arrays.toString(pattern) +
+								" could not be read back through a " + readBufferSize + "-byte buffer. " +
+								"A read buffer that cannot be filled completely from the stream is exactly the " +
+								"condition AbstractMutationLog's javadoc blamed for misaligned internal " +
+								"pointers, and the record path is supposed to be immune to it."
+						);
+					}
+				}
+			}
+		}
+
+		@DisplayName("a read that outruns the writer must underflow rather than invent bytes, and the records " +
+			"must still read back intact once the writer has caught up")
+		@Test
+		void shouldReportBufferUnderflowWhenTheWriterHasNotCaughtUpYet() {
+			final int[] payloadSizes = {40, 120, 75};
+			final byte[] recordBytes = writeRecordsAndGetBytes(
+				512,
+				output -> {
+					for (final int payloadSize : payloadSizes) {
+						writeRandomRecord(output, payloadSize);
+					}
+				}
+			);
+
+			// Only the first record is on the "disk" to begin with - the state a reader is in the instant it catches
+			// up with a writer that has not yet appended the next transaction.
+			final int firstRecordLength = payloadSizes[0] + OVERHEAD_SIZE;
+			final GrowingInputStream growingStream = new GrowingInputStream(recordBytes, firstRecordLength);
+			final ObservableInput<?> input = new ObservableInput<>(
+				growingStream, 128,
+				Crc32CChecksumFactory.INSTANCE.createCumulativeChecksum(0L),
+				null
+			);
+
+			assertDoesNotThrow(
+				() -> readAndVerifyRecord(input, payloadSizes[0]),
+				"The record that was wholly visible could not be read back, even before the stream ran dry."
+			);
+
+			// Looking for the next record while the writer is still behind must surface as a buffer underflow. It
+			// must NOT come back as a short read or as bytes the stream never handed over - a silent answer here is
+			// what a WAL supplier would turn into a truncated transaction rather than into "nothing new yet".
+			assertThrows(
+				KryoException.class,
+				() -> readAndVerifyRecord(input, payloadSizes[1]),
+				"Reading past the bytes the stream had revealed did not underflow. Either the buffer answered from " +
+					"bytes it never fetched, or the record read silently stopped short - both are worse than the " +
+					"exception, because a caller cannot tell them from a genuine record."
+			);
+			assertTrue(
+				growingStream.getEndOfInputReports() > 0,
+				"The stream never actually reported end-of-input, so this test did not reach the condition it is " +
+					"named for. Whatever made the read fail, it was not a reader outrunning a writer."
+			);
+
+			// A moment later the writer has appended the rest. Production discards the supplier and re-reads from
+			// its own file position (AbstractMutationSupplier opens a fresh ObservableInput per supplier), so the
+			// property that matters is that the bytes were never damaged - every record must still read back whole.
+			growingStream.revealAll();
+			final ObservableInput<?> reopenedInput = new ObservableInput<>(
+				new GrowingInputStream(recordBytes, recordBytes.length), 128,
+				Crc32CChecksumFactory.INSTANCE.createCumulativeChecksum(0L),
+				null
+			);
+			for (int i = 0; i < payloadSizes.length; i++) {
+				final int recordIndex = i;
+				assertDoesNotThrow(
+					() -> readAndVerifyRecord(reopenedInput, payloadSizes[recordIndex]),
+					() -> "Record " + recordIndex + " could not be read back after the writer had caught up, even " +
+						"though a fresh reader was opened over the completed data. An earlier reader running into " +
+						"end-of-input must not leave anything behind that a later one can observe."
+				);
+			}
+		}
+	}
+
+	/**
+	 * The WAL does not only read records. Between them it reads bare numbers straight off the stream: the 8-byte
+	 * cumulative checksum that separates transactions and the 4-byte content length that prefixes one
+	 * (the seed-checksum read in {@code AbstractMutationSupplier}'s constructor,
+	 * {@code AbstractMutationSupplier#readAndRecordTransactionMutation}, {@code MutationSupplier#get()}). Those
+	 * bypass the {@link StorageRecord} lifecycle and go through {@link ObservableInput#simpleLongRead()} and
+	 * {@link ObservableInput#simpleIntRead()} instead, which set the record counters up by hand and restore them
+	 * in a `finally`.
+	 *
+	 * They are also the reads a tailing reader performs most often, because a reader that has caught up with a writer
+	 * is by definition sitting on a transaction boundary - and that is the state in which its buffer holds a partial
+	 * fill. {@link PartiallyFilledBufferProbeTests} drives records through that condition and passes; the boundary
+	 * reads were never driven through it at all, which is the coverage gap this class closes.
+	 *
+	 * **Counterfactual.** This class guards `ObservableInput#restoreLimitAfterOffRecordRead`. Replacing its
+	 * three-part guard with the unconditional `this.limit = this.actualLimit >= 0 ? this.actualLimit : this.limit`
+	 * that {@link ObservableInput#simpleIntRead()} and {@link ObservableInput#simpleLongRead()} used to perform must
+	 * make it fail - in {@link #shouldKeepTheBufferConsistentAcrossBoundaryReads()} on the small-buffer/small-chunk
+	 * half of the matrix, where a boundary read has to refill or compact, and in
+	 * {@link #shouldHandleTheLimitCapOnEveryPathThroughRequire()} on every combination that reaches the fill or the
+	 * compaction branch. The matrix is therefore load-bearing and narrowing it silently narrows the guard: the
+	 * combinations that matter are the ones where `bytesPerRead` is smaller than the 8-byte checksum, because only
+	 * those force `require(8)` to go looking for more bytes mid-read.
+	 */
+	@Nested
+	@DisplayName("Boundary reads: bare numbers read between records")
+	class BoundaryReadTests {
+		private static final long FIRST_CHECKSUM = 0x1122334455667788L;
+		private static final int CONTENT_LENGTH = 0x0A0B0C0D;
+		private static final long SECOND_CHECKSUM = 0x7FEEDDCCBBAA9988L;
+		private static final int TRAILING_BYTES = 24;
+
+		/**
+		 * The byte sequence a WAL reader meets at a transaction boundary, in the order it meets it.
+		 */
+		@Nonnull
+		private byte[] boundarySequence() {
+			// little-endian, to match both Kryo's Input and the WAL file format (AbstractMutationLog:283)
+			final ByteBuffer buffer = ByteBuffer.allocate(8 + 4 + 8 + TRAILING_BYTES)
+				.order(ByteOrder.LITTLE_ENDIAN);
+			buffer.putLong(FIRST_CHECKSUM);
+			buffer.putInt(CONTENT_LENGTH);
+			buffer.putLong(SECOND_CHECKSUM);
+			for (int i = 0; i < TRAILING_BYTES; i++) {
+				buffer.put((byte) (0xE0 | (i & 0x0F)));
+			}
+			return buffer.array();
+		}
+
+		@DisplayName("a boundary read must leave the buffer consistent and the following bytes readable")
+		@Test
+		void shouldKeepTheBufferConsistentAcrossBoundaryReads() throws Throwable {
+			// capacities small enough that the sequence cannot be held whole, so a boundary read has to refill
+			final int[] readBufferSizes = {16, 20, 24, 32, 48, 64};
+			// how many bytes the stream yields per read call - anything below the buffer size leaves it partly
+			// filled, which is the state a reader tailing a live WAL is in essentially all of the time
+			final int[] bytesPerReadCall = {1, 2, 3, 5, 7, 8, 10, 16, 64};
+
+			final List<String> failures = new ArrayList<>();
+			// the sweep deliberately accumulates every combination rather than stopping at the first, but a bare
+			// "threw KryoException: Buffer underflow." names no site - so the first Throwable is kept and rethrown
+			// underneath the summary, which is the only copy that carries a stack
+			Throwable firstThrowable = null;
+			for (final int readBufferSize : readBufferSizes) {
+				for (final int chunk : bytesPerReadCall) {
+					final String combination = "buffer=" + readBufferSize + ", bytesPerRead=" + chunk;
+					final ObservableInput<?> input = createObservableInputFromTrickleStream(
+						boundarySequence(), readBufferSize, chunk
+					);
+					try {
+						final long firstChecksum = input.simpleLongRead();
+						assertBufferConsistent(input, failures, combination, "simpleLongRead #1");
+						final int contentLength = input.simpleIntRead();
+						assertBufferConsistent(input, failures, combination, "simpleIntRead");
+						final long secondChecksum = input.simpleLongRead();
+						assertBufferConsistent(input, failures, combination, "simpleLongRead #2");
+
+						if (firstChecksum != FIRST_CHECKSUM) {
+							failures.add(combination + ": first checksum read back as " + firstChecksum);
+						}
+						if (contentLength != CONTENT_LENGTH) {
+							failures.add(combination + ": content length read back as " + contentLength);
+						}
+						if (secondChecksum != SECOND_CHECKSUM) {
+							failures.add(combination + ": second checksum read back as " + secondChecksum);
+						}
+
+						// whatever follows the boundary must still be readable and correct - a boundary read that
+						// leaves the buffer describing bytes it never fetched shows up here rather than above
+						final byte[] trailing = input.readBytes(TRAILING_BYTES);
+						for (int i = 0; i < TRAILING_BYTES; i++) {
+							final byte expected = (byte) (0xE0 | (i & 0x0F));
+							if (trailing[i] != expected) {
+								failures.add(
+									combination + ": trailing byte " + i + " read back as " + trailing[i] +
+										" instead of " + expected
+								);
+								break;
+							}
+						}
+					} catch (Throwable ex) {
+						if (firstThrowable == null) {
+							firstThrowable = ex;
+						}
+						failures.add(combination + ": threw " + ex.getClass().getSimpleName() + ": " + ex.getMessage());
+					}
+				}
+			}
+
+			if (!failures.isEmpty()) {
+				final AssertionError failure = new AssertionError(
+					"Reading the numbers that sit between WAL transactions left the input inconsistent in " +
+						failures.size() + " buffer/chunk combination(s). simpleIntRead and simpleLongRead cap the " +
+						"limit for the duration of the read and restore the captured one in a finally block - but a " +
+						"read that has to refill the buffer in between legitimately moves that limit, and the " +
+						"restore puts the pre-refill value back. Failures:\n" + String.join("\n", failures)
+				);
+				if (firstThrowable != null) {
+					failure.initCause(firstThrowable);
+				}
+				throw failure;
+			}
+		}
+
+		/**
+		 * Which branch of `ObservableInput#require(int)` a single boundary read took, inferred from what the read
+		 * left behind. The three-part restore guard in `restoreLimitAfterOffRecordRead` has a different correct
+		 * answer on each of them, and the sweep below asserts that every one of them was actually reached - a
+		 * future change to buffer sizing that quietly stops reaching one would otherwise take its coverage with it.
+		 */
+		private enum RequirePath {
+			/**
+			 * The very first read on a fresh input: `limit` is still `0`, so the captured `actualLimit` is `-1` and
+			 * the guard's first conjunct is the one that declines the restore.
+			 */
+			FRESH_INPUT,
+			/**
+			 * `require` returned from the bytes already buffered without touching anything. This is the only path
+			 * on which the restore is *effective*, and the only one that proves it still happens at all.
+			 */
+			NO_FILL,
+			/**
+			 * `require` topped the buffer up in place, raising `limit` by the fill count and leaving `total` alone.
+			 */
+			FILL,
+			/**
+			 * `require` compacted the buffer - the remaining bytes were shifted to the front, `position` was zeroed
+			 * and `total` advanced by the old `position`, so the captured cap is not even measured from the same
+			 * origin any more.
+			 */
+			COMPACTION
+		}
+
+		@DisplayName("every path through require() must leave the boundary read's limit cap correctly handled")
+		@Test
+		void shouldHandleTheLimitCapOnEveryPathThroughRequire() {
+			final int[] readBufferSizes = {16, 20, 24, 32, 48, 64};
+			final int[] bytesPerReadCall = {1, 2, 3, 5, 7, 8, 10, 16, 64};
+
+			final Set<RequirePath> pathsReached = EnumSet.noneOf(RequirePath.class);
+			final List<String> failures = new ArrayList<>();
+			for (final int readBufferSize : readBufferSizes) {
+				for (final int chunk : bytesPerReadCall) {
+					final String combination = "buffer=" + readBufferSize + ", bytesPerRead=" + chunk;
+					final ObservableInput<?> input = createObservableInputFromTrickleStream(
+						boundarySequence(), readBufferSize, chunk
+					);
+					pathsReached.add(
+						readBoundaryNumber(input, 8, FIRST_CHECKSUM, combination + " / checksum #1", failures)
+					);
+					pathsReached.add(
+						readBoundaryNumber(input, 4, CONTENT_LENGTH, combination + " / content length", failures)
+					);
+					pathsReached.add(
+						readBoundaryNumber(input, 8, SECOND_CHECKSUM, combination + " / checksum #2", failures)
+					);
+				}
+			}
+
+			assertTrue(
+				failures.isEmpty(),
+				"A boundary read mishandled the limit cap it installs for the duration of the read in " +
+					failures.size() + " case(s). The cap may only be put back when the read left the buffer " +
+					"exactly as it found it; on every other path the value require() computed is the honest end " +
+					"of the data and must stand. Failures:\n" + String.join("\n", failures)
+			);
+			assertEquals(
+				EnumSet.allOf(RequirePath.class), pathsReached,
+				"The buffer/chunk matrix no longer reaches every branch of require(), so the assertions above " +
+					"stopped covering the branches it misses. Widen the matrix rather than narrowing the claim - " +
+					"the combinations that reach the fill and compaction branches are the ones whose `bytesPerRead` " +
+					"is smaller than the 8-byte checksum being read."
+			);
+		}
+
+		/**
+		 * Reads one bare number off the input, classifies which branch of `require(int)` it took, and records a
+		 * failure when the limit the read left behind is not the one that branch mandates.
+		 *
+		 * @param requiredBytes 8 for a checksum, 4 for a content-length prefix
+		 * @param expectedValue the value the number must read back as
+		 * @param label         identifies the combination and the read in a failure message
+		 * @param failures      collects every mismatch, so the whole matrix is swept rather than the first failure
+		 * @return the branch this read took
+		 */
+		@Nonnull
+		private RequirePath readBoundaryNumber(
+			@Nonnull ObservableInput<?> input,
+			int requiredBytes,
+			long expectedValue,
+			@Nonnull String label,
+			@Nonnull List<String> failures
+		) {
+			final int limitBefore = input.limit();
+			final int positionBefore = input.position();
+			// Input#total() reports `total + position`, so the raw counter the restore guard compares - the one a
+			// compaction advances - is recovered by subtracting the position back out
+			final long rawTotalBefore = input.total() - positionBefore;
+
+			final long readValue = requiredBytes == 8 ? input.simpleLongRead() : input.simpleIntRead();
+
+			final int limitAfter = input.limit();
+			final int positionAfter = input.position();
+			final long rawTotalAfter = input.total() - positionAfter;
+
+			if (readValue != expectedValue) {
+				failures.add(label + ": read back as " + readValue + " instead of " + expectedValue);
+			}
+			if (positionAfter > limitAfter) {
+				failures.add(label + ": position=" + positionAfter + " is past limit=" + limitAfter);
+			}
+
+			final RequirePath path;
+			if (limitBefore == 0) {
+				path = RequirePath.FRESH_INPUT;
+			} else if (rawTotalAfter != rawTotalBefore) {
+				path = RequirePath.COMPACTION;
+			} else if (limitBefore - positionBefore >= requiredBytes) {
+				path = RequirePath.NO_FILL;
+			} else {
+				path = RequirePath.FILL;
+			}
+
+			switch (path) {
+				case FRESH_INPUT -> {
+					// nothing was captured to put back, so whatever require() filled must survive the finally block
+					if (limitAfter <= 0) {
+						failures.add(label + ": fresh input left limit=" + limitAfter + " after a successful read");
+					}
+				}
+				case NO_FILL -> {
+					// the buffer never moved, so the cap MUST be undone - leaving it in place understates the
+					// buffer and makes the next fill land at a stale offset
+					if (limitAfter != limitBefore) {
+						failures.add(
+							label + ": require() returned from already-buffered bytes, so the cap had to be " +
+								"undone - limit went from " + limitBefore + " to " + limitAfter
+						);
+					}
+					if (positionAfter != positionBefore + requiredBytes) {
+						failures.add(
+							label + ": position moved from " + positionBefore + " to " + positionAfter +
+								" on a read of " + requiredBytes + " byte(s)"
+						);
+					}
+				}
+				case FILL -> {
+					// require() topped the buffer up in place; the raised limit is the honest end of the data
+					if (limitAfter <= limitBefore) {
+						failures.add(
+							label + ": require() filled the buffer but limit did not rise - it went from " +
+								limitBefore + " to " + limitAfter + ", i.e. the pre-fill cap was put back"
+						);
+					}
+					if (positionAfter != positionBefore + requiredBytes) {
+						failures.add(
+							label + ": position moved from " + positionBefore + " to " + positionAfter +
+								" on a read of " + requiredBytes + " byte(s)"
+						);
+					}
+				}
+				case COMPACTION -> {
+					// the remaining bytes were shifted to the front: position restarts at 0 and the captured cap
+					// is not measured from the same origin any more, so putting it back is meaningless
+					if (rawTotalAfter - rawTotalBefore != positionBefore) {
+						failures.add(
+							label + ": compaction advanced the raw total by " + (rawTotalAfter - rawTotalBefore) +
+								" instead of the " + positionBefore + " bytes it dropped from the front"
+						);
+					}
+					if (positionAfter != requiredBytes) {
+						failures.add(
+							label + ": after a compaction the read should end at position " + requiredBytes +
+								", not " + positionAfter
+						);
+					}
+				}
+			}
+			return path;
+		}
+
+		@DisplayName("an underflow that compacted the buffer must not re-serve bytes already delivered")
+		@Test
+		void shouldNotServeAlreadyDeliveredBytesAfterACompactingUnderflow() {
+			// only the leading checksum and the content-length prefix are on the "disk" - the boundary read that
+			// follows them finds the buffer fully consumed, so require() skips its fill branch and goes straight
+			// to compacting, which is the one branch that moves `position` back to the front of the buffer
+			final byte[] sequence = boundarySequence();
+			final GrowingInputStream growingStream = new GrowingInputStream(sequence, 12);
+			final ObservableInput<?> input = new ObservableInput<>(
+				growingStream, 16,
+				Crc32CChecksumFactory.INSTANCE.createCumulativeChecksum(0L),
+				null
+			);
+
+			assertEquals(FIRST_CHECKSUM, input.simpleLongRead(), "the visible checksum could not be read back");
+			assertEquals(CONTENT_LENGTH, input.simpleIntRead(), "the visible content length could not be read back");
+
+			assertThrows(
+				KryoException.class,
+				input::simpleLongRead,
+				"Reading the next checksum before the writer had appended it did not underflow."
+			);
+			assertTrue(
+				growingStream.getEndOfInputReports() > 0,
+				"The stream never reported end-of-input, so this test did not reach the condition it is named for."
+			);
+			assertEquals(
+				0, input.limit() - input.position(),
+				"After the underflow the buffer claims to still hold " + (input.limit() - input.position()) +
+					" readable byte(s), and every one of them has already been delivered. Compacting moved the " +
+					"surviving bytes to the front and reset `position`, so a `limit` left describing the buffer " +
+					"as it was before that no longer measures from the same origin - and the next require() " +
+					"answers out of it without fetching anything."
+			);
+
+			// a moment later the writer has appended the rest, and the reader carries on where it stopped
+			growingStream.revealAll();
+			assertEquals(
+				SECOND_CHECKSUM,
+				input.simpleLongRead(),
+				"The checksum read after the writer caught up came back as bytes the input had already delivered " +
+					"once, not as the bytes that follow them. This is the silent half of an overstated limit: no " +
+					"exception, no short read, just an earlier part of the stream served a second time."
+			);
+		}
+
+		@DisplayName("the whole read sequence a WAL transaction boundary performs must round-trip intact")
+		@Test
+		void shouldReadTheWalTransactionBoundarySequenceIntact() {
+			final int[] readBufferSizes = {16, 20, 24, 32, 48, 64};
+			final int[] bytesPerReadCall = {1, 2, 3, 5, 7, 8, 10, 16, 64};
+			final int payloadSize = 24;
+			final byte[] recordBytes = writeRecordsAndGetBytes(
+				128, output -> writeRandomRecord(output, payloadSize)
+			);
+			final byte[] sequence = walTransactionSequence(recordBytes);
+
+			final List<String> failures = new ArrayList<>();
+			Throwable firstThrowable = null;
+			for (final int readBufferSize : readBufferSizes) {
+				for (final int chunk : bytesPerReadCall) {
+					final String combination = "buffer=" + readBufferSize + ", bytesPerRead=" + chunk;
+					final ObservableInput<?> input = createObservableInputFromTrickleStream(
+						sequence, readBufferSize, chunk
+					);
+					try {
+						final long cumulativeChecksum = input.simpleLongRead();
+						if (cumulativeChecksum != FIRST_CHECKSUM) {
+							failures.add(combination + ": cumulative checksum read back as " + cumulativeChecksum);
+						}
+						final int contentLength = input.simpleIntRead();
+						if (contentLength != recordBytes.length) {
+							failures.add(combination + ": content length read back as " + contentLength);
+						}
+						// the record read is the part that verifies its own CRC32C - a limit left describing bytes
+						// the buffer never fetched surfaces here as a checksum failure, which is exactly how the
+						// production symptom presents rather than as a byte mismatch
+						readAndVerifyRecord(input, payloadSize);
+						final long trailingChecksum = input.simpleLongRead();
+						if (trailingChecksum != SECOND_CHECKSUM) {
+							failures.add(combination + ": trailing checksum read back as " + trailingChecksum);
+						}
+					} catch (Throwable ex) {
+						if (firstThrowable == null) {
+							firstThrowable = ex;
+						}
+						failures.add(combination + ": threw " + ex.getClass().getSimpleName() + ": " + ex.getMessage());
+					}
+				}
+			}
+
+			if (!failures.isEmpty()) {
+				final AssertionError failure = new AssertionError(
+					"The order a WAL reader meets at a transaction boundary - cumulative checksum, content-length " +
+						"prefix, the leading record with its own CRC32C, then the next cumulative checksum - did " +
+						"not round-trip in " + failures.size() + " buffer/chunk combination(s). Neither of the " +
+						"sibling sweeps covers this interleaving: one reads bare numbers with no record between " +
+						"them, the other reads records with no bare numbers between them. Failures:\n" +
+						String.join("\n", failures)
+				);
+				if (firstThrowable != null) {
+					failure.initCause(firstThrowable);
+				}
+				throw failure;
+			}
+		}
+
+		/**
+		 * Assembles the byte sequence a WAL reader meets around one transaction: the cumulative checksum that
+		 * precedes it, the 4-byte content-length prefix, the leading storage record itself, and the cumulative
+		 * checksum that closes it.
+		 *
+		 * @param recordBytes the already-serialized storage record to place between the numbers
+		 * @return the concatenated sequence
+		 */
+		@Nonnull
+		private byte[] walTransactionSequence(@Nonnull byte[] recordBytes) {
+			// little-endian, to match both Kryo's Input and the WAL file format
+			final ByteBuffer buffer = ByteBuffer.allocate(8 + 4 + recordBytes.length + 8)
+				.order(ByteOrder.LITTLE_ENDIAN);
+			buffer.putLong(FIRST_CHECKSUM);
+			buffer.putInt(recordBytes.length);
+			buffer.put(recordBytes);
+			buffer.putLong(SECOND_CHECKSUM);
+			return buffer.array();
+		}
+
+		/**
+		 * Records a failure when the input's position has moved past the end of the bytes the input claims to hold.
+		 * `position > limit` is not a degraded state that later reads recover from - every subsequent `require`
+		 * computes a negative number of remaining bytes from it.
+		 */
+		private void assertBufferConsistent(
+			@Nonnull ObservableInput<?> input,
+			@Nonnull List<String> failures,
+			@Nonnull String combination,
+			@Nonnull String afterCall
+		) {
+			if (input.position() > input.limit()) {
+				failures.add(
+					combination + ": after " + afterCall + " position=" + input.position() +
+						" is past limit=" + input.limit()
+				);
 			}
 		}
 	}

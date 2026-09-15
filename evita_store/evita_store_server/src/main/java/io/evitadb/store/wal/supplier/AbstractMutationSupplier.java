@@ -55,6 +55,7 @@ import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 import static io.evitadb.store.wal.AbstractMutationLog.CUMULATIVE_CRC32_SIZE;
+import static io.evitadb.store.wal.AbstractMutationLog.TRANSACTION_PREFIX_SIZE;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -358,8 +359,9 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 	 * cumulative checksum. The direction is controlled by the {@code delta} parameter.
 	 *
 	 * @param delta positive to move forward (e.g. {@code +1}), negative to move backward (e.g. {@code -1})
-	 * @return {@code true} if the adjacent WAL file exists and was successfully opened,
-	 *         {@code false} otherwise
+	 * @return {@code true} if the adjacent WAL file exists, carries at least one record and was successfully
+	 *         opened, {@code false} otherwise - including for a file still too short to hold its seed cumulative
+	 *         checksum and a record behind it, which rotation leaves behind for a moment
 	 */
 	protected boolean moveToNextWalFile(int delta) {
 		if (this.observableInput != null) {
@@ -370,7 +372,14 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 			this.walFileNameProvider.apply(this.walFileIndex + delta)
 		).toFile();
 
-		if (nextWalFile.exists()) {
+		// rotation creates the next WAL file and writes its 8-byte seed cumulative checksum into it only
+		// afterwards, so a reader that crosses the boundary in that window meets a file with nothing to read -
+		// and a crash between the two leaves one at exactly that length for good. A file with no room for a
+		// record behind its seed is therefore "not there yet" rather than a file to read: the seed read below is
+		// unguarded and would surface a recoverable transient as a raw Kryo buffer underflow, on a supplier this
+		// method has already half-rotated. Rejecting here, before anything below is reassigned, makes this behave
+		// exactly like the non-existent-file path, whose `false` every caller already handles.
+		if (nextWalFile.exists() && nextWalFile.length() > CUMULATIVE_CRC32_SIZE + TRANSACTION_PREFIX_SIZE) {
 			try {
 				this.walFile = nextWalFile;
 				this.walFileIndex += delta;
