@@ -27,8 +27,6 @@ import io.evitadb.api.requestResponse.data.mutation.parent.RemoveParentMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 
-import java.util.List;
-
 /**
  * Descriptor representing {@link RemoveParentMutation}.
  *

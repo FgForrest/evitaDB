@@ -205,6 +205,9 @@ public class QueryPlan {
 				frozenRandom
 			)
 		) {
+			// de-duplicate storage record reads for the whole execution - the catalog version is pinned here, so
+			// a record read twice under the same key is guaranteed to be the same record
+			executionContext.openStorageAccessScope();
 			this.queryContext.pushStep(QueryPhase.EXECUTION);
 			try {
 				// prefetch the entities to allow using them in filtering / sorting in next step
@@ -326,6 +329,13 @@ public class QueryPlan {
 					);
 				}
 
+				// the statistics were accumulated where the reads happened - hand them to the response rather than
+				// letting it reconstruct them by walking the entities it carries
+				result.setIoFetchStatistics(
+					executionContext.getIoFetchCount(),
+					executionContext.getIoFetchedBytes()
+				);
+
 				executionContext.finalizeTelemetry();
 
 				ofNullable(this.queryContext.getQueryFinishedEvent())
@@ -335,8 +345,8 @@ public class QueryPlan {
 							this.filter.getEstimatedCardinality(),
 							this.primaryKeys == null ? 0 : this.primaryKeys.length,
 							this.totalRecordCount,
-							result.getIoFetchCount(),
-							result.getIoFetchedSizeBytes(),
+							result::getIoFetchCount,
+							result::getIoFetchedSizeBytes,
 							this.filter.getEstimatedCost(),
 							this.filter.getCost()
 						).commit()

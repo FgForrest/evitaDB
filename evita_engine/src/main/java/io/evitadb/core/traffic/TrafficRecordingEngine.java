@@ -378,8 +378,8 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 					),
 					queryPlan.getEvitaRequest().getAlignedNow(),
 					result == null ? 0 : result.getTotalRecordCount(),
-					result == null ? 0 : result.getIoFetchCount(),
-					result == null ? 0 : result.getIoFetchedSizeBytes(),
+					result == null || !isRecordingActive() ? 0 : result.getIoFetchCount(),
+					result == null || !isRecordingActive() ? 0 : result.getIoFetchedSizeBytes(),
 					result == null ? ArrayUtils.EMPTY_INT_ARRAY : result.getPrimaryKeys(),
 					finishedWithError
 				);
@@ -456,7 +456,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 			try {
 				final int ioFetchCount;
 				final int ioFetchedBytes;
-				if (entity instanceof EntityFetchAwareDecorator efad) {
+				if (entity instanceof EntityFetchAwareDecorator efad && isRecordingActive()) {
 					ioFetchCount = efad.getIoFetchCount();
 					ioFetchedBytes = efad.getIoFetchedBytes();
 				} else {
@@ -718,7 +718,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 		try {
 			final int ioFetchCount;
 			final int ioFetchedBytes;
-			if (entity instanceof EntityFetchAwareDecorator efad) {
+			if (entity instanceof EntityFetchAwareDecorator efad && isRecordingActive()) {
 				ioFetchCount = efad.getIoFetchCount();
 				ioFetchedBytes = efad.getIoFetchedBytes();
 			} else {

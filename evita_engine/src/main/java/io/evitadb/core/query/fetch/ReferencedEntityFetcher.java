@@ -92,6 +92,7 @@ import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.AbstractHierarchyTranslator.TraversalDirection;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
+import io.evitadb.core.query.filter.NestedQueryRestriction;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
@@ -760,6 +761,29 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						() -> {
 							// build the ReferenceHaving constraint, avoiding mergeArrays when no entity-level children
 							final FilterConstraint pkConstraint = entityPrimaryKeyInSet(allReferencedEntityPks.getArray());
+							// The nested query behind an `entityHaving` is planned against the
+							// referenced collection's GLOBAL index, so it evaluates the predicate
+							// over every entity there even though the owners between them reference
+							// only a handful. Restricting it to exactly those keys is what the
+							// `nestedQueryRestriction` seam exists for, and it is safe because
+							// the nested result is intersected with this same set afterwards.
+							// A deeper nested level targeting a different collection builds its own
+							// FilterByVisitor with a fresh root scope, so this cannot leak into it.
+							// The restriction names the query it belongs to, because the very same
+							// scope also plans `groupHaving` against the reference's GROUP
+							// collection, where these keys mean nothing.
+							final NestedQueryRestriction nestedQueryPkRestriction = new NestedQueryRestriction(
+								referenceSchema.getName(),
+								referenceSchema.getReferencedEntityType(),
+								nestedFilter -> nestedFilter instanceof FilterBy nestedBy ?
+									new FilterBy(
+										ArrayUtils.mergeArrays(
+											new FilterConstraint[]{pkConstraint},
+											nestedBy.getChildren()
+										)
+									) :
+									and(pkConstraint, nestedFilter)
+							);
 							final FilterConstraint[] havingChildren = entityLevelChildren.length == 0
 								? new FilterConstraint[]{pkConstraint}
 								: ArrayUtils.mergeArrays(new FilterConstraint[]{pkConstraint}, entityLevelChildren);
@@ -772,7 +796,12 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 										and(havingChildren)
 									),
 									examinedScopes,
-									(es, eik) -> null
+									(es, eik) -> null,
+									// the same restriction `computeResultWithPassedIndex` gets: without it this pass
+									// plans the nested `entityHaving` against the referenced collection's GLOBAL index
+									// and evaluates it over every entity there, only to intersect the result with
+									// `pkConstraint` - which is already a sibling conjunct - a few operations later.
+									nestedQueryPkRestriction
 								);
 							// pre-filter by group constraint before sorting to reduce sort size
 							if (allowedByGroupFilter != null && !referencedEntityIndexes.isEmpty()) {
@@ -813,7 +842,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 										referenceSchema,
 										theFilterByVisitor,
 										entityLevelFilterBy != null ? entityLevelFilterBy : filterBy,
-										entityNestedQueryComparator
+										entityNestedQueryComparator,
+										nestedQueryPkRestriction
 									);
 
 									if (lastDiscriminator == null) {
@@ -986,14 +1016,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			? null
 			: new FilterBy(entityLevel.toArray(FilterConstraint[]::new));
 
-		// evaluate group constraints against group-level indexes
+		// evaluate the group constraints against the group collection. The `groupHaving` container is unwrapped
+		// above, so what is handed over is its bare children - and they mean "attributes of the group entity",
+		// which only a nested query over that collection can answer
 		final Bitmap matchingGroupPks = filterByVisitor.getMatchingGroupEntityPrimaryKeys(
-			new ReferenceHaving(
-				referenceSchema.getName(),
-				and(finalGroupChildren)
-			),
-			examinedScopes,
-			(es, eik) -> null
+			referenceSchema,
+			and(finalGroupChildren),
+			examinedScopes
 		);
 
 		if (matchingGroupPks.isEmpty()) {
@@ -1209,6 +1238,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param entityNestedQueryComparator comparator that holds information about requested ordering so that we can
 	 *                                    apply it during entity filtering (if it's performed) and pre-initialize it
 	 *                                    in an optimal way
+	 * @param nestedQueryRestriction      optional narrowing applied to the filter of a nested query planned for an
+	 *                                    `entityHaving` constraint - it takes that query down to the keys the owners
+	 *                                    actually reference instead of the whole target collection
 	 * @return formula that calculates the result
 	 */
 	@Nullable
@@ -1218,7 +1250,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull FilterBy filterBy,
-		@Nullable EntityNestedQueryComparator entityNestedQueryComparator
+		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
+		@Nullable NestedQueryRestriction nestedQueryRestriction
 	) {
 		// compute the result formula in the initialized context
 		final String referenceName = referenceSchema.getName();
@@ -1229,7 +1262,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			ReferenceContent.ALL_REFERENCES,
 			entitySchema,
 			referenceSchema,
-			null,
+			nestedQueryRestriction,
 			entityNestedQueryComparator,
 			processingScope.withReferenceSchemaAccessor(referenceName),
 			(entityContract, attributeName, locale) -> entityContract.getReferences(referenceName)
@@ -1419,14 +1452,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				entityDecorator.getReferencePredicate(),
 				entityDecorator.getPricePredicate(),
 				entityDecorator.getAlignedNow(),
-				entityDecorator.getIoFetchCount() +
-					(enrichedParentEntity instanceof ServerEntityDecorator parentDecorator ?
-						parentDecorator.getIoFetchCount() :
-						0),
-				entityDecorator.getIoFetchedBytes() +
-					(enrichedParentEntity instanceof ServerEntityDecorator parentDecorator ?
-						parentDecorator.getIoFetchedBytes() :
-						0)
+				// this decorator performs no I/O of its own - it only re-attaches the resolved parent chain, whose
+				// reads ServerEntityDecorator#getIoFetchCount reaches by walking the chain this decorator exposes.
+				// Adding them here as well would count the whole parent chain twice.
+				0, 0, entityDecorator, null
 			)
 		);
 	}
@@ -2174,6 +2203,11 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		return requireFetchedEntities().getEntityGroupFetcher(referenceSchema);
 	}
 
+	@Override
+	public boolean mayCarryGroupBodies(@Nonnull ReferenceSchemaContract referenceSchema) {
+		return requireFetchedEntities().mayCarryGroupBodies(referenceSchema);
+	}
+
 	@Nullable
 	@Override
 	public ReferenceComparator getEntityComparator(@Nonnull ReferenceSchemaContract referenceSchema) {
@@ -2210,8 +2244,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 *
 	 * @param instanceName the name of the instance to fetch the ReferenceSetFetcher for, must not be null
 	 * @return the ReferenceSetFetcher associated with the given instance name, never null
-	 * @throws GenericEvitaInternalError if {@link #prefetchEntities} has not been called prior to this method
-	 * @throws NullPointerException      if no ReferenceSetFetcher is found for the given instance name
+	 * @throws GenericEvitaInternalError if {@link #prefetchEntities} has not been called prior to this method, or
+	 *                                   if it prepared no fetcher for the passed instance name
 	 */
 	@Nonnull
 	public ReferenceSetFetcher getMinimalReferenceFetcher(@Nonnull String instanceName) {
@@ -2220,7 +2254,14 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			() -> new GenericEvitaInternalError(
 				"Method `prefetchEntities` must be called prior creating named fetchers!")
 		);
-		return Objects.requireNonNull(this.namedFetchedEntities.get(instanceName));
+		final ReferenceSetFetcher namedFetcher = this.namedFetchedEntities.get(instanceName);
+		Assert.isPremiseValid(
+			namedFetcher != null,
+			() -> new GenericEvitaInternalError(
+				"No reference fetcher was prepared for reference content instance `" + instanceName + "`!"
+			)
+		);
+		return namedFetcher;
 	}
 
 	/**
@@ -2312,35 +2353,40 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			for (Entry<ReferenceContentKey, RequirementContext> namedEntry : namedReferenceFetch.entrySet()) {
 				final ReferenceContentKey rck = namedEntry.getKey();
 				final RequirementContext namedRequirementContext = namedEntry.getValue();
-				if (namedRequirementContext.requiresInit()) {
-					final ChunkTransformer namedChunkTransformer = namedEntry.getValue().referenceChunkTransformer();
-					final ChunkTransformerAccessor namedChunkTransformerAccessor = referenceName -> namedChunkTransformer;
-					final DefaultPrefetchRequirementCollector namedCollector = new DefaultPrefetchRequirementCollector();
-					this.namedFetchedEntities.put(
-						rck.instanceName(),
-						new ReferencedSetEntityFetcher(
-							Map.of(
-								rck.referenceName(),
-								createPrefetchedEntities(
-									executionContext,
-									entitySchema,
-									existingEntityRetriever,
-									referencedEntityIdsFormula,
-									referenceContractsAccessor,
-									groupToReferencedEntityIdTranslator,
-									referencedEntityToGroupIdTranslator,
-									entityPrimaryKey,
-									rck.referenceName(),
-									namedRequirementContext,
-									namedCollector,
-									filterByVisitor
-								)
-							),
-							namedChunkTransformerAccessor,
-							namedCollector
+				final ChunkTransformer namedChunkTransformer = namedRequirementContext.referenceChunkTransformer();
+				final ChunkTransformerAccessor namedChunkTransformerAccessor = referenceName -> namedChunkTransformer;
+				final DefaultPrefetchRequirementCollector namedCollector = new DefaultPrefetchRequirementCollector();
+				// a named set asking for attributes and nothing else needs no referenced entity index built for it,
+				// and gets an empty one - `ReferencedSetEntityFetcher` answers a reference name it holds nothing for
+				// with no-op entity fetchers and no narrowing, which is precisely what such a set asked for. The
+				// fetcher itself must exist either way, because every named set is composed through its own.
+				final Map<String, PrefetchedEntities> namedPrefetchedEntities = namedRequirementContext.requiresInit() ?
+					Map.of(
+						rck.referenceName(),
+						createPrefetchedEntities(
+							executionContext,
+							entitySchema,
+							existingEntityRetriever,
+							referencedEntityIdsFormula,
+							referenceContractsAccessor,
+							groupToReferencedEntityIdTranslator,
+							referencedEntityToGroupIdTranslator,
+							entityPrimaryKey,
+							rck.referenceName(),
+							namedRequirementContext,
+							namedCollector,
+							filterByVisitor
 						)
-					);
-				}
+					) :
+					Map.of();
+				this.namedFetchedEntities.put(
+					rck.instanceName(),
+					new ReferencedSetEntityFetcher(
+						namedPrefetchedEntities,
+						namedChunkTransformerAccessor,
+						namedCollector
+					)
+				);
 			}
 		}
 

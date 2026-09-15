@@ -179,7 +179,7 @@ public final class MutationSupplier<T extends Mutation> extends AbstractMutation
 					checksum.update(readCumulativeChecksum);
 
 					this.filePosition = this.transactionMutation.getTransactionSpan().endPosition();
-					final long currentFileLength = this.walFile.length();
+					long currentFileLength = this.walFile.length();
 					// check if there is enough room for another transaction (content + WAL tail marker)
 					if (currentFileLength <= this.filePosition + AbstractMutationLog.WAL_TAIL_LENGTH) {
 						if (!moveToNextWalFile(1)) {
@@ -198,6 +198,12 @@ public final class MutationSupplier<T extends Mutation> extends AbstractMutation
 								this.walKind.corruptedLabel + ": requested version missing before end of file"
 							);
 						}
+						// moveToNextWalFile swapped `walFile` and reset `filePosition` to the start of the new
+						// file, so the length captured above describes the PREVIOUS file - typically the full
+						// rotation threshold. Left stale, it is handed to readAndRecordTransactionMutation and to
+						// the canProceed test below as the new file's size, which disables both of their
+						// end-of-file guards for the first record of every rotated file.
+						currentFileLength = this.walFile.length();
 					}
 					this.transactionMutation = readAndRecordTransactionMutation(
 						this.filePosition, currentFileLength

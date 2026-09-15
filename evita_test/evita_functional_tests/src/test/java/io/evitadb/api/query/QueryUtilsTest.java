@@ -23,11 +23,9 @@
 
 package io.evitadb.api.query;
 
-import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.AttributeEquals;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.Or;
-import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.require.Page;
 import org.junit.jupiter.api.DisplayName;

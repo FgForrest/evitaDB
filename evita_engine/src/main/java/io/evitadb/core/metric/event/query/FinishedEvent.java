@@ -37,6 +37,7 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.function.IntSupplier;
 
 /**
  * Event that is fired when an evitaDB query is finished.
@@ -96,12 +97,21 @@ public class FinishedEvent extends AbstractQueryEvent {
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	private int found;
 
+	/**
+	 * Populated by {@link #finish} **only when the event is going to be written** - resolving it walks the reference
+	 * graph of every returned entity and is not worth doing for an event nobody reads. A reader that inspects the
+	 * object returned by `finish` rather than the recorded event therefore sees `0` here whenever
+	 * `shouldCommit()` was false, which means "not measured" and not "nothing was fetched".
+	 */
 	@Label("Records fetched total")
 	@Description("The total number of records fetched from the data storage (excluding records found in the cache).")
 	@HistogramSettings(unit = "records", factor = 1.9)
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	private int fetched;
 
+	/**
+	 * Measured under the same condition as {@link #fetched} - see there.
+	 */
 	@Label("Fetched size in bytes")
 	@Description("The total size of the fetched data in Bytes.")
 	@HistogramSettings(unit = "bytes", factor = 3)
@@ -174,8 +184,8 @@ public class FinishedEvent extends AbstractQueryEvent {
 		int recordsScannedTotal,
 		int recordsReturnedTotal,
 		int recordsFoundTotal,
-		int recordsFetchedTotal,
-		int fetchedSizeBytes,
+		@Nonnull IntSupplier recordsFetchedTotal,
+		@Nonnull IntSupplier fetchedSizeBytes,
 		long estimatedComplexityInfo,
 		long complexityInfo
 	) {
@@ -185,8 +195,13 @@ public class FinishedEvent extends AbstractQueryEvent {
 		this.scanned = recordsScannedTotal;
 		this.returned = recordsReturnedTotal;
 		this.found = recordsFoundTotal;
-		this.fetched = recordsFetchedTotal;
-		this.fetchedSizeBytes = fetchedSizeBytes;
+		// resolving these two aggregates walks the reference graph of every returned entity, so they are asked for
+		// only when this event is going to be written - `shouldCommit` is false whenever neither a JFR recording
+		// nor the metric exporter is subscribed to it
+		if (shouldCommit()) {
+			this.fetched = recordsFetchedTotal.getAsInt();
+			this.fetchedSizeBytes = fetchedSizeBytes.getAsInt();
+		}
 		this.estimatedComplexity = estimatedComplexityInfo;
 		this.realComplexity = complexityInfo;
 		return this;

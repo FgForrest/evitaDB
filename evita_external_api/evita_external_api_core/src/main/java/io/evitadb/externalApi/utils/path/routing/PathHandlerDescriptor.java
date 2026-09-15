@@ -26,9 +26,6 @@ package io.evitadb.externalApi.utils.path.routing;
 import com.linecorp.armeria.server.HttpService;
 import io.evitadb.externalApi.http.WebSocketHandler;
 import io.evitadb.utils.Assert;
-import lombok.Data;
-import lombok.Getter;
-import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

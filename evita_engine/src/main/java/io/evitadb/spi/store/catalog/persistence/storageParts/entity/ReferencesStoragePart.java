@@ -59,7 +59,11 @@ import java.util.stream.Collectors;
  * along with grouping information and related attributes (localized and non-localized as well).
  *
  * Although query allows fetching references only of certain type, all references including all their attributes
- * are stored in single storage container because the data are expected to be small.
+ * are stored in single storage container because the data are expected to be small. That expectation does not hold
+ * for entities that are referenced by many others - a back-reference is a reference like any other and lands in the
+ * same container - so a read may decode only the reference names its projection asks for (see
+ * {@link io.evitadb.spi.store.catalog.persistence.ReferenceNameFilterContext}) and the resulting part is then
+ * a **narrowed view**, see {@link #getDecodedReferenceNames()}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -117,6 +121,19 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 * is found.
 	 */
 	@Nullable private Set<ComparableReferenceKey> referenceKeysForReassignment = null;
+	/**
+	 * Names of the references this part actually carries, or NULL when it carries all of them.
+	 *
+	 * A read that projects only some reference names may decode only those (see
+	 * {@link io.evitadb.spi.store.catalog.persistence.ReferenceNameFilterContext}), which makes the part a narrowed
+	 * view rather than the entity's complete reference set. The narrowing is invisible to the read path - the entity
+	 * decorator hides exactly the same names anyway - but it is **not** safe for anything that reasons about the
+	 * absence of a reference: the write path decides cardinalities, internal primary keys and index maintenance from
+	 * this array, and a missing name would read as "the entity has no such reference". Everything of that kind is
+	 * guarded by {@link #assertComplete(String)} / {@link #assertReferenceNameDecoded(String)} so a narrowed part
+	 * fails loudly instead of answering from data it does not have.
+	 */
+	@Nullable @Getter private final Set<String> decodedReferenceNames;
 
 	/**
 	 * Finds the position of the provided {@link ReferenceKey} in the references array in a general manner.
@@ -154,14 +171,79 @@ public class ReferencesStoragePart implements EntityStoragePart {
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.lastUsedPrimaryKey = 0;
 		this.sizeInBytes = -1;
+		this.decodedReferenceNames = null;
 	}
 
 	public ReferencesStoragePart(
 		int entityPrimaryKey, int lastUsedPrimaryKey, @Nonnull Reference[] references, int sizeInBytes) {
+		this(entityPrimaryKey, lastUsedPrimaryKey, references, sizeInBytes, null);
+	}
+
+	/**
+	 * Creates a storage part that carries only the references of the passed names.
+	 *
+	 * @param entityPrimaryKey      primary key of the entity the references belong to
+	 * @param lastUsedPrimaryKey    last internal primary key assigned among **all** references of the entity - this
+	 *                              one is read from the part header and stays correct under narrowing
+	 * @param references            the decoded references, sorted by {@link ReferenceContract#FULL_COMPARATOR}
+	 * @param sizeInBytes           size the whole (un-narrowed) record occupied in the storage
+	 * @param decodedReferenceNames the reference names `references` was decoded for, NULL when all of them were
+	 */
+	public ReferencesStoragePart(
+		int entityPrimaryKey,
+		int lastUsedPrimaryKey,
+		@Nonnull Reference[] references,
+		int sizeInBytes,
+		@Nullable Set<String> decodedReferenceNames
+	) {
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.lastUsedPrimaryKey = lastUsedPrimaryKey;
 		this.references = references;
 		this.sizeInBytes = sizeInBytes;
+		this.decodedReferenceNames = decodedReferenceNames;
+	}
+
+	/**
+	 * Returns true when this part carries every reference of the entity, false when it was decoded for a subset of
+	 * the reference names only.
+	 *
+	 * @return true when the part is the entity's complete reference set
+	 */
+	public boolean isComplete() {
+		return this.decodedReferenceNames == null;
+	}
+
+	/**
+	 * Fails when this part was decoded for a subset of the reference names only and therefore cannot answer
+	 * a question that spans all of them.
+	 *
+	 * @param operation the operation that requires the complete reference set, used in the error message
+	 */
+	private void assertComplete(@Nonnull String operation) {
+		Assert.isPremiseValid(
+			this.decodedReferenceNames == null,
+			() -> new GenericEvitaInternalError(
+				"References storage part of entity with primary key " + this.entityPrimaryKey + " was decoded only " +
+					"for reference names " + this.decodedReferenceNames + " and cannot be used for: " + operation + "!"
+			)
+		);
+	}
+
+	/**
+	 * Fails when this part was decoded without the passed reference name and therefore cannot tell whether the entity
+	 * has such a reference at all.
+	 *
+	 * @param referenceName name of the reference the caller asks about
+	 */
+	private void assertReferenceNameDecoded(@Nonnull String referenceName) {
+		Assert.isPremiseValid(
+			this.decodedReferenceNames == null || this.decodedReferenceNames.contains(referenceName),
+			() -> new GenericEvitaInternalError(
+				"References storage part of entity with primary key " + this.entityPrimaryKey + " was decoded only " +
+					"for reference names " + this.decodedReferenceNames + " and knows nothing about reference `" +
+					referenceName + "`!"
+			)
+		);
 	}
 
 	@Nullable
@@ -177,6 +259,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 
 	@Override
 	public boolean isEmpty() {
+		assertComplete("emptiness evaluation");
 		final Reference[] theReferences = getReferences();
 		for (final Reference reference : theReferences) {
 			if (reference.exists()) {
@@ -207,6 +290,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 */
 	@Nonnull
 	public Map<ComparableReferenceKey, ReferenceKey> assignMissingIdsAndSort() {
+		assertComplete("internal primary key assignment");
 		if (this.unassignedPrimaryKeys) {
 			final Reference[] theReferences = getReferencesForUpdate();
 			final Set<ComparableReferenceKey> refKeysForReassignment = this.referenceKeysForReassignment == null ?
@@ -455,6 +539,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 */
 	@Nullable
 	private ReferenceRange findReferenceRange(@Nonnull String referenceName) {
+		assertReferenceNameDecoded(referenceName);
 		final Reference[] refs = getReferences();
 		if (refs.length == 0) {
 			return null;
@@ -497,6 +582,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 * Returns true if passed locale is found among localized attributes of any reference held in this storage part.
 	 */
 	public boolean isLocalePresent(@Nonnull Locale locale) {
+		assertComplete("locale presence evaluation");
 		final Reference[] theReferences = getReferences();
 		for (Reference reference : theReferences) {
 			if (reference.exists() && reference.getAttributeLocales().contains(locale)) {
@@ -542,6 +628,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 */
 	@Nonnull
 	public List<ReferenceContract> findReferencesOrThrowException(@Nonnull ReferenceKey referenceKey) {
+		assertReferenceNameDecoded(referenceKey.referenceName());
 		Assert.isPremiseValid(
 			referenceKey.isUnknownReference(),
 			() -> "This method makes sense only with generic reference key!"
@@ -596,6 +683,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull Predicate<ReferenceContract> filter
 	) {
+		assertReferenceNameDecoded(referenceKey.referenceName());
 		Assert.isPremiseValid(
 			referenceKey.isUnknownReference(),
 			() -> "This method makes sense only with generic reference key!"
@@ -702,6 +790,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 		@Nonnull ReferenceKey genericReferenceKey,
 		@Nonnull Serializable[] requiredRepresentativeAttributeValues
 	) {
+		assertReferenceNameDecoded(genericReferenceKey.referenceName());
 		final Reference[] theReferences = getReferences();
 		final InsertionPosition position = findPositionInGeneralManner(theReferences, genericReferenceKey);
 		if (position.alreadyPresent()) {
@@ -788,6 +877,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 * @return true if the reference key exists in the references, false otherwise
 	 */
 	public boolean contains(@Nonnull ReferenceKey referenceKey) {
+		assertReferenceNameDecoded(referenceKey.referenceName());
 		final ReferenceContract[] theReferences = getReferences();
 		if (referenceKey.isKnownInternalPrimaryKey()) {
 			return ArrayUtils.binarySearch(theReferences, referenceKey, FULL_COMPARISON_FUNCTION) >= 0;
@@ -818,6 +908,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 * @return the index of the reference key in the references array, or -1 if the reference is not found
 	 */
 	private int findReferenceIndex(@Nonnull ReferenceKey referenceKey) {
+		assertReferenceNameDecoded(referenceKey.referenceName());
 		final int index;
 		final Reference[] theReferences = getReferences();
 		if (referenceKey.isKnownInternalPrimaryKey()) {
@@ -883,6 +974,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 */
 	@Nonnull
 	private Reference[] getReferencesForUpdate() {
+		assertComplete("modification");
 		if (this.modifiedReferences == null) {
 			this.modifiedReferences = Arrays.copyOf(this.references, this.references.length);
 		}

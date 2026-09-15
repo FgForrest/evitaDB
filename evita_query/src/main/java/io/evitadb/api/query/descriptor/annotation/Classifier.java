@@ -23,8 +23,6 @@
 
 package io.evitadb.api.query.descriptor.annotation;
 
-import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
-
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

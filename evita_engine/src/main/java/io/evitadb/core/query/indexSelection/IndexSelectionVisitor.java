@@ -45,6 +45,7 @@ import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.filter.translator.reference.BidirectionalReferenceRewriter;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes.EligibilityObstacle;
@@ -250,6 +251,20 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(constraint.getReferenceName());
 		final FilterByVisitor theFilterByVisitor = getFilterByVisitor();
 		final Set<Scope> scopes = theFilterByVisitor.getProcessingScope().getScopes();
+
+		// when the constraint will be answered from the counterpart end of a bidirectional reference, the
+		// owner-side index set is never consulted - and merely discovering it (one reduced index per matching
+		// referenced entity, plus a pass over all their bitmaps for the cardinality check below) is the dominant cost
+		// this rewrite exists to avoid. The decision uses schemas and O(1) bitmap cardinalities only, so it can be
+		// taken here, before anything is materialised.
+		if (
+			BidirectionalReferenceRewriter.isApplicable(
+				this.queryContext, entitySchema, referenceSchema, constraint, scopes
+			)
+		) {
+			return;
+		}
+
 		final List<ReducedEntityIndex> theTargetIndexes = theFilterByVisitor
 			.getReferencedRecordEntityIndexes(constraint, scopes);
 

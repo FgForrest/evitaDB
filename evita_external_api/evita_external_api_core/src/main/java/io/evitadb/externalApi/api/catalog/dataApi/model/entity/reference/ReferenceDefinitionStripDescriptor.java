@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference;
 
-import io.evitadb.externalApi.api.catalog.dataApi.model.StripListDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
 /**

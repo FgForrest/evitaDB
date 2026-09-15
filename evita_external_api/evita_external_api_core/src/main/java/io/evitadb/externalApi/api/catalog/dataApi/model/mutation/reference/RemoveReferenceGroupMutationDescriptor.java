@@ -26,8 +26,6 @@ package io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceGroupMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
-import java.util.List;
-
 /**
  * Descriptor representing {@link RemoveReferenceGroupMutation}
  *

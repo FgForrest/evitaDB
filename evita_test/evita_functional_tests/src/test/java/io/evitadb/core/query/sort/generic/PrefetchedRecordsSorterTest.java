@@ -59,7 +59,6 @@ import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.core.query.sort.utils.SortUtilsTest.asResult;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.ORDER;

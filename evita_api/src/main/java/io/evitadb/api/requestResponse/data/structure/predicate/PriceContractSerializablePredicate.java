@@ -345,8 +345,36 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 	}
 
 	/**
+	 * Tells whether `candidates` are all already present in `existing`, i.e. whether merging them in would leave
+	 * the predicate observably unchanged.
+	 *
+	 * @param existing   price lists this predicate already carries, may be {@code null} when none were requested
+	 * @param candidates price lists the incoming request would add
+	 * @return true when `existing` already covers every entry of `candidates`
+	 */
+	private static boolean alreadyCovers(@Nullable String[] existing, @Nonnull String[] candidates) {
+		if (existing == null) {
+			return false;
+		}
+		for (final String candidate : candidates) {
+			if (ArrayUtils.indexOf(candidate, existing) < 0) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
 	 * Creates and returns a richer copy of the current PriceContractSerializablePredicate instance with properties
 	 * updated or augmented based on the provided EvitaRequest.
+	 *
+	 * The copy only ever **widens**. Its single production caller is the enrichment path
+	 * ({@link EntityDecorator#createPricePredicateRicherCopyWith(EvitaRequest)}),
+	 * which adds data to an entity that is already loaded - a request asking for a narrower
+	 * {@link PriceContentMode} than this predicate carries must therefore never take the wider one away, whether or
+	 * not the request widens something else at the same time. Narrowing a view of an entity is what
+	 * {@link io.evitadb.api.EntityCollectionContract#limitEntity} does, through the underlying-predicate constructor
+	 * rather than through here.
 	 *
 	 * @param evitaRequest the request containing additional details or constraints such as required entity prices,
 	 *                     additional price lists, or accompanying price lists which affect the returned predicate.
@@ -376,9 +404,18 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 			if (ArrayUtils.isEmpty(fetchesAdditionalPriceLists) && ArrayUtils.isEmpty(accompanyingPrices)) {
 				// this predicate cannot change since everything is taken from the filter and this cannot change in time
 				return this;
+			} else if (ArrayUtils.isEmpty(accompanyingPrices) && alreadyCovers(this.additionalPriceLists, fetchesAdditionalPriceLists)) {
+				// the request asks for nothing this predicate does not already carry: repeating the merge would build
+				// an equal predicate with duplicated entries in `additionalPriceLists`, and - because a non-identical
+				// predicate is what tells the fetch pipeline that the entity has to be enriched - would trigger
+				// a storage round trip that provably fetches nothing
+				return this;
 			} else {
 				return new PriceContractSerializablePredicate(
-					requiresEntityPrices,
+					// the request asks for no more prices than this predicate already lets through, so the copy keeps
+					// the wider mode - the two short-circuits above return `this` for the same reason, and enrichment
+					// widening the price lists must not narrow the content mode behind the caller's back
+					this.priceContentMode,
 					this.currency, this.validIn, this.priceLists,
 					this.additionalPriceLists == null ? fetchesAdditionalPriceLists : ArrayUtils.mergeArrays(this.additionalPriceLists, fetchesAdditionalPriceLists),
 					mergedAccompanyingPrices,

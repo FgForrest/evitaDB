@@ -23,7 +23,6 @@
 
 package io.evitadb.api.functional.reference;
 
-import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
