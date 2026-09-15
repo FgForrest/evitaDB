@@ -907,12 +907,20 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 		@Test
 		@DisplayName("Termination still releases every collection")
 		void shouldStillTerminateEveryCollection() {
-			final Catalog catalog = unpublishableCatalog();
+			// Captured BEFORE the barrier goes up, and that ordering is the whole of what keeps this test
+			// deterministic: `markUnpublishable` schedules a deactivation that terminates this very instance,
+			// and `terminateInternally` ends by clearing `entityCollections`. Reading the collections afterwards
+			// races that scheduler and loses under CPU churn, failing with `CollectionNotFoundException` for a
+			// collection the catalog held a moment earlier. The references outlive the clear - which is what the
+			// assertions below already rely on - so taking them early weakens nothing.
+			final Catalog catalog = (Catalog) EntityAtomicMutationRollbackWarmUpFunctionalTest.this.evita
+				.getCatalogInstanceOrThrowException(TEST_CATALOG);
 			final List<EntityCollection> collections = List.of(
 				catalog.getCollectionForEntityOrThrowException(Entities.PRODUCT),
 				catalog.getCollectionForEntityOrThrowException(Entities.PARAMETER),
 				catalog.getCollectionForEntityOrThrowException(Entities.PARAMETER_GROUP)
 			);
+			raiseBarrier(catalog);
 
 			assertDoesNotThrow(
 				catalog::terminate,
@@ -951,8 +959,24 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 		 */
 		@Nonnull
 		private Catalog unpublishableCatalog() {
-			final Catalog catalog = (Catalog) EntityAtomicMutationRollbackWarmUpFunctionalTest.this.evita
-				.getCatalogInstanceOrThrowException(TEST_CATALOG);
+			return raiseBarrier(
+				(Catalog) EntityAtomicMutationRollbackWarmUpFunctionalTest.this.evita
+					.getCatalogInstanceOrThrowException(TEST_CATALOG)
+			);
+		}
+
+		/**
+		 * Raises the barrier on the passed catalog by recording a simulated warm-up failure against it.
+		 *
+		 * Separate from {@link #unpublishableCatalog()} so that a test needing to read the catalog's state
+		 * *before* the barrier - and therefore before the deactivation the barrier schedules - can order the
+		 * two for itself.
+		 *
+		 * @param catalog the catalog to mark unpublishable
+		 * @return the same catalog, with the barrier raised
+		 */
+		@Nonnull
+		private static Catalog raiseBarrier(@Nonnull Catalog catalog) {
 			assertTrue(catalog.isPublishable(), "The catalog must start out publishable.");
 			catalog.markUnpublishable(new RuntimeException(SIMULATED_FAILURE));
 			assertFalse(catalog.isPublishable(), "Marking the catalog must raise the barrier.");
