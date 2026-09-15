@@ -1,7 +1,7 @@
 ---
 title: Push release_* branches from CI as a GitHub App on the ruleset bypass list, not as GITHUB_TOKEN
 date: 2026-09-15
-updated: 2026-09-15 22:10
+updated: 2026-09-15 22:40
 status: accepted
 kind: infrastructure
 issues: [1591]
@@ -131,8 +131,11 @@ community request); until then the App stays.
   `refs/heads/master` and the default branch; rules `deletion`, `non_fast_forward`,
   `pull_request`; bypass actors `RepositoryRole` admin in `pull_request` mode and `Integration`
   App ID 4958064 in `always` mode. The App is installed on this repository only, with Contents and
-  Workflows read/write. Its ID is the repository variable `RELEASE_APP_ID`; its private key is the
-  repository secret `RELEASE_APP_PRIVATE_KEY`.
+  Workflows read/write. Its Client ID is the repository variable `RELEASE_APP_CLIENT_ID`, its
+  numeric App ID the variable `RELEASE_APP_ID`, and its private key the repository secret
+  `RELEASE_APP_PRIVATE_KEY`. `actions/create-github-app-token` deprecated `app-id` in favour of
+  `client-id`, but GitHub accepts either value as the JWT issuer, so the workflow passes the Client
+  ID and falls back to the numeric id — a missing Client ID variable cannot break a release.
 - Not verified: whether the `pull_request` rule also rejects a human's *first* push that creates
   a `release_*` branch. The workflow does not care — the App bypasses it either way — and no human
   creates release branches by hand.
