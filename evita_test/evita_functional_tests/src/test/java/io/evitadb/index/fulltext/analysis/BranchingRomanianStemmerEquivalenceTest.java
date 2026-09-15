@@ -35,7 +35,7 @@ import static io.evitadb.test.TestTags.FULLTEXT;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Proves {@link BranchingFoldedRomanianStemmer} set-equivalent to the flat 513-hypothesis
+ * Proves {@link RomanianVariantStemmer} set-equivalent to the flat 513-hypothesis
  * {@link FoldedRomanianStemmer#allHypotheses()} union — over the whole ro_RO Hunspell lexicon, over the
  * pipeline's boundary words, and per token position at the filter level. Romanian is the staged-worklist walk
  * (five step gates, buffer-rewriting actions, a constraint scan inside the verb step), so the boundary list
@@ -73,7 +73,7 @@ class BranchingRomanianStemmerEquivalenceTest {
 	void shouldMatchFlatUnionOverWholeLexicon() throws IOException {
 		final int tested = BranchingEquivalenceSupport.assertEquivalenceOverLexicon(
 			"/fulltext/hunspell/ro_RO.dic", FoldedRomanianStemmer.allHypotheses(),
-			new BranchingFoldedRomanianStemmer(), "FoldedRomanianStemmer"
+			new RomanianVariantStemmer(), "FoldedRomanianStemmer"
 		);
 		assertTrue(tested > 100_000, "Expected six figures of headwords; got " + tested + ".");
 		System.out.println("ro_RO branching-vs-flat equivalence: " + tested + " folded headwords compared");
@@ -83,7 +83,7 @@ class BranchingRomanianStemmerEquivalenceTest {
 	@DisplayName("The branching walk equals the flat union on the pipeline's boundary words")
 	void shouldMatchFlatUnionOnBoundaryWords() {
 		final List<FoldedStemmer> flatUnion = FoldedRomanianStemmer.allHypotheses();
-		final BranchingFoldedRomanianStemmer branching = new BranchingFoldedRomanianStemmer();
+		final RomanianVariantStemmer branching = new RomanianVariantStemmer();
 		for (final String word : BOUNDARY_WORDS) {
 			BranchingEquivalenceSupport.assertSameHypotheses(
 				word, flatUnion, branching, "FoldedRomanianStemmer"
@@ -95,7 +95,7 @@ class BranchingRomanianStemmerEquivalenceTest {
 	@DisplayName("The branching filter emits the same terms per position as the flat filter")
 	void shouldEmitSameTermsPerPositionAsFlatFilter() throws IOException {
 		BranchingEquivalenceSupport.assertSameTermsPerPosition(
-			FoldedRomanianStemmer.allHypotheses(), BranchingFoldedRomanianStemmer::new,
+			FoldedRomanianStemmer.allHypotheses(), RomanianVariantStemmer::new,
 			"Canapea neagră din piele pentru gravitaţiune şi chestiune; lucrează, citească, cumpăra - "
 				+ "canapea neagra din piele pentru gravitatiune si chestiune; lucreaza, citeasca, cumpara"
 		);

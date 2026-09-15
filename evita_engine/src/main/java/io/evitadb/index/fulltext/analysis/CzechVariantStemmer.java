@@ -23,71 +23,71 @@
 
 package io.evitadb.index.fulltext.analysis;
 
+import io.evitadb.exception.GenericEvitaInternalError;
+
 import javax.annotation.Nonnull;
 
 import static org.apache.lucene.analysis.util.StemmerUtil.endsWith;
 
 /**
- * The **branching** form of the M7 Czech hypothesis set: one walk over {@link FoldedCzechStemmer}'s ending
- * tables that forks only at a fold-ambiguous rule whose pattern **actually matches** the current word, instead
- * of running all 1,024 switch configurations of the flat union and deduplicating their outputs. Produces —
- * provably, see the equivalence test — the exact same set of distinct hypotheses as
- * {@link FoldedCzechStemmer#allHypotheses()} run through {@link HypothesisStemFilter}, surface hypothesis
- * included, at a small constant number of suffix comparisons per word and **zero allocation** after
- * construction.
+ * The Czech {@link VariantStemmer}: one walk over Lucene's `CzechStemmer` ending tables, read over the **folded**
+ * alphabet, that forks wherever an ending is fold-ambiguous — i.e. wherever the rule that fired on the accented
+ * text cannot be told apart from the rule that did not, once the accents are gone. Its emitted set therefore
+ * contains the folded image of whatever `CzechStemFilter` produced on the index side, which is the guarantee the
+ * whole query lane rests on and which the cs_CZ lexicon sweep verifies word by word.
  *
- * Two structural properties of the folded stemmer make this cheap and exact:
+ * Two structural properties of the Czech rule set keep the walk cheap and exact:
  *
- * 1. **`removeCase` and `removePossessives` never mutate the buffer** — they only compute a shorter length —
- *    and every `normalize` rule mutates at most the final two characters of the stem and then returns. Every
- *    hypothesis is therefore fully described by `(length, final-two-characters)` over the *unmodified* input,
- *    which is how this class stores them: three parallel arrays, no copies, no strings. Two hypotheses of the
+ * 1. **The case-ending and possessive stages never mutate the buffer** — they only compute a shorter length —
+ *    and every normalization rule mutates at most the final two characters of the stem and then returns. Every
+ *    variant is therefore fully described by `(length, final-two-characters)` over the *unmodified* input,
+ *    which is how this class stores them: three parallel arrays, no copies, no strings. Two variants of the
  *    same word are equal **iff** these triples are equal, because equal lengths imply an identical untouched
  *    prefix — so deduplication is a linear scan over at most a handful of triples.
- * 2. **No configuration flag can decide twice on one word.** Every guarded ending-table entry family strips
- *    and returns when it fires, and the skip-branch (that flag off) can never reach a *second* entry of the
- *    same family — the surviving suffix never matches one (verified per family in {@code caseTableOutcomes};
- *    the possessive and `normalize` flags each guard a single site with mutually exclusive patterns). The
- *    union over all flag combinations therefore equals the set of outcomes of a single walk that takes both
- *    branches wherever a guarded pattern matches, which is what the flat prototype's javadoc asserted and the
- *    lexicon-scale equivalence test now proves word by word.
+ * 2. **No ambiguous rule family can decide twice on one word.** Every guarded ending-table entry family strips
+ *    and returns when it fires, and the skip-branch can never reach a *second* entry of the same family — the
+ *    surviving suffix never matches one (verified per family in {@link #caseTableOutcomes}; the possessive and
+ *    normalization sites are single and their patterns mutually exclusive). Taking both branches wherever a
+ *    guarded pattern matches therefore reaches exactly the outcomes reachable at all, with no phantom stems.
  *
- * The upper bound on distinct outcomes is small: the case walk yields at most 3 lengths (the
- * vowel-strip-only lane plus at most one fork in the full-table lane), a possessive fork at most doubles
- * them to 6, `normalize` yields at most 3 outcomes per length (its rules return on application and their
- * skip-chains exclude one another), plus the surface hypothesis — 19. The arrays are sized to that bound and
- * overflow throws, per the defensive-design rule.
+ * The upper bound on distinct outcomes is small: the case walk yields at most 3 lengths (the vowel-strip-only
+ * lane plus at most one fork in the full-table lane), a possessive fork at most doubles them to 6,
+ * normalization yields at most 3 outcomes per length (its rules return on application and their skip-chains
+ * exclude one another), plus the surface form — 19. The arrays are sized to that bound and overflow throws,
+ * per the defensive-design rule.
  *
- * **Prototype, test scope only**, like the flat union it replaces for measurement purposes. Input is expected
- * lowercased and diacritics-folded; the instance is stateful scratch and **not thread-safe** — one per stream,
- * exactly like a Lucene stemmer.
+ * Input is expected lowercased and diacritics-folded; the instance is stateful scratch and **not thread-safe**
+ * — one per stream, exactly like a Lucene stemmer.
+ *
+ * See `documentation/adr/2026-08-24-fulltext-search-lucene-vs-inhouse/` for the measurements and the rejected
+ * alternatives behind this design.
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
  */
-final class BranchingFoldedCzechStemmer implements BranchingStemmer {
+final class CzechVariantStemmer implements VariantStemmer {
 
 	/**
-	 * Hard bound on distinct hypotheses per word — see the class javadoc for the derivation (3 case lengths
+	 * Hard bound on distinct variants per word — see the class javadoc for the derivation (3 case lengths
 	 * × 2 possessive × 3 normalize outcomes + surface).
 	 */
-	private static final int MAX_HYPOTHESES = 19;
+	private static final int MAX_VARIANTS = 19;
 
 	/**
-	 * Lengths of the deduplicated hypotheses of the current word.
+	 * Lengths of the deduplicated variants of the current word.
 	 */
-	private final int[] lengths = new int[MAX_HYPOTHESES];
+	private final int[] lengths = new int[MAX_VARIANTS];
 	/**
-	 * Character at index `length - 2` of each hypothesis, `0` when the hypothesis is shorter than two
-	 * characters. Together with {@link #lasts} this is the only place a hypothesis may differ from the
+	 * Character at index `length - 2` of each variant, `0` when the variant is shorter than two
+	 * characters. Together with {@link #lasts} this is the only place a variant may differ from the
 	 * original word's prefix of its length.
 	 */
-	private final char[] penultimates = new char[MAX_HYPOTHESES];
+	private final char[] penultimates = new char[MAX_VARIANTS];
 	/**
-	 * Character at index `length - 1` of each hypothesis, `0` when the hypothesis is empty.
+	 * Character at index `length - 1` of each variant, `0` when the variant is empty.
 	 */
-	private final char[] lasts = new char[MAX_HYPOTHESES];
+	private final char[] lasts = new char[MAX_VARIANTS];
 	/**
-	 * Number of valid entries in the three hypothesis arrays.
+	 * Number of valid entries in the three variant arrays.
 	 */
 	private int count;
 
@@ -110,23 +110,23 @@ final class BranchingFoldedCzechStemmer implements BranchingStemmer {
 	private int stemCount;
 
 	/**
-	 * Computes every distinct hypothesis of the given diacritics-folded, lowercased word — the union of all
-	 * 1,024 {@link FoldedCzechStemmer} configurations plus the folded surface itself. The buffer is only read,
+	 * Computes every distinct variant of the given diacritics-folded, lowercased word — the union of all
+	 * ending-table forks plus the folded surface itself. The buffer is only read,
 	 * never mutated; the results stay valid until the next call and are read through {@link #length(int)} and
 	 * {@link #materialize(int, char[], char[])}.
 	 *
 	 * @param s   input buffer, read only
 	 * @param len length of the word in the buffer
-	 * @return number of distinct hypotheses
+	 * @return number of distinct variants
 	 */
 	@Override
-	public int hypothesize(@Nonnull char[] s, int len) {
+	public int stem(@Nonnull char[] s, int len) {
 		this.count = 0;
 		this.caseCount = 0;
 		this.stemCount = 0;
 
 		// stage 1 - case endings; pure length computation, so outcomes are just deduplicated lengths.
-		// lane one: the caseEndings switch off, i.e. the vowel-strip-only hypothesis
+		// lane one: the caseEndings switch off, i.e. the vowel-strip-only variant
 		addCaseLength(removeFinalVowel(s, len));
 		// lane two: the switch on - the full table walk, forking where a guarded entry matches
 		caseTableOutcomes(s, len);
@@ -150,46 +150,46 @@ final class BranchingFoldedCzechStemmer implements BranchingStemmer {
 			normalizeOutcomes(s, this.stemLengths[i]);
 		}
 
-		// stage 4 - the folded surface itself, the last hypothesis of FoldedCzechStemmer#allHypotheses()
+		// stage 4 - the folded surface itself, so an unstemmable word still matches its own index term
 		addIdentity(s, len);
 		return this.count;
 	}
 
 	/**
-	 * Length of the given hypothesis of the last {@link #hypothesize(char[], int)} call.
+	 * Length of the given variant of the last {@link #stem(char[], int)} call.
 	 *
-	 * @param hypothesisIndex index of the hypothesis, `0` to `count - 1`
-	 * @return length of the hypothesis
+	 * @param variantIndex index of the variant, `0` to `count - 1`
+	 * @return length of the variant
 	 */
 	@Override
-	public int length(int hypothesisIndex) {
-		return this.lengths[hypothesisIndex];
+	public int length(int variantIndex) {
+		return this.lengths[variantIndex];
 	}
 
 	/**
-	 * Writes the given hypothesis into the destination buffer: the original word's prefix of the hypothesis
+	 * Writes the given variant into the destination buffer: the original word's prefix of the variant
 	 * length with the recorded final two characters applied.
 	 *
-	 * @param hypothesisIndex index of the hypothesis, `0` to `count - 1`
-	 * @param originalWord    the exact buffer the last {@link #hypothesize(char[], int)} call read
+	 * @param variantIndex index of the variant, `0` to `count - 1`
+	 * @param originalWord    the exact buffer the last {@link #stem(char[], int)} call read
 	 * @param destination     buffer to write into, at least {@link #length(int)} characters long
-	 * @return length of the hypothesis written
+	 * @return length of the variant written
 	 */
 	@Override
-	public int materialize(int hypothesisIndex, @Nonnull char[] originalWord, @Nonnull char[] destination) {
-		final int length = this.lengths[hypothesisIndex];
+	public int materialize(int variantIndex, @Nonnull char[] originalWord, @Nonnull char[] destination) {
+		final int length = this.lengths[variantIndex];
 		System.arraycopy(originalWord, 0, destination, 0, length);
 		if (length >= 2) {
-			destination[length - 2] = this.penultimates[hypothesisIndex];
+			destination[length - 2] = this.penultimates[variantIndex];
 		}
 		if (length >= 1) {
-			destination[length - 1] = this.lasts[hypothesisIndex];
+			destination[length - 1] = this.lasts[variantIndex];
 		}
 		return length;
 	}
 
 	/**
-	 * Walks the full case-ending table — the `caseEndings`-on lane of `FoldedCzechStemmer#removeCase` — and
+	 * Walks the full case-ending table — the folded reading of `CzechStemmer#removeCase` — and
 	 * records every reachable outcome length. An unguarded entry match ends the walk for every remaining
 	 * configuration; a guarded entry match records the stripped length (that switch on) and continues with the
 	 * switch committed off. No family can match twice on one word: after a guarded strip is skipped, the word
@@ -207,12 +207,12 @@ final class BranchingFoldedCzechStemmer implements BranchingStemmer {
 		// matches no later `at`-family entry; after `atum`/`ata`/`aty` the surviving two-character suffix is
 		// `um`/`ta`/`ty`, never `at`; and `longMiUndecided` has a single read site, which its only write cannot
 		// precede. They are kept because they encode the invariant the union-equals-branching equivalence rests
-		// on: one flat-union configuration holds ONE value of each switch for the whole word, so once a walk takes
+		// on: one accented reading holds ONE answer per ambiguous family for the whole word, so once a walk takes
 		// a family's off-branch, that family must stay off for the rest of that walk. Should a future table edit
 		// make a second same-family match reachable, a walk without the commitment would fork twice and emit a
-		// hypothesis NO configuration produces (were `mi` guarded by longMiEndings, `surimi` would gain a phantom
+		// variant NO configuration produces (were `mi` guarded by longMiEndings, `surimi` would gain a phantom
 		// `suri` from the off-then-on path); with it, the walk stays equal to the union by construction, instead
-		// of relying on BranchingCzechStemmerEquivalenceTest to flag the divergence after the fact.
+		// of relying on the lexicon sweep to flag the divergence after the fact.
 		boolean neuterAtUndecided = true;
 		boolean longMiUndecided = true;
 
@@ -288,7 +288,7 @@ final class BranchingFoldedCzechStemmer implements BranchingStemmer {
 
 	/**
 	 * The unguarded final-vowel strip — the whole of `removeCase` when the `caseEndings` switch is off, and
-	 * its last tier when it is on. Mirror of `FoldedCzechStemmer#removeFinalVowel`.
+	 * its last tier otherwise. Folded reading of `CzechStemmer#removeCase`'s final-vowel tier.
 	 *
 	 * @param s   input buffer, read only
 	 * @param len current length
@@ -313,7 +313,8 @@ final class BranchingFoldedCzechStemmer implements BranchingStemmer {
 	}
 
 	/**
-	 * Records every reachable outcome of `FoldedCzechStemmer#normalize` for a stem of the given length. Every
+	 * Records every reachable outcome of `CzechStemmer#normalize`, read over the folded alphabet, for a stem
+	 * of the given length. Every
 	 * rule in `normalize` is switch-guarded and returns when applied, so the outcomes are: one per guarded
 	 * rule whose pattern matches along the skip-chain, plus the identity (all switches off). The patterns
 	 * exclude one another pairwise except `c`/`z` with a penultimate `e`/`u`, so at most three outcomes exist.
@@ -393,10 +394,10 @@ final class BranchingFoldedCzechStemmer implements BranchingStemmer {
 	}
 
 	/**
-	 * Records the identity hypothesis of the given length — the original word's prefix, unmodified.
+	 * Records the identity variant of the given length — the original word's prefix, unmodified.
 	 *
 	 * @param s      input buffer, read only
-	 * @param length hypothesis length
+	 * @param length variant length
 	 */
 	private void addIdentity(@Nonnull char[] s, int length) {
 		addRaw(
@@ -407,12 +408,12 @@ final class BranchingFoldedCzechStemmer implements BranchingStemmer {
 	}
 
 	/**
-	 * Records a hypothesis as its `(length, final-two-characters)` triple, deduplicated. Equal triples mean
-	 * equal hypotheses because every hypothesis of one word shares the word's untouched prefix.
+	 * Records a variant as its `(length, final-two-characters)` triple, deduplicated. Equal triples mean
+	 * equal variants because every variant of one word shares the word's untouched prefix.
 	 *
-	 * @param length      hypothesis length
-	 * @param penultimate character at `length - 2`, `0` when the hypothesis is shorter
-	 * @param last        character at `length - 1`, `0` when the hypothesis is empty
+	 * @param length      variant length
+	 * @param penultimate character at `length - 2`, `0` when the variant is shorter
+	 * @param last        character at `length - 1`, `0` when the variant is empty
 	 */
 	private void addRaw(int length, char penultimate, char last) {
 		for (int i = 0; i < this.count; i++) {
@@ -420,12 +421,12 @@ final class BranchingFoldedCzechStemmer implements BranchingStemmer {
 				return;
 			}
 		}
-		if (this.count == MAX_HYPOTHESES) {
+		if (this.count == MAX_VARIANTS) {
 			// unreachable by the bound derived in the class javadoc - a breach means the walk no longer
-			// mirrors FoldedCzechStemmer and must fail loudly rather than drop a hypothesis
-			throw new IllegalStateException(
-				"More than " + MAX_HYPOTHESES + " hypotheses for one word - the branching walk has diverged "
-					+ "from FoldedCzechStemmer."
+			// mirrors the Czech stemming rules and must fail loudly rather than drop a variant
+			throw new GenericEvitaInternalError(
+				"More than " + MAX_VARIANTS + " stem variants for one word - the variant walk has diverged "
+					+ "from the Czech stemming rules."
 			);
 		}
 		this.lengths[this.count] = length;

@@ -629,6 +629,18 @@ dictionary, and that is work P5 should not be delayed by.
 > would benefit Slovak recall without borrowing a foreign stemmer. Variant A remains the long-term target
 > under P5-2.
 
+> **Superseded (2026-09-15):** variant C is gone. None of A/B/C shipped in the end — the survey of
+> `p5-prior-art-sk-pl-ro.md` §6 found nothing adoptable, so an in-house Slovak light stemmer was written
+> on the `CzechStemmer` architecture with tables authored against Slovak paradigms, and it is variant B's
+> "borrow Czech" idea done properly: the structure is borrowed, the tables are not, so the false-merge
+> risk variant B carried does not arrive with it. It ships as the `slovak` index chain (lowercase →
+> `SlovakStemmer` → fold) paired with a `slovak-search` query chain that folds first and then emits every
+> stem the word could have had (`SlovakVariantStemmer`). Measured: bare-typed cross-form recall **351/355
+> at 0 false merges**, against the **0/323** of the fold-only variant C this replaces — the "safe lower
+> bound" turned out to be a floor nobody was standing on. The invariant is verified over the whole
+> 264,838-headword sk_SK lexicon. Variant A (Hunspell) remains the long-term target and still carries its
+> unresolved licence question; the in-house stemmer does not, which is the other reason it won.
+
 ---
 
 ## 6. Stemming versus prefix and typo

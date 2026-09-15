@@ -35,7 +35,7 @@ import static io.evitadb.test.TestTags.FULLTEXT;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Proves {@link BranchingFoldedPolishStemmer} set-equivalent to the flat 129-hypothesis
+ * Proves {@link PolishVariantStemmer} set-equivalent to the flat 129-hypothesis
  * {@link FoldedPolishStemmer#allHypotheses()} union — over the whole pl_PL Hunspell lexicon, over the
  * table's boundary words, and per token position at the filter level. Polish is the constraint-scan walk
  * (switches gate table *entries*, not code branches), so the boundary list leans on the multi-reading strings
@@ -76,7 +76,7 @@ class BranchingPolishStemmerEquivalenceTest {
 	void shouldMatchFlatUnionOverWholeLexicon() throws IOException {
 		final int tested = BranchingEquivalenceSupport.assertEquivalenceOverLexicon(
 			"/fulltext/hunspell/pl_PL.dic", FoldedPolishStemmer.allHypotheses(),
-			new BranchingFoldedPolishStemmer(), "FoldedPolishStemmer"
+			new PolishVariantStemmer(), "FoldedPolishStemmer"
 		);
 		assertTrue(tested > 100_000, "Expected six figures of headwords; got " + tested + ".");
 		System.out.println("pl_PL branching-vs-flat equivalence: " + tested + " folded headwords compared");
@@ -86,7 +86,7 @@ class BranchingPolishStemmerEquivalenceTest {
 	@DisplayName("The branching walk equals the flat union on the table's boundary words")
 	void shouldMatchFlatUnionOnBoundaryWords() {
 		final List<FoldedStemmer> flatUnion = FoldedPolishStemmer.allHypotheses();
-		final BranchingFoldedPolishStemmer branching = new BranchingFoldedPolishStemmer();
+		final PolishVariantStemmer branching = new PolishVariantStemmer();
 		for (final String word : BOUNDARY_WORDS) {
 			BranchingEquivalenceSupport.assertSameHypotheses(word, flatUnion, branching, "FoldedPolishStemmer");
 		}
@@ -96,7 +96,7 @@ class BranchingPolishStemmerEquivalenceTest {
 	@DisplayName("The branching filter emits the same terms per position as the flat filter")
 	void shouldEmitSameTermsPerPositionAsFlatFilter() throws IOException {
 		BranchingEquivalenceSupport.assertSameTermsPerPosition(
-			FoldedPolishStemmer.allHypotheses(), BranchingFoldedPolishStemmer::new,
+			FoldedPolishStemmer.allHypotheses(), PolishVariantStemmer::new,
 			"Czarna skórzana sofa do każdego pałacu; paszą, kaszę i ziemię kupiec przyniósł - "
 				+ "czarna skorzana sofa do kazdego palacu; pasza, kasze i ziemie kupiec przyniosl"
 		);

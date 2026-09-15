@@ -53,16 +53,15 @@ import static io.evitadb.test.TestTags.FULLTEXT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Proves that {@link BranchingFoldedCzechStemmer} produces **exactly** the hypothesis set of the flat union —
+ * Proves that {@link CzechVariantStemmer} produces **exactly** the hypothesis set of the flat union —
  * {@link FoldedCzechStemmer#allHypotheses()}, 1,024 switch configurations plus the folded surface — word by
  * word over the whole `cs_CZ` Hunspell lexicon, over hand-picked ending-table boundary words, and at the
  * filter level per token position. This is the equivalence the flat prototype's javadoc asserted structurally
  * ("the union of configurations is one branching stemmer"); the branching implementation turns the assertion
  * into something a test can falsify, and this test is that falsifier.
  *
- * The equivalence is what licenses the JMH benchmark ({@code CzechAnalysisPipelineBenchmark} in the
- * performance-tests module) to attribute its measured speedup to implementation alone: same set in, same set
- * out, only the number of stemmer runs and allocations differs.
+ * The flat union stays in the tree as the executable specification: an edit to it that reopens a coverage gap
+ * fails {@link CzechVariantStemmerLexiconTest}, and one that breaks the production walk's mirror fails here.
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -98,7 +97,7 @@ class BranchingCzechStemmerEquivalenceTest {
 	@DisplayName("The branching walk equals the flat union for every folded cs_CZ headword")
 	void shouldMatchFlatUnionOverWholeLexicon() throws IOException {
 		final List<FoldedStemmer> flatUnion = FoldedCzechStemmer.allHypotheses();
-		final BranchingFoldedCzechStemmer branching = new BranchingFoldedCzechStemmer();
+		final CzechVariantStemmer branching = new CzechVariantStemmer();
 		int tested = 0;
 
 		try (
@@ -128,7 +127,7 @@ class BranchingCzechStemmerEquivalenceTest {
 	@DisplayName("The branching walk equals the flat union on the ending-table boundary words")
 	void shouldMatchFlatUnionOnBoundaryWords() {
 		final List<FoldedStemmer> flatUnion = FoldedCzechStemmer.allHypotheses();
-		final BranchingFoldedCzechStemmer branching = new BranchingFoldedCzechStemmer();
+		final CzechVariantStemmer branching = new CzechVariantStemmer();
 		for (final String word : BOUNDARY_WORDS) {
 			assertSameHypotheses(word, flatUnion, branching);
 		}
@@ -161,7 +160,7 @@ class BranchingCzechStemmerEquivalenceTest {
 	private static void assertSameHypotheses(
 		@Nonnull String word,
 		@Nonnull List<FoldedStemmer> flatUnion,
-		@Nonnull BranchingFoldedCzechStemmer branching
+		@Nonnull CzechVariantStemmer branching
 	) {
 		final Set<String> flatSet = new LinkedHashSet<>(4);
 		for (final FoldedStemmer stemmer : flatUnion) {
@@ -169,7 +168,7 @@ class BranchingCzechStemmerEquivalenceTest {
 		}
 
 		final char[] buffer = word.toCharArray();
-		final int hypothesisCount = branching.hypothesize(buffer, buffer.length);
+		final int hypothesisCount = branching.stem(buffer, buffer.length);
 		final Set<String> branchingSet = new LinkedHashSet<>(4);
 		final char[] scratch = new char[buffer.length];
 		for (int i = 0; i < hypothesisCount; i++) {
@@ -188,7 +187,7 @@ class BranchingCzechStemmerEquivalenceTest {
 	 * hypothesis filter implementations at its end.
 	 *
 	 * @param flatUnion `true` for {@link HypothesisStemFilter} over the flat union, `false` for
-	 *                  {@link BranchingHypothesisStemFilter}
+	 *                  {@link VariantStemFilter}
 	 * @return the chain
 	 */
 	@Nonnull
@@ -203,7 +202,7 @@ class BranchingCzechStemmerEquivalenceTest {
 					source,
 					flatUnion
 						? new HypothesisStemFilter(folded, stemmers)
-						: new BranchingHypothesisStemFilter(folded, new BranchingFoldedCzechStemmer())
+						: new VariantStemFilter(folded, new CzechVariantStemmer())
 				);
 			}
 		};

@@ -23,17 +23,13 @@
 
 package io.evitadb.index.fulltext.analysis;
 
-import io.evitadb.index.fulltext.analysis.AnalysisApproachMeasurer.Lemma;
-import io.evitadb.index.fulltext.analysis.AnalysisApproachMeasurer.MatchStrategy;
-import io.evitadb.index.fulltext.analysis.AnalysisApproachMeasurer.Measurement;
 
 import javax.annotation.Nonnull;
 import java.util.List;
 
 /**
- * The Slovak vocabulary measured by {@link SlovakAnalysisApproachMatrixTest} through the language-agnostic
- * {@link AnalysisApproachMeasurer} — the Slovak sibling of {@link CzechAnalysisFixture}, built to the same
- * protocol. Unlike the Romanian and Polish fixtures this one validates a **from-scratch stemmer's tables**
+ * The Slovak vocabulary {@link LanguageAnalyzerPairRecallTest} measures the `slovak`/`slovak-search`
+ * analyzer pair against — the Slovak sibling of {@link CzechAnalysisFixture}, built to the same protocol. Unlike the Romanian and Polish fixtures this one validates a **from-scratch stemmer's tables**
  * ({@link SlovakStemmer}) as much as the mechanisms, so its classes map one to one onto the table entries; the
  * plan expects the tables and this fixture to co-evolve over multiple runs.
  *
@@ -136,29 +132,6 @@ final class SlovakAnalysisFixture {
 	);
 
 	private SlovakAnalysisFixture() {
-	}
-
-	/**
-	 * Measures one approach over the whole Slovak vocabulary — a shorthand for calling
-	 * {@link AnalysisApproachMeasurer#measure} with this fixture's two lemma lists.
-	 *
-	 * @param approachName  name under which the approach is reported
-	 * @param indexAnalyzer chain analysing the stored value
-	 * @param queryAnalyzer chain analysing the query text; the same instance as `indexAnalyzer` for a symmetric
-	 *                      approach, a different one for an asymmetric one
-	 * @param strategy      how a query term set is decided to have found a value term set
-	 * @return the measurement, carrying the failing cases themselves rather than only their counts
-	 */
-	@Nonnull
-	static Measurement measure(
-		@Nonnull String approachName,
-		@Nonnull FulltextAnalyzer indexAnalyzer,
-		@Nonnull FulltextAnalyzer queryAnalyzer,
-		@Nonnull MatchStrategy strategy
-	) {
-		return AnalysisApproachMeasurer.measure(
-			approachName, indexAnalyzer, queryAnalyzer, strategy, VOCABULARY, CONFUSABLE_LEMMAS
-		);
 	}
 
 }

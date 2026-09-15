@@ -26,41 +26,32 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
-import javax.annotation.Nonnull;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.UnaryOperator;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The Polish instance of the {@link LexiconCoverageSweep}: verifies the M7 correctness invariant of the
- * {@link FoldedPolishStemmer} hypothesis set against the whole `pl_PL` Hunspell lexicon.
+ * The Polish instance of the {@link LexiconCoverageSweep}: verifies over the whole `pl_PL` Hunspell lexicon
+ * that the production {@link PolishVariantStemmer} — the query half of the `polish`/`polish-search` built-in
+ * pair — always emits the term the index half wrote.
  *
- * The index side is the P0s shape of {@link PolishAnalysisApproachMatrixTest} — the official Snowball Polish
- * stemmer ({@link PolishSnowballStemmer}) followed by folding. The query side forks all four fold-ambiguous
- * ending groups of the port (`ł`, nasal, soft, `ów`) — sixteen hypotheses, exactly what the P20 chain
- * emits. Both sides fold through {@link PolishAnalysisFixture#bareType(String)}, because Polish folding must
- * map the stroked `ł` NFD leaves alone.
+ * The index side is the production shape: the vendored Snowball stemmer ({@link PolishSnowballStemmer})
+ * followed by folding. Both sides fold through {@link PolishAnalysisFixture#bareType(String)}, because Polish
+ * folding must map the stroked `ł`, which NFD decomposition leaves alone.
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Polish folded stemmer — M7 coverage over the whole pl_PL lexicon")
+@DisplayName("Polish variant stemmer — index-term coverage over the whole pl_PL lexicon")
 @Tag(ENGINE)
 @Tag(FULLTEXT)
-class PolishFoldedStemmerLexiconTest {
+class PolishVariantStemmerLexiconTest {
 
 	@Test
-	@DisplayName("The hypothesis set covers the folded index term for every dictionary word")
+	@DisplayName("The variant set covers the folded index term for every dictionary word")
 	void shouldCoverAccentedStemsOverWholeLexicon() throws IOException {
 		final PolishSnowballStemmer accented = new PolishSnowballStemmer();
-		final List<UnaryOperator<String>> hypotheses = new ArrayList<>(65);
-		for (final FoldedStemmer stemmer : FoldedPolishStemmer.allHypotheses()) {
-			hypotheses.add(word -> LexiconCoverageSweep.stem(word, stemmer));
-		}
 
 		final LexiconCoverageSweep.Result result = LexiconCoverageSweep.sweep(
 			"/fulltext/hunspell/pl_PL.dic",
@@ -70,7 +61,7 @@ class PolishFoldedStemmerLexiconTest {
 				accented.stem();
 				return PolishAnalysisFixture.bareType(accented.getCurrent());
 			},
-			hypotheses
+			new PolishVariantStemmer()
 		);
 
 		System.out.println(result.summary("pl_PL"));
@@ -80,8 +71,8 @@ class PolishFoldedStemmerLexiconTest {
 		);
 		assertTrue(
 			result.uncoveredCount() == 0,
-			"Every uncovered word is a fold-ambiguity no current fork covers - the folded port needs a new "
-				+ "switch for it:\n" + String.join("\n", result.uncovered())
+			"Every uncovered word is a fold-ambiguity no current fork covers - the variant stemmer needs a new "
+				+ "fork for it:\n" + String.join("\n", result.uncovered())
 		);
 	}
 

@@ -23,54 +23,62 @@
 
 package io.evitadb.index.fulltext.analysis;
 
+import io.evitadb.exception.GenericEvitaInternalError;
+
 import javax.annotation.Nonnull;
 
 import static org.apache.lucene.analysis.util.StemmerUtil.endsWith;
 
 /**
- * The **branching** form of the M7 Slovak hypothesis set: one walk over {@link FoldedSlovakStemmer}'s tables
- * that forks only at a fold-ambiguous rule whose pattern actually matches, producing the exact union of the
- * eight (2³) switch configurations the Slovak M7 chain and lexicon sweep run — **without** a surface
- * hypothesis, which the Slovak set alone does not carry (its sweep reached zero uncovered on the three rule
- * forks; see the SK/PL/RO record, §9.4/§9.8).
+ * The Slovak {@link VariantStemmer}: one walk over {@link SlovakStemmer}'s tables, read over the **folded**
+ * alphabet, forking wherever a rule is fold-ambiguous. Its emitted set contains the folded image of whatever
+ * {@link SlovakStemmer} produced on the index side, which the sk_SK lexicon sweep verifies word by word.
  *
- * The same two structural properties as the Czech walk hold ({@link BranchingFoldedCzechStemmer}): the case
- * and possessive stages never mutate the buffer, and every `normalize` mutation confines itself to the final
+ * Slovak alone emits **no surface variant** — the rule forks already cover the whole lexicon, so adding the
+ * unstemmed word would only widen false merges without adding recall.
+ *
+ * The same two structural properties as the Czech walk hold ({@link CzechVariantStemmer}): the case
+ * and possessive stages never mutate the buffer, and every normalization mutation confines itself to the final
  * two characters of its result — including the one wrinkle Czech does not have, the **chained** rules: the
  * `ie`-shortening does not return but falls through into the epenthesis check, so one path can apply both
  * (`stoliciek` → `stolicek` → `stolick`). The composition still only rewrites the result's final two
- * characters over an untouched prefix, so hypotheses stay `(length, final-two-characters)` triples and the
- * walk allocates nothing. Flag consistency needs no bookkeeping here: `omEnding` guards one table entry,
- * `ieShortening` and `epenthesis` one `normalize` site each, and the chained lane evaluates each at most once.
+ * characters over an untouched prefix, so variants stay `(length, final-two-characters)` triples and the
+ * walk allocates nothing. No fork bookkeeping is needed here: the `om` ending guards one table entry, the
+ * `ie`-shortening and the epenthesis one normalization site each, and the chained lane evaluates each at
+ * most once.
  *
- * Bound: ≤ 2 case lengths (the `om` fork) × deterministic possessive × ≤ 4 `normalize` outcomes
+ * Bound: ≤ 2 case lengths (the `om` fork) × deterministic possessive × ≤ 4 normalization outcomes
  * (`ie`-on with/without epenthesis, `ie`-off with epenthesis, identity) = 8.
  *
- * **Prototype, test scope only.** Not thread-safe — one instance per stream.
+ * Input is expected lowercased and diacritics-folded; the instance is stateful scratch and **not thread-safe**
+ * — one per stream.
+ *
+ * See `documentation/adr/2026-08-24-fulltext-search-lucene-vs-inhouse/` for the measurements and the rejected
+ * alternatives behind this design.
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
  */
-final class BranchingFoldedSlovakStemmer implements BranchingStemmer {
+final class SlovakVariantStemmer implements VariantStemmer {
 
 	/**
-	 * Hard bound on distinct hypotheses per word — see the class javadoc for the derivation.
+	 * Hard bound on distinct variants per word — see the class javadoc for the derivation.
 	 */
-	private static final int MAX_HYPOTHESES = 8;
+	private static final int MAX_VARIANTS = 8;
 
 	/**
-	 * Lengths of the deduplicated hypotheses of the current word.
+	 * Lengths of the deduplicated variants of the current word.
 	 */
-	private final int[] lengths = new int[MAX_HYPOTHESES];
+	private final int[] lengths = new int[MAX_VARIANTS];
 	/**
-	 * Character at index `length - 2` of each hypothesis, `0` when the hypothesis is shorter.
+	 * Character at index `length - 2` of each variant, `0` when the variant is shorter.
 	 */
-	private final char[] penultimates = new char[MAX_HYPOTHESES];
+	private final char[] penultimates = new char[MAX_VARIANTS];
 	/**
-	 * Character at index `length - 1` of each hypothesis, `0` when the hypothesis is empty.
+	 * Character at index `length - 1` of each variant, `0` when the variant is empty.
 	 */
-	private final char[] lasts = new char[MAX_HYPOTHESES];
+	private final char[] lasts = new char[MAX_VARIANTS];
 	/**
-	 * Number of valid entries in the three hypothesis arrays.
+	 * Number of valid entries in the three variant arrays.
 	 */
 	private int count;
 
@@ -85,7 +93,7 @@ final class BranchingFoldedSlovakStemmer implements BranchingStemmer {
 	private int stemCount;
 
 	@Override
-	public int hypothesize(@Nonnull char[] s, int len) {
+	public int stem(@Nonnull char[] s, int len) {
 		this.count = 0;
 		this.stemCount = 0;
 
@@ -101,19 +109,19 @@ final class BranchingFoldedSlovakStemmer implements BranchingStemmer {
 	}
 
 	@Override
-	public int length(int hypothesisIndex) {
-		return this.lengths[hypothesisIndex];
+	public int length(int variantIndex) {
+		return this.lengths[variantIndex];
 	}
 
 	@Override
-	public int materialize(int hypothesisIndex, @Nonnull char[] originalWord, @Nonnull char[] destination) {
-		final int length = this.lengths[hypothesisIndex];
+	public int materialize(int variantIndex, @Nonnull char[] originalWord, @Nonnull char[] destination) {
+		final int length = this.lengths[variantIndex];
 		System.arraycopy(originalWord, 0, destination, 0, length);
 		if (length >= 2) {
-			destination[length - 2] = this.penultimates[hypothesisIndex];
+			destination[length - 2] = this.penultimates[variantIndex];
 		}
 		if (length >= 1) {
-			destination[length - 1] = this.lasts[hypothesisIndex];
+			destination[length - 1] = this.lasts[variantIndex];
 		}
 		return length;
 	}
@@ -167,7 +175,7 @@ final class BranchingFoldedSlovakStemmer implements BranchingStemmer {
 	}
 
 	/**
-	 * The unguarded final-vowel strip — mirror of `FoldedSlovakStemmer#removeCase`'s last tier.
+	 * The unguarded final-vowel strip — the last tier of {@link SlovakStemmer}'s case-ending removal.
 	 *
 	 * @param s   input buffer, read only
 	 * @param len current length
@@ -198,7 +206,7 @@ final class BranchingFoldedSlovakStemmer implements BranchingStemmer {
 	}
 
 	/**
-	 * Records every reachable outcome of `FoldedSlovakStemmer#normalize` for a stem of the given length. The
+	 * Records every reachable outcome of {@link SlovakStemmer}'s normalization for a stem of the given length. The
 	 * `i`-trim and the `c`→`k` rewrite are unguarded (the rewrite terminal); the `ie`-shortening forks and its
 	 * applied branch **chains** into the epenthesis check on the shortened tail, while its skipped branch
 	 * reaches the same check on the original tail — one guarded evaluation of each flag per path.
@@ -245,7 +253,7 @@ final class BranchingFoldedSlovakStemmer implements BranchingStemmer {
 	}
 
 	/**
-	 * Tells whether the character is a folded Slovak vowel — mirror of `FoldedSlovakStemmer#isVowel`.
+	 * Tells whether the character is a folded Slovak vowel.
 	 *
 	 * @param c character to test
 	 * @return true for `a`, `e`, `i`, `o`, `u`, `y`
@@ -255,11 +263,11 @@ final class BranchingFoldedSlovakStemmer implements BranchingStemmer {
 	}
 
 	/**
-	 * Records a hypothesis as its `(length, final-two-characters)` triple, deduplicated.
+	 * Records a variant as its `(length, final-two-characters)` triple, deduplicated.
 	 *
-	 * @param length      hypothesis length
-	 * @param penultimate character at `length - 2`, `0` when the hypothesis is shorter
-	 * @param last        character at `length - 1`, `0` when the hypothesis is empty
+	 * @param length      variant length
+	 * @param penultimate character at `length - 2`, `0` when the variant is shorter
+	 * @param last        character at `length - 1`, `0` when the variant is empty
 	 */
 	private void addRaw(int length, char penultimate, char last) {
 		for (int i = 0; i < this.count; i++) {
@@ -267,12 +275,12 @@ final class BranchingFoldedSlovakStemmer implements BranchingStemmer {
 				return;
 			}
 		}
-		if (this.count == MAX_HYPOTHESES) {
+		if (this.count == MAX_VARIANTS) {
 			// unreachable by the bound in the class javadoc - a breach means the walk diverged from
-			// FoldedSlovakStemmer and must fail loudly rather than drop a hypothesis
-			throw new IllegalStateException(
-				"More than " + MAX_HYPOTHESES + " hypotheses for one word - the branching walk has diverged "
-					+ "from FoldedSlovakStemmer."
+			// the Slovak stemming rules and must fail loudly rather than drop a variant
+			throw new GenericEvitaInternalError(
+				"More than " + MAX_VARIANTS + " variants for one word - the variant walk has diverged "
+					+ "from the Slovak stemming rules."
 			);
 		}
 		this.lengths[this.count] = length;

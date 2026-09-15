@@ -39,6 +39,7 @@ import java.util.Locale;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -65,6 +66,7 @@ class FulltextAnalyzerTest {
 	private static final Locale GERMAN = new Locale("de");
 	private static final Locale POLISH = new Locale("pl");
 	private static final Locale SLOVAK = new Locale("sk");
+	private static final Locale ROMANIAN = new Locale("ro");
 
 	private FulltextAnalyzerRegistry registry;
 
@@ -105,6 +107,62 @@ class FulltextAnalyzerTest {
 			result.add(analyzedTerm.term());
 		}
 		return result;
+	}
+
+	/**
+	 * Analyses `text` with the **search**-time analyzer of the given locale and returns the produced terms.
+	 *
+	 * @param locale locale whose analyzer should analyse the text
+	 * @param text   text to analyse
+	 * @return terms produced by the query chain
+	 */
+	@Nonnull
+	private List<AnalyzedTerm> analyzeQuery(@Nonnull Locale locale, @Nonnull String text) {
+		return this.registry.getSearchAnalyzer(ENTITY_TYPE, locale).getTerms(text);
+	}
+
+	/**
+	 * Analyses `text` with the **search**-time analyzer of the given locale and returns only the terms
+	 * themselves. For the four languages with a variant-emitting query chain this is the whole set of stems the
+	 * word could have had before diacritics were folded away.
+	 *
+	 * @param locale locale whose analyzer should analyse the text
+	 * @param text   text to analyse
+	 * @return terms produced by the query chain
+	 */
+	@Nonnull
+	private List<String> queryTerms(@Nonnull Locale locale, @Nonnull String text) {
+		final List<AnalyzedTerm> analyzedTerms = analyzeQuery(locale, text);
+		final List<String> result = new ArrayList<>(analyzedTerms.size());
+		for (final AnalyzedTerm analyzedTerm : analyzedTerms) {
+			result.add(analyzedTerm.term());
+		}
+		return result;
+	}
+
+	/**
+	 * Asserts that a bare-typed query word reaches the index term of every accented form it should match — the
+	 * property the asymmetric analyzer pair exists for, checked at the chain level rather than at the stemmer's.
+	 *
+	 * @param locale      locale of both chains
+	 * @param typed       what the user types, without diacritics
+	 * @param storedForms accented forms stored in the index that `typed` has to find
+	 */
+	private void assertQueryMeetsIndex(
+		@Nonnull Locale locale,
+		@Nonnull String typed,
+		@Nonnull String... storedForms
+	) {
+		final List<String> queryVariants = queryTerms(locale, typed);
+		for (final String storedForm : storedForms) {
+			final List<String> indexTerms = terms(locale, storedForm);
+			assertFalse(indexTerms.isEmpty(), "Stored form `" + storedForm + "` produced no index term.");
+			assertTrue(
+				queryVariants.containsAll(indexTerms),
+				"Query `" + typed + "` emits " + queryVariants + ", which does not contain the index terms "
+					+ indexTerms + " of the stored form `" + storedForm + "`."
+			);
+		}
 	}
 
 	@Nested
@@ -264,9 +322,14 @@ class FulltextAnalyzerTest {
 		}
 
 		@Test
-		@DisplayName("Converges declension forms of a masculine animate noun without diacritics")
-		void shouldConvergeDeclensionFormsWithoutDiacritics() {
-			assertIterableEquals(List.of("pan", "pan", "pan", "pan"), terms(CZECH, "pan pani panove pana"));
+		@DisplayName("Does not converge a bare-typed value with its accented forms - the query chain does that")
+		void shouldNotConvergeBareTypedValuesOnTheIndexSide() {
+			// `CzechStemmer` reads the accented text, so its table holds `ové` and not `ove`: a value someone
+			// stored without diacritics keeps a longer stem than the same word stored with them. This is not a
+			// gap - closing it on the index side would mean stemming folded text, which the whole asymmetric
+			// pair exists to avoid; it is closed on the query side instead, see `VariantChains`.
+			assertIterableEquals(List.of("pan", "pan", "panov", "pan"), terms(CZECH, "pan pani panove pana"));
+			assertIterableEquals(List.of("pan", "pan", "pan", "pan"), terms(CZECH, "pán páni pánové pána"));
 		}
 
 		@Test
@@ -339,10 +402,23 @@ class FulltextAnalyzerTest {
 	class Polish {
 
 		@Test
-		@DisplayName("Converges declension forms through the stempel stemmer")
+		@DisplayName("Stems through the vendored Snowball stemmer and folds diacritics away")
+		void shouldStemAndFoldDiacritics() {
+			// the index chain stems the ACCENTED text and folds afterwards, so the stroked `ł` and the acute `ó`
+			// still reach the stemmer's native-orthography tables
+			assertIterableEquals(List.of("ksiazk"), terms(POLISH, "książki"));
+			// a capital-letter, stroked-letter word - the lowercase-before-fold guard
+			assertIterableEquals(List.of("lodz"), terms(POLISH, "Łódź"));
+		}
+
+		@Test
+		@DisplayName("Converges declension forms whose endings the Snowball table carries")
 		void shouldConvergeDeclensionForms() {
-			// upstream `TestPolishAnalyzer`
-			assertIterableEquals(List.of("student", "student"), terms(POLISH, "studenta studenci"));
+			assertIterableEquals(List.of("ksiazk", "ksiazk"), terms(POLISH, "książka książki"));
+			// `studenci` keeps its own stem - Snowball is rule-based and the `i` plural of a masculine personal
+			// noun is not one of its endings. Stempel, the statistical stemmer this chain replaced, merged the
+			// two; it also had no rule table over which the query-side variants could be built at all.
+			assertIterableEquals(List.of("student", "studenc"), terms(POLISH, "studenta studenci"));
 		}
 
 	}
@@ -352,20 +428,118 @@ class FulltextAnalyzerTest {
 	class Slovak {
 
 		@Test
-		@DisplayName("Folds diacritics")
-		void shouldFoldDiacritics() {
-			assertIterableEquals(List.of("topanky"), terms(SLOVAK, "topánky"));
+		@DisplayName("Stems and folds diacritics away")
+		void shouldStemAndFoldDiacritics() {
+			// Lucene ships no Slovak stemmer, so this chain runs the in-house `SlovakStemmer` on the accented
+			// text and folds after it - the same shape every other language here uses
+			assertIterableEquals(List.of("topank"), terms(SLOVAK, "topánky"));
+			// a capital-letter word carrying the `ô` the normalization rewrites to `o`
+			assertIterableEquals(List.of("stol", "stol"), terms(SLOVAK, "Stôl stola"));
 		}
 
 		@Test
-		@DisplayName("Does not converge word forms, and does not merge unrelated words either")
-		void shouldNotConvergeWordForms() {
-			// Lucene ships no Slovak analyzer and no Slovak stop-word list, so the analyzer is the no-stemmer
-			// baseline. This test records that choice rather than guarding a behaviour: recall is worse (the two
-			// forms below do not meet) but precision never suffers - nothing is collapsed by mistake, which in
-			// an e-shop is the failure that costs more. If a Slovak stemmer is ever adopted, this expectation is
-			// supposed to change.
-			assertIterableEquals(List.of("topanky", "topanka"), terms(SLOVAK, "topánky topánka"));
+		@DisplayName("Converges declension forms across the masculine-animate k/c alternation")
+		void shouldConvergeDeclensionForms() {
+			assertIterableEquals(List.of("topank", "topank"), terms(SLOVAK, "topánky topánka"));
+			// `zákazník`/`zákazníci` is the alternation the in-house `normalize()` was written for
+			assertIterableEquals(List.of("zakaznik", "zakaznik"), terms(SLOVAK, "zákazník zákazníci"));
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Romanian language analyzer")
+	class Romanian {
+
+		@Test
+		@DisplayName("Stems and folds diacritics away")
+		void shouldStemAndFoldDiacritics() {
+			assertIterableEquals(List.of("bucur"), terms(ROMANIAN, "București"));
+			assertIterableEquals(List.of("copii"), terms(ROMANIAN, "copiii"));
+		}
+
+		@Test
+		@DisplayName("Both Romanian orthographies converge on one term")
+		void shouldConvergeCommaBelowAndCedillaSpellings() {
+			// `mașină` (modern comma-below, U+0219) and `maşină` (legacy cedilla, U+015F) are the same word; the
+			// pinned Lucene's stop list and Snowball tables are written in cedilla only, so the index chain
+			// normalizes the comma-below spellings into them before stemming
+			assertIterableEquals(List.of("masin", "masin"), terms(ROMANIAN, "ma\u0219in\u0103 ma\u015Fin\u0103"));
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Variant-emitting query chains")
+	class VariantChains {
+
+		@Test
+		@DisplayName("Every variant of one word sits at one position")
+		void shouldEmitEveryVariantAtOnePosition() {
+			final List<AnalyzedTerm> analyzedTerms = analyzeQuery(CZECH, "formaty");
+			assertTrue(analyzedTerms.size() > 1, "The word is supposed to fan out into several variants.");
+			// the first variant carries the token's own increment, every further one carries zero - the synonym
+			// shape. A query pipeline that does not OR the terms of one position asks the index for a word that
+			// was never written and finds nothing.
+			assertEquals(1, analyzedTerms.get(0).positionIncrement());
+			for (int i = 1; i < analyzedTerms.size(); i++) {
+				assertEquals(
+					0, analyzedTerms.get(i).positionIncrement(),
+					"Variant `" + analyzedTerms.get(i).term() + "` must share the first variant's position."
+				);
+			}
+			// every variant reports the same surface form - they are readings of one typed word
+			for (final AnalyzedTerm analyzedTerm : analyzedTerms) {
+				assertEquals("formaty", analyzedTerm.surfaceForm());
+			}
+		}
+
+		@Test
+		@DisplayName("Czech fans a bare-typed word out into the stems it could have had")
+		void shouldFanOutCzech() {
+			assertIterableEquals(List.of("format", "form", "formaty"), queryTerms(CZECH, "formaty"));
+			assertIterableEquals(List.of("pansk", "panst", "pansti"), queryTerms(CZECH, "pansti"));
+			// what the index side could not converge on its own - see `Czech#shouldNotConvergeBareTypedValues`
+			assertQueryMeetsIndex(CZECH, "panove", "pánové", "pán", "panove");
+			assertQueryMeetsIndex(CZECH, "cerna", "černá", "černé");
+			assertQueryMeetsIndex(CZECH, "pansti", "pánští", "pánská");
+		}
+
+		@Test
+		@DisplayName("Slovak fans out without adding the surface form")
+		void shouldFanOutSlovak() {
+			// `stoličiek` indexes as `stolick`, and the bare-typed query has to reach it across two chained
+			// fold-ambiguous rules (the `ie`-shortening and the epenthesis)
+			assertTrue(queryTerms(SLOVAK, "stoliciek").contains("stolick"));
+			assertQueryMeetsIndex(SLOVAK, "stoliciek", "stoličiek");
+			assertQueryMeetsIndex(SLOVAK, "zakaznici", "zákazníci", "zákazník");
+			// Slovak is the one language that does NOT add the unstemmed word as a variant: its rule forks
+			// already cover the whole lexicon, so the surface form would only widen false merges
+			assertIterableEquals(List.of("zakaznik"), queryTerms(SLOVAK, "zakaznici"));
+		}
+
+		@Test
+		@DisplayName("Polish fans out and keeps the surface form as a variant")
+		void shouldFanOutPolish() {
+			assertIterableEquals(List.of("ksiazk", "ksiazki"), queryTerms(POLISH, "ksiazki"));
+			assertQueryMeetsIndex(POLISH, "ksiazki", "książki", "książka");
+			assertQueryMeetsIndex(POLISH, "lodz", "Łódź");
+		}
+
+		@Test
+		@DisplayName("Romanian fans out and keeps the surface form as a variant")
+		void shouldFanOutRomanian() {
+			assertIterableEquals(List.of("masina", "masin"), queryTerms(ROMANIAN, "masina"));
+			// both orthographies of the stored word are reachable from one bare-typed query
+			assertQueryMeetsIndex(ROMANIAN, "masina", "ma\u0219in\u0103", "ma\u015Fin\u0103");
+			assertQueryMeetsIndex(ROMANIAN, "bucuresti", "Bucure\u0219ti");
+		}
+
+		@Test
+		@DisplayName("A language without a variant chain queries with its index analyzer")
+		void shouldLeaveUniformLanguagesAlone() {
+			assertIterableEquals(terms(ENGLISH, "books"), queryTerms(ENGLISH, "books"));
+			assertIterableEquals(terms(GERMAN, "Tische"), queryTerms(GERMAN, "Tische"));
 		}
 
 	}

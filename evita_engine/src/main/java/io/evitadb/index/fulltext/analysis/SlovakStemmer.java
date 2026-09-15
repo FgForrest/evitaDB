@@ -34,13 +34,12 @@ import java.io.IOException;
 import static org.apache.lucene.analysis.util.StemmerUtil.endsWith;
 
 /**
- * **Prototype, test scope only — an in-house Slovak light stemmer, built because nothing exists to adopt.**
+ * An in-house Slovak light stemmer, written because nothing exists to adopt: there is no Slovak stemmer in
+ * Lucene, in Snowball, or in any engine surveyed before this was built.
  *
- * The SK/PL/RO survey (`documentation/adr/2026-08-24-fulltext-search-lucene-vs-inhouse/prototypes/
- * p5-prior-art-sk-pl-ro.md`, §6) found no Slovak stemmer anywhere: not in Lucene, not in Snowball, not in any
- * surveyed engine. This class is the survey's recommended answer — an accented-space light stemmer on the
- * architecture of Lucene's `CzechStemmer` (exact `endsWith` case-ending tables, a possessive pass, a small
- * `normalize()` for stem-final alternations), with tables authored fresh against Slovak declension paradigms.
+ * It follows the architecture of Lucene's `CzechStemmer` — exact `endsWith` case-ending tables, a possessive
+ * pass, a small `normalize()` for stem-final alternations — with tables authored fresh against Slovak
+ * declension paradigms.
  * Czech and Slovak are structurally parallel, but the tables are deliberately **not** the Czech ones:
  *
  * - adjective endings appear in **both rhythmic-law variants** (`-ých`/`-ych`, `-ého`/`-eho`, `-ým`/`-ym`, …)
@@ -56,11 +55,13 @@ import static org.apache.lucene.analysis.util.StemmerUtil.endsWith;
  *   alternation (`český`→`českí`, not `*čeští`), so the rule — and the fold-ambiguity it caused in Czech — has
  *   nothing to buy here;
  * - the neuter `-at-` paradigm entries (`dievča`/`dievčatá`) are **deliberately omitted**: the paradigm is rare
- *   in e-commerce text and its entries were the worst fold-ambiguity of the Czech port; the omission's cost is
- *   measured by the fixture rather than guessed.
+ *   in e-commerce text and its entries were the worst fold-ambiguity of the Czech port.
  *
- * **NOTE**: input is expected to be lowercased and **accented** — the `CzechStemmer` contract. The folded-space
- * counterpart is {@link FoldedSlovakStemmer}.
+ * **NOTE**: input is expected to be lowercased and **accented** — the `CzechStemmer` contract. This is the
+ * index-side stemmer; the query side reads its folded output space through {@link SlovakVariantStemmer}.
+ *
+ * See `documentation/adr/2026-08-24-fulltext-search-lucene-vs-inhouse/` for the survey that concluded nothing
+ * was adoptable, and for the recall measurements of the resulting tables.
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
  */

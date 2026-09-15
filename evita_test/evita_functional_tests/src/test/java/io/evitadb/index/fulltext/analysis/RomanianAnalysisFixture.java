@@ -23,17 +23,13 @@
 
 package io.evitadb.index.fulltext.analysis;
 
-import io.evitadb.index.fulltext.analysis.AnalysisApproachMeasurer.Lemma;
-import io.evitadb.index.fulltext.analysis.AnalysisApproachMeasurer.MatchStrategy;
-import io.evitadb.index.fulltext.analysis.AnalysisApproachMeasurer.Measurement;
 
 import javax.annotation.Nonnull;
 import java.util.List;
 
 /**
- * The Romanian vocabulary measured by {@link RomanianAnalysisApproachMatrixTest} through the language-agnostic
- * {@link AnalysisApproachMeasurer} — the Romanian sibling of {@link CzechAnalysisFixture}, built to the same
- * protocol.
+ * The Romanian vocabulary {@link LanguageAnalyzerPairRecallTest} measures the `romanian`/`romanian-search`
+ * analyzer pair against — the Romanian sibling of {@link CzechAnalysisFixture}, built to the same protocol.
  *
  * **Sourcing.** No native Romanian speaker was available when this fixture was authored; every inflected form
  * follows the standard declension/conjugation paradigms as published in DEX-derived inflection tables
@@ -132,29 +128,6 @@ final class RomanianAnalysisFixture {
 	);
 
 	private RomanianAnalysisFixture() {
-	}
-
-	/**
-	 * Measures one approach over the whole Romanian vocabulary — a shorthand for calling
-	 * {@link AnalysisApproachMeasurer#measure} with this fixture's two lemma lists.
-	 *
-	 * @param approachName  name under which the approach is reported
-	 * @param indexAnalyzer chain analysing the stored value
-	 * @param queryAnalyzer chain analysing the query text; the same instance as `indexAnalyzer` for a symmetric
-	 *                      approach, a different one for an asymmetric one
-	 * @param strategy      how a query term set is decided to have found a value term set
-	 * @return the measurement, carrying the failing cases themselves rather than only their counts
-	 */
-	@Nonnull
-	static Measurement measure(
-		@Nonnull String approachName,
-		@Nonnull FulltextAnalyzer indexAnalyzer,
-		@Nonnull FulltextAnalyzer queryAnalyzer,
-		@Nonnull MatchStrategy strategy
-	) {
-		return AnalysisApproachMeasurer.measure(
-			approachName, indexAnalyzer, queryAnalyzer, strategy, VOCABULARY, CONFUSABLE_LEMMAS
-		);
 	}
 
 }

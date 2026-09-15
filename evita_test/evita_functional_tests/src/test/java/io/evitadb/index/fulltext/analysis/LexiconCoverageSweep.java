@@ -38,9 +38,14 @@ import java.util.function.UnaryOperator;
 
 /**
  * The lexicon-scale verifier of the M7 correctness invariant, shared by the per-language
- * `*FoldedStemmerLexiconTest`s: for **every headword of a Hunspell `.dic` file**, the folded image of the
- * index-side term must be contained in the union of the folded-stemmer hypotheses over the bare-typed word —
- * exactly the term set the M7 hypothesis query emits. A violating word is a fold-ambiguity no fork covers.
+ * `*VariantStemmerLexiconTest`s: for **every headword of a Hunspell `.dic` file**, the folded image of the
+ * index-side term must be contained in the variant set the production {@link VariantStemmer} emits for the
+ * bare-typed word — exactly the term set the language's `*-search` built-in emits. A violating word is a
+ * fold-ambiguity no fork covers, i.e. a bare-typed query that would silently fail to find its own document.
+ *
+ * This runs against the **production** stemmer rather than the flat `Folded*Stemmer` specification, so it is a
+ * direct test of shipped logic; the flat ports stay covered through the `Branching*StemmerEquivalenceTest`s,
+ * which pin them and the production walk to each other.
  *
  * This instrument exists because fixtures produce false positives: the Slovak matrix reported its folded port
  * as switch-free for three runs, and the first ~265k-word sweep found five fold-hazard classes the fixture
@@ -74,8 +79,8 @@ final class LexiconCoverageSweep {
 	 *                           query side's input, and the space the index term is compared in
 	 * @param indexTerm          the index side: the accented stemmer chain reduced to one word-to-term function,
 	 *                           **including** the trailing fold
-	 * @param queryHypotheses    the query side: one word-to-term function per switch combination of the folded
-	 *                           stemmer, applied to the bare-typed word
+	 * @param queryStemmer       the query side: the language's production variant stemmer, reused across words
+	 *                           (it is stateful scratch, so exactly one instance is used for the whole sweep)
 	 * @return the sweep result
 	 * @throws IOException when the dictionary cannot be read
 	 */
@@ -84,7 +89,7 @@ final class LexiconCoverageSweep {
 		@Nonnull String dictionaryResource,
 		@Nonnull UnaryOperator<String> bareTyper,
 		@Nonnull UnaryOperator<String> indexTerm,
-		@Nonnull List<UnaryOperator<String>> queryHypotheses
+		@Nonnull VariantStemmer queryStemmer
 	) throws IOException {
 		int tested = 0;
 		int skipped = 0;
@@ -114,19 +119,15 @@ final class LexiconCoverageSweep {
 
 				final String indexSideTerm = indexTerm.apply(word);
 				final String bareTyped = bareTyper.apply(word);
-				final Set<String> hypothesisTerms = new LinkedHashSet<>(4);
-				for (final UnaryOperator<String> hypothesis : queryHypotheses) {
-					hypothesisTerms.add(hypothesis.apply(bareTyped));
-				}
-				if (hypothesisTerms.size() > 1) {
+				final Set<String> variantTerms = variants(bareTyped, queryStemmer);
+				if (variantTerms.size() > 1) {
 					forkedWordCount++;
 				}
-				if (!hypothesisTerms.contains(indexSideTerm)) {
+				if (!variantTerms.contains(indexSideTerm)) {
 					uncoveredCount++;
 					if (uncovered.size() < UNCOVERED_EXAMPLE_LIMIT) {
 						uncovered.add(
-							word + ": index term `" + indexSideTerm + "` not among hypotheses "
-								+ hypothesisTerms
+							word + ": index term `" + indexSideTerm + "` not among variants " + variantTerms
 						);
 					}
 				}
@@ -150,11 +151,30 @@ final class LexiconCoverageSweep {
 	}
 
 	/**
+	 * Materializes the whole variant set a production {@link VariantStemmer} emits for one folded word.
+	 *
+	 * @param word    folded, lowercased word
+	 * @param stemmer the language's variant stemmer
+	 * @return the distinct variants, in emission order
+	 */
+	@Nonnull
+	static Set<String> variants(@Nonnull String word, @Nonnull VariantStemmer stemmer) {
+		final char[] buffer = word.toCharArray();
+		final int count = stemmer.stem(buffer, buffer.length);
+		final Set<String> variants = new LinkedHashSet<>(count);
+		final char[] scratch = new char[buffer.length];
+		for (int i = 0; i < count; i++) {
+			variants.add(new String(scratch, 0, stemmer.materialize(i, buffer, scratch)));
+		}
+		return variants;
+	}
+
+	/**
 	 * Result of one sweep.
 	 *
 	 * @param tested          number of headwords tested
 	 * @param skipped         number of non-letter entries skipped
-	 * @param forkedWordCount number of words whose hypothesis set held more than one term
+	 * @param forkedWordCount number of words whose variant set held more than one term
 	 * @param uncoveredCount  number of uncovered words in total
 	 * @param uncovered       formatted examples of uncovered words, capped at {@link #UNCOVERED_EXAMPLE_LIMIT}
 	 */

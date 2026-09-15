@@ -25,6 +25,7 @@
 package io.evitadb.index.fulltext.analysis;
 
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.index.fulltext.analysis.BuiltInAnalyzers.BuiltInAnalyzer;
 import io.evitadb.utils.Assert;
 import org.apache.lucene.analysis.Analyzer;
 
@@ -128,10 +129,10 @@ public class FulltextAnalyzerRegistry implements Closeable {
 	/**
 	 * Returns the analyzer to be used for the text of a query against `entityType` in `locale`.
 	 *
-	 * In this prototype it resolves to the same analyzer as the indexing one, which is the point: query and
-	 * value normalization have to be one implementation, or the two sides stop meeting. The slots are separate
-	 * so that query-only components (synonyms, entity recognition) can be assigned later without the difference
-	 * growing up beside the registry as an exception.
+	 * For most languages this resolves to the same analyzer as the indexing one — query and value normalization
+	 * have to agree, or the two sides stop meeting. Czech, Slovak, Polish and Romanian are the exception: their
+	 * query chain folds diacritics away and then emits every stem the word could have had, precisely so that the
+	 * two sides *do* meet for a query typed without accents. See {@link BuiltInAnalyzers}.
 	 *
 	 * @param entityType entity collection being queried
 	 * @param locale     locale of the query text
@@ -203,7 +204,7 @@ public class FulltextAnalyzerRegistry implements Closeable {
 			() -> new EvitaInvalidUsageException("Analyzer name must not be empty.")
 		);
 		Assert.isTrue(
-			BuiltInAnalyzers.supplierFor(name) == null,
+			BuiltInAnalyzers.definitionFor(name) == null,
 			() -> new EvitaInvalidUsageException(
 				"Analyzer `" + name + "` cannot be registered - the name is taken by a built-in analyzer."
 			)
@@ -318,7 +319,8 @@ public class FulltextAnalyzerRegistry implements Closeable {
 
 	/**
 	 * Resolves the analyzer names for the given combination: the schema's choice when there is one, the built-in
-	 * language default otherwise.
+	 * language default otherwise. The built-in default is **not** necessarily uniform — four languages prescribe
+	 * a different chain for indexing than for querying, see {@link BuiltInAnalyzers}.
 	 *
 	 * @param entityType entity collection the value / query text belongs to
 	 * @param locale     locale of the text
@@ -327,13 +329,13 @@ public class FulltextAnalyzerRegistry implements Closeable {
 	@Nonnull
 	private AnalyzerAssignment resolveAssignment(@Nonnull String entityType, @Nonnull Locale locale) {
 		final Optional<AnalyzerAssignment> configured = this.assignmentResolver.resolveAnalyzers(entityType, locale);
-		return configured.orElseGet(() -> AnalyzerAssignment.uniform(BuiltInAnalyzers.nameForLocale(locale)));
+		return configured.orElseGet(() -> BuiltInAnalyzers.assignmentForLocale(locale));
 	}
 
 	/**
 	 * Translates an analyzer name into what is needed to build it — the registered declaration when there is
-	 * one, the built-in factory (always {@link AnalysisMode#ALL}) otherwise. Returns null rather than throwing,
-	 * because an unknown name means different things to its two callers: a rejected schema mutation to
+	 * one, the built-in declaration otherwise. Returns null rather than throwing, because an unknown name means
+	 * different things to its two callers: a rejected schema mutation to
 	 * {@link #validateAssignment(AnalyzerAssignment)}, a failed lookup to
 	 * {@link #getAnalyzer(String, Locale, AnalyzerSlot)}.
 	 *
@@ -346,8 +348,8 @@ public class FulltextAnalyzerRegistry implements Closeable {
 		if (registered != null) {
 			return registered;
 		}
-		final Supplier<Analyzer> builtIn = BuiltInAnalyzers.supplierFor(name);
-		return builtIn == null ? null : new RegisteredAnalyzer(AnalysisMode.ALL, builtIn);
+		final BuiltInAnalyzer builtIn = BuiltInAnalyzers.definitionFor(name);
+		return builtIn == null ? null : new RegisteredAnalyzer(builtIn.mode(), builtIn.factory());
 	}
 
 	/**

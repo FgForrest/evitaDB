@@ -30,30 +30,27 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.text.Normalizer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.UnaryOperator;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pins the M7 correctness invariant of the Slovak stemmer pair against the whole `sk_SK` Hunspell lexicon
- * (~265k headwords) rather than against the fixture — because the fixture already produced one false positive:
- * the first three matrix runs concluded the folded port had **no** fold-ambiguity at all, and the first sweep
- * of this lexicon falsified that with three word classes the fixture never carried (`-ín`/`-ína` vs the
- * possessive `in` and `i`-stems vs the soft plurals — resolved by removing the possessive and by the
- * stem-final-`i` trim; `-óm` vs the `om` ending, `ié` loanwords vs the `ie`-shortening and `-téka` nominals vs
- * the `ek`-epenthesis — resolved as switches the M7 query forks).
+ * The Slovak instance of the {@link LexiconCoverageSweep}: verifies over the whole `sk_SK` Hunspell lexicon
+ * (~265k headwords) that the production {@link SlovakVariantStemmer} — the query half of the
+ * `slovak`/`slovak-search` built-in pair — always emits the term the index half wrote.
+ *
+ * The lexicon rather than a fixture, because the fixture already produced one false positive here: the first
+ * three runs concluded the folded reading had **no** fold-ambiguity at all, and the first sweep of this lexicon
+ * falsified that with five word classes the fixture never carried (`-ín`/`-ína` vs the possessive `in`,
+ * `i`-stems vs the soft plurals, `-óm` vs the `om` ending, `ié` loanwords vs the `ie`-shortening, and `-téka`
+ * nominals vs the `ek`-epenthesis). A fixture can only falsify what it carries.
  *
  * The invariant: for every dictionary word `w`, `fold(SlovakStemmer(w))` — the folded image of the index-side
- * term — must be **contained in** the union of `FoldedSlovakStemmer(fold(w))` over all four switch positions,
- * which is exactly the term set the M7 hypothesis query emits. A violating word is a fold-ambiguity not yet
- * covered by any fork.
+ * term — must be among the variants {@link SlovakVariantStemmer} emits for `fold(w)`.
  *
  * **What this does and does not cover.** The `.dic` file carries dictionary headwords (lemmas), not inflected
- * forms — Lucene's Hunspell support can stem but not expand affixes — so this test proves the *identity
- * property* over the full lexicon, while the recall/precision numbers of the matrix remain bound to the
- * fixture's inflected forms until a full-form list is obtained (see the measurement record).
+ * forms — Lucene's Hunspell support can stem but not expand affixes — so this test proves the *coverage
+ * property* over the full lexicon, while recall over inflected forms is pinned by
+ * {@link LanguageAnalyzerPairRecallTest} against the fixture.
  *
  * Entries containing non-letters (hyphenated compounds, abbreviations with dots) are skipped: the
  * `StandardTokenizer` would split them into multiple tokens and the per-word comparison would compare
@@ -61,36 +58,25 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Slovak folded stemmer — fold-commutation over the whole sk_SK lexicon")
+@DisplayName("Slovak variant stemmer — index-term coverage over the whole sk_SK lexicon")
 @Tag(io.evitadb.test.TestTags.ENGINE)
 @Tag(io.evitadb.test.TestTags.FULLTEXT)
-class SlovakFoldedStemmerLexiconTest {
+class SlovakVariantStemmerLexiconTest {
 
 	@Test
-	@DisplayName("The hypothesis set covers the folded index term for every dictionary word")
+	@DisplayName("The variant set covers the folded index term for every dictionary word")
 	void shouldCoverAccentedStemsOverWholeLexicon() throws IOException {
 		final SlovakStemmer accented = new SlovakStemmer();
-		// every switch combination, exactly what the M7 hypothesis query emits
-		final List<UnaryOperator<String>> hypotheses = new ArrayList<>(8);
-		for (final boolean omEnding : new boolean[]{true, false}) {
-			for (final boolean ieShortening : new boolean[]{true, false}) {
-				for (final boolean epenthesis : new boolean[]{true, false}) {
-					final FoldedSlovakStemmer stemmer =
-						new FoldedSlovakStemmer(omEnding, ieShortening, epenthesis);
-					hypotheses.add(word -> LexiconCoverageSweep.stem(word, stemmer));
-				}
-			}
-		}
 
 		final LexiconCoverageSweep.Result result = LexiconCoverageSweep.sweep(
 			"/fulltext/hunspell/sk_SK.dic",
-			SlovakFoldedStemmerLexiconTest::fold,
+			SlovakVariantStemmerLexiconTest::fold,
 			word -> {
 				final char[] buffer = word.toCharArray();
 				final int length = accented.stem(buffer, buffer.length);
 				return fold(new String(buffer, 0, length));
 			},
-			hypotheses
+			new SlovakVariantStemmer()
 		);
 
 		System.out.println(result.summary("sk_SK"));
@@ -100,8 +86,8 @@ class SlovakFoldedStemmerLexiconTest {
 		);
 		assertTrue(
 			result.uncoveredCount() == 0,
-			"Every uncovered word is a fold-ambiguity no current fork covers - the folded port needs a new "
-				+ "switch for it:\n" + String.join("\n", result.uncovered())
+			"Every uncovered word is a fold-ambiguity no current fork covers - the variant stemmer needs a new "
+				+ "fork for it:\n" + String.join("\n", result.uncovered())
 		);
 	}
 

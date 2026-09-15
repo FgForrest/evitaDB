@@ -70,6 +70,11 @@ class FulltextAnalyzerRegistryTest {
 	private static final String OTHER_ENTITY_TYPE = "CATEGORY";
 	private static final Locale CZECH_CZ = new Locale("cs", "CZ");
 	private static final Locale CZECH = new Locale("cs");
+	private static final Locale SLOVAK = new Locale("sk");
+	private static final Locale POLISH = new Locale("pl");
+	private static final Locale ROMANIAN = new Locale("ro");
+	private static final Locale ENGLISH = new Locale("en");
+	private static final Locale GERMAN = new Locale("de");
 
 	@Nullable private FulltextAnalyzerRegistry registry;
 
@@ -158,19 +163,101 @@ class FulltextAnalyzerRegistryTest {
 		@DisplayName("All three slots yield working analyzers")
 		void shouldServeAllThreeSlots() {
 			final FulltextAnalyzerRegistry registry = createRegistry();
-			final FulltextAnalyzer index = registry.getIndexAnalyzer(ENTITY_TYPE, CZECH_CZ);
-			final FulltextAnalyzer search = registry.getSearchAnalyzer(ENTITY_TYPE, CZECH_CZ);
-			final FulltextAnalyzer phrase = registry.getPhraseAnalyzer(ENTITY_TYPE, CZECH_CZ);
+			final FulltextAnalyzer index = registry.getIndexAnalyzer(ENTITY_TYPE, ENGLISH);
+			final FulltextAnalyzer search = registry.getSearchAnalyzer(ENTITY_TYPE, ENGLISH);
+			final FulltextAnalyzer phrase = registry.getPhraseAnalyzer(ENTITY_TYPE, ENGLISH);
 
-			// the language default puts one name into all three slots, so all three slots share one chain - and
-			// therefore produce identical terms, which is the property that actually matters: the query side has
-			// to meet what the index side wrote
+			// English is one of the languages whose default is uniform, so all three slots share one chain - and
+			// therefore produce identical terms
 			assertSame(index, search);
 			assertSame(index, phrase);
-			final List<String> expected = List.of("cesk", "republik");
-			assertIterableEquals(expected, terms(index, "Česká Republika"));
-			assertIterableEquals(expected, terms(search, "Česká Republika"));
-			assertIterableEquals(expected, terms(phrase, "Česká Republika"));
+			final List<String> expected = List.of("english", "book");
+			assertIterableEquals(expected, terms(index, "English Books"));
+			assertIterableEquals(expected, terms(search, "English Books"));
+			assertIterableEquals(expected, terms(phrase, "English Books"));
+		}
+
+		@Test
+		@DisplayName("Czech, Slovak, Polish and Romanian defaults are asymmetric between the slots")
+		void shouldResolveAsymmetricBuiltInAssignmentForFoldingLanguages() {
+			final FulltextAnalyzerRegistry registry = createRegistry();
+			assertAsymmetric(
+				registry, CZECH_CZ,
+				BuiltInAnalyzers.CZECH_ANALYZER_NAME, BuiltInAnalyzers.CZECH_SEARCH_ANALYZER_NAME
+			);
+			assertAsymmetric(
+				registry, SLOVAK,
+				BuiltInAnalyzers.SLOVAK_ANALYZER_NAME, BuiltInAnalyzers.SLOVAK_SEARCH_ANALYZER_NAME
+			);
+			assertAsymmetric(
+				registry, POLISH,
+				BuiltInAnalyzers.POLISH_ANALYZER_NAME, BuiltInAnalyzers.POLISH_SEARCH_ANALYZER_NAME
+			);
+			assertAsymmetric(
+				registry, ROMANIAN,
+				BuiltInAnalyzers.ROMANIAN_ANALYZER_NAME, BuiltInAnalyzers.ROMANIAN_SEARCH_ANALYZER_NAME
+			);
+		}
+
+		@Test
+		@DisplayName("English, German and the generic fallback stay uniform across the slots")
+		void shouldResolveUniformBuiltInAssignmentForTheRemainingLanguages() {
+			final FulltextAnalyzerRegistry registry = createRegistry();
+			assertUniform(registry, ENGLISH, BuiltInAnalyzers.ENGLISH_ANALYZER_NAME);
+			assertUniform(registry, GERMAN, BuiltInAnalyzers.GERMAN_ANALYZER_NAME);
+			assertUniform(registry, new Locale("fi"), BuiltInAnalyzers.GENERIC_ANALYZER_NAME);
+		}
+
+		@Test
+		@DisplayName("A search-side built-in cannot be assigned to the indexing slot")
+		void shouldRejectSearchBuiltInInIndexSlot() {
+			final FulltextAnalyzerRegistry registry = createRegistry(
+				(entityType, locale) -> Optional.of(
+					AnalyzerAssignment.uniform(BuiltInAnalyzers.CZECH_SEARCH_ANALYZER_NAME)
+				)
+			);
+			// a variant fan-out baked into an index writes every alternative stem as a real term - the very
+			// arrangement the asymmetric pair exists to avoid, so the mode machinery has to refuse it
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> registry.validateAssignment(
+					AnalyzerAssignment.uniform(BuiltInAnalyzers.CZECH_SEARCH_ANALYZER_NAME)
+				)
+			);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> registry.getIndexAnalyzer(ENTITY_TYPE, CZECH_CZ)
+			);
+			// the same name in the query and phrase slots is exactly what the built-in default does
+			assertDoesNotThrow(
+				() -> registry.validateAssignment(
+					new AnalyzerAssignment(
+						BuiltInAnalyzers.CZECH_ANALYZER_NAME, BuiltInAnalyzers.CZECH_SEARCH_ANALYZER_NAME, null
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("Every search-side built-in is resolvable by name from a schema assignment")
+		void shouldResolveSearchBuiltInsByName() {
+			for (final String name : List.of(
+				BuiltInAnalyzers.CZECH_SEARCH_ANALYZER_NAME,
+				BuiltInAnalyzers.SLOVAK_SEARCH_ANALYZER_NAME,
+				BuiltInAnalyzers.POLISH_SEARCH_ANALYZER_NAME,
+				BuiltInAnalyzers.ROMANIAN_SEARCH_ANALYZER_NAME
+			)) {
+				final FulltextAnalyzerRegistry registry = createRegistry(
+					(entityType, locale) -> Optional.of(
+						new AnalyzerAssignment(BuiltInAnalyzers.GENERIC_ANALYZER_NAME, name, null)
+					)
+				);
+				final FulltextAnalyzer search = registry.getSearchAnalyzer(ENTITY_TYPE, CZECH_CZ);
+				assertEquals(name, search.getAnalyzerName());
+				assertEquals(AnalysisMode.SEARCH_TIME, search.getMode());
+				// each iteration builds its own registry; the last one is closed by the teardown
+				registry.close();
+			}
 		}
 
 		@Test
@@ -488,7 +575,7 @@ class FulltextAnalyzerRegistryTest {
 				BuiltInAnalyzers.ENGLISH_ANALYZER_NAME,
 				registry.getIndexAnalyzer(ENTITY_TYPE, CZECH_CZ).getAnalyzerName()
 			);
-			assertNotNull(BuiltInAnalyzers.supplierFor(BuiltInAnalyzers.GENERIC_ANALYZER_NAME));
+			assertNotNull(BuiltInAnalyzers.definitionFor(BuiltInAnalyzers.GENERIC_ANALYZER_NAME));
 		}
 
 		@Test
@@ -590,6 +677,55 @@ class FulltextAnalyzerRegistryTest {
 			assertDoesNotThrow(registry::close);
 		}
 
+	}
+
+
+	/**
+	 * Asserts the built-in default of `locale` names `indexName` in the indexing slot and `searchName` in both
+	 * query slots.
+	 *
+	 * @param registry   registry under test
+	 * @param locale     locale whose built-in default is checked
+	 * @param indexName  expected indexing-slot analyzer name
+	 * @param searchName expected query- and phrase-slot analyzer name
+	 */
+	private static void assertAsymmetric(
+		@Nonnull FulltextAnalyzerRegistry registry,
+		@Nonnull Locale locale,
+		@Nonnull String indexName,
+		@Nonnull String searchName
+	) {
+		assertEquals(indexName, registry.getIndexAnalyzer(ENTITY_TYPE, locale).getAnalyzerName());
+		assertEquals(searchName, registry.getSearchAnalyzer(ENTITY_TYPE, locale).getAnalyzerName());
+		// the phrase slot is left unset by the built-in assignment, so it inherits the query one
+		assertEquals(searchName, registry.getPhraseAnalyzer(ENTITY_TYPE, locale).getAnalyzerName());
+		assertEquals(AnalysisMode.ALL, registry.getIndexAnalyzer(ENTITY_TYPE, locale).getMode());
+		assertEquals(
+			AnalysisMode.SEARCH_TIME, registry.getSearchAnalyzer(ENTITY_TYPE, locale).getMode()
+		);
+	}
+
+	/**
+	 * Asserts the built-in default of `locale` names one analyzer in all three slots.
+	 *
+	 * @param registry registry under test
+	 * @param locale   locale whose built-in default is checked
+	 * @param name     expected analyzer name in every slot
+	 */
+	private static void assertUniform(
+		@Nonnull FulltextAnalyzerRegistry registry,
+		@Nonnull Locale locale,
+		@Nonnull String name
+	) {
+		assertEquals(name, registry.getIndexAnalyzer(ENTITY_TYPE, locale).getAnalyzerName());
+		assertSame(
+			registry.getIndexAnalyzer(ENTITY_TYPE, locale),
+			registry.getSearchAnalyzer(ENTITY_TYPE, locale)
+		);
+		assertSame(
+			registry.getIndexAnalyzer(ENTITY_TYPE, locale),
+			registry.getPhraseAnalyzer(ENTITY_TYPE, locale)
+		);
 	}
 
 }

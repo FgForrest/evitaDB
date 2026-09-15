@@ -50,7 +50,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * The shared machinery of the per-language `Branching*StemmerEquivalenceTest`s: proves that a language's
- * {@link BranchingStemmer} produces **exactly** the hypothesis set of its flat {@link FoldedStemmer} union —
+ * {@link VariantStemmer} produces **exactly** the hypothesis set of its flat {@link FoldedStemmer} union —
  * word by word over the language's whole Hunspell lexicon, over hand-picked boundary words, and per token
  * position at the filter level. The flat union acts as the executable specification; any divergence fails with
  * the offending word in the message. The Czech test predates this class and carries its own copy of the same
@@ -74,7 +74,7 @@ final class BranchingEquivalenceSupport {
 	static void assertSameHypotheses(
 		@Nonnull String word,
 		@Nonnull List<? extends FoldedStemmer> flatUnion,
-		@Nonnull BranchingStemmer branching,
+		@Nonnull VariantStemmer branching,
 		@Nonnull String stemmerName
 	) {
 		final Set<String> flatSet = new LinkedHashSet<>(4);
@@ -83,7 +83,7 @@ final class BranchingEquivalenceSupport {
 		}
 
 		final char[] buffer = word.toCharArray();
-		final int hypothesisCount = branching.hypothesize(buffer, buffer.length);
+		final int hypothesisCount = branching.stem(buffer, buffer.length);
 		final Set<String> branchingSet = new LinkedHashSet<>(4);
 		final char[] scratch = new char[buffer.length];
 		for (int i = 0; i < hypothesisCount; i++) {
@@ -110,7 +110,7 @@ final class BranchingEquivalenceSupport {
 	static int assertEquivalenceOverLexicon(
 		@Nonnull String dictionaryResource,
 		@Nonnull List<? extends FoldedStemmer> flatUnion,
-		@Nonnull BranchingStemmer branching,
+		@Nonnull VariantStemmer branching,
 		@Nonnull String stemmerName
 	) throws IOException {
 		int tested = 0;
@@ -148,7 +148,7 @@ final class BranchingEquivalenceSupport {
 	 */
 	static void assertSameTermsPerPosition(
 		@Nonnull List<? extends FoldedStemmer> flatUnion,
-		@Nonnull Supplier<? extends BranchingStemmer> branching,
+		@Nonnull Supplier<? extends VariantStemmer> branching,
 		@Nonnull String text
 	) throws IOException {
 		try (
@@ -188,7 +188,7 @@ final class BranchingEquivalenceSupport {
 	@Nonnull
 	private static Analyzer hypothesisAnalyzer(
 		final List<? extends FoldedStemmer> flatUnion,
-		final Supplier<? extends BranchingStemmer> branching
+		final Supplier<? extends VariantStemmer> branching
 	) {
 		return new Analyzer() {
 			@Override
@@ -199,7 +199,7 @@ final class BranchingEquivalenceSupport {
 					source,
 					flatUnion != null
 						? new HypothesisStemFilter(folded, flatUnion)
-						: new BranchingHypothesisStemFilter(folded, branching.get())
+						: new VariantStemFilter(folded, branching.get())
 				);
 			}
 		};

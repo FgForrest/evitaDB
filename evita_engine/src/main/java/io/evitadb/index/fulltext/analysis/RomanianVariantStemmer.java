@@ -25,16 +25,19 @@ package io.evitadb.index.fulltext.analysis;
 
 import org.apache.lucene.util.ArrayUtil;
 
+import io.evitadb.exception.GenericEvitaInternalError;
+
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
 /**
- * The **branching** form of the M7 Romanian hypothesis set: produces the exact union of all 512 (2⁹)
- * {@link FoldedRomanianStemmer} configurations plus the folded surface, without running them.
+ * The Romanian {@link VariantStemmer}: the folded reading of Snowball's `RomanianStemmer`, forking wherever a
+ * rule is fold-ambiguous, plus the folded surface itself. Its emitted set contains the folded image of whatever
+ * the index-side Snowball stemmer produced, which the ro_RO lexicon sweep verifies word by word.
  *
- * Romanian needs the heaviest walk of the four languages, because its nine switches split into two kinds and
+ * Romanian needs the heaviest walk of the four languages, because its ambiguities split into two kinds and
  * its pipeline rewrites the buffer between steps:
  *
  * - **Five step gates** (`step0`, `combo`, `a_3`, `verb`, `vowel`) each turn a whole pipeline stage on or off.
@@ -43,29 +46,32 @@ import java.util.List;
  *   and an applied successor, and successors are deduplicated immediately — a stage that matches nothing
  *   collapses its two branches back into one state, which is what keeps the state count near one for ordinary
  *   words. States carry real buffer copies (pooled, reused across calls) because the combo, `a_3` and step-0
- *   actions rewrite characters (`icator`→`ic`, `ism`→`ist`), so a hypothesis is no longer prefix + tail chars
+ *   actions rewrite characters (`icator`→`ic`, `ism`→`ist`), so a variant is no longer prefix + tail chars
  *   the way the Czech and Slovak walks could store it.
  * - **Four rule switches** fork *inside* a stage. `tiuneRewrite` guards one decision in the `a_3` scan (fire
  *   versus that scan's abort) and forks at most once. `sVerbEndings`, `aVerbEndings` and `amUnconditional`
- *   decide which entries the verb table holds — and unlike everywhere else in the four ports, one of these
+ *   decide which entries the verb table holds — and unlike everywhere else in the four languages, one of these
  *   flags really can be consulted twice on one path (`asesi` skipped → the shorter `sesi` matches, both
  *   `sVerbEndings`-gated), so the verb scan is a **constraint scan** like the Polish walk's: cells of
  *   configuration space carry committed flag masks, a matched entry partitions its cell, and an entry whose
  *   predicate contradicts the cell's commitments is simply absent for it.
  *
  * The Snowball prelude and regions are computed **once**: intervocalic `i`/`u` marking and `RV`/`R1`/`R2` are
- * identical for every configuration (every edit happens at the tail, so the positions stay valid — the same
- * argument the flat port makes), and the markers are lowercased per final outcome at materialization.
+ * identical for every fork (every edit happens at the tail, so the positions stay valid), and the markers are
+ * lowercased per final outcome at materialization.
  *
- * **Prototype, test scope only.** Not thread-safe — one instance per stream. Zero steady-state allocation
- * apart from lazily grown pooled buffers.
+ * Input is expected lowercased and diacritics-folded; the instance is stateful scratch and **not thread-safe**
+ * — one per stream. Zero steady-state allocation apart from lazily grown pooled buffers.
+ *
+ * See `documentation/adr/2026-08-24-fulltext-search-lucene-vs-inhouse/` for the measurements and the rejected
+ * alternatives behind this design.
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
  */
-final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
+final class RomanianVariantStemmer implements VariantStemmer {
 
 	/**
-	 * One suffix entry of a static table — mirror of the flat port's record.
+	 * One suffix entry of a static table — mirror of Snowball's record.
 	 *
 	 * @param suffix folded suffix, matched at the end of the current buffer
 	 * @param action action code, interpreted by the step that owns the table
@@ -94,7 +100,7 @@ final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
 	private static final int AM_UNCONDITIONAL = 4;
 
 	/**
-	 * Step 0 endings — verbatim mirror of the flat port's `STEP0_ENDINGS`.
+	 * Step 0 endings — verbatim mirror of Snowball's `STEP0_ENDINGS`.
 	 */
 	private static final Ending[] STEP0_ENDINGS = byLengthDescending(
 		new Ending("ea", 3), new Ending("atia", 7), new Ending("aua", 2), new Ending("iua", 4),
@@ -104,7 +110,7 @@ final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
 	);
 
 	/**
-	 * Combo-suffix endings — verbatim mirror of the flat port's `COMBO_ENDINGS`.
+	 * Combo-suffix endings — verbatim mirror of Snowball's `COMBO_ENDINGS`.
 	 */
 	private static final Ending[] COMBO_ENDINGS = byLengthDescending(
 		new Ending("icala", 4), new Ending("iciva", 4), new Ending("ativa", 5), new Ending("itiva", 6),
@@ -120,7 +126,7 @@ final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
 	);
 
 	/**
-	 * Standard-suffix endings — verbatim mirror of the flat port's `STANDARD_ENDINGS`.
+	 * Standard-suffix endings — verbatim mirror of Snowball's `STANDARD_ENDINGS`.
 	 */
 	private static final Ending[] STANDARD_ENDINGS = byLengthDescending(
 		new Ending("ica", 1), new Ending("abila", 1), new Ending("ibila", 1), new Ending("oasa", 1),
@@ -139,7 +145,7 @@ final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
 	);
 
 	/**
-	 * Vowel-suffix endings — verbatim mirror of the flat port's `VOWEL_ENDINGS`.
+	 * Vowel-suffix endings — verbatim mirror of Snowball's `VOWEL_ENDINGS`.
 	 */
 	private static final Ending[] VOWEL_ENDINGS = byLengthDescending(
 		new Ending("ie", 1), new Ending("a", 1), new Ending("e", 1), new Ending("i", 1)
@@ -148,7 +154,7 @@ final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
 	/**
 	 * The merged verb table — every entry any configuration's verb table can hold, annotated with the local
 	 * flag assignment of its existence, longest suffix first. The two `am` variants carry disjoint predicates,
-	 * exactly as the flat constructor's ternary selects one action per configuration.
+	 * exactly as Snowball selects one action per reading.
 	 */
 	private static final VerbEntry[] VERB = mergedVerbTable();
 
@@ -176,7 +182,7 @@ final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
 	private int nextCount;
 
 	/**
-	 * Final outcomes — unmarked hypothesis texts, pooled.
+	 * Final outcomes — unmarked variant texts, pooled.
 	 */
 	private final char[][] outcomeBuffers = new char[MAX_STATES][];
 	private final int[] outcomeLengths = new int[MAX_STATES];
@@ -200,7 +206,7 @@ final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
 	private char[] scratch = new char[16];
 
 	@Override
-	public int hypothesize(@Nonnull char[] s, int len) {
+	public int stem(@Nonnull char[] s, int len) {
 		this.outcomeCount = 0;
 
 		// the prelude and regions are configuration-independent: mark once, share everywhere
@@ -265,20 +271,20 @@ final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
 	}
 
 	@Override
-	public int length(int hypothesisIndex) {
-		return this.outcomeLengths[hypothesisIndex];
+	public int length(int variantIndex) {
+		return this.outcomeLengths[variantIndex];
 	}
 
 	@Override
-	public int materialize(int hypothesisIndex, @Nonnull char[] originalWord, @Nonnull char[] destination) {
-		final int length = this.outcomeLengths[hypothesisIndex];
-		System.arraycopy(this.outcomeBuffers[hypothesisIndex], 0, destination, 0, length);
+	public int materialize(int variantIndex, @Nonnull char[] originalWord, @Nonnull char[] destination) {
+		final int length = this.outcomeLengths[variantIndex];
+		System.arraycopy(this.outcomeBuffers[variantIndex], 0, destination, 0, length);
 		return length;
 	}
 
 	/**
 	 * Emits the applied lane of the step-0 gate: the deterministic step-0 table on the state's buffer. Mirror
-	 * of the flat `step0`, abort semantics included; a lane that matches nothing emits the unchanged state,
+	 * of Snowball's `step_0`, abort semantics included; a lane that matches nothing emits the unchanged state,
 	 * which the dedup collapses with the skipped lane.
 	 *
 	 * @param stateIndex current-stage state to apply the step to
@@ -311,7 +317,7 @@ final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
 					}
 					case 6 -> emitRewritten(source, pos, "at", removed);
 					case 7 -> emitRewritten(source, pos, "ati", removed);
-					default -> throw new IllegalStateException(
+					default -> throw new GenericEvitaInternalError(
 						"Unknown step-0 action " + ending.action() + "."
 					);
 				}
@@ -323,7 +329,7 @@ final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
 
 	/**
 	 * Emits the applied lane of the combo gate: the repeat loop run to its fixpoint on a scratch copy, setting
-	 * the `standardRemoved` sentinel when any round fired. Mirror of the flat driver's `while` plus
+	 * the `standardRemoved` sentinel when any round fired. Mirror of Snowball's `standard_suffix` driver loop plus
 	 * `comboSuffix`, backtracking semantics included.
 	 *
 	 * @param stateIndex current-stage state to apply the step to
@@ -349,7 +355,7 @@ final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
 						case 4 -> "ic";
 						case 5 -> "at";
 						case 6 -> "it";
-						default -> throw new IllegalStateException(
+						default -> throw new GenericEvitaInternalError(
 							"Unknown combo action " + ending.action() + "."
 						);
 					};
@@ -369,7 +375,7 @@ final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
 	/**
 	 * Emits the applied lane of the `a_3` gate. Deterministic except for one decision: a matched `iune`/`iuni`
 	 * preceded by `t` forks on `tiuneRewrite` — fire (a removal) versus the scan's abort (`-1`, no removal).
-	 * Mirror of the flat `standardSuffix`, backtracking and abort semantics included.
+	 * Mirror of Snowball's `standard_suffix`, backtracking and abort semantics included.
 	 *
 	 * @param stateIndex current-stage state to apply the step to
 	 * @param p2         R2 start
@@ -382,7 +388,7 @@ final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
 			final int pos = len - ending.suffix().length();
 			if (pos >= 0 && regionMatches(source, pos, ending.suffix())) {
 				if (p2 > pos) {
-					// backtrack to shorter entries, as the flat port does
+					// backtrack to shorter entries, as the Snowball stemmer does
 					continue;
 				}
 				switch (ending.action()) {
@@ -402,7 +408,7 @@ final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
 						this.scratch[pos + 2] = 't';
 						emitNext(this.scratch, pos + 3, true);
 					}
-					default -> throw new IllegalStateException(
+					default -> throw new GenericEvitaInternalError(
 						"Unknown standard-suffix action " + ending.action() + "."
 					);
 				}
@@ -416,7 +422,7 @@ final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
 	/**
 	 * Emits every outcome of the verb step for one state — the constraint scan over the merged verb table.
 	 * Each fired cell truncates (verb actions never rewrite characters); an exhausted cell leaves the length
-	 * unchanged, collapsing with the skipped-gate lane. Mirror of the flat `verbSuffix`, its RV window and
+	 * unchanged, collapsing with the skipped-gate lane. Mirror of Snowball's `verb_suffix`, its RV window and
 	 * action-1 condition included.
 	 *
 	 * @param stateIndex current-stage state the verb step runs on
@@ -532,9 +538,9 @@ final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
 			}
 		}
 		if (this.nextCount == MAX_STATES) {
-			throw new IllegalStateException(
-				"More than " + MAX_STATES + " pipeline states - the branching walk has diverged from "
-					+ "FoldedRomanianStemmer."
+			throw new GenericEvitaInternalError(
+				"More than " + MAX_STATES + " pipeline states - the variant walk has diverged from "
+					+ "the Romanian stemming rules."
 			);
 		}
 		if (this.nextBuffers[this.nextCount] == null || this.nextBuffers[this.nextCount].length < len) {
@@ -572,9 +578,9 @@ final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
 	 */
 	private void pushVerbCell(int index, int on, int off) {
 		if (this.verbTop == MAX_STATES) {
-			throw new IllegalStateException(
-				"More than " + MAX_STATES + " pending verb cells - the branching walk has diverged from "
-					+ "FoldedRomanianStemmer."
+			throw new GenericEvitaInternalError(
+				"More than " + MAX_STATES + " pending verb cells - the variant walk has diverged from "
+					+ "the Romanian stemming rules."
 			);
 		}
 		this.verbIndex[this.verbTop] = index;
@@ -611,9 +617,9 @@ final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
 			}
 		}
 		if (this.outcomeCount == MAX_STATES) {
-			throw new IllegalStateException(
-				"More than " + MAX_STATES + " hypotheses for one word - the branching walk has diverged from "
-					+ "FoldedRomanianStemmer."
+			throw new GenericEvitaInternalError(
+				"More than " + MAX_STATES + " variants for one word - the variant walk has diverged from "
+					+ "the Romanian stemming rules."
 			);
 		}
 		if (this.outcomeBuffers[this.outcomeCount] == null
@@ -660,8 +666,7 @@ final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
 	}
 
 	/**
-	 * Marks intervocalic `i` and `u` with their uppercase counterparts — the Snowball prelude, mirror of the
-	 * flat port.
+	 * Marks intervocalic `i` and `u` with their uppercase counterparts — the Snowball prelude.
 	 *
 	 * @param s   buffer to mark
 	 * @param len current length
@@ -675,7 +680,7 @@ final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
 	}
 
 	/**
-	 * Computes the RV region start — mirror of the flat port.
+	 * Computes the RV region start — folded reading of the Snowball stemmer.
 	 *
 	 * @param s   input buffer
 	 * @param len current length
@@ -713,7 +718,7 @@ final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
 	}
 
 	/**
-	 * Computes an R-region start — mirror of the flat port.
+	 * Computes an R-region start — folded reading of the Snowball stemmer.
 	 *
 	 * @param s    input buffer
 	 * @param len  current length
@@ -731,7 +736,7 @@ final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
 
 	/**
 	 * Tells whether the character is a folded Romanian vowel; the intervocalic markers `I`/`U` are not vowels,
-	 * which is their purpose. Mirror of the flat port.
+	 * which is their purpose. Mirror of the Snowball stemmer.
 	 *
 	 * @param c character to test
 	 * @return true for `a`, `e`, `i`, `o`, `u`
@@ -741,7 +746,7 @@ final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
 	}
 
 	/**
-	 * Sorts table entries longest-suffix-first — mirror of the flat port.
+	 * Sorts table entries longest-suffix-first — folded reading of the Snowball stemmer.
 	 *
 	 * @param endings table entries in any order
 	 * @return the entries sorted by suffix length, longest first
@@ -754,7 +759,7 @@ final class BranchingFoldedRomanianStemmer implements BranchingStemmer {
 	}
 
 	/**
-	 * Builds the merged verb table from the flat constructor's switch blocks, longest suffix first.
+	 * Builds the merged verb table from Snowball's verb-suffix `among`, longest suffix first.
 	 *
 	 * @return the merged table
 	 */

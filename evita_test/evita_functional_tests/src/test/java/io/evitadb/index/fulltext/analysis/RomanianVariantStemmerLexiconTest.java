@@ -30,48 +30,41 @@ import org.tartarus.snowball.ext.RomanianStemmer;
 import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.text.Normalizer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.UnaryOperator;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The Romanian instance of the {@link LexiconCoverageSweep}: verifies the M7 correctness invariant of the
- * {@link FoldedRomanianStemmer} hypothesis set against the whole `ro_RO` Hunspell lexicon.
+ * The Romanian instance of the {@link LexiconCoverageSweep}: verifies over the whole `ro_RO` Hunspell lexicon
+ * that the production {@link RomanianVariantStemmer} — the query half of the `romanian`/`romanian-search`
+ * built-in pair — always emits the term the index half wrote.
  *
- * The index side is the R0n shape of {@link RomanianAnalysisApproachMatrixTest} — comma-below spellings
- * normalized to the cedilla ones the Lucene 9.12.3 Snowball tables are written in, then the accented Snowball
- * stemmer, then folding. The query side forks all four fold-ambiguous rule groups of the port (`tiune`,
- * `sverb`, `am`, `averb`) — sixteen hypotheses, exactly what the R20n chain emits.
+ * The index side is the production shape: comma-below spellings normalized to the cedilla ones the pinned
+ * Lucene's Snowball tables are written in (see {@link CommaBelowNormalizationFilter}), then the accented
+ * Snowball stemmer, then folding.
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Romanian folded stemmer — M7 coverage over the whole ro_RO lexicon")
+@DisplayName("Romanian variant stemmer — index-term coverage over the whole ro_RO lexicon")
 @Tag(ENGINE)
 @Tag(FULLTEXT)
-class RomanianFoldedStemmerLexiconTest {
+class RomanianVariantStemmerLexiconTest {
 
 	@Test
-	@DisplayName("The hypothesis set covers the folded index term for every dictionary word")
+	@DisplayName("The variant set covers the folded index term for every dictionary word")
 	void shouldCoverAccentedStemsOverWholeLexicon() throws IOException {
 		final RomanianStemmer accented = new RomanianStemmer();
-		final List<UnaryOperator<String>> hypotheses = new ArrayList<>(257);
-		for (final FoldedStemmer stemmer : FoldedRomanianStemmer.allHypotheses()) {
-			hypotheses.add(word -> LexiconCoverageSweep.stem(word, stemmer));
-		}
 
 		final LexiconCoverageSweep.Result result = LexiconCoverageSweep.sweep(
 			"/fulltext/hunspell/ro_RO.dic",
-			RomanianFoldedStemmerLexiconTest::fold,
+			RomanianVariantStemmerLexiconTest::fold,
 			word -> {
 				accented.setCurrent(commaToCedilla(word));
 				accented.stem();
 				return fold(accented.getCurrent());
 			},
-			hypotheses
+			new RomanianVariantStemmer()
 		);
 
 		System.out.println(result.summary("ro_RO"));
@@ -81,14 +74,14 @@ class RomanianFoldedStemmerLexiconTest {
 		);
 		assertTrue(
 			result.uncoveredCount() == 0,
-			"Every uncovered word is a fold-ambiguity no current fork covers - the folded port needs a new "
-				+ "switch for it:\n" + String.join("\n", result.uncovered())
+			"Every uncovered word is a fold-ambiguity no current fork covers - the variant stemmer needs a new "
+				+ "fork for it:\n" + String.join("\n", result.uncovered())
 		);
 	}
 
 	/**
-	 * Rewrites the comma-below letters to the legacy cedilla ones the 9.12.3 Snowball tables expect — the
-	 * `CommaBelowNormalizationFilter` of the matrix test as a plain function.
+	 * Rewrites the comma-below letters to the legacy cedilla ones the pinned Snowball tables expect — the
+	 * {@link CommaBelowNormalizationFilter} of the index chain as a plain function.
 	 *
 	 * @param text lowercased text
 	 * @return the same text in cedilla orthography

@@ -79,12 +79,6 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<!-- the Morfologik dictionary row (P0m) of PolishAnalysisApproachMatrixTest -->
-			<groupId>org.apache.lucene</groupId>
-			<artifactId>lucene-analysis-morfologik</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>evita_store_key_value</artifactId>
 			<version>${project.parent.version}</version>

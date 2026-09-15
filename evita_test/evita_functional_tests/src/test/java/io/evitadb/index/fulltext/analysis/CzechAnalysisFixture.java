@@ -23,21 +23,17 @@
 
 package io.evitadb.index.fulltext.analysis;
 
-import io.evitadb.index.fulltext.analysis.AnalysisApproachMeasurer.Lemma;
-import io.evitadb.index.fulltext.analysis.AnalysisApproachMeasurer.MatchStrategy;
-import io.evitadb.index.fulltext.analysis.AnalysisApproachMeasurer.Measurement;
 
 import javax.annotation.Nonnull;
 import java.util.List;
 
 /**
- * The Czech vocabulary shared by {@link CzechAccentTypingTest} and {@link CzechAnalysisApproachMatrixTest},
- * measured through the language-agnostic {@link AnalysisApproachMeasurer}. Keeping the vocabulary out of the
- * tests is what makes the two comparable — a mechanism that scores better on its own vocabulary has not been
- * shown to score better at all.
+ * The Czech vocabulary {@link LanguageAnalyzerPairRecallTest} measures the `czech`/`czech-search` analyzer pair
+ * against. Keeping the vocabulary out of the test is what makes the four languages comparable — a mechanism
+ * that scores better on its own vocabulary has not been shown to score better at all.
  *
- * The metric definitions and their reasoning live in {@link AnalysisApproachMeasurer}; this class holds only
- * what is Czech: the lemmas, the inflected forms, and the record of why each morphological class is present.
+ * The metric definitions live in {@link LanguageAnalyzerPairRecallTest}; this class holds only what is Czech:
+ * the lemmas, the inflected forms, and the record of why each morphological class is present.
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -128,29 +124,6 @@ final class CzechAnalysisFixture {
 	);
 
 	private CzechAnalysisFixture() {
-	}
-
-	/**
-	 * Measures one approach over the whole Czech vocabulary — a shorthand for calling
-	 * {@link AnalysisApproachMeasurer#measure} with this fixture's two lemma lists.
-	 *
-	 * @param approachName  name under which the approach is reported
-	 * @param indexAnalyzer chain analysing the stored value
-	 * @param queryAnalyzer chain analysing the query text; the same instance as `indexAnalyzer` for a symmetric
-	 *                      approach, a different one for an asymmetric one
-	 * @param strategy      how a query term set is decided to have found a value term set
-	 * @return the measurement, carrying the failing cases themselves rather than only their counts
-	 */
-	@Nonnull
-	static Measurement measure(
-		@Nonnull String approachName,
-		@Nonnull FulltextAnalyzer indexAnalyzer,
-		@Nonnull FulltextAnalyzer queryAnalyzer,
-		@Nonnull MatchStrategy strategy
-	) {
-		return AnalysisApproachMeasurer.measure(
-			approachName, indexAnalyzer, queryAnalyzer, strategy, VOCABULARY, CONFUSABLE_LEMMAS
-		);
 	}
 
 }

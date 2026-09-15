@@ -23,21 +23,17 @@
 
 package io.evitadb.index.fulltext.analysis;
 
-import io.evitadb.index.fulltext.analysis.AnalysisApproachMeasurer.Lemma;
-import io.evitadb.index.fulltext.analysis.AnalysisApproachMeasurer.MatchStrategy;
-import io.evitadb.index.fulltext.analysis.AnalysisApproachMeasurer.Measurement;
 
 import javax.annotation.Nonnull;
 import java.util.List;
 
 /**
- * The Polish vocabulary measured by {@link PolishAnalysisApproachMatrixTest} through the language-agnostic
- * {@link AnalysisApproachMeasurer} — the Polish sibling of {@link CzechAnalysisFixture}, built to the same
- * protocol.
+ * The Polish vocabulary {@link LanguageAnalyzerPairRecallTest} measures the `polish`/`polish-search`
+ * analyzer pair against — the Polish sibling of {@link CzechAnalysisFixture}, built to the same protocol.
  *
  * **Bare typing is language-specific here.** A Polish user without the Polish keyboard layout types `l` for
  * `ł`, but `ł` is a stroked letter that Unicode decomposition leaves alone — so this fixture passes its own
- * {@link #bareType(String)} to the measurer instead of the default NFD stripping. Without it every `ł`-bearing
+ * {@link #bareType(String)} instead of the default NFD stripping. Without it every `ł`-bearing
  * form would be silently excluded from the bare-typed metrics (its "bare typing" would equal itself), and the
  * `ł` class is precisely the one the survey flags as the biggest Polish fold hazard.
  *
@@ -138,31 +134,7 @@ final class PolishAnalysisFixture {
 	 */
 	@Nonnull
 	static String bareType(@Nonnull String text) {
-		return AnalysisApproachMeasurer.stripAccents(text).replace('ł', 'l').replace('Ł', 'L');
-	}
-
-	/**
-	 * Measures one approach over the whole Polish vocabulary — a shorthand for calling
-	 * {@link AnalysisApproachMeasurer#measure} with this fixture's two lemma lists and {@link #bareType}.
-	 *
-	 * @param approachName  name under which the approach is reported
-	 * @param indexAnalyzer chain analysing the stored value
-	 * @param queryAnalyzer chain analysing the query text; the same instance as `indexAnalyzer` for a symmetric
-	 *                      approach, a different one for an asymmetric one
-	 * @param strategy      how a query term set is decided to have found a value term set
-	 * @return the measurement, carrying the failing cases themselves rather than only their counts
-	 */
-	@Nonnull
-	static Measurement measure(
-		@Nonnull String approachName,
-		@Nonnull FulltextAnalyzer indexAnalyzer,
-		@Nonnull FulltextAnalyzer queryAnalyzer,
-		@Nonnull MatchStrategy strategy
-	) {
-		return AnalysisApproachMeasurer.measure(
-			approachName, indexAnalyzer, queryAnalyzer, strategy, VOCABULARY, CONFUSABLE_LEMMAS,
-			PolishAnalysisFixture::bareType
-		);
+		return Lemma.stripAccents(text).replace('ł', 'l').replace('Ł', 'L');
 	}
 
 }

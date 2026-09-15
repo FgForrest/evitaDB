@@ -23,19 +23,22 @@
 
 package io.evitadb.index.fulltext.analysis;
 
+import io.evitadb.exception.GenericEvitaInternalError;
+
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
 /**
- * The **branching** form of the M7 Polish hypothesis set: produces the exact union of all 128 (2⁷)
- * {@link FoldedPolishStemmer} configurations plus the folded surface, without running them.
+ * The Polish {@link VariantStemmer}: the folded reading of {@link PolishSnowballStemmer}, forking wherever a
+ * rule is fold-ambiguous, plus the folded surface itself. Its emitted set contains the folded image of whatever
+ * {@link PolishSnowballStemmer} produced on the index side, which the pl_PL lexicon sweep verifies word by word.
  *
- * Polish needs a different walk than Czech or Slovak, because its switches do not guard `if` branches inside a
+ * Polish needs a different walk than Czech or Slovak, because its forks do not guard `if` branches inside a
  * fixed control flow — they decide **which entries exist in the ending table** (and one entry's R1 condition),
  * and the table is scanned longest-suffix-first with first-match-wins. Two configurations differing in one
- * switch can therefore fire entirely different entries. The walk that stays exact is a **constraint scan**:
+ * fork can therefore fire entirely different entries. The walk that stays exact is a **constraint scan**:
  * every possible entry of every configuration sits in one merged, length-sorted table, annotated with the flag
  * assignments under which it exists (`needOn`/`needOff` masks). A scan state is a *cell* of configuration
  * space — a partial flag assignment `(onMask, offMask)` plus a table position. When a positionally-matching
@@ -43,24 +46,29 @@ import java.util.List;
  * fires the entry (an outcome), and the rest of the cell continues scanning past it, decomposed into
  * conjunction-shaped sub-cells. A scan that exhausts the table yields the unchanged length for its whole cell.
  * Deterministic checks — the two-character floor, a failed R1 condition — never partition: the entry backtracks
- * identically whether it exists or not, exactly as the flat stemmer's `continue` does.
+ * identically whether it exists or not, exactly as the underlying stemmer's `continue` does.
  *
- * This constraint machinery is what makes the union exact even though one flag *can* control several entries:
+ * This constraint machinery is what keeps the set exact even though one fork *can* control several entries:
  * a cell that skipped an `lEndings` entry carries `lEndings=off` in its mask, so any later `lEndings` entry is
- * simply absent for it — the walk cannot manufacture the skip-then-fire path no configuration has.
+ * simply absent for it — the walk cannot manufacture a skip-then-fire path no accented reading has.
  *
- * Every firing action either truncates or writes a single character at the new final position, so a hypothesis
+ * Every firing action either truncates or writes a single character at the new final position, so a variant
  * is fully described by `(length, final character)` over the untouched input — even simpler than the Czech
  * triple — and the walk allocates nothing after construction.
  *
- * **Prototype, test scope only.** Not thread-safe — one instance per stream.
+ * Input is expected lowercased and diacritics-folded; the instance is stateful scratch and **not thread-safe**
+ * — one per stream.
+ *
+ * See `documentation/adr/2026-08-24-fulltext-search-lucene-vs-inhouse/` for the measurements and the rejected
+ * alternatives behind this design.
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
  */
-final class BranchingFoldedPolishStemmer implements BranchingStemmer {
+final class PolishVariantStemmer implements VariantStemmer {
 
 	/**
-	 * Flag bits, matching the mask order of {@link FoldedPolishStemmer#allHypotheses()}.
+	 * Fold-ambiguity fork bits — one per family of ending-table entries whose existence depends on how the
+	 * word was spelled before folding.
 	 */
 	private static final int L_ENDINGS = 1;
 	private static final int NASAL_ENDINGS = 2;
@@ -108,10 +116,10 @@ final class BranchingFoldedPolishStemmer implements BranchingStemmer {
 	private static final String[] BY_PARTICLES = {"byscie", "bysmy", "bym", "bys", "by"};
 
 	/**
-	 * Hard bound on distinct hypotheses per word. Generous: the scan fires at most one entry per matched
+	 * Hard bound on distinct variants per word. Generous: the scan fires at most one entry per matched
 	 * suffix, a word matches only a handful of the table's suffix lengths, and duplicates collapse.
 	 */
-	private static final int MAX_HYPOTHESES = 24;
+	private static final int MAX_VARIANTS = 24;
 	/**
 	 * Hard bound on pending scan cells. Each partition pushes at most two continuation cells (predicates carry
 	 * at most two literals), and partitions happen only at matched conditional entries.
@@ -119,16 +127,16 @@ final class BranchingFoldedPolishStemmer implements BranchingStemmer {
 	private static final int MAX_STATES = 32;
 
 	/**
-	 * Lengths of the deduplicated hypotheses of the current word.
+	 * Lengths of the deduplicated variants of the current word.
 	 */
-	private final int[] lengths = new int[MAX_HYPOTHESES];
+	private final int[] lengths = new int[MAX_VARIANTS];
 	/**
-	 * Effective final character of each hypothesis (the action's written character, or the original character
-	 * at `length - 1`), `0` for an empty hypothesis.
+	 * Effective final character of each variant (the action's written character, or the original character
+	 * at `length - 1`), `0` for an empty variant.
 	 */
-	private final char[] lasts = new char[MAX_HYPOTHESES];
+	private final char[] lasts = new char[MAX_VARIANTS];
 	/**
-	 * Number of valid entries in the hypothesis arrays.
+	 * Number of valid entries in the variant arrays.
 	 */
 	private int count;
 
@@ -141,12 +149,12 @@ final class BranchingFoldedPolishStemmer implements BranchingStemmer {
 	private int stateTop;
 
 	@Override
-	public int hypothesize(@Nonnull char[] s, int len) {
+	public int stem(@Nonnull char[] s, int len) {
 		this.count = 0;
 		this.stateTop = 0;
 
 		if (len < 2) {
-			// the flat stemmer returns short words unchanged in every configuration
+			// short words are returned unchanged under every reading
 			addOutcome(s, len, (char) 0);
 			return this.count;
 		}
@@ -165,22 +173,22 @@ final class BranchingFoldedPolishStemmer implements BranchingStemmer {
 			);
 		}
 
-		// the folded surface, the last hypothesis of FoldedPolishStemmer#allHypotheses()
+		// the folded surface itself, so an unstemmable word still matches its own index term
 		addOutcome(s, len, (char) 0);
 		return this.count;
 	}
 
 	@Override
-	public int length(int hypothesisIndex) {
-		return this.lengths[hypothesisIndex];
+	public int length(int variantIndex) {
+		return this.lengths[variantIndex];
 	}
 
 	@Override
-	public int materialize(int hypothesisIndex, @Nonnull char[] originalWord, @Nonnull char[] destination) {
-		final int length = this.lengths[hypothesisIndex];
+	public int materialize(int variantIndex, @Nonnull char[] originalWord, @Nonnull char[] destination) {
+		final int length = this.lengths[variantIndex];
 		System.arraycopy(originalWord, 0, destination, 0, length);
 		if (length >= 1) {
-			destination[length - 1] = this.lasts[hypothesisIndex];
+			destination[length - 1] = this.lasts[variantIndex];
 		}
 		return length;
 	}
@@ -274,7 +282,7 @@ final class BranchingFoldedPolishStemmer implements BranchingStemmer {
 				scanSecond(s, pos, 0, on, off);
 				break;
 			default:
-				throw new IllegalStateException("Unknown ending action " + entry.action() + ".");
+				throw new GenericEvitaInternalError("Unknown ending action " + entry.action() + ".");
 		}
 	}
 
@@ -317,7 +325,7 @@ final class BranchingFoldedPolishStemmer implements BranchingStemmer {
 
 	/**
 	 * Records one outcome as `(length, effective final character)`, deduplicated — equal pairs mean equal
-	 * hypotheses because every hypothesis shares the untouched input prefix.
+	 * variants because every variant shares the untouched input prefix.
 	 *
 	 * @param s        input buffer, read only
 	 * @param length   outcome length
@@ -330,10 +338,10 @@ final class BranchingFoldedPolishStemmer implements BranchingStemmer {
 				return;
 			}
 		}
-		if (this.count == MAX_HYPOTHESES) {
-			throw new IllegalStateException(
-				"More than " + MAX_HYPOTHESES + " hypotheses for one word - the branching walk has diverged "
-					+ "from FoldedPolishStemmer."
+		if (this.count == MAX_VARIANTS) {
+			throw new GenericEvitaInternalError(
+				"More than " + MAX_VARIANTS + " variants for one word - the variant walk has diverged "
+					+ "from the Polish stemming rules."
 			);
 		}
 		this.lengths[this.count] = length;
@@ -350,9 +358,9 @@ final class BranchingFoldedPolishStemmer implements BranchingStemmer {
 	 */
 	private void pushState(int index, int on, int off) {
 		if (this.stateTop == MAX_STATES) {
-			throw new IllegalStateException(
-				"More than " + MAX_STATES + " pending scan cells - the branching walk has diverged from "
-					+ "FoldedPolishStemmer."
+			throw new GenericEvitaInternalError(
+				"More than " + MAX_STATES + " pending scan cells - the variant walk has diverged from "
+					+ "the Polish stemming rules."
 			);
 		}
 		this.stateIndex[this.stateTop] = index;
@@ -362,7 +370,7 @@ final class BranchingFoldedPolishStemmer implements BranchingStemmer {
 	}
 
 	/**
-	 * Computes the R1 start — mirror of `FoldedPolishStemmer#markR1`.
+	 * Computes the R1 start — the Snowball `mark_regions` step, read over the folded alphabet.
 	 *
 	 * @param s   input buffer
 	 * @param len current length
@@ -387,7 +395,7 @@ final class BranchingFoldedPolishStemmer implements BranchingStemmer {
 	}
 
 	/**
-	 * Strips one `by`-particle sitting wholly inside R1 — mirror of `FoldedPolishStemmer#removeByParticle`.
+	 * Strips one `by`-particle sitting wholly inside R1 — the Snowball `remove_by_particle` step.
 	 *
 	 * @param s   input buffer
 	 * @param len current length
@@ -405,7 +413,7 @@ final class BranchingFoldedPolishStemmer implements BranchingStemmer {
 	}
 
 	/**
-	 * Tells whether the character is a folded Polish vowel — mirror of `FoldedPolishStemmer#isVowel`.
+	 * Tells whether the character is a folded Polish vowel.
 	 *
 	 * @param c character to test
 	 * @return true for `a`, `e`, `i`, `o`, `u`, `y`
@@ -432,8 +440,8 @@ final class BranchingFoldedPolishStemmer implements BranchingStemmer {
 	}
 
 	/**
-	 * Builds the merged main table: the union of every configuration's entries from
-	 * `FoldedPolishStemmer`'s constructor, each annotated with the flag assignment under which it exists.
+	 * Builds the merged main table: the union of every reading's entries, each annotated with the fork
+	 * assignment under which it exists.
 	 * Same-suffix variants (`sza`, `sze`, `e`, `ac`) carry disjoint predicates that partition the
 	 * configuration space exactly as the constructor's `if`/`else if` chains do.
 	 *

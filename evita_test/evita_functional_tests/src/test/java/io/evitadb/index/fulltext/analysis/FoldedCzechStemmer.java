@@ -241,7 +241,7 @@ final class FoldedCzechStemmer implements FoldedStemmer {
 	 * itself, which is the only term that can meet an index word the accented stemmer was inert on (`album`,
 	 * `almanach`, `akronym` — the folded images of accented endings the plain spellings never carried). One
 	 * list shared by the A20 matrix chain and the cs_CZ lexicon sweep, so the two always verify the same set.
-	 * {@link BranchingFoldedCzechStemmer} computes the identical set in one walk — an edit here must keep the
+	 * {@link CzechVariantStemmer} computes the identical set in one walk — an edit here must keep the
 	 * two in step, and `BranchingCzechStemmerEquivalenceTest` fails the moment they drift.
 	 *
 	 * @return every hypothesis stemmer, surface hypothesis last

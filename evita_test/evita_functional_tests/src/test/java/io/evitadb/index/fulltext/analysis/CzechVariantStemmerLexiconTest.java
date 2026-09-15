@@ -2,7 +2,8 @@
  *
  *                         _ _        ____  ____
  *               _____   _(_) |_ __ _|  _ \| __ )
- *              / _ \ \ / / | __/ _` | | | |  _  *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
  *   Copyright (c) 2026
@@ -30,50 +31,40 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.text.Normalizer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.UnaryOperator;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The Czech instance of the {@link LexiconCoverageSweep}: verifies the M7 correctness invariant of the
- * {@link FoldedCzechStemmer} hypothesis set against the whole `cs_CZ` Hunspell lexicon, the way the Slovak
- * sweep verified — and initially falsified — the Slovak port. The Czech M7 rows (A20–A22 of
- * {@link CzechAnalysisApproachMatrixTest}) were validated on the fixture only; this test is their
- * lexicon-scale counterpart.
+ * The Czech instance of the {@link LexiconCoverageSweep}: verifies over the whole `cs_CZ` Hunspell lexicon that
+ * the production {@link CzechVariantStemmer} — the query half of the `czech`/`czech-search` built-in pair —
+ * always emits the term the index half wrote.
  *
- * The index side is the production shape: Lucene's accented `CzechStemmer` followed by folding. The query
- * side forks all four fold-ambiguous rules of the port (palatalization, penultimate vowel shift, the neuter
- * `-at-` paradigm, the epenthetic `e` removal) — sixteen hypotheses, exactly what the A20 chain emits.
+ * The index side is the production shape: Lucene's accented `CzechStemmer` followed by folding. A word that
+ * fails here is a bare-typed query that would silently fail to find its own document.
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Czech folded stemmer — M7 coverage over the whole cs_CZ lexicon")
+@DisplayName("Czech variant stemmer — index-term coverage over the whole cs_CZ lexicon")
 @Tag(ENGINE)
 @Tag(FULLTEXT)
-class CzechFoldedStemmerLexiconTest {
+class CzechVariantStemmerLexiconTest {
 
 	@Test
-	@DisplayName("The hypothesis set covers the folded index term for every dictionary word")
+	@DisplayName("The variant set covers the folded index term for every dictionary word")
 	void shouldCoverAccentedStemsOverWholeLexicon() throws IOException {
 		final CzechStemmer accented = new CzechStemmer();
-		final List<UnaryOperator<String>> hypotheses = new ArrayList<>(129);
-		for (final FoldedStemmer stemmer : FoldedCzechStemmer.allHypotheses()) {
-			hypotheses.add(word -> LexiconCoverageSweep.stem(word, stemmer));
-		}
 
 		final LexiconCoverageSweep.Result result = LexiconCoverageSweep.sweep(
 			"/fulltext/hunspell/cs_CZ.dic",
-			CzechFoldedStemmerLexiconTest::fold,
+			CzechVariantStemmerLexiconTest::fold,
 			word -> {
 				final char[] buffer = word.toCharArray();
 				final int length = accented.stem(buffer, buffer.length);
 				return fold(new String(buffer, 0, length));
 			},
-			hypotheses
+			new CzechVariantStemmer()
 		);
 
 		System.out.println(result.summary("cs_CZ"));
@@ -83,8 +74,8 @@ class CzechFoldedStemmerLexiconTest {
 		);
 		assertTrue(
 			result.uncoveredCount() == 0,
-			"Every uncovered word is a fold-ambiguity no current fork covers - the folded port needs a new "
-				+ "switch for it:\n" + String.join("\n", result.uncovered())
+			"Every uncovered word is a fold-ambiguity no current fork covers - the variant stemmer needs a new "
+				+ "fork for it:\n" + String.join("\n", result.uncovered())
 		);
 	}
 

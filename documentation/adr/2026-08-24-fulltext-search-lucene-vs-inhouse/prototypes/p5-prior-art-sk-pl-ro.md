@@ -1073,3 +1073,66 @@ One more JOL trap for the file: measuring a graph that contains Java **records**
 `-Djol.magicFieldOffset=true`, or `Unsafe` refuses their field offsets and the census dies mid-walk
 — it bit here because the Polish and Romanian ports keep their table entries in records where the
 Czech port uses plain fields.
+
+### 9.12 Graduated to production (2026-09-15)
+
+Everything §9.6 listed as "test-scope only" is now shipped, and the `sk`/`pl`/`ro` index chains of
+§9.6 were replaced. `BuiltInAnalyzers` holds eleven names instead of seven: each of `cs`, `sk`, `pl`
+and `ro` gained a `<language>-search` twin, declared `AnalysisMode.SEARCH_TIME`, and
+`nameForLocale(Locale)` became `assignmentForLocale(Locale)` returning an asymmetric
+`(index, search, null)` assignment for those four and a uniform one for everything else. The mode is
+the type-level guard the asymmetry needs: a schema assigning `czech-search` to the INDEX slot is
+rejected at mutation time, so the fan-out can never be baked into an index.
+
+What moved into `evita_engine`, renamed away from the prototype vocabulary — "hypothesis" is gone,
+the fan-out is named for what it is, **stem variants**:
+
+| prototype | production |
+|---|---|
+| `BranchingStemmer` (`hypothesize`) | `VariantStemmer` (`stem`) |
+| `BranchingFolded{Czech,Slovak,Polish,Romanian}Stemmer` | `{Czech,Slovak,Polish,Romanian}VariantStemmer` |
+| `BranchingHypothesisStemFilter` | `VariantStemFilter` |
+| `SlovakStemmer`, `PolishSnowballStemmer` | unchanged names |
+| nested class of the Romanian matrix test | `CommaBelowNormalizationFilter` |
+
+Index chains now: `sk` = lowercase → `SlovakStemmer` → fold; `pl` = lowercase → stop → Snowball →
+fold (Stempel dropped — no rule table to fork over, and §9.3 measured Snowball dominating it on every
+recall metric; `PolishAnalyzer` stays referenced for its stop set alone, so the stempel jar stays);
+`ro` = lowercase → `CommaBelowNormalizationFilter` → stop → Snowball → fold (the R0n shape). `cs` is
+unchanged. Any catalog indexed with the §9.6 `sk`/`pl`/`ro` chains produces different terms now; no
+migration was written, fulltext being pre-release.
+
+Vendored-code attribution for `PolishSnowballStemmer` follows the `evita_roaring_bitmap` pattern: an
+upstream-license paragraph in the file header (Apache-2.0 from Lucene, BSD-3-Clause from Snowball)
+plus `evita_engine/NOTICE` naming the source commit and the two adaptations.
+
+**Test disposition.** The decision instruments are gone — the four `*AnalysisApproachMatrixTest`s,
+`AnalysisApproachMeasurer`, `CzechAccentTypingTest`, `LegacyWordWithNumberSplitFilter` with the
+rejected-placement and side-by-side-report classes of `WordNumberSplitAnalysisTest`, both JMH
+pipeline benchmarks, the `lucene-analysis-morfologik` test dependency and the
+`evita_functional_tests` test-jar dependency of `evita_performance_tests`. Their conclusions are in
+this record and in `p5-approach-measurements-accent-vs-stemming.md` /
+`p5-word-number-split-comparison.md`; the instruments themselves are recoverable from git history.
+
+What replaced them:
+
+- `*VariantStemmerLexiconTest` ×4 (renamed from `*FoldedStemmerLexiconTest`) now sweep the **production**
+  walk rather than the flat union — the same invariant, two orders of magnitude cheaper: 1.9–2.2 s per
+  language where the flat sweeps took 14–26 s.
+- `Branching*StemmerEquivalenceTest` ×4 keep the flat ports honest, unchanged in substance.
+- `LanguageAnalyzerPairRecallTest` is new and pins, per language, what the pair buys: accent-typed
+  recall **cs 119/119, sk 125/125, pl 62/62, ro 49/49**, bare-typed cross-form recall **cs 348/348,
+  sk 351/355, pl 148/175, ro 99/120**, false merges **cs 54, sk 0, pl 24, ro 0**. The four fixtures
+  survive as its vocabulary; their pending native review (§9.7) may legitimately move the sk/pl/ro
+  numbers.
+- `FulltextAnalyzerTest` gained per-language index-chain expectations and a `VariantChains` class
+  pinning the fan-out shape (every variant at position increment 0, surface variant present for
+  cs/pl/ro and absent for sk).
+- `io.evitadb.spike.FulltextAnalysisChainBenchmark` replaces both deleted JMH benchmarks with the one
+  piece that has a future consumer: the index-vs-search cost census per language, to re-check when a
+  stemmer table or chain composition changes.
+
+**Carried, not solved.** The query pipeline must OR the terms sharing a position; on this branch the
+analyzers still have no engine consumer, so the integration on `258-fulltext-support` has to consume
+variant terms as synonym-shaped alternatives before any of the recall above is what a user sees. The
+note lives in `VariantStemFilter`'s javadoc, where the next reader of that code will hit it.

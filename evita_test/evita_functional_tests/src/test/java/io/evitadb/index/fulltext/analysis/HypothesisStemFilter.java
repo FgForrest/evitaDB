@@ -50,7 +50,7 @@ import java.util.Set;
  *
  * This filter is the **specification-shaped** form — trivially correct, one string per configuration, and paid
  * for dearly (~99 % of its work is redundant, JMH-measured in the SK/PL/RO record's §9.9/§9.10). The optimized
- * Czech twin is {@link BranchingHypothesisStemFilter}; {@code BranchingCzechStemmerEquivalenceTest} pins the two
+ * Czech twin is {@link VariantStemFilter}; {@code BranchingCzechStemmerEquivalenceTest} pins the two
  * to identical output over the whole cs_CZ lexicon.
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026

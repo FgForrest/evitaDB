@@ -37,7 +37,7 @@ import static io.evitadb.test.TestTags.FULLTEXT;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Proves {@link BranchingFoldedSlovakStemmer} set-equivalent to the flat eight-configuration
+ * Proves {@link SlovakVariantStemmer} set-equivalent to the flat eight-configuration
  * {@link FoldedSlovakStemmer} union — over the whole sk_SK Hunspell lexicon, over the ending-table boundary
  * words, and per token position at the filter level. The Slovak set carries **no** surface hypothesis, which
  * this equivalence also pins. See {@code BranchingCzechStemmerEquivalenceTest} for why the flat union is the
@@ -83,7 +83,7 @@ class BranchingSlovakStemmerEquivalenceTest {
 	@DisplayName("The branching walk equals the flat union for every folded sk_SK headword")
 	void shouldMatchFlatUnionOverWholeLexicon() throws IOException {
 		final int tested = BranchingEquivalenceSupport.assertEquivalenceOverLexicon(
-			"/fulltext/hunspell/sk_SK.dic", flatUnion(), new BranchingFoldedSlovakStemmer(),
+			"/fulltext/hunspell/sk_SK.dic", flatUnion(), new SlovakVariantStemmer(),
 			"FoldedSlovakStemmer"
 		);
 		assertTrue(tested > 100_000, "Expected six figures of headwords; got " + tested + ".");
@@ -94,7 +94,7 @@ class BranchingSlovakStemmerEquivalenceTest {
 	@DisplayName("The branching walk equals the flat union on the ending-table boundary words")
 	void shouldMatchFlatUnionOnBoundaryWords() {
 		final List<FoldedSlovakStemmer> flatUnion = flatUnion();
-		final BranchingFoldedSlovakStemmer branching = new BranchingFoldedSlovakStemmer();
+		final SlovakVariantStemmer branching = new SlovakVariantStemmer();
 		for (final String word : BOUNDARY_WORDS) {
 			BranchingEquivalenceSupport.assertSameHypotheses(word, flatUnion, branching, "FoldedSlovakStemmer");
 		}
@@ -104,7 +104,7 @@ class BranchingSlovakStemmerEquivalenceTest {
 	@DisplayName("The branching filter emits the same terms per position as the flat filter")
 	void shouldEmitSameTermsPerPositionAsFlatFilter() throws IOException {
 		BranchingEquivalenceSupport.assertSameTermsPerPosition(
-			flatUnion(), BranchingFoldedSlovakStemmer::new,
+			flatUnion(), SlovakVariantStemmer::new,
 			"Stolička so stoličiek, tričkom a darček; adenóm, bibliotéka, hypoték, bariéra, košieľ - "
 				+ "stolicka so stoliciek, trickom a darcek; adenom, biblioteka, hypotek, bariera, kosiel"
 		);
