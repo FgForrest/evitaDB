@@ -1,7 +1,7 @@
 ---
 title: Decode only the reference names a projection asks for, rather than deriving reference keys from the indexes
 date: 2026-09-11
-updated: 2026-09-13 09:55
+updated: 2026-09-14 20:35
 status: accepted
 kind: optimization
 issues: [1547, 1554]
@@ -9,7 +9,7 @@ prs: [1548]
 areas: [evita_store/evita_store_entity, evita_store/evita_store_server, evita_engine/src/main/java/io/evitadb/spi/store/catalog/persistence, evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/predicate]
 supersedes: []
 superseded-by: []
-relates: [2026-08-05-schema-handling-write-path-optimizations, 2026-09-12-committed-snapshot-provenance-for-enrichment, 2026-09-13-per-entity-io-statistics-attribution]
+relates: [2026-08-05-schema-handling-write-path-optimizations, 2026-09-12-committed-snapshot-provenance-for-enrichment, 2026-09-13-per-entity-io-statistics-attribution, 2026-09-15-bidirectional-reference-counterpart-rewrite]
 ---
 
 # Decode only the reference names a projection asks for

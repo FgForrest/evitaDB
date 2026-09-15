@@ -1,7 +1,7 @@
 ---
 title: Define the per-entity I/O statistic as standalone cost and attribute it at the read, not by walking the returned object graph
 date: 2026-09-13
-updated: 2026-09-14 09:19
+updated: 2026-09-14 20:35
 status: accepted
 kind: refactor
 issues: [1547, 1561, 1562, 1563, 1564, 1565, 1566, 1567]
@@ -9,7 +9,7 @@ prs: [1548]
 areas: [evita_engine/src/main/java/io/evitadb/core/query/response, evita_engine/src/main/java/io/evitadb/core/buffer, evita_engine/src/main/java/io/evitadb/core/query/fetch, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog, evita_api/src/main/java/io/evitadb/api/requestResponse]
 supersedes: []
 superseded-by: []
-relates: [2026-09-12-committed-snapshot-provenance-for-enrichment, 2026-09-11-reference-name-narrowing]
+relates: [2026-09-12-committed-snapshot-provenance-for-enrichment, 2026-09-11-reference-name-narrowing, 2026-09-15-bidirectional-reference-counterpart-rewrite]
 ---
 
 # Define the per-entity I/O statistic as standalone cost, and attribute it where the read happens
