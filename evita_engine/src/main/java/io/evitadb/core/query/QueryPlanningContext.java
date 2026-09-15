@@ -841,7 +841,11 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns {@link EntityIndex} of external entity type by its primary key.
+	 * Returns {@link EntityIndex} of the **queried** entity collection by its storage primary key.
+	 *
+	 * The lookup reads {@link #indexesByPk}, which holds the indexes of the collection this context plans over and
+	 * nothing else. Whenever the primary keys were announced by an index of a *different* collection, use
+	 * {@link #getEntityIndexByPrimaryKey(String, int, Class)} instead - see the reasoning there.
 	 *
 	 * The primary key is expected to come from an index that already knows the index exists (typically
 	 * {@link ReferencedTypeEntityIndex} listing its reduced indexes), therefore a missing index is treated as
@@ -853,10 +857,33 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull
 	public <T extends EntityIndex> T getEntityIndexByPrimaryKey(int indexPrimaryKey, @Nonnull Class<T> indexType) {
-		final Index<?> index = this.indexesByPk.get(indexPrimaryKey);
+		return getEntityIndexByPrimaryKey(this.entityType, indexPrimaryKey, indexType);
+	}
+
+	/**
+	 * Returns {@link EntityIndex} of the named entity collection by its storage primary key.
+	 *
+	 * Index primary keys come from a per-collection sequence ({@link io.evitadb.core.sequence.SequenceType#INDEX} is
+	 * requested per entity type), so the same number names a different index in every collection. A caller resolving
+	 * keys handed out by {@link ReferencedTypeEntityIndex#getAllReferenceIndexes(int)} therefore has to say which
+	 * collection that type index belonged to - exactly as {@link #getEntityIndex(String, EntityIndexKey, Class)} does
+	 * for the by-key path. Resolving them against the queried collection instead returns whichever of its indexes
+	 * happens to carry the same number, which is a wrong answer rather than a missing one.
+	 */
+	@Nonnull
+	public <T extends EntityIndex> T getEntityIndexByPrimaryKey(
+		@Nullable String entityType,
+		int indexPrimaryKey,
+		@Nonnull Class<T> indexType
+	) {
+		final Index<?> index = Objects.equals(this.entityType, entityType) ?
+			this.indexesByPk.get(indexPrimaryKey) :
+			getEntityCollectionOrThrowException(entityType, "access entity index")
+				.getIndexByPrimaryKeyIfExists(indexPrimaryKey);
 		Assert.isPremiseValid(
 			indexType.isInstance(index),
-			() -> "Expected index of type " + indexType + " but got " + (index == null ? "NULL" : index.getClass()) + "!"
+			() -> "Expected index of type " + indexType + " with primary key " + indexPrimaryKey + " in collection `" +
+				entityType + "` but got " + (index == null ? "NULL" : index.getClass()) + "!"
 		);
 		//noinspection unchecked
 		return (T) index;
@@ -925,7 +952,14 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 						referencedEntityId
 					);
 					return Arrays.stream(allReducedEntityIndexPks)
-						.mapToObj(pk -> getEntityIndexByPrimaryKey(pk, ReducedEntityIndex.class));
+						.mapToObj(
+							// the keys were handed out by the type index of `entitySchema`, so they have to be
+							// resolved there too - this is the one branch that can be asked about a collection
+							// other than the queried one
+							pk -> getEntityIndexByPrimaryKey(
+								entitySchema.getName(), pk, ReducedEntityIndex.class
+							)
+						);
 				})
 				.orElseGet(() -> {
 					final ReducedEntityIndex missingIndex = missingIndexSupplier.apply(entitySchema, entityIndexKey);
@@ -982,7 +1016,12 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 					groupEntityId
 				);
 				return Arrays.stream(allReducedEntityIndexPks)
-					.mapToObj(pk -> getEntityIndexByPrimaryKey(pk, ReducedGroupEntityIndex.class));
+					.mapToObj(
+						// same reasoning as in #getReducedEntityIndexes - the keys belong to `entitySchema`
+						pk -> getEntityIndexByPrimaryKey(
+							entitySchema.getName(), pk, ReducedGroupEntityIndex.class
+						)
+					);
 			})
 			.orElseGet(() -> {
 				final ReducedGroupEntityIndex missingIndex =
