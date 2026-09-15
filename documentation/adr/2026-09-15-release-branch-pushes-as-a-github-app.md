@@ -1,11 +1,11 @@
 ---
 title: Push release_* branches from CI as a GitHub App on the ruleset bypass list, not as GITHUB_TOKEN
 date: 2026-09-15
-updated: 2026-09-15 21:40
+updated: 2026-09-15 21:55
 status: accepted
 kind: infrastructure
 issues: [1591]
-prs: []
+prs: [1592]
 areas: [.github/workflows]
 supersedes: [2026-08-02-ci-release-pipeline-patch-versioning-fix]
 superseded-by: []
@@ -173,4 +173,4 @@ community request); until then the App stays.
 ## Timeline
 
 - **2026-09-15** — release cut rejected by the ruleset; organization owner registered and
-  installed the App; workflows changed; issue #1591 opened.
+  installed the App; workflows changed; issue #1591 opened; PR #1592 opened.
