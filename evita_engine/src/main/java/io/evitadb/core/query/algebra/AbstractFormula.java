@@ -224,9 +224,11 @@ public abstract class AbstractFormula implements Formula {
 	@Nullable
 	@Override
 	public final Long getMemoizedCost() {
-		// deliberately a bare field read: the whole point of this accessor is that it cannot fall through to
-		// getCostInternal(), which computes inner formulas. Null here means "nobody has paid for this cost yet"
-		return this.cost;
+		// deliberately free of charge: this accessor must never fall through to getCostInternal(), which computes
+		// inner formulas - including ones the query itself skipped. Null means "nobody has paid for this cost yet".
+		// The emptiness has to be read from the flag rather than from `cost` itself: the field is a primitive, so an
+		// unpriced node holds 0 and a bare field read would autobox it into a cost that was never paid.
+		return this.costComputed ? this.cost : null;
 	}
 
 	@Override
