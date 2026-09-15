@@ -111,8 +111,8 @@ public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 	public void initialize(@Nonnull QueryExecutionContext executionContext) {
 		super.initialize(executionContext);
 		// the per-owner formulas are outside the inner formula array, so they have to be initialized here
-		for (int i = 0; i < this.perOwnerFormulas.length; i++) {
-			this.perOwnerFormulas[i].initialize(executionContext);
+		for (final Formula perOwnerFormula : this.perOwnerFormulas) {
+			perOwnerFormula.initialize(executionContext);
 		}
 	}
 
@@ -141,9 +141,9 @@ public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 		final long[] result = new long[totalLength];
 		System.arraycopy(innerIds, 0, result, 0, innerIds.length);
 		int offset = innerIds.length;
-		for (int i = 0; i < perOwnerIds.length; i++) {
-			System.arraycopy(perOwnerIds[i], 0, result, offset, perOwnerIds[i].length);
-			offset += perOwnerIds[i].length;
+		for (final long[] perOwnerId : perOwnerIds) {
+			System.arraycopy(perOwnerId, 0, result, offset, perOwnerId.length);
+			offset += perOwnerId.length;
 		}
 		return result;
 	}
@@ -152,8 +152,8 @@ public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 	protected long getEstimatedBaseCost() {
 		// the per-owner formulas are not reached by the inner formula walk in getEstimatedCostInternal()
 		long cost = 0L;
-		for (int i = 0; i < this.perOwnerFormulas.length; i++) {
-			final long ownerCost = this.perOwnerFormulas[i].getEstimatedCost();
+		for (final Formula perOwnerFormula : this.perOwnerFormulas) {
+			final long ownerCost = perOwnerFormula.getEstimatedCost();
 			if (ownerCost > Long.MAX_VALUE - cost) {
 				return Long.MAX_VALUE;
 			}
@@ -165,8 +165,8 @@ public class ReferencedOwnerExistenceFormula extends AbstractFormula {
 	@Override
 	protected long getCostInternal() {
 		long cost = super.getCostInternal();
-		for (int i = 0; i < this.perOwnerFormulas.length; i++) {
-			cost += this.perOwnerFormulas[i].getCost();
+		for (final Formula perOwnerFormula : this.perOwnerFormulas) {
+			cost += perOwnerFormula.getCost();
 		}
 		return cost;
 	}

@@ -24,20 +24,19 @@
 package io.evitadb.core.query.filter.translator.reference;
 
 import io.evitadb.api.query.AttributeConstraint;
-import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.QueryUtils;
-import io.evitadb.api.query.order.ReferenceProperty;
 import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.api.query.order.ReferenceProperty;
 import io.evitadb.api.query.require.ReferenceContent;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
@@ -264,8 +263,23 @@ public class BidirectionalReferenceRewriter {
 		if (scopes.isEmpty()) {
 			return null;
 		}
-		// a reference allowing duplicate rows per (owner, referenced) pair is not supported - the reduced index
-		// families are shaped differently on the two ends there
+		// A duplicate-allowing cardinality is declined because the rewrite's ADDRESSING does not survive swapping the
+		// ends - not because such a relation is semantically un-rewritable.
+		//
+		// `QueryPlanningContext#getReducedEntityIndexes` resolves the ordinary case by a fully qualified key: the
+		// collection name plus `EntityIndexKey(REFERENCED_ENTITY, scope, RepresentativeReferenceKey(...))`. Naming the
+		// collection explicitly is what makes it end-agnostic, and it is exactly what lets this rewrite ask the
+		// *target* collection for the index holding one owner's rows.
+		//
+		// The duplicate branch is shaped differently. One (owner, referenced) pair maps to MANY reduced indexes - one
+		// per duplicate row - and they are addressed by index PRIMARY KEY: `ReferencedTypeEntityIndex
+		// #getAllReferenceIndexes` hands back an `int[]`, each entry resolved through `getEntityIndexByPrimaryKey`,
+		// which reads the per-context `indexesByPk` map and takes no collection argument. Those primary keys belong to
+		// the target collection's indexes while this context plans over the owner's, so the resolution would trip the
+		// premise check there or return an unrelated index that happens to share the number.
+		//
+		// Lifting this needs a collection-scoped by-PK lookup (`EntityCollection#getIndexByPrimaryKeyIfExists`); the
+		// ADR records it as a follow-up.
 		if (ownerReference.getCardinality().allowsDuplicates()) {
 			return null;
 		}
@@ -289,6 +303,8 @@ public class BidirectionalReferenceRewriter {
 			return null;
 		}
 		final ReferenceSchemaContract counterpart = counterpartRef.get();
+		// gated for the same reason as the owner end above - the rewrite reads THIS end's reduced indexes, and
+		// the duplicate branch addresses them by primary key through a map scoped to the owner's context
 		if (counterpart.getCardinality().allowsDuplicates()) {
 			return null;
 		}
@@ -473,8 +489,8 @@ public class BidirectionalReferenceRewriter {
 		final List<ReferenceProperty> referenceProperties = QueryUtils.findConstraints(
 			orderBy, ReferenceProperty.class
 		);
-		for (int i = 0; i < referenceProperties.size(); i++) {
-			if (referenceName.equals(referenceProperties.get(i).getReferenceName())) {
+		for (final ReferenceProperty referenceProperty : referenceProperties) {
+			if (referenceName.equals(referenceProperty.getReferenceName())) {
 				return true;
 			}
 		}
@@ -534,8 +550,8 @@ public class BidirectionalReferenceRewriter {
 			Collections.addAll(attributeNames, attributeConstraint.getAttributeNames());
 			return true;
 		}
-		if (constraint instanceof Or) {
-			final FilterConstraint[] children = ((ConstraintContainer<FilterConstraint>) constraint).getChildren();
+		if (constraint instanceof Or or) {
+			final FilterConstraint[] children = or.getChildren();
 			if (children.length == 0) {
 				return false;
 			}
@@ -597,8 +613,7 @@ public class BidirectionalReferenceRewriter {
 		if (reflected == null) {
 			return false;
 		}
-		for (int i = 0; i < attributeNames.size(); i++) {
-			final String attributeName = attributeNames.get(i);
+		for (final String attributeName : attributeNames) {
 			if (!isInherited(reflected, attributeName)) {
 				return false;
 			}
@@ -625,8 +640,8 @@ public class BidirectionalReferenceRewriter {
 	) {
 		final String[] inheritanceFilter = reflected.getAttributeInheritanceFilter();
 		boolean listed = false;
-		for (int i = 0; i < inheritanceFilter.length; i++) {
-			if (inheritanceFilter[i].equals(attributeName)) {
+		for (final String inheritedAttributeName : inheritanceFilter) {
+			if (inheritedAttributeName.equals(attributeName)) {
 				listed = true;
 				break;
 			}
@@ -879,7 +894,7 @@ public class BidirectionalReferenceRewriter {
 				continue;
 			}
 			final List<ReducedEntityIndex> ownerIndexes = List.copyOf(reusableIndexes);
-			if (attributeConstraints.isEmpty()) {
+			if (attributeConstraint == null) {
 				final Formula[] plainFormulas = new Formula[ownerIndexes.size()];
 				for (int j = 0; j < ownerIndexes.size(); j++) {
 					plainFormulas[j] = ownerIndexes.get(j).getAllPrimaryKeysFormula();

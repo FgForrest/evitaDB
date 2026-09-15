@@ -171,14 +171,13 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 		final Optional<Formula> rewritten = BidirectionalReferenceRewriter.tryRewrite(
 			referenceHaving, filterByVisitor, entitySchema, referenceSchema, processingScope
 		);
-		if (rewritten.isPresent()) {
-			return rewritten.get();
-		}
-
-		return applySearchOnIndexes(
-			referenceHaving, filterByVisitor, entitySchema, referenceSchema,
-			processingScope, referencedEntityIndexesSupplier
-		);
+		return rewritten
+			.orElseGet(
+				() -> applySearchOnIndexes(
+					referenceHaving, filterByVisitor, entitySchema, referenceSchema,
+					processingScope, referencedEntityIndexesSupplier
+				)
+			);
 	}
 
 }

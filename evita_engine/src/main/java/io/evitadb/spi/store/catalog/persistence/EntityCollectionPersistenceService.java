@@ -47,6 +47,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityStorag
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.OptionalInt;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
@@ -327,7 +328,7 @@ public non-sealed interface EntityCollectionPersistenceService<S extends Storage
 		@Nonnull Class<?> containerType,
 		long storagePartPk,
 		int sizeInBytes
-	) {
+	) implements Serializable {
 
 		/**
 		 * Empty set of records, for a composition that read nothing at all.

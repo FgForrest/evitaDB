@@ -145,7 +145,7 @@ public class QueryExecutionContext implements Closeable {
 	 * De-duplicates storage record reads for the duration of this execution - see {@link StorageAccessScope}.
 	 * Opened only for real executions; a planning context never reads entity bodies.
 	 */
-	private StorageAccessScope storageAccessScope;
+	@Nullable private StorageAccessScope storageAccessScope;
 	/**
 	 * The scope's counters as they stood when {@link #openStorageAccessScope()} ran. A nested execution **joins** the
 	 * scope the outer one opened rather than starting its own, so the counters it finds there already hold everything
