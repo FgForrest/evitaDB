@@ -538,6 +538,16 @@ public class GroupHavingReferenceFilterDisjointFunctionalTest {
 		}
 	}
 
+	/**
+	 * Covers a `groupHaving` nested inside a `referenceContent` filter - the reference-level path, which used to
+	 * resolve the group constraint against the wrong schema.
+	 *
+	 * This is deliberately **not** the cross-collection `getReducedGroupEntityIndexes` path that
+	 * `documentation/adr/2026-09-15-bidirectional-reference-counterpart-rewrite.md` still lists as untested: that one
+	 * is reachable only through a hierarchy filter carrying a `groupHaving`, and building a row for it needs a managed
+	 * group type on a reference reached through `hierarchyWithin` on another collection - a shape the fixture does not
+	 * have. Nothing here closes that gap.
+	 */
 	@Nested
 	@DisplayName("groupHaving inside a referenceContent filter")
 	class ReferenceContentGroupHaving {
