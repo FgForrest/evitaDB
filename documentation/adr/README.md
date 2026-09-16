@@ -51,7 +51,7 @@ filename date that disagrees with `date:`.
 | 2026-09-07 | [Equalized histograms bucket on the quantile function and report a kernel density, not a per-bucket ratio](2026-09-07-equalized-histogram-density-and-quantile-bucketing.md) | fix | accepted | #1501 |
 | 2026-09-07 | [A storage part declares which kind of data it holds, at registration, in a closed enum](2026-09-07-storage-part-classification.md) | feature | accepted | #1500 |
 | 2026-09-06 | [The engine-level go-live drains its catalog's sessions itself, and publishes the ALIVE bootstrap only behind that drain](2026-09-06-go-live-session-drain.md) | fix | accepted | #1495 |
-| 2026-09-05 | [Fold duplicate content requirements once per request, refuse the pairs that contradict, widen only the prefetch](2026-09-05-duplicate-content-requirements-reduction.md) | fix | accepted | #1493 |
+| 2026-09-05 | [Fold duplicate content requirements once per request, refuse the pairs that contradict, widen only the prefetch](2026-09-05-duplicate-content-requirements-reduction.md) | fix | accepted | #1493, PR #1499 |
 | 2026-09-04 | [Rank the index-footprint work on a production catalog, and take 4.2 GB out of its resident heap](2026-09-04-long-keyed-tree-content-sizing.md) | optimization | accepted | #1486, #1455 |
 | 2026-09-04 | [Cut every temporal value to whole milliseconds as it enters, and carry every temporal index key in one long column](2026-09-04-millisecond-temporal-precision.md) | feature | accepted | #1486 |
 | 2026-09-03 | [Size the value tree's leaf columns to their live content instead of adding a second array-backed representation](2026-09-03-content-sized-value-tree-columns.md) | optimization | accepted | #1486 |
