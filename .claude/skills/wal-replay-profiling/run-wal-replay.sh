@@ -29,11 +29,13 @@
 # Required env var: CATALOG_NAME - both PRISTINE_DIR and WAL_SOURCE_DIRS must contain a subfolder
 # with exactly this name.
 #
-# Everything is pinned to JDK 17 and the documented heap so runs stay comparable.
+# Everything is pinned to JDK 21 and the documented heap so runs stay comparable. Numbers recorded
+# before the Java 21 upgrade were taken on JDK 17 and are NOT directly comparable with runs from
+# this script - the jars now carry class-file 65 and will not start on a 17 JVM at all.
 set -euo pipefail
 
 ROOT=/www/oss/evita/evitaDB-dev
-JAVA=${JAVA_BIN:-${JAVA_HOME:-/usr/lib/jvm/java-17-openjdk-amd64}/bin/java}
+JAVA=${JAVA_BIN:-${JAVA_HOME:-/usr/lib/jvm/java-21-openjdk-amd64}/bin/java}
 JAR=$ROOT/evita_test/evita_performance_tests/target/benchmarks.jar
 PRISTINE=${PRISTINE_DIR:-$ROOT/backups/extracted/pristine}
 WALSRC=${WAL_SOURCE_DIRS:-$ROOT/backups/extracted/walsource_full}

@@ -45,7 +45,7 @@
 #   KEEP_WORK_DIR  keep the working dir after the run             (default false)
 #   SKIP_VERIFY    skip the post-load count verification          (default false)
 #   LOG_DIR        where the run log and GC log land
-#   JAVA_BIN       JVM to use                                     (default JDK 17)
+#   JAVA_BIN       JVM to use                                     (default JDK 21)
 #
 # Heap size is NOT a neutral knob: it feeds the collation-key cache's heap-derived default sizing, and
 # an undersized heap turns this workload GC-bound. Never compare two runs taken at different heaps.
@@ -71,7 +71,7 @@ HOLD_OPEN="${HOLD_OPEN:-0}"
 PER_ENTITY_CSV="${PER_ENTITY_CSV:-}"
 KEEP_WORK_DIR="${KEEP_WORK_DIR:-false}"
 SKIP_VERIFY="${SKIP_VERIFY:-false}"
-JAVA_BIN="${JAVA_BIN:-/usr/lib/jvm/java-17-openjdk-amd64/bin/java}"
+JAVA_BIN="${JAVA_BIN:-/usr/lib/jvm/java-21-openjdk-amd64/bin/java}"
 LOG_DIR="${LOG_DIR:-/var/tmp/evita-warmup-bench/runs/$(date +%Y%m%d-%H%M%S)}"
 
 if [[ -z "${TARGET:-}" ]]; then

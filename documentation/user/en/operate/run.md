@@ -8,8 +8,8 @@ author: 'Ing. Jan Novotný'
 proofreading: 'done'
 ---
 
-The Docker image is based on RedHat JDK / Linux (see <SourceClass>docker/Dockerfile</SourceClass>) base
-image (Fedora family) and is published to [Docker Hub](https://hub.docker.com/repository/docker/evitadb/evitadb/general).
+The Docker image is based on the Azul Zulu OpenJDK 21 image (see <SourceClass>docker/Dockerfile</SourceClass>)
+and is published to [Docker Hub](https://hub.docker.com/repository/docker/evitadb/evitadb/general).
 
 ### Install Docker
 
@@ -220,8 +220,8 @@ You can take advantage of all the following variables:
     </Thead>
     <Tbody>
         <Tr>
-            <Td>**`EVITA_CONFIG_FILE`**</Td>
-            <Td>Path to configuration file, default: `/evita/conf/evita-configuration.yaml`</Td>
+            <Td>**`EVITA_CONFIG_DIR`**</Td>
+            <Td>Path to the directory with configuration files, default: `/evita/conf/`</Td>
         </Tr>
         <Tr>
             <Td>**`EVITA_STRICT_CONFIG_FILE_CHECK`**</Td>
@@ -229,16 +229,24 @@ You can take advantage of all the following variables:
         </Tr>
         <Tr>
             <Td>**`EVITA_STORAGE_DIR`**</Td>
-            <Td>Path to storage directory, default: `/evita/data`</Td>
+            <Td>Path to storage directory, default: `/evita/data/`</Td>
+        </Tr>
+        <Tr>
+            <Td>**`EVITA_EXPORT_DIR`**</Td>
+            <Td>Path to export directory (temporary storage for backups and exports), default: `/evita/export/`</Td>
         </Tr>
         <Tr>
             <Td>**`EVITA_CERTIFICATE_DIR`**</Td>
-            <Td>Path to directory with automatically generated server certificates. Default: `/evita/certificates`</Td>
+            <Td>Path to directory with automatically generated server certificates. Default: `/evita/certificates/`</Td>
+        </Tr>
+        <Tr>
+            <Td>**`EVITA_LOG_FILE`**</Td>
+            <Td>Path to the Logback configuration file, default: `/evita/logback.xml`</Td>
         </Tr>
         <Tr>
             <Td>**`EVITA_JAVA_OPTS`**</Td>
             <Td>Java commandline arguments
-            (list of basic arguments [can be found here](https://docs.oracle.com/en/java/javase/17/docs/specs/man/java.html#overview-of-java-options)),
+            (list of basic arguments [can be found here](https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html#overview-of-java-options)),
             default: none (empty string)</Td>
         </Tr>
         <Tr>

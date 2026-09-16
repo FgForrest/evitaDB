@@ -41,7 +41,7 @@ import java.util.OptionalInt;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(callSuper = true)
-public class SetParentMutation extends ParentMutation {
+public final class SetParentMutation extends ParentMutation {
 	@Serial private static final long serialVersionUID = 8277337397634643354L;
 	/**
 	 * The parent primary key that needs to be set to the entity.

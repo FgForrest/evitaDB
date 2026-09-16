@@ -45,7 +45,8 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(exclude = "decisiveTimestamp")
-public abstract class PriceMutation implements LocalMutation<PriceContract, PriceKey> {
+public abstract sealed class PriceMutation implements LocalMutation<PriceContract, PriceKey>
+	permits RemovePriceMutation, UpsertPriceMutation {
 	@Serial private static final long serialVersionUID = 2424285135744614172L;
 	@Getter private final long decisiveTimestamp;
 	/**

@@ -34,6 +34,9 @@
 		<version>2026.3-SNAPSHOT</version>
 	</parent>
 	<properties>
+		<!-- Reachable from the Java driver: stays at the JDK 17 language and API level
+		     (see java.release in the root POM). -->
+		<java.release>${java.driver.release}</java.release>
 		<antlr4.version>4.13.2</antlr4.version>
 		<sonar.exclusions>src/main/java/io/evitadb/api/query/parser/grammar/**</sonar.exclusions>
 	</properties>

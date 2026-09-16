@@ -48,7 +48,7 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(exclude = "decisiveTimestamp")
-public class SetEntityScopeMutation implements LocalMutation<Scope, Scope> {
+public final class SetEntityScopeMutation implements LocalMutation<Scope, Scope> {
 	@Serial private static final long serialVersionUID = -8465670492875977978L;
 	@Getter private final long decisiveTimestamp;
 	/**

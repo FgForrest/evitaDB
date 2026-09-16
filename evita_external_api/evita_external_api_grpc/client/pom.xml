@@ -34,6 +34,11 @@
 		<version>2026.3-SNAPSHOT</version>
 		<relativePath>../../../pom.xml</relativePath>
 	</parent>
+	<properties>
+		<!-- Reachable from the Java driver: stays at the JDK 17 language and API level
+		     (see java.release in the root POM). -->
+		<java.release>${java.driver.release}</java.release>
+	</properties>
 	<dependencies>
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
@@ -154,6 +159,11 @@
 	</dependencies>
 	<build>
 		<plugins>
+			<plugin>
+				<!-- Inherits the enforceBytecodeVersion execution from the parent pluginManagement. -->
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-enforcer-plugin</artifactId>
+			</plugin>
 			<plugin>
 				<!-- Inherits version + execution + configuration from the parent pluginManagement. -->
 				<groupId>io.github.git-commit-id</groupId>

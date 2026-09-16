@@ -45,7 +45,7 @@ import java.util.Currency;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(callSuper = true)
-public class RemovePriceMutation extends PriceMutation {
+public final class RemovePriceMutation extends PriceMutation {
 	@Serial private static final long serialVersionUID = -1049985270997762455L;
 
 	public RemovePriceMutation(@Nonnull PriceKey priceKey) {

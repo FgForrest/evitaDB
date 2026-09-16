@@ -155,7 +155,15 @@ To checkout Git repository on Windows you need to have long paths enabled:
 git config --system core.longpaths true
 ```
 
-evitaDB requires and is tested on OpenJDK 17.
+evitaDB requires and is tested on OpenJDK 21.
+
+The Java driver is the exception: `evita_java_driver`, `evita_java_driver_observability` and
+`evita_java_driver_all_in_one` are compiled against the JDK 17 language and API level and run on JDK 17 or
+newer, so a client application does not have to move to JDK 21 together with the server. The modules the
+driver is built from (`evita_common`, `evita_query`, `evita_api` and the gRPC `shared` module) therefore
+stay at that level too - see the `java.release` property in the root `pom.xml`. The build enforces the floor for
+the driver's dependencies as well, and CI runs the shaded driver on a real JDK 17 against a JDK 21 server on every
+push and pull request; the same check runs locally with `tools/verify-driver-on-jdk.sh`.
 
 Java applications support multiple platforms depending on the
 [JRE/JDK vendor](https://wiki.openjdk.org/display/Build/Supported+Build+Platforms). All major hardware
@@ -176,7 +184,26 @@ mvn clean install
 
 **Maven setup**
 
-The build uses Maven toolchains to select the correct JDK version. You must have JDK 17 installed and configured in your Maven toolchains. You can find more information about Maven toolchains in the [Maven Documentation](https://maven.apache.org/guides/mini/guide-using-toolchains.html).
+The build uses Maven toolchains to select the correct JDK version. You must have JDK 21 installed and configured
+in your Maven toolchains. You can find more information about Maven toolchains in the
+[Maven Documentation](https://maven.apache.org/guides/mini/guide-using-toolchains.html).
+
+> [!IMPORTANT]
+> **Maven itself must run on JDK 21 - registering a 21 toolchain while leaving an older default JDK is not
+> enough.** evitaDB is a modular (JPMS) project, and `maven-archiver` assembles modular JARs with the
+> in-process `jar` tool of the JVM that Maven is running on. A toolchain redirects *forked* processes such
+> as `javac`, but it cannot redirect that in-process call. On an older host the build therefore fails at
+> packaging, after compilation has already succeeded, with:
+>
+> ```
+> Error assembling JAR: Could not create modular JAR file. The JDK jar tool exited with 1
+> ```
+>
+> Verify with `mvn -version` that the reported Java version is 21. Note the diagnostic trap: only `clean`
+> builds fail - otherwise the jar step can be skipped as up-to-date and the build appears to succeed.
+
+The toolchains setup below is still required: it is what `maven-compiler-plugin`, surefire and
+`maven-javadoc-plugin` use to select the JDK they run against.
 
 In short, you need `~/.m2/toolchains.xml` in your home directory next to `~/.m2/settings.xml`:
 
@@ -188,12 +215,12 @@ In short, you need `~/.m2/toolchains.xml` in your home directory next to `~/.m2/
   <toolchain>
     <type>jdk</type>
     <provides>
-      <version>17</version>
+      <version>21</version>
       <vendor>openjdk</vendor>
-      <id>jdk17</id>
+      <id>jdk21</id>
     </provides>
     <configuration>
-      <jdkHome>/path/to/your/jdk17/installation/directory</jdkHome>
+      <jdkHome>/path/to/your/jdk21/installation/directory</jdkHome>
     </configuration>
   </toolchain>
 </toolchains>
@@ -221,11 +248,12 @@ In short, you need `~/.m2/toolchains.xml` in your home directory next to `~/.m2/
   - **evita_external_api_core**: shared logic for all web APIs, Armeria HTTP server integration, and common utilities
   - **evita_external_api_graphql**: GraphQL API implementation
   - **evita_external_api_grpc**: gRPC API implementation
-    - **shared**: shared classes between gRPC server and Java client (generated gRPC stubs)
+    - **shared**: shared classes between gRPC server and Java client (generated gRPC stubs), JDK 17 level
     - **server**: gRPC server implementation
-    - **client**: Java driver for client/server usage scenario
-    - **client_observability**: Java driver observability capabilities (OpenTelemetry integration)
-    - **client_all_in_one**: Java driver with all dependencies shaded to avoid conflicts (larger JAR due to gRPC and Armeria dependencies)
+    - **client**: Java driver for client/server usage scenario, runs on JDK 17+
+    - **client_observability**: Java driver observability capabilities (OpenTelemetry integration), runs on JDK 17+
+    - **client_all_in_one**: Java driver with all dependencies shaded to avoid conflicts (larger JAR due to gRPC
+      and Armeria dependencies), runs on JDK 17+
   - **evita_external_api_rest**: REST API implementation with OpenAPI/Swagger support
   - **evita_external_api_system**: System API for server management and monitoring
   - **evita_external_api_lab**: evitaLab GUI client server support

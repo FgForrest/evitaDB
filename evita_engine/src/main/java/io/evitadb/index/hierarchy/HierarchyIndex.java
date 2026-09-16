@@ -1003,8 +1003,7 @@ public class HierarchyIndex
 			// the fragment carries real levels only when its top is an actual root; anything else leaves
 			// the distance to the top of the tree unknown, and an unknown depth is reported as such rather
 			// than replaced by a fragment-relative guess
-			final boolean chainReachesRoot = reachableChain.get(reachableChain.size() - 1)
-				.parentEntityPrimaryKey() == null;
+			final boolean chainReachesRoot = reachableChain.getLast().parentEntityPrimaryKey() == null;
 
 			// the visit phase replays the collected fragment instead of resolving the parent primary keys
 			// a second time, so neither phase can disagree with the other about where the fragment ends,

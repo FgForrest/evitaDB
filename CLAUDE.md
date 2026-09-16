@@ -5,7 +5,7 @@ evitaDB is an in-memory NoSQL database that acts as a fast secondary search/look
 ## Building
 
 - **CLI Build Tool**: Maven
-- **Java Version**: OpenJDK 17 (requires Maven toolchains configuration)
+- **Java Version**: OpenJDK 21 (requires Maven toolchains configuration)
 
 Build command:
 

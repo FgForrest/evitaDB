@@ -47,7 +47,7 @@ import java.util.Map;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(callSuper = true, exclude = "comparableKey")
-public class RemoveReferenceMutation extends ReferenceMutation<ComparableReferenceKey> {
+public final class RemoveReferenceMutation extends ReferenceMutation<ComparableReferenceKey> {
 	@Serial private static final long serialVersionUID = 6043892124186555883L;
 	/**
 	 * Full identification of the mutation that is used for sorting mutations.

@@ -842,8 +842,10 @@ class ProgressRecordTest implements EvitaTestSupport {
 
 		/**
 		 * Shuts the pool down after each test via the explicit `shutdownNow()`. `ExecutorService` implements
-		 * `AutoCloseable` only since JDK 19; evitaDB builds on OpenJDK 17, so an `instanceof AutoCloseable` guard
-		 * (as an earlier revision of this class used) would silently never fire and leak the pool.
+		 * `AutoCloseable` only since JDK 19, so an `instanceof AutoCloseable` guard (as an earlier revision of
+		 * this class used) never fired on OpenJDK 17 and merely leaked the pool. On OpenJDK 21 it fires, and
+		 * `ExecutorService#close` then blocks in `awaitTermination(1, DAYS)` without interrupting running
+		 * tasks - which hangs the surefire JVM outright for any test that abandons a parked task.
 		 */
 		@AfterEach
 		void tearDown() {

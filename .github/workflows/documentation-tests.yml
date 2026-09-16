@@ -28,12 +28,12 @@ jobs:
           echo "NEW_COMMIT_COUNT=$COMMIT_COUNT" >> $GITHUB_ENV
           echo "Commits found: $COMMIT_COUNT"
 
-      - name: Setup Java JDK   # this should setup JDK 17 but only if something was committed this day
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1  # setup JDK 17 for building
+      - name: Setup Java JDK   # this should setup JDK 21 but only if something was committed this day
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1  # setup JDK 21 for building
         if: ${{ env.NEW_COMMIT_COUNT != '0' }}
         with:
            distribution: 'temurin'
-           java-version: '17'
+           java-version: '21'
            cache: 'maven'
 
       - name: Documentation tests   # this run Maven tests but only if something was committed this day

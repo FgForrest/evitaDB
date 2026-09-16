@@ -98,8 +98,8 @@ public class NumberUtils {
 	public static byte convertToByte(@Nonnull Number number) {
 		if (number instanceof Byte) {
 			return (byte) number;
-		} else if (number instanceof BigDecimal) {
-			return ((BigDecimal) number).byteValueExact();
+		} else if (number instanceof BigDecimal bigDecimal) {
+			return bigDecimal.byteValueExact();
 		} else {
 			final byte converted = (byte) number.longValue();
 			if (number.longValue() != converted) {
@@ -115,8 +115,8 @@ public class NumberUtils {
 	public static short convertToShort(@Nonnull Number number) {
 		if (number instanceof Short) {
 			return (short) number;
-		} else if (number instanceof BigDecimal) {
-			return ((BigDecimal) number).shortValueExact();
+		} else if (number instanceof BigDecimal bigDecimal) {
+			return bigDecimal.shortValueExact();
 		} else {
 			final short converted = (short) number.longValue();
 			if (number.longValue() != converted) {
@@ -136,8 +136,8 @@ public class NumberUtils {
 			return ((short) number);
 		} else if (number instanceof Integer) {
 			return (int) number;
-		} else if (number instanceof BigDecimal) {
-			return ((BigDecimal) number).intValueExact();
+		} else if (number instanceof BigDecimal bigDecimal) {
+			return bigDecimal.intValueExact();
 		} else if (number instanceof Float) {
 			throw new ArithmeticException("Cannot convert float to integer exactly!");
 		} else if (number instanceof Double) {
@@ -189,8 +189,8 @@ public class NumberUtils {
 	 * Converts unknown number to {@link long}.
 	 */
 	public static long convertToLong(@Nonnull Number number) {
-		if (number instanceof BigDecimal) {
-			return ((BigDecimal) number).longValueExact();
+		if (number instanceof BigDecimal bigDecimal) {
+			return bigDecimal.longValueExact();
 		} else {
 			return number.longValue();
 		}
@@ -209,8 +209,8 @@ public class NumberUtils {
 			return new BigDecimal(number.toString());
 		} else if (number instanceof Long) {
 			return new BigDecimal(number.toString());
-		} else if (number instanceof BigDecimal) {
-			return ((BigDecimal) number);
+		} else if (number instanceof BigDecimal bigDecimal) {
+			return bigDecimal;
 		} else if (number instanceof Float) {
 			return new BigDecimal(number.toString());
 		} else if (number instanceof Double) {

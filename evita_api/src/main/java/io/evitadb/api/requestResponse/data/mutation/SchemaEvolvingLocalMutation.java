@@ -24,6 +24,14 @@
 package io.evitadb.api.requestResponse.data.mutation;
 
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDataSchemaEvolvingMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeSchemaEvolvingMutation;
+import io.evitadb.api.requestResponse.data.mutation.parent.ParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
+import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
@@ -41,7 +49,10 @@ import java.io.Serializable;
  */
 @Immutable
 @ThreadSafe
-public interface SchemaEvolvingLocalMutation<T, S extends Comparable<S>> extends LocalMutation<T, S> {
+public sealed interface SchemaEvolvingLocalMutation<T, S extends Comparable<S>> extends LocalMutation<T, S>
+	permits ParentMutation, SetPriceInnerRecordHandlingMutation, UpsertPriceMutation,
+	AttributeSchemaEvolvingMutation, AssociatedDataSchemaEvolvingMutation,
+	InsertReferenceMutation, ReferenceAttributeMutation, SetReferenceGroupMutation {
 
 	/**
 	 * Verifies mutation change against current entity schema known to evitaDB.

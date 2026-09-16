@@ -44,17 +44,13 @@ import io.evitadb.dataType.PlainChunk;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.EqualsAndHashCode;
-import one.edee.oss.proxycian.PredicateMethodClassification;
-import one.edee.oss.proxycian.bytebuddy.ByteBuddyDispatcherInvocationHandler;
-import one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator;
-import one.edee.oss.proxycian.util.ReflectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
-import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -68,8 +64,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static io.evitadb.utils.ArrayUtils.EMPTY_CLASS_ARRAY;
-import static io.evitadb.utils.ArrayUtils.EMPTY_OBJECT_ARRAY;
 import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 
@@ -150,49 +144,37 @@ public class References implements ReferencesContract {
 	private final ChunkTransformerAccessor referenceChunkTransformer;
 
 	/**
-	 * Creates a mock instance of reference contract that throws
-	 * on any method call, used as a marker for duplicate references.
+	 * Creates the marker instance of {@link ReferenceContract} that stands in for a duplicate reference. It is only
+	 * ever compared by identity, so a plain JDK proxy that throws on every contract method is all it needs to be.
+	 *
+	 * A generated (Byte Buddy) stub is deliberately not used here: this static initializer runs on every client that
+	 * reads an entity, and Proxycian is an optional dependency of this module - required only by the custom-contract
+	 * proxies - so a generated stub fails with {@link NoClassDefFoundError} on any classpath without it (the plain
+	 * driver's transitive set and the all-in-one jar included) and, on the server, needs `java.lang` opened to
+	 * Byte Buddy's reflective class injection.
 	 */
 	@Nonnull
 	private static ReferenceContract createThrowingStub() {
-		return ByteBuddyProxyGenerator.instantiate(
-			new ByteBuddyDispatcherInvocationHandler<>(
-				"DUPLICATE_REFERENCE_MARKER",
-				// special toString implementation
-				new PredicateMethodClassification<>(
-					"Object methods",
-					(method, proxyState) -> ReflectionUtils.isMethodDeclaredOn(method, Object.class, "toString"),
-					(method, state) -> null,
-					(proxy, method, args, methodContext, proxyState, invokeSuper) -> proxyState
-				),
-				// objects method must pass through
-				new PredicateMethodClassification<>(
-					"Object methods",
-					(method, proxyState) -> ReflectionUtils.isMatchingMethodPresentOn(method, Object.class),
-					(method, state) -> null,
-					(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
-						try {
-							return invokeSuper.call();
-						} catch (Exception e) {
-							throw new InvocationTargetException(e);
-						}
+		return (ReferenceContract) Proxy.newProxyInstance(
+			ReferenceContract.class.getClassLoader(),
+			new Class<?>[]{ReferenceContract.class},
+			(proxy, method, args) -> {
+				// the JDK proxy routes only `toString`, `hashCode` and `equals` of Object through the handler;
+				// they keep identity semantics, everything declared on the contract must never be called
+				if (method.getDeclaringClass() == Object.class) {
+					switch (method.getName()) {
+						case "toString":
+							return "DUPLICATE_REFERENCE_MARKER";
+						case "hashCode":
+							return System.identityHashCode(proxy);
+						case "equals":
+							return proxy == args[0];
+						default:
+							throw new UnsupportedOperationException("Not supposed to be called: " + method.getName());
 					}
-				),
-				// for all other methods we will throw the exception that the reference is not indexed
-				new PredicateMethodClassification<>(
-					"All other methods",
-					(method, proxyState) -> true,
-					(method, state) -> null,
-					(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
-						throw new UnsupportedOperationException("Not supposed to be called");
-					}
-				)
-			),
-			new Class<?>[]{
-				ReferenceContract.class
-			},
-			EMPTY_CLASS_ARRAY,
-			EMPTY_OBJECT_ARRAY
+				}
+				throw new UnsupportedOperationException("Not supposed to be called: " + method.getName());
+			}
 		);
 	}
 

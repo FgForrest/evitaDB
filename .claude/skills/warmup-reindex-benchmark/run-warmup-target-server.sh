@@ -32,7 +32,7 @@
 #   JDWP             expose a debug transport on 8005        (default false)
 #   RESET_DATA       wipe TARGET_DATA_DIR before starting    (default false)
 #   LOG_DIR          where the server + GC log and profile go
-#   JAVA_BIN         JVM to use                              (default JDK 17)
+#   JAVA_BIN         JVM to use                              (default JDK 21)
 
 set -euo pipefail
 
@@ -48,7 +48,7 @@ PROFILE="${PROFILE:-none}"
 AP_LIB="${AP_LIB:-}"
 JDWP="${JDWP:-false}"
 RESET_DATA="${RESET_DATA:-false}"
-JAVA_BIN="${JAVA_BIN:-/usr/lib/jvm/java-17-openjdk-amd64/bin/java}"
+JAVA_BIN="${JAVA_BIN:-/usr/lib/jvm/java-21-openjdk-amd64/bin/java}"
 LOG_DIR="${LOG_DIR:-/var/tmp/evita-warmup-bench/server/$(date +%Y%m%d-%H%M%S)}"
 
 if [[ ! -f "${SERVER_JAR}" ]]; then

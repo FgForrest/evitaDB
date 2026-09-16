@@ -209,7 +209,7 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 		} else {
 			effectiveTimeoutMillis = Long.MAX_VALUE;
 		}
-		return Math.min(Math.max(effectiveTimeoutMillis - 5000L, 1000L), 300000L);
+		return Math.clamp(effectiveTimeoutMillis - 5000L, 1000L, 300000L);
 	}
 
 	/**
