@@ -1,11 +1,11 @@
 ---
 title: Fold duplicate content requirements once per request, refuse the pairs that contradict, widen only the prefetch
 date: 2026-09-05
-updated: 2026-09-07 08:32
+updated: 2026-09-16 14:50
 status: accepted
 kind: fix
 issues: [1493]
-prs: []
+prs: [1499]
 areas: [evita_query/src/main/java/io/evitadb/api/query/require, evita_query/src/main/java/io/evitadb/api/query/visitor,
   evita_api/src/main/java/io/evitadb/api/requestResponse,
   evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/reference/producer,
