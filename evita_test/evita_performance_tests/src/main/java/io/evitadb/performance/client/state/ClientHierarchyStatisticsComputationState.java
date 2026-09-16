@@ -48,7 +48,7 @@ public abstract class ClientHierarchyStatisticsComputationState extends ClientDa
 	implements RandomQueryGenerator {
 
 	/**
-	 * Senesi entity type of product.
+	 * Entity type of product.
 	 */
 	public static final String PRODUCT_ENTITY_TYPE = "Product";
 	/**
