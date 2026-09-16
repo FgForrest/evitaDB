@@ -30,12 +30,14 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.test.TestConstants;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
@@ -99,6 +101,14 @@ class CacheAnteroomTest {
 				toConstantFormula(generateRandomNumbers(10, 20))
 			);
 		}
+	}
+
+	@AfterEach
+	void tearDown() throws IOException {
+		// the anteroom owns the eden, and closing it hands the eden's Flight Recorder periodic hook back.
+		// A hook left registered sits in a JVM-lifetime static and keeps this cache alive for the whole run -
+		// see documentation/adr/2026-09-14-closed-engine-resource-release.md
+		this.cacheAnteroom.close();
 	}
 
 	@Test

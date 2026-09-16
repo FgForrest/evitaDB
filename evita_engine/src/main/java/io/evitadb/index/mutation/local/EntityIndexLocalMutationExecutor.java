@@ -308,6 +308,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	@Nullable private List<Runnable> deferredExpressionReEvaluations;
 	/**
+	 * Memoized result of resolving the reduced indexes the entity being processed belongs to, valid for the
+	 * duration of one deferred re-evaluation phase. See {@link #getOrComputeOwnerReducedIndexes(Supplier)}.
+	 */
+	@Nullable private List<ReferenceIndexMutator.OwnerReducedIndex> deferredOwnerReducedIndexes;
+	/**
 	 * Pre-mutation entity attribute values captured during the container implicit-mutation phase (before index
 	 * updates) for use in cross-entity histogram trigger mutations. Keyed by attribute name → locale → raw value. Uses
 	 * `putIfAbsent` to capture only the true pre-mutation value when the same attribute is mutated
@@ -593,6 +598,33 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
+	 * Returns the reduced indexes the currently processed entity belongs to, computing them through
+	 * `factory` on first use and reusing that answer for the rest of the deferred phase.
+	 *
+	 * Every deferred re-evaluation queued for one entity runs inside a single
+	 * {@link #finishLocalMutationExecutionPhase()} call, after the storage write, so the entity's reference
+	 * set - and hence the set of reduced indexes holding it - is identical for all of them. Without this
+	 * memo each queued action re-walks every reference of the entity, which is quadratic in the number of
+	 * reference mutations: an entity carrying thirty conditionally faceted references walked its references
+	 * thirty times over.
+	 *
+	 * The memo is dropped at the end of each phase, so implicit mutations that add references in a later
+	 * phase get a freshly resolved list.
+	 *
+	 * @param factory computes the list when the memo is empty
+	 * @return the reduced indexes holding the entity being processed
+	 */
+	@Nonnull
+	public List<ReferenceIndexMutator.OwnerReducedIndex> getOrComputeOwnerReducedIndexes(
+		@Nonnull Supplier<List<ReferenceIndexMutator.OwnerReducedIndex>> factory
+	) {
+		if (this.deferredOwnerReducedIndexes == null) {
+			this.deferredOwnerReducedIndexes = factory.get();
+		}
+		return this.deferredOwnerReducedIndexes;
+	}
+
+	/**
 	 * Returns the local {@link FacetExpressionTrigger} for the given reference name and scope, or `null` if no
 	 * expression is defined for that combination. Delegates directly to the underlying supplier — the lookup is
 	 * O(1) (three map gets in {@link CatalogExpressionTriggerRegistry#getLocalTrigger}).
@@ -669,12 +701,20 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * attribute fires the trigger. This is safe over-firing: the target-side executor performs
 	 * idempotent operations, so unnecessary triggers result in a no-op rather than incorrect state.
 	 *
-	 * @param inputMutations list of local mutations that were applied
+	 * `implicitMutations` are the local mutations synthesised from `inputMutations` by
+	 * `ContainerizedLocalMutationExecutor#popImplicitMutations` — a defaulted attribute is as capable of
+	 * invalidating another collection's histogram as one the caller wrote. They are joined to the input list
+	 * only *after* the registry check, so a catalog that declares no expression trigger — the overwhelming
+	 * majority — pays no allocation for a feature it does not use.
+	 *
+	 * @param inputMutations    list of local mutations that were applied
+	 * @param implicitMutations local mutations derived from them, or `null` when none were generated
 	 * @return index mutations to dispatch to target collections
 	 */
 	@Nonnull
 	public IndexImplicitMutations popIndexImplicitMutations(
-		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations
+		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations,
+		@Nullable LocalMutation<?, ?>[] implicitMutations
 	) {
 		// early return if no registry
 		final CatalogExpressionTriggerRegistry registry = getCatalogExpressionTriggerRegistry();
@@ -689,7 +729,31 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		}
 
 		// branch: attribute change path — iterate input mutations directly
-		return buildAttributeChangeMutations(registry, entityPK, inputMutations);
+		return buildAttributeChangeMutations(
+			registry, entityPK, concatLocalMutations(inputMutations, implicitMutations)
+		);
+	}
+
+	/**
+	 * Joins a batch's root local mutations with the implicit ones derived from it. Returns `first` itself
+	 * when there is nothing to append, so the common case allocates nothing.
+	 *
+	 * @param first  the root batch's local mutations
+	 * @param second the implicit local mutations derived from it, or `null` when none were generated
+	 * @return the mutations trigger discovery should run over
+	 */
+	@Nonnull
+	private static List<? extends LocalMutation<?, ?>> concatLocalMutations(
+		@Nonnull List<? extends LocalMutation<?, ?>> first,
+		@Nullable LocalMutation<?, ?>[] second
+	) {
+		if (second == null || second.length == 0) {
+			return first;
+		}
+		final List<LocalMutation<?, ?>> combined = new ArrayList<>(first.size() + second.length);
+		combined.addAll(first);
+		combined.addAll(Arrays.asList(second));
+		return combined;
 	}
 
 	/**
@@ -909,11 +973,17 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	@Override
 	public void finishLocalMutationExecutionPhase() {
-		if (this.deferredExpressionReEvaluations != null && !this.deferredExpressionReEvaluations.isEmpty()) {
-			for (final Runnable action : this.deferredExpressionReEvaluations) {
-				action.run();
+		try {
+			if (this.deferredExpressionReEvaluations != null && !this.deferredExpressionReEvaluations.isEmpty()) {
+				for (final Runnable action : this.deferredExpressionReEvaluations) {
+					action.run();
+				}
+				this.deferredExpressionReEvaluations.clear();
 			}
-			this.deferredExpressionReEvaluations.clear();
+		} finally {
+			// dropped unconditionally: the next phase may see a different reference set, and a memo that
+			// outlived its entity would silently write facets into another entity's partitions
+			this.deferredOwnerReducedIndexes = null;
 		}
 	}
 
@@ -3563,10 +3633,21 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName
 		);
 		final EntityIndex groupTypeIndex = getIndexIfExists(groupTypeKey);
-		if (groupTypeIndex instanceof ReferencedTypeEntityIndex rtei) {
-			return rtei.getAllReferenceIndexes(groupPK);
+		// absence is legitimate - no owner has assigned a group to this reference yet
+		if (groupTypeIndex == null) {
+			return new int[0];
 		}
-		return new int[0];
+		// REFERENCED_GROUP_ENTITY_TYPE always resolves to a ReferencedTypeEntityIndex by
+		// construction - any other type is a programming error, and silently returning no
+		// partitions here would strand the group's reduced indexes with no diagnostic
+		if (!(groupTypeIndex instanceof ReferencedTypeEntityIndex rtei)) {
+			throw new GenericEvitaInternalError(
+				"Expected ReferencedTypeEntityIndex for REFERENCED_GROUP_ENTITY_TYPE key on " +
+					"reference `" + referenceName + "`, scope `" + scope + "`, got " +
+					groupTypeIndex.getClass().getName() + "."
+			);
+		}
+		return rtei.getAllReferenceIndexes(groupPK);
 	}
 
 	/**

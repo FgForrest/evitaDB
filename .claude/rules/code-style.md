@@ -14,7 +14,15 @@ paths:
 - **Data structures**: Prefer immutable classes / records for data structures
 - **Maps and sets**: create them through `io.evitadb.utils.CollectionUtils` — `createHashMap(n)`, `createLinkedHashMap(n)`, `createHashSet(n)`, `createLinkedHashSet(n)`, `createConcurrentHashMap(n)` — never `new HashMap<>(n)`. The JDK constructor takes a **bucket capacity**, not an expected element count, so `new HashMap<>(64)` rehashes once it passes 48 entries; the factories convert the count you actually know (`n / 0.75 + 1`) into the capacity the JDK wants. Two things are *not* covered and stay as they are: copy constructors (`new HashMap<>(otherMap)`), which the JDK already sizes from the source, and a genuinely unknown size, which stays `new HashMap<>()`.
 - **Annotations**: Automatically add `javax.annotation.Nullable` and `javax.annotation.Nonnull` annotations to method parameters and return types
-- **Optional as parameter**: `java.util.Optional` is permitted **only as a method return type**. Never declare it as a method parameter, constructor parameter, or field. For an optional input use a `@Nullable` reference instead; for optional state store the bare value and wrap it with `Optional.ofNullable(...)` at the read boundary. (`Optional` was designed to signal "no result" from a return, not to be passed around — boxing it into arguments adds allocation and an extra null-vs-empty axis.)
+- **Optional as parameter**: `java.util.Optional` is permitted **only as a method return type**, and as a local
+  variable holding one. Never declare it as a method parameter, constructor parameter, or field. A field pays a
+  wrapper object per instance for something `null` already expresses, and then drags it through every copy,
+  serializer and equality check on the class. An argument forces every caller to wrap while the parameter still
+  accepts `null` — a signature promising a guarantee it does not give. For an optional input use a `@Nullable`
+  reference instead; for optional state store the bare value and wrap it with `Optional.ofNullable(...)` at the
+  read boundary. The case that tempts a field is memoizing a nullable lookup, where `null` means *not computed*
+  and *absent* at once: do not separate them with an `Optional` field — recompute instead, and keep the scan
+  allocation-free. `ReferenceContent#getFilterBy` is the worked example.
 - **Local variables**: Use `final` for local variables
 - **Instance variables**: Use `this` for instance variables
 - **Type declarations**: Never use `var` - always use explicit types
@@ -22,6 +30,14 @@ paths:
 - **Resource management**: Use try-with-resources for all `AutoCloseable` resources wherever applicable
 - **Documentation**: Automatically add JavaDoc to all generated classes and methods
 - **Comments**: Add line comments to complex logic
+
+## Defensive Design
+
+- **Never silently skip unexpected states.** If a code path should be unreachable (e.g., an `else` after
+  exhaustive enum checks, a `default` in a switch over a closed enum), it must throw an exception
+  (`GenericEvitaInternalError` or equivalent) — never `continue`, `return`, `break`, or no-op.
+- Treat every unhandled enum value, unexpected type, or impossible branch as a programming error that must
+  surface immediately at runtime.
 
 ## Performance-Critical Code
 

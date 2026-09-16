@@ -39,6 +39,8 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -98,7 +100,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 * Consumer that is called when the publisher is closed. This can be used to perform
 	 * cleanup operations or notify other components that the publisher is no longer active.
 	 */
-	@Nonnull private final Consumer<ChangeCatalogCriteriaBundle> onClose;
+	@Nonnull private final Consumer<ChangeCatalogCaptureSharedPublisher> onClose;
 
 	/**
 	 * Map of active subscriptions, keyed by their unique identifier. This allows
@@ -156,6 +158,8 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 * @param bufferSize           the size of the ring buffer for storing recent changes
 	 * @param subscriberBufferSize the size of the buffer for each subscriber
 	 * @param criteria             the criteria used to filter mutations for this publisher
+	 * @param onNextConsumer       consumer invoked after a capture is sent to a subscriber
+	 * @param onClose              consumer invoked with this publisher when it closes
 	 */
 	public ChangeCatalogCaptureSharedPublisher(
 		@Nonnull Catalog catalog,
@@ -164,7 +168,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 		int subscriberBufferSize,
 		@Nonnull ChangeCatalogCriteriaBundle criteria,
 		@Nonnull Consumer<ChangeCatalogCapture> onNextConsumer,
-		@Nonnull Consumer<ChangeCatalogCriteriaBundle> onClose
+		@Nonnull Consumer<ChangeCatalogCaptureSharedPublisher> onClose
 	) {
 		this.currentCatalog = new AtomicReference<>(catalog);
 		this.cdcExecutor = cdcExecutor;
@@ -201,15 +205,93 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	}
 
 	/**
+	 * Releases every subscription that has already terminated but whose registration is still held here.
+	 *
+	 * A terminated subscription normally releases itself, but it does so by handing the work to the capture
+	 * executor, which refuses the submission both at shutdown and when its bounded queue is full. `finished` is
+	 * set by then, so nothing else ever runs for that subscription to retry: the entry stays in
+	 * {@link #subscribers} for the lifetime of the process, {@link #versionSubscribersCount} keeps its tracked
+	 * version, and the ring buffer can never be trimmed past it.
+	 *
+	 * This sweep is the guarantee behind that best-effort path. It is driven by the observer's periodic cleaner,
+	 * which runs on the scheduler - a ScheduledThreadPoolExecutor with an unbounded delay queue - so it cannot be
+	 * starved by the very saturation that causes the leak. It also runs off the delivery path, holding no
+	 * subscription lock - so unlike an inline release from a terminal signal it cannot reach this publisher's
+	 * lock from under one.
+	 *
+	 * Each release routes back through {@link #unsubscribe(UUID)}, so there is one implementation of the
+	 * bookkeeping rather than a second copy that can drift from it. That also means {@link
+	 * #checkSubscribersLeft()} runs once per released subscription; the caller still has to invoke it
+	 * explicitly afterwards, because a publisher whose map was already empty releases nothing here.
+	 */
+	public void cleanFinishedSubscriptions() {
+		for (Entry<UUID, DefaultChangeCaptureSubscription<ChangeCatalogCapture>> entry : this.subscribers.entrySet()) {
+			final UUID theSubscriptionId = entry.getKey();
+			try {
+				// The map is the authority, not the subscription's own flag. `releaseIfTerminated` reports that
+				// the subscription has terminated, not that this call was the one that released it - a release
+				// that ran earlier, or that this call just performed, has already unsubscribed through
+				// `onCancellation`. Re-checking the map is what keeps this from calling `unsubscribe` a second
+				// time for an entry that is already gone.
+				if (entry.getValue().releaseIfTerminated() && this.subscribers.containsKey(theSubscriptionId)) {
+					unsubscribe(theSubscriptionId);
+				}
+			} catch (Throwable releaseException) {
+				// one entry must not end the sweep. An escape would skip every later subscription and, through
+				// the observer's `removeIf`, every later publisher - and the cleaner driving this is scheduled
+				// exactly once at construction and pauses rather than re-plans when its task throws, so a single
+				// escape would remove this guarantee for the lifetime of the process.
+				log.error(
+					"Failed to release the terminated capture subscription `{}`.",
+					theSubscriptionId, releaseException
+				);
+			}
+		}
+	}
+
+	/**
 	 * Checks whether there is any subscriber left. If there are no subscribers, it closes the publisher.
 	 */
 	public void checkSubscribersLeft() {
 		// if no subscriber is left, close this publisher
-		if (this.subscribers.isEmpty()) {
-			close();
-		} else {
+		if (!closeIfNoSubscriberLeft()) {
 			clearUnusedDataInRingBuffer();
 		}
+	}
+
+	/**
+	 * Retires this publisher if, and only if, it still has no subscriber when the decision is made.
+	 *
+	 * The emptiness test and the transition to closed happen under the same lock that registration holds, so a
+	 * registration cannot slip in between them. Reading {@code subscribers.isEmpty()} outside that lock would
+	 * not do: a registration inside {@code computeIfAbsent} is invisible to it, so the cleaner would retire a
+	 * publisher that is about to have a live subscription installed in it.
+	 *
+	 * Nothing is cancelled here. The map was empty under the lock, so there is nothing to cancel - which is
+	 * what keeps this path free of the publisher to subscription lock edge that {@link #close()} avoids by
+	 * cancelling after it has let go of the lock.
+	 *
+	 * @return {@code true} if this publisher is retired - whether by this call or already
+	 */
+	private boolean closeIfNoSubscriberLeft() {
+		this.lock.lock();
+		try {
+			if (!this.subscribers.isEmpty()) {
+				return false;
+			}
+			if (!this.closed.compareAndSet(false, true)) {
+				return true;
+			}
+			this.versionSubscribersCount.clear();
+			if (this.lastCaptures != null) {
+				this.lastCaptures.clearAll();
+			}
+		} finally {
+			this.lock.unlock();
+		}
+		// notify that the publisher is closed
+		this.onClose.accept(this);
+		return true;
 	}
 
 	/**
@@ -266,17 +348,39 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 */
 	@Override
 	public void subscribe(Subscriber<? super ChangeCatalogCapture> subscriber) {
-		this.lock.lock();
-		try {
-			assertActive();
-			final long version = getCatalog().getVersion();
-			// Subscribe starting from the next version after the current catalog version
-			subscribe(
-				subscriber,
-				new WalPointerWithContent(version + 1, 0, ChangeCaptureContent.BODY)
+		final long version = getCatalog().getVersion();
+		// Subscribe starting from the next version after the current catalog version
+		subscribe(
+			subscriber,
+			new WalPointerWithContent(version + 1, 0, ChangeCaptureContent.BODY)
+		);
+	}
+
+	/**
+	 * Undoes a registration this publisher is refusing, without signalling the subscriber.
+	 *
+	 * Deliberately NOT {@code unsubscribe}. That cancels the subscription, and cancelling releases it, and the
+	 * release closes an {@link AutoCloseable} subscriber - which the gRPC one is, and whose {@code close()}
+	 * sends the client {@code UNAVAILABLE}. Rolling back that way would end the client's stream and then hand
+	 * the caller a refusal to retry on a renewed publisher, so the retry could never help: the subscriber it
+	 * retried with is already finalised. The subscriber was never given this subscription, so the retraction
+	 * simply takes the registration back.
+	 *
+	 * @param subscriptionId the identifier of the registration being withdrawn
+	 * @param subscription   the subscription that was installed for it
+	 */
+	private void retractRegistration(
+		@Nonnull UUID subscriptionId,
+		@Nonnull DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription
+	) {
+		subscription.retract();
+		if (this.subscribers.remove(subscriptionId) != null) {
+			subscription.releaseAccounting(
+				trackedVersion -> this.versionSubscribersCount.compute(
+					trackedVersion,
+					(version, count) -> count == null || count == 1 ? null : count - 1
+				)
 			);
-		} finally {
-			this.lock.unlock();
 		}
 	}
 
@@ -291,18 +395,41 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 * {@code false} if no subscription exists for the given ID
 	 */
 	public boolean unsubscribe(@Nonnull UUID subscriptionId) {
+		// The lookup stays a `get`, and only the caller that wins the later `remove` does the accounting. This
+		// method re-enters itself on the ordinary disconnect path: `cancel()` below releases the registration
+		// inline, and that release calls straight back in here. The inner call removes the entry and accounts for
+		// it, so a `remove` returning null in the outer one says the work is already done - decrementing a second
+		// time would drop a version slot a surviving subscriber still holds. The periodic sweep and an explicit
+		// cancel race in the same shape.
+		//
+		// It must also stay a `get` if a subscriber callback is ever invoked from inside the registering
+		// `computeIfAbsent` again. It no longer is - `subscribe` publishes the entry first and only then calls
+		// `DefaultChangeCaptureSubscription#activate()` - but removing a key whose mapping function is still
+		// running throws IllegalStateException("Recursive update") whenever that bin holds only the reservation,
+		// which for random UUID keys is nearly always (measured on JDK 17 and 21; `get` returns null in the same
+		// state), and the escape would leave a pinned version with no entry for the sweep to ever find.
 		final DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription = this.subscribers.get(subscriptionId);
 		if (subscription != null) {
 			if (!subscription.isFinished()) {
 				subscription.cancel();
 			}
-			this.subscribers.remove(subscriptionId);
-			// decrement the subscriber count for the version
-			this.versionSubscribersCount.compute(
-				subscription.getTrackedVersion(),
-				(version, count) -> count == null || count == 1 ? null : count - 1
-			);
-			checkSubscribersLeft();
+			// Only the caller that actually removes the mapping does the accounting. `cancel()` above releases
+			// inline and the release calls back into this method, so on the ordinary disconnect path the
+			// re-entrant call removes the entry and accounts for it; `remove` returning null here says it
+			// already did, and a second decrement would drop a version slot a surviving subscriber still holds.
+			if (this.subscribers.remove(subscriptionId) != null) {
+				// give back this subscription's single unit of version accounting. The subscription reports the
+				// version it actually holds and locks out any fill still in flight from moving it afterwards - a
+				// move landing after this decrement would take the slot of a subscriber still sitting on it, and
+				// the lowest key of this map is the only thing stopping the ring buffer being trimmed past it.
+				subscription.releaseAccounting(
+					trackedVersion -> this.versionSubscribersCount.compute(
+						trackedVersion,
+						(version, count) -> count == null || count == 1 ? null : count - 1
+					)
+				);
+				checkSubscribersLeft();
+			}
 			return true;
 		} else {
 			return false;
@@ -316,24 +443,33 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 */
 	@Override
 	public void close() {
+		final List<DefaultChangeCaptureSubscription<ChangeCatalogCapture>> subscriptionsToCancel;
 		this.lock.lock();
 		try {
 			// Atomically set the closed flag to true if it was false
-			if (this.closed.compareAndSet(false, true)) {
-				this.versionSubscribersCount.clear();
-				if (this.lastCaptures != null) {
-					this.lastCaptures.clearAll();
-				}
-				// cancel all subscriptions
-				for (DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription : this.subscribers.values()) {
-					subscription.cancel();
-				}
-				// notify that the publisher is closed
-				this.onClose.accept(this.criteria);
+			if (!this.closed.compareAndSet(false, true)) {
+				return;
 			}
+			this.versionSubscribersCount.clear();
+			if (this.lastCaptures != null) {
+				this.lastCaptures.clearAll();
+			}
+			subscriptionsToCancel = new ArrayList<>(this.subscribers.values());
 		} finally {
 			this.lock.unlock();
 		}
+		// Cancelling happens outside the lock on purpose, so this publisher never holds its own lock while
+		// entering a subscription. The reverse direction does occur: a terminal signal raised under a
+		// subscription's delivery lock reaches `unsubscribe` and from there `checkSubscribersLeft()`, which takes
+		// this lock. That only happens when the capture executor runs the release inline - which the
+		// `ImmediateExecutorService` the functional suite boots with does, on every release - because
+		// `releaseRegistrationLater()` otherwise hands it to another thread. Keeping the cancel loop outside the
+		// lock means the two directions never both exist, whichever executor is installed.
+		for (DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription : subscriptionsToCancel) {
+			subscription.cancel();
+		}
+		// notify that the publisher is closed
+		this.onClose.accept(this);
 	}
 
 	/**
@@ -406,39 +542,107 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 * @throws InstanceTerminatedException if the publisher is closed
 	 */
 	@Nonnull
-	DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscribe(@Nonnull Subscriber<? super ChangeCatalogCapture> subscriber, @Nonnull WalPointerWithContent specification) {
-		assertActive();
+	DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscribe(
+		@Nonnull Subscriber<? super ChangeCatalogCapture> subscriber,
+		@Nonnull WalPointerWithContent specification
+	) {
+		return trySubscribe(subscriber, specification)
+			.orElseThrow(() -> new InstanceTerminatedException("CDC shared publisher"));
+	}
+
+	/**
+	 * Attempts to register and activate a subscriber, explicitly reporting a publisher-retirement refusal as an
+	 * empty result. An exception thrown by the subscriber's own {@code onSubscribe} is propagated and can therefore
+	 * never be mistaken for a pre-activation refusal.
+	 *
+	 * @param subscriber    the subscriber that will receive the change catalog captures
+	 * @param specification the WAL pointer and content specification indicating where to start capturing changes
+	 * @return the activated subscription, or an empty result when this publisher refused registration because it
+	 *         was retired before activation
+	 */
+	@Nonnull
+	Optional<DefaultChangeCaptureSubscription<ChangeCatalogCapture>> trySubscribe(
+		@Nonnull Subscriber<? super ChangeCatalogCapture> subscriber,
+		@Nonnull WalPointerWithContent specification
+	) {
 		UUID subscriberId;
 		DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription;
 		final AtomicBoolean created = new AtomicBoolean(false);
 		final Catalog catalogBeforeInsertion = this.currentCatalog.get();
-		// Keep trying until we successfully create a subscription with a unique ID
-		do {
-			subscriberId = UUIDUtil.randomUUID();
-			subscription = this.subscribers.computeIfAbsent(
-				subscriberId,
-				uuid -> {
-					created.set(true);
-					// optimization - we track number of subscribers for each version
-					// to know when we can safely discard older versions
-					this.versionSubscribersCount.compute(
-						specification.version(),
-						(version, count) -> count == null ? 1 : count + 1
-					);
-					// this is a costly operation since it allocates a buffer
-					return new DefaultChangeCaptureSubscription<>(
-						uuid,
-						this.subscriberBufferSize,
-						specification,
-						subscriber,
-						this.cdcExecutor,
-						this::fillBuffer,
-						this.onNextConsumer,
-						this::unsubscribe
-					);
-				}
-			);
-		} while (!created.get());
+		// Registration and retirement take this publisher's lock, so one of them always sees the other. A
+		// registration still inside `computeIfAbsent` is invisible to every read of the map - `isEmpty()`,
+		// `size()`, `containsKey()` and the entry iterator all skip the reservation until the mapping function
+		// returns (measured on JDK 17 and 21). Keeping both the active check and insertion under this lock prevents
+		// the observer's cleaner from retiring the publisher between them, after which `processMutation` would never
+		// reach the new subscription and a client would wait forever on a subscribe call that reported success.
+		//
+		// Nothing inside the mapping function calls user code or takes a subscription's delivery lock, and
+		// `activate()` is deliberately left outside this block, so holding the lock here adds no
+		// publisher -> subscription edge. The retraction below reaches only the subscription's accounting lock,
+		// which is a leaf.
+		this.lock.lock();
+		try {
+			if (this.closed.get()) {
+				return Optional.empty();
+			}
+			// Keep trying until we successfully create a subscription with a unique ID
+			do {
+				subscriberId = UUIDUtil.randomUUID();
+				subscription = this.subscribers.computeIfAbsent(
+					subscriberId,
+					uuid -> {
+						created.set(true);
+						// Construct first: ArrayBlockingQueue rejects a non-positive capacity, and a constructor
+						// failure must leave no version accounting behind without a map entry that can release it.
+						final DefaultChangeCaptureSubscription<ChangeCatalogCapture> newSubscription =
+							new DefaultChangeCaptureSubscription<>(
+								uuid,
+								this.subscriberBufferSize,
+								specification,
+								subscriber,
+								this.cdcExecutor,
+								this::fillBuffer,
+								this.onNextConsumer,
+								this::unsubscribe
+							);
+						// optimization - we track number of subscribers for each version
+						// to know when we can safely discard older versions
+						this.versionSubscribersCount.compute(
+							specification.version(),
+							(version, count) -> count == null ? 1 : count + 1
+						);
+						return newSubscription;
+					}
+				);
+			} while (!created.get());
+
+			// Defence-in-depth re-check retained for future changes to registration, and for the test seam that retires
+			// this publisher from inside the locked registration. Taking the registration back is cheaper than holding
+			// the lock across `activate()`, which calls subscriber code. `ChangeCatalogCapturePublisher#subscribe`
+			// renews the publisher only for this explicit empty result.
+			if (this.closed.get()) {
+				retractRegistration(subscriberId, subscription);
+				return Optional.empty();
+			}
+		} finally {
+			this.lock.unlock();
+		}
+
+		// Hand the subscription to the subscriber only now that its entry is published - see
+		// DefaultChangeCaptureSubscription#activate(). Calling `onSubscribe` from the constructor ran subscriber
+		// code inside the `computeIfAbsent` above, so a throw escaped it with the version slot already
+		// incremented and no entry installed for the periodic sweep to ever find. Rolling back through
+		// `unsubscribe` keeps one implementation of that bookkeeping rather than a second copy here.
+		try {
+			subscription.activate();
+		} catch (Throwable activationException) {
+			try {
+				unsubscribe(subscriberId);
+			} catch (Throwable rollbackException) {
+				activationException.addSuppressed(rollbackException);
+			}
+			throw activationException;
+		}
 
 		final Catalog catalogAfterInsertion = this.currentCatalog.get();
 		if (catalogBeforeInsertion.getVersion() != catalogAfterInsertion.getVersion()) {
@@ -446,7 +650,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 			subscription.notifySubscriber();
 		}
 
-		return subscription;
+		return Optional.of(subscription);
 	}
 
 	/**

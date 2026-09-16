@@ -85,6 +85,12 @@ public interface ReferenceFetcher extends ReferenceSetFetcher {
 			return Functions.noOpFunction();
 		}
 
+		@Override
+		public boolean mayCarryGroupBodies(@Nonnull ReferenceSchemaContract referenceSchema) {
+			// this implementation prefetches nothing at all
+			return false;
+		}
+
 		@Nonnull
 		@Override
 		public ReferenceComparator getEntityComparator(@Nonnull ReferenceSchemaContract referenceSchema) {

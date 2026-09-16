@@ -148,9 +148,11 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 					// (a) The flush failed: `Catalog#flush` has already called `markUnpublishable` and scheduled a
 					// deactivation, so the restored catalog serves readers while every write and every flush refuses
 					// with `CatalogUnpublishableException` - which is what happens after any other warm-up flush
-					// failure - and the deactivation settles the name. Should that mutation lose the conflict-key race
-					// against this operation's own finalization it is logged and not retried, and the catalog then
-					// stays published and refusing, which is the property `Catalog#scheduleDeactivation` guarantees.
+					// failure - and the deactivation settles the name. That mutation loses the conflict-key race
+					// against this operation's own finalization, which is exactly the case `Catalog#scheduleDeactivation`
+					// retries: the key is released as this operation finalizes and a later attempt takes it. Should
+					// every attempt lose it, the failure is logged and the catalog stays published and refusing, which
+					// is the property that method guarantees whether or not the deactivation ever lands.
 					// (b) The ALIVE bootstrap is published but the new instance never reached `aliveCatalog`, and two
 					// failures land in it. `goLive()` itself threw past `persistenceService.goLive(1L)`: its own catch
 					// has already recorded the unpublishable cause and scheduled the deactivation, so the restored
@@ -263,6 +265,23 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 				// CALIBRATION - the give-up path of this drain is swept by `LongRunningCatalogGoLiveDrainTimeoutTest`;
 				// `SessionRegistry#DRAIN_GIVE_UP_TIMEOUT_MILLIS` carries the full statement.
 				sessionRegistry.ifPresent(it -> it.closeAllActiveSessionsAndSuspend(SuspendOperation.REJECT));
+
+				// A warm-up catalog whose schema does not validate must not go live, and this is the last place that
+				// can say so: the flush below publishes, and `goLive()` after it publishes the ALIVE bootstrap
+				// record. An ordinary warm-up session close refuses exactly this state - but the session-driven
+				// go-live never reaches that check, because `EvitaSession#goLiveAndCloseWithProgress` terminates its
+				// own session through `executeTerminationSteps` rather than through `closeInternal`, where the
+				// validation lives. All three go-live entry points funnel through this operator, so the check sits
+				// here, ahead of the first publication, and raises the same barrier an ordinary close would.
+				// caught as the whole `EvitaInvalidUsageException` family for the same reason, and with the same
+				// caveat, as the warm-up close in `EvitaSession#closeInternal`: `validate()` refuses in two
+				// vocabularies, and only the narrower one is a `SchemaAlteringException`
+				try {
+					theCatalog.getSchema().validate();
+				} catch (EvitaInvalidUsageException ex) {
+					theCatalog.markUnpublishableDueToInvalidSchema(ex);
+					throw ex;
+				}
 
 				final CatalogGoesLiveEvent event = new CatalogGoesLiveEvent(catalogName);
 				return new ProgressingFuture<>(

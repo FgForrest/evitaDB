@@ -1,18 +1,24 @@
 ---
 title: Route release cuts through workflow_dispatch on the release_* branch, not workflow_run from master
 date: 2026-08-02
-updated: 2026-08-02 23:05
-status: accepted
+updated: 2026-09-15 21:45
+status: superseded
 kind: infrastructure
 issues: [1359, 1362]
 prs: []
 areas: [.github/workflows]
 supersedes: []
-superseded-by: []
+superseded-by: [2026-09-15-release-branch-pushes-as-a-github-app]
 relates: []
 ---
 
 # Route release cuts through workflow_dispatch on the release_* branch, not workflow_run from master
+
+*Superseded in part by `2026-09-15-release-branch-pushes-as-a-github-app`: the `workflow_dispatch`
+hand-off from `ci-master.yml` (Option A below) was replaced by pushes authored as a GitHub App once
+the `Protected branches` ruleset started rejecting `GITHUB_TOKEN` pushes to `release_*`. The
+tag-scanning version resolution, the `MAKE_LATEST` fix and the explicit DockerHub-deploy dispatch
+described here still stand.*
 
 `CI Master branch` no longer hands off to `CI Release branch` via a `workflow_run` trigger. It now
 fast-forwards (or creates) the target `release_*` branch as before, then explicitly dispatches

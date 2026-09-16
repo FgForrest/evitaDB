@@ -375,7 +375,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 
 		final UpsertAttributeMutation mutation = new UpsertAttributeMutation("inputWidgetType", "RADIO");
 		executor.applyMutation(mutation);
-		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation));
+		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation), null);
 
 		assertEquals(1, result.indexMutations().length);
 		final EntityIndexMutation envelope = result.indexMutations()[0];
@@ -405,7 +405,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 
 		final UpsertAttributeMutation mutation = new UpsertAttributeMutation("inputWidgetType", "CHECKBOX");
 		executor.applyMutation(mutation);
-		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation));
+		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation), null);
 
 		assertEquals(1, result.indexMutations().length);
 	}
@@ -426,7 +426,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 
 		final RemoveAttributeMutation mutation = new RemoveAttributeMutation("inputWidgetType");
 		executor.applyMutation(mutation);
-		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation));
+		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation), null);
 
 		assertEquals(1, result.indexMutations().length);
 	}
@@ -450,7 +450,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 		final ApplyDeltaAttributeMutation<Integer> mutation = new ApplyDeltaAttributeMutation<>("priority", 3);
 		executor.applyMutation(mutation);
 		final List<LocalMutation<?, ?>> mutations = List.of(mutation);
-		final IndexImplicitMutations result = executor.popIndexImplicitMutations(mutations);
+		final IndexImplicitMutations result = executor.popIndexImplicitMutations(mutations, null);
 
 		assertEquals(1, result.indexMutations().length);
 	}
@@ -472,7 +472,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 		final ApplyDeltaAttributeMutation<Integer> mutation = new ApplyDeltaAttributeMutation<>("priority", 0);
 		executor.applyMutation(mutation);
 		final List<LocalMutation<?, ?>> mutations = List.of(mutation);
-		final IndexImplicitMutations result = executor.popIndexImplicitMutations(mutations);
+		final IndexImplicitMutations result = executor.popIndexImplicitMutations(mutations, null);
 
 		assertEquals(1, result.indexMutations().length);
 	}
@@ -490,7 +490,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 
 		final UpsertAttributeMutation mutation = new UpsertAttributeMutation("inputWidgetType", "RADIO");
 		executor.applyMutation(mutation);
-		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation));
+		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation), null);
 
 		assertEquals(0, result.indexMutations().length);
 	}
@@ -512,7 +512,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 		// "code" is NOT in the trigger's dependentAttributes — should not fire
 		final UpsertAttributeMutation mutation = new UpsertAttributeMutation("code", "NEW_CODE");
 		executor.applyMutation(mutation);
-		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation));
+		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation), null);
 
 		assertEquals(0, result.indexMutations().length);
 	}
@@ -538,7 +538,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 
 		final UpsertAttributeMutation mutation = new UpsertAttributeMutation("status", "INACTIVE");
 		executor.applyMutation(mutation);
-		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation));
+		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation), null);
 
 		int totalMutations = 0;
 		for (final EntityIndexMutation envelope : result.indexMutations()) {
@@ -570,7 +570,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 
 		final UpsertAttributeMutation mutation = new UpsertAttributeMutation("inputWidgetType", "RADIO");
 		executor.applyMutation(mutation);
-		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation));
+		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation), null);
 
 		assertEquals(1, result.indexMutations().length);
 		assertEquals(TARGET_ENTITY_TYPE, result.indexMutations()[0].entityType());
@@ -601,7 +601,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 
 		final UpsertAttributeMutation mutation = new UpsertAttributeMutation("inputWidgetType", "RADIO");
 		executor.applyMutation(mutation);
-		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation));
+		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation), null);
 
 		assertEquals(2, result.indexMutations().length);
 	}
@@ -628,7 +628,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(
 			new UpsertAttributeMutation("inputWidgetType", "RADIO"),
 			new UpsertAttributeMutation("inputWidgetType", "DROPDOWN")
-		));
+		), null);
 
 		// single trigger firing despite two mutations
 		assertEquals(1, result.indexMutations().length);
@@ -654,7 +654,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 		final UpsertAttributeMutation attrMutation = new UpsertAttributeMutation("inputWidgetType", "RADIO");
 		final UpsertAssociatedDataMutation assocMutation = new UpsertAssociatedDataMutation("description", "test");
 		executor.applyMutation(attrMutation);
-		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(attrMutation, assocMutation));
+		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(attrMutation, assocMutation), null);
 
 		// only the attribute mutation fires a trigger — the associated data mutation is silently skipped
 		assertEquals(1, result.indexMutations().length);
@@ -687,7 +687,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 		executor.applyMutation(widgetMutation);
 		executor.applyMutation(statusMutation);
 		final IndexImplicitMutations result =
-			executor.popIndexImplicitMutations(List.of(widgetMutation, statusMutation));
+			executor.popIndexImplicitMutations(List.of(widgetMutation, statusMutation), null);
 
 		// both triggers fire — deduplication is per-attribute, not per-batch
 		int totalMutations = 0;
@@ -709,7 +709,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 
 		final UpsertAttributeMutation mutation = new UpsertAttributeMutation("inputWidgetType", "RADIO");
 		executor.applyMutation(mutation);
-		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation));
+		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation), null);
 
 		assertEquals(0, result.indexMutations().length);
 	}
@@ -725,7 +725,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 
 		final UpsertAttributeMutation mutation = new UpsertAttributeMutation("inputWidgetType", "RADIO");
 		executor.applyMutation(mutation);
-		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation));
+		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation), null);
 
 		assertEquals(0, result.indexMutations().length);
 	}
@@ -748,7 +748,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 
 		final UpsertAttributeMutation mutation = new UpsertAttributeMutation("inputWidgetType", "RADIO");
 		executor.applyMutation(mutation);
-		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation));
+		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation), null);
 
 		final ReevaluateExpressionMutation facetMutation =
 			(ReevaluateExpressionMutation) result.indexMutations()[0].mutations()[0];
@@ -774,11 +774,11 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 		// first batch: triggers fire
 		final UpsertAttributeMutation mutation1 = new UpsertAttributeMutation("inputWidgetType", "RADIO");
 		executor.applyMutation(mutation1);
-		final IndexImplicitMutations result1 = executor.popIndexImplicitMutations(List.of(mutation1));
+		final IndexImplicitMutations result1 = executor.popIndexImplicitMutations(List.of(mutation1), null);
 		assertEquals(1, result1.indexMutations().length);
 
 		// second pop with empty input: no triggers
-		final IndexImplicitMutations result2 = executor.popIndexImplicitMutations(Collections.emptyList());
+		final IndexImplicitMutations result2 = executor.popIndexImplicitMutations(Collections.emptyList(), null);
 		assertEquals(0, result2.indexMutations().length);
 	}
 
@@ -793,7 +793,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 		final CatalogExpressionTriggerRegistry registry = CatalogExpressionTriggerRegistry.EMPTY;
 		final EntityIndexLocalMutationExecutor executor = createExecutor(accessor, () -> registry);
 
-		final IndexImplicitMutations result = executor.popIndexImplicitMutations(Collections.emptyList());
+		final IndexImplicitMutations result = executor.popIndexImplicitMutations(Collections.emptyList(), null);
 
 		assertEquals(0, result.indexMutations().length);
 	}
@@ -821,7 +821,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 		final EntityIndexLocalMutationExecutor executor = createExecutor(accessor, () -> registry);
 
 		// no applyMutation() needed — removal bypasses per-attribute scanning
-		final IndexImplicitMutations result = executor.popIndexImplicitMutations(Collections.emptyList());
+		final IndexImplicitMutations result = executor.popIndexImplicitMutations(Collections.emptyList(), null);
 
 		assertEquals(1, result.indexMutations().length);
 		final EntityIndexMutation envelope = result.indexMutations()[0];
@@ -839,7 +839,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 		final CatalogExpressionTriggerRegistry registry = CatalogExpressionTriggerRegistry.EMPTY;
 		final EntityIndexLocalMutationExecutor executor = createExecutor(accessor, () -> registry);
 
-		final IndexImplicitMutations result = executor.popIndexImplicitMutations(Collections.emptyList());
+		final IndexImplicitMutations result = executor.popIndexImplicitMutations(Collections.emptyList(), null);
 
 		assertEquals(0, result.indexMutations().length);
 	}
@@ -853,7 +853,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 
 		final EntityIndexLocalMutationExecutor executor = createExecutor(accessor, null);
 
-		final IndexImplicitMutations result = executor.popIndexImplicitMutations(Collections.emptyList());
+		final IndexImplicitMutations result = executor.popIndexImplicitMutations(Collections.emptyList(), null);
 
 		assertEquals(0, result.indexMutations().length);
 	}
@@ -882,7 +882,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			.rebuildForEntityType("offer", List.of(offerTrigger));
 		final EntityIndexLocalMutationExecutor executor = createExecutor(accessor, () -> registry);
 
-		final IndexImplicitMutations result = executor.popIndexImplicitMutations(Collections.emptyList());
+		final IndexImplicitMutations result = executor.popIndexImplicitMutations(Collections.emptyList(), null);
 
 		assertEquals(2, result.indexMutations().length);
 	}
@@ -903,7 +903,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 		final CatalogExpressionTriggerRegistry registry = buildRegistry(TARGET_ENTITY_TYPE, trigger);
 		final EntityIndexLocalMutationExecutor executor = createExecutor(accessor, () -> registry, customPK);
 
-		final IndexImplicitMutations result = executor.popIndexImplicitMutations(Collections.emptyList());
+		final IndexImplicitMutations result = executor.popIndexImplicitMutations(Collections.emptyList(), null);
 
 		assertEquals(1, result.indexMutations().length);
 		final ReevaluateExpressionMutation facetMutation =
@@ -935,7 +935,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 
 		final UpsertAttributeMutation mutation = new UpsertAttributeMutation("inputWidgetType", "RADIO");
 		executor.applyMutation(mutation);
-		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation));
+		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation), null);
 
 		// both triggers fire — same target entity type, so grouped into one envelope with two mutations
 		assertEquals(1, result.indexMutations().length);
@@ -976,7 +976,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			REFERENCE_NAME, 1, new UpsertAttributeMutation("status", "ACTIVE")
 		);
 		final IndexImplicitMutations result =
-			executor.popIndexImplicitMutations(List.of(refAttrMutation));
+			executor.popIndexImplicitMutations(List.of(refAttrMutation), null);
 
 		assertEquals(0, result.indexMutations().length);
 	}
@@ -997,7 +997,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 		final RemovePriceMutation priceMutation =
 			new RemovePriceMutation(1, "basic", Currency.getInstance("USD"));
 		final IndexImplicitMutations result =
-			executor.popIndexImplicitMutations(List.of(priceMutation));
+			executor.popIndexImplicitMutations(List.of(priceMutation), null);
 
 		assertEquals(0, result.indexMutations().length);
 	}
@@ -1017,7 +1017,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 
 		final SetParentMutation parentMutation = new SetParentMutation(10);
 		final IndexImplicitMutations result =
-			executor.popIndexImplicitMutations(List.of(parentMutation));
+			executor.popIndexImplicitMutations(List.of(parentMutation), null);
 
 		assertEquals(0, result.indexMutations().length);
 	}
@@ -1037,7 +1037,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 
 		final SetEntityScopeMutation scopeMutation = new SetEntityScopeMutation(Scope.ARCHIVED);
 		final IndexImplicitMutations result =
-			executor.popIndexImplicitMutations(List.of(scopeMutation));
+			executor.popIndexImplicitMutations(List.of(scopeMutation), null);
 
 		// scope changes affect entity visibility — all cross-entity triggers must fire
 		// to re-evaluate histogram/facet entries in both old and new scope
@@ -1172,7 +1172,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 
 			// verify the mutation was processed without errors (no NPE, no evaluation attempted)
 			// the source-side detection still works independently via the registry supplier
-			final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation));
+			final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation), null);
 
 			// no cross-entity mutations because registrySupplier is null
 			assertEquals(0, result.indexMutations().length);
@@ -1204,7 +1204,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 		final UpsertAttributeMutation mutation =
 			new UpsertAttributeMutation("name", Locale.ENGLISH, "Gadget");
 		executor.applyMutation(mutation);
-		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation));
+		final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation), null);
 
 		assertEquals(1, result.indexMutations().length);
 		final ReevaluateExpressionMutation facetMutation =

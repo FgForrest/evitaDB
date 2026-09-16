@@ -63,6 +63,12 @@ import java.util.function.Consumer;
 public class EngineStatisticsPublisher implements Flow.Subscriber<ChangeSystemCapture> {
 	private final Runnable emitEvitaStatistics;
 	private final Consumer<String> emitCatalogStatistics;
+	/**
+	 * Releases the JFR periodic hook that {@link #emitCatalogStatistics} registered for a catalog name. Invoked
+	 * when the name stops denoting a catalog, because such a hook is otherwise released only by a JFR period that
+	 * notices the catalog is gone - and periods run only while a recording is active.
+	 */
+	private final Consumer<String> retireCatalogStatistics;
 	private Subscription subscription;
 
 	@Override
@@ -80,11 +86,16 @@ public class EngineStatisticsPublisher implements Flow.Subscriber<ChangeSystemCa
 			this.emitCatalogStatistics.accept(ccsm.getCatalogName());
 		} else if (body instanceof RemoveCatalogSchemaMutation rcsm) {
 			this.emitEvitaStatistics.run();
+			this.retireCatalogStatistics.accept(rcsm.getCatalogName());
 			emitDeleteObservabilityEvents(rcsm.getCatalogName());
 		} else if (body instanceof ModifyCatalogSchemaNameMutation mcsnm) {
 			this.emitEvitaStatistics.run();
-			if (mcsnm.isOverwriteTarget() && !Objects.equals(mcsnm.getCatalogName(), mcsnm.getNewCatalogName())) {
-				emitDeleteObservabilityEvents(mcsnm.getCatalogName());
+			if (!Objects.equals(mcsnm.getCatalogName(), mcsnm.getNewCatalogName())) {
+				// the old name no longer denotes a catalog, whether or not the rename overwrote a target
+				this.retireCatalogStatistics.accept(mcsnm.getCatalogName());
+				if (mcsnm.isOverwriteTarget()) {
+					emitDeleteObservabilityEvents(mcsnm.getCatalogName());
+				}
 			}
 			this.emitCatalogStatistics.accept(mcsnm.getNewCatalogName());
 		} else if (body instanceof ModifyCatalogSchemaMutation mcsm) {

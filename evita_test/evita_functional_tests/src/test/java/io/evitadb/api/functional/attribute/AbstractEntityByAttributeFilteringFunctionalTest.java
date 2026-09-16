@@ -4658,7 +4658,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final Random random = new Random();
+				final Random random = new Random(SEED);
 				final String[] randomCodes = originalProductEntities
 					.stream()
 					.filter(it -> random.nextInt(10) == 1)
@@ -4704,7 +4704,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final Random random = new Random();
+				final Random random = new Random(SEED);
 				final String[] randomCodes = originalProductEntities
 					.stream()
 					.filter(it -> random.nextInt(10) == 1)
@@ -4758,7 +4758,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final Random random = new Random();
+				final Random random = new Random(SEED);
 				final AttributeTuple[] randomData = originalProductEntities
 					.stream()
 					.filter(it -> random.nextInt(10) == 1)
@@ -4814,7 +4814,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final Random random = new Random();
+				final Random random = new Random(SEED);
 				final AttributeTuple[] randomData = originalProductEntities
 					.stream()
 					.filter(it -> random.nextInt(10) == 1)
@@ -4853,7 +4853,8 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 						require(
 							entityFetch(
 								attributeContent(ATTRIBUTE_CODE)
-							)
+							),
+							page(1, randomCodes.length)
 						)
 					)
 				);
@@ -4948,7 +4949,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final Random random = new Random();
+				final Random random = new Random(SEED);
 				final AttributeTuple[] randomData = originalProductEntities
 					.stream()
 					.filter(it -> random.nextInt(10) == 1)
@@ -4994,7 +4995,8 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 						require(
 							entityFetch(
 								attributeContent(ATTRIBUTE_CODE)
-							)
+							),
+							page(1, randomCodes.length)
 						)
 					)
 				);

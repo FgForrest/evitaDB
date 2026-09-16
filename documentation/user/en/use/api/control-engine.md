@@ -53,7 +53,7 @@ The following operations are supported at the engine level:
     <dt>Set mutability</dt>
     <dd>Allows you to switch a particular catalog between `read-only` and `read-write` mode. When a catalog is in `read-only` mode, no newly created session is allowed to be created in `read-write` mode and make changes in the catalog. This engine mutation doesn't affect currently opened `read-write` sessions, nor does it force their closure.</dd>
     <dt>Set catalog state</dt>
-    <dd>Allows you to load or unload catalog contents to/from memory. Catalogs in an "active" state contain all their crucial data in memory and can be queried and updated. The "inactive" catalogs, on the other hand, lie dormant in persistent storage and don't consume any system resources, but also cannot be queried or updated.</dd>
+    <dd>Allows you to load or unload catalog contents to/from memory. Catalogs in an "active" state contain all their crucial data in memory and can be queried and updated. The "inactive" catalogs, on the other hand, lie dormant in persistent storage and don't consume any system resources, but also cannot be queried or updated. The engine also makes a catalog inactive on its own when a failure during [bulk indexing](../../deep-dive/bulk-vs-incremental-indexing.md#failures-that-cannot-be-reverted) cannot be reverted - activating it again loads the last state the catalog published.</dd>
 </dl>
 
 <Note type="info">

@@ -44,6 +44,7 @@ import io.evitadb.core.query.algebra.reference.ReferencedEntityIndexPrimaryKeyTr
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
+import io.evitadb.core.query.filter.NestedQueryRestriction;
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator.EntityPropertyWithScopes;
 import io.evitadb.dataType.Scope;
@@ -69,7 +70,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -88,7 +88,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-class HavingTranslatorHelper {
+public class HavingTranslatorHelper {
 
 	/**
 	 * A functional interface for looking up reduced entity indexes given the entity schema,
@@ -124,7 +124,7 @@ class HavingTranslatorHelper {
 	 * @param filter      The formula that represents the filter constraints applied to the entities
 	 *                    in the global index.
 	 */
-	record GlobalIndexAndFormula(
+	public record GlobalIndexAndFormula(
 		@Nullable GlobalEntityIndex globalIndex,
 		@Nonnull Formula filter
 	) {
@@ -145,7 +145,7 @@ class HavingTranslatorHelper {
 	 *         filter formulas resulting from planning the nested query
 	 */
 	@Nonnull
-	static List<GlobalIndexAndFormula> planNestedQuery(
+	public static List<GlobalIndexAndFormula> planNestedQuery(
 		@Nonnull String targetEntityType,
 		@Nonnull FilterConstraint filter,
 		@Nonnull FilterByVisitor filterByVisitor,
@@ -169,9 +169,19 @@ class HavingTranslatorHelper {
 		if (globalIndexes.isEmpty()) {
 			return List.of(new GlobalIndexAndFormula(null, EmptyFormula.INSTANCE));
 		} else {
-			final Function<FilterConstraint, FilterConstraint> enricher =
-				processingScope.getNestedQueryFormulaEnricher();
-			final FilterConstraint enrichedConstraint = enricher.apply(filter);
+			// the restriction is a set of primary keys, and primary keys only mean anything inside one collection -
+			// so it narrows the nested query it was built for and passes every other one through untouched. The
+			// `groupHaving` route arrives here with the reference's *group* type, whose keys live in an unrelated
+			// universe, and would otherwise be intersected with the referenced entities' keys and come out empty
+			final NestedQueryRestriction restriction = processingScope.getNestedQueryRestriction();
+			final FilterConstraint enrichedConstraint = restriction == null ?
+				filter :
+				restriction.applyTo(
+					processingScope.getReferenceSchema() == null ?
+						null : processingScope.getReferenceSchema().getName(),
+					targetEntityType,
+					filter
+				);
 			final FilterBy combinedFilterBy = enrichedConstraint instanceof FilterBy fb ?
 				fb : new FilterBy(enrichedConstraint);
 			final Optional<EntityNestedQueryComparator> entityNestedQueryComparator =

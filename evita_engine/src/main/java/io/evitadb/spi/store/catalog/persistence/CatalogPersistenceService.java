@@ -57,6 +57,7 @@ import io.evitadb.spi.store.catalog.header.model.CollectionReference;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.StringUtils;
@@ -550,7 +551,7 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	 * the catalog to the given version. The stream goes through all the mutations in this transaction and continues
 	 * forward with next transaction after that until the end of the WAL.
 	 *
-	 * DO NOT USE THIS METHOD if the WAL is being actively written to. Use {@link #getCommittedLiveMutationStream(long, long)}
+	 * DO NOT USE THIS METHOD if the WAL is being actively written to. Use {@link #getCommittedLiveMutationStream(long, long, VersionSource)}
 	 *
 	 * @param catalogVersion version of the catalog to start the stream with
 	 * @return a stream containing committed mutations
@@ -580,7 +581,9 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
-	Stream<CatalogBoundMutation> getCommittedLiveMutationStream(long startCatalogVersion, long requestedCatalogVersion);
+	Stream<CatalogBoundMutation> getCommittedLiveMutationStream(
+		long startCatalogVersion, long requestedCatalogVersion, @Nonnull VersionSource versionSource
+	);
 
 	/**
 	 * Retrieves the last catalog version written in the WAL stream.

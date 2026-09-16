@@ -49,6 +49,7 @@ import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Mock implementation of the {@link FilterByVisitor} that is used in alternative predicate tests.
@@ -56,6 +57,11 @@ import java.util.Map;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class TestQueryExecutionContext extends QueryExecutionContext {
+	/**
+	 * Catalog version the entities handed out by this test context pretend to have been materialised at.
+	 */
+	private static final UUID CATALOG_ID = UUID.randomUUID();
+	private static final long CATALOG_VERSION = 1L;
 	@Getter private final EntitySchemaContract schema;
 	@Getter private final EvitaRequest evitaRequest;
 	private final Map<Integer, SealedEntity> entities;
@@ -91,6 +97,8 @@ public class TestQueryExecutionContext extends QueryExecutionContext {
 				new ReferenceContractSerializablePredicate(this.evitaRequest),
 				new PriceContractSerializablePredicate(this.evitaRequest, (Boolean) null),
 				this.evitaRequest.getAlignedNow(),
+				CATALOG_ID,
+				CATALOG_VERSION,
 				0, 0
 			)
 		).toList();

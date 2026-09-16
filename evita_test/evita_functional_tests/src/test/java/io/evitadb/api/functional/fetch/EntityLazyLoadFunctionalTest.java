@@ -24,10 +24,15 @@
 package io.evitadb.api.functional.fetch;
 
 import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.require.ManagedReferencesBehaviour;
+import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
@@ -491,6 +496,118 @@ class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest 
 		);
 	}
 
+	@DisplayName("Named reference content narrows the storage read to the names it asks for")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldExposeReferencesConsistentlyForNamedReferenceContent(
+		Evita evita,
+		List<SealedEntity> originalProducts
+	) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> !it.getReferences(Entities.BRAND).isEmpty() &&
+				!it.getReferences(Entities.STORE).isEmpty()
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// a reference content instance name is what every externally issued GraphQL or REST query produces -
+				// the field alias or projection name becomes the instance name
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements[0])
+						),
+						require(
+							entityFetch(
+								new ReferenceContent(
+									"brandAlias",
+									ManagedReferencesBehaviour.ANY,
+									new String[]{Entities.BRAND},
+									new RequireConstraint[]{entityFetch(attributeContentAll())},
+									new Constraint<?>[0]
+								)
+							)
+						)
+					)
+				);
+				assertEquals(1, productByPk.getRecordData().size());
+
+				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity theEntity = originalProducts
+					.stream()
+					.filter(it -> Objects.equals(it.getPrimaryKey(), entitiesMatchingTheRequirements[0]))
+					.findFirst()
+					.orElseThrow(() -> new IllegalStateException("Should never happen!"));
+
+				assertHasReferencesTo(
+					product, Entities.BRAND, REFERENCED_ID_EXTRACTOR.apply(theEntity, Entities.BRAND));
+
+				// the named requirement narrows the storage read to `brand`, so the entity does not carry its store
+				// references at all - it has to say so rather than answer an empty collection for data nobody read
+				assertTrue(REFERENCED_ID_EXTRACTOR.apply(theEntity, Entities.STORE).length > 0);
+				assertFalse(product.referencesAvailable(Entities.STORE));
+				assertThrows(
+					ContextMissingException.class, () -> product.getReferences(Entities.STORE));
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("A request for all references is never covered by a narrowed read")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldLazyLoadAllReferencesAfterNarrowedFetch(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> !it.getReferences(Entities.CATEGORY).isEmpty() &&
+				!it.getReferences(Entities.BRAND).isEmpty() &&
+				!it.getReferences(Entities.STORE).isEmpty()
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements[0])
+						),
+						require(
+							entityFetch()
+						)
+					)
+				);
+				assertEquals(1, productByPk.getRecordData().size());
+
+				final SealedEntity theEntity = originalProducts
+					.stream()
+					.filter(it -> Objects.equals(it.getPrimaryKey(), entitiesMatchingTheRequirements[0]))
+					.findFirst()
+					.orElseThrow(() -> new IllegalStateException("Should never happen!"));
+
+				// the narrowed read brings in `category` alone, so the enrichment that follows has to go back to the
+				// storage even though "references were fetched before" is already true
+				final SealedEntity narrowed = session.enrichEntity(
+					productByPk.getRecordData().get(0), referenceContent(Entities.CATEGORY));
+				assertHasNotReferencesTo(narrowed, Entities.BRAND);
+				assertHasNotReferencesTo(narrowed, Entities.STORE);
+
+				final SealedEntity complete = session.enrichEntity(narrowed, referenceContentAll());
+				assertHasReferencesTo(
+					complete, Entities.CATEGORY, REFERENCED_ID_EXTRACTOR.apply(theEntity, Entities.CATEGORY));
+				assertHasReferencesTo(
+					complete, Entities.BRAND, REFERENCED_ID_EXTRACTOR.apply(theEntity, Entities.BRAND));
+				assertHasReferencesTo(
+					complete, Entities.STORE, REFERENCED_ID_EXTRACTOR.apply(theEntity, Entities.STORE));
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("References can be lazy auto loaded in iterative fashion")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -624,6 +741,59 @@ class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest 
 				assertFalse(limitedToAssociatedData.attributesAvailable());
 				assertThrows(ContextMissingException.class, limitedToAssociatedData::getAttributeValues);
 				assertFalse(limitedToAssociatedData.getAssociatedDataValues().isEmpty());
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Entity handed back by a query carries the catalog version it was materialised at")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldCarryTheCatalogVersionItWasMaterialisedAt(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> !it.getAttributeValues().isEmpty()
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements[0])
+						),
+						require(
+							// every attribute in every locale - otherwise the enrichment below still widens, because
+							// the session propagates the entity's locales into the enrichment request and would pull
+							// localized attributes this query never asked for
+							entityFetch(attributeContentAll(), dataInLocalesAll())
+						)
+					)
+				);
+				final SealedEntity product = productByPk.getRecordData().get(0);
+
+				// `EntityCollection#enrichEntityInternal` skips the storage round trip of an enrichment that widens
+				// nothing only when the decorator's catalog version equals the one its collection is pinned to. That
+				// gate is worth nothing if entities never carry a matching version in the first place, so this pins
+				// the half a unit test cannot reach: an entity materialised by an ordinary query reports exactly the
+				// version the session reads at.
+				assertEquals(
+					session.getCatalogVersion(),
+					((ServerEntityDecorator) product).getCatalogVersion()
+				);
+
+				// wrapping performs no read, so enriching preserves the provenance rather than refreshing it
+				final SealedEntity widened = session.enrichEntity(
+					product, attributeContentAll(), dataInLocalesAll(), associatedDataContentAll()
+				);
+				assertFalse(widened.getAssociatedDataValues().isEmpty());
+				assertEquals(
+					session.getCatalogVersion(),
+					((ServerEntityDecorator) widened).getCatalogVersion()
+				);
 
 				return null;
 			}

@@ -27,11 +27,9 @@ import io.evitadb.externalApi.grpc.generated.EvitaManagementServiceGrpc;
 import io.evitadb.externalApi.grpc.generated.GrpcFetchFileRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse;
 import io.grpc.Metadata;
-import io.grpc.MethodDescriptor;
 import io.grpc.ServerCall;
 import io.grpc.ServerCall.Listener;
 import io.grpc.ServerCallHandler;
-import io.grpc.Status;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -98,7 +96,8 @@ class ObservabilityInterceptorReadinessTest {
 	@Test
 	@DisplayName("isReady() of the decorated call reflects a transport that cannot accept more data")
 	void shouldPropagateNotReadyTransportStateToServiceImplementation() {
-		final MockServerCall delegate = new MockServerCall(false);
+		final MockServerCall<GrpcFetchFileRequest, GrpcFetchFileResponse> delegate =
+			new MockServerCall<>(EvitaManagementServiceGrpc.getFetchFileMethod(), false);
 		assertFalse(
 			intercept(delegate).isReady(),
 			"ObservabilityInterceptor reported the transport as ready while the underlying call is not - " +
@@ -109,55 +108,12 @@ class ObservabilityInterceptorReadinessTest {
 	@Test
 	@DisplayName("isReady() of the decorated call reflects a transport that can accept more data")
 	void shouldPropagateReadyTransportStateToServiceImplementation() {
-		final MockServerCall delegate = new MockServerCall(true);
+		final MockServerCall<GrpcFetchFileRequest, GrpcFetchFileResponse> delegate =
+			new MockServerCall<>(EvitaManagementServiceGrpc.getFetchFileMethod(), true);
 		assertTrue(
 			intercept(delegate).isReady(),
 			"ObservabilityInterceptor reported the transport as not ready while the underlying call is."
 		);
-	}
-
-	/**
-	 * Minimal {@link ServerCall} stub whose only interesting property is the readiness flag it was
-	 * constructed with - everything else is a no-op, because the interceptor is not expected to
-	 * touch it during `interceptCall`.
-	 */
-	private static class MockServerCall extends ServerCall<GrpcFetchFileRequest, GrpcFetchFileResponse> {
-		private final boolean ready;
-
-		MockServerCall(boolean ready) {
-			this.ready = ready;
-		}
-
-		@Override
-		public void request(int numMessages) {
-		}
-
-		@Override
-		public void sendHeaders(Metadata headers) {
-		}
-
-		@Override
-		public void sendMessage(GrpcFetchFileResponse message) {
-		}
-
-		@Override
-		public boolean isReady() {
-			return this.ready;
-		}
-
-		@Override
-		public void close(Status status, Metadata trailers) {
-		}
-
-		@Override
-		public boolean isCancelled() {
-			return false;
-		}
-
-		@Override
-		public MethodDescriptor<GrpcFetchFileRequest, GrpcFetchFileResponse> getMethodDescriptor() {
-			return EvitaManagementServiceGrpc.getFetchFileMethod();
-		}
 	}
 
 }

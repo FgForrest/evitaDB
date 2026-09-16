@@ -1,0 +1,542 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2026
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.core.management;
+
+import io.evitadb.api.CommitProgress.CommitVersions;
+import io.evitadb.api.exception.FileForFetchNotFoundException;
+import io.evitadb.api.file.FileForFetch;
+import io.evitadb.api.requestResponse.progress.Progress;
+import io.evitadb.api.task.ServerTask;
+import io.evitadb.api.task.TaskStatus;
+import io.evitadb.api.task.TaskStatus.TaskTrait;
+import io.evitadb.core.Evita;
+import io.evitadb.core.executor.ClientRunnableTask;
+import io.evitadb.core.executor.SequentialTask;
+import io.evitadb.core.management.RestorationSteps.RestorationStepsFactory;
+import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.spi.export.ExportService;
+import io.evitadb.core.transaction.engine.EngineMutationPrecondition;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
+import io.evitadb.utils.Assert;
+import io.evitadb.utils.IOUtils;
+import lombok.extern.slf4j.Slf4j;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Serializable;
+import java.nio.file.Path;
+import java.util.UUID;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
+
+/**
+ * Turns a freshly created backup archive into the catalog served under a given name.
+ *
+ * The second and final step of the restore-to-version sequence: an earlier step produced an archive of the catalog
+ * as it was at some past version, and this one unpacks it into a temporary catalog, loads that catalog, and then
+ * swaps it into the target name. Everything it does is a call into an operation that already exists on its own -
+ * the value here is the ordering and what happens when one of them fails.
+ *
+ * **Why this is not simply more steps of the enclosing sequence.** The archive is produced by the step before it,
+ * and the unpacking step has to be told the archive's id, its location and its size at construction time. Those are
+ * chosen by {@link ExportService} while the backup runs, so no amount of rearranging lets the unpacking step be
+ * built when the sequence is assembled. It is built here instead, at the moment its inputs exist.
+ *
+ * **The swap is the only client-visible moment.** Unpacking and loading happen against a temporary catalog nobody
+ * is querying, while the catalog being replaced keeps serving reads and writes; only the final
+ * {@link Evita#replaceCatalogWithProgress} makes the restored data the answer clients get. Writes committed to the
+ * replaced catalog in the meantime are discarded with it - see
+ * {@link io.evitadb.api.EvitaManagementContract#restoreCatalogToVersion}.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+ */
+@Slf4j
+class PublishRestoredCatalogTask extends ClientRunnableTask<PublishRestoredCatalogTask.PublishSettings> {
+	/**
+	 * Progress reported once the archive has been copied out of the export service and is ready to unpack.
+	 */
+	private static final int PROGRESS_ARCHIVE_FETCHED = 10;
+	/**
+	 * Progress reported once the archive has been unpacked and the temporary catalog registered.
+	 */
+	private static final int PROGRESS_UNPACKED = 55;
+	/**
+	 * Progress reported once the temporary catalog has been loaded and is ready to be swapped in.
+	 */
+	private static final int PROGRESS_ACTIVATED = 90;
+
+	/**
+	 * The engine the catalogs live in, used to activate the temporary catalog and to swap it into the target name.
+	 */
+	private final Evita evita;
+	/**
+	 * Service holding the archive the preceding backup step produced. The archive is read back through it rather
+	 * than from a path of our own choosing, because an export service is not necessarily a local file system - the
+	 * S3-backed implementation has no local path at all.
+	 */
+	private final ExportService exportService;
+	/**
+	 * Allocates the work-directory file the archive is copied into before it is unpacked.
+	 */
+	private final FileManagementService fileManagementService;
+	/**
+	 * Builds the unpack-and-register steps once the archive exists.
+	 */
+	private final RestorationStepsFactory restorationStepsFactory;
+	/**
+	 * The backup step of the enclosing sequence, consulted for the archive it produced.
+	 */
+	private final ServerTask<?, FileForFetch> backupTask;
+	/**
+	 * Folder the target name was bound to when the operation was submitted, or `null` when no catalog held it.
+	 *
+	 * This is the catalog the client asked to replace, pinned by identity rather than by name so that the swap can
+	 * tell it from any later catalog wearing the same name. See {@link #swapIntoTarget}.
+	 */
+	@Nullable private final CatalogFolderId expectedTargetFolderId;
+	/**
+	 * The unpack-and-register sequence while it is running, and `null` at every other moment.
+	 *
+	 * Published so that {@link #getStatus()} can read the unpacking's own progress out of it. That progress is
+	 * byte-accurate - the archive's size is threaded all the way down to the unpacking step for exactly this
+	 * purpose - but a {@link ServerTask} offers no way to *subscribe* to it, only to ask. And nothing running on
+	 * this task's own thread can ask: the sequence executes inline, so this thread is *inside* it for the whole
+	 * phase. The question is therefore answered when a monitoring client asks it, which is the only moment the
+	 * number is wanted anyway.
+	 */
+	private final AtomicReference<SequentialTask<Void>> unpackingInFlight = new AtomicReference<>();
+
+	PublishRestoredCatalogTask(
+		@Nonnull String catalogName,
+		@Nonnull String temporaryCatalogName,
+		@Nonnull String targetCatalogName,
+		@Nullable CatalogFolderId expectedTargetFolderId,
+		@Nonnull Evita evita,
+		@Nonnull ExportService exportService,
+		@Nonnull FileManagementService fileManagementService,
+		@Nonnull RestorationStepsFactory restorationStepsFactory,
+		@Nonnull ServerTask<?, FileForFetch> backupTask
+	) {
+		super(
+			catalogName,
+			"publishRestoredCatalog",
+			"Publishing restored catalog `" + targetCatalogName + "`.",
+			new PublishSettings(temporaryCatalogName, targetCatalogName),
+			task -> ((PublishRestoredCatalogTask) task).doPublish(),
+			TaskTrait.CAN_BE_STARTED, TaskTrait.CAN_BE_CANCELLED
+		);
+		this.evita = evita;
+		this.exportService = exportService;
+		this.fileManagementService = fileManagementService;
+		this.restorationStepsFactory = restorationStepsFactory;
+		this.backupTask = backupTask;
+		this.expectedTargetFolderId = expectedTargetFolderId;
+	}
+
+	/**
+	 * Reports this task's progress, taking the unpacking phase's share of it from the sequence doing that work.
+	 *
+	 * Every other phase *pushes*: the phase boundaries are stamped by `updateProgress`, and the loading phase
+	 * forwards its inner {@link Progress} through a listener. The unpacking phase has no such listener to offer -
+	 * {@link SequentialTask} publishes its progress only through {@link SequentialTask#getStatus()} - so it is
+	 * pulled here instead, one level up, at the moment somebody actually asks.
+	 *
+	 * @return the status, carrying the unpacking's live progress for as long as the unpacking runs
+	 */
+	@Nonnull
+	@Override
+	public TaskStatus<PublishSettings, Void> getStatus() {
+		final SequentialTask<Void> unpacking = this.unpackingInFlight.get();
+		if (unpacking != null) {
+			final int band = PROGRESS_UNPACKED - PROGRESS_ARCHIVE_FETCHED;
+			updateProgress(PROGRESS_ARCHIVE_FETCHED + (unpacking.getStatus().progress() * band) / 100);
+		}
+		return super.getStatus();
+	}
+
+	/**
+	 * Unpacks the archive into the temporary catalog, loads it and swaps it into the target name.
+	 */
+	private void doPublish() {
+		final PublishSettings settings = getStatus().settings();
+		final String temporaryCatalogName = settings.temporaryCatalogName();
+		final String targetCatalogName = settings.targetCatalogName();
+		// the enclosing sequence stops at the first step that fails, so reaching this one means the backup both ran
+		// and succeeded - a missing archive here is a broken invariant rather than a runtime outcome
+		final FileForFetch archive = this.backupTask.getFutureResult().getNow(null);
+		Assert.isPremiseValid(
+			archive != null,
+			"The backup step of the restore sequence completed without producing an archive!"
+		);
+
+		boolean published = false;
+		// held outside the `try` so the clean-up reclaims the local copy on every outcome. The unpacking step
+		// deletes it - it opens the file with DELETE_ON_CLOSE - but only on the one path where it gets to open it
+		// at all, and this task owns the file for its whole life rather than only until the step that consumes it
+		Path localArchive = null;
+		// held outside the `try` for a second reason: the clean-up has to know which folder this task allocated,
+		// so it can tell whether the catalog sitting under the temporary name is still the one it put there
+		RestorationSteps restoration = null;
+		try {
+			// the archive is pulled through the export service rather than read from a path we compute ourselves:
+			// the service may be backed by object storage, where no local path exists, and RestoreTask needs a
+			// local file to unpack. The file is allocated before the copy runs, so a copy that fails leaves
+			// a path the clean-up can still reach
+			localArchive = this.fileManagementService.createManagedTempFile(archive.fileId() + ".zip");
+			fetchArchiveInto(archive, localArchive);
+			updateProgress(PROGRESS_ARCHIVE_FETCHED);
+
+			abortIfCancelled();
+			// built before it is run, so that a failure *inside* the unpacking still leaves the folder claim
+			// reachable from here - it is the only thing that says whether the name ever became ours
+			restoration = this.restorationStepsFactory.create(
+				temporaryCatalogName, archive.fileId(), localArchive, archive.totalSizeInBytes(), true
+			);
+			unpackInto(restoration, temporaryCatalogName);
+			updateProgress(PROGRESS_UNPACKED);
+
+			// loading is the expensive half of the operation - it reads the whole catalog back and rebuilds its
+			// indexes - and it happens while the catalog being replaced is still serving
+			abortIfCancelled();
+			activate(temporaryCatalogName);
+			updateProgress(PROGRESS_ACTIVATED);
+
+			// the swap is the only client-visible moment of the whole operation, and the last one that can be
+			// abandoned cleanly - once it commits, the temporary name no longer denotes anything to clean up
+			abortIfCancelled();
+			final CatalogFolderId scratchFolderId = restoration.claim().allocatedFolderId();
+			Assert.isPremiseValid(
+				scratchFolderId != null,
+				"Restored catalog `" + temporaryCatalogName + "` was activated without a folder allocation!"
+			);
+			swapIntoTarget(temporaryCatalogName, targetCatalogName, scratchFolderId)
+				.onCompletion()
+				.toCompletableFuture()
+				.join();
+			published = true;
+			updateProgress(100);
+		} finally {
+			cleanUp(
+				published, archive.fileId(), temporaryCatalogName, localArchive,
+				restoration == null ? null : restoration.claim().allocatedFolderId()
+			);
+		}
+	}
+
+	/**
+	 * Copies the archive out of the export service into the already allocated work-directory file, where it can be
+	 * unpacked.
+	 *
+	 * @param archive      descriptor of the archive the backup step produced
+	 * @param localArchive work-directory file the archive is copied into
+	 */
+	private void fetchArchiveInto(@Nonnull FileForFetch archive, @Nonnull Path localArchive) {
+		try (final InputStream inputStream = this.exportService.fetchFile(archive.fileId())) {
+			IOUtils.copy(inputStream, localArchive);
+		} catch (FileForFetchNotFoundException e) {
+			// The archive was written moments ago by this very operation, so it going missing means something
+			// removed it. Three things can: the export service's retention dropping the oldest files once the
+			// export storage exceeds its size limit, the same retention purging by age past
+			// `historyExpirationSeconds`, and a client calling `EvitaManagementContract#deleteFile` - which reaches
+			// the archive because a failed run deliberately leaves it listed. Only the size limit removes it
+			// without anyone having asked for anything, so it is the one worth naming: it is the difference between
+			// an operator raising a limit and an operator hunting a phantom.
+			throw new UnexpectedIOException(
+				"The backup archive of catalog `" + getStatus().catalogName() + "` is no longer available from the " +
+					"export service - its storage size limit is most likely smaller than the catalog.",
+				"The backup archive is no longer available from the export service - the export storage's size " +
+					"limit is most likely smaller than the catalog.",
+				e
+			);
+		} catch (UnexpectedIOException | IOException e) {
+			// `IOUtils#copy` catches the IOException itself and rethrows it as the unchecked UnexpectedIOException,
+			// so a work directory that is full, read-only or gone arrives here as that rather than as an
+			// IOException - the checked branch would never see it. The checked type is kept for the implicit
+			// `close()` of the stream above, which is the only other thing in this block declared to throw one
+			throw new UnexpectedIOException(
+				"Failed to read back the backup archive of catalog `" + getStatus().catalogName() +
+					"`: " + e.getMessage(),
+				"Failed to read back the backup archive of the catalog!",
+				e
+			);
+		}
+	}
+
+	/**
+	 * Unpacks the archive into a temporary catalog and registers it, inactive.
+	 *
+	 * Runs the same two steps a plain restore runs, inline on this task's own thread. They are wrapped in their
+	 * own {@link SequentialTask} rather than executed one after the other, because that is what attaches the
+	 * folder-claim release to a future that completes on every outcome - including the unpacking failing and the
+	 * registering step never running at all.
+	 *
+	 * @param steps                the unpack-and-register pair to run
+	 * @param temporaryCatalogName name the archive is unpacked under
+	 */
+	private void unpackInto(
+		@Nonnull RestorationSteps steps,
+		@Nonnull String temporaryCatalogName
+	) {
+		final SequentialTask<Void> restoration = steps.asSequentialTask(
+			temporaryCatalogName, "Restoring catalog `" + temporaryCatalogName + "` from the backup archive."
+		);
+		// published for `getStatus()` to read from, and taken back on every outcome. A sequence left here after it
+		// finished would peg this task at the end of the unpacking band for the rest of its life, swallowing
+		// everything the loading phase reports afterwards - which is why the reset belongs in a `finally`
+		this.unpackingInFlight.set(restoration);
+		try {
+			// a task only runs while its status is QUEUED, and it is the scheduler that normally puts it there. This
+			// sequence is never submitted - it runs inline on this task's thread - so it has to be issued by hand
+			restoration.transitionToIssued();
+			restoration.execute();
+			// `execute` rethrows whatever a step failed with, so this join is not what surfaces a failed step. It
+			// covers the other way the sequence can come back without having run to completion: a cancelled result
+			// future, which `execute` reports by answering null rather than by throwing. Nothing reaches this
+			// sequence to cancel it - it is local to this method and never submitted - so the join is defensive, and
+			// it is the only thing that would stop a half-unpacked temporary catalog from being handed on to the
+			// loading step below
+			restoration.getFutureResult().join();
+		} finally {
+			this.unpackingInFlight.set(null);
+		}
+	}
+
+	/**
+	 * Loads the temporary catalog, forwarding the load progress into this task's own band.
+	 *
+	 * @param temporaryCatalogName name of the catalog to load
+	 */
+	private void activate(@Nonnull String temporaryCatalogName) {
+		final int band = PROGRESS_ACTIVATED - PROGRESS_UNPACKED;
+		final Progress<Void> activation = this.evita.activateCatalogWithProgress(temporaryCatalogName);
+		// `Progress#addProgressListener` does not replay what a listener was not there to hear, so whatever the
+		// activation reports between starting and this line is not forwarded. Left as it is: the load is the
+		// phase that takes minutes, the listener attaches within microseconds of submitting it, and the
+		// `updateProgress(PROGRESS_ACTIVATED)` below restates the band's end regardless. Closing the gap means
+		// passing the observer into `Evita#applyMutation` and naming the mutation behind
+		// `activateCatalogWithProgress` here - trading a public operation for an implementation detail, which
+		// costs more clarity than the missing fraction of a percent is worth.
+		activation.addProgressListener(
+			percent -> updateProgress(PROGRESS_UNPACKED + (percent * band) / 100)
+		);
+		activation.onCompletion().toCompletableFuture().join();
+	}
+
+	/**
+	 * Makes the restored catalog the one served under the target name.
+	 *
+	 * One operation covers every case - replace-in-place, replace-another-catalog and create-new are the same
+	 * request - and what makes it safe is not the operation but the two expectations handed to it. Both names are
+	 * chosen long before they are used: the target when the client submits the operation, the scratch when the
+	 * restore allocates it. By the time the swap runs, minutes later after a backup, an unpack and a load, either
+	 * name may have come to hold something else. Swapping on the names alone would take over a catalog nobody
+	 * asked about, and report success for it.
+	 *
+	 * So the swap states what it means rather than what it is aimed at:
+	 *
+	 * - the **target** must still be bound to whatever it was bound to at submission - the catalog the client
+	 *   asked to replace, or nothing at all if the client aimed at a free name;
+	 * - the **scratch** must still be bound to the folder this restore allocated, so that a scratch catalog
+	 *   dropped and recreated by another operation is never the thing published under the target name.
+	 *
+	 * A restore aimed at a free name therefore fails rather than overwriting a stranger, and one aimed at an
+	 * occupied name replaces exactly the catalog the client meant - not merely the name it wore.
+	 *
+	 * The refusal is decided atomically with the swap, not merely earlier than it: the expectations are tested
+	 * inside the engine-state lock, in the same critical section that registers the mutation's catalog conflict
+	 * keys, and those keys then hold both names until the operation completes.
+	 *
+	 * @param temporaryCatalogName name the restored catalog currently answers to
+	 * @param targetCatalogName    name it is to be served under
+	 * @param scratchFolderId      folder this restore allocated for the scratch catalog
+	 * @return progress of the engine mutation performing the swap
+	 */
+	@Nonnull
+	private Progress<CommitVersions> swapIntoTarget(
+		@Nonnull String temporaryCatalogName,
+		@Nonnull String targetCatalogName,
+		@Nonnull CatalogFolderId scratchFolderId
+	) {
+		return this.evita.replaceCatalogWithProgress(
+			temporaryCatalogName,
+			targetCatalogName,
+			EngineMutationPrecondition.expectingBoundTo(temporaryCatalogName, scratchFolderId),
+			this.expectedTargetFolderId == null ?
+				EngineMutationPrecondition.expectingUnbound(targetCatalogName) :
+				EngineMutationPrecondition.expectingBoundTo(targetCatalogName, this.expectedTargetFolderId)
+		);
+	}
+
+	/**
+	 * Raises {@link CancellationException} when this task has been cancelled.
+	 *
+	 * Checked explicitly between phases because the phases themselves are not uniformly interruptible:
+	 * {@link CompletableFuture#join()} ignores interrupts, so a cancellation landing inside an engine mutation
+	 * is not observed until that mutation returns. Stopping at the next phase boundary is the guarantee this
+	 * task gives - never stopping mid-mutation.
+	 */
+	private void abortIfCancelled() {
+		if (getFutureResult().isCancelled() || Thread.currentThread().isInterrupted()) {
+			throw new CancellationException(
+				"Publishing of the restored catalog was cancelled before it could be completed."
+			);
+		}
+	}
+
+	/**
+	 * Removes what this task must not leave behind.
+	 *
+	 * The local copy of the archive goes on every outcome - it is a work-directory file of this task's own making
+	 * and nothing outside the operation ever refers to it. The archive *in the export service* is the opposite: on
+	 * success it is an implementation detail nobody asked for, so it goes, while on failure it is kept, since it is
+	 * a complete backup of the requested version and the operator's cheapest way to retry by hand. The temporary
+	 * catalog is the mirror image of that: it is dropped whenever the swap did not happen, and after a swap it no
+	 * longer exists under that name at all.
+	 *
+	 * **Only ever this task's own scratch catalog.** The temporary name is checked for availability when the
+	 * operation is submitted, but nothing reserves it until the unpacking step allocates its folder, minutes
+	 * later - and a failure to allocate is precisely the case where something else has taken the name in the
+	 * meantime. Deleting by name alone would then destroy an unrelated catalog on the strength of a name
+	 * collision, so the removal is conditioned on the name still denoting the folder this task allocated.
+	 *
+	 * **The scratch name's generation counter goes too, on every outcome.** It is the one piece of this operation
+	 * that outlives the storage it names: the name is minted per invocation, so a counter left behind is an entry
+	 * the engine carries for the rest of the process, once per restore ever performed. See
+	 * {@link Evita#retireCatalogGenerationSequence} for why giving it back here is safe when doing the same for a
+	 * client-chosen name would not be.
+	 *
+	 * No removal may mask the failure that brought us here, so all of them are logged rather than thrown.
+	 *
+	 * @param published              whether the swap completed
+	 * @param archiveFileId          id of the intermediate archive
+	 * @param temporaryCatalogName   name of the temporary catalog
+	 * @param localArchive           local copy of the archive, or `null` when it was never allocated
+	 * @param allocatedScratchFolder folder this task allocated for the scratch catalog, or `null` when it never
+	 *                               allocated one
+	 */
+	private void cleanUp(
+		boolean published,
+		@Nonnull UUID archiveFileId,
+		@Nonnull String temporaryCatalogName,
+		@Nullable Path localArchive,
+		@Nullable CatalogFolderId allocatedScratchFolder
+	) {
+		if (localArchive != null) {
+			try {
+				// idempotent - on the ordinary path the unpacking step has already removed the file by closing it
+				this.fileManagementService.purgeManagedTempFile(localArchive);
+			} catch (RuntimeException e) {
+				log.warn(
+					"Failed to remove the local copy `{}` of the backup archive of catalog `{}` - it stays in the " +
+						"work directory and has to be removed manually.",
+					localArchive, getStatus().catalogName(), e
+				);
+			}
+		}
+		if (published) {
+			try {
+				this.exportService.deleteFile(archiveFileId);
+			} catch (RuntimeException e) {
+				log.warn(
+					"Failed to remove the intermediate backup archive `{}` of catalog `{}` - it stays available " +
+						"for download and has to be removed manually.",
+					archiveFileId, getStatus().catalogName(), e
+				);
+			}
+		} else if (scratchIsStillOurs(temporaryCatalogName, allocatedScratchFolder)) {
+			try {
+				this.evita.deleteCatalogIfExistsWithProgress(temporaryCatalogName)
+					.ifPresent(progress -> progress.onCompletion().toCompletableFuture().join());
+			} catch (RuntimeException e) {
+				log.warn(
+					"Failed to remove the temporary catalog `{}` left behind by a restore that did not complete - " +
+						"it has to be removed manually.",
+					temporaryCatalogName, e
+				);
+			}
+		}
+		// Last, and on every outcome. The scratch name is minted per invocation, so leaving its counter behind
+		// grows the engine's generation map by one entry on every restore for the life of the process - the one
+		// name that escapes the "bounded by the set of catalog names" reasoning those counters are kept under.
+		// Safe precisely here: the only expectation ever recorded against this name is the swap's own, and by now
+		// it has either been consumed or was never created. Not wrapped in a `catch` like its neighbours because
+		// it cannot throw - it removes keys from a `ConcurrentHashMap`, whose iterator tolerates concurrent writes.
+		this.evita.retireCatalogGenerationSequence(temporaryCatalogName);
+	}
+
+	/**
+	 * Tells whether the catalog answering to the scratch name is the one this task put there.
+	 *
+	 * Having allocated a folder once is not the same as still holding the name, and only the second licenses a
+	 * deletion. The folder claim is released the moment the registering step finishes, so from then until this
+	 * check the scratch name is an ordinary catalog name: another operation may drop this task's catalog and
+	 * create its own under the same name, and a restore that later fails would delete *that* one. Comparing the
+	 * engine's current binding for the name against the folder this task allocated is what makes the question one
+	 * about identity rather than about spelling - a different catalog is bound to a different folder, whatever it
+	 * calls itself.
+	 *
+	 * This narrows the window rather than closing it: the binding could still change between this answer and the
+	 * removal that follows. Closing it entirely needs a compare-and-delete the engine does not currently offer,
+	 * and the remaining window is microseconds against the minutes the old signal left open.
+	 *
+	 * @param temporaryCatalogName   name the scratch catalog was registered under
+	 * @param allocatedScratchFolder folder this task allocated, or `null` when it never allocated one
+	 * @return true when the name still denotes this task's own folder
+	 */
+	private boolean scratchIsStillOurs(
+		@Nonnull String temporaryCatalogName,
+		@Nullable CatalogFolderId allocatedScratchFolder
+	) {
+		// asked first, so a task that failed before allocating anything never touches the engine at all
+		if (allocatedScratchFolder == null) {
+			return false;
+		}
+		return allocatedScratchFolder.equals(
+			this.evita.getEngineState().boundFolderIdFor(temporaryCatalogName)
+		);
+	}
+
+	/**
+	 * Settings of this task, shown to clients as part of its status.
+	 *
+	 * @param temporaryCatalogName name the archive is unpacked under before the swap
+	 * @param targetCatalogName    name the restored catalog ends up being served under
+	 */
+	record PublishSettings(
+		@Nonnull String temporaryCatalogName,
+		@Nonnull String targetCatalogName
+	) implements Serializable {
+
+		@Nonnull
+		@Override
+		public String toString() {
+			return "targetCatalogName: `" + this.targetCatalogName + '`' +
+				", temporaryCatalogName: `" + this.temporaryCatalogName + '`';
+		}
+	}
+
+}

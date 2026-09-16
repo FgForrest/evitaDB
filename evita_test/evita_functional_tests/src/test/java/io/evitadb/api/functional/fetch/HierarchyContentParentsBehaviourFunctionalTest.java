@@ -1692,6 +1692,62 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		}
 
 		/**
+		 * The same accounting across a **bodyless pointer**, which is the only shape where the counters cannot
+		 * be produced by the read-time walk at all. `ServerEntityDecorator#getIoFetchCount` reaches the tail of
+		 * a chain by walking what the decorator exposes, and an ancestor above a pointer is exposed through no
+		 * slot it can read - so `ReferencedEntityFetcher#replaceWithSealedEntities` folds exactly that tail into
+		 * the counters instead. Folding it when the walk *can* reach it would count the ancestor twice, which is
+		 * why the control above and this row have to hold at the same time.
+		 *
+		 * P3 is the shallowest fixture with the shape: `34 -> B(33) -> P(32) -> B(31)`, a body above a pointer.
+		 * The bounded arm is the proven `stopAt(distance(2))` cut of the same chain, which keeps the pointer and
+		 * drops the body above it - so the difference between the arms is what 31 contributed, and nothing else.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("P3: an ancestor above a bodyless pointer contributes its IO statistics exactly once")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldCountTheIoStatisticsOfAnAncestorAboveAPointerOnce_P3(Evita evita) {
+			final List<EntityClassifierWithParent> wholeChain = completeParentChain(evita, 34);
+			assertChain(wholeChain, "B(33)", "P(32)", "B(31)");
+			final List<EntityClassifierWithParent> boundedChain = fetchParentChain(
+				evita, 34,
+				hierarchyContent(
+					HierarchyParentsBehaviour.COMPLETE, stopAt(distance(2)),
+					entityFetch(attributeContentAll())
+				),
+				true
+			);
+			assertChain(boundedChain, "B(33)", "P(32)");
+
+			final EntityFetchAwareDecorator aboveThePointer = assertInstanceOf(
+				EntityFetchAwareDecorator.class, wholeChain.get(2)
+			);
+			final EntityFetchAwareDecorator immediate = assertInstanceOf(
+				EntityFetchAwareDecorator.class, wholeChain.get(0)
+			);
+			final EntityFetchAwareDecorator immediateAlone = assertInstanceOf(
+				EntityFetchAwareDecorator.class, boundedChain.get(0)
+			);
+
+			assertTrue(
+				aboveThePointer.getIoFetchCount() > 0,
+				"Reading the body above the pointer has to cost at least one fetch."
+			);
+			assertEquals(
+				aboveThePointer.getIoFetchCount(),
+				immediate.getIoFetchCount() - immediateAlone.getIoFetchCount(),
+				"The ancestor above the pointer must contribute its fetch count to the chain exactly once."
+			);
+			assertEquals(
+				aboveThePointer.getIoFetchedBytes(),
+				immediate.getIoFetchedBytes() - immediateAlone.getIoFetchedBytes(),
+				"The ancestor above the pointer must contribute its fetched bytes to the chain exactly once."
+			);
+		}
+
+		/**
 		 * Two queried entities of the P3 fixture whose ancestors overlap - `34 -> 33 -> 32(cs) -> 31` and
 		 * `33 -> 32(cs) -> 31` - asked in one query under `COMPLETE`. The upward walk keeps one chain cache
 		 * for the whole query on the assumption that ancestors are shared between queried entities, and this

@@ -358,7 +358,8 @@ public class CacheAnteroom implements Closeable {
 	@Override
 	public void close() throws IOException {
 		IOUtils.closeQuietly(
-			this.edenGateKeeper::close
+			this.edenGateKeeper::close,
+			this.cacheEden::close
 		);
 	}
 

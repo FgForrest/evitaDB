@@ -38,6 +38,7 @@ import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
 import io.evitadb.core.transaction.engine.EngineStateUpdater;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Objects;
@@ -56,6 +57,7 @@ import java.util.function.Consumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@Slf4j
 @RequiredArgsConstructor
 public class CreateCatalogMutationOperator
 	implements EngineMutationOperator<CommitVersions, CreateCatalogSchemaMutation> {
@@ -145,21 +147,45 @@ public class CreateCatalogMutationOperator
 					// anyway.
 					CreateCatalogMutationOperator.this.folderContext.completeFolder(catalogName, catalogFolder);
 
-					completionEngineStateUpdater.accept(
-						new AbstractEngineStateUpdater(transactionId, mutation) {
-							@Override
-							public ExpandedEngineState apply(
-								long version,
-								@Nonnull ExpandedEngineState expandedEngineState
-							) {
-								return ExpandedEngineState
-									.builder(expandedEngineState)
-									.withVersion(version)
-									.withCatalog(theCatalog)
-									.build();
+					// The engine state is the only place that will ever hold a reference to the catalog just
+					// created, so a failed install strands the instance: nothing can reach it afterwards to close
+					// it, and the lock it holds on its storage folder stays held for the life of the process.
+					// Shutdown is what makes this reachable - `Evita#closeCatalogs` clears the engine state before
+					// draining the mutations still in flight. The folder is deliberately left where it is: the
+					// create never committed, and an unreferenced, marker-complete folder is what boot
+					// classification reports and leaves alone.
+					boolean installedIntoEngineState = false;
+					try {
+						completionEngineStateUpdater.accept(
+							new AbstractEngineStateUpdater(transactionId, mutation) {
+								@Override
+								public ExpandedEngineState apply(
+									long version,
+									@Nonnull ExpandedEngineState expandedEngineState
+								) {
+									return ExpandedEngineState
+										.builder(expandedEngineState)
+										.withVersion(version)
+										.withCatalog(theCatalog)
+										.build();
+								}
+							}
+						);
+						installedIntoEngineState = true;
+					} finally {
+						if (!installedIntoEngineState) {
+							try {
+								theCatalog.terminate();
+							} catch (Throwable terminationFailure) {
+								log.warn(
+									"Failed to terminate catalog `{}` after the engine refused to record its " +
+										"creation - the handles its persistence service holds into the storage " +
+										"folder stay open until the server is restarted.",
+									catalogName, terminationFailure
+								);
 							}
 						}
-					);
+					}
 					// Emit the host event AFTER the engine state has been updated so the catalog's
 					// settled state (typically WARMING_UP for a freshly-created catalog) is observable
 					// by HOST-area subscribers strictly after the underlying mutation.

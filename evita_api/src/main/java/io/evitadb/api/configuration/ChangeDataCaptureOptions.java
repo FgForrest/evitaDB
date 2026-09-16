@@ -23,6 +23,7 @@
 
 package io.evitadb.api.configuration;
 
+import io.evitadb.utils.Assert;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
@@ -52,6 +53,13 @@ public record ChangeDataCaptureOptions(
 	public static final boolean DEFAULT_CDC_ENABLED = true;
 	public static final int DEFAULT_RECENT_EVENTS_CACHE_LIMIT = Flow.defaultBufferSize();
 	public static final int DEFAULT_SUBSCRIBER_BUFFER_SIZE = Flow.defaultBufferSize();
+
+	/**
+	 * Validates the options shared by catalog-level and system-level CDC publishers.
+	 */
+	public ChangeDataCaptureOptions {
+		Assert.isTrue(subscriberBufferSize > 0, "CDC subscriber buffer size must be greater than zero.");
+	}
 
 	/**
 	 * Builder for the CDC options. Recommended to use to avoid binary compatibility problems in the future.

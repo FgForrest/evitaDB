@@ -1146,6 +1146,12 @@ public class EntityConverter {
 			return primaryKey -> this.groupIndex.get(new EntityReference(Objects.requireNonNull(referenceSchema.getReferencedGroupType()), primaryKey));
 		}
 
+		@Override
+		public boolean mayCarryGroupBodies(@Nonnull ReferenceSchemaContract referenceSchema) {
+			// the driver drains nothing, so a note it can never act on would simply be retained
+			return !this.groupIndex.isEmpty();
+		}
+
 		@Nullable
 		@Override
 		public ReferenceComparator getEntityComparator(@Nonnull ReferenceSchemaContract referenceSchema) {

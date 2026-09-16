@@ -24,6 +24,7 @@
 package io.evitadb.core.query.fetch;
 
 
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
@@ -35,6 +36,7 @@ import java.util.Collection;
 import java.util.Optional;
 
 import static java.util.Optional.empty;
+import static java.util.Optional.of;
 
 /**
  * This implementation looks up to the passed `sealedEntity` for existing referenced entity bodies.
@@ -49,12 +51,32 @@ class ExistingEntityDecoratorProvider implements ExistingEntityProvider {
 	@Nonnull
 	private final EntityDecorator entityDecorator;
 
+	/**
+	 * Returns the already-fetched body of the ancestor carrying `primaryKey`, if the decorator this provider wraps
+	 * holds one, by walking the whole parent chain rather than answering with its immediate parent.
+	 *
+	 * The caller asks for one ancestor at a time and indexes the answers by the primary key they came back with, so
+	 * answering every ask with the immediate parent leaves every ancestor above it unindexed - and a body nobody
+	 * indexed is neither reused nor fetched, which silently truncates a requested chain to its first link.
+	 *
+	 * @param primaryKey primary key of the ancestor the caller is looking for
+	 * @return the ancestor's body, or empty when the chain holds no body under that key - including when the link
+	 * is present but carries no body at all
+	 */
 	@Nonnull
 	@Override
 	public Optional<SealedEntity> getExistingParentEntity(int primaryKey) {
-		return this.entityDecorator.getParentEntityWithoutCheckingPredicate()
-			.filter(SealedEntity.class::isInstance)
-			.map(SealedEntity.class::cast);
+		EntityClassifierWithParent parent = this.entityDecorator.getParentEntityWithoutCheckingPredicate()
+			.orElse(null);
+		while (parent != null) {
+			// a bodyless link carries no body but may still lead to ancestors that do
+			if (parent instanceof SealedEntity parentBody &&
+				parentBody.getPrimaryKeyOrThrowException() == primaryKey) {
+				return of(parentBody);
+			}
+			parent = parent.getParentEntity().orElse(null);
+		}
+		return empty();
 	}
 
 	@Nonnull

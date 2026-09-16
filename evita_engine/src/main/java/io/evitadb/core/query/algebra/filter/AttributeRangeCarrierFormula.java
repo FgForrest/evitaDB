@@ -23,7 +23,7 @@
 
 package io.evitadb.core.query.algebra.filter;
 
-import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.NonCollapsibleFormula;
 
 /**
  * Marker interface tagging formulas that carry an attribute-family range selection (the
@@ -40,5 +40,5 @@ import io.evitadb.core.query.algebra.Formula;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public interface AttributeRangeCarrierFormula extends Formula {
+public interface AttributeRangeCarrierFormula extends NonCollapsibleFormula {
 }
