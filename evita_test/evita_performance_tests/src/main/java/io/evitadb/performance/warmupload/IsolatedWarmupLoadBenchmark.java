@@ -248,7 +248,7 @@ public class IsolatedWarmupLoadBenchmark {
 	private static final double GC_BOUND_WARNING_THRESHOLD = 15.0;
 	/**
 	 * Upper bound for a single gRPC message accepted by the client. Armeria's default is 10 MB; a rich
-	 * entity (senesi `Product` with prices and references) plus schema payloads can approach it, and the
+	 * entity (a single-price-catalog `Product` with prices and references) plus schema payloads can approach it, and the
 	 * deframer aborts the whole run with `RESOURCE_EXHAUSTED` rather than degrading. 256 MB is ample
 	 * headroom while still guarding against a runaway message.
 	 */
@@ -305,7 +305,7 @@ public class IsolatedWarmupLoadBenchmark {
 	 */
 	private int run() throws Exception {
 		final Path pristineDataDir = Path.of(requiredProperty(PRISTINE_DATA_DIR_PROPERTY));
-		final String sourceCatalog = System.getProperty(CATALOG_NAME_PROPERTY, "senesi");
+		final String sourceCatalog = System.getProperty(CATALOG_NAME_PROPERTY, "single-price-catalog");
 		final TargetMode targetMode = TargetMode.valueOf(
 			System.getProperty(TARGET_MODE_PROPERTY, "remote").trim().toUpperCase()
 		);
