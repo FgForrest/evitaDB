@@ -1242,7 +1242,14 @@ public class BidirectionalReferenceRewriteFunctionalTest
 	}
 
 	/**
-	 * Precondition 4c - `collectAttributeNames` refuses a `not`, so the rewrite declines.
+	 * Declines - but no longer because the shape is unsupported. `splitChildren` accepts a single top-level `not`
+	 * over a reference attribute, so what stops this pair is the *cross-scope* guard: `CATEGORY.products` and its
+	 * counterpart are indexed in both scopes, an archived index announces owners, and `preparePlanInternal`
+	 * declines every body carrying an attribute constraint in that situation - exactly as it does for the positive
+	 * form in {@link #shouldRewriteWhenOwnerReferenceIsTheReflectedEnd}. The rewritten path for a negated body is
+	 * pinned by {@link #shouldRewriteANegatedReferenceAttribute} instead, on the one reference whose owner end is
+	 * LIVE-only.
+	 *
 	 *
 	 * The pair also pins the **row-scoped** reading of a negated body, which is what issue #1585 turned out to be
 	 * about. `referenceHaving` is documented as the SQL `EXISTS` operator - its constraints must be "satisfied by
@@ -1325,6 +1332,120 @@ public class BidirectionalReferenceRewriteFunctionalTest
 					byPerCategoryValue.getRecordData()
 				);
 				assertReferenceIndexOptionRegistered(byPerCategoryValue, true);
+			}
+		);
+	}
+
+	/**
+	 * The rewrite answers a **negated** reference attribute from the counterpart end, and returns the same owners the
+	 * owner-side path does.
+	 *
+	 * `CATEGORY.scopedProducts` is the only reference in the fixture this can be asked on: every other one is indexed
+	 * in both scopes, and `preparePlanInternal` declines any body carrying an attribute constraint when an index
+	 * outside the requested scopes announced an owner. Here the owner end is LIVE-only, so `counterpartScopes`
+	 * collapses to the requested scope and the guard cannot fire - see {@code REF_ATTR_SCOPED_GRADE}.
+	 *
+	 * Why the rewrite may do this at all: the counterpart's reduced indexes for one owner hold **only** that owner's
+	 * rows, and a referenced entity appears in exactly one of them. So subtracting the matching set from the owner's
+	 * own rows yields precisely the referenced entities reached through a row that *fails* the constraint - the
+	 * row-scoped reading, computed without leaving the owner and without any structure the engine does not already
+	 * maintain.
+	 *
+	 * Three queries, and it takes all three:
+	 *
+	 * 1. `scopedGrade == 0` - the positive control. Without it a decline would leave the two negated rows asserting
+	 *    against a path that was never exercised, and the registration assertion is the only thing that would notice.
+	 * 2. `not(scopedGrade == 0)`. `scopedGrade` is `categoryPk % 3` on **every** row of a category, so categories 3,
+	 *    6 and 9 hold no row failing the constraint at all and must be the only ones absent. An owner all of whose
+	 *    rows satisfy the negated constraint cannot appear under any reading of `not`, so its presence would prove
+	 *    the constraint was dropped rather than misread.
+	 * 3. `not(scopedGrade == 9)`. Exactly one row in the whole fixture carries that value, and its owner holds
+	 *    twenty-two others that fail it - so a per-owner reading would drop that owner and the row-scoped one keeps
+	 *    it. This is the query that separates `∃r ¬A(r)` from `¬∃r A(r)`.
+	 */
+	@DisplayName("Should rewrite a negated reference attribute against the owner's own rows")
+	@UseDataSet(BIDI_REWRITE)
+	@Test
+	void shouldRewriteANegatedReferenceAttribute(
+		Evita evita,
+		List<SealedEntity> originalCategories
+	) {
+		final long absentFromThreeCategories = 0L;
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// 1 - the positive control: the rewrite has to fire on this reference at all
+				final EvitaResponse<EntityReference> positive = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							referenceHaving(
+								REF_CATEGORY_SCOPED_PRODUCTS,
+								attributeEquals(REF_ATTR_SCOPED_GRADE, absentFromThreeCategories)
+							)
+						),
+						indexScanRequirements()
+					),
+					EntityReference.class
+				);
+				AssertionUtils.assertResultIs(
+					originalCategories,
+					liveOwnerWithRow(
+						REF_CATEGORY_SCOPED_PRODUCTS, row -> scopedGradeIs(row, absentFromThreeCategories)
+					),
+					positive.getRecordData()
+				);
+				assertReferenceIndexOptionRegistered(positive, false);
+
+				// 2 - the decisive one: categories whose EVERY row matches must be absent under any reading
+				final EvitaResponse<EntityReference> byPerCategoryValue = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							referenceHaving(
+								REF_CATEGORY_SCOPED_PRODUCTS,
+								not(attributeEquals(REF_ATTR_SCOPED_GRADE, absentFromThreeCategories))
+							)
+						),
+						indexScanRequirements()
+					),
+					EntityReference.class
+				);
+				AssertionUtils.assertResultIs(
+					"Every row of these categories satisfies the negated constraint, so no reading of `not` can admit " +
+						"them - their presence would prove the constraint was dropped rather than complemented!",
+					originalCategories,
+					liveOwnerWithRow(
+						REF_CATEGORY_SCOPED_PRODUCTS, row -> !scopedGradeIs(row, absentFromThreeCategories)
+					),
+					byPerCategoryValue.getRecordData()
+				);
+				assertReferenceIndexOptionRegistered(byPerCategoryValue, false);
+
+				// 3 - one matching row in the whole fixture, and its owner holds plenty of rows that fail it
+				final EvitaResponse<EntityReference> byUniqueValue = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							referenceHaving(
+								REF_CATEGORY_SCOPED_PRODUCTS,
+								not(attributeEquals(REF_ATTR_SCOPED_GRADE, UNIQUE_SCOPED_GRADE))
+							)
+						),
+						indexScanRequirements()
+					),
+					EntityReference.class
+				);
+				AssertionUtils.assertResultIs(
+					"`not` inside a referenceHaving selects owners holding a row that FAILS the constraint - the " +
+						"owner of the single matching row holds twenty-two others and must therefore be present!",
+					originalCategories,
+					liveOwnerWithRow(
+						REF_CATEGORY_SCOPED_PRODUCTS, row -> !scopedGradeIs(row, UNIQUE_SCOPED_GRADE)
+					),
+					byUniqueValue.getRecordData()
+				);
+				assertReferenceIndexOptionRegistered(byUniqueValue, false);
 			}
 		);
 	}
@@ -2460,6 +2581,17 @@ public class BidirectionalReferenceRewriteFunctionalTest
 	 */
 	private static boolean relevanceIs(@Nonnull ReferenceContract row, long expected) {
 		return longAttributeIs(row, REF_ATTR_RELEVANCE, expected);
+	}
+
+	/**
+	 * Tells whether the reference row carries the expected `scopedGrade` value.
+	 *
+	 * @param row      reference row to inspect
+	 * @param expected expected value
+	 * @return true when the row's `scopedGrade` equals `expected`
+	 */
+	private static boolean scopedGradeIs(@Nonnull ReferenceContract row, long expected) {
+		return longAttributeIs(row, REF_ATTR_SCOPED_GRADE, expected);
 	}
 
 	/**

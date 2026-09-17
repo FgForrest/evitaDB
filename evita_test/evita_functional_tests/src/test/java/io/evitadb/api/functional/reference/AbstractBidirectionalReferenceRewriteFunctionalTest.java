@@ -238,6 +238,12 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 	public static final String REF_ATTR_MARK = "mark";
 	// Long filterable, on PRODUCT.groupedCategories - NOT representative, for the same reason
 	public static final String REF_ATTR_GRADE = "grade";
+	// Long filterable, on PRODUCT.scopedCategories, inherited by the LIVE-only CATEGORY.scopedProducts.
+	// It is the fixture's ONLY reference attribute the counterpart rewrite can actually reach: every other
+	// reference is indexed in both scopes, which makes `preparePlanInternal`'s cross-scope guard decline any
+	// body carrying an attribute constraint. Here the owner end is LIVE-only, so `counterpartScopes` collapses
+	// to the requested scope and the guard cannot fire. NOT representative, so it stays out of the index key.
+	public static final String REF_ATTR_SCOPED_GRADE = "scopedGrade";
 
 	// entity attributes on CATEGORY
 	public static final String ATTR_CODE = "code";                          // String, unique + filterable
@@ -270,6 +276,11 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 	 * 11 and 12 are deliberately excluded from it - they carry the cross-scope rows instead.
 	 */
 	public static final int ROUND_ROBIN_CATEGORY_COUNT = 10;
+	/**
+	 * The `scopedGrade` value only product 1 carries. Every other row carries `categoryPk % 3`, which is in 0..2,
+	 * so this value selects exactly one row in the whole fixture.
+	 */
+	public static final long UNIQUE_SCOPED_GRADE = 9L;
 
 	/**
 	 * Number of products each category curates through `CATEGORY.curated`. The twelve blocks are disjoint and cover
@@ -636,7 +647,12 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 			)
 			.withReferenceToEntity(
 				REF_PRODUCT_SCOPED_CATEGORIES, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs.indexedForFilteringAndPartitioningInScope(Scope.values())
+				whichIs -> whichIs
+					.indexedForFilteringAndPartitioningInScope(Scope.values())
+					.withAttribute(
+						REF_ATTR_SCOPED_GRADE, Long.class,
+						thatIs -> thatIs.filterableInScope(Scope.values())
+					)
 			)
 			.withReferenceToEntity(
 				REF_PRODUCT_CROSS_ROW_CATEGORIES, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
@@ -921,8 +937,18 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 		builder.setReference(REF_TAXONOMY_STATS, roundRobinCategoryPk <= 5 ? 2 : 5);
 
 		// written for EVERY product, the archived ten included - that archived counterpart type index is the
-		// only thing that keeps the LIVE-only `scopedProducts` row non-vacuous
-		builder.setReference(REF_PRODUCT_SCOPED_CATEGORIES, roundRobinCategoryPk);
+		// only thing that keeps the LIVE-only `scopedProducts` row non-vacuous.
+		//
+		// `scopedGrade` is constant across a category's WHOLE product block, which is what makes a negated body
+		// decisive: a category whose every row carries the negated value must be absent under any reading of
+		// `not`, so its presence would prove the constraint was dropped rather than misread. Product 1 is the one
+		// exception, carrying a value no other row in the fixture carries - so the owner of the single matching
+		// row still holds twenty-two rows that fail it and must stay present.
+		final long scopedGrade = productPk == 1 ? UNIQUE_SCOPED_GRADE : roundRobinCategoryPk % 3;
+		builder.setReference(
+			REF_PRODUCT_SCOPED_CATEGORIES, roundRobinCategoryPk,
+			whichIs -> whichIs.setAttribute(REF_ATTR_SCOPED_GRADE, scopedGrade)
+		);
 
 		session.upsertEntity(builder);
 	}
