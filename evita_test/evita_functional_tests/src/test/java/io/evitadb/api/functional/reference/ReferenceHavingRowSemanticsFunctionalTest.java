@@ -46,11 +46,13 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.FACET;
 import static io.evitadb.test.TestTags.FILTER;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -77,6 +79,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(CONTRACT)
 @Tag(REFERENCE)
 @Tag(FILTER)
+@Tag(FACET)
 public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirectionalReferenceRewriteFunctionalTest {
 
 	/**
@@ -84,6 +87,12 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 	 * a round-robin slice of the products.
 	 */
 	private static final int TARGET_CATEGORY_PK = 5;
+
+	/**
+	 * The brand the facet cases exclude. Every product carries exactly one brand, round-robin over the brands, so
+	 * excluding one leaves a strict, non-empty subset of the collection on either reading.
+	 */
+	private static final int EXCLUDED_BRAND_PK = 1;
 
 	/**
 	 * Runs the given body inside `referenceHaving(categories, ...)` on the PRODUCT collection and returns the
@@ -325,6 +334,23 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 		@Nonnull Evita evita,
 		@Nonnull FilterConstraint body
 	) {
+		return matchingProductsByCrossRowCategories(evita, body, DebugMode.PREFER_INDEX_SCAN);
+	}
+
+	/**
+	 * Runs a `referenceHaving` over the `crossRowCategories` reference on the requested plan.
+	 *
+	 * @param evita     the engine
+	 * @param body      the body of the reference constraint
+	 * @param debugMode the plan the query is forced onto
+	 * @return primary keys of matching products
+	 */
+	@Nonnull
+	private static Set<Integer> matchingProductsByCrossRowCategories(
+		@Nonnull Evita evita,
+		@Nonnull FilterConstraint body,
+		@Nonnull DebugMode debugMode
+	) {
 		return evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -332,7 +358,7 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(referenceHaving(REF_PRODUCT_CROSS_ROW_CATEGORIES, body)),
-						require(debug(DebugMode.PREFER_INDEX_SCAN), page(1, Integer.MAX_VALUE))
+						require(debug(debugMode), page(1, Integer.MAX_VALUE))
 					),
 					EntityReference.class
 				);
@@ -615,6 +641,249 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 			),
 			"The tier and the absent mark must be carried by one and the same row. Pooling the owner's rows would " +
 				"return " + pooledReading + "."
+		);
+	}
+
+	/**
+	 * A doubly negated body - `not(not(x))` - has to answer exactly what `x` answers.
+	 *
+	 * `NotTranslator` emits every negation as a `FutureNotFormula` placeholder, so the inner `not` hands the outer
+	 * one a placeholder rather than a computable formula and the outer one wraps it in a second placeholder. Nothing
+	 * unwraps the pair: the transposer resolves the outer placeholder into a real subtraction whose subtrahend is
+	 * still the inner placeholder, and computing it reaches `FutureNotFormula#computeInternal`, which throws.
+	 *
+	 * The assertion is written against the singly-positive constraint rather than against a hand-written set,
+	 * because the two are the same question and a fixture change cannot make them disagree.
+	 *
+	 * @param evita the engine
+	 */
+	@DisplayName("double negation inside the body answers what the positive constraint answers")
+	@UseDataSet(BIDI_REWRITE)
+	@Test
+	void shouldResolveADoublyNegatedBody(Evita evita) {
+		final Set<Integer> positiveReading = matchingProductsByCrossRowCategories(
+			evita, attributeEquals(REF_ATTR_MARK, CROSS_ROW_MATCHED_MARK)
+		);
+		assertFalse(
+			positiveReading.isEmpty(),
+			"Fixture must contain an owner holding a row carrying the mark, or this row cannot tell a correct " +
+				"answer from an empty one."
+		);
+
+		assertEquals(
+			positiveReading,
+			matchingProductsByCrossRowCategories(
+				evita, not(not(attributeEquals(REF_ATTR_MARK, CROSS_ROW_MATCHED_MARK)))
+			),
+			"`not(not(x))` must answer exactly what `x` answers - the two negations cancel."
+		);
+	}
+
+	/**
+	 * `not(entityHaving(...))` has to be complemented against the reference **row**, exactly like
+	 * {@link #shouldComplementEntityPrimaryKeyInSetAgainstTheReferenceRow} requires of
+	 * `not(entityPrimaryKeyInSet(...))`.
+	 *
+	 * Inside the body `entityHaving` speaks about the referenced entity, and a reduced entity index carries exactly
+	 * one of those - so the constraint is constant across an index and the row-scoped answer is the owners holding
+	 * a row in some index whose target does **not** match. The formula the nested query produces is built from the
+	 * reduced indexes of the whole collection and carries no index tag, so the transposer treats it as
+	 * index-independent and keeps it whole for every index; complementing it then answers the per-owner question
+	 * "this owner references nothing matching", which drops every owner holding a matching row **and** a
+	 * non-matching one.
+	 *
+	 * @param evita            the engine
+	 * @param originalProducts all products, fully fetched, as the dataset built them
+	 */
+	@DisplayName("`not(entityHaving)` selects owners holding a row pointing somewhere else")
+	@UseDataSet(BIDI_REWRITE)
+	@Test
+	void shouldComplementEntityHavingAgainstTheReferenceRow(Evita evita, List<SealedEntity> originalProducts) {
+		final Predicate<ReferenceContract> targetsCategoryA =
+			row -> row.getReferencedPrimaryKey() == CROSS_ROW_CATEGORY_A_PK;
+
+		final Set<Integer> expected = originalProducts.stream()
+			.filter(it -> holdsCrossRowRow(it, targetsCategoryA.negate()))
+			.map(SealedEntity::getPrimaryKey)
+			.collect(Collectors.toCollection(TreeSet::new));
+		final Set<Integer> perOwnerReading = originalProducts.stream()
+			.filter(it -> !it.getReferences(REF_PRODUCT_CROSS_ROW_CATEGORIES).isEmpty())
+			.filter(it -> !holdsCrossRowRow(it, targetsCategoryA))
+			.map(SealedEntity::getPrimaryKey)
+			.collect(Collectors.toCollection(TreeSet::new));
+		assertFalse(expected.isEmpty(), "Fixture must contain an owner holding a row pointing elsewhere.");
+		assertNotEquals(
+			perOwnerReading, expected,
+			"Fixture must contain an owner holding a row on the excluded category AND a row elsewhere, or the " +
+				"row-scoped and the per-owner readings coincide and this row proves nothing."
+		);
+
+		assertEquals(
+			expected,
+			matchingProductsByCrossRowCategories(
+				evita, not(entityHaving(entityPrimaryKeyInSet(CROSS_ROW_CATEGORY_A_PK)))
+			),
+			"The negation must be taken inside each reference row. Complementing across the whole family would " +
+				"return " + perOwnerReading + " instead."
+		);
+	}
+
+	/**
+	 * `facetHaving(R, not(x))` has to keep the negation.
+	 *
+	 * Facet filtering quantifies the REFERENCED entity rather than the reference row: `FacetHavingTranslator` asks
+	 * `FilterByVisitor#getReferencedRecordIdFormula` which referenced primary keys the body selects and consumes the
+	 * answer as it stands, with nothing re-examining rows afterwards. That formula is built inside a reference
+	 * type-level scope - the same kind of scope in which a `referenceHaving` body is allowed to answer a negation
+	 * with the whole super set, because there the caller settles the negation per row later on. Nothing settles it
+	 * here, so a negation widened in this scope selects every facet of the reference and the filter stops filtering.
+	 *
+	 * The expectation is derived from the engine's own positive answers rather than from counted fixture rows, so
+	 * that a change to the fixture cannot make the two readings agree silently.
+	 *
+	 * @param evita the engine
+	 */
+	@DisplayName("`facetHaving` keeps a negation in its body")
+	@UseDataSet(BIDI_REWRITE)
+	@Test
+	void shouldKeepTheNegationInsideFacetHaving(Evita evita) {
+		final int[] everyBrand = IntStream.rangeClosed(1, BRAND_COUNT).toArray();
+		final int[] otherBrands = IntStream.rangeClosed(1, BRAND_COUNT)
+			.filter(it -> it != EXCLUDED_BRAND_PK)
+			.toArray();
+
+		final Set<Integer> expected = productsSelectedByBrandFacet(evita, entityPrimaryKeyInSet(otherBrands));
+		// exactly what dropping the negation answers: the body widens to every reduced index of the reference,
+		// which translates back into every brand the collection references
+		final Set<Integer> droppedNegationReading = productsSelectedByBrandFacet(
+			evita, entityPrimaryKeyInSet(everyBrand)
+		);
+		assertFalse(expected.isEmpty(), "Fixture must contain products carrying a brand other than the excluded one.");
+		assertNotEquals(
+			droppedNegationReading, expected,
+			"Fixture must contain a product carrying the excluded brand, or dropping the negation answers " +
+				"correctly by accident and this row proves nothing."
+		);
+
+		assertEquals(
+			expected,
+			productsSelectedByBrandFacet(evita, not(entityPrimaryKeyInSet(EXCLUDED_BRAND_PK))),
+			"`not` inside `facetHaving` must subtract the excluded brand. Widening it to the whole reference " +
+				"family would select every product carrying any brand instead."
+		);
+	}
+
+	/**
+	 * The positive `entityPrimaryKeyInSet` body, answered on the prefetch plan.
+	 *
+	 * The reduced-index leaf this constraint emits inside a `referenceHaving` body is built from the reference's
+	 * reduced index family, and it stays that way on the prefetch plan: `FilterByVisitor#isPrefetchPossible()` is
+	 * `scope.size() == 1`, so it is false inside the scope pushed for the body and no prefetched alternative is
+	 * ever substituted there. What the prefetch plan changes is the enclosing query, not the body - and this row is
+	 * what pins that the two agree, since every other row in this suite steers onto the index-scan plan.
+	 *
+	 * @param evita            the engine
+	 * @param originalProducts all products, fully fetched, as the dataset built them
+	 */
+	@DisplayName("`entityPrimaryKeyInSet` inside the body selects the same owners on the prefetch plan")
+	@UseDataSet(BIDI_REWRITE)
+	@Test
+	void shouldSelectOwnersReferencingTheGivenEntityOnThePrefetchPlan(
+		Evita evita,
+		List<SealedEntity> originalProducts
+	) {
+		final Predicate<ReferenceContract> targetsCategoryA =
+			row -> row.getReferencedPrimaryKey() == CROSS_ROW_CATEGORY_A_PK;
+
+		final Set<Integer> expected = originalProducts.stream()
+			.filter(it -> holdsCrossRowRow(it, targetsCategoryA))
+			.map(SealedEntity::getPrimaryKey)
+			.collect(Collectors.toCollection(TreeSet::new));
+		assertFalse(expected.isEmpty(), "Fixture must contain an owner holding a row on the target category.");
+
+		assertEquals(
+			expected,
+			matchingProductsByCrossRowCategories(
+				evita, entityPrimaryKeyInSet(CROSS_ROW_CATEGORY_A_PK), DebugMode.PREFER_PREFETCHING
+			),
+			"The prefetch plan must select exactly the owners holding a row on the target category."
+		);
+	}
+
+	/**
+	 * The row-scoped complement, answered on the prefetch plan.
+	 *
+	 * The twin of {@link #shouldComplementEntityPrimaryKeyInSetAgainstTheReferenceRow}, which pins the same shape on
+	 * the index-scan plan. Both readings are derived from the fetched bodies and the row asserts they differ, so a
+	 * plan that quietly answers the per-owner question fails here rather than agreeing by coincidence.
+	 *
+	 * @param evita            the engine
+	 * @param originalProducts all products, fully fetched, as the dataset built them
+	 */
+	@DisplayName("the negated body is complemented per reference row on the prefetch plan")
+	@UseDataSet(BIDI_REWRITE)
+	@Test
+	void shouldComplementEntityPrimaryKeyInSetAgainstTheReferenceRowOnThePrefetchPlan(
+		Evita evita,
+		List<SealedEntity> originalProducts
+	) {
+		final Predicate<ReferenceContract> targetsCategoryA =
+			row -> row.getReferencedPrimaryKey() == CROSS_ROW_CATEGORY_A_PK;
+
+		final Set<Integer> expected = originalProducts.stream()
+			.filter(it -> holdsCrossRowRow(it, targetsCategoryA.negate()))
+			.map(SealedEntity::getPrimaryKey)
+			.collect(Collectors.toCollection(TreeSet::new));
+		final Set<Integer> perOwnerReading = originalProducts.stream()
+			.filter(it -> !it.getReferences(REF_PRODUCT_CROSS_ROW_CATEGORIES).isEmpty())
+			.filter(it -> !holdsCrossRowRow(it, targetsCategoryA))
+			.map(SealedEntity::getPrimaryKey)
+			.collect(Collectors.toCollection(TreeSet::new));
+		assertFalse(expected.isEmpty(), "Fixture must contain an owner holding a row pointing elsewhere.");
+		assertNotEquals(
+			perOwnerReading, expected,
+			"Fixture must contain an owner holding a row on the excluded category AND a row elsewhere, or the " +
+				"row-scoped and the per-owner readings coincide and this row proves nothing."
+		);
+
+		assertEquals(
+			expected,
+			matchingProductsByCrossRowCategories(
+				evita, not(entityPrimaryKeyInSet(CROSS_ROW_CATEGORY_A_PK)), DebugMode.PREFER_PREFETCHING
+			),
+			"The prefetch plan must take the negation inside each reference row. Complementing across the whole " +
+				"family would return " + perOwnerReading + " instead."
+		);
+	}
+
+	/**
+	 * Runs `userFilter(facetHaving(brand, body))` on the PRODUCT collection and returns the matched primary keys.
+	 *
+	 * @param evita     the engine
+	 * @param facetBody the constraint selecting the facets
+	 * @return ordered set of matched PRODUCT primary keys
+	 */
+	@Nonnull
+	private static Set<Integer> productsSelectedByBrandFacet(
+		@Nonnull Evita evita,
+		@Nonnull FilterConstraint facetBody
+	) {
+		return evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(userFilter(facetHaving(REF_PRODUCT_BRAND, facetBody))),
+						require(page(1, Integer.MAX_VALUE))
+					),
+					EntityReference.class
+				);
+				return result.getRecordData()
+					.stream()
+					.map(EntityReference::getPrimaryKey)
+					.collect(Collectors.toCollection(TreeSet::new));
+			}
 		);
 	}
 

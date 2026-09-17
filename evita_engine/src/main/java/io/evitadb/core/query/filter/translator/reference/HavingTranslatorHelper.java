@@ -40,6 +40,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
+import io.evitadb.core.query.algebra.reference.IndexTaggedFormula;
 import io.evitadb.core.query.algebra.reference.ReferenceOwnerTranslatingFormula;
 import io.evitadb.core.query.algebra.reference.ReferencedEntityIndexPrimaryKeyTranslatingFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
@@ -55,6 +56,7 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -370,6 +372,32 @@ public class HavingTranslatorHelper {
 								)
 								.toArray(Formula[]::new)
 						);
+					} else if (processingScope.getReferenceSchema() != null &&
+						ReducedEntityIndex.class.isAssignableFrom(processingScope.getIndexType())) {
+						// BRANCH B below resolves the reduced indexes from the *collection*, so inside a reduced
+						// index it answers "does this owner have any row whose target matches" instead of "does the
+						// row held by THIS index have a matching target" - the same cross-row reading the group
+						// branch above exists to avoid. A `not` around it then complements an owner-level set and
+						// answers "this owner references nothing matching", dropping every owner holding a matching
+						// row AND a non-matching one.
+						if (nestedResult.globalIndex() == null) {
+							return EmptyFormula.INSTANCE;
+						}
+						return FormulaFactory.or(
+							processingScope
+								.getIndexStream()
+								.filter(it -> processingScope.getScopes().contains(it.getIndexKey().scope()))
+								.filter(ReducedEntityIndex.class::isInstance)
+								.map(ReducedEntityIndex.class::cast)
+								.map(
+									it -> createIndexLocalTargetFormula(
+										filterByVisitor, entitySchema, referenceSchema, filterConstraint,
+										it, nestedResult.globalIndex(), nestedResult.filter(),
+										nestedQueryDescription
+									)
+								)
+								.toArray(Formula[]::new)
+						);
 					} else {
 						if (nestedResult.globalIndex() == null) {
 							return EmptyFormula.INSTANCE;
@@ -422,6 +450,94 @@ public class HavingTranslatorHelper {
 					}
 				})
 				.toArray(Formula[]::new)
+		);
+	}
+
+	/**
+	 * Builds the row-exact owner formula contributed by one reduced entity index for an `entityHaving` body.
+	 *
+	 * A reduced entity index is keyed by the referenced entity it holds rows for, so the nested query's verdict is
+	 * constant across the whole index: either its target matches and every row it holds satisfies the constraint,
+	 * or none does. Restricting the expander to this one target is what makes the answer row-exact - the
+	 * collection-wide lookup answers "does this owner reference anything matching" instead, which is cross-row and
+	 * combines wrongly with sibling constraints and with `not`.
+	 *
+	 * The result carries an {@link IndexTaggedFormula}, because nothing tags a formula assembled here and an
+	 * untagged leaf is kept whole for every index by {@link ReferenceBodyTransposer} - which is precisely the
+	 * owner-level reading this method exists to avoid.
+	 *
+	 * @param filterByVisitor        visitor whose planning context memoizes and initialises the formula
+	 * @param entitySchema           schema of the owning entity
+	 * @param referenceSchema        schema of the reference being filtered
+	 * @param filterConstraint       the nested query's constraint, part of the memoization key
+	 * @param targetIndex            the reduced entity index whose rows are being evaluated
+	 * @param referencedGlobalIndex  global index of the referenced entity type, the nested query's universe
+	 * @param referencedFilter       formula selecting the matching referenced entity primary keys
+	 * @param nestedQueryDescription description of the nested query, for the telemetry step
+	 * @return formula producing the owner primary keys this index contributes
+	 */
+	@Nonnull
+	private static Formula createIndexLocalTargetFormula(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull FilterConstraint filterConstraint,
+		@Nonnull ReducedEntityIndex targetIndex,
+		@Nonnull GlobalEntityIndex referencedGlobalIndex,
+		@Nonnull Formula referencedFilter,
+		@Nonnull Supplier<String> nestedQueryDescription
+	) {
+		final int targetPrimaryKey = targetIndex.getReferenceKey().primaryKey();
+		return new IndexTaggedFormula(
+			targetIndex.getPrimaryKey(),
+			filterByVisitor.computeOnlyOnce(
+				List.of(referencedGlobalIndex),
+				filterConstraint,
+				() -> {
+					final ReferenceOwnerTranslatingFormula outputFormula = new ReferenceOwnerTranslatingFormula(
+						referencedGlobalIndex,
+						referencedFilter,
+						referencedPrimaryKey -> referencedPrimaryKey == targetPrimaryKey ?
+							targetIndex.getAllPrimaryKeys() : EmptyBitmap.INSTANCE,
+						// the expander is bound to THIS index; without an identity the per-index formulas all
+						// hash alike and every one but the first is silently dropped as a duplicate
+						targetIndex.getPrimaryKey()
+					);
+					// the `DeferredFormula` is load bearing beyond its telemetry step: it declares no inner
+					// formulas, so the nested query stays a terminal node to every tree rewriter above it.
+					// `FormulaCloner`, driven by `ExtraResultPlanningVisitor#shortcutFormula`, otherwise descends
+					// into the translating formula and clones it with its only child removed - which both trips
+					// that formula's own arity check and hides the facet selections the extra-result planner
+					// reads off the very same tree. It must be handed out through `computeOnlyOnce`, which is
+					// what initialises the wrapper - built outside it, the wrapper fails its own premise check
+					// wherever a filter formula is computed without an execution context.
+					return new DeferredFormula(
+						new FormulaWrapper(
+							outputFormula,
+							(executionContext, formula) -> {
+								try {
+									executionContext.pushStep(
+										QueryPhase.EXECUTION_FILTER_NESTED_QUERY, nestedQueryDescription
+									);
+									return formula.compute();
+								} finally {
+									executionContext.popStep();
+								}
+							}
+						)
+					);
+				},
+				2L,
+				// we need to add exact pointers to the entity schema and reference schema,
+				// which play role in the lambda evaluation
+				NumberUtils.pack(
+					System.identityHashCode(entitySchema),
+					System.identityHashCode(referenceSchema)
+				),
+				referencedGlobalIndex.getPrimaryKey(),
+				// ... and the reduced index this contribution is bound to, or every index shares one entry
+				targetIndex.getPrimaryKey()
+			)
 		);
 	}
 
