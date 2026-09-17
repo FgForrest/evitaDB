@@ -32,6 +32,7 @@ import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.query.QueryPlanner;
@@ -50,6 +51,7 @@ import io.evitadb.core.query.filter.NestedQueryRestriction;
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator.EntityPropertyWithScopes;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.EntityIndex;
@@ -259,6 +261,78 @@ public class HavingTranslatorHelper {
 					)
 				).toList();
 		}
+	}
+
+	/**
+	 * Verifies that the reference maintains its {@link ReferenceIndexedComponents#REFERENCED_GROUP_ENTITY} index in
+	 * at least one of the queried scopes, and rejects a `groupHaving` that reads it when it does not.
+	 *
+	 * Declaring a referenced group type does not by itself make the engine maintain group indexes -
+	 * {@link ReferenceSchemaContract#getIndexedComponents(Scope)} decides that, per scope, and it defaults to
+	 * {@link ReferenceIndexedComponents#REFERENCED_ENTITY} alone. Without the group component the reduced group
+	 * indexes {@link #createIndexLocalGroupFormula} reads were never built, so every index contributes
+	 * {@link EmptyBitmap#INSTANCE} and the constraint silently matches nothing - while a `not` around it matches
+	 * *everything*, the complement of the empty set. Neither answer is distinguishable from a genuine result, which
+	 * is what makes the silence dangerous: it is how a fixture in `ReferenceHavingRowSemanticsFunctionalTest` passed
+	 * while proving nothing, and how a real defect came to be recorded as refuted.
+	 *
+	 * The check is deliberately narrow in two ways.
+	 *
+	 * It passes as soon as **any** queried scope carries the component. A schema may legitimately index groups in
+	 * one scope and not another; the scopes that cannot answer contribute nothing to the union, which is a correct
+	 * partial answer rather than a misconfiguration.
+	 *
+	 * It stays silent when the reference is indexed in none of the queried scopes, leaving that case to the
+	 * {@link io.evitadb.core.exception.ReferenceNotIndexedException} the throwing stub built by
+	 * {@link ReferencedTypeEntityIndex#createThrowingStub} already raises. That message names the real problem -
+	 * the reference is not indexed at all - and is strictly better than the one below.
+	 *
+	 * There is no counterpart for {@link ReferenceIndexedComponents#REFERENCED_ENTITY} and an `entityHaving`, and
+	 * adding one would be dead code: for such a check to fire, no queried scope could carry the entity component,
+	 * and a reference with no reduced entity index in any queried scope resolves to an empty result before its body
+	 * is ever translated. That short-circuit is itself a defect - a reference indexed for the group component alone
+	 * answers even `groupHaving` with nothing - but it is a different one, and it has to be fixed where it happens
+	 * rather than papered over by a guard that cannot be reached.
+	 *
+	 * @param groupHaving     the constraint being translated, quoted back in the error message
+	 * @param entitySchema    schema of the entity being queried
+	 * @param referenceSchema schema of the reference the constraint is nested in
+	 * @param scopes          the scopes the query asked for
+	 */
+	static void assertGroupComponentIndexed(
+		@Nonnull GroupHaving groupHaving,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Set<Scope> scopes
+	) {
+		boolean indexedInAnyQueriedScope = false;
+		for (final Scope scope : scopes) {
+			if (referenceSchema.isIndexedInScope(scope)) {
+				indexedInAnyQueriedScope = true;
+				if (referenceSchema.getIndexedComponents(scope).contains(
+					ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+				)) {
+					return;
+				}
+			}
+		}
+		if (!indexedInAnyQueriedScope) {
+			return;
+		}
+		final StringBuilder queriedScopes = new StringBuilder(32);
+		for (final Scope scope : Scope.values()) {
+			if (scopes.contains(scope)) {
+				queriedScopes.append(queriedScopes.isEmpty() ? "" : ", ").append(scope.name());
+			}
+		}
+		throw new EvitaInvalidUsageException(
+			"Filtering constraint `" + groupHaving + "` targets reference `" + referenceSchema.getName() +
+				"` of entity `" + entitySchema.getName() + "`, but that reference does not index its referenced " +
+				"group entity in any of the queried scopes `" + queriedScopes + "`. Add `REFERENCED_GROUP_ENTITY` " +
+				"to `indexedComponentsInScopes` of reference `" + referenceSchema.getName() + "` in at least one " +
+				"queried scope - declaring a group type alone builds no group index, so the constraint could never " +
+				"match anything."
+		);
 	}
 
 	/**
