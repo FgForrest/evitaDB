@@ -1343,6 +1343,14 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		// compute the result formula in the initialized context
 		final String referenceName = referenceSchema.getName();
 		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
+		// `EntityPrimaryKeyInSet` is NOT suppressed here, although the index set handed over was already narrowed
+		// by the very same constraint during discovery. Suppressing it drops the constraint from the tree, and
+		// `not(entityPrimaryKeyInSet(...))` then hands `NotTranslator` nothing to negate - a premise failure on
+		// a plain public query. It cannot be answered by discovery either: a negated leaf widens the candidate set
+		// rather than narrowing it, so the complement has to be taken inside each index. Translated here the
+		// constraint is a constant per index - this index's target either is in the set or is not - which is what
+		// `EntityPrimaryKeyInSetTranslator` emits for a reduced-index scope, so the positive case stays correct
+		// and merely repeats what discovery already decided.
 		return filterByVisitor.executeInContextAndIsolatedFormulaStack(
 			AbstractReducedEntityIndex.class,
 			() -> Collections.singletonList(index),
@@ -1359,8 +1367,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				filterBy.accept(filterByVisitor);
 				// get the result and clear the visitor internal structures
 				return filterByVisitor.getFormulaAndClear();
-			},
-			EntityPrimaryKeyInSet.class
+			}
 		);
 	}
 
