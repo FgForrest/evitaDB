@@ -29,7 +29,6 @@ import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
-import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -58,12 +57,22 @@ public class NotTranslator implements FilteringConstraintTranslator<Not> {
 			() -> "Expected exactly one formula from `not` inner constraint dispatch, got " +
 				collectedFormulas.length + " for: `" + notConstraint + "`."
 		);
-		if (ReferencedTypeEntityIndex.class.isAssignableFrom(filterByVisitor.getProcessingScope().getIndexType())) {
-			// The reference type-level index answers "which reduced indexes hold at least one row matching X". It
-			// therefore cannot answer the negation: an index holding a row that matches X may hold another row that
-			// does not, and subtracting the matches would drop it. This pass only narrows the set of indexes the
-			// body is afterwards evaluated against, so the sound answer is the widest one - every index stays a
-			// candidate and the negation is settled per row, inside the index it belongs to.
+		if (collectedFormulas[0] instanceof final FutureNotFormula nestedNegation) {
+			// `not(not(x))` is `x`. Both negations are placeholders, and nothing above ever unwraps a pair of them:
+			// the placeholder this method would produce carries another placeholder as its subtrahend, and whoever
+			// resolves the outer one hands the inner one to `Formula#compute`, which throws. This level is the only
+			// one at which the pair is still visible, so it is where the two cancel. The same collapse settles
+			// `not(or(a, not(b)))`, whose disjunction hands up a placeholder for the very same reason.
+			return nestedNegation.getInnerFormula();
+		}
+		if (filterByVisitor.getProcessingScope().isNegationResolvedPerRow()) {
+			// The scope this runs in produces a candidate index set that its caller re-evaluates row by row, and the
+			// reference type-level index backing it answers only "which reduced indexes hold at least one row
+			// matching X" - so it cannot answer the negation at all: an index holding a row that matches X may hold
+			// another row that does not, and subtracting the matches would drop it. Widening to the super set keeps
+			// every index a candidate and leaves the negation to be settled per row, inside the index it belongs to.
+			// The decision belongs to the caller and not to the index type: a type-level scope whose formula is
+			// consumed as the answer - facet filtering - still needs a real subtraction here.
 			return filterByVisitor.getSuperSetFormula();
 		}
 		return new FutureNotFormula(collectedFormulas[0]);
