@@ -182,13 +182,22 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	@Delegate(types = PriceIndexContract.class)
 	private final PriceIndexContract priceIndex = VoidPriceIndex.INSTANCE;
 	/**
-	 * This index keeps information about cardinality of index primary keys for each owner entity primary key.
-	 * The referenced primary keys are indexed into {@link #entityIds} but they may be added to this index multiple times.
-	 * In order to know when they could be removed from {@link #entityIds} we need to know how many times they were added
-	 * and this is being tracked in this data structure.
+	 * Keeps the cardinality of each {@link AbstractReducedEntityIndex} primary key this index tracks. **No owner
+	 * entity primary key is involved anywhere in it** - {@link #insertPrimaryKeyIfMissing(int, int)} is handed the
+	 * reduced index primary key and the primary key that index is keyed by (the referenced entity, or the group for
+	 * a group index), and those are the two numbers this structure pairs.
+	 *
+	 * It keeps two tallies for that pair: the overall count for the reduced index primary key, and a
+	 * per-referenced-entity one that backs the reverse lookup from a referenced entity to the reduced index primary
+	 * keys reaching it.
+	 *
+	 * What is indexed into {@link #entityIds} is the reduced index primary key, and one of them is registered once
+	 * per owner row that lands in it, so the same key arrives here many times over. Knowing how many times is what
+	 * tells us when it may leave {@link #entityIds}: the superclass is touched only on the 0 -> 1 crossing, and
+	 * {@link #removePrimaryKey(int, int)} only on the 1 -> 0 one.
 	 *
 	 * In order to optimize storage we keep only cardinalities that are greater than 1. The cardinality = 1 can be
-	 * determined by the presence of the referenced primary key in {@link #entityIds}.
+	 * determined by the presence of the reduced index primary key in {@link #entityIds}.
 	 */
 	@Nonnull
 	private final ReferenceTypeCardinalityIndex indexPrimaryKeyCardinality;
