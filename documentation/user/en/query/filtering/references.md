@@ -39,6 +39,46 @@ or in [`groupHaving`](#group-having) constraint to examine the attributes of the
 with the reference. The constraint is similar to
 SQL [`EXISTS`](https://www.w3schools.com/sql/sql_exists.asp) operator.
 
+### How the nested constraints are evaluated
+
+Every constraint nested inside `referenceHaving` describes **a single reference**. An entity matches when at
+least one of its references with the given name satisfies all of those constraints at once. This is what the
+similarity to the SQL `EXISTS` operator means in practice: the query asks whether such a reference exists, not
+whether the entity as a whole has a particular property.
+
+The distinction becomes visible as soon as an entity carries more than one reference of the same name.
+Consider a product with two `relatedProducts` references - one whose `category` is `alternativeProduct`, and
+another whose `category` is `sparePart`:
+
+- a constraint requiring `category` to equal `alternativeProduct` matches this product, because its first
+  reference satisfies it,
+- a constraint requiring `category` **not** to equal `alternativeProduct` matches it as well, because its
+  second reference satisfies that.
+
+Both answers are correct. The two queries ask about different references of the same product, so there is
+nothing contradictory about a product matching both of them.
+
+The same rule governs constraints combined with `and` - all of them must be satisfied by one and the same
+reference. A product whose first reference satisfies one condition while a *different* reference satisfies the
+other does not match their conjunction. Likewise, [`entityHaving`](#entity-having) and
+[`groupHaving`](#group-having) describe the referenced entity and the group of that same single reference.
+
+<Note type="warning">
+
+**Negating inside the constraint differs from negating around it.** Because every nested constraint describes
+one reference, a negation placed inside `referenceHaving` asks whether **some** reference fails the condition.
+To ask whether **no** reference satisfies it, negate the entire `referenceHaving` constraint instead.
+
+`referenceHaving("relatedProducts", not(attributeEquals("category", "alternativeProduct")))` matches entities
+that have at least one related product which is not an alternative product.
+
+`not(referenceHaving("relatedProducts", attributeEquals("category", "alternativeProduct")))` matches entities
+that have no related product which is an alternative product.
+
+An entity may match both of these queries, or neither of them.
+
+</Note>
+
 To demonstrate how the `referenceHaving` constraint works, let's query for products that have at least one alternative
 product specified. The alternative products are stored in the `relatedProducts` reference on the `Product` entity and
 have the `category` attribute set to `alternativeProduct`. There can be different types of related products other than
