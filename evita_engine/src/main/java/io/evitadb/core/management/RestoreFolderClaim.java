@@ -130,6 +130,28 @@ final class RestoreFolderClaim {
 	}
 
 	/**
+	 * Answers which folder this restore took for itself, or `null` when it never got one.
+	 *
+	 * The folder token is written once, after `allocateFolderFor` returns, and never cleared, so this keeps
+	 * answering long after the claim itself has changed hands. That is what makes it usable at clean-up time,
+	 * when the claim is always gone.
+	 *
+	 * **The folder, not a flag, and the difference is the whole point.** "This restore once allocated something"
+	 * and "the catalog answering to the scratch name right now is the one this restore put there" are different
+	 * statements, and only the second licenses a deletion. The claim is released as soon as the registering step
+	 * finishes, so between then and the clean-up the name is ordinary: another operation may drop the scratch
+	 * catalog and create its own under the same name. A caller that deleted on the strength of a boolean would
+	 * destroy that one. Comparing this token against the folder the engine currently binds the name to is what
+	 * turns the question into one about identity - see `PublishRestoredCatalogTask#scratchIsStillOurs`.
+	 *
+	 * @return token of the folder allocated by this restore, or `null` when allocation never happened
+	 */
+	@Nullable
+	CatalogFolderId allocatedFolderId() {
+		return this.folderId;
+	}
+
+	/**
 	 * Takes ownership of the claim, so that the caller — and only the caller — is responsible for releasing it.
 	 *
 	 * Marks the holder handed over even when there was nothing to hand over, so an allocation still in flight

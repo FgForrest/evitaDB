@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
+import io.evitadb.dataType.DataChunk;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -284,6 +285,56 @@ class ReferencesTest extends AbstractBuilderTest {
 			assertTrue(
 				refs.referencesAvailable(BRAND)
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Reference chunk grouping")
+	class ReferenceChunkTest {
+
+		@Test
+		@DisplayName(
+			"should group references of one name even when the names are interleaved"
+		)
+		void shouldGroupReferencesByNameWhenNamesAreInterleaved() {
+			// the grouping carries the current chunk across a run of equal names, which is a pure optimisation for
+			// the ordering the storage actually produces - an array that is not grouped must still come out right
+			final EntitySchemaContract schema = schemaWithRefs();
+			final References refs = new References(
+				schema,
+				new ReferenceContract[]{
+					createRef(schema, CATEGORY, 20, Cardinality.ZERO_OR_MORE),
+					createRef(schema, BRAND, 10, Cardinality.ZERO_OR_ONE),
+					createRef(schema, CATEGORY, 21, Cardinality.ZERO_OR_MORE)
+				},
+				Set.of(BRAND, CATEGORY),
+				DEFAULT_CHUNK_TRANSFORMER
+			);
+
+			assertEquals(2, refs.getReferenceChunk(CATEGORY).getData().size());
+			assertEquals(1, refs.getReferenceChunk(BRAND).getData().size());
+		}
+
+		@Test
+		@DisplayName(
+			"should memoize the empty chunk of a name it carries no reference of"
+		)
+		void shouldReturnEmptyChunkForUnknownReferenceNameWithoutRecomputing() {
+			final EntitySchemaContract schema = schemaWithRefs();
+			final References refs = new References(
+				schema,
+				new ReferenceContract[]{
+					createRef(schema, CATEGORY, 20, Cardinality.ZERO_OR_MORE)
+				},
+				Set.of(BRAND, CATEGORY),
+				DEFAULT_CHUNK_TRANSFORMER
+			);
+
+			final DataChunk<ReferenceContract> first = refs.getReferenceChunk(BRAND);
+			final DataChunk<ReferenceContract> second = refs.getReferenceChunk(BRAND);
+
+			assertTrue(first.getData().isEmpty());
+			assertSame(first, second);
 		}
 	}
 

@@ -315,7 +315,7 @@ Schéma přidružených dat je popsáno:
 
 </LS>
 
-Více detailů o přidružených datech je popsáno v [kapitole o definici schématu](schema.md#přidružená-data).
+Více detailů o přidružených datech je popsáno v [kapitole o definici schématu](schema.md#asociovaná-data).
 
 #### Lokalizovaná přidružená data
 

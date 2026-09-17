@@ -161,6 +161,15 @@ public class ConsoleWriter {
 
 	/**
 	 * Writes passed text in console in designated color and format.
+	 *
+	 * `theString` is treated as a `printf` format string **only when `arguments` is non-null**. With no arguments it
+	 * is written verbatim, so a caller may pass text containing `%` - a dataset name, a file path, an exception
+	 * message - without escaping it. Callers that do pass arguments keep the full `printf` contract, `%%` included.
+	 *
+	 * @param theString  text to write, a format string when `arguments` is given
+	 * @param arguments  format arguments, or null when `theString` is literal text
+	 * @param color      colour to write in, or null for the terminal default
+	 * @param decoration decorations to apply, if any
 	 */
 	public static void write(@Nonnull String theString, @Nullable Object[] arguments, @Nullable ConsoleColor color, @Nullable ConsoleDecoration... decoration) {
 		if (Boolean.TRUE.equals(isQuiet)) {
@@ -169,7 +178,14 @@ public class ConsoleWriter {
 
 		ofNullable(color).ifPresent(it -> System.out.print(it.getControlChar()));
 		ofNullable(decoration).stream().flatMap(Arrays::stream).forEach(it -> System.out.print(it.getControlChar()));
-		System.out.printf(theString, arguments);
+		// no arguments means the caller passed literal text rather than a format, and printf would read a stray `%`
+		// in it - a dataset name, a file path, an exception message - as a conversion and throw. Almost every call
+		// site in this repository passes no arguments at all and concatenates runtime values into the text instead.
+		if (arguments == null) {
+			System.out.print(theString);
+		} else {
+			System.out.printf(theString, arguments);
+		}
 		System.out.print(ANSI_RESET);
 	}
 

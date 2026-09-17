@@ -48,7 +48,9 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(exclude = "decisiveTimestamp")
-public abstract class ReferenceMutation<T extends Comparable<T>> implements NamedLocalMutation<ReferenceContract, T> {
+public abstract sealed class ReferenceMutation<T extends Comparable<T>> implements NamedLocalMutation<ReferenceContract, T>
+	permits InsertReferenceMutation, ReferenceAttributeMutation, RemoveReferenceGroupMutation,
+	RemoveReferenceMutation, SetReferenceGroupMutation {
 	@Serial private static final long serialVersionUID = -4870057553122671488L;
 	@Getter protected final long decisiveTimestamp;
 	/**

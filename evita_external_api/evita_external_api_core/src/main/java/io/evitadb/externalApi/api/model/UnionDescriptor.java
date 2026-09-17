@@ -138,7 +138,7 @@ public record UnionDescriptor(
 		if (this.description == null) {
 			return null;
 		}
-		return String.format(this.description, args);
+		return DescriptionFormatter.format(this.description, args);
 	}
 
 	/**

@@ -22,31 +22,53 @@ concurrency:
 jobs:
   build:
     permissions:
-      # write permission is required to create a github release
-      contents: write
-      # required to dispatch the CI Release branch workflow below — a plain
-      # push wouldn't do it: pushes authenticated with the default
-      # GITHUB_TOKEN never trigger downstream `on: push` workflows (GitHub's
-      # anti-recursion guard), `workflow_dispatch` is explicitly exempted
-      actions: write
+      # Checkout only. The release-branch pushes below authenticate as the
+      # release bot GitHub App (see "Mint release bot token"), never as
+      # GITHUB_TOKEN, so this job needs no write permission of its own.
+      contents: read
     outputs:
       released_version: ${{ steps.release_version.outputs.version }}
       release_branch: ${{ steps.release_branch.outputs.branch }}
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     runs-on: ubuntu-latest
 
     steps:
+    # The "Protected branches" ruleset requires a pull request on release_*
+    # and lets only two actors bypass it: repository admins for pull requests
+    # only, and the release bot GitHub App always. GitHub never admits the
+    # github-actions[bot] identity behind GITHUB_TOKEN to a bypass list, so
+    # the two `git push` steps below must run as the App. The token is minted
+    # BEFORE checkout on purpose: actions/checkout persists whatever credential
+    # it is given for every later git command in the job, so a token minted
+    # afterwards would never be the one `git push` authenticates with.
+    # `permission-workflows: write` is needed because `.github/**` is in this
+    # workflow's `paths` filter — a fast-forward can carry workflow-file
+    # changes, which GitHub refuses from a token lacking that permission.
+    # RELEASE_APP_CLIENT_ID (the App's Client ID) and RELEASE_APP_ID (its
+    # numeric App ID) are repository variables, RELEASE_APP_PRIVATE_KEY a
+    # repository secret; all are provisioned by hand by a repository admin.
+    # The action deprecated `app-id` in favour of `client-id`, but GitHub
+    # accepts either value as the JWT issuer, so the numeric id is a safe
+    # fallback should the Client ID variable ever be missing.
+    - name: Mint release bot token
+      id: app-token
+      uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+      with:
+        client-id: ${{ vars.RELEASE_APP_CLIENT_ID || vars.RELEASE_APP_ID }}
+        private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+        permission-contents: write
+        permission-workflows: write
+
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 checkout sources
       with:
         fetch-depth: 0
+        token: ${{ steps.app-token.outputs.token }}
 
     - name: Setup Java JDK
-      uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0  # setup JDK 17 for building
+      uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1  # setup JDK 21 for building
       with:
         distribution: 'temurin'
-        java-version: '17'
+        java-version: '21'
         cache: 'maven'
 
     - name: Compilation Check
@@ -138,38 +160,9 @@ jobs:
         git push origin "$RELEASE_BRANCH"
         echo "Fast-forwarded release branch: $RELEASE_BRANCH"
 
-    # Dispatch the actual release build onto the release branch. A plain
-    # `git push` above (authenticated with GITHUB_TOKEN) never fires that
-    # workflow's `on: push` trigger — see the `actions: write` permission
-    # comment at the top of this job. `gh workflow run` uses the
-    # `workflow_dispatch` event, which GitHub does not suppress, so this is
-    # the only reliable way to hand off to CI Release branch from here.
-    # It resolves the next patch version itself by scanning existing tags
-    # against the branch it's dispatched onto, so a first-ever cut for a
-    # brand-new release branch and the Nth hotfix on an existing one both
-    # come out correctly versioned without this job needing to know which.
-    - name: Dispatch release build
-      env:
-        RELEASE_BRANCH: ${{ steps.release_branch.outputs.branch }}
-        # gh does fall back to GITHUB_TOKEN (job-level env, above) when
-        # GH_TOKEN is unset, but every other gh-using step in this repo's
-        # workflows sets it explicitly — matching that convention here too.
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        # On the brand-new-branch path above (as opposed to the fast-forward
-        # of an existing branch), this dispatches immediately after the
-        # branch's first-ever push — GitHub's ref index for a just-created
-        # branch could plausibly lag that push by a beat. Retry a few times
-        # rather than fail the whole release on a transient "branch not
-        # found"; this is a bounded wait on GitHub's own eventual
-        # consistency, not a poll for a long-running task.
-        for attempt in 1 2 3 4 5; do
-          if gh workflow run ci-release.yml --ref "$RELEASE_BRANCH"; then
-            echo "Dispatched CI Release branch workflow on $RELEASE_BRANCH"
-            exit 0
-          fi
-          echo "Dispatch attempt $attempt failed, retrying in 3s..."
-          sleep 3
-        done
-        echo "::error::failed to dispatch CI Release branch on $RELEASE_BRANCH after 5 attempts"
-        exit 1
+    # No explicit hand-off to CI Release branch is needed: the pushes above
+    # are authored by the release bot App, and only GITHUB_TOKEN-authored
+    # pushes are exempt from triggering `on: push` workflows. ci-release.yml
+    # therefore starts on its own `push: branches: [release_*]` trigger, for
+    # a fresh branch and a fast-forward alike. Dispatching it from here as
+    # well would build — and try to publish — the same release twice.

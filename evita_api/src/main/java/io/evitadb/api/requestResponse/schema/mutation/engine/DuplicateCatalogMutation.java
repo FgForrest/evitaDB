@@ -119,9 +119,11 @@ public class DuplicateCatalogMutation implements TopLevelCatalogSchemaMutation<V
 	public Stream<ConflictKey> collectConflictKeys(
 		@Nonnull ConflictGenerationContext context
 	) {
-		return Stream.of(
-			new CatalogConflictKey(this.catalogName),
-			new CatalogConflictKey(this.newCatalogName)
+		// the source is read, so a literal key is enough for it; the copy is introduced, so it claims every name
+		// it would occupy
+		return Stream.concat(
+			Stream.of(new CatalogConflictKey(this.catalogName)),
+			CatalogConflictKey.forIntroducedCatalogName(this.newCatalogName)
 		);
 	}
 

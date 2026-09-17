@@ -30,22 +30,29 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.*;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.CompleteParentPointerDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.CompleteParentUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferencePageDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferenceStripDescriptor;
+import io.evitadb.externalApi.api.model.ObjectDescriptor;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.api.model.UnionDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.*;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiDictionaryTransformer;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiObjectTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiPropertyTransformer;
+import io.evitadb.externalApi.rest.api.model.UnionDescriptorToOpenApiUnionTransformer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiDictionary;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiProperty;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiUnion;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import lombok.RequiredArgsConstructor;
 
@@ -55,7 +62,11 @@ import java.util.Collection;
 import java.util.List;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
+import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructCompleteParentPointerObjectName;
+import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructCompleteParentUnionObjectName;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructEntityObjectName;
+import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructParentPointerObjectName;
+import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructParentUnionObjectName;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructReferenceObjectName;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructReferencePageObjectName;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructReferenceStripObjectName;
@@ -75,6 +86,7 @@ public class EntityObjectBuilder {
 	@Nonnull private final CatalogRestBuildingContext buildingContext;
 	@Nonnull private final PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer;
+	@Nonnull private final UnionDescriptorToOpenApiUnionTransformer unionBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToOpenApiDictionaryTransformer dictionaryBuilderTransformer;
 
 	public void buildCommonTypes() {
@@ -93,19 +105,21 @@ public class EntityObjectBuilder {
 	}
 
 	/**
-	 * Builds entity object.<br/>
-	 * Parameter <strong>localized</strong> is used to control inner structure of some fields which
-	 * may contains localized data (e.g. Attributes or Associated data).<br/>
-	 * When <strong>localized</strong> is equal <code>false</code> then inner structure of these fields
+	 * Builds entity object.
+	 *
+	 * Parameter **localized** is used to control inner structure of some fields which may contains localized data
+	 * (e.g. Attributes or Associated data). When **localized** is equal `false` then inner structure of these fields
 	 * will be separated into two groups:
-	 * <ul>
-	 *     <li>global - which will contain non-localized data</li>
-	 *     <li>localized - which will contain localized data further split into groups by locale</li>
-	 * </ul>
-	 * However, when set to <code>true</code> all data will be in same group (global and data of specific locale).
+	 *
+	 * - global - which will contain non-localized data
+	 * - localized - which will contain localized data further split into groups by locale
+	 *
+	 * However, when set to `true` all data will be in same group (global and data of specific locale).
 	 * This variant may be used only when one and only one locale will always be present in query and dataInLocales
 	 * cannot be specified.
 	 *
+	 * @param entitySchema the schema of the collection the object is built for
+	 * @param localized    whether the localized variant of the object is being built
 	 * @return schema for entity object
 	 */
 	@Nonnull
@@ -129,7 +143,24 @@ public class EntityObjectBuilder {
 		if (entitySchema.isWithHierarchy()) {
 			entityObject.property(RestEntityDescriptor.PARENT_ENTITY
 				.to(this.propertyBuilderTransformer)
-				.type(typeRefTo(objectName)));
+				.type(buildParentUnion(
+					objectName,
+					ParentPointerDescriptor.THIS,
+					constructParentPointerObjectName(entitySchema, localized),
+					ParentUnionDescriptor.THIS,
+					constructParentUnionObjectName(entitySchema, localized),
+					RestEntityDescriptor.PARENT_ENTITY
+				)));
+			entityObject.property(RestEntityDescriptor.PARENT_ENTITY_COMPLETE
+				.to(this.propertyBuilderTransformer)
+				.type(buildParentUnion(
+					objectName,
+					CompleteParentPointerDescriptor.THIS,
+					constructCompleteParentPointerObjectName(entitySchema, localized),
+					CompleteParentUnionDescriptor.THIS,
+					constructCompleteParentUnionObjectName(entitySchema, localized),
+					RestEntityDescriptor.PARENT_ENTITY_COMPLETE
+				)));
 		}
 
 		// build price fields
@@ -159,6 +190,65 @@ public class EntityObjectBuilder {
 		}
 
 		return entityObject.build();
+	}
+
+	/**
+	 * Builds the type of one of the two parent-axis properties - one element of a parent chain, which is either the
+	 * ancestor with the body that was asked for or a bodyless ancestor carrying nothing but its classifier.
+	 *
+	 * Both axes need the union, for reasons that differ only in *why* a bodyless element occurs:
+	 * {@link RestEntityDescriptor#PARENT_ENTITY_COMPLETE} reports the pointer standing in for a body that could not
+	 * be materialized, while {@link RestEntityDescriptor#PARENT_ENTITY} reports the whole primary-key chain of
+	 * a `hierarchyContent` that asked for no ancestor body at all. Either way the property carries values the entity
+	 * object alone cannot describe, since a bodyless element supplies none of the `version`, `scope` and locale
+	 * properties that object marks required.
+	 *
+	 * The `oneOf` deliberately carries no discriminator: an ancestor and a bodyless one report the same entity type,
+	 * so the `type` property cannot tell the two apart. What tells them apart is the shape - only the entity branch
+	 * carries a `version` and a `scope`. That is a one-directional test on its own, since an open pointer object would
+	 * validate a materialized ancestor just as well and the value would match *both* branches; the pointer object is
+	 * therefore closed with `additionalProperties: false`, which is what makes the two branches mutually exclusive and
+	 * the document honest about its own responses.
+	 *
+	 * The pointer object holds the recursive link, so that the axis can continue above it. That link is the property
+	 * the chain is nested through, and it differs between the two axes - which is why the two cannot share a single
+	 * pointer object: a closed object declaring `parentEntityComplete` refuses the `parentEntity` a pointer of the
+	 * other chain carries. Both objects therefore have to be built per axis, per collection, and per localized variant
+	 * of the entity object they point into.
+	 *
+	 * @param entityObjectName  the name of the entity object the materialized branch points at
+	 * @param pointerDescriptor descriptor of the bodyless branch
+	 * @param pointerObjectName the name to register the bodyless branch under
+	 * @param unionDescriptor   descriptor of the union joining the two branches
+	 * @param unionObjectName   the name to register the union under
+	 * @param parentProperty    the property the chain is nested through, and thus the recursive link of the bodyless
+	 *                          branch
+	 * @return reference to the registered union
+	 */
+	@Nonnull
+	private OpenApiTypeReference buildParentUnion(@Nonnull String entityObjectName,
+	                                              @Nonnull ObjectDescriptor pointerDescriptor,
+	                                              @Nonnull String pointerObjectName,
+	                                              @Nonnull UnionDescriptor unionDescriptor,
+	                                              @Nonnull String unionObjectName,
+	                                              @Nonnull PropertyDescriptor parentProperty) {
+		final OpenApiObject parentPointerObject = pointerDescriptor
+			.to(this.objectBuilderTransformer)
+			.name(pointerObjectName)
+			.property(parentProperty
+				.to(this.propertyBuilderTransformer)
+				.type(typeRefTo(unionObjectName)))
+			.forbidAdditionalProperties()
+			.build();
+		final OpenApiTypeReference parentPointerObjectRef = this.buildingContext.registerType(parentPointerObject);
+
+		final OpenApiUnion parentUnion = unionDescriptor
+			.to(this.unionBuilderTransformer)
+			.name(unionObjectName)
+			.type(typeRefTo(entityObjectName))
+			.type(parentPointerObjectRef)
+			.build();
+		return this.buildingContext.registerType(parentUnion);
 	}
 
 	@Nonnull

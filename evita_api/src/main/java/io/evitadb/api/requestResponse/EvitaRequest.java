@@ -803,10 +803,21 @@ public class EvitaRequest {
 				this.parentContent = null;
 				this.requiresParent = false;
 			} else {
-				this.parentContent = QueryUtils.findConstraint(
+				// `entityFetchAllContent()` already puts a bare `hierarchyContent()` in the array, so a caller adding
+				// an explicit one through `entityFetchAllContentAnd(...)` ends up with two siblings. They express one
+				// requirement between them and are reduced with the constraint's own combining rule - which is also
+				// where a genuine disagreement (both sides asking for ancestor bodies under different behaviours)
+				// surfaces as a usage error instead of one side silently winning.
+				final List<HierarchyContent> parentContents = QueryUtils.findConstraints(
 					entityFetch, HierarchyContent.class,
 					SeparateEntityContentRequireContainer.class
 				);
+				HierarchyContent combinedParentContent = null;
+				for (final HierarchyContent parentContentItem : parentContents) {
+					combinedParentContent = combinedParentContent == null ?
+						parentContentItem : combinedParentContent.combineWith(parentContentItem);
+				}
+				this.parentContent = combinedParentContent;
 				this.requiresParent = this.parentContent != null;
 			}
 		}

@@ -82,6 +82,7 @@ import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
 import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException;
 import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException.WalKind;
@@ -976,7 +977,7 @@ public class TransactionManager implements Closeable {
 	 * the committed changes. The examination window therefore covers every conflict key committed with a catalog
 	 * version in range `(sessionCatalogVersion, lastWrittenCatalogVersion]`: the ring buffer scan starts at
 	 * `sessionCatalogVersion + 1` and the WAL fallback stream contract starts at the very same version
-	 * (see {@link Catalog#getCommittedLiveMutationStream(long, long)}).
+	 * (see {@link Catalog#getCommittedLiveMutationStream(long, long, VersionSource)}).
 	 *
 	 * When no conflict is found, the incoming transaction's own keys are registered in the ring buffer under
 	 * `reservedCatalogVersion` — the catalog version this transaction is assigned right after this check — so
@@ -1143,39 +1144,51 @@ public class TransactionManager implements Closeable {
 		);
 		final long livingCatalogVersion = theLivingCatalog.getVersion();
 		long processedCatalogVersion = sessionCatalogVersion;
-		final Iterator<CatalogBoundMutation> mutationIterator = getLivingCatalog()
-			.getCommittedLiveMutationStream(sessionCatalogVersion, until.catalogVersion())
-			.iterator();
+		// the stream must be closed, and the loop below `break`s out of it long before exhaustion on every
+		// commit that reaches here - its close() is what hands the supplier's Kryo back to the pool and shuts
+		// the WAL file. Left open, this leaks one of each per commit on the conflict-detection path, and a Kryo
+		// missing from the pool is not merely garbage: the pool mints a replacement, so the count of instances
+		// a writer and its readers share creeps upward for as long as the process runs.
+		try (
+			final Stream<CatalogBoundMutation> committedMutations = getLivingCatalog()
+				// both bounds are the engine's own bookkeeping, so a version missing from the log is genuine
+				// damage
+				.getCommittedLiveMutationStream(
+					sessionCatalogVersion, until.catalogVersion(), VersionSource.INTERNAL
+				)
+		) {
+			final Iterator<CatalogBoundMutation> mutationIterator = committedMutations.iterator();
 
-		while (mutationIterator.hasNext()) {
-			final Mutation mutation = mutationIterator.next();
-			if (mutation instanceof TransactionMutation tm) {
-				processedCatalogVersion = tm.getVersion();
-				// stop where the conflict ring buffer takes over: when the buffer's effective start points
-				// at the first conflict key of the boundary transaction (index 0), that transaction is
-				// fully covered by the buffer scan; when the buffer retained only a suffix of the boundary
-				// transaction's keys (index > 0), the whole boundary transaction is examined here as well —
-				// the ring buffer indexes conflict-key ordinals while this stream yields mutations, so the
-				// two index domains cannot be matched exactly and the conservative overlap is preferred.
-				// Re-examining the retained suffix is safe: absolute keys yield the same verdict, and
-				// commutative deltas are only accumulated for versions ahead of the living catalog, which
-				// the buffer's oldest transaction cannot be unless the buffer is sized smaller than the
-				// in-flight transaction window
-				if (processedCatalogVersion > until.catalogVersion() ||
-					(processedCatalogVersion == until.catalogVersion() && until.index() == 0)) {
-					break;
+			while (mutationIterator.hasNext()) {
+				final Mutation mutation = mutationIterator.next();
+				if (mutation instanceof TransactionMutation tm) {
+					processedCatalogVersion = tm.getVersion();
+					// stop where the conflict ring buffer takes over: when the buffer's effective start points
+					// at the first conflict key of the boundary transaction (index 0), that transaction is
+					// fully covered by the buffer scan; when the buffer retained only a suffix of the boundary
+					// transaction's keys (index > 0), the whole boundary transaction is examined here as well —
+					// the ring buffer indexes conflict-key ordinals while this stream yields mutations, so the
+					// two index domains cannot be matched exactly and the conservative overlap is preferred.
+					// Re-examining the retained suffix is safe: absolute keys yield the same verdict, and
+					// commutative deltas are only accumulated for versions ahead of the living catalog, which
+					// the buffer's oldest transaction cannot be unless the buffer is sized smaller than the
+					// in-flight transaction window
+					if (processedCatalogVersion > until.catalogVersion() ||
+						(processedCatalogVersion == until.catalogVersion() && until.index() == 0)) {
+						break;
+					}
 				}
-			}
 
-			final Iterator<ConflictKey> conflictKeyIterator = mutation
-				.collectConflictKeys(context)
-				.iterator();
-			while (conflictKeyIterator.hasNext()) {
-				final ConflictKey conflictKey = conflictKeyIterator.next();
-				examineConflictKey(
-					conflictKey, incomingScope, theLivingCatalog, aggregates,
-					processedCatalogVersion, livingCatalogVersion
-				);
+				final Iterator<ConflictKey> conflictKeyIterator = mutation
+					.collectConflictKeys(context)
+					.iterator();
+				while (conflictKeyIterator.hasNext()) {
+					final ConflictKey conflictKey = conflictKeyIterator.next();
+					examineConflictKey(
+						conflictKey, incomingScope, theLivingCatalog, aggregates,
+						processedCatalogVersion, livingCatalogVersion
+					);
+				}
 			}
 		}
 	}
@@ -1437,7 +1450,7 @@ public class TransactionManager implements Closeable {
 						// only in the page cache, and a crash in that window would leave a catalog claiming a
 						// version its own WAL no longer reaches
 						committedMutationStream = latestCatalog.getCommittedLiveMutationStream(
-							readFromVersion, getLastDurableCatalogVersion()
+							readFromVersion, getLastDurableCatalogVersion(), VersionSource.INTERNAL
 						);
 					} else {
 						committedMutationStream = latestCatalog.getCommittedMutationStream(

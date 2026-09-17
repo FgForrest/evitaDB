@@ -46,6 +46,7 @@ import io.evitadb.core.metric.event.transaction.WalStatisticsEvent;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.wal.model.CatalogTransactionChanges;
 import io.evitadb.spi.store.catalog.wal.model.EntityCollectionChanges;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException.WalKind;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.settings.StorageSettings;
@@ -216,7 +217,8 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 	) {
 		try (
 			final MutationSupplier<?> supplier = createSupplier(
-				materializedVersionBlock.startVersion(), null
+				// version descriptors are a greedy scan over a block this class resolved itself
+				materializedVersionBlock.startVersion(), null, VersionSource.INTERNAL
 			)
 		) {
 			TransactionMutation txMutation = (TransactionMutation) supplier.get();

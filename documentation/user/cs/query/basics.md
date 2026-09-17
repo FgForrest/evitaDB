@@ -423,9 +423,9 @@ výsledný výstup tak, aby obsahoval pouze hodnoty, které splňují omezení.
 <LS to="e,j,r,g">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LS><LS to="c">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LS> datovém typu atributu a
 umožňují operace specifické pro něj:
 
-- [attribute contains](filtering/string.md#atribut-obsahuje)
-- [attribute starts with](filtering/string.md#atribut-začíná-na)
-- [attribute ends with](filtering/string.md#atribut-končí-na)
+- [attribute contains](filtering/string.md#attribut-obsahuje)
+- [attribute starts with](filtering/string.md#attribut-začíná-na)
+- [attribute ends with](filtering/string.md#attribut-končí-na)
 
 ### Rozsahová omezení
 
@@ -576,7 +576,7 @@ Požadavky na histogram spouštějí výpočet dodatečné datové struktury, kt
 agregovaných podle jejich číselné hodnoty v konkrétním atributu nebo podle jejich prodejní ceny:
 
 - [attribute histogram](requirements/histogram.md#histogram-atributu)
-- [price histogram](requirements/histogram.md#cenový-histogram)
+- [price histogram](requirements/histogram.md#histogram-cen)
 
 ### Cena
 

@@ -57,11 +57,11 @@ public class BigDecimalCoercing implements Coercing<BigDecimal, String> {
     @Nonnull
     @Override
     public BigDecimal parseValue(@Nonnull Object input) throws CoercingParseValueException {
-        if (!(input instanceof String)) {
+        if (!(input instanceof String stringInput)) {
             throw new CoercingParseValueException("Big decimal input is not a string.");
         }
         try {
-            return new BigDecimal((String) input);
+            return new BigDecimal(stringInput);
         } catch (NumberFormatException ex) {
             throw new CoercingParseValueException(ex.getMessage(), ex);
         }
@@ -70,11 +70,11 @@ public class BigDecimalCoercing implements Coercing<BigDecimal, String> {
     @Nonnull
     @Override
     public BigDecimal parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
-        if (!(input instanceof StringValue)) {
+        if (!(input instanceof StringValue stringValue)) {
             throw new CoercingParseLiteralException("Big decimal input is not a StringValue.");
         }
         try {
-            return new BigDecimal(((StringValue) input).getValue());
+            return new BigDecimal(stringValue.getValue());
         } catch (NumberFormatException ex) {
             throw new CoercingParseLiteralException(ex.getMessage(), ex);
         }

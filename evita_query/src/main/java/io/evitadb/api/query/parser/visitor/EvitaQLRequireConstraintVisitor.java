@@ -81,6 +81,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	protected final EvitaQLValueTokenVisitor emptyHierarchicalEntityBehaviourValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(EmptyHierarchicalEntityBehaviour.class);
 	protected final EvitaQLValueTokenVisitor facetStatisticsDepthValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(FacetStatisticsDepth.class);
 	protected final EvitaQLFilterConstraintVisitor filterConstraintVisitor = new EvitaQLFilterConstraintVisitor();
+	protected final EvitaQLValueTokenVisitor hierarchyParentsBehaviourValueTokenVisitor =
+		EvitaQLValueTokenVisitor.withAllowedTypes(HierarchyParentsBehaviour.class);
 	protected final EvitaQLValueTokenVisitor histogramBehaviorValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(HistogramBehavior.class);
 	protected final EvitaQLValueTokenVisitor intValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
 		byte.class,
@@ -1507,11 +1509,16 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
+				final HierarchyParentsBehaviour parentsBehaviour = getParentsBehaviour(ctx.args.parentsBehaviour);
+				// the behaviour may stand on its own - `hierarchyContent(COMPLETE)` carries no child constraint
+				if (ctx.args.requirement == null) {
+					return new HierarchyContent(parentsBehaviour);
+				}
 				final RequireConstraint requirement = visitChildConstraint(ctx.args.requirement, RequireConstraint.class);
 				if (requirement instanceof final HierarchyStopAt stopAt) {
-					return new HierarchyContent(stopAt);
+					return new HierarchyContent(parentsBehaviour, stopAt);
 				} else if (requirement instanceof final EntityFetch entityFetch) {
-					return new HierarchyContent(entityFetch);
+					return new HierarchyContent(parentsBehaviour, entityFetch);
 				} else {
 					throw new EvitaSyntaxException(ctx, "Unsupported requirement constraint. Only `stopAt` and `entityFetch` are supported.");
 				}
@@ -1524,9 +1531,10 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
+				final HierarchyParentsBehaviour parentsBehaviour = getParentsBehaviour(ctx.args.parentsBehaviour);
 				final HierarchyStopAt stopAt = visitChildConstraint(ctx.args.stopAt, HierarchyStopAt.class);
 				final EntityFetch entityFetch = visitChildConstraint(ctx.args.entityRequirement, EntityFetch.class);
-				return new HierarchyContent(stopAt, entityFetch);
+				return new HierarchyContent(parentsBehaviour, stopAt, entityFetch);
 			}
 		);
 	}
@@ -2689,6 +2697,27 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			managedReferencesBehaviour
 				.accept(this.managedReferenceBehaviourValueTokenVisitor)
 				.asEnum(ManagedReferencesBehaviour.class);
+	}
+
+	/**
+	 * Resolves the optional leading {@link HierarchyParentsBehaviour} argument of `hierarchyContent`, falling back to
+	 * {@link HierarchyContent#DEFAULT_PARENTS_BEHAVIOUR} when the caller omitted it.
+	 *
+	 * Unlike the managed-references behaviour of `referenceContent`, this position is unambiguous - no classifier can
+	 * stand in it - so a single accessor suffices and no `Serializable`-typed sibling is needed to tell the two apart.
+	 * The {@link EnumWrapper} an unqualified literal parses into is unwrapped by
+	 * {@link io.evitadb.api.query.parser.Value#asEnum(Class)}.
+	 *
+	 * @param parentsBehaviour the value token holding the behaviour, may be null when the argument was omitted
+	 * @return the parsed behaviour, never null
+	 */
+	@Nonnull
+	private HierarchyParentsBehaviour getParentsBehaviour(@Nullable ValueTokenContext parentsBehaviour) {
+		return parentsBehaviour == null || parentsBehaviour.isEmpty() ?
+			HierarchyContent.DEFAULT_PARENTS_BEHAVIOUR :
+			parentsBehaviour
+				.accept(this.hierarchyParentsBehaviourValueTokenVisitor)
+				.asEnum(HierarchyParentsBehaviour.class);
 	}
 
 	/**

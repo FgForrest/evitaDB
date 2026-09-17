@@ -9,7 +9,7 @@ prs: [1462, 1463]
 areas: [evita_common/src/main/java/io/evitadb/exception, evita_external_api/evita_external_api_observability, evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver, pom.xml]
 supersedes: []
 superseded-by: []
-relates: [2026-07-23-query-label-prometheus-metrics, 2026-07-24-traffic-discard-reason-attribution]
+relates: [2026-07-23-query-label-prometheus-metrics, 2026-07-24-traffic-discard-reason-attribution, 2026-09-13-off-record-reads-must-not-restore-an-invalidated-buffer-limit]
 ---
 
 # Count each evitaDB error once, at the hierarchy root, and record where it was created

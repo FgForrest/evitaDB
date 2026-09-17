@@ -65,7 +65,8 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(exclude = "decisiveTimestamp")
-public abstract class AssociatedDataMutation implements NamedLocalMutation<AssociatedDataValue, AssociatedDataKey> {
+public abstract sealed class AssociatedDataMutation implements NamedLocalMutation<AssociatedDataValue, AssociatedDataKey>
+	permits AssociatedDataSchemaEvolvingMutation, RemoveAssociatedDataMutation {
 	@Serial private static final long serialVersionUID = 2877681453791825337L;
 	@Getter private final long decisiveTimestamp;
 	/**

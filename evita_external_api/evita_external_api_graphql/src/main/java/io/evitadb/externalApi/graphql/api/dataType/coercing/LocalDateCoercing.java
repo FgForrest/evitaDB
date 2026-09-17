@@ -46,11 +46,11 @@ public class LocalDateCoercing implements Coercing<LocalDate, String> {
 
     @Override
     public String serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
-        if (!(dataFetcherResult instanceof LocalDate)) {
+        if (!(dataFetcherResult instanceof LocalDate localDate)) {
             throw new CoercingSerializeException("Local date data fetcher result is not a local date.");
         }
         try {
-            return ((LocalDate) dataFetcherResult).format(FORMATTER);
+            return localDate.format(FORMATTER);
         } catch (DateTimeException ex) {
             throw new CoercingSerializeException(ex.getMessage(), ex);
         }
@@ -59,11 +59,11 @@ public class LocalDateCoercing implements Coercing<LocalDate, String> {
     @Nonnull
     @Override
     public LocalDate parseValue(@Nonnull Object input) throws CoercingParseValueException {
-        if (!(input instanceof String)) {
+        if (!(input instanceof String stringInput)) {
             throw new CoercingParseValueException("Local date input is not a string.");
         }
         try {
-            return LocalDate.parse((String) input, FORMATTER);
+            return LocalDate.parse(stringInput, FORMATTER);
         } catch (DateTimeParseException ex) {
             throw new CoercingParseValueException(ex.getMessage(), ex);
         }
@@ -72,11 +72,11 @@ public class LocalDateCoercing implements Coercing<LocalDate, String> {
     @Nonnull
     @Override
     public LocalDate parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
-        if (!(input instanceof StringValue)) {
+        if (!(input instanceof StringValue stringValue)) {
             throw new CoercingParseValueException("Local date input is not a StringValue.");
         }
         try {
-            return LocalDate.parse(((StringValue) input).getValue(), FORMATTER);
+            return LocalDate.parse(stringValue.getValue(), FORMATTER);
         } catch (DateTimeParseException ex) {
             throw new CoercingParseLiteralException(ex.getMessage(), ex);
         }

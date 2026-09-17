@@ -126,6 +126,24 @@ class ConsoleWriterTest {
 		}
 
 		@Test
+		@DisplayName("Should write a literal percent sign when no arguments are given")
+		void shouldWriteLiteralPercentWhenNoArgumentsAreGiven() {
+			// without arguments the text is not a format string - printf would parse `% o` as a conversion and
+			// throw DuplicateFormatFlagsException, taking down whatever was writing the message
+			ConsoleWriter.write("residency actually wanted: 61.5% - 45.8% of the run");
+			final String output = outputCapture.toString();
+			assertTrue(output.contains("61.5% - 45.8% of the run"), "Literal percent signs must survive untouched");
+		}
+
+		@Test
+		@DisplayName("Should still honour the printf contract when arguments are given")
+		void shouldStillHonourPrintfContractWhenArgumentsAreGiven() {
+			ConsoleWriter.write("%d%% of %s", new Object[]{50, "the run"});
+			final String output = outputCapture.toString();
+			assertTrue(output.contains("50% of the run"), "Callers passing arguments keep the full printf contract");
+		}
+
+		@Test
 		@DisplayName("Should write line with newline")
 		void shouldWriteLineWithNewline() {
 			ConsoleWriter.writeLine("Line1");

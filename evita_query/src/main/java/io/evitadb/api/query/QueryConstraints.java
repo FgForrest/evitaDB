@@ -9977,6 +9977,113 @@ public interface QueryConstraints {
 	}
 
 	/**
+	 * Fetches the ancestor chain of a hierarchical entity under the given `HierarchyParentsBehaviour`. The behaviour
+	 * decides what happens at an ancestor whose requested body cannot be materialized - `MATCHING` cuts the chain
+	 * below it, `COMPLETE` returns it as a bodyless pointer and keeps walking above it. With no nested `entityFetch`
+	 * no body is requested, so both behaviours return the full chain of parent primary keys.
+	 *
+	 * ```evitaql
+	 * entityFetch(
+	 *     hierarchyContent(COMPLETE)
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#hierarchy-content)
+	 *
+	 * @see io.evitadb.api.query.require.HierarchyContent
+	 */
+	@Nonnull
+	static HierarchyContent hierarchyContent(@Nullable HierarchyParentsBehaviour parentsBehaviour) {
+		return new HierarchyContent(parentsBehaviour);
+	}
+
+	/**
+	 * Fetches the ancestor chain of a hierarchical entity up to the depth `stopAt` allows, under the given
+	 * `HierarchyParentsBehaviour`. No parent bodies are loaded, so the behaviour has nothing to act on and the full
+	 * chain of parent primary keys within the depth limit is returned either way.
+	 *
+	 * ```evitaql
+	 * entityFetch(
+	 *     hierarchyContent(
+	 *         COMPLETE,
+	 *         stopAt(distance(1))
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#hierarchy-content)
+	 *
+	 * @see io.evitadb.api.query.require.HierarchyContent
+	 */
+	@Nonnull
+	static HierarchyContent hierarchyContent(
+		@Nullable HierarchyParentsBehaviour parentsBehaviour,
+		@Nullable HierarchyStopAt stopAt
+	) {
+		return new HierarchyContent(parentsBehaviour, stopAt);
+	}
+
+	/**
+	 * Fetches the ancestor chain of a hierarchical entity together with the parent bodies described by the nested
+	 * `entityFetch`, under the given `HierarchyParentsBehaviour`. `MATCHING` cuts the chain below the first ancestor
+	 * whose requested body cannot be materialized; `COMPLETE` returns that ancestor as a bodyless pointer and keeps
+	 * walking above it.
+	 *
+	 * ```evitaql
+	 * entityFetch(
+	 *     hierarchyContent(
+	 *         COMPLETE,
+	 *         entityFetch(
+	 *             attributeContent("code", "name")
+	 *         )
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#hierarchy-content)
+	 *
+	 * @see io.evitadb.api.query.require.HierarchyContent
+	 */
+	@Nonnull
+	static HierarchyContent hierarchyContent(
+		@Nullable HierarchyParentsBehaviour parentsBehaviour,
+		@Nullable EntityFetch entityFetch
+	) {
+		return new HierarchyContent(parentsBehaviour, entityFetch);
+	}
+
+	/**
+	 * Fetches the ancestor chain of a hierarchical entity up to the depth `stopAt` allows, loading the parent bodies
+	 * described by the nested `entityFetch`, under the given `HierarchyParentsBehaviour`. `MATCHING` cuts the chain
+	 * below the first ancestor whose requested body cannot be materialized; `COMPLETE` returns that ancestor as
+	 * a bodyless pointer and keeps walking above it.
+	 *
+	 * ```evitaql
+	 * entityFetch(
+	 *     hierarchyContent(
+	 *         COMPLETE,
+	 *         stopAt(distance(2)),
+	 *         entityFetch(
+	 *             attributeContent("code", "name")
+	 *         )
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#hierarchy-content)
+	 *
+	 * @see io.evitadb.api.query.require.HierarchyContent
+	 */
+	@Nonnull
+	static HierarchyContent hierarchyContent(
+		@Nullable HierarchyParentsBehaviour parentsBehaviour,
+		@Nullable HierarchyStopAt stopAt,
+		@Nullable EntityFetch entityFetch
+	) {
+		return new HierarchyContent(parentsBehaviour, stopAt, entityFetch);
+	}
+
+	/**
 	 * Controls which prices are loaded with an entity by specifying a fetch mode (NONE, RESPECTING_FILTER, or ALL) and optional extra price-list names. Extra price lists supplement, but do not affect, filtering or entity eligibility. Use within `entityFetch`.
 	 *
 	 * ```evitaql

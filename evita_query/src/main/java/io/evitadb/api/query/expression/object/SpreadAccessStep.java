@@ -57,7 +57,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
 @RequiredArgsConstructor
-public class SpreadAccessStep implements ObjectOperationStep {
+public final class SpreadAccessStep implements ObjectOperationStep {
 
 	@Serial private static final long serialVersionUID = 3389942116283673090L;
 

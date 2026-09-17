@@ -48,6 +48,21 @@ public class ConstantFormula extends AbstractFormula {
 	 * Bitmap of entity primary keys that this constant formula directly returns as its result.
 	 */
 	@Getter private final Bitmap delegate;
+	/**
+	 * Memoized {@link #getEstimatedCardinality()} - `-1` until the first call, a value no real cardinality can take
+	 * because the constructor rejects an empty delegate.
+	 *
+	 * The class already treats `delegate.size()` as fixed for the instance's lifetime: the delegate is final,
+	 * `estimatedCost` is derived from that very same call and frozen at construction time by
+	 * {@link AbstractFormula#initFields}, and {@link AbstractFormula#clearMemory()} deliberately does not reset it.
+	 * The memo only makes that standing assumption explicit, and therefore stays correct even for a caller that
+	 * retains a constant formula across several computations.
+	 *
+	 * Worth memoizing because {@link TransactionalBitmap#size()} probes the transactional memory layer's ThreadLocal
+	 * on every call before it ever reaches its own cached cardinality, and a filter over a reference fans out to one
+	 * constant formula per reduced index - hundreds of thousands of them.
+	 */
+	private int memoizedCardinality = -1;
 
 	public ConstantFormula(@Nonnull Bitmap delegate) {
 		Assert.isPremiseValid(!delegate.isEmpty(), "For empty bitmaps use EmptyFormula.INSTANCE!");
@@ -79,7 +94,10 @@ public class ConstantFormula extends AbstractFormula {
 
 	@Override
 	public int getEstimatedCardinality() {
-		return this.delegate.size();
+		if (this.memoizedCardinality == -1) {
+			this.memoizedCardinality = this.delegate.size();
+		}
+		return this.memoizedCardinality;
 	}
 
 	@Override

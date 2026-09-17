@@ -66,7 +66,7 @@ public abstract class EntityHandler<CTX extends CatalogRestHandlingContext> exte
 			() -> new RestInternalError("Entity must be instance of EntityClassifier, but got `" + deletedEntity.getClass().getName() + "`.")
 		);
 		return this.entityJsonSerializer.serialize(
-			new EntitySerializationContext(this.restHandlingContext.getCatalogSchema()),
+			new EntitySerializationContext(this.restHandlingContext.getCatalogSchema(), exchange.entityRequirement()),
 			(EntityClassifier) deletedEntity
 		);
 	}

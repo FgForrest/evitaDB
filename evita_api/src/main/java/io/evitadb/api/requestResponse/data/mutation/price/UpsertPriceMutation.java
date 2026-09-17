@@ -53,7 +53,7 @@ import java.util.Objects;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(callSuper = true)
-public class UpsertPriceMutation extends PriceMutation implements SchemaEvolvingLocalMutation<PriceContract, PriceKey> {
+public final class UpsertPriceMutation extends PriceMutation implements SchemaEvolvingLocalMutation<PriceContract, PriceKey> {
 	public static final long PRICE_UPSERT_PRIORITY = PRIORITY_UPSERT;
 	@Serial private static final long serialVersionUID = 6899193328262302023L;
 	/**

@@ -49,7 +49,7 @@ import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 public abstract class ClientTransactionalWriteState extends ClientDataState {
 
 	/**
-	 * Senesi entity type of product.
+	 * Entity type of product.
 	 */
 	public static final String PRODUCT_ENTITY_TYPE = "Product";
 	/**

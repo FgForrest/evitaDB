@@ -1,7 +1,7 @@
 ---
 title: Make every warm-up entity write atomic through a thread-local savepoint whose participants journal their own absolute inverses, unconditionally
 date: 2026-08-26
-updated: 2026-09-03 22:50
+updated: 2026-09-08 13:10
 status: accepted
 kind: feature
 issues: [1432]
@@ -9,7 +9,7 @@ prs: [1494]
 areas: [evita_engine/core/transaction/memory, evita_engine/core/collection, evita_engine/core/buffer, evita_engine/index]
 supersedes: []
 superseded-by: []
-relates: [2026-07-10-more-optimized-data-structures, 2026-07-31-bulk-ingest-write-path]
+relates: [2026-07-10-more-optimized-data-structures, 2026-07-31-bulk-ingest-write-path, 2026-09-08-warm-up-invalid-schema-refuses-to-publish]
 ---
 
 # Per-entity mutation atomicity in WARM_UP — a savepoint the structures journal into

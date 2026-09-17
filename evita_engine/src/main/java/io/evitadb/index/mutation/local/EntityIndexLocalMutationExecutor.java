@@ -124,6 +124,7 @@ import java.util.function.Supplier;
 import java.util.function.ToIntBiFunction;
 
 import static io.evitadb.index.mutation.local.HierarchyPlacementMutator.removeParent;
+import static io.evitadb.index.mutation.local.HierarchyPlacementMutator.removeParentIfPresent;
 import static io.evitadb.index.mutation.local.HierarchyPlacementMutator.setParent;
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static java.util.Optional.of;
@@ -307,6 +308,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	@Nullable private List<Runnable> deferredExpressionReEvaluations;
 	/**
+	 * Memoized result of resolving the reduced indexes the entity being processed belongs to, valid for the
+	 * duration of one deferred re-evaluation phase. See {@link #getOrComputeOwnerReducedIndexes(Supplier)}.
+	 */
+	@Nullable private List<ReferenceIndexMutator.OwnerReducedIndex> deferredOwnerReducedIndexes;
+	/**
 	 * Pre-mutation entity attribute values captured during the container implicit-mutation phase (before index
 	 * updates) for use in cross-entity histogram trigger mutations. Keyed by attribute name → locale → raw value. Uses
 	 * `putIfAbsent` to capture only the true pre-mutation value when the same attribute is mutated
@@ -323,6 +329,34 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Memoized scope of the current entity.
 	 */
 	private Scope memoizedScope;
+	/**
+	 * Set to TRUE once a {@link RemoveParentMutation} *belonging to this entity's own removal* has already torn its
+	 * hierarchy placement out of the global index, and back to FALSE when a {@link SetParentMutation} puts a
+	 * placement back. It exists solely so that {@link #removeEntity(int)} can un-index the placement of an entity
+	 * that is being removed entirely without un-indexing it twice.
+	 *
+	 * There are two writers and one reset, and only one of the writers is the removal path:
+	 * {@link #updateHierarchyPlacement(ParentMutation, EntityIndex)} sets it when a parent removal arrives while the
+	 * entity is already marked as removed entirely, {@link #removeEntity(int)} sets it when it does the tear-down
+	 * itself, and a {@link SetParentMutation} clears it again. A parent removal outside an entity removal is a
+	 * re-rooting rather than a tear-down and deliberately leaves the flag alone, so the placement it produced is
+	 * still torn down should a removal follow in the same batch.
+	 *
+	 * The asymmetry it compensates for: {@link #prepare(List)} places *every* hierarchical entity into the hierarchy
+	 * index — a root included, as a root node — while the decomposition of an entity removal into local mutations
+	 * (see
+	 * {@link io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation#computeLocalMutationsForEntityRemoval})
+	 * only emits a {@link RemoveParentMutation} for an entity that actually has a parent. Without the un-index in
+	 * {@link #removeEntity(int)}, a removed root would stay in the hierarchy index forever, keep matching
+	 * `hierarchyWithinRoot` while resolving to no entity, and keep its children attached instead of orphaning them
+	 * (see #1365). The tear-down itself tolerates an absent placement, so the flag is an economy rather than
+	 * a correctness guard on that side.
+	 *
+	 * The executor is constructed once per entity mutation in
+	 * {@link io.evitadb.core.collection.EntityCollection#applyMutations}, so this flag never carries over between
+	 * entities.
+	 */
+	private boolean hierarchyPlacementUnindexed;
 
 	/**
 	 * Converts a map of mutations-per-target-type into an {@link IndexImplicitMutations} result.
@@ -564,6 +598,33 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
+	 * Returns the reduced indexes the currently processed entity belongs to, computing them through
+	 * `factory` on first use and reusing that answer for the rest of the deferred phase.
+	 *
+	 * Every deferred re-evaluation queued for one entity runs inside a single
+	 * {@link #finishLocalMutationExecutionPhase()} call, after the storage write, so the entity's reference
+	 * set - and hence the set of reduced indexes holding it - is identical for all of them. Without this
+	 * memo each queued action re-walks every reference of the entity, which is quadratic in the number of
+	 * reference mutations: an entity carrying thirty conditionally faceted references walked its references
+	 * thirty times over.
+	 *
+	 * The memo is dropped at the end of each phase, so implicit mutations that add references in a later
+	 * phase get a freshly resolved list.
+	 *
+	 * @param factory computes the list when the memo is empty
+	 * @return the reduced indexes holding the entity being processed
+	 */
+	@Nonnull
+	public List<ReferenceIndexMutator.OwnerReducedIndex> getOrComputeOwnerReducedIndexes(
+		@Nonnull Supplier<List<ReferenceIndexMutator.OwnerReducedIndex>> factory
+	) {
+		if (this.deferredOwnerReducedIndexes == null) {
+			this.deferredOwnerReducedIndexes = factory.get();
+		}
+		return this.deferredOwnerReducedIndexes;
+	}
+
+	/**
 	 * Returns the local {@link FacetExpressionTrigger} for the given reference name and scope, or `null` if no
 	 * expression is defined for that combination. Delegates directly to the underlying supplier — the lookup is
 	 * O(1) (three map gets in {@link CatalogExpressionTriggerRegistry#getLocalTrigger}).
@@ -640,12 +701,20 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * attribute fires the trigger. This is safe over-firing: the target-side executor performs
 	 * idempotent operations, so unnecessary triggers result in a no-op rather than incorrect state.
 	 *
-	 * @param inputMutations list of local mutations that were applied
+	 * `implicitMutations` are the local mutations synthesised from `inputMutations` by
+	 * `ContainerizedLocalMutationExecutor#popImplicitMutations` — a defaulted attribute is as capable of
+	 * invalidating another collection's histogram as one the caller wrote. They are joined to the input list
+	 * only *after* the registry check, so a catalog that declares no expression trigger — the overwhelming
+	 * majority — pays no allocation for a feature it does not use.
+	 *
+	 * @param inputMutations    list of local mutations that were applied
+	 * @param implicitMutations local mutations derived from them, or `null` when none were generated
 	 * @return index mutations to dispatch to target collections
 	 */
 	@Nonnull
 	public IndexImplicitMutations popIndexImplicitMutations(
-		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations
+		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations,
+		@Nullable LocalMutation<?, ?>[] implicitMutations
 	) {
 		// early return if no registry
 		final CatalogExpressionTriggerRegistry registry = getCatalogExpressionTriggerRegistry();
@@ -660,7 +729,31 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		}
 
 		// branch: attribute change path — iterate input mutations directly
-		return buildAttributeChangeMutations(registry, entityPK, inputMutations);
+		return buildAttributeChangeMutations(
+			registry, entityPK, concatLocalMutations(inputMutations, implicitMutations)
+		);
+	}
+
+	/**
+	 * Joins a batch's root local mutations with the implicit ones derived from it. Returns `first` itself
+	 * when there is nothing to append, so the common case allocates nothing.
+	 *
+	 * @param first  the root batch's local mutations
+	 * @param second the implicit local mutations derived from it, or `null` when none were generated
+	 * @return the mutations trigger discovery should run over
+	 */
+	@Nonnull
+	private static List<? extends LocalMutation<?, ?>> concatLocalMutations(
+		@Nonnull List<? extends LocalMutation<?, ?>> first,
+		@Nullable LocalMutation<?, ?>[] second
+	) {
+		if (second == null || second.length == 0) {
+			return first;
+		}
+		final List<LocalMutation<?, ?>> combined = new ArrayList<>(first.size() + second.length);
+		combined.addAll(first);
+		combined.addAll(Arrays.asList(second));
+		return combined;
 	}
 
 	/**
@@ -880,11 +973,17 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	@Override
 	public void finishLocalMutationExecutionPhase() {
-		if (this.deferredExpressionReEvaluations != null && !this.deferredExpressionReEvaluations.isEmpty()) {
-			for (final Runnable action : this.deferredExpressionReEvaluations) {
-				action.run();
+		try {
+			if (this.deferredExpressionReEvaluations != null && !this.deferredExpressionReEvaluations.isEmpty()) {
+				for (final Runnable action : this.deferredExpressionReEvaluations) {
+					action.run();
+				}
+				this.deferredExpressionReEvaluations.clear();
 			}
-			this.deferredExpressionReEvaluations.clear();
+		} finally {
+			// dropped unconditionally: the next phase may see a different reference set, and a memo that
+			// outlived its entity would silently write facets into another entity's partitions
+			this.deferredOwnerReducedIndexes = null;
 		}
 	}
 
@@ -2364,7 +2463,15 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Removes entity itself from indexes.
+	 * Removes entity itself from indexes. Mirror image of {@link #prepare(List)}: whatever that method sets up for
+	 * an entity newly inserted into the global index, this method tears down when the entity leaves it — the suite of
+	 * sortable attribute compounds, and the entity's placement in the hierarchy index.
+	 *
+	 * The hierarchy placement is only torn down here when this entity's own removal has not already done it through
+	 * a {@link RemoveParentMutation}; see {@link #hierarchyPlacementUnindexed}. The tear-down tolerates an entity
+	 * that never had a placement at all, which is a state schema evolution can leave behind.
+	 *
+	 * @param primaryKey primary key of the entity that is being removed from the indexes
 	 */
 	private void removeEntity(int primaryKey) {
 		final EntityIndex globalIndex = getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, getScope()));
@@ -2381,6 +2488,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				entitySchema,
 				getStoragePartExistingDataFactory().getNormalizedEntityAttributeValueSupplier()
 			);
+			// un-index the hierarchy placement `prepare` created - a root has no RemoveParentMutation to do it
+			if (entitySchema.isWithHierarchy() && !this.hierarchyPlacementUnindexed) {
+				removeParentIfPresent(this, globalIndex, primaryKey);
+				this.hierarchyPlacementUnindexed = true;
+			}
 		}
 	}
 
@@ -2464,6 +2576,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * This method is responsible for removing the hierarchy placement of an entity from a global index.
 	 * The operation is only performed if the entity schema has a hierarchical structure.
 	 *
+	 * An entity leaving a scope may never have been placed in that scope's hierarchy index in the first place, so
+	 * the tear-down is the tolerant one - see
+	 * {@link HierarchyPlacementMutator#removeParentIfPresent(EntityIndexLocalMutationExecutor, EntityIndex, int)}.
+	 *
 	 * @param entityPrimaryKey the primary key of the entity whose hierarchy placement is to be removed
 	 * @param entitySchema     the schema of the entity which dictates whether the entity supports a hierarchy
 	 * @param globalIndex      the global index from which the entity's hierarchy placement will be removed
@@ -2474,7 +2590,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull GlobalEntityIndex globalIndex
 	) {
 		if (entitySchema.isWithHierarchy()) {
-			removeParent(
+			removeParentIfPresent(
 				this,
 				globalIndex,
 				entityPrimaryKey
@@ -2765,6 +2881,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Indexes the hierarchy placement of an entity within a global entity index.
 	 *
+	 * A root entity is placed as well, with a `null` parent - exactly as {@link #prepare(List)} places a newly
+	 * created hierarchical entity. Placing only entities that declare a parent would leave the target scope's
+	 * hierarchy index without the root, so the opposite scope transition would find nothing to un-index and the
+	 * root would silently stop being queryable in the scope it moved to.
+	 *
 	 * @param entity       the entity whose hierarchy placement needs to be indexed
 	 * @param entitySchema the schema contract of the entity
 	 * @param globalIndex  the global entity index where the hierarchy placement will be indexed
@@ -2774,12 +2895,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull GlobalEntityIndex globalIndex
 	) {
-		if (entitySchema.isWithHierarchy() && entity.getParent().isPresent()) {
+		if (entitySchema.isWithHierarchy()) {
+			final OptionalInt parent = entity.getParent();
 			setParent(
 				this,
 				globalIndex,
 				entity.getPrimaryKeyOrThrowException(),
-				entity.getParent().getAsInt()
+				parent.isPresent() ? parent.getAsInt() : null
 			);
 		}
 	}
@@ -3511,10 +3633,21 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName
 		);
 		final EntityIndex groupTypeIndex = getIndexIfExists(groupTypeKey);
-		if (groupTypeIndex instanceof ReferencedTypeEntityIndex rtei) {
-			return rtei.getAllReferenceIndexes(groupPK);
+		// absence is legitimate - no owner has assigned a group to this reference yet
+		if (groupTypeIndex == null) {
+			return new int[0];
 		}
-		return new int[0];
+		// REFERENCED_GROUP_ENTITY_TYPE always resolves to a ReferencedTypeEntityIndex by
+		// construction - any other type is a programming error, and silently returning no
+		// partitions here would strand the group's reduced indexes with no diagnostic
+		if (!(groupTypeIndex instanceof ReferencedTypeEntityIndex rtei)) {
+			throw new GenericEvitaInternalError(
+				"Expected ReferencedTypeEntityIndex for REFERENCED_GROUP_ENTITY_TYPE key on " +
+					"reference `" + referenceName + "`, scope `" + scope + "`, got " +
+					groupTypeIndex.getClass().getName() + "."
+			);
+		}
+		return rtei.getAllReferenceIndexes(groupPK);
 	}
 
 	/**
@@ -3785,6 +3918,24 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Method processes all mutations that targets hierarchy placement - e.g. {@link SetParentMutation}
 	 * and {@link RemoveParentMutation}.
+	 *
+	 * A {@link RemoveParentMutation} means two different things depending on why it arrived, and the two
+	 * are told apart by whether the entity is being removed entirely:
+	 *
+	 * - **outside a removal** it is a user clearing an entity's parent, which promotes that entity to a
+	 *   root. The entity stays, reports no parent afterwards, and keeps its own subtree - so the index has
+	 *   to say the same thing and the node is re-placed as a root rather than un-indexed. Un-indexing it
+	 *   would make a live entity stop matching `hierarchyWithinRoot` and would orphan everything below it,
+	 *   which is the mirror image of the phantom root this path exists to prevent (see #1365).
+	 * - **inside a removal** it is one step of the entity's own tear-down, and the placement really does go
+	 *   away.
+	 *
+	 * Only the second case records the tear-down in {@link #hierarchyPlacementUnindexed}, so a re-rooted
+	 * entity removed later in the same batch is still un-indexed exactly once by {@link #removeEntity(int)}.
+	 *
+	 * @param parentMutation the {@link SetParentMutation} or {@link RemoveParentMutation} to apply
+	 * @param index          the entity index whose hierarchy placement is updated
+	 * @throws GenericEvitaInternalError when the passed mutation is neither of the two known parent mutations
 	 */
 	public void updateHierarchyPlacement(@Nonnull ParentMutation parentMutation, @Nonnull EntityIndex index) {
 		if (parentMutation instanceof final SetParentMutation setMutation) {
@@ -3793,11 +3944,23 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				getPrimaryKeyToIndex(IndexType.HIERARCHY_INDEX, Target.NEW),
 				setMutation.getParentPrimaryKey()
 			);
+			this.hierarchyPlacementUnindexed = false;
 		} else if (parentMutation instanceof RemoveParentMutation) {
-			removeParent(
-				this, index,
-				getPrimaryKeyToIndex(IndexType.HIERARCHY_INDEX, Target.EXISTING)
-			);
+			if (this.containerAccessor.isEntityRemovedEntirely()) {
+				removeParent(
+					this, index,
+					getPrimaryKeyToIndex(IndexType.HIERARCHY_INDEX, Target.EXISTING)
+				);
+				this.hierarchyPlacementUnindexed = true;
+			} else {
+				// re-root: addNode drops the previous placement first and re-adopts the orphans below it,
+				// so the subtree that hung under the cleared parent follows the node to its new position
+				setParent(
+					this, index,
+					getPrimaryKeyToIndex(IndexType.HIERARCHY_INDEX, Target.NEW),
+					null
+				);
+			}
 		} else {
 			// SHOULD NOT EVER HAPPEN
 			throw new GenericEvitaInternalError("Unknown mutation: " + parentMutation.getClass());

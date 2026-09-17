@@ -437,6 +437,37 @@ public class EvitaEnumConverter {
 	}
 
 	/**
+	 * Converts {@link GrpcHierarchyParentsBehaviour} to {@link HierarchyParentsBehaviour}.
+	 *
+	 * @param grpcHierarchyParentsBehaviour the {@link GrpcHierarchyParentsBehaviour} to be converted
+	 * @return the converted {@link HierarchyParentsBehaviour}
+	 * @throws EvitaInvalidUsageException if the given grpcHierarchyParentsBehaviour is unrecognized
+	 */
+	@Nonnull
+	public static HierarchyParentsBehaviour toHierarchyParentsBehaviour(@Nonnull GrpcHierarchyParentsBehaviour grpcHierarchyParentsBehaviour) {
+		return switch (grpcHierarchyParentsBehaviour) {
+			case MATCHING -> HierarchyParentsBehaviour.MATCHING;
+			case COMPLETE -> HierarchyParentsBehaviour.COMPLETE;
+			case UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized remote hierarchy parents behaviour: " + grpcHierarchyParentsBehaviour);
+		};
+	}
+
+	/**
+	 * Converts {@link HierarchyParentsBehaviour} to {@link GrpcHierarchyParentsBehaviour}.
+	 *
+	 * @param hierarchyParentsBehaviour the {@link HierarchyParentsBehaviour} to be converted
+	 * @return the converted {@link GrpcHierarchyParentsBehaviour}
+	 */
+	@Nonnull
+	public static GrpcHierarchyParentsBehaviour toGrpcHierarchyParentsBehaviour(@Nonnull HierarchyParentsBehaviour hierarchyParentsBehaviour) {
+		return switch (hierarchyParentsBehaviour) {
+			case MATCHING -> GrpcHierarchyParentsBehaviour.MATCHING;
+			case COMPLETE -> GrpcHierarchyParentsBehaviour.COMPLETE;
+		};
+	}
+
+	/**
 	 * Converts {@link GrpcAttributeSpecialValue} to {@link AttributeSpecialValue}.
 	 *
 	 * @param grpcAttributeSpecialValue the {@link GrpcAttributeSpecialValue} to be converted

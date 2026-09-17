@@ -50,6 +50,7 @@ import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.buffer.StorageAccessScope;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.PrefetchOrder;
@@ -146,6 +147,19 @@ public class QueryExecutionContext implements Closeable {
 	 * kept here for reuse within this single execution; {@link #close()} hands them all back.
 	 */
 	private Deque<int[]> buffers;
+	/**
+	 * De-duplicates storage record reads for the duration of this execution - see {@link StorageAccessScope}.
+	 * Opened only for real executions; a planning context never reads entity bodies.
+	 */
+	@Nullable private StorageAccessScope storageAccessScope;
+	/**
+	 * The scope's counters as they stood when {@link #openStorageAccessScope()} ran. A nested execution **joins** the
+	 * scope the outer one opened rather than starting its own, so the counters it finds there already hold everything
+	 * the outer query read before it started; subtracting this baseline is what makes the numbers below describe this
+	 * execution and not its parent.
+	 */
+	private int ioFetchCountAtScopeOpen;
+	private int ioFetchedBytesAtScopeOpen;
 
 	/**
 	 * Returns true if the context is inside {@link QueryPlanner#verifyConsistentResultsInAllPlans(QueryPlanningContext, List, List, QueryPlanBuilder)}  method.
@@ -647,8 +661,42 @@ public class QueryExecutionContext implements Closeable {
 	}
 
 	/**
-	 * Releases the buffers this execution borrowed back to the {@link SharedBufferPool}. This is the whole reason the
-	 * class is {@link Closeable}, so an execution context must always be created in a try-with-resources block.
+	 * Opens the per-execution storage record cache, so that a record read once during this query is not read and
+	 * deserialized again. Must be paired with {@link #close()}, which discards it.
+	 */
+	public void openStorageAccessScope() {
+		Assert.isPremiseValid(this.storageAccessScope == null, "Storage record cache has already been opened!");
+		this.storageAccessScope = StorageAccessScope.install();
+		this.ioFetchCountAtScopeOpen = this.storageAccessScope.getIoFetchCount();
+		this.ioFetchedBytesAtScopeOpen = this.storageAccessScope.getIoFetchedBytes();
+	}
+
+	/**
+	 * Returns the number of storage records read while executing this query, accumulated at the point of the read.
+	 * A nested execution reports only what it read itself - see {@link #ioFetchCountAtScopeOpen}.
+	 *
+	 * @return number of records read, zero when no scope was opened
+	 */
+	public int getIoFetchCount() {
+		return this.storageAccessScope == null ?
+			0 : this.storageAccessScope.getIoFetchCount() - this.ioFetchCountAtScopeOpen;
+	}
+
+	/**
+	 * Returns the number of Bytes the records read while executing this query occupied in the storage.
+	 * A nested execution reports only what it read itself - see {@link #ioFetchedBytesAtScopeOpen}.
+	 *
+	 * @return number of Bytes read, zero when no scope was opened
+	 */
+	public int getIoFetchedBytes() {
+		return this.storageAccessScope == null ?
+			0 : this.storageAccessScope.getIoFetchedBytes() - this.ioFetchedBytesAtScopeOpen;
+	}
+
+	/**
+	 * Discards the storage record cache opened by {@link #openStorageAccessScope()} and releases the buffers this
+	 * execution borrowed back to the {@link SharedBufferPool}. This is the whole reason the class is
+	 * {@link Closeable}, so an execution context must always be created in a try-with-resources block.
 	 * Nothing breaks when it is not - the pool simply allocates a fresh array next time - but the reuse the pool
 	 * exists for is lost, which is precisely the GC pressure it was introduced to avoid.
 	 *
@@ -657,6 +705,10 @@ public class QueryExecutionContext implements Closeable {
 	 */
 	@Override
 	public void close() {
+		if (this.storageAccessScope != null) {
+			this.storageAccessScope.close();
+			this.storageAccessScope = null;
+		}
 		if (this.buffers != null) {
 			this.buffers.forEach(SharedBufferPool.INSTANCE::free);
 		}

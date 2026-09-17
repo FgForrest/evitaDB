@@ -59,7 +59,7 @@ import java.util.Optional;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(callSuper = true, exclude = "comparableKey")
-public class InsertReferenceMutation extends ReferenceMutation<ComparableReferenceKey>
+public final class InsertReferenceMutation extends ReferenceMutation<ComparableReferenceKey>
 	implements SchemaEvolvingLocalMutation<ReferenceContract, ComparableReferenceKey> {
 	@Serial private static final long serialVersionUID = 246683161519656910L;
 

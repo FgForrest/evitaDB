@@ -52,11 +52,11 @@ public abstract class ClientFacetAndHierarchyFilteringAndSummarizingImpactState 
 	implements RandomQueryGenerator {
 
 	/**
-	 * Senesi entity type of product.
+	 * Entity type of product.
 	 */
 	public static final String PRODUCT_ENTITY_TYPE = "Product";
 	/**
-	 * Senesi entity type of category.
+	 * Entity type of category.
 	 */
 	public static final String CATEGORY_ENTITY_TYPE = "Category";
 	/**

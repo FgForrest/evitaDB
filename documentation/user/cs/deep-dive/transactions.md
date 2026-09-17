@@ -27,7 +27,7 @@ Nejprve se posuňme k bodu, kdy je transakce potvrzena (commit). Poté vysvětl�
 3. zpracování obsahu WAL a vytvoření nové "verze" databáze
    - začlenění změn do indexů a zápis payloadů záznamů do datových souborů
    - zápis změn v indexech do datových souborů
-   - kompakce datových souborů, pokud je to nutné ([podrobněji popsáno zde](storage-model.md#úklid-nepořádku))
+   - kompakce datových souborů, pokud je to nutné ([podrobněji popsáno zde](storage-model.md#čištění-nepořádku))
 4. výměna nové verze databáze za aktuální
 5. propagace změn na čtecí uzly v clusterovém prostředí
 
@@ -242,7 +242,7 @@ Ve skutečnosti existují dva typy WAL souborů. První typ, "izolovaný" WAL, j
 
 </Note>
 
-WAL se neúčastní standardního [procesu kompakce](storage-model.md#úklid-nepořádku), takže by rostl donekonečna. Proto je nakonfigurován práh pro omezení maximální velikosti WAL souboru. Pokud je tohoto prahu dosaženo, evitaDB začne zapisovat do samostatného souboru (segmentu), ale původní soubor ponechá na místě. Jedna transakce musí být vždy plně zapsána do stejného WAL segmentu, takže obrovské transakce mohou způsobit, že velikost WAL souboru překročí nastavené limity. Počet uchovávaných WAL souborů je omezen a tento limit může být překročen pouze v případě, že změny v nich ještě nebyly aplikovány do indexů. WAL soubory jsou odstraněny, jakmile procesor transakcí potvrdí, že všechny změny byly aplikovány do indexů (a pokud běží v distribuovaném režimu, také propagovány na všechny ostatní uzly).
+WAL se neúčastní standardního [procesu kompakce](storage-model.md#čištění-nepořádku), takže by rostl donekonečna. Proto je nakonfigurován práh pro omezení maximální velikosti WAL souboru. Pokud je tohoto prahu dosaženo, evitaDB začne zapisovat do samostatného souboru (segmentu), ale původní soubor ponechá na místě. Jedna transakce musí být vždy plně zapsána do stejného WAL segmentu, takže obrovské transakce mohou způsobit, že velikost WAL souboru překročí nastavené limity. Počet uchovávaných WAL souborů je omezen a tento limit může být překročen pouze v případě, že změny v nich ještě nebyly aplikovány do indexů. WAL soubory jsou odstraněny, jakmile procesor transakcí potvrdí, že všechny změny byly aplikovány do indexů (a pokud běží v distribuovaném režimu, také propagovány na všechny ostatní uzly).
 
 WAL soubory jsou klíčovou součástí databáze a slouží k následujícím účelům:
 
@@ -283,7 +283,7 @@ nebo [statement-based replication v MySQL](https://dev.mysql.com/doc/refman/8.0/
 
 Všechny čtecí uzly udržují otevřené spojení s master uzlem, streamují a lokálně přehrávají změny v WAL souboru. Toto spojení je vždy otevřené a stahuje všechny změny obsažené ve WAL souboru na každý replikační uzel. To znamená, že jakmile zpracování transakce dosáhne finální fáze [propagace katalogu](#4-propagace-nové-verze-katalogu), mutace se začnou streamovat na repliky. Všechny konflikty jsou řešeny na master uzlu před potvrzením transakce a zápisem do WAL souboru, takže se očekává, že všechny mutace budou úspěšně zpracovány všemi replikami.
 
-Když je do clusteru přidán nový replikační uzel, vybere si jinou repliku nebo master uzel a stáhne si binární verzi jejich datových souborů, které jsou očištěny od zastaralých záznamů (viz [aktivní záloha](storage-model.md#zálohování-a-obnova)). Streamovací producent zahazuje zastaralé záznamy od správce datových souborů (vybraný replikační nebo master uzel) za běhu, takže na nový uzel není streamována žádná zastaralá data. Proces zálohování je vždy uzamčen na platná data v konkrétní verzi katalogu (včetně pozice ve WAL souboru) a díky append-only povaze datových souborů není nutné pozastavovat zpracování nových transakcí na tomto uzlu a uzel funguje jako obvykle. Všechny tyto operace probíhají na "binární úrovni", takže vytvoření nové repliky je poměrně rychlý proces.
+Když je do clusteru přidán nový replikační uzel, vybere si jinou repliku nebo master uzel a stáhne si binární verzi jejich datových souborů, které jsou očištěny od zastaralých záznamů (viz [aktivní záloha](storage-model.md#zálohování-a-obnovení)). Streamovací producent zahazuje zastaralé záznamy od správce datových souborů (vybraný replikační nebo master uzel) za běhu, takže na nový uzel není streamována žádná zastaralá data. Proces zálohování je vždy uzamčen na platná data v konkrétní verzi katalogu (včetně pozice ve WAL souboru) a díky append-only povaze datových souborů není nutné pozastavovat zpracování nových transakcí na tomto uzlu a uzel funguje jako obvykle. Všechny tyto operace probíhají na "binární úrovni", takže vytvoření nové repliky je poměrně rychlý proces.
 
 ## Izolace paralelních transakcí podrobně
 

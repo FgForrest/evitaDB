@@ -82,19 +82,31 @@ public class MapChanges<K, V>
 	 */
 	private int createdKeyCount;
 	/**
-	 * Identity set of {@link TransactionalLayerProducer} values that were both CREATED and REMOVED within this same
-	 * transaction. Such a key ends up in neither {@link #mapDelegate} nor {@link #modifiedKeys} (and
-	 * {@link #createdKeyCount} is decremented back), so the commit-time sweep in
-	 * {@link #createMergedMap(TransactionalLayerMaintainer)} (and {@link ProducerMapChanges#createMergedChampMap}) would
-	 * never visit it — leaving its nested diff layer orphaned and failing the commit with
-	 * `StaleTransactionMemoryException`. These instances are stashed here on removal and released at commit by
-	 * {@link #releaseOrphanedCreatedThenRemovedLayers(TransactionalLayerMaintainer)} (survivor-guarded), which keeps the
-	 * value's layer ALIVE for the rest of the transaction so read-after-remove callers still see their in-transaction
-	 * state. Identity-based (`==`) on purpose: a producer owns its layer per-instance, so two content-equal instances
-	 * (e.g. two empty bitmaps) are independent layer owners. Lazily allocated — null until the first such removal, so
-	 * the common (no created-then-removed) path stays allocation-free.
+	 * Identity set of {@link TransactionalLayerProducer} values this transaction discarded and the commit-time sweep
+	 * can therefore no longer reach. Three shapes put a value here, and they are the three the sweep is blind to:
+	 *
+	 * - a value both CREATED and REMOVED within this transaction — its key ends up in neither {@link #mapDelegate} nor
+	 *   {@link #modifiedKeys} (and {@link #createdKeyCount} is decremented back), so nothing visits it;
+	 * - a REPLACEMENT value (the key was overwritten, or removed and re-inserted) that is then REMOVED again — the
+	 *   base-map loop of {@link #createMergedMap(TransactionalLayerMaintainer)} visits the key, but the instance it
+	 *   finds under it is the delegate's ORIGINAL, so the replacement is never visited either;
+	 * - a value DISPLACED by a write — whether the key was overwritten outright or removed earlier in this
+	 *   transaction and re-inserted, the key survives and the base-map loop skips it precisely because it is now in
+	 *   {@link #modifiedKeys}, while the {@link #modifiedKeys} loop merges the NEW value, so the displaced instance
+	 *   is visited by neither. The two are one shape and are stashed by one rule; see {@link #put(Object, Object)}
+	 *   for why the release cannot be taken at the moment of the write.
+	 *
+	 * In all three the discarded instance's nested diff layer would orphan and fail the commit with
+	 * `StaleTransactionMemoryException`. Such an instance is stashed here the moment the transaction discards it —
+	 * in {@link #remove(Object)} for the first two shapes, in {@link #put(Object, Object)} for the third — and
+	 * released at commit by {@link #releaseOrphanedDiscardedLayers(TransactionalLayerMaintainer)}
+	 * (survivor-guarded), which keeps the value's layer ALIVE for the rest of the transaction so read-after-remove
+	 * callers still see their in-transaction state. Identity-based (`==`) on purpose: a producer owns its layer
+	 * per-instance, so two content-equal instances (e.g. two empty bitmaps) are independent layer owners. Lazily
+	 * allocated — null until the first discard, so the common path — where no discarded value needs one — stays
+	 * allocation-free.
 	 */
-	@Nullable private Set<Object> createdThenRemovedProducers;
+	@Nullable private Set<Object> discardedProducers;
 	/**
 	 * Function used to wrap result of {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer)}
 	 * to a {@link TransactionalLayerProducer} instance.
@@ -102,7 +114,7 @@ public class MapChanges<K, V>
 	private final Function<Object, V> transactionalLayerWrapper;
 	/**
 	 * Undo journal recording the inverse of every mutation of this layer's own diff containers ({@link #modifiedKeys},
-	 * {@link #removedKeys}, {@link #createdThenRemovedProducers}, and — for {@link ProducerMapChanges} — its
+	 * {@link #removedKeys}, {@link #discardedProducers}, and — for {@link ProducerMapChanges} — its
 	 * value-mutated-key set) while a savepoint is open. It enables an `O(1)` {@link #snapshot()} and an
 	 * `O(intra-savepoint-ops)` {@link #restore(MapChangesMemento)} instead of deep-copying the whole accumulated diff per
 	 * per-entity savepoint (the rollback cliff). Only this layer's OWN state is journaled — nested producer VALUES are
@@ -211,6 +223,17 @@ public class MapChanges<K, V>
 		if (containsCreatedOrModified((K) key)) {
 			if (existing) {
 				originalValue = removeModifiedKey((K) key);
+				// The key's CURRENT value is a REPLACEMENT recorded in this transaction (the key was removed and
+				// re-inserted, or simply overwritten), and it is now removed again. The commit-time base-map loop in
+				// createMergedMap only ever sees the DELEGATE's original instance under this key, so it releases that
+				// one and never the replacement - whose nested diff layer would then orphan and fail the commit with
+				// StaleTransactionMemoryException. Stash it under the same survivor-guarded, commit-time release as
+				// the created-then-removed case below, for the same reason it is not released eagerly: remove()
+				// returns the value and callers legitimately read its live in-transaction state afterwards.
+				if (originalValue instanceof TransactionalStateProducer
+					&& originalValue != this.mapDelegate.get(key)) {
+					stashDiscardedProducer(originalValue);
+				}
 			} else {
 				// the key was CREATED and is now REMOVED within this same transaction: after removal it lives in
 				// neither the delegate nor the modified set, so the commit-time sweep would never visit it and its
@@ -218,12 +241,12 @@ public class MapChanges<K, V>
 				// the value and callers legitimately read its live in-transaction state afterwards (e.g.
 				// HierarchyIndex.makeOrphansRecursively iterates the removed TransactionalIntArray, then releases the
 				// layer itself). Instead the discarded producer instance is stashed and released at commit time by
-				// releaseOrphanedCreatedThenRemovedLayers - keeping the layer ALIVE for the rest of the transaction
+				// releaseOrphanedDiscardedLayers - keeping the layer ALIVE for the rest of the transaction
 				// while still guaranteeing it is swept (releaseLayer is idempotent, so a caller's explicit release is
 				// harmless).
 				originalValue = removeCreatedKey((K) key);
 				if (originalValue instanceof TransactionalStateProducer) {
-					stashCreatedThenRemovedProducer(originalValue);
+					stashDiscardedProducer(originalValue);
 				}
 			}
 		} else {
@@ -238,6 +261,11 @@ public class MapChanges<K, V>
 	/**
 	 * Method records insertion / update of the record with particular key. The update is trapped within this object
 	 * data. If the record was not in original map the {@link #createdKeyCount} is incremented.
+	 *
+	 * It also owns half of the transactional-layer lifecycle this class maintains: a {@link TransactionalStateProducer}
+	 * value that the write DISPLACES is stashed into {@link #discardedProducers} for the survivor-guarded release at
+	 * commit, because after the write no commit-time loop visits it. {@link #remove(Object)} owns the other two
+	 * shapes. The body says why the release cannot be taken here.
 	 */
 	@Nullable
 	V put(@Nonnull K key, @Nullable V value) {
@@ -254,16 +282,31 @@ public class MapChanges<K, V>
 		}
 		// record the pending removed-key mutation so a savepoint rollback can reinstate it
 		journalRemovedKeyMembership(key);
-		if (this.removedKeys.remove(key)) {
-			// the key was removed earlier in this transaction and is now being re-inserted with a (potentially)
-			// different value — the original instance is discarded, so release its layer. The release is
-			// identity-based: keep the layer if some surviving key still references the very same instance.
-			if (originalValue instanceof TransactionalStateProducer<?> transactionalLayerProducer
-				&& originalValue != value
-				&& isInstanceNotReferencedBySurvivingKey(key, originalValue)
-			) {
-				transactionalLayerProducer.removeLayer();
-			}
+		// a key removed earlier in this transaction is being re-inserted, so it is no longer removed
+		this.removedKeys.remove(key);
+		if (originalValue instanceof TransactionalStateProducer && originalValue != value) {
+			// Whether the key was removed earlier in this transaction and is now re-inserted, or simply
+			// overwritten, the outcome is identical: the key resolves to the NEW value, so the commit-time
+			// base-map loop skips it (it is in `modifiedKeys`) while the `modifiedKeys` loop merges the new
+			// value — the displaced instance is visited by neither, and its nested diff layer orphans.
+			// `ProducerMapChanges#createMergedChampMap` skips it in the same way. Both shapes are therefore
+			// handled by ONE rule: stash the displaced instance and let `releaseOrphanedDiscardedLayers` release
+			// it at commit, under the identity-based survivor guard.
+			//
+			// Deferring is not a stylistic preference. Evaluated here, that guard answers from a key → value
+			// mapping that is not yet final, so an alias created LATER in the same transaction is invisible to it
+			// and the layer is released out from under a key that survives — after which `copyWithOwnLayer` finds
+			// no entry, `TransactionalLayerProducer#createCopyWithMergedTransactionalMemory` is handed a `null`
+			// layer, and the transaction commits having silently dropped the change. Nothing raises, because a
+			// released layer is exactly what `verifyLayerWasFullySwept` is looking for. At commit the mapping is
+			// final and the same guard sees every alias. It also keeps the value readable: callers legitimately
+			// read a discarded value's live in-transaction state afterwards (`HierarchyIndex
+			// #makeOrphansRecursively` iterates the removed `TransactionalIntArray`, then releases its layer
+			// itself — `removeLayer` is idempotent, so that explicit release simply makes this one a no-op).
+			//
+			// The cost is retention: the stash holds a strong reference to every displaced producer until commit,
+			// so a transaction churning many keys under one map holds more than an eager release would.
+			stashDiscardedProducer(originalValue);
 		}
 		return originalValue;
 	}
@@ -329,8 +372,21 @@ public class MapChanges<K, V>
 	 * degrade producer-map removals to `O(removed · N)` and defeat {@link ProducerMapChanges#createMergedChampMap}'s
 	 * intended `O(Δ·log₃₂N)` commit.
 	 *
+	 * **{@link ProducerMapChanges#markValueMutated} keys are deliberately not scanned either, and adding them would
+	 * not help.** A dirty key's value still lives in {@link #mapDelegate} — the very map excluded above — so a scan
+	 * of the dirty set would reach the same instances by a different route while missing the case that matters: a
+	 * mark records the key the *caller* used, so a second, unmarked delegate key can hold the same instance whether
+	 * or not the first was marked. Aliasing is a property of the delegate, not of dirtiness; only a full delegate
+	 * scan would close it, and that is the cost the design bought its way out of.
+	 *
+	 * **When the answer is taken matters as much as what is scanned.** Every caller evaluates this at commit, on
+	 * the final key → value mapping — the removal loops of both merge paths and the discarded-producer sweep.
+	 * Asking mid transaction would answer from a mapping that is not final yet, so an alias introduced by a later
+	 * statement would be invisible and its layer released out from under it; {@link #put(Object, Object)} carries
+	 * the worked example of why that failure is silent.
+	 *
 	 * @param removedKey the key being removed (excluded from the survivor scan); pass `null` to exclude nothing
-	 *                   (used by the created-then-removed stash sweep, where the instance no longer lives under any
+	 *                   (used by the discarded-producer stash sweep, where the instance no longer lives under any
 	 *                   single key)
 	 * @param instance   the producer instance whose continued reference is being tested
 	 * @return `true` if no surviving key references the very same instance (i.e. its layer is safe to release)
@@ -347,31 +403,33 @@ public class MapChanges<K, V>
 	}
 
 	/**
-	 * Stashes a {@link TransactionalLayerProducer} value that was created and then removed within the same transaction,
-	 * so its (possibly ALIVE) nested diff layer can be released at commit by
-	 * {@link #releaseOrphanedCreatedThenRemovedLayers(TransactionalLayerMaintainer)}. See {@link #createdThenRemovedProducers}.
+	 * Stashes a {@link TransactionalLayerProducer} value this transaction discarded — created-then-removed, a
+	 * replacement that was removed again, or one displaced by an overwrite — so its (possibly ALIVE) nested diff
+	 * layer can be released at commit by
+	 * {@link #releaseOrphanedDiscardedLayers(TransactionalLayerMaintainer)}. See {@link #discardedProducers}.
 	 *
 	 * @param producer the discarded producer instance to track for commit-time release
 	 */
-	private void stashCreatedThenRemovedProducer(@Nonnull Object producer) {
-		if (this.createdThenRemovedProducers == null) {
-			this.createdThenRemovedProducers = Collections.newSetFromMap(new IdentityHashMap<>(32));
+	private void stashDiscardedProducer(@Nonnull Object producer) {
+		if (this.discardedProducers == null) {
+			this.discardedProducers = Collections.newSetFromMap(new IdentityHashMap<>(32));
 		}
-		final boolean added = this.createdThenRemovedProducers.add(producer);
+		final boolean added = this.discardedProducers.add(producer);
 		if (added && this.undoJournal != null) {
 			// undo just this stash addition; the container's null-vs-set existence is normalized by restore() via the
-			// memento's createdThenRemovedWasNull flag
+			// memento's discardedProducersWasNull flag
 			this.undoJournal.push(() -> {
-				if (this.createdThenRemovedProducers != null) {
-					this.createdThenRemovedProducers.remove(producer);
+				if (this.discardedProducers != null) {
+					this.discardedProducers.remove(producer);
 				}
 			});
 		}
 	}
 
 	/**
-	 * Releases the nested diff layers of producer values that were CREATED and then REMOVED within this transaction (see
-	 * {@link #createdThenRemovedProducers}). A stashed instance is released only when no surviving key still references
+	 * Releases the nested diff layers of the producer values this transaction discarded — created-then-removed,
+	 * replacements that were removed again, and values displaced by an overwrite (see
+	 * {@link #discardedProducers}). A stashed instance is released only when no surviving key still references
 	 * the very same instance (identity-based), so a value re-inserted under another key — or shared with a surviving key
 	 * — keeps its layer and is swept normally. Invoked at the end of both commit paths
 	 * ({@link #createMergedMap(TransactionalLayerMaintainer)} and {@link ProducerMapChanges#createMergedChampMap}). The
@@ -379,11 +437,11 @@ public class MapChanges<K, V>
 	 *
 	 * @param transactionalLayer the maintainer used to drop the orphaned layers
 	 */
-	protected void releaseOrphanedCreatedThenRemovedLayers(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		if (this.createdThenRemovedProducers == null) {
+	protected void releaseOrphanedDiscardedLayers(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		if (this.discardedProducers == null) {
 			return;
 		}
-		for (final Object instance : this.createdThenRemovedProducers) {
+		for (final Object instance : this.discardedProducers) {
 			if (instance instanceof TransactionalStateProducer<?> transactionalLayerProducer
 				&& isInstanceNotReferencedBySurvivingKey(null, instance)) {
 				transactionalLayerProducer.removeLayer(transactionalLayer);
@@ -435,7 +493,7 @@ public class MapChanges<K, V>
 	 * ordinary way, which is what the {@link TransactionalLayerProducer} contract does.
 	 *
 	 * Everything a merger must not be trusted with stays here: the identity-based survivor scan that decides whether a
-	 * removed value's layer may be released, and {@link #releaseOrphanedCreatedThenRemovedLayers} for values that never
+	 * removed value's layer may be released, and {@link #releaseOrphanedDiscardedLayers} for values that never
 	 * appear in either loop.
 	 *
 	 * @param transactionalLayer the maintainer resolving committed state
@@ -494,8 +552,8 @@ public class MapChanges<K, V>
 			copy.put(key, mergeSurvivingValue(transactionalLayer, valueMerger, key, entry.getValue()));
 		}
 
-		// release the layers of producers created-then-removed within this transaction (invisible to both loops above)
-		releaseOrphanedCreatedThenRemovedLayers(transactionalLayer);
+		// release the layers of the producer values this transaction discarded (invisible to both loops above)
+		releaseOrphanedDiscardedLayers(transactionalLayer);
 
 		return copy;
 	}
@@ -564,8 +622,9 @@ public class MapChanges<K, V>
 		 * Releases the transactional layer of a value whose key does not survive the commit. Called only for a removed
 		 * value that is itself a transactional producer, and only when no surviving key still references it.
 		 *
-		 * A value both created and removed within the same transaction never reaches this method — it appears under no
-		 * surviving key at all, so {@link MapChanges} releases its layer directly, bypassing the merger.
+		 * A value this transaction discarded — created then removed, a replacement removed again, or one displaced by a
+		 * plain overwrite — never reaches this method: it is the value of no surviving key, so {@link MapChanges}
+		 * releases its layer directly from {@link MapChanges#discardedProducers}, bypassing the merger.
 		 *
 		 * @param key   the removed key
 		 * @param value the value that was mapped to it
@@ -659,9 +718,9 @@ public class MapChanges<K, V>
 	/**
 	 * Captures the current mutable diff state into an independent memento (see
 	 * {@link Snapshotable#snapshot()}). The three mutable containers ({@link #removedKeys},
-	 * {@link #modifiedKeys}, {@link #createdThenRemovedProducers}) are deep-copied so a later mutation of this layer
+	 * {@link #modifiedKeys}, {@link #discardedProducers}) are deep-copied so a later mutation of this layer
 	 * cannot corrupt the memento, while {@link #createdKeyCount} is copied by value. Producer **values** held inside
-	 * {@link #modifiedKeys} (and the instances stashed in {@link #createdThenRemovedProducers}) are captured BY
+	 * {@link #modifiedKeys} (and the instances stashed in {@link #discardedProducers}) are captured BY
 	 * REFERENCE only — their own nested diff layers are snapshotted by their own {@link Snapshotable}, coordinated by
 	 * the maintainer-level savepoint. The immutable {@link #mapDelegate} baseline and the stateless
 	 * {@link #transactionalLayerWrapper} are deliberately excluded — they are shared-immutable and never change during
@@ -676,11 +735,11 @@ public class MapChanges<K, V>
 			this.undoJournal = new UndoJournal();
 		}
 		// O(1): mark the journal and copy only the value-typed scalars (the createdKeyCount and the lazy
-		// createdThenRemovedProducers null-vs-set existence). The unbounded containers are rewound via the journal.
+		// discardedProducers null-vs-set existence). The unbounded containers are rewound via the journal.
 		return new BaseMapChangesMemento<>(
 			this.undoJournal.mark(),
 			this.createdKeyCount,
-			this.createdThenRemovedProducers == null
+			this.discardedProducers == null
 		);
 	}
 
@@ -688,7 +747,7 @@ public class MapChanges<K, V>
 	 * Resets this diff layer back to the exact state captured by the given memento (see
 	 * {@link Snapshotable#restore(Object)}). The two `final` containers ({@link #removedKeys}, {@link #modifiedKeys})
 	 * are reset IN PLACE via `clear()` + `addAll`/`putAll` (they cannot be reassigned), {@link #createdKeyCount} is
-	 * reassigned by value, and {@link #createdThenRemovedProducers} is rebuilt as a fresh identity-backed set (or set
+	 * reassigned by value, and {@link #discardedProducers} is rebuilt as a fresh identity-backed set (or set
 	 * to `null` when the memento captured `null`, preserving the lazy-allocation invariant). State is copied OUT of the
 	 * memento so the same memento can be restored more than once. Producer values are restored BY REFERENCE only —
 	 * their internal state is never touched here.
@@ -700,14 +759,14 @@ public class MapChanges<K, V>
 		final BaseMapChangesMemento<K, V> baseState = baseStateOf(memento);
 		UndoJournal.assertRestorable(this.undoJournal, baseState.mark());
 		// replay the recorded inverse operations in reverse down to the mark, rewinding modifiedKeys / removedKeys /
-		// createdThenRemovedProducers (and, for the producer subclass, its value-mutated-key set) to the snapshot state
+		// discardedProducers (and, for the producer subclass, its value-mutated-key set) to the snapshot state
 		if (this.undoJournal != null) {
 			this.undoJournal.rollbackTo(baseState.mark());
 		}
 		// restore the value-typed scalars directly and normalize the lazy container existence to the snapshot moment
 		this.createdKeyCount = baseState.createdKeyCount();
-		if (baseState.createdThenRemovedWasNull()) {
-			this.createdThenRemovedProducers = null;
+		if (baseState.discardedProducersWasNull()) {
+			this.discardedProducers = null;
 		}
 	}
 
@@ -839,7 +898,7 @@ public class MapChanges<K, V>
 	/**
 	 * Copies the given set into a fresh identity-backed set ({@link Collections#newSetFromMap(Map)} over an
 	 * {@link IdentityHashMap}), preserving the `==` membership semantics required by
-	 * {@link #createdThenRemovedProducers}. A plain content-equality {@link HashSet} would conflate two content-equal
+	 * {@link #discardedProducers}. A plain content-equality {@link HashSet} would conflate two content-equal
 	 * but distinct producer-layer owners (e.g. two empty bitmaps) and corrupt the orphan-release decision.
 	 *
 	 * @param source the identity set to copy (elements captured by reference)
@@ -862,15 +921,15 @@ public class MapChanges<K, V>
 			// are re-attached by the maintainer's savepoint machinery, exactly as for put/remove.
 			final Map<K, V> modifiedCopy = new HashMap<>(this.modifiedKeys);
 			final Set<K> removedCopy = new HashSet<>(this.removedKeys);
-			final Set<Object> stashCopy = this.createdThenRemovedProducers == null
+			final Set<Object> stashCopy = this.discardedProducers == null
 				? null
-				: copyIdentitySet(this.createdThenRemovedProducers);
+				: copyIdentitySet(this.discardedProducers);
 			this.undoJournal.push(() -> {
 				this.modifiedKeys.clear();
 				this.modifiedKeys.putAll(modifiedCopy);
 				this.removedKeys.clear();
 				this.removedKeys.addAll(removedCopy);
-				this.createdThenRemovedProducers = stashCopy == null ? null : copyIdentitySet(stashCopy);
+				this.discardedProducers = stashCopy == null ? null : copyIdentitySet(stashCopy);
 			});
 		}
 		this.createdKeyCount = 0;
@@ -882,14 +941,14 @@ public class MapChanges<K, V>
 			}
 			it.remove();
 		}
-		// drop the layers of any created-then-removed producers stashed for the deferred commit-time release
-		if (this.createdThenRemovedProducers != null) {
-			for (final Object instance : this.createdThenRemovedProducers) {
+		// drop the layers of any discarded producers stashed for the deferred commit-time release
+		if (this.discardedProducers != null) {
+			for (final Object instance : this.discardedProducers) {
 				if (instance instanceof TransactionalStateProducer<?> transactionalStateProducer) {
 					transactionalStateProducer.removeLayer(transactionalLayer);
 				}
 			}
-			this.createdThenRemovedProducers = null;
+			this.discardedProducers = null;
 		}
 		this.removedKeys.addAll(this.mapDelegate.keySet());
 	}
@@ -915,7 +974,7 @@ public class MapChanges<K, V>
 	 * shares this layer's undo journal) to support savepoint rollback.
 	 *
 	 * It carries only value-typed scalars: the {@link UndoJournal#mark()} to rewind the layer's containers to, the
-	 * {@link MapChanges#createdKeyCount}, and whether {@link MapChanges#createdThenRemovedProducers} was `null`
+	 * {@link MapChanges#createdKeyCount}, and whether {@link MapChanges#discardedProducers} was `null`
 	 * (unallocated) at snapshot time (to preserve the lazy-allocation invariant). The unbounded containers are rewound
 	 * via the journal, not copied here; the {@link MapChanges#mapDelegate} baseline and the value wrapper are excluded
 	 * (shared-immutable). Nested producer VALUES are never touched — their own layers are governed by their own
@@ -923,14 +982,14 @@ public class MapChanges<K, V>
 	 *
 	 * @param mark                      the {@link UndoJournal#mark()} to rewind the layer to on restore
 	 * @param createdKeyCount           value copy of {@link MapChanges#createdKeyCount}
-	 * @param createdThenRemovedWasNull whether {@link MapChanges#createdThenRemovedProducers} was `null` at snapshot time
+	 * @param discardedProducersWasNull whether {@link MapChanges#discardedProducers} was `null` at snapshot time
 	 * @param <K> key type
 	 * @param <V> value type
 	 */
 	public record BaseMapChangesMemento<K, V>(
 		int mark,
 		int createdKeyCount,
-		boolean createdThenRemovedWasNull
+		boolean discardedProducersWasNull
 	) implements MapChangesMemento<K, V> {
 	}
 

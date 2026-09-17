@@ -196,6 +196,7 @@ public class EntityFetchRequireResolver {
 			needsScope(selectionSetAggregator) ||
 			needsParent(selectionSetAggregator) ||
 			needsParents(selectionSetAggregator) ||
+			needsParentsComplete(selectionSetAggregator) ||
 			needsLocales(selectionSetAggregator) ||
 			needsAttributes(selectionSetAggregator) ||
 			needsAssociatedData(selectionSetAggregator) ||
@@ -217,6 +218,10 @@ public class EntityFetchRequireResolver {
 
 	private static boolean needsParents(@Nonnull SelectionSetAggregator selectionSetAggregator) {
 		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.PARENTS.name());
+	}
+
+	private static boolean needsParentsComplete(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.PARENTS_COMPLETE.name());
 	}
 
 	private static boolean needsLocales(@Nonnull SelectionSetAggregator selectionSetAggregator) {
@@ -246,11 +251,43 @@ public class EntityFetchRequireResolver {
 			.anyMatch(selectionSetAggregator::containsImmediate);
 	}
 
+	/**
+	 * Resolves the single `hierarchyContent` requirement serving every parent-related field of one entity object.
+	 *
+	 * There is exactly one requirement even when both parent fields are selected, because two `hierarchyContent`
+	 * requirements carrying different parents behaviours are refused by
+	 * {@link HierarchyContent#combineWith(EntityContentRequire)}. The behaviour it carries follows the selection:
+	 * {@link HierarchyParentsBehaviour#COMPLETE} - the superset of the two - whenever
+	 * {@link GraphQLEntityDescriptor#PARENTS_COMPLETE} is selected, and
+	 * {@link HierarchyContent#DEFAULT_PARENTS_BEHAVIOUR} otherwise; the selection sets of both fields are united into
+	 * it either way, and
+	 * {@link GraphQLEntityDescriptor#PARENTS} is derived back from the resolved chain by cutting it below the first
+	 * ancestor whose body could not be materialized. `parentsComplete` additionally always carries an inner
+	 * `entityFetch` - an empty one when its own selection derives none - so that an ancestor arriving as a mere
+	 * reference really does mean "the requested body could not be materialized" rather than "no body was requested".
+	 * Since only one requirement is emitted, only one bound can be
+	 * carried, so the two `stopAt` arguments have to agree - either both omitted or both carrying the same bound.
+	 * A bound written on one field alone is refused rather than merged: {@link HierarchyContent#combineWith} would
+	 * let the absent bound win as the superset, which would silently hand the bounded field more ancestors than it
+	 * asked for.
+	 *
+	 * A third outcome serves no parent chain at all: when neither parent field is selected but `parentPrimaryKey` or
+	 * `parent` is, the emitted requirement is the minimal `hierarchyContent(stopAt(distance(1)))` that resolves the
+	 * immediate parent alone. The empty result is therefore reachable only when no parent data whatsoever was asked
+	 * for.
+	 *
+	 * @param selectionSetAggregator the selection set of the entity object being resolved
+	 * @param desiredLocale          the locale the entity is fetched in, may be NULL
+	 * @param currentEntitySchema    the schema of the collection being fetched
+	 * @return the requirement to add to the entity fetch, or an empty result when no parent data was asked for
+	 */
 	@Nonnull
 	private Optional<HierarchyContent> resolveHierarchyContent(@Nonnull SelectionSetAggregator selectionSetAggregator,
 															   @Nullable Locale desiredLocale,
 	                                                           @Nonnull EntitySchemaContract currentEntitySchema) {
-		if (!needsParents(selectionSetAggregator) && !needsParent(selectionSetAggregator)) {
+		if (!needsParents(selectionSetAggregator) &&
+			!needsParentsComplete(selectionSetAggregator) &&
+			!needsParent(selectionSetAggregator)) {
 			return Optional.empty();
 		}
 
@@ -259,34 +296,84 @@ public class EntityFetchRequireResolver {
 			parentsFields.size() <= 1,
 			() -> new GraphQLInvalidResponseUsageException("Only one `" + GraphQLEntityDescriptor.PARENTS.name() + "` field is supported.")
 		);
-		return parentsFields.stream()
-			.findFirst()
-			.map(parentsField -> {
-				final DataLocator hierarchyDataLocator = new HierarchyDataLocator(new ManagedEntityTypePointer(currentEntitySchema.getName()));
-				final HierarchyStopAt stopAt = Optional.ofNullable(parentsField.getArguments().get(ParentsFieldHeaderDescriptor.STOP_AT.name()))
-					.map(it -> (HierarchyStopAt) this.requireConstraintResolver.resolve(
-						hierarchyDataLocator,
-						hierarchyDataLocator,
-						ParentsFieldHeaderDescriptor.STOP_AT.name(),
-						it
-					))
-					.orElse(null);
+		final List<SelectedField> parentsCompleteFields = selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.PARENTS_COMPLETE.name());
+		Assert.isTrue(
+			parentsCompleteFields.size() <= 1,
+			() -> new GraphQLInvalidResponseUsageException("Only one `" + GraphQLEntityDescriptor.PARENTS_COMPLETE.name() + "` field is supported.")
+		);
 
-				final EntityFetch entityFetch = resolveEntityFetch(
-					SelectionSetAggregator.from(parentsField.getSelectionSet()),
-					desiredLocale,
-					currentEntitySchema
-				).orElse(null);
+		if (parentsFields.isEmpty() && parentsCompleteFields.isEmpty()) {
+			// we need only direct parent to be able to return parentPrimaryKey
+			return Optional.of(hierarchyContent(stopAt(distance(1))));
+		}
 
-				return hierarchyContent(stopAt, entityFetch);
-			}).or(() -> {
-				if (!selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name()).isEmpty()) {
-					// we need only direct parent to be able to return parentPrimaryKey
-					return Optional.of(hierarchyContent(stopAt(distance(1))));
-				} else {
-					return Optional.empty();
-				}
-			});
+		final DataLocator hierarchyDataLocator = new HierarchyDataLocator(new ManagedEntityTypePointer(currentEntitySchema.getName()));
+		final HierarchyStopAt parentsStopAt = resolveParentsStopAt(hierarchyDataLocator, parentsFields);
+		final HierarchyStopAt parentsCompleteStopAt = resolveParentsStopAt(hierarchyDataLocator, parentsCompleteFields);
+		Assert.isTrue(
+			parentsFields.isEmpty() ||
+				parentsCompleteFields.isEmpty() ||
+				Objects.equals(parentsStopAt, parentsCompleteStopAt),
+			() -> new GraphQLInvalidResponseUsageException(
+				"Fields `" + GraphQLEntityDescriptor.PARENTS.name() + "` and `" +
+					GraphQLEntityDescriptor.PARENTS_COMPLETE.name() + "` are served by a single parent chain fetch, " +
+					"so their `" + ParentsFieldHeaderDescriptor.STOP_AT.name() + "` arguments must either both be " +
+					"omitted or both carry the same bound."
+			)
+		);
+
+		// the requirement covers both fields at once, so it has to satisfy the richer of the two selections
+		final List<SelectedField> parentFields = new ArrayList<>(parentsFields.size() + parentsCompleteFields.size());
+		parentFields.addAll(parentsFields);
+		parentFields.addAll(parentsCompleteFields);
+		// `parentsComplete` reports an ancestor that arrived as a mere reference as a bodyless pointer, so the
+		// requirement has to have asked for a body in the first place - otherwise "the body could not be
+		// materialized" would degenerate into "no body was requested" and every ancestor would be labelled a pointer.
+		// A selection limited to the classifier fields derives no fetch of its own, and an empty `entityFetch()` is
+		// what makes the distinction real: the locale existence gate is applied by the derived request rather than
+		// by the content requirements, so an ancestor holding no data in the queried locale still stays a pointer.
+		final EntityFetch entityFetch = resolveEntityFetch(
+			SelectionSetAggregator.fromFields(parentFields),
+			desiredLocale,
+			currentEntitySchema
+		).orElseGet(() -> parentsCompleteFields.isEmpty() ? null : entityFetch());
+
+		return Optional.of(
+			hierarchyContent(
+				parentsCompleteFields.isEmpty()
+					? HierarchyContent.DEFAULT_PARENTS_BEHAVIOUR
+					: HierarchyParentsBehaviour.COMPLETE,
+				parentsFields.isEmpty() ? parentsCompleteStopAt : parentsStopAt,
+				entityFetch
+			)
+		);
+	}
+
+	/**
+	 * Resolves the `stopAt` argument of a parent field, if the field is selected at all and carries one.
+	 *
+	 * @param hierarchyDataLocator the locator the bound is resolved against
+	 * @param parentFields         the selected parent field, or an empty list when the field is not selected
+	 * @return the resolved bound, or NULL when there is none
+	 */
+	@Nullable
+	private HierarchyStopAt resolveParentsStopAt(
+		@Nonnull DataLocator hierarchyDataLocator,
+		@Nonnull List<SelectedField> parentFields
+	) {
+		if (parentFields.isEmpty()) {
+			return null;
+		}
+		final Object stopAtArgument = parentFields.get(0).getArguments().get(ParentsFieldHeaderDescriptor.STOP_AT.name());
+		if (stopAtArgument == null) {
+			return null;
+		}
+		return (HierarchyStopAt) this.requireConstraintResolver.resolve(
+			hierarchyDataLocator,
+			hierarchyDataLocator,
+			ParentsFieldHeaderDescriptor.STOP_AT.name(),
+			stopAtArgument
+		);
 	}
 
 	@Nonnull

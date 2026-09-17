@@ -1,4 +1,4 @@
-FROM index.docker.io/azul/zulu-openjdk:17-latest
+FROM index.docker.io/azul/zulu-openjdk:21-latest
 
 ## input arguments for the build
 ARG EVITA_JAR_NAME

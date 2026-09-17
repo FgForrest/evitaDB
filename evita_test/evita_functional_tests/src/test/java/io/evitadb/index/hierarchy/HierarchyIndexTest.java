@@ -49,6 +49,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nullable;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -57,6 +58,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
@@ -500,6 +502,261 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 				new int[]{1, 2, 3, 6, 8, 9, 10, 11, 12},
 				nodeIdsAgain.getArray()
 			);
+		}
+
+		/**
+		 * Removing a root that has children orphans its entire subtree and drops the root from both the
+		 * root set and the item index. The index has always behaved this way and the mutation layer now
+		 * matches it, so {@link HierarchyIndex#removeNode} is reached for a removed root as well.
+		 *
+		 * The last assertion pins the state every broken-chain case depends on: an orphaned child keeps
+		 * its dangling parent pointer, so 3 still reports 6 as its parent although 6 is gone from the
+		 * item index.
+		 */
+		@Test
+		@DisplayName("removing a root orphans its whole subtree and drops the root from the index")
+		void shouldRemoveRootNodeAndOrphanItsSubtree() {
+			// node 6 is a root holding the subtree 3/1/2 and 8/9/10/11/12
+			assertNull(HierarchyIndexTest.this.hierarchyIndex.removeNode(6));
+
+			assertArrayEquals(
+				new int[]{7},
+				HierarchyIndexTest.this.hierarchyIndex.getRootHierarchyNodes().getArray()
+			);
+			assertArrayEquals(
+				new int[]{1, 2, 3, 8, 9, 10, 11, 12},
+				HierarchyIndexTest.this.hierarchyIndex.getOrphanHierarchyNodes().getArray()
+			);
+			assertArrayEquals(
+				new int[]{0, 4, 5, 7},
+				HierarchyIndexTest.this.hierarchyIndex.listHierarchyNodesFromRoot().getArray()
+			);
+			// the removed root is gone from the item index as well
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> HierarchyIndexTest.this.hierarchyIndex.getParentNode(6)
+			);
+			assertEquals("The node `6` is not present in the index!", exception.getMessage());
+			// the orphaned child still points at the primary key that has just disappeared
+			assertEquals(OptionalInt.of(6), HierarchyIndexTest.this.hierarchyIndex.getParentNode(3));
+		}
+	}
+
+	/**
+	 * Pins how {@link HierarchyIndex#traverseHierarchyToRoot} behaves when the ancestor chain is
+	 * broken, i.e. when a node still references a parent primary key that is no longer registered. One
+	 * rule covers every depth: the walk reports the start node and every ancestor the item index still
+	 * holds, passing through registered orphans on the way, and stops silently at the first primary key
+	 * it cannot resolve. A parent it can resolve but has already visited counts as the very same break,
+	 * which is what bounds the two ring cases below - a ring has no top, so nothing above the node the
+	 * walk would revisit is reported. Distances keep counting from the start node, and every node of a
+	 * fragment whose walk ended at a break or at a ring reports level -1 - the depth of such a fragment
+	 * inside the whole tree cannot be known, and -1 is the same "not part of the tree" answer the downward
+	 * traversals already report for such a node. These cases belong to issue #1365 - see
+	 * `documentation/adr/2026-08-03-hierarchy-content-parents-behaviour.md`.
+	 *
+	 * The first case asserts that nothing is visited, which on its own would also hold if the traversal
+	 * had become a no-op. The positive control that rules that out is
+	 * {@link VisitorTraversalTest#shouldTraverseEntireTreeToRoot}, which pins the visited node ids,
+	 * levels and distances for an intact chain built by the very same fixture.
+	 */
+	@Nested
+	@DisplayName("Broken chain traversal to root")
+	class BrokenChainTraversalTest {
+
+		/**
+		 * Depth one - the node the traversal starts from is itself absent from the item index. The
+		 * traversal is skipped silently and the visitor is never called. This is the index level of
+		 * matrix row K3, and it deliberately re-covers the guard that
+		 * {@link EdgeCaseTest#shouldSilentlySkipTraverseToRootForAbsentNode} already exercises, by the
+		 * removal route rather than by a node that was never registered.
+		 */
+		@Test
+		@DisplayName("start node absent from the index visits nothing")
+		void shouldSkipTraversalSilentlyWhenStartNodeIsAbsent() {
+			// removing 9 leaves 10, 11 and 12 as orphans and takes 9 itself out of the item index
+			HierarchyIndexTest.this.hierarchyIndex.removeNode(9);
+			// the start node really is gone from the item index, so the silent skip cannot come from 9
+			// having survived as an orphan
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> HierarchyIndexTest.this.hierarchyIndex.getParentNode(9)
+			);
+
+			final StringBuilder visited = new StringBuilder(128);
+			HierarchyIndexTest.this.hierarchyIndex.traverseHierarchyToRoot(
+				(node, level, distance, childrenTraverser) -> visited.append(node.entityPrimaryKey()).append('|'),
+				9
+			);
+			assertEquals("", visited.toString(), "Visitor must never be called for an absent start node");
+		}
+
+		/**
+		 * Depth two - the start node is present as an orphan and its own parent is absent from the item
+		 * index. The reachable fragment is the start node alone, so nothing above it is visited and the
+		 * one node reported carries the unknown level -1. This is the index level of matrix row K4.
+		 */
+		@Test
+		@DisplayName("start node whose parent is absent is visited alone at an unknown level")
+		void shouldVisitStartNodeAloneWhenItsParentIsAbsent() {
+			// 10 stays in the item index as an orphan, while its parent 9 is gone entirely
+			HierarchyIndexTest.this.hierarchyIndex.removeNode(9);
+
+			final StringBuilder nodeIds = new StringBuilder("|");
+			final StringBuilder levels = new StringBuilder("|");
+			final StringBuilder distances = new StringBuilder("|");
+			HierarchyIndexTest.this.hierarchyIndex.traverseHierarchyToRoot(
+				(node, level, distance, childrenTraverser) -> {
+					childrenTraverser.run();
+					nodeIds.append(node.entityPrimaryKey()).append("|");
+					levels.append(level).append("|");
+					distances.append(distance).append("|");
+				},
+				10
+			);
+			assertEquals("|10|", nodeIds.toString());
+			// the walk ended at a break, so how deep the fragment sits in the tree is not knowable
+			assertEquals("|-1|", levels.toString());
+			assertEquals("|0|", distances.toString());
+		}
+
+		/**
+		 * Depth three - the start node's parent is present in the item index but registered as an orphan,
+		 * and the break sits one node further up. The walk passes straight through the orphan and stops at
+		 * the absent node above it, so both reachable nodes are reported. This is the index level of
+		 * matrix row K5.
+		 */
+		@Test
+		@DisplayName("walk passes through a registered orphan and stops at the absent node above it")
+		void shouldWalkThroughRegisteredOrphanAndStopAtAbsentNodeAboveIt() {
+			HierarchyIndexTest.this.hierarchyIndex.removeNode(9);
+			// 20 hangs below the orphan 10, so it becomes an orphan itself
+			HierarchyIndexTest.this.hierarchyIndex.addNode(20, 10);
+
+			// 20 must really reach the orphan branch rather than the absent-start-node branch above: it
+			// is registered, its parent is 10, and 10 itself is a registered orphan
+			assertEquals(OptionalInt.of(10), HierarchyIndexTest.this.hierarchyIndex.getParentNode(20));
+			assertTrue(
+				HierarchyIndexTest.this.hierarchyIndex.getOrphanHierarchyNodes().contains(10),
+				"Node 10 was expected to be registered as an orphan."
+			);
+
+			final StringBuilder nodeIds = new StringBuilder("|");
+			final StringBuilder levels = new StringBuilder("|");
+			final StringBuilder distances = new StringBuilder("|");
+			HierarchyIndexTest.this.hierarchyIndex.traverseHierarchyToRoot(
+				(node, level, distance, childrenTraverser) -> {
+					childrenTraverser.run();
+					nodeIds.append(node.entityPrimaryKey()).append("|");
+					levels.append(level).append("|");
+					distances.append(distance).append("|");
+				},
+				20
+			);
+			// 9 is the first primary key the index cannot resolve, so the walk ends at the orphan 10
+			assertEquals("|10|20|", nodeIds.toString());
+			// both reachable nodes sit under a break, so neither of them has a knowable level
+			assertEquals("|-1|-1|", levels.toString());
+			assertEquals("|1|0|", distances.toString());
+		}
+
+		/**
+		 * A ring - the chain leads back to a node the walk has already visited instead of ever reaching a
+		 * top. Re-pointing a root at one of its own descendants detaches the whole fragment and leaves it
+		 * closing on itself, so this is a state the index legitimately holds rather than a corrupted one.
+		 * The walk has to treat the return to an already visited node as a break: both ring members are
+		 * reported exactly once and the traversal terminates instead of following the ring forever.
+		 */
+		@Test
+		@DisplayName("ring of orphans terminates and visits each of its nodes once")
+		void shouldTerminateOnRingOfOrphansVisitingEachNodeOnce() {
+			// 30 starts out as a root with 31 below it and is then re-pointed at 31, which detaches both of
+			// them and leaves the ring 30 -> 31 -> 30
+			HierarchyIndexTest.this.hierarchyIndex.addNode(30, null);
+			HierarchyIndexTest.this.hierarchyIndex.addNode(31, 30);
+			HierarchyIndexTest.this.hierarchyIndex.addNode(30, 31);
+
+			// both ring members really are registered orphans pointing at each other
+			assertEquals(OptionalInt.of(31), HierarchyIndexTest.this.hierarchyIndex.getParentNode(30));
+			assertEquals(OptionalInt.of(30), HierarchyIndexTest.this.hierarchyIndex.getParentNode(31));
+			final Bitmap orphanNodes = HierarchyIndexTest.this.hierarchyIndex.getOrphanHierarchyNodes();
+			assertTrue(
+				orphanNodes.contains(30) && orphanNodes.contains(31),
+				"Both members of the ring were expected to be registered as orphans."
+			);
+
+			final StringBuilder nodeIds = new StringBuilder("|");
+			final StringBuilder levels = new StringBuilder("|");
+			final StringBuilder distances = new StringBuilder("|");
+			// the timeout is the point of this case - a walk that follows the ring never returns at all. The
+			// bound is deliberately generous: it costs nothing on a passing run, because the walk returns the
+			// instant it terminates, and the counterfactual it guards against is an infinite loop that no
+			// smaller bound would catch any better on a contended surefire fork
+			assertTimeoutPreemptively(
+				Duration.ofSeconds(30),
+				() -> HierarchyIndexTest.this.hierarchyIndex.traverseHierarchyToRoot(
+					(node, level, distance, childrenTraverser) -> {
+						childrenTraverser.run();
+						nodeIds.append(node.entityPrimaryKey()).append("|");
+						levels.append(level).append("|");
+						distances.append(distance).append("|");
+					},
+					30
+				)
+			);
+			// the walk stops where it would have to visit 30 a second time, so 31 tops the two node fragment
+			assertEquals("|31|30|", nodeIds.toString());
+			// a ring has no top at all, which makes the level of everything on it unknowable
+			assertEquals("|-1|-1|", levels.toString());
+			assertEquals("|1|0|", distances.toString());
+		}
+
+		/**
+		 * The same ring entered from outside rather than from one of its own members. The existing ring
+		 * case starts on the ring, so the node the walk would revisit is the start node itself and the
+		 * guard is only ever proven for the first position of the chain. Hanging an orphan below the ring
+		 * moves the revisited node into the middle of the walk, which is the general position every
+		 * production caller reaches it in: the walk collects the start node, both ring members, and then
+		 * stops where it would have to visit the first ring member a second time.
+		 */
+		@Test
+		@DisplayName("ring entered from a node below it terminates and visits each node once")
+		void shouldTerminateWhenTheWalkEntersARingFromOutside() {
+			// the very same ring as the case above - 30 and 31 pointing at each other, both detached
+			HierarchyIndexTest.this.hierarchyIndex.addNode(30, null);
+			HierarchyIndexTest.this.hierarchyIndex.addNode(31, 30);
+			HierarchyIndexTest.this.hierarchyIndex.addNode(30, 31);
+			// 32 hangs below the ring, so the walk enters the ring instead of starting on it
+			HierarchyIndexTest.this.hierarchyIndex.addNode(32, 30);
+
+			// 32 really is outside the ring and really does point into it
+			assertEquals(OptionalInt.of(30), HierarchyIndexTest.this.hierarchyIndex.getParentNode(32));
+			assertTrue(
+				HierarchyIndexTest.this.hierarchyIndex.getOrphanHierarchyNodes().contains(32),
+				"Node 32 was expected to be registered as an orphan below the ring."
+			);
+
+			final StringBuilder nodeIds = new StringBuilder("|");
+			final StringBuilder levels = new StringBuilder("|");
+			final StringBuilder distances = new StringBuilder("|");
+			// generous on purpose, for the same reason as the sibling case above
+			assertTimeoutPreemptively(
+				Duration.ofSeconds(30),
+				() -> HierarchyIndexTest.this.hierarchyIndex.traverseHierarchyToRoot(
+					(node, level, distance, childrenTraverser) -> {
+						childrenTraverser.run();
+						nodeIds.append(node.entityPrimaryKey()).append("|");
+						levels.append(level).append("|");
+						distances.append(distance).append("|");
+					},
+					32
+				)
+			);
+			// 30 is the node the walk would have to visit twice, so the fragment is three nodes long
+			assertEquals("|31|30|32|", nodeIds.toString());
+			// the start node hangs below a ring, so its own level is as unknowable as the ring's
+			assertEquals("|-1|-1|-1|", levels.toString());
+			assertEquals("|2|1|0|", distances.toString());
 		}
 	}
 
@@ -1425,13 +1682,24 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 	@DisplayName("Error paths")
 	class ErrorPathTest {
 
+		/**
+		 * A node may not be its own parent. This guard is what bounds every ring case in
+		 * {@link BrokenChainTraversalTest} at two nodes: a one-node ring cannot be built through this API
+		 * at all, so the shortest ring the upward walk can ever meet is a pair of nodes pointing at each
+		 * other. It says nothing about a self-parent node arriving through the storage-loading
+		 * constructor, which does not route through this method.
+		 */
 		@Test
 		@DisplayName("addNode where entityPK == parentPK throws")
 		void shouldThrowOnSelfReference() {
 			final HierarchyIndex index = new HierarchyIndex();
-			assertThrows(
+			final EvitaInvalidUsageException exception = assertThrows(
 				EvitaInvalidUsageException.class,
 				() -> index.addNode(5, 5)
+			);
+			assertEquals(
+				"Entity cannot refer to itself in a hierarchy placement!",
+				exception.getMessage()
 			);
 		}
 
@@ -1472,6 +1740,57 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 				EvitaInvalidUsageException.class,
 				() -> HierarchyIndexTest.this.hierarchyIndex
 					.listNodesIncludingParents(new BaseBitmap(999))
+			);
+		}
+
+		/**
+		 * The upward walk of `listNodesIncludingParents` meets a chain broken above a registered orphan.
+		 * It follows the same rule as the sibling walk {@link HierarchyIndex#traverseHierarchyToRoot}: a
+		 * primary key the item index cannot resolve ends the walk silently, and it never reaches the
+		 * output - the ancestor is resolved before it is collected, so an entity id that resolves to
+		 * nothing cannot leak into a formula result.
+		 *
+		 * Two production callers reach this method with sets that may hold such orphans - the `anyChild`
+		 * branch behind `stopAt(node(filterBy(...)))` and the reference-property ordering that traverses a
+		 * referenced hierarchy - so an exception here would surface as a failed query on an index state
+		 * that is entirely legitimate.
+		 */
+		@Test
+		@DisplayName("listNodesIncludingParents stops at an ancestor above an orphan it cannot resolve")
+		void shouldStopAtFirstUnresolvableAncestor() {
+			// removing 9 leaves 10 registered as an orphan pointing at a primary key the index no longer holds
+			HierarchyIndexTest.this.hierarchyIndex.removeNode(9);
+
+			final Bitmap nodesIncludingParents = HierarchyIndexTest.this.hierarchyIndex
+				.listNodesIncludingParents(new BaseBitmap(10));
+
+			// only the start node survives, and in particular the unresolvable key 9 is not in the output
+			assertArrayEquals(new int[]{10}, nodesIncludingParents.getArray());
+		}
+
+		/**
+		 * The ring half of the same walk, which already behaves the way it should: `checkedAdd` returns
+		 * `false` the moment the walk returns to a node it has already collected, which ends the loop. The
+		 * case is a regression guard for the de-duplication that the ring and the shared-ancestor
+		 * behaviour both rest on, and it holds the walk to a bound rather than letting it spin.
+		 */
+		@Test
+		@DisplayName("listNodesIncludingParents terminates and de-duplicates on a ring of orphans")
+		void shouldTerminateAndDeduplicateOnRingOfOrphans() {
+			// 30 and 31 point at each other after 30 is re-pointed at its own child, which detaches both
+			HierarchyIndexTest.this.hierarchyIndex.addNode(30, null);
+			HierarchyIndexTest.this.hierarchyIndex.addNode(31, 30);
+			HierarchyIndexTest.this.hierarchyIndex.addNode(30, 31);
+
+			// generous on purpose - the counterfactual is a walk that follows the ring and never returns
+			assertTimeoutPreemptively(
+				Duration.ofSeconds(30),
+				() -> assertArrayEquals(
+					new int[]{30, 31},
+					HierarchyIndexTest.this.hierarchyIndex
+						.listNodesIncludingParents(new BaseBitmap(30))
+						.getArray()
+				)
 			);
 		}
 

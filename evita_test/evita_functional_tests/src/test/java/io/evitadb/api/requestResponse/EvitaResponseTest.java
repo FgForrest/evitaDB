@@ -490,6 +490,63 @@ class EvitaResponseTest {
 			assertEquals(2, count1);
 			assertEquals(50, bytes1);
 		}
+
+		/**
+		 * Verifies that recorded statistics outrank the walk over the returned records.
+		 */
+		@Test
+		@DisplayName(
+			"recorded statistics outrank the walk over the records"
+		)
+		void shouldUseRecordedStatisticsInsteadOfWalkingRecords() {
+			// the engine counts records where the read happens, which also covers records read for entities the
+			// query filtered out - the walk over the returned entities cannot see those and is therefore only
+			// a fallback for responses assembled outside the engine
+			final MockFetchEntity entity =
+				new MockFetchEntity(3, 100);
+			final PaginatedList<MockFetchEntity> page =
+				new PaginatedList<>(
+					1, 1, 10, 1,
+					List.of(entity)
+				);
+
+			final EvitaEntityResponse<MockFetchEntity>
+				response = createResponseWith(
+				createBrandQuery(), page
+			);
+			response.setIoFetchStatistics(7, 512);
+
+			assertEquals(7, response.getIoFetchCount());
+			assertEquals(512, response.getIoFetchedSizeBytes());
+		}
+
+		/**
+		 * Verifies that recorded zeros suppress the fallback walk entirely.
+		 */
+		@Test
+		@DisplayName(
+			"recorded zeros suppress the fallback walk"
+		)
+		void shouldHonourZeroRecordedStatistics() {
+			// a query that genuinely read nothing - everything was served from a cache - must report nothing, not
+			// fall back to summing what the decorators happen to remember
+			final MockFetchEntity entity =
+				new MockFetchEntity(3, 100);
+			final PaginatedList<MockFetchEntity> page =
+				new PaginatedList<>(
+					1, 1, 10, 1,
+					List.of(entity)
+				);
+
+			final EvitaEntityResponse<MockFetchEntity>
+				response = createResponseWith(
+				createBrandQuery(), page
+			);
+			response.setIoFetchStatistics(0, 0);
+
+			assertEquals(0, response.getIoFetchCount());
+			assertEquals(0, response.getIoFetchedSizeBytes());
+		}
 	}
 
 	@Nested

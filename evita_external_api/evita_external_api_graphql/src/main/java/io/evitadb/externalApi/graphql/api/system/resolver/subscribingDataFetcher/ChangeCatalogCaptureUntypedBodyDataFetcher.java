@@ -89,20 +89,18 @@ public class ChangeCatalogCaptureUntypedBodyDataFetcher implements DataFetcher<O
 			() -> new GraphQLQueryResolvingInternalError("ChangeCatalogCapture body is null even though it was requested.")
 		);
 
-		final Object convertedBody;
-		if (body instanceof EntityMutation entityMutation) {
-			convertedBody = this.entityMutationConverter.convertToOutput(entityMutation);
-		} else if (body instanceof LocalMutation<?, ?> localMutation) {
-			convertedBody = this.localMutationConverter.convertToOutput(localMutation);
-		} else if (body instanceof LocalCatalogSchemaMutation catalogSchemaMutation) {
-			convertedBody = this.localCatalogSchemaMutationConverter.convertToOutput(catalogSchemaMutation);
-		} else if (body instanceof EntitySchemaMutation entitySchemaMutation) {
-			convertedBody = this.entitySchemaMutationConverter.convertToOutput(entitySchemaMutation);
-		} else if (body instanceof TransactionMutation transactionMutation) {
-			convertedBody = this.infrastructureMutationConverter.convertToOutput(transactionMutation);
-		} else {
-			throw new  GraphQLQueryResolvingInternalError("Unsupported entity mutation: " + capture.body());
-		}
+		final Object convertedBody = switch (body) {
+			case EntityMutation entityMutation -> this.entityMutationConverter.convertToOutput(entityMutation);
+			case LocalMutation<?, ?> localMutation -> this.localMutationConverter.convertToOutput(localMutation);
+			case LocalCatalogSchemaMutation catalogSchemaMutation ->
+				this.localCatalogSchemaMutationConverter.convertToOutput(catalogSchemaMutation);
+			case EntitySchemaMutation entitySchemaMutation ->
+				this.entitySchemaMutationConverter.convertToOutput(entitySchemaMutation);
+			case TransactionMutation transactionMutation ->
+				this.infrastructureMutationConverter.convertToOutput(transactionMutation);
+			default ->
+				throw new GraphQLQueryResolvingInternalError("Unsupported entity mutation: " + capture.body());
+		};
 		Assert.isPremiseValid(
 			convertedBody != null,
 			() -> new GraphQLQueryResolvingInternalError("Converter body is null even though source body is present.")

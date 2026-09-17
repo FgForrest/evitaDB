@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.graphql.api.dataType;
 
 import graphql.schema.GraphQLEnumType;
+import graphql.schema.GraphQLEnumValueDefinition;
 import graphql.schema.GraphQLInputType;
 import graphql.schema.GraphQLOutputType;
 import graphql.schema.GraphQLScalarType;
@@ -37,6 +38,7 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -185,11 +187,7 @@ public class DataTypesConverter {
 
         final String enumName = componentType.getSimpleName();
 
-        final GraphQLEnumType.Builder graphQLEnumTypeBuilder = GraphQLEnumType.newEnum().name(enumName);
-        for (Enum<?> enumItem : componentType.getEnumConstants()) {
-            graphQLEnumTypeBuilder.value(enumItem.name(), enumItem);
-        }
-        final GraphQLEnumType graphQLEnumType = graphQLEnumTypeBuilder.build();
+        final GraphQLEnumType graphQLEnumType = buildGraphQLEnumType(enumName, componentType);
 
         // enum is custom type that must be registered and used only once, thus it cannot be wrapped directly into result type
         //noinspection unchecked
@@ -216,11 +214,7 @@ public class DataTypesConverter {
 
         final String enumName = componentType.getSimpleName();
 
-        final GraphQLEnumType.Builder graphQLEnumTypeBuilder = GraphQLEnumType.newEnum().name(enumName);
-        for (Enum<?> enumItem : componentType.getEnumConstants()) {
-            graphQLEnumTypeBuilder.value(enumItem.name(), enumItem);
-        }
-        final GraphQLEnumType graphQLEnumType = graphQLEnumTypeBuilder.build();
+        final GraphQLEnumType graphQLEnumType = buildGraphQLEnumType(enumName, componentType);
 
         // enum is custom type that must be registered and used only once, thus it cannot be wrapped directly into result type
         //noinspection unchecked
@@ -250,6 +244,64 @@ public class DataTypesConverter {
             graphQLType = (T) nonNull(graphQLType);
         }
         return graphQLType;
+    }
+
+    /**
+     * Builds a GraphQL enum type out of a Java enum, carrying each constant's {@link Deprecated} marker over into
+     * the GraphQL schema so that introspection-driven clients (GraphiQL, evitaLab) can flag the value as deprecated.
+     *
+     * @param enumName      name the GraphQL enum type will be registered under
+     * @param componentType Java enum whose constants become the GraphQL enum values
+     * @return built GraphQL enum type
+     */
+    @Nonnull
+    private static GraphQLEnumType buildGraphQLEnumType(@Nonnull String enumName,
+                                                        @Nonnull Class<? extends Enum<?>> componentType) {
+        final GraphQLEnumType.Builder graphQLEnumTypeBuilder = GraphQLEnumType.newEnum().name(enumName);
+        for (Enum<?> enumItem : componentType.getEnumConstants()) {
+            final GraphQLEnumValueDefinition.Builder valueBuilder = GraphQLEnumValueDefinition.newEnumValueDefinition()
+                .name(enumItem.name())
+                .value(enumItem);
+            final String deprecationReason = resolveDeprecationReason(componentType, enumItem);
+            if (deprecationReason != null) {
+                valueBuilder.deprecationReason(deprecationReason);
+            }
+            graphQLEnumTypeBuilder.value(valueBuilder.build());
+        }
+        return graphQLEnumTypeBuilder.build();
+    }
+
+    /**
+     * Resolves the GraphQL deprecation reason of a single enum constant from its {@link Deprecated} annotation.
+     * The annotation carries no free-text message, so the reason is composed from its `since` and `forRemoval`
+     * attributes; the prose explaining what to use instead lives in the constant's JavaDoc.
+     *
+     * @param componentType Java enum declaring the constant
+     * @param enumItem      constant to resolve the reason for
+     * @return deprecation reason, or NULL when the constant is not deprecated
+     */
+    @Nullable
+    private static String resolveDeprecationReason(@Nonnull Class<? extends Enum<?>> componentType,
+                                                   @Nonnull Enum<?> enumItem) {
+        final Deprecated deprecation;
+        try {
+            deprecation = componentType.getField(enumItem.name()).getAnnotation(Deprecated.class);
+        } catch (NoSuchFieldException e) {
+            // an enum constant always has a field of its own name - reaching this branch means the enum was
+            // mangled beyond what reflection can describe
+            throw new GraphQLInternalError(
+                "Enum `" + componentType.getName() + "` does not declare a field for its own constant `" +
+                    enumItem.name() + "`!",
+                e
+            );
+        }
+        if (deprecation == null) {
+            return null;
+        }
+        final String since = deprecation.since().isBlank() ? "" : " since " + deprecation.since();
+        return deprecation.forRemoval()
+            ? "Deprecated" + since + " and scheduled for removal."
+            : "Deprecated" + since + ".";
     }
 
     /**

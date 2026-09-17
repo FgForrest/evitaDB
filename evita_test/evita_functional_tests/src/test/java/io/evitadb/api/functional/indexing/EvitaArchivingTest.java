@@ -84,6 +84,7 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.utils.StringUtils.normalizeLineEndings;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.HIERARCHY;
 import static io.evitadb.test.TestTags.INDEXING;
 
 /**
@@ -1015,6 +1016,279 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 			assertNull(getReferencedEntityIndex(productCollection, Scope.ARCHIVED, Entities.CATEGORY, 2));
 			assertNull(getReferencedEntityIndex(productCollection, Scope.ARCHIVED, Entities.BRAND, 1));
 			assertNull(getReferencedEntityIndex(productCollection, Scope.ARCHIVED, Entities.BRAND, 2));
+		}
+
+	}
+
+	/**
+	 * Covers what a scope change and a deletion do to an entity's placement in the hierarchy index, which the rest
+	 * of this class does not reach - its cases move products and brands rather than hierarchical categories.
+	 *
+	 * Three states are pinned here, all of them about a placement rather than about the entity: a root moved
+	 * between scopes has to be re-placed in the target scope even though it has no parent to re-set; a root
+	 * deleted while archived has to be un-placed even though its removal emits no parent mutation to do it; and an
+	 * entity that never received a placement at all, because hierarchy was declared on the collection only after
+	 * it had been archived, still has to be deletable. Each of them is a way for the index and the entities to
+	 * disagree about what is in the hierarchy, which is the class of defect issue #1365 is about.
+	 */
+	@Nested
+	@DisplayName("Hierarchical entity scope transitions")
+	@Tag(HIERARCHY)
+	class HierarchicalScopeTransitionTest {
+
+		/**
+		 * A scope change re-indexes the entity in the target scope, and the hierarchy placement of a root has to be
+		 * re-indexed along with everything else - a root is a node with a `null` parent, not a node without a
+		 * placement. Skipping it would leave the archived hierarchy without its root and would make the opposite
+		 * transition fail on a node that was never added.
+		 */
+		@Test
+		@DisplayName("Hierarchy root should survive an archive and restore cycle")
+		void shouldArchiveAndRestoreHierarchyRoot() {
+			// category 1 is a root, category 2 is its child; hierarchy is indexed in both scopes
+			createSchemaForEntityArchiving(Scope.LIVE, Scope.ARCHIVED);
+			createBrandAndCategoryEntities();
+
+			assertEquals(List.of(1, 2), listCategoryHierarchy(Scope.LIVE));
+			assertEquals(List.of(), listCategoryHierarchy(Scope.ARCHIVED));
+
+			// archive the root itself - it leaves the live hierarchy and orphans the child left behind
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.CATEGORY, 1);
+				}
+			);
+
+			assertEquals(List.of(), listCategoryHierarchy(Scope.LIVE));
+			assertEquals(List.of(1), listCategoryHierarchy(Scope.ARCHIVED));
+
+			// restoring the root puts it back at the top of the live hierarchy and re-adopts the orphan
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.restoreEntity(Entities.CATEGORY, 1);
+				}
+			);
+
+			assertEquals(List.of(1, 2), listCategoryHierarchy(Scope.LIVE));
+			assertEquals(List.of(), listCategoryHierarchy(Scope.ARCHIVED));
+		}
+
+		/**
+		 * Deleting an archived hierarchy root is where the placement of a root and the un-indexing of a removed
+		 * entity meet, and neither of the sibling cases covers it. Archiving the root puts it into the archived
+		 * hierarchy index as a root node; deleting it there has no `RemoveParentMutation` to tear that placement
+		 * down, because a root has no parent to remove, so the removal path has to do it on its own.
+		 *
+		 * The counterfactual is worth naming, because it fails on a different route than the restore case does:
+		 * with the root's placement never made, the deletion raises `No hierarchy was set for entity with primary
+		 * key 1!` instead of quietly leaving a phantom behind.
+		 */
+		@Test
+		@DisplayName("Deleting an archived hierarchy root removes it from the archived hierarchy")
+		void shouldRemoveAnArchivedHierarchyRootFromTheArchivedHierarchy() {
+			// category 1 is a root, category 2 is its child; hierarchy is indexed in both scopes
+			createSchemaForEntityArchiving(Scope.LIVE, Scope.ARCHIVED);
+			createBrandAndCategoryEntities();
+
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.CATEGORY, 1);
+				}
+			);
+
+			assertEquals(List.of(), listCategoryHierarchy(Scope.LIVE));
+			assertEquals(List.of(1), listCategoryHierarchy(Scope.ARCHIVED));
+
+			// delete the root while it sits in the archived scope
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertTrue(
+						session.deleteEntity(Entities.CATEGORY, 1),
+						"The archived category 1 was expected to exist and be deleted."
+					);
+				}
+			);
+
+			// neither scope keeps a placement for the deleted root, and the child it left behind is attached nowhere
+			assertEquals(List.of(), listCategoryHierarchy(Scope.LIVE));
+			assertEquals(List.of(), listCategoryHierarchy(Scope.ARCHIVED));
+		}
+
+		/**
+		 * The hierarchy placement of a root is unconditional with respect to its parent but still gated on the
+		 * scope: `HierarchyPlacementMutator` consults `isHierarchyIndexedInScope` before touching an index. This
+		 * case pins that the two remain independent - a schema indexing hierarchy in the live scope alone survives
+		 * a full archive and restore cycle of its root, with the live hierarchy rebuilt exactly as it was.
+		 *
+		 * The archived scope is deliberately never listed: `hierarchyWithinRootSelf()` against a scope that does
+		 * not index hierarchy is rejected outright, so the omission is the assertion rather than a gap in it.
+		 */
+		@Test
+		@DisplayName("Hierarchy root survives archive and restore when only the live scope indexes hierarchy")
+		void shouldArchiveAndRestoreAHierarchyRootWhenTheArchivedScopeDoesNotIndexHierarchy() {
+			// hierarchy is indexed in the live scope only, so the archived scope holds no hierarchy index at all
+			createSchemaForEntityArchiving(Scope.LIVE);
+			createBrandAndCategoryEntities();
+
+			assertEquals(List.of(1, 2), listCategoryHierarchy(Scope.LIVE));
+
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.CATEGORY, 1);
+				}
+			);
+
+			assertEquals(List.of(), listCategoryHierarchy(Scope.LIVE));
+
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.restoreEntity(Entities.CATEGORY, 1);
+				}
+			);
+
+			assertEquals(List.of(1, 2), listCategoryHierarchy(Scope.LIVE));
+		}
+
+		/**
+		 * An entity may reach the removal path without ever having been placed in the hierarchy index of its own
+		 * scope. Turning hierarchy on for a collection that already holds entities repairs the live global index
+		 * only, so anything archived beforehand keeps no placement, and the removal path then asks the index to
+		 * remove a node that was never added. A tear-down has to tolerate that: the absence is a legitimate state
+		 * of the index rather than a programming error, and refusing it turns an ordinary delete into a failure.
+		 *
+		 * The sequence is reachable through the ordinary schema API: create the collection non-hierarchical,
+		 * archive an entity, then declare hierarchy indexing for both scopes.
+		 */
+		@Test
+		@DisplayName("Deleting an archived entity whose hierarchy placement was never indexed succeeds")
+		void shouldDeleteArchivedEntityWhoseHierarchyPlacementWasNeverIndexed() {
+			// the collection starts out without a hierarchy at all
+			EvitaArchivingTest.this.evita.defineCatalog(TEST_CATALOG)
+				.withAttribute(
+					ATTRIBUTE_CODE, String.class,
+					thatIs -> thatIs
+						.uniqueGloballyInScope(Scope.LIVE, Scope.ARCHIVED)
+						.sortableInScope(Scope.LIVE, Scope.ARCHIVED)
+				)
+				.updateViaNewSession(EvitaArchivingTest.this.evita);
+
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.CATEGORY)
+						.withoutGeneratedPrimaryKey()
+						.withGlobalAttribute(ATTRIBUTE_CODE)
+						.updateVia(session);
+
+					session.createNewEntity(Entities.CATEGORY, 1)
+						.setAttribute(ATTRIBUTE_CODE, "electronics")
+						.upsertVia(session);
+					session.createNewEntity(Entities.CATEGORY, 2)
+						.setAttribute(ATTRIBUTE_CODE, "TV")
+						.upsertVia(session);
+				}
+			);
+
+			// archive 2 while the collection is still flat, so it can never receive a placement
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.CATEGORY, 2);
+				}
+			);
+
+			// only now does the collection become hierarchical in both scopes
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.CATEGORY)
+						.withHierarchyIndexedInScope(Scope.LIVE, Scope.ARCHIVED)
+						.updateVia(session);
+				}
+			);
+
+			// turning hierarchy on repairs the live global index only, so the archived entity carries no
+			// placement at all - and its removal has to cope with that rather than refuse it
+			assertDoesNotThrow(
+				() -> EvitaArchivingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						assertTrue(
+							session.deleteEntity(Entities.CATEGORY, 2),
+							"The archived category 2 was expected to exist and be deleted."
+						);
+					}
+				)
+			);
+
+			// the entity really is gone from the scope it sat in, and the untouched one is still there, so the
+			// delete cannot have been swallowed
+			assertEquals(List.of(), listCategoryPrimaryKeys(Scope.ARCHIVED));
+			assertEquals(List.of(1), listCategoryPrimaryKeys(Scope.LIVE));
+		}
+
+		/**
+		 * Lists the primary keys of every category present in the given scope, ordered by primary key. Unlike
+		 * {@link #listCategoryHierarchy(Scope)} this does not go through the hierarchy index, which is exactly
+		 * what a case about entities holding no hierarchy placement needs.
+		 *
+		 * @param scope the scope to list
+		 * @return the primary keys of all categories in that scope
+		 */
+		@Nonnull
+		private List<Integer> listCategoryPrimaryKeys(@Nonnull Scope scope) {
+			final List<EntityReference> references = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryList(
+						query(
+							collection(Entities.CATEGORY),
+							filterBy(scope(scope))
+						),
+						EntityReference.class
+					);
+				}
+			);
+			return references.stream()
+				.map(EntityReference::getPrimaryKey)
+				.sorted()
+				.toList();
+		}
+
+		/**
+		 * Lists every category the hierarchy index of the given scope can reach from its roots, ordered by primary
+		 * key so that the expectation does not depend on traversal order.
+		 *
+		 * @param scope the scope whose hierarchy index should be listed
+		 * @return primary keys of all categories reachable from the roots of that scope's hierarchy
+		 */
+		@Nonnull
+		private List<Integer> listCategoryHierarchy(@Nonnull Scope scope) {
+			final List<EntityReference> references = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryList(
+						query(
+							collection(Entities.CATEGORY),
+							filterBy(
+								scope(scope),
+								hierarchyWithinRootSelf()
+							)
+						),
+						EntityReference.class
+					);
+				}
+			);
+			return references.stream()
+				.map(EntityReference::getPrimaryKey)
+				.sorted()
+				.toList();
 		}
 
 	}

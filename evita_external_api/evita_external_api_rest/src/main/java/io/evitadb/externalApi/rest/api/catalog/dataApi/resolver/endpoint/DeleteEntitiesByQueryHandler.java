@@ -80,7 +80,9 @@ public class DeleteEntitiesByQueryHandler extends QueryOrientedEntitiesHandler {
 				final Query finalQuery = requestExecutedEvent.measureInternalEvitaDBExecution(() -> {
 					if (QueryUtils.findRequire(query, EntityFetch.class, SeparateEntityContentRequireContainer.class) == null) {
 						return Query.query(
-							query.getCollection(),
+							// the whole header must survive - it already carries the source-type, source-query and
+							// caller labels that QueryOrientedEntitiesHandler#enrichHeadWithInternalConstraints put there
+							query.getHead(),
 							query.getFilterBy(),
 							query.getOrderBy(),
 							require(
@@ -95,6 +97,7 @@ public class DeleteEntitiesByQueryHandler extends QueryOrientedEntitiesHandler {
 					}
 				});
 				log.debug("Generated evitaDB query for deletion of entity list of type `{}` is `{}`.", this.restHandlingContext.getEntitySchema(), finalQuery);
+				executionContext.provideEntityRequirement(finalQuery);
 
 				final SealedEntity[] deletedEntities = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
 					executionContext.session().deleteSealedEntitiesAndReturnBodies(finalQuery));
@@ -121,7 +124,7 @@ public class DeleteEntitiesByQueryHandler extends QueryOrientedEntitiesHandler {
 			() -> new RestInternalError("Expected SealedEntity[], but got `" + deletedEntities.getClass().getName() + "`.")
 		);
 		return this.entityJsonSerializer.serialize(
-			new EntitySerializationContext(this.restHandlingContext.getCatalogSchema()),
+			new EntitySerializationContext(this.restHandlingContext.getCatalogSchema(), exchange.entityRequirement()),
 			(SealedEntity[]) deletedEntities
 		);
 	}

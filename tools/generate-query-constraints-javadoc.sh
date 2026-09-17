@@ -27,6 +27,18 @@ set -euo pipefail
 # Generates concise JavaDoc summaries for QueryConstraints factory methods
 # using OpenAI API. Requires OPENAI_API_KEY environment variable.
 # Usage: ./generate-query-constraints-javadoc.sh [--limit=N]
+#
+# The generator (io.evitadb.documentation.javadoc.JavaDocSummarizer) lives in
+# evita_test/evita_documentation_tests, which is also the only module declaring the
+# `generate-javadoc` profile supplying its mainClass and test classpath scope - hence
+# the -pl below. The module is built alone, without -am: a goal named on the command
+# line runs for every module in the reactor, so dragging the upstream modules in would
+# invoke exec:java on each of them too, none of which configures a mainClass.
+#
+# Prerequisite: the io.evitadb SNAPSHOT artifacts this module depends on must already be
+# in the local repository - run `mvn install -DskipTests` from the project root once
+# before the first use. The generator itself parses the constraint *sources* from disk,
+# so a stale install does not affect the summaries it produces.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -54,4 +66,10 @@ if [ -z "${OPENAI_API_KEY:-}" ]; then
 	exit 1
 fi
 
-mvn -pl evita_test/evita_functional_tests test-compile exec:java -Pgenerate-javadoc -q -Dexec.args="$*"
+if ! mvn -pl evita_test/evita_documentation_tests test-compile exec:java -Pgenerate-javadoc -q -Dexec.args="$*"; then
+	echo
+	echo "Maven failed. If it could not resolve io.evitadb:*:*-SNAPSHOT artifacts, the modules this"
+	echo "generator depends on are missing from your local repository - run 'mvn install -DskipTests'"
+	echo "from the project root first, then re-run this script."
+	exit 1
+fi

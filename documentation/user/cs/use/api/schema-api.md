@@ -100,7 +100,7 @@ Očekává se, že model bude anotován následujícími anotacemi:
         atributy.</p>
         <p>Kromě základní konfigurace reference (`indexed`, `faceted`) anotace podporuje
         [podmíněné indexování facet](../schema.md#podmíněné-indexování-pomocí-výrazů) pomocí `facetedPartially`
-        a [podmíněné histogramové indexování](../schema.md#referenční-histogramy) pomocí `bucketed`
+        a [podmíněné histogramové indexování](../schema.md#histogramy-referencí) pomocí `bucketed`
         a `bucketedPartially`. Přepsání pro konkrétní scope lze specifikovat pomocí vnořené anotace `@ScopeReferenceSettings`.</p>
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ReflectedReference.java</SourceClass></dt>
@@ -131,12 +131,12 @@ Očekává se, že model bude anotován následujícími anotacemi:
         <p>Například `@Expression("$reference.referencedEntity.attributes['status'] == 'ACTIVE'")` definuje podmínku
         pro [podmíněné indexování facet](../schema.md#podmíněné-indexování-pomocí-výrazů), a
         `@Expression("$reference.referencedEntity.attributes['basicUnitValue'] ?? 0.0")` definuje hodnotu
-        pro [histogramové indexování](../schema.md#referenční-histogramy). Prázdný řetězec (výchozí) znamená,
+        pro [histogramové indexování](../schema.md#histogramy-referencí). Prázdný řetězec (výchozí) znamená,
         že není definován žádný výraz.</p>
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Histogram.java</SourceClass></dt>
     <dd>
-        <p>Konfiguruje [histogramové (bucketované) indexování](../schema.md#referenční-histogramy) na referenci.
+        <p>Konfiguruje [histogramové (bucketované) indexování](../schema.md#histogramy-referencí) na referenci.
         Pokud je použito v rámci `@Reference` nebo `@ScopeReferenceSettings`, definuje pojmenovaný histogramový index s volitelným
         výrazem hodnoty, který vypočítává hodnotu bucketu pro každou referencovanou entitu.</p>
         <p>Atribut `nameOfTheIndex` identifikuje slot histogramu (jedna reference může mít více pojmenovaných histogramů).
@@ -144,7 +144,7 @@ Očekává se, že model bude anotován následujícími anotacemi:
         `@Histogram(nameOfTheIndex = "priceHistogram", value = @Expression("$reference.referencedEntity.attributes['price']"))`.</p>
         <p>Výraz `value` může být vyhodnocen na skalární číselný atribut **nebo** na číselný atribut typu `NumberRange`
         (`ByteNumberRange` … `BigDecimalNumberRange`); zdroj rozsahu rozdělí každou instanci do všech bucketů, které jeho
-        interval překrývá, a nesmí používat výchozí hodnotu `??` (viz [Reference histograms](../schema.md#referenční-histogramy)).
+        interval překrývá, a nesmí používat výchozí hodnotu `??` (viz [Reference histograms](../schema.md#histogramy-referencí)).
         Volitelný prvek `assignedWhen` přijímá `@Expression`, který funguje jako selektor partice pro daný histogram — mezi
         instancemi způsobilými přes `bucketedPartially` pouze ty, pro které `assignedWhen` vyhodnotí na `true`, vstupují do tohoto
         konkrétního histogramu.</p>

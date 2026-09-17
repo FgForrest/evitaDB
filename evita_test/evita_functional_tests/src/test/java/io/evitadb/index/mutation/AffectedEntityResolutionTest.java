@@ -139,7 +139,7 @@ class AffectedEntityResolutionTest implements TimeBoundedTestSupport {
 	}
 
 	/**
-	 * Tests for {@link AffectedEntityResolution#entriesForOwnerPKs(Bitmap)} verifying correct lazy filtering
+	 * Tests for {@link AffectedEntityResolution#entriesForOwnerPKs(ContributionVerdicts)} verifying correct lazy filtering
 	 * of entries against the provided owner PK bitmap.
 	 */
 	@Nested
@@ -154,7 +154,7 @@ class AffectedEntityResolutionTest implements TimeBoundedTestSupport {
 			);
 
 			final List<AffectedReferenceEntry> entries = collectEntries(
-				resolution.entriesForOwnerPKs(new BaseBitmap(10, 20, 30))
+				resolution.entriesForOwnerPKs(ContributionVerdicts.ownerLevel(new BaseBitmap(10, 20, 30)))
 			);
 
 			assertEquals(3, entries.size());
@@ -171,7 +171,7 @@ class AffectedEntityResolutionTest implements TimeBoundedTestSupport {
 			);
 
 			final List<AffectedReferenceEntry> entries = collectEntries(
-				resolution.entriesForOwnerPKs(new BaseBitmap(20))
+				resolution.entriesForOwnerPKs(ContributionVerdicts.ownerLevel(new BaseBitmap(20)))
 			);
 
 			assertEquals(1, entries.size());
@@ -186,7 +186,7 @@ class AffectedEntityResolutionTest implements TimeBoundedTestSupport {
 			);
 
 			final List<AffectedReferenceEntry> entries = collectEntries(
-				resolution.entriesForOwnerPKs(new BaseBitmap(99, 100))
+				resolution.entriesForOwnerPKs(ContributionVerdicts.ownerLevel(new BaseBitmap(99, 100)))
 			);
 
 			assertTrue(entries.isEmpty(), "No entries should be returned when filter has no overlap");
@@ -196,7 +196,7 @@ class AffectedEntityResolutionTest implements TimeBoundedTestSupport {
 		@DisplayName("Should return empty for EMPTY resolution")
 		void shouldReturnEmptyForEmptyResolution() {
 			final List<AffectedReferenceEntry> entries = collectEntries(
-				AffectedEntityResolution.EMPTY.entriesForOwnerPKs(new BaseBitmap(1, 2, 3))
+				AffectedEntityResolution.EMPTY.entriesForOwnerPKs(ContributionVerdicts.ownerLevel(new BaseBitmap(1, 2, 3)))
 			);
 
 			assertTrue(entries.isEmpty(), "EMPTY resolution must yield no entries");
@@ -210,7 +210,7 @@ class AffectedEntityResolutionTest implements TimeBoundedTestSupport {
 			);
 
 			final List<AffectedReferenceEntry> entries = collectEntries(
-				resolution.entriesForOwnerPKs(new BaseBitmap())
+				resolution.entriesForOwnerPKs(ContributionVerdicts.ownerLevel(new BaseBitmap()))
 			);
 
 			assertTrue(entries.isEmpty(), "Empty filter bitmap must yield no entries");
@@ -227,7 +227,7 @@ class AffectedEntityResolutionTest implements TimeBoundedTestSupport {
 			);
 			// filter matches PK 20 from both groups and PK 40 from second group only
 			final List<AffectedReferenceEntry> entries = collectEntries(
-				resolution.entriesForOwnerPKs(new BaseBitmap(20, 40))
+				resolution.entriesForOwnerPKs(ContributionVerdicts.ownerLevel(new BaseBitmap(20, 40)))
 			);
 
 			assertEquals(3, entries.size());
@@ -248,7 +248,7 @@ class AffectedEntityResolutionTest implements TimeBoundedTestSupport {
 			);
 
 			final Iterator<AffectedReferenceEntry> iterator =
-				resolution.entriesForOwnerPKs(new BaseBitmap(10)).iterator();
+				resolution.entriesForOwnerPKs(ContributionVerdicts.ownerLevel(new BaseBitmap(10))).iterator();
 
 			// drain the single entry
 			assertTrue(iterator.hasNext());
@@ -270,7 +270,7 @@ class AffectedEntityResolutionTest implements TimeBoundedTestSupport {
 			);
 
 			final List<AffectedReferenceEntry> entries = collectEntries(
-				resolution.entriesForOwnerPKs(new BaseBitmap(7))
+				resolution.entriesForOwnerPKs(ContributionVerdicts.ownerLevel(new BaseBitmap(7)))
 			);
 
 			assertEquals(2, entries.size());

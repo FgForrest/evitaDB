@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,13 +27,18 @@ import com.google.protobuf.Int32Value;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
+import io.evitadb.api.query.require.HierarchyParentsBehaviour;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour;
 import io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryParam;
+import io.evitadb.externalApi.grpc.generated.GrpcQueryParam.QueryParamCase;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
@@ -45,13 +50,14 @@ import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import org.junit.jupiter.api.Tag;
 
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static io.evitadb.test.TestTags.GRPC;
-import static io.evitadb.test.TestTags.EXTERNAL_API;
-import static io.evitadb.test.TestTags.QUERY;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * This test verifies functionalities of methods in {@link QueryConverter} class.
@@ -125,7 +131,7 @@ class QueryConverterTest {
 		final Locale localeValue = Locale.GERMANY;
 		assertEquals(localeValue, convertQueryParam(localeValue));
 		final Currency currencyValue = Currency.getInstance(Locale.GERMANY);
-		assertEquals(currencyValue, convertQueryParam(currencyValue));
+		assertSame(currencyValue, convertQueryParam(currencyValue));
 		final FacetStatisticsDepth facetStatisticsDepthValue = FacetStatisticsDepth.IMPACT;
 		assertEquals(FacetStatisticsDepth.IMPACT, convertQueryParam(facetStatisticsDepthValue));
 		final QueryPriceMode queryPriceModeValue = QueryPriceMode.WITHOUT_TAX;
@@ -134,6 +140,54 @@ class QueryConverterTest {
 		assertEquals(AttributeSpecialValue.NOT_NULL, convertQueryParam(attributeSpecialValueValue));
 		final OrderDirection orderDirectionValue = OrderDirection.DESC;
 		assertEquals(OrderDirection.DESC, convertQueryParam(orderDirectionValue));
+		final HierarchyParentsBehaviour hierarchyParentsBehaviourValue = HierarchyParentsBehaviour.COMPLETE;
+		assertEquals(HierarchyParentsBehaviour.COMPLETE, convertQueryParam(hierarchyParentsBehaviourValue));
+	}
+
+	/**
+	 * The `hierarchyContent` parents behaviour is the only enum parameter whose default value is also the zero value
+	 * of its gRPC counterpart, so a round-trip on its own would not tell a correctly bound arm from an unset message -
+	 * `MATCHING` survives both. The arm actually carrying the value is therefore asserted alongside the round-trip,
+	 * for both values.
+	 */
+	@Test
+	void shouldConvertHierarchyParentsBehaviourInBothDirections() {
+		for (final HierarchyParentsBehaviour behaviour : HierarchyParentsBehaviour.values()) {
+			final GrpcQueryParam queryParam = QueryConverter.convertQueryParam(behaviour);
+			assertEquals(
+				QueryParamCase.HIERARCHYPARENTSBEHAVIOUR, queryParam.getQueryParamCase(),
+				"The behaviour must travel in its own arm, otherwise the server cannot tell it from an unset value."
+			);
+			assertEquals(behaviour, QueryConverter.convertQueryParam(queryParam));
+		}
+	}
+
+	/**
+	 * The whole backward-compatibility argument of the new `GrpcQueryParam` arm rests on `MATCHING` being the zero
+	 * value of its gRPC enum: a client built before the arm existed simply omits the field, and protobuf then reads
+	 * it back as the numbered-zero constant. Reordering the constants would silently flip every such client to
+	 * `COMPLETE` without breaking the round trip, which is all
+	 * {@link #shouldConvertHierarchyParentsBehaviourInBothDirections()} checks.
+	 */
+	@Test
+	void shouldKeepMatchingAsTheZeroValueOnTheWire() {
+		assertEquals(
+			0, GrpcHierarchyParentsBehaviour.MATCHING.getNumber(),
+			"An absent field must read back as `MATCHING`, which requires it to carry number zero."
+		);
+		assertEquals(1, GrpcHierarchyParentsBehaviour.COMPLETE.getNumber());
+	}
+
+	/**
+	 * The companion half of the same guarantee: a `GrpcQueryParam` with no arm set must be refused outright rather
+	 * than silently read as the zero-valued arm of whichever branch happens to be tested first.
+	 */
+	@Test
+	void shouldRefuseAQueryParamWithNoArmSet() {
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> QueryConverter.convertQueryParam(GrpcQueryParam.getDefaultInstance())
+		);
 	}
 
 	@Test

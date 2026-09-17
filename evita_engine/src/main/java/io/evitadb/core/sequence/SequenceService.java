@@ -122,11 +122,20 @@ public class SequenceService {
 	 * leaks an entry per catalog name across create/drop churn, forever.
 	 *
 	 * Discarding a counter resets it: the next {@link #getOrCreateSequence(String, SequenceType, Integer)} for
-	 * that catalog starts from whatever initial value it is given. A generation counter may therefore only be
-	 * discarded once **no tombstone names a folder it could hand out again** — a tombstone is a standing order
-	 * to delete one specific directory, so a redrawn number that lands on one binds a live catalog to a token
-	 * something is still under instructions to destroy. The engine-state commit that discharges the last of a
-	 * name's tombstones is the one place that can see this, and it is where the call is made from.
+	 * that catalog starts from whatever initial value it is given. Two things must therefore hold of a name
+	 * before its generation counter may be discarded, and only the first is a question about storage:
+	 *
+	 * - **No tombstone names a folder the counter could hand out again** — a tombstone is a standing order to
+	 *   delete one specific directory, so a redrawn number landing on one binds a live catalog to a token
+	 *   something is still under instructions to destroy.
+	 * - **Nothing is still holding an expectation against a generation already handed out** — a folder token is
+	 *   used as the identity of one *incarnation* of a catalog, so a restarted counter can reproduce a token a
+	 *   caller is still comparing against and let a substituted catalog pass for the original.
+	 *
+	 * The second is not answerable from engine state, because an expectation is a value held by whichever
+	 * operation recorded it. So this is called only for names where it holds by construction — today that is the
+	 * restore's scratch name, through {@link io.evitadb.core.Evita#retireCatalogGenerationSequence}, which
+	 * carries the argument. A name a client chose is never discarded while the process runs.
 	 *
 	 * Litter surviving on disk — folders a failed attempt left behind — is deliberately *not* part of that
 	 * precondition, because it does not have to be: allocation treats a directory it cannot create as a number

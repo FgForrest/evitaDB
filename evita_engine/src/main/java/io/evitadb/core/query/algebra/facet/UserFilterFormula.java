@@ -24,6 +24,7 @@
 package io.evitadb.core.query.algebra.facet;
 
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
+import io.evitadb.core.query.algebra.NonCollapsibleFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.NonCacheableFormula;
@@ -46,7 +47,7 @@ import java.util.List;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class UserFilterFormula extends AbstractFormula implements NonCacheableFormula, NonCacheableFormulaScope {
+public class UserFilterFormula extends AbstractFormula implements NonCacheableFormula, NonCacheableFormulaScope, NonCollapsibleFormula {
 	/**
 	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
 	 */

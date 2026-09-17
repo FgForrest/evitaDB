@@ -41,20 +41,20 @@ public class PredecessorCoercing implements Coercing<Predecessor, Integer> {
 
     @Override
     public Integer serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
-        if (!(dataFetcherResult instanceof Predecessor)) {
+        if (!(dataFetcherResult instanceof Predecessor predecessor)) {
             throw new CoercingSerializeException("Predecessor data fetcher result is not a Predecessor.");
         }
-        return ((Predecessor)dataFetcherResult).predecessorPk();
+        return predecessor.predecessorPk();
     }
 
     @Nonnull
     @Override
     public Predecessor parseValue(@Nonnull Object input) throws CoercingParseValueException {
-        if (!(input instanceof Integer)) {
+        if (!(input instanceof Integer integerInput)) {
             throw new CoercingParseValueException("Predecessor input value is not an integer.");
         }
         try {
-            return new Predecessor((Integer) input);
+            return new Predecessor(integerInput);
         } catch (IllegalArgumentException ex) {
             throw new CoercingParseValueException(ex.getMessage(), ex);
         }
@@ -63,11 +63,11 @@ public class PredecessorCoercing implements Coercing<Predecessor, Integer> {
     @Nonnull
     @Override
     public Predecessor parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
-        if (!(input instanceof IntValue)) {
+        if (!(input instanceof IntValue intValue)) {
             throw new CoercingParseValueException("Predecessor input value is not an integer.");
         }
         try {
-            return new Predecessor(((IntValue) input).getValue().intValueExact());
+            return new Predecessor(intValue.getValue().intValueExact());
         } catch (IllegalArgumentException ex) {
             throw new CoercingParseLiteralException(ex.getMessage(), ex);
         }

@@ -375,7 +375,7 @@ public enum GrpcStoragePartGroup
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(51);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(52);
   }
 
   private static final GrpcStoragePartGroup[] VALUES = values();

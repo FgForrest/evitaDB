@@ -28,10 +28,12 @@ import com.google.protobuf.ByteString;
 import com.linecorp.armeria.client.ClientRequestContext;
 import com.linecorp.armeria.common.util.TimeoutMode;
 import com.google.protobuf.Empty;
+import com.google.protobuf.Int64Value;
 import com.google.protobuf.StringValue;
 import io.evitadb.driver.EvitaClientChannel.TimeoutTier;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
@@ -50,6 +52,7 @@ import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.driver.exception.EvitaClientServerCallException;
 import io.evitadb.driver.exception.EvitaClientTimedOutException;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
@@ -332,6 +335,38 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 			.build();
 		final GrpcRestoreCatalogResponse response = executeWithEvitaService(
 			evitaService -> evitaService.restoreCatalogFromServerFile(request)
+		);
+
+		//noinspection unchecked
+		return (Task<?, Void>) this.clientTaskTracker.createTask(
+			EvitaDataTypesConverter.toTaskStatus(response.getTask())
+		);
+	}
+
+	@Nonnull
+	@Override
+	public Task<?, Void> restoreCatalogToVersion(
+		@Nonnull String catalogName,
+		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
+		@Nullable String targetCatalogName
+	) throws TemporalDataNotAvailableException, CatalogNotFoundException, EvitaInvalidUsageException {
+		this.evitaClient.assertActive();
+
+		final GrpcRestoreCatalogToVersionRequest.Builder request = GrpcRestoreCatalogToVersionRequest.newBuilder()
+			.setCatalogName(catalogName);
+		if (pastMoment != null) {
+			request.setPastMoment(EvitaDataTypesConverter.toGrpcOffsetDateTime(pastMoment));
+		}
+		if (catalogVersion != null) {
+			request.setCatalogVersion(Int64Value.of(catalogVersion));
+		}
+		if (targetCatalogName != null) {
+			request.setTargetCatalogName(StringValue.of(targetCatalogName));
+		}
+
+		final GrpcRestoreCatalogToVersionResponse response = executeWithEvitaService(
+			evitaService -> evitaService.restoreCatalogToVersion(request.build())
 		);
 
 		//noinspection unchecked

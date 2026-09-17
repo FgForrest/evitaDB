@@ -52,7 +52,7 @@ import java.io.Serializable;
  */
 @RequiredArgsConstructor
 @EqualsAndHashCode
-public class ElementAccessStep implements ObjectOperationStep {
+public final class ElementAccessStep implements ObjectOperationStep {
 	@Serial private static final long serialVersionUID = 2760082902212762061L;
 
 	@Nonnull @Getter private final ExpressionNode elementIdentifierOperand;

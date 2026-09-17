@@ -58,6 +58,8 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NumberUtils;
+import io.evitadb.roaringbitmap.FastAggregation;
+import io.evitadb.roaringbitmap.IntIterator;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 import lombok.Setter;
@@ -73,6 +75,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.PrimitiveIterator.OfInt;
+import java.util.function.IntConsumer;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.OptionalLong;
@@ -493,6 +497,29 @@ public class ReferenceTypeCardinalityIndex
 	}
 
 	/**
+	 * Visits every reduced-index primary key advertised by this index, in a single pass over the forward
+	 * map.
+	 *
+	 * Callers that need *all* advertised partitions should prefer this over
+	 * {@link #getAllTrackedReferencedEntityPrimaryKeys()} followed by
+	 * {@link #getAllReferenceIndexes(int)} per key: that shape boxes every referenced PK, performs a
+	 * second hash lookup into this same map for each, and allocates an `int[]` per entry. This walks the
+	 * `entrySet` once and iterates each bitmap primitively, allocating nothing per partition - which
+	 * matters because the cross-entity facet fan-out performs exactly this traversal on every trigger,
+	 * over every partition of the collection.
+	 *
+	 * @param consumer invoked once per advertised reduced-index primary key
+	 */
+	public void forEachIndexPrimaryKey(@Nonnull IntConsumer consumer) {
+		for (final Map.Entry<Integer, TransactionalBitmap> entry : this.referencedPrimaryKeysIndex.entrySet()) {
+			final OfInt it = entry.getValue().iterator();
+			while (it.hasNext()) {
+				consumer.accept(it.nextInt());
+			}
+		}
+	}
+
+	/**
 	 * Returns the set of referenced entity primary keys (i.e., the keys of the forward mapping) whose
 	 * index primary key bitmaps have a non-empty intersection with the given set of index primary keys.
 	 *
@@ -537,38 +564,53 @@ public class ReferenceTypeCardinalityIndex
 	public Bitmap getIndexPrimaryKeys(@Nonnull PersistentRoaringBitmap referencedEntityPrimaryKeys) {
 		if (referencedEntityPrimaryKeys.isEmpty()) {
 			return EmptyBitmap.INSTANCE;
-		} else {
-			PersistentRoaringBitmap allReferencedPrimaryKeys;
-			if (Transaction.isTransactionAvailable()) {
-				final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-				for (Integer referencedEntityId : this.referencedPrimaryKeysIndex.keySet()) {
-					writer.add(referencedEntityId);
-				}
-				allReferencedPrimaryKeys = writer.get();
-			} else {
-				allReferencedPrimaryKeys = this.memoizedAllReferencedPrimaryKeys;
-				if (allReferencedPrimaryKeys == null) {
-					final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-					for (Integer referencedEntityId : this.referencedPrimaryKeysIndex.keySet()) {
-						writer.add(referencedEntityId);
-					}
-					allReferencedPrimaryKeys = writer.get();
-					this.memoizedAllReferencedPrimaryKeys = allReferencedPrimaryKeys;
-				}
-			}
-			final PersistentRoaringBitmap matchingReferencedEntityPks = PersistentRoaringBitmap.and(
-				allReferencedPrimaryKeys,
-				referencedEntityPrimaryKeys
-			);
-			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-			for (Integer matchingReferencedEntityPk : matchingReferencedEntityPks) {
-				final TransactionalBitmap indexIds = Objects.requireNonNull(
-					this.referencedPrimaryKeysIndex.get(matchingReferencedEntityPk)
-				);
-				indexIds.forEach(writer::add);
-			}
-			return new BaseBitmap(writer.get());
 		}
+		final PersistentRoaringBitmap matchingReferencedEntityPks = PersistentRoaringBitmap.and(
+			allReferencedPrimaryKeys(),
+			referencedEntityPrimaryKeys
+		);
+		final int matchCount = matchingReferencedEntityPks.getCardinality();
+		if (matchCount == 0) {
+			return EmptyBitmap.INSTANCE;
+		}
+		// gather the partition bitmaps first and union them in one aggregation pass: appending the keys one by one
+		// costs a binary search plus an array shift per key inside the target container, which for a reference whose
+		// partitions hold tens of thousands of keys dominates the whole lookup
+		final PersistentRoaringBitmap[] partitions = new PersistentRoaringBitmap[matchCount];
+		final IntIterator it = matchingReferencedEntityPks.getIntIterator();
+		int index = 0;
+		while (it.hasNext()) {
+			partitions[index++] = RoaringBitmapBackedBitmap.getRoaringBitmap(
+				Objects.requireNonNull(this.referencedPrimaryKeysIndex.get(it.next()))
+			);
+		}
+		// `partitions` are the LIVE bitmaps of this index, so the aggregation must not borrow from them: the naive
+		// fold (FastAggregation#or) appends the tail of each input by structural sharing, which writes the sharing
+		// flags back into the source - an unsynchronised write into index state from a read path, and a window in
+		// which the answer still aliases the index's own containers. The horizontal merge clones every container it
+		// takes, leaving the inputs untouched.
+		return matchCount == 1 ?
+			new BaseBitmap(partitions[0].clone()) :
+			new BaseBitmap(FastAggregation.horizontal_or(partitions));
+	}
+
+	/**
+	 * Returns the bitmap of every referenced entity primary key tracked by this index, memoized outside
+	 * a transaction and rebuilt on each call inside one (where the contents may still change).
+	 *
+	 * @return bitmap of all referenced entity primary keys, never {@code null}
+	 */
+	@Nonnull
+	private PersistentRoaringBitmap allReferencedPrimaryKeys() {
+		if (Transaction.isTransactionAvailable()) {
+			return buildReferencedPrimaryKeysBitmap();
+		}
+		PersistentRoaringBitmap result = this.memoizedAllReferencedPrimaryKeys;
+		if (result == null) {
+			result = buildReferencedPrimaryKeysBitmap();
+			this.memoizedAllReferencedPrimaryKeys = result;
+		}
+		return result;
 	}
 
 	/**

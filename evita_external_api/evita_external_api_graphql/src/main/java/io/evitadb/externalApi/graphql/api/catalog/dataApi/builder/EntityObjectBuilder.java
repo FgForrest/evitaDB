@@ -49,6 +49,7 @@ import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInterfa
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLObjectTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLArgumentTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLFieldTransformer;
+import io.evitadb.externalApi.graphql.api.model.UnionDescriptorToGraphQLUnionTransformer;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 
 import javax.annotation.Nonnull;
@@ -78,7 +79,8 @@ public class EntityObjectBuilder {
 		@Nonnull PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer,
 		@Nonnull ObjectDescriptorToGraphQLInterfaceTransformer interfaceBuilderTransformer,
 		@Nonnull ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer,
-		@Nonnull PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer
+		@Nonnull PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer,
+		@Nonnull UnionDescriptorToGraphQLUnionTransformer unionBuilderTransformer
 	) {
 		this.buildingContext = buildingContext;
 		this.interfaceBuilderTransformer = interfaceBuilderTransformer;
@@ -199,7 +201,9 @@ public class EntityObjectBuilder {
 				constraintSchemaBuildingContext,
 				filterConstraintSchemaBuilder,
 				argumentBuilderTransformer,
-				fieldBuilderTransformer
+				objectBuilderTransformer,
+				fieldBuilderTransformer,
+				unionBuilderTransformer
 			),
 			new EntityObjectAttributeDecorator(
 				buildingContext,

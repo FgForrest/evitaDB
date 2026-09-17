@@ -99,6 +99,7 @@ private static final long serialVersionUID = 0L;
     FACETRELATIONTYPE(25),
     FACETGROUPRELATIONLEVEL(26),
     TRAVERSALMODE(27),
+    HIERARCHYPARENTSBEHAVIOUR(28),
     STRINGARRAYVALUE(101),
     INTEGERARRAYVALUE(102),
     LONGARRAYVALUE(103),
@@ -165,6 +166,7 @@ private static final long serialVersionUID = 0L;
         case 25: return FACETRELATIONTYPE;
         case 26: return FACETGROUPRELATIONLEVEL;
         case 27: return TRAVERSALMODE;
+        case 28: return HIERARCHYPARENTSBEHAVIOUR;
         case 101: return STRINGARRAYVALUE;
         case 102: return INTEGERARRAYVALUE;
         case 103: return LONGARRAYVALUE;
@@ -1449,6 +1451,64 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcTraversalMode.DEPTH_FIRST;
   }
 
+  public static final int HIERARCHYPARENTSBEHAVIOUR_FIELD_NUMBER = 28;
+  /**
+   * <pre>
+   * Binds a `GrpcHierarchyParentsBehaviour` enum parameter into the query, used by the `hierarchyContent`
+   * requirement to select what happens to an ancestor whose requested body cannot be materialized - whether the
+   * parent chain is cut below it, or continues above it with that ancestor reported as a bodyless pointer.
+   *
+   * A query that leaves the argument out simply carries no placeholder for it, so no entry of this arm is sent at
+   * all and the requirement keeps its own default, `MATCHING`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour hierarchyParentsBehaviour = 28;</code>
+   * @return Whether the hierarchyParentsBehaviour field is set.
+   */
+  public boolean hasHierarchyParentsBehaviour() {
+    return queryParamCase_ == 28;
+  }
+  /**
+   * <pre>
+   * Binds a `GrpcHierarchyParentsBehaviour` enum parameter into the query, used by the `hierarchyContent`
+   * requirement to select what happens to an ancestor whose requested body cannot be materialized - whether the
+   * parent chain is cut below it, or continues above it with that ancestor reported as a bodyless pointer.
+   *
+   * A query that leaves the argument out simply carries no placeholder for it, so no entry of this arm is sent at
+   * all and the requirement keeps its own default, `MATCHING`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour hierarchyParentsBehaviour = 28;</code>
+   * @return The enum numeric value on the wire for hierarchyParentsBehaviour.
+   */
+  public int getHierarchyParentsBehaviourValue() {
+    if (queryParamCase_ == 28) {
+      return (java.lang.Integer) queryParam_;
+    }
+    return 0;
+  }
+  /**
+   * <pre>
+   * Binds a `GrpcHierarchyParentsBehaviour` enum parameter into the query, used by the `hierarchyContent`
+   * requirement to select what happens to an ancestor whose requested body cannot be materialized - whether the
+   * parent chain is cut below it, or continues above it with that ancestor reported as a bodyless pointer.
+   *
+   * A query that leaves the argument out simply carries no placeholder for it, so no entry of this arm is sent at
+   * all and the requirement keeps its own default, `MATCHING`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour hierarchyParentsBehaviour = 28;</code>
+   * @return The hierarchyParentsBehaviour.
+   */
+  public io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour getHierarchyParentsBehaviour() {
+    if (queryParamCase_ == 28) {
+      io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour result = io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour.forNumber(
+          (java.lang.Integer) queryParam_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour.UNRECOGNIZED : result;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour.MATCHING;
+  }
+
   public static final int STRINGARRAYVALUE_FIELD_NUMBER = 101;
   /**
    * <pre>
@@ -2559,6 +2619,9 @@ private static final long serialVersionUID = 0L;
     if (queryParamCase_ == 27) {
       output.writeEnum(27, ((java.lang.Integer) queryParam_));
     }
+    if (queryParamCase_ == 28) {
+      output.writeEnum(28, ((java.lang.Integer) queryParam_));
+    }
     if (queryParamCase_ == 101) {
       output.writeMessage(101, (io.evitadb.externalApi.grpc.generated.GrpcStringArray) queryParam_);
     }
@@ -2742,6 +2805,10 @@ private static final long serialVersionUID = 0L;
     if (queryParamCase_ == 27) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(27, ((java.lang.Integer) queryParam_));
+    }
+    if (queryParamCase_ == 28) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeEnumSize(28, ((java.lang.Integer) queryParam_));
     }
     if (queryParamCase_ == 101) {
       size += com.google.protobuf.CodedOutputStream
@@ -2956,6 +3023,10 @@ private static final long serialVersionUID = 0L;
         if (getTraversalModeValue()
             != other.getTraversalModeValue()) return false;
         break;
+      case 28:
+        if (getHierarchyParentsBehaviourValue()
+            != other.getHierarchyParentsBehaviourValue()) return false;
+        break;
       case 101:
         if (!getStringArrayValue()
             .equals(other.getStringArrayValue())) return false;
@@ -3168,6 +3239,10 @@ private static final long serialVersionUID = 0L;
       case 27:
         hash = (37 * hash) + TRAVERSALMODE_FIELD_NUMBER;
         hash = (53 * hash) + getTraversalModeValue();
+        break;
+      case 28:
+        hash = (37 * hash) + HIERARCHYPARENTSBEHAVIOUR_FIELD_NUMBER;
+        hash = (53 * hash) + getHierarchyParentsBehaviourValue();
         break;
       case 101:
         hash = (37 * hash) + STRINGARRAYVALUE_FIELD_NUMBER;
@@ -3811,6 +3886,10 @@ private static final long serialVersionUID = 0L;
           setTraversalModeValue(other.getTraversalModeValue());
           break;
         }
+        case HIERARCHYPARENTSBEHAVIOUR: {
+          setHierarchyParentsBehaviourValue(other.getHierarchyParentsBehaviourValue());
+          break;
+        }
         case STRINGARRAYVALUE: {
           mergeStringArrayValue(other.getStringArrayValue());
           break;
@@ -4096,6 +4175,12 @@ private static final long serialVersionUID = 0L;
               queryParam_ = rawValue;
               break;
             } // case 216
+            case 224: {
+              int rawValue = input.readEnum();
+              queryParamCase_ = 28;
+              queryParam_ = rawValue;
+              break;
+            } // case 224
             case 810: {
               input.readMessage(
                   getStringArrayValueFieldBuilder().getBuilder(),
@@ -7608,6 +7693,130 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearTraversalMode() {
       if (queryParamCase_ == 27) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
+        onChanged();
+      }
+      return this;
+    }
+
+    /**
+     * <pre>
+     * Binds a `GrpcHierarchyParentsBehaviour` enum parameter into the query, used by the `hierarchyContent`
+     * requirement to select what happens to an ancestor whose requested body cannot be materialized - whether the
+     * parent chain is cut below it, or continues above it with that ancestor reported as a bodyless pointer.
+     *
+     * A query that leaves the argument out simply carries no placeholder for it, so no entry of this arm is sent at
+     * all and the requirement keeps its own default, `MATCHING`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour hierarchyParentsBehaviour = 28;</code>
+     * @return Whether the hierarchyParentsBehaviour field is set.
+     */
+    @java.lang.Override
+    public boolean hasHierarchyParentsBehaviour() {
+      return queryParamCase_ == 28;
+    }
+    /**
+     * <pre>
+     * Binds a `GrpcHierarchyParentsBehaviour` enum parameter into the query, used by the `hierarchyContent`
+     * requirement to select what happens to an ancestor whose requested body cannot be materialized - whether the
+     * parent chain is cut below it, or continues above it with that ancestor reported as a bodyless pointer.
+     *
+     * A query that leaves the argument out simply carries no placeholder for it, so no entry of this arm is sent at
+     * all and the requirement keeps its own default, `MATCHING`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour hierarchyParentsBehaviour = 28;</code>
+     * @return The enum numeric value on the wire for hierarchyParentsBehaviour.
+     */
+    @java.lang.Override
+    public int getHierarchyParentsBehaviourValue() {
+      if (queryParamCase_ == 28) {
+        return ((java.lang.Integer) queryParam_).intValue();
+      }
+      return 0;
+    }
+    /**
+     * <pre>
+     * Binds a `GrpcHierarchyParentsBehaviour` enum parameter into the query, used by the `hierarchyContent`
+     * requirement to select what happens to an ancestor whose requested body cannot be materialized - whether the
+     * parent chain is cut below it, or continues above it with that ancestor reported as a bodyless pointer.
+     *
+     * A query that leaves the argument out simply carries no placeholder for it, so no entry of this arm is sent at
+     * all and the requirement keeps its own default, `MATCHING`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour hierarchyParentsBehaviour = 28;</code>
+     * @param value The enum numeric value on the wire for hierarchyParentsBehaviour to set.
+     * @return This builder for chaining.
+     */
+    public Builder setHierarchyParentsBehaviourValue(int value) {
+      queryParamCase_ = 28;
+      queryParam_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Binds a `GrpcHierarchyParentsBehaviour` enum parameter into the query, used by the `hierarchyContent`
+     * requirement to select what happens to an ancestor whose requested body cannot be materialized - whether the
+     * parent chain is cut below it, or continues above it with that ancestor reported as a bodyless pointer.
+     *
+     * A query that leaves the argument out simply carries no placeholder for it, so no entry of this arm is sent at
+     * all and the requirement keeps its own default, `MATCHING`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour hierarchyParentsBehaviour = 28;</code>
+     * @return The hierarchyParentsBehaviour.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour getHierarchyParentsBehaviour() {
+      if (queryParamCase_ == 28) {
+        io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour result = io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour.forNumber(
+            (java.lang.Integer) queryParam_);
+        return result == null ? io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour.UNRECOGNIZED : result;
+      }
+      return io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour.MATCHING;
+    }
+    /**
+     * <pre>
+     * Binds a `GrpcHierarchyParentsBehaviour` enum parameter into the query, used by the `hierarchyContent`
+     * requirement to select what happens to an ancestor whose requested body cannot be materialized - whether the
+     * parent chain is cut below it, or continues above it with that ancestor reported as a bodyless pointer.
+     *
+     * A query that leaves the argument out simply carries no placeholder for it, so no entry of this arm is sent at
+     * all and the requirement keeps its own default, `MATCHING`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour hierarchyParentsBehaviour = 28;</code>
+     * @param value The hierarchyParentsBehaviour to set.
+     * @return This builder for chaining.
+     */
+    public Builder setHierarchyParentsBehaviour(io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      queryParamCase_ = 28;
+      queryParam_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Binds a `GrpcHierarchyParentsBehaviour` enum parameter into the query, used by the `hierarchyContent`
+     * requirement to select what happens to an ancestor whose requested body cannot be materialized - whether the
+     * parent chain is cut below it, or continues above it with that ancestor reported as a bodyless pointer.
+     *
+     * A query that leaves the argument out simply carries no placeholder for it, so no entry of this arm is sent at
+     * all and the requirement keeps its own default, `MATCHING`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour hierarchyParentsBehaviour = 28;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearHierarchyParentsBehaviour() {
+      if (queryParamCase_ == 28) {
         queryParamCase_ = 0;
         queryParam_ = null;
         onChanged();

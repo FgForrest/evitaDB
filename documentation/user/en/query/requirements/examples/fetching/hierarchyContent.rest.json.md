@@ -6,6 +6,11 @@
       "type" : "Category",
       "version" : 2,
       "scope" : "LIVE",
+      "allLocales" : [
+        "cs",
+        "de",
+        "en"
+      ],
       "parentEntity" : {
         "primaryKey" : 66481,
         "type" : "Category",
@@ -13,12 +18,7 @@
           "primaryKey" : 66468,
           "type" : "Category"
         }
-      },
-      "allLocales" : [
-        "cs",
-        "de",
-        "en"
-      ]
+      }
     }
   ],
   "type" : "PAGE",

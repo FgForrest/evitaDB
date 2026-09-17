@@ -4,19 +4,15 @@ name: DockerHub-deploy
 
 on:
   # There used to also be a `workflow_run: workflows: ['CI Release branch']`
-  # trigger here. Removed: it only fires reliably when that run's own actor
-  # is a human (e.g. a direct push to a release_* branch) — when CI Master
-  # branch dispatches CI Release branch via `gh workflow run`
-  # (GITHUB_TOKEN-authored, the standard dev -> master path), the resulting
-  # run's actor is `github-actions[bot]`, and GitHub's anti-recursion rule
-  # blocks that run's completion from cascading into further automatic
-  # triggers — only workflow_dispatch/repository_dispatch are exempted, and
-  # only for one hop. CI Release branch now explicitly dispatches this
-  # workflow itself (same mechanism, applied one hop further), passing its
-  # own run_id so this can pull evita-server.jar/version.txt as workflow
-  # artifacts instead of from the release's zip asset — the release is
-  # typically still a draft at that point (publishing happens later,
-  # separately), and a draft release has no real downloadable git tag yet.
+  # trigger here. It was removed while CI Release branch was still dispatched
+  # from CI Master under GITHUB_TOKEN, whose runs' completions never cascade
+  # into further automatic triggers. CI Release branch is now started by the
+  # release bot App's push, which would cascade, but it keeps dispatching
+  # this workflow explicitly and passes its own run_id so this can pull
+  # evita-server.jar/version.txt as workflow artifacts instead of from the
+  # release's zip asset — the release is typically still a draft at that
+  # point (publishing happens later, separately), and a draft release has no
+  # real downloadable git tag yet. Re-adding the listener would publish twice.
   workflow_dispatch:
     inputs:
       version:
@@ -114,7 +110,7 @@ jobs:
       - name: Set up QEMU
         # Add support for more platforms with QEMU (optional)
         # https://github.com/docker/setup-qemu-action
-        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
 
       - name: Configure QEMU
         # Configure QEMU for Docker Buildx, see https://github.com/docker/buildx/issues/1170#issuecomment-2424530330

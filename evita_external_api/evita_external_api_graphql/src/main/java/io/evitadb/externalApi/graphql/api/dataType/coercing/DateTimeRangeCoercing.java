@@ -79,10 +79,10 @@ public class DateTimeRangeCoercing extends RangeCoercing<OffsetDateTime, DateTim
     @Nonnull
     @Override
     protected String extractRangeEndFromNode(@Nonnull Object node) {
-        if (!(node instanceof StringValue)) {
+        if (!(node instanceof StringValue stringValue)) {
             throw new CoercingParseLiteralException("Item of range input value is not a string.");
         }
-        return ((StringValue) node).getValue();
+        return stringValue.getValue();
     }
 
     @Nullable

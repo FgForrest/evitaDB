@@ -95,8 +95,8 @@ class PersistentTransactionalMapHeapSizeTest {
 	 * Builds a thawed map holding `entries` distinct boxed pairs.
 	 *
 	 * The entries are `put` after construction rather than handed to the constructor, because that is how a warm-up
-	 * buffer actually fills and because it is the growth path {@link MapHeapSize} models — see
-	 * {@link InferredTableCapacity} for the case where the two diverge.
+	 * buffer actually fills. From seven entries upwards {@link MapHeapSize} prices growing and copying identically —
+	 * see {@link InferredTableCapacity} for the small-map range below that, where the two still diverge.
 	 *
 	 * @param entries how many pairs to add
 	 * @return a map still in its thawed mode
@@ -221,11 +221,11 @@ class PersistentTransactionalMapHeapSizeTest {
 
 		@Test
 		void shouldMatchACopiedMapSittingExactlyOnAThreshold() {
-			// this constructor is why the capacity model reports the larger of the two construction paths. Twelve
-			// entries handed to `new HashMap<>(source)` ask for (12 / 0.75) + 1 = 17 slots, rounded to 32, while a
-			// map GROWN to twelve entries stops at 16 - growth doubles only when the count exceeds the threshold.
-			// Following growth here would read 64 bytes low on a freshly loaded collection, which is exactly the
-			// shape `EntityCollection` hands to its index maps before anything writes to them
+			// this constructor is the shape `EntityCollection` hands to its index maps before anything writes to
+			// them, so it is the one the capacity model has to get right. Twelve entries handed to
+			// `new HashMap<>(source)` ask for ceil(12 / 0.75) = 16 slots, which is exactly where a map GROWN to
+			// twelve entries stops - growth doubles only when the count exceeds the threshold. Replaying the
+			// pre-JDK-19 `(12 / 0.75) + 1 = 17` here would round to 32 and read 64 bytes high
 			final Map<Integer, Integer> source = new HashMap<>();
 			for (int i = 0; i < 12; i++) {
 				source.put(FIRST_KEY + i, FIRST_VALUE + i);

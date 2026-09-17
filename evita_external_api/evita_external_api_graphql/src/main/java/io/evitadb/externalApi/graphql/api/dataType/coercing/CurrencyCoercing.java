@@ -50,11 +50,11 @@ public class CurrencyCoercing implements Coercing<Currency, String> {
     @Nonnull
     @Override
     public Currency parseValue(@Nonnull Object input) throws CoercingParseValueException {
-        if (!(input instanceof String)) {
+        if (!(input instanceof String stringInput)) {
             throw new CoercingParseValueException("Currency input value is not a string.");
         }
         try {
-            return Currency.getInstance((String) input);
+            return Currency.getInstance(stringInput);
         } catch (IllegalArgumentException ex) {
             throw new CoercingParseValueException(ex.getMessage(), ex);
         }
@@ -63,11 +63,11 @@ public class CurrencyCoercing implements Coercing<Currency, String> {
     @Nonnull
     @Override
     public Currency parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
-        if (!(input instanceof StringValue)) {
+        if (!(input instanceof StringValue stringValue)) {
             throw new CoercingParseValueException("Currency input value is not a string.");
         }
         try {
-            return Currency.getInstance(((StringValue) input).getValue());
+            return Currency.getInstance(stringValue.getValue());
         } catch (IllegalArgumentException ex) {
             throw new CoercingParseLiteralException(ex.getMessage(), ex);
         }

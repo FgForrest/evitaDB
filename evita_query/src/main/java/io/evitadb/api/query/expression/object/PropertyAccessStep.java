@@ -49,7 +49,7 @@ import java.io.Serializable;
  */
 @RequiredArgsConstructor
 @EqualsAndHashCode
-public class PropertyAccessStep implements ObjectOperationStep {
+public final class PropertyAccessStep implements ObjectOperationStep {
 	@Serial private static final long serialVersionUID = 2760082902212762061L;
 
 	@Nonnull @Getter private final String propertyIdentifier;

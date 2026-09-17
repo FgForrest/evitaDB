@@ -100,12 +100,12 @@ public abstract class RangeCoercing<E, R extends Range<E>, T> implements Coercin
     @Nonnull
     @Override
     public R parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
-        if (!(input instanceof ArrayValue)) {
+        if (!(input instanceof ArrayValue arrayValue)) {
             throw new CoercingParseLiteralException("Range input value is not a tuple (list).");
         }
         try {
             //noinspection rawtypes
-            final List<Node> items = ((ArrayValue) input).getChildren();
+            final List<Node> items = arrayValue.getChildren();
             if (items.size() != 2) {
                 throw new CoercingParseLiteralException("Range input value is not a tuple with 2 items.");
             }

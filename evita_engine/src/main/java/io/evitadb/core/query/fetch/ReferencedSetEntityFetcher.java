@@ -121,6 +121,12 @@ public record ReferencedSetEntityFetcher(
 		}
 	}
 
+	@Override
+	public boolean mayCarryGroupBodies(@Nonnull ReferenceSchemaContract referenceSchema) {
+		final PrefetchedEntities prefetchedEntities = this.fetchedEntities.get(referenceSchema.getName());
+		return prefetchedEntities != null && prefetchedEntities.hasGroupBodies();
+	}
+
 	@Nullable
 	@Override
 	public ReferenceComparator getEntityComparator(@Nonnull ReferenceSchemaContract referenceSchema) {

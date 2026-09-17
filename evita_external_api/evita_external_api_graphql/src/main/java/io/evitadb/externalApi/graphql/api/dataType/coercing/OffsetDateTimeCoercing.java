@@ -48,11 +48,11 @@ public class OffsetDateTimeCoercing implements Coercing<OffsetDateTime, String> 
 
     @Override
     public String serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
-        if (!(dataFetcherResult instanceof OffsetDateTime)) {
+        if (!(dataFetcherResult instanceof OffsetDateTime offsetDateTime)) {
             throw new CoercingSerializeException("Offset date time data fetcher result is not a offset date time.");
         }
         try {
-            return ((OffsetDateTime) dataFetcherResult).truncatedTo(ChronoUnit.MILLIS).format(FORMATTER);
+            return offsetDateTime.truncatedTo(ChronoUnit.MILLIS).format(FORMATTER);
         } catch (DateTimeException ex) {
             throw new CoercingSerializeException(ex.getMessage(), ex);
         }
@@ -61,11 +61,11 @@ public class OffsetDateTimeCoercing implements Coercing<OffsetDateTime, String> 
     @Nonnull
     @Override
     public OffsetDateTime parseValue(@Nonnull Object input) throws CoercingParseValueException {
-        if (!(input instanceof String)) {
+        if (!(input instanceof String stringInput)) {
             throw new CoercingParseValueException("Offset date time input is not a string.");
         }
         try {
-            return OffsetDateTime.parse((String) input, FORMATTER).truncatedTo(ChronoUnit.MILLIS);
+            return OffsetDateTime.parse(stringInput, FORMATTER).truncatedTo(ChronoUnit.MILLIS);
         } catch (DateTimeParseException ex) {
             throw new CoercingParseValueException(getParseErrorMessage(ex), ex);
         }
@@ -74,11 +74,11 @@ public class OffsetDateTimeCoercing implements Coercing<OffsetDateTime, String> 
     @Nonnull
     @Override
     public OffsetDateTime parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
-        if (!(input instanceof StringValue)) {
+        if (!(input instanceof StringValue stringValue)) {
             throw new CoercingParseValueException("Offset date time input is not a StringValue.");
         }
         try {
-            return OffsetDateTime.parse(((StringValue) input).getValue(), FORMATTER).truncatedTo(ChronoUnit.MILLIS);
+            return OffsetDateTime.parse(stringValue.getValue(), FORMATTER).truncatedTo(ChronoUnit.MILLIS);
         } catch (DateTimeParseException ex) {
             throw new CoercingParseLiteralException(getParseErrorMessage(ex), ex);
         }
