@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
@@ -652,13 +653,23 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 			)
 			.withReferenceToEntity(
 				REF_PRODUCT_GROUPED_CATEGORIES, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs
-					.indexedForFilteringAndPartitioningInScope(Scope.values())
-					.withGroupTypeRelatedToEntity(Entities.BRAND)
-					.withAttribute(
-						REF_ATTR_GRADE, Long.class,
-						thatIs -> thatIs.filterableInScope(Scope.values())
-					)
+				whichIs -> {
+					whichIs
+						.indexedForFilteringAndPartitioningInScope(Scope.values())
+						.withGroupTypeRelatedToEntity(Entities.BRAND)
+						.withAttribute(
+							REF_ATTR_GRADE, Long.class,
+							thatIs -> thatIs.filterableInScope(Scope.values())
+						);
+					// declaring a group TYPE is not what makes the engine maintain group indexes - the indexed
+					// COMPONENTS are, and `indexedForFilteringAndPartitioningInScope` sets only REFERENCED_ENTITY.
+					// Without REFERENCED_GROUP_ENTITY the whole `ReducedGroupEntityIndex` family is absent, every
+					// `groupHaving` silently answers empty, and a test asserting an empty result passes while
+					// proving nothing.
+					for (final Scope scope : Scope.values()) {
+						whichIs.indexedWithComponentsInScope(scope, ReferenceIndexedComponents.values());
+					}
+				}
 			)
 			.withReflectedReferenceToEntity(
 				REF_PRODUCT_CURATED_BY, Entities.CATEGORY, REF_CATEGORY_CURATED,

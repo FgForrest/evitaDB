@@ -583,16 +583,26 @@ public class HavingTranslatorHelper {
 		// path (`ReevaluateExpressionExecutor`) computes filter formulas without ever initialising an
 		// execution context, and a `FormulaWrapper` reached that way fails its own premise check. The
 		// telemetry step that wrapping would add is not worth making this branch unusable there.
-		return new ReferenceOwnerTranslatingFormula(
-			groupGlobalIndex,
-			groupFilter,
-			groupPrimaryKey -> collectOwnersOfTargetInGroup(
-				filterByVisitor, entitySchema, referenceSchema, scope,
-				groupPrimaryKey, targetPrimaryKey, representativeValues
-			),
-			// the expander is bound to THIS index; without an identity the per-index formulas all hash
-			// alike and every one but the first is silently dropped as a duplicate
-			targetIndex.getPrimaryKey()
+		//
+		// It IS wrapped in an `IndexTaggedFormula`, exactly as the sibling `entityHaving` branch is. Without
+		// the tag `ReferenceBodyTransposer#project` reads the whole disjunction as index-independent and keeps
+		// it for every row, so the group conjunct stops constraining the row it belongs to: an owner holding
+		// the group on one row and an attribute value on another satisfies both, and a negation falls back to
+		// the per-owner reading. The expander discriminator below is NOT a substitute - it keeps the per-index
+		// formulas distinct from one another, it does not tell the transposer which row each one speaks about.
+		return new IndexTaggedFormula(
+			targetIndex.getPrimaryKey(),
+			new ReferenceOwnerTranslatingFormula(
+				groupGlobalIndex,
+				groupFilter,
+				groupPrimaryKey -> collectOwnersOfTargetInGroup(
+					filterByVisitor, entitySchema, referenceSchema, scope,
+					groupPrimaryKey, targetPrimaryKey, representativeValues
+				),
+				// the expander is bound to THIS index; without an identity the per-index formulas all hash
+				// alike and every one but the first is silently dropped as a duplicate
+				targetIndex.getPrimaryKey()
+			)
 		);
 	}
 
