@@ -34,12 +34,14 @@ import io.evitadb.core.query.algebra.reference.IndexTaggedFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -119,6 +121,10 @@ public class ReferenceBodyTransposer {
 	 * what turns "has a row matching l1 **and** has a row matching l2" into "has a row matching **both**". A
 	 * negation moves with it: `FutureNot(Or(lᵢ))` becomes `Orᵢ(Aᵢ \ lᵢ)`, where `Aᵢ` is the owner set of index `i`.
 	 *
+	 * A body whose per-index contributions meet only under `or` is returned as it stands, because the rebuild
+	 * would reproduce it exactly - see {@link #combinedOnlyByUnion(Formula, Map)} for why that matters far more
+	 * than it sounds.
+	 *
 	 * Which indexes are rebuilt for depends on whether the body negates anything:
 	 *
 	 * - **without a negation**, only the indexes that actually tagged something. An index that contributed no leaf
@@ -142,9 +148,12 @@ public class ReferenceBodyTransposer {
 	) {
 		final Map<Formula, Boolean> projectableSubtrees = new IdentityHashMap<>();
 		final boolean negating = containsFutureNot(body);
-		if (!negating && !isProjectable(body, projectableSubtrees)) {
-			// nothing was evaluated per index, so there is nothing to pull apart
-			return body;
+		if (!negating && combinedOnlyByUnion(body, projectableSubtrees)) {
+			// the body already answers the row-scoped question, so the rebuild would reproduce it at a cost that
+			// is quadratic in the size of the index family - see `combinedOnlyByUnion`. A body that was never
+			// evaluated per index lands here too: it says the same thing about every row, and carries no tag for
+			// `stripTags` to remove.
+			return stripTags(body);
 		}
 
 		final List<Formula> perIndexFormulas;
@@ -158,7 +167,7 @@ public class ReferenceBodyTransposer {
 				);
 			}
 		} else {
-			final List<Integer> taggedIndexes = new ArrayList<>(16);
+			final Set<Integer> taggedIndexes = CollectionUtils.createLinkedHashSet(16);
 			collectTaggedIndexes(body, taggedIndexes);
 			perIndexFormulas = new ArrayList<>(taggedIndexes.size());
 			for (final Integer indexPrimaryKey : taggedIndexes) {
@@ -285,6 +294,47 @@ public class ReferenceBodyTransposer {
 	}
 
 	/**
+	 * Answers whether every per-index contribution in the subtree meets the others only under a disjunction.
+	 *
+	 * Such a body needs no rebuild at all. Projecting it onto index `i` keeps `i`'s own contributions and discards
+	 * the rest, and unioning those projections back together reproduces the disjunction the visitor already built -
+	 * `∃` distributes over `∨`, so "has a row matching A **or** a row matching B" and "has a row matching A or B"
+	 * are the same question. Any other operator above a contribution - a conjunction, or a container that keeps its
+	 * identity - makes the rebuild change the answer, which is the whole point of the transpose.
+	 *
+	 * Skipping the rebuild here is not a micro-optimisation. The rebuild walks the whole body once per index, and
+	 * the body holds one contribution per index, so its cost is quadratic in the size of the reference's index
+	 * family: measured at 224 ms for 8,000 indexes and quadrupling with every doubling, against families that
+	 * reach 169,102 indexes on a production catalog. A single leaf and a flat `or` of leaves - the overwhelmingly
+	 * common reference bodies, and the only shapes {@link BidirectionalReferenceRewriter} accepts - are exactly
+	 * the ones that land here.
+	 *
+	 * An index-independent subtree passes: it is kept whole for every index anyway, and a union of one thing with
+	 * itself is that thing.
+	 *
+	 * @param node                subtree root
+	 * @param projectableSubtrees memo shared with {@link #isProjectable(Formula, Map)}
+	 * @return true when the subtree would survive the rebuild unchanged
+	 */
+	private static boolean combinedOnlyByUnion(
+		@Nonnull Formula node,
+		@Nonnull Map<Formula, Boolean> projectableSubtrees
+	) {
+		if (node instanceof IndexTaggedFormula || !isProjectable(node, projectableSubtrees)) {
+			return true;
+		}
+		if (!(node instanceof OrFormula)) {
+			return false;
+		}
+		for (final Formula child : node.getInnerFormulas()) {
+			if (!combinedOnlyByUnion(child, projectableSubtrees)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
 	 * Answers whether the subtree has to be rebuilt per index - it carries a tag, or a negation that has to be
 	 * complemented against one index's owners. Memoized per node identity.
 	 *
@@ -316,15 +366,15 @@ public class ReferenceBodyTransposer {
 	/**
 	 * Collects the distinct indexes that tagged something, in first-seen order.
 	 *
-	 * @param node    subtree root
-	 * @param collected accumulator
+	 * The accumulator is a set rather than a list on purpose: a body carries one contribution per index, so
+	 * de-duplicating by scanning a list would make the collection itself quadratic in the family size.
+	 *
+	 * @param node      subtree root
+	 * @param collected accumulator, iterated in insertion order
 	 */
-	private static void collectTaggedIndexes(@Nonnull Formula node, @Nonnull List<Integer> collected) {
+	private static void collectTaggedIndexes(@Nonnull Formula node, @Nonnull Set<Integer> collected) {
 		if (node instanceof final IndexTaggedFormula tagged) {
-			final Integer indexPrimaryKey = tagged.getIndexPrimaryKey();
-			if (!collected.contains(indexPrimaryKey)) {
-				collected.add(indexPrimaryKey);
-			}
+			collected.add(tagged.getIndexPrimaryKey());
 			return;
 		}
 		for (final Formula child : node.getInnerFormulas()) {
