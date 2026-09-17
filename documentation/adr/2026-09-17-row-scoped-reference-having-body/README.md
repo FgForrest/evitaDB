@@ -1,7 +1,7 @@
 ---
 title: A referenceHaving body is a predicate about one reference row, evaluated by transposing the planned formula per reduced index
 date: 2026-09-17
-updated: 2026-09-17 13:55
+updated: 2026-09-17 14:10
 status: partially-implemented
 kind: fix
 issues: [1585]
@@ -77,7 +77,10 @@ whose row attributes vary **within one owner** to tell them apart, and the test 
 | 2026-09-17 | **A negation widens to the super set only when its consumer re-resolves it per row**, carried on the processing scope | The index type says what is being read, never whether anyone re-evaluates the result — deriving it from the type broke facet filtering | `ProcessingScope#negationResolvedPerRow` |
 | 2026-09-17 | **Every per-index formula carries an explicit per-index identity** | Three separate memoization layers otherwise collapse N per-index nodes into one, silently and with no error | C1 below |
 | 2026-09-17 | **An untagged subtree is index-independent and is kept for every index**, never treated as `∅` | Several producers legitimately emit index-independent leaves; treating them as empty would delete them | `ReferenceBodyTransposer#project` |
-| — **open** | How the `⊤` residue is supplied when a body cannot narrow index discovery | All three options are now priced on production data; the choice gates the cost work, not the correctness | `production-corpus-measurements.md` §5 |
+| 2026-09-17 | **A body combined only by union skips the per-index rebuild entirely** | The rebuild is quadratic in the index family, and the projection of such a body reproduces it exactly — `∃` distributes over `∨` | `ReferenceBodyTransposer#combinedOnlyByUnion` |
+| 2026-09-17 | **The fetch path translates `entityPrimaryKeyInSet` rather than suppressing it** | Suppression leaves a nested `not` nothing to negate; discovery cannot answer a negated leaf, which widens rather than narrows | `ReferencedEntityFetcher#computeResultWithPassedIndex` |
+| 2026-09-17 | **The `⊤` residue is supplied by (b) persisted per-owner row counts **and** (c) the counterpart rewrite**, with (a) as fallback | Priced on production data; (c) lands first because it needs no format change | table below |
+| 2026-09-17 | **(c), first half: a negated reference attribute is answered from the counterpart end** | The counterpart's per-owner index is row-exact, so the complement is taken inside a set the rewrite already builds — no new structure | `BidirectionalReferenceRewriter#createPerOwnerFormulas` |
 
 ### Row-scoped over owner-scoped
 
@@ -114,10 +117,27 @@ Three ways to supply it, all measured on the production corpus rather than argue
 | (b) per-(owner, reference) row counts + owner bitmap | new persisted structure: write path, Kryo, backward compatibility — but **0.12–0.21 %** of the 4.92 GB of reduced-index heap it accelerates | restores the original cost story |
 | (c) extend `BidirectionalReferenceRewriter` to `not`/`and` | reuses a per-owner counterpart index that is already row-exact; ≈60× where it fires | bounded path for the large-catalogue case, narrow applicability |
 
-The recommendation is **(c) with (b)**, and (a) as the honest fallback — but this is an open decision, and
-the cost work cannot start without it. What is **not** at stake is correctness: that comes from the per-index
-loop, which is implemented. What option (a) costs is only the claim that a negation is as cheap as its
-positive.
+**Decided: (b) and (c) together**, with (a) as the honest fallback. Correctness was never at stake in this
+choice — that comes from the per-index loop, which is implemented; what (a) alone would cost is only the
+claim that a negation is as cheap as its positive.
+
+(c) is **half done**. A negated reference *attribute* is now answered from the counterpart end
+(`BidirectionalReferenceRewriter#createPerOwnerFormulas`): the counterpart's reduced indexes for one owner
+hold only that owner's rows and a referenced entity appears in exactly one of them, so `∃r ¬A(r)` is
+`rowsOf(o) \ matching(A) ≠ ∅` — a complement inside a set the rewrite already materialises as its
+no-constraint answer. `not(not(…))`, `not(and(…))` and `not(entityHaving(…))` still decline; the last of
+those is a complement against the referenced collection rather than against one owner's rows, and is the
+part of (c) still outstanding. Widening the rewrite to a conjunction of attribute siblings is a separate
+question — see the follow-ups.
+
+**Where it can fire matters.** `preparePlanInternal` declines any body carrying an attribute constraint once
+an index outside the requested scopes has announced an owner, so the extension is reachable on
+default-scope (`{LIVE}`) schemas and declines on dual-scope ones. That guard is pre-existing and was not
+touched; it is why the `BIDI_REWRITE` fixture needed a LIVE-only reference before the new path could be
+observed at all.
+
+(b), the persisted per-(owner, reference) row counter, is not built. Its `⊤` and its `rowCount_R(o)` are one
+structure rather than two, because the counter's key set **is** the owner bitmap.
 
 ## Rejected outright
 
@@ -199,6 +219,7 @@ produced exactly the three predicted failures:
 | per-index `entityHaving` branch disabled | `shouldComplementEntityHavingAgainstTheReferenceRow` | `[1, 3]` → `[3]` |
 | `IndexTaggedFormula` removed from the `groupHaving` contribution | `shouldBindGroupHavingAndAttributeToTheSameRow` | `[1]` where `[]` is correct |
 | `IndexTaggedFormula` removed from the `groupHaving` contribution | `shouldComplementGroupHavingAgainstTheReferenceRow` | `[3]` where `[1, 3]` is correct |
+| counterpart rewrite's complement disabled | `shouldRewriteANegatedReferenceAttribute` | `3, 6, 9` — the *positive* query's answer — where `1, 2, 4, 5, 7, 8, 10` is correct |
 | fetch-path dispatch reverted | `shouldComplementEntityHavingPerRowWhenFilteringReferenceContent` | `{1=[], 2=[], 3=[2]}` where `{1=[2], 2=[], 3=[2]}` is correct |
 
 Four rows pin the fetch path, which reaches its per-index evaluation by a different route than the filter
@@ -207,7 +228,7 @@ path does: `shouldComplementEntityHavingPerRowWhenFilteringReferenceContent` (th
 rather than a wrong answer when the fetcher suppresses the constraint) and the two
 `...GroupHavingPerRowWhenFilteringReferenceContent` rows.
 
-Suite state on the combined tree: `-Dgroups="reference | facet"` → **3,371 run, 0 failures, 0 errors**; full
+Suite state on the combined tree: `-Dgroups="reference | facet"` → **3,376 run, 0 failures, 0 errors**; full
 `unitAndFunctional` → **24,349 run, 0 failures, 1 error** (`ExportS3ServiceTest`, which needs Docker and
 cannot pass in this environment).
 
@@ -247,9 +268,38 @@ on a plain public query. The constraint is no longer suppressed, and
 `EntityPrimaryKeyInSetTranslator`'s guard names `AbstractReducedEntityIndex` so it actually fires in that
 scope. Still not done: making a *composite* body row-scoped on the fetch path.
 
+**The counterpart rewrite now answers a negated reference attribute, and the fixture had to earn it.** Every
+reference in `BIDI_REWRITE` bar one is indexed in both scopes, and `preparePlanInternal` declines any body
+carrying an attribute constraint once an index outside the requested scopes has announced an owner - so no
+attribute-bearing body reached the rewrite there at all, negated or not, and the obvious witness
+(`shouldNotRewriteWhenNotIsNestedInsideReferenceHaving`) could not observe the change: it passed unaltered
+because it never reached the code. `CATEGORY.scopedProducts` is the one reference whose owner end is LIVE-only,
+so `counterpartScopes` collapses to the requested scope and the guard cannot fire; it gained a filterable,
+non-representative `scopedGrade`, constant across a category's whole product block except for one row carrying
+a value nothing else carries. With the complement disabled, `not(scopedGrade == 0)` answers `3, 6, 9` - the
+*positive* query's answer - where `1, 2, 4, 5, 7, 8, 10` is correct.
+
+Two general lessons, both paid for here. A precondition matrix over `isApplicable` cannot see whether the
+formula it admits is *computed* correctly: the four unit rows would have passed unchanged with the complement
+never applied. And before nominating an existing test as a witness, check what its **positive sibling**
+asserts - had that been done, the cross-scope guard would have been obvious an hour earlier.
+
 **A double negation inside a discovery scope widens twice.** The inner `not` has already widened to the
 super set, so the pair is not visible to the collapse and the outer `not` widens again. Sound — widening a
 candidate set never loses a row — but imprecise.
+
+**Extending the rewrite to a conjunction of attribute siblings is open, and looks reachable.** `splitChildren`
+declines two attribute children, and the exclusion is marked in its own javadoc as *conservative rather than
+proven necessary* - its originally recorded reason was measured wrong in 2026-09-14. The argument for lifting
+it: a referenced entity appears in exactly one of an owner's counterpart reduced indexes, because the index key
+carries the representative-value tuple and a row has exactly one, so `or_i(A_i) ∧ or_j(B_j)` can only be
+satisfied on a single row. Not implemented, and it wants its own witness rather than riding on the negation's.
+
+**`not(entityHaving(…))` is the outstanding half of (c).** It is a complement against the referenced
+collection rather than against one owner's rows: `∃r : target(r) ∉ S` is `allTargets(o) ∩ (allInScope \ S)
+≠ ∅`, which `ReferencedOwnerExistenceFormula` can express by complementing the *shared* narrowing formula
+instead of the per-owner one. The scope question is the awkward part - the bare branch deliberately spans
+every scope a counterpart row can live in, and a complement has to be taken against exactly that set.
 
 **#1584 is not fixed by this work.** `attributeIsNull` on a reference attribute still returns empty. Its
 repair is to treat it as `not(attributeIsNotNull(a))` rather than as a plain leaf: evaluated at type level it
