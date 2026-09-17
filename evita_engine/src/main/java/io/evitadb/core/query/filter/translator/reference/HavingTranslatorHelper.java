@@ -30,6 +30,7 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.collection.EntityCollection;
@@ -49,10 +50,12 @@ import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator.EntityPropertyWithScopes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -64,6 +67,9 @@ import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -341,6 +347,29 @@ public class HavingTranslatorHelper {
 								"Unsupported type-level index type for having constraint: " + typeLevelIndexType
 							);
 						};
+					} else if (typeLevelIndexType == EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE) {
+						// BRANCH B below resolves reduced indexes from the *collection*, so inside a reduced index
+						// it answers "does this owner have any row whose group matches" instead of "does the row
+						// held by THIS index have a matching group". The two differ for every owner holding several
+						// rows of the same reference, which makes the group filter cross-row and lets it combine
+						// wrongly with sibling constraints and with `not`. Evaluate per index instead.
+						if (nestedResult.globalIndex() == null) {
+							return EmptyFormula.INSTANCE;
+						}
+						return FormulaFactory.or(
+							processingScope
+								.getIndexStream()
+								.filter(it -> processingScope.getScopes().contains(it.getIndexKey().scope()))
+								.filter(AbstractReducedEntityIndex.class::isInstance)
+								.map(AbstractReducedEntityIndex.class::cast)
+								.map(
+									it -> createIndexLocalGroupFormula(
+										filterByVisitor, entitySchema, referenceSchema, it,
+										nestedResult.globalIndex(), nestedResult.filter()
+									)
+								)
+								.toArray(Formula[]::new)
+						);
 					} else {
 						if (nestedResult.globalIndex() == null) {
 							return EmptyFormula.INSTANCE;
@@ -394,6 +423,107 @@ public class HavingTranslatorHelper {
 				})
 				.toArray(Formula[]::new)
 		);
+	}
+
+	/**
+	 * Builds the row-exact owner formula contributed by one reduced entity index for a `groupHaving` body.
+	 *
+	 * A reference row is the tuple `(owner, target, representativeValues, group)`, and a reduced entity index
+	 * is keyed by `(referenceName, target, representativeValues)` - so one index holds at most one row per
+	 * owner. The reduced **group** index keyed by the same representative values is therefore the one holding
+	 * that very row, and asking it which owners reference this index's target answers "whose row *here* carries
+	 * one of the matching groups" rather than "who references a matching group at all". That distinction is the
+	 * whole point: the second question is cross-row and combines wrongly with sibling constraints and with `not`.
+	 *
+	 * @param filterByVisitor         visitor used to resolve the group indexes
+	 * @param entitySchema            schema of the owning entity
+	 * @param referenceSchema         schema of the reference carrying the group
+	 * @param targetIndex             the reduced entity index whose rows are being evaluated
+	 * @param groupGlobalIndex        global index of the group entity type, the nested query's universe
+	 * @param groupFilter             formula selecting the matching group primary keys
+	 * @return formula producing the owner primary keys this index contributes
+	 */
+	@Nonnull
+	private static Formula createIndexLocalGroupFormula(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull AbstractReducedEntityIndex targetIndex,
+		@Nonnull GlobalEntityIndex groupGlobalIndex,
+		@Nonnull Formula groupFilter
+	) {
+		final RepresentativeReferenceKey representativeKey = targetIndex.getRepresentativeReferenceKey();
+		final int targetPrimaryKey = representativeKey.referenceKey().primaryKey();
+		final Serializable[] representativeValues = representativeKey.representativeAttributeValues();
+		final Scope scope = targetIndex.getIndexKey().scope();
+		// deliberately NOT wrapped in a `DeferredFormula`: the conditional-facet re-evaluation on the write
+		// path (`ReevaluateExpressionExecutor`) computes filter formulas without ever initialising an
+		// execution context, and a `FormulaWrapper` reached that way fails its own premise check. The
+		// telemetry step that wrapping would add is not worth making this branch unusable there.
+		return new ReferenceOwnerTranslatingFormula(
+			groupGlobalIndex,
+			groupFilter,
+			groupPrimaryKey -> collectOwnersOfTargetInGroup(
+				filterByVisitor, entitySchema, referenceSchema, scope,
+				groupPrimaryKey, targetPrimaryKey, representativeValues
+			),
+			// the expander is bound to THIS index; without an identity the per-index formulas all hash
+			// alike and every one but the first is silently dropped as a duplicate
+			targetIndex.getPrimaryKey()
+		);
+	}
+
+	/**
+	 * Returns the owners whose row for `targetPrimaryKey` - the row held by the reduced entity index carrying
+	 * `representativeValues` - belongs to the group `groupPrimaryKey`.
+	 *
+	 * The representative-value match is what keeps the answer row-exact: a single group may be shared by many
+	 * references and by many rows of one owner, and only the group index built for the same representative
+	 * values describes the row this index holds.
+	 *
+	 * @param filterByVisitor      visitor used to resolve the group indexes
+	 * @param entitySchema         schema of the owning entity
+	 * @param referenceSchema      schema of the reference carrying the group
+	 * @param scope                scope of the reduced entity index being evaluated
+	 * @param groupPrimaryKey      the group the nested query matched
+	 * @param targetPrimaryKey     the referenced entity the evaluated index is keyed by
+	 * @param representativeValues representative attribute values of the evaluated index
+	 * @return owner primary keys, or {@link EmptyBitmap#INSTANCE} when this index contributes none
+	 */
+	@Nonnull
+	private static Bitmap collectOwnersOfTargetInGroup(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Scope scope,
+		int groupPrimaryKey,
+		int targetPrimaryKey,
+		@Nonnull Serializable[] representativeValues
+	) {
+		final List<PersistentRoaringBitmap> matchingOwners = new ArrayList<>(2);
+		filterByVisitor
+			.getReferencedGroupEntityIndexes(entitySchema, referenceSchema, groupPrimaryKey)
+			.filter(it -> it.getIndexKey().scope() == scope)
+			.filter(ReducedGroupEntityIndex.class::isInstance)
+			.map(ReducedGroupEntityIndex.class::cast)
+			.filter(
+				it -> Arrays.equals(
+					it.getRepresentativeReferenceKey().representativeAttributeValues(), representativeValues
+				)
+			)
+			.forEach(it -> {
+				final Bitmap owners = it.getOwnerPKsForReferencedEntity(targetPrimaryKey);
+				if (owners != null && !owners.isEmpty()) {
+					matchingOwners.add(RoaringBitmapBackedBitmap.getRoaringBitmap(owners));
+				}
+			});
+		if (matchingOwners.isEmpty()) {
+			return EmptyBitmap.INSTANCE;
+		}
+		final PersistentRoaringBitmap combinedResult = PersistentRoaringBitmap.or(
+			matchingOwners.toArray(PersistentRoaringBitmap[]::new)
+		);
+		return combinedResult.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(combinedResult);
 	}
 
 	/**

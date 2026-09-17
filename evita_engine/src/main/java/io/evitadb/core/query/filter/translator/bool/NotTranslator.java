@@ -29,12 +29,16 @@ import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
+import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link Not} to {@link AbstractFormula}.
+ *
+ * The negation is emitted as a {@link FutureNotFormula} placeholder rather than a finished formula, because the set
+ * it has to be subtracted from is decided by the enclosing container, not here.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -54,6 +58,14 @@ public class NotTranslator implements FilteringConstraintTranslator<Not> {
 			() -> "Expected exactly one formula from `not` inner constraint dispatch, got " +
 				collectedFormulas.length + " for: `" + notConstraint + "`."
 		);
+		if (ReferencedTypeEntityIndex.class.isAssignableFrom(filterByVisitor.getProcessingScope().getIndexType())) {
+			// The reference type-level index answers "which reduced indexes hold at least one row matching X". It
+			// therefore cannot answer the negation: an index holding a row that matches X may hold another row that
+			// does not, and subtracting the matches would drop it. This pass only narrows the set of indexes the
+			// body is afterwards evaluated against, so the sound answer is the widest one - every index stays a
+			// candidate and the negation is settled per row, inside the index it belongs to.
+			return filterByVisitor.getSuperSetFormula();
+		}
 		return new FutureNotFormula(collectedFormulas[0]);
 	}
 

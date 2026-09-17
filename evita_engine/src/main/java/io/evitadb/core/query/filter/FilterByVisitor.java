@@ -58,6 +58,7 @@ import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
+import io.evitadb.core.query.algebra.reference.IndexTaggedFormula;
 import io.evitadb.core.query.algebra.reference.ReferencedEntityIndexPrimaryKeyTranslatingFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
@@ -1347,7 +1348,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 */
 	@Nonnull
 	public Formula applyOnIndexes(@Nonnull Function<EntityIndex, Formula> formulaFunction) {
-		return joinFormulas(getEntityIndexStream().map(formulaFunction));
+		return joinFormulas(
+			getEntityIndexStream().map(it -> tagWithProducingIndex(it, formulaFunction.apply(it)))
+		);
 	}
 
 	/**
@@ -1387,7 +1390,10 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 */
 	@Nonnull
 	public Formula applyStreamOnIndexes(@Nonnull Function<EntityIndex, Stream<Formula>> formulaFunction) {
-		return joinFormulas(getEntityIndexStream().flatMap(formulaFunction));
+		return joinFormulas(
+			getEntityIndexStream()
+				.flatMap(it -> formulaFunction.apply(it).map(formula -> tagWithProducingIndex(it, formula)))
+		);
 	}
 
 	/**
@@ -1469,7 +1475,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				.map(
 					entityIndex -> {
 						final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(referenceSchema, attributeDefinition, getLocale());
-						return uniqueIndex == null ? EmptyFormula.INSTANCE : formulaFunction.apply(uniqueIndex);
+						return uniqueIndex == null ?
+							EmptyFormula.INSTANCE :
+							tagWithProducingIndex(entityIndex, formulaFunction.apply(uniqueIndex));
 					}
 				)
 		);
@@ -1572,6 +1580,28 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	/*
 		PRIVATE METHODS
 	 */
+
+	/**
+	 * Records which index produced a per-index leaf, while a `referenceHaving` body is being translated.
+	 *
+	 * Outside such a body the tag would be noise - there is nothing to rebuild per index - so it is attached only
+	 * when a reference schema is in scope, which is what "inside a `referenceHaving` body" actually means. The
+	 * index type alone does not say that: when index selection picks the reduced-index option for the whole
+	 * query, a top-level constraint is translated in a reduced-index scope too.
+	 *
+	 * An {@link EmptyFormula} is left untagged because it carries no contribution to attribute to an index, and
+	 * {@link #joinFormulas(Stream)} drops it immediately afterwards regardless.
+	 *
+	 * @param entityIndex the index the formula was produced from
+	 * @param formula     the produced formula
+	 * @return the formula, tagged when a tag is meaningful here
+	 */
+	@Nonnull
+	private Formula tagWithProducingIndex(@Nonnull EntityIndex entityIndex, @Nonnull Formula formula) {
+		return formula instanceof EmptyFormula || getProcessingScope().getReferenceSchema() == null ?
+			formula :
+			new IndexTaggedFormula(entityIndex.getPrimaryKey(), formula);
+	}
 
 	/**
 	 * Joins formulas into one OR formula.
