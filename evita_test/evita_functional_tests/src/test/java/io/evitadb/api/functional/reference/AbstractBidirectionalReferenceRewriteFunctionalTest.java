@@ -199,6 +199,7 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 	public static final String REF_PRODUCT_SCOPED_CATEGORIES = "scopedCategories";
 	// original -> CATEGORY, no reflected counterpart; the only reference carrying per-ROW attribute values
 	public static final String REF_PRODUCT_CROSS_ROW_CATEGORIES = "crossRowCategories";
+	public static final String REF_PRODUCT_GROUPED_CATEGORIES = "groupedCategories";
 
 	// references declared on CATEGORY
 	public static final String REF_CATEGORY_PRODUCTS = "products";          // reflected of PRODUCT.categories
@@ -234,6 +235,8 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 	public static final String REF_ATTR_TIER = "tier";
 	// String filterable, on PRODUCT.crossRowCategories - NOT representative, for the same reason
 	public static final String REF_ATTR_MARK = "mark";
+	// Long filterable, on PRODUCT.groupedCategories - NOT representative, for the same reason
+	public static final String REF_ATTR_GRADE = "grade";
 
 	// entity attributes on CATEGORY
 	public static final String ATTR_CODE = "code";                          // String, unique + filterable
@@ -354,6 +357,16 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 	 * conjunction inside one index - per-row by accident, and blind to the defect.
 	 */
 	public static final int CROSS_ROW_SCOPE_PRODUCT_PK = 3;
+
+	/**
+	 * The two BRAND primary keys playing the reference GROUPS of `PRODUCT.groupedCategories`, and the two values
+	 * of its non-representative `grade` attribute. Brands 1..8 already exist, so the group collection needs no
+	 * new entities.
+	 */
+	public static final int GROUPED_MATCHED_GROUP_PK = 1;
+	public static final int GROUPED_OTHER_GROUP_PK = 2;
+	public static final long GROUPED_MATCHED_GRADE = 7L;
+	public static final long GROUPED_OTHER_GRADE = 8L;
 	/**
 	 * Highest product primary key carrying a `PRODUCT.weakTags` row.
 	 */
@@ -637,6 +650,16 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 						thatIs -> thatIs.filterableInScope(Scope.values())
 					)
 			)
+			.withReferenceToEntity(
+				REF_PRODUCT_GROUPED_CATEGORIES, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs
+					.indexedForFilteringAndPartitioningInScope(Scope.values())
+					.withGroupTypeRelatedToEntity(Entities.BRAND)
+					.withAttribute(
+						REF_ATTR_GRADE, Long.class,
+						thatIs -> thatIs.filterableInScope(Scope.values())
+					)
+			)
 			.withReflectedReferenceToEntity(
 				REF_PRODUCT_CURATED_BY, Entities.CATEGORY, REF_CATEGORY_CURATED,
 				whichIs -> whichIs
@@ -849,6 +872,25 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 			addCrossRowReference(builder, CROSS_ROW_CATEGORY_B_PK, CROSS_ROW_MATCHED_TIER, CROSS_ROW_OTHER_MARK);
 		}
 
+		// three rows over the same two categories, carrying reference GROUPS - the witness holds a row that
+		// matches the group and a row that matches the grade, and they are DIFFERENT rows. The decoy exists so
+		// that the grade leaf reaches category A as well: without it the type-level pass narrows the candidate
+		// set to category B alone, the body is answered inside a single index and the cross-row defect is
+		// invisible - the same accident product 3 prevents for `crossRowCategories`.
+		if (productPk == CROSS_ROW_SPLIT_PRODUCT_PK) {
+			addGroupedReference(
+				builder, CROSS_ROW_CATEGORY_A_PK, GROUPED_MATCHED_GROUP_PK, GROUPED_OTHER_GRADE
+			);
+			addGroupedReference(
+				builder, CROSS_ROW_CATEGORY_B_PK, GROUPED_OTHER_GROUP_PK, GROUPED_MATCHED_GRADE
+			);
+		}
+		if (productPk == CROSS_ROW_SCOPE_PRODUCT_PK) {
+			addGroupedReference(
+				builder, CROSS_ROW_CATEGORY_A_PK, GROUPED_OTHER_GROUP_PK, GROUPED_MATCHED_GRADE
+			);
+		}
+
 		if (productPk <= LAST_WEAK_TAG_PRODUCT_PK) {
 			final long weakValue = productPk % 3;
 			builder.setReference(
@@ -921,6 +963,29 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 			whichIs -> {
 				whichIs.setAttribute(REF_ATTR_TIER, tier);
 				whichIs.setAttribute(REF_ATTR_MARK, mark);
+			}
+		);
+	}
+
+	/**
+	 * Adds one `PRODUCT.groupedCategories` row, carrying a reference group and the non-representative `grade`.
+	 *
+	 * @param builder    builder of the owning product
+	 * @param categoryPk primary key of the referenced category
+	 * @param groupPk    primary key of the BRAND acting as this row's reference group
+	 * @param grade      value of the non-representative `grade` attribute
+	 */
+	private static void addGroupedReference(
+		@Nonnull EntityBuilder builder,
+		int categoryPk,
+		int groupPk,
+		long grade
+	) {
+		builder.setReference(
+			REF_PRODUCT_GROUPED_CATEGORIES, categoryPk,
+			whichIs -> {
+				whichIs.setGroup(Entities.BRAND, groupPk);
+				whichIs.setAttribute(REF_ATTR_GRADE, grade);
 			}
 		);
 	}

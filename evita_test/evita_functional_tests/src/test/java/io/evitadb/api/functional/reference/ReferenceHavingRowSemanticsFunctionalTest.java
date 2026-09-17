@@ -971,6 +971,168 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 	}
 
 	/**
+	 * A `groupHaving` conjunct has to bind to the **same reference row** as its sibling, exactly as
+	 * {@link #shouldBindEntityPrimaryKeyInSetAndAttributeToTheSameRow} requires of an attribute conjunct.
+	 *
+	 * There is no negation anywhere in this shape, which is what makes it worth pinning: the conjunction must
+	 * not collapse into "this owner has some row in a matching group" AND "this owner has some row carrying the
+	 * grade", which two different rows of one owner can satisfy between them.
+	 *
+	 * What holds it row-exact is `HavingTranslatorHelper#createIndexLocalGroupFormula`, which asks each reduced
+	 * index about the row IT holds rather than asking the collection whether the owner is in the group anywhere.
+	 * This row exists because that method's contributions carry no `IndexTaggedFormula`, unlike the sibling
+	 * `entityHaving` branch, and an untagged subtree is one `ReferenceBodyTransposer#project` returns whole for
+	 * every index - so the row-exactness looked like it might be cosmetic. It is not: with the group branch
+	 * disabled this row answers `[3]` where `[]` is correct.
+	 *
+	 * The decoy row on category A is load bearing - see the dataset comment beside it. Without it the grade leaf
+	 * reaches only category B, the type-level pass narrows the candidate set to that one index, and the body is
+	 * answered inside a single index where the two readings cannot differ.
+	 *
+	 * @param evita            the engine
+	 * @param originalProducts all products, fully fetched, as the dataset built them
+	 */
+	@DisplayName("`groupHaving` binds to the same reference row as its sibling conjunct")
+	@UseDataSet(BIDI_REWRITE)
+	@Test
+	void shouldBindGroupHavingAndAttributeToTheSameRow(Evita evita, List<SealedEntity> originalProducts) {
+		final Predicate<ReferenceContract> inMatchedGroup =
+			row -> groupIs(row, GROUPED_MATCHED_GROUP_PK);
+		final Predicate<ReferenceContract> carriesMatchedGrade =
+			row -> longAttributeIs(row, REF_ATTR_GRADE, GROUPED_MATCHED_GRADE);
+
+		final Set<Integer> expected = originalProducts.stream()
+			.filter(it -> holdsGroupedRow(it, inMatchedGroup.and(carriesMatchedGrade)))
+			.map(SealedEntity::getPrimaryKey)
+			.collect(Collectors.toCollection(TreeSet::new));
+		final Set<Integer> pooledReading = originalProducts.stream()
+			.filter(it -> holdsGroupedRow(it, inMatchedGroup) && holdsGroupedRow(it, carriesMatchedGrade))
+			.map(SealedEntity::getPrimaryKey)
+			.collect(Collectors.toCollection(TreeSet::new));
+		assertTrue(
+			expected.isEmpty(),
+			"No single row may carry both the group and the grade - that is what makes this shape cross-row."
+		);
+		assertFalse(
+			pooledReading.isEmpty(),
+			"Fixture must contain an owner carrying the group on one row and the grade on another, or the " +
+				"row-scoped and the pooled readings coincide and this row proves nothing."
+		);
+
+		assertEquals(
+			expected,
+			matchingProductsByGroupedCategories(
+				evita,
+				and(
+					groupHaving(entityPrimaryKeyInSet(GROUPED_MATCHED_GROUP_PK)),
+					attributeEquals(REF_ATTR_GRADE, GROUPED_MATCHED_GRADE)
+				)
+			),
+			"Both conjuncts must hold on one and the same reference row. Pooling them across the owner's rows " +
+				"would return " + pooledReading + " instead."
+		);
+	}
+
+	/**
+	 * The negated group body - `not(groupHaving(...))` - has to be complemented per reference row.
+	 *
+	 * Row-scoped, an owner matches when it holds a row whose group is NOT the excluded one. The per-owner
+	 * reading instead asks whether the owner belongs to that group anywhere, and so drops an owner holding a
+	 * matching row alongside a non-matching one. With the group branch of `HavingTranslatorHelper` disabled this
+	 * row answers `[1]` where `[1, 3]` is correct, which is what makes it a guard rather than a decoration.
+	 *
+	 * @param evita            the engine
+	 * @param originalProducts all products, fully fetched, as the dataset built them
+	 */
+	@DisplayName("`not(groupHaving)` selects owners holding a row in some other group")
+	@UseDataSet(BIDI_REWRITE)
+	@Test
+	void shouldComplementGroupHavingAgainstTheReferenceRow(Evita evita, List<SealedEntity> originalProducts) {
+		final Predicate<ReferenceContract> inMatchedGroup = row -> groupIs(row, GROUPED_MATCHED_GROUP_PK);
+
+		final Set<Integer> expected = originalProducts.stream()
+			.filter(it -> holdsGroupedRow(it, inMatchedGroup.negate()))
+			.map(SealedEntity::getPrimaryKey)
+			.collect(Collectors.toCollection(TreeSet::new));
+		final Set<Integer> perOwnerReading = originalProducts.stream()
+			.filter(it -> !it.getReferences(REF_PRODUCT_GROUPED_CATEGORIES).isEmpty())
+			.filter(it -> !holdsGroupedRow(it, inMatchedGroup))
+			.map(SealedEntity::getPrimaryKey)
+			.collect(Collectors.toCollection(TreeSet::new));
+		assertFalse(expected.isEmpty(), "Fixture must contain an owner holding a row in another group.");
+		assertNotEquals(
+			perOwnerReading, expected,
+			"Fixture must contain an owner holding a row in the excluded group AND a row elsewhere, or the " +
+				"row-scoped and the per-owner readings coincide and this row proves nothing."
+		);
+
+		assertEquals(
+			expected,
+			matchingProductsByGroupedCategories(
+				evita, not(groupHaving(entityPrimaryKeyInSet(GROUPED_MATCHED_GROUP_PK)))
+			),
+			"The negation must be taken inside each reference row. Complementing across the owner would " +
+				"return " + perOwnerReading + " instead."
+		);
+	}
+
+	/**
+	 * Runs a `referenceHaving` over the `groupedCategories` reference on the index-scan path.
+	 *
+	 * @param evita the engine
+	 * @param body  the body of the reference constraint
+	 * @return primary keys of matching products
+	 */
+	@Nonnull
+	private static Set<Integer> matchingProductsByGroupedCategories(
+		@Nonnull Evita evita,
+		@Nonnull FilterConstraint body
+	) {
+		return evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(referenceHaving(REF_PRODUCT_GROUPED_CATEGORIES, body)),
+						require(debug(DebugMode.PREFER_INDEX_SCAN), page(1, Integer.MAX_VALUE))
+					),
+					EntityReference.class
+				);
+				return result.getRecordData()
+					.stream()
+					.map(EntityReference::getPrimaryKey)
+					.collect(Collectors.toCollection(TreeSet::new));
+			}
+		);
+	}
+
+	/**
+	 * Answers whether the product holds a `groupedCategories` row satisfying the predicate.
+	 *
+	 * @param product      product to examine
+	 * @param rowPredicate predicate the row must satisfy
+	 * @return true when such a row exists
+	 */
+	private static boolean holdsGroupedRow(
+		@Nonnull SealedEntity product,
+		@Nonnull Predicate<ReferenceContract> rowPredicate
+	) {
+		return product.getReferences(REF_PRODUCT_GROUPED_CATEGORIES).stream().anyMatch(rowPredicate);
+	}
+
+	/**
+	 * Answers whether the reference row belongs to the given group.
+	 *
+	 * @param row     row to examine
+	 * @param groupPk primary key the row's group must carry
+	 * @return true when the row carries that group
+	 */
+	private static boolean groupIs(@Nonnull ReferenceContract row, int groupPk) {
+		return row.getGroup().map(it -> it.getPrimaryKey() == groupPk).orElse(false);
+	}
+
+	/**
 	 * Runs `userFilter(facetHaving(brand, body))` on the PRODUCT collection and returns the matched primary keys.
 	 *
 	 * @param evita     the engine
