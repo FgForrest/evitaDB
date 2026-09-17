@@ -1,7 +1,7 @@
 ---
 title: A referenceHaving body is a predicate about one reference row, evaluated by transposing the planned formula per reduced index
 date: 2026-09-17
-updated: 2026-09-17 14:10
+updated: 2026-09-17 20:25
 status: partially-implemented
 kind: fix
 issues: [1585]
@@ -325,6 +325,25 @@ whose schema omits `REFERENCED_GROUP_ENTITY` silently answers empty rather than 
 already throws for the analogous bucketed-histogram case (`ReferenceSchema:1163`), so there is precedent for
 making it loud -- and a guard whose expected value coincides with the degenerate answer proves nothing, however
 convincingly its counterfactual moves.
+
+**That silence is now a refusal.** `GroupHavingTranslator` asks
+`HavingTranslatorHelper#assertGroupComponentIndexed` whether any queried scope carries
+`REFERENCED_GROUP_ENTITY`, and raises `EvitaInvalidUsageException` naming the reference, the queried scopes and
+the schema setting when none does. Measured on a two-product fixture before the guard existed:
+`not(groupHaving(entityPrimaryKeyInSet(g)))` answered `[1, 2]` -- every live product -- where `[2]` is correct.
+The check passes as soon as **one** queried scope carries the component, because a schema may index groups in
+one scope and not another and the scopes that cannot answer contribute nothing to the union; and it stays
+silent when the reference is indexed in no queried scope, deferring to the `ReferenceNotIndexedException` the
+throwing stub from `ReferencedTypeEntityIndex#createThrowingStub` already raises with a better message.
+
+**There is deliberately no `entityHaving` counterpart, and the reason is a second defect.** Such a guard could
+never fire: when no queried scope carries `REFERENCED_ENTITY` there is no reduced entity index in any of them,
+and `referenceHaving` resolves to an empty result *before* its body is translated. The short-circuit itself is
+wrong -- a reference indexed for `REFERENCED_GROUP_ENTITY` alone answers even `groupHaving` with nothing, the
+one constraint that component exists to serve (measured: schema `LIVE=[REFERENCED_GROUP_ENTITY]`, an owner
+carrying the matching group, result `[]` where `[1]` is correct). It lives in index selection rather than in
+translation, it is not a small fix, and it was left untouched rather than papered over by a guard that cannot
+be reached.
 
 **User documentation is not yet updated.** It must state the row-scoped rule and that `⊥` is an ordinary
 value for reference attributes — `not(attributeEquals(a, v))` matching a row that does not carry `a` is
