@@ -921,6 +921,63 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 	}
 
 	/**
+	 * `not(entityPrimaryKeyInSet(...))` inside a **`referenceContent` filter** has to be complemented per reference
+	 * row, exactly as {@link #shouldComplementEntityPrimaryKeyInSetAgainstTheReferenceRow} requires of the filtering
+	 * path.
+	 *
+	 * The fetch path reaches its per-index evaluation through
+	 * `ReferencedEntityFetcher#computeResultWithPassedIndex`, which suppresses `EntityPrimaryKeyInSet` while the
+	 * body is translated - the constraint is expected to have been applied already, by the index discovery that
+	 * chose which reduced indexes to visit. Under a negation that expectation does not hold: discovery widens a
+	 * negated leaf to the whole candidate set, so the complement has to be taken inside each index, and there is
+	 * nothing left there to take it against.
+	 *
+	 * @param evita            the engine
+	 * @param originalProducts all products, fully fetched, as the dataset built them
+	 */
+	@DisplayName("`not(entityPrimaryKeyInSet)` filtering reference content keeps the rows pointing elsewhere")
+	@UseDataSet(BIDI_REWRITE)
+	@Test
+	void shouldComplementEntityPrimaryKeyInSetPerRowWhenFilteringReferenceContent(
+		Evita evita,
+		List<SealedEntity> originalProducts
+	) {
+		final Map<Integer, Set<Integer>> expected = new TreeMap<>();
+		final Map<Integer, Set<Integer>> perOwnerReading = new TreeMap<>();
+		for (final SealedEntity product : originalProducts) {
+			if (product.getReferences(REF_PRODUCT_CROSS_ROW_CATEGORIES).isEmpty()) {
+				continue;
+			}
+			final Set<Integer> targets = product.getReferences(REF_PRODUCT_CROSS_ROW_CATEGORIES)
+				.stream()
+				.map(ReferenceContract::getReferencedPrimaryKey)
+				.collect(Collectors.toCollection(TreeSet::new));
+			expected.put(
+				Objects.requireNonNull(product.getPrimaryKey()),
+				targets.stream()
+					.filter(it -> it != CROSS_ROW_CATEGORY_A_PK)
+					.collect(Collectors.toCollection(TreeSet::new))
+			);
+			perOwnerReading.put(
+				Objects.requireNonNull(product.getPrimaryKey()),
+				targets.contains(CROSS_ROW_CATEGORY_A_PK) ? new TreeSet<>() : new TreeSet<>(targets)
+			);
+		}
+		assertNotEquals(
+			perOwnerReading, expected,
+			"Fixture must contain an owner holding a row on the excluded category AND a row elsewhere, or the " +
+				"row-scoped and the per-owner readings coincide and this row proves nothing."
+		);
+
+		assertEquals(
+			expected,
+			crossRowReferencesFilteredBy(evita, not(entityPrimaryKeyInSet(CROSS_ROW_CATEGORY_A_PK))),
+			"Each reference row must be judged on its own target. Complementing across the owner would return " +
+				perOwnerReading + " instead."
+		);
+	}
+
+	/**
 	 * Fetches `crossRowCategories` reference content narrowed by the given filter and returns, per owner, the
 	 * categories its surviving rows point at.
 	 *
@@ -979,11 +1036,11 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 	 * grade", which two different rows of one owner can satisfy between them.
 	 *
 	 * What holds it row-exact is `HavingTranslatorHelper#createIndexLocalGroupFormula`, which asks each reduced
-	 * index about the row IT holds rather than asking the collection whether the owner is in the group anywhere.
-	 * This row exists because that method's contributions carry no `IndexTaggedFormula`, unlike the sibling
-	 * `entityHaving` branch, and an untagged subtree is one `ReferenceBodyTransposer#project` returns whole for
-	 * every index - so the row-exactness looked like it might be cosmetic. It is not: with the group branch
-	 * disabled this row answers `[3]` where `[]` is correct.
+	 * index about the row IT holds rather than asking the collection whether the owner is in the group anywhere -
+	 * and which has to wrap its contribution in an `IndexTaggedFormula` for that to survive the rebuild. It did
+	 * not, and this row is what caught it: an untagged subtree is one `ReferenceBodyTransposer#project` returns
+	 * whole for every index, so the group conjunct stopped constraining the row it belongs to. Remove the tag
+	 * again and this row answers `[1]` where `[]` is correct.
 	 *
 	 * The decoy row on category A is load bearing - see the dataset comment beside it. Without it the grade leaf
 	 * reaches only category B, the type-level pass narrows the candidate set to that one index, and the body is
@@ -1038,8 +1095,12 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 	 *
 	 * Row-scoped, an owner matches when it holds a row whose group is NOT the excluded one. The per-owner
 	 * reading instead asks whether the owner belongs to that group anywhere, and so drops an owner holding a
-	 * matching row alongside a non-matching one. With the group branch of `HavingTranslatorHelper` disabled this
-	 * row answers `[1]` where `[1, 3]` is correct, which is what makes it a guard rather than a decoration.
+	 * matching row alongside a non-matching one. Remove the `IndexTaggedFormula` from
+	 * `HavingTranslatorHelper#createIndexLocalGroupFormula` and this row answers `[3]` where `[1, 3]` is correct.
+	 *
+	 * Both numbers depend on the fixture actually maintaining group indexes - see the indexed-components note
+	 * beside the `groupedCategories` declaration. Without them every `groupHaving` answers empty, `not` of empty
+	 * is everything, and this row passes while proving nothing.
 	 *
 	 * @param evita            the engine
 	 * @param originalProducts all products, fully fetched, as the dataset built them
@@ -1073,6 +1134,200 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 			),
 			"The negation must be taken inside each reference row. Complementing across the owner would " +
 				"return " + perOwnerReading + " instead."
+		);
+	}
+
+	/**
+	 * `groupHaving` inside a **`referenceContent` filter** has to be answered per reference row, exactly as
+	 * {@link #shouldBindGroupHavingAndAttributeToTheSameRow} requires of the filtering path.
+	 *
+	 * The reference group is a property of the ROW, not of the referenced entity: two owners may reference the
+	 * same category and put that row in different groups. `ReferencedEntityFetcher` answers the constraint by
+	 * translating the matching groups into referenced entity primary keys and then dropping whole reduced indexes
+	 * whose target is not among them, which cannot tell those two owners apart.
+	 *
+	 * The fixture is built to tell them apart: product 1 holds category A in the matched group, product 3 holds
+	 * category A in the other one. A target-scoped reading admits category A for both.
+	 *
+	 * @param evita            the engine
+	 * @param originalProducts all products, fully fetched, as the dataset built them
+	 */
+	@DisplayName("`groupHaving` filtering reference content keeps only the rows in the matching group")
+	@UseDataSet(BIDI_REWRITE)
+	@Test
+	void shouldBindGroupHavingPerRowWhenFilteringReferenceContent(
+		Evita evita,
+		List<SealedEntity> originalProducts
+	) {
+		final Predicate<ReferenceContract> inMatchedGroup = row -> groupIs(row, GROUPED_MATCHED_GROUP_PK);
+		final Map<Integer, Set<Integer>> expected = groupedTargetsSatisfying(originalProducts, inMatchedGroup);
+		final Map<Integer, Set<Integer>> targetScopedReading = groupedTargetsReachableFromGroup(
+			originalProducts, inMatchedGroup
+		);
+		assertNotEquals(
+			targetScopedReading, expected,
+			"Fixture must contain two owners referencing one category from different groups, or the row-scoped " +
+				"and the target-scoped readings coincide and this row proves nothing."
+		);
+
+		assertEquals(
+			expected,
+			groupedReferencesFilteredBy(evita, groupHaving(entityPrimaryKeyInSet(GROUPED_MATCHED_GROUP_PK))),
+			"Each reference row must be judged on its own group. Reading the group off the referenced entity " +
+				"would return " + targetScopedReading + " instead."
+		);
+	}
+
+	/**
+	 * `not(groupHaving(...))` inside a **`referenceContent` filter** has to be complemented per reference row.
+	 *
+	 * Row-scoped, a row survives when its own group is not the excluded one - so product 3's category A row
+	 * survives, because that row sits in the other group, even though product 1 puts the same category in the
+	 * excluded one.
+	 *
+	 * @param evita            the engine
+	 * @param originalProducts all products, fully fetched, as the dataset built them
+	 */
+	@DisplayName("`not(groupHaving)` filtering reference content keeps the rows grouped elsewhere")
+	@UseDataSet(BIDI_REWRITE)
+	@Test
+	void shouldComplementGroupHavingPerRowWhenFilteringReferenceContent(
+		Evita evita,
+		List<SealedEntity> originalProducts
+	) {
+		final Predicate<ReferenceContract> inMatchedGroup = row -> groupIs(row, GROUPED_MATCHED_GROUP_PK);
+		final Map<Integer, Set<Integer>> expected = groupedTargetsSatisfying(
+			originalProducts, inMatchedGroup.negate()
+		);
+		final Map<Integer, Set<Integer>> targetScopedReading = new TreeMap<>();
+		final Map<Integer, Set<Integer>> reachable = groupedTargetsReachableFromGroup(
+			originalProducts, inMatchedGroup
+		);
+		for (final Map.Entry<Integer, Set<Integer>> entry : groupedTargetsSatisfying(
+			originalProducts, row -> true
+		).entrySet()) {
+			final Set<Integer> surviving = new TreeSet<>(entry.getValue());
+			surviving.removeAll(reachable.getOrDefault(entry.getKey(), Set.of()));
+			targetScopedReading.put(entry.getKey(), surviving);
+		}
+		assertNotEquals(
+			targetScopedReading, expected,
+			"Fixture must contain two owners referencing one category from different groups, or the row-scoped " +
+				"and the target-scoped readings coincide and this row proves nothing."
+		);
+
+		assertEquals(
+			expected,
+			groupedReferencesFilteredBy(evita, not(groupHaving(entityPrimaryKeyInSet(GROUPED_MATCHED_GROUP_PK)))),
+			"Each reference row must be complemented on its own group. Subtracting the categories reachable " +
+				"from the excluded group would return " + targetScopedReading + " instead."
+		);
+	}
+
+	/**
+	 * Returns, per owner of a `groupedCategories` row, the targets of the rows satisfying the predicate.
+	 *
+	 * @param originalProducts all products, fully fetched
+	 * @param rowPredicate     the predicate a row must satisfy
+	 * @return owner primary key to the targets of its satisfying rows
+	 */
+	@Nonnull
+	private static Map<Integer, Set<Integer>> groupedTargetsSatisfying(
+		@Nonnull List<SealedEntity> originalProducts,
+		@Nonnull Predicate<ReferenceContract> rowPredicate
+	) {
+		final Map<Integer, Set<Integer>> result = new TreeMap<>();
+		for (final SealedEntity product : originalProducts) {
+			if (product.getReferences(REF_PRODUCT_GROUPED_CATEGORIES).isEmpty()) {
+				continue;
+			}
+			result.put(
+				Objects.requireNonNull(product.getPrimaryKey()),
+				product.getReferences(REF_PRODUCT_GROUPED_CATEGORIES)
+					.stream()
+					.filter(rowPredicate)
+					.map(ReferenceContract::getReferencedPrimaryKey)
+					.collect(Collectors.toCollection(TreeSet::new))
+			);
+		}
+		return result;
+	}
+
+	/**
+	 * Returns, per owner, the targets its rows point at that ANY owner reaches through a matching group - the
+	 * target-scoped reading the row-scoped tests exist to rule out.
+	 *
+	 * @param originalProducts all products, fully fetched
+	 * @param rowPredicate     the predicate selecting the matching group
+	 * @return owner primary key to the targets admitted by the target-scoped reading
+	 */
+	@Nonnull
+	private static Map<Integer, Set<Integer>> groupedTargetsReachableFromGroup(
+		@Nonnull List<SealedEntity> originalProducts,
+		@Nonnull Predicate<ReferenceContract> rowPredicate
+	) {
+		final Set<Integer> reachableTargets = originalProducts.stream()
+			.flatMap(it -> it.getReferences(REF_PRODUCT_GROUPED_CATEGORIES).stream())
+			.filter(rowPredicate)
+			.map(ReferenceContract::getReferencedPrimaryKey)
+			.collect(Collectors.toCollection(TreeSet::new));
+		final Map<Integer, Set<Integer>> result = new TreeMap<>();
+		for (final Map.Entry<Integer, Set<Integer>> entry : groupedTargetsSatisfying(
+			originalProducts, row -> true
+		).entrySet()) {
+			result.put(
+				entry.getKey(),
+				entry.getValue().stream()
+					.filter(reachableTargets::contains)
+					.collect(Collectors.toCollection(TreeSet::new))
+			);
+		}
+		return result;
+	}
+
+	/**
+	 * Fetches `groupedCategories` reference content narrowed by the given filter and returns, per owner, the
+	 * categories its surviving rows point at.
+	 *
+	 * @param evita  the engine
+	 * @param filter the constraint narrowing the fetched rows
+	 * @return owner primary key to the targets of its surviving rows
+	 */
+	@Nonnull
+	private static Map<Integer, Set<Integer>> groupedReferencesFilteredBy(
+		@Nonnull Evita evita,
+		@Nonnull FilterConstraint filter
+	) {
+		return evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(CROSS_ROW_SPLIT_PRODUCT_PK, CROSS_ROW_SCOPE_PRODUCT_PK)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							entityFetch(
+								referenceContent(REF_PRODUCT_GROUPED_CATEGORIES, filterBy(filter))
+							)
+						)
+					),
+					SealedEntity.class
+				);
+				final Map<Integer, Set<Integer>> fetched = new TreeMap<>();
+				for (final SealedEntity product : result.getRecordData()) {
+					fetched.put(
+						Objects.requireNonNull(product.getPrimaryKey()),
+						product.getReferences(REF_PRODUCT_GROUPED_CATEGORIES)
+							.stream()
+							.map(ReferenceContract::getReferencedPrimaryKey)
+							.collect(Collectors.toCollection(TreeSet::new))
+					);
+				}
+				return fetched;
+			}
 		);
 	}
 
