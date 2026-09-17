@@ -1,7 +1,7 @@
 ---
 title: A referenceHaving body is a predicate about one reference row, evaluated by transposing the planned formula per reduced index
 date: 2026-09-17
-updated: 2026-09-17 20:25
+updated: 2026-09-17 20:38
 status: partially-implemented
 kind: fix
 issues: [1585]
@@ -341,9 +341,13 @@ never fire: when no queried scope carries `REFERENCED_ENTITY` there is no reduce
 and `referenceHaving` resolves to an empty result *before* its body is translated. The short-circuit itself is
 wrong -- a reference indexed for `REFERENCED_GROUP_ENTITY` alone answers even `groupHaving` with nothing, the
 one constraint that component exists to serve (measured: schema `LIVE=[REFERENCED_GROUP_ENTITY]`, an owner
-carrying the matching group, result `[]` where `[1]` is correct). It lives in index selection rather than in
-translation, it is not a small fix, and it was left untouched rather than papered over by a guard that cannot
-be reached.
+carrying the matching group, result `[]` where `[1]` is correct). The cut is
+`IndexSelectionResult#isEmpty`, which treats an empty candidate index set as proof that the reference has no
+rows -- true when nothing matches, false when the rows are indexed in a family index selection never consults.
+It lives in index selection rather than in translation, it is not a small fix, and it was left untouched
+rather than papered over by a guard that cannot be reached. Filed as **#1601**, which shares that shortcut
+with **#1583** from the opposite side: there the index is genuinely never built, here it exists and is not
+looked at.
 
 **User documentation is not yet updated.** It must state the row-scoped rule and that `⊥` is an ordinary
 value for reference attributes — `not(attributeEquals(a, v))` matching a row that does not carry `a` is
