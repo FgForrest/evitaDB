@@ -90,9 +90,18 @@ import static java.util.Optional.ofNullable;
 
 /**
  * Referenced type entity index exists once per {@link EntitySchemaContract#getReference(String)} and indexes not
- * the owner entity primary key, but the referenced entity primary key with attributes that lay on the reference
- * relation. We need this index to be able to navigate to {@link AbstractReducedEntityIndex} that were specially created to
- * speed up queries that involve the references.
+ * the owner entity primary key, but the primary key of the {@link AbstractReducedEntityIndex} holding the rows of
+ * one referenced entity, together with attributes that lay on the reference relation. We need this index to be
+ * able to navigate to those reduced indexes, which were specially created to speed up queries that involve the
+ * references.
+ *
+ * **It stores reduced index primary keys, not referenced entity primary keys**, and the two are easy to confuse
+ * because the reference relation connects them. {@link #insertPrimaryKeyIfMissing(int, int)} is handed both and
+ * stores only the first; the second is tracked for cardinality alone. A filter evaluated against this index
+ * therefore yields reduced index primary keys, which is why
+ * {@link io.evitadb.core.query.filter.FilterByVisitor#getReferencedRecordIdFormula} translates them through
+ * {@link AbstractReducedEntityIndex#getReferenceKey()} before handing them to a caller that wants referenced
+ * entity primary keys.
  *
  * This index doesn't maintain the prices of entities — only the attributes present on relations.
  *
