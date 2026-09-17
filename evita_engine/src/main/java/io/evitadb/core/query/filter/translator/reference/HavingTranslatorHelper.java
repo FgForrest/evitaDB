@@ -373,13 +373,20 @@ public class HavingTranslatorHelper {
 								.toArray(Formula[]::new)
 						);
 					} else if (processingScope.getReferenceSchema() != null &&
-						ReducedEntityIndex.class.isAssignableFrom(processingScope.getIndexType())) {
+						AbstractReducedEntityIndex.class.isAssignableFrom(processingScope.getIndexType())) {
 						// BRANCH B below resolves the reduced indexes from the *collection*, so inside a reduced
 						// index it answers "does this owner have any row whose target matches" instead of "does the
 						// row held by THIS index have a matching target" - the same cross-row reading the group
 						// branch above exists to avoid. A `not` around it then complements an owner-level set and
 						// answers "this owner references nothing matching", dropping every owner holding a matching
 						// row AND a non-matching one.
+						// the guard names the ABSTRACT class deliberately, and narrowing it to `ReducedEntityIndex`
+						// silently reopens the defect on the fetch path: `ReferenceHavingTranslator` declares its
+						// scope as `ReducedEntityIndex`, but `ReferencedEntityFetcher#computeResultWithPassedIndex`
+						// declares the superclass - it may legitimately be handed a group index - even though the
+						// index it passes is a reduced entity one. Which rows survive a filtered `referenceContent`
+						// is decided here too, so both scopes have to reach this branch. Dispatching on the actual
+						// indexes rather than on the declared class is what the filter below does.
 						if (nestedResult.globalIndex() == null) {
 							return EmptyFormula.INSTANCE;
 						}

@@ -42,7 +42,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -853,6 +856,117 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 			),
 			"The prefetch plan must take the negation inside each reference row. Complementing across the whole " +
 				"family would return " + perOwnerReading + " instead."
+		);
+	}
+
+	/**
+	 * `not(entityHaving(...))` inside a **`referenceContent` filter** has to be complemented per reference row,
+	 * exactly as {@link #shouldComplementEntityHavingAgainstTheReferenceRow} requires of the filtering path.
+	 *
+	 * The two paths reach the same helper by different routes. `ReferenceHavingTranslator` establishes its scope
+	 * as `ReducedEntityIndex.class`, while `ReferencedEntityFetcher#computeResultWithPassedIndex` establishes one
+	 * as `AbstractReducedEntityIndex.class` - the **superclass** - even though the index it hands over is a
+	 * `ReducedEntityIndex`. A dispatch testing `ReducedEntityIndex.class.isAssignableFrom(scope.getIndexType())`
+	 * is therefore false on the fetch path, which sends it to the collection-wide lookup: that answers "does this
+	 * owner reference anything matching" and, once negated, drops an owner's row to B because a different row of
+	 * the same owner points at A.
+	 *
+	 * @param evita            the engine
+	 * @param originalProducts all products, fully fetched, as the dataset built them
+	 */
+	@DisplayName("`not(entityHaving)` filtering reference content keeps the rows pointing elsewhere")
+	@UseDataSet(BIDI_REWRITE)
+	@Test
+	void shouldComplementEntityHavingPerRowWhenFilteringReferenceContent(
+		Evita evita,
+		List<SealedEntity> originalProducts
+	) {
+		final Map<Integer, Set<Integer>> expected = new TreeMap<>();
+		final Map<Integer, Set<Integer>> perOwnerReading = new TreeMap<>();
+		for (final SealedEntity product : originalProducts) {
+			if (product.getReferences(REF_PRODUCT_CROSS_ROW_CATEGORIES).isEmpty()) {
+				continue;
+			}
+			final Set<Integer> targets = product.getReferences(REF_PRODUCT_CROSS_ROW_CATEGORIES)
+				.stream()
+				.map(ReferenceContract::getReferencedPrimaryKey)
+				.collect(Collectors.toCollection(TreeSet::new));
+			// row-scoped: each row is judged on its own target
+			expected.put(
+				Objects.requireNonNull(product.getPrimaryKey()),
+				targets.stream()
+					.filter(it -> it != CROSS_ROW_CATEGORY_A_PK)
+					.collect(Collectors.toCollection(TreeSet::new))
+			);
+			// per-owner: one row on the excluded category silences every row the owner holds
+			perOwnerReading.put(
+				Objects.requireNonNull(product.getPrimaryKey()),
+				targets.contains(CROSS_ROW_CATEGORY_A_PK) ? new TreeSet<>() : new TreeSet<>(targets)
+			);
+		}
+		assertNotEquals(
+			perOwnerReading, expected,
+			"Fixture must contain an owner holding a row on the excluded category AND a row elsewhere, or the " +
+				"row-scoped and the per-owner readings coincide and this row proves nothing."
+		);
+
+		assertEquals(
+			expected,
+			crossRowReferencesFilteredBy(
+				evita, not(entityHaving(entityPrimaryKeyInSet(CROSS_ROW_CATEGORY_A_PK)))
+			),
+			"Each reference row must be judged on its own target. Complementing across the owner would return " +
+				perOwnerReading + " instead."
+		);
+	}
+
+	/**
+	 * Fetches `crossRowCategories` reference content narrowed by the given filter and returns, per owner, the
+	 * categories its surviving rows point at.
+	 *
+	 * @param evita  the engine
+	 * @param filter the constraint narrowing the fetched rows
+	 * @return owner primary key to the targets of its surviving rows
+	 */
+	@Nonnull
+	private static Map<Integer, Set<Integer>> crossRowReferencesFilteredBy(
+		@Nonnull Evita evita,
+		@Nonnull FilterConstraint filter
+	) {
+		return evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(
+								CROSS_ROW_SPLIT_PRODUCT_PK,
+								CROSS_ROW_MATCHED_PRODUCT_PK,
+								CROSS_ROW_SCOPE_PRODUCT_PK
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							entityFetch(
+								referenceContent(REF_PRODUCT_CROSS_ROW_CATEGORIES, filterBy(filter))
+							)
+						)
+					),
+					SealedEntity.class
+				);
+				final Map<Integer, Set<Integer>> fetched = new TreeMap<>();
+				for (final SealedEntity product : result.getRecordData()) {
+					fetched.put(
+						Objects.requireNonNull(product.getPrimaryKey()),
+						product.getReferences(REF_PRODUCT_CROSS_ROW_CATEGORIES)
+							.stream()
+							.map(ReferenceContract::getReferencedPrimaryKey)
+							.collect(Collectors.toCollection(TreeSet::new))
+					);
+				}
+				return fetched;
+			}
 		);
 	}
 
