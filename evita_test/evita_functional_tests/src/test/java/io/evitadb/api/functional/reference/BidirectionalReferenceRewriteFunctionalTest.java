@@ -1244,40 +1244,26 @@ public class BidirectionalReferenceRewriteFunctionalTest
 	/**
 	 * Precondition 4c - `collectAttributeNames` refuses a `not`, so the rewrite declines.
 	 *
-	 * **EXPECTED-FAIL, and what it pins is an engine defect on the ordinary path: a `not` nested inside a
-	 * `referenceHaving` does not constrain anything.** Both queries below answer with the entire live collection,
-	 * whatever is negated.
+	 * The pair also pins the **row-scoped** reading of a negated body, which is what issue #1585 turned out to be
+	 * about. `referenceHaving` is documented as the SQL `EXISTS` operator - its constraints must be "satisfied by
+	 * one of the entity references" - so `referenceHaving(R, not(x))` selects owners holding a row on which `x`
+	 * does *not* hold. That is deliberately **not** the complement of `referenceHaving(R, x)`: an owner may hold
+	 * one row matching `x` and another failing it, and the two readings then disagree about it. Were they the same
+	 * question, the inner `not` would be redundant with an outer one.
 	 *
-	 * The two queries exist to make that statement falsifiable, and it took both to reach it:
+	 * The two queries exist to make that falsifiable, and it takes both:
 	 *
-	 * 1. `not(refAlwaysSet == "ra-11")`. `refAlwaysSet` is `"ra-" + productPk`, so exactly one row in the fixture
-	 *    matches and it belongs to category 1. Documented reading - "no discovered row satisfies the constraint" -
-	 *    excludes category 1, giving `{2..11}`. **Measured: `{1..11}`.** On its own that is also what a per-row
-	 *    reading ("some row fails it") would give, since category 1 owns two hundred other rows.
-	 * 2. `not(relevance == 1)`. Within a category `relevance` is `categoryPk % 5` on **every** row, so categories 1
-	 *    and 6 have no row that fails the constraint at all. Both readings exclude them - per-owner gives
-	 *    `{2,3,4,5,7,8,9,10}`, per-row gives that plus category 11. **Measured: `{1..11}` again.**
+	 * 1. `not(refAlwaysSet == "ra-11")`. `refAlwaysSet` is `"ra-" + productPk`, so exactly one row in the whole
+	 *    fixture matches it, and it belongs to category 1 - which owns two hundred further rows that fail it. So
+	 *    category 1 is *in*, and a reading that excluded it would be the per-owner one.
+	 * 2. `not(relevance == 1)`. Within a category `relevance` is `categoryPk % 5` on **every** row, so categories
+	 *    1 and 6 hold no row failing the constraint at all and must be the only two absent.
 	 *
-	 * Query 2 is what settles it: an answer containing categories all of whose rows satisfy the negated constraint
-	 * cannot come from applying that constraint at all, per owner or per row. The likely mechanism is that the `not`
-	 * participates in reduced-index *discovery* - `getReferencedRecordEntityIndexes` evaluates the constraint against
-	 * the type-level index to choose which reduced indexes to load - and selects none, leaving the inner formula
-	 * empty so the outer negation returns its whole superset. That mechanism is inferred from the two results and the
-	 * code path, **not** measured; the two results are.
-	 *
-	 * What this row cannot distinguish, on this fixture: "every live owner" from "every live owner holding at least
-	 * one row of this reference". Both are `{1..11}` here, because no live category is without `products` rows.
-	 *
-	 * The expectation asserted below is the **documented** reading, because that is the only stated contract. It is
-	 * the per-owner one, so query 1 expects `{2..11}` and query 2 expects `{2,3,4,5,7,8,9,10}`. Pre-existing,
-	 * unrelated to either optimisation - the rewrite declines on this shape and always did - and it wants its own
-	 * issue. Do not relax either expectation to the observed set.
+	 * Query 2 is what makes the pair decisive: an owner all of whose rows satisfy the negated constraint cannot
+	 * appear under either reading, so its presence proves the constraint was not applied at all. That is precisely
+	 * what both queries used to show - they answered with the entire live collection, whatever was negated,
+	 * because index selection resolved the negation against the reference *type* index and emptied the family.
 	 */
-	@Disabled(
-		"Pins the correct behaviour of a pre-existing engine defect: a `not` nested directly inside `referenceHaving` " +
-		"is dropped, and the query returns the whole collection unfiltered. Verified identical with every change on " +
-		"this branch reverted. Re-enable when issue #1585 is fixed."
-	)
 	@DisplayName("Should not rewrite when a not() is nested inside the referenceHaving")
 	@UseDataSet(BIDI_REWRITE)
 	@Test
@@ -1289,7 +1275,7 @@ public class BidirectionalReferenceRewriteFunctionalTest
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				// 1 - one matching row in the whole fixture; its owner must be the only one excluded
+				// 1 - one matching row in the whole fixture, and its owner holds plenty of rows that fail it
 				final EvitaResponse<EntityReference> byPerProductValue = session.query(
 					query(
 						collection(Entities.CATEGORY),
@@ -1304,12 +1290,12 @@ public class BidirectionalReferenceRewriteFunctionalTest
 					EntityReference.class
 				);
 				AssertionUtils.assertResultIs(
-					"`not` inside a referenceHaving must exclude owners that carry a matching row - an answer equal to " +
-						"the whole live collection means the negated constraint was not applied at all!",
+					"`not` inside a referenceHaving selects owners holding a row that FAILS the constraint - the " +
+						"owner of the single matching row holds two hundred others and must therefore be present!",
 					originalCategories,
-					liveOwnerWithoutRow(
+					liveOwnerWithRow(
 						REF_CATEGORY_PRODUCTS,
-						row -> alwaysSetOfProduct11.equals(row.getAttribute(REF_ATTR_ALWAYS_SET))
+						row -> !alwaysSetOfProduct11.equals(row.getAttribute(REF_ATTR_ALWAYS_SET))
 					),
 					byPerProductValue.getRecordData()
 				);
@@ -1333,8 +1319,8 @@ public class BidirectionalReferenceRewriteFunctionalTest
 					"Every row of these categories satisfies the negated constraint, so no reading of `not` can admit " +
 						"them - their presence is what proves the constraint is ignored rather than misread!",
 					originalCategories,
-					liveOwnerWithoutRow(
-						REF_CATEGORY_PRODUCTS, row -> relevanceIs(row, MATCHED_RELEVANCE)
+					liveOwnerWithRow(
+						REF_CATEGORY_PRODUCTS, row -> !relevanceIs(row, MATCHED_RELEVANCE)
 					),
 					byPerCategoryValue.getRecordData()
 				);

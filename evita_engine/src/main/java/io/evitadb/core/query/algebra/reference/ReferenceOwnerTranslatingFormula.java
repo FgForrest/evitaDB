@@ -80,6 +80,18 @@ public class ReferenceOwnerTranslatingFormula extends AbstractFormula implements
 	 * The input is referenced entity primary key, output is a bitmap of all entity primary keys that refer to it.
 	 */
 	private final IntFunction<Bitmap> primaryKeyExpander;
+	/**
+	 * Distinguishes two formulas whose expanders answer differently while every other field agrees.
+	 *
+	 * The hash is what the formula cache and the `or` flattening use to decide that two nodes are the same
+	 * computation. {@link #primaryKeyExpander} cannot take part in it - it is a lambda, and two lambdas that
+	 * close over different values are indistinguishable to a hash function - so a caller that builds one
+	 * formula per index, each expanding the *same* referenced primary keys against a *different* index, would
+	 * produce a set of nodes that all hash alike and be silently collapsed to one. Such a caller passes
+	 * the index identity here. Zero means "no discriminator", which keeps the hash of every pre-existing
+	 * caller untouched.
+	 */
+	private final long expanderDiscriminator;
 
 	ReferenceOwnerTranslatingFormula(
 		long referencedEntityTypeTransactionalId,
@@ -87,9 +99,20 @@ public class ReferenceOwnerTranslatingFormula extends AbstractFormula implements
 		@Nonnull Formula innerFormula,
 		@Nonnull IntFunction<Bitmap> primaryKeyExpander
 	) {
+		this(referencedEntityTypeTransactionalId, worstCardinality, innerFormula, primaryKeyExpander, 0L);
+	}
+
+	ReferenceOwnerTranslatingFormula(
+		long referencedEntityTypeTransactionalId,
+		int worstCardinality,
+		@Nonnull Formula innerFormula,
+		@Nonnull IntFunction<Bitmap> primaryKeyExpander,
+		long expanderDiscriminator
+	) {
 		this.primaryKeyExpander = primaryKeyExpander;
 		this.referencedEntityTypeTransactionalId = referencedEntityTypeTransactionalId;
 		this.worstCardinality = worstCardinality;
+		this.expanderDiscriminator = expanderDiscriminator;
 		this.initFields(innerFormula);
 	}
 
@@ -98,16 +121,38 @@ public class ReferenceOwnerTranslatingFormula extends AbstractFormula implements
 		@Nonnull Formula innerFormula,
 		@Nonnull IntFunction<Bitmap> primaryKeyExpander
 	) {
+		this(referencedEntityGlobalIndex, innerFormula, primaryKeyExpander, 0L);
+	}
+
+	/**
+	 * Creates a formula whose expander is index-specific and therefore must not be pooled with its siblings.
+	 *
+	 * @param referencedEntityGlobalIndex global index of the referenced entity type
+	 * @param innerFormula                formula producing the referenced entity primary keys to expand
+	 * @param primaryKeyExpander          expands one referenced primary key into owner primary keys
+	 * @param expanderDiscriminator       identity of whatever the expander is bound to, folded into the hash
+	 */
+	public ReferenceOwnerTranslatingFormula(
+		@Nonnull GlobalEntityIndex referencedEntityGlobalIndex,
+		@Nonnull Formula innerFormula,
+		@Nonnull IntFunction<Bitmap> primaryKeyExpander,
+		long expanderDiscriminator
+	) {
 		this.primaryKeyExpander = primaryKeyExpander;
 		this.referencedEntityTypeTransactionalId = referencedEntityGlobalIndex.getId();
 		// the entity count of the referenced collection
 		this.worstCardinality = referencedEntityGlobalIndex.size();
+		this.expanderDiscriminator = expanderDiscriminator;
 		this.initFields(innerFormula);
 	}
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return this.referencedEntityTypeTransactionalId;
+		return this.expanderDiscriminator == 0L ?
+			this.referencedEntityTypeTransactionalId :
+			hashFunction.hashLongs(
+				new long[]{this.referencedEntityTypeTransactionalId, this.expanderDiscriminator}
+			);
 	}
 
 	@Override
@@ -141,7 +186,8 @@ public class ReferenceOwnerTranslatingFormula extends AbstractFormula implements
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isTrue(innerFormulas.length == 1, ERROR_SINGLE_FORMULA_EXPECTED);
 		return new ReferenceOwnerTranslatingFormula(
-			this.referencedEntityTypeTransactionalId, this.worstCardinality, innerFormulas[0], this.primaryKeyExpander
+			this.referencedEntityTypeTransactionalId, this.worstCardinality, innerFormulas[0],
+			this.primaryKeyExpander, this.expanderDiscriminator
 		);
 	}
 

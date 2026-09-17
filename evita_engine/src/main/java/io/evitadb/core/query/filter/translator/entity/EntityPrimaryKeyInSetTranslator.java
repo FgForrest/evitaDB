@@ -33,6 +33,8 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
+import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
+import io.evitadb.core.query.algebra.reference.IndexTaggedFormula;
 import io.evitadb.core.query.algebra.price.termination.PriceWrappingFormula;
 import io.evitadb.core.query.algebra.reference.ReferencedEntityIndexPrimaryKeyTranslatingFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
@@ -40,9 +42,11 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.behavioral.FilterInScopeTranslator;
+import io.evitadb.core.query.filter.translator.entity.alternative.ReferencedEntityPrimaryKeyBitmapFilter;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.Index;
+import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.utils.ArrayUtils;
@@ -116,6 +120,50 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 						})
 						.toArray(Formula[]::new)
 				);
+			} else if (ReducedEntityIndex.class.isAssignableFrom(indexType) &&
+				processingScope.getReferenceSchema() != null) {
+				// the reference schema is what says we are inside a `referenceHaving` body. The index type alone
+				// does not: when index selection picks the reduced-index option for the whole query, a TOP-LEVEL
+				// `entityPrimaryKeyInSet` is translated in this very scope while still speaking about owners, and
+				// reading it as a referenced-entity constraint there evicts every owner.
+				// inside a `referenceHaving` body the constraint speaks about the REFERENCED entity, and each
+				// reduced index carries exactly one referenced entity primary key - so the constraint is a constant
+				// per index: either the whole index matches, or none of it does. Emitting the owner sets of the
+				// matching indexes keeps the constraint row-scoped and lets `or` / `not` combine it correctly.
+				final Set<Integer> requestedPrimaryKeys = Arrays.stream(primaryKeys)
+					.boxed()
+					.collect(Collectors.toSet());
+				final Formula indexResult = FormulaFactory.or(
+					processingScope
+						.getIndexStream()
+						.map(ReducedEntityIndex.class::cast)
+						.filter(it -> requestedPrimaryKeys.contains(it.getReferenceKey().primaryKey()))
+						.map(it -> {
+							final Formula allOwners = it.getAllPrimaryKeysFormula();
+							// this leaf is assembled here rather than through `FilterByVisitor#applyOnIndexes`, so
+							// nothing tags it on the way out and it has to tag itself. An untagged leaf under a
+							// `not` is complemented against every index at once, which answers "this owner
+							// references none of them" instead of "this owner holds a row referencing none of
+							// them" - the per-owner reading rather than the row-scoped one.
+							return allOwners instanceof EmptyFormula ?
+								allOwners : new IndexTaggedFormula(it.getPrimaryKey(), allOwners);
+						})
+						.toArray(Formula[]::new)
+				);
+				// a prefetching plan never populates the reduced-index family the formula above is built from,
+				// so without an alternative this constraint would contribute an empty set and evict every owner.
+				// The alternative asks the same row-scoped question of the prefetched reference rows instead.
+				// the alternative is attached only when the plan can actually prefetch - a `SelectionFormula`
+				// refuses to compute without an initialised execution context, and the debug verification that
+				// generates cacheable variants walks the tree computing nodes outside of one
+				return filterByVisitor.isPrefetchPossible() ?
+					new SelectionFormula(
+						indexResult,
+						new ReferencedEntityPrimaryKeyBitmapFilter(
+							Objects.requireNonNull(processingScope.getReferenceSchema()).getName(), primaryKeys
+						)
+					) :
+					indexResult;
 			} else {
 				return standardResult;
 			}
