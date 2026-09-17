@@ -483,11 +483,16 @@ structures at all; it addresses the footprint through the structures' compactnes
 
 A summary of what each Java can do:
 
-| mechanism                              | Java 17 (today) | Java 21 (approved) | Java 22+        |
+| mechanism                              | Java 17 (was)   | Java 21 (today)    | Java 22+        |
 |----------------------------------------|-----------------|--------------------|-----------------|
 | `MappedByteBuffer` (`FileChannel.map`) | yes             | yes                | yes             |
 | FFM `MemorySegment`/`Arena`            | incubator       | preview            | final           |
 | deterministic release of a mapping     | no              | no                 | `Arena.close()` |
+
+**[2026-09-17]** The column headers moved — the baseline is 21 since #1518 — but **not one cell did**, and
+that is the point worth carrying away. The key row is still `no` in the column we are now standing in, so
+the conclusion below is untouched by the bump: 21 buys nothing here. Anyone reasoning "we are on a newer
+JDK, so mmap got safer" is reading the wrong row.
 
 The key row is the last one. `MappedByteBuffer` cannot do "unmap now": a mapping disappears when the garbage
 collector collects the buffer and its cleaner runs — which may be in a millisecond or in an hour. Why that
@@ -498,9 +503,11 @@ time, then close forcibly" (`OffsetIndex.clearReadOnlyOpenedHandles`, `:1304-133
 handle, not for a mapping a query is currently reading through. On Linux deleting a file with a live mapping
 works (the inode survives until the mapping ends, it merely holds disk space), on Windows deletion **fails**
 and the purge quietly stops cleaning up. The emergency escape `sun.misc.Unsafe.invokeCleaner` would want an
-`--add-opens` that is not in the build today. Practically: a safe mapping lifecycle = Java 22+, i.e. beyond
-the approved (and so far unlanded) move to 21. The codebase uses mmap nowhere today; the only off-heap
-precedent is `OffHeapMemoryManager` with direct buffers for transactional write buffers.
+`--add-opens` that is not in the build today (surefire opens `java.lang`, `java.lang.invoke`, `java.math` and
+`java.util`, never `java.nio`, and the server runtime opens nothing at all). Practically: a safe mapping
+lifecycle = Java 22+, i.e. **still one step beyond today's baseline of 21**. The codebase uses mmap nowhere
+today; the only off-heap precedent is `OffHeapMemoryManager` with direct buffers for transactional write
+buffers.
 
 **Memory accounting in Kubernetes.** Here it is necessary to say out loud what is actually being bought. A
 saving of Xmx does not turn into "saved memory" — mapped pages count towards the container's limit too (they

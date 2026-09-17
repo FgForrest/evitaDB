@@ -1,7 +1,7 @@
 ---
 title: JDK 21 modernization is adopted only where it is provably behaviour-preserving
 date: 2026-09-08
-updated: 2026-09-10 09:50
+updated: 2026-09-17 07:45
 status: accepted
 kind: refactor
 issues: [1518]
@@ -9,7 +9,7 @@ prs: [1519]
 areas: [pom.xml, evita_common/dataType, evita_common/utils, evita_query/api/query/expression, evita_engine/core/expression, evita_engine/index/map, evita_external_api/evita_external_api_graphql, evita_external_api/evita_external_api_grpc, evita_external_api/evita_external_api_grpc/client, evita_external_api/evita_external_api_rest, evita_store/evita_store_server]
 supersedes: []
 superseded-by: []
-relates: [2026-09-10-jdk21-virtual-threads-and-scoped-values, 2026-09-10-simd-vector-api-feasibility]
+relates: [2026-09-10-jdk21-virtual-threads-and-scoped-values, 2026-09-10-simd-vector-api-feasibility, 2026-08-24-fulltext-search-lucene-vs-inhouse]
 ---
 
 # JDK 21 modernization is adopted only where it is provably behaviour-preserving
@@ -261,6 +261,9 @@ their sites (the `toolchains` activation-range invariant in `pom.xml`, the `Exec
 trap in `ProgressingFutureTest.tearDown()`).
 - `2026-09-10-jdk21-virtual-threads-and-scoped-values` — the concurrency-feature question asked right after
   this bump; declined for the same preview-pin reason this record applies to the driver.
+- `2026-08-24-fulltext-search-lucene-vs-inhouse` — the fulltext plans read the driver's release-17 floor as a
+  hard placement constraint: the Lucene analyzers (P5 §3.2) and the vector mathematics (P6 §3) must stay off
+  the six modules pinned by `java.driver.release`, which `evita_engine` satisfies.
 - `2026-09-10-simd-vector-api-feasibility` — the Vector API question; pursued because incubator modules do
   not pin class files, and designed so the driver floor recorded here is untouched.
 

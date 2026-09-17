@@ -1,7 +1,7 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-09-10 09:50
+updated: 2026-09-17 07:45
 status: partially-implemented
 kind: feature
 issues: [258, 1454]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_engine, evita_api, evita_query, evita_store, evita_external_api, evita_engine/index/trigram]
 supersedes: []
 superseded-by: []
-relates: [2026-07-07-roaring-bitmap-vendoring, 2026-07-10-more-optimized-data-structures, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-27-write-path-performance-tuning, 2026-08-31-trigram-query-path-optimization, 2026-08-31-front-coded-column-stores-wtf8, 2026-09-10-simd-vector-api-feasibility]
+relates: [2026-07-07-roaring-bitmap-vendoring, 2026-07-10-more-optimized-data-structures, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-27-write-path-performance-tuning, 2026-08-31-trigram-query-path-optimization, 2026-08-31-front-coded-column-stores-wtf8, 2026-09-10-simd-vector-api-feasibility, 2026-09-08-jdk21-safe-modernization, 2026-09-10-jdk21-virtual-threads-and-scoped-values]
 ---
 
 # Fulltext search in evitaDB: an in-house core over the bitmap algebra, not a Lucene integration
@@ -782,6 +782,16 @@ rather than a tuning one. Both are open items below.
   ships in the PR. `prototypes/p1-index-core.md` was revised on 2026-09-02 against P8 and P5 and already
   states the shipped contract; on merge, its §2 takes the revised text over the PR's eleven-line addition,
   which the revision supersedes.
+- **The incubator-module wiring is now shared, not P6's to fund (2026-09-17).** The JDK 21 baseline
+  landed, but no pom in the tree carries `--add-modules jdk.incubator.vector` and no `module-info.java`
+  declares it, so jVector still selects its scalar provider and reports no error while doing so — the
+  measurement trap of P6 §3.1 survived the bump intact. The switches are owned by
+  `2026-09-10-simd-vector-api-feasibility` (#1541, "provider and wiring"), which reaches the same module
+  from the roaring containers and two query kernels and rejected a hard `requires` in favour of
+  `requires static` plus self-detection. P6 must consume that wiring rather than introduce a second
+  provider, and whichever lands first, the JMH fork stays P6's own problem — it inherits no launcher
+  arguments. That record also lists as open a question this one answers: jVector does carry its own
+  Panama provider with the same `--add-modules` requirement, verified in `p6-vector-spike.md` §4.2.
 - **Semantic search is a phase dependency, not a gap.** Today's Lucene client has kNN over a
   `vector` field, document and query embeddings, and a query-vector cache, all deployed. For us it
   arrives with F2, and `float[]` is not a valid attribute type today. A customer using semantic
@@ -1019,6 +1029,12 @@ rather than a tuning one. Both are open items below.
   mini-gate reframed from "jVector or in-house HNSW" to a planner-over-strategies subsystem with Lucene's
   vector packages added as a library candidate, and the verified negatives recorded — no cancellation,
   no ACORN-style widening and no scalar or RaBitQ-style code in jVector, no deletes in Lucene
+- **2026-09-17** — `dev` merged into the branch and the plans re-verified against the **JDK 21 baseline**
+  that landed with it (#1518): the version half of P6's entry condition is satisfied and the
+  module-wiring half is not, so P6 §3 is rewritten around that split and its measurement trap restated
+  as *surviving* the bump; P5's Lucene 10.x rejection is re-opened, half of it having expired with the
+  baseline; the driver's new release-17 floor is recorded as a hard placement constraint for both plans;
+  and the mmap table in `bitmap-memory-optimizations.md` is re-headed with the finding that no cell moved
 
 ## Supporting material
 

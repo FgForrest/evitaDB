@@ -164,24 +164,45 @@ decision comes, a proven shape of solution including invalidation exists.
 
 ---
 
-## 3. The entry condition: JDK 21 is not in `pom.xml`
+## 3. The entry condition: JDK 21 has landed, the module switches have not
 
-The research §5.1 states the JDK 21 entry condition is met and refers to Z1. That is true of the
-**performed and successful trial upgrade**, not of the state of the `dev` branch. Verified directly, and
-**[2026-09-07]** re-verified unchanged at `ee2801c8e`:
+The research §5.1 states the JDK 21 entry condition is met and refers to Z1. That was true of the
+**performed and successful trial upgrade**, not of the state of the `dev` branch — the version in the
+descriptor stayed at 17, verified directly and re-verified unchanged at `ee2801c8e` on **[2026-09-07]**.
 
-| Where | What is there |
+**[2026-09-17] The baseline landed (#1518) and this section is re-verified against it.** The condition this
+chapter was written about has split in two: the *version* half is satisfied, the *module-wiring* half is not,
+and only the second one was ever the part that could silently corrupt a measurement.
+
+| Where | What is there (2026-09-17) |
 |---|---|
-| `pom.xml:124` | `<java.version>17</java.version>` |
-| `pom.xml:654-657` | `<release>`, `<source>`, `<target>`, `<compilerVersion>` = `${java.version}` |
-| `pom.xml:658-660` | `<compilerArgs>` contains a single argument, `-parameters` |
-| `pom.xml:698` | surefire `<argLine>`: `-Xmx8g`, locale, `--add-opens`; no `--add-modules` |
-| `docker/Dockerfile:29` | `ENV EVITA_JAVA_OPTS=""` — a runtime without additional switches |
+| `pom.xml:124` | `<java.version>21</java.version>` — **the baseline landed** |
+| `pom.xml:134-135` | `<java.release>${java.version}</java.release>`, `<java.driver.release>17</java.driver.release>` |
+| `pom.xml:751-753` | `<release>`, `<source>`, `<target>` = `${java.release}` |
+| `pom.xml:754-756` | `<compilerArgs>` still holds a single argument, `-parameters` — **no `--add-modules`** |
+| `pom.xml:830-836` | surefire `<argLine>`: `-Xmx`, locale, `--add-opens`; **still no `--add-modules`** |
+| `docker/Dockerfile:1` | `FROM index.docker.io/azul/zulu-openjdk:21-latest` |
+| `docker/Dockerfile:29` | `ENV EVITA_JAVA_OPTS=""` — **still a runtime without module switches** |
 
-The local `~/.m2/toolchains.xml` offers both JDK 17 and 21, so it can be built on 21; **the project is,
-however, compiled with `--release 17` and run without any module switches**.
+A search of every `pom.xml` in the tree returns no `--add-modules`, no `--enable-preview` and no
+`jdk.incubator`; no `module-info.java` among the 23 descriptors carries `requires jdk.incubator.vector`. So
+the project now **compiles and runs at `--release 21`, still without any module switches** — the row that
+matters to this spike is the last one, and it has not moved.
+
+**A constraint that did not exist when this chapter was written.** The bump introduced a deliberate JDK 17
+floor for the Java driver: `<java.driver.release>17</java.driver.release>` pins `evita_common`, `evita_api`,
+`evita_query` and the three gRPC shared/client modules to release 17, enforced per build by the `ci-dev` and
+`pr-review` workflows through `.github/actions/verify-driver-on-jdk17`
+(`2026-09-08-jdk21-safe-modernization`). The recommendation at the end of §3.2 — isolate the vector
+mathematics into one module — therefore acquires a hard side condition: **that module must not be one of
+those six**, and nothing on the driver's dependency path may touch the vector code. `evita_engine` is clear,
+which is also where §5 puts the vectors.
 
 ### 3.1 Why it is blocking and not cosmetic
+
+**[2026-09-17] The two numbered arguments below were written against a JDK 17 `dev` and are kept as
+written; each is followed by what the bump did and did not change to it. The short version: the first
+argument survives entirely, the second is settled.**
 
 If it were only about a version in the descriptor, it could be worked around. But on JDK 17 the spike
 **does not measure what it exists for**, and that twice over.
@@ -195,6 +216,15 @@ with a warning at `:174`. The criterion "latency < 10 ms per 1M vectors" is then
 times slower than what would run in production — the result is unusable in both directions, because
 neither success nor failure says anything about the target state.
 
+**[2026-09-17] Read that paragraph again with 21 in place, because it is the one thing the bump did not
+fix.** jVector's provider tests **two** conditions, and the baseline only satisfied the first. On today's
+`dev` the version check passes and the boot-layer check still fails, so the selection lands on exactly the
+same scalar `DefaultVectorizationProvider`, with exactly the same warning at `:174` and exactly the same
+absence of an error. The measurement trap is therefore **fully intact after the JDK bump** — and it is now
+more dangerous than it was, because "we are on JDK 21" reads like a green light to anyone who has not read
+this far. Until §3.2's switches are in place, a number produced by this spike means nothing, and the
+`-Djvector.vectorization_provider=panama` forcing switch below is what turns that silence into a crash.
+
 Second, the same version decides which layer of the multi-release jar the JVM sees at all (§4.2), i.e.
 also whether the vectors are read through `MemorySegment` or through the older `MappedByteBuffer`. A spike
 that is to decide about the mmap integration must not have this variable fixed by accident.
@@ -203,9 +233,27 @@ that is to decide about the mmap integration must not have this variable fixed b
 unlocks the off-heap vector type and the FFM reader, and the spike should record numbers for both if a 22
 toolchain is at hand, because the difference is exactly the "raw vectors on the heap" question of §1.
 
-Raising the baseline is therefore **not P6's task but its entry condition** — it has its own blast radius
-(compilation, CI, Docker, dependency compatibility) and does not belong under the heading of a vector
-spike.
+**[2026-09-17] This second argument is now settled rather than open.** The variable is no longer free to be
+"fixed by accident": the baseline pins it. A JDK 21 run sees `META-INF/versions/20` and therefore the
+Panama provider (once the module is added) and `MappedChunkReader` — never the FFM reader, which lives one
+layer higher. So the spike measures the on-heap vector type by construction, and the JDK 22 comparison is
+not a variable to control but an *optional second data point* someone has to opt into with a 22 toolchain.
+If it is not taken, the spike's numbers still answer §1's question — for the configuration evitaDB can
+actually deploy today — and the record should say so rather than leaving the gap looking like an oversight.
+
+Raising the baseline was therefore **not P6's task but its entry condition** — it had its own blast radius
+(compilation, CI, Docker, dependency compatibility) and did not belong under the heading of a vector spike.
+
+**[2026-09-17]** That is now settled history: the raise happened as its own line of work (#1518) and P6
+inherits it. What remains — the module switches of §3.2 — is likewise **not P6's alone to pay for**. The
+record `2026-09-10-simd-vector-api-feasibility` reaches the incubator module from the other side, for the
+roaring containers and two query kernels, and its issue #1541 ("provider and wiring") covers the compiler,
+surefire and launcher arguments for the whole server. P6's correct posture is therefore to *depend on* that
+wiring rather than to introduce a second one: if #1541 lands first, the spike gets its switches free; if the
+spike runs first, whatever it wires must be the shape #1541 specifies. The one thing P6 still owes that
+record is a fact it lists as open — whether the chosen HNSW library carries its own Panama provider with the
+same `--add-modules` requirement. For jVector the answer is yes and it is verified in §4.2 of this document,
+not remembered.
 
 ### 3.2 Five coordinated changes
 
@@ -214,9 +262,10 @@ of them manifests either as a compilation error or — worse — as a silent run
 
 1. `requires jdk.incubator.vector;` in the `module-info.java` of the module containing the vector
    mathematics (the repository has 23 module descriptors, the modules are named);
-2. `--add-modules jdk.incubator.vector` in `<compilerArgs>` (`pom.xml:658`);
-3. the same in surefire's `<argLine>` (`pom.xml:698`), otherwise the tests will run differently from the
-   compilation;
+2. `--add-modules jdk.incubator.vector` in `<compilerArgs>` (`pom.xml:754`, **[2026-09-17]** re-anchored
+   from `:658`);
+3. the same in surefire's `<argLine>` (`pom.xml:830`, **[2026-09-17]** re-anchored from `:698`), otherwise
+   the tests will run differently from the compilation;
 4. the same in the runtime configuration, i.e. `EVITA_JAVA_OPTS` in `docker/Dockerfile:29`;
 5. the same in **JMH's `jvmArgs`**, or `@Fork(jvmArgsAppend = …)` on the benchmark.
 
@@ -236,10 +285,31 @@ construct a `GraphIndexBuilder` reads two structural graph parameters from a **p
 singleton** (§4.3); `-Djvector.management.backend=none` disables the JMX backend, and every run's record has
 to carry the values actually used.
 
+**[2026-09-17] Item 1 has since been decided elsewhere, and decided against this wording.**
+`2026-09-10-simd-vector-api-feasibility` rejected a hard `requires jdk.incubator.vector` outright — with it,
+"every embedded user and every launcher would need the flag or fail with `NoClassDefFoundError` at first
+touch" — and settled on **`requires static jdk.incubator.vector`** plus self-detection of module, C2 and CPU
+at class-init, a scalar twin for every kernel, and per-kernel switches. Read item 1 as `requires static`, and
+note what that buys: the five changes stop being a set that must be applied *simultaneously or not at all*.
+A missing switch then degrades to the scalar path by design rather than by accident — which does not rescue
+this spike's measurements (a silent scalar run still reports a meaningless latency, §3.1), but does mean the
+server never fails to start over a forgotten flag. Items 2–4 are the same arguments that record's #1541 has
+to add anyway, so P6 should consume them, not duplicate them. Item 5 stays P6's own: JMH is outside the
+server's launcher and no other line of work will cover it.
+
 A practical recommendation following from that for the design: **isolate the vector mathematics into a
 single module** with its own descriptor and with a scalar fallback, do not scatter it through
 `evita_engine`. Both Lucene and jVector solve the same problem with exactly this pattern and in both cases
 it has the same reason — an incubator module must not be a hard condition of startup.
+
+**[2026-09-17]** A third instance of the same pattern now exists inside evitaDB itself: the optional provider
+with a scalar twin that `2026-09-10-simd-vector-api-feasibility` specifies for the roaring containers and the
+query kernels. That makes this recommendation a matter of *joining* an established local convention rather
+than importing a foreign one, and it is worth checking at design time whether the two want one provider or
+two — the SIMD record's provider selects kernels for bitmap and price code, which is a different axis from
+distance functions over vectors, but the module-detection and C2 checks in front of both are identical. The
+side condition from §3 applies to whichever shape wins: the module must stay off the driver's release-17
+dependency path.
 
 ### 3.3 Day zero: what to verify before anything else
 
@@ -254,6 +324,13 @@ What remains for day zero is smaller and is listed in §10, step 1: read off fro
 which read backend a JDK 21 JVM selects with and without `--add-modules` (the expected answers are now
 known — `PanamaVectorizationProvider` and `MappedChunkReader`, §4.2 and §4.4 — so the experiment confirms
 the reading rather than replacing it), and compile a `requires` against the jar from a named module (§4.7).
+
+**[2026-09-17] This step got cheaper and shorter.** It no longer needs a toolchain override or a private
+baseline-raising branch: `dev` *is* the JDK 21 environment now, so the experiment runs against the ordinary
+build. And its "without `--add-modules`" arm is no longer an arm at all — it is the current state of the
+repository (§3), which means half the day-zero reading can be taken before a single line of spike code
+exists. Both remaining sub-steps keep their value: the negative arm is what pins down the exact warning text
+the harness must grep for in §11.4, and the named-module `requires` compile is untouched by the bump.
 
 ---
 

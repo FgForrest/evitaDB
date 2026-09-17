@@ -1,7 +1,7 @@
 ---
 title: Virtual threads and ScopedValue stay out of the JDK 21 server; the executor defects the analysis exposed are fixed on their own terms
 date: 2026-09-10
-updated: 2026-09-10 09:50
+updated: 2026-09-17 07:45
 status: accepted
 kind: infrastructure
 issues: [1518, 1532, 1533, 1534, 1535, 1536, 1537, 1538]
@@ -9,7 +9,7 @@ prs: [1519]
 areas: [evita_engine/core/executor, evita_engine/core/transaction, evita_engine/core/traffic, evita_external_api/evita_external_api_core, evita_external_api/evita_external_api_rest, evita_external_api/evita_external_api_graphql, evita_external_api/evita_external_api_grpc, evita_server/log, evita_store/evita_traffic_engine]
 supersedes: []
 superseded-by: []
-relates: [2026-09-08-jdk21-safe-modernization, 2026-09-10-simd-vector-api-feasibility]
+relates: [2026-09-08-jdk21-safe-modernization, 2026-09-10-simd-vector-api-feasibility, 2026-08-24-fulltext-search-lucene-vs-inhouse]
 ---
 
 # Virtual threads and ScopedValue stay out of the JDK 21 server; the executor defects the analysis exposed are fixed on their own terms
@@ -117,6 +117,9 @@ derived from those facts and have not been reproduced; the issues say so.
   floor and the reasons preview-feature pins were unacceptable there.
 - `2026-09-10-simd-vector-api-feasibility` — the other "what does JDK 21 buy us" question, with the opposite answer
   because incubator modules do not pin class files.
+- `2026-08-24-fulltext-search-lucene-vs-inhouse` — the fulltext analyzer plan (P5 §4.3) had left the thread-kind
+  question open, because a per-thread analyzer cache and a `synchronized` block both turn against it under virtual
+  threads; this record closes that hypothetical in its favour.
 
 ## Supporting material
 

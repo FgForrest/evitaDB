@@ -39,10 +39,12 @@ Three safeguards turn this intent into a managed investment rather than a bet:
    development, but a return to today's state. Details in chapter 2.
 
 One honest note up front: there used to be a strong practical argument against Lucene — its current
-10.x line requires JDK 21, whereas evitaDB is on JDK 17. The upgrade to JDK 21 was approved but has not
-landed in the development branch yet; in practice this is handled by starting on the Lucene 9.12.x
-line, whose API does not differ from 10.x for our purposes. So this is not an argument against Lucene —
-the decision rests purely on architecture, which makes the reasoning below all the more important.
+10.x line requires JDK 21, whereas evitaDB was on JDK 17. **That argument has since disappeared
+completely**: evitaDB moved to JDK 21 in September 2026, so both Lucene lines are now available and the
+version is no longer an obstacle of any kind. It was never a decisive argument in any case — it would have
+been handled by starting on the Lucene 9.12.x line, whose API does not differ from 10.x for our purposes.
+So this is not an argument against Lucene — the decision rests purely on architecture, which makes the
+reasoning below all the more important.
 
 ---
 
