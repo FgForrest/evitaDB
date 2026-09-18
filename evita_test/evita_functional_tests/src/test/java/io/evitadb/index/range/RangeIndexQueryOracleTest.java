@@ -25,6 +25,7 @@ package io.evitadb.index.range;
 
 import io.evitadb.core.query.algebra.Formula;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -36,7 +37,9 @@ import java.util.function.Predicate;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Pins the SEMANTICS of every {@link RangeIndex} query against a brute-force scan of the intervals that were inserted,
@@ -51,8 +54,15 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
  * arithmetic identity (a range whose END is already behind the queried point necessarily has its START behind it too,
  * so the subtraction cancels exactly the expired ranges), and an identity is precisely the kind of claim that a
  * hand-picked example can confirm while being false in general. The generator therefore aims at the cases the identity
- * could break on: several ranges per record, probes landing exactly ON a threshold as well as between thresholds,
- * ranges that touch the probe with only one endpoint, and the {@link Long#MIN_VALUE}/{@link Long#MAX_VALUE} borders.
+ * could break on: several ranges per record, in all three arrangements {@link RangeIndex} permits — disjoint and
+ * gap-separated, overlapping, and nested (see {@link #generateSpans}) — probes landing exactly ON a threshold as well
+ * as between thresholds, ranges that touch the probe with only one endpoint, and the
+ * {@link Long#MIN_VALUE}/{@link Long#MAX_VALUE} borders.
+ *
+ * The overlapping and nested arrangements are not decoration. They are the shapes on which a signed COUNT and a
+ * parity fold disagree: a record holding `(2,15)` and `(5,20)` has two starts and no ends at `t=10`, so counting
+ * keeps it while an XOR of the same operands cancels it away. A suite that generated only disjoint ranges would pass
+ * against an implementation that had quietly degraded into parity.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -132,6 +142,146 @@ class RangeIndexQueryOracleTest {
 		}
 	}
 
+	@Test
+	@DisplayName("getRecordsFrom at a point equals getRecordsTo at the point before it")
+	void shouldAgreeBetweenTheSuffixAndPrefixFormsOfTheSameQuery() {
+		// `getRecordsFrom` is the one query still answered over a SUFFIX of the threshold tree, and the javadoc on
+		// it states the identity `E(>=t) - S(>=t) == S(<t) - E(<t)` as the reason that is safe. The identity is what
+		// licenses leaving one query on a different walk from the other three, so it is asserted rather than trusted.
+		for (int seed = 0; seed < SEEDS; seed++) {
+			final List<Span> spans = generateSpans(new Random(seed));
+			final RangeIndex index = indexOf(spans);
+			for (final long probe : probesFor(spans)) {
+				if (probe == Long.MIN_VALUE) {
+					continue;
+				}
+				assertArrayEquals(
+					index.getRecordsTo(probe - 1).compute().getArray(),
+					index.getRecordsFrom(probe).compute().getArray(),
+					() -> "getRecordsFrom(" + probe + ") disagreed with getRecordsTo(" + (probe - 1) + ")"
+				);
+			}
+		}
+	}
+
+	@Test
+	@DisplayName("getRecordsEnvelopingInclusive is constant across the open interval between two thresholds")
+	void shouldReturnTheSameRecordsForEveryPointBetweenTwoAdjacentThresholds() {
+		// `getRecordsValidNowFormula` memoizes the enveloping result for exactly this interval, so the cache is only
+		// correct if the answer really is constant over it. That is a claim about the collapsed boundary handling,
+		// not about caching: a threshold that stopped contributing where it should would show up here as an answer
+		// that changes strictly between two thresholds.
+		for (int seed = 0; seed < SEEDS; seed++) {
+			final List<Span> spans = generateSpans(new Random(seed));
+			final RangeIndex index = indexOf(spans);
+			final long[] thresholds = thresholdsOf(spans);
+			for (int i = 1; i < thresholds.length; i++) {
+				final long lower = thresholds[i - 1];
+				final long upper = thresholds[i];
+				// written as an addition rather than a subtraction because `upper - lower` overflows for the border
+				// sentinels; `lower + 1` cannot, since a sorted distinct pair always has lower < upper <= MAX
+				if (lower + 1 >= upper) {
+					// no point lies strictly between them
+					continue;
+				}
+				// midpoint computed so it cannot overflow even for the MIN_VALUE / MAX_VALUE pair
+				final long middle = lower + ((upper - lower) >>> 1);
+				final int[] atLowerEnd = index.getRecordsEnvelopingInclusive(lower + 1).compute().getArray();
+				for (final long point : new long[]{middle, upper - 1}) {
+					assertArrayEquals(
+						atLowerEnd, index.getRecordsEnvelopingInclusive(point).compute().getArray(),
+						() -> "getRecordsEnvelopingInclusive changed between thresholds " + lower + " and " + upper +
+							" - at " + (lower + 1) + " and at " + point
+					);
+				}
+			}
+		}
+	}
+
+	@Nested
+	@DisplayName("Indexes a subset of whose records was removed again")
+	class WithRemovals {
+		/**
+		 * Fewer seeds than the base suite - this arm builds and then tears down each index, and the breadth is
+		 * already carried by the method-level assertions above.
+		 */
+		private static final int REMOVAL_SEEDS = 25;
+
+		@Test
+		@DisplayName("Every query still agrees with the brute-force scan over the surviving spans")
+		void shouldMatchOracleAfterRemovingASubsetOfTheSpans() {
+			// `removeRecord` produces shapes `addRecord` never does: a threshold point is swept away only when its
+			// starts AND its ends are both empty, so a removal routinely leaves a one-sided point behind. The probes
+			// are taken from the ORIGINAL spans on purpose, so the queries are still asked about points that the
+			// removals may have emptied or swept.
+			for (int seed = 0; seed < REMOVAL_SEEDS; seed++) {
+				final Random random = new Random(seed * 104_729L + 3L);
+				final List<Span> spans = generateSpans(random);
+				final RangeIndex index = indexOf(spans);
+				final long[] probes = probesFor(spans);
+
+				final List<Span> surviving = new ArrayList<>(spans);
+				for (int i = spans.size() - 1; i >= 0; i--) {
+					if (random.nextInt(3) == 0) {
+						final Span removed = spans.get(i);
+						index.removeRecord(removed.from(), removed.to(), removed.recordId());
+						surviving.remove(i);
+					}
+				}
+
+				assertAllQueries(surviving, index, probes);
+			}
+		}
+	}
+
+	@Nested
+	@DisplayName("Indexes read through an open transaction")
+	class UnderAnOpenTransaction {
+		/**
+		 * Fewer seeds than the base suite - every assertion here runs inside a transactional overlay, which is the
+		 * expensive part, and the breadth is already carried by the method-level assertions above.
+		 */
+		private static final int TRANSACTION_SEEDS = 25;
+
+		@Test
+		@DisplayName("Every query agrees with the brute-force scan over the committed spans plus the pending ones")
+		void shouldMatchOracleForSpansAddedInsideATransaction() {
+			// `createPrefixCountFormula` walks the TRANSACTIONAL entry iterator, so the operand families it collects
+			// come from the overlay rather than from the committed tree. Nothing else proves the prefix walk agrees
+			// with a brute-force scan once an overlay is in play.
+			for (int seed = 0; seed < TRANSACTION_SEEDS; seed++) {
+				final Random random = new Random(seed * 7919L + 17L);
+				final List<Span> committed = generateSpans(random);
+				final RangeIndex index = indexOf(committed);
+
+				final List<Span> pending = new ArrayList<>();
+				for (int i = 0; i < 4; i++) {
+					// record ids beyond the generated range, so these ranges cannot share a border with a record that
+					// already has one - the constraint RangeIndex places on a single record's spans
+					final int recordId = RECORD_COUNT + 10 + i;
+					final long from = random.nextInt(THRESHOLD_SPACE);
+					final long to = from + random.nextInt(5);
+					pending.add(new Span(recordId, from, to));
+				}
+
+				final List<Span> expected = new ArrayList<>(committed);
+				expected.addAll(pending);
+				final long[] probes = probesFor(expected);
+
+				assertStateAfterRollback(
+					index,
+					original -> {
+						for (final Span span : pending) {
+							original.addRecord(span.from(), span.to(), span.recordId());
+						}
+						assertAllQueries(expected, original, probes);
+					},
+					(original, committedVersion) -> assertNull(committedVersion)
+				);
+			}
+		}
+	}
+
 	/**
 	 * Callback shape for an assertion made against one generated index at one probe point.
 	 */
@@ -162,17 +312,38 @@ class RangeIndexQueryOracleTest {
 	private static List<Span> generateSpans(@Nonnull Random random) {
 		final List<Span> spans = new ArrayList<>();
 		for (int recordId = 1; recordId <= RECORD_COUNT; recordId++) {
-			long cursor = random.nextInt(4);
-			final int rangeCount = 1 + random.nextInt(3);
-			for (int range = 0; range < rangeCount && cursor < THRESHOLD_SPACE; range++) {
-				final long from = cursor + random.nextInt(3);
-				final long to = from + random.nextInt(5);
-				if (to >= THRESHOLD_SPACE) {
-					break;
+			// half the records get the disjoint chain, the rest an overlapping or a nested pair - every arrangement
+			// the index permits, so the oracle cannot pass against an implementation that only handles the easy one
+			final int shape = random.nextInt(4);
+			if (shape < 2) {
+				long cursor = random.nextInt(4);
+				final int rangeCount = 1 + random.nextInt(3);
+				for (int range = 0; range < rangeCount && cursor < THRESHOLD_SPACE; range++) {
+					final long from = cursor + random.nextInt(3);
+					final long to = from + random.nextInt(5);
+					if (to >= THRESHOLD_SPACE) {
+						break;
+					}
+					spans.add(new Span(recordId, from, to));
+					// leave a gap of at least two so the next range of THIS record cannot share a border with it
+					cursor = to + 2;
 				}
-				spans.add(new Span(recordId, from, to));
-				// leave a gap of at least two so the next range of THIS record cannot share a border with it
-				cursor = to + 2;
+			} else {
+				// four STRICTLY increasing borders, so whichever pairing is taken below the record never repeats a
+				// border value - which is the one combination RangeIndex forbids (see its class javadoc)
+				final long b0 = random.nextInt(6);
+				final long b1 = b0 + 1 + random.nextInt(3);
+				final long b2 = b1 + 1 + random.nextInt(3);
+				final long b3 = b2 + 1 + random.nextInt(3);
+				if (shape == 2) {
+					// overlapping: b0 .. b2 and b1 .. b3 share the stretch b1..b2 without sharing an endpoint
+					spans.add(new Span(recordId, b0, b2));
+					spans.add(new Span(recordId, b1, b3));
+				} else {
+					// nested: b1 .. b2 sits strictly inside b0 .. b3
+					spans.add(new Span(recordId, b0, b3));
+					spans.add(new Span(recordId, b1, b2));
+				}
 			}
 		}
 		// a couple of records anchored at the index borders - the sentinels are the easiest thing for a bound to get
@@ -217,6 +388,62 @@ class RangeIndexQueryOracleTest {
 			}
 		}
 		return probes.stream().mapToLong(Long::longValue).distinct().sorted().toArray();
+	}
+
+	/**
+	 * Runs all four range queries at every probe point and checks each against the brute-force interval scan.
+	 *
+	 * @param spans  the intervals the index is expected to hold
+	 * @param index  the index under test
+	 * @param probes the points to ask about
+	 */
+	private static void assertAllQueries(
+		@Nonnull List<Span> spans, @Nonnull RangeIndex index, @Nonnull long[] probes
+	) {
+		// a fixed seed, so a failure reproduces exactly - the second bound of the overlap window is the only thing
+		// drawn here and it only has to vary across probes, not across runs
+		final Random random = new Random(0);
+		for (final long probe : probes) {
+			assertSameRecords(
+				spans, index.getRecordsEnvelopingInclusive(probe),
+				span -> span.from() <= probe && probe <= span.to(),
+				"getRecordsEnvelopingInclusive(" + probe + ")"
+			);
+			assertSameRecords(
+				spans, index.getRecordsTo(probe),
+				span -> span.from() <= probe && probe < span.to(),
+				"getRecordsTo(" + probe + ")"
+			);
+			assertSameRecords(
+				spans, index.getRecordsFrom(probe),
+				span -> span.from() < probe && probe <= span.to(),
+				"getRecordsFrom(" + probe + ")"
+			);
+			final long other = probes[random.nextInt(probes.length)];
+			final long lower = Math.min(probe, other);
+			final long upper = Math.max(probe, other);
+			assertSameRecords(
+				spans, index.getRecordsWithRangesOverlapping(lower, upper),
+				span -> span.from() <= upper && lower <= span.to(),
+				"getRecordsWithRangesOverlapping(" + lower + ", " + upper + ")"
+			);
+		}
+	}
+
+	/**
+	 * Returns every threshold present in the index, ascending and deduplicated.
+	 *
+	 * @param spans the intervals the index was built from
+	 * @return the thresholds
+	 */
+	@Nonnull
+	private static long[] thresholdsOf(@Nonnull List<Span> spans) {
+		final List<Long> thresholds = new ArrayList<>(spans.size() * 2);
+		for (final Span span : spans) {
+			thresholds.add(span.from());
+			thresholds.add(span.to());
+		}
+		return thresholds.stream().mapToLong(Long::longValue).distinct().sorted().toArray();
 	}
 
 	/**

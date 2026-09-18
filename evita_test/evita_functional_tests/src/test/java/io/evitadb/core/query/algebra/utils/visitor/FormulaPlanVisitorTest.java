@@ -179,10 +179,13 @@ class FormulaPlanVisitorTest {
 		@Test
 		@DisplayName("should not force a branch whose cost path would compute what its computation skipped")
 		void shouldNotForceABranchWhoseCostPathWouldComputeIt() {
-			// the case the test above warns about, in a type that really has it: NotFormula's X \ X guard
-			// returns empty without touching its inner formulas, while its getCostInternal() falls through to
-			// AbstractFormula's default - which calls compute() on every one of them. Rendering reads getCost()
-			// on any memoized node, so the renderer must not be the thing that triggers that fall-through
+			// the case the test above warns about, in a type that really has it: NotFormula's X \ X guard in
+			// computeInternal() returns empty without touching its inner formulas, but getCostInternal() has no
+			// matching guard - it unconditionally computes the superset formula to check whether it is empty,
+			// which is exactly the branch the guard skipped here (subtracted and superset are the same shared
+			// instance), and then - finding it non-empty - falls through to AbstractFormula's default on top of
+			// that. Rendering reads getCost() on any memoized node, so the renderer must not be the thing that
+			// triggers either computation
 			final Formula sharedBranch = new ConstantFormula(new ArrayBitmap(1, 2, 3));
 			final Formula root = new NotFormula(sharedBranch, sharedBranch);
 

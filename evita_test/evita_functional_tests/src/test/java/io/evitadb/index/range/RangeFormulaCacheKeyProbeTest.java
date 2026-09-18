@@ -55,9 +55,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  *
  * **What this test does and does not cover.** It pins the collision - the premise that makes that guard
  * load-bearing - at the formula level. It does NOT exercise `HeapMemoryCacheSupervisor` and would therefore NOT
- * fail if the read-only gate were deleted. Closing that gap needs a session-level test driving a real
- * `Evita` instance with the cache enabled, and it is worth writing precisely because one `if` is all that stands
- * between here and a wrong answer.
+ * fail if the read-only gate were deleted; `io.evitadb.core.cache.HeapMemoryCacheSupervisorReadOnlyGateTest` covers
+ * the gate itself. The two are complements: that one proves the gate is applied, this one proves why it has to be.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -71,8 +70,8 @@ class RangeFormulaCacheKeyProbeTest {
 	@DisplayName("The formula cache is bypassed for read-write sessions, which is what makes the hash collision harmless")
 	void shouldBypassFormulaCacheForReadWriteSessions() {
 		final RangeIndex tested = new RangeIndex();
-		// enough points on both sides of the threshold that the prefix carries several starts AND several ends,
-		// so the query really builds Join -> Disentangle rather than collapsing to a ConstantFormula
+		// enough points on both sides of the threshold that the prefix carries several starts AND several ends, so
+		// the query really builds a RangeCountFormula rather than collapsing to a ConstantFormula or an OrFormula
 		tested.addRecord(100L, 200L, 1);
 		tested.addRecord(110L, 150L, 2);
 		tested.addRecord(120L, 400L, 3);
@@ -95,15 +94,6 @@ class RangeFormulaCacheKeyProbeTest {
 				final Formula inTx = original.getRecordsTo(160L);
 				final int[] inTxResult = inTx.compute().getArray();
 
-				System.out.println("[probe] committed formula   = " + committed);
-				System.out.println("[probe] in-tx formula       = " + inTx);
-				System.out.println("[probe] committed hash      = " + committedHash);
-				System.out.println("[probe] in-tx     hash      = " + inTx.getHash());
-				System.out.println("[probe] committed txIdHash  = " + committedTxIdHash);
-				System.out.println("[probe] in-tx     txIdHash  = " + inTx.getTransactionalIdHash());
-				System.out.println("[probe] committed result    = " + Arrays.toString(committedResult));
-				System.out.println("[probe] in-tx     result    = " + Arrays.toString(inTxResult));
-
 				assertFalse(
 					Arrays.equals(committedResult, inTxResult),
 					"The fixture is wrong if the transaction did not change the answer - nothing is being probed! " +
@@ -113,9 +103,11 @@ class RangeFormulaCacheKeyProbeTest {
 				// the read-only gate below is load-bearing
 				assertEquals(
 					committedHash, inTx.getHash(),
-					"Expected the transactional and committed views to hash identically (TransactionalBitmap ids are " +
-						"stable across the overlay). If this ever stops holding, the reasoning in this test's javadoc " +
-						"needs revisiting - it is not automatically good news."
+					() -> "Expected the transactional and committed views to hash identically (TransactionalBitmap ids " +
+						"are stable across the overlay). If this ever stops holding, the reasoning in this test's " +
+						"javadoc needs revisiting - it is not automatically good news. committed=" + committed +
+						" (hash " + committedHash + ", txIdHash " + committedTxIdHash + "), inTx=" + inTx +
+						" (hash " + inTx.getHash() + ", txIdHash " + inTx.getTransactionalIdHash() + ")"
 				);
 			},
 			(original, committedVersion) -> assertNull(committedVersion)

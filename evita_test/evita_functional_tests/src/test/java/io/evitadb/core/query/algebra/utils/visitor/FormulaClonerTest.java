@@ -29,21 +29,25 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
+import io.evitadb.core.query.algebra.base.RangeCountFormula;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.bitmap.ArrayBitmap;
+import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.Bitmap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.util.function.UnaryOperator;
-import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link FormulaCloner} verifying deep cloning, mutation, and structural
@@ -581,6 +585,89 @@ class FormulaClonerTest {
 			);
 
 			assertSame(leaf, result);
+		}
+	}
+
+	@Nested
+	@DisplayName("RangeCountFormula handling")
+	class RangeCountFormulaHandlingTest {
+		/**
+		 * Arbitrary non-zero index id - the staleness token a range count formula is required to carry.
+		 */
+		private static final long INDEX_ID = 77L;
+
+		/**
+		 * Builds a range count formula over three small operands, computing a non-empty result.
+		 *
+		 * @return the formula under test
+		 */
+		@Nonnull
+		private static RangeCountFormula rangeCountFormula() {
+			return new RangeCountFormula(
+				INDEX_ID,
+				new Bitmap[]{new BaseBitmap(1, 2, 3), new BaseBitmap(2, 3)},
+				new Bitmap[]{new BaseBitmap(3)}
+			);
+		}
+
+		@Test
+		@DisplayName("should pass a range count formula through untouched when a sibling is stripped")
+		void shouldPassRangeCountFormulaThroughUntouched() {
+			// A range count formula carries its operands as bitmap ARRAYS and reports no inner formulas at all, so
+			// the cloner's `childrenHaveNotChanged` short-circuit keeps the instance and never reaches the
+			// fall-through that would call `getCloneWithInnerFormulas` - which this type refuses outright. That
+			// chain is what replaced the DisentangleFormula guard the cloner used to need.
+			final RangeCountFormula rangeCount = rangeCountFormula();
+			final ConstantFormula strip = new ConstantFormula(new ArrayBitmap(101));
+			final ConstantFormula keep = new ConstantFormula(new ArrayBitmap(2, 3, 4));
+			final Formula tree = new AndFormula(rangeCount, strip, keep);
+
+			final Formula cloneResult = FormulaCloner.clone(tree, f -> f == strip ? null : f);
+
+			assertNotSame(tree, cloneResult);
+			assertNotNull(cloneResult);
+			assertEquals(2, cloneResult.getInnerFormulas().length);
+			assertSame(rangeCount, cloneResult.getInnerFormulas()[0]);
+			assertSame(keep, cloneResult.getInnerFormulas()[1]);
+		}
+
+		@Test
+		@DisplayName("should not attempt to rebuild a range count formula from children")
+		void shouldNotAttemptToRebuildARangeCountFormulaFromChildren() {
+			// the negative twin: strip everything else, so the range count formula is the only survivor and the
+			// surrounding AND collapses onto it. Were the cloner ever to route it through
+			// `getCloneWithInnerFormulas`, this would surface as an UnsupportedOperationException thrown from
+			// query planning rather than as a wrong answer.
+			final RangeCountFormula rangeCount = rangeCountFormula();
+			final ConstantFormula stripA = new ConstantFormula(new ArrayBitmap(101));
+			final ConstantFormula stripB = new ConstantFormula(new ArrayBitmap(102));
+			final Formula tree = new AndFormula(rangeCount, stripA, stripB);
+
+			final Formula cloneResult = FormulaCloner.clone(
+				tree, f -> f == stripA || f == stripB ? null : f
+			);
+
+			assertSame(rangeCount, cloneResult);
+		}
+
+		@Test
+		@DisplayName("should leave identical operand families to the kernel arithmetic")
+		void shouldLeaveIdenticalFamiliesToTheKernel() {
+			// The predecessor of this type held two POSITIONAL INNER FORMULAS, so a mutator (or FormulaDeduplicator)
+			// unifying them collapsed the node to a single child and the cloner needed an explicit
+			// `subtract(X, X) = empty` guard. Here the two families are plain bitmap arrays that no visitor can
+			// unify, and the cancellation is arithmetic: the formula survives the clone by identity and computes
+			// empty on its own.
+			final Bitmap[] family = {new BaseBitmap(1, 2, 3), new BaseBitmap(2, 5), new BaseBitmap(9)};
+			final RangeCountFormula rangeCount = new RangeCountFormula(INDEX_ID, family, family);
+			final ConstantFormula keep = new ConstantFormula(new ArrayBitmap(2, 3, 4));
+			final Formula tree = new AndFormula(rangeCount, keep);
+
+			final Formula cloneResult = FormulaCloner.clone(tree, UnaryOperator.identity());
+
+			assertSame(tree, cloneResult);
+			assertTrue(rangeCount.compute().isEmpty());
+			assertEquals(0, cloneResult.compute().size());
 		}
 	}
 }
