@@ -245,13 +245,17 @@ Return a constant reflecting the relative expense of this operation. Benchmark a
 | `AndFormula`    | `9`            | Efficient bitmap intersection.      |
 | `NotFormula`    | `9`            | Bitmap subtraction.                 |
 | `OrFormula`     | `13`           | More expensive union.               |
-| `DisentangleFormula` | `2130`    | Element-level deduplication.        |
-| `JoinFormula`   | `2560`         | Expensive merge with duplicates.    |
+| `RangeCountFormula` | `1462`     | Per-element signed-count scatter over a range index's endpoint families. |
 
-These values were derived from the JMH benchmark in
+The `AndFormula`/`NotFormula`/`OrFormula` values were derived from the JMH benchmark in
 `evita_test/evita_performance_tests/src/main/java/io/evitadb/spike/FormulaCostMeasurement.java`.
 When introducing a new formula, add a corresponding benchmark method to that class, run the suite,
 and calibrate `getOperationCost()` relative to the existing results (COST 1 ≈ 1 mil. ops/s).
+`RangeCountFormula` has no benchmark method in that class; its `1462` is instead derived directly
+against the pair of formulas it replaced, on a measured production shape — see the derivation in
+`RangeCountFormula#getOperationCost()`'s own javadoc, mirrored in
+`documentation/adr/2026-09-17-range-index-counting-kernel.md`. The algorithm it prices is explained in
+[Range counting kernel](../algorithms/range-counting-kernel.md).
 
 #### `getEstimatedCardinality()`
 
@@ -274,8 +278,8 @@ Conventions (each returning the worst-case upper bound):
 
 #### Overriding `getEstimatedBaseCost()`
 
-If the formula has internal data beyond inner formulas (e.g., a control bitmap in `DisentangleFormula`), override
-this to include its cost. Default is `0L`.
+If the formula has internal data beyond inner formulas (e.g., the bitmap array `FacetGroupAndFormula` scans
+directly), override this to include its cost. Default is `0L`.
 
 ### 6. Implement hashing
 
