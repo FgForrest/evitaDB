@@ -27,10 +27,9 @@ import io.evitadb.api.query.filter.AttributeInRange;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.query.algebra.base.DisentangleFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
-import io.evitadb.core.query.algebra.base.JoinFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
+import io.evitadb.core.query.algebra.base.RangeCountFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
@@ -160,7 +159,7 @@ public class RangeIndex
 	/**
 	 * Unique transactional id for this index instance. Overrides the {@link VoidTransactionMemoryProducer} default
 	 * (the constant `1L`) so that a formula-cache token seeded from this id — the `indexTransactionId` of the
-	 * {@link JoinFormula}/{@link DisentangleFormula} built by this index's range queries — is UNIQUE per index yet
+	 * {@link RangeCountFormula} built by this index's range queries — is UNIQUE per index yet
 	 * STABLE across commits that did not touch it: an untouched index is carried forward by reference from
 	 * {@link #createCopyWithMergedTransactionalMemory} (preserving its id), while a mutated index becomes a fresh
 	 * instance with a fresh id (correctly invalidating dependent cached formulas). With the constant `1L` default the
@@ -517,10 +516,9 @@ public class RangeIndex
 	 * The computation is based on starts and end of their validity ranges. Record is valid when there is single
 	 * end threshold and not even single start for the same record.
 	 *
-	 * We also need to avoid situation when there is another full range after the actual one. This situation is solved
-	 * by combining {@link JoinFormula} - which is something like OR join that leaves duplicate record ids in place.
-	 * After that {@link DisentangleFormula} excludes all record ids that are in both bitmaps on the same place. This
-	 * operation will exclude all ranges that both start and ends after examined range.
+	 * A record can hold several validity spans, so "valid" is not a set membership question but a counting one:
+	 * over the scanned suffix the record must END more often than it STARTS, which is what excludes a range that
+	 * both starts and ends after the examined point. {@link RangeCountFormula} computes exactly that signed count.
 	 */
 	@Nonnull
 	public Formula getRecordsFrom(long threshold) {
@@ -533,7 +531,7 @@ public class RangeIndex
 			startsEndsDTO.addStart(point.getStarts());
 			startsEndsDTO.addEnd(point.getEnds());
 		}
-		return createDisentangleFormulaIfNecessary(
+		return createRangeCountFormulaIfNecessary(
 			getId(), startsEndsDTO.getRangeEndsAsBitmapArray(),
 			startsEndsDTO.getRangeStartsAsBitmapArray()
 		);
@@ -545,10 +543,9 @@ public class RangeIndex
 	 * The computation is based on starts and end of their validity ranges. Record is valid when there is single
 	 * start threshold and not even single end for the same record.
 	 *
-	 * We also need to avoid situation when there is another full range before the actual one. This situation is solved
-	 * by combining {@link JoinFormula} - which is something like OR join that leaves duplicate record ids in place.
-	 * After that {@link DisentangleFormula} excludes all record ids that are in both bitmaps on the same place. This
-	 * operation will exclude all ranges that both start and ends after examined range.
+	 * A record can hold several validity spans, so "valid" is not a set membership question but a counting one:
+	 * over the scanned prefix the record must START more often than it ENDS, which is what excludes a range that
+	 * both starts and ends before the examined point. {@link RangeCountFormula} computes exactly that signed count.
 	 */
 	@Nonnull
 	public Formula getRecordsTo(long threshold) {
@@ -566,7 +563,11 @@ public class RangeIndex
 			startsEndsDTO.addStart(point.getStarts());
 			startsEndsDTO.addEnd(point.getEnds());
 		}
-		return createDisentangleFormulaIfNecessary(getId(), startsEndsDTO.getRangeStartsAsBitmapArray(), startsEndsDTO.getRangeEndsAsBitmapArray());
+		return createRangeCountFormulaIfNecessary(
+			getId(),
+			startsEndsDTO.getRangeStartsAsBitmapArray(),
+			startsEndsDTO.getRangeEndsAsBitmapArray()
+		);
 	}
 
 	/**
@@ -591,8 +592,12 @@ public class RangeIndex
 			collectsStartsAndEnds(endIndex, points.length - 1, points) : new StartsEndsDTO();
 
 		final AndFormula envelopeFormula = new AndFormula(
-			createDisentangleFormulaIfNecessary(getId(), before.getRangeStartsAsBitmapArray(), before.getRangeEndsAsBitmapArray()),
-			createDisentangleFormulaIfNecessary(getId(), after.getRangeEndsAsBitmapArray(), after.getRangeStartsAsBitmapArray())
+			createRangeCountFormulaIfNecessary(
+				getId(), before.getRangeStartsAsBitmapArray(), before.getRangeEndsAsBitmapArray()
+			),
+			createRangeCountFormulaIfNecessary(
+				getId(), after.getRangeEndsAsBitmapArray(), after.getRangeStartsAsBitmapArray()
+			)
 		);
 
 		// both should be true or false since we have same threshold
@@ -658,56 +663,68 @@ public class RangeIndex
 	}
 
 	/**
-	 * Creates a DisentangleFormula if necessary based on the given id and bitmap arrays.
-	 * If the left or right bitmap array produces effectively empty bitmap, DisentangleFormula is not created and
-	 * more optimized result is returned.
+	 * Creates the formula computing which records have a strictly higher membership count in `plus` than in
+	 * `minus` - the signed multiplicity that decides range validity.
 	 *
-	 * @param id     the id for the DisentangleFormula
-	 * @param left   the left bitmap array to be used for the DisentangleFormula
-	 * @param right  the right bitmap array to be used for the DisentangleFormula
-	 * @return a Formula object representing the DisentangleFormula if necessary
+	 * Degenerate families short-circuit: an empty plus family can never reach a positive count, and an empty minus
+	 * family leaves nothing to cancel against, so the answer is just the union.
+	 *
+	 * @param id    transactional id of this index - the staleness token for a high-cardinality operand set
+	 * @param plus  bitmaps each membership of which contributes `+1` to a record's count
+	 * @param minus bitmaps each membership of which contributes `-1`
+	 * @return the formula computing the records whose signed count is strictly positive
 	 */
 	@Nonnull
-	private static Formula createDisentangleFormulaIfNecessary(long id, @Nonnull Bitmap[] left, @Nonnull Bitmap[] right) {
-		final Formula leftFormula = createJoinFormulaIfNecessary(id, left);
-		final Formula rightFormula = createJoinFormulaIfNecessary(id, right);
-		if (leftFormula instanceof EmptyFormula) {
+	private static Formula createRangeCountFormulaIfNecessary(
+		long id, @Nonnull Bitmap[] plus, @Nonnull Bitmap[] minus
+	) {
+		final Bitmap[] filteredPlus = withoutEmpty(plus);
+		if (filteredPlus.length == 0) {
 			return EmptyFormula.INSTANCE;
-		} else if (rightFormula instanceof EmptyFormula) {
-			if (leftFormula instanceof ConstantFormula) {
-				return leftFormula;
-			} else if (leftFormula instanceof JoinFormula joinFormula) {
-				return joinFormula.getAsOrFormula();
-			} else {
-				throw new GenericEvitaInternalError("Unexpected formula type: " + leftFormula.getClass().getSimpleName() + "!");
-			}
-		} else {
-			return new DisentangleFormula(leftFormula, rightFormula);
 		}
+		final Bitmap[] filteredMinus = withoutEmpty(minus);
+		if (filteredMinus.length == 0) {
+			// with nothing to cancel against, "counted at least once" is exactly the union
+			return filteredPlus.length == 1 ?
+				new ConstantFormula(filteredPlus[0]) : new OrFormula(new long[]{id}, filteredPlus);
+		}
+		return new RangeCountFormula(id, filteredPlus, filteredMinus);
 	}
 
 	/**
-	 * Creates a join formula if necessary based on the given id and bitmap array.
-	 * If the bitmap array contains only one bitmap, a ConstantFormula is created with that bitmap.
-	 * If the bitmap array is empty, an EmptyFormula is returned.
-	 * Otherwise, a JoinFormula is created with the given id and filtered bitmaps.
+	 * Drops empty bitmaps from an operand family.
 	 *
-	 * @param id     the id for the JoinFormula
-	 * @param bitmaps the bitmap array to be filtered and used for the JoinFormula
-	 * @return a Formula object representing the join formula if necessary
+	 * Tests {@link Bitmap#isEmpty()} rather than `instanceof EmptyBitmap` as the previous implementation did: a
+	 * threshold point legitimately carries an EMPTY `TransactionalBitmap` on one side (the obsolete-point check
+	 * only removes a point whose starts AND ends are both empty), and such an operand contributes nothing to the
+	 * count while still inflating the family. The computed result is unchanged either way; this simply stops an
+	 * operand that cannot affect the answer from being carried through the formula.
+	 *
+	 * It also replaces a `Arrays.stream(...).filter(...).toArray(...)` pipeline that ran in the planning phase on
+	 * every range query, for every matching index.
+	 *
+	 * @param bitmaps the family to filter
+	 * @return the same array when nothing was empty, otherwise a compacted copy
 	 */
 	@Nonnull
-	private static Formula createJoinFormulaIfNecessary(long id, @Nonnull Bitmap[] bitmaps) {
-		final Bitmap[] filteredBitmaps = Arrays.stream(bitmaps)
-			.filter(it -> !(it instanceof EmptyBitmap))
-			.toArray(Bitmap[]::new);
-		if (filteredBitmaps.length == 0) {
-			return EmptyFormula.INSTANCE;
-		} else if (filteredBitmaps.length == 1) {
-			return new ConstantFormula(filteredBitmaps[0]);
-		} else {
-			return new JoinFormula(id, filteredBitmaps);
+	private static Bitmap[] withoutEmpty(@Nonnull Bitmap[] bitmaps) {
+		int nonEmpty = 0;
+		for (final Bitmap bitmap : bitmaps) {
+			if (!bitmap.isEmpty()) {
+				nonEmpty++;
+			}
 		}
+		if (nonEmpty == bitmaps.length) {
+			return bitmaps;
+		}
+		final Bitmap[] result = new Bitmap[nonEmpty];
+		int index = 0;
+		for (final Bitmap bitmap : bitmaps) {
+			if (!bitmap.isEmpty()) {
+				result[index++] = bitmap;
+			}
+		}
+		return result;
 	}
 
 	/**
@@ -729,8 +746,12 @@ public class RangeIndex
 			between.getRangeStarts(),
 			between.getRangeEnds(),
 			new AndFormula(
-				createDisentangleFormulaIfNecessary(getId(), before.getRangeStartsAsBitmapArray(), before.getRangeEndsAsBitmapArray()),
-				createDisentangleFormulaIfNecessary(getId(), after.getRangeEndsAsBitmapArray(), after.getRangeStartsAsBitmapArray())
+				createRangeCountFormulaIfNecessary(
+					getId(), before.getRangeStartsAsBitmapArray(), before.getRangeEndsAsBitmapArray()
+				),
+				createRangeCountFormulaIfNecessary(
+					getId(), after.getRangeEndsAsBitmapArray(), after.getRangeStartsAsBitmapArray()
+				)
 			)
 		);
 	}

@@ -128,7 +128,7 @@ public class FormulaPlanVisitor implements FormulaVisitor {
 		// both outcome numbers are read through the free-of-charge accessors, and neither may trigger a computation.
 		// getCost() would: on a node that is memoized but whose cost nobody has asked for yet, it falls through to
 		// AbstractFormula#getCostInternal(), which calls compute() on every inner formula - including ones this
-		// formula's own computation skipped (DisentangleFormula's X\X guard is exactly that shape). The two reads
+		// formula's own computation skipped (NotFormula's X \ X guard is exactly that shape). The two reads
 		// are independent, so a node can legitimately report a result count with no cost beside it: that says the
 		// formula ran but nothing has priced it, which is a different statement from "it never ran"
 		final Bitmap memoizedResult = formula.getMemoizedResult();

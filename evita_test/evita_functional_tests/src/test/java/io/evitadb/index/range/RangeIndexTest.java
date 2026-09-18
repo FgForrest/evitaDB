@@ -335,7 +335,7 @@ class RangeIndexTest {
 			final RangeIndex a = new RangeIndex();
 			final RangeIndex b = new RangeIndex();
 			// each RangeIndex must expose a UNIQUE id; the VoidTransactionMemoryProducer default 1L would make every
-			// index collide and, worse, make the >100-bucket JoinFormula token constant -> cache never invalidates (#37)
+			// index collide and, worse, make the >100-operand RangeCountFormula token constant -> cache never invalidates (#37)
 			assertNotEquals(a.getId(), b.getId());
 		}
 
@@ -351,7 +351,7 @@ class RangeIndexTest {
 					// the surviving original delegate keeps its identity and its id
 					assertEquals(originalId, original.getId());
 					// the committed copy is a FRESH instance and MUST carry a fresh version id. A >100-bucket range
-					// JoinFormula seeds its transactional-id token from this id; if it did not change across a mutating
+					// RangeCountFormula seeds its transactional-id token from this id; if it did not change across a mutating
 					// commit the cached result would never be invalidated -> stale reads (issue #37).
 					assertNotEquals(originalId, committedVersion.getId());
 				}
@@ -377,7 +377,7 @@ class RangeIndexTest {
 		@DisplayName("Mutating commit re-mints a > 100-bitmap range formula's token (guards issue #37 stale cache)")
 		void highCardinalityRangeFormulaTokenChangesOnMutatingCommit() {
 			// 150 records at pairwise-disjoint from/to thresholds -> 150 distinct start points and 150 distinct end
-			// points, so getRecordsFrom(MIN_VALUE) folds > EXCESSIVE_HIGH_CARDINALITY (100) bitmaps into each JoinFormula,
+			// points, so getRecordsFrom(MIN_VALUE) folds > EXCESSIVE_HIGH_CARDINALITY (100) bitmaps into the RangeCountFormula,
 			// which then seeds its staleness token from the index id (getId()) instead of the per-bitmap ids
 			for (int i = 1; i <= 150; i++) {
 				RangeIndexTest.this.tested.addRecord(i, 10_000 + i, i);
@@ -393,7 +393,7 @@ class RangeIndexTest {
 				RangeIndexTest.this.tested,
 				original -> original.addRecord(10_000, 20_000, 100_000),
 				(original, committedVersion) ->
-					// the committed copy is a fresh instance with a fresh id; the > 100-bitmap JoinFormula seeds its
+					// the committed copy is a fresh instance with a fresh id; the > 100-operand RangeCountFormula seeds its
 					// token from that id, so a cached result over this range is now invalidated. With the old constant
 					// 1L id the token would be identical across the commit -> the stale read of issue #37.
 					assertNotEquals(

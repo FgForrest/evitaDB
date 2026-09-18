@@ -27,7 +27,7 @@ import io.evitadb.api.requestResponse.extraResult.FormulaPlan;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.query.algebra.base.DisentangleFormula;
+import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.bitmap.ArrayBitmap;
@@ -179,12 +179,12 @@ class FormulaPlanVisitorTest {
 		@Test
 		@DisplayName("should not force a branch whose cost path would compute what its computation skipped")
 		void shouldNotForceABranchWhoseCostPathWouldComputeIt() {
-			// the case the test above warns about, in a type that really has it: DisentangleFormula's X\X guard
+			// the case the test above warns about, in a type that really has it: NotFormula's X \ X guard
 			// returns empty without touching its inner formulas, while its getCostInternal() falls through to
 			// AbstractFormula's default - which calls compute() on every one of them. Rendering reads getCost()
 			// on any memoized node, so the renderer must not be the thing that triggers that fall-through
 			final Formula sharedBranch = new ConstantFormula(new ArrayBitmap(1, 2, 3));
-			final Formula root = new DisentangleFormula(sharedBranch, sharedBranch);
+			final Formula root = new NotFormula(sharedBranch, sharedBranch);
 
 			root.compute();
 
@@ -208,7 +208,7 @@ class FormulaPlanVisitorTest {
 			// with no cost beside it. That is a third node shape, and it says something different from both
 			// "never ran" (no numbers at all) and "ran and cost this much"
 			final Formula sharedBranch = new ConstantFormula(new ArrayBitmap(1, 2, 3));
-			final Formula root = new DisentangleFormula(sharedBranch, sharedBranch);
+			final Formula root = new NotFormula(sharedBranch, sharedBranch);
 
 			root.compute();
 

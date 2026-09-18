@@ -25,7 +25,6 @@ package io.evitadb.core.query.algebra.utils.visitor;
 
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaVisitor;
-import io.evitadb.core.query.algebra.base.DisentangleFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.utils.CollectionUtils;
@@ -194,34 +193,13 @@ public class FormulaCloner implements FormulaVisitor {
 							formulaToStore = null;
 						}
 					}
-				} else if (formula instanceof DisentangleFormula disentangleFormula && updatedChildren.size() < 2) {
-					// DisentangleFormula(main, control) requires two positional siblings — the same
-					// dedup-collapse pattern that hits NotFormula above can drop one of them when
-					// FormulaDeduplicator unifies structurally equivalent inputs. Without this guard
-					// the fall-through would call `getCloneWithInnerFormulas([X])` and throw
-					// ArrayIndexOutOfBoundsException on `innerFormulas[1]`.
-					if (updatedChildren.isEmpty()) {
-						// both children stripped — no operation possible, drop the wrapper
-						formulaToStore = null;
-					} else {
-						// Determine which child survived
-						final Formula processedMain = this.formulasProcessed.get(disentangleFormula.getInnerFormulas()[0]);
-						final Formula processedControl = this.formulasProcessed.get(disentangleFormula.getInnerFormulas()[1]);
-						if (processedMain != null && processedMain == processedControl
-							&& updatedChildren.contains(processedMain)) {
-							// Both positional siblings post-process to the same formula instance
-							// (FormulaDeduplicator collapsing structurally equivalent inputs).
-							// Mathematically `disentangle(X, X) = ∅`.
-							formulaToStore = EmptyFormula.INSTANCE;
-						} else if (processedMain != null && updatedChildren.contains(processedMain)) {
-							// Main survived, control was removed → `disentangle(main, ∅) = main`
-							// (matches RangeIndex.createDisentangleFormulaIfNecessary semantics).
-							formulaToStore = processedMain;
-						} else {
-							// Control survived, main was removed → nothing to disentangle → drop
-							formulaToStore = null;
-						}
-					}
+				// NOTE: `DisentangleFormula` used to need a guard here. It held two POSITIONAL INNER FORMULAS, so
+				// FormulaDeduplicator unifying structurally equivalent inputs could collapse them to one child and
+				// the fall-through would then index `innerFormulas[1]` out of bounds. Its replacement,
+				// `RangeCountFormula`, carries its operands as bitmap ARRAYS and has no inner formulas at all, so
+				// there is nothing for dedup to collapse and the guard has no subject. The `disentangle(X, X) = 0`
+				// case it also covered is now plain arithmetic in the kernel: identical families cancel to an empty
+				// result on their own (see RangeCountKernelTest#shouldCancelWhenBothFamiliesAreIdentical).
 				} else {
 					// recreate parent formula with new children
 					final Formula recreated = formula.getCloneWithInnerFormulas(
