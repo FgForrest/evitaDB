@@ -5,7 +5,7 @@ updated: 2026-09-18 20:30
 status: proposed
 kind: optimization
 issues: [1604]
-prs: []
+prs: [1605]
 areas: [evita_engine/core/query/algebra/base, evita_roaring_bitmap, evita_test/evita_performance_tests]
 supersedes: []
 superseded-by: []
