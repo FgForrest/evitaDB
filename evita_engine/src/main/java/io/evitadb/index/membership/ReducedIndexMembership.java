@@ -24,8 +24,11 @@
 package io.evitadb.index.membership;
 
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -39,6 +42,7 @@ import io.evitadb.utils.VMLayout;
 import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.PrimitiveIterator.OfInt;
+import java.util.Set;
 
 /**
  * Reverse lookup answering "which reduced indexes of ONE reference hold this owner entity?", for the reduced
@@ -46,20 +50,34 @@ import java.util.PrimitiveIterator.OfInt;
  *
  * # What it is for
  *
- * `ReevaluateExpressionExecutor#collectOwnersOfReducedIndexes` answers that question by walking **every**
- * reduced index a reference advertises and intersecting each one's member bitmap against the affected owners.
- * That costs `O(total reduced indexes)` on every cross-entity conditional-facet trigger, regardless of how
- * many owners the trigger touches — measured at 0.78 ms on a production catalog as configured, and 81-113 ms
- * one schema flag away (issue #1529). This structure removes that walk for the indexes it covers.
+ * Two readers ask the same question, and both would otherwise answer it by walking **every** reduced index a
+ * reference advertises:
+ *
+ * - `ReevaluateExpressionExecutor#collectOwnersOfReducedIndexes` intersects each index's member bitmap against
+ *   the affected owners on every cross-entity conditional-facet trigger. That costs `O(total reduced indexes)`
+ *   regardless of how many owners the trigger touches — measured at 0.78 ms on a production catalog as
+ *   configured, and 81-113 ms one schema flag away (issue #1529).
+ * - `IndexSelectionVisitor` decides whether a `referenceHaving` is better answered from the reference's reduced
+ *   indexes or from the main index, and today reaches that decision by materialising the whole candidate set
+ *   and summing its cardinalities (issue #1603).
+ *
+ * This structure removes that walk for the indexes it covers.
+ *
+ * # Which references are maintained
+ *
+ * Every reference that advertises reduced indexes at all — see {@link #isMaintainedFor}. The second reader
+ * above arrives at any reference a query filters on, not only at the ones a conditional facet can reach, so
+ * narrowing maintenance to the facet trigger's own references would leave it walking exactly the references it
+ * was given this map for.
  *
  * # Why only SOME indexes are covered
  *
  * Cost is per **membership** while benefit is per **index**: covering a reduced index holding 21,467 owners
- * costs 21,467 entries and saves exactly one probe. Covering everything measured at 279.2 MiB against
- * 37.2 MiB for a size threshold that still removes 96 % of the walk. So an index is covered only while it
- * holds at most {@link #getCoverageThreshold()} owners; larger ones stay {@link #getResidualIndexPrimaryKeys()
- * on the walk}, and references whose indexes are all large disqualify themselves automatically without any
- * per-reference heuristic.
+ * costs 21,467 entries and saves exactly one probe. Covering everything measured at 302 MB against 69.9 MB for
+ * a size threshold that still removes 99.3 % of the walk. So an index is covered only while it holds at most
+ * {@link #getCoverageThreshold()} owners; larger ones stay {@link #getResidualIndexPrimaryKeys() on the walk},
+ * and references whose indexes are all large disqualify themselves automatically without any per-reference
+ * heuristic.
  *
  * Promotion out of coverage happens above the threshold and demotion back only at half of it. The hysteresis
  * is what makes a crossing `O(1)` amortised: an index cannot cross upwards again until half a threshold's
@@ -130,11 +148,48 @@ public class ReducedIndexMembership implements VoidTransactionMemoryProducer<Red
 	/**
 	 * Default maximum number of owners a reduced index may hold and still be covered by the reverse map.
 	 *
-	 * Measured on a production catalog: at this value the map covers 96 % of the walk for 13 % of the memory a
-	 * blanket structure would cost. The curve is steeply concave — `T`=1 already removes 86 % — so the exact
-	 * value is not delicate; what matters is that it is small.
+	 * Measured on a production catalog over the four reference-heaviest collections, maintained for every
+	 * indexed reference: at this value the map costs 69.9 MB and leaves 3,527 of 490,280 partitions on the
+	 * walk, against 45.5 MB / 49,442 at a quarter of it and 302 MB / 0 for a blanket structure. The curve is
+	 * steeply concave, so the exact value is not delicate — but the quarter is too small for the planner: it
+	 * covers the heaviest reference completely while leaving the second-heaviest walking 40,368 of its 161,977
+	 * partitions, which at this value becomes 38.
+	 *
+	 * Raising it does not slow a mutation. Promotion out of coverage rebuilds `O(T)` entries, but the
+	 * hysteresis below means an index cannot cross again until `T/2` further owners arrive, so the per-write
+	 * cost is threshold-independent.
 	 */
-	public static final int DEFAULT_COVERAGE_THRESHOLD = 16;
+	public static final int DEFAULT_COVERAGE_THRESHOLD = 64;
+
+	/**
+	 * Tells whether the reverse lookup of one reference is maintained in the given scope — the single
+	 * definition of that question, shared by the write path (`ReferenceIndexMutator`), the load-time build and
+	 * the schema-change discard (`EntityCollection`).
+	 *
+	 * It is deliberately one method rather than three agreeing predicates. The `covered ∪ residual ==
+	 * advertised` invariant is a statement about two sites, and a slice built at load but not maintained on
+	 * write — or the reverse — breaks it in the silent direction described above, not in a way any read-time
+	 * check would notice.
+	 *
+	 * The test is whether the reference advertises reduced indexes at all, which is decided by its indexed
+	 * **components** and not by its {@link io.evitadb.api.requestResponse.schema.ReferenceIndexType}: the index
+	 * type governs whether entity-level attribute and price data is mirrored **into** those indexes, while the
+	 * indexes themselves — and the owner bitmaps this map summarises — exist for either component alone. A
+	 * reference indexed only for filtering therefore still owns partitions, and still costs the walk this map
+	 * removes.
+	 *
+	 * @param referenceSchema schema of the reference whose lookup would be maintained
+	 * @param scope           the scope the lookup would live in
+	 * @return `true` when this reference's lookup is maintained in this scope
+	 */
+	public static boolean isMaintainedFor(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Scope scope
+	) {
+		final Set<ReferenceIndexedComponents> indexedComponents = referenceSchema.getIndexedComponents(scope);
+		return indexedComponents.contains(ReferenceIndexedComponents.REFERENCED_ENTITY)
+			|| indexedComponents.contains(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY);
+	}
 
 	/**
 	 * Maximum owners a covered reduced index may hold. Crossing above it promotes the index to the residual
