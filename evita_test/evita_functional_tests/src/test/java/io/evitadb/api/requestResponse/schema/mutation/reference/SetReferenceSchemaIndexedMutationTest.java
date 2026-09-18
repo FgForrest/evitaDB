@@ -46,6 +46,8 @@ import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator.Con
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
+
+import javax.annotation.Nonnull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -565,6 +567,160 @@ class SetReferenceSchemaIndexedMutationTest {
 			assertEquals(2, result.size());
 			assertTrue(result.contains(ReferenceIndexedComponents.REFERENCED_ENTITY));
 			assertTrue(result.contains(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY));
+		}
+
+		@Test
+		@DisplayName("should default components for an indexed scope the supplied array omits")
+		void shouldDefaultComponentsForIndexedScopeMissingFromSuppliedArray() {
+			// The components array is all-or-nothing today: `null` makes the mutation derive defaults for every
+			// indexed scope, while a non-null array is taken verbatim and any indexed scope it does not name ends
+			// up with NO components. That state is not merely cosmetic - indexed components are what decide
+			// whether reduced indexes are built at all, so the reference comes out claiming to be indexed in LIVE
+			// while silently indexing nothing there.
+			//
+			// The array below names ARCHIVED only, exactly as the builder forwards it when a reference that is
+			// already indexed somewhere gains a further scope.
+			final SetReferenceSchemaIndexedMutation mutation =
+				new SetReferenceSchemaIndexedMutation(
+					REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(
+							Scope.LIVE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING
+						),
+						new ScopedReferenceIndexType(
+							Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING
+						)
+					},
+					new ScopedReferenceIndexedComponents[]{
+						new ScopedReferenceIndexedComponents(
+							Scope.ARCHIVED,
+							new ReferenceIndexedComponents[]{ReferenceIndexedComponents.REFERENCED_ENTITY}
+						)
+					}
+				);
+
+			final ReferenceSchemaContract mutatedSchema =
+				mutation.mutate(
+					Mockito.mock(EntitySchemaContract.class),
+					createExistingReferenceSchema()
+				);
+
+			assertNotNull(mutatedSchema);
+			assertEquals(
+				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+				mutatedSchema.getReferenceIndexType(Scope.LIVE),
+				"LIVE must carry the index type the mutation set"
+			);
+			assertFalse(
+				mutatedSchema.getIndexedComponents(Scope.LIVE).isEmpty(),
+				"LIVE is indexed, so it must carry indexed components - an indexed scope with none indexes "
+					+ "nothing, and the reference then reports itself indexed while no data reaches an index"
+			);
+			assertTrue(
+				mutatedSchema.getIndexedComponents(Scope.LIVE)
+					.contains(ReferenceIndexedComponents.REFERENCED_ENTITY),
+				"the omitted scope must fall back to the same default an absent array would have produced"
+			);
+			assertEquals(
+				Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY),
+				mutatedSchema.getIndexedComponents(Scope.ARCHIVED),
+				"the scope the array did name must be left exactly as supplied"
+			);
+		}
+
+		@Test
+		@DisplayName("should restore components when a withdrawn scope is indexed again")
+		void shouldRestoreComponentsWhenWithdrawnScopeIsIndexedAgain() {
+			// The sequence a client actually performs, in the two mutations the builder emits for it: a reference
+			// indexed in both scopes has LIVE withdrawn, then given back. The second mutation forwards whatever
+			// components survived the first - which is ARCHIVED's only - so LIVE returns with an index type and
+			// an empty component set. Old partitions stay queryable and new writes are silently not indexed,
+			// which is what makes this quiet enough to ship.
+			//
+			// Built from the un-faceted fixture on purpose: a faceted scope must also be an indexed one, so
+			// withdrawing LIVE from the faceted default fixture would be refused before it could demonstrate
+			// anything about components.
+			final ReferenceSchemaContract bothScopes =
+				new SetReferenceSchemaIndexedMutation(
+					REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(
+							Scope.LIVE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING
+						),
+						new ScopedReferenceIndexType(
+							Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING
+						)
+					}
+				).mutate(Mockito.mock(EntitySchemaContract.class), createExistingReferenceSchema(false));
+			assertNotNull(bothScopes);
+			assertFalse(
+				bothScopes.getIndexedComponents(Scope.LIVE).isEmpty(),
+				"both scopes must start out with components, or this test proves nothing"
+			);
+
+			// LIVE withdrawn - ARCHIVED alone keeps the reference indexed somewhere
+			final ReferenceSchemaContract archivedOnly =
+				new SetReferenceSchemaIndexedMutation(
+					REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(
+							Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING
+						)
+					},
+					toScopedComponents(bothScopes, Scope.ARCHIVED)
+				).mutate(Mockito.mock(EntitySchemaContract.class), bothScopes);
+			assertNotNull(archivedOnly);
+			assertTrue(
+				archivedOnly.getIndexedComponents(Scope.LIVE).isEmpty(),
+				"a withdrawn scope must hold no components"
+			);
+
+			// ... and given back, forwarding the components that survived, exactly as the builder does
+			final ReferenceSchemaContract restored =
+				new SetReferenceSchemaIndexedMutation(
+					REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(
+							Scope.LIVE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING
+						),
+						new ScopedReferenceIndexType(
+							Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING
+						)
+					},
+					toScopedComponents(archivedOnly, Scope.ARCHIVED)
+				).mutate(Mockito.mock(EntitySchemaContract.class), archivedOnly);
+
+			assertNotNull(restored);
+			assertEquals(
+				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+				restored.getReferenceIndexType(Scope.LIVE),
+				"LIVE must be indexed again"
+			);
+			assertFalse(
+				restored.getIndexedComponents(Scope.LIVE).isEmpty(),
+				"LIVE must carry components again - restoring the index type without them leaves the reference "
+					+ "indexed in name only, and every write after the restoration goes unindexed"
+			);
+		}
+
+		/**
+		 * Renders one scope's indexed components as the array a builder would forward into the next mutation.
+		 *
+		 * @param schema the schema to read the components from
+		 * @param scope  the scope whose components are forwarded
+		 * @return the components array, carrying that one scope
+		 */
+		@Nonnull
+		private ScopedReferenceIndexedComponents[] toScopedComponents(
+			@Nonnull ReferenceSchemaContract schema,
+			@Nonnull Scope scope
+		) {
+			return new ScopedReferenceIndexedComponents[]{
+				new ScopedReferenceIndexedComponents(
+					scope,
+					schema.getIndexedComponents(scope).toArray(ReferenceIndexedComponents.EMPTY)
+				)
+			};
 		}
 
 		@Test
