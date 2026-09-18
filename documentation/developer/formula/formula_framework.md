@@ -254,7 +254,7 @@ and calibrate `getOperationCost()` relative to the existing results (COST 1 ≈ 
 `RangeCountFormula` has no benchmark method in that class; its `1462` is instead derived directly
 against the pair of formulas it replaced, on a measured production shape — see the derivation in
 `RangeCountFormula#getOperationCost()`'s own javadoc, mirrored in
-`documentation/adr/2026-09-17-range-index-counting-kernel.md`. The algorithm it prices is explained in
+`documentation/adr/2026-09-18-range-index-counting-kernel.md`. The algorithm it prices is explained in
 [Range counting kernel](../algorithms/range-counting-kernel.md).
 
 #### `getEstimatedCardinality()`

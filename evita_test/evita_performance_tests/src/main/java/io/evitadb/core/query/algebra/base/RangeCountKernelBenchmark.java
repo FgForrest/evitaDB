@@ -171,7 +171,7 @@ public class RangeCountKernelBenchmark {
 	}
 
 	// The bit-sliced plane kernel was benchmarked here and LOST (2.6x slower, 87.6 MB/op against this kernel's
-	// 2.1 MB) - see documentation/adr/2026-09-17-range-index-counting-kernel.md, Option B. It now lives in test
+	// 2.1 MB) - see documentation/adr/2026-09-18-range-index-counting-kernel.md, Option B. It now lives in test
 	// sources as a third independent implementation for the differential test, so it is no longer reachable from
 	// this module and its arm is gone with it.
 

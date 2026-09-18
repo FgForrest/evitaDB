@@ -1,7 +1,7 @@
 ---
 title: SIMD through the JDK Vector API is pursued in the roaring containers and two query kernels behind an optional provider, and nowhere in object-shaped code
 date: 2026-09-10
-updated: 2026-09-10 09:50
+updated: 2026-09-18 14:15
 status: proposed
 kind: optimization
 issues: [1518, 1539, 1540, 1541, 1542, 1543, 1544, 1545, 1546]
@@ -9,7 +9,7 @@ prs: [1519]
 areas: [evita_roaring_bitmap, evita_engine/core/query/algebra, evita_engine/core/query/extraResult/translator/reference, evita_engine/index/range, evita_engine/index/price, pom.xml]
 supersedes: []
 superseded-by: []
-relates: [2026-09-08-jdk21-safe-modernization, 2026-09-10-jdk21-virtual-threads-and-scoped-values, 2026-08-24-fulltext-search-lucene-vs-inhouse]
+relates: [2026-09-08-jdk21-safe-modernization, 2026-09-10-jdk21-virtual-threads-and-scoped-values, 2026-08-24-fulltext-search-lucene-vs-inhouse, 2026-09-18-range-index-counting-kernel]
 ---
 
 # SIMD through the JDK Vector API is pursued in the roaring containers and two query kernels behind an optional provider, and nowhere in object-shaped code

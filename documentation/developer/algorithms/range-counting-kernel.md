@@ -7,7 +7,7 @@ implementation stays cache-resident while doing it.
 
 The code is `RangeIndex`, `RangeCountFormula` and `RangeCountKernel`. The decision history — what was replaced,
 which alternatives lost and why — is in
-[the ADR](../../adr/2026-09-17-range-index-counting-kernel.md); this page is the explanation, not the record.
+[the ADR](../../adr/2026-09-18-range-index-counting-kernel.md); this page is the explanation, not the record.
 
 ## The question a range query asks
 
@@ -297,4 +297,4 @@ Tests worth reading before changing any of it:
 
 - [Formula framework](../formula/formula_framework.md) — how a formula is planned, costed and cached
 - [Index data structures](../indexes/data-structures.md) — where `RangeIndex` sits among the attribute indexes
-- [ADR: the range index computes its signed multiplicity in one counting pass](../../adr/2026-09-17-range-index-counting-kernel.md)
+- [ADR: the range index computes its signed multiplicity in one counting pass](../../adr/2026-09-18-range-index-counting-kernel.md)

@@ -1,11 +1,11 @@
 ---
 title: The range index computes its signed multiplicity in one counting pass, and the JoinFormula/DisentangleFormula pair is deleted
-date: 2026-09-17
-updated: 2026-09-18 13:40
-status: proposed
+date: 2026-09-18
+updated: 2026-09-18 14:15
+status: accepted
 kind: optimization
 issues: [1539, 1546]
-prs: []
+prs: [1602]
 areas: [evita_engine/core/query/algebra/base, evita_engine/index/range, evita_test/evita_performance_tests]
 supersedes: []
 superseded-by: []
