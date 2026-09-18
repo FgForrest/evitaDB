@@ -37,7 +37,6 @@ import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.DateTimeRange;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.TransactionalLongBPlusTree;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -126,6 +125,13 @@ public class RangeIndex
 		TransactionalRangePoint.class::cast;
 
 	/**
+	 * Initial capacity for the two operand families a range query collects. A family holds one bitmap per threshold
+	 * point that contributed, which for the queries this index serves is a handful in the common case and grows by
+	 * doubling when it is not - the value only avoids the first few array copies, it caps nothing.
+	 */
+	private static final int DEFAULT_OPERAND_FAMILY_SIZE = 16;
+
+	/**
 	 * Leaf block size of the threshold → range-point tree. Unlike the comparator-keyed inverted index, this tree is
 	 * `long`-keyed with a single-reference value, so an in-leaf insert is a cheap primitive/reference arraycopy and there
 	 * is no read-vs-write block-size conflict. Benchmarking (`RangeIndexBlockSizeBenchmark`; results and analysis under
@@ -135,13 +141,6 @@ public class RangeIndex
 	 * scale with no write cost, and the gains have flattened by `512`. It is a runtime-only parameter — it does not affect
 	 * the persisted form, which is rebuilt into the tree on load.
 	 */
-	/**
-	 * Initial capacity for the two operand families a range query collects. A family holds one bitmap per threshold
-	 * point that contributed, which for the queries this index serves is a handful in the common case and grows by
-	 * doubling when it is not - the value only avoids the first few array copies, it caps nothing.
-	 */
-	private static final int DEFAULT_OPERAND_FAMILY_SIZE = 16;
-
 	private static final int VALUE_BLOCK_SIZE = 512;
 	private static final int MIN_VALUE_BLOCK_SIZE = VALUE_BLOCK_SIZE / 2 - 1;
 	private static final int MIN_INTERNAL_NODE_BLOCK_SIZE = (int) (Math.ceil(MIN_VALUE_BLOCK_SIZE / 2.0) - 1);
@@ -542,6 +541,9 @@ public class RangeIndex
 	 *
 	 * Method finds all records which start range is before `threshold` and end range is after `threshold` argument.
 	 * Records starting or ending exactly with `threshold` are part of the result.
+	 *
+	 * Implemented as the `(threshold, true, threshold, false)` instance of the signed-count prefix in
+	 * {@link #createPrefixCountFormula(long, boolean, long, boolean)}; see that method for the counting rationale.
 	 */
 	@Nonnull
 	public Formula getRecordsEnvelopingInclusive(long threshold) {
@@ -723,10 +725,22 @@ public class RangeIndex
 	 *
 	 * Method finds all records which start range is before `from` and ends after or equal to `from` or
 	 * which ends after `from` but before or equal to `to`.
+	 *
+	 * An inverted window - one whose lower bound exceeds its upper bound - describes an empty set of points, so no
+	 * range can have a point in common with it and the answer is {@link EmptyFormula}. The bound order is not
+	 * validated anywhere upstream: neither `AttributeBetween#isApplicable()` nor `DateTimeRange#between` orders the
+	 * pair, and `AttributeBetweenTranslator` hands both bounds straight to this method. Its own scalar branch builds
+	 * `value >= from && value <= to`, which is unsatisfiable for an inverted pair and therefore already answers such
+	 * a query with an empty result - the indexed range path agrees with it rather than failing the query.
+	 *
+	 * A correctly-ordered pair is implemented as the `(to, true, from, false)` instance of the signed-count prefix
+	 * in {@link #createPrefixCountFormula(long, boolean, long, boolean)}; see that method for the counting rationale.
 	 */
 	@Nonnull
 	public Formula getRecordsWithRangesOverlapping(long from, long to) {
-		Assert.isPremiseValid(from <= to, "The overlap query lower bound must not exceed its upper bound!");
+		if (from > to) {
+			return EmptyFormula.INSTANCE;
+		}
 		return createPrefixCountFormula(to, true, from, false);
 	}
 
@@ -1271,7 +1285,7 @@ public class RangeIndex
 			if (this.rangeStarts.isEmpty()) {
 				return EmptyFormula.INSTANCE;
 			} else if (this.rangeStarts.size() == 1) {
-				return this.rangeStarts.get(0);
+				return this.rangeStarts.getFirst();
 			} else {
 				return new OrFormula(
 					this.rangeStarts.toArray(EMPTY_ARRAY)
@@ -1287,7 +1301,7 @@ public class RangeIndex
 			if (this.rangeEnds.isEmpty()) {
 				return EmptyFormula.INSTANCE;
 			} else if (this.rangeEnds.size() == 1) {
-				return this.rangeEnds.get(0);
+				return this.rangeEnds.getFirst();
 			} else {
 				return new OrFormula(
 					this.rangeEnds.toArray(EMPTY_ARRAY)

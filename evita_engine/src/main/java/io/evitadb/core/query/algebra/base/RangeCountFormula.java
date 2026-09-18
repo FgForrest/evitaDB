@@ -56,6 +56,11 @@ import java.util.function.Consumer;
  * mirror image over the suffix, with the families swapped. The order of the two families is therefore significant
  * and is part of this formula's identity.
  *
+ * `getRecordsEnvelopingInclusive` and `getRecordsWithRangesOverlapping` build this same formula through
+ * {@link io.evitadb.index.range.RangeIndex}'s private `createPrefixCountFormula`, whose two bounds are chosen
+ * independently rather than mirrored around one threshold - see that method for how each of the four callers maps
+ * onto a `(startsBound, startsInclusive, endsBound, endsInclusive)` tuple.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public class RangeCountFormula extends AbstractCacheableFormula implements CacheablePriceFormula {
@@ -213,14 +218,25 @@ public class RangeCountFormula extends AbstractCacheableFormula implements Cache
 		}
 	}
 
-	@Override
-	protected long getEstimatedBaseCost() {
-		return totalOperandSize();
-	}
-
+	/**
+	 * Actual cost of this formula, priced the way {@link #getEstimatedCostInternal()} prices the same work: every
+	 * endpoint this formula scatters, scaled by {@link #getOperationCost()}.
+	 *
+	 * The multiplier is not decoration. `AbstractFormula#getCostToPerformanceInternal()` divides this by the result
+	 * size and that ratio is what the formula cache admits and ranks entries by, so dropping the factor would price a
+	 * range result three orders of magnitude below every other formula type and effectively bar it from the cache.
+	 * The sibling bitmap-carrying formula - `OrFormula#getCostInternal()` - applies it for the same reason. Overflow
+	 * is capped rather than thrown, matching {@link #getEstimatedCostInternal()}.
+	 *
+	 * @return the actual cost, or {@link Long#MAX_VALUE} when the product overflows
+	 */
 	@Override
 	protected long getCostInternal() {
-		return totalOperandSize();
+		try {
+			return Math.multiplyExact(totalOperandSize(), getOperationCost());
+		} catch (final ArithmeticException ex) {
+			return Long.MAX_VALUE;
+		}
 	}
 
 	@Override

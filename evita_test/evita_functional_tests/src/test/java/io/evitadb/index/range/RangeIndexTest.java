@@ -50,9 +50,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
@@ -449,22 +454,25 @@ class RangeIndexTest {
 			}
 			final long now = 1234L;
 			final int threads = 16;
-			final java.util.concurrent.CyclicBarrier barrier = new java.util.concurrent.CyclicBarrier(threads);
-			final java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(threads);
-			final java.util.List<java.util.concurrent.Future<int[]>> futures = new java.util.ArrayList<>();
-			try {
-				for (int t = 0; t < threads; t++) {
-					futures.add(pool.submit(() -> {
-						barrier.await();
-						return RangeIndexTest.this.tested.getRecordsValidNowFormula(now).compute().getArray();
-					}));
+			final CyclicBarrier barrier = new CyclicBarrier(threads);
+			try (ExecutorService pool = Executors.newFixedThreadPool(threads)) {
+				final List<Future<int[]>> futures = new ArrayList<>();
+				try {
+					for (int t = 0; t < threads; t++) {
+						futures.add(pool.submit(() -> {
+							barrier.await();
+							return RangeIndexTest.this.tested.getRecordsValidNowFormula(now).compute().getArray();
+						}));
+					}
+					final int[] expected = RangeIndexTest.this.tested.getRecordsEnvelopingInclusive(now)
+						.compute()
+						.getArray();
+					for (Future<int[]> f : futures) {
+						assertArrayEquals(expected, f.get());
+					}
+				} finally {
+					pool.shutdown();
 				}
-				final int[] expected = RangeIndexTest.this.tested.getRecordsEnvelopingInclusive(now).compute().getArray();
-				for (java.util.concurrent.Future<int[]> f : futures) {
-					assertArrayEquals(expected, f.get());
-				}
-			} finally {
-				pool.shutdown();
 			}
 		}
 	}
@@ -735,8 +743,8 @@ class RangeIndexTest {
 				base,
 				original -> {
 					original.addRecord(1, 3, 2);
-					final java.util.List<Long> thresholds = new java.util.ArrayList<>();
-					final java.util.Iterator<TransactionalRangePoint> it = original.rangesIterator();
+					final List<Long> thresholds = new ArrayList<>();
+					final Iterator<TransactionalRangePoint> it = original.rangesIterator();
 					while (it.hasNext()) {
 						thresholds.add(it.next().getThreshold());
 					}
@@ -938,6 +946,48 @@ class RangeIndexTest {
 		}
 
 		@Test
+		@DisplayName("getRecordsWithRangesOverlapping over an inverted window matches nothing")
+		void shouldReturnNoRecordsWhenTheOverlapWindowIsInverted() {
+			RangeIndexTest.this.tested.addRecord(1, 4, 1);
+			RangeIndexTest.this.tested.addRecord(4, 7, 2);
+			RangeIndexTest.this.tested.addRecord(7, 10, 3);
+
+			// A window whose lower bound is above its upper bound describes an empty set of points, so no range can
+			// meet it. This is reachable from a user query - `attributeBetween` accepts its two bounds in any order
+			// (neither the constraint's `isApplicable` nor `DateTimeRange.between` orders them) and
+			// `AttributeBetweenTranslator` hands them straight to this method. The scalar branch of that same
+			// translator already answers empty for an inverted pair, because it builds `v >= from && v <= to`, which
+			// is unsatisfiable; the indexed range path has to agree with it rather than diverge.
+			assertFormulaResultsIn(RangeIndexTest.this.tested.getRecordsWithRangesOverlapping(7L, 4L), new int[0]);
+			assertFormulaResultsIn(
+				RangeIndexTest.this.tested.getRecordsWithRangesOverlapping(Long.MAX_VALUE, Long.MIN_VALUE), new int[0]
+			);
+		}
+
+		@Test
+		@DisplayName("A record whose own ranges overlap is counted, not cancelled")
+		void shouldCountOverlappingRangesOfOneRecordRatherThanCancelThem() {
+			// Two ranges of the SAME record that overlap without sharing a border - legal under this index's
+			// contract, which forbids only a repeated border value for one record.
+			RangeIndexTest.this.tested.addRecord(2, 15, 7);
+			RangeIndexTest.this.tested.addRecord(5, 20, 7);
+
+			// At 10 both ranges are open, so record 7 has TWO starts behind the point and no ends: the signed count
+			// is +2. This is the shape that separates a counting kernel from an XOR/parity fold over the same
+			// operands - parity sees two starts, cancels them, and reports the record absent. Every query below has
+			// to keep it. Nesting is the same hazard with the inner range's end also behind the point.
+			assertFormulaResultsIn(RangeIndexTest.this.tested.getRecordsEnvelopingInclusive(10L), new int[]{7});
+			assertFormulaResultsIn(RangeIndexTest.this.tested.getRecordsTo(10L), new int[]{7});
+			assertFormulaResultsIn(RangeIndexTest.this.tested.getRecordsFrom(10L), new int[]{7});
+			assertFormulaResultsIn(RangeIndexTest.this.tested.getRecordsWithRangesOverlapping(8L, 12L), new int[]{7});
+
+			// past the end of the first range but inside the second: one start cancelled by one end, one still open
+			assertFormulaResultsIn(RangeIndexTest.this.tested.getRecordsEnvelopingInclusive(18L), new int[]{7});
+			// past both ends - the counts cancel exactly and the record must drop out
+			assertFormulaResultsIn(RangeIndexTest.this.tested.getRecordsEnvelopingInclusive(21L), new int[0]);
+		}
+
+		@Test
 		@DisplayName("getRecordsFrom inside a transaction observes pending additions")
 		void shouldReturnFromQueryReflectingInTransactionAddsWhenInsideTransaction() {
 			RangeIndexTest.this.tested.addRecord(100L, 200L, 1);
@@ -1023,6 +1073,32 @@ class RangeIndexTest {
 	}
 
 	@Nested
+	@DisplayName("Counter width")
+	class CounterWidth {
+
+		@Test
+		@DisplayName("A record with 32768 live ranges over the scanned prefix stays in an enveloping query")
+		void shouldCountARecordWhoseStartCountPassesTheShortCounterWidth() {
+			final RangeIndex index = new RangeIndex();
+			// record 7 gets 32,768 ranges, all of them still open at 0: range `i` runs from -32768 + i to 1 + i, so
+			// every start is negative and every end is positive, and no two of the record's own borders coincide -
+			// which is the contract RangeIndex places on a single record's ranges
+			for (int i = 0; i < 32_768; i++) {
+				index.addRecord(-32_768L + i, 1L + i, 7);
+			}
+			// an already-expired range on a second record, purely so the query's minus family is non-empty and the
+			// index really builds a counting formula instead of short-circuiting to the union of the starts
+			index.addRecord(-50_000L, -40_000L, 8);
+
+			// the enveloping query counts 32,768 starts and no ends for record 7, so its signed count is plainly
+			// positive. It is also one past what a `short` counter can hold, which is why the counting kernel picks
+			// its counter width from the operand count before the first scatter - here 32,770 operands, so the wide
+			// counters run. Record 8 started and ended before the threshold and cancels itself out.
+			assertFormulaResultsIn(index.getRecordsEnvelopingInclusive(0L), new int[]{7});
+		}
+	}
+
+	@Nested
 	@DisplayName("Structural inspection")
 	class StructuralInspection {
 
@@ -1080,10 +1156,10 @@ class RangeIndexTest {
 			RangeIndexTest.this.tested.addRecord(5, 10, 1);
 			RangeIndexTest.this.tested.addRecord(1, 7, 2);
 
-			final java.util.Iterator<TransactionalRangePoint> it = RangeIndexTest.this.tested.rangesIterator();
+			final Iterator<TransactionalRangePoint> it = RangeIndexTest.this.tested.rangesIterator();
 			long previous = Long.MIN_VALUE;
 			boolean first = true;
-			final java.util.List<Long> thresholds = new java.util.ArrayList<>();
+			final List<Long> thresholds = new ArrayList<>();
 			while (it.hasNext()) {
 				final TransactionalRangePoint point = it.next();
 				if (!first) {
@@ -1663,7 +1739,8 @@ class RangeIndexTest {
 			final PageEmission<RangeIndex.RangePage> afterChange = index.collectChangedPages();
 			assertEquals(1, afterChange.changedPages().size(), "Only the changed leaf is re-written.");
 			assertEquals(
-				0, afterChange.changedPages().get(0).pageSequence(), "The first leaf (holding the smallest threshold) changed."
+				0, afterChange.changedPages().getFirst().pageSequence(),
+				"The first leaf (holding the smallest threshold) changed."
 			);
 		}
 

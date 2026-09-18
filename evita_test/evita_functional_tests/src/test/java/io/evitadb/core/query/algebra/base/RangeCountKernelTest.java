@@ -37,27 +37,36 @@ import java.util.Map;
 import java.util.Random;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
-import static io.evitadb.test.TestTags.CACHE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * Differential test for BOTH implementations of the signed-multiplicity computation -
- * {@link RangeCountKernel} (per-chunk scatter) and {@link RangeBitSlicedKernel} (binary planes of roaring
- * bitmaps). Every case is checked against an independent map-based reference that shares no code with either
- * kernel.
+ * Differential test for EVERY implementation of the signed-multiplicity computation - {@link RangeCountKernel}'s
+ * per-chunk scatter at both counter widths, and {@link RangeBitSlicedKernel}'s binary planes of roaring bitmaps.
+ * Every case is checked against an independent map-based reference that shares no code with any of them.
  *
- * Holding two independent implementations to the same oracle is deliberate: they fail differently, so a case that
- * both pass is far stronger evidence than a case one passes.
+ * Holding independent implementations to the same oracle is deliberate: they fail differently, so a case they all
+ * pass is far stronger evidence than a case one passes.
+ *
+ * The two counter widths are not independent implementations but hand copies of one another, and they are covered
+ * for the opposite reason: the `int` copy exists for an operand count no production shape reaches, so nothing else
+ * in this repository would notice it drifting away from the `short` one. See `assertAgrees`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Tag(INDEXING)
 @Tag(QUERY)
-@DisplayName("Both range counting kernels equal the Join/Disentangle pair they replace")
+@DisplayName("Every range counting kernel equals an independent counting reference")
 class RangeCountKernelTest {
 
 	/**
@@ -96,7 +105,14 @@ class RangeCountKernelTest {
 	}
 
 	/**
-	 * Asserts the kernel and the reference agree, reporting the operands when they do not.
+	 * Asserts every implementation and the reference agree, reporting the operands when they do not.
+	 *
+	 * Three implementations are checked, not two. `RangeCountKernel.compute` selects its counter width from the
+	 * operand count, so on every ordinary family it runs the `short` kernel and the `int` sibling is never entered -
+	 * which is exactly why the `int` sibling is also called here EXPLICITLY, on the same operands. It is a hand copy
+	 * of the `short` kernel that production traffic never reaches, so without this line a scatter fix applied to one
+	 * copy and not the other would pass the entire suite. Running it on inputs far below the width it exists for is
+	 * the point: correctness is width-independent, so the copies must agree everywhere, not only past the threshold.
 	 *
 	 * @param plus  bitmaps contributing `+1`
 	 * @param minus bitmaps contributing `-1`
@@ -104,16 +120,24 @@ class RangeCountKernelTest {
 	private static void assertAgrees(@Nonnull Bitmap[] plus, @Nonnull Bitmap[] minus) {
 		final int[] expected = reference(plus, minus);
 		final int[] scatter = RangeCountKernel.compute(plus, minus).getArray();
+		final int[] wide = RangeCountKernel.computeWide(plus, minus).getArray();
 		final int[] sliced = RangeBitSlicedKernel.compute(plus, minus).getArray();
 		assertArrayEquals(
 			expected, scatter,
-			() -> "SCATTER kernel disagrees with the Join/Disentangle pair\n  plus  = " + describe(plus) +
+			() -> "SCATTER kernel disagrees with the counting reference\n  plus  = " + describe(plus) +
 				"\n  minus = " + describe(minus) +
 				"\n  expected = " + Arrays.toString(expected) + "\n  actual   = " + Arrays.toString(scatter)
 		);
 		assertArrayEquals(
+			expected, wide,
+			() -> "WIDE scatter kernel disagrees with the counting reference - the `int` copy has diverged from " +
+				"the `short` one\n  plus  = " + describe(plus) +
+				"\n  minus = " + describe(minus) +
+				"\n  expected = " + Arrays.toString(expected) + "\n  actual   = " + Arrays.toString(wide)
+		);
+		assertArrayEquals(
 			expected, sliced,
-			() -> "BIT-SLICED kernel disagrees with the Join/Disentangle pair\n  plus  = " + describe(plus) +
+			() -> "BIT-SLICED kernel disagrees with the counting reference\n  plus  = " + describe(plus) +
 				"\n  minus = " + describe(minus) +
 				"\n  expected = " + Arrays.toString(expected) + "\n  actual   = " + Arrays.toString(sliced)
 		);
@@ -149,15 +173,45 @@ class RangeCountKernelTest {
 		return values.length == 0 ? EmptyBitmap.INSTANCE : new BaseBitmap(values);
 	}
 
+	/**
+	 * Builds one randomised family of operands.
+	 *
+	 * @param random       source of randomness
+	 * @param maxOperands  upper bound on operands
+	 * @param maxPerBitmap upper bound on record ids per operand
+	 * @param idSpace      exclusive upper bound on a record id
+	 * @return the family, possibly containing empty bitmaps
+	 */
+	@Nonnull
+	private static Bitmap[] randomFamily(@Nonnull Random random, int maxOperands, int maxPerBitmap, int idSpace) {
+		final int operandCount = random.nextInt(maxOperands + 1);
+		final Bitmap[] family = new Bitmap[operandCount];
+		for (int i = 0; i < operandCount; i++) {
+			final int size = random.nextInt(maxPerBitmap + 1);
+			final TreeSet<Integer> values = new TreeSet<>();
+			for (int j = 0; j < size; j++) {
+				values.add(random.nextInt(idSpace) + 1);
+			}
+			final int[] array = new int[values.size()];
+			int index = 0;
+			for (final Integer value : values) {
+				array[index++] = value;
+			}
+			family[i] = bitmap(array);
+		}
+		return family;
+	}
+
 	@Nested
 	@DisplayName("Hand-written cases")
 	class Explicit {
 
 		@Test
-		@DisplayName("The javadoc example of the formula being replaced")
-		void shouldReproduceTheDisentangleJavadocExample() {
-			// [3,3,6,9,12] against [2,3,4,6,8,10,12] -> [3,9]; as families that is {3,6,9,12} and {3} on the plus
-			// side (3 appears twice) against {2,4,6,8,10,12} and {3} on the minus side
+		@DisplayName("A duplicate-carrying family against a wider counterpart")
+		void shouldCountDuplicatesAcrossOperandsOfOneFamily() {
+			// counts, not sets: 3 is carried by TWO plus operands and TWO minus operands, so it cancels; 9 is
+			// carried once on the plus side and not at all on the minus side, so it survives. Written out, the
+			// multiplicities are [3,3,6,9,12] against [2,3,3,4,6,8,10,12] and the answer is [9].
 			assertAgrees(
 				new Bitmap[]{bitmap(3, 6, 9, 12), bitmap(3)},
 				new Bitmap[]{bitmap(2, 3, 4, 6, 8, 10, 12), bitmap(3)}
@@ -214,12 +268,99 @@ class RangeCountKernelTest {
 				new Bitmap[]{bitmap(5), bitmap(5), bitmap(5)}
 			);
 		}
+
+		@Test
+		@DisplayName("A negative counter left by one chunk does not survive into the next")
+		void shouldClearNegativeCountersBeforeTheNextChunk() {
+			// PATH: both chunks take the SPARSE emission path by arithmetic. Chunk 0 records 4 writes (offsets 1
+			// and 60,000 from the plus operand, offset 1 from each minus operand) over a span of 60,000, and chunk 1
+			// records 2 writes over the same span; the kernel prefers the touched walk while
+			// `touchedCount * SPARSE_FACTOR < span`, and 16 < 60,000 as well as 8 < 60,000.
+			//
+			// Offset 1 of chunk 0 ends at -1. Offset 1 of chunk 1 (record 65,537) ends at +1 and must be emitted -
+			// which it only can be if the sparse walk zeroed the negative counter unconditionally rather than
+			// clearing "only what was emitted". Leave the -1 behind and 65,537 nets to 0 and silently disappears.
+			assertAgrees(
+				new Bitmap[]{bitmap(1, 60_000, 65_537, 125_536)},
+				new Bitmap[]{bitmap(1), bitmap(1)}
+			);
+		}
+
+		@Test
+		@DisplayName("An offset whose counter passes back through zero mid-scatter")
+		void shouldHandleAnOffsetWhoseCounterReturnsToZeroMidScatter() {
+			// Offset 9 is written three times: +1 by the plus operand, then -1 and -1 by the two minus operands.
+			// The counter therefore sits at zero after the second write and leaves zero again on the third. This is
+			// the sequence `emitSparse`'s javadoc names as the reason the touched list records EVERY write rather
+			// than appending only on a zero-to-non-zero transition.
+			//
+			// PATH: 4 recorded writes over a span of 39,992, so 16 < 39,992 selects the sparse walk.
+			assertAgrees(
+				new Bitmap[]{bitmap(9, 40_000)},
+				new Bitmap[]{bitmap(9), bitmap(9)}
+			);
+		}
+
+		@Test
+		@DisplayName("A chunk with more writes than the touched list can hold falls back to the span scan")
+		void shouldFallBackToTheSpanScanWhenTheTouchedListOverflows() {
+			// PATH: 20 operands of 500 ids each put 10,000 writes into chunk 0, past the 8,192-entry cap, so
+			// `sparseUsable` flips false mid-scatter and the partial list must be abandoned for the span scan. The
+			// span is 59,999, comfortably above 4 * 8,192 = 32,768, so the sparse predicate would have won had the
+			// list not overflowed - which is what makes this the overflow branch rather than an ordinary dense chunk.
+			final Bitmap[] plus = new Bitmap[20];
+			for (int operand = 0; operand < plus.length; operand++) {
+				final int[] values = new int[500];
+				for (int i = 0; i < values.length; i++) {
+					// stride 120 keeps every id distinct inside an operand AND across operands, so the write count
+					// is exactly 20 * 500 and does not depend on a set collapsing duplicates
+					values[i] = 1 + operand + i * 120;
+				}
+				plus[operand] = bitmap(values);
+			}
+			// 60,000 is not of the form 1 + operand + i * 120 for operand < 20, so it is cancelled and nothing else is
+			final Bitmap[] minus = {bitmap(60_000)};
+			assertAgrees(plus, minus);
+
+			// a partial touched list walked as if complete would also leave dirty counters in the POOLED array, so
+			// a second, tiny computation on the same thread is the cheapest available check that the array came
+			// back clean
+			assertAgrees(new Bitmap[]{bitmap(3, 7)}, new Bitmap[]{bitmap(7)});
+		}
+
+		@Test
+		@DisplayName("Record ids at the top of the integer range")
+		void shouldCountRecordIdsAtTheTopOfTheIntegerRange() {
+			// the highest chunk index is 32,767 and its base is 32,767 << 16 = 2,147,418,112 - still positive, which
+			// is the property emission addressing depends on. Integer.MAX_VALUE is that chunk's last offset.
+			final int topChunkBase = 32_767 << 16;
+			assertAgrees(
+				new Bitmap[]{bitmap(1, topChunkBase, Integer.MAX_VALUE)},
+				new Bitmap[]{bitmap(topChunkBase)}
+			);
+		}
 	}
 
 	@Nested
 	@DisplayName("Randomised families")
-	@Tag(CACHE)
 	class Randomised {
+
+		/**
+		 * Compares kernel and reference over randomised families.
+		 *
+		 * @param iterations   how many families to try
+		 * @param maxOperands  upper bound on operands per family
+		 * @param maxPerBitmap upper bound on record ids per operand
+		 * @param idSpace      exclusive upper bound on a record id
+		 */
+		private static void runSweep(int iterations, int maxOperands, int maxPerBitmap, int idSpace) {
+			for (int iteration = 0; iteration < iterations; iteration++) {
+				final Random random = new Random(iteration * 7919L + 13L);
+				final Bitmap[] plus = randomFamily(random, maxOperands, maxPerBitmap, idSpace);
+				final Bitmap[] minus = randomFamily(random, maxOperands, maxPerBitmap, idSpace);
+				assertAgrees(plus, minus);
+			}
+		}
 
 		@Test
 		@DisplayName("Dense small-id families agree over many seeds")
@@ -239,51 +380,6 @@ class RangeCountKernelTest {
 			runSweep(60, 250, 40, 20_000);
 		}
 
-		/**
-		 * Compares kernel and reference over randomised families.
-		 *
-		 * @param iterations   how many families to try
-		 * @param maxOperands  upper bound on operands per family
-		 * @param maxPerBitmap upper bound on record ids per operand
-		 * @param idSpace      exclusive upper bound on a record id
-		 */
-		private void runSweep(int iterations, int maxOperands, int maxPerBitmap, int idSpace) {
-			for (int iteration = 0; iteration < iterations; iteration++) {
-				final Random random = new Random(iteration * 7919L + 13L);
-				final Bitmap[] plus = randomFamily(random, maxOperands, maxPerBitmap, idSpace);
-				final Bitmap[] minus = randomFamily(random, maxOperands, maxPerBitmap, idSpace);
-				assertAgrees(plus, minus);
-			}
-		}
-
-		/**
-		 * Builds one randomised family of operands.
-		 *
-		 * @param random       source of randomness
-		 * @param maxOperands  upper bound on operands
-		 * @param maxPerBitmap upper bound on record ids per operand
-		 * @param idSpace      exclusive upper bound on a record id
-		 * @return the family, possibly containing empty bitmaps
-		 */
-		@Nonnull
-		private Bitmap[] randomFamily(@Nonnull Random random, int maxOperands, int maxPerBitmap, int idSpace) {
-			final int operandCount = random.nextInt(maxOperands + 1);
-			final Bitmap[] family = new Bitmap[operandCount];
-			for (int i = 0; i < operandCount; i++) {
-				final int size = random.nextInt(maxPerBitmap + 1);
-				final TreeSet<Integer> values = new TreeSet<>();
-				for (int j = 0; j < size; j++) {
-					values.add(random.nextInt(idSpace) + 1);
-				}
-				final int[] array = new int[values.size()];
-				int index = 0;
-				for (final Integer value : values) {
-					array[index++] = value;
-				}
-				family[i] = bitmap(array);
-			}
-			return family;
-		}
 	}
 
 	@Nested
@@ -302,6 +398,128 @@ class RangeCountKernelTest {
 				0,
 				reference(new Bitmap[]{bitmap(7), bitmap(7)}, new Bitmap[]{bitmap(7), bitmap(7)}).length
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Concurrent reuse of the kernel's pooled scratch")
+	class ConcurrentReuse {
+
+		@Test
+		@DisplayName("Threads borrowing the shared counter pools all get their own answer")
+		void shouldServeConcurrentComputationsFromTheSharedPools() {
+			// The kernel keeps its counter arrays and sparse scratch in two static pools of capacity 8. Sequential
+			// reuse is well covered by the randomised sweeps above; CONCURRENT reuse is what this adds, because the
+			// failure mode - a dirty array handed back to the pool - corrupts a LATER, unrelated query far away from
+			// whatever caused it.
+			//
+			// This assertion is negative in shape: every interleaving must produce the right answer, so a loaded
+			// machine can only explore FEWER interleavings, never fail spuriously. That is why it belongs in the
+			// fast loop and why it needs no timing tuning - do not convert the latch below into a sleep loop.
+			final int threadCount = 12;
+			try (
+				ExecutorService executor = Executors.newFixedThreadPool(
+					threadCount,
+					runnable -> {
+						final Thread thread = new Thread(runnable, "range-count-kernel-pool-probe");
+						thread.setDaemon(true);
+						return thread;
+					}
+				)
+			) {
+				try {
+					final CountDownLatch start = new CountDownLatch(1);
+					final CountDownLatch finished = new CountDownLatch(threadCount);
+					final AtomicReference<Throwable> failure = new AtomicReference<>();
+					for (int worker = 0; worker < threadCount; worker++) {
+						final long seedBase = worker * 1_000_003L;
+						executor.execute(() -> {
+							try {
+								start.await();
+								for (int iteration = 0; iteration < 150; iteration++) {
+									final Random random = new Random(seedBase + iteration);
+									assertAgrees(
+										randomFamily(random, 10, 48, 250_000),
+										randomFamily(random, 10, 48, 250_000)
+									);
+								}
+							} catch (final Throwable ex) {
+								failure.compareAndSet(null, ex);
+							} finally {
+								finished.countDown();
+							}
+						});
+					}
+					start.countDown();
+					// positive wait - generous on purpose; it returns the instant the work completes and only a genuine
+					// hang can exhaust it
+					assertTrue(
+						finished.await(30, TimeUnit.SECONDS),
+						"The concurrent kernel computations did not finish within 30 seconds"
+					);
+					final Throwable observed = failure.get();
+					if (observed != null) {
+						fail("A concurrent kernel computation disagreed with the reference", observed);
+					}
+				} catch (final InterruptedException ex) {
+					Thread.currentThread().interrupt();
+					fail("Interrupted while waiting for the concurrent kernel computations", ex);
+				} finally {
+					executor.shutdownNow();
+				}
+			}
+		}
+	}
+
+	@Nested
+	@DisplayName("Counter width selection")
+	class CounterWidth {
+
+		@Test
+		@DisplayName("A record present in every operand survives at the widest narrow-counter family")
+		void shouldCountARecordScatteredByEveryOperandAtTheNarrowLimit() {
+			// Short.MAX_VALUE operands in total - the widest family the `short` counters are still exact for. A
+			// bitmap is a set, so record 7 collects exactly one increment per operand and its final count is 32,766:
+			// inside the short range, and therefore a case the scatter kernel must answer WITHOUT widening anything.
+			final Bitmap[] plus = new Bitmap[Short.MAX_VALUE - 1];
+			Arrays.fill(plus, bitmap(7));
+			// a non-empty minus family, so the computation is the real two-family one rather than a plain union
+			final Bitmap[] minus = {bitmap(8)};
+
+			assertAgrees(plus, minus);
+			assertArrayEquals(new int[]{7}, RangeCountKernel.compute(plus, minus).getArray());
+		}
+
+		@Test
+		@DisplayName("A record whose signed count passes the short range is counted on the wide kernel")
+		void shouldCountARecordWhoseSignedCountPassesTheShortRange() {
+			final Bitmap seven = bitmap(7);
+			final Bitmap[] plus = new Bitmap[32_768];
+			Arrays.fill(plus, seven);
+			final Bitmap[] minus = {bitmap(8)};
+
+			// 32,769 operands in total, so the width selection takes the `int` kernel - and it has to, because
+			// record 7's final count is 32,768, one past what a `short` counter can represent. Accumulated in a
+			// short it wraps to Short.MIN_VALUE and the `count > 0` emission test discards a plainly valid record.
+			assertAgrees(plus, minus);
+			assertArrayEquals(new int[]{7}, RangeCountKernel.compute(plus, minus).getArray());
+		}
+
+		@Test
+		@DisplayName("A signed count that would wrap a short counter to exactly zero is still counted")
+		void shouldCountARecordWhoseSignedCountWrapsAShortCounterToZero() {
+			final Bitmap seven = bitmap(7);
+			final Bitmap[] plus = new Bitmap[65_536];
+			Arrays.fill(plus, seven);
+			final Bitmap[] minus = {bitmap(8)};
+
+			// the sibling case of the one above, and the one a sign-only fix would still get wrong: 65,536 is
+			// exactly 2^16, so a short counter wraps back to ZERO rather than to a negative value, and `count > 0`
+			// rejects it just the same. Only the reference and the scatter kernel are compared here - the bit-sliced
+			// sibling sizes its planes from the operand count and so cannot express this failure mode at all, and
+			// its plane build is O(operands x planes), which at this width is pure cost for no extra evidence.
+			assertArrayEquals(new int[]{7}, reference(plus, minus));
+			assertArrayEquals(new int[]{7}, RangeCountKernel.compute(plus, minus).getArray());
 		}
 	}
 }
