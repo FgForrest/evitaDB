@@ -164,8 +164,6 @@ public class FormulaCostMeasurement {
 		);
 	}
 
-
-
 	/**
 	 * Measures throughput of {@link EntityPrimaryKeyRangeFormula} — iterates a 100K-element
 	 * RoaringBitmap-backed superset bitmap and retains only primary keys within a range covering

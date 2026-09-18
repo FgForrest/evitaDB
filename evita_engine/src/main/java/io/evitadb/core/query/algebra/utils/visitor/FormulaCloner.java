@@ -193,13 +193,6 @@ public class FormulaCloner implements FormulaVisitor {
 							formulaToStore = null;
 						}
 					}
-				// NOTE: `DisentangleFormula` used to need a guard here. It held two POSITIONAL INNER FORMULAS, so
-				// FormulaDeduplicator unifying structurally equivalent inputs could collapse them to one child and
-				// the fall-through would then index `innerFormulas[1]` out of bounds. Its replacement,
-				// `RangeCountFormula`, carries its operands as bitmap ARRAYS and has no inner formulas at all, so
-				// there is nothing for dedup to collapse and the guard has no subject. The `disentangle(X, X) = 0`
-				// case it also covered is now plain arithmetic in the kernel: identical families cancel to an empty
-				// result on their own (see RangeCountKernelTest#shouldCancelWhenBothFamiliesAreIdentical).
 				} else {
 					// recreate parent formula with new children
 					final Formula recreated = formula.getCloneWithInnerFormulas(

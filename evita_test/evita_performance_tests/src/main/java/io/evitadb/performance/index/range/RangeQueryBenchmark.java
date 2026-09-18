@@ -34,11 +34,11 @@ import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.index.range.RangeIndex;
+import io.evitadb.index.range.RangePoint;
 import io.evitadb.roaringbitmap.IntIterator;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
-import io.evitadb.index.range.RangeIndex;
-import io.evitadb.index.range.RangePoint;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -142,6 +142,10 @@ public class RangeQueryBenchmark {
 		return fixture.index.getRecordsEnvelopingInclusive(fixture.now);
 	}
 
+	/**
+	 * Planning only for {@link #positionalEnveloping} - the part of the positional algorithm that runs during
+	 * query planning, whether or not the result is ever computed.
+	 */
 	@Benchmark
 	public Formula positionalEnvelopingPlanOnly(Fixture fixture) {
 		return legacyEnveloping(fixture.index, fixture.now);
@@ -149,11 +153,18 @@ public class RangeQueryBenchmark {
 
 	/* ========================================================================================= overlapping */
 
+	/**
+	 * The shape that ships: the same forward walk as {@link #prefixCountEnveloping}, taken over the window's two
+	 * bounds instead of one threshold.
+	 */
 	@Benchmark
 	public Bitmap prefixCountOverlapping(Fixture fixture) {
 		return fixture.index.getRecordsWithRangesOverlapping(fixture.windowFrom, fixture.windowTo).compute();
 	}
 
+	/**
+	 * The positional shape it replaced, frozen: the overlapping counterpart of {@link #positionalEnveloping}.
+	 */
 	@Benchmark
 	public Bitmap positionalOverlapping(Fixture fixture) {
 		return legacyOverlapping(fixture.index, fixture.windowFrom, fixture.windowTo).compute();
@@ -174,6 +185,9 @@ public class RangeQueryBenchmark {
 		return legacyEnvelopingWithPair(fixture.index, fixture.now);
 	}
 
+	/**
+	 * The overlapping counterpart of {@link #pairEnveloping}: the shape `dev` carries for the windowed query.
+	 */
 	@Benchmark
 	public Bitmap pairOverlapping(Fixture fixture) {
 		return legacyOverlappingWithPair(fixture.index, fixture.windowFrom, fixture.windowTo);
@@ -299,7 +313,8 @@ public class RangeQueryBenchmark {
 	/* ============================================================================== the frozen positional form */
 
 	/**
-	 * Faithful copy of the deleted `getRecordsEnvelopingInclusive`, expressed on the index's public surface.
+	 * Faithful copy of the positional implementation `RangeIndex#getRecordsEnvelopingInclusive` used before this
+	 * change, expressed on the index's public surface.
 	 *
 	 * @param index     the index to query
 	 * @param threshold the point whose enveloping ranges are wanted
@@ -340,7 +355,8 @@ public class RangeQueryBenchmark {
 	}
 
 	/**
-	 * Faithful copy of the deleted `getRecordsWithRangesOverlapping`, expressed on the index's public surface.
+	 * Faithful copy of the positional implementation `RangeIndex#getRecordsWithRangesOverlapping` used before this
+	 * change, expressed on the index's public surface.
 	 *
 	 * @param index the index to query
 	 * @param from  inclusive lower bound of the window
@@ -463,6 +479,13 @@ public class RangeQueryBenchmark {
 		);
 	}
 
+	/**
+	 * Drops the empty bitmaps from a family, mirroring {@link RangeIndex#withoutEmpty} so the frozen positional
+	 * baseline builds its formulas from the same filtered inputs the shipped path does.
+	 *
+	 * @param bitmaps the family to filter
+	 * @return the non-empty bitmaps, in their original order
+	 */
 	@Nonnull
 	private static Bitmap[] withoutEmpty(@Nonnull List<Bitmap> bitmaps) {
 		return bitmaps.stream().filter(it -> !it.isEmpty()).toArray(Bitmap[]::new);
@@ -577,6 +600,14 @@ public class RangeQueryBenchmark {
 			);
 		}
 
+		/**
+		 * Fails setup when the frozen `dev` pair and the shipped prefix count disagree on already-materialized
+		 * results, so a benchmark never A/Bs two arms that answer different questions.
+		 *
+		 * @param query   name of the query shape being cross-checked, for the failure message
+		 * @param legacy  result of the frozen `dev` algorithm
+		 * @param current result of the shipped path
+		 */
 		private static void assertSameBitmap(@Nonnull String query, @Nonnull Bitmap legacy, @Nonnull Bitmap current) {
 			if (!Arrays.equals(legacy.getArray(), current.getArray())) {
 				throw new IllegalStateException(
@@ -586,6 +617,14 @@ public class RangeQueryBenchmark {
 			}
 		}
 
+		/**
+		 * Fails setup when the frozen positional baseline and the shipped prefix count disagree once both are
+		 * computed, so a benchmark never A/Bs two arms that answer different questions.
+		 *
+		 * @param query   name of the query shape being cross-checked, for the failure message
+		 * @param legacy  formula computed by the frozen positional baseline
+		 * @param current formula computed by the shipped path
+		 */
 		private static void assertSame(@Nonnull String query, @Nonnull Formula legacy, @Nonnull Formula current) {
 			final int[] expected = legacy.compute().getArray();
 			final int[] actual = current.compute().getArray();

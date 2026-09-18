@@ -27,10 +27,10 @@ import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
-import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.roaringbitmap.IntIterator;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -146,11 +146,25 @@ public class RangeCountKernelBenchmark {
 		return new BaseBitmap(writer.get());
 	}
 
+	/**
+	 * The full replacement path: constructs a {@link RangeCountFormula} and computes it, exercising both the
+	 * formula wrapper and the kernel it delegates to.
+	 *
+	 * @param operands the fixture
+	 * @return the records whose signed count is strictly positive
+	 */
 	@Benchmark
 	public Bitmap rangeCountFormula(Operands operands) {
 		return new RangeCountFormula(INDEX_ID, operands.plus, operands.minus).compute();
 	}
 
+	/**
+	 * The kernel alone, with the {@link RangeCountFormula} wrapper skipped, isolating the counting kernel's cost
+	 * from formula construction and caching overhead.
+	 *
+	 * @param operands the fixture
+	 * @return the records whose signed count is strictly positive
+	 */
 	@Benchmark
 	public Bitmap scatterKernelOnly(Operands operands) {
 		return RangeCountKernel.compute(operands.plus, operands.minus);
