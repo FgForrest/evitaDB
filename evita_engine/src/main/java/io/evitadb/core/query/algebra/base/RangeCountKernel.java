@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.algebra.base;
 
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -32,7 +33,7 @@ import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.concurrent.ArrayBlockingQueue;
 
 /**
@@ -61,26 +62,29 @@ import java.util.concurrent.ArrayBlockingQueue;
  * offset inside it - `chunk = id >>> 16`, `offset = id & 0xFFFF` - and only one chunk is ever open. Its counters are
  * a single reusable `short[65536]`: 128 KiB, cache-resident, indexed directly by the offset.
  *
- * Every operand bitmap gets a {@link Cursor} yielding its ids in ascending order, in batches, carrying the sign its
- * family contributes - `+1` for `plus`, `-1` for `minus`. Ascending order is the property everything below rests on.
- * Then, until every cursor is spent:
+ * Every operand bitmap gets a cursor yielding its ids in ascending order, in batches, carrying the sign its family
+ * contributes - `+1` for `plus`, `-1` for `minus`. Ascending order is the property everything below rests on. Then,
+ * for each chunk in ascending order:
  *
- * 1. **Pick the chunk** - the lowest one any live cursor still sits in. This is a k-way merge, but it runs once
- *    per CHUNK instead of once per element, which is exactly the cost the replaced formula pair paid: a
- *    priority-queue reheap for every single id it moved.
- * 2. **Scatter** - every cursor inside that chunk drains its ids for it, doing `counters[offset] += sign` and
- *    nothing else. No comparisons between cursors, no ordering, no merging; just adds into an array. The lowest and
- *    highest offset written are tracked, and each write is appended to a `touched` list.
+ * 1. **Take the chunk's cursors** - every cursor whose next id falls in this chunk is already filed in this chunk's
+ *    bucket, so they are reached by walking one intrusive linked list. Nothing scans the operands. See
+ *    {@link CursorSet} for why that matters more than it sounds.
+ * 2. **Scatter** - every cursor in the bucket drains its ids for this chunk, doing `counters[offset] += sign` and
+ *    appending the offset to a touched list, and nothing else. No comparisons between cursors, no ordering, no
+ *    merging; just adds into an array and a sequential append. A cursor that survives the chunk re-files itself
+ *    into the bucket of the chunk its next id belongs to.
  * 3. **Emit** - the inputs are ascending and every cursor has now moved past this chunk, so no id in it can ever be
- *    touched again: the counters ARE the final signed differences. Every offset whose counter is `> 0` is written to
- *    the output as `chunk << 16 | offset`.
- * 4. **Zero on the way out** - the emission pass clears each counter it reads, so the array leaves the chunk clean
- *    for the next one without a separate pass over 65 536 slots.
+ *    touched again: the counters ARE the final signed differences. The touched list is walked once; each offset
+ *    reads its counter, is zeroed, and contributes a bit to a 1 024-word bitmap when the counter is `> 0`.
+ * 4. **Hand the chunk over whole** - that word bitmap is the chunk's output in the `long[1024]` shape
+ *    {@link RoaringBitmapWriter#addChunk} takes, so it is given to the writer as one container instead of one
+ *    `add` per id.
  *
- * Step 3 has two implementations, chosen per chunk, because which one is cheaper depends on how densely the chunk
- * was written: walk the `touched` list, or scan straight through `minLow..maxLow`. See {@link #SPARSE_FACTOR} for the
- * predicate, and {@link #emitSparse(RoaringBitmapWriter, short[], SparseScratch, int, int, int)} for why the touched
- * list may hold duplicates and still needs no visited-set.
+ * Two things about step 2 are worth stating, because both look wrong until measured. The append is **sequential**;
+ * setting a bit in the word bitmap there instead would deduplicate for free and remove the capacity bound, and was
+ * measured **5x more expensive in the scatter loop's self time** - a random read-modify-write carries a load-use
+ * dependency an append does not. And the list records **every** write, duplicates included, which needs no
+ * visited-set because the first visit to an offset zeroes its counter and every later one then reads zero.
  *
  * A tiny worked example - `plus = [{3, 70000}, {3, 9}]`, `minus = [{9}]`:
  *
@@ -100,7 +104,7 @@ import java.util.concurrent.ArrayBlockingQueue;
  * The pair it replaces paid `O(N log k)` for the k-way merge that materialized the duplicates plus `O(N)` for the
  * merge that cancelled them, with a virtual call and a priority-queue reheap per element. The duplicates were never
  * an output - only an encoding of the counts - so this kernel accumulates the counts directly and never materializes
- * them. It is `O(N)` scatters plus one bounded scan per touched 65 536-value chunk.
+ * them. It is `O(N)` scatters plus one bounded word pass per touched 65 536-value chunk.
  *
  * ## Counter width, and how it is chosen
  *
@@ -116,7 +120,7 @@ import java.util.concurrent.ArrayBlockingQueue;
  *
  * {@link #compute(Bitmap[], Bitmap[])} therefore selects the width once per computation, before the first scatter:
  * up to {@link Short#MAX_VALUE} operands across both families run the `short` kernel, anything wider runs the `int`
- * sibling. The two are otherwise identical - same chunking, same dual emission, same pooling discipline - and the
+ * sibling. The two are otherwise identical - same chunking, same emission, same pooling discipline - and the
  * selection costs one comparison per call, nothing inside the scatter loop.
  *
  * ## Container access
@@ -125,6 +129,18 @@ import java.util.concurrent.ArrayBlockingQueue;
  * vendored module exposes `getContainerPointer()` but types it with a package-private interface, so container-level
  * dispatch (a run-container prefix scan, bit-sliced adders over dense containers) is not reachable from this module
  * without widening that fork. That widening is a separate decision and belongs with the container kernels, not here.
+ *
+ * Two *additive* widenings the fork does carry for this kernel, neither of which exposes a container:
+ * {@link BatchIterator#nextBatch(int[], int, int)}, so thousands of cursors can share one arena array instead of each
+ * allocating a buffer, and {@link RoaringBitmapWriter#addChunk(char, long[], int, int)}, so a finished chunk crosses
+ * into the writer as words rather than as one call per id.
+ *
+ * ## Where the cost actually sits
+ *
+ * Measured at k = 64 over N = 29,159 (JMH sampled stacks, both arms on one box): emission ~154 us, container
+ * materialisation inside the writer ~68 us, the scatter loop itself ~12 us, cursor refills ~27 us. **Emission
+ * dominates and the scatter does not**, which is why this class spends its complexity budget on step 3 and leaves
+ * step 2 as a bare add plus an append.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -143,26 +159,23 @@ final class RangeCountKernel {
 	 */
 	private static final int LOW_MASK = CHUNK_SIZE - 1;
 	/**
-	 * Size of the per-cursor batch buffer; mirrors the batch size `JoinFormula` used.
+	 * Largest slice of the shared arena a single cursor may own; mirrors the batch size `JoinFormula` used.
 	 */
 	private static final int BATCH_SIZE = 256;
 	/**
-	 * How many touched offsets one chunk may record before the sparse emission path gives up and the span scan
-	 * takes over. A chunk denser than this is exactly the chunk a span scan handles well, so the cap costs nothing
-	 * and bounds the scratch.
+	 * Words in one chunk's touched map - `1024` longs = 65 536 bits, the same layout
+	 * {@link RoaringBitmapWriter#addChunk(char, long[], int, int)} consumes.
 	 */
-	private static final int SPARSE_CAPACITY = 8192;
+	private static final int WORD_COUNT = CHUNK_SIZE >>> 6;
 	/**
-	 * Walking the touched list is preferred while `touchedCount * SPARSE_FACTOR < span`.
+	 * How many scatter writes one chunk may record before emission falls back to scanning its whole span.
 	 *
-	 * **This value is a provisional estimate, not a measured crossover.** It is set from the cost shapes - the
-	 * sparse walk touches `touchedCount` counters plus a bounded word pass, the dense walk touches `span` - and
-	 * chosen conservatively so the sparse path is taken only when it is clearly ahead. It has NOT been swept.
-	 * On the production operand dump it selects sparse for 10 of 14 chunks and dense for the other 4, which is the
-	 * intended split (chunk 7 holds 19,196 ids in a 56,974 span and genuinely wants the span scan), but "the split
-	 * looks sensible" is not the same as "4 is the optimum".
+	 * This is a **capacity bound, not a crossover**. While the list fits, walking it is unconditionally cheaper
+	 * than scanning the span - at most 8 192 reads against up to 65 536 - so there is nothing to tune and no
+	 * density predicate to get wrong. A chunk that overruns it is by construction denser than one write per eight
+	 * offsets, which is exactly the chunk a span scan handles well.
 	 */
-	private static final int SPARSE_FACTOR = 4;
+	private static final int TOUCHED_CAPACITY = 8192;
 	/**
 	 * Largest combined operand count whose signed counts are guaranteed to fit a `short` counter.
 	 *
@@ -171,6 +184,24 @@ final class RangeCountKernel {
 	 * keeps both ends of that interval representable, whatever the operands hold.
 	 */
 	private static final int NARROW_COUNTER_LIMIT = Short.MAX_VALUE;
+	/**
+	 * Largest cursor-slot count a {@link CursorSet} may carry back into the pool.
+	 *
+	 * The three retention caps exist because {@link CursorSet}'s arrays are sized by the computation that borrowed
+	 * it and never shrink: without them a single outsized query would park its arrays in the pool for the lifetime
+	 * of the JVM. Each is set an order of magnitude above the shape the kernel was measured on, so the common path
+	 * always pools and only a genuine outlier is dropped.
+	 */
+	private static final int MAX_POOLED_CURSORS = 1 << 14;
+	/**
+	 * Largest shared batch arena, in ints, a {@link CursorSet} may carry back into the pool - 256 KiB.
+	 */
+	private static final int MAX_POOLED_ARENA = 1 << 16;
+	/**
+	 * Largest bucket table, in chunks, a {@link CursorSet} may carry back into the pool - 4 096 chunks, or a record
+	 * id space of 268 million.
+	 */
+	private static final int MAX_POOLED_BUCKETS = 1 << 12;
 	/**
 	 * Bounded pool of the 128 KiB counter arrays. A bounded pool rather than a {@link ThreadLocal}: per-thread
 	 * striping keeps one array alive per carrier thread, which is hostile to virtual threads and was rejected for
@@ -183,9 +214,16 @@ final class RangeCountKernel {
 	 */
 	private static final ArrayBlockingQueue<int[]> WIDE_COUNTER_POOL = new ArrayBlockingQueue<>(8);
 	/**
-	 * Bounded pool of the sparse-emission scratch: the touched-offset list and the 1 024-word output bitmap.
+	 * Bounded pool of the per-chunk emission scratch - the touched-offset list and the word bitmap the surviving
+	 * ids are gathered into before they cross into the writer.
 	 */
-	private static final ArrayBlockingQueue<SparseScratch> SPARSE_POOL = new ArrayBlockingQueue<>(8);
+	private static final ArrayBlockingQueue<Emission> EMISSION_POOL = new ArrayBlockingQueue<>(8);
+	/**
+	 * Bounded pool of the per-call cursor state. Pooling it is the point of {@link CursorSet} existing at all: the
+	 * arrays it holds are sized by the operand count, which is the one input that grows without bound, so allocating
+	 * them per call is exactly the cost this structure was introduced to remove.
+	 */
+	private static final ArrayBlockingQueue<CursorSet> CURSOR_SET_POOL = new ArrayBlockingQueue<>(8);
 
 	private RangeCountKernel() {
 		throw new UnsupportedOperationException("Kernel holder must not be instantiated!");
@@ -217,46 +255,46 @@ final class RangeCountKernel {
 	 */
 	@Nonnull
 	private static Bitmap computeNarrow(@Nonnull Bitmap[] plus, @Nonnull Bitmap[] minus) {
-		final Cursor[] cursors = openCursors(plus, minus);
-		if (cursors.length == 0) {
+		final CursorSet cursors = borrowCursorSet();
+		if (!cursors.open(plus, minus)) {
+			returnCursorSet(cursors);
 			return EmptyBitmap.INSTANCE;
 		}
 		final short[] counters = borrowCounters();
-		final SparseScratch scratch = borrowSparseScratch();
-		// the array only returns to the pool when the emission pass ran to completion and therefore zeroed every
-		// counter it touched; an abort half-way through would hand the next borrower a dirty array, so on that path
-		// the array is dropped instead - losing one pooled buffer on an exceptional path is the cheap side of this
-		boolean countersAreClean = false;
+		final Emission emission = borrowEmission();
+		final long[] words = emission.words;
+		final int[] touched = emission.touched;
+		// the scratch only returns to the pools when the emission pass ran to completion and therefore zeroed every
+		// counter and word it touched, and left every bucket drained; an abort half-way through would hand the next
+		// borrower dirty state, so on that path the scratch is dropped instead - losing one pooled buffer on an
+		// exceptional path is the cheap side of this
+		boolean scratchIsClean = false;
 		try {
 			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-			int liveCursors = cursors.length;
-			while (liveCursors > 0) {
-				// the lowest chunk any cursor still has data in - a k-way merge at CHUNK granularity, not per element
-				int chunk = Integer.MAX_VALUE;
-				for (final Cursor cursor : cursors) {
-					if (cursor.live) {
-						final int cursorChunk = cursor.buffer[cursor.position] >>> CHUNK_BITS;
-						if (cursorChunk < chunk) {
-							chunk = cursorChunk;
-						}
-					}
+			final int[] arena = cursors.arena;
+			final int[] position = cursors.position;
+			final int[] limit = cursors.limit;
+			final int[] successors = cursors.next;
+			final short[] signs = cursors.sign;
+			for (int chunk = cursors.minChunk; cursors.liveCursors > 0; chunk++) {
+				int cursor = cursors.takeBucket(chunk);
+				if (cursor < 0) {
+					continue;
 				}
-
 				int minLow = LOW_MASK;
 				int maxLow = 0;
 				int touchedCount = 0;
-				boolean sparseUsable = true;
-				for (final Cursor cursor : cursors) {
-					if (!cursor.live || (cursor.buffer[cursor.position] >>> CHUNK_BITS) != chunk) {
-						continue;
-					}
-					final short sign = cursor.sign;
-					do {
-						final int[] buffer = cursor.buffer;
-						int position = cursor.position;
-						final int limit = cursor.length;
-						while (position < limit) {
-							final int value = buffer[position];
+				boolean listUsable = true;
+				do {
+					// captured before the cursor is re-filed, which overwrites its link
+					final int successor = successors[cursor];
+					final short sign = signs[cursor];
+					int p = position[cursor];
+					int end = limit[cursor];
+					boolean live = true;
+					while (true) {
+						while (p < end) {
+							final int value = arena[p];
 							if ((value >>> CHUNK_BITS) != chunk) {
 								break;
 							}
@@ -268,58 +306,52 @@ final class RangeCountKernel {
 							if (low > maxLow) {
 								maxLow = low;
 							}
-							// record every write, duplicates included - see emitSparse for why that needs no
-							// separate visited-set; once the list overflows the span scan has to take over,
-							// because a partial list cannot be walked safely
-							if (sparseUsable) {
-								if (touchedCount < SPARSE_CAPACITY) {
-									scratch.touched[touchedCount++] = low;
+							// a SEQUENTIAL append, deliberately. Setting a bit in a word map here instead - which
+							// would deduplicate for free and need no capacity bound - was MEASURED 5x more
+							// expensive in this loop's self time (12 us -> 69 us at k=64, N=29,159), because a
+							// random read-modify-write carries a load-use dependency where an append does not.
+							// Do not re-propose it without a measurement.
+							if (listUsable) {
+								if (touchedCount < TOUCHED_CAPACITY) {
+									touched[touchedCount++] = low;
 								} else {
-									sparseUsable = false;
+									listUsable = false;
 								}
 							}
-							position++;
+							p++;
 						}
-						cursor.position = position;
 						// the batch is spent only when the cursor consumed all of it; otherwise it stopped on a value
 						// belonging to a later chunk and must keep the remainder for the next round
-						if (position < limit) {
+						if (p < end) {
 							break;
 						}
-					} while (cursor.refill());
-					if (!cursor.live) {
-						liveCursors--;
-					}
-				}
-
-				if (minLow <= maxLow) {
-					final int base = chunk << CHUNK_BITS;
-					final int span = maxLow - minLow + 1;
-					// walking the touched list beats scanning the span once the chunk is sparse enough. On the
-					// measured production shape a chunk holds ~1,325 ids inside a span of nearly 65,536, so the
-					// span scan would read ~50x more counters than were ever written.
-					if (sparseUsable && (long) touchedCount * SPARSE_FACTOR < span) {
-						emitSparse(writer, counters, scratch, touchedCount, base, minLow, maxLow);
-					} else {
-						// clearing as it goes so the array leaves this iteration zeroed for the next chunk
-						// without a separate fill pass
-						for (int low = minLow; low <= maxLow; low++) {
-							final short count = counters[low];
-							if (count > 0) {
-								writer.add(base | low);
-							}
-							counters[low] = 0;
+						final int loaded = cursors.refill(cursor);
+						if (loaded == 0) {
+							live = false;
+							break;
 						}
+						p = cursors.base[cursor];
+						end = p + loaded;
 					}
-				}
+					if (live) {
+						position[cursor] = p;
+						limit[cursor] = end;
+						cursors.file(cursor, arena[p] >>> CHUNK_BITS);
+					} else {
+						cursors.liveCursors--;
+					}
+					cursor = successor;
+				} while (cursor >= 0);
+				emitNarrow(writer, counters, words, touched, touchedCount, listUsable, chunk, minLow, maxLow);
 			}
 			final PersistentRoaringBitmap result = writer.get();
-			countersAreClean = true;
+			scratchIsClean = true;
 			return result.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(result);
 		} finally {
-			if (countersAreClean) {
+			if (scratchIsClean) {
 				returnCounters(counters);
-				SPARSE_POOL.offer(scratch);
+				returnEmission(emission);
+				returnCursorSet(cursors);
 			}
 		}
 	}
@@ -329,7 +361,9 @@ final class RangeCountKernel {
 	 * combined operand count could drive a `short` counter past its range.
 	 *
 	 * It is a deliberate copy rather than a width-parameterised generalisation. The scatter loop is this class's whole
-	 * cost, and neither an accessor call nor a width branch inside it would be worth the duplication it saves.
+	 * cost, and neither an accessor call nor a width branch inside it would be worth the duplication it saves. Only
+	 * the two loops that touch `counters` are duplicated - cursor bookkeeping lives in {@link CursorSet} and is
+	 * shared, because none of it depends on the counter width.
 	 *
 	 * The copy's real hazard is divergence, not duplication: production never reaches this path - the largest observed
 	 * operand family is an order of magnitude below the threshold - so a fix applied to the narrow sibling and not to
@@ -342,45 +376,44 @@ final class RangeCountKernel {
 	 */
 	@Nonnull
 	static Bitmap computeWide(@Nonnull Bitmap[] plus, @Nonnull Bitmap[] minus) {
-		final Cursor[] cursors = openCursors(plus, minus);
-		if (cursors.length == 0) {
+		final CursorSet cursors = borrowCursorSet();
+		if (!cursors.open(plus, minus)) {
+			returnCursorSet(cursors);
 			return EmptyBitmap.INSTANCE;
 		}
 		final int[] counters = borrowWideCounters();
-		final SparseScratch scratch = borrowSparseScratch();
-		// same pooling discipline as computeNarrow: the array only returns to the pool when the emission pass ran
-		// to completion and therefore zeroed every counter it touched, and an abort half-way through drops it instead
-		boolean countersAreClean = false;
+		final Emission emission = borrowEmission();
+		final long[] words = emission.words;
+		final int[] touched = emission.touched;
+		// same pooling discipline as computeNarrow: the scratch only returns to the pools when the emission pass ran
+		// to completion, and an abort half-way through drops it instead
+		boolean scratchIsClean = false;
 		try {
 			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-			int liveCursors = cursors.length;
-			while (liveCursors > 0) {
-				// the lowest chunk any cursor still has data in - a k-way merge at CHUNK granularity, not per element
-				int chunk = Integer.MAX_VALUE;
-				for (final Cursor cursor : cursors) {
-					if (cursor.live) {
-						final int cursorChunk = cursor.buffer[cursor.position] >>> CHUNK_BITS;
-						if (cursorChunk < chunk) {
-							chunk = cursorChunk;
-						}
-					}
+			final int[] arena = cursors.arena;
+			final int[] position = cursors.position;
+			final int[] limit = cursors.limit;
+			final int[] successors = cursors.next;
+			final short[] signs = cursors.sign;
+			for (int chunk = cursors.minChunk; cursors.liveCursors > 0; chunk++) {
+				int cursor = cursors.takeBucket(chunk);
+				if (cursor < 0) {
+					continue;
 				}
-
 				int minLow = LOW_MASK;
 				int maxLow = 0;
 				int touchedCount = 0;
-				boolean sparseUsable = true;
-				for (final Cursor cursor : cursors) {
-					if (!cursor.live || (cursor.buffer[cursor.position] >>> CHUNK_BITS) != chunk) {
-						continue;
-					}
-					final short sign = cursor.sign;
-					do {
-						final int[] buffer = cursor.buffer;
-						int position = cursor.position;
-						final int limit = cursor.length;
-						while (position < limit) {
-							final int value = buffer[position];
+				boolean listUsable = true;
+				do {
+					// captured before the cursor is re-filed, which overwrites its link
+					final int successor = successors[cursor];
+					final short sign = signs[cursor];
+					int p = position[cursor];
+					int end = limit[cursor];
+					boolean live = true;
+					while (true) {
+						while (p < end) {
+							final int value = arena[p];
 							if ((value >>> CHUNK_BITS) != chunk) {
 								break;
 							}
@@ -392,223 +425,198 @@ final class RangeCountKernel {
 							if (low > maxLow) {
 								maxLow = low;
 							}
-							// record every write, duplicates included - see emitSparse for why that needs no
-							// separate visited-set; once the list overflows the span scan has to take over,
-							// because a partial list cannot be walked safely
-							if (sparseUsable) {
-								if (touchedCount < SPARSE_CAPACITY) {
-									scratch.touched[touchedCount++] = low;
+							// a SEQUENTIAL append, deliberately. Setting a bit in a word map here instead - which
+							// would deduplicate for free and need no capacity bound - was MEASURED 5x more
+							// expensive in this loop's self time (12 us -> 69 us at k=64, N=29,159), because a
+							// random read-modify-write carries a load-use dependency where an append does not.
+							// Do not re-propose it without a measurement.
+							if (listUsable) {
+								if (touchedCount < TOUCHED_CAPACITY) {
+									touched[touchedCount++] = low;
 								} else {
-									sparseUsable = false;
+									listUsable = false;
 								}
 							}
-							position++;
+							p++;
 						}
-						cursor.position = position;
 						// the batch is spent only when the cursor consumed all of it; otherwise it stopped on a value
 						// belonging to a later chunk and must keep the remainder for the next round
-						if (position < limit) {
+						if (p < end) {
 							break;
 						}
-					} while (cursor.refill());
-					if (!cursor.live) {
-						liveCursors--;
-					}
-				}
-
-				if (minLow <= maxLow) {
-					final int base = chunk << CHUNK_BITS;
-					final int span = maxLow - minLow + 1;
-					// walking the touched list beats scanning the span once the chunk is sparse enough. On the
-					// measured production shape a chunk holds ~1,325 ids inside a span of nearly 65,536, so the
-					// span scan would read ~50x more counters than were ever written.
-					if (sparseUsable && (long) touchedCount * SPARSE_FACTOR < span) {
-						emitSparseWide(writer, counters, scratch, touchedCount, base, minLow, maxLow);
-					} else {
-						// clearing as it goes so the array leaves this iteration zeroed for the next chunk
-						// without a separate fill pass
-						for (int low = minLow; low <= maxLow; low++) {
-							final int count = counters[low];
-							if (count > 0) {
-								writer.add(base | low);
-							}
-							counters[low] = 0;
+						final int loaded = cursors.refill(cursor);
+						if (loaded == 0) {
+							live = false;
+							break;
 						}
+						p = cursors.base[cursor];
+						end = p + loaded;
 					}
-				}
+					if (live) {
+						position[cursor] = p;
+						limit[cursor] = end;
+						cursors.file(cursor, arena[p] >>> CHUNK_BITS);
+					} else {
+						cursors.liveCursors--;
+					}
+					cursor = successor;
+				} while (cursor >= 0);
+				emitWide(writer, counters, words, touched, touchedCount, listUsable, chunk, minLow, maxLow);
 			}
 			final PersistentRoaringBitmap result = writer.get();
-			countersAreClean = true;
+			scratchIsClean = true;
 			return result.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(result);
 		} finally {
-			if (countersAreClean) {
+			if (scratchIsClean) {
 				returnWideCounters(counters);
-				SPARSE_POOL.offer(scratch);
+				returnEmission(emission);
+				returnCursorSet(cursors);
 			}
 		}
 	}
 
 	/**
-	 * Opens one cursor per non-empty bitmap, primed with its first batch.
+	 * Emits one chunk by turning the counters the scatter left behind into the chunk's output, and hands that
+	 * output to the writer as one container's worth of words.
 	 *
-	 * @param plus  bitmaps contributing `+1`
-	 * @param minus bitmaps contributing `-1`
-	 * @return the primed cursors; exhausted and empty inputs are dropped
-	 */
-	@Nonnull
-	private static Cursor[] openCursors(@Nonnull Bitmap[] plus, @Nonnull Bitmap[] minus) {
-		final Cursor[] scratch = new Cursor[plus.length + minus.length];
-		int count = 0;
-		for (final Bitmap bitmap : plus) {
-			final Cursor cursor = Cursor.open(bitmap, (short) 1);
-			if (cursor != null) {
-				scratch[count++] = cursor;
-			}
-		}
-		for (final Bitmap bitmap : minus) {
-			final Cursor cursor = Cursor.open(bitmap, (short) -1);
-			if (cursor != null) {
-				scratch[count++] = cursor;
-			}
-		}
-		if (count == scratch.length) {
-			return scratch;
-		}
-		final Cursor[] result = new Cursor[count];
-		System.arraycopy(scratch, 0, result, 0, count);
-		return result;
-	}
-
-	/**
-	 * Emits one chunk by walking only the offsets the scatter actually wrote, instead of scanning the whole span.
+	 * The touched list carries duplicates and needs no visited-set: the first visit to an offset reads its counter
+	 * and immediately zeroes it, so any later visit reads zero and contributes nothing. That also clears negative
+	 * counters, which a "clear only what was emitted" pass would leave behind to poison the next chunk. Building
+	 * the list by appending only when the previous count was zero would NOT be safe - a `+1, -1, +1` sequence
+	 * revisits zero - which is why every write is recorded.
 	 *
-	 * The touched list carries duplicates and needs no separate visited-set: the first visit to an offset reads its
-	 * counter and immediately zeroes it, so any later visit reads zero and contributes nothing. That also clears
-	 * negative counters, which a "clear only what was emitted" pass would leave behind and poison the next chunk
-	 * with. Building the list by appending only when the previous count was zero would NOT be safe - a `+1, -1, +1`
-	 * sequence revisits zero - which is why every write is recorded.
+	 * The span scan is an **overflow fallback, not a density choice**. While the list fits it is unconditionally
+	 * the cheaper walk, so there is no crossover to tune; `listUsable` is false only when the chunk recorded more
+	 * writes than {@link #TOUCHED_CAPACITY} allows, and a partial list cannot be walked safely.
 	 *
-	 * Output goes through a word bitmap rather than straight to the writer because the touched list is unordered
-	 * (it is scattered operand by operand) while {@link RoaringBitmapWriter} requires ascending input; the word
-	 * array restores that order for the price of one bounded pass.
+	 * Output goes through a word bitmap because the touched list is unordered - it is scattered operand by operand
+	 * - while the writer requires ascending input. Gathering the survivors there costs nothing extra, because the
+	 * words are then handed over whole through {@link RoaringBitmapWriter#addChunk(char, long[], int, int)}: the
+	 * constant-memory writer keeps a buffer of exactly this shape, so the alternative is decomposing these words
+	 * into ints only for it to set the same bits again. The word range is cleared on the way IN rather than on the
+	 * way out, so nothing has to tidy up after the last chunk.
 	 *
-	 * @param writer       receives the surviving record ids in ascending order
+	 * @param writer       receives the surviving record ids, one chunk at a time, in ascending order
 	 * @param counters     the signed counters for this chunk, left fully zeroed on return
-	 * @param scratch      the touched list and the word bitmap
-	 * @param touchedCount how many offsets the scatter recorded
-	 * @param base         the chunk's high half, shifted into place
+	 * @param words        scratch the survivors are gathered into; only `[firstWord, lastWord]` is touched
+	 * @param touched      offsets the scatter recorded, duplicates included
+	 * @param touchedCount how many entries of `touched` are valid
+	 * @param listUsable   FALSE when the chunk overran `touched` and the span must be scanned instead
+	 * @param chunk        the chunk's high half, unshifted - the container key
 	 * @param minLow       lowest offset written
 	 * @param maxLow       highest offset written
 	 */
-	private static void emitSparse(
+	private static void emitNarrow(
 		@Nonnull RoaringBitmapWriter<PersistentRoaringBitmap> writer,
 		@Nonnull short[] counters,
-		@Nonnull SparseScratch scratch,
+		@Nonnull long[] words,
+		@Nonnull int[] touched,
 		int touchedCount,
-		int base,
+		boolean listUsable,
+		int chunk,
 		int minLow,
 		int maxLow
 	) {
-		final int[] touched = scratch.touched;
-		final long[] words = scratch.words;
+		if (minLow > maxLow) {
+			// nothing reached this chunk - unreachable while a bucket entry means a value in it, and kept as one
+			// predictable branch so the word arithmetic below is always well formed
+			return;
+		}
 		final int firstWord = minLow >>> 6;
 		final int lastWord = maxLow >>> 6;
-		for (int i = firstWord; i <= lastWord; i++) {
-			words[i] = 0L;
-		}
-		for (int i = 0; i < touchedCount; i++) {
-			final int low = touched[i];
-			final short count = counters[low];
-			if (count != 0) {
-				counters[low] = 0;
-				if (count > 0) {
-					words[low >>> 6] |= 1L << low;
+		Arrays.fill(words, firstWord, lastWord + 1, 0L);
+		boolean anySurvivor = false;
+		if (listUsable) {
+			for (int i = 0; i < touchedCount; i++) {
+				final int low = touched[i];
+				final short count = counters[low];
+				if (count != 0) {
+					counters[low] = 0;
+					if (count > 0) {
+						words[low >>> 6] |= 1L << low;
+						anySurvivor = true;
+					}
+				}
+			}
+		} else {
+			for (int low = minLow; low <= maxLow; low++) {
+				final short count = counters[low];
+				if (count != 0) {
+					counters[low] = 0;
+					if (count > 0) {
+						words[low >>> 6] |= 1L << low;
+						anySurvivor = true;
+					}
 				}
 			}
 		}
-		for (int wordIndex = firstWord; wordIndex <= lastWord; wordIndex++) {
-			long word = words[wordIndex];
-			final int wordBase = base | (wordIndex << 6);
-			while (word != 0L) {
-				writer.add(wordBase | Long.numberOfTrailingZeros(word));
-				word &= word - 1L;
-			}
+		if (anySurvivor) {
+			writer.addChunk((char) chunk, words, firstWord, lastWord + 1);
 		}
 	}
 
 	/**
-	 * Wide sibling of {@link #emitSparse(RoaringBitmapWriter, short[], SparseScratch, int, int, int, int)} - the same
-	 * touched-offset walk over `int` counters. Every invariant that one documents holds here unchanged; see it for
-	 * why the touched list needs no visited-set and why the walk zeroes unconditionally.
+	 * Wide sibling of
+	 * {@link #emitNarrow(RoaringBitmapWriter, short[], long[], int[], int, boolean, int, int, int)} - the same
+	 * emission over `int` counters. Every invariant that one documents holds here unchanged; see it for why the
+	 * touched list needs no visited-set, why the span scan is an overflow fallback rather than a density choice,
+	 * and why the survivors cross into the writer as words.
 	 *
-	 * @param writer       receives the surviving record ids in ascending order
+	 * @param writer       receives the surviving record ids, one chunk at a time, in ascending order
 	 * @param counters     the signed counters for this chunk, left fully zeroed on return
-	 * @param scratch      the touched list and the word bitmap
-	 * @param touchedCount how many offsets the scatter recorded
-	 * @param base         the chunk's high half, shifted into place
+	 * @param words        scratch the survivors are gathered into; only `[firstWord, lastWord]` is touched
+	 * @param touched      offsets the scatter recorded, duplicates included
+	 * @param touchedCount how many entries of `touched` are valid
+	 * @param listUsable   FALSE when the chunk overran `touched` and the span must be scanned instead
+	 * @param chunk        the chunk's high half, unshifted - the container key
 	 * @param minLow       lowest offset written
 	 * @param maxLow       highest offset written
 	 */
-	private static void emitSparseWide(
+	private static void emitWide(
 		@Nonnull RoaringBitmapWriter<PersistentRoaringBitmap> writer,
 		@Nonnull int[] counters,
-		@Nonnull SparseScratch scratch,
+		@Nonnull long[] words,
+		@Nonnull int[] touched,
 		int touchedCount,
-		int base,
+		boolean listUsable,
+		int chunk,
 		int minLow,
 		int maxLow
 	) {
-		final int[] touched = scratch.touched;
-		final long[] words = scratch.words;
+		if (minLow > maxLow) {
+			return;
+		}
 		final int firstWord = minLow >>> 6;
 		final int lastWord = maxLow >>> 6;
-		for (int i = firstWord; i <= lastWord; i++) {
-			words[i] = 0L;
-		}
-		for (int i = 0; i < touchedCount; i++) {
-			final int low = touched[i];
-			final int count = counters[low];
-			if (count != 0) {
-				counters[low] = 0;
-				if (count > 0) {
-					words[low >>> 6] |= 1L << low;
+		Arrays.fill(words, firstWord, lastWord + 1, 0L);
+		boolean anySurvivor = false;
+		if (listUsable) {
+			for (int i = 0; i < touchedCount; i++) {
+				final int low = touched[i];
+				final int count = counters[low];
+				if (count != 0) {
+					counters[low] = 0;
+					if (count > 0) {
+						words[low >>> 6] |= 1L << low;
+						anySurvivor = true;
+					}
+				}
+			}
+		} else {
+			for (int low = minLow; low <= maxLow; low++) {
+				final int count = counters[low];
+				if (count != 0) {
+					counters[low] = 0;
+					if (count > 0) {
+						words[low >>> 6] |= 1L << low;
+						anySurvivor = true;
+					}
 				}
 			}
 		}
-		for (int wordIndex = firstWord; wordIndex <= lastWord; wordIndex++) {
-			long word = words[wordIndex];
-			final int wordBase = base | (wordIndex << 6);
-			while (word != 0L) {
-				writer.add(wordBase | Long.numberOfTrailingZeros(word));
-				word &= word - 1L;
-			}
+		if (anySurvivor) {
+			writer.addChunk((char) chunk, words, firstWord, lastWord + 1);
 		}
-	}
-
-	/**
-	 * Takes the sparse-emission scratch from the pool, allocating when the pool is empty.
-	 *
-	 * @return scratch whose word array is cleared per chunk before use
-	 */
-	@Nonnull
-	private static SparseScratch borrowSparseScratch() {
-		final SparseScratch pooled = SPARSE_POOL.poll();
-		return pooled == null ? new SparseScratch() : pooled;
-	}
-
-	/**
-	 * Scratch for the sparse emission path: the offsets a chunk's scatter touched, and the word bitmap those
-	 * offsets are re-ordered through.
-	 */
-	private static final class SparseScratch {
-		/**
-		 * Offsets written during the current chunk's scatter, duplicates included.
-		 */
-		private final int[] touched = new int[SPARSE_CAPACITY];
-		/**
-		 * One chunk's output as 1 024 64-bit words - the ordering vehicle, cleared per chunk over the touched span.
-		 */
-		private final long[] words = new long[CHUNK_SIZE >>> 6];
 	}
 
 	/**
@@ -654,79 +662,343 @@ final class RangeCountKernel {
 	}
 
 	/**
-	 * One input bitmap being consumed in ascending order, carrying the sign its memberships contribute.
+	 * Takes emission scratch from the pool, allocating it when the pool is empty.
+	 *
+	 * Neither array carries a cleanliness contract: the touched list is written before it is read, and the word
+	 * bitmap has its range cleared on the way into every emission.
+	 *
+	 * @return scratch ready for use, contents arbitrary
 	 */
-	private static final class Cursor {
+	@Nonnull
+	private static Emission borrowEmission() {
+		final Emission pooled = EMISSION_POOL.poll();
+		return pooled == null ? new Emission() : pooled;
+	}
+
+	/**
+	 * Returns emission scratch to the pool.
+	 *
+	 * @param emission the scratch to return
+	 */
+	private static void returnEmission(@Nonnull Emission emission) {
+		EMISSION_POOL.offer(emission);
+	}
+
+	/**
+	 * Per-chunk emission scratch: the offsets a chunk's scatter touched, and the word bitmap the survivors are
+	 * gathered into before they cross into the writer.
+	 */
+	private static final class Emission {
 		/**
-		 * Batch iterator over the backing roaring bitmap.
+		 * Offsets written during the current chunk's scatter, duplicates included.
+		 */
+		private final int[] touched = new int[TOUCHED_CAPACITY];
+		/**
+		 * One chunk's survivors as 1 024 64-bit words - the ordering vehicle and the writer's own layout, cleared
+		 * per chunk over the touched span.
+		 */
+		private final long[] words = new long[WORD_COUNT];
+	}
+
+	/**
+	 * Takes cursor state from the pool, allocating a fresh set when the pool is empty.
+	 *
+	 * @return a cursor set whose bucket table is fully empty
+	 */
+	@Nonnull
+	private static CursorSet borrowCursorSet() {
+		final CursorSet pooled = CURSOR_SET_POOL.poll();
+		return pooled == null ? new CursorSet() : pooled;
+	}
+
+	/**
+	 * Releases the operand references a cursor set pins and returns it to the pool when its arrays are small enough
+	 * to be worth keeping.
+	 *
+	 * @param cursors the cursor state to return
+	 */
+	private static void returnCursorSet(@Nonnull CursorSet cursors) {
+		cursors.release();
+		if (cursors.isPoolable()) {
+			CURSOR_SET_POOL.offer(cursors);
+		}
+	}
+
+	/**
+	 * Cursor state for one computation, held as parallel arrays rather than one object per operand.
+	 *
+	 * ## Why this is not an array of cursor objects
+	 *
+	 * The shape this kernel exists for is *many tiny operands*: a production range query was measured at k = 7,602
+	 * operands over N = 29,159 endpoints - 3.8 record ids per operand. One object per operand, each owning its own
+	 * batch buffer, put roughly a megabyte of small scattered objects between the kernel and 114 KB of actual data,
+	 * and every pass over the operands became a pointer chase through it.
+	 *
+	 * Here every per-cursor field is a slot in a pooled primitive array, and every cursor's batch lives in one shared
+	 * {@link #arena}, sized to the operands and filled through {@link BatchIterator#nextBatch(int[], int, int)}. The
+	 * arrays are reused across calls, so the steady-state allocation for cursor state is the {@link BatchIterator}
+	 * per operand and nothing else.
+	 *
+	 * ## Why the buckets matter more than that
+	 *
+	 * The cursors are not scanned to find the next chunk. Each cursor is *filed* into {@link #bucketHead} under the
+	 * chunk its next id belongs to, and re-filed whenever it crosses into a later one, so opening a chunk is reading
+	 * one array slot and walking an intrusive list of exactly the cursors that have data there. The cost of driving
+	 * the merge is therefore `k` filings plus one re-filing per chunk a cursor actually spans, rather than a full
+	 * `O(k)` sweep of the operands per chunk - on the production shape the difference is ~15,000 operations against
+	 * ~213,000, none of which moved a single record id.
+	 *
+	 * A cursor only ever moves to a HIGHER chunk, and chunks are consumed in ascending order, so a cursor filed while
+	 * chunk `c` is being drained always lands in a bucket that has not been visited yet.
+	 */
+	private static final class CursorSet {
+		/**
+		 * Batch iterator per live operand, indexed by cursor slot.
 		 *
 		 * Reading a small operand whole through `getArray()` instead was tried and MEASURED SLOWER - 41 % at
 		 * k=256 and 6 % at k=7,602 - because `getArray()` allocates and copies the operand's array, where the
-		 * batch iterator refills a buffer this cursor already owns. Do not re-propose it without a measurement.
+		 * batch iterator refills a buffer this set already owns. Do not re-propose it without a measurement.
 		 */
-		private final BatchIterator iterator;
+		@Nonnull private BatchIterator[] iterators = new BatchIterator[0];
 		/**
-		 * Sign contributed by every element of this bitmap - `+1` or `-1`.
+		 * First index of each cursor's slice in {@link #arena}.
 		 */
-		private final short sign;
+		@Nonnull private int[] base = new int[0];
 		/**
-		 * Current batch of values in ascending order.
+		 * Length of each cursor's slice in {@link #arena} - how many ids one refill may load.
+		 */
+		@Nonnull private int[] capacity = new int[0];
+		/**
+		 * Index in {@link #arena} of each cursor's next unconsumed value.
+		 */
+		@Nonnull private int[] position = new int[0];
+		/**
+		 * Index in {@link #arena} one past each cursor's last loaded value.
+		 */
+		@Nonnull private int[] limit = new int[0];
+		/**
+		 * Sign contributed by every element of each cursor's operand - `+1` or `-1`.
+		 */
+		@Nonnull private short[] sign = new short[0];
+		/**
+		 * Intrusive bucket links: the cursor filed after this one under the same chunk, or `-1` at the end of the
+		 * list. Overwritten every time a cursor is re-filed, which is why a walk captures it before draining.
+		 */
+		@Nonnull private int[] next = new int[0];
+		/**
+		 * Batch storage shared by every cursor, carved into one fixed slice per cursor.
 		 *
-		 * Sized to the operand rather than to {@link #BATCH_SIZE}, because the shape this kernel exists for is
-		 * *many tiny operands*: a production range query was measured at k = 7,602 operands over N = 29,159
-		 * endpoints - 3.8 elements per operand. A fixed 256-int buffer each would allocate 7.8 MB of scratch to
-		 * carry 114 KB of data, which is precisely what makes the formula being replaced expensive.
+		 * Slices are sized to the operand rather than to {@link RangeCountKernel#BATCH_SIZE}, because the shape this
+		 * kernel exists for is *many tiny operands*: at k = 7,602 over N = 29,159 endpoints a fixed 256-int buffer
+		 * each would reserve 7.8 MB of scratch to carry 114 KB of data.
 		 */
-		private final int[] buffer;
+		@Nonnull private int[] arena = new int[0];
 		/**
-		 * Index of the next unconsumed value in {@link #buffer}.
-		 */
-		private int position;
-		/**
-		 * Number of valid values in {@link #buffer}.
-		 */
-		private int length;
-		/**
-		 * FALSE once the iterator is exhausted and the buffer fully consumed.
-		 */
-		private boolean live;
-
-		private Cursor(@Nonnull BatchIterator iterator, short sign, int bufferSize) {
-			this.iterator = iterator;
-			this.sign = sign;
-			this.buffer = new int[bufferSize];
-		}
-
-		/**
-		 * Opens a cursor over `bitmap`, or returns null when it holds nothing.
+		 * Chunk-indexed heads of the intrusive bucket lists; `-1` where no cursor is waiting.
 		 *
-		 * @param bitmap the bitmap to iterate
-		 * @param sign   the sign its memberships contribute
-		 * @return a primed cursor, or null for an empty bitmap
+		 * Left fully `-1` between computations: {@link #takeBucket(int)} clears every head it reads, and the main
+		 * loop visits every chunk from {@link #minChunk} up to the last one any cursor reaches, so a completed
+		 * computation drains the table it filled.
 		 */
-		@Nullable
-		private static Cursor open(@Nonnull Bitmap bitmap, short sign) {
-			if (bitmap.isEmpty()) {
-				return null;
+		@Nonnull private int[] bucketHead = new int[0];
+		/**
+		 * Number of cursor slots in use - operands that were non-empty.
+		 */
+		private int count;
+		/**
+		 * Number of cursors that still hold unconsumed values; the main loop runs until this reaches zero.
+		 */
+		private int liveCursors;
+		/**
+		 * Lowest chunk any cursor starts in - where the main loop begins.
+		 */
+		private int minChunk;
+		/**
+		 * Highest chunk any operand reaches, taken from each operand's last value; sizes {@link #bucketHead}.
+		 */
+		private int maxChunk;
+		/**
+		 * Running total of the slice lengths handed out in {@link #arena}.
+		 */
+		private int arenaSize;
+
+		/**
+		 * Opens one cursor per non-empty bitmap, primes each with its first batch and files it into the bucket of
+		 * the chunk it starts in.
+		 *
+		 * @param plus  bitmaps contributing `+1`
+		 * @param minus bitmaps contributing `-1`
+		 * @return `false` when every operand was empty and there is nothing to compute
+		 */
+		private boolean open(@Nonnull Bitmap[] plus, @Nonnull Bitmap[] minus) {
+			ensureCursors(plus.length + minus.length);
+			this.count = 0;
+			this.arenaSize = 0;
+			this.maxChunk = 0;
+			collect(plus, (short) 1);
+			collect(minus, (short) -1);
+			if (this.count == 0) {
+				return false;
 			}
-			final Cursor cursor = new Cursor(
-				RoaringBitmapBackedBitmap.getRoaringBitmap(bitmap).getBatchIterator(),
-				sign,
-				Math.clamp(bitmap.size(), 1, BATCH_SIZE)
-			);
-			return cursor.refill() ? cursor : null;
+			ensureArena(this.arenaSize);
+			ensureBuckets(this.maxChunk + 1);
+			prime();
+			return true;
 		}
 
 		/**
-		 * Loads the next batch.
+		 * Reserves a cursor slot and an arena slice for every non-empty bitmap of one family, and tracks the highest
+		 * chunk the family reaches. No iterator is read here - only sized.
 		 *
-		 * @return true when the cursor holds unconsumed values
+		 * @param family the bitmaps to open cursors over
+		 * @param sign   the sign their memberships contribute
 		 */
-		private boolean refill() {
-			this.length = this.iterator.nextBatch(this.buffer);
-			this.position = 0;
-			this.live = this.length > 0;
-			return this.live;
+		private void collect(@Nonnull Bitmap[] family, short sign) {
+			for (final Bitmap bitmap : family) {
+				if (bitmap.isEmpty()) {
+					continue;
+				}
+				final PersistentRoaringBitmap roaring = RoaringBitmapBackedBitmap.getRoaringBitmap(bitmap);
+				final int slot = this.count++;
+				this.iterators[slot] = roaring.getBatchIterator();
+				this.sign[slot] = sign;
+				final int slice = Math.clamp(bitmap.size(), 1, BATCH_SIZE);
+				this.base[slot] = this.arenaSize;
+				this.capacity[slot] = slice;
+				this.arenaSize += slice;
+				final int lastChunk = roaring.last() >>> CHUNK_BITS;
+				if (lastChunk > this.maxChunk) {
+					this.maxChunk = lastChunk;
+				}
+			}
+		}
+
+		/**
+		 * Loads every cursor's first batch and files it under the chunk it starts in.
+		 */
+		private void prime() {
+			this.minChunk = Integer.MAX_VALUE;
+			this.liveCursors = this.count;
+			for (int slot = 0; slot < this.count; slot++) {
+				final int start = this.base[slot];
+				final int loaded = this.iterators[slot].nextBatch(this.arena, start, this.capacity[slot]);
+				if (loaded == 0) {
+					throw new GenericEvitaInternalError(
+						"Non-empty operand produced an empty first batch - the bitmap and its batch iterator disagree!"
+					);
+				}
+				this.position[slot] = start;
+				this.limit[slot] = start + loaded;
+				final int chunk = this.arena[start] >>> CHUNK_BITS;
+				if (chunk < this.minChunk) {
+					this.minChunk = chunk;
+				}
+				file(slot, chunk);
+			}
+		}
+
+		/**
+		 * Loads the next batch into a cursor's own arena slice.
+		 *
+		 * @param cursor the cursor slot to refill
+		 * @return how many values were loaded, `0` once the operand is exhausted
+		 */
+		private int refill(int cursor) {
+			return this.iterators[cursor].nextBatch(this.arena, this.base[cursor], this.capacity[cursor]);
+		}
+
+		/**
+		 * Pushes a cursor onto the front of a chunk's bucket list.
+		 *
+		 * @param cursor the cursor slot to file
+		 * @param chunk  the chunk its next unconsumed value belongs to
+		 */
+		private void file(int cursor, int chunk) {
+			this.next[cursor] = this.bucketHead[chunk];
+			this.bucketHead[chunk] = cursor;
+		}
+
+		/**
+		 * Detaches a chunk's bucket list, leaving the head empty for the next computation.
+		 *
+		 * @param chunk the chunk being opened
+		 * @return the first cursor filed under it, or `-1` when no cursor has data there
+		 */
+		private int takeBucket(int chunk) {
+			if (chunk >= this.bucketHead.length) {
+				// the loop runs while cursors are live, and no cursor can be filed above maxChunk, so reaching this
+				// means a cursor outlived the last value its own operand reported
+				throw new GenericEvitaInternalError(
+					"Range counting kernel walked past the highest chunk its operands can reach!"
+				);
+			}
+			final int head = this.bucketHead[chunk];
+			this.bucketHead[chunk] = -1;
+			return head;
+		}
+
+		/**
+		 * Grows the per-cursor arrays when the operand count outruns them. They are replaced rather than copied -
+		 * nothing in them survives a computation.
+		 *
+		 * @param required number of cursor slots this computation may need
+		 */
+		private void ensureCursors(int required) {
+			if (this.iterators.length >= required) {
+				return;
+			}
+			this.iterators = new BatchIterator[required];
+			this.base = new int[required];
+			this.capacity = new int[required];
+			this.position = new int[required];
+			this.limit = new int[required];
+			this.sign = new short[required];
+			this.next = new int[required];
+		}
+
+		/**
+		 * Grows the shared batch arena when the reserved slices outrun it.
+		 *
+		 * @param required total slice length this computation handed out
+		 */
+		private void ensureArena(int required) {
+			if (this.arena.length < required) {
+				this.arena = new int[required];
+			}
+		}
+
+		/**
+		 * Grows the bucket table when the operands reach a higher chunk than it covers, filling the fresh table with
+		 * the `-1` empty marker.
+		 *
+		 * @param required one past the highest chunk any operand reaches
+		 */
+		private void ensureBuckets(int required) {
+			if (this.bucketHead.length < required) {
+				this.bucketHead = new int[required];
+				Arrays.fill(this.bucketHead, -1);
+			}
+		}
+
+		/**
+		 * Drops the operand references this set pins, so returning it to the pool cannot keep bitmaps alive.
+		 */
+		private void release() {
+			Arrays.fill(this.iterators, 0, this.count, null);
+			this.count = 0;
+			this.liveCursors = 0;
+		}
+
+		/**
+		 * Tells whether this set is small enough to keep. One outsized computation would otherwise park its arrays
+		 * in the pool for the lifetime of the JVM, which is the opposite of what pooling is for here.
+		 *
+		 * @return `true` when every array is within its retention cap
+		 */
+		private boolean isPoolable() {
+			return this.iterators.length <= MAX_POOLED_CURSORS
+				&& this.arena.length <= MAX_POOLED_ARENA
+				&& this.bucketHead.length <= MAX_POOLED_BUCKETS;
 		}
 	}
 

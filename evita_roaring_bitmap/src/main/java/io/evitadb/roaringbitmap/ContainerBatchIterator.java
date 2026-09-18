@@ -14,24 +14,41 @@ interface ContainerBatchIterator extends Cloneable {
 
 	/**
 	 * Writes this container's remaining values, each OR-ed with `key` in the high 16 bits, into
-	 * `buffer` starting at `offset`, and returns how many were written.
+	 * `buffer` between `offset` (inclusive) and `limit` (exclusive), and returns how many were
+	 * written.
+	 *
+	 * `limit` exists so several independent cursors can share one arena array without overwriting
+	 * each other's slices; it is the *end of this cursor's slice*, never the end of `buffer`.
+	 *
+	 * @param key    the 16-bit container key placed in the high bits of every emitted value
+	 * @param buffer the array to write values into
+	 * @param offset the first index in `buffer` to write to
+	 * @param limit  the first index in `buffer` that must NOT be written to
+	 * @return the number of values written
+	 */
+	int next(int key, @Nonnull int[] buffer, int offset, int limit);
+
+	/**
+	 * Convenience overload of {@link #next(int, int[], int, int)} that may fill `buffer` to its end.
 	 *
 	 * @param key    the 16-bit container key placed in the high bits of every emitted value
 	 * @param buffer the array to write values into
 	 * @param offset the first index in `buffer` to write to
 	 * @return the number of values written
 	 */
-	int next(int key, @Nonnull int[] buffer, int offset);
+	default int next(int key, @Nonnull int[] buffer, int offset) {
+		return next(key, buffer, offset, buffer.length);
+	}
 
 	/**
-	 * Convenience overload of {@link #next(int, int[], int)} that writes from index `0`.
+	 * Convenience overload of {@link #next(int, int[], int, int)} that writes from index `0`.
 	 *
 	 * @param key    the 16-bit container key placed in the high bits of every emitted value
 	 * @param buffer the array to write values into
 	 * @return the number of values written
 	 */
 	default int next(int key, @Nonnull int[] buffer) {
-		return next(key, buffer, 0);
+		return next(key, buffer, 0, buffer.length);
 	}
 
 	/**

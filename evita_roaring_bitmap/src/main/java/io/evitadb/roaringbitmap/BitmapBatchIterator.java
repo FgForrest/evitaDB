@@ -42,11 +42,11 @@ final class BitmapBatchIterator implements ContainerBatchIterator {
 	 * and the emitted bit is cleared with `word &= word - 1` before the next iteration.
 	 */
 	@Override
-	public int next(final int key, @Nonnull final int[] buffer, final int offset) {
+	public int next(final int key, @Nonnull final int[] buffer, final int offset, final int limit) {
 		int consumed = 0;
 		final long[] words = Objects.requireNonNull(
 			this.bitmap, "BitmapBatchIterator: container released or never wrapped").bitmap;
-		while ((consumed + offset) < buffer.length) {
+		while ((consumed + offset) < limit) {
 			while (this.word == 0) {
 				++this.wordIndex;
 				if (this.wordIndex == 1024) {

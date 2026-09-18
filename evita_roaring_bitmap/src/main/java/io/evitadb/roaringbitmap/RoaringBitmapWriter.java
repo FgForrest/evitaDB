@@ -302,6 +302,37 @@ public interface RoaringBitmapWriter<T extends BitmapDataProvider> extends Suppl
 	void addMany(@Nonnull int... values);
 
 	/**
+	 * Buffers one whole 65536-value chunk, handed over as the caller's own word bitmap rather than
+	 * value by value.
+	 *
+	 * A caller that already holds the chunk as `long[1024]` words would otherwise decompose it into
+	 * individual ints only for the writer to set the very same bits again — the constant-memory
+	 * writer keeps exactly such a word buffer internally. This method lets that round trip be
+	 * skipped; implementations that have no word buffer of their own fall back to the per-value
+	 * path below, so declaring it costs nothing.
+	 *
+	 * `words[i]` holds the container-local offsets `i * 64 .. i * 64 + 63`. Words outside
+	 * `[fromWord, toWord)` are treated as zero and never read. The ascending-key expectation of
+	 * {@link #add(int)} applies unchanged: `key` should not drop below a key already written.
+	 *
+	 * @param key      the chunk's high 16 bits
+	 * @param words    word bitmap of the chunk's low 16 bits, 1024 words for a full chunk
+	 * @param fromWord index of the first word to read, inclusive
+	 * @param toWord   index of the first word NOT to read, exclusive
+	 */
+	default void addChunk(char key, @Nonnull long[] words, int fromWord, int toWord) {
+		final int base = key << 16;
+		for (int wordIndex = fromWord; wordIndex < toWord; wordIndex++) {
+			long word = words[wordIndex];
+			final int wordBase = base | (wordIndex << 6);
+			while (word != 0L) {
+				add(wordBase | Long.numberOfTrailingZeros(word));
+				word &= word - 1L;
+			}
+		}
+	}
+
+	/**
 	 * Flushes all pending buffered values into the underlying bitmap.
 	 */
 	void flush();

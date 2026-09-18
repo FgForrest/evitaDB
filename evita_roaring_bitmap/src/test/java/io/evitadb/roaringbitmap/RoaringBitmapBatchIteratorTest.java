@@ -319,4 +319,63 @@ public class RoaringBitmapBatchIteratorTest {
 		n = it.nextBatch(batch);
 		assertEquals(0, n);
 	}
+
+	/**
+	 * `nextBatch(buffer, offset, length)` is an evita-local addition to the fork rather than upstream
+	 * API (see `UPSTREAM_SYNC.md`) and is re-applied by hand on every upstream re-sync. The bound is
+	 * the whole point of it: the unbounded form fills to `buffer.length`, so a caller that owns only
+	 * a slice of a shared buffer cannot use it. These two cases pin the bound being honoured on both
+	 * sides of the seam that carries it - the container-crossing loop in {@link RoaringBatchIterator}
+	 * and the per-container `limit` the three {@link ContainerBatchIterator}s now take.
+	 */
+	@Test
+	@DisplayName("A bounded batch writes only inside [offset, offset + length)")
+	public void testBoundedNextBatchHonoursOffsetAndLength() {
+		PersistentRoaringBitmap bitmap = PersistentRoaringBitmap.bitmapOf(
+			1, 2, 3, (1 << 16) + 1, (1 << 16) + 2, (2 << 16) + 1);
+		assertEquals(3, bitmap.highLowContainer.size());
+		BatchIterator it = bitmap.getBatchIterator();
+		int[] buffer = new int[16];
+		Arrays.fill(buffer, -1);
+
+		// four values requested, and the fourth only exists in the NEXT container - so the bound has to
+		// survive the container-crossing loop, which is where an unbounded iterator would run to
+		// buffer.length and write six
+		int n = it.nextBatch(buffer, 4, 4);
+		assertEquals(4, n);
+		assertArrayEquals(new int[]{1, 2, 3, (1 << 16) + 1}, Arrays.copyOfRange(buffer, 4, 8));
+		for (int i = 0; i < 4; i++) {
+			assertEquals(-1, buffer[i], "slot " + i + " sits before the offset and must be untouched");
+		}
+		for (int i = 8; i < buffer.length; i++) {
+			assertEquals(-1, buffer[i], "slot " + i + " sits past the bound and must be untouched");
+		}
+
+		n = it.nextBatch(buffer, 4, 4);
+		assertEquals(2, n);
+		assertArrayEquals(new int[]{(1 << 16) + 2, (2 << 16) + 1}, Arrays.copyOfRange(buffer, 4, 6));
+		assertEquals(0, it.nextBatch(buffer, 4, 4));
+	}
+
+	@Test
+	@DisplayName("A bounded batch stops part-way through a run instead of filling the buffer")
+	public void testBoundedNextBatchTruncatesInsideARunContainer() {
+		PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
+		bitmap.add(100L, 1_000L);
+		bitmap.runOptimize();
+		BatchIterator it = bitmap.getBatchIterator();
+		int[] buffer = new int[64];
+		Arrays.fill(buffer, -1);
+
+		// one run holds 900 consecutive values, so an unbounded drain would fill every slot from the offset
+		// on. RunBatchIterator's usable length is what has to shrink to the bound here
+		int n = it.nextBatch(buffer, 8, 10);
+		assertEquals(10, n);
+		assertArrayEquals(IntStream.range(100, 110).toArray(), Arrays.copyOfRange(buffer, 8, 18));
+		assertEquals(-1, buffer[18], "the run kept writing past the bound");
+
+		n = it.nextBatch(buffer, 8, 10);
+		assertEquals(10, n);
+		assertArrayEquals(IntStream.range(110, 120).toArray(), Arrays.copyOfRange(buffer, 8, 18));
+	}
 }

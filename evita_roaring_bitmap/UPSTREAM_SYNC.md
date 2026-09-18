@@ -70,6 +70,60 @@ modifications were applied. When replaying upstream changes, **keep** these:
   in the exported package. Hiding them needs either relocation into a non-exported `internal` pkg
   (with member promotion) or confirmation they're unused by evita; deferred to the Part 2 migration.
 
+## Local API additions (evita divergence — preserve on re-sync)
+
+Two **additive** methods that exist only in this fork. Both were introduced for `RangeCountKernel`
+(`evita_engine`, issue #1546), whose shape is thousands of tiny operands scanned together; both are
+widenings of an existing contract rather than new exposure of container internals, so neither moves
+the `Container`/`RoaringArray` encapsulation boundary the module is built around. On a re-sync,
+**re-apply them** — upstream has no counterpart and will never conflict semantically, only textually.
+
+### `BatchIterator.nextBatch(int[] buffer, int offset, int length)`
+
+Upstream `BatchIterator` fills a whole caller-owned array from index `0`. The bounded form lets many
+iterators share one arena array, each owning a fixed slice, instead of each allocating a buffer of
+its own — at k = 7,602 operands averaging 3.8 values each, per-iterator buffers are ~240 KB of
+short-lived 32-byte arrays per query, and scattering them defeats the locality of every pass over
+the cursors.
+
+- `BatchIterator.nextBatch(int[])` became a `default` delegating to the bounded form; every existing
+  call site is unchanged.
+- `RoaringBatchIterator` implements the bounded form and no longer declares the one-argument one.
+- `ContainerBatchIterator.next(int key, int[] buffer, int offset)` gained a `limit` parameter the
+  same way — `next(key, buffer, offset, limit)` is now the abstract method, the two shorter forms are
+  defaults. `ArrayBatchIterator`, `BitmapBatchIterator` and `RunBatchIterator` read `limit` where
+  they read `buffer.length` before. **That substitution is the whole change in those three classes**;
+  an upstream diff touching their fill loops maps onto it directly.
+
+### `RoaringBitmapWriter.addChunk(char key, long[] words, int fromWord, int toWord)`
+
+Hands one whole 65,536-value chunk to the writer as the caller's own word bitmap. A caller that
+already holds a chunk as `long[1024]` would otherwise decompose it into ints only for
+`ConstantMemoryContainerAppender.add(int)` to set the very same bits again in its own word buffer of
+exactly that layout — a round trip of one `numberOfTrailingZeros` plus one masked OR per set id.
+
+- Declared as a `default` on `RoaringBitmapWriter` that loops `add(int)`, so `ContainerAppender` and
+  any future implementation inherit correct behaviour with no work.
+- Overridden in `ConstantMemoryContainerAppender` as a word-wise OR into its buffer. Its out-of-order
+  key branch calls `RoaringBitmapWriter.super.addChunk(...)` rather than repeating the decompose loop,
+  so the two are one implementation and cannot drift apart across a re-sync. It ORs rather than copies
+  so a chunk handed over this way may be mixed with `add(int)` calls carrying the same key.
+
+**Not applicable upstream.** Both are shaped by evitaDB's own call site; neither is a fix to anything
+upstream does wrong, so there is nothing to report or contribute.
+
+### Where a botched re-apply gets caught
+
+Both additions are pinned by tests in this module, so a re-sync that reapplies them slightly wrong
+fails here rather than somewhere downstream in `evita_engine`:
+
+- `TestRoaringBitmapWriter#addChunkHonoursItsWordRange`, `#addChunkBelowTheCurrentKeyStillLands`,
+  `#addChunkMergesWithSingleValueAddsOnTheSameKey` — run against every writer configuration, so they
+  cover the interface default and the constant-memory override together.
+- `RoaringBitmapBatchIteratorTest#testBoundedNextBatchHonoursOffsetAndLength`,
+  `#testBoundedNextBatchTruncatesInsideARunContainer` — the bound holding across a container crossing
+  and inside a single run, which is where `limit` replaced `buffer.length`.
+
 ## Sync log
 
 ### Review 1 — base v1.6.12 (`952f8ce7`) → `2863e96d`
