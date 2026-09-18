@@ -872,6 +872,58 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			missingReferencedIndexSupplier,
 		@Nullable NestedQueryRestriction nestedQueryRestriction
 	) {
+		return getReferencedRecordEntityIndexCandidates(
+			referenceHaving, scope, missingReferencedIndexSupplier, nestedQueryRestriction
+		).resolve();
+	}
+
+	/**
+	 * Discovers the candidate reduced indexes for the passed `referenceHaving` without resolving them, raising
+	 * when a referenced type index is missing.
+	 *
+	 * @param referenceHaving the constraint whose reference is being discovered
+	 * @param scopes          scopes to discover in
+	 * @return the candidate partitions and the means to resolve them
+	 */
+	@Nonnull
+	public ReducedIndexCandidates getReferencedRecordEntityIndexCandidates(
+		@Nonnull ReferenceHaving referenceHaving,
+		@Nonnull Set<Scope> scopes
+	) {
+		return getReferencedRecordEntityIndexCandidates(
+			referenceHaving, scopes, THROWING_MISSING_RTEI_SUPPLIER, null
+		);
+	}
+
+	/**
+	 * Discovers which reduced indexes could answer the passed `referenceHaving` WITHOUT resolving them into
+	 * index objects.
+	 *
+	 * This is the same discovery {@link #getReferencedRecordEntityIndexes} performs, stopped one step short.
+	 * The expensive half is the resolution: one index object per partition the reference advertises, which on a
+	 * production catalog runs to six figures and dominates the cost of planning a bare `referenceHaving`. The
+	 * cheap half - computing which partition primary keys qualify - is a single formula evaluation, and it is
+	 * enough to answer how many candidates there are, which is what index selection needs to decide whether the
+	 * candidate is worth planning at all.
+	 *
+	 * The split exists so a candidate that is going to be rejected never pays the resolution. Everything that
+	 * genuinely needs the objects calls {@link ReducedIndexCandidates#resolve()} and gets exactly the list this
+	 * method's eager counterpart would have returned.
+	 *
+	 * @param referenceHaving              the constraint whose reference is being discovered
+	 * @param scope                        scopes to discover in
+	 * @param missingReferencedIndexSupplier resolves a type index that does not exist yet
+	 * @param nestedQueryRestriction       optional narrowing for a nested `entityHaving` query
+	 * @return the candidate partitions and the means to resolve them
+	 */
+	@Nonnull
+	public ReducedIndexCandidates getReferencedRecordEntityIndexCandidates(
+		@Nonnull ReferenceHaving referenceHaving,
+		@Nonnull Set<Scope> scope,
+		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex>
+			missingReferencedIndexSupplier,
+		@Nullable NestedQueryRestriction nestedQueryRestriction
+	) {
 		final ReferenceSchemaContract referenceSchema = resolveReferenceSchema(
 			getProcessingScope().getEntitySchema(), referenceHaving
 		);
@@ -906,21 +958,56 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				targetCollection.getIndexIfExists(reducedIndexPk, value -> (ReducedEntityIndex) null);
 		}
 
-		final Bitmap reducedIndexPks = reducedIndexPksFormula.compute();
-		final List<ReducedEntityIndex> result = new ArrayList<>(reducedIndexPks.size());
-		final OfInt it = reducedIndexPks.iterator();
-		while (it.hasNext()) {
-			final int reducedIndexPk = it.nextInt();
-			final ReducedEntityIndex reducedEntityIndex = indexAccessor.apply(reducedIndexPk);
-			// supplier, not concatenation - this loop runs once per reduced index, which is once per referenced
-			// entity of the whole collection
-			Assert.isPremiseValid(
-				reducedEntityIndex != null,
-				() -> "Reduced entity index with primary key " + reducedIndexPk + " was unexpectedly not found!"
-			);
-			result.add(reducedEntityIndex);
+		return new ReducedIndexCandidates(reducedIndexPksFormula.compute(), indexAccessor);
+	}
+
+	/**
+	 * The reduced indexes that could answer one `referenceHaving`, named but not yet resolved.
+	 *
+	 * Both members are immutable and are captured at discovery time, which is what makes deferring the
+	 * resolution safe: {@link #resolve()} reads nothing that could have moved on since, so a caller that
+	 * resolves later in the same query gets the list discovery would have produced.
+	 *
+	 * @param primaryKeys   primary keys of the candidate reduced indexes
+	 * @param indexAccessor resolves one candidate primary key into its index object
+	 */
+	public record ReducedIndexCandidates(
+		@Nonnull Bitmap primaryKeys,
+		@Nonnull IntFunction<ReducedEntityIndex> indexAccessor
+	) {
+
+		/**
+		 * Returns how many reduced indexes qualify, without resolving any of them.
+		 *
+		 * @return the candidate count
+		 */
+		public int size() {
+			return this.primaryKeys.size();
 		}
-		return result;
+
+		/**
+		 * Resolves every candidate into its index object.
+		 *
+		 * @return the resolved indexes, in candidate primary key order
+		 */
+		@Nonnull
+		public List<ReducedEntityIndex> resolve() {
+			final List<ReducedEntityIndex> result = new ArrayList<>(this.primaryKeys.size());
+			final OfInt it = this.primaryKeys.iterator();
+			while (it.hasNext()) {
+				final int reducedIndexPk = it.nextInt();
+				final ReducedEntityIndex reducedEntityIndex = this.indexAccessor.apply(reducedIndexPk);
+				// supplier, not concatenation - this loop runs once per reduced index, which is once per
+				// referenced entity of the whole collection
+				Assert.isPremiseValid(
+					reducedEntityIndex != null,
+					() -> "Reduced entity index with primary key " + reducedIndexPk + " was unexpectedly not found!"
+				);
+				result.add(reducedEntityIndex);
+			}
+			return result;
+		}
+
 	}
 
 	/**
