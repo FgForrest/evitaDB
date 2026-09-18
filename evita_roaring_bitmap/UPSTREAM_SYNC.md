@@ -70,6 +70,43 @@ modifications were applied. When replaying upstream changes, **keep** these:
   in the exported package. Hiding them needs either relocation into a non-exported `internal` pkg
   (with member promotion) or confirmation they're unused by evita; deferred to the Part 2 migration.
 
+## Computation kernels (evita-only files — preserve on re-sync)
+
+Upstream has no counterpart to any of the following; they are evitaDB's own and must survive every sync.
+
+- **`io/evitadb/roaringbitmap/kernel/`** (package deliberately **not** exported) — the word- and value-level
+  loops the container operators run on, behind an interface with two implementations. `BitmapKernels` /
+  `ScalarBitmapKernels` / `VectorBitmapKernels` are the 1024-word kernels (population counts, the four
+  boolean operations, and fused variants that store and count in one pass); `ArrayKernels` /
+  `ScalarArrayKernels` are the sorted-`char[]` merge, scalar only so far; `VectorKernels` is the holder that
+  picks an implementation once per JVM and records why.
+- **`io/evitadb/roaringbitmap/RoaringKernels.java`** (exported) — one method, `vectorKernelsSummary()`,
+  through which evitaDB's engine reads that decision and logs it at startup. It exists because the kernel
+  package is not exported and this module has (and must keep) no logging dependency.
+- **`module-info.java`** gains `requires static jdk.incubator.vector` (optional at run time — the incubating
+  Vector API is never in the default root set, so a launcher without `--add-modules jdk.incubator.vector`
+  runs the scalar kernels) and `requires java.management` (the provider reads the JVM's own command line to
+  see whether an optimizing JIT is available).
+- **`Util.unsignedLocalIntersect2by2` promoted `public`.** Its counting twin
+  `unsignedLocalIntersect2by2Cardinality` has always been public; the promotion lets `ScalarArrayKernels`
+  delegate to the merge rather than carry a second copy of it.
+
+**What this means when replaying an upstream change.** `BitmapContainer`'s `and` / `andCardinality` / `andNot`
+/ `iand` / `iandNot` / `or` / `ior` / `xor` / `ixor` / `rank` / `validate` / `computeCardinality`, and
+`Util.cardinalityInBitmapRange`, no longer hold their word loops inline — they call `VectorKernels.BITMAP`.
+An upstream edit to one of those loops therefore lands in `ScalarBitmapKernels` (the reference implementation,
+whose loops are those loops) **and** in `VectorBitmapKernels`, not in the container. An upstream edit to the
+surrounding logic — a demotion threshold, a `RunContainer.full()` promotion, a lazy-cardinality branch — still
+lands in the container as usual. `BitmapContainer.or` is one behavioural divergence to keep in mind while
+diffing: upstream clones and unions in place, the vendored copy unions straight into a fresh container in a
+single pass, with the same `RunContainer.full()` promotion at the end.
+
+Correctness of the vector implementation is pinned two ways: `VectorKernels` self-tests every kernel against
+its scalar twin at class-init and falls back on any mismatch, and `VectorKernelsDifferentialTest` compares the
+two directly across densities, seeds, word-boundary bit placements and randomly drawn ranges. The module's
+surefire runs the whole suite twice — once as the JVM offers it, once with `-Devita.roaring.vector=false` —
+so both implementations are exercised by every vendored test, not only by the kernel tests.
+
 ## Sync log
 
 ### Review 1 — base v1.6.12 (`952f8ce7`) → `2863e96d`

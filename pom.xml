@@ -751,6 +751,13 @@
 					<release>${java.release}</release>
 					<source>${java.release}</source>
 					<target>${java.release}</target>
+					<!--
+						The `add-modules jdk.incubator.vector` javac argument is deliberately NOT here. Only
+						`evita_roaring_bitmap` compiles against the incubating Vector API, and it adds the
+						argument in its own POM; the modules reachable from the Java driver compile at
+						`${java.driver.release}` and must not be handed an incubating module they neither use
+						nor could resolve at that API level.
+					-->
 					<compilerArgs>
 						<arg>-parameters</arg>
 					</compilerArgs>
@@ -829,6 +836,7 @@
 					-->
 					<argLine>${surefireArgLine} -Xmx${surefire.maxHeapSize} -Duser.country=US -Duser.language=en
 						-Dfile.encoding=${project.build.sourceEncoding} -Djol.magicFieldOffset=true
+						--add-modules jdk.incubator.vector
 						--add-opens java.base/java.lang.invoke=ALL-UNNAMED
 						--add-opens java.base/java.lang.invoke=ALL-UNNAMED
 						--add-opens java.base/java.lang=ALL-UNNAMED
