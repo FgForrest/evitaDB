@@ -147,20 +147,24 @@ Only one chunk is ever open, and its counters are a single reusable `short[65536
 indexed directly by the offset. 65 536 is also roaring's own container granularity, so a batch of ids rarely
 straddles a boundary.
 
-### The three phases
+### The four phases
 
 Every operand bitmap gets a cursor that yields its PKs in ascending order, in batches, carrying the sign its family
 contributes (`+1` for `plus`, `−1` for `minus`). Ascending order is the property everything below depends on. Then,
-until every cursor is spent:
+for each chunk in ascending order:
 
-1. **Pick the chunk** — the lowest one any live cursor still sits in. This is a k-way merge, but it runs once per
-   *chunk*, not once per element.
-2. **Scatter** — every cursor inside that chunk drains its PKs for it, doing `counters[offset] += sign` and nothing
-   else. No comparisons between cursors, no ordering, no merging; just adds into an array.
+1. **Take the chunk's cursors** — every cursor whose next PK falls in this chunk is already *filed* under it, so
+   opening a chunk means reading one array slot and walking an intrusive list. Nothing scans the operands; see
+   [driving the merge](#driving-the-merge-without-scanning-the-operands) for why that is the difference that matters.
+2. **Scatter** — every cursor in the bucket drains its PKs for this chunk, doing `counters[offset] += sign` and
+   appending the offset to a *touched list*, and nothing else. No comparisons between cursors, no ordering, no
+   merging; just adds into an array and a sequential append. A cursor that survives the chunk re-files itself under
+   the chunk its next PK belongs to.
 3. **Emit** — the inputs ascend and every cursor has now moved past this chunk, so no PK in it can be touched
-   again: the counters *are* the final signed differences. Every offset whose counter is `> 0` is written out as
-   `chunk << 16 | offset`, and each counter is zeroed as it is read, so the array leaves the chunk clean for the
-   next one without a separate clearing pass.
+   again: the counters *are* the final signed differences. The touched list is walked once; each offset reads its
+   counter, is zeroed, and contributes a bit to a 1 024-word bitmap when the counter is `> 0`.
+4. **Hand the chunk over whole** — that word bitmap is the chunk's output in the same `long[1024]` layout the
+   bitmap writer keeps internally, so it crosses as one container rather than one `add` per PK.
 
 ### A complete worked example
 
@@ -184,8 +188,8 @@ Three cursors open:
   C1  {3, 9}   +1          C2  {70000}  +1          C3  {9}  -1
 ```
 
-**Round 1** — lowest chunk any live cursor sits in is **0** (C1 at 3, C3 at 9; C2 is at 70 000 = chunk 1, so it
-sits this round out):
+**Round 1** — chunk **0**'s bucket holds C1 (at 3) and C3 (at 9); C2 starts at 70 000 = chunk 1 and was filed
+there, so it is never looked at this round:
 
 ```
   counters[]  —  one short[65536], indexed by  pk & 0xFFFF
@@ -201,7 +205,7 @@ sits this round out):
 
 C1 and C3 are exhausted.
 
-**Round 2** — lowest chunk still live is **1** (only C2):
+**Round 2** — chunk **1**'s bucket holds only C2:
 
 ```
     70000 >>> 16 = 1        70000 & 0xFFFF = 4464
@@ -216,24 +220,50 @@ contains 18 ✔, `9` → `[10..15]` ended at 15 ✘, `5` → `[25..40]` had not 
 
 PK 9 is the whole design in miniature: it vanished by **arithmetic**, with no cancellation step anywhere.
 
-### Sparse or dense emission
+### Why the scatter appends instead of setting a bit
 
-Phase 3 has two implementations and picks between them per chunk, because which is cheaper depends on how densely
-the chunk was written:
+A word bitmap written *during the scatter* would be strictly tidier: duplicates would collapse for free, the
+capacity bound below would disappear, and the map would already be in the writer's layout. It was built that way
+first and **measured 5× more expensive in the scatter loop's own time** — 12 µs → 69 µs at k = 64, N = 29 159 —
+because `words[low >>> 6] |= 1L << low` is a random read-modify-write with a load-use dependency, where
+`touched[n++] = low` is a sequential store the store buffer absorbs. Across the sweep that cost about 300 µs at
+every k, which is what a per-PK cost looks like when N is held constant.
 
-- **sparse** — walk the list of offsets the scatter actually touched
-- **dense** — scan straight through `minLow .. maxLow`
+The list therefore records **every** write, duplicates included, and still needs no visited-set: the first visit to
+an offset zeroes its counter, so a later duplicate reads zero and contributes nothing. Appending only on a
+zero-to-non-zero transition would *not* be safe — a counter can pass back through zero mid-scatter (`+1`, `−1`,
+`+1`).
 
-The sparse path is the larger contributor in practice. On operands replayed from a production e-commerce catalog
-the split is 10 chunks sparse to 4 dense, and the sparse ones are lopsided: a chunk holding ~1 325 PKs across a span
-of nearly 65 536 would have a span scan read roughly 50× more counters than were ever written. The dense chunks are
-genuinely dense — one holds 19 196 PKs in a 56 974 span — which is exactly the case the span scan handles well.
+### The capacity bound is not a density threshold
 
-The predicate is `touchedCount * SPARSE_FACTOR < span`. `SPARSE_FACTOR` is a conservative estimate rather than a
-swept optimum, and says so at its declaration; "the split looks sensible" is not the same as "4 is the optimum".
+Emission walks the touched list, and scans the chunk's whole span only when that list **overflowed**. While the
+list fits, walking it is unconditionally cheaper — at most 8 192 reads against up to 65 536 — so there is no
+crossover to estimate and no constant to sweep. A chunk that overruns the bound is by construction denser than one
+write per eight offsets, which is exactly the chunk a span scan handles well.
 
-The touched list records **every** write, duplicates included, and still needs no visited-set: the first visit to an
-offset zeroes its counter, so a later duplicate reads zero and contributes nothing.
+Either path gathers the survivors into a `long[1024]` bitmap rather than emitting PKs one at a time, because the
+touched list is unordered while the bitmap writer requires ascending input. That gather costs nothing extra: the
+words are the writer's own internal layout, so the chunk is handed over whole instead of being decomposed into
+ints for the writer to re-set bit by bit. The range is cleared on the way *in*, so nothing has to tidy up after.
+
+
+### Driving the merge without scanning the operands
+
+The shape this kernel exists for is **many tiny operands**: a production range query was measured at k = 7 602
+operands over N = 29 159 endpoints — 3.8 PKs per operand. At that shape the cost of *driving* the merge can dwarf
+the counting, and two decisions keep it from doing so.
+
+**Cursors are filed, not searched.** Each cursor sits in a bucket keyed by the chunk its next PK belongs to, so
+opening a chunk costs one array read. A cursor only ever moves to a *higher* chunk and chunks are consumed in
+ascending order, so re-filing always lands in a bucket that has not been visited yet. The alternative — sweeping
+all k cursors per chunk to find the minimum and again to drain it — is `2 × k × chunks`: roughly 213 000
+operations at the production shape, against ~15 000, none of which moves a record id.
+
+**Cursor state is parallel arrays, not objects.** Every per-cursor field is a slot in a pooled primitive array, and
+every cursor's batch lives in one shared arena sized to the operands, filled through the bounded
+`BatchIterator.nextBatch(buffer, offset, length)`. One object per operand, each with its own batch buffer, would put
+around a megabyte of small scattered objects between the kernel and 114 KB of actual data. The arrays are reused
+across calls, so the steady-state allocation for cursor state is one `BatchIterator` per operand and nothing else.
 
 ### Counter width
 
@@ -282,7 +312,7 @@ formula the planner discards.
 |---|---|
 | Endpoint storage, bound selection, the four public queries | `RangeIndex` |
 | Formula node, cost model, cache identity | `RangeCountFormula` |
-| Chunking, scatter, dual emission, counter width | `RangeCountKernel` |
+| Chunking, scatter, emission, cursor bookkeeping, counter width | `RangeCountKernel` |
 | An independent implementation kept as a cross-check | `RangeBitSlicedKernel` |
 
 Tests worth reading before changing any of it:
