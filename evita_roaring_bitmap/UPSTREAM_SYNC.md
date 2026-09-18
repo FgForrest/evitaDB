@@ -104,9 +104,10 @@ exactly that layout — a round trip of one `numberOfTrailingZeros` plus one mas
 
 - Declared as a `default` on `RoaringBitmapWriter` that loops `add(int)`, so `ContainerAppender` and
   any future implementation inherit correct behaviour with no work.
-- Overridden in `ConstantMemoryContainerAppender` as a word-wise OR into its buffer, with the same
-  below-the-mark fallback `add(int)` uses for out-of-order keys. It ORs rather than copies so a chunk
-  handed over this way may be mixed with `add(int)` calls carrying the same key.
+- Overridden in `ConstantMemoryContainerAppender` as a word-wise OR into its buffer. Its out-of-order
+  key branch calls `RoaringBitmapWriter.super.addChunk(...)` rather than repeating the decompose loop,
+  so the two are one implementation and cannot drift apart across a re-sync. It ORs rather than copies
+  so a chunk handed over this way may be mixed with `add(int)` calls carrying the same key.
 
 **Not applicable upstream.** Both are shaped by evitaDB's own call site; neither is a fix to anything
 upstream does wrong, so there is nothing to report or contribute.

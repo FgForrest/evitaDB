@@ -142,16 +142,11 @@ class ConstantMemoryContainerAppender<
 		final int chunkKey = key;
 		if (chunkKey < this.currentKey) {
 			// out of order - the reused buffer has already moved past this key, so every value has to
-			// go through add(int), which routes below-the-mark values directly at the underlying bitmap
-			final int base = chunkKey << 16;
-			for (int wordIndex = fromWord; wordIndex < toWord; wordIndex++) {
-				long word = words[wordIndex];
-				final int wordBase = base | (wordIndex << 6);
-				while (word != 0L) {
-					add(wordBase | Long.numberOfTrailingZeros(word));
-					word &= word - 1L;
-				}
-			}
+			// go through add(int), which routes below-the-mark values directly at the underlying bitmap.
+			// That decompose-and-add loop is precisely the interface default, so it is delegated rather
+			// than repeated here - a second copy would be one more thing to keep in step on an upstream
+			// re-sync, and the two are required to agree
+			RoaringBitmapWriter.super.addChunk(key, words, fromWord, toWord);
 			return;
 		}
 		if (chunkKey != this.currentKey) {
