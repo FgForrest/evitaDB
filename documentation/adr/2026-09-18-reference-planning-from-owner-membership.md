@@ -1,8 +1,8 @@
 ---
 title: Answer reference-planning cardinality from the owner→partition map, widened and retuned to 64
 date: 2026-09-18
-updated: 2026-09-18 15:08
-status: proposed
+updated: 2026-09-18 18:55
+status: partially-implemented
 kind: optimization
 issues: [1585, 1603]
 prs: []
@@ -158,14 +158,47 @@ every write reported **zero violations** across the `reference | facet` gate (3,
 inverted counterfactual proved the assertion live on the write path
 (`ReferenceIndexMutator#referenceInsertPerComponent` → `insertPrimaryKeyIfMissing` → `addRecord`).
 
+### The write-path A/B
+
+Full `WARM_UP` catalog reindex plus `goLive` of the same production retail corpus (386,369 entities;
+119,447 `Product`, 88–90 % of load time), through the gRPC driver into a separate server process, writer heap
+23g and reader 14g/8g pinned across every run. Two runs per arm, alternated `B, A, B, A` so that any drift
+over the session is shared rather than loaded onto one arm. All four verified their per-collection counts
+against the source (harness exit `0`); every `goLive` completed rather than timing out.
+
+| run | arm | load wall | `Product` mean upsert | TOTAL |
+|---|---|---|---|---|
+| 1 | widened, 64 | 831.5 s | 5,946.1 µs | 862.1 s |
+| 2 | baseline, 16 | 828.9 s | 5,968.6 µs | 859.3 s |
+| 3 | widened, 64 | 817.2 s | 5,855.6 µs | 847.9 s |
+| 4 | baseline, 16 | 868.9 s | 6,280.1 µs | 899.7 s |
+
+Arm means put the widened build **2.9 % faster** on load wall-clock and **3.7 %** on `Product` mean upsert —
+but the baseline arm's own two runs differ by **4.8 %** and **5.2 %** respectively, so the gap between the
+arms is smaller than the spread within one of them. The result is therefore **no measurable write-path cost**,
+not an improvement: the harness resolves about ±9 % and nothing here clears it.
+
+**The null result is not vacuous, and that was checked rather than assumed.** A census booting the same corpus
+under each build and counting the membership slices the gate leaves behind reports **3 slices for the
+baseline** — `Product`/`LIVE` only, `[brand, categories, groups]` — against **45 for the widened build**,
+spread over 13 of 18 collections and both scopes, with `Product`/`LIVE` alone going from 3 tracked references
+to 15. The widened arm maintains roughly 45× the partitions, matching the 211,148-against-4,708 split the
+footprint sweep predicted, and it cost nothing detectable. The census measures the **gate predicate** rather
+than which code path populated the map — a catalog load rebuilds it from the indexes either way — which is
+sufficient here because the write gate and the load gate read the same predicate.
+
 ## Consequences & open follow-ups
 
-**The write-path CPU of the widening is unmeasured.** Footprint is not throughput. `ownerAdded` costs roughly
-two transactional bitmap operations and one boxed map lookup per reference row, against a row insert that
-already performs six B+ tree operations on the two cardinality tallies alone — so the marginal cost is
-expected to be small, and the amortised crossing cost is threshold-independent. That expectation wants an A/B
-over a full catalog reindex with the gate open and closed before the change lands. It is the one measurement
-that could still argue for option B.
+**The write-path CPU of the widening was measured and is below the noise floor** — see the A/B above. The
+expectation that `ownerAdded` costs roughly two transactional bitmap operations and one boxed map lookup
+against a row insert already performing six B+ tree operations on the cardinality tallies alone is borne out:
+45× the partitions tracked, no detectable change in reindex time. This was the one measurement that could
+still have argued for option B, and it does not.
+
+**The planner still does not read the map.** Until `IndexSelectionVisitor` answers eligibility from
+covered-exact plus a residual walk, the widening is maintenance paid for a reader that has not arrived — which
+is why this record is `partially-implemented` rather than `accepted`. The A/B says that cost is affordable to
+carry meanwhile; it does not say it is useful yet.
 
 **The threshold's recorded justification is now wrong by omission.**
 `2026-09-09-sibling-resolver-partition-cardinality` justifies 16 as "96 % of the walk for 13 % of the memory",
