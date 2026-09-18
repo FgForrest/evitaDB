@@ -1,7 +1,7 @@
 ---
 title: The range index computes its signed multiplicity in one counting pass, and the JoinFormula/DisentangleFormula pair is deleted
 date: 2026-09-17
-updated: 2026-09-18 04:30
+updated: 2026-09-18 07:15
 status: proposed
 kind: optimization
 issues: [1539, 1546]
@@ -83,6 +83,37 @@ the measured id distribution is sparse within a chunk: on the production operand
 ids inside a span of nearly 65,536, so a span scan reads ~50× more counters than were ever written. Walking the
 touched offsets instead is ~28× less work there, against the ~8–16× a vector scan of the same span would buy —
 **so the algorithmic fix comes before the lanes**, which inverts the order `#1546` assumed.
+
+### And the four range queries collapse onto one prefix count
+
+With the counting kernel in place, `getRecordsEnvelopingInclusive` and `getRecordsWithRangesOverlapping` were
+still doing the old positional work *around* it: `materializeRanges()` copied every threshold point into an array
+on every call, `RangeLookup` binary-searched that array, a prefix **and** a suffix family pair were collected, two
+`RangeCountFormula`s were intersected by an `AndFormula`, and a boundary `OR` put back the point the search had
+landed on.
+
+None of it is necessary. A range's start never exceeds its end and **both** endpoints are indexed here, so a range
+whose end is already behind the queried point necessarily has its start behind it too. Subtracting ends from
+starts over one ascending prefix therefore cancels exactly the ranges that are over, and leaves each still-matching
+range counted once:
+
+| query | plus family | minus family | selects |
+|---|---|---|---|
+| `getRecordsTo(t)` | starts at key ≤ t | ends at key ≤ t | `a ≤ t < b` |
+| `getRecordsEnvelopingInclusive(t)` | starts at key ≤ t | ends at key **< t** | `a ≤ t ≤ b` |
+| `getRecordsWithRangesOverlapping(f, t)` | starts at key ≤ t | ends at key **< f** | `[a,b] ∩ [f,t] ≠ ∅` |
+
+All three are now one call to `createPrefixCountFormula(startsBound, startsInclusive, endsBound, endsInclusive)`
+— a single forward walk that **stops at the queried point** instead of scanning the index end to end. Deleted with
+the old shape: `materializeRanges`, `RangeLookup` and its binary search, `collectsStartsAndEnds`, the `AndFormula`,
+the boundary `OR` and the `between` union. The strict ends bound is what absorbs the boundary case the `OR` was
+there to patch.
+
+`getRecordsFrom` is deliberately **not** routed through it. Per record `E(≥t) − S(≥t)` equals `S(<t) − E(<t)`, so
+it could be expressed as `(t, false, t, false)` — but at `Long.MIN_VALUE` the prefix form collects nothing and
+short-circuits to `EmptyFormula`, where the suffix form returns a zero-valued `RangeCountFormula` carrying the
+index id. Same records, different formula identity, and that identity is read as a staleness token. The query is
+already a single counting pass and has no production caller, so the change would be churn against a real risk.
 
 ## Key technical details
 
@@ -179,6 +210,48 @@ it (2.27–2.29×) *understates* the gain over the code that was actually remove
 **The issue's estimate was 5–20× "from the reformulation alone". The measured figure at the production shape is
 2.24–2.48×** across runs; the mid-range reaches 5.5×. The estimate should be read as wrong, not as unmet.
 
+- `RangeIndexQueryOracleTest` — 4 cases over **150 independently generated indexes**, each query cross-checked
+  against a brute-force scan of the very intervals the test inserted, probed at every threshold, every threshold
+  ±1, and both `Long` borders. The oracle shares no code with the index: it tests the interval predicate directly
+  where the index counts over a prefix, so a defect would have to appear identically in both to survive.
+
+  **The counterfactual is the part worth reading.** Flipping the ends bound from strict to inclusive — one boolean
+  — turns the oracle red (`getRecordsEnvelopingInclusive(2) disagreed with the brute-force scan over 27 spans`)
+  while **all 14 hand-written `RangeIndexTest.RangeQueries` assertions still pass**. Not one of them probes a point
+  at which a range *ends*, which is exactly where the collapsed boundary handling does its work. The suite had a
+  blind spot precisely there, and it is now closed.
+
+- **A/B of the query shape** (`RangeQueryBenchmark`, JDK 21.0.12, Zen 5, 1 fork, `-prof gc`). The fixture replays
+  `validity` spans dumped from a restored production catalog — `Product` (7,267 spans over 932 threshold points)
+  and `PriceList` (1,791 spans over 1,633 points) — plus a generated `wide` control at roughly ten times the
+  largest range index that catalog holds. `probe` says where the query lands in the index's own threshold
+  ordering: `p50+` mid-tree, `p95+` near the end, where the prefix walk is longest and the collapse buys least.
+  The baseline is the positional algorithm frozen inside the benchmark, and the fixture refuses to run unless both
+  sides compute the identical bitmap on the inputs about to be timed. The runner refuses to start until three
+  consecutive three-second windows measure ≥ 85 % CPU idle.
+
+| query | shape | probe | positional | prefix count | speed-up | allocation |
+|---|---|---|---|---|---|---|
+| enveloping | `Product` | p50+ | 103.7 µs | 34.7 µs | **2.99×** | 237.4 → 91.3 kB |
+| enveloping | `Product` | p95+ | 129.0 µs | 70.5 µs | 1.83× | 264.8 → 179.9 kB |
+| enveloping | `PriceList` | p50+ | 96.8 µs | 31.4 µs | **3.09×** | 304.7 → 133.0 kB |
+| enveloping | `PriceList` | p95+ | 106.4 µs | 75.1 µs | 1.42× | 328.5 → 243.1 kB |
+| enveloping | `wide` | p50+ | 3,663.9 µs | 1,184.9 µs | **3.09×** | 4,321.6 → 1,814.3 kB |
+| enveloping | `wide` | p95+ | 3,165.1 µs | 2,472.0 µs | 1.28× | 4,024.7 → 3,436.5 kB |
+| overlapping | `Product` | p50+ | 127.4 µs | 50.7 µs | **2.51×** | 328.0 → 129.1 kB |
+| overlapping | `PriceList` | p50+ | 127.2 µs | 45.3 µs | **2.81×** | 428.2 → 137.1 kB |
+| overlapping | `wide` | p50+ | 4,306.2 µs | 1,146.5 µs | **3.76×** | 4,086.8 → 1,686.6 kB |
+
+  **Planning alone** — building the formula without computing it, which every matching index pays during query
+  planning whether or not the result is ever needed — falls from 21.2 µs to 6.5 µs on `Product` (3.27×) and from
+  496.9 µs to 155.1 µs on `wide` (3.20×), with allocation down 4.2× on the latter. That is the half of the win
+  that lands on queries whose formula is discarded by the planner.
+
+  **An accidental repeat measurement anchors the run's variance.** The overlapping window is fixed at the 25th and
+  75th percentile thresholds and does not move with `probe`, so its `p50+` and `p95+` rows are the same
+  measurement taken in two separate forks. `Product` gave 127.4 µs vs 126.1 µs positional and 50.7 µs vs 51.6 µs
+  prefix-count — agreement within 2 %, which is the noise floor this table should be read at.
+
 ## Consequences & open follow-ups
 
 - **The workload is the tail, and the tail differs by an order of magnitude between catalogs.** Two production
@@ -217,13 +290,17 @@ it (2.27–2.29×) *understates* the gain over the code that was actually remove
 - **Tooling trap, recorded so it is not repeated:** a capstone-backend `hsdis` silently truncates its listing at
   the first EVEX k-register instruction. Use `-XX:CompileCommand=print` *without* hsdis and decode HotSpot's raw
   `[MachCode]` with `objdump -D -b binary -m i386:x86-64`.
-- **Not done, and the largest remaining win:** all four range queries reduce to a single prefix count. Because
-  `a ≤ b` and both endpoints are indexed, `{b < t} ⊆ {a ≤ t}`, so `S(≤t) − E(<t) = #{a ≤ t ≤ b}` exactly —
-  nesting or not. That makes `ENVELOPING(t) = OVERLAPPING(t,t)`, removes the `after` side and its `AndFormula`,
-  the `OR starts(t) OR ends(t)` fixup, the `between` OR, `RangeLookup`, and `materializeRanges()` — an O(N) array
-  allocation on *every* enveloping query, on the hot `attributeInRangeNow` and price-validity paths. Verified by
-  hand against every assertion in `RangeIndexTest.RangeQueries`; not implemented here because it is a semantic
-  change deserving its own gate.
+- **The prefix count now decides where to stop, but not which way to walk.** The collapse is implemented and
+  measured above. What it does not do is take the *cheaper* side: the same number falls out of a suffix walk
+  (`E(≥t) − S(>t)`), so a query whose point sits late in the threshold ordering could scan the short tail instead
+  of the long head. The `p95+` rows are exactly that cost — 1.28× where `p50+` reaches 3.09× — so the remaining
+  win is bounded by them and is real. It needs a cheap way to learn how many points lie either side of the query
+  point, which `TransactionalLongBPlusTree` does not expose today; adding it is the next step, not a rewrite.
+- **An earlier note in the working file recorded H5 as "confirmed for a point, refuted for an interval".** That
+  refutation was aimed at a *different* claim — that the two sides of the old `AndFormula` compute the same count
+  — and does not touch the prefix form. For an interval, a range with `b < from` also has `a < from ≤ to`, so it
+  is inside the plus family and cancels exactly; the eight `shouldPassValidWithRangesOverlapping` assertions and
+  the randomised oracle both hold. Recorded here because the intermediate note read as a blocker and is not one.
 - **A one-`if` invariant with no test.** A range formula built inside a transaction hashes identically to the
   committed one — `TransactionalBitmap#getId()` is stable across the overlay. That is harmless *only* because
   `HeapMemoryCacheSupervisor#analyse` skips the cache for every non-read-only session and `createTransaction()`
@@ -242,3 +319,5 @@ it (2.27–2.29×) *understates* the gain over the code that was actually remove
 
 - **2026-09-17** — census of a production catalog, two kernels implemented and differential-tested, A/B measured,
   `JoinFormula`/`DisentangleFormula` deleted, record written
+- **2026-09-18** — the four range queries collapsed onto one two-bound prefix count; positional lookup deleted;
+  A/B re-measured against replayed production `validity` spans
