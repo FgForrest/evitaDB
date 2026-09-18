@@ -13,7 +13,8 @@ areas:
   - evita_test/evita_performance_tests/src/main/java/io/evitadb/spike
 supersedes: []
 superseded-by: []
-relates: [2026-04-23-conditional-facet-indexing, 2026-08-31-cross-entity-histogram-removal-pre-pass]
+relates: [2026-04-23-conditional-facet-indexing, 2026-08-31-cross-entity-histogram-removal-pre-pass,
+  2026-09-18-reference-planning-from-owner-membership]
 ---
 
 # Bound the sibling-resolver walk with a size-thresholded owner→partition index
@@ -569,6 +570,14 @@ its cost model claimed 20-35 % of the walk; measured **4.7 %** (P=4,633 sparse w
 without a performance claim was the right call — the claim it was never given would have been wrong.
 
 ## Consequences & open follow-ups
+
+**The threshold has a second consumer, and its justification here is written for only one of them.** The
+reference query planner reads the same map to price a `referenceHaving` whose body cannot narrow index
+discovery, which is a different walk with different economics: measured for every indexed reference rather
+than for the conditional-facet ones, `T`=16 leaves 49,442 partitions walked where `T`=64 leaves 3,527, for
+24 MB more. "96 % of the walk for 13 % of the memory" is still true of the trigger and no longer describes
+the whole trade. See `2026-09-18-reference-planning-from-owner-membership`, which proposes widening
+maintenance beyond conditional-facet collections and raising the value.
 
 - **A previously-implicit guarantee was narrowed, and this is the only record of it (#1531).** Before this
   branch, `ContainerizedLocalMutationExecutor#verifyReferenceAttributes` re-scanned an existing entity's

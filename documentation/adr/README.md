@@ -33,6 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-09-18 | [Answer reference-planning cardinality from the owner→partition map, widened and retuned to 64](2026-09-18-reference-planning-from-owner-membership.md) | optimization | proposed | #1585, #1603 |
 | 2026-09-17 | [A referenceHaving body is a predicate about one reference row, evaluated by transposing the planned formula per reduced index](2026-09-17-row-scoped-reference-having-body/) | fix | partially-implemented | #1585 |
 | 2026-09-15 | [Push release_* branches from CI as a GitHub App on the ruleset bypass list, not as GITHUB_TOKEN](2026-09-15-release-branch-pushes-as-a-github-app.md) | infrastructure | accepted | #1591, PR #1592, PR #1593 |
 | 2026-09-15 | [Mark the formulas an optimiser may not collapse, rather than special-casing the container that holds them](2026-09-15-non-collapsible-formula-marker.md) | fix | accepted | #1547, PR #1548, PR #1568 |

@@ -9,7 +9,8 @@ prs: []
 areas: [evita_engine/src/main/java/io/evitadb/core/query/filter/translator/reference, evita_engine/src/main/java/io/evitadb/core/query/algebra/reference, evita_engine/src/main/java/io/evitadb/core/query/filter/FilterByVisitor.java, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/bool, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/entity, evita_engine/src/main/java/io/evitadb/index/ReferencedTypeEntityIndex.java]
 supersedes: []
 superseded-by: []
-relates: [2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-09-08-conditional-histogram-per-contribution-verdicts, 2026-09-15-non-collapsible-formula-marker]
+relates: [2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-09-08-conditional-histogram-per-contribution-verdicts, 2026-09-15-non-collapsible-formula-marker,
+  2026-09-18-reference-planning-from-owner-membership]
 ---
 
 # A `referenceHaving` body binds one reference row, and is evaluated by transposing the planned formula per reduced index
