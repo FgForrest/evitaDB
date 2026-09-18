@@ -250,6 +250,31 @@ class RangeCountKernelTest {
 		}
 
 		@Test
+		@DisplayName("An operand that crosses a chunk boundary only on a REFILL, not on its first batch")
+		void shouldCrossAChunkBoundaryDiscoveredByARefill() {
+			// shouldSpanMultipleChunks crosses a boundary too, but its operands are small enough to arrive whole in
+			// the first batch, so the crossing is always found inside a batch the cursor is already draining. The
+			// other half of the mechanism is a cursor that drains a batch to its END while still inside the chunk
+			// and only learns of the boundary from the values the NEXT batch brings - it then files itself into a
+			// higher bucket having consumed nothing from that batch. Nothing else in this suite reaches it: the
+			// randomised sweeps cap an operand at 64 ids, below the batch size, so they never refill at all.
+			//
+			// Putting a whole power-of-two count of ids in the low chunk is what forces the split to land on a batch
+			// boundary rather than inside one. 1,024 keeps that true for any power-of-two batch size up to 1,024,
+			// so the fixture does not silently stop testing this if the kernel's BATCH_SIZE is retuned.
+			final int[] values = new int[1_026];
+			for (int i = 0; i < 1_024; i++) {
+				values[i] = 64_000 + i;
+			}
+			values[1_024] = 70_000;
+			values[1_025] = 70_001;
+			assertAgrees(
+				new Bitmap[]{bitmap(values)},
+				new Bitmap[]{bitmap(64_000, 70_000)}
+			);
+		}
+
+		@Test
 		@DisplayName("Identical families cancel to nothing without needing a special guard")
 		void shouldCancelWhenBothFamiliesAreIdentical() {
 			// the pair being replaced needed an explicit `disentangle(X, X) = empty` guard because FormulaCloner /
@@ -299,12 +324,14 @@ class RangeCountKernelTest {
 		}
 
 		@Test
-		@DisplayName("A chunk carrying ten thousand writes inside one 65,536-id span")
-		void shouldHandleADenselyWrittenChunk() {
+		@DisplayName("A chunk written past the touched list's capacity falls back to the span scan")
+		void shouldFallBackToTheSpanScanWhenTheTouchedListOverflows() {
 			// 20 operands of 500 ids each put 10,000 writes into chunk 0 across a span of 59,999 - far more than any
-			// one chunk carries on the shapes the randomised sweeps generate, and the case a fixed-capacity touched
-			// LIST could not have held. The word map has one bit per offset and therefore no capacity to exceed, so
-			// what this pins is that density alone changes nothing about the answer or about the state handed on.
+			// one chunk carries on the shapes the randomised sweeps generate, and more than the 8,192 the touched
+			// list holds. So this is the ONLY case that reaches the overflow fallback: the list is abandoned partway
+			// and emission scans [minLow, maxLow] instead. Both paths read the same counters - the scatter's
+			// `counters[low] += sign` runs whether or not the list is still usable - so what this pins is that the
+			// answer and the state handed on are the same either way.
 			final Bitmap[] plus = new Bitmap[20];
 			for (int operand = 0; operand < plus.length; operand++) {
 				final int[] values = new int[500];
