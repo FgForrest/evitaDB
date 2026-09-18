@@ -30,7 +30,13 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.base.RangeCountFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
+import io.evitadb.dataType.array.CompositeIntArray;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.roaringbitmap.IntIterator;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.range.RangePoint;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -56,6 +62,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.PriorityQueue;
 import java.util.Random;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
@@ -150,6 +157,143 @@ public class RangeQueryBenchmark {
 	@Benchmark
 	public Bitmap positionalOverlapping(Fixture fixture) {
 		return legacyOverlapping(fixture.index, fixture.windowFrom, fixture.windowTo).compute();
+	}
+
+	/* ================================================================= the algorithm still on `dev` */
+
+	/**
+	 * The shape `dev` carries: the positional construction AND the `JoinFormula` -> `DisentangleFormula` pair
+	 * underneath it, rather than the counting kernel.
+	 *
+	 * This exists so all three variants can be read off ONE fixture in ONE session. The kernel A/B was measured on
+	 * operand families taken as given, which is a different question from what a query costs end to end, and
+	 * multiplying the two ratios together would assert a number nobody measured.
+	 */
+	@Benchmark
+	public Bitmap pairEnveloping(Fixture fixture) {
+		return legacyEnvelopingWithPair(fixture.index, fixture.now);
+	}
+
+	@Benchmark
+	public Bitmap pairOverlapping(Fixture fixture) {
+		return legacyOverlappingWithPair(fixture.index, fixture.windowFrom, fixture.windowTo);
+	}
+
+	/**
+	 * The positional enveloping query with the counting done by the replaced pair.
+	 */
+	@Nonnull
+	private static Bitmap legacyEnvelopingWithPair(@Nonnull RangeIndex index, long threshold) {
+		final RangePoint<?>[] points = materializeRanges(index);
+		final int found = binarySearchThreshold(points, threshold);
+		final boolean thresholdFound = found >= 0;
+		final int lookupIndex = thresholdFound ? found : -found - 1;
+
+		final int startIndex = thresholdFound ? lookupIndex : lookupIndex - 1;
+		final int endIndex = thresholdFound ? lookupIndex + 1 : lookupIndex;
+
+		final StartsEnds before = startIndex >= 0 ? collect(0, startIndex, points) : new StartsEnds();
+		final StartsEnds after = endIndex < points.length ?
+			collect(endIndex, points.length - 1, points) : new StartsEnds();
+
+		final Formula envelopeFormula = new AndFormula(
+			new ConstantFormula(disentangle(before.starts(), before.ends())),
+			new ConstantFormula(disentangle(after.ends(), after.starts()))
+		);
+
+		if (thresholdFound) {
+			final Bitmap starts = points[lookupIndex].getStarts();
+			final Bitmap ends = points[lookupIndex].getEnds();
+			if (!starts.isEmpty() || !ends.isEmpty()) {
+				return FormulaFactory.or(
+					envelopeFormula,
+					starts.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(starts),
+					ends.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(ends)
+				).compute();
+			}
+		}
+		return envelopeFormula.compute();
+	}
+
+	/**
+	 * The positional overlapping query with the counting done by the replaced pair.
+	 */
+	@Nonnull
+	private static Bitmap legacyOverlappingWithPair(@Nonnull RangeIndex index, long from, long to) {
+		final RangePoint<?>[] points = materializeRanges(index);
+		final int foundFrom = binarySearchThreshold(points, from);
+		final int startIndex = foundFrom >= 0 ? foundFrom : -foundFrom - 1;
+		final int foundTo = binarySearchThreshold(points, to);
+		final int endIndex = foundTo >= 0 ? foundTo : -foundTo - 2;
+
+		final StartsEnds between = collect(startIndex, endIndex, points);
+		final StartsEnds before = collect(0, Math.min(startIndex, endIndex), points);
+		final StartsEnds after = collect(Math.max(startIndex, endIndex), points.length - 1, points);
+
+		return new OrFormula(
+			unionFormula(between.starts()),
+			unionFormula(between.ends()),
+			new AndFormula(
+				new ConstantFormula(disentangle(before.starts(), before.ends())),
+				new ConstantFormula(disentangle(after.ends(), after.starts()))
+			)
+		).compute();
+	}
+
+	/**
+	 * `DisentangleFormula(JoinFormula(plus), JoinFormula(minus))`: merge each family keeping duplicates, then walk
+	 * the two in lockstep so each control occurrence cancels exactly one main occurrence.
+	 *
+	 * Like the copy in `RangeCountKernelBenchmark` this sizes each batch buffer to its operand where the deleted
+	 * code allocated a flat `int[256]`, which makes it measurably FASTER than what it stands in for - so a gain
+	 * measured against it understates the gain over the code actually being replaced.
+	 */
+	@Nonnull
+	private static Bitmap disentangle(@Nonnull List<Bitmap> plus, @Nonnull List<Bitmap> minus) {
+		final int[] main = mergeKeepingDuplicates(withoutEmpty(plus));
+		final int[] control = mergeKeepingDuplicates(withoutEmpty(minus));
+		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		int c = 0;
+		for (final int candidate : main) {
+			while (c < control.length && control[c] < candidate) {
+				c++;
+			}
+			if (c < control.length && control[c] == candidate) {
+				c++;
+			} else {
+				writer.add(candidate);
+			}
+		}
+		return new BaseBitmap(writer.get());
+	}
+
+	/**
+	 * The k-way merge `JoinFormula` performed: ascending order, duplicates preserved.
+	 */
+	@Nonnull
+	private static int[] mergeKeepingDuplicates(@Nonnull Bitmap[] family) {
+		final PriorityQueue<int[]> queue = new PriorityQueue<>(
+			Math.max(1, family.length), (a, b) -> Integer.compare(a[0], b[0])
+		);
+		final IntIterator[] iterators = new IntIterator[family.length];
+		for (int i = 0; i < family.length; i++) {
+			iterators[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(family[i])
+				.getBatchIterator()
+				.asIntIterator(new int[Math.min(256, Math.max(1, family[i].size()))]);
+			if (iterators[i].hasNext()) {
+				queue.offer(new int[]{iterators[i].next(), i});
+			}
+		}
+		final CompositeIntArray result = new CompositeIntArray();
+		while (!queue.isEmpty()) {
+			final int[] head = queue.poll();
+			result.add(head[0]);
+			final IntIterator it = iterators[head[1]];
+			if (it.hasNext()) {
+				queue.offer(new int[]{it.next(), head[1]});
+			}
+		}
+		return result.toArray();
 	}
 
 	/* ============================================================================== the frozen positional form */
@@ -420,6 +564,26 @@ public class RangeQueryBenchmark {
 				legacyOverlapping(this.index, this.windowFrom, this.windowTo),
 				this.index.getRecordsWithRangesOverlapping(this.windowFrom, this.windowTo)
 			);
+			// and the `dev` variant too - three arms are only comparable if all three answer the same question
+			assertSameBitmap(
+				"enveloping (dev pair)",
+				legacyEnvelopingWithPair(this.index, this.now),
+				this.index.getRecordsEnvelopingInclusive(this.now).compute()
+			);
+			assertSameBitmap(
+				"overlapping (dev pair)",
+				legacyOverlappingWithPair(this.index, this.windowFrom, this.windowTo),
+				this.index.getRecordsWithRangesOverlapping(this.windowFrom, this.windowTo).compute()
+			);
+		}
+
+		private static void assertSameBitmap(@Nonnull String query, @Nonnull Bitmap legacy, @Nonnull Bitmap current) {
+			if (!Arrays.equals(legacy.getArray(), current.getArray())) {
+				throw new IllegalStateException(
+					"The frozen `dev` algorithm and the shipped prefix count disagree on `" + query + "`: "
+						+ legacy.size() + " vs " + current.size() + " records - the A/B would be meaningless!"
+				);
+			}
 		}
 
 		private static void assertSame(@Nonnull String query, @Nonnull Formula legacy, @Nonnull Formula current) {
