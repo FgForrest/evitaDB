@@ -33,6 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-09-17 | [The range index computes its signed multiplicity in one counting pass, and the JoinFormula/DisentangleFormula pair is deleted](2026-09-17-range-index-counting-kernel.md) | optimization | proposed | #1539, #1546 |
 | 2026-09-15 | [Push release_* branches from CI as a GitHub App on the ruleset bypass list, not as GITHUB_TOKEN](2026-09-15-release-branch-pushes-as-a-github-app.md) | infrastructure | accepted | #1591, PR #1592, PR #1593 |
 | 2026-09-15 | [Mark the formulas an optimiser may not collapse, rather than special-casing the container that holds them](2026-09-15-non-collapsible-formula-marker.md) | fix | accepted | #1547, PR #1548, PR #1568 |
 | 2026-09-15 | [Answer a referenceHaving from whichever end of a bidirectional reference is cheaper, and stop emitting provably-empty null subtractions](2026-09-15-bidirectional-reference-counterpart-rewrite.md) | optimization | accepted | #1547, #1583, #1584, #1585, PR #1548, PR #1568 |
