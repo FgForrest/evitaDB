@@ -189,7 +189,9 @@ attribute's frozen `indexedDecimalPlaces`; the `normalizer` performs the convers
 
 When the attribute type is a `Range` subtype (e.g. `DateTimeRange`, `BigDecimalNumberRange`) a
 `RangeIndex` (backed by a `TransactionalLongBPlusTree`) is built in addition, supporting `validIn` /
-`overlapping` queries.
+`overlapping` queries. It stores interval *endpoints* rather than intervals, and resolves every query
+as a signed count over them -- see
+[Range counting kernel](../algorithms/range-counting-kernel.md).
 
 **Supported queries:** `attributeEquals`, `attributeGreaterThan`, `attributeLessThan`,
 `attributeBetween`, `attributeStartsWith`, `attributeEndsWith`, `attributeContains`,

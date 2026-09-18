@@ -108,7 +108,7 @@ public interface Formula extends TransactionalDataRelatedStructure, PrettyPrinta
 	 * A formula whose result is memoized but whose cost has never been asked for will compute that cost on demand,
 	 * and the default {@link AbstractFormula#getCostInternal()} does so by calling {@link #compute()} on every
 	 * inner formula - including inner formulas that this formula's own computation deliberately skipped.
-	 * `DisentangleFormula`'s `X \ X` guard is exactly that shape: it returns empty without touching its children,
+	 * `NotFormula`'s `X \ X` guard is exactly that shape: it returns empty without touching its children,
 	 * while its cost path falls through to the computing default. So `getCost()` on a memoized node can execute
 	 * branches the query never ran, which is precisely what anything that merely *describes* a formula tree must
 	 * not do.

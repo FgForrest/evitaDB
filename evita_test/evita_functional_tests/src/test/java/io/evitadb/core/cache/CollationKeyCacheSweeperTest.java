@@ -61,6 +61,16 @@ class CollationKeyCacheSweeperTest {
 	private static final int NEVER_WITHIN_THIS_TEST = 3600;
 	private Scheduler scheduler;
 
+	/**
+	 * Asserts the only thing a sweep can promise while the caches are shared with the rest of the JVM: that it reports
+	 * a non-negative number of released keys.
+	 *
+	 * @param released number of keys the sweep reported as released
+	 */
+	private static void assertReleasedCountIsPlausible(int released) {
+		assertTrue(released >= 0, "A sweep cannot release a negative number of keys, got " + released + ".");
+	}
+
 	@BeforeEach
 	void setUp() {
 		this.scheduler = new Scheduler(
@@ -80,16 +90,15 @@ class CollationKeyCacheSweeperTest {
 	void shouldArmSingleScheduledTaskWhenCreated() {
 		final long submittedBefore = this.scheduler.getSubmittedTaskCount();
 
-		final CollationKeyCacheSweeper sweeper = new CollationKeyCacheSweeper(
-			NEVER_WITHIN_THIS_TEST, this.scheduler
-		);
-		try {
+		try (
+			CollationKeyCacheSweeper sweeper = new CollationKeyCacheSweeper(
+				NEVER_WITHIN_THIS_TEST, this.scheduler
+			)
+		) {
 			assertEquals(
 				submittedBefore + 1, this.scheduler.getSubmittedTaskCount(),
 				"Creating the sweeper must plan exactly one sweep."
 			);
-		} finally {
-			sweeper.close();
 		}
 	}
 
@@ -98,21 +107,25 @@ class CollationKeyCacheSweeperTest {
 	void shouldKeepReArmingItselfAfterEverySweep() throws InterruptedException {
 		// two sweeps prove the task re-arms - a task that fired once and stopped would time out here
 		final CountDownLatch twoSweepsLatch = new CountDownLatch(2);
-		final CollationKeyCacheSweeper sweeper = new CollationKeyCacheSweeper(1, this.scheduler) {
-			@Override
-			public int sweep() {
-				final int released = super.sweep();
-				twoSweepsLatch.countDown();
-				return released;
+		try (
+			CollationKeyCacheSweeper sweeper = new CollationKeyCacheSweeper(1, this.scheduler) {
+				@Override
+				public int sweep() {
+					final int released = super.sweep();
+					twoSweepsLatch.countDown();
+					return released;
+				}
 			}
-		};
-		try {
+		) {
+			// a positive wait: only a slow machine can push it towards expiry, never towards a false pass. The
+			// bound is therefore generous rather than tight - the latch returns the moment the second sweep lands,
+			// so the extra seconds cost a passing run nothing, while a sweeper that fired once and stopped still
+			// fails here. At 10s this expired under the full module's fork parallelism, with the task merely
+			// starved of a scheduler thread.
 			assertTrue(
-				twoSweepsLatch.await(10, TimeUnit.SECONDS),
+				twoSweepsLatch.await(30, TimeUnit.SECONDS),
 				"The sweeper did not perform two sweeps in time."
 			);
-		} finally {
-			sweeper.close();
 		}
 	}
 
@@ -130,16 +143,6 @@ class CollationKeyCacheSweeperTest {
 		// the periodic schedule is gone, but an on-demand sweep is still a valid operation (this is what makes it
 		// possible to release the caches at a known moment, e.g. when a catalog leaves its bulk-indexing phase)
 		assertReleasedCountIsPlausible(sweeper.sweep());
-	}
-
-	/**
-	 * Asserts the only thing a sweep can promise while the caches are shared with the rest of the JVM: that it reports
-	 * a non-negative number of released keys.
-	 *
-	 * @param released number of keys the sweep reported as released
-	 */
-	private static void assertReleasedCountIsPlausible(int released) {
-		assertTrue(released >= 0, "A sweep cannot release a negative number of keys, got " + released + ".");
 	}
 
 }
