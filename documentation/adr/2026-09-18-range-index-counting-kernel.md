@@ -1,7 +1,7 @@
 ---
 title: The range index computes its signed multiplicity in one counting pass, and the JoinFormula/DisentangleFormula pair is deleted
 date: 2026-09-18
-updated: 2026-09-18 14:15
+updated: 2026-09-18 14:20
 status: accepted
 kind: optimization
 issues: [1539, 1546]
@@ -190,6 +190,13 @@ already a single counting pass and has no production caller, so the change would
 | 7,602 | 7,405 µs | 3,300 µs | 2.24× |
 
   Allocation at the production shape falls from **18,280,650 B/op to 2,222,373 B/op**.
+
+  **The fall at the right-hand end is the informative part.** The kernel pays the same fixed per-operand cost
+  the replaced pair paid — a cursor, a batch iterator, a container iterator and a wrapper apiece — just fewer
+  times, so the gain shrinks as operands get smaller: at the production shape an operand carries ~3.8 record
+  ids against ~456 at the `k=64` peak. What remains is therefore per-operand overhead rather than the counting
+  loop, which is what a further optimisation has to attack, and why the production figure lands at 2.24× where
+  the mid-range reaches 5.52×.
 
   Every row above is the **generated** fixture, whose operand count, endpoint total and id span come from the
   census. An earlier version of this table carried a sixth row labelled "replayed production operands"
