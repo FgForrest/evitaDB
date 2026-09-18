@@ -1,7 +1,7 @@
 ---
 title: The range counting kernel drives its merge from chunk buckets, and a finished chunk crosses into the bitmap writer whole
 date: 2026-09-18
-updated: 2026-09-18 20:30
+updated: 2026-09-18 21:40
 status: proposed
 kind: optimization
 issues: [1604]
@@ -108,12 +108,27 @@ Take Option A. Keep the touched list the scatter writes, because Option B measur
 
 ## Verification
 
-- **Vendored fork** — `evita_roaring_bitmap`, **17,915 tests, 0 failures**. This is the suite that covers the
-  changed `BatchIterator` / `ContainerBatchIterator` / writer paths directly.
+- **Vendored fork** — `evita_roaring_bitmap`, **18,013 tests, 0 failures**. Five of them pin the two local API
+  additions in the module that owns them, rather than only through the kernel downstream, because
+  `UPSTREAM_SYNC.md` marks both as divergences re-applied by hand on every upstream re-sync:
+  `TestRoaringBitmapWriter#addChunkHonoursItsWordRange`, `#addChunkBelowTheCurrentKeyStillLands` and
+  `#addChunkMergesWithSingleValueAddsOnTheSameKey` run against every writer configuration, so the interface
+  default and the constant-memory override are covered together; `RoaringBitmapBatchIteratorTest`'s
+  `#testBoundedNextBatchHonoursOffsetAndLength` and `#testBoundedNextBatchTruncatesInsideARunContainer` hold the
+  bound across a container crossing and inside one run. Each was checked by counterfactual rather than assumed:
+  restoring `buffer.length` as the limit fails the two bound tests (4 → 5 values, 10 → 56); copying the caller's
+  words instead of OR-ing them fails the merge test on exactly the 8 constant-memory configurations; ignoring
+  `[fromWord, toWord)` fails the range test on all 32; dropping the below-the-mark branch fails the out-of-order
+  test with an `append only` violation.
 - **Kernel and index** — `RangeCountKernelTest`, `RangeIndexQueryOracleTest`, `RangeIndexTest`,
-  `RangeFormulaCacheKeyProbeTest`: **109 tests, 0 failures**, including the independent counting reference that
-  shares no code with any kernel, the brute-force interval-scan oracle, randomised operand families, counter-width
-  selection and the pooled-scratch concurrency test.
+  `RangeFormulaCacheKeyProbeTest`: **110 tests, 0 failures**, including the independent counting reference
+  that shares no code with any kernel, the brute-force interval-scan oracle, randomised operand families,
+  counter-width selection and the pooled-scratch concurrency test.
+  `RangeCountKernelTest#shouldCrossAChunkBoundaryDiscoveredByARefill` covers the one combination the rest of the
+  suite misses — a cursor that drains a batch to its end inside a chunk and learns of the boundary only from the
+  values the next batch brings, filing itself higher without consuming any of them. The randomised sweeps cap an
+  operand at 64 ids, below `BATCH_SIZE`, so they never refill at all. Counterfactual: leaving a parked cursor's
+  `limit` stale fails this test alone, because every other parked cursor stops mid-batch where the two agree.
 - **Full functional suite** — **24,336 tests run, 0 failures**, 45 skipped. Three errors are environmental and
   unrelated: one needs a Docker environment absent from the box, two are Armeria TLS session timeouts on loopback
   in REST CDC/streaming tests.
