@@ -30,6 +30,13 @@ import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 import org.openjdk.jmh.runner.options.TimeValue;
 
+import org.openjdk.jmh.util.Optional;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+
 /**
  * Entry point of the benchmark uber-jar.
  *
@@ -72,10 +79,22 @@ public class ArtificialTestRunner {
 			// A caller who passes arguments wants JMH's own command line, not the curated suite. The parsed command
 			// line is used as the parent of a builder that appends the fork arguments, so every benchmark launched
 			// through this jar gets them without each benchmark class having to declare its own `@Fork(jvmArgsAppend)`.
+			//
+			// The caller's own `-jvmArgsAppend` has to be MERGED rather than left to the parent: a value set on the
+			// child builder wins outright over the parent's, so `.jvmArgsAppend(FORK_JVM_ARGS)` alone silently drops
+			// whatever the command line asked for. That failure is invisible - the run succeeds and produces a
+			// plausible score, just not for the configuration that was requested.
+			final CommandLineOptions commandLine = new CommandLineOptions(args);
+			final List<String> forkArguments = new ArrayList<>(Arrays.asList(FORK_JVM_ARGS));
+			// JMH's own Optional, not java.util's - it answers hasValue()/get()
+			final Optional<Collection<String>> requested = commandLine.getJvmArgsAppend();
+			if (requested.hasValue()) {
+				forkArguments.addAll(requested.get());
+			}
 			new Runner(
 				new OptionsBuilder()
-					.parent(new CommandLineOptions(args))
-					.jvmArgsAppend(FORK_JVM_ARGS)
+					.parent(commandLine)
+					.jvmArgsAppend(forkArguments.toArray(String[]::new))
 					.build()
 			).run();
 			return;
