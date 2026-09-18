@@ -1,7 +1,7 @@
 ---
 title: The range index computes its signed multiplicity in one counting pass, and the JoinFormula/DisentangleFormula pair is deleted
 date: 2026-09-17
-updated: 2026-09-18 07:15
+updated: 2026-09-18 09:10
 status: proposed
 kind: optimization
 issues: [1539, 1546]
@@ -252,6 +252,68 @@ it (2.27–2.29×) *understates* the gain over the code that was actually remove
   measurement taken in two separate forks. `Product` gave 127.4 µs vs 126.1 µs positional and 50.7 µs vs 51.6 µs
   prefix-count — agreement within 2 %, which is the noise floor this table should be read at.
 
+- **The full three-way comparison, including the state of `dev`.** The table above measures the collapse against
+  the counting kernel alone; this one adds the algorithm both of them replaced. `dev pair` is
+  `DisentangleFormula(JoinFormula, JoinFormula)` reached through the old positional lookup — the shape that
+  shipped before any of this work — frozen inside the benchmark so it can be re-measured rather than only cited.
+  `+ kernel` swaps in `RangeCountFormula` while still reaching it positionally. `+ prefix count` adds the
+  collapse, and is what ships. Same box, same pre-flight, `-prof gc`; one fork per cell except the two marked
+  **†**, which are the mean of three.
+
+| query | shape | probe | `dev` pair | + kernel | + prefix count | total | allocation |
+|---|---|---|---|---|---|---|---|
+| enveloping | `Product` | p50+ | 483.0 µs | 108.2 µs | 36.3 µs | **13.3×** | 717.9 → 91.3 kB |
+| enveloping | `Product` | p95+ **†** | 444.6 µs | 133.8 µs | 75.5 µs | 5.89× | 772.2 → 179.9 kB |
+| enveloping | `PriceList` | p50+ | 211.3 µs | 101.0 µs | 38.7 µs | 5.46× | 414.5 → 132.9 kB |
+| enveloping | `PriceList` | p95+ | 249.8 µs | 111.5 µs | 106.8 µs | 2.34× | 422.6 → 243.0 kB |
+| enveloping | `wide` | p50+ | 19,571.9 µs | 3,991.8 µs | 1,330.7 µs | **14.7×** | 9,334.8 → 1,814.4 kB |
+| enveloping | `wide` | p95+ **†** | 20,688.6 µs | 3,753.5 µs | 2,767.6 µs | 7.48× | 8,783.8 → 3,436.5 kB |
+| overlapping | `Product` | p50+ | 306.0 µs | 132.6 µs | 65.5 µs | 4.67× | 703.1 → 129.1 kB |
+| overlapping | `Product` | p95+ | 315.1 µs | 136.5 µs | 53.9 µs | 5.85× | 703.1 → 129.1 kB |
+| overlapping | `PriceList` | p50+ | 167.6 µs | 137.9 µs | 59.1 µs | 2.84× | 486.9 → 137.1 kB |
+| overlapping | `PriceList` | p95+ | 158.8 µs | 135.6 µs | 48.9 µs | 3.25× | 486.8 → 137.1 kB |
+| overlapping | `wide` | p50+ | 12,290.2 µs | 4,583.6 µs | 1,701.6 µs | 7.22× | 7,490.6 → 1,686.6 kB |
+| overlapping | `wide` | p95+ | 12,003.9 µs | 4,788.2 µs | 1,222.2 µs | **9.82×** | 7,490.6 → 1,686.6 kB |
+
+  Read per step: the kernel alone buys **2.09–5.51×** on enveloping but only **1.17–2.68×** on overlapping; the
+  collapse adds a further **1.04–3.00×** and **2.02–3.92×** on top of that. So the two changes are not
+  interchangeable — the kernel is the larger single step on the enveloping query, while the collapse is the only
+  one of the two that helps the overlapping query materially, because that query is where the positional shape was
+  paying for a whole second family pair, an `AndFormula` and a boundary `OR`. Every cell is faster than `dev` and
+  every cell allocates less (**1.7–7.9×**), so the two steps compose rather than trading against each other.
+
+  **One cell inverted on a single fork, and the recheck is why the table above is trustworthy.** `wide`/p95+
+  enveloping first read **4,486.9 µs ±1,160.9** for the prefix count against 3,499.3 µs for the kernel — the
+  collapse apparently *losing* on the largest shape, which is also the cell where the prefix walk is longest and
+  the collapse was expected to buy least. Re-run with three forks, with `Product`/p95+ alongside as a control, it
+  came back at **2,767.6 µs ±151.3** against **3,753.5 µs ±147.4**, the two fork ranges not overlapping
+  (2,575–3,037 against 3,465–3,940), while the control reproduced its single-fork figures to within 1.5 %. The
+  first reading was noise, and its error bar said so at the time. **A single-fork `wide` cell is not a result
+  here** — the floor is wide enough to invert a 1.36× difference.
+
+  **The accidental repeat measurement puts a number on that floor.** The overlapping window is fixed at the 25th
+  and 75th percentile thresholds and does not move with `probe`, so every overlapping shape is measured twice in
+  separate forks. On `Product` the two agree to 3 % on the `dev pair` and kernel arms (306.0/315.1 and
+  132.6/136.5) but only to 18 % on the prefix count (65.5/53.9, error bars ±10.1 and ±4.0 — which do overlap).
+  The faster the arm, the wider its relative floor, which is the reason the contested cells were re-measured
+  rather than argued about.
+
+**These are cold-path numbers, and the busiest caller is usually warm.** `attributeInRangeNow` on a
+`DateTimeRange` attribute reaches the index through `RangeIndex#getRecordsValidNowFormula`, which memoizes the
+*materialized* bitmap for the whole interval of `now` values between two adjacent thresholds and hands back a
+`ConstantFormula`. A repeated query at the same `now` builds no prefix count at all and gains nothing from any of
+this. The win lands where that cache does not reach:
+
+- the first query after a mutation invalidates it, or after `now` crosses a threshold point;
+- every call made inside a transaction, where `getRecordsValidNowFormula` bypasses the cache outright;
+- `attributeInRange(<explicit moment>)`, which routes through `FilterIndex#getRecordsValidInFormula` to
+  `getRecordsEnvelopingInclusive` with no cache of any kind;
+- `attributeBetween` on a range attribute, which routes through `FilterIndex#getRecordsOverlappingFormula` to
+  `getRecordsWithRangesOverlapping`, likewise uncached — and that is the `overlapping` half of the table above.
+
+Sizing this work from the table alone would overstate what a steady-state read-only workload at a fixed `now`
+actually sees.
+
 ## Consequences & open follow-ups
 
 - **The workload is the tail, and the tail differs by an order of magnitude between catalogs.** Two production
@@ -283,6 +345,14 @@ it (2.27–2.29×) *understates* the gain over the code that was actually remove
   rather than being the headline. `#1541` should be sized against that, not against the original estimate.
   Catalog B is sparser still — its largest family yields 6,908 ids spread over 8 chunks, a density of 1.3 % —
   so on that data the dense span scan is reached even less often.
+
+  **The collapse weakens it a second time, and the reason is worth stating because the opposite is intuitive.**
+  Removing the `AndFormula` looks like it should leave a *bigger* kernel to vectorise, since one formula now
+  answers what two did. It does not: the surviving prefix count's touched-id set is identical to that of the
+  positional shape's prefix half, chunk for chunk, with the same spans and therefore the same sparse/dense
+  decision on each. The collapse deletes the *second* kernel invocation, not work inside the first. So `#1541`
+  now has roughly **half** the absolute time to recover that it had before this change, on an emission path that
+  was already the minority of the remaining cost. It is a smaller prize on unchanged ground, not a different one.
 - **The Vector API emission primitive is settled for when it is built.** On JDK 21.0.12 / Zen 5,
   `ShortVector.compare(GT, 0).toLong()` compiles to `vpcmpnlew k7,zmm,zmm` + `kmovq` with **no `VectorMask` object
   and no allocation**; the mask never leaves a k-register. `LongVector` shift/or packing degenerates into lane
@@ -320,4 +390,6 @@ it (2.27–2.29×) *understates* the gain over the code that was actually remove
 - **2026-09-17** — census of a production catalog, two kernels implemented and differential-tested, A/B measured,
   `JoinFormula`/`DisentangleFormula` deleted, record written
 - **2026-09-18** — the four range queries collapsed onto one two-bound prefix count; positional lookup deleted;
-  A/B re-measured against replayed production `validity` spans
+  A/B re-measured against replayed production `validity` spans; the `dev` baseline added as a third arm so the
+  two steps could be judged separately, one contested cell re-measured over three forks, and the collapse's
+  effect on the deferred `#1541` work assessed
