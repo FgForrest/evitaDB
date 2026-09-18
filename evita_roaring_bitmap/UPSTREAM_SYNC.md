@@ -112,6 +112,18 @@ exactly that layout — a round trip of one `numberOfTrailingZeros` plus one mas
 **Not applicable upstream.** Both are shaped by evitaDB's own call site; neither is a fix to anything
 upstream does wrong, so there is nothing to report or contribute.
 
+### Where a botched re-apply gets caught
+
+Both additions are pinned by tests in this module, so a re-sync that reapplies them slightly wrong
+fails here rather than somewhere downstream in `evita_engine`:
+
+- `TestRoaringBitmapWriter#addChunkHonoursItsWordRange`, `#addChunkBelowTheCurrentKeyStillLands`,
+  `#addChunkMergesWithSingleValueAddsOnTheSameKey` — run against every writer configuration, so they
+  cover the interface default and the constant-memory override together.
+- `RoaringBitmapBatchIteratorTest#testBoundedNextBatchHonoursOffsetAndLength`,
+  `#testBoundedNextBatchTruncatesInsideARunContainer` — the bound holding across a container crossing
+  and inside a single run, which is where `limit` replaced `buffer.length`.
+
 ## Sync log
 
 ### Review 1 — base v1.6.12 (`952f8ce7`) → `2863e96d`
