@@ -1,7 +1,7 @@
 ---
 title: The range index computes its signed multiplicity in one counting pass, and the JoinFormula/DisentangleFormula pair is deleted
 date: 2026-09-17
-updated: 2026-09-18 09:10
+updated: 2026-09-18 13:40
 status: proposed
 kind: optimization
 issues: [1539, 1546]
@@ -72,6 +72,9 @@ collapses to an XOR-fold of every operand — no counters at all.
   (`FilterIndex.addRange` consolidates through `Range.consolidateRange` first), which is exactly why it is
   dangerous: parity would pass every existing test and every current caller, and break the first time the
   invariant moved. Revisit only if the index itself starts enforcing at-most-one-active-range-per-record.
+  **That rejection is now a test rather than an argument** —
+  `RangeIndexTest.RangeQueries#shouldCountOverlappingRangesOfOneRecordRatherThanCancelThem` probes exactly this
+  pair, and the randomised oracle generates overlapping and nested arrangements too (see Verification).
 
 ## Decision
 
@@ -118,12 +121,33 @@ already a single counting pass and has no production caller, so the change would
 ## Key technical details
 
 - **Semantics, unchanged:** `result = { v : count(plus, v) − count(minus, v) > 0 }`.
-- **Counter width is `short`, and intermediate overflow is deliberately allowed.** Two's-complement addition is
-  exact modulo 2^16 regardless of the order operands are applied in, so an intermediate that overflows cancels
-  back correctly; only the *final* difference must be representable, and it is bounded by the number of disjoint
-  ranges one record holds in one chunk. `byte` was rejected: after `Range.consolidateRange` a daily availability
-  calendar yields hundreds of disjoint ranges per record, and a `byte` wraps back to *positive* at 256, so a sign
-  check cannot even detect it.
+- **Counter width is chosen per computation, and intermediate overflow is deliberately allowed.** Two's-complement
+  addition is exact modulo the counter width regardless of the order operands are applied in, so an intermediate
+  that overflows cancels back correctly; only the *final* difference must be representable. That difference is
+  **not** bounded by what one record holds inside one chunk — a chunk partitions record *ids*, and a record has
+  exactly one id, so every range it holds scatters into that one chunk. It is bounded by the **operand count**:
+  a bitmap is a set, so one record id is scattered at most once per operand and the final difference for any slot
+  lies in `[−minus.length, +plus.length]`. `RangeCountKernel.compute` compares that count against
+  `Short.MAX_VALUE` once, before the first scatter — at or below it the `short` kernel runs, above it an otherwise
+  identical `int` sibling does (same chunking, same dual emission, same pooling). The selection is one comparison
+  per call and adds nothing to the scatter loop, and it keeps the measured production shape (≈15,200 operands over
+  58,318 elements) on the `short` path that was benchmarked. `byte` was rejected outright: after
+  `Range.consolidateRange` a daily availability calendar yields hundreds of disjoint ranges per record, and a
+  `byte` wraps back to *positive* at 256, so a sign check cannot even detect it.
+
+  **Measured on the `short` path, unmeasured on the `int` one.** Re-running `prefixCountEnveloping` at 3 forks
+  after the guard landed gives 72.4 µs ±1.6 on `Product`/p95+ against 75.5 µs ±1.7 before, and 2,597.4 µs ±154.6
+  on `wide`/p95+ against 2,767.6 µs ±151.3. Both deltas have overlapping error bars and there is no mechanism by
+  which adding a comparison makes a kernel faster, so read them as **unchanged within drift**, not as a gain. The
+  figure that actually settles it is allocation, which is byte-identical either side — 184,198 → 184,208 B and
+  3,518,936 → 3,518,935 B — confirming the guard adds no object and changes no path.
+
+  The `int` kernel has **no benchmark behind it at all**, and deliberately so: no fixture reaches 32,768 operands,
+  because no production shape does (the largest observed family is ≈15,200). Measuring it would mean building a
+  fixture whose only purpose is to cross a threshold real data never crosses. It is carried on the soundness
+  argument above plus the two overflow tests, and its cost is bounded by the observation that it only runs on
+  inputs where a 256 KB scratch is already small against the work. Anyone who makes it reachable in production
+  owes it a measurement.
 - **The sparse path records every scatter write, duplicates included, and needs no visited-set.** The first visit
   to an offset zeroes its counter, so a later duplicate reads zero and contributes nothing — which also clears
   negative counters that an "only clear what was emitted" pass would leave to poison the next chunk. Building the
@@ -220,6 +244,16 @@ it (2.27–2.29×) *understates* the gain over the code that was actually remove
   while **all 14 hand-written `RangeIndexTest.RangeQueries` assertions still pass**. Not one of them probes a point
   at which a range *ends*, which is exactly where the collapsed boundary handling does its work. The suite had a
   blind spot precisely there, and it is now closed.
+
+  **A second blind spot was found by review, in the generator rather than the assertions.** `generateSpans` advanced
+  its cursor past the end of each range, so a record's own ranges were always disjoint and gap-separated — while the
+  index's contract forbids only a repeated *border* for one record, and therefore permits overlapping and nested
+  ranges. The one shape that separates a signed count from a parity fold was thus argued in this record (Option D)
+  and generated by nothing. The generator now emits all three arrangements — disjoint, overlapping and nested —
+  building each pair from four strictly increasing borders so the shared-border prohibition cannot be violated by
+  construction, and a deterministic case pins the discriminating pair directly: record `7` holding `(2,15)` and
+  `(5,20)` must be present at `t=10` on all four query forms (count `+2`, where parity cancels to absent), present
+  at `t=18` on `+1` after one start is cancelled, and absent at `t=21` where the counts cancel exactly.
 
 - **A/B of the query shape** (`RangeQueryBenchmark`, JDK 21.0.12, Zen 5, 1 fork, `-prof gc`). The fixture replays
   `validity` spans dumped from a restored production catalog — `Product` (7,267 spans over 932 threshold points)
@@ -384,6 +418,9 @@ actually sees.
 
 - `2026-09-10-simd-vector-api-feasibility` — the analysis that proposed this kernel (§11) and estimated 5–20×.
   This record revises that estimate and reorders its SIMD step behind the sparse-emission fix.
+- `documentation/developer/algorithms/range-counting-kernel.md` — how the algorithm works, with a worked example.
+  This record says what was decided and why the alternatives lost; that page explains the mechanism, and the two
+  deliberately do not repeat each other.
 
 ## Timeline
 
@@ -392,4 +429,6 @@ actually sees.
 - **2026-09-18** — the four range queries collapsed onto one two-bound prefix count; positional lookup deleted;
   A/B re-measured against replayed production `validity` spans; the `dev` baseline added as a third arm so the
   two steps could be judged separately, one contested cell re-measured over three forks, and the collapse's
-  effect on the deferred `#1541` work assessed
+  effect on the deferred `#1541` work assessed; a four-agent quality pass plus an adversarial review then found
+  the `short` counter overflow, the reversed-overlap crash, the dropped cost multiplier and the oracle's
+  generator gap, all fixed here
