@@ -107,8 +107,13 @@ class CollationKeyCacheSweeperTest {
 			}
 		};
 		try {
+			// a positive wait: only a slow machine can push it towards expiry, never towards a false pass. The
+			// bound is therefore generous rather than tight - the latch returns the moment the second sweep lands,
+			// so the extra seconds cost a passing run nothing, while a sweeper that fired once and stopped still
+			// fails here. At 10s this expired under the full module's fork parallelism, with the task merely
+			// starved of a scheduler thread.
 			assertTrue(
-				twoSweepsLatch.await(10, TimeUnit.SECONDS),
+				twoSweepsLatch.await(30, TimeUnit.SECONDS),
 				"The sweeper did not perform two sweeps in time."
 			);
 		} finally {
