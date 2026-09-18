@@ -4,6 +4,8 @@
 
 package io.evitadb.roaringbitmap;
 
+import io.evitadb.roaringbitmap.kernel.VectorKernels;
+
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 
@@ -340,7 +342,9 @@ public final class Util {
 	 * Exact Hamming weight (population count) of the bits set at absolute bit indices `[start, end)`,
 	 * masking the partial first and last words so only bits inside the range are counted.
 	 *
-	 * Complexity: `O((end - start) / 64)`.
+	 * Complexity: `O((end - start) / 64)`. Runs on the `cardinalityInRange` kernel of
+	 * {@link io.evitadb.roaringbitmap.kernel.BitmapKernels}, so the interior words are counted with SIMD
+	 * where the provider selected a vector implementation.
 	 *
 	 * @param bitmap array of words representing a bitset
 	 * @param start  first bit index (inclusive)
@@ -348,20 +352,8 @@ public final class Util {
 	 * @return number of set bits within the range, `0` when `start >= end`
 	 */
 	public static int cardinalityInBitmapRange(@Nonnull final long[] bitmap, final int start, final int end) {
-		if (start >= end) {
-			return 0;
-		}
-		final int firstword = start / 64;
-		final int endword = (end - 1) / 64;
-		if (firstword == endword) {
-			return Long.bitCount(bitmap[firstword] & ((~0L << start) & (~0L >>> -end)));
-		}
-		int answer = Long.bitCount(bitmap[firstword] & (~0L << start));
-		for (int i = firstword + 1; i < endword; i++) {
-			answer += Long.bitCount(bitmap[i]);
-		}
-		answer += Long.bitCount(bitmap[endword] & (~0L >>> -end));
-		return answer;
+		// masked first and last word, kernel over the whole words between them - `BitmapKernels.cardinalityInRange`
+		return VectorKernels.BITMAP.cardinalityInRange(bitmap, start, end);
 	}
 
 	/**

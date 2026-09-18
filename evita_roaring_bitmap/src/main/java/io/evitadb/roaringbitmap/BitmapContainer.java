@@ -4,6 +4,8 @@
 
 package io.evitadb.roaringbitmap;
 
+import io.evitadb.roaringbitmap.kernel.VectorKernels;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.DataInput;
@@ -213,19 +215,31 @@ public final class BitmapContainer extends Container implements Cloneable {
 	 * result stays dense or an {@link ArrayContainer} once it falls to
 	 * {@link ArrayContainer#DEFAULT_MAX_SIZE} or below.
 	 *
+	 * The container type has to be known before anything is allocated, so the count normally comes first, on
+	 * the `andCardinality` kernel of {@link io.evitadb.roaringbitmap.kernel.BitmapKernels}; the dense branch
+	 * then writes the words with the fused `and` kernel, which stores and counts in the same pass.
+	 *
+	 * Two known cardinalities can settle the question without counting at all: inclusion-exclusion gives
+	 * `|a ∩ b| >= |a| + |b| - 65536`, so a sufficiently large pair is dense whatever the overlap looks like,
+	 * and the whole count pass is skipped. A lazy operand (cardinality `-1`) has no known size and takes the
+	 * ordinary path.
+	 *
 	 * @param value2 container to intersect with
 	 * @return the intersection, container type chosen by the resulting cardinality
 	 */
 	@Nonnull
 	@Override
 	public Container and(@Nonnull final BitmapContainer value2) {
-		int newCardinality = andCardinality(value2);
+		if (this.cardinality >= 0 && value2.cardinality >= 0
+			&& this.cardinality + value2.cardinality - MAX_CAPACITY > ArrayContainer.DEFAULT_MAX_SIZE) {
+			final BitmapContainer dense = new BitmapContainer();
+			dense.cardinality = VectorKernels.BITMAP.and(this.bitmap, value2.bitmap, dense.bitmap);
+			return dense;
+		}
+		final int newCardinality = VectorKernels.BITMAP.andCardinality(this.bitmap, value2.bitmap);
 		if (newCardinality > ArrayContainer.DEFAULT_MAX_SIZE) {
 			final BitmapContainer answer = new BitmapContainer();
-			for (int k = 0; k < answer.bitmap.length; ++k) {
-				answer.bitmap[k] = this.bitmap[k] & value2.bitmap[k];
-			}
-			answer.cardinality = newCardinality;
+			answer.cardinality = VectorKernels.BITMAP.and(this.bitmap, value2.bitmap, answer.bitmap);
 			return answer;
 		}
 		ArrayContainer ac = new ArrayContainer(newCardinality);
@@ -264,18 +278,15 @@ public final class BitmapContainer extends Container implements Cloneable {
 	}
 
 	/**
-	 * Counts set bits shared with `value2` via 1024 `AND`-then-popcount word steps.
+	 * Counts set bits shared with `value2` via 1024 `AND`-then-popcount word steps, on the `andCardinality`
+	 * kernel of {@link io.evitadb.roaringbitmap.kernel.BitmapKernels}.
 	 *
 	 * @param value2 container to test against
 	 * @return size of the intersection
 	 */
 	@Override
 	public int andCardinality(@Nonnull final BitmapContainer value2) {
-		int newCardinality = 0;
-		for (int k = 0; k < this.bitmap.length; ++k) {
-			newCardinality += Long.bitCount(this.bitmap[k] & value2.bitmap[k]);
-		}
-		return newCardinality;
+		return VectorKernels.BITMAP.andCardinality(this.bitmap, value2.bitmap);
 	}
 
 	/**
@@ -320,22 +331,20 @@ public final class BitmapContainer extends Container implements Cloneable {
 	 * Returns the set difference `this \ value2` computed with 1024 word-wise `AND NOT` steps,
 	 * demoting to an {@link ArrayContainer} when the result is no longer dense.
 	 *
+	 * Counts first on the `andNotCardinality` kernel of
+	 * {@link io.evitadb.roaringbitmap.kernel.BitmapKernels} so the container type is known before anything is
+	 * allocated; the dense branch then writes the words with the fused `andNot` kernel.
+	 *
 	 * @param value2 values to subtract
 	 * @return the difference container
 	 */
 	@Nonnull
 	@Override
 	public Container andNot(@Nonnull final BitmapContainer value2) {
-		int newCardinality = 0;
-		for (int k = 0; k < this.bitmap.length; ++k) {
-			newCardinality += Long.bitCount(this.bitmap[k] & (~value2.bitmap[k]));
-		}
+		final int newCardinality = VectorKernels.BITMAP.andNotCardinality(this.bitmap, value2.bitmap);
 		if (newCardinality > ArrayContainer.DEFAULT_MAX_SIZE) {
 			final BitmapContainer answer = new BitmapContainer();
-			for (int k = 0; k < answer.bitmap.length; ++k) {
-				answer.bitmap[k] = this.bitmap[k] & (~value2.bitmap[k]);
-			}
-			answer.cardinality = newCardinality;
+			answer.cardinality = VectorKernels.BITMAP.andNot(this.bitmap, value2.bitmap, answer.bitmap);
 			return answer;
 		}
 		ArrayContainer ac = new ArrayContainer(newCardinality);
@@ -372,8 +381,8 @@ public final class BitmapContainer extends Container implements Cloneable {
 
 	/**
 	 * Consistency self-check: verifies the container is legitimately dense (cardinality above
-	 * {@link ArrayContainer#DEFAULT_MAX_SIZE}) and that {@link #cardinality} matches the recomputed
-	 * popcount.
+	 * {@link ArrayContainer#DEFAULT_MAX_SIZE}) and that {@link #cardinality} matches the popcount recomputed
+	 * by the `cardinality` kernel of {@link io.evitadb.roaringbitmap.kernel.BitmapKernels}.
 	 *
 	 * @return `true` when the invariant holds, `false` otherwise
 	 */
@@ -383,11 +392,7 @@ public final class BitmapContainer extends Container implements Cloneable {
 		if (this.cardinality <= ArrayContainer.DEFAULT_MAX_SIZE) {
 			return false;
 		}
-		int computed_cardinality = 0;
-		for (int k = 0; k < this.bitmap.length; k++) {
-			computed_cardinality += Long.bitCount(this.bitmap[k]);
-		}
-		return this.cardinality == computed_cardinality;
+		return this.cardinality == VectorKernels.BITMAP.cardinality(this.bitmap);
 	}
 
 	/**
@@ -419,13 +424,12 @@ public final class BitmapContainer extends Container implements Cloneable {
 	}
 
 	/**
-	 * Recomputes the cardinality of the bitmap.
+	 * Recomputes the cardinality of the bitmap on the `cardinality` kernel of
+	 * {@link io.evitadb.roaringbitmap.kernel.BitmapKernels}. Every `repairAfterLazy` of a dense container -
+	 * and therefore every multi-way union - lands here.
 	 */
 	void computeCardinality() {
-		this.cardinality = 0;
-		for (int k = 0; k < this.bitmap.length; k++) {
-			this.cardinality += Long.bitCount(this.bitmap[k]);
-		}
+		this.cardinality = VectorKernels.BITMAP.cardinality(this.bitmap);
 	}
 
 	/**
@@ -797,6 +801,17 @@ public final class BitmapContainer extends Container implements Cloneable {
 	 * Intersects with `b2` in place via 1024 word ANDs, demoting to an {@link ArrayContainer} when the
 	 * result is no longer dense (except in lazy mode, where the count is deferred).
 	 *
+	 * The non-lazy branch counts on the `andCardinality` kernel of
+	 * {@link io.evitadb.roaringbitmap.kernel.BitmapKernels} first, because the demotion threshold has to be
+	 * tested before the words are overwritten, then writes in place with the fused `and` kernel.
+	 *
+	 * The lazy branch deliberately runs a plain word loop and computes no population count at all. A lazy
+	 * container's `-1` cardinality is a protocol, not a missing value: `FastAggregation`'s work-shy AND
+	 * builds one on purpose and relies on {@link #repairAfterLazy()} — which only acts while the cardinality
+	 * is still negative — to demote a sparse result to an {@link ArrayContainer}. Establishing the
+	 * cardinality here would silently turn that repair into a no-op and leave a three-value result as an
+	 * 8 KiB bitmap that compares unequal to its canonical array form. HotSpot widens this loop on its own.
+	 *
 	 * @param b2 container to intersect with
 	 * @return this container or the demoted {@link ArrayContainer}
 	 */
@@ -810,12 +825,9 @@ public final class BitmapContainer extends Container implements Cloneable {
 			}
 			return this;
 		} else {
-			int newCardinality = andCardinality(b2);
+			final int newCardinality = VectorKernels.BITMAP.andCardinality(this.bitmap, b2.bitmap);
 			if (newCardinality > ArrayContainer.DEFAULT_MAX_SIZE) {
-				for (int k = 0; k < this.bitmap.length; ++k) {
-					this.bitmap[k] = this.bitmap[k] & b2.bitmap[k];
-				}
-				this.cardinality = newCardinality;
+				this.cardinality = VectorKernels.BITMAP.and(this.bitmap, b2.bitmap, this.bitmap);
 				return this;
 			}
 			ArrayContainer ac = new ArrayContainer(newCardinality);
@@ -900,21 +912,18 @@ public final class BitmapContainer extends Container implements Cloneable {
 	 * Subtracts `b2` in place via 1024 word `AND NOT` steps, demoting to an {@link ArrayContainer}
 	 * when the result is no longer dense.
 	 *
+	 * Counts on the `andNotCardinality` kernel of {@link io.evitadb.roaringbitmap.kernel.BitmapKernels}
+	 * before the demotion threshold is tested, then writes in place with the fused `andNot` kernel.
+	 *
 	 * @param b2 values to subtract
 	 * @return this container or the demoted {@link ArrayContainer}
 	 */
 	@Nonnull
 	@Override
 	public Container iandNot(@Nonnull final BitmapContainer b2) {
-		int newCardinality = 0;
-		for (int k = 0; k < this.bitmap.length; ++k) {
-			newCardinality += Long.bitCount(this.bitmap[k] & (~b2.bitmap[k]));
-		}
+		final int newCardinality = VectorKernels.BITMAP.andNotCardinality(this.bitmap, b2.bitmap);
 		if (newCardinality > ArrayContainer.DEFAULT_MAX_SIZE) {
-			for (int k = 0; k < this.bitmap.length; ++k) {
-				this.bitmap[k] = this.bitmap[k] & (~b2.bitmap[k]);
-			}
-			this.cardinality = newCardinality;
+			this.cardinality = VectorKernels.BITMAP.andNot(this.bitmap, b2.bitmap, this.bitmap);
 			return this;
 		}
 		ArrayContainer ac = new ArrayContainer(newCardinality);
@@ -1130,16 +1139,16 @@ public final class BitmapContainer extends Container implements Cloneable {
 	 * Unions `b2` into this bitmap via 1024 word ORs, promoting to the full {@link RunContainer} when
 	 * every bit ends up set.
 	 *
+	 * The fused `or` kernel of {@link io.evitadb.roaringbitmap.kernel.BitmapKernels} writes the words and
+	 * returns their population count in the same pass, so no separate recount is needed.
+	 *
 	 * @param b2 values to add
 	 * @return this container, or {@link RunContainer#full()} when saturated
 	 */
 	@Nonnull
 	@Override
 	public Container ior(@Nonnull final BitmapContainer b2) {
-		for (int k = 0; k < this.bitmap.length & k < b2.bitmap.length; k++) {
-			this.bitmap[k] |= b2.bitmap[k];
-		}
-		computeCardinality();
+		this.cardinality = VectorKernels.BITMAP.or(this.bitmap, b2.bitmap, this.bitmap);
 		if (isFull()) {
 			return RunContainer.full();
 		}
@@ -1257,19 +1266,17 @@ public final class BitmapContainer extends Container implements Cloneable {
 	 * XORs `b2` into this bitmap via 1024 word steps (symmetric difference), demoting to an
 	 * {@link ArrayContainer} when the result is no longer dense.
 	 *
+	 * The symmetric difference has to be computed whichever container type the result turns out to be, so
+	 * the fused `xor` kernel of {@link io.evitadb.roaringbitmap.kernel.BitmapKernels} writes it in place and
+	 * counts it in the same pass; only the demotion is decided afterwards.
+	 *
 	 * @param b2 values to toggle
 	 * @return this container or the demoted {@link ArrayContainer}
 	 */
 	@Nonnull
 	@Override
 	public Container ixor(@Nonnull final BitmapContainer b2) {
-		// do this first because we have to compute the xor no matter what, and this loop gets
-		// vectorized and is faster than computing the cardinality or filling the array
-		for (int k = 0; k < this.bitmap.length & k < b2.bitmap.length; ++k) {
-			this.bitmap[k] ^= b2.bitmap[k];
-		}
-		// now count the bits
-		computeCardinality();
+		this.cardinality = VectorKernels.BITMAP.xor(this.bitmap, b2.bitmap, this.bitmap);
 		if (this.cardinality > ArrayContainer.DEFAULT_MAX_SIZE) {
 			return this;
 		}
@@ -1578,7 +1585,12 @@ public final class BitmapContainer extends Container implements Cloneable {
 	}
 
 	/**
-	 * Returns a copy unioned with `value2`; the receiver is unchanged.
+	 * Returns a copy unioned with `value2`; the receiver is unchanged. Promotes to the full
+	 * {@link RunContainer} when every bit ends up set.
+	 *
+	 * One pass over the words: the fused `or` kernel of {@link io.evitadb.roaringbitmap.kernel.BitmapKernels}
+	 * writes the union straight into a fresh container and returns its population count, so neither a copy of
+	 * the receiver nor a separate recount is made.
 	 *
 	 * @param value2 values to add
 	 * @return the union container
@@ -1586,8 +1598,12 @@ public final class BitmapContainer extends Container implements Cloneable {
 	@Nonnull
 	@Override
 	public Container or(@Nonnull final BitmapContainer value2) {
-		BitmapContainer value1 = this.clone();
-		return value1.ior(value2);
+		final BitmapContainer answer = new BitmapContainer();
+		answer.cardinality = VectorKernels.BITMAP.or(this.bitmap, value2.bitmap, answer.bitmap);
+		if (answer.isFull()) {
+			return RunContainer.full();
+		}
+		return answer;
 	}
 
 	/**
@@ -1649,20 +1665,16 @@ public final class BitmapContainer extends Container implements Cloneable {
 	 * Returns the number of set values less than or equal to `lowbits` (its 1-based rank), computed
 	 * with up to O(1024) popcount steps.
 	 *
+	 * The rank is exactly the population count of `[0, lowbits]`, so it is the `cardinalityInRange` kernel of
+	 * {@link io.evitadb.roaringbitmap.kernel.BitmapKernels} applied to the half-open range `[0, lowbits + 1)`;
+	 * the kernel masks the partial last word, which is what makes the two formulations equal.
+	 *
 	 * @param lowbits value whose rank is requested
 	 * @return count of set values in `[0, lowbits]`
 	 */
 	@Override
 	public int rank(final char lowbits) {
-		int leftover = (lowbits + 1) & 63;
-		int answer = 0;
-		for (int k = 0; k < (lowbits + 1) >>> 6; ++k) {
-			answer += Long.bitCount(this.bitmap[k]);
-		}
-		if (leftover != 0) {
-			answer += Long.bitCount(this.bitmap[(lowbits + 1) >>> 6] << (64 - leftover));
-		}
-		return answer;
+		return VectorKernels.BITMAP.cardinalityInRange(this.bitmap, 0, lowbits + 1);
 	}
 
 	/**
@@ -1954,22 +1966,20 @@ public final class BitmapContainer extends Container implements Cloneable {
 	 * Returns the symmetric difference with `value2` via 1024 word XORs, demoting to an
 	 * {@link ArrayContainer} when the result is no longer dense.
 	 *
+	 * Counts on the `xorCardinality` kernel of {@link io.evitadb.roaringbitmap.kernel.BitmapKernels} so the
+	 * container type is known before anything is allocated; the dense branch then writes the words with the
+	 * fused `xor` kernel.
+	 *
 	 * @param value2 values to toggle
 	 * @return the resulting container
 	 */
 	@Nonnull
 	@Override
 	public Container xor(@Nonnull final BitmapContainer value2) {
-		int newCardinality = 0;
-		for (int k = 0; k < this.bitmap.length; ++k) {
-			newCardinality += Long.bitCount(this.bitmap[k] ^ value2.bitmap[k]);
-		}
+		final int newCardinality = VectorKernels.BITMAP.xorCardinality(this.bitmap, value2.bitmap);
 		if (newCardinality > ArrayContainer.DEFAULT_MAX_SIZE) {
 			final BitmapContainer answer = new BitmapContainer();
-			for (int k = 0; k < answer.bitmap.length; ++k) {
-				answer.bitmap[k] = this.bitmap[k] ^ value2.bitmap[k];
-			}
-			answer.cardinality = newCardinality;
+			answer.cardinality = VectorKernels.BITMAP.xor(this.bitmap, value2.bitmap, answer.bitmap);
 			return answer;
 		}
 		ArrayContainer ac = new ArrayContainer(newCardinality);
