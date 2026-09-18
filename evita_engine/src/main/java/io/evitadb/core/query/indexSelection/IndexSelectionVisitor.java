@@ -71,7 +71,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -209,7 +209,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					final Bitmap requestedHierarchyNodes = requestedHierarchyNodesFormula.compute();
 					final List<ReducedEntityIndex> theTargetIndexes =
 						new ArrayList<>(requestedHierarchyNodes.size() * scopes.size());
-					final AtomicInteger cardinalityCounter = new AtomicInteger(0);
+					final AtomicLong cardinalityCounter = new AtomicLong(0L);
 					for (Integer hierarchyEntityId : requestedHierarchyNodes) {
 						for (Scope scope : scopes) {
 							this.queryContext.getReducedEntityIndexes(
@@ -230,7 +230,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 							theTargetIndexes,
 							Stream.of(
 									allIndexesArePartitioned(scopes, referenceSchema) ? null : EligibilityObstacle.NOT_PARTITIONED_INDEX,
-									cardinalityCounter.get() <= this.mainIndexCardinality / 2 ? null : EligibilityObstacle.HIGH_CARDINALITY
+									cardinalityCounter.get() <= (long) this.mainIndexCardinality / 2 ? null : EligibilityObstacle.HIGH_CARDINALITY
 								)
 								.filter(Objects::nonNull)
 								.toArray(EligibilityObstacle[]::new)
@@ -265,6 +265,11 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 			return;
 		}
 
+		// NOTE: the cardinality sums below are `long`. They count reference ROWS - an owner occurs in as many
+		// partitions as it has rows of the reference - which is NOT bounded by the owner collection's entity
+		// count: a production catalog shows 1,584,304 memberships over 29,159 owners. An `int` sum that
+		// overflows goes negative, satisfies the `<= limit` test and marks the alternative ELIGIBLE, which is
+		// exactly the catastrophic plan this check exists to reject.
 		final List<ReducedEntityIndex> theTargetIndexes = theFilterByVisitor
 			.getReferencedRecordEntityIndexes(constraint, scopes);
 
@@ -282,7 +287,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					theTargetIndexes,
 					Stream.of(
 							allIndexesArePartitioned(scopes, referenceSchema) ? null : EligibilityObstacle.NOT_PARTITIONED_INDEX,
-							theTargetIndexes.stream().map(ReducedEntityIndex::getAllPrimaryKeys).mapToInt(Bitmap::size).sum() <= this.mainIndexCardinality / 2 ? null : EligibilityObstacle.HIGH_CARDINALITY
+							theTargetIndexes.stream().map(ReducedEntityIndex::getAllPrimaryKeys).mapToLong(Bitmap::size).sum() <= (long) this.mainIndexCardinality / 2 ? null : EligibilityObstacle.HIGH_CARDINALITY
 						)
 						.filter(Objects::nonNull)
 						.toArray(EligibilityObstacle[]::new)
