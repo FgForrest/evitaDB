@@ -56,15 +56,17 @@ public final class RoaringBatchIterator implements BatchIterator {
 	}
 
 	/**
-	 * Fills `buffer` by draining the current chunk and rolling onto the next until the buffer is full
-	 * or the bitmap is exhausted, so a single batch may span several chunks.
+	 * Fills the `[offset, offset + length)` slice of `buffer` by draining the current chunk and
+	 * rolling onto the next until the slice is full or the bitmap is exhausted, so a single batch may
+	 * span several chunks.
 	 */
 	@Override
-	public int nextBatch(@Nonnull final int[] buffer) {
+	public int nextBatch(@Nonnull final int[] buffer, final int offset, final int length) {
+		final int limit = offset + length;
 		int consumed = 0;
-		while (this.iterator != null && consumed < buffer.length) {
-			consumed += this.iterator.next(this.key, buffer, consumed);
-			if (consumed < buffer.length || !this.iterator.hasNext()) {
+		while (this.iterator != null && consumed < length) {
+			consumed += this.iterator.next(this.key, buffer, offset + consumed, limit);
+			if (consumed < length || !this.iterator.hasNext()) {
 				nextContainer();
 			}
 		}

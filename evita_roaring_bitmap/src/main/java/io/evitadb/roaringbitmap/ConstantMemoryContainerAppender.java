@@ -127,6 +127,46 @@ class ConstantMemoryContainerAppender<
 		this.dirty = true;
 	}
 
+	/**
+	 * Merges a caller-owned word bitmap straight into the reused buffer, skipping the per-value
+	 * decompose-and-reset round trip {@link RoaringBitmapWriter#addChunk} otherwise performs — the
+	 * caller's words and {@link #bitmap} have the identical layout, so the transfer is a word-wise
+	 * OR over at most 1024 words instead of one {@link #add(int)} per set bit.
+	 *
+	 * OR rather than copy, so a chunk handed over this way may be mixed with {@link #add(int)} calls
+	 * carrying the same key. A key below the current mark takes the same slow path
+	 * {@link #add(int)} does, one value at a time.
+	 */
+	@Override
+	public void addChunk(final char key, @Nonnull final long[] words, final int fromWord, final int toWord) {
+		final int chunkKey = key;
+		if (chunkKey < this.currentKey) {
+			// out of order - the reused buffer has already moved past this key, so every value has to
+			// go through add(int), which routes below-the-mark values directly at the underlying bitmap
+			final int base = chunkKey << 16;
+			for (int wordIndex = fromWord; wordIndex < toWord; wordIndex++) {
+				long word = words[wordIndex];
+				final int wordBase = base | (wordIndex << 6);
+				while (word != 0L) {
+					add(wordBase | Long.numberOfTrailingZeros(word));
+					word &= word - 1L;
+				}
+			}
+			return;
+		}
+		if (chunkKey != this.currentKey) {
+			appendToUnderlying();
+			this.currentKey = chunkKey;
+		}
+		for (int wordIndex = fromWord; wordIndex < toWord; wordIndex++) {
+			final long word = words[wordIndex];
+			if (word != 0L) {
+				this.bitmap[wordIndex] |= word;
+				this.dirty = true;
+			}
+		}
+	}
+
 	@Override
 	public void addMany(@Nonnull final int... values) {
 		if (this.doPartialSort) {
