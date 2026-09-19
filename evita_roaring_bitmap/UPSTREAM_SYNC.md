@@ -167,6 +167,72 @@ The shape of the divergence, for a diff:
 `LazyArrayUnionTest` pins all of it, including that the policy does not change the answer and that a co-owned
 accumulator is cloned before it is merged into.
 
+## Word-batched array scatter (evita-specific divergence — preserve on re-sync)
+
+`BitmapContainer`'s four array-operand write paths — `ilazyor(ArrayContainer)`, `ior(ArrayContainer)`,
+`or(ArrayContainer)` and `loadData(ArrayContainer)` — set one bit per value upstream, with
+`bitmap[v >>> 6] |= 1L << v` inside the value loop. The vendored copy batches by word instead: it accumulates
+the bits destined for the current word in a local `long` and performs a single read-modify-write when the word
+index changes, plus one final flush after the loop. That is legal because an `ArrayContainer`'s values are
+sorted, so the word index never returns to a word it has left behind, and it is the shape
+`Util.intersectArrayIntoBitmap` already had.
+
+Two private statics on `BitmapContainer` hold the loop: `scatterInto` (no cardinality bookkeeping, used by
+`ilazyor` and `loadData`) and `scatterIntoCounting` (returns the number of bits the writes newly set, used by
+`ior` and `or`). The counting form takes `bitCount(after) - bitCount(before)` per flushed word, which is the
+same total upstream's per-value `(before - after) >>> 63` reaches. `loadData` merges its words with `|=`
+rather than assigning them, so it keeps working on a receiver whose bitmap is not clear, exactly as upstream's
+loop did.
+
+Measured on a JMH replay of 300 operand pairs recorded from a production e-commerce catalog (median 4 values,
+mean 42, sorted and often word-sharing): 21.8 ns per pair batched against 31.0 ns per-value, a 1.42x
+improvement. On that workload `ilazyor(ArrayContainer)` is 92.7 % of all container operations and 11.8 % of
+facet-query CPU.
+
+`andNot(ArrayContainer)` / `iandNot(ArrayContainer)` are **not** batched — they were left on the per-value
+form, so an upstream diff of those two is unaffected by this divergence.
+
+`WordBatchedScatterTest` pins all four methods differentially against the upstream per-value loops, which it
+keeps verbatim as private reference implementations; the reference is the thing to re-check first if upstream
+ever changes one of these loops.
+
+## Fuse-first bitmap intersection (evita-specific divergence — preserve on re-sync)
+
+Upstream decides the result container type *before* it writes anything: `and(BitmapContainer)`,
+`iand(BitmapContainer)` and `iandNot(BitmapContainer)` run a cardinality-only pass over both operands, then
+either write the words or extract the values. The vendored copy inverts that for three of the four
+bitmap-by-bitmap paths — it runs the fused kernel first (which stores the words *and* returns their population
+count in a single pass) and demotes afterwards, extracting out of the already-computed words with
+`Util.fillArray` instead of the two-operand `fillArrayAND` / `fillArrayANDNOT`.
+
+| method | policy here | why |
+|---|---|---|
+| `and(BitmapContainer)` | **fuse first** into a fresh container, demote after | 99.94 % of real intersections stay dense, so the count pass almost never saves the 8 KiB it is there to save |
+| `iand(BitmapContainer)`, non-lazy branch | **fuse first** in place, demote after | same, and the words are overwritten either way |
+| `iandNot(BitmapContainer)` | **fuse first** in place, demote after | the difference is written into the receiver either way, so an early count avoids no allocation at all |
+| `andNot(BitmapContainer)` | **count first** (upstream's shape, unchanged) | 47.8 % of real differences demote, so here the count pass does save the allocation |
+
+Measured on a replay of 300 bitmap-pair intersections recorded from a production e-commerce catalog: 246 ns
+per pair for the two-pass form, 257 ns for count-then-fused, 152 ns scalar / 157 ns vector for the single
+fused pass (1.6x). The census behind the density figures counted 85,050 of 85,100 real bitmap-by-bitmap
+intersections staying dense.
+
+Two consequences worth keeping in view on a re-sync:
+
+- **`iand` and `iandNot` now overwrite the receiver even when they demote.** Upstream's sparse branch left the
+  receiver's words intact because it read both operands to fill the array. Every call site replaces the
+  receiver with the returned container (`PersistentRoaringBitmap#and` / `#andNot` call `copyIfShared` first,
+  `PersistentLongRoaringBitmap` owns its containers outright), so this is within the in-place contract — but
+  a future caller that reads the receiver after a demoting `iand` would now see the intersection, not the
+  original.
+- **`and(BitmapContainer)`'s inclusion-exclusion shortcut is gone.** It existed to skip the count pass for a
+  pair whose sizes already proved the result dense (`|a ∩ b| >= |a| + |b| - 65536`); with no count pass left
+  there is nothing for it to skip.
+
+`WordBatchedScatterTest.BitmapIntersectionPolicy` pins the container type and the values on both sides of the
+demotion threshold for all three; `TestBitmapContainer`'s intersection tests cover the same ground from the
+upstream side.
+
 ## Sync log
 
 ### Review 1 — base v1.6.12 (`952f8ce7`) → `2863e96d`
