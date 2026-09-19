@@ -1,11 +1,11 @@
 ---
 title: The roaring containers get an optional Vector API provider, fused word kernels and a CRoaring-style lazy array union; the all-pairs and gather kernels are measured and rejected
 date: 2026-09-19
-updated: 2026-09-19 05:25
+updated: 2026-09-19 12:10
 status: proposed
 kind: optimization
 issues: [1539, 1541, 1542, 1543, 1544]
-prs: []
+prs: [1608]
 areas: [evita_roaring_bitmap, evita_engine/core, evita_test/evita_performance_tests, pom.xml, docker]
 supersedes: []
 superseded-by: []
