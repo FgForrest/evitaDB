@@ -1290,9 +1290,16 @@ public class PersistentRoaringBitmap
 
 	/**
 	 * Lazy union of two already-lazy operands, used internally by {@link FastAggregation} while
-	 * folding many bitmaps. Chunks unique to one side are adopted **by reference without raising
-	 * copy-on-write flags**, so both inputs are effectively consumed: they MUST NOT be reused, and the
-	 * result MUST be passed through {@link #repairAfterLazy()} before use.
+	 * folding many bitmaps. Chunks unique to one side are adopted **by reference**, so both inputs are
+	 * effectively consumed: they MUST NOT be reused, and the result MUST be passed through
+	 * {@link #repairAfterLazy()} before use.
+	 *
+	 * Being consumed is not the same as owning everything, which is the subtlety this method has to
+	 * respect. A lazy operand is itself built by {@link #lazyor(PersistentRoaringBitmap)} and friends,
+	 * and those BORROW chunks from bitmaps that are not consumed at all — a third bitmap that is still
+	 * very much alive. Such a chunk therefore carries its {@link #shared} flag across into the answer,
+	 * and an accumulator carrying one is cloned before {@link Container#lazyIOR(Container)} writes
+	 * through it. Only chunks the operands genuinely owned come out of here owned.
 	 *
 	 * @param x1 first (lazy) bitmap, consumed by this call
 	 * @param x2 other (lazy) bitmap, consumed by this call
@@ -1304,6 +1311,9 @@ public class PersistentRoaringBitmap
 		final PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
 		int pos1 = 0, pos2 = 0;
 		final int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
+		// a consumed input may itself be holding chunks BORROWED from a third bitmap; those keep
+		// their co-ownership as they pass through, so the answer never mutates a live container
+		final boolean[] resultShared = new boolean[length1 + length2];
 		main:
 		if (pos1 < length1 && pos2 < length2) {
 			char s1 = x1.highLowContainer.getKeyAtIndex(pos1);
@@ -1313,12 +1323,17 @@ public class PersistentRoaringBitmap
 				if (s1 == s2) {
 					Container c1 = x1.highLowContainer.getContainerAtIndex(pos1);
 					Container c2 = x2.highLowContainer.getContainerAtIndex(pos2);
+					boolean accumulatorShared = x1.isShared(pos1);
 					if ((c2 instanceof BitmapContainer) && (!(c1 instanceof BitmapContainer))) {
 						Container tmp = c1;
 						c1 = c2;
 						c2 = tmp;
+						accumulatorShared = x2.isShared(pos2);
 					}
-					answer.highLowContainer.append(s1, c1.lazyIOR(c2));
+					// lazyIOR writes through the accumulator, so a co-owned one is cloned first; the
+					// merged chunk is then privately owned and its flag stays false
+					answer.highLowContainer.append(
+						s1, (accumulatorShared ? c1.clone() : c1).lazyIOR(c2));
 					pos1++;
 					pos2++;
 					if ((pos1 == length1) || (pos2 == length2)) {
@@ -1329,6 +1344,7 @@ public class PersistentRoaringBitmap
 				} else if (s1 < s2) {
 					Container c1 = x1.highLowContainer.getContainerAtIndex(pos1);
 					answer.highLowContainer.append(s1, c1);
+					resultShared[answer.highLowContainer.size() - 1] = x1.isShared(pos1);
 					pos1++;
 					if (pos1 == length1) {
 						break main;
@@ -1337,6 +1353,7 @@ public class PersistentRoaringBitmap
 				} else {
 					Container c2 = x2.highLowContainer.getContainerAtIndex(pos2);
 					answer.highLowContainer.append(s2, c2);
+					resultShared[answer.highLowContainer.size() - 1] = x2.isShared(pos2);
 					pos2++;
 					if (pos2 == length2) {
 						break main;
@@ -1346,10 +1363,11 @@ public class PersistentRoaringBitmap
 			}
 		}
 		if (pos1 == length1) {
-			answer.highLowContainer.append(x2.highLowContainer, pos2, length2);
+			appendConsumedTail(answer, resultShared, x2, pos2, length2);
 		} else if (pos2 == length2) {
-			answer.highLowContainer.append(x1.highLowContainer, pos1, length1);
+			appendConsumedTail(answer, resultShared, x1, pos1, length1);
 		}
+		answer.shared = resultShared;
 		return answer;
 	}
 
@@ -1419,6 +1437,38 @@ public class PersistentRoaringBitmap
 	private static void flagLentLast(
 		@Nonnull final RoaringArray answer, @Nonnull final boolean[] resultShared) {
 		resultShared[answer.size() - 1] = true;
+	}
+
+	/**
+	 * Appends the chunks `src` holds in `[from, to)` to a result being built out of **consumed**
+	 * operands, carrying each slot's co-ownership flag across rather than asserting one. An empty
+	 * range is a no-op.
+	 *
+	 * Distinct from {@link #appendLentRange} because the two answer different questions. That one
+	 * lends from an operand the caller keeps, so every destination slot is co-owned by definition;
+	 * this one drains an operand nobody will touch again, so a slot is co-owned only if the operand
+	 * had itself borrowed it from a third bitmap. Asserting `true` here would cost a clone on the
+	 * first write to chunks the answer owns outright, and writing `false` would hand the answer a
+	 * container a live bitmap still holds.
+	 *
+	 * @param answer       the result being built
+	 * @param resultShared the result's copy-on-write flags, parallel to its container array
+	 * @param src          the consumed operand handing over the chunks
+	 * @param from         first handed-over slot in `src` (inclusive)
+	 * @param to           end slot in `src` (exclusive)
+	 */
+	private static void appendConsumedTail(
+		@Nonnull final PersistentRoaringBitmap answer, @Nonnull final boolean[] resultShared,
+		@Nonnull final PersistentRoaringBitmap src, final int from, final int to
+	) {
+		if (to <= from) {
+			return;
+		}
+		final int at = answer.highLowContainer.size();
+		answer.highLowContainer.append(src.highLowContainer, from, to);
+		for (int i = from; i < to; i++) {
+			resultShared[at + i - from] = src.isShared(i);
+		}
 	}
 
 	/**
