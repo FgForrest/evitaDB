@@ -3,6 +3,7 @@ package io.evitadb.roaringbitmap;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.roaringbitmap.SeededTestData.denseRegion;
 import static io.evitadb.roaringbitmap.SeededTestData.rleRegion;
@@ -27,6 +28,55 @@ import java.util.stream.Stream;
 @Execution(ExecutionMode.CONCURRENT)
 @DisplayName("Util (low-level helpers)")
 public class TestUtil {
+
+	@Test
+	@DisplayName("Every extraction helper rejects two word arrays of different lengths")
+	public void fillArrayHelpersRejectMismatchedWordArrays() {
+		// the kernels these methods delegate to read exactly `bitmap1.length` words and index the second
+		// array over that whole range, so this guard is the only thing standing between a mismatched pair and
+		// an ArrayIndexOutOfBoundsException. No container operator can present one, which is why the guard has
+		// no other witness - the delegation moved the rest of these methods' bodies out of reach
+		final char[] container = new char[64];
+		final long[] shorter = new long[2];
+		final long[] longer = new long[3];
+
+		assertThrows(
+			IllegalArgumentException.class, () -> Util.fillArrayAND(container, shorter, longer)
+		);
+		assertThrows(
+			IllegalArgumentException.class, () -> Util.fillArrayANDNOT(container, shorter, longer)
+		);
+		assertThrows(
+			IllegalArgumentException.class, () -> Util.fillArrayXOR(container, shorter, longer)
+		);
+		// and the same pair the other way round, so the guard cannot be satisfied by ordering alone
+		assertThrows(
+			IllegalArgumentException.class, () -> Util.fillArrayAND(container, longer, shorter)
+		);
+		assertThrows(
+			IllegalArgumentException.class, () -> Util.fillArrayANDNOT(container, longer, shorter)
+		);
+		assertThrows(
+			IllegalArgumentException.class, () -> Util.fillArrayXOR(container, longer, shorter)
+		);
+		// the two overloads that also take a population count carry their own copy of the guard, and it sits
+		// ahead of the point where that count picks a decoding strategy - so neither a count that would take
+		// the block-skipping path nor one that would take the scalar walk excuses the check
+		assertThrows(
+			IllegalArgumentException.class, () -> Util.fillArrayANDNOT(container, shorter, longer, 0)
+		);
+		assertThrows(
+			IllegalArgumentException.class, () -> Util.fillArrayXOR(container, shorter, longer, 0)
+		);
+		assertThrows(
+			IllegalArgumentException.class,
+			() -> Util.fillArrayANDNOT(container, longer, shorter, BitmapContainer.MAX_CAPACITY)
+		);
+		assertThrows(
+			IllegalArgumentException.class,
+			() -> Util.fillArrayXOR(container, longer, shorter, BitmapContainer.MAX_CAPACITY)
+		);
+	}
 
 	@Test
 	public void testUtilUnsignedIntersection() {

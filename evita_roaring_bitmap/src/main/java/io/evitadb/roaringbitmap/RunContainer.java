@@ -1336,14 +1336,29 @@ public final class RunContainer extends Container implements Cloneable {
 	}
 
 	/**
-	 * Hash derived from the live run pairs; consistent with {@link #equals(Object)} across types.
+	 * Hash derived from the live run pairs, computed from at most the last
+	 * {@link ArrayContainer#HASH_CONTRIBUTING_VALUES} entries of them.
+	 *
+	 * **The value is exactly the one the whole-array loop produced, and must stay that way.** The
+	 * recurrence inherited from upstream RoaringBitmap is written `hash += 31 * hash + entry`, and that
+	 * `+=` makes it `hash = 32 * hash + entry` — base `2^5`. The entry `j` places from the end therefore
+	 * carries the coefficient `2^(5 * j)`, and `2^35 == 0` in 32-bit arithmetic, so every entry further
+	 * back than {@link ArrayContainer#HASH_CONTRIBUTING_VALUES} contributes exactly zero. Starting the same
+	 * loop seven entries from the end is an algebraic identity, not an approximation.
+	 *
+	 * The entries are the interleaved `value, length` pairs of the run list, not the values the container
+	 * holds, so this hash has never agreed with {@link ArrayContainer#hashCode()} for the same set even
+	 * though {@link #equals(Object)} does compare the two across encodings. That is upstream behaviour and
+	 * predates this method being shortened; like the collision property, it belongs in a decision record
+	 * rather than in a performance change.
 	 */
 	@Override
 	// nbrruns and valueslength are mutable by design
 	@SuppressWarnings("NonFinalFieldReferencedInHashCode")
 	public int hashCode() {
+		final int entries = this.nbrruns * 2;
 		int hash = 0;
-		for (int k = 0; k < this.nbrruns * 2; ++k) {
+		for (int k = Math.max(0, entries - ArrayContainer.HASH_CONTRIBUTING_VALUES); k < entries; ++k) {
 			hash += 31 * hash + this.valueslength[k];
 		}
 		return hash;
@@ -2116,7 +2131,9 @@ public final class RunContainer extends Container implements Cloneable {
 	@Nonnull
 	private RunContainer lazyandNot(@Nonnull final ArrayContainer x) {
 		if (x.isEmpty()) {
-			return this;
+			// `andNot` is out of place and its caller owns and mutates the result, so the degenerate case
+			// must hand back a private container rather than this receiver
+			return (RunContainer) clone();
 		}
 		RunContainer answer = new RunContainer(new char[2 * (this.nbrruns + x.cardinality)], 0);
 		int rlepos = 0;
@@ -2244,11 +2261,13 @@ public final class RunContainer extends Container implements Cloneable {
 	 */
 	@Nonnull
 	private Container lazyxor(@Nonnull final ArrayContainer x) {
+		// both `xor` and `ixor` route here, and `xor` is out of place: its caller owns the result and
+		// mutates it, so a degenerate case must hand back a private container rather than an operand
 		if (x.isEmpty()) {
-			return this;
+			return clone();
 		}
 		if (this.nbrruns == 0) {
-			return x;
+			return x.clone();
 		}
 		RunContainer answer = new RunContainer(new char[2 * (this.nbrruns + x.getCardinality())], 0);
 		int rlepos = 0;
