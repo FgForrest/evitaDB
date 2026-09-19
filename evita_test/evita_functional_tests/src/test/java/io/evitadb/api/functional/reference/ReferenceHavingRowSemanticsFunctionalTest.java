@@ -30,6 +30,7 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
@@ -550,6 +551,101 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 			matchingProductsByCrossRowCategories(evita, not(attributeEquals(REF_ATTR_MARK, CROSS_ROW_MATCHED_MARK))),
 			"`not` must select the owners holding a `" + REF_PRODUCT_CROSS_ROW_CATEGORIES + "` row that does not " +
 				"carry the mark - never an owner holding no row of that reference at all."
+		);
+	}
+
+	/**
+	 * Absence is an ordinary value, not a third truth value: a row that does not carry the attribute at all
+	 * **satisfies** `not(attributeEquals(a, v))`.
+	 *
+	 * The semantics record states this (`documentation/adr/2026-09-17-row-scoped-reference-having-body/
+	 * row-scoped-semantics.md` section 2) and nothing pinned it. Every other negation row in this suite runs on
+	 * `crossRowCategories`, whose `mark` is set on every row it writes, so "the negation is true of this row"
+	 * has only ever meant "the row carries a different value" - the `⊥` half of the disjunction was never
+	 * exercised. This row uses `categories.refSometimesSet`, which the fixture writes only for products whose
+	 * primary key is divisible by three.
+	 *
+	 * Two readings are distinguished. Under the two-valued rule the engine implements, `att(r, a) = ⊥` makes
+	 * `attributeEquals` false and the negation true. Under the SQL-style three-valued rule, `a = v` is UNKNOWN
+	 * for such a row, `NOT UNKNOWN` is UNKNOWN, and the row drops out. The fixture guard below asserts the two
+	 * answers differ before the query runs, so a green result here cannot be an accident of the data.
+	 *
+	 * The second assertion is identity **I1** from that record - `RH(φ) ∪ RH(¬φ) = RH()` - which is what
+	 * two-valuedness buys and what fails the moment any row evaluates to neither true nor false.
+	 *
+	 * @param evita            the engine
+	 * @param originalProducts all products, fully fetched, as the dataset built them
+	 */
+	@DisplayName("a row lacking the attribute entirely satisfies the negation")
+	@UseDataSet(BIDI_REWRITE)
+	@Test
+	void shouldSatisfyANegatedAttributeWithARowThatDoesNotCarryIt(
+		Evita evita,
+		List<SealedEntity> originalProducts
+	) {
+		final long excludedValue = originalProducts.stream()
+			.flatMap(it -> it.getReferences(REF_PRODUCT_CATEGORIES).stream())
+			.filter(row -> row.getAttributeValue(REF_ATTR_SOMETIMES_SET).isPresent())
+			.mapToLong(row -> (Long) row.getAttributeValue(REF_ATTR_SOMETIMES_SET).orElseThrow().value())
+			.min()
+			.orElseThrow(
+				() -> new IllegalStateException(
+					"Fixture must write `" + REF_ATTR_SOMETIMES_SET + "` on at least one row!"
+				)
+			);
+		final Predicate<ReferenceContract> carriesExcludedValue =
+			row -> longAttributeIs(row, REF_ATTR_SOMETIMES_SET, excludedValue);
+		final Predicate<ReferenceContract> carriesTheAttribute =
+			row -> row.getAttributeValue(REF_ATTR_SOMETIMES_SET).isPresent();
+		// the query runs in the default scope, and products 231-240 are archived - a scope-blind expectation
+		// would charge the engine with dropping them
+		final Predicate<SealedEntity> live = it -> it.getScope() == Scope.LIVE;
+
+		// two-valued: a row satisfies the negation when its value differs OR when it carries no value at all
+		final Set<Integer> expected = originalProducts.stream()
+			.filter(live)
+			.filter(it -> holdsCategoriesRow(it, carriesExcludedValue.negate()))
+			.map(SealedEntity::getPrimaryKey)
+			.collect(Collectors.toCollection(TreeSet::new));
+		// three-valued: only a row that carries some other value satisfies it
+		final Set<Integer> threeValuedReading = originalProducts.stream()
+			.filter(live)
+			.filter(it -> holdsCategoriesRow(it, carriesTheAttribute.and(carriesExcludedValue.negate())))
+			.map(SealedEntity::getPrimaryKey)
+			.collect(Collectors.toCollection(TreeSet::new));
+
+		assertFalse(expected.isEmpty(), "Fixture must contain an owner the negation is true of.");
+		assertNotEquals(
+			threeValuedReading, expected,
+			"Fixture must contain an owner ALL of whose `" + REF_PRODUCT_CATEGORIES + "` rows lack `" +
+				REF_ATTR_SOMETIMES_SET + "`, or the two-valued and three-valued readings coincide and this row " +
+				"proves nothing."
+		);
+
+		final Set<Integer> actual = matchingProducts(
+			evita, not(attributeEquals(REF_ATTR_SOMETIMES_SET, excludedValue))
+		);
+		assertEquals(
+			expected, actual,
+			"A row carrying no `" + REF_ATTR_SOMETIMES_SET + "` at all must satisfy the negation. Treating " +
+				"absence as a third truth value would answer " + threeValuedReading + " instead."
+		);
+
+		// I1: the positive and the negated body together account for every owner holding a row of the reference
+		final Set<Integer> positive = matchingProducts(
+			evita, attributeEquals(REF_ATTR_SOMETIMES_SET, excludedValue)
+		);
+		final Set<Integer> union = new TreeSet<>(positive);
+		union.addAll(actual);
+		final Set<Integer> holdingAnyRow = originalProducts.stream()
+			.filter(live)
+			.filter(it -> !it.getReferences(REF_PRODUCT_CATEGORIES).isEmpty())
+			.map(SealedEntity::getPrimaryKey)
+			.collect(Collectors.toCollection(TreeSet::new));
+		assertEquals(
+			holdingAnyRow, union,
+			"`RH(x) ∪ RH(not(x))` must account for every owner holding a `" + REF_PRODUCT_CATEGORIES + "` row - " +
+				"an owner missing from both would be one whose row evaluated to neither true nor false."
 		);
 	}
 
@@ -1449,6 +1545,20 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 		@Nonnull Predicate<ReferenceContract> rowPredicate
 	) {
 		return product.getReferences(REF_PRODUCT_CROSS_ROW_CATEGORIES).stream().anyMatch(rowPredicate);
+	}
+
+	/**
+	 * Answers whether the product holds a `categories` row satisfying the predicate.
+	 *
+	 * @param product      product to examine
+	 * @param rowPredicate predicate the row must satisfy
+	 * @return true when such a row exists
+	 */
+	private static boolean holdsCategoriesRow(
+		@Nonnull SealedEntity product,
+		@Nonnull Predicate<ReferenceContract> rowPredicate
+	) {
+		return product.getReferences(REF_PRODUCT_CATEGORIES).stream().anyMatch(rowPredicate);
 	}
 
 	/**
