@@ -28,7 +28,8 @@ import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
-import lombok.Data;
+import lombok.AccessLevel;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.util.Collections;
@@ -44,9 +45,15 @@ import java.util.stream.Stream;
  * The disjunction of all {@link EntityIndex#getAllPrimaryKeys()} would produce the correct result for passed query
  * if there are no other constraints in the input query.
  *
+ * Only accessors are generated, deliberately. A setter for {@link #indexes} would let the resolved list disagree
+ * with {@link #indexCount}, which {@link #isEmpty()} and {@link #isCatalogIndex()} answer from without resolving.
+ * Generated equality would span both the lazily memoized {@link #indexes} - so the hash code would change on the
+ * first {@link #getIndexes()} - and the per-instance {@link #indexSupplier} lambda, which never compares equal to
+ * another. Nothing compares these sets: they are looked up by constraint identity, not by value.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Data
+@Getter
 public class TargetIndexes<T extends Index<?>> {
 	public static final TargetIndexes<GlobalEntityIndex> EMPTY = new TargetIndexes<>("EMPTY", GlobalEntityIndex.class, Collections.emptyList());
 	/**
@@ -78,7 +85,11 @@ public class TargetIndexes<T extends Index<?>> {
 	 * over the already-computed candidate primary keys and an accessor, both immutable, and every consumer that
 	 * does need the objects still gets exactly the same list it would have got before. What it avoids is
 	 * building that list for a candidate nobody consults.
+	 *
+	 * No accessor is generated for it: handing the supplier out would let a caller resolve the indexes past
+	 * the memoization in {@link #getIndexes()} and pay the whole cost a second time.
 	 */
+	@Getter(AccessLevel.NONE)
 	private final Supplier<List<T>> indexSupplier;
 	/**
 	 * How many indexes this set holds, known without resolving them.
@@ -259,6 +270,11 @@ public class TargetIndexes<T extends Index<?>> {
 		/**
 		 * Indicates that the index cardinality is too high to be worth considering. Because we need to collect all
 		 * the data from the indexes, we require that the sum of the index cardinalities is lesser than 50%.
+		 *
+		 * It is also raised from the candidate count alone, without summing anything - the count is a lower bound
+		 * on that sum, so a count already over the limit settles the question. The converse does not hold: when a
+		 * reference is rejected on its schema the sum is never computed, so this obstacle appears next to
+		 * {@link #NOT_PARTITIONED_INDEX} only where the count alone decided it.
 		 */
 		HIGH_CARDINALITY
 

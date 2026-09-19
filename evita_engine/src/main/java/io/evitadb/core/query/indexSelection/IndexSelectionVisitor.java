@@ -221,6 +221,9 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 							});
 						}
 					}
+					final long cardinalityLimit = (long) this.mainIndexCardinality / 2;
+					final boolean partitioned = allIndexesArePartitioned(scopes, referenceSchema);
+					final boolean withinCardinalityLimit = cardinalityCounter.get() <= cardinalityLimit;
 					// add indexes as potential target indexes
 					this.targetIndexes.add(
 						new TargetIndexes<>(
@@ -230,8 +233,8 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 							ReducedEntityIndex.class,
 							theTargetIndexes,
 							Stream.of(
-									allIndexesArePartitioned(scopes, referenceSchema) ? null : EligibilityObstacle.NOT_PARTITIONED_INDEX,
-									cardinalityCounter.get() <= (long) this.mainIndexCardinality / 2 ? null : EligibilityObstacle.HIGH_CARDINALITY
+									partitioned ? null : EligibilityObstacle.NOT_PARTITIONED_INDEX,
+									withinCardinalityLimit ? null : EligibilityObstacle.HIGH_CARDINALITY
 								)
 								.filter(Objects::nonNull)
 								.toArray(EligibilityObstacle[]::new)
@@ -285,11 +288,16 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 			// catastrophic plan this check exists to prevent.
 			final long cardinalityLimit = (long) this.mainIndexCardinality / 2;
 			final boolean partitioned = allIndexesArePartitioned(scopes, referenceSchema);
-			// the candidate count is a sound lower bound on that sum: every advertised partition holds at least
-			// one owner, because `ReferenceIndexMutator#referenceRemovalPerComponent` un-advertises a partition
-			// in the same synchronous step in which its last owner leaves. So a count already over the limit
-			// settles HIGH_CARDINALITY without resolving anything - which is what keeps the obstacle reported
-			// for a reference that is rejected on its schema before the sum is ever computed.
+			// the candidate count is a sound lower bound on that sum in every state the mutator produces: it
+			// un-advertises a partition in the same synchronous step in which its last owner leaves
+			// (`ReferenceIndexMutator#referenceRemovalPerComponent`), so an advertised partition has an owner.
+			// The load path is the only caller that could present one holding nobody, which
+			// `ReducedIndexMembership#registerIndex` accounts for rather than refuses; were such a partition to
+			// reach here the count would overstate the sum and raise HIGH_CARDINALITY where the exact sum would
+			// not - dropping the alternative plan, which costs a slower query and never a different answer.
+			// So a count already over the limit settles HIGH_CARDINALITY without resolving anything - which is
+			// what keeps the obstacle reported for a reference that is rejected on its schema before the sum is
+			// ever computed.
 			final boolean countSettlesCardinality = candidateCount > cardinalityLimit;
 			if (!partitioned || countSettlesCardinality) {
 				// every obstacle is decided from the schema and the candidate count alone, so the partitions stay

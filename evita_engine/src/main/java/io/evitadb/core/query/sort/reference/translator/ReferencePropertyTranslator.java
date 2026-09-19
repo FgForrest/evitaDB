@@ -25,7 +25,10 @@ package io.evitadb.core.query.sort.reference.translator;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
+import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.filter.HierarchyFilterConstraint;
+import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.order.EntityPrimaryKeyNatural;
 import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderDirection;
@@ -47,9 +50,6 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.indexSelection.IndexSelectionVisitor;
-import io.evitadb.api.query.FilterConstraint;
-import io.evitadb.api.query.filter.HierarchyFilterConstraint;
-import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.core.query.sort.OrderByVisitor;
@@ -137,9 +137,12 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	 * Tells whether the constraint a {@link TargetIndexes} was built for targets the passed reference.
 	 *
 	 * Used as a cheap pre-filter for the index-set lookup above: it answers from the constraint alone, so a
-	 * candidate belonging to a different reference is skipped without its indexes ever being resolved. It is
-	 * only a filter - the caller still confirms the reference against the resolved indexes themselves, so a
-	 * constraint shape not recognised here costs a missed shortcut rather than a wrong index set.
+	 * candidate belonging to a different reference is skipped without its indexes ever being resolved.
+	 *
+	 * It is AND-ed with the discriminator check below rather than refined by it, so a constraint shape not
+	 * recognised here skips the candidate outright and {@link #selectReducedEntityIndexSet} finds nothing. What
+	 * keeps that from changing the rows is the caller's fallback to {@link #selectFullEntityIndexSet}, which
+	 * answers the same query from the unreduced indexes - so the cost is a slower sort, not a wrong index set.
 	 *
 	 * @param representedConstraint the constraint the index set answers, `null` for sets built without one
 	 * @param referenceName         the reference being ordered by

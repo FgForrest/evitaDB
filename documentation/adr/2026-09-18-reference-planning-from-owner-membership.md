@@ -1,7 +1,7 @@
 ---
 title: Answer reference-planning cardinality from the owner→partition map, widened and retuned to 64
 date: 2026-09-18
-updated: 2026-09-18 21:30
+updated: 2026-09-18 22:10
 status: partially-implemented
 kind: optimization
 issues: [1585, 1603]
@@ -128,10 +128,19 @@ option C wins if a consumer needs the partition set rather than its size.
   threshold buys a bigger map, not a slower write.
 - **The eligibility test is a comparison, not a total.** `IndexSelectionVisitor:285` compares the summed owner
   counts against `mainIndexCardinality / 2`, so a sound lower bound settles it whenever the bound already
-  exceeds the limit. The bound actually used is the **candidate count**: an advertised partition always holds
-  at least one owner, because `ReferenceIndexMutator#referenceRemovalPerComponent` un-advertises it in the same
-  synchronous step in which its last owner leaves (`ReducedIndexMembership:356-369` states this and calls the
-  zero-owner arm dead).
+  exceeds the limit. The bound actually used is the **candidate count**: in every state the mutator produces,
+  an advertised partition holds at least one owner, because `ReferenceIndexMutator#referenceRemovalPerComponent`
+  un-advertises it in the same synchronous step in which its last owner leaves — `ReducedIndexMembership:356-369`
+  states this and calls the zero-owner arm dead, while still *accounting* for it because the load path could
+  present one. Were such a partition ever to reach the planner the count would overstate the sum and raise
+  `HIGH_CARDINALITY` where the exact sum would not: the alternative plan is dropped, which costs latency and
+  never rows.
+- **The obstacle set now reports what was decided, not what is true.** Deciding from the schema first means the
+  sum is never computed for a reference that is not partitioned, so `HIGH_CARDINALITY` no longer appears beside
+  `NOT_PARTITIONED_INDEX` in `queryTelemetry()` for those references — the plan is identical, the diagnostic
+  string is shorter. Nothing outside the tests reads it (no API surface or user doc carries the name), and
+  `ReferenceIndexSelectionFunctionalTest#sumExceedsTheLimitButCountDoesNot` pins the absence, so restoring the
+  eager sum to "fix" the telemetry fails that test rather than silently reverting the optimization.
 - **Correction to an earlier draft of this record.** It claimed the bound could come from the map, as "covered
   rows are exact and every residual partition holds more than `T/2` owners". The **residual half is false**:
   `ReducedIndexMembership:233-245` says membership of that set is not a size predicate — a slice seeded by
