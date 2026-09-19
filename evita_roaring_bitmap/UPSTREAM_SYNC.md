@@ -101,6 +101,16 @@ whose loops are those loops) **and** in `VectorBitmapKernels`, not in the contai
 edit to the surrounding logic — a demotion threshold, a `RunContainer.full()` promotion, a lazy-cardinality
 branch, the length check `fillArrayAND` throws on — still lands where it always did.
 
+**The extraction kernels are density-gated, and every kernel signature carrying a trailing `cardinality` is
+evita's.** `extract` (both forms), `extractAndNot` and `extractXor` have a second overload taking the
+population count the caller already knows; `VectorBitmapKernels` skips empty blocks only up to
+`SPARSE_EXTRACTION_BOUND` (512) and runs the scalar walk above it, because the skip was measured at 1.2x the
+scalar walk with 256 values set and 0.50x with 1024. `Util.fillArray` / `fillArrayANDNOT` / `fillArrayXOR`
+mirror the overload, `BitmapContainer`'s demotion sites and `fillLeastSignificant16bits` and
+`ArrayContainer.loadData` pass the count they hold, and the hint-less forms keep the unconditional skip for
+the caller that cannot count (a lazy container). An upstream edit to any of those call sites lands on
+whichever overload the site already uses; the hint never changes the values written.
+
 **Four vector kernels are deliberately delegated to the scalar ones.** `VectorBitmapKernels`'
 `andCardinality` / `orCardinality` / `xorCardinality` / `andNotCardinality` call `ScalarBitmapKernels`,
 because JMH measured the lane version at 0.83-0.90x of the auto-vectorized scalar reduction. They are

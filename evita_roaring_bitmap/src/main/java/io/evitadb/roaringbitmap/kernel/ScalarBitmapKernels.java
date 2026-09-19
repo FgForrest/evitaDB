@@ -21,7 +21,9 @@ import javax.annotation.Nonnull;
  *
  * The extraction kernels are the `tzcnt`/`blsr` loops the module has always decoded set bits with: read a
  * word, emit the position of its lowest set bit, clear that bit, repeat. They are reproduced here verbatim
- * rather than delegated to `Util`, because `Util` is the caller.
+ * rather than delegated to `Util`, because `Util` is the caller. The walk costs one step per set bit and
+ * nothing per empty word, so it has no density preference to express — every hinted extraction overload
+ * here therefore drops the hint and runs the same loop.
  *
  * Stateless and therefore safe to share: {@link #INSTANCE} is the only instance anyone needs.
  */
@@ -135,6 +137,15 @@ public final class ScalarBitmapKernels implements BitmapKernels {
 		return pos;
 	}
 
+	/**
+	 * The density hint is ignored: there is only one scalar walk, and it costs the same whatever the word
+	 * array holds. Overridden rather than defaulted so that this class stays the complete reference.
+	 */
+	@Override
+	public int extract(@Nonnull final long[] words, @Nonnull final char[] out, final int cardinality) {
+		return extract(words, out);
+	}
+
 	@Override
 	public int extract(
 		@Nonnull final long[] words,
@@ -153,6 +164,20 @@ public final class ScalarBitmapKernels implements BitmapKernels {
 			wordBase += 64;
 		}
 		return pos - outOffset;
+	}
+
+	/**
+	 * The density hint is ignored; see {@link #extract(long[], char[], int)}.
+	 */
+	@Override
+	public int extract(
+		@Nonnull final long[] words,
+		@Nonnull final int[] out,
+		final int outOffset,
+		final int base,
+		final int cardinality
+	) {
+		return extract(words, out, outOffset, base);
 	}
 
 	@Override
@@ -185,6 +210,19 @@ public final class ScalarBitmapKernels implements BitmapKernels {
 		return pos;
 	}
 
+	/**
+	 * The density hint is ignored; see {@link #extract(long[], char[], int)}.
+	 */
+	@Override
+	public int extractAndNot(
+		@Nonnull final long[] a,
+		@Nonnull final long[] b,
+		@Nonnull final char[] out,
+		final int cardinality
+	) {
+		return extractAndNot(a, b, out);
+	}
+
 	@Override
 	public int extractXor(@Nonnull final long[] a, @Nonnull final long[] b, @Nonnull final char[] out) {
 		int pos = 0;
@@ -198,6 +236,19 @@ public final class ScalarBitmapKernels implements BitmapKernels {
 			base += 64;
 		}
 		return pos;
+	}
+
+	/**
+	 * The density hint is ignored; see {@link #extract(long[], char[], int)}.
+	 */
+	@Override
+	public int extractXor(
+		@Nonnull final long[] a,
+		@Nonnull final long[] b,
+		@Nonnull final char[] out,
+		final int cardinality
+	) {
+		return extractXor(a, b, out);
 	}
 
 	@Override

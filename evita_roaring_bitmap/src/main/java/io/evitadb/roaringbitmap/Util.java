@@ -248,6 +248,29 @@ public final class Util {
 	}
 
 	/**
+	 * {@link #fillArrayANDNOT(char[], long[], long[])} for a caller that already counted the difference,
+	 * which lets the kernel pick a decoding strategy suited to the density; see
+	 * {@link #fillArray(long[], char[], int)} for what the count buys and what it costs to get wrong.
+	 *
+	 * @param container   output array receiving the set-bit positions, filled from index `0`
+	 * @param bitmap1     first word array
+	 * @param bitmap2     second word array (must have the same length as `bitmap1`)
+	 * @param cardinality number of set bits the caller expects the difference to hold
+	 * @throws IllegalArgumentException if the two word arrays differ in length
+	 */
+	public static void fillArrayANDNOT(
+		@Nonnull final char[] container,
+		@Nonnull final long[] bitmap1,
+		@Nonnull final long[] bitmap2,
+		final int cardinality
+	) {
+		if (bitmap1.length != bitmap2.length) {
+			throw new IllegalArgumentException("not supported");
+		}
+		VectorKernels.BITMAP.extractAndNot(bitmap1, bitmap2, container, cardinality);
+	}
+
+	/**
 	 * Decodes the positions of the bits set in `bitmap1 XOR bitmap2` (values in exactly one of the
 	 * two word arrays) into `container` in ascending order, each position emitted as its low 16-bit
 	 * `char`. `container` must hold the symmetric-difference cardinality.
@@ -267,6 +290,29 @@ public final class Util {
 			throw new IllegalArgumentException("not supported");
 		}
 		VectorKernels.BITMAP.extractXor(bitmap1, bitmap2, container);
+	}
+
+	/**
+	 * {@link #fillArrayXOR(char[], long[], long[])} for a caller that already counted the symmetric
+	 * difference, which lets the kernel pick a decoding strategy suited to the density; see
+	 * {@link #fillArray(long[], char[], int)} for what the count buys and what it costs to get wrong.
+	 *
+	 * @param container   output array receiving the set-bit positions, filled from index `0`
+	 * @param bitmap1     first word array
+	 * @param bitmap2     second word array (must have the same length as `bitmap1`)
+	 * @param cardinality number of set bits the caller expects the symmetric difference to hold
+	 * @throws IllegalArgumentException if the two word arrays differ in length
+	 */
+	public static void fillArrayXOR(
+		@Nonnull final char[] container,
+		@Nonnull final long[] bitmap1,
+		@Nonnull final long[] bitmap2,
+		final int cardinality
+	) {
+		if (bitmap1.length != bitmap2.length) {
+			throw new IllegalArgumentException("not supported");
+		}
+		VectorKernels.BITMAP.extractXor(bitmap1, bitmap2, container, cardinality);
 	}
 
 	/**
@@ -1074,11 +1120,34 @@ public final class Util {
 	 * {@link io.evitadb.roaringbitmap.kernel.BitmapKernels}, which skips whole blocks of empty words where
 	 * the provider selected a vector implementation.
 	 *
+	 * **Announcing no cardinality reads as announcing a sparse one**, so the empty-block skip is taken
+	 * unconditionally here. That is the right default for the caller that cannot count — a lazily-counted
+	 * container is a repaired union bitmap, which is the shape the skip was written for. A caller that does
+	 * know the count should say so through {@link #fillArray(long[], char[], int)} instead, because above a
+	 * few hundred values the skip becomes a loss.
+	 *
 	 * @param bitmap source word array representing a bitset
 	 * @param array  output array receiving the set-bit positions, filled from index `0`
 	 */
 	public static void fillArray(@Nonnull final long[] bitmap, @Nonnull final char[] array) {
 		VectorKernels.BITMAP.extract(bitmap, array);
+	}
+
+	/**
+	 * {@link #fillArray(long[], char[])} for a caller that already knows the bitmap's population count,
+	 * which lets the kernel pick a decoding strategy suited to the density — block skipping pays on a
+	 * sparse word array and costs on a dense one.
+	 *
+	 * The values written are the same either way; the count is advisory and a wrong one costs only speed.
+	 * The overload without it announces nothing, and is read as a sparse container.
+	 *
+	 * @param bitmap      source word array representing a bitset
+	 * @param array       output array receiving the set-bit positions, filled from index `0`
+	 * @param cardinality number of set bits the caller expects `bitmap` to hold
+	 */
+	public static void fillArray(
+		@Nonnull final long[] bitmap, @Nonnull final char[] array, final int cardinality) {
+		VectorKernels.BITMAP.extract(bitmap, array, cardinality);
 	}
 
 	/**

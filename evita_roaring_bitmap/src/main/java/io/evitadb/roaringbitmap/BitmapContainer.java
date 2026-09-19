@@ -236,7 +236,7 @@ public final class BitmapContainer extends Container implements Cloneable {
 			return answer;
 		}
 		final ArrayContainer ac = new ArrayContainer(answer.cardinality);
-		Util.fillArray(answer.bitmap, ac.content);
+		Util.fillArray(answer.bitmap, ac.content, answer.cardinality);
 		ac.cardinality = answer.cardinality;
 		return ac;
 	}
@@ -344,7 +344,7 @@ public final class BitmapContainer extends Container implements Cloneable {
 			return answer;
 		}
 		ArrayContainer ac = new ArrayContainer(newCardinality);
-		Util.fillArrayANDNOT(ac.content, this.bitmap, value2.bitmap);
+		Util.fillArrayANDNOT(ac.content, this.bitmap, value2.bitmap, newCardinality);
 		ac.cardinality = newCardinality;
 		return ac;
 	}
@@ -626,7 +626,9 @@ public final class BitmapContainer extends Container implements Cloneable {
 	 *
 	 * This is the uncapped extraction site — {@link PersistentRoaringBitmap#toArray()} reaches it once per
 	 * dense chunk with no cardinality ceiling — and it runs on the `extract` kernel of
-	 * {@link io.evitadb.roaringbitmap.kernel.BitmapKernels}.
+	 * {@link io.evitadb.roaringbitmap.kernel.BitmapKernels}. It is therefore also the site where
+	 * announcing the density matters most: a saturated chunk carries 65,536 values, and the kernel's
+	 * empty-block skip is a loss at that count.
 	 *
 	 * @param x    destination array (must have room for {@link #cardinality} entries from `i`)
 	 * @param i    first write position in `x`
@@ -634,7 +636,12 @@ public final class BitmapContainer extends Container implements Cloneable {
 	 */
 	@Override
 	public void fillLeastSignificant16bits(@Nonnull final int[] x, final int i, final int mask) {
-		VectorKernels.BITMAP.extract(this.bitmap, x, i, mask);
+		if (this.cardinality == -1) {
+			// a lazy container does not maintain its population count, so there is no density to announce
+			VectorKernels.BITMAP.extract(this.bitmap, x, i, mask);
+		} else {
+			VectorKernels.BITMAP.extract(this.bitmap, x, i, mask, this.cardinality);
+		}
 	}
 
 	/**
@@ -828,7 +835,7 @@ public final class BitmapContainer extends Container implements Cloneable {
 				return this;
 			}
 			final ArrayContainer ac = new ArrayContainer(this.cardinality);
-			Util.fillArray(this.bitmap, ac.content);
+			Util.fillArray(this.bitmap, ac.content, this.cardinality);
 			ac.cardinality = this.cardinality;
 			return ac;
 		}
@@ -929,7 +936,7 @@ public final class BitmapContainer extends Container implements Cloneable {
 			return this;
 		}
 		final ArrayContainer ac = new ArrayContainer(this.cardinality);
-		Util.fillArray(this.bitmap, ac.content);
+		Util.fillArray(this.bitmap, ac.content, this.cardinality);
 		ac.cardinality = this.cardinality;
 		return ac;
 	}
@@ -2041,7 +2048,7 @@ public final class BitmapContainer extends Container implements Cloneable {
 			return answer;
 		}
 		ArrayContainer ac = new ArrayContainer(newCardinality);
-		Util.fillArrayXOR(ac.content, this.bitmap, value2.bitmap);
+		Util.fillArrayXOR(ac.content, this.bitmap, value2.bitmap, newCardinality);
 		ac.cardinality = newCardinality;
 		return ac;
 	}

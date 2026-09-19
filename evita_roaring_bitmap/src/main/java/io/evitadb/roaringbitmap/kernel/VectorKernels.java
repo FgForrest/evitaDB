@@ -460,7 +460,9 @@ public final class VectorKernels {
 	 * all-ones and two pseudo-random word arrays, in every ordered pair — plus a set of bit ranges that
 	 * covers the empty, single-word, word-aligned and straddling cases, and the three aliasings a container
 	 * operator can present to a fused kernel (a separate destination, the destination being the first
-	 * operand, and both operands and the destination being one and the same array).
+	 * operand, and both operands and the destination being one and the same array). The extraction
+	 * kernels are run in both their hint-less and their hinted form, and the samples span both sides of
+	 * any plausible density bound, so a gated implementation has both of its branches checked here.
 	 *
 	 * This is insurance against a mis-intrinsified operation on a CPU that was never tested here: the cost
 	 * is a few microseconds once per JVM, and the alternative is silently wrong cardinalities.
@@ -511,6 +513,24 @@ public final class VectorKernels {
 				)) {
 				return "extract(int[])";
 			}
+			// the hinted overloads, through which an implementation may pick a strategy from the announced
+			// density; the sample set spans both sides of any plausible bound (the empty and sparse samples
+			// below it, the all-ones and dense ones at 65536 and ~32768 values above it), so both branches
+			// run before the first container operation does
+			final int hintedCount = candidate.extract(a, actualValues, expectedCount);
+			if (expectedCount != hintedCount
+				|| !Arrays.equals(expectedValues, 0, expectedCount, actualValues, 0, hintedCount)) {
+				return "extract(hinted)";
+			}
+			final int hintedWideCount = candidate.extract(
+				a, actualWideValues, 1, SELF_TEST_EXTRACT_BASE, expectedWideCount
+			);
+			if (expectedWideCount != hintedWideCount
+				|| !Arrays.equals(
+					expectedWideValues, 1, 1 + expectedWideCount, actualWideValues, 1, 1 + hintedWideCount
+				)) {
+				return "extract(int[], hinted)";
+			}
 			for (int j = 0; j < samples.length; j++) {
 				final String mismatch = selfTestPair(
 					candidate, reference, a, samples[j], expectedValues, actualValues
@@ -529,7 +549,7 @@ public final class VectorKernels {
 	}
 
 	/**
-	 * Runs the eight two-operand kernels for one ordered pair of samples, in all three destination aliasings.
+	 * Runs the ten two-operand kernels for one ordered pair of samples, in all three destination aliasings.
 	 *
 	 * @param candidate      the vector implementation under test
 	 * @param reference      the scalar implementation it must agree with
@@ -555,6 +575,20 @@ public final class VectorKernels {
 				|| !Arrays.equals(expectedValues, 0, expectedCount, actualValues, 0, actualCount)) {
 				return EXTRACT_KERNEL_NAMES[operation];
 			}
+		}
+		// the two hinted two-operand overloads, for the same reason the single-operand ones are checked
+		// above: the pair set spans both densities, so each of their branches runs at class-init
+		final int expectedAndNot = reference.extractAndNot(a, b, expectedValues);
+		final int hintedAndNot = candidate.extractAndNot(a, b, actualValues, expectedAndNot);
+		if (expectedAndNot != hintedAndNot
+			|| !Arrays.equals(expectedValues, 0, expectedAndNot, actualValues, 0, hintedAndNot)) {
+			return "extractAndNot(hinted)";
+		}
+		final int expectedXor = reference.extractXor(a, b, expectedValues);
+		final int hintedXor = candidate.extractXor(a, b, actualValues, expectedXor);
+		if (expectedXor != hintedXor
+			|| !Arrays.equals(expectedValues, 0, expectedXor, actualValues, 0, hintedXor)) {
+			return "extractXor(hinted)";
 		}
 		if (candidate.andCardinality(a, b) != reference.andCardinality(a, b)) {
 			return "andCardinality";

@@ -1194,10 +1194,14 @@ public final class ArrayContainer extends Container implements Cloneable {
 	 * Fills this container from the set bits of a bitmap container, used when demoting a
 	 * {@link BitmapContainer} back to an array. Assumes `content` is already sized to hold the
 	 * bitmap's cardinality.
+	 *
+	 * That cardinality is passed on to the extraction kernel, which is the one thing this site knows and
+	 * the kernel does not: a demotion carries up to {@link #DEFAULT_MAX_SIZE} values, well past the count
+	 * at which skipping empty blocks stops paying for itself.
 	 */
 	void loadData(@Nonnull final BitmapContainer bitmapContainer) {
 		this.cardinality = bitmapContainer.cardinality;
-		Util.fillArray(bitmapContainer.bitmap, this.content);
+		Util.fillArray(bitmapContainer.bitmap, this.content, this.cardinality);
 	}
 
 	/**

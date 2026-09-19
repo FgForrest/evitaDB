@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.Random;
 
@@ -63,6 +64,18 @@ public class VectorKernelsDifferentialTest {
 	 */
 	private static final String[] EXTRACT_NAMES = {"extractAnd", "extractAndNot", "extractXor"};
 	/**
+	 * Cardinalities the density-gated extraction overloads are swept at: the two points the crossover was
+	 * measured between (256, where the vector extraction still wins at 1.2x, and 1024, where it loses at
+	 * 0.50x), the values immediately either side of the bound the gate ships with, the empty and single-bit
+	 * ends, the demotion ceiling a container operator can hand the kernel, and a saturated container.
+	 */
+	private static final int[] GATED_CARDINALITIES = {0, 1, 256, 511, 512, 513, 1024, 4096, 65536};
+	/**
+	 * Hints that do not describe the sample they are passed with, used to pin that the count is advisory:
+	 * a lazy container's `-1`, both ends of the range, and both sides of the bound.
+	 */
+	private static final int[] UNTRUTHFUL_HINTS = {-1, 0, 1, 511, 512, 513, 65536, Integer.MAX_VALUE};
+	/**
 	 * The reference implementation.
 	 */
 	private static final BitmapKernels SCALAR = ScalarBitmapKernels.INSTANCE;
@@ -74,6 +87,11 @@ public class VectorKernelsDifferentialTest {
 	 * The samples, one per seed and density combination, plus the boundary-bit shapes.
 	 */
 	private static long[][] samples;
+	/**
+	 * The cardinality at or below which the vector implementation still skips empty blocks, read from the
+	 * class under test rather than restated here.
+	 */
+	private static int sparseExtractionBound;
 
 	@BeforeAll
 	static void loadVectorKernels() {
@@ -83,6 +101,7 @@ public class VectorKernelsDifferentialTest {
 			"VectorBitmapKernels could not be loaded - the JVM was most likely started without " +
 				"`--add-modules jdk.incubator.vector`, so there is no vector implementation to compare against."
 		);
+		sparseExtractionBound = readSparseExtractionBound();
 		samples = buildSamples();
 	}
 
@@ -573,6 +592,174 @@ public class VectorKernelsDifferentialTest {
 		return built;
 	}
 
+	@Nested
+	@DisplayName("density-gated extraction")
+	class GatedExtraction {
+
+		@Test
+		@DisplayName("the gate sits between the two cardinalities the crossover was measured between")
+		void shouldPlaceTheGateBetweenTheMeasuredCrossovers() {
+			// the vector extraction was measured at 1.2x the scalar walk with 256 values set and at 0.50x
+			// with 1024, so a bound outside that interval is one the measurement does not support: below it
+			// the kernel gives up a win it was shown to have, above it it keeps a loss it was shown to take
+			assertTrue(
+				sparseExtractionBound > 256,
+				"the gate must not give up the 1.2x the vector path still had at 256 values, but is "
+					+ sparseExtractionBound
+			);
+			assertTrue(
+				sparseExtractionBound <= 1024,
+				"the gate must not keep the 0.50x the vector path took at 1024 values, but is "
+					+ sparseExtractionBound
+			);
+		}
+
+		@Test
+		@DisplayName("extract(char[]) decodes the same values on both sides of the gate")
+		void shouldExtractGatedLikeScalar() {
+			final char[] expected = new char[WORDS * 64];
+			final char[] actual = new char[WORDS * 64];
+			for (int c = 0; c < GATED_CARDINALITIES.length; c++) {
+				final int cardinality = GATED_CARDINALITIES[c];
+				final long[] words = wordsWithCardinality(cardinality);
+				assertEquals(cardinality, SCALAR.cardinality(words), "the sample must hold what it announces");
+				final int expectedCount = SCALAR.extract(words, expected);
+				final int actualCount = vector.extract(words, actual, cardinality);
+				assertEquals(expectedCount, actualCount, () -> "count of extract hinted with " + cardinality);
+				assertArrayEquals(
+					Arrays.copyOf(expected, expectedCount), Arrays.copyOf(actual, actualCount),
+					() -> "values of extract hinted with " + cardinality
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("extract(int[]) carries the offset and the base through both sides of the gate")
+		void shouldExtractGatedWithBaseLikeScalar() {
+			final int[] expected = new int[WORDS * 64 + 8];
+			final int[] actual = new int[WORDS * 64 + 8];
+			final int offset = 5;
+			final int base = 7 << 16;
+			for (int c = 0; c < GATED_CARDINALITIES.length; c++) {
+				final int cardinality = GATED_CARDINALITIES[c];
+				final long[] words = wordsWithCardinality(cardinality);
+				final int expectedCount = SCALAR.extract(words, expected, offset, base);
+				final int actualCount = vector.extract(words, actual, offset, base, cardinality);
+				assertEquals(
+					expectedCount, actualCount, () -> "count of extract(int[]) hinted with " + cardinality
+				);
+				assertArrayEquals(
+					Arrays.copyOfRange(expected, offset, offset + expectedCount),
+					Arrays.copyOfRange(actual, offset, offset + actualCount),
+					() -> "values of extract(int[]) hinted with " + cardinality
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("extractAndNot and extractXor decode the same values on both sides of the gate")
+		void shouldExtractGatedCombinationsLikeScalar() {
+			// against an empty second operand both operations reproduce the first one exactly, so the swept
+			// cardinality is also the cardinality of the result the gate is asked about
+			final long[] empty = new long[WORDS];
+			final char[] expected = new char[WORDS * 64];
+			final char[] actual = new char[WORDS * 64];
+			for (int c = 0; c < GATED_CARDINALITIES.length; c++) {
+				final int cardinality = GATED_CARDINALITIES[c];
+				final long[] words = wordsWithCardinality(cardinality);
+				final int expectedAndNot = SCALAR.extractAndNot(words, empty, expected);
+				assertEquals(cardinality, expectedAndNot, "a & ~0 must reproduce a");
+				final int actualAndNot = vector.extractAndNot(words, empty, actual, cardinality);
+				assertEquals(
+					expectedAndNot, actualAndNot, () -> "count of extractAndNot hinted with " + cardinality
+				);
+				assertArrayEquals(
+					Arrays.copyOf(expected, expectedAndNot), Arrays.copyOf(actual, actualAndNot),
+					() -> "values of extractAndNot hinted with " + cardinality
+				);
+				final int expectedXor = SCALAR.extractXor(words, empty, expected);
+				assertEquals(cardinality, expectedXor, "a ^ 0 must reproduce a");
+				final int actualXor = vector.extractXor(words, empty, actual, cardinality);
+				assertEquals(expectedXor, actualXor, () -> "count of extractXor hinted with " + cardinality);
+				assertArrayEquals(
+					Arrays.copyOf(expected, expectedXor), Arrays.copyOf(actual, actualXor),
+					() -> "values of extractXor hinted with " + cardinality
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("every gated overload agrees with the scalar walk on every sample, hinted truthfully")
+		void shouldAgreeOnEverySampleWhenHintedTruthfully() {
+			// the sweep above walks evenly spread bits; this walks the whole sample set, including the
+			// clustered shape whose bits sit in a handful of words while its count is well above the bound
+			final char[] expected = new char[WORDS * 64];
+			final char[] actual = new char[WORDS * 64];
+			for (int i = 0; i < samples.length; i++) {
+				final long[] a = samples[i];
+				final int sample = i;
+				final int count = SCALAR.cardinality(a);
+				final int expectedCount = SCALAR.extract(a, expected);
+				final int actualCount = vector.extract(a, actual, count);
+				assertEquals(expectedCount, actualCount, () -> "count of extract on sample " + sample);
+				assertArrayEquals(
+					Arrays.copyOf(expected, expectedCount), Arrays.copyOf(actual, actualCount),
+					() -> "values of extract on sample " + sample
+				);
+				for (int j = 0; j < samples.length; j++) {
+					final long[] b = samples[j];
+					final int pair = j;
+					final int expectedAndNot = SCALAR.extractAndNot(a, b, expected);
+					final int actualAndNot = vector.extractAndNot(a, b, actual, expectedAndNot);
+					assertEquals(
+						expectedAndNot, actualAndNot,
+						() -> "count of extractAndNot on samples " + sample + " and " + pair
+					);
+					assertArrayEquals(
+						Arrays.copyOf(expected, expectedAndNot), Arrays.copyOf(actual, actualAndNot),
+						() -> "values of extractAndNot on samples " + sample + " and " + pair
+					);
+					final int expectedXor = SCALAR.extractXor(a, b, expected);
+					final int actualXor = vector.extractXor(a, b, actual, expectedXor);
+					assertEquals(
+						expectedXor, actualXor,
+						() -> "count of extractXor on samples " + sample + " and " + pair
+					);
+					assertArrayEquals(
+						Arrays.copyOf(expected, expectedXor), Arrays.copyOf(actual, actualXor),
+						() -> "values of extractXor on samples " + sample + " and " + pair
+					);
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("a hint that does not describe the container changes the path taken and nothing else")
+		void shouldDecodeTheSameValuesWhateverTheHintSays() {
+			// the contract the callers rely on: `fillLeastSignificant16bits` hands a lazy container's `-1`
+			// straight through, and any caller whose bookkeeping drifts must lose speed rather than values
+			final char[] expected = new char[WORDS * 64];
+			final char[] actual = new char[WORDS * 64];
+			for (int i = 0; i < samples.length; i++) {
+				final long[] a = samples[i];
+				final int sample = i;
+				final int expectedCount = SCALAR.extract(a, expected);
+				for (int h = 0; h < UNTRUTHFUL_HINTS.length; h++) {
+					final int hint = UNTRUTHFUL_HINTS[h];
+					final int actualCount = vector.extract(a, actual, hint);
+					assertEquals(
+						expectedCount, actualCount,
+						() -> "count of extract on sample " + sample + " hinted with " + hint
+					);
+					assertArrayEquals(
+						Arrays.copyOf(expected, expectedCount), Arrays.copyOf(actual, actualCount),
+						() -> "values of extract on sample " + sample + " hinted with " + hint
+					);
+				}
+			}
+		}
+	}
+
 	/**
 	 * Invokes one of the four fused kernels by index, so that each aliasing shape is written once rather
 	 * than four times.
@@ -663,6 +850,54 @@ public class VectorKernelsDifferentialTest {
 		} catch (Throwable ignored) {
 			return null;
 		}
+	}
+
+	/**
+	 * Reads the gate constant out of {@link VectorBitmapKernels} reflectively, for the same reason the
+	 * implementation itself is loaded that way — naming the class from here would link it on a JVM that has
+	 * no incubator module. Reading the field rather than referring to it also defeats javac's folding of a
+	 * compile-time constant, so the assertion is made against the value the kernels really run on.
+	 *
+	 * @return the value of the vector implementation's `SPARSE_EXTRACTION_BOUND`
+	 */
+	private static int readSparseExtractionBound() {
+		try {
+			final Field field = Class.forName(
+				"io.evitadb.roaringbitmap.kernel.VectorBitmapKernels",
+				true,
+				VectorKernelsDifferentialTest.class.getClassLoader()
+			).getDeclaredField("SPARSE_EXTRACTION_BOUND");
+			field.setAccessible(true);
+			return field.getInt(null);
+		} catch (Throwable ex) {
+			throw new IllegalStateException(
+				"VectorBitmapKernels loaded but its SPARSE_EXTRACTION_BOUND is not readable", ex
+			);
+		}
+	}
+
+	/**
+	 * Builds a word array holding exactly `cardinality` set bits, spread evenly over the container.
+	 *
+	 * Even spreading is what makes the sweep meaningful: it is the shape in which a count above the gate
+	 * really does leave every block non-empty, which is the assumption the gate is built on. The clustered
+	 * counter-shape — many values inside a few words — is covered by the sample set instead.
+	 *
+	 * @param cardinality number of bits to set, from `0` to a saturated container
+	 * @return a freshly built word array with exactly that many bits set
+	 */
+	@Nonnull
+	private static long[] wordsWithCardinality(final int cardinality) {
+		final long[] words = new long[WORDS];
+		if (cardinality <= 0) {
+			return words;
+		}
+		final int step = (WORDS * 64) / cardinality;
+		for (int i = 0; i < cardinality; i++) {
+			final int bit = i * step;
+			words[bit >>> 6] |= 1L << bit;
+		}
+		return words;
 	}
 
 	/**

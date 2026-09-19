@@ -20,6 +20,18 @@ import javax.annotation.Nonnull;
  * Where the caller has to know the cardinality *before* it can decide which container type to allocate, it
  * calls the matching `...Cardinality` kernel first and the fused kernel afterwards.
  *
+ * **The extraction kernels come in a hint-less and a hinted form, and the hint is purely advisory.** A
+ * caller that already knows how many values it is about to decode passes that count, and an implementation
+ * may use it to pick between two equally correct strategies — block skipping pays on a sparse word array and
+ * costs on a dense one. The hint never changes what is written: both forms decode exactly the set bits, in
+ * the same order, and a wrong hint costs speed and nothing else. The hint-less forms therefore stay
+ * available for the callers that genuinely cannot know (a lazy container carries no population count), and
+ * they behave as if a sparse container had been announced.
+ *
+ * Only the kernels with a counting caller in this module carry a hinted form. `extractAnd` has none,
+ * because the intersection operators fuse the words first and then decode the result through the
+ * single-operand `extract`, so nothing ever reaches `extractAnd` holding a count.
+ *
  * @see ScalarBitmapKernels the reference implementation, and the fallback when no vector one is usable
  * @see VectorKernels the holder that picks between the two
  */
@@ -129,6 +141,22 @@ public interface BitmapKernels {
 	int extract(@Nonnull long[] words, @Nonnull char[] out);
 
 	/**
+	 * {@link #extract(long[], char[])} for a caller that already knows the population count it is about to
+	 * decode, so that an implementation can choose a strategy suited to the density.
+	 *
+	 * The count is advisory: the values written and their order are exactly those of the hint-less form,
+	 * whatever is passed. A count that does not match the word array — a lazy container's `-1`, say — costs
+	 * only the wrong strategy.
+	 *
+	 * @param words       source word array
+	 * @param out         destination, at least as long as the word array's population count, filled from
+	 *                    index `0`
+	 * @param cardinality number of set bits the caller expects `words` to hold
+	 * @return the number of values written, i.e. the population count of `words`
+	 */
+	int extract(@Nonnull long[] words, @Nonnull char[] out, int cardinality);
+
+	/**
 	 * Decodes every set bit of the word array into `out` in ascending order, each bit written as
 	 * `base + 64 * wordIndex + trailingZeros`.
 	 *
@@ -143,6 +171,21 @@ public interface BitmapKernels {
 	 * @return the number of values written, i.e. the population count of `words`
 	 */
 	int extract(@Nonnull long[] words, @Nonnull int[] out, int outOffset, int base);
+
+	/**
+	 * {@link #extract(long[], int[], int, int)} for a caller that already knows the population count it is
+	 * about to decode, so that an implementation can choose a strategy suited to the density.
+	 *
+	 * The count is advisory, exactly as it is for {@link #extract(long[], char[], int)}.
+	 *
+	 * @param words       source word array
+	 * @param out         destination, with room for the population count from `outOffset`
+	 * @param outOffset   first write position in `out`
+	 * @param base        value added to every decoded position
+	 * @param cardinality number of set bits the caller expects `words` to hold
+	 * @return the number of values written, i.e. the population count of `words`
+	 */
+	int extract(@Nonnull long[] words, @Nonnull int[] out, int outOffset, int base, int cardinality);
 
 	/**
 	 * Decodes every set bit of `a & b` into `out` in ascending order, as {@link #extract(long[], char[])}
@@ -167,6 +210,21 @@ public interface BitmapKernels {
 	int extractAndNot(@Nonnull long[] a, @Nonnull long[] b, @Nonnull char[] out);
 
 	/**
+	 * {@link #extractAndNot(long[], long[], char[])} for a caller that already counted the difference — as
+	 * the out-of-place `andNot` operator does, since it has to size the destination container first.
+	 *
+	 * The count is advisory, exactly as it is for {@link #extract(long[], char[], int)}.
+	 *
+	 * @param a           first word array
+	 * @param b           second word array, at least as long as `a`
+	 * @param out         destination, at least as long as the difference's cardinality, filled from index
+	 *                    `0`
+	 * @param cardinality number of set bits the caller expects `a & ~b` to hold
+	 * @return the number of values written
+	 */
+	int extractAndNot(@Nonnull long[] a, @Nonnull long[] b, @Nonnull char[] out, int cardinality);
+
+	/**
 	 * Decodes every set bit of `a ^ b` into `out` in ascending order, without materializing the symmetric
 	 * difference.
 	 *
@@ -177,6 +235,21 @@ public interface BitmapKernels {
 	 * @return the number of values written
 	 */
 	int extractXor(@Nonnull long[] a, @Nonnull long[] b, @Nonnull char[] out);
+
+	/**
+	 * {@link #extractXor(long[], long[], char[])} for a caller that already counted the symmetric
+	 * difference — as the `xor` operator does, since it has to size the destination container first.
+	 *
+	 * The count is advisory, exactly as it is for {@link #extract(long[], char[], int)}.
+	 *
+	 * @param a           first word array
+	 * @param b           second word array, at least as long as `a`
+	 * @param out         destination, at least as long as the symmetric difference's cardinality, filled
+	 *                    from index `0`
+	 * @param cardinality number of set bits the caller expects `a ^ b` to hold
+	 * @return the number of values written
+	 */
+	int extractXor(@Nonnull long[] a, @Nonnull long[] b, @Nonnull char[] out, int cardinality);
 
 	/**
 	 * Exact population count of the bits at absolute bit indices `[start, end)`, masking the partial first

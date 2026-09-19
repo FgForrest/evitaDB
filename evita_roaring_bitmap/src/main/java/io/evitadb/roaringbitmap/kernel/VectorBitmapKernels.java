@@ -39,6 +39,13 @@ import javax.annotation.Nonnull;
  * That is worth having because of what these kernels are actually handed — a repaired union bitmap holding
  * a few dozen values across 1024 words, where almost every block is empty.
  *
+ * **The skip is therefore gated on density, because on a dense container it is a loss rather than a win.**
+ * A caller that knows how many values it is about to decode calls the hinted extraction overload, and the
+ * block-skipping path is taken only up to {@link #SPARSE_EXTRACTION_BOUND}; above it the same values are
+ * decoded by {@link ScalarBitmapKernels}' walk. The hint-less overloads keep the skip unconditionally,
+ * which is the right default for the caller that cannot know — a lazily-counted container is a repaired
+ * union bitmap, the sparse shape the skip was written for.
+ *
  * **Four of these kernels are deliberately not vectorized, and that is a measurement rather than an
  * omission.** The two-operand *counting* reductions — `andCardinality`, `orCardinality`, `xorCardinality`,
  * `andNotCardinality` — run 0.83-0.90x of the scalar loop on OpenJDK 21 and a Zen 5 core, because C2
@@ -62,6 +69,23 @@ public final class VectorBitmapKernels implements BitmapKernels {
 	 * so the indirection buys nothing and the provider stays on {@link ScalarBitmapKernels}.
 	 */
 	private static final int MINIMUM_USEFUL_BIT_SIZE = 256;
+	/**
+	 * Highest announced population count for which the block-skipping extraction path is still taken; above
+	 * it the hinted extraction kernels run the plain scalar walk instead.
+	 *
+	 * The skip is worth its own cost only while blocks are actually empty. Measured under JMH against
+	 * {@link ScalarBitmapKernels} on a 1024-word container, the vector extraction runs **5.3x / 5.6x / 4.9x
+	 * / 2.5x / 1.2x** at 1 / 4 / 16 / 64 / 256 set bits and **0.50x / 0.60x** at 1024 / 4096 — once every
+	 * block holds a bit, the compare and the lane walk are pure overhead on top of the same `tzcnt` loop.
+	 * The crossover therefore sits between 256 and 1024, and `512` is the midpoint of that interval; it is a
+	 * constant rather than a literal so a benchmark can sweep it.
+	 *
+	 * **Cardinality is a proxy for emptiness, not a measure of it.** A container holding two thousand
+	 * clustered values still skips most of its blocks and would win on the vector path, but clustering is
+	 * not something a caller knows and cardinality is — so the gate reads what is available. Both paths
+	 * decode identical values, so a container landing on the less favourable side loses speed only.
+	 */
+	static final int SPARSE_EXTRACTION_BOUND = 512;
 
 	/**
 	 * Answers whether the running CPU offers a vector shape wide enough for these kernels to pay off.
@@ -241,6 +265,18 @@ public final class VectorBitmapKernels implements BitmapKernels {
 		return pos;
 	}
 
+	/**
+	 * Takes the block-skipping path only while the announced population count is at most
+	 * {@link #SPARSE_EXTRACTION_BOUND}; above it the empty blocks the skip exists for are no longer there,
+	 * and the plain scalar walk is the faster of the two identical answers.
+	 */
+	@Override
+	public int extract(@Nonnull final long[] words, @Nonnull final char[] out, final int cardinality) {
+		return cardinality <= SPARSE_EXTRACTION_BOUND
+			? extract(words, out)
+			: ScalarBitmapKernels.INSTANCE.extract(words, out);
+	}
+
 	@Override
 	public int extract(
 		@Nonnull final long[] words,
@@ -273,6 +309,24 @@ public final class VectorBitmapKernels implements BitmapKernels {
 			}
 		}
 		return pos - outOffset;
+	}
+
+	/**
+	 * Density-gated exactly as {@link #extract(long[], char[], int)} is, and for the same measurement. This
+	 * is the site the uncapped `toArray()` extraction reaches, where a saturated container carries 65,536
+	 * values and the skip would cost half the throughput.
+	 */
+	@Override
+	public int extract(
+		@Nonnull final long[] words,
+		@Nonnull final int[] out,
+		final int outOffset,
+		final int base,
+		final int cardinality
+	) {
+		return cardinality <= SPARSE_EXTRACTION_BOUND
+			? extract(words, out, outOffset, base)
+			: ScalarBitmapKernels.INSTANCE.extract(words, out, outOffset, base);
 	}
 
 	@Override
@@ -340,6 +394,21 @@ public final class VectorBitmapKernels implements BitmapKernels {
 		return pos;
 	}
 
+	/**
+	 * Density-gated exactly as {@link #extract(long[], char[], int)} is, and for the same measurement.
+	 */
+	@Override
+	public int extractAndNot(
+		@Nonnull final long[] a,
+		@Nonnull final long[] b,
+		@Nonnull final char[] out,
+		final int cardinality
+	) {
+		return cardinality <= SPARSE_EXTRACTION_BOUND
+			? extractAndNot(a, b, out)
+			: ScalarBitmapKernels.INSTANCE.extractAndNot(a, b, out);
+	}
+
 	@Override
 	public int extractXor(@Nonnull final long[] a, @Nonnull final long[] b, @Nonnull final char[] out) {
 		int pos = 0;
@@ -370,6 +439,21 @@ public final class VectorBitmapKernels implements BitmapKernels {
 			}
 		}
 		return pos;
+	}
+
+	/**
+	 * Density-gated exactly as {@link #extract(long[], char[], int)} is, and for the same measurement.
+	 */
+	@Override
+	public int extractXor(
+		@Nonnull final long[] a,
+		@Nonnull final long[] b,
+		@Nonnull final char[] out,
+		final int cardinality
+	) {
+		return cardinality <= SPARSE_EXTRACTION_BOUND
+			? extractXor(a, b, out)
+			: ScalarBitmapKernels.INSTANCE.extractXor(a, b, out);
 	}
 
 	@Override
