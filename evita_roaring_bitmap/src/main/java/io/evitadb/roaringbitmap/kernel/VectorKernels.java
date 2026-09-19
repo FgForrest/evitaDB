@@ -164,9 +164,11 @@ public final class VectorKernels {
 		// escaping error here would be an `ExceptionInInitializerError` on the first bitmap operation, i.e.
 		// exactly the outage the optional dependency exists to prevent.
 		BitmapKernels bitmapKernels = ScalarBitmapKernels.INSTANCE;
-		final boolean globalSwitchOff = isSwitchedOff(GLOBAL_SWITCH_PROPERTY);
-		final boolean bitmapSwitchOff = isSwitchedOff(BITMAP_SWITCH_PROPERTY);
-		final boolean arraySwitchOff = isSwitchedOff(ARRAY_SWITCH_PROPERTY);
+		// the switches default to "off" so that a JVM that refuses property access (a `SecurityException` from
+		// `System.getProperty`) lands on the scalar kernels through the same boundary as every other failure
+		boolean globalSwitchOff = true;
+		boolean bitmapSwitchOff = true;
+		boolean arraySwitchOff = true;
 		boolean modulePresent = false;
 		boolean jitUsable = false;
 		boolean vectorAvailable = false;
@@ -174,6 +176,9 @@ public final class VectorKernels {
 		String selfTestFailure = null;
 		String failure = null;
 		try {
+			globalSwitchOff = isSwitchedOff(GLOBAL_SWITCH_PROPERTY);
+			bitmapSwitchOff = isSwitchedOff(BITMAP_SWITCH_PROPERTY);
+			arraySwitchOff = isSwitchedOff(ARRAY_SWITCH_PROPERTY);
 			// the gates are evaluated only while the ones before them still allow a vector kernel, so that a
 			// JVM running with the kill switch on never touches the incubator module at all
 			modulePresent = !globalSwitchOff
