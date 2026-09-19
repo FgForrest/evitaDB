@@ -1,7 +1,7 @@
 ---
 title: Answer reference-planning cardinality from the owner→partition map, widened and retuned to 64
 date: 2026-09-18
-updated: 2026-09-18 22:10
+updated: 2026-09-19 07:25
 status: partially-implemented
 kind: optimization
 issues: [1585, 1603]
@@ -120,9 +120,10 @@ option C wins if a consumer needs the partition set rather than its size.
   `ReferenceIndexMutator:1343` (write path), `EntityCollection:1892` (load-time rebuild) and
   `EntityCollection:1999` (discard on schema change). All three must change together or the
   `covered ∪ residual == advertised` invariant breaks in the direction that is silent.
-- **The threshold is a latency dial, never a correctness one.** Every quantity the planner takes from the map
-  is *exact count over covered partitions + walk over the residual set*. `T` decides how long that walk is,
-  not whether the answer is right.
+- **The threshold is a latency dial, never a correctness one.** Any quantity read from the map is *exact
+  count over covered partitions + walk over the residual set*, so `T` decides how long that walk is, never
+  whether the answer is right. As shipped the only reader is the cross-entity facet trigger: the planner takes
+  its candidate count from index discovery and never touches this map. See the follow-ups below.
 - **Raising `T` does not make a mutation slower.** A promotion rebuilds `O(T)` entries but cannot recur until
   `T/2` further writes, so the amortised crossing cost is ~2 entries per write regardless of `T`. A larger
   threshold buys a bigger map, not a slower write.
@@ -150,10 +151,12 @@ option C wins if a consumer needs the partition set rather than its size.
 - **The sums are `long`.** They count reference rows, which are not bounded by the owner collection's
   cardinality; an overflowed `int` goes negative, satisfies the limit and marks the alternative *eligible*.
   Fixed in the same line of work.
-- **`ReducedIndexMembershipCompletenessTest#assertMembershipMatchesIndexes` becomes load-bearing for query
-  correctness**, not only for the facet trigger. The structure's own javadoc already warns that a slice
-  present with both sets empty is a wrong-answer state rather than a slow one; this decision widens the blast
-  radius of that state from a wrong facet to a wrong query result.
+- **`ReducedIndexMembershipCompletenessTest#assertMembershipMatchesIndexes` guards the facet trigger, and
+  as shipped nothing else.** A slice present with both sets empty is the wrong-answer state the structure's
+  javadoc warns about, but no query path reads this map — `rg ReducedIndexMembership evita_engine/.../core/query`
+  finds one comment and no call — so the blast radius of that state is a wrong facet count. The widening to a
+  wrong query *result* arrives with the translator consumer and not before. A failure of this assertion today
+  is therefore not a `referenceHaving` correctness incident, and must not be triaged as one.
 
 ## Verification
 
@@ -222,7 +225,7 @@ against a row insert already performing six B+ tree operations on the cardinalit
 45× the partitions tracked, no detectable change in reindex time. This was the one measurement that could
 still have argued for option B, and it does not.
 
-**The planner consumer was built and measured, and it does not make the query faster — the premise of this
+**The planner-side deferral was built and measured, and it does not make the query faster — the premise of this
 half of the decision was wrong.** `IndexSelectionVisitor` now settles eligibility from the schema and the
 candidate count and never resolves the partitions when they cannot change the outcome. Measured on the same
 production catalog, `Product.media`:
