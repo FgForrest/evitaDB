@@ -4,7 +4,6 @@
 
 package io.evitadb.roaringbitmap;
 
-
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.DataInput;
@@ -51,6 +50,15 @@ public final class ArrayContainer extends Container implements Cloneable {
 	 * sorted array than as a bitmap.
 	 */
 	static final int DEFAULT_MAX_SIZE = 4096; // containers with DEFAULT_MAX_SZE or less integers
+	/**
+	 * How many trailing values {@link #hashCode()} has to read to reproduce the whole-array polynomial.
+	 *
+	 * The recurrence is `hash = 32 * hash + value` (see {@link #hashCode()}), so the value `j` places from
+	 * the end is multiplied by `2^(5 * j)`; at `j = 7` that is `2^35`, which is `0` in a 32-bit `int`.
+	 * Seven is therefore the exact point at which older values stop contributing — not a cut-off chosen
+	 * for speed.
+	 */
+	static final int HASH_CONTRIBUTING_VALUES = 7;
 	// should be ArrayContainers
 
 	@Serial private static final long serialVersionUID = 1L;
@@ -642,7 +650,22 @@ public final class ArrayContainer extends Container implements Cloneable {
 	}
 
 	/**
-	 * Order-sensitive hash over the stored values.
+	 * Order-sensitive hash over the stored values, computed from at most the last
+	 * {@link #HASH_CONTRIBUTING_VALUES} of them.
+	 *
+	 * **The value is exactly the one the whole-array loop produced, and must stay that way.** The
+	 * recurrence inherited from upstream RoaringBitmap is written `hash += 31 * hash + value`, and that
+	 * `+=` makes it `hash = 32 * hash + value` — base `2^5`. The value `j` places from the end therefore
+	 * carries the coefficient `2^(5 * j)`, and `2^35 == 0` in 32-bit arithmetic, so every value further
+	 * back than {@link #HASH_CONTRIBUTING_VALUES} contributes exactly zero. Starting the same loop at
+	 * `cardinality - 7` is an algebraic identity, not an approximation: the statement is unchanged and only
+	 * the range is shorter.
+	 *
+	 * **The distribution consequence is real and is deliberately left alone here.** Two containers that
+	 * differ anywhere but in their last seven values collide, and they did before this method was
+	 * shortened — the shorter range makes the property visible rather than introducing it. Whether the
+	 * containers should hash better is a separate question with its own blast radius (every memoized
+	 * formula key in the engine), and it belongs in a decision record rather than in a performance change.
 	 */
 	// content/cardinality are read while non-final on purpose: containers are mutable and the hash
 	// reflects their current contents.
@@ -650,7 +673,7 @@ public final class ArrayContainer extends Container implements Cloneable {
 	@Override
 	public int hashCode() {
 		int hash = 0;
-		for (int k = 0; k < this.cardinality; ++k) {
+		for (int k = Math.max(0, this.cardinality - HASH_CONTRIBUTING_VALUES); k < this.cardinality; ++k) {
 			hash += 31 * hash + this.content[k];
 		}
 		return hash;
