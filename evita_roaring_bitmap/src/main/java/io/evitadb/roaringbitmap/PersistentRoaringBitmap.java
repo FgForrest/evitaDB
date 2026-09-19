@@ -3717,10 +3717,37 @@ public class PersistentRoaringBitmap
 	}
 
 	/**
+	 * Largest combined cardinality for which {@link #lazyUnionInto} keeps a lazy union of two sparse
+	 * chunks sparse instead of promoting the accumulator to an 8 KiB {@link BitmapContainer}.
+	 *
+	 * CRoaring has carried the same branch since its beginning — `array_container_lazy_inplace_union`
+	 * stays an array while `card(a) + card(b) <= ARRAY_LAZY_LOWERBOUND`, which is `1024` there — and the
+	 * Java port simply never grew it. **The bound here is deliberately lower**, because the two ports pay
+	 * different prices for it: CRoaring's in-place union writes into a reallocated buffer, while
+	 * {@link ArrayContainer#ior(ArrayContainer)} copies the accumulator's values (a `System.arraycopy` of
+	 * the whole accumulator, or a fresh array when the capacity has to grow) on **every** fold. That copy
+	 * makes an array-shaped fold quadratic in the number of inputs, and the bound is what caps the
+	 * quadratic term.
+	 *
+	 * What it is weighed against is the bitmap path's **fixed** cost per key, which a small chunk pays in
+	 * full: allocating and zeroing the 8 KiB word array, scattering the values into it, a 1024-word
+	 * population count in `repairAfterLazy`, and a second 1024-word scan to extract the values back into
+	 * the array container the result usually is anyway. Below the bound the array fold is cheaper than
+	 * that fixed cost; above it the scatter amortises it and the promotion pays for itself.
+	 *
+	 * Held as a constant rather than inlined so that a benchmark can sweep it. The value here is the
+	 * sweep's starting point, not its conclusion — the decision record carries the measurement.
+	 */
+	static final int LAZY_ARRAY_UNION_BOUND = 256;
+
+	/**
 	 * In-place lazy union like {@link #lazyor(PersistentRoaringBitmap)}, except each overlapping
-	 * container of this bitmap is first promoted to a {@link BitmapContainer} — a denser accumulator
-	 * that pays off when unioning many bitmaps. Chunks unique to `x2` are borrowed by structural
-	 * sharing (copy-on-write).
+	 * container of this bitmap is promoted to a {@link BitmapContainer} — a denser accumulator that pays
+	 * off when unioning many bitmaps. Chunks unique to `x2` are borrowed by structural sharing
+	 * (copy-on-write).
+	 *
+	 * Small overlaps stay sparse instead: see {@link #lazyUnionInto} and
+	 * {@link #LAZY_ARRAY_UNION_BOUND}.
 	 *
 	 * Run {@link #repairAfterLazy()} before using this bitmap, and do not pass an `x2` that was itself
 	 * computed lazily.
@@ -3728,6 +3755,23 @@ public class PersistentRoaringBitmap
 	 * @param x2 other bitmap
 	 */
 	protected void naivelazyor(@Nonnull final PersistentRoaringBitmap x2) {
+		naivelazyor(x2, true);
+	}
+
+	/**
+	 * {@link #naivelazyor(PersistentRoaringBitmap)} with the sparse-accumulator policy under caller
+	 * control.
+	 *
+	 * A fold whose input count is known and large passes `false`: every array-shaped fold copies the
+	 * accumulator, so a union of thousands of one-value chunks would pay close to
+	 * {@link #LAZY_ARRAY_UNION_BOUND} such copies per key before the bound promoted it anyway. A fold
+	 * whose width is unknown (an iterator) passes `true` and lets the bound alone cap the cost.
+	 *
+	 * @param x2                other bitmap
+	 * @param arrayUnionAllowed `false` to promote every overlapping chunk to a {@link BitmapContainer}
+	 *                          immediately, as this method did before the sparse policy existed
+	 */
+	protected void naivelazyor(@Nonnull final PersistentRoaringBitmap x2, final boolean arrayUnionAllowed) {
 		if (this == x2) {
 			return;
 		}
@@ -3741,11 +3785,18 @@ public class PersistentRoaringBitmap
 
 			while (true) {
 				if (s1 == s2) {
+					// after copyIfShared the accumulator is owned outright, so `lazyUnionInto` is free to
+					// merge into it in place
 					copyIfShared(pos1);
-					final BitmapContainer c1 =
-						this.highLowContainer.getContainerAtIndex(pos1).toBitmapContainer();
 					this.highLowContainer.setContainerAtIndex(
-						pos1, c1.lazyIOR(x2.highLowContainer.getContainerAtIndex(pos2)));
+						pos1,
+						lazyUnionInto(
+							this.highLowContainer.getContainerAtIndex(pos1),
+							false,
+							x2.highLowContainer.getContainerAtIndex(pos2),
+							arrayUnionAllowed
+						)
+					);
 					pos1++;
 					pos2++;
 					if ((pos1 == length1) || (pos2 == length2)) {
@@ -3762,7 +3813,7 @@ public class PersistentRoaringBitmap
 				} else {
 					// source-only chunk: bulk-merge the remaining suffix in one pass (inserting per
 					// key here would be quadratic when the operands' keys are interleaved)
-					mergeBulk(x2, pos1, pos1, pos2, MERGE_LAZY_OR);
+					mergeBulk(x2, pos1, pos1, pos2, arrayUnionAllowed ? MERGE_LAZY_OR : MERGE_LAZY_OR_PROMOTE);
 					return;
 				}
 			}
@@ -3770,6 +3821,59 @@ public class PersistentRoaringBitmap
 		if (pos1 == length1) {
 			appendTailWithSharing(x2, pos2, length2);
 		}
+	}
+
+	/**
+	 * Folds one chunk of a lazy union into the accumulator's chunk, choosing between the sparse and the
+	 * dense accumulator shape.
+	 *
+	 * **The sparse case.** When both chunks are {@link ArrayContainer}s whose combined cardinality is at
+	 * most {@link #LAZY_ARRAY_UNION_BOUND}, the two sorted value lists are merged and the result stays an
+	 * {@link ArrayContainer} with a **known** cardinality — nothing is left lazy, so
+	 * {@link ArrayContainer#repairAfterLazy()} has nothing to do and the union of a handful of small
+	 * chunks never touches an 8 KiB word array at all. This is the branch CRoaring has and the Java port
+	 * did not; see {@link #LAZY_ARRAY_UNION_BOUND} for the bound and why it is lower here.
+	 *
+	 * **The dense case**, i.e. everything else: the accumulator is promoted to a {@link BitmapContainer}
+	 * and the incoming chunk is OR-ed into it lazily, leaving the cardinality as `-1` for
+	 * {@link #repairAfterLazy()} to recompute. Once an accumulator has become a bitmap it can never match
+	 * the sparse case again, so a fold promotes at most once per key.
+	 *
+	 * **Ownership.** Both shapes mutate the accumulator in place, so a co-owned one has to be cloned
+	 * first — `accumulatorShared` says whether it is. In the dense case the clone is needed only for a
+	 * {@link BitmapContainer}, since `toBitmapContainer()` returns `this` for that encoding alone and an
+	 * array or run chunk allocates its bitmap anyway; cloning those first would allocate twice. The
+	 * incoming chunk is only ever read.
+	 *
+	 * @param accumulator       the receiving bitmap's chunk for this key
+	 * @param accumulatorShared `true` when `accumulator` is co-owned and must not be mutated in place
+	 * @param incoming          the source bitmap's chunk for the same key; never mutated
+	 * @param arrayUnionAllowed `false` to force the dense case, whatever the two cardinalities are
+	 * @return the chunk to store under this key, which may be `accumulator` itself
+	 */
+	@Nonnull
+	private static Container lazyUnionInto(
+		@Nonnull final Container accumulator,
+		final boolean accumulatorShared,
+		@Nonnull final Container incoming,
+		final boolean arrayUnionAllowed
+	) {
+		if (arrayUnionAllowed
+			&& accumulator instanceof final ArrayContainer sparseAccumulator
+			&& incoming instanceof final ArrayContainer sparseIncoming
+			&& sparseAccumulator.getCardinality() + sparseIncoming.getCardinality() <= LAZY_ARRAY_UNION_BOUND) {
+			// `ior` merges into the accumulator's own backing array and returns an ArrayContainer with a
+			// known cardinality while the bound stays at or below ArrayContainer.DEFAULT_MAX_SIZE; past
+			// that it promotes and repairs on its own, which is correct but no longer the point
+			return (accumulatorShared ? sparseAccumulator.clone() : sparseAccumulator).ior(sparseIncoming);
+		}
+		// toBitmapContainer() hands back `this` only for a BitmapContainer, since no other shape can
+		// return itself as one; array and run chunks already produce a freshly allocated bitmap for
+		// lazyIOR to consume, so cloning those first would allocate twice
+		final Container target = accumulatorShared && accumulator instanceof BitmapContainer
+			? accumulator.clone()
+			: accumulator;
+		return target.toBitmapContainer().lazyIOR(incoming);
 	}
 
 	/**
@@ -3936,8 +4040,16 @@ public class PersistentRoaringBitmap
 	private static final int MERGE_OR = 0;
 	/** Op selector for {@link #mergeBulk}: in-place symmetric difference (xor). */
 	private static final int MERGE_XOR = 1;
-	/** Op selector for {@link #mergeBulk}: in-place lazy union, promoting overlaps to bitmap containers. */
+	/**
+	 * Op selector for {@link #mergeBulk}: in-place lazy union, leaving a small overlap of two sparse
+	 * chunks sparse (see {@link #lazyUnionInto}).
+	 */
 	private static final int MERGE_LAZY_OR = 2;
+	/**
+	 * Op selector for {@link #mergeBulk}: in-place lazy union that promotes every overlap to a bitmap
+	 * container, whatever the two cardinalities are. The wide-fold spelling of {@link #MERGE_LAZY_OR}.
+	 */
+	private static final int MERGE_LAZY_OR_PROMOTE = 3;
 
 	/**
 	 * Finishes an in-place union / xor / lazy-union (selected by `op`) once the receiver's structure
@@ -3961,7 +4073,8 @@ public class PersistentRoaringBitmap
 	 * @param dst   number of already-final leading entries copied over verbatim
 	 * @param left  first not-yet-merged entry index in this receiver
 	 * @param right first not-yet-merged entry index in `x2`
-	 * @param op    one of {@link #MERGE_OR}, {@link #MERGE_XOR}, {@link #MERGE_LAZY_OR}
+	 * @param op    one of {@link #MERGE_OR}, {@link #MERGE_XOR}, {@link #MERGE_LAZY_OR},
+	 *              {@link #MERGE_LAZY_OR_PROMOTE}
 	 */
 	private void mergeBulk(
 		@Nonnull final PersistentRoaringBitmap x2, final int dst, final int left, final int right,
@@ -4037,14 +4150,11 @@ public class PersistentRoaringBitmap
 				final Container c;
 				if (op == MERGE_XOR) {
 					c = (sharedBase ? base.clone() : base).ixor(values2[j]);
-				} else if (op == MERGE_LAZY_OR) {
-					// toBitmapContainer() hands back `this` only for a BitmapContainer, since no other shape
-					// can return itself as one; array and run chunks already produce a freshly allocated
-					// bitmap for lazyIOR to consume, so cloning those first would allocate twice
-					final Container target = sharedBase && base instanceof BitmapContainer
-						? base.clone()
-						: base;
-					c = target.toBitmapContainer().lazyIOR(values2[j]);
+				} else if (op == MERGE_LAZY_OR || op == MERGE_LAZY_OR_PROMOTE) {
+					// the same policy `naivelazyor` applies to the keys it walks itself - this is the
+					// suffix of the very same fold, and a chunk must not be promoted here just because the
+					// receiver ran out of keys first
+					c = lazyUnionInto(base, sharedBase, values2[j], op == MERGE_LAZY_OR);
 				} else {
 					c = (sharedBase ? base.clone() : base).ior(values2[j]);
 				}

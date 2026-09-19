@@ -77,9 +77,10 @@ Upstream has no counterpart to any of the following; they are evitaDB's own and 
 - **`io/evitadb/roaringbitmap/kernel/`** (package deliberately **not** exported) — the word- and value-level
   loops the container operators run on, behind an interface with two implementations. `BitmapKernels` /
   `ScalarBitmapKernels` / `VectorBitmapKernels` are the 1024-word kernels (population counts, the four
-  boolean operations, and fused variants that store and count in one pass); `ArrayKernels` /
-  `ScalarArrayKernels` are the sorted-`char[]` merge, scalar only so far; `VectorKernels` is the holder that
-  picks an implementation once per JVM and records why.
+  boolean operations, fused variants that store and count in one pass, and the five `extract*` kernels that
+  decode set bits into a value list); `ArrayKernels` / `ScalarArrayKernels` are the sorted-`char[]` merge,
+  scalar only so far; `VectorKernels` is the holder that picks an implementation once per JVM and records
+  why.
 - **`io/evitadb/roaringbitmap/RoaringKernels.java`** (exported) — one method, `vectorKernelsSummary()`,
   through which evitaDB's engine reads that decision and logs it at startup. It exists because the kernel
   package is not exported and this module has (and must keep) no logging dependency.
@@ -92,20 +93,76 @@ Upstream has no counterpart to any of the following; they are evitaDB's own and 
   delegate to the merge rather than carry a second copy of it.
 
 **What this means when replaying an upstream change.** `BitmapContainer`'s `and` / `andCardinality` / `andNot`
-/ `iand` / `iandNot` / `or` / `ior` / `xor` / `ixor` / `rank` / `validate` / `computeCardinality`, and
-`Util.cardinalityInBitmapRange`, no longer hold their word loops inline — they call `VectorKernels.BITMAP`.
-An upstream edit to one of those loops therefore lands in `ScalarBitmapKernels` (the reference implementation,
-whose loops are those loops) **and** in `VectorBitmapKernels`, not in the container. An upstream edit to the
-surrounding logic — a demotion threshold, a `RunContainer.full()` promotion, a lazy-cardinality branch — still
-lands in the container as usual. `BitmapContainer.or` is one behavioural divergence to keep in mind while
-diffing: upstream clones and unions in place, the vendored copy unions straight into a fresh container in a
-single pass, with the same `RunContainer.full()` promotion at the end.
+/ `iand` / `iandNot` / `or` / `ior` / `xor` / `ixor` / `rank` / `validate` / `computeCardinality` /
+`fillLeastSignificant16bits`, and `Util`'s `cardinalityInBitmapRange` / `fillArray` / `fillArrayAND` /
+`fillArrayANDNOT` / `fillArrayXOR`, no longer hold their loops inline — they call `VectorKernels.BITMAP`. An
+upstream edit to one of those loops therefore lands in `ScalarBitmapKernels` (the reference implementation,
+whose loops are those loops) **and** in `VectorBitmapKernels`, not in the container or in `Util`. An upstream
+edit to the surrounding logic — a demotion threshold, a `RunContainer.full()` promotion, a lazy-cardinality
+branch, the length check `fillArrayAND` throws on — still lands where it always did.
 
-Correctness of the vector implementation is pinned two ways: `VectorKernels` self-tests every kernel against
-its scalar twin at class-init and falls back on any mismatch, and `VectorKernelsDifferentialTest` compares the
-two directly across densities, seeds, word-boundary bit placements and randomly drawn ranges. The module's
-surefire runs the whole suite twice — once as the JVM offers it, once with `-Devita.roaring.vector=false` —
-so both implementations are exercised by every vendored test, not only by the kernel tests.
+**Four vector kernels are deliberately delegated to the scalar ones.** `VectorBitmapKernels`'
+`andCardinality` / `orCardinality` / `xorCardinality` / `andNotCardinality` call `ScalarBitmapKernels`,
+because JMH measured the lane version at 0.83-0.90x of the auto-vectorized scalar reduction. They are
+delegations rather than deletions so the measurement stays next to the code it condemns; re-vectorizing one
+needs a new measurement, not a revert. `BitmapContainer.or` is one behavioural divergence
+to keep in mind while diffing: upstream clones and unions in place, the vendored copy unions straight into a
+fresh container in a single pass, with the same `RunContainer.full()` promotion at the end.
+
+Correctness of the vector implementations is pinned two ways: `VectorKernels` self-tests every kernel against
+its scalar twin at class-init and falls back on any mismatch, and `VectorKernelsDifferentialTest` /
+`VectorArrayKernelsDifferentialTest` compare the two directly across densities, seeds, word-boundary and
+lane-boundary bit placements, randomly drawn ranges, and value-list lengths either side of a vector block. The
+module's surefire runs the whole suite twice — once as the JVM offers it, once with
+`-Devita.roaring.vector=false` — so both implementations are exercised by every vendored test, not only by the
+kernel tests.
+
+`LazyArrayUnionTest` sits outside that pairing on purpose, because what it protects is the container
+behaviour described in the next section rather than either kernel implementation; it runs on whichever one
+the provider selected, in both surefire executions.
+
+## Tail-only container hash codes (evita-specific divergence — preserve on re-sync)
+
+`ArrayContainer.hashCode()` and `RunContainer.hashCode()` read only the **last seven** entries of their
+backing array. Upstream reads all of them and reaches the same number.
+
+The recurrence both inherited from upstream is written `hash += 31 * hash + entry`, and that `+=` makes it
+`hash = 32 * hash + entry` — base `2^5`. The entry `j` places from the end is therefore multiplied by
+`2^(5 * j)`, and `2^35` is `0` in a 32-bit `int`, so every entry before the last seven contributes exactly
+zero. Shortening the loop is an algebraic identity: same statement, shorter range, identical result. The
+constant lives on `ArrayContainer.HASH_CONTRIBUTING_VALUES` and `RunContainer` refers to it.
+
+`BitmapContainer.hashCode()` is `Arrays.hashCode(bitmap)` and is untouched.
+
+**Do not "fix" the resulting collisions as part of a re-sync.** Two containers differing anywhere but in
+their last seven entries hash the same — they always did, and `ContainerTailHashCodeTest` asserts both the
+equivalence with the vendored full loop and the collision, so that improving the hash is a deliberate change
+with a failing test in front of it. Note also that `RunContainer.hashCode()` hashes the interleaved
+`value, length` run list while `ArrayContainer.hashCode()` hashes values, so the two disagree for a set that
+`RunContainer.equals` reports as equal; that inconsistency is upstream's and predates this change.
+
+## Sparse lazy union (evita-specific divergence — preserve on re-sync)
+
+`PersistentRoaringBitmap.naivelazyor` promoted the accumulator's chunk to a `BitmapContainer` on the **first**
+shared key, whatever the two cardinalities were; upstream still does. The vendored copy keeps two sparse chunks
+sparse while their combined cardinality fits `PersistentRoaringBitmap.LAZY_ARRAY_UNION_BOUND`, merging them as
+value lists through `ArrayContainer.ior(ArrayContainer)` and leaving the cardinality **known** rather than
+lazy. This is CRoaring's `ARRAY_LAZY_LOWERBOUND` branch (`src/containers/mixed_union.c`), which the Java port
+never had; the bound is lower here because the Java `ior` copies the accumulator on every fold.
+
+The shape of the divergence, for a diff:
+
+- `naivelazyor` gained a `(PersistentRoaringBitmap, boolean)` overload; the one-argument form delegates with
+  the policy on and is what upstream's signature maps to.
+- `lazyUnionInto` is the single place the policy lives, and it is reached from both `naivelazyor`'s own
+  shared-key branch **and** `mergeBulk`'s `MERGE_LAZY_OR` branch, which finishes the same fold once the
+  receiver runs out of keys. `MERGE_LAZY_OR_PROMOTE` is the same merge with the policy declined.
+- `FastAggregation.naive_or(PersistentRoaringBitmap...)` declines the policy above
+  `LAZY_ARRAY_UNION_MAX_INPUTS` inputs; the `Iterator` form cannot count its inputs and keeps it.
+- `lazyor` (the non-promoting lazy union) is untouched — it never promoted in the first place.
+
+`LazyArrayUnionTest` pins all of it, including that the policy does not change the answer and that a co-owned
+accumulator is cloned before it is merged into.
 
 ## Sync log
 
