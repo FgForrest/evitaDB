@@ -88,7 +88,9 @@ public interface RandomQueryGenerator {
 	@Nonnull
 	private static <T> T pickRandom(@Nonnull Random random, @Nonnull Set<T> theSet) {
 		Assert.isTrue(theSet.size() >= 1, "There are no values to choose from!");
-		final int index = theSet.size() == 1 ? 0 : random.nextInt(theSet.size() - 1) + 1;
+		// the index must span [0, size) - drawing from [1, size) walked past the first candidate, so whichever
+		// value the collection happens to iterate first could never be selected by any benchmark
+		final int index = random.nextInt(theSet.size());
 		final Iterator<T> it = theSet.iterator();
 		for (int i = 0; i < index; i++) {
 			it.next();
@@ -98,7 +100,10 @@ public interface RandomQueryGenerator {
 
 	@Nonnull
 	private static AttributeStatistics pickRandom(@Nonnull Random random, @Nonnull Map<String, AttributeStatistics> filterableAttributes) {
-		final int index = random.nextInt(filterableAttributes.size() - 1) + 1;
+		// as above, and `nextInt` rejects a bound of zero, so a schema carrying exactly one filterable
+		// attribute used to fail here instead of selecting it
+		Assert.isTrue(!filterableAttributes.isEmpty(), "There are no values to choose from!");
+		final int index = random.nextInt(filterableAttributes.size());
 		final Iterator<AttributeStatistics> it = filterableAttributes.values().iterator();
 		for (int i = 0; i < index; i++) {
 			it.next();
@@ -209,7 +214,9 @@ public interface RandomQueryGenerator {
 	 */
 	default Query generateRandomAttributeHistogramQuery(@Nonnull Query existingQuery, @Nonnull Random random, @Nonnull Set<String> numericFilterableAttributes) {
 		Assert.isTrue(numericFilterableAttributes.size() >= 1, "There are no numeric attributes!");
-		final int histogramCount = numericFilterableAttributes.size() == 1 ? 1 : 1 + random.nextInt(numericFilterableAttributes.size() - 1);
+		// [1, size], so a histogram query can span every numeric attribute; the rejection loop below can only
+		// satisfy that because `pickRandom` now reaches every candidate
+		final int histogramCount = 1 + random.nextInt(numericFilterableAttributes.size());
 		final String[] attributes = new String[histogramCount];
 		final Set<String> alreadySelected = new HashSet<>(histogramCount);
 		for (int i = 0; i < histogramCount; i++) {
