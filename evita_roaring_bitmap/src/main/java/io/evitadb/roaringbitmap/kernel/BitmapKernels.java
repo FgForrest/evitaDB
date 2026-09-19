@@ -110,6 +110,75 @@ public interface BitmapKernels {
 	int andNot(@Nonnull long[] a, @Nonnull long[] b, @Nonnull long[] out);
 
 	/**
+	 * Decodes every set bit of the word array into `out` in ascending order, each bit written as its
+	 * position `64 * wordIndex + trailingZeros` cast to a `char`.
+	 *
+	 * This is the extraction half of the dense/sparse round trip: a lazy union promotes a sparse chunk to
+	 * an 8 KiB word array, and a repair that finds few bits set reads them straight back out through this
+	 * kernel. A repaired union bitmap is therefore mostly **empty words**, which is what a vector
+	 * implementation exploits — it tests a whole block of words for zero and skips it — while the bits of
+	 * a non-empty word are still decoded one `tzcnt`/`blsr` step at a time.
+	 *
+	 * Positions above `65535` wrap, as the `char` result type implies; the dense container this kernel
+	 * serves is 1024 words, where they cannot arise.
+	 *
+	 * @param words source word array
+	 * @param out   destination, at least as long as the word array's population count, filled from index `0`
+	 * @return the number of values written, i.e. the population count of `words`
+	 */
+	int extract(@Nonnull long[] words, @Nonnull char[] out);
+
+	/**
+	 * Decodes every set bit of the word array into `out` in ascending order, each bit written as
+	 * `base + 64 * wordIndex + trailingZeros`.
+	 *
+	 * The `int` twin of {@link #extract(long[], char[])}, for the callers that need the value's high bits
+	 * carried along rather than the 16-bit position on its own. `base` is added, not OR-ed, which is the
+	 * same thing whenever it has no bits below `2^16` — as a container's key-derived prefix never does.
+	 *
+	 * @param words     source word array
+	 * @param out       destination, with room for the population count from `outOffset`
+	 * @param outOffset first write position in `out`
+	 * @param base      value added to every decoded position
+	 * @return the number of values written, i.e. the population count of `words`
+	 */
+	int extract(@Nonnull long[] words, @Nonnull int[] out, int outOffset, int base);
+
+	/**
+	 * Decodes every set bit of `a & b` into `out` in ascending order, as {@link #extract(long[], char[])}
+	 * does for a single word array, without materializing the intersection.
+	 *
+	 * @param a   first word array
+	 * @param b   second word array, at least as long as `a`
+	 * @param out destination, at least as long as the intersection's cardinality, filled from index `0`
+	 * @return the number of values written
+	 */
+	int extractAnd(@Nonnull long[] a, @Nonnull long[] b, @Nonnull char[] out);
+
+	/**
+	 * Decodes every set bit of `a & ~b` into `out` in ascending order, without materializing the
+	 * difference.
+	 *
+	 * @param a   first word array
+	 * @param b   second word array, at least as long as `a`
+	 * @param out destination, at least as long as the difference's cardinality, filled from index `0`
+	 * @return the number of values written
+	 */
+	int extractAndNot(@Nonnull long[] a, @Nonnull long[] b, @Nonnull char[] out);
+
+	/**
+	 * Decodes every set bit of `a ^ b` into `out` in ascending order, without materializing the symmetric
+	 * difference.
+	 *
+	 * @param a   first word array
+	 * @param b   second word array, at least as long as `a`
+	 * @param out destination, at least as long as the symmetric difference's cardinality, filled from
+	 *            index `0`
+	 * @return the number of values written
+	 */
+	int extractXor(@Nonnull long[] a, @Nonnull long[] b, @Nonnull char[] out);
+
+	/**
 	 * Exact population count of the bits at absolute bit indices `[start, end)`, masking the partial first
 	 * and last words so that only bits inside the range are counted. Returns `0` when `start >= end`.
 	 *

@@ -13,6 +13,7 @@ import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Differential test: every kernel of {@link VectorBitmapKernels} must return exactly what
@@ -40,14 +41,19 @@ public class VectorKernelsDifferentialTest {
 	 */
 	private static final long[] SEEDS = {1L, 42L, 987654321L, -13L};
 	/**
-	 * Fractions of set bits the samples cover: empty, sparse, half, nearly saturated, saturated.
+	 * Fractions of set bits the samples cover: empty, sparse, the density at which a repaired union bitmap
+	 * demotes back to a value list, half, nearly saturated, saturated.
 	 */
-	private static final double[] DENSITIES = {0.0d, 0.01d, 0.5d, 0.99d, 1.0d};
+	private static final double[] DENSITIES = {0.0d, 0.01d, 0.0625d, 0.5d, 0.99d, 1.0d};
 
 	/**
 	 * Names of the four fused kernels, in the order {@link #applyFused} dispatches them.
 	 */
 	private static final String[] FUSED_NAMES = {"and", "or", "xor", "andNot"};
+	/**
+	 * Names of the three two-operand extraction kernels, in the order {@link #applyExtract} dispatches them.
+	 */
+	private static final String[] EXTRACT_NAMES = {"extractAnd", "extractAndNot", "extractXor"};
 	/**
 	 * The reference implementation.
 	 */
@@ -88,8 +94,12 @@ public class VectorKernelsDifferentialTest {
 		}
 
 		@Test
-		@DisplayName("the four counting kernels match on every ordered pair of samples")
+		@DisplayName("the four counting kernels answer identically, because they are the scalar ones")
 		void shouldCountCombinationsLikeScalar() {
+			// these four are NOT vectorized: JMH put the lane version at 0.83-0.90x of the auto-vectorized
+			// scalar reduction, so `VectorBitmapKernels` delegates them. The assertions below are therefore
+			// trivially true today, and they are kept on purpose - they are what would catch a future
+			// vector formulation of these kernels that got a lane wrong
 			for (int i = 0; i < samples.length; i++) {
 				for (int j = 0; j < samples.length; j++) {
 					final long[] a = samples[i];
@@ -274,6 +284,123 @@ public class VectorKernelsDifferentialTest {
 		}
 	}
 
+	@Nested
+	@DisplayName("extraction kernels")
+	class Extraction {
+
+		@Test
+		@DisplayName("extract decodes the same positions as the scalar loop on every sample")
+		void shouldExtractLikeScalar() {
+			final char[] expected = new char[WORDS * 64];
+			final char[] actual = new char[WORDS * 64];
+			for (int i = 0; i < samples.length; i++) {
+				final int sample = i;
+				final int expectedCount = SCALAR.extract(samples[i], expected);
+				final int actualCount = vector.extract(samples[i], actual);
+				assertEquals(expectedCount, actualCount, () -> "count of extract on sample " + sample);
+				assertArrayEquals(
+					Arrays.copyOf(expected, expectedCount), Arrays.copyOf(actual, actualCount),
+					() -> "values of extract on sample " + sample
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("extract returns the population count and writes nothing past it")
+		void shouldExtractExactlyTheSetBits() {
+			// the differential assertion above would pass if both implementations dropped the same bit;
+			// this pins the answer against an independently computed count and against the bit positions
+			// themselves
+			final char[] out = new char[WORDS * 64];
+			for (int i = 0; i < samples.length; i++) {
+				Arrays.fill(out, (char) 0xFFFF);
+				final int count = vector.extract(samples[i], out);
+				assertEquals(SCALAR.cardinality(samples[i]), count, "extract must return the population count");
+				int previous = -1;
+				for (int v = 0; v < count; v++) {
+					final int value = out[v];
+					assertTrue(value > previous, "extracted values must ascend strictly");
+					assertTrue(
+						(samples[i][value >>> 6] & (1L << value)) != 0L,
+						"every extracted value must name a bit that is actually set"
+					);
+					previous = value;
+				}
+				if (count < out.length) {
+					assertEquals(0xFFFF, out[count], "extract must not write past the values it counted");
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("the int variant carries the write offset and the base through unchanged")
+		void shouldExtractWithBaseLikeScalar() {
+			final int[] expected = new int[WORDS * 64 + 8];
+			final int[] actual = new int[WORDS * 64 + 8];
+			final int[] bases = {0, 1 << 16, 7 << 16, 0xFFFF << 16};
+			final int[] offsets = {0, 1, 5};
+			for (int i = 0; i < samples.length; i++) {
+				for (int b = 0; b < bases.length; b++) {
+					for (int o = 0; o < offsets.length; o++) {
+						final int sample = i;
+						final int base = bases[b];
+						final int offset = offsets[o];
+						final int expectedCount = SCALAR.extract(samples[i], expected, offset, base);
+						final int actualCount = vector.extract(samples[i], actual, offset, base);
+						assertEquals(
+							expectedCount, actualCount,
+							() -> "count of extract(int[]) on sample " + sample + ", base " + base
+						);
+						assertArrayEquals(
+							Arrays.copyOfRange(expected, offset, offset + expectedCount),
+							Arrays.copyOfRange(actual, offset, offset + actualCount),
+							() -> "values of extract(int[]) on sample " + sample + ", base " + base
+								+ ", offset " + offset
+						);
+					}
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("the three two-operand extraction kernels match on every ordered pair of samples")
+		void shouldExtractCombinationsLikeScalar() {
+			final char[] expected = new char[WORDS * 64];
+			final char[] actual = new char[WORDS * 64];
+			for (int i = 0; i < samples.length; i++) {
+				for (int j = 0; j < samples.length; j++) {
+					for (int operation = 0; operation < EXTRACT_NAMES.length; operation++) {
+						final String context = EXTRACT_NAMES[operation] + " of samples " + i + " and " + j;
+						final int expectedCount = applyExtract(SCALAR, operation, samples[i], samples[j], expected);
+						final int actualCount = applyExtract(vector, operation, samples[i], samples[j], actual);
+						assertEquals(expectedCount, actualCount, () -> "count of " + context);
+						assertArrayEquals(
+							Arrays.copyOf(expected, expectedCount), Arrays.copyOf(actual, actualCount),
+							() -> "values of " + context
+						);
+					}
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("the two-operand extraction kernels agree with their counting twins")
+		void shouldExtractAsManyValuesAsTheCountingKernelsReport() {
+			final char[] out = new char[WORDS * 64];
+			for (int i = 0; i < samples.length; i++) {
+				final long[] a = samples[i];
+				for (int j = 0; j < samples.length; j++) {
+					final long[] b = samples[j];
+					assertEquals(SCALAR.andCardinality(a, b), vector.extractAnd(a, b, out), "extractAnd count");
+					assertEquals(
+						SCALAR.andNotCardinality(a, b), vector.extractAndNot(a, b, out), "extractAndNot count"
+					);
+					assertEquals(SCALAR.xorCardinality(a, b), vector.extractXor(a, b, out), "extractXor count");
+				}
+			}
+		}
+	}
+
 	/**
 	 * Invokes one of the four fused kernels by index, so that each aliasing shape is written once rather
 	 * than four times.
@@ -298,6 +425,31 @@ public class VectorKernelsDifferentialTest {
 			case 2 -> kernels.xor(a, b, out);
 			case 3 -> kernels.andNot(a, b, out);
 			default -> throw new IllegalArgumentException("Unknown fused kernel index: " + operation);
+		};
+	}
+
+	/**
+	 * Invokes one of the three two-operand extraction kernels by index.
+	 *
+	 * @param kernels   implementation to invoke
+	 * @param operation index into {@link #EXTRACT_NAMES}
+	 * @param a         first operand
+	 * @param b         second operand
+	 * @param out       destination
+	 * @return the number of values the kernel wrote
+	 */
+	private static int applyExtract(
+		@Nonnull final BitmapKernels kernels,
+		final int operation,
+		@Nonnull final long[] a,
+		@Nonnull final long[] b,
+		@Nonnull final char[] out
+	) {
+		return switch (operation) {
+			case 0 -> kernels.extractAnd(a, b, out);
+			case 1 -> kernels.extractAndNot(a, b, out);
+			case 2 -> kernels.extractXor(a, b, out);
+			default -> throw new IllegalArgumentException("Unknown extraction kernel index: " + operation);
 		};
 	}
 
@@ -350,8 +502,14 @@ public class VectorKernelsDifferentialTest {
 	 */
 	@Nonnull
 	private static long[][] buildSamples() {
-		final int[] singleBits = {0, 63, 64, 65, 511 * 64 - 1, 511 * 64, WORDS * 64 - 65, WORDS * 64 - 1};
-		final long[][] built = new long[SEEDS.length * DENSITIES.length + singleBits.length][];
+		// the last six park a single bit on the boundary between two vector lanes, for the 2-, 4- and
+		// 8-lane shapes the API offers - a block-stepping kernel that mis-indexes a lane loses exactly one
+		// of these and nothing else
+		final int[] singleBits = {
+			0, 63, 64, 65, 511 * 64 - 1, 511 * 64, WORDS * 64 - 65, WORDS * 64 - 1,
+			2 * 64 - 1, 2 * 64, 4 * 64 - 1, 4 * 64, 8 * 64 - 1, 8 * 64
+		};
+		final long[][] built = new long[SEEDS.length * DENSITIES.length + singleBits.length + 1][];
 		int next = 0;
 		for (int s = 0; s < SEEDS.length; s++) {
 			for (int d = 0; d < DENSITIES.length; d++) {
@@ -363,7 +521,26 @@ public class VectorKernelsDifferentialTest {
 			single[singleBits[b] >>> 6] = 1L << singleBits[b];
 			built[next++] = single;
 		}
+		built[next] = clusteredWords();
 		return built;
+	}
+
+	/**
+	 * A clustered sample: 64 bits inside a single 1024-value stretch and nothing anywhere else. This is the
+	 * shape a repaired union bitmap actually has — a handful of values in one neighbourhood and 1008 empty
+	 * words — and it is the shape the extraction kernels' empty-block skip exists for.
+	 *
+	 * @return the sample
+	 */
+	@Nonnull
+	private static long[] clusteredWords() {
+		final long[] words = new long[WORDS];
+		final int firstBit = 4096;
+		for (int i = 0; i < 64; i++) {
+			final int bit = firstBit + i * 13;
+			words[bit >>> 6] |= 1L << bit;
+		}
+		return words;
 	}
 
 	/**

@@ -125,6 +125,15 @@ public final class VectorKernels {
 	 */
 	private static final String[] FUSED_KERNEL_NAMES = {"and", "or", "xor", "andNot"};
 	/**
+	 * The high-bit prefix the self-test passes to the `int` extraction kernel: an arbitrary container key
+	 * shifted into place, so that a kernel dropping the base is caught.
+	 */
+	private static final int SELF_TEST_EXTRACT_BASE = 7 << 16;
+	/**
+	 * Names of the three two-operand extraction kernels, in the order {@link #applyExtract} dispatches them.
+	 */
+	private static final String[] EXTRACT_KERNEL_NAMES = {"extractAnd", "extractAndNot", "extractXor"};
+	/**
 	 * Aliasing shape where the destination is a separate array from both operands.
 	 */
 	private static final int ALIASING_SEPARATE = 0;
@@ -453,6 +462,13 @@ public final class VectorKernels {
 	private static String selfTest(@Nonnull final BitmapKernels candidate) {
 		final BitmapKernels reference = ScalarBitmapKernels.INSTANCE;
 		final long[][] samples = buildSelfTestSamples();
+		// one set of extraction buffers for the whole self-test, wide enough for a saturated container
+		final char[] expectedValues = new char[SELF_TEST_WORDS * 64];
+		final char[] actualValues = new char[SELF_TEST_WORDS * 64];
+		// one slot wider than a saturated container, because the `int` variant is exercised at a non-zero
+		// write offset
+		final int[] expectedWideValues = new int[SELF_TEST_WORDS * 64 + 1];
+		final int[] actualWideValues = new int[SELF_TEST_WORDS * 64 + 1];
 		for (int i = 0; i < samples.length; i++) {
 			final long[] a = samples[i];
 			if (candidate.cardinality(a) != reference.cardinality(a)) {
@@ -465,14 +481,32 @@ public final class VectorKernels {
 					return "cardinalityInRange";
 				}
 			}
+			final int expectedCount = reference.extract(a, expectedValues);
+			final int actualCount = candidate.extract(a, actualValues);
+			if (expectedCount != actualCount
+				|| !Arrays.equals(expectedValues, 0, expectedCount, actualValues, 0, actualCount)) {
+				return "extract";
+			}
+			// a non-zero write offset and a non-zero base, since both are a caller's business rather than
+			// the kernel's and an implementation could plausibly drop either
+			final int expectedWideCount = reference.extract(a, expectedWideValues, 1, SELF_TEST_EXTRACT_BASE);
+			final int actualWideCount = candidate.extract(a, actualWideValues, 1, SELF_TEST_EXTRACT_BASE);
+			if (expectedWideCount != actualWideCount
+				|| !Arrays.equals(
+					expectedWideValues, 1, 1 + expectedWideCount, actualWideValues, 1, 1 + actualWideCount
+				)) {
+				return "extract(int[])";
+			}
 			for (int j = 0; j < samples.length; j++) {
-				final String mismatch = selfTestPair(candidate, reference, a, samples[j]);
+				final String mismatch = selfTestPair(
+					candidate, reference, a, samples[j], expectedValues, actualValues
+				);
 				if (mismatch != null) {
 					return mismatch;
 				}
 			}
 			// the self-aliased shape a container operator reaches when both operands are the same array
-			final String selfAliased = selfTestPair(candidate, reference, a, a);
+			final String selfAliased = selfTestPair(candidate, reference, a, a, expectedValues, actualValues);
 			if (selfAliased != null) {
 				return selfAliased;
 			}
@@ -483,10 +517,12 @@ public final class VectorKernels {
 	/**
 	 * Runs the eight two-operand kernels for one ordered pair of samples, in all three destination aliasings.
 	 *
-	 * @param candidate the vector implementation under test
-	 * @param reference the scalar implementation it must agree with
-	 * @param a         first operand
-	 * @param b         second operand
+	 * @param candidate      the vector implementation under test
+	 * @param reference      the scalar implementation it must agree with
+	 * @param a              first operand
+	 * @param b              second operand
+	 * @param expectedValues scratch buffer the reference extracts into
+	 * @param actualValues   scratch buffer the candidate extracts into
 	 * @return the name of the first kernel that disagreed, or `null` when all of them matched
 	 */
 	@Nullable
@@ -494,8 +530,18 @@ public final class VectorKernels {
 		@Nonnull final BitmapKernels candidate,
 		@Nonnull final BitmapKernels reference,
 		@Nonnull final long[] a,
-		@Nonnull final long[] b
+		@Nonnull final long[] b,
+		@Nonnull final char[] expectedValues,
+		@Nonnull final char[] actualValues
 	) {
+		for (int operation = 0; operation < EXTRACT_KERNEL_NAMES.length; operation++) {
+			final int expectedCount = applyExtract(reference, operation, a, b, expectedValues);
+			final int actualCount = applyExtract(candidate, operation, a, b, actualValues);
+			if (expectedCount != actualCount
+				|| !Arrays.equals(expectedValues, 0, expectedCount, actualValues, 0, actualCount)) {
+				return EXTRACT_KERNEL_NAMES[operation];
+			}
+		}
 		if (candidate.andCardinality(a, b) != reference.andCardinality(a, b)) {
 			return "andCardinality";
 		}
@@ -551,6 +597,32 @@ public final class VectorKernels {
 			case 2 -> kernels.xor(a, b, out);
 			case 3 -> kernels.andNot(a, b, out);
 			default -> throw new IllegalArgumentException("Unknown fused kernel index: " + operation);
+		};
+	}
+
+	/**
+	 * Invokes one of the three two-operand extraction kernels by index, so that the self-test can sweep
+	 * them without repeating the same buffer scaffolding three times.
+	 *
+	 * @param kernels   implementation to invoke
+	 * @param operation index into {@link #EXTRACT_KERNEL_NAMES}
+	 * @param a         first operand
+	 * @param b         second operand
+	 * @param out       destination
+	 * @return the number of values the kernel wrote
+	 */
+	private static int applyExtract(
+		@Nonnull final BitmapKernels kernels,
+		final int operation,
+		@Nonnull final long[] a,
+		@Nonnull final long[] b,
+		@Nonnull final char[] out
+	) {
+		return switch (operation) {
+			case 0 -> kernels.extractAnd(a, b, out);
+			case 1 -> kernels.extractAndNot(a, b, out);
+			case 2 -> kernels.extractXor(a, b, out);
+			default -> throw new IllegalArgumentException("Unknown extraction kernel index: " + operation);
 		};
 	}
 

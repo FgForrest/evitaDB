@@ -9,8 +9,6 @@ import io.evitadb.roaringbitmap.kernel.VectorKernels;
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 
-import static java.lang.Long.numberOfTrailingZeros;
-
 /**
  * Low-level static helpers shared by the Roaring bitmap container implementations: unsigned
  * binary/galloping searches over sorted `char[]` arrays, merge primitives for the set operations
@@ -210,7 +208,9 @@ public final class Util {
 	 * order, each position emitted as its low 16-bit `char`. `container` must be large enough to hold
 	 * the intersection cardinality.
 	 *
-	 * Complexity: `O(words + popcount)`.
+	 * Complexity: `O(words + popcount)`. Runs on the `extractAnd` kernel of
+	 * {@link io.evitadb.roaringbitmap.kernel.BitmapKernels}, which skips whole blocks whose combined
+	 * words are empty where the provider selected a vector implementation.
 	 *
 	 * @param container output array receiving the set-bit positions, filled from index `0`
 	 * @param bitmap1   first word array
@@ -219,17 +219,10 @@ public final class Util {
 	 */
 	public static void fillArrayAND(
 		@Nonnull final char[] container, @Nonnull final long[] bitmap1, @Nonnull final long[] bitmap2) {
-		int pos = 0;
 		if (bitmap1.length != bitmap2.length) {
 			throw new IllegalArgumentException("not supported");
 		}
-		for (int k = 0; k < bitmap1.length; ++k) {
-			long bitset = bitmap1[k] & bitmap2[k];
-			while (bitset != 0) {
-				container[pos++] = (char) (k * 64 + numberOfTrailingZeros(bitset));
-				bitset &= (bitset - 1);
-			}
-		}
+		VectorKernels.BITMAP.extractAnd(bitmap1, bitmap2, container);
 	}
 
 	/**
@@ -237,7 +230,9 @@ public final class Util {
 	 * word array but absent from the second) into `container` in ascending order, each position
 	 * emitted as its low 16-bit `char`. `container` must hold the difference cardinality.
 	 *
-	 * Complexity: `O(words + popcount)`.
+	 * Complexity: `O(words + popcount)`. Runs on the `extractAndNot` kernel of
+	 * {@link io.evitadb.roaringbitmap.kernel.BitmapKernels}, which skips whole blocks whose combined
+	 * words are empty where the provider selected a vector implementation.
 	 *
 	 * @param container output array receiving the set-bit positions, filled from index `0`
 	 * @param bitmap1   first word array
@@ -246,17 +241,10 @@ public final class Util {
 	 */
 	public static void fillArrayANDNOT(
 		@Nonnull final char[] container, @Nonnull final long[] bitmap1, @Nonnull final long[] bitmap2) {
-		int pos = 0;
 		if (bitmap1.length != bitmap2.length) {
 			throw new IllegalArgumentException("not supported");
 		}
-		for (int k = 0; k < bitmap1.length; ++k) {
-			long bitset = bitmap1[k] & (~bitmap2[k]);
-			while (bitset != 0) {
-				container[pos++] = (char) (k * 64 + numberOfTrailingZeros(bitset));
-				bitset &= (bitset - 1);
-			}
-		}
+		VectorKernels.BITMAP.extractAndNot(bitmap1, bitmap2, container);
 	}
 
 	/**
@@ -264,7 +252,9 @@ public final class Util {
 	 * two word arrays) into `container` in ascending order, each position emitted as its low 16-bit
 	 * `char`. `container` must hold the symmetric-difference cardinality.
 	 *
-	 * Complexity: `O(words + popcount)`.
+	 * Complexity: `O(words + popcount)`. Runs on the `extractXor` kernel of
+	 * {@link io.evitadb.roaringbitmap.kernel.BitmapKernels}, which skips whole blocks whose combined
+	 * words are empty where the provider selected a vector implementation.
 	 *
 	 * @param container output array receiving the set-bit positions, filled from index `0`
 	 * @param bitmap1   first word array
@@ -273,17 +263,10 @@ public final class Util {
 	 */
 	public static void fillArrayXOR(
 		@Nonnull final char[] container, @Nonnull final long[] bitmap1, @Nonnull final long[] bitmap2) {
-		int pos = 0;
 		if (bitmap1.length != bitmap2.length) {
 			throw new IllegalArgumentException("not supported");
 		}
-		for (int k = 0; k < bitmap1.length; ++k) {
-			long bitset = bitmap1[k] ^ bitmap2[k];
-			while (bitset != 0) {
-				container[pos++] = (char) (k * 64 + numberOfTrailingZeros(bitset));
-				bitset &= (bitset - 1);
-			}
-		}
+		VectorKernels.BITMAP.extractXor(bitmap1, bitmap2, container);
 	}
 
 	/**
@@ -1087,22 +1070,15 @@ public final class Util {
 	 * its low 16-bit position (`64 * wordIndex + trailingZeros`). `array` must hold at least the
 	 * bitmap's population count.
 	 *
-	 * Complexity: `O(words + popcount)`.
+	 * Complexity: `O(words + popcount)`. Runs on the `extract` kernel of
+	 * {@link io.evitadb.roaringbitmap.kernel.BitmapKernels}, which skips whole blocks of empty words where
+	 * the provider selected a vector implementation.
 	 *
 	 * @param bitmap source word array representing a bitset
 	 * @param array  output array receiving the set-bit positions, filled from index `0`
 	 */
 	public static void fillArray(@Nonnull final long[] bitmap, @Nonnull final char[] array) {
-		int pos = 0;
-		int base = 0;
-		for (int k = 0; k < bitmap.length; ++k) {
-			long bitset = bitmap[k];
-			while (bitset != 0) {
-				array[pos++] = (char) (base + numberOfTrailingZeros(bitset));
-				bitset &= (bitset - 1);
-			}
-			base += 64;
-		}
+		VectorKernels.BITMAP.extract(bitmap, array);
 	}
 
 	/**

@@ -198,11 +198,19 @@ public class VectorKernelsSelectionTest {
 		}
 
 		@Test
-		@DisplayName("the selected kernels are never null, and the array family is the scalar one")
+		@DisplayName("the selected kernels are never null, and the summary agrees with them")
 		void shouldAlwaysPublishUsableKernels() {
 			assertNotNull(VectorKernels.BITMAP);
 			// no vector formulation of the sparse-container merge has been measured to win yet
 			assertSame(ScalarArrayKernels.INSTANCE, VectorKernels.ARRAY);
+			// the summary is the operational record of the decision, so it has to agree with the field it
+			// describes rather than merely be well-formed
+			final String summary = VectorKernels.summary();
+			assertEquals(
+				VectorKernels.BITMAP == ScalarBitmapKernels.INSTANCE,
+				summary.contains("bitmap=scalar"),
+				summary
+			);
 		}
 
 		@Test
@@ -212,6 +220,7 @@ public class VectorKernelsSelectionTest {
 			// this assertion is the one that proves the second execution really is a different configuration
 			if ("false".equalsIgnoreCase(System.getProperty("evita.roaring.vector"))) {
 				assertSame(ScalarBitmapKernels.INSTANCE, VectorKernels.BITMAP);
+				assertSame(ScalarArrayKernels.INSTANCE, VectorKernels.ARRAY);
 				assertTrue(
 					VectorKernels.summary().contains("disabled by -Devita.roaring.vector=false"),
 					VectorKernels.summary()

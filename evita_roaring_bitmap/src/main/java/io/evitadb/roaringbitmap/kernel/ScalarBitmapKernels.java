@@ -19,6 +19,10 @@ import javax.annotation.Nonnull;
  *
  * Every fused kernel loads both operands before it stores, which is what lets `out` be `a` or `b`.
  *
+ * The extraction kernels are the `tzcnt`/`blsr` loops the module has always decoded set bits with: read a
+ * word, emit the position of its lowest set bit, clear that bit, repeat. They are reproduced here verbatim
+ * rather than delegated to `Util`, because `Util` is the caller.
+ *
  * Stateless and therefore safe to share: {@link #INSTANCE} is the only instance anyone needs.
  */
 public final class ScalarBitmapKernels implements BitmapKernels {
@@ -114,6 +118,86 @@ public final class ScalarBitmapKernels implements BitmapKernels {
 			count += Long.bitCount(word);
 		}
 		return count;
+	}
+
+	@Override
+	public int extract(@Nonnull final long[] words, @Nonnull final char[] out) {
+		int pos = 0;
+		int base = 0;
+		for (int k = 0; k < words.length; k++) {
+			long bitset = words[k];
+			while (bitset != 0) {
+				out[pos++] = (char) (base + Long.numberOfTrailingZeros(bitset));
+				bitset &= (bitset - 1);
+			}
+			base += 64;
+		}
+		return pos;
+	}
+
+	@Override
+	public int extract(
+		@Nonnull final long[] words,
+		@Nonnull final int[] out,
+		final int outOffset,
+		final int base
+	) {
+		int pos = outOffset;
+		int wordBase = base;
+		for (int k = 0; k < words.length; k++) {
+			long bitset = words[k];
+			while (bitset != 0) {
+				out[pos++] = wordBase + Long.numberOfTrailingZeros(bitset);
+				bitset &= (bitset - 1);
+			}
+			wordBase += 64;
+		}
+		return pos - outOffset;
+	}
+
+	@Override
+	public int extractAnd(@Nonnull final long[] a, @Nonnull final long[] b, @Nonnull final char[] out) {
+		int pos = 0;
+		int base = 0;
+		for (int k = 0; k < a.length; k++) {
+			long bitset = a[k] & b[k];
+			while (bitset != 0) {
+				out[pos++] = (char) (base + Long.numberOfTrailingZeros(bitset));
+				bitset &= (bitset - 1);
+			}
+			base += 64;
+		}
+		return pos;
+	}
+
+	@Override
+	public int extractAndNot(@Nonnull final long[] a, @Nonnull final long[] b, @Nonnull final char[] out) {
+		int pos = 0;
+		int base = 0;
+		for (int k = 0; k < a.length; k++) {
+			long bitset = a[k] & (~b[k]);
+			while (bitset != 0) {
+				out[pos++] = (char) (base + Long.numberOfTrailingZeros(bitset));
+				bitset &= (bitset - 1);
+			}
+			base += 64;
+		}
+		return pos;
+	}
+
+	@Override
+	public int extractXor(@Nonnull final long[] a, @Nonnull final long[] b, @Nonnull final char[] out) {
+		int pos = 0;
+		int base = 0;
+		for (int k = 0; k < a.length; k++) {
+			long bitset = a[k] ^ b[k];
+			while (bitset != 0) {
+				out[pos++] = (char) (base + Long.numberOfTrailingZeros(bitset));
+				bitset &= (bitset - 1);
+			}
+			base += 64;
+		}
+		return pos;
 	}
 
 	@Override

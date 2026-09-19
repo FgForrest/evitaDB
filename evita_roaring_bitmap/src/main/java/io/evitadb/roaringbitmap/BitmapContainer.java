@@ -628,22 +628,17 @@ public final class BitmapContainer extends Container implements Cloneable {
 	 * Appends every set value, OR-ed with `mask` (the high-bit prefix), into `x` starting at index
 	 * `i`, in ascending order.
 	 *
+	 * This is the uncapped extraction site — `PersistentRoaringBitmap.toArray()` reaches it once per
+	 * dense chunk with no cardinality ceiling — and it runs on the `extract` kernel of
+	 * {@link io.evitadb.roaringbitmap.kernel.BitmapKernels}.
+	 *
 	 * @param x    destination array (must have room for {@link #cardinality} entries from `i`)
 	 * @param i    first write position in `x`
 	 * @param mask high-bit prefix added to each 16-bit value
 	 */
 	@Override
 	public void fillLeastSignificant16bits(@Nonnull final int[] x, final int i, final int mask) {
-		int pos = i;
-		int base = mask;
-		for (int k = 0; k < this.bitmap.length; ++k) {
-			long bitset = this.bitmap[k];
-			while (bitset != 0) {
-				x[pos++] = base + numberOfTrailingZeros(bitset);
-				bitset &= (bitset - 1);
-			}
-			base += 64;
-		}
+		VectorKernels.BITMAP.extract(this.bitmap, x, i, mask);
 	}
 
 	/**
