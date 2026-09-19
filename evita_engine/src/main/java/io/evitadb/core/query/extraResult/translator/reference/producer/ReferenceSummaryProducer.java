@@ -1141,8 +1141,10 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 			this.referenceSummaryRequest = referenceSummaryRequest;
 			this.groupId = groupId;
 			this.countCalculator = countCalculator;
-			this.impactCalculator = referenceSummaryRequest.facetStatisticsDepth() == FacetStatisticsDepth.COUNTS ?
-				ImpactCalculator.NO_IMPACT : impactCalculator;
+			// gate on the depth that WANTS the impact, not on the one that does not: testing for COUNTS sent
+			// NONE - documented as the cheapest depth - down the same branch as IMPACT, the most expensive one
+			this.impactCalculator = referenceSummaryRequest.facetStatisticsDepth() == FacetStatisticsDepth.IMPACT ?
+				impactCalculator : ImpactCalculator.NO_IMPACT;
 		}
 
 		/**
