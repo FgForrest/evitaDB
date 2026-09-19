@@ -287,6 +287,23 @@ busy gate ≤ 20 % before and averaged across every run; ratios are the finding,
   shape of the algorithm.
 - `2026-07-07-roaring-bitmap-vendoring` — why the module is a hard fork and carries a sync ledger.
 
+## How these numbers may be read
+
+**Every figure in this record holds only within the dataset snapshot it was measured on.** The production
+catalogs are restored from daily backups of live systems, so a later restore returns a corpus of very similar
+shape but different content — different entity counts, different attribute distributions, different price
+coverage. Neither the matched-record total quoted below nor any checksum of the replayed query set is
+reproducible across restores, and neither should be treated as a fixture identity to match against.
+
+What survives is the *comparison*, not the absolute. A ratio measured between two builds on one snapshot, with
+the arms interleaved, is the claim this record makes; the millisecond figures accompanying it are context for
+that ratio rather than a baseline for a future run. A later campaign re-establishes its own baseline on whatever
+corpus it restores and compares within it.
+
+This is also why the query set is replayed from a serialized file rather than regenerated: within one snapshot
+the file guarantees two builds do identical work, which a seeded generator does not (see the generator's
+cross-JVM irreproducibility, below). It is not, and cannot be, a way to compare across snapshots.
+
 ## Supporting material
 
 - `census/REPORT.md` — container histogram, operation mix, intersection shapes, lazy-union structure and
