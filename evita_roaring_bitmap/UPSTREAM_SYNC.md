@@ -88,9 +88,9 @@ Upstream has no counterpart to any of the following; they are evitaDB's own and 
   Vector API is never in the default root set, so a launcher without `--add-modules jdk.incubator.vector`
   runs the scalar kernels) and `requires java.management` (the provider reads the JVM's own command line to
   see whether an optimizing JIT is available).
-- **`Util.unsignedLocalIntersect2by2` promoted `public`.** Its counting twin
-  `unsignedLocalIntersect2by2Cardinality` has always been public; the promotion lets `ScalarArrayKernels`
-  delegate to the merge rather than carry a second copy of it.
+- **`ScalarArrayKernels` delegates to the public `Util.unsignedIntersect2by2` dispatcher** (galloping or merge by
+  the operands' sizes) rather than to the package-private merge, so no visibility of `Util` had to change for the
+  sparse-container seam.
 
 **What this means when replaying an upstream change.** `BitmapContainer`'s `and` / `andCardinality` / `andNot`
 / `iand` / `iandNot` / `or` / `ior` / `xor` / `ixor` / `rank` / `validate` / `computeCardinality` /
@@ -148,7 +148,10 @@ shared key, whatever the two cardinalities were; upstream still does. The vendor
 sparse while their combined cardinality fits `PersistentRoaringBitmap.LAZY_ARRAY_UNION_BOUND`, merging them as
 value lists through `ArrayContainer.ior(ArrayContainer)` and leaving the cardinality **known** rather than
 lazy. This is CRoaring's `ARRAY_LAZY_LOWERBOUND` branch (`src/containers/mixed_union.c`), which the Java port
-never had; the bound is lower here because the Java `ior` copies the accumulator on every fold.
+never reached from a multi-way union (the container-level `ArrayContainer.lazyor` carries the same branch with
+`ARRAY_LAZY_LOWERBOUND = 1024`, but `naivelazyor` promoted the accumulator before merging, so it was bypassed); the
+bound on the multi-way path is lower because the Java `ior` copies the accumulator on every fold, which makes the
+array fold quadratic in the number of inputs — the input-count guard in `FastAggregation.naive_or` is the other half.
 
 The shape of the divergence, for a diff:
 

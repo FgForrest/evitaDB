@@ -1194,9 +1194,7 @@ public final class Util {
 	 * @param buffer  output array receiving the intersection, filled from index `0`
 	 * @return number of values written to `buffer` (cardinality of the intersection)
 	 */
-	// evita divergence: promoted from package-private so that `ScalarArrayKernels` can delegate to it rather
-	// than carry a second copy of the merge; its counting twin above has always been public
-	public static int unsignedLocalIntersect2by2(
+	static int unsignedLocalIntersect2by2(
 		@Nonnull final char[] set1,
 		final int length1,
 		@Nonnull final char[] set2,

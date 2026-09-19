@@ -53,7 +53,7 @@ public final class FastAggregation {
 
 	/**
 	 * Largest input count for which {@link #naive_or(PersistentRoaringBitmap...)} lets the fold keep a
-	 * small overlap sparse (`PersistentRoaringBitmap.LAZY_ARRAY_UNION_BOUND`).
+	 * small overlap sparse ({@link PersistentRoaringBitmap#LAZY_ARRAY_UNION_BOUND}).
 	 *
 	 * The sparse shape copies the accumulator's values on every fold, which is cheap while the fold is
 	 * short and quadratic once it is not: a union of five thousand bitmaps would pay that copy on every

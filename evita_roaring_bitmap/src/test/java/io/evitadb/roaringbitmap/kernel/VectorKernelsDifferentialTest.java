@@ -47,6 +47,14 @@ public class VectorKernelsDifferentialTest {
 	private static final double[] DENSITIES = {0.0d, 0.01d, 0.0625d, 0.5d, 0.99d, 1.0d};
 
 	/**
+	 * Word counts that are not a whole number of vectors for any lane count the API offers. Every lane count
+	 * is a power of two, so an odd word count always leaves a remainder, and {@link #WORDS} - a multiple of
+	 * all of them - never does. Everything else in this class runs on {@link #WORDS} words, which is why the
+	 * scalar tail after each vector loop is reached only here.
+	 */
+	private static final int[] TAIL_WORD_COUNTS = {1, 3, 7, 13, 1021};
+
+	/**
 	 * Names of the four fused kernels, in the order {@link #applyFused} dispatches them.
 	 */
 	private static final String[] FUSED_NAMES = {"and", "or", "xor", "andNot"};
@@ -160,6 +168,29 @@ public class VectorKernelsDifferentialTest {
 							FUSED_NAMES[operation] + " into its first operand, samples " + i + " and " + j,
 							applyFused(SCALAR, operation, expected, b, expected), expected,
 							applyFused(vector, operation, actual, b, actual), actual
+						);
+					}
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("the fused kernels behave identically when the destination is the second operand")
+		void shouldFuseIntoTheSecondOperandLikeScalar() {
+			// the contract says `out` may be `a` or `b`; the three shapes above cover `a` and the fully aliased
+			// case, and this is the fourth. The vector loops satisfy it only because each iteration loads both
+			// operands before it stores, so reordering one loop's store ahead of its second load breaks exactly
+			// this test and nothing else
+			for (int i = 0; i < samples.length; i++) {
+				for (int j = 0; j < samples.length; j++) {
+					for (int operation = 0; operation < FUSED_NAMES.length; operation++) {
+						final long[] a = samples[i];
+						final long[] expected = samples[j].clone();
+						final long[] actual = samples[j].clone();
+						assertFusedAgree(
+							FUSED_NAMES[operation] + " into its second operand, samples " + i + " and " + j,
+							applyFused(SCALAR, operation, a, expected, expected), expected,
+							applyFused(vector, operation, a, actual, actual), actual
 						);
 					}
 				}
@@ -401,6 +432,147 @@ public class VectorKernelsDifferentialTest {
 		}
 	}
 
+	@Nested
+	@DisplayName("word counts that are not a whole number of vectors")
+	class PartialVectors {
+
+		@Test
+		@DisplayName("the fused kernels agree with scalar when a scalar tail has to run")
+		void shouldFuseTheTailLikeScalar() {
+			for (int w = 0; w < TAIL_WORD_COUNTS.length; w++) {
+				final int words = TAIL_WORD_COUNTS[w];
+				final long[][] shortSamples = shortSamples(words);
+				for (int i = 0; i < shortSamples.length; i++) {
+					for (int j = 0; j < shortSamples.length; j++) {
+						for (int operation = 0; operation < FUSED_NAMES.length; operation++) {
+							final long[] expected = new long[words];
+							final long[] actual = new long[words];
+							assertFusedAgree(
+								FUSED_NAMES[operation] + " over " + words + " words, samples " + i + " and " + j,
+								applyFused(SCALAR, operation, shortSamples[i], shortSamples[j], expected), expected,
+								applyFused(vector, operation, shortSamples[i], shortSamples[j], actual), actual
+							);
+						}
+					}
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("the counting kernels agree with scalar when a scalar tail has to run")
+		void shouldCountTheTailLikeScalar() {
+			for (int w = 0; w < TAIL_WORD_COUNTS.length; w++) {
+				final int words = TAIL_WORD_COUNTS[w];
+				final long[][] shortSamples = shortSamples(words);
+				for (int i = 0; i < shortSamples.length; i++) {
+					final long[] a = shortSamples[i];
+					assertEquals(SCALAR.cardinality(a), vector.cardinality(a), () -> "cardinality over " + words);
+					for (int j = 0; j < shortSamples.length; j++) {
+						final long[] b = shortSamples[j];
+						final String context = " over " + words + " words, samples " + i + " and " + j;
+						assertEquals(SCALAR.andCardinality(a, b), vector.andCardinality(a, b), () -> "and" + context);
+						assertEquals(SCALAR.orCardinality(a, b), vector.orCardinality(a, b), () -> "or" + context);
+						assertEquals(SCALAR.xorCardinality(a, b), vector.xorCardinality(a, b), () -> "xor" + context);
+						assertEquals(
+							SCALAR.andNotCardinality(a, b), vector.andNotCardinality(a, b), () -> "andNot" + context
+						);
+					}
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("the extraction kernels agree with scalar when a scalar tail has to run")
+		void shouldExtractTheTailLikeScalar() {
+			for (int w = 0; w < TAIL_WORD_COUNTS.length; w++) {
+				final int words = TAIL_WORD_COUNTS[w];
+				final long[][] shortSamples = shortSamples(words);
+				final char[] expected = new char[words * 64];
+				final char[] actual = new char[words * 64];
+				final int[] expectedInts = new int[words * 64 + 8];
+				final int[] actualInts = new int[words * 64 + 8];
+				for (int i = 0; i < shortSamples.length; i++) {
+					final long[] a = shortSamples[i];
+					assertExtractionAgrees(
+						"extract over " + words + " words, sample " + i,
+						SCALAR.extract(a, expected), expected, vector.extract(a, actual), actual
+					);
+
+					final int expectedCount = SCALAR.extract(a, expectedInts, 5, 7 << 16);
+					final int actualCount = vector.extract(a, actualInts, 5, 7 << 16);
+					final int sample = i;
+					assertEquals(
+						expectedCount, actualCount,
+						() -> "count of extract(int[]) over " + words + " words, sample " + sample
+					);
+					assertArrayEquals(
+						Arrays.copyOfRange(expectedInts, 5, 5 + expectedCount),
+						Arrays.copyOfRange(actualInts, 5, 5 + actualCount),
+						() -> "values of extract(int[]) over " + words + " words, sample " + sample
+					);
+
+					for (int j = 0; j < shortSamples.length; j++) {
+						final long[] b = shortSamples[j];
+						for (int operation = 0; operation < EXTRACT_NAMES.length; operation++) {
+							assertExtractionAgrees(
+								EXTRACT_NAMES[operation] + " over " + words + " words, samples " + i + " and " + j,
+								applyExtract(SCALAR, operation, a, b, expected), expected,
+								applyExtract(vector, operation, a, b, actual), actual
+							);
+						}
+					}
+				}
+			}
+		}
+
+		/**
+		 * Asserts that an extraction kernel returned the same count and the same values as the reference did.
+		 *
+		 * @param context        what is being compared, for the failure message
+		 * @param expectedCount  count the reference returned
+		 * @param expectedValues values the reference wrote
+		 * @param actualCount    count the vector kernel returned
+		 * @param actualValues   values the vector kernel wrote
+		 */
+		private void assertExtractionAgrees(
+			@Nonnull final String context,
+			final int expectedCount,
+			@Nonnull final char[] expectedValues,
+			final int actualCount,
+			@Nonnull final char[] actualValues
+		) {
+			assertEquals(expectedCount, actualCount, () -> "count of " + context);
+			assertArrayEquals(
+				Arrays.copyOf(expectedValues, expectedCount), Arrays.copyOf(actualValues, actualCount),
+				() -> "values of " + context
+			);
+		}
+	}
+
+	/**
+	 * Builds a small sample set of a given word count: one half-dense array per seed, plus the empty, the
+	 * saturated and the last-bit-only shapes. The last of those is what a dropped scalar tail loses first.
+	 *
+	 * @param wordCount length of every sample
+	 * @return the samples
+	 */
+	@Nonnull
+	private static long[][] shortSamples(final int wordCount) {
+		final long[][] built = new long[SEEDS.length + 3][];
+		int next = 0;
+		for (int s = 0; s < SEEDS.length; s++) {
+			built[next++] = randomWords(SEEDS[s], 0.5d, wordCount);
+		}
+		built[next++] = new long[wordCount];
+		final long[] saturated = new long[wordCount];
+		Arrays.fill(saturated, ~0L);
+		built[next++] = saturated;
+		final long[] lastBitOnly = new long[wordCount];
+		lastBitOnly[wordCount - 1] = Long.MIN_VALUE;
+		built[next] = lastBitOnly;
+		return built;
+	}
+
 	/**
 	 * Invokes one of the four fused kernels by index, so that each aliasing shape is written once rather
 	 * than four times.
@@ -552,7 +724,20 @@ public class VectorKernelsDifferentialTest {
 	 */
 	@Nonnull
 	private static long[] randomWords(final long seed, final double density) {
-		final long[] words = new long[WORDS];
+		return randomWords(seed, density, WORDS);
+	}
+
+	/**
+	 * Draws a word array of a given length whose bits are set with the given probability.
+	 *
+	 * @param seed      seed of the pseudo-random generator
+	 * @param density   fraction of set bits, `0.0` for empty and `1.0` for saturated
+	 * @param wordCount length of the array
+	 * @return a freshly built word array
+	 */
+	@Nonnull
+	private static long[] randomWords(final long seed, final double density, final int wordCount) {
+		final long[] words = new long[wordCount];
 		if (density <= 0.0d) {
 			return words;
 		}
@@ -561,7 +746,7 @@ public class VectorKernelsDifferentialTest {
 			return words;
 		}
 		final Random random = new Random(seed);
-		for (int bit = 0; bit < WORDS * 64; bit++) {
+		for (int bit = 0; bit < wordCount * 64; bit++) {
 			if (random.nextDouble() < density) {
 				words[bit >>> 6] |= 1L << bit;
 			}

@@ -372,7 +372,14 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 		@Nonnull TriFunction<Integer, Bitmap, Bitmap[], FacetGroupFormula> formulaFactory,
 		@Nonnull Bitmap facetId
 	) {
-		final Map<Integer, GroupBucket> facetsByGroup = createLinkedHashMap(facetId.size());
+		// sized by the number of buckets it can end up holding, never by the width of the request: `facetId` is
+		// the computed result of the `facetHaving` inner filter and is unbounded by construction, while the
+		// accumulator holds one entry per group plus one for the ungrouped index. Sizing it by the request made
+		// a 10,000-facet `facetHaving` allocate a 16,384-slot table - measured at 133 KB - to hold a handful of
+		// buckets, on the very path this method exists to make cheap.
+		final Map<Integer, GroupBucket> facetsByGroup = createLinkedHashMap(
+			Math.min(facetId.size(), this.groupedFacets.size() + 1)
+		);
 		final OfInt facetIdIterator = facetId.iterator();
 		while (facetIdIterator.hasNext()) {
 			final int facetPrimaryKey = facetIdIterator.nextInt();
@@ -407,6 +414,10 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	 * altogether when the group it names has no index — which is what the `groupIndex() != null` filter did
 	 * before this method was a loop.
 	 *
+	 * The `get` / `put` pair is deliberate: `computeIfAbsent` would have to capture `groupIndex` in its
+	 * mapping function, and this runs once per requested facet, so that closure would be allocated for every
+	 * facet of the request merely to be discarded on all but the first of each group.
+	 *
 	 * @param facetsByGroup   the accumulator, keyed by group id (`null` for the ungrouped index)
 	 * @param groupId         the group the facet belongs to, `null` when it belongs to none
 	 * @param groupIndex      the index that group is stored in, `null` when the group is not indexed
@@ -421,10 +432,14 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 		if (groupIndex == null) {
 			return;
 		}
-		facetsByGroup
-			.computeIfAbsent(groupId, key -> new GroupBucket(groupIndex, new IntArrayList()))
-			.facetIds()
-			.add(facetPrimaryKey);
+		final GroupBucket bucket = facetsByGroup.get(groupId);
+		if (bucket == null) {
+			final GroupBucket newBucket = new GroupBucket(groupIndex, new IntArrayList());
+			newBucket.facetIds().add(facetPrimaryKey);
+			facetsByGroup.put(groupId, newBucket);
+		} else {
+			bucket.facetIds().add(facetPrimaryKey);
+		}
 	}
 
 	/**

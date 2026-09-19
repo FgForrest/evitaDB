@@ -628,7 +628,7 @@ public final class BitmapContainer extends Container implements Cloneable {
 	 * Appends every set value, OR-ed with `mask` (the high-bit prefix), into `x` starting at index
 	 * `i`, in ascending order.
 	 *
-	 * This is the uncapped extraction site — `PersistentRoaringBitmap.toArray()` reaches it once per
+	 * This is the uncapped extraction site — {@link PersistentRoaringBitmap#toArray()} reaches it once per
 	 * dense chunk with no cardinality ceiling — and it runs on the `extract` kernel of
 	 * {@link io.evitadb.roaringbitmap.kernel.BitmapKernels}.
 	 *

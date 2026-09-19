@@ -4,9 +4,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -22,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * no-op — and a three-value result stays an 8 KiB {@link BitmapContainer}.
  *
  * That failure is close to invisible: the values are all correct, `getCardinality()` is correct, and
- * iteration is correct. What breaks is identity. `BitmapContainer.equals` compares against an
+ * iteration is correct. What breaks is identity. {@link BitmapContainer#equals(Object)} compares against an
  * {@link ArrayContainer} by cardinality and content, but the two are different classes with different
  * memory footprints, and a bitmap that should have collapsed to three values keeps 8 KiB per chunk for the
  * rest of its life. The assertions below therefore check the container *type*, not only the values.
@@ -82,10 +84,56 @@ public class LazyCardinalityProtocolTest {
 	}
 
 	@Test
+	@DisplayName("a work-shy AND through a buffer exactly one container wide computes the intersection")
+	void shouldIntersectWhenTheWorkShyBufferIsExactlyOneContainerWide() {
+		// the buffer is wrapped by a BitmapContainer without being copied, and the fused kernels read exactly
+		// that container's word count - so one chunk's worth of words is the width the operators support, and
+		// it is the width every caller in this codebase passes. Pinning it here states the supported width as a
+		// test rather than leaving it to a parameter comment
+		final PersistentRoaringBitmap[] inputs = buildInputs();
+
+		final PersistentRoaringBitmap result = FastAggregation.and(new long[1024], inputs);
+
+		assertEquals(COMMON_VALUES.length, result.getCardinality());
+		assertEquals(expectedResult(), result);
+		assertInstanceOf(
+			ArrayContainer.class,
+			result.highLowContainer.getContainerAtIndex(0),
+			"the lazy protocol must survive the caller-supplied buffer as well"
+		);
+	}
+
+	@Test
+	@DisplayName("a work-shy buffer wider than one container has never been usable")
+	void shouldNotSupportAWorkShyBufferWiderThanOneContainer() {
+		// `and(long[], ...)` validates only the lower bound and its `@param` says "at least 1024 longs", but a
+		// wider buffer is wrapped by a BitmapContainer without being copied, and every operator that meets it
+		// indexes the other operand over the receiver's whole word count. The first one to do so is the lazy
+		// branch of `iand`, which is upstream code none of the kernel work touched - so the width was never
+		// supported, and the in-place union and symmetric difference losing their `Math.min` clamp took away a
+		// defence that nothing could reach. The frame is asserted, not just the throwable, because that is the
+		// whole point: the failure is older than the kernels
+		final PersistentRoaringBitmap[] inputs = buildInputs();
+
+		final IndexOutOfBoundsException failure = assertThrows(
+			IndexOutOfBoundsException.class,
+			() -> FastAggregation.and(new long[1025], inputs)
+		);
+
+		assertTrue(
+			Arrays.stream(failure.getStackTrace())
+				.anyMatch(frame -> BitmapContainer.class.getName().equals(frame.getClassName())
+					&& "iand".equals(frame.getMethodName())),
+			() -> "expected the pre-existing lazy intersection to be what rejects the width, got "
+				+ Arrays.toString(failure.getStackTrace())
+		);
+	}
+
+	@Test
 	@DisplayName("an in-place intersection on a lazy container leaves its cardinality unknown")
 	void shouldLeaveLazyCardinalityUnknown() {
 		final long[] words = new long[1024];
-		java.util.Arrays.fill(words, ~0L);
+		Arrays.fill(words, ~0L);
 		final BitmapContainer lazy = new BitmapContainer(words, -1);
 
 		final BitmapContainer other = new BitmapContainer();

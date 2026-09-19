@@ -79,6 +79,15 @@
 						scalar fallback with the kill switch. The switch is passed as a system property rather
 						than through `argLine`, because overriding `argLine` here would drop the whole set of
 						module and package opening arguments the root POM assembles.
+
+						That the default execution runs the vector kernels is an expectation, not a guarantee:
+						it falls back to scalar on any JVM without `jdk.incubator.vector` and on any CPU whose
+						preferred `long` shape is narrower than 256 bits, and it does so silently, because a
+						narrow runner is entitled to that answer. Requiring it here would fail such a build for
+						its hardware. Whoever wants the expectation checked passes
+						`-Devita.roaring.vector.require=true`, which `VectorKernelsSelectionTest` turns into a
+						failure when the provider published the scalar kernels; the scalar execution below
+						recognises its own kill switch and stays green.
 					-->
 					<execution>
 						<id>scalar-kernels</id>

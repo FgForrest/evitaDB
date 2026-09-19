@@ -3722,12 +3722,14 @@ public class PersistentRoaringBitmap
 	 *
 	 * CRoaring has carried the same branch since its beginning — `array_container_lazy_inplace_union`
 	 * stays an array while `card(a) + card(b) <= ARRAY_LAZY_LOWERBOUND`, which is `1024` there — and the
-	 * Java port simply never grew it. **The bound here is deliberately lower**, because the two ports pay
-	 * different prices for it: CRoaring's in-place union writes into a reallocated buffer, while
-	 * {@link ArrayContainer#ior(ArrayContainer)} copies the accumulator's values (a `System.arraycopy` of
-	 * the whole accumulator, or a fresh array when the capacity has to grow) on **every** fold. That copy
-	 * makes an array-shaped fold quadratic in the number of inputs, and the bound is what caps the
-	 * quadratic term.
+	 * Java port carries it too, in {@link ArrayContainer#lazyor(ArrayContainer)} with the same `1024`; what
+	 * kept it out of reach was this class's multi-way union, which promoted the accumulator to a
+	 * {@link BitmapContainer} *before* merging and so never asked the container. **The bound here is
+	 * deliberately lower** than the container's, because the two ports pay different prices for it: CRoaring's
+	 * in-place union writes into a reallocated buffer, while {@link ArrayContainer#ior(ArrayContainer)} copies
+	 * the accumulator's values (a `System.arraycopy` of the whole accumulator, or a fresh array when the
+	 * capacity has to grow) on **every** fold. That copy makes an array-shaped fold quadratic in the
+	 * number of inputs, and the bound is what caps the quadratic term.
 	 *
 	 * What it is weighed against is the bitmap path's **fixed** cost per key, which a small chunk pays in
 	 * full: allocating and zeroing the 8 KiB word array, scattering the values into it, a 1024-word

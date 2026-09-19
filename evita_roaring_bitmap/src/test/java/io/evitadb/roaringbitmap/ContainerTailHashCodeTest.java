@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Pins the two container hash codes that now read only the tail of their backing array.
  *
- * `ArrayContainer.hashCode()` and `RunContainer.hashCode()` compute the upstream recurrence
+ * {@link ArrayContainer#hashCode()} and {@link RunContainer#hashCode()} compute the upstream recurrence
  * `hash += 31 * hash + entry`, which the `+=` makes `hash = 32 * hash + entry`. In 32-bit arithmetic the
  * entry seven places from the end is multiplied by `2^35 == 0`, so everything before the last seven entries
  * contributes nothing and the loop can start there. The point of this class is that the shortened loop is an
@@ -149,6 +149,69 @@ public class ContainerTailHashCodeTest {
 				);
 			}
 		}
+
+		@Test
+		@DisplayName("two run containers sharing only their last seven run entries hash the same")
+		void shouldCollideWhenOnlyTheRunTailAgrees() {
+			// the collision property is pinned above for the sparse encoding alone, while the run hash runs the
+			// same shortened recurrence over a different array - the interleaved `value, length` pairs - so it
+			// has to be pinned here too or a change to one of the two loops goes unnoticed
+			final RunContainer first = fourRunsStartingAt(10);
+			final RunContainer second = fourRunsStartingAt(20);
+
+			assertEquals(4, first.numberOfRuns(), "eight entries, so the first one falls outside the tail");
+			assertEquals(4, second.numberOfRuns());
+			assertNotEquals(
+				(int) first.getValue(0), (int) second.getValue(0),
+				"the two containers must genuinely differ outside the tail, or the assertion below is empty"
+			);
+			assertEquals(
+				first.hashCode(), second.hashCode(),
+				"run containers sharing only their last seven run entries collide"
+			);
+			assertNotEquals(first, second, "...while remaining unequal, as they do in the sparse encoding");
+		}
+
+		// Known limitation: an array container and a run container holding the same values compare equal in
+		// both directions yet hash differently, because the run hash reads the interleaved `value, length` pairs
+		// rather than the values the container holds - the two encodings break the hashCode contract
+		@Test
+		@DisplayName("an array container and a run container over the same values compare equal and hash apart")
+		void shouldHashDifferentlyAcrossEncodingsThatCompareEqual() {
+			final ArrayContainer asValues = new ArrayContainer(3, new char[]{1, 2, 3});
+			final RunContainer asRuns = new RunContainer();
+			assertSame(asRuns, asRuns.iadd(1, 4), "iadd must keep the run encoding");
+
+			assertEquals(asValues, asRuns, "the two encodings hold the same three values");
+			assertEquals(asRuns, asValues, "...and compare equal the other way round too");
+			assertNotEquals(
+				asValues.hashCode(), asRuns.hashCode(),
+				"equal containers hashing apart is what breaks the contract"
+			);
+			// pinned as values, so that a change to either loop has to be argued against this test rather than
+			// merely keeping the two sides different from each other
+			assertEquals(1091, asValues.hashCode(), "32 * (32 * (32 * 0 + 1) + 2) + 3, over the three values");
+			assertEquals(34, asRuns.hashCode(), "32 * (32 * 0 + 1) + 2, over the run's value and length");
+		}
+	}
+
+	/**
+	 * Builds a four-run container whose first run starts at `firstValue` and whose three remaining runs are
+	 * fixed, so that two such containers differ in exactly the one entry the hash cannot see.
+	 *
+	 * @param firstValue first value of the leading run
+	 * @return the container, holding four runs and therefore eight hash entries
+	 */
+	@Nonnull
+	private static RunContainer fourRunsStartingAt(final int firstValue) {
+		final RunContainer container = new RunContainer();
+		assertSame(
+			container, container.iadd(firstValue, firstValue + 6), "iadd must keep the run encoding"
+		);
+		assertSame(container, container.iadd(100, 104));
+		assertSame(container, container.iadd(200, 204));
+		assertSame(container, container.iadd(300, 304));
+		return container;
 	}
 
 	/**

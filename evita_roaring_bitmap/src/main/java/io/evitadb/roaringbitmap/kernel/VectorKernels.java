@@ -104,6 +104,11 @@ public final class VectorKernels {
 	 */
 	private static final String TIERED_STOP_AT_LEVEL_OPTION = "TieredStopAtLevel";
 	/**
+	 * Opening of the reason the summary carries when the failure boundary caught a throwable, which is the
+	 * one reason no gate can claim: see {@link #buildSummary}.
+	 */
+	private static final String SELECTION_FAILED = "kernel selection failed, ";
+	/**
 	 * Word count of a dense container, and therefore the size of every self-test sample.
 	 */
 	private static final int SELF_TEST_WORDS = 1024;
@@ -431,6 +436,10 @@ public final class VectorKernels {
 	 * first bitmap operation instead of a fallback at startup.
 	 *
 	 * @return the loaded kernels together with their vector width, or `null` when they are not usable
+	 * @throws ReflectiveOperationException when the implementation class or its methods cannot be
+	 *                                       resolved or invoked; left unhandled here and caught by the
+	 *                                       static initializer's single {@code catch (Throwable)}, which
+	 *                                       falls back to the scalar kernels
 	 */
 	@Nullable
 	private static LoadedBitmapKernels loadVectorBitmapKernels() throws ReflectiveOperationException {
@@ -661,6 +670,13 @@ public final class VectorKernels {
 	/**
 	 * Renders the decision as the single line {@link #summary()} returns.
 	 *
+	 * **A caught throwable is the reason, and it displaces every gate.** The gate inputs default to the
+	 * values that run the scalar kernels, so a `SecurityException` from the very first property read leaves
+	 * `globalSwitchOff` set on a JVM where nobody passed the flag, and every gate after it unevaluated. Both
+	 * families would then be reported as an operator-set kill switch, and an operator grepping the log for
+	 * their own flag would conclude they had set it. Naming the throwable instead is not merely less
+	 * misleading, it is more accurate: once one escaped, the gate sequence was abandoned rather than decided.
+	 *
 	 * @param bitmapDecision  outcome for the dense-container kernels
 	 * @param vectorBitSize   width of the loaded vector shape in bits, `0` when none loaded
 	 * @param selfTestFailure name of the kernel that failed the self-test, `null` when none did
@@ -669,7 +685,7 @@ public final class VectorKernels {
 	 * @return the one-line summary
 	 */
 	@Nonnull
-	private static String buildSummary(
+	static String buildSummary(
 		@Nonnull final KernelDecision bitmapDecision,
 		final int vectorBitSize,
 		@Nullable final String selfTestFailure,
@@ -686,12 +702,13 @@ public final class VectorKernels {
 		summary.append(" array=")
 			.append(arrayDecision == KernelDecision.VECTOR ? "vector" : "scalar")
 			.append(" (bitmap: ")
-			.append(bitmapDecision.reason(BITMAP_SWITCH_PROPERTY, selfTestFailure));
-		if (failure != null) {
-			summary.append(", ").append(failure);
-		}
-		summary.append("; array: ")
-			.append(arrayDecision.reason(ARRAY_SWITCH_PROPERTY, null))
+			.append(
+				failure == null
+					? bitmapDecision.reason(BITMAP_SWITCH_PROPERTY, selfTestFailure)
+					: SELECTION_FAILED + failure
+			)
+			.append("; array: ")
+			.append(failure == null ? arrayDecision.reason(ARRAY_SWITCH_PROPERTY, null) : SELECTION_FAILED + failure)
 			.append(')');
 		return summary.toString();
 	}

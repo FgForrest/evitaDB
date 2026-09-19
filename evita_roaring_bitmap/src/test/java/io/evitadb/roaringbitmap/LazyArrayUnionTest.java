@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 import java.util.Random;
 import java.util.TreeSet;
 
@@ -51,6 +52,20 @@ public class LazyArrayUnionTest {
 	 * Largest cardinality a chunk can have and still be canonically an {@link ArrayContainer}.
 	 */
 	private static final int ARRAY_CONTAINER_LIMIT = ArrayContainer.DEFAULT_MAX_SIZE;
+
+	@Test
+	@DisplayName("the bound stays inside the sparse encoding")
+	void shouldKeepTheBoundInsideTheSparseEncoding() {
+		// the sparse branch's claim that `ior` hands back an ArrayContainer with a known cardinality holds only
+		// while the bound stays at or below the array container's own limit. The constant exists so a benchmark
+		// can sweep it, and a sweep past that limit would quietly turn `shouldPromoteTheAccumulatorOverTheBound`'s
+		// `bound + 1` inputs into bitmap containers - changing what this class measures without failing anything
+		assertTrue(
+			PersistentRoaringBitmap.LAZY_ARRAY_UNION_BOUND <= ARRAY_CONTAINER_LIMIT,
+			"the lazy-union bound must stay at or below ArrayContainer.DEFAULT_MAX_SIZE, but was "
+				+ PersistentRoaringBitmap.LAZY_ARRAY_UNION_BOUND
+		);
+	}
 
 	@Nested
 	@DisplayName("the union is the union")
@@ -107,6 +122,25 @@ public class LazyArrayUnionTest {
 					}
 				}
 			}
+		}
+
+		@Test
+		@DisplayName("the iterator overload folds a wide input to the same union as the varargs one")
+		void shouldKeepThePolicyForAFoldOfUnknownWidth() {
+			// an iterator cannot say how many bitmaps it will yield, so that overload keeps the sparse policy at
+			// any width while the varargs one turns it off past its cap. The two therefore take different
+			// branches for this input and still have to agree on the answer
+			final PersistentRoaringBitmap[] inputs = new PersistentRoaringBitmap[200];
+			for (int i = 0; i < inputs.length; i++) {
+				inputs[i] = singleKeyBitmap(0, i, 1);
+			}
+
+			final PersistentRoaringBitmap byIterator = FastAggregation.naive_or(Arrays.asList(inputs).iterator());
+			final PersistentRoaringBitmap byVarargs = FastAggregation.naive_or(inputs);
+
+			assertEquals(byVarargs, byIterator, "the two overloads must fold to the same union");
+			assertArrayEquals(expectedRun(inputs.length), byIterator.toArray(), "the union's values");
+			assertEquals(inputs.length, byIterator.getCardinality(), "the union's cardinality");
 		}
 	}
 
@@ -212,6 +246,40 @@ public class LazyArrayUnionTest {
 			wide.repairAfterLazy();
 			narrow.repairAfterLazy();
 			assertArrayEquals(narrow.toArray(), wide.toArray(), "the cap must not change the union");
+		}
+
+		@Test
+		@DisplayName("the suffix a bulk merge finishes keeps the policy the walked keys had")
+		void shouldKeepTheSuffixSparseWhenTheBulkMergeFinishesTheFold() {
+			// the source's first key sits below the receiver's only key, so `naivelazyor` leaves its own loop
+			// straight away and the shared key is folded inside the bulk merge instead. That is the policy's
+			// second call site, and every other case in this class finishes through the loop
+			final PersistentRoaringBitmap sparse = singleKeyBitmap(5, 0, 4);
+			sparse.naivelazyor(twoKeyBitmap(1, 0, 4, 5, 100, 4));
+
+			assertEquals(2, sparse.highLowContainer.size(), "the borrowed key and the merged one");
+			assertEquals(5, sparse.highLowContainer.getKeyAtIndex(1), "the shared key comes second");
+			final Container shared = sparse.highLowContainer.getContainerAtIndex(1);
+			assertInstanceOf(
+				ArrayContainer.class, shared,
+				"a 4 + 4 merge is far below the bound and must stay sparse in the bulk path too"
+			);
+			assertEquals(8, shared.getCardinality(), "the sparse merge leaves the cardinality known");
+
+			// the same shape with the policy declined promotes, which is what makes the assertion above an
+			// assertion about the policy rather than about the two cardinalities
+			final PersistentRoaringBitmap promoted = singleKeyBitmap(5, 0, 4);
+			promoted.naivelazyor(twoKeyBitmap(1, 0, 4, 5, 100, 4), false);
+			assertInstanceOf(
+				BitmapContainer.class, promoted.highLowContainer.getContainerAtIndex(1),
+				"a fold that declined the sparse policy must promote in the bulk path as well"
+			);
+
+			// and both spellings compute the same union
+			sparse.repairAfterLazy();
+			promoted.repairAfterLazy();
+			assertArrayEquals(sparse.toArray(), promoted.toArray(), "the policy must not change the union");
+			assertEquals(12, sparse.getCardinality(), "four borrowed values and eight merged ones");
 		}
 
 		@Test
@@ -341,6 +409,37 @@ public class LazyArrayUnionTest {
 		final int[] values = new int[count];
 		for (int i = 0; i < count; i++) {
 			values[i] = (key << 16) | (from + i);
+		}
+		return PersistentRoaringBitmap.bitmapOf(values);
+	}
+
+	/**
+	 * Builds a bitmap holding a run of consecutive values inside each of two 16-bit keys, so that a fold can
+	 * be given a source whose first key sits below the receiver's.
+	 *
+	 * @param firstKey     key of the first chunk
+	 * @param firstFrom    first low 16-bit value of the first chunk
+	 * @param firstCount   how many consecutive values the first chunk holds
+	 * @param secondKey    key of the second chunk
+	 * @param secondFrom   first low 16-bit value of the second chunk
+	 * @param secondCount  how many consecutive values the second chunk holds
+	 * @return the bitmap
+	 */
+	@Nonnull
+	private static PersistentRoaringBitmap twoKeyBitmap(
+		final int firstKey,
+		final int firstFrom,
+		final int firstCount,
+		final int secondKey,
+		final int secondFrom,
+		final int secondCount
+	) {
+		final int[] values = new int[firstCount + secondCount];
+		for (int i = 0; i < firstCount; i++) {
+			values[i] = (firstKey << 16) | (firstFrom + i);
+		}
+		for (int i = 0; i < secondCount; i++) {
+			values[firstCount + i] = (secondKey << 16) | (secondFrom + i);
 		}
 		return PersistentRoaringBitmap.bitmapOf(values);
 	}
