@@ -216,12 +216,13 @@ public class LazyArrayUnionTest {
 		@Test
 		@DisplayName("a wide fold promotes immediately, a narrow one does not")
 		void shouldDisableTheSparseShapeForWideFolds() {
-			// 65 inputs is one past FastAggregation's cap; the same 65 bitmaps folded by hand with the
-			// policy left on stay sparse, which is what makes this an assertion about the cap rather than
-			// about the bound
+			// 65 inputs is one past FastAggregation's cap; every input carries the same single value, so the
+			// union never grows past one value and the cardinality bound can never be what promotes it — the
+			// same 65 bitmaps folded by hand with the policy left on stay sparse, which is what makes this an
+			// assertion about the cap rather than about the bound
 			final PersistentRoaringBitmap[] inputs = new PersistentRoaringBitmap[65];
 			for (int i = 0; i < inputs.length; i++) {
-				inputs[i] = singleKeyBitmap(0, i, 1);
+				inputs[i] = singleKeyBitmap(0, 0, 1);
 			}
 
 			final PersistentRoaringBitmap wide = new PersistentRoaringBitmap();

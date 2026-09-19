@@ -3737,10 +3737,14 @@ public class PersistentRoaringBitmap
 	 * the array container the result usually is anyway. Below the bound the array fold is cheaper than
 	 * that fixed cost; above it the scatter amortises it and the promotion pays for itself.
 	 *
-	 * Held as a constant rather than inlined so that a benchmark can sweep it. The value here is the
-	 * sweep's starting point, not its conclusion — the decision record carries the measurement.
+	 * Held as a constant rather than inlined so that a benchmark can sweep it. The sweep, on 300 real
+	 * multi-way unions replayed from a production e-commerce catalog and weighted by how often each input
+	 * count occurs there, put 64 and 256 level on total union time (both about 1.25× over the forced
+	 * promotion); 64 was chosen because it also wins the 17–64-input stratum (1.15× against 1.0×) and,
+	 * on synthetic shapes, never drops below 0.75× of today, where 256 has 0.2–0.6× pockets on 16–64
+	 * inputs of 4–16 values. The decision record carries the tables.
 	 */
-	static final int LAZY_ARRAY_UNION_BOUND = 256;
+	static final int LAZY_ARRAY_UNION_BOUND = 64;
 
 	/**
 	 * In-place lazy union like {@link #lazyor(PersistentRoaringBitmap)}, except each overlapping
