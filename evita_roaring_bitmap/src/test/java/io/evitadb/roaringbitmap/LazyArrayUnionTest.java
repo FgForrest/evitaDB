@@ -175,6 +175,49 @@ public class LazyArrayUnionTest {
 		}
 
 		@Test
+		@DisplayName("the gate admits a sum equal to the bound and refuses the next value")
+		void shouldSwitchShapeAtExactlyTheBound() {
+			// the neighbouring tests fold sums of 8 and of 2 * (bound + 1), so neither of them can see the
+			// comparison itself - a bound moved by one, or `<` written where `<=` is meant, leaves both of
+			// them on the same branch. The pairs below sum to exactly the bound and to exactly one more,
+			// and their two chunks are disjoint so the merged cardinality really is the sum
+			final int bound = PersistentRoaringBitmap.LAZY_ARRAY_UNION_BOUND;
+			final int firstHalf = bound / 2;
+			final int secondHalf = bound - firstHalf;
+
+			final PersistentRoaringBitmap onTheBound = new PersistentRoaringBitmap();
+			onTheBound.naivelazyor(singleKeyBitmap(0, 0, firstHalf));
+			onTheBound.naivelazyor(singleKeyBitmap(0, 40000, secondHalf));
+
+			final Container admitted = onTheBound.highLowContainer.getContainerAtIndex(0);
+			assertInstanceOf(
+				ArrayContainer.class, admitted,
+				"a fold summing to exactly the bound must still take the sparse branch"
+			);
+			assertEquals(
+				bound, admitted.getCardinality(),
+				"the sparse branch leaves the cardinality known, so repairAfterLazy has nothing to recompute"
+			);
+
+			final PersistentRoaringBitmap oneOver = new PersistentRoaringBitmap();
+			oneOver.naivelazyor(singleKeyBitmap(0, 0, firstHalf));
+			oneOver.naivelazyor(singleKeyBitmap(0, 40000, secondHalf + 1));
+
+			final Container refused = oneOver.highLowContainer.getContainerAtIndex(0);
+			assertInstanceOf(
+				BitmapContainer.class, refused,
+				"a fold summing to one past the bound must promote"
+			);
+			assertEquals(
+				-1, refused.getCardinality(),
+				"the promoted accumulator is left lazy for repairAfterLazy to count"
+			);
+
+			oneOver.repairAfterLazy();
+			assertEquals(bound + 1, oneOver.getCardinality(), "the repaired union");
+		}
+
+		@Test
 		@DisplayName("a fold that crosses the bound promotes to a lazy BitmapContainer")
 		void shouldPromoteTheAccumulatorOverTheBound() {
 			final int bound = PersistentRoaringBitmap.LAZY_ARRAY_UNION_BOUND;
