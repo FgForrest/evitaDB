@@ -30,9 +30,9 @@ import java.util.stream.Stream;
 public class TestUtil {
 
 	@Test
-	@DisplayName("The three extraction helpers reject two word arrays of different lengths")
+	@DisplayName("Every extraction helper rejects two word arrays of different lengths")
 	public void fillArrayHelpersRejectMismatchedWordArrays() {
-		// the kernels the three methods delegate to read exactly `bitmap1.length` words and index the second
+		// the kernels these methods delegate to read exactly `bitmap1.length` words and index the second
 		// array over that whole range, so this guard is the only thing standing between a mismatched pair and
 		// an ArrayIndexOutOfBoundsException. No container operator can present one, which is why the guard has
 		// no other witness - the delegation moved the rest of these methods' bodies out of reach
@@ -58,6 +58,23 @@ public class TestUtil {
 		);
 		assertThrows(
 			IllegalArgumentException.class, () -> Util.fillArrayXOR(container, longer, shorter)
+		);
+		// the two overloads that also take a population count carry their own copy of the guard, and it sits
+		// ahead of the point where that count picks a decoding strategy - so neither a count that would take
+		// the block-skipping path nor one that would take the scalar walk excuses the check
+		assertThrows(
+			IllegalArgumentException.class, () -> Util.fillArrayANDNOT(container, shorter, longer, 0)
+		);
+		assertThrows(
+			IllegalArgumentException.class, () -> Util.fillArrayXOR(container, shorter, longer, 0)
+		);
+		assertThrows(
+			IllegalArgumentException.class,
+			() -> Util.fillArrayANDNOT(container, longer, shorter, BitmapContainer.MAX_CAPACITY)
+		);
+		assertThrows(
+			IllegalArgumentException.class,
+			() -> Util.fillArrayXOR(container, longer, shorter, BitmapContainer.MAX_CAPACITY)
 		);
 	}
 

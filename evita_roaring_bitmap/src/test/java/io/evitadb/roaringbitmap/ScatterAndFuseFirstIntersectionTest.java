@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * `ilazyor(ArrayContainer)`, `ior(ArrayContainer)`, `or(ArrayContainer)` and `loadData(ArrayContainer)` set
  * one bit per value through two shared helpers, `scatterInto` and `scatterIntoCounting`. A word-batched form
- * of those helpers once shipped and was reverted after it cost 7.3% end to end on the workload it was meant to
+ * of those helpers was written and then withdrawn after it cost 7.3% end to end on the workload it was meant to
  * speed up, so the helpers must stay bit-for-bit equivalent to the plain per-value loops, including the
  * cardinality bookkeeping. The bulk of this class is a differential test against exactly those loops, kept
  * here as private reference implementations; whichever form the helpers take next, the reference is what
