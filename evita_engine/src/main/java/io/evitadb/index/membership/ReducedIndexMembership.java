@@ -34,7 +34,7 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.index.map.TransactionalMap;
+import io.evitadb.index.map.PersistentTransactionalProducerMap;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.VMLayout;
@@ -206,8 +206,18 @@ public class ReducedIndexMembership implements VoidTransactionMemoryProducer<Red
 	/**
 	 * Owner primary key to the primary keys of the covered reduced indexes holding it. Holds an entry only
 	 * for owners that belong to at least one covered index.
+	 *
+	 * **Persistent, because this map is merged on every commit that dirties the owning global index and its size
+	 * is a function of the catalog's data volume.** A plain {@link io.evitadb.index.map.TransactionalMap} holding
+	 * producer values cannot early-out on an absent diff layer — a producer mutates through its own layer, which
+	 * the map never sees — so it walks every entry on every commit, whether or not the transaction touched this
+	 * reference. Measured on a production retail corpus, that walk cost 18.1 ms per commit across the eight
+	 * `Product` references that have a lookup (182,583 owner entries), against 0.001 ms here. The price is that
+	 * an in-place mutation of a value has to be declared: see the two {@link
+	 * PersistentTransactionalProducerMap#markValueMutated} calls below, and note that a forgotten declaration
+	 * fails the commit loudly rather than going stale.
 	 */
-	@Nonnull private final TransactionalMap<Integer, TransactionalBitmap> indexPrimaryKeysByOwner;
+	@Nonnull private final PersistentTransactionalProducerMap<Integer, TransactionalBitmap> indexPrimaryKeysByOwner;
 
 	/**
 	 * Union of {@link #indexPrimaryKeysByOwner}'s keys, kept as a bitmap so the affected-owner set can be
@@ -276,7 +286,7 @@ public class ReducedIndexMembership implements VoidTransactionMemoryProducer<Red
 		);
 		this.coverageThreshold = coverageThreshold;
 		this.demotionThreshold = Math.max(1, coverageThreshold / 2);
-		this.indexPrimaryKeysByOwner = new TransactionalMap<>(
+		this.indexPrimaryKeysByOwner = new PersistentTransactionalProducerMap<>(
 			CollectionUtils.createHashMap(64), TransactionalBitmap.class, TransactionalBitmap::new
 		);
 		this.coveredOwners = new TransactionalBitmap();
@@ -303,7 +313,7 @@ public class ReducedIndexMembership implements VoidTransactionMemoryProducer<Red
 	) {
 		this.coverageThreshold = coverageThreshold;
 		this.demotionThreshold = Math.max(1, coverageThreshold / 2);
-		this.indexPrimaryKeysByOwner = new TransactionalMap<>(
+		this.indexPrimaryKeysByOwner = new PersistentTransactionalProducerMap<>(
 			indexPrimaryKeysByOwner, TransactionalBitmap.class, TransactionalBitmap::new
 		);
 		this.coveredOwners = new TransactionalBitmap(coveredOwners);
@@ -667,6 +677,9 @@ public class ReducedIndexMembership implements VoidTransactionMemoryProducer<Red
 			);
 			this.coveredOwners.add(ownerPrimaryKey);
 		} else {
+			// the bitmap mutates through its own diff layer, which the map cannot see - declare it so the commit
+			// walks this key (a freshly put entry is already in the diff's modified set and needs no mark)
+			this.indexPrimaryKeysByOwner.markValueMutated(ownerPrimaryKey);
 			existing.add(indexPrimaryKey);
 		}
 	}
@@ -689,6 +702,9 @@ public class ReducedIndexMembership implements VoidTransactionMemoryProducer<Red
 			// index out of coverage.
 			return;
 		}
+		// same in-place mutation as above - a subsequent map-remove of an emptied bitmap is tracked separately as
+		// a removal, and removal takes precedence over the mark
+		this.indexPrimaryKeysByOwner.markValueMutated(ownerPrimaryKey);
 		existing.remove(indexPrimaryKey);
 		if (existing.isEmpty()) {
 			this.indexPrimaryKeysByOwner.remove(ownerPrimaryKey);

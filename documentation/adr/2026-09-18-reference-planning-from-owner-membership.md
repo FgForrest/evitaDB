@@ -1,7 +1,7 @@
 ---
 title: Answer reference-planning cardinality from the owner→partition map, widened and retuned to 64
 date: 2026-09-18
-updated: 2026-09-19 07:25
+updated: 2026-09-19 17:15
 status: partially-implemented
 kind: optimization
 issues: [1585, 1603]
@@ -190,6 +190,11 @@ inverted counterfactual proved the assertion live on the write path
 
 ### The write-path A/B
 
+**This measures bulk ingest, and bulk ingest only.** `Catalog:1793` states that in `WARM_UP` writes bypass the
+transactional pipeline entirely, so the commit-time merge the map participates in never executed during these
+four runs. What the table below establishes is that maintaining the map costs nothing detectable while rows are
+being written; it says nothing whatever about `ALIVE`, which is measured separately two sections down.
+
 Full `WARM_UP` catalog reindex plus `goLive` of the same production retail corpus (386,369 entities;
 119,447 `Product`, 88–90 % of load time), through the gRPC driver into a separate server process, writer heap
 23g and reader 14g/8g pinned across every run. Two runs per arm, alternated `B, A, B, A` so that any drift
@@ -219,11 +224,34 @@ sufficient here because the write gate and the load gate read the same predicate
 
 ## Consequences & open follow-ups
 
-**The write-path CPU of the widening was measured and is below the noise floor** — see the A/B above. The
-expectation that `ownerAdded` costs roughly two transactional bitmap operations and one boxed map lookup
-against a row insert already performing six B+ tree operations on the cardinality tallies alone is borne out:
-45× the partitions tracked, no detectable change in reindex time. This was the one measurement that could
-still have argued for option B, and it does not.
+**The `WARM_UP` write-path CPU of the widening was measured and is below the noise floor** — see the A/B
+above. The expectation that `ownerAdded` costs roughly two transactional bitmap operations and one boxed map
+lookup against a row insert already performing six B+ tree operations on the cardinality tallies alone is
+borne out: 45× the partitions tracked, no detectable change in reindex time. This was the one measurement
+that could still have argued for option B on ingest cost, and it does not.
+
+**The `ALIVE` commit cost was a separate question, and the first answer was 23 ms per commit.** The A/B above
+could not see it: `WARM_UP` bypasses the pipeline, so the merge never ran. Under `ALIVE` every commit that
+dirties a collection's global index merges that index, and the global index merges the whole
+`reducedIndexMembership` map with it (`GlobalEntityIndex:537`). A `TransactionalMap` holding
+`TransactionalLayerProducer` values cannot early-out on an absent diff layer — a producer mutates through its
+own layer, invisible to the map — so it walked **every** owner entry of **every** maintained reference on
+every commit, touched or not. Reconstructed at the production corpus's `Product` LIVE shape (eight references,
+182,583 owner entries) and committed through a real transaction, that cost **23.2 ms per commit**, and an arm
+that wrote one owner cost the same as an arm that wrote nothing — the tell that the cost is the walk.
+
+`indexPrimaryKeysByOwner` is therefore a `PersistentTransactionalProducerMap`, the CHAMP-backed map
+`EntityCollection` already uses for its own partition maps, which path-copies only the keys the transaction
+touched. Same shape, same probe: **0.086 ms untouched, 0.112 ms with one owner written** — 270×, and now
+proportional to what was written. The two in-place bitmap mutations declare themselves through
+`markValueMutated`; a forgotten declaration leaves an orphaned layer that `verifyLayerWasFullySwept` turns
+into a `StaleTransactionMemoryException` at commit, so the failure mode is loud rather than silent. Nothing
+about persistence changes — `ReducedIndexMembershipMapComponent` writes no storage part, because the map is
+derived state rebuilt at load.
+
+The lesson generalises past this record: **a `TransactionalMap` whose values are producers and whose size
+scales with data volume pays `O(N)` on every commit of its owner, whether or not that transaction touched
+it.** Anything else answering that description is a candidate for the same swap.
 
 **The planner-side deferral was built and measured, and it does not make the query faster — the premise of this
 half of the decision was wrong.** `IndexSelectionVisitor` now settles eligibility from the schema and the
