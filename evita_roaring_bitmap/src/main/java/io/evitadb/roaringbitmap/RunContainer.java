@@ -2259,11 +2259,13 @@ public final class RunContainer extends Container implements Cloneable {
 	 */
 	@Nonnull
 	private Container lazyxor(@Nonnull final ArrayContainer x) {
+		// both `xor` and `ixor` route here, and `xor` is out of place: its caller owns the result and
+		// mutates it, so a degenerate case must hand back a private container rather than an operand
 		if (x.isEmpty()) {
-			return this;
+			return clone();
 		}
 		if (this.nbrruns == 0) {
-			return x;
+			return x.clone();
 		}
 		RunContainer answer = new RunContainer(new char[2 * (this.nbrruns + x.getCardinality())], 0);
 		int rlepos = 0;

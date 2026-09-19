@@ -436,7 +436,12 @@ public final class FastAggregation {
 					break;
 				}
 			}
-			answer.highLowContainer.append(x1.key(), newc);
+			// a chunk whose inputs cancelled holds no values; appending it would leave the result
+			// claiming a key it has nothing under, and would keep an emptied container alive as the
+			// receiver of the next fold
+			if (!newc.isEmpty()) {
+				answer.highLowContainer.append(x1.key(), newc);
+			}
 			x1.advance();
 			if (x1.getContainer() != null) {
 				pq.add(x1);
