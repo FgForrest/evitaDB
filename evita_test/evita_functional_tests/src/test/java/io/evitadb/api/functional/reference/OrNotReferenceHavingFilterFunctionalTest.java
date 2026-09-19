@@ -59,11 +59,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the entire entity collection.
  *
  * The fix is in `FormulaCloner` (detecting dedup-collapsed positional siblings of
- * `NotFormula` / `DisentangleFormula` and collapsing the wrapper to `EmptyFormula`),
- * with defensive identity guards added in `NotFormula.computeInternal` and
- * `DisentangleFormula.computeInternal`. These tests guard that behaviour against
- * regressions for reference-based predicates (the original reproduction used
- * `referenceShippingMethodHaving`).
+ * `NotFormula` and collapsing the wrapper to `EmptyFormula`), with a defensive
+ * identity guard added in `NotFormula.computeInternal`. These tests guard that
+ * behaviour against regressions for reference-based predicates (the original
+ * reproduction used `referenceShippingMethodHaving`).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

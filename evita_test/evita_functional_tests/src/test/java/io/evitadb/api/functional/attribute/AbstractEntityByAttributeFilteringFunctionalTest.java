@@ -2524,6 +2524,63 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return no entities by number attribute between (DateTimeRange) - inverted window")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnNoEntitiesByAttributeBetweenDateTimeRangeWithInvertedBounds(Evita evita, List<SealedEntity> originalProductEntities) {
+		final Random rnd = new Random(SEED);
+		OffsetDateTime one;
+		OffsetDateTime two;
+		do {
+			one = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CREATED, rnd.nextInt(originalProductEntities.size()));
+			two = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CREATED, rnd.nextInt(originalProductEntities.size()));
+		} while (Objects.equals(one, two));
+		final OffsetDateTime earlier = one.isBefore(two) ? one : two;
+		final OffsetDateTime later = one.isBefore(two) ? two : one;
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// calibration: the same two moments in the correct order select something, so the empty result below
+				// is caused by the inverted window and not by a window that was empty to begin with
+				final EvitaResponse<EntityReference> ordered = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeBetween(ATTRIBUTE_VALIDITY, earlier, later)
+						),
+						require(page(1, Integer.MAX_VALUE))
+					),
+					EntityReference.class
+				);
+				assertTrue(
+					ordered.getTotalRecordCount() > 0,
+					"The fixture proves nothing unless the correctly ordered window matches at least one entity"
+				);
+
+				// `attributeBetween` accepts its bounds in either order - neither the constraint's `isApplicable` nor
+				// `DateTimeRange.between` orders them - so this reaches the range index with a lower bound above its
+				// upper bound. An inverted window describes an empty set of moments, so nothing can overlap it.
+				//
+				// VERIFY_ALTERNATIVE_INDEX_RESULTS is deliberately NOT requested here: the non-indexed fallback
+				// answers this through `Range#overlaps`, which is not written for an inverted argument and does not
+				// agree with the indexed path on it.
+				final EvitaResponse<EntityReference> inverted = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeBetween(ATTRIBUTE_VALIDITY, later, earlier)
+						),
+						require(page(1, Integer.MAX_VALUE))
+					),
+					EntityReference.class
+				);
+				assertEquals(0, inverted.getTotalRecordCount());
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return entities by number attribute between (NumberRange) - overlap")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
