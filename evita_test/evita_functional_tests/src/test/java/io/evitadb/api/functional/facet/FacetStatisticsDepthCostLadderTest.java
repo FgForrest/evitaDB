@@ -40,6 +40,7 @@ import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -190,40 +191,45 @@ class FacetStatisticsDepthCostLadderTest implements EvitaTestSupport {
 		return collected;
 	}
 
-	@Test
-	@DisplayName("should not compute impact at depth NONE, the depth documented as the cheapest")
-	void shouldNotComputeImpactAtDepthNone() {
-		for (final FacetStatistics facet : facetStatisticsAtDepth(FacetStatisticsDepth.NONE)) {
-			assertNull(
-				facet.getImpact(),
-				"facet " + facet.getFacetEntity().getPrimaryKey() + " carries an impact at depth NONE, which "
-					+ "documents that neither counts nor impact are computed and is the cheapest depth"
+	@Nested
+	@DisplayName("Impact routing across the three depths")
+	class ImpactRouting {
+
+		@Test
+		@DisplayName("should not compute impact at depth NONE, the depth documented as the cheapest")
+		void shouldNotComputeImpactAtDepthNone() {
+			for (final FacetStatistics facet : facetStatisticsAtDepth(FacetStatisticsDepth.NONE)) {
+				assertNull(
+					facet.getImpact(),
+					"facet " + facet.getFacetEntity().getPrimaryKey() + " carries an impact at depth NONE, which "
+						+ "documents that neither counts nor impact are computed and is the cheapest depth"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should not compute impact at depth COUNTS")
+		void shouldNotComputeImpactAtDepthCounts() {
+			for (final FacetStatistics facet : facetStatisticsAtDepth(FacetStatisticsDepth.COUNTS)) {
+				assertNull(
+					facet.getImpact(),
+					"facet " + facet.getFacetEntity().getPrimaryKey() + " carries an impact at depth COUNTS"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should compute impact at depth IMPACT, proving the cheaper depths are not vacuously null")
+		void shouldComputeImpactAtDepthImpact() {
+			boolean anyImpact = false;
+			for (final FacetStatistics facet : facetStatisticsAtDepth(FacetStatisticsDepth.IMPACT)) {
+				anyImpact |= facet.getImpact() != null;
+			}
+			assertTrue(
+				anyImpact,
+				"no facet carried an impact at depth IMPACT - the fixture cannot tell a routed impact calculator "
+					+ "from a suppressed one, so the assertions for the cheaper depths prove nothing"
 			);
 		}
-	}
-
-	@Test
-	@DisplayName("should not compute impact at depth COUNTS")
-	void shouldNotComputeImpactAtDepthCounts() {
-		for (final FacetStatistics facet : facetStatisticsAtDepth(FacetStatisticsDepth.COUNTS)) {
-			assertNull(
-				facet.getImpact(),
-				"facet " + facet.getFacetEntity().getPrimaryKey() + " carries an impact at depth COUNTS"
-			);
-		}
-	}
-
-	@Test
-	@DisplayName("should compute impact at depth IMPACT, proving the cheaper depths are not vacuously null")
-	void shouldComputeImpactAtDepthImpact() {
-		boolean anyImpact = false;
-		for (final FacetStatistics facet : facetStatisticsAtDepth(FacetStatisticsDepth.IMPACT)) {
-			anyImpact |= facet.getImpact() != null;
-		}
-		assertTrue(
-			anyImpact,
-			"no facet carried an impact at depth IMPACT - the fixture cannot tell a routed impact calculator "
-				+ "from a suppressed one, so the assertions for the cheaper depths prove nothing"
-		);
 	}
 }
