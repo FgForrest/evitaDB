@@ -2131,7 +2131,9 @@ public final class RunContainer extends Container implements Cloneable {
 	@Nonnull
 	private RunContainer lazyandNot(@Nonnull final ArrayContainer x) {
 		if (x.isEmpty()) {
-			return this;
+			// `andNot` is out of place and its caller owns and mutates the result, so the degenerate case
+			// must hand back a private container rather than this receiver
+			return (RunContainer) clone();
 		}
 		RunContainer answer = new RunContainer(new char[2 * (this.nbrruns + x.cardinality)], 0);
 		int rlepos = 0;

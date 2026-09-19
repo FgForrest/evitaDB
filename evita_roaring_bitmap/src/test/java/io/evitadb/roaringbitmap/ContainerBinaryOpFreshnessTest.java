@@ -114,6 +114,54 @@ public class ContainerBinaryOpFreshnessTest {
 		c.ixor(new RunContainer(40_000, 41_000));
 	}
 
+	/**
+	 * The empty counterparts of the three shapes. An empty operand is the case the shape fixtures above
+	 * cannot reach, and it is the one that makes a degenerate short-circuit hand back an operand: an
+	 * operator that returns `this` or its argument for an empty side is invisible to any sweep whose
+	 * fixtures all carry values.
+	 */
+	private static final List<Shape> EMPTY_SHAPES = List.of(
+		new Shape("empty-array", offset -> new ArrayContainer()),
+		new Shape("empty-bitmap", offset -> new BitmapContainer()),
+		new Shape("empty-run", offset -> new RunContainer())
+	);
+
+	@Test
+	@DisplayName("or/xor/andNot never return an operand when either side is empty")
+	public void emptyOperandsStillReturnPrivateContainers() {
+		for (final Shape emptyShape : EMPTY_SHAPES) {
+			for (final Shape valuedShape : SHAPES) {
+				for (int op = 0; op < 3; op++) {
+					final String opName = op == 0 ? "or" : op == 1 ? "xor" : "andNot";
+					// both orders: an empty receiver and an empty argument fail through different branches
+					for (int order = 0; order < 2; order++) {
+						final Container left = order == 0
+							? emptyShape.factory().apply(0) : valuedShape.factory().apply(0);
+						final Container right = order == 0
+							? valuedShape.factory().apply(0) : emptyShape.factory().apply(0);
+						final String where = (order == 0 ? emptyShape.name() : valuedShape.name())
+							+ "." + opName + "("
+							+ (order == 0 ? valuedShape.name() : emptyShape.name()) + ")";
+						final int[] leftBefore = contents(left);
+						final int[] rightBefore = contents(right);
+
+						final Container result = op == 0
+							? left.or(right)
+							: op == 1 ? left.xor(right) : left.andNot(right);
+
+						assertNotSame(left, result, where + ": result is the left operand");
+						assertNotSame(right, result, where + ": result is the right operand");
+
+						scribble(result);
+
+						assertArrayEquals(leftBefore, contents(left), where + ": left operand was written through");
+						assertArrayEquals(rightBefore, contents(right), where + ": right operand was written through");
+					}
+				}
+			}
+		}
+	}
+
 	@Test
 	@DisplayName("or/xor/andNot results are private across every shape pair and operand order")
 	public void binaryOperatorsReturnPrivateContainers() {
