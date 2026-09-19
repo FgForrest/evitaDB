@@ -16,31 +16,31 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pins the word-batched scatter that {@link BitmapContainer}'s array-operand paths run on.
+ * Pins the array-operand write paths of {@link BitmapContainer} and its fuse-first intersection policy.
  *
- * `ilazyor(ArrayContainer)`, `ior(ArrayContainer)`, `or(ArrayContainer)` and `loadData(ArrayContainer)` used
- * to set one bit per value with `bitmap[v >>> 6] |= 1L << v`. They now exploit the fact that an
- * {@link ArrayContainer}'s values are sorted: the bits destined for one word are accumulated in a local
- * `long` and written back once, when the word index changes and once more after the loop. The answer has to
- * be bit-for-bit what the per-value loop produced, including the cardinality bookkeeping, so the bulk of
- * this class is a differential test against those original loops - kept here verbatim as the reference
- * implementations.
+ * `ilazyor(ArrayContainer)`, `ior(ArrayContainer)`, `or(ArrayContainer)` and `loadData(ArrayContainer)` set
+ * one bit per value through two shared helpers, `scatterInto` and `scatterIntoCounting`. A word-batched form
+ * of those helpers once shipped and was reverted after it cost 7.3% end to end on the workload it was meant to
+ * speed up, so the helpers must stay bit-for-bit equivalent to the plain per-value loops, including the
+ * cardinality bookkeeping. The bulk of this class is a differential test against exactly those loops, kept
+ * here as private reference implementations; whichever form the helpers take next, the reference is what
+ * they must reproduce.
  *
- * Three things the differential alone would not reach are checked separately: the value layouts the batching
- * actually branches on ({@link Shapes} - a single word, both sides of a word boundary, the last word of the
+ * Three things the differential alone would not reach are checked separately: the value layouts a scatter
+ * has to get right ({@link Shapes} - a single word, both sides of a word boundary, the last word of the
  * chunk), that a lazy union leaves the cardinality at `-1` for {@link BitmapContainer#repairAfterLazy()} to
  * resolve ({@link Laziness}), and that a union which fills the chunk still promotes to a full
- * {@link RunContainer} ({@link Saturation}) - the branch that reads the cardinality the batched accounting
+ * {@link RunContainer} ({@link Saturation}) - the branch that reads the cardinality the counting helper
  * produced.
  *
  * {@link BitmapIntersectionPolicy} covers a separate change to the same class: `and(BitmapContainer)`,
- * `iand(BitmapContainer)` and `iandNot(BitmapContainer)` now run the fused kernel first and demote afterwards,
+ * `iand(BitmapContainer)` and `iandNot(BitmapContainer)` run the fused kernel first and demote afterwards,
  * instead of counting the result before deciding which container to build. The answer must not move, so the
  * group pins the container type and the values on both sides of the demotion threshold against a plain
  * word-wise reference loop.
  */
-@DisplayName("Word-batched scatter and fuse-first intersection match the per-value forms")
-public class WordBatchedScatterTest {
+@DisplayName("Array scatter helpers and fuse-first intersection match the per-value forms")
+public class ScatterAndFuseFirstIntersectionTest {
 	/**
 	 * Array lengths swept by the differential. Small values dominate the production workload (median 4), the
 	 * middle of the range crosses several words, and `4096` is the largest cardinality an
@@ -59,7 +59,7 @@ public class WordBatchedScatterTest {
 	private static final int[] RECEIVER_FILLS = {0, 100, 5000, 40000};
 
 	@Nested
-	@DisplayName("the batched loop computes what the per-value loop computed")
+	@DisplayName("the helpers compute what the inline per-value loop computed")
 	class Differential {
 
 		@Test
@@ -134,7 +134,7 @@ public class WordBatchedScatterTest {
 	}
 
 	@Nested
-	@DisplayName("the value layouts the batching branches on")
+	@DisplayName("the value layouts a scatter has to get right")
 	class Shapes {
 
 		@Test
@@ -551,8 +551,8 @@ public class WordBatchedScatterTest {
 
 	/**
 	 * Draws `length` distinct values in tight clusters, so that long runs of them share one 64-bit word -
-	 * the layout the batching is written for, and the one a uniform draw almost never produces at small
-	 * lengths.
+	 * the layout a word-aware scatter would branch on, and the one a uniform draw almost never produces at
+	 * small lengths.
 	 *
 	 * @param random source of randomness
 	 * @param length number of values to draw
@@ -646,8 +646,8 @@ public class WordBatchedScatterTest {
 	}
 
 	/**
-	 * The per-value loop `ilazyor(ArrayContainer)` ran before the word batching, kept verbatim as the
-	 * reference the differential compares against.
+	 * Upstream's inline per-value loop of `ilazyor(ArrayContainer)`, kept verbatim as the reference the
+	 * differential compares against.
 	 *
 	 * @param target   container to mutate
 	 * @param operand values to add
@@ -663,7 +663,7 @@ public class WordBatchedScatterTest {
 	}
 
 	/**
-	 * The per-value loop `ior(ArrayContainer)` ran before the word batching, including its branchless
+	 * Upstream's inline per-value loop of `ior(ArrayContainer)`, including its branchless
 	 * `(before - after) >>> 63` cardinality accounting.
 	 *
 	 * @param target  container to mutate
@@ -681,8 +681,8 @@ public class WordBatchedScatterTest {
 	}
 
 	/**
-	 * The per-value loop `or(ArrayContainer)` ran before the word batching: a clone of the receiver, then
-	 * the same accounting {@link #referenceIor} performs. The promotion to a full {@link RunContainer} is
+	 * Upstream's inline per-value loop of `or(ArrayContainer)`: a clone of the receiver, then the same
+	 * accounting {@link #referenceIor} performs. The promotion to a full {@link RunContainer} is
 	 * deliberately left out so the caller can inspect the words.
 	 *
 	 * @param source  container to copy
@@ -698,7 +698,7 @@ public class WordBatchedScatterTest {
 	}
 
 	/**
-	 * The per-value loop `loadData(ArrayContainer)` ran before the word batching.
+	 * Upstream's inline per-value loop of `loadData(ArrayContainer)`.
 	 *
 	 * @param target  container to populate
 	 * @param operand source values
@@ -719,7 +719,7 @@ public class WordBatchedScatterTest {
 	private interface ScatterCase {
 
 		/**
-		 * Asserts the batched result against the reference for one pair.
+		 * Asserts the helper-backed result against the reference for one pair.
 		 *
 		 * @param receiver receiving container, which the check must not leave mutated
 		 * @param operand  array operand

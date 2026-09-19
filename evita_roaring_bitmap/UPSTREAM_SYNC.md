@@ -177,34 +177,30 @@ The shape of the divergence, for a diff:
 `LazyArrayUnionTest` pins all of it, including that the policy does not change the answer and that a co-owned
 accumulator is cloned before it is merged into.
 
-## Word-batched array scatter (evita-specific divergence — preserve on re-sync)
+## Array-to-bitmap scatter helpers (structural divergence only — the loops are upstream's)
 
 `BitmapContainer`'s four array-operand write paths — `ilazyor(ArrayContainer)`, `ior(ArrayContainer)`,
-`or(ArrayContainer)` and `loadData(ArrayContainer)` — set one bit per value upstream, with
-`bitmap[v >>> 6] |= 1L << v` inside the value loop. The vendored copy batches by word instead: it accumulates
-the bits destined for the current word in a local `long` and performs a single read-modify-write when the word
-index changes, plus one final flush after the loop. That is legal because an `ArrayContainer`'s values are
-sorted, so the word index never returns to a word it has left behind, and it is the shape
-`Util.intersectArrayIntoBitmap` already had.
+`or(ArrayContainer)` and `loadData(ArrayContainer)` — set one bit per value with `bitmap[v >>> 6] |= 1L << v`
+inside the value loop, exactly as upstream does. The vendored copy merely hoists that loop into two private
+statics, `scatterInto` (no cardinality bookkeeping, used by `ilazyor` and `loadData`) and `scatterIntoCounting`
+(returns the number of bits the writes newly set via upstream's `(before - after) >>> 63`, used by `ior` and
+`or`), so the four sites share one loop. `loadData` merges its words with `|=` rather than assigning them, as
+upstream's loop does. An upstream diff of the four methods therefore shows only the extracted call.
 
-Two private statics on `BitmapContainer` hold the loop: `scatterInto` (no cardinality bookkeeping, used by
-`ilazyor` and `loadData`) and `scatterIntoCounting` (returns the number of bits the writes newly set, used by
-`ior` and `or`). The counting form takes `bitCount(after) - bitCount(before)` per flushed word, which is the
-same total upstream's per-value `(before - after) >>> 63` reaches. `loadData` merges its words with `|=`
-rather than assigning them, so it keeps working on a receiver whose bitmap is not clear, exactly as upstream's
-loop did.
+**A word-batched variant was measured and reverted; do not reintroduce it without a per-operation
+measurement.** Accumulating the bits of the current word in a register and writing once per distinct word
+measured 1.42x on a JMH *batch* replay of 300 operand pairs recorded from a production e-commerce catalog
+(21.8 vs 31.0 ns per pair), and then cost 7.3 % on the catalog-wide facet summaries of the same catalog end to
+end (19,178 → 20,577 ms on a quiet box; back to 19,372 ms with the per-value loop, with the fuse-first
+intersection change from the same commit kept). The batch weights by value and its time is dominated by the
+few long operands (mean 42 values, 81 % of values sharing a word with their predecessor, 5.35x fewer writes
+overall); the engine weights by operation — `ilazyor(ArrayContainer)` is 92.7 % of all container operations —
+and the median operation scatters four values that each sit in their own word, where the batched loop performs
+the same writes plus a data-dependent branch per value. The decision record
+`documentation/adr/2026-09-19-roaring-simd-kernels-and-lazy-union/` carries both measurements.
 
-Measured on a JMH replay of 300 operand pairs recorded from a production e-commerce catalog (median 4 values,
-mean 42, sorted and often word-sharing): 21.8 ns per pair batched against 31.0 ns per-value, a 1.42x
-improvement. On that workload `ilazyor(ArrayContainer)` is 92.7 % of all container operations and 11.8 % of
-facet-query CPU.
-
-`andNot(ArrayContainer)` / `iandNot(ArrayContainer)` are **not** batched — they were left on the per-value
-form, so an upstream diff of those two is unaffected by this divergence.
-
-`WordBatchedScatterTest` pins all four methods differentially against the upstream per-value loops, which it
-keeps verbatim as private reference implementations; the reference is the thing to re-check first if upstream
-ever changes one of these loops.
+`ScatterAndFuseFirstIntersectionTest` pins the four methods differentially against inline per-value reference
+loops, so the helpers cannot drift from upstream's semantics unnoticed.
 
 ## Fuse-first bitmap intersection (evita-specific divergence — preserve on re-sync)
 
@@ -239,7 +235,7 @@ Two consequences worth keeping in view on a re-sync:
   pair whose sizes already proved the result dense (`|a ∩ b| >= |a| + |b| - 65536`); with no count pass left
   there is nothing for it to skip.
 
-`WordBatchedScatterTest.BitmapIntersectionPolicy` pins the container type and the values on both sides of the
+`ScatterAndFuseFirstIntersectionTest.BitmapIntersectionPolicy` pins the container type and the values on both sides of the
 demotion threshold for all three; `TestBitmapContainer`'s intersection tests cover the same ground from the
 upstream side.
 

@@ -967,13 +967,18 @@ public final class BitmapContainer extends Container implements Cloneable {
 	}
 
 	/**
-	 * Scatters every value of `content[0, length)` into `bitmap`, leaving every cardinality untouched.
+	 * Scatters every value of `content[0, length)` into `bitmap` with one read-modify-write per value,
+	 * leaving every cardinality untouched.
 	 *
-	 * An {@link ArrayContainer}'s values are sorted, so consecutive values frequently land in the same
-	 * 64-bit word. The loop therefore accumulates the bits of the current word in a local `long` and
-	 * performs a single read-modify-write of `bitmap` when the word index changes, plus one final flush
-	 * after the loop - the shape {@link Util#intersectArrayIntoBitmap} already uses. A sorted input is what
-	 * makes one write per word sufficient: the word index never returns to a word it has left behind.
+	 * The loop is deliberately the branch-free per-value form. A word-batched variant - accumulate the bits
+	 * of the current word in a register and write once per distinct word - measured 1.42x on a JMH batch
+	 * replay of 300 operand pairs recorded from a production e-commerce catalog, and then cost 7.3% on the
+	 * catalog-wide facet summaries of the same catalog end to end. The batch weights by value and its time is
+	 * dominated by the few long operands (mean 42 values, 81% of values sharing a word with their
+	 * predecessor); the engine weights by operation, and the median operation scatters four values that
+	 * each sit in their own word, where the batched loop performs the same writes plus a data-dependent
+	 * branch per value. Keep the loop as it is unless a per-operation measurement on real operands says
+	 * otherwise.
 	 *
 	 * @param bitmap  word array to set bits in
 	 * @param content sorted, distinct values to set
@@ -981,31 +986,19 @@ public final class BitmapContainer extends Container implements Cloneable {
 	 */
 	private static void scatterInto(
 		@Nonnull final long[] bitmap, @Nonnull final char[] content, final int length) {
-		if (length == 0) {
-			return;
-		}
-		int word = content[0] >>> 6;
-		long accumulator = 0L;
 		for (int k = 0; k < length; ++k) {
 			final char v = content[k];
-			final int nextWord = v >>> 6;
-			if (nextWord != word) {
-				bitmap[word] |= accumulator;
-				word = nextWord;
-				accumulator = 0L;
-			}
-			accumulator |= 1L << v;
+			bitmap[v >>> 6] |= 1L << v;
 		}
-		bitmap[word] |= accumulator;
 	}
 
 	/**
 	 * Counting twin of {@link #scatterInto}: sets the same bits and returns how many of them were clear
 	 * beforehand, so the caller can keep its cardinality current.
 	 *
-	 * The count is taken per flushed word as `bitCount(after) - bitCount(before)`, which is by definition
-	 * the number of bits that write newly set - the same total the per-value form reaches by adding
-	 * `(before - after) >>> 63` once per value.
+	 * `(before - after) >>> 63` is `1` exactly when the write set a new bit (`after` is then the larger
+	 * unsigned value), so the count needs no popcount and no branch. The same per-value shape as
+	 * {@link #scatterInto}, for the same reason.
 	 *
 	 * @param bitmap  word array to set bits in
 	 * @param content sorted, distinct values to set
@@ -1014,29 +1007,15 @@ public final class BitmapContainer extends Container implements Cloneable {
 	 */
 	private static int scatterIntoCounting(
 		@Nonnull final long[] bitmap, @Nonnull final char[] content, final int length) {
-		if (length == 0) {
-			return 0;
-		}
-		int word = content[0] >>> 6;
-		long accumulator = 0L;
 		int added = 0;
 		for (int k = 0; k < length; ++k) {
 			final char v = content[k];
-			final int nextWord = v >>> 6;
-			if (nextWord != word) {
-				final long before = bitmap[word];
-				final long after = before | accumulator;
-				bitmap[word] = after;
-				added += bitCount(after) - bitCount(before);
-				word = nextWord;
-				accumulator = 0L;
-			}
-			accumulator |= 1L << v;
+			final int i = v >>> 6;
+			final long before = bitmap[i];
+			final long after = before | (1L << v);
+			bitmap[i] = after;
+			added += (int) ((before - after) >>> 63);
 		}
-		final long lastBefore = bitmap[word];
-		final long lastAfter = lastBefore | accumulator;
-		bitmap[word] = lastAfter;
-		added += bitCount(lastAfter) - bitCount(lastBefore);
 		return added;
 	}
 
@@ -1045,10 +1024,9 @@ public final class BitmapContainer extends Container implements Cloneable {
 	 * as `-1` (unknown) to skip per-value counting. Callers must invoke {@link #repairAfterLazy()}
 	 * before exposing the result.
 	 *
-	 * The bits are set one word at a time by {@link #scatterInto} rather than one value at a time, which a
-	 * JMH replay of 300 operand pairs recorded from a production e-commerce catalog measured at 21.8 ns
-	 * against the per-value loop's 31.0 ns per pair (1.42x); on that workload this call is 92.7% of all container
-	 * operations.
+	 * The bits are set by {@link #scatterInto}, one write per value; on a production e-commerce workload this
+	 * call is 92.7% of all container operations, and the per-value loop is the form that measured fastest end
+	 * to end (see {@link #scatterInto}).
 	 *
 	 * @param value2 values to add
 	 * @return this container
@@ -1194,9 +1172,8 @@ public final class BitmapContainer extends Container implements Cloneable {
 	/**
 	 * Adds every value of `value2` in place, keeping {@link #cardinality} current.
 	 *
-	 * The bits are set one word at a time by {@link #scatterIntoCounting} rather than one value at a time,
-	 * which a JMH replay of 300 operand pairs recorded from a production e-commerce catalog measured at
-	 * 21.8 ns against the per-value loop's 31.0 ns per pair (1.42x).
+	 * The bits are set by {@link #scatterIntoCounting}, one write per value (see {@link #scatterInto} for
+	 * why not one per word).
 	 *
 	 * @param value2 values to add
 	 * @return this container (a union never demotes)
@@ -1479,10 +1456,8 @@ public final class BitmapContainer extends Container implements Cloneable {
 	 * Populates this (empty) bitmap from the values of `arrayContainer`, adopting its cardinality;
 	 * inverse of {@link #toArrayContainer()}.
 	 *
-	 * The bits are set one word at a time by {@link #scatterInto} rather than one value at a time, which a
-	 * JMH replay of 300 operand pairs recorded from a production e-commerce catalog measured at 21.8 ns
-	 * against the per-value loop's 31.0 ns per pair (1.42x). The words are merged with `|=` rather than assigned,
-	 * so the result stays independent of whether the receiver's bitmap really was clear.
+	 * The bits are set by {@link #scatterInto}, one write per value; the words are merged with `|=` rather
+	 * than assigned, so the result stays independent of whether the receiver's bitmap really was clear.
 	 *
 	 * @param arrayContainer source values
 	 */
@@ -1623,9 +1598,8 @@ public final class BitmapContainer extends Container implements Cloneable {
 	 * Returns a copy unioned with `value2`, promoting to the full {@link RunContainer} when saturated;
 	 * the receiver is unchanged.
 	 *
-	 * The bits are set one word at a time by {@link #scatterIntoCounting} rather than one value at a time,
-	 * which a JMH replay of 300 operand pairs recorded from a production e-commerce catalog measured at
-	 * 21.8 ns against the per-value loop's 31.0 ns per pair (1.42x).
+	 * The bits are set by {@link #scatterIntoCounting}, one write per value (see {@link #scatterInto} for
+	 * why not one per word).
 	 *
 	 * @param value2 values to add
 	 * @return the union container
