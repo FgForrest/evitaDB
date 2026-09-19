@@ -45,6 +45,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -491,8 +492,11 @@ public class RoaringReplayBenchmark {
 		 * Path of the operand dump. It is a `@Param` rather than a system property so it is part of the
 		 * benchmark's identity, reaches the forked JVM and is written into the result JSON - a property would
 		 * do none of those, and a replay that silently measured something else would look entirely plausible.
+		 *
+		 * The default is deliberately not a path: the dump is captured from a running engine and is not
+		 * carried in the tree, so there is nothing this could point at that would be right for anyone.
 		 */
-		@Param({"/www/oss/evita/evitaDB-worktrees/1541-kernel-bench/specifications/1541-simd-roaring/fixtures/operands.bin"})
+		@Param({"<path-to>/operands.bin"})
 		public String dump;
 
 		/**
@@ -564,7 +568,10 @@ public class RoaringReplayBenchmark {
 		public void setUp() {
 			final Path path = Path.of(this.dump);
 			if (!Files.isReadable(path)) {
-				throw new IllegalArgumentException("Operand dump `" + this.dump + "` is not readable!");
+				throw new IllegalArgumentException(
+					"Operand dump `" + this.dump + "` is not readable! The dump is captured from a running " +
+						"engine and is not carried in the tree - point `-p dump=` at one you captured yourself."
+				);
 			}
 			final List<char[]> leftArrays = new ArrayList<>(512);
 			final List<char[]> rightArrays = new ArrayList<>(512);
@@ -718,7 +725,7 @@ public class RoaringReplayBenchmark {
 				final long[] perWord = this.scatterPristine[i].clone();
 				ScatterKernels.scatterPerValue(perValue, values, values.length);
 				ScatterKernels.scatterPerWord(perWord, values, values.length);
-				if (!java.util.Arrays.equals(perValue, perWord)) {
+				if (!Arrays.equals(perValue, perWord)) {
 					throw new IllegalStateException("The two scatter kernels disagree on pair " + i + "!");
 				}
 			}
@@ -785,7 +792,7 @@ public class RoaringReplayBenchmark {
 			for (int i = 0; i < arrays.length; i++) {
 				lengths[i] = arrays[i].length;
 			}
-			java.util.Arrays.sort(lengths);
+			Arrays.sort(lengths);
 			return lengths.length == 0 ? 0 : lengths[lengths.length / 2];
 		}
 
@@ -801,7 +808,7 @@ public class RoaringReplayBenchmark {
 			for (int i = 0; i < left.length; i++) {
 				lengths[i] = Math.min(left[i].length, right[i].length);
 			}
-			java.util.Arrays.sort(lengths);
+			Arrays.sort(lengths);
 			return lengths.length == 0 ? 0 : lengths[lengths.length / 2];
 		}
 	}

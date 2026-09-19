@@ -123,12 +123,6 @@ public class RoaringScatterShapeBenchmark {
 	 * real `lazyIOR(Bitmap, Array)`.
 	 */
 	private static final int DESTINATION_CARDINALITY = 4308;
-	/**
-	 * Where the real operands are replayed from.
-	 */
-	private static final String OPERANDS =
-		"/www/oss/evita/evitaDB-worktrees/1541-kernel-bench/specifications/1541-simd-roaring/fixtures/operands.bin";
-
 	public static void main(String[] args) throws Exception {
 		org.openjdk.jmh.Main.main(args);
 	}
@@ -193,6 +187,18 @@ public class RoaringScatterShapeBenchmark {
 		 */
 		@Param({"256"})
 		public String destinationPool;
+
+		/**
+		 * Where the `real_opweighted` shape replays its operands from. It is a `@Param` rather than a constant
+		 * so it is part of the benchmark's identity and is written into the result JSON - a row measured
+		 * against a different corpus is then told apart by reading the result, not by remembering.
+		 *
+		 * The default is deliberately not a path: the dump is captured from a running engine and is not
+		 * carried in the tree, so there is nothing this could point at that would be right for anyone. Every
+		 * shape but `real_opweighted` generates its operands and ignores this entirely.
+		 */
+		@Param({"<path-to>/operands.bin"})
+		public String dump;
 
 		/**
 		 * The operand arrays, ascending and duplicate-free.
@@ -263,7 +269,7 @@ public class RoaringScatterShapeBenchmark {
 					// the control: the same pool, but every invocation replays arrays[0]
 					this.arrayStride = 0;
 				}
-				case "real_opweighted" -> this.arrays = readRealArrays();
+				case "real_opweighted" -> this.arrays = readRealArrays(this.dump);
 				default -> throw new IllegalArgumentException(
 					"Shape `" + this.shape + "` is not one of n4_distinct, n4_clustered, n64_distinct, " +
 						"n64_clustered8, real_opweighted, repeated_n4_distinct!"
@@ -281,7 +287,7 @@ public class RoaringScatterShapeBenchmark {
 				throw new IllegalArgumentException("Destination pool must hold at least one bitmap!");
 			}
 			this.pristine = "real_opweighted".equals(this.shape)
-				? readRealDestinations(pool)
+				? readRealDestinations(pool, this.dump)
 				: generateDestinations(random, pool);
 			this.destinations = new long[this.pristine.length][];
 			restore();
@@ -370,11 +376,11 @@ public class RoaringScatterShapeBenchmark {
 		 * @return the operand arrays
 		 */
 		@Nonnull
-		private static char[][] readRealArrays() {
+		private static char[][] readRealArrays(@Nonnull final String dump) {
 			final List<char[]> arrays = new ArrayList<>(512);
-			read(arrays, null);
+			read(arrays, null, dump);
 			if (arrays.isEmpty()) {
-				throw new IllegalStateException("`" + OPERANDS + "` holds no lazyIOR(Bitmap, Array) pairs!");
+				throw new IllegalStateException("`" + dump + "` holds no lazyIOR(Bitmap, Array) pairs!");
 			}
 			return arrays.toArray(char[][]::new);
 		}
@@ -386,11 +392,11 @@ public class RoaringScatterShapeBenchmark {
 		 * @return the destination bitmaps
 		 */
 		@Nonnull
-		private static long[][] readRealDestinations(final int requested) {
+		private static long[][] readRealDestinations(final int requested, @Nonnull final String dump) {
 			final List<long[]> bitmaps = new ArrayList<>(512);
-			read(null, bitmaps);
+			read(null, bitmaps, dump);
 			if (bitmaps.isEmpty()) {
-				throw new IllegalStateException("`" + OPERANDS + "` holds no lazyIOR(Bitmap, Array) pairs!");
+				throw new IllegalStateException("`" + dump + "` holds no lazyIOR(Bitmap, Array) pairs!");
 			}
 			return bitmaps.subList(0, Math.min(requested, bitmaps.size())).toArray(long[][]::new);
 		}
@@ -402,10 +408,14 @@ public class RoaringScatterShapeBenchmark {
 		 * @param bitmaps where the bitmap sides go, or `null` to discard them
 		 */
 		private static void read(
-			@Nullable final List<char[]> arrays, @Nullable final List<long[]> bitmaps) {
-			final Path path = Path.of(OPERANDS);
+			@Nullable final List<char[]> arrays, @Nullable final List<long[]> bitmaps,
+			@Nonnull final String dump) {
+			final Path path = Path.of(dump);
 			if (!Files.isReadable(path)) {
-				throw new IllegalArgumentException("Operand dump `" + OPERANDS + "` is not readable!");
+				throw new IllegalArgumentException(
+					"Operand dump `" + dump + "` is not readable! The dump is captured from a running engine " +
+						"and is not carried in the tree - point `-p dump=` at one you captured yourself."
+				);
 			}
 			try (
 				final DataInputStream in = new DataInputStream(
@@ -413,7 +423,7 @@ public class RoaringScatterShapeBenchmark {
 				)
 			) {
 				if (in.readInt() != OPERAND_MAGIC) {
-					throw new IllegalArgumentException("`" + OPERANDS + "` is not a container operand dump!");
+					throw new IllegalArgumentException("`" + dump + "` is not a container operand dump!");
 				}
 				in.readInt();
 				final int pairs = in.readInt();
@@ -433,7 +443,7 @@ public class RoaringScatterShapeBenchmark {
 					}
 				}
 			} catch (final IOException e) {
-				throw new UncheckedIOException("Cannot read operand dump `" + OPERANDS + "`!", e);
+				throw new UncheckedIOException("Cannot read operand dump `" + dump + "`!", e);
 			}
 		}
 
@@ -523,7 +533,7 @@ public class RoaringScatterShapeBenchmark {
 			System.out.printf(
 				"# scatter: shape=%s source=%s operands=%d stride=%d destinations=%d values=%d (min %d, max %d) "
 					+ "distinctWords=%d sharingWithPredecessor=%.1f%% rmwReduction=%.2fx%n",
-				this.shape, "real_opweighted".equals(this.shape) ? OPERANDS : "generated",
+				this.shape, "real_opweighted".equals(this.shape) ? this.dump : "generated",
 				this.arrays.length, this.arrayStride, this.destinations.length, values,
 				shortest, longest, distinctWords, 100.0 * sharing / values,
 				(double) values / distinctWords

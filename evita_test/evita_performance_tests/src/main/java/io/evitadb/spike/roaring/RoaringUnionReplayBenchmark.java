@@ -408,9 +408,13 @@ public class RoaringUnionReplayBenchmark {
 	public static class UnionCorpus {
 
 		/**
-		 * Path of the union dump.
+		 * Path of the union dump. It is a `@Param` rather than a system property so it is part of the
+		 * benchmark's identity, reaches the forked JVM and is written into the result JSON.
+		 *
+		 * The default is deliberately not a path: the dump is captured from a running engine and is not
+		 * carried in the tree, so there is nothing this could point at that would be right for anyone.
 		 */
-		@Param({"/www/oss/evita/evitaDB-worktrees/1541-kernel-bench/specifications/1541-simd-roaring/fixtures/unions.bin"})
+		@Param({"<path-to>/unions.bin"})
 		public String dump;
 
 		/**
@@ -509,7 +513,10 @@ public class RoaringUnionReplayBenchmark {
 		@Nonnull
 		private static ReplayedUnion[] read(@Nonnull final Path path, final int low, final int high) {
 			if (!Files.isReadable(path)) {
-				throw new IllegalArgumentException("Union dump `" + path + "` is not readable!");
+				throw new IllegalArgumentException(
+					"Union dump `" + path + "` is not readable! The dump is captured from a running engine " +
+						"and is not carried in the tree - point `-p dump=` at one you captured yourself."
+				);
 			}
 			final List<ReplayedUnion> collected = new ArrayList<>(128);
 			try (
