@@ -26,30 +26,58 @@ package io.evitadb.index.mutation.local;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexKey;
 import io.evitadb.index.IndexMaintainer;
+import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Map;
 
 /**
  * This mock object is used in tests to provide entity index without necessity to load it from persistent data storage.
+ *
+ * By default it answers **every** key with the one index it was built around, which is enough for a test that only
+ * ever asks for the index it passed in. Production code that resolves an index by key and then asserts its type —
+ * `ReferenceIndexMutator#seedFromAdvertisedIndexes` reading a `REFERENCED_*_TYPE` key, say — sees that blanket answer
+ * as a programming error, correctly, because in the engine a key of that family can only ever hold a
+ * {@link io.evitadb.index.ReferencedTypeEntityIndex}. {@link #register} is how such a test tells the mock the truth
+ * about one key instead of widening the production assertion to accommodate a test double.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @RequiredArgsConstructor
 class MockEntityIndexCreator<K extends IndexKey, T extends Index<K>> implements IndexMaintainer<K, T> {
 	private final T index;
+	/**
+	 * Indexes a test has registered under their real keys. Consulted before the blanket answer, so a key left
+	 * unregistered keeps behaving exactly as it did before.
+	 */
+	@Nonnull private final Map<K, T> registeredIndexes = CollectionUtils.createHashMap(4);
+
+	/**
+	 * Registers an index under the key it would really be filed at, so lookups of that key answer truthfully.
+	 *
+	 * @param entityIndexKey the key the index is filed under
+	 * @param registered     the index to answer with, `null` to answer that the key holds nothing
+	 */
+	void register(@Nonnull K entityIndexKey, @Nullable T registered) {
+		this.registeredIndexes.put(entityIndexKey, registered);
+	}
 
 	@Nonnull
 	@Override
 	public T getOrCreateIndex(@Nonnull K entityIndexKey) {
-		return this.index;
+		final T registered = this.registeredIndexes.get(entityIndexKey);
+		// a key registered as holding nothing still has to be created on demand, which is what the blanket index
+		// stands in for - only `getIndexIfExists` can answer "there is none"
+		return registered == null ? this.index : registered;
 	}
 
 	@Nullable
 	@Override
 	public T getIndexIfExists(@Nonnull K entityIndexKey) {
-		return this.index;
+		return this.registeredIndexes.containsKey(entityIndexKey) ?
+			this.registeredIndexes.get(entityIndexKey) : this.index;
 	}
 
 	@Nullable

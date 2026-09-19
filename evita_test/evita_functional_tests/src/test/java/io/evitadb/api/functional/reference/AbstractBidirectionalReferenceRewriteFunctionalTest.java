@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
@@ -114,6 +115,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   silently require a partitioned index.
  * - **`plainProducts`.** An original reference with no reflected counterpart at all, so the rewrite has nothing to
  *   find.
+ * - **`crossRowCategories`.** The only reference whose row attributes vary from row to row *within a single
+ *   owner*, and the only one whose attributes are all non-representative. Everywhere else in this fixture the row
+ *   attributes are derived from the owning entity alone, so every row of one owner carries identical values and no
+ *   conjunction can combine two of them; and where an owner does hold several rows on one target (`variants`) the
+ *   attribute telling them apart is representative, which puts its values into the reduced index *key* and lets
+ *   the type-level pass prune the scope before the body is evaluated. Five rows over two categories and three
+ *   products - the shape each product contributes, and what each one proves, is on the `CROSS_ROW_*` constants.
  * - **`taxonomyStats`.** Declared on *both* collections under the same name, neither end reflected — the shared
  *   name is what makes the reference-name collision in the hierarchy-statistics strip reachable. The `CATEGORY`
  *   end is deliberately `indexedForFiltering` only: a statistics reference that is partitioned in every requested
@@ -190,6 +198,9 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 	public static final String REF_PRODUCT_TAXONOMY = "taxonomy";           // original  -> TAXONOMY
 	// original -> CATEGORY, indexed in BOTH scopes; its reflected counterpart is LIVE-only on purpose
 	public static final String REF_PRODUCT_SCOPED_CATEGORIES = "scopedCategories";
+	// original -> CATEGORY, no reflected counterpart; the only reference carrying per-ROW attribute values
+	public static final String REF_PRODUCT_CROSS_ROW_CATEGORIES = "crossRowCategories";
+	public static final String REF_PRODUCT_GROUPED_CATEGORIES = "groupedCategories";
 
 	// references declared on CATEGORY
 	public static final String REF_CATEGORY_PRODUCTS = "products";          // reflected of PRODUCT.categories
@@ -221,6 +232,18 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 	public static final String REF_ATTR_PLAIN = "plainAttr";
 	// String filterable REPRESENTATIVE, on PRODUCT.variants
 	public static final String REF_ATTR_VARIANT_TAG = "variantTag";
+	// Long filterable, on PRODUCT.crossRowCategories - NOT representative, so its values stay out of the index key
+	public static final String REF_ATTR_TIER = "tier";
+	// String filterable, on PRODUCT.crossRowCategories - NOT representative, for the same reason
+	public static final String REF_ATTR_MARK = "mark";
+	// Long filterable, on PRODUCT.groupedCategories - NOT representative, for the same reason
+	public static final String REF_ATTR_GRADE = "grade";
+	// Long filterable, on PRODUCT.scopedCategories, inherited by the LIVE-only CATEGORY.scopedProducts.
+	// It is the fixture's ONLY reference attribute the counterpart rewrite can actually reach: every other
+	// reference is indexed in both scopes, which makes `preparePlanInternal`'s cross-scope guard decline any
+	// body carrying an attribute constraint. Here the owner end is LIVE-only, so `counterpartScopes` collapses
+	// to the requested scope and the guard cannot fire. NOT representative, so it stays out of the index key.
+	public static final String REF_ATTR_SCOPED_GRADE = "scopedGrade";
 
 	// entity attributes on CATEGORY
 	public static final String ATTR_CODE = "code";                          // String, unique + filterable
@@ -253,6 +276,11 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 	 * 11 and 12 are deliberately excluded from it - they carry the cross-scope rows instead.
 	 */
 	public static final int ROUND_ROBIN_CATEGORY_COUNT = 10;
+	/**
+	 * The `scopedGrade` value only product 1 carries. Every other row carries `categoryPk % 3`, which is in 0..2,
+	 * so this value selects exactly one row in the whole fixture.
+	 */
+	public static final long UNIQUE_SCOPED_GRADE = 9L;
 
 	/**
 	 * Number of products each category curates through `CATEGORY.curated`. The twelve blocks are disjoint and cover
@@ -294,6 +322,63 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 	 */
 	public static final int DISJOINT_VARIANT_Y_PRODUCT_PK = 2;
 
+
+	/**
+	 * The two categories the `PRODUCT.crossRowCategories` rows spread over, and therefore the two reduced indexes
+	 * that family consists of. Both have to stay in scope while a conjunction over `tier` and `mark` is evaluated,
+	 * or the two readings of that conjunction cannot be told apart - which is what
+	 * {@link #CROSS_ROW_SCOPE_PRODUCT_PK} is there to guarantee.
+	 */
+	public static final int CROSS_ROW_CATEGORY_A_PK = 1;
+	/**
+	 * @see #CROSS_ROW_CATEGORY_A_PK
+	 */
+	public static final int CROSS_ROW_CATEGORY_B_PK = 2;
+	/**
+	 * The `tier` value the cross-row conjunction asks for.
+	 */
+	public static final long CROSS_ROW_MATCHED_TIER = 7L;
+	/**
+	 * A `tier` value the cross-row conjunction never asks for.
+	 */
+	public static final long CROSS_ROW_OTHER_TIER = 8L;
+	/**
+	 * The `mark` value the cross-row conjunction asks for.
+	 */
+	public static final String CROSS_ROW_MATCHED_MARK = "q";
+	/**
+	 * A `mark` value the cross-row conjunction never asks for.
+	 */
+	public static final String CROSS_ROW_OTHER_MARK = "p";
+	/**
+	 * Product holding the two halves of the cross-row conjunction on two DIFFERENT rows - the matched `tier` on its
+	 * category A row, the matched `mark` on its category B row, and neither half on the row carrying the other.
+	 * Row semantics exclude it; pooling an owner's rows admits it, so it is the witness that tells the two apart.
+	 */
+	public static final int CROSS_ROW_SPLIT_PRODUCT_PK = 1;
+	/**
+	 * Product holding both halves on ONE row, and therefore the whole of the expected answer. Without it the
+	 * assertion degenerates into "the result is empty", which an engine that over-prunes satisfies for the wrong
+	 * reason.
+	 */
+	public static final int CROSS_ROW_MATCHED_PRODUCT_PK = 2;
+	/**
+	 * Product carrying the matched `tier` on category B, which is the only reason category B survives the
+	 * type-level pass: that pass intersects the leaves per referenced entity, and without this row no category B
+	 * row carries the matched `tier` at all. The scope would then narrow to category A alone, evaluating the
+	 * conjunction inside one index - per-row by accident, and blind to the defect.
+	 */
+	public static final int CROSS_ROW_SCOPE_PRODUCT_PK = 3;
+
+	/**
+	 * The two BRAND primary keys playing the reference GROUPS of `PRODUCT.groupedCategories`, and the two values
+	 * of its non-representative `grade` attribute. Brands 1..8 already exist, so the group collection needs no
+	 * new entities.
+	 */
+	public static final int GROUPED_MATCHED_GROUP_PK = 1;
+	public static final int GROUPED_OTHER_GROUP_PK = 2;
+	public static final long GROUPED_MATCHED_GRADE = 7L;
+	public static final long GROUPED_OTHER_GRADE = 8L;
 	/**
 	 * Highest product primary key carrying a `PRODUCT.weakTags` row.
 	 */
@@ -562,7 +647,45 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 			)
 			.withReferenceToEntity(
 				REF_PRODUCT_SCOPED_CATEGORIES, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs.indexedForFilteringAndPartitioningInScope(Scope.values())
+				whichIs -> whichIs
+					.indexedForFilteringAndPartitioningInScope(Scope.values())
+					.withAttribute(
+						REF_ATTR_SCOPED_GRADE, Long.class,
+						thatIs -> thatIs.filterableInScope(Scope.values())
+					)
+			)
+			.withReferenceToEntity(
+				REF_PRODUCT_CROSS_ROW_CATEGORIES, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs
+					.indexedForFilteringAndPartitioningInScope(Scope.values())
+					.withAttribute(
+						REF_ATTR_TIER, Long.class,
+						thatIs -> thatIs.filterableInScope(Scope.values())
+					)
+					.withAttribute(
+						REF_ATTR_MARK, String.class,
+						thatIs -> thatIs.filterableInScope(Scope.values())
+					)
+			)
+			.withReferenceToEntity(
+				REF_PRODUCT_GROUPED_CATEGORIES, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+				whichIs -> {
+					whichIs
+						.indexedForFilteringAndPartitioningInScope(Scope.values())
+						.withGroupTypeRelatedToEntity(Entities.BRAND)
+						.withAttribute(
+							REF_ATTR_GRADE, Long.class,
+							thatIs -> thatIs.filterableInScope(Scope.values())
+						);
+					// declaring a group TYPE is not what makes the engine maintain group indexes - the indexed
+					// COMPONENTS are, and `indexedForFilteringAndPartitioningInScope` sets only REFERENCED_ENTITY.
+					// Without REFERENCED_GROUP_ENTITY the whole `ReducedGroupEntityIndex` family is absent, every
+					// `groupHaving` silently answers empty, and a test asserting an empty result passes while
+					// proving nothing.
+					for (final Scope scope : Scope.values()) {
+						whichIs.indexedWithComponentsInScope(scope, ReferenceIndexedComponents.values());
+					}
+				}
 			)
 			.withReflectedReferenceToEntity(
 				REF_PRODUCT_CURATED_BY, Entities.CATEGORY, REF_CATEGORY_CURATED,
@@ -763,6 +886,38 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 			addVariantReference(builder, DISJOINT_VARIANT_CATEGORY_PK, "y");
 		}
 
+		// five rows over two categories and three products - the only place in this fixture where one owner's rows
+		// carry different values of the same non-representative attribute
+		if (productPk == CROSS_ROW_SPLIT_PRODUCT_PK) {
+			addCrossRowReference(builder, CROSS_ROW_CATEGORY_A_PK, CROSS_ROW_MATCHED_TIER, CROSS_ROW_OTHER_MARK);
+			addCrossRowReference(builder, CROSS_ROW_CATEGORY_B_PK, CROSS_ROW_OTHER_TIER, CROSS_ROW_MATCHED_MARK);
+		}
+		if (productPk == CROSS_ROW_MATCHED_PRODUCT_PK) {
+			addCrossRowReference(builder, CROSS_ROW_CATEGORY_A_PK, CROSS_ROW_MATCHED_TIER, CROSS_ROW_MATCHED_MARK);
+		}
+		if (productPk == CROSS_ROW_SCOPE_PRODUCT_PK) {
+			addCrossRowReference(builder, CROSS_ROW_CATEGORY_B_PK, CROSS_ROW_MATCHED_TIER, CROSS_ROW_OTHER_MARK);
+		}
+
+		// three rows over the same two categories, carrying reference GROUPS - the witness holds a row that
+		// matches the group and a row that matches the grade, and they are DIFFERENT rows. The decoy exists so
+		// that the grade leaf reaches category A as well: without it the type-level pass narrows the candidate
+		// set to category B alone, the body is answered inside a single index and the cross-row defect is
+		// invisible - the same accident product 3 prevents for `crossRowCategories`.
+		if (productPk == CROSS_ROW_SPLIT_PRODUCT_PK) {
+			addGroupedReference(
+				builder, CROSS_ROW_CATEGORY_A_PK, GROUPED_MATCHED_GROUP_PK, GROUPED_OTHER_GRADE
+			);
+			addGroupedReference(
+				builder, CROSS_ROW_CATEGORY_B_PK, GROUPED_OTHER_GROUP_PK, GROUPED_MATCHED_GRADE
+			);
+		}
+		if (productPk == CROSS_ROW_SCOPE_PRODUCT_PK) {
+			addGroupedReference(
+				builder, CROSS_ROW_CATEGORY_A_PK, GROUPED_OTHER_GROUP_PK, GROUPED_MATCHED_GRADE
+			);
+		}
+
 		if (productPk <= LAST_WEAK_TAG_PRODUCT_PK) {
 			final long weakValue = productPk % 3;
 			builder.setReference(
@@ -782,8 +937,18 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 		builder.setReference(REF_TAXONOMY_STATS, roundRobinCategoryPk <= 5 ? 2 : 5);
 
 		// written for EVERY product, the archived ten included - that archived counterpart type index is the
-		// only thing that keeps the LIVE-only `scopedProducts` row non-vacuous
-		builder.setReference(REF_PRODUCT_SCOPED_CATEGORIES, roundRobinCategoryPk);
+		// only thing that keeps the LIVE-only `scopedProducts` row non-vacuous.
+		//
+		// `scopedGrade` is constant across a category's WHOLE product block, which is what makes a negated body
+		// decisive: a category whose every row carries the negated value must be absent under any reading of
+		// `not`, so its presence would prove the constraint was dropped rather than misread. Product 1 is the one
+		// exception, carrying a value no other row in the fixture carries - so the owner of the single matching
+		// row still holds twenty-two rows that fail it and must stay present.
+		final long scopedGrade = productPk == 1 ? UNIQUE_SCOPED_GRADE : roundRobinCategoryPk % 3;
+		builder.setReference(
+			REF_PRODUCT_SCOPED_CATEGORIES, roundRobinCategoryPk,
+			whichIs -> whichIs.setAttribute(REF_ATTR_SCOPED_GRADE, scopedGrade)
+		);
 
 		session.upsertEntity(builder);
 	}
@@ -809,6 +974,55 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 				if (productPk % 3 == 0) {
 					whichIs.setAttribute(REF_ATTR_SOMETIMES_SET, (long) productPk);
 				}
+			}
+		);
+	}
+
+	/**
+	 * Adds one `PRODUCT.crossRowCategories` row.
+	 *
+	 * Unlike every other row writer in this fixture the values are passed in rather than derived from the owning
+	 * product, because the whole point of this reference is that one owner's rows disagree with one another.
+	 *
+	 * @param builder    builder of the owning product
+	 * @param categoryPk primary key of the referenced category
+	 * @param tier       value of the non-representative `tier` attribute
+	 * @param mark       value of the non-representative `mark` attribute
+	 */
+	private static void addCrossRowReference(
+		@Nonnull EntityBuilder builder,
+		int categoryPk,
+		long tier,
+		@Nonnull String mark
+	) {
+		builder.setReference(
+			REF_PRODUCT_CROSS_ROW_CATEGORIES, categoryPk,
+			whichIs -> {
+				whichIs.setAttribute(REF_ATTR_TIER, tier);
+				whichIs.setAttribute(REF_ATTR_MARK, mark);
+			}
+		);
+	}
+
+	/**
+	 * Adds one `PRODUCT.groupedCategories` row, carrying a reference group and the non-representative `grade`.
+	 *
+	 * @param builder    builder of the owning product
+	 * @param categoryPk primary key of the referenced category
+	 * @param groupPk    primary key of the BRAND acting as this row's reference group
+	 * @param grade      value of the non-representative `grade` attribute
+	 */
+	private static void addGroupedReference(
+		@Nonnull EntityBuilder builder,
+		int categoryPk,
+		int groupPk,
+		long grade
+	) {
+		builder.setReference(
+			REF_PRODUCT_GROUPED_CATEGORIES, categoryPk,
+			whichIs -> {
+				whichIs.setGroup(Entities.BRAND, groupPk);
+				whichIs.setAttribute(REF_ATTR_GRADE, grade);
 			}
 		);
 	}

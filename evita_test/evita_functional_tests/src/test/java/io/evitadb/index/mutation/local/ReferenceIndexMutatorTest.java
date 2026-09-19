@@ -93,6 +93,18 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 		)
 	);
 
+	{
+		// The mock maintainer answers every key with the product's global index unless told otherwise, and the
+		// reduced-index membership seeding resolves BOTH `REFERENCED_*_TYPE` families of the reference it writes -
+		// where a global index is a programming error, correctly. Telling it the truth about the two keys is what
+		// lets this test exercise the seeding instead of widening a production assertion around a test double.
+		this.entityIndexCreator.register(this.referenceTypesIndex.getIndexKey(), this.referenceTypesIndex);
+		this.entityIndexCreator.register(
+			new EntityIndexKey(EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, Scope.DEFAULT_SCOPE, Entities.BRAND),
+			null
+		);
+	}
+
 	@Override
 	protected void alterCatalogSchema(@Nonnull CatalogSchemaEditor.CatalogSchemaBuilder schema) {
 		// do nothing

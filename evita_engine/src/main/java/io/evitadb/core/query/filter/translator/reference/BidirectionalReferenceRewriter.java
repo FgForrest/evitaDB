@@ -30,6 +30,7 @@ import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
+import io.evitadb.api.query.filter.Not;
 import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.order.ReferenceProperty;
@@ -59,6 +60,7 @@ import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -189,7 +191,8 @@ public class BidirectionalReferenceRewriter {
 		}
 		final Formula[] perOwnerFormulas = createPerOwnerFormulas(
 			filterByVisitor, filterByVisitor.getQueryContext(), plan.targetEntitySchema(), plan.counterpart(),
-			processingScope, plan.split().attributeConstraints(), plan.candidateOwners(), plan.counterpartScopes()
+			processingScope, plan.split().attributeConstraints(), plan.split().negatedAttribute(),
+			plan.candidateOwners(), plan.counterpartScopes()
 		);
 		return of(
 			new ReferencedOwnerExistenceFormula(
@@ -432,6 +435,7 @@ public class BidirectionalReferenceRewriter {
 		FilterConstraint entityHavingChild = null;
 		final List<FilterConstraint> attributeConstraints = new ArrayList<>(children.size());
 		final List<String> attributeNames = new ArrayList<>(children.size());
+		boolean negatedAttribute = false;
 		for (final FilterConstraint child : children) {
 			if (child instanceof EntityHaving entityHaving) {
 				// more than one `entityHaving` would have to be conjuncted - not supported
@@ -447,16 +451,36 @@ public class BidirectionalReferenceRewriter {
 					entityHavingChildren[0] : new And(entityHavingChildren);
 			} else if (collectAttributeNames(child, attributeNames)) {
 				attributeConstraints.add(child);
+			} else if (child instanceof Not not) {
+				// A negated reference attribute is reproducible because the counterpart's reduced index for one owner
+				// holds exactly that owner's rows: `∃r ¬A(r)` is `rowsOf(o) \ matching(A) ≠ ∅`, a complement taken
+				// inside a set the rewrite already materialises. The POSITIVE form is collected here and
+				// `createPerOwnerFormulas` complements the result - nothing about the translation changes.
+				//
+				// Only one negation, only at the top of the body, and only over a shape `collectAttributeNames`
+				// already accepts. `not(not(...))`, `not(and(...))` and `not(entityHaving(...))` all fall through:
+				// the first two are shapes the positive path does not accept either, and the third negates the
+				// *nested query* rather than a row predicate, which is a different complement against a different
+				// superset - see the ADR.
+				final FilterConstraint[] notChildren = not.getChildren();
+				if (negatedAttribute || notChildren.length != 1 ||
+					!collectAttributeNames(notChildren[0], attributeNames)) {
+					return null;
+				}
+				negatedAttribute = true;
+				attributeConstraints.add(notChildren[0]);
 			} else {
 				// groupHaving, entityPrimaryKeyInSet, facet constraints, inScope containers, ... - fall through
 				return null;
 			}
 		}
-		// two attribute siblings are an implicit conjunction, and a conjunction is not reproducible - see above
+		// two attribute siblings are an implicit conjunction, and a conjunction is not reproducible - see above.
+		// This also rules out a negation standing next to a positive attribute sibling, because the negation's inner
+		// constraint was collected into the very same list.
 		if (attributeConstraints.size() > 1) {
 			return null;
 		}
-		return new SplitChildren(entityHavingChild, attributeConstraints, attributeNames);
+		return new SplitChildren(entityHavingChild, attributeConstraints, attributeNames, negatedAttribute);
 	}
 
 	/**
@@ -866,6 +890,13 @@ public class BidirectionalReferenceRewriter {
 	 * satisfy the reference-attribute constraints. When there are no attribute constraints the index contents are used
 	 * verbatim and no constraint translation happens at all.
 	 *
+	 * When the body negated its attribute constraint, the positive form is translated exactly as it would be and the
+	 * result is then subtracted from that owner's own rows. That is sound because the counterpart's reduced indexes
+	 * for one owner hold **only** that owner's rows and exactly one row per referenced entity, so the difference is
+	 * the set of referenced entities the owner reaches through a row that fails the constraint - the row-scoped
+	 * reading, computed without leaving the owner. The superset is the same union the no-constraint branch uses.
+	 *
+	 * @param negatedAttribute TRUE to complement the translated constraint against the owner's own rows
 	 * @return formulas positionally paired with `candidateOwners`
 	 */
 	@Nonnull
@@ -876,6 +907,7 @@ public class BidirectionalReferenceRewriter {
 		@Nonnull ReferenceSchemaContract counterpart,
 		@Nonnull ProcessingScope<?> processingScope,
 		@Nonnull List<FilterConstraint> attributeConstraints,
+		boolean negatedAttribute,
 		@Nonnull int[] candidateOwners,
 		@Nonnull Set<Scope> counterpartScopes
 	) {
@@ -886,6 +918,11 @@ public class BidirectionalReferenceRewriter {
 		// the split accepts at most one attribute child, so it is handed to the visitor exactly as it was written
 		final FilterConstraint attributeConstraint = attributeConstraints.isEmpty() ?
 			null : attributeConstraints.get(0);
+		// a negation is only ever recorded together with the constraint it negated
+		Assert.isPremiseValid(
+			!negatedAttribute || attributeConstraint != null,
+			"A negated reference attribute constraint must carry the constraint it negates!"
+		);
 		final Formula[] result = new Formula[candidateOwners.length];
 		final List<ReducedEntityIndex> reusableIndexes = new ArrayList<>(counterpartScopes.size());
 		for (int i = 0; i < candidateOwners.length; i++) {
@@ -905,13 +942,9 @@ public class BidirectionalReferenceRewriter {
 			}
 			final List<ReducedEntityIndex> ownerIndexes = List.copyOf(reusableIndexes);
 			if (attributeConstraint == null) {
-				final Formula[] plainFormulas = new Formula[ownerIndexes.size()];
-				for (int j = 0; j < ownerIndexes.size(); j++) {
-					plainFormulas[j] = ownerIndexes.get(j).getAllPrimaryKeysFormula();
-				}
-				result[i] = FormulaFactory.or(plainFormulas);
+				result[i] = allRowsOf(ownerIndexes);
 			} else {
-				result[i] = filterByVisitor.executeInContextAndIsolatedFormulaStack(
+				final Formula matchingRows = filterByVisitor.executeInContextAndIsolatedFormulaStack(
 					ReducedEntityIndex.class,
 					() -> ownerIndexes,
 					ReferenceContent.ALL_REFERENCES,
@@ -934,9 +967,28 @@ public class BidirectionalReferenceRewriter {
 					},
 					EntityPrimaryKeyInSet.class
 				);
+				result[i] = negatedAttribute ?
+					FormulaFactory.not(matchingRows, allRowsOf(ownerIndexes)) : matchingRows;
 			}
 		}
 		return result;
+	}
+
+	/**
+	 * Unions the contents of one owner's counterpart reduced indexes - every referenced entity that owner reaches,
+	 * with no constraint applied.
+	 *
+	 * This is both the no-constraint answer and the superset a negated constraint is complemented against. The two
+	 * have to be the same set: a complement taken against anything wider would admit referenced entities the owner
+	 * never referenced at all.
+	 */
+	@Nonnull
+	private static Formula allRowsOf(@Nonnull List<ReducedEntityIndex> ownerIndexes) {
+		final Formula[] plainFormulas = new Formula[ownerIndexes.size()];
+		for (int j = 0; j < ownerIndexes.size(); j++) {
+			plainFormulas[j] = ownerIndexes.get(j).getAllPrimaryKeysFormula();
+		}
+		return FormulaFactory.or(plainFormulas);
 	}
 
 	/**
@@ -965,13 +1017,18 @@ public class BidirectionalReferenceRewriter {
 	 * reference-attribute constraints, along with every attribute name those constraints touch.
 	 *
 	 * @param entityHavingChild    the single child of the `entityHaving` container, or NULL when absent
-	 * @param attributeConstraints the reference-attribute constraints, conjunctive between themselves
+	 * @param attributeConstraints the reference-attribute constraints, conjunctive between themselves. When
+	 *                             {@link #negatedAttribute()} is set this holds the constraint as written *inside*
+	 *                             the `not`, so it is translated positively and complemented afterwards
 	 * @param attributeNames       every attribute name the constraints name, used for the precondition check
+	 * @param negatedAttribute     TRUE when the body negated its reference-attribute constraint, so the per-owner
+	 *                             result has to be subtracted from that owner's rows
 	 */
 	private record SplitChildren(
 		@Nullable FilterConstraint entityHavingChild,
 		@Nonnull List<FilterConstraint> attributeConstraints,
-		@Nonnull List<String> attributeNames
+		@Nonnull List<String> attributeNames,
+		boolean negatedAttribute
 	) {
 	}
 

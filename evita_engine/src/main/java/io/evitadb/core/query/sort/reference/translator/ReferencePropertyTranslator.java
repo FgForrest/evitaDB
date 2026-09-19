@@ -25,7 +25,10 @@ package io.evitadb.core.query.sort.reference.translator;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
+import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.filter.HierarchyFilterConstraint;
+import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.order.EntityPrimaryKeyNatural;
 import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderDirection;
@@ -73,6 +76,7 @@ import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -107,7 +111,14 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		@Nonnull String referenceName
 	) {
 		for (TargetIndexes<?> targetIndex : orderByVisitor.getTargetIndexes()) {
-			if (ReducedEntityIndex.class.equals(targetIndex.getIndexType())) {
+			// the constraint is tested BEFORE the indexes are asked for. A candidate's index list may still be
+			// unresolved at this point, and resolving it costs one index object per partition the reference
+			// advertises - so identifying the reference from the already-known constraint keeps a query that
+			// orders by one reference from materialising every other reference's candidates on the way past.
+			if (
+				ReducedEntityIndex.class.equals(targetIndex.getIndexType()) &&
+					namesReference(targetIndex.getRepresentedConstraint(), referenceName)
+			) {
 				//noinspection unchecked
 				final List<ReducedEntityIndex> reducedIndexes = (List<ReducedEntityIndex>) targetIndex.getIndexes();
 				if (
@@ -120,6 +131,34 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 			}
 		}
 		return Collections.emptyList();
+	}
+
+	/**
+	 * Tells whether the constraint a {@link TargetIndexes} was built for targets the passed reference.
+	 *
+	 * Used as a cheap pre-filter for the index-set lookup above: it answers from the constraint alone, so a
+	 * candidate belonging to a different reference is skipped without its indexes ever being resolved.
+	 *
+	 * It is AND-ed with the discriminator check below rather than refined by it, so a constraint shape not
+	 * recognised here skips the candidate outright and {@link #selectReducedEntityIndexSet} finds nothing. What
+	 * keeps that from changing the rows is the caller's fallback to {@link #selectFullEntityIndexSet}, which
+	 * answers the same query from the unreduced indexes - so the cost is a slower sort, not a wrong index set.
+	 *
+	 * @param representedConstraint the constraint the index set answers, `null` for sets built without one
+	 * @param referenceName         the reference being ordered by
+	 * @return `true` when the constraint targets that reference
+	 */
+	private static boolean namesReference(
+		@Nullable FilterConstraint representedConstraint,
+		@Nonnull String referenceName
+	) {
+		if (representedConstraint instanceof final ReferenceHaving referenceHaving) {
+			return referenceName.equals(referenceHaving.getReferenceName());
+		} else if (representedConstraint instanceof final HierarchyFilterConstraint hierarchyFilterConstraint) {
+			return hierarchyFilterConstraint.getReferenceName().map(referenceName::equals).orElse(false);
+		} else {
+			return false;
+		}
 	}
 
 	/**

@@ -47,7 +47,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
-import io.evitadb.index.map.TransactionalMap;
+import io.evitadb.index.map.PersistentTransactionalProducerMap;
 import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.page.PageStreamRegistry;
 import io.evitadb.index.result.CardinalityChange;
@@ -157,7 +157,8 @@ public class ReferenceTypeCardinalityIndex
 	 * Index that for each referenced entity primary key keeps the bitmap of all reduced entity index primary keys that
 	 * contains entity primary keys referencing this entity.
 	 */
-	@Nonnull @Getter private final TransactionalMap<Integer, TransactionalBitmap> referencedPrimaryKeysIndex;
+	@Nonnull @Getter
+	private final PersistentTransactionalProducerMap<Integer, TransactionalBitmap> referencedPrimaryKeysIndex;
 	/**
 	 * Helper bitmap that contains all referenced entity primary keys that are present in keys of
 	 * {@link #referencedPrimaryKeysIndex}.
@@ -239,7 +240,7 @@ public class ReferenceTypeCardinalityIndex
 		this.dirty = new TransactionalBoolean();
 		this.cardinalities = createEmptyTree();
 		this.pageStreamRegistry = new PageStreamRegistry();
-		this.referencedPrimaryKeysIndex = new TransactionalMap<>(
+		this.referencedPrimaryKeysIndex = new PersistentTransactionalProducerMap<>(
 			CollectionUtils.createHashMap(16), TransactionalBitmap.class, TransactionalBitmap::new);
 	}
 
@@ -264,7 +265,7 @@ public class ReferenceTypeCardinalityIndex
 		}
 		this.cardinalities = tree;
 		this.pageStreamRegistry = new PageStreamRegistry();
-		this.referencedPrimaryKeysIndex = new TransactionalMap<>(
+		this.referencedPrimaryKeysIndex = new PersistentTransactionalProducerMap<>(
 			referencedPrimaryKeys, TransactionalBitmap.class, TransactionalBitmap::new);
 	}
 
@@ -285,7 +286,7 @@ public class ReferenceTypeCardinalityIndex
 		this.dirty = new TransactionalBoolean();
 		this.cardinalities = committedTree;
 		this.pageStreamRegistry = pageStreamRegistry;
-		this.referencedPrimaryKeysIndex = new TransactionalMap<>(
+		this.referencedPrimaryKeysIndex = new PersistentTransactionalProducerMap<>(
 			referencedPrimaryKeys, TransactionalBitmap.class, TransactionalBitmap::new);
 	}
 
@@ -334,6 +335,10 @@ public class ReferenceTypeCardinalityIndex
 				indexIdBitmap = new TransactionalBitmap();
 				this.referencedPrimaryKeysIndex.put(referencedEntityPrimaryKey, indexIdBitmap);
 			}
+			// the bitmap mutates through its own diff layer, which the map cannot see - declare it so the commit walks
+			// only this key. Harmless when the branch above has just put the entry: a created key already takes
+			// precedence over the mark
+			this.referencedPrimaryKeysIndex.markValueMutated(referencedEntityPrimaryKey);
 			indexIdBitmap.add(indexPrimaryKey);
 		}
 
@@ -373,7 +378,9 @@ public class ReferenceTypeCardinalityIndex
 				() -> new GenericEvitaInternalError(
 					"Referenced entity primary key " + referencedEntityPrimaryKey + " is unexpectedly not found in the index!")
 			);
-			// remove the index primary key from the bitmap
+			// remove the index primary key from the bitmap - same in-place mutation as on the insert path, and a
+			// subsequent map-remove of an emptied bitmap is tracked separately as a removal, which wins over the mark
+			this.referencedPrimaryKeysIndex.markValueMutated(referencedEntityPrimaryKey);
 			indexIdBitmap.remove(indexPrimaryKey);
 			// clean up empty bitmap to avoid memory leaks
 			if (indexIdBitmap.isEmpty()) {

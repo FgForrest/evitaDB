@@ -33,6 +33,7 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
+import io.evitadb.core.query.algebra.reference.IndexTaggedFormula;
 import io.evitadb.core.query.algebra.price.termination.PriceWrappingFormula;
 import io.evitadb.core.query.algebra.reference.ReferencedEntityIndexPrimaryKeyTranslatingFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
@@ -42,7 +43,9 @@ import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.behavioral.FilterInScopeTranslator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.Index;
+import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.utils.ArrayUtils;
@@ -72,18 +75,37 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
 		Assert.notNull(filterByVisitor.getSchema(), "Schema must be known!");
-		filterByVisitor.registerFormulaPostProcessorAfter(
-			SuperSetMatchingPostProcessor.class,
-			() -> new SuperSetMatchingPostProcessor(filterByVisitor),
-			FilterInScopeTranslator.InScopeFormulaPostProcessor.class
-		);
+		final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
+		final Class<? extends Index<?>> indexType = processingScope.getIndexType();
+		// the reference schema is what says we are inside a `referenceHaving` body. The index type alone does
+		// not: when index selection picks the reduced-index option for the whole query, a TOP-LEVEL
+		// `entityPrimaryKeyInSet` is translated in this very scope while still speaking about owners, and
+		// reading it as a referenced-entity constraint there evicts every owner.
+		// the guard names the ABSTRACT class deliberately. `ReferenceHavingTranslator` declares its scope as
+		// `ReducedEntityIndex`, but `ReferencedEntityFetcher#computeResultWithPassedIndex` declares the superclass
+		// even though the index it hands over is a reduced entity one - and
+		// `ReducedEntityIndex.class.isAssignableFrom(AbstractReducedEntityIndex.class)` is FALSE, because the
+		// argument is the superclass. Naming the subclass here would leave the fetch path translating a
+		// referenced-entity constraint as an owner one. Which indexes can actually answer it is decided by the
+		// runtime filter below, not by the declared type.
+		final boolean referencedEntityConstraint = AbstractReducedEntityIndex.class.isAssignableFrom(indexType) &&
+			processingScope.getReferenceSchema() != null;
+		// inside that body the post processor would never run: `ReferenceHavingTranslator` rebuilds the body
+		// from the formulas collected on its isolated level and never calls `getFormulaAndClear()`, so the map
+		// this registers into is discarded together with the scope. Nor would it have anything to correct there -
+		// the branch below emits owner sets read out of the indexes themselves, never the requested keys.
+		if (!referencedEntityConstraint) {
+			filterByVisitor.registerFormulaPostProcessorAfter(
+				SuperSetMatchingPostProcessor.class,
+				() -> new SuperSetMatchingPostProcessor(filterByVisitor),
+				FilterInScopeTranslator.InScopeFormulaPostProcessor.class
+			);
+		}
 
 		final int[] primaryKeys = entityPrimaryKeyInSet.getPrimaryKeys();
 		if (ArrayUtils.isEmpty(primaryKeys)) {
 			return EmptyFormula.INSTANCE;
 		} else {
-			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
-			final Class<? extends Index<?>> indexType = processingScope.getIndexType();
 			final ConstantFormula standardResult = new ConstantFormula(
 				new BaseBitmap(primaryKeys)
 			);
@@ -116,6 +138,40 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 						})
 						.toArray(Formula[]::new)
 				);
+			} else if (referencedEntityConstraint) {
+				// inside a `referenceHaving` body the constraint speaks about the REFERENCED entity, and each
+				// reduced index carries exactly one referenced entity primary key - so the constraint is a constant
+				// per index: either the whole index matches, or none of it does. Emitting the owner sets of the
+				// matching indexes keeps the constraint row-scoped and lets `or` / `not` combine it correctly.
+				final Set<Integer> requestedPrimaryKeys = Arrays.stream(primaryKeys)
+					.boxed()
+					.collect(Collectors.toSet());
+				final Formula indexResult = FormulaFactory.or(
+					processingScope
+						.getIndexStream()
+						// a group reduced index is keyed by the GROUP, so its reference key answers a different
+						// question than the one asked here and it contributes nothing rather than a wrong match
+						.filter(ReducedEntityIndex.class::isInstance)
+						.map(ReducedEntityIndex.class::cast)
+						.filter(it -> requestedPrimaryKeys.contains(it.getReferenceKey().primaryKey()))
+						.map(it -> {
+							final Formula allOwners = it.getAllPrimaryKeysFormula();
+							// this leaf is assembled here rather than through `FilterByVisitor#applyOnIndexes`, so
+							// nothing tags it on the way out and it has to tag itself. An untagged leaf under a
+							// `not` is complemented against every index at once, which answers "this owner
+							// references none of them" instead of "this owner holds a row referencing none of
+							// them" - the per-owner reading rather than the row-scoped one.
+							return allOwners instanceof EmptyFormula ?
+								allOwners : new IndexTaggedFormula(it.getPrimaryKey(), allOwners);
+						})
+						.toArray(Formula[]::new)
+				);
+				// no prefetch alternative is attached here, and none is needed. `isPrefetchPossible()` is
+				// `scope.size() == 1`, and reaching this branch at all means a scope was pushed for the
+				// `referenceHaving` body - so it is false by construction and an alternative guarded on it could
+				// never be reached. Nor would it have anything to contribute: the reduced index family is
+				// populated on every plan, so the formula above answers this constraint on the prefetch plan too.
+				return indexResult;
 			} else {
 				return standardResult;
 			}

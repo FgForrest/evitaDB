@@ -156,11 +156,11 @@ import static io.evitadb.utils.Assert.isPremiseValid;
  *
  * **Reduced-index membership maintenance** — `recordOwnerEnteredReducedIndex`,
  * `recordOwnerLeftReducedIndex`, `isReducedIndexMembershipMaintained`, `seedFromAdvertisedIndexes`,
- * `hasReducedIndexMembership`: keep the reverse lookup the cross-entity conditional-facet trigger consults
- * ({@link io.evitadb.index.membership.ReducedIndexMembership}) in step with the reduced indexes the lifecycle
- * operations above have just changed. Both boundaries are gated on the collection declaring a conditional
- * facet and on the reference being indexed for partitioning, so a collection that can never fire the trigger
- * pays a single bit test here and nothing else.
+ * `hasReducedIndexMembership`: keep the reverse lookup that the cross-entity conditional-facet trigger and
+ * reference index selection consult ({@link io.evitadb.index.membership.ReducedIndexMembership}) in step with
+ * the reduced indexes the lifecycle operations above have just changed. Both boundaries are gated on
+ * {@link io.evitadb.index.membership.ReducedIndexMembership#isMaintainedFor}, so a reference that advertises no
+ * reduced index pays a single set test here and nothing else.
  *
  * ## Thread safety
  *
@@ -1268,23 +1268,18 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Records that an owner entity has entered a reduced index, into the reverse lookup the cross-entity
-	 * conditional-facet trigger consults instead of walking every reduced index of the collection.
+	 * Records that an owner entity has entered a reduced index, into the reverse lookup that the cross-entity
+	 * conditional-facet trigger and reference index selection consult instead of walking every reduced index of
+	 * the collection.
 	 *
-	 * Maintained **only** for a collection that declares a conditional facet in the scope — the trigger cannot
-	 * fire anywhere else, so a lookup built there would be maintained on every write for a reader that never
-	 * comes. That gate is the same one `EntityCollection#rebuildReducedIndexMembership` applies at load, and the
-	 * two must agree: a collection skipped at load and maintained on write would carry a lookup whose contents
-	 * begin at an arbitrary moment in its life.
+	 * Maintained for every reference that advertises reduced indexes in the scope — see
+	 * {@link ReducedIndexMembership#isMaintainedFor}, which is the same gate
+	 * `EntityCollection#rebuildReducedIndexMembership` applies at load. The two must agree: a reference skipped
+	 * at load and maintained on write would carry a lookup whose contents begin at an arbitrary moment in its
+	 * life, which is why the decision lives in one place rather than being restated here.
 	 *
-	 * Within such a collection it is maintained **only** for references indexed at
-	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}, because those are the only ones the trigger's
-	 * sibling walk visits. A reference that has never been indexed at that level therefore has no slice at all,
-	 * and its reduced indexes are walked exactly as they were before — correct, merely unaccelerated, which is
-	 * the intended behaviour for a schema change the engine does not rebuild indexes for (issue #409).
-	 *
-	 * A reference that was *lowered* out of that level does have a slice, built while it was still watched, and it
-	 * must not be trusted if the reference is raised again. Nothing is done about that here: both gates read the
+	 * A reference whose components are *lowered* does have a slice, built while it was still maintained, and it
+	 * must not be trusted if the reference is raised again. Nothing is done about that here: the gate reads the
 	 * schema and nothing else, so maintenance can only ever stop at a **schema change**, and that is where such a
 	 * lookup is dropped — `EntityCollection#discardUnmaintainedReducedIndexMemberships`, hung off `exchangeSchema`
 	 * so that a reflected reference resolved without passing through `updateSchema` is covered too. Keeping the
@@ -1303,7 +1298,7 @@ public interface ReferenceIndexMutator {
 		int entityPrimaryKey
 	) {
 		final Scope scope = executor.getScope();
-		if (!isReducedIndexMembershipMaintained(executor, referenceSchema, scope)) {
+		if (!isReducedIndexMembershipMaintained(referenceSchema, scope)) {
 			return;
 		}
 		final GlobalEntityIndex globalIndex = resolveGlobalIndex(executor, scope);
@@ -1319,29 +1314,23 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Tells whether the reverse lookup of this reference is kept current in this scope — the pair of gates both
-	 * maintenance boundaries open with, in the order they evaluate them.
+	 * Tells whether the reverse lookup of this reference is kept current in this scope — the gate both
+	 * maintenance boundaries open with.
 	 *
-	 * The first is memoized on the schema, so a collection that declares no conditional facet pays a bit test and
-	 * nothing else: the trigger never fires there, and `EntityCollection#rebuildReducedIndexMembership` skips such
-	 * a collection at load for the same reason, so there is nothing to maintain and nothing to discard. The second
-	 * confines the lookup to the references the trigger's sibling walk actually visits.
+	 * It reads the schema and nothing else, which is what makes maintenance stoppable only at a schema change —
+	 * see {@link #recordOwnerEnteredReducedIndex} for where a lookup nothing maintains any more is dropped. The
+	 * decision itself belongs to {@link ReducedIndexMembership#isMaintainedFor}, shared with
+	 * `EntityCollection`'s load-time build and schema-change discard so the three cannot drift apart.
 	 *
-	 * Both read the schema and nothing else, which is what makes maintenance stoppable only at a schema change —
-	 * see {@link #recordOwnerEnteredReducedIndex} for where a lookup nothing maintains any more is dropped.
-	 *
-	 * @param executor        the mutation executor, which carries the entity schema
 	 * @param referenceSchema schema of the reference whose lookup would be maintained
 	 * @param scope           the scope the write lands in
 	 * @return `true` when a write to this reference has to be recorded into the lookup
 	 */
 	private static boolean isReducedIndexMembershipMaintained(
-		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Scope scope
 	) {
-		return executor.getEntitySchema().declaresConditionalFacetInScope(scope)
-			&& isIndexedReferenceForFilteringAndPartitioning(referenceSchema, scope);
+		return ReducedIndexMembership.isMaintainedFor(referenceSchema, scope);
 	}
 
 	/**
@@ -1435,8 +1424,8 @@ public interface ReferenceIndexMutator {
 
 	/**
 	 * Records that an owner entity has left a reduced index. Symmetric counterpart of
-	 * {@link #recordOwnerEnteredReducedIndex}; see that method for why only partitioned references are kept, and
-	 * where a lookup that maintenance has stopped following is dropped instead.
+	 * {@link #recordOwnerEnteredReducedIndex}; see that method for which references are maintained, and where a
+	 * lookup that maintenance has stopped following is dropped instead.
 	 *
 	 * @param executor          the mutation executor, which owns the global index the lookup hangs off
 	 * @param referenceSchema   schema of the reference whose reduced index was left
@@ -1450,7 +1439,7 @@ public interface ReferenceIndexMutator {
 		int entityPrimaryKey
 	) {
 		final Scope scope = executor.getScope();
-		if (!isReducedIndexMembershipMaintained(executor, referenceSchema, scope)) {
+		if (!isReducedIndexMembershipMaintained(referenceSchema, scope)) {
 			return;
 		}
 		if (!hasReducedIndexMembership(executor, referenceSchema, scope)) {
