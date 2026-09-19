@@ -207,7 +207,9 @@ materialising form writes at or behind its read cursor, which is what `ArrayCont
 its own `content` as both input and output. **Orienting breaks that**: when the shorter side turns out to be the
 other operand, the destination is no longer the array being walked and the writes clobber blocks the probe has
 not read. A caller cannot have both; it must buffer. Found by a test, not by reading. The compress-emitting
-all-pairs variant is not alias-safe either, since a masked vector store can run past the read cursor.
+all-pairs variant does not share the problem: its store is lane-masked to the match count rather than writing a
+whole vector, so it needs no slack past `min(la, lb)` and tolerates `out == a`. Checked at every width up to a
+full container with identical operands - the shape in which every lane matches.
 
 Both branch-free arms also need one element of slack past the intersection cardinality, because they store the
 candidate before they know it matched.

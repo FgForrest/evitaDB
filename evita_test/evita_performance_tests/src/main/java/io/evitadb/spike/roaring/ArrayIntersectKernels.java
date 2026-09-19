@@ -642,14 +642,16 @@ public final class ArrayIntersectKernels {
 	 * Variant Dt materialising - the tree-OR mask feeding `VPCOMPRESSW`, which is the cheapest formulation that
 	 * still produces the mask the compress needs.
 	 *
-	 * Not alias-safe: the compressed store writes a whole vector at the output cursor, which can run past the
-	 * read cursor. `ArrayContainer.iand` would need a buffer for it.
+	 * The compressed store is lane-masked to `matches`, so it writes exactly that many entries rather than a
+	 * whole vector - the same store its `Ds` sibling performs. `out` therefore needs no slack beyond
+	 * `min(la, lb)`, and a call that aliases `out` onto `a` is safe: the output cursor never overtakes the
+	 * read cursor, so the store stays inside the block already held in `va`.
 	 *
 	 * @param a   first array, ascending
 	 * @param la  number of leading entries of `a` to consider
 	 * @param b   second array, ascending
 	 * @param lb  number of leading entries of `b` to consider
-	 * @param out destination, at least `min(la, lb) + 8` entries
+	 * @param out destination, at least `min(la, lb)` entries
 	 * @return number of values written
 	 */
 	public static int allPairsTreeIntersect(
