@@ -522,13 +522,18 @@ public interface Migration_2026_2 {
 	 * answer attribute queries (its inherited attributes come from the unavailable target), so its reference-scope lookup
 	 * is skipped and the resolution falls back to the entity level.
 	 *
+	 * Package-private rather than private because {@link Migration_2026_3} re-keys the cardinality counters sitting
+	 * beside these very indexes and needs the same lookup. It uses this only as a FALLBACK — it prefers the scale
+	 * frozen into the sibling `FilterIndexStoragePart`, which is authoritative for a part written at protocol 6 —
+	 * so this remains the answer only where no sibling filter part survives.
+	 *
 	 * @param entitySchema  the collection's entity schema
 	 * @param referenceName name of the reference owning this index's attributes, or `null` for an entity-level index
 	 * @param attributeName name of the indexed attribute
 	 * @return the schema's `indexedDecimalPlaces` for that attribute
 	 * @throws GenericEvitaInternalError when the attribute is missing from both the reference and the entity schema
 	 */
-	private static int resolveIndexedDecimalPlaces(
+	static int resolveIndexedDecimalPlaces(
 		@Nonnull EntitySchema entitySchema,
 		@Nullable String referenceName,
 		@Nonnull String attributeName
