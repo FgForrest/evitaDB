@@ -236,8 +236,9 @@ public class AttributeCardinalityIndex
 	 *
 	 * Both forms are admitted because callers are *required* to hand over the normalized key — the counter and the
 	 * shared value tree must agree on what "the same entry" means, or a ref-count reaches zero while an entry is
-	 * still needed (see `EntityIndex#cardinalityKeyNormalizer`) — while the normalizer's idempotence means a value
-	 * that was already canonical arrives unchanged and must stay acceptable.
+	 * still needed (see {@link #normalizeKey(Serializable, int)}, which every caller routes its key through —
+	 * `ReferencedTypeEntityIndex` and `ReducedGroupEntityIndex` on both the insert and the remove path) — while the
+	 * normalizer's idempotence means a value that was already canonical arrives unchanged and must stay acceptable.
 	 *
 	 * @param value the value to validate
 	 */

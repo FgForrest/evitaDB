@@ -55,7 +55,7 @@ import java.util.Map;
  * deliberately does not attempt it, having no access to either.
  *
  * @deprecated only for backward compatibility purposes
- * @author Claude (defect A investigation), FG Forrest a.s. (c) 2026
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Deprecated(since = "2026.3", forRemoval = true)
 @RequiredArgsConstructor

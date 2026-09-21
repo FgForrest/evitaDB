@@ -28,7 +28,9 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex.AttributeCardinalityKey;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
@@ -52,6 +54,8 @@ import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
 import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
 import io.evitadb.utils.NumberUtils;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
@@ -68,6 +72,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.OptionalInt;
+import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -95,6 +100,17 @@ import java.util.function.Function;
  *
  * The engine now normalizes before the counter ({@link AttributeCardinalityIndex#normalizeKey}), so newly
  * written counters are already canonical. This migration brings the ones already on disk into that same form.
+ *
+ * A **localized** `String` attribute needed a second fix to reach the same place, because its value tree is
+ * ordered by a collator and a collator equates strings `equals` keeps apart: two such values produced two
+ * counters over one tree entry no matter how the keys were normalized. The index-key order now breaks that tie
+ * (`EqualsConsistentLocalizedStringComparator`), so the counter and the tree agree there too.
+ *
+ * What this migration still cannot repair for that flavour is a record a PRE-tie-break engine filed under the
+ * other spelling — its entity value names a bucket that no longer exists once the two spellings are distinct
+ * keys. The audit below counts such a record as an orphaned counter, because its bucket map is keyed by `equals`
+ * and the second spelling misses; that recommends the right action (reindex) for the wrong reason, so the tally
+ * must not be read as a count of collated damage.
  *
  * # What it does
  *
@@ -128,7 +144,7 @@ import java.util.function.Function;
  * order the scale is established in, and why the sibling filter index's FROZEN scale is preferred over the
  * schema's current one.
  *
- * @author Claude (defect A investigation), FG Forrest a.s. (c) 2026
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @deprecated removable once no catalog older than 2026.3 can be encountered — at which point no catalog can
  * still carry raw-keyed cardinality counters, and neither this migration nor
  * `AttributeCardinalityIndexStoragePartSerializer_2026_2` has anything left to do
@@ -371,7 +387,7 @@ public interface Migration_2026_3 {
 			cardinalityIndex.getCardinalities(), normalizer
 		);
 		final int orphanedPairs = countOrphanedCounters(
-			rekeyed == null ? cardinalityIndex.getCardinalities() : rekeyed, filterPart, plainType
+			rekeyed == null ? cardinalityIndex.getCardinalities() : rekeyed, filterPart, plainType, normalizer
 		);
 		if (rekeyed == null) {
 			return new CounterOutcome(false, orphanedPairs, whyNotChecked(plainType, filterPart));
@@ -405,18 +421,31 @@ public interface Migration_2026_3 {
 	 *    ({@link FilterIndex#getNormalizer(Class, int)} ignores it everywhere else), so every other type answers
 	 *    `0` immediately and never needs a schema or a sibling part. This alone covers the String/NFD and temporal
 	 *    counters, which is most of what fails a schema lookup.
-	 * 2. **The sibling FILTER part's FROZEN scale** — authoritative rather than merely available: it is by
-	 *    construction the scale the shared value tree's keys were encoded at, and the counter's whole purpose is to
-	 *    agree with that tree. It also survives a schema that has since changed.
+	 * 2. **The sibling FILTER part's scale** — authoritative because it is the scale the LOAD path will build that
+	 *    tree's normalizer at: `AttributeIndexLoader` reads `getIndexedDecimalPlaces()` off the part verbatim and
+	 *    never re-derives it from the schema. The counter's whole purpose is to agree with the tree beside it, so
+	 *    it must be canonicalized at whatever scale that tree ends up using — which also means it survives a schema
+	 *    that has since changed.
+	 *
+	 *    Read this as "the scale the part reports", NOT as "the scale the keys were written at": for a part still
+	 *    in a pre-freeze layout the two differ. `FilterIndexStoragePartSerializer_2025_5` and `…_2026_1` read
+	 *    formats that persisted no scale at all and hand back a part defaulted to `0`. That is harmless here
+	 *    precisely BECAUSE the preference is defined against the loader rather than against the bytes — the loader
+	 *    reads the same `0` and builds the same normalizer, so counter and tree still agree. (Such a blob can only
+	 *    be a non-`BigDecimal` part — `Migration_2026_2` re-keys and rewrites every `BigDecimal` filter part with
+	 *    the current serializer — but it CAN be a `BigDecimalNumberRange` one, which that migration leaves alone.)
 	 * 3. **The entity schema** — the fallback for a counter with no surviving sibling filter part.
 	 * 4. **Empty** — caller leaves the part untouched and says so.
+	 *
+	 * Visible to tests, which pin that order: a sibling scale that DISAGREES with the schema must win, and the
+	 * inverse preference is not detectable from a catalog whose schema never changed.
 	 *
 	 * @param filterPart the sibling filter index, already read by {@link #readSiblingFilterIndex}, or `null` when
 	 *                   this counter has none
 	 * @return the scale to normalize at, or empty when it cannot be established for a type that needs one
 	 */
 	@Nonnull
-	private static OptionalInt resolveScale(
+	static OptionalInt resolveScale(
 		@Nonnull EntitySchema entitySchema,
 		@Nullable String referenceName,
 		@Nonnull AttributeIndexStorageKey attributeIndexKey,
@@ -526,17 +555,21 @@ public interface Migration_2026_3 {
 	 * identity or a bijection in the version that wrote this catalog, so it cannot hold two counter keys over one
 	 * tree entry and there is nothing for the audit to find.
 	 *
-	 * **A type that CAN collide but whose stored key space is not reconstructible here is reported as not checked**
-	 * ({@link #isAuditable}). `OffsetDateTime` is that case and the reason the two predicates are not one:
-	 * 2026.2 normalized it with a bare `toInstant()`, which already discards the offset and is therefore
-	 * many-to-one, so a protocol-6 catalog genuinely can carry temporal damage — but the audit still cannot see it.
-	 * Today's normalizer additionally truncates to milliseconds, and the truncation of what is already on disk
-	 * happens at LOAD rather than in storage (`2026-09-04-millisecond-temporal-precision`), which this migration
-	 * bypasses by reading storage parts directly; worse, a catalog that reached protocol 6 by upgrade from 2026.1
-	 * can hold temporal buckets that are not `Instant` at all, re-anchored only on load by
-	 * `FilterIndexStoragePartSerializer_2026_1`. There is thus no single key space both sides can be expressed in
-	 * from here, and a comparison across two of them would report healthy counters as damaged. Telling an operator
-	 * to reindex on a false alarm is worse than telling them nothing — so it says, explicitly, that it did not look.
+ * **Both sides are normalized, and that is load-bearing rather than tidy.** A stored bucket is canonical only
+	 * under the normalizer of the version that WROTE it, which is not today's. The pointed case is
+	 * `BigDecimalNumberRange`: `Migration_2026_2#rekeyFilterIndex` re-keys `String` and `BigDecimal` filter parts
+	 * and returns `false` for everything else, and `getNormalizer` had no range branch at all before 2026.2 — so a
+	 * catalog that reached protocol 6 by upgrade from 2026.1 still holds RAW, un-rescaled ranges, while
+	 * `NumberRange` equality is defined on the SCALED thresholds. Comparing a rescaled counter key against
+	 * them misses on every entry and reports an undamaged collection as damaged. Temporal values have the same
+	 * shape of hazard from the other direction (a stored `Instant` is truncated to milliseconds only at LOAD, which
+	 * reading storage parts directly bypasses).
+	 *
+	 * Putting the stored value through the very same normalizer removes the whole class of problem: the normalizer
+	 * is idempotent, so a bucket that is already canonical passes through untouched, and one written under an older
+	 * rule lands in exactly the key space the counter is now in. Two buckets that collapse onto one key must have
+	 * their records UNIONED — overwriting would drop the records of the losing bucket and reintroduce the false
+	 * alarm from the other side — which is also precisely what the load path does when it merges them.
 	 *
 	 * **A PAGED filter index is not checked** but is reported as such. Its buckets live in separate
 	 * `FilterIndexLeafPagePart` records rather than in {@link FilterIndexStoragePart#getHistogramPoints()}, so
@@ -544,26 +577,34 @@ public interface Migration_2026_3 {
 	 * about paging is NOT a precedent for silence here: paging does not exist in 2026.1, which wrote every
 	 * protocol-5 catalog, but it does in 2026.2, which wrote every protocol-6 one.
 	 *
+	 * Visible to tests rather than private: the normalize-both-sides rule above is the one part of this migration
+	 * the backward-compatibility fixtures cannot exercise, because no downloaded catalog holds a colliding pair.
+	 * `Migration_2026_3_AuditTest` drives it directly instead.
+	 *
 	 * @param canonicalCounters the counter map AFTER re-keying — the state the repaired counter is actually in
 	 * @param filterPart        the sibling value tree, or `null` when the counter has none
 	 * @param plainType         the attribute's plain (non-array) type
+	 * @param normalizer        the canonicalizer for this attribute, applied to the STORED bucket values too
 	 * @return the number of `(record, value)` pairs whose entry is missing, or {@link #NOT_VERIFIABLE}
 	 */
-	private static int countOrphanedCounters(
+	static int countOrphanedCounters(
 		@Nonnull Map<AttributeCardinalityKey, Integer> canonicalCounters,
 		@Nullable FilterIndexStoragePart filterPart,
-		@Nonnull Class<?> plainType
+		@Nonnull Class<?> plainType,
+		@Nonnull Function<Object, Serializable> normalizer
 	) {
 		if (!isCollisionProne(plainType)) {
 			return 0;
 		}
-		if (!isAuditable(plainType) || filterPart == null || filterPart.isPaged()) {
+		if (filterPart == null || filterPart.isPaged()) {
 			return NOT_VERIFIABLE;
 		}
 		final ValueToRecordBitmap[] points = filterPart.getHistogramPoints();
 		final Map<Serializable, Bitmap> buckets = CollectionUtils.createHashMap(points.length);
 		for (final ValueToRecordBitmap point : points) {
-			buckets.put(point.getValue(), point.getRecordIds());
+			buckets.merge(
+				normalizer.apply(point.getValue()), point.getRecordIds(), Migration_2026_3::union
+			);
 		}
 		int orphaned = 0;
 		for (final AttributeCardinalityKey key : canonicalCounters.keySet()) {
@@ -586,6 +627,9 @@ public interface Migration_2026_3 {
 	 * identity or a bijection: `LocalDateTime` anchors at a CONSTANT offset, `Currency` and `Locale` wrap without
 	 * merging, `LocalTime` had no branch of its own at all, and every remaining type passes through untouched.
 	 *
+	 * A type this admits is always comparable, because {@link #countOrphanedCounters} puts the stored bucket
+	 * through the same normalizer as the counter rather than trusting it to already be canonical.
+	 *
 	 * Verified against the released sources rather than the changelog
 	 * (`git show v2026.2.7:…/FilterIndex.java`): the millisecond truncation that makes the temporal branch
 	 * many-to-one a SECOND way is absent from v2026.2.5, .6 and .7, but the offset collapse is present in all
@@ -600,16 +644,18 @@ public interface Migration_2026_3 {
 
 	/**
 	 * Names, for the operator, the one reason this counter was not compared with the entries it guards — or `null`
-	 * when it was. The three causes are materially different (a type the audit cannot express, an index shape it
-	 * cannot walk, and an index that is not there at all) and a message that lists all three every time tells the
-	 * reader nothing about the case in front of them.
+	 * when it was. The two causes are materially different — an index shape the audit cannot walk, and an index
+	 * that is not there at all — and a message listing both every time tells the reader nothing about the case in
+	 * front of them.
+	 *
+	 * Visible to tests, which pin it against {@link #countOrphanedCounters}: a {@link #NOT_VERIFIABLE} count must
+	 * always carry a reason, and a counter that WAS checked must never carry one — otherwise the report either
+	 * names a cause it did not have or leaves the operator with an unexplained gap.
 	 */
 	@Nullable
-	private static String whyNotChecked(@Nonnull Class<?> plainType, @Nullable FilterIndexStoragePart filterPart) {
+	static String whyNotChecked(@Nonnull Class<?> plainType, @Nullable FilterIndexStoragePart filterPart) {
 		if (!isCollisionProne(plainType)) {
 			return null;
-		} else if (!isAuditable(plainType)) {
-			return "offset-bearing timestamps have no key space this migration can compare in";
 		} else if (filterPart == null) {
 			return "no sibling filter index";
 		} else if (filterPart.isPaged()) {
@@ -620,18 +666,22 @@ public interface Migration_2026_3 {
 	}
 
 	/**
-	 * Whether a counter of `plainType` can be compared with its stored tree entries at all — that is, whether the
-	 * normalizer this migration applies produces the very keys the part on disk was written with.
+	 * Unions the records of two stored buckets that normalize onto one key.
 	 *
-	 * True for the three types whose normalizer is byte-for-byte what 2026.2 applied, so both sides of the
-	 * comparison land in one key space. False for `OffsetDateTime`, which {@link #isCollisionProne} admits and
-	 * this deliberately does not — {@link #countOrphanedCounters} carries the reasoning, and the caller reports
-	 * the difference as "not checked" rather than as clean.
+	 * Reached only when the part on disk was written under an older normalizer that kept them apart. Dropping
+	 * either side would make the records of the losing bucket look orphaned, which is the false alarm
+	 * {@link #countOrphanedCounters} exists to avoid; the load path merges the same pair the same way.
 	 */
-	private static boolean isAuditable(@Nonnull Class<?> plainType) {
-		return String.class.isAssignableFrom(plainType)
-			|| BigDecimal.class.isAssignableFrom(plainType)
-			|| BigDecimalNumberRange.class.isAssignableFrom(plainType);
+	@Nonnull
+	private static Bitmap union(@Nonnull Bitmap left, @Nonnull Bitmap right) {
+		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		for (final Bitmap side : new Bitmap[]{left, right}) {
+			final OfInt recordIterator = side.iterator();
+			while (recordIterator.hasNext()) {
+				writer.add(recordIterator.nextInt());
+			}
+		}
+		return new BaseBitmap(writer.get());
 	}
 
 	/**
@@ -676,9 +726,13 @@ public interface Migration_2026_3 {
 	/**
 	 * Joins attribute descriptions into one message fragment, capped at {@link #MAX_REPORTED_ATTRIBUTES} so the
 	 * remedy at the end of the message cannot be pushed off the operator's screen by a long list.
+	 *
+	 * Visible to tests along with {@link #describeCounter}: the diagnostic message IS this migration's deliverable
+	 * — it repairs the counters but reports the damage — so the shape an operator reads is pinned like any other
+	 * output.
 	 */
 	@Nonnull
-	private static String formatAttributeList(@Nonnull List<String> attributes) {
+	static String formatAttributeList(@Nonnull List<String> attributes) {
 		return attributes.size() <= MAX_REPORTED_ATTRIBUTES ?
 			String.join(", ", attributes) :
 			String.join(", ", attributes.subList(0, MAX_REPORTED_ATTRIBUTES)) +
@@ -690,7 +744,7 @@ public interface Migration_2026_3 {
 	 * index that holds it, rather than by the compressed storage part id they have no way to resolve.
 	 */
 	@Nonnull
-	private static String describeCounter(int indexPrimaryKey, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
+	static String describeCounter(int indexPrimaryKey, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
 		final AttributeIndexKey attribute = attributeIndexKey.attribute();
 		return (attribute.referenceName() == null ? "" : attribute.referenceName() + ".") +
 			attribute.attributeName() +
