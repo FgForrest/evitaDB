@@ -494,8 +494,10 @@ public class EvitaClient implements EvitaContract {
 	 *                          maps the gRPC deadline onto the Armeria response timeout before the decorator
 	 *                          chain runs, and every streaming call site here applies `withDeadlineAfter`, so on
 	 *                          those paths this value is overwritten anyway. Measured: disabling it changes
-	 *                          nothing (see the ADR's *Verification*). It is kept so that a future call site
-	 *                          which forgets the deadline still gets a sane window rather than 15 s.
+	 *                          nothing (see the ADR's *Verification*). It is kept so that a call site which
+	 *                          forgets the deadline still lands on a configured window rather than on Armeria's
+	 *                          default. **Every call site now passes one** - the unary channel used to pass NULL,
+	 *                          which is precisely how a 15 s ceiling reached clients configured for far longer.
 	 * @param streaming         `true` for a channel carrying server-streaming calls, which lifts Armeria's
 	 *                          10 MiB total-response-length cap - see the call site for why that cap is
 	 *                          meaningless on a stream and fatal for large file downloads
@@ -528,6 +530,15 @@ public class EvitaClient implements EvitaContract {
 			grpcClientBuilder.decorator(
 				RetryingClient.builder(retryRule)
 					.useRetryAfter(true)
+					// `0` means "no per-attempt budget of its own - defer to the call's". Without it
+					// `RetryConfigBuilder` seeds this from `Flags.defaultResponseTimeoutMillis()` (15 s), and
+					// `AbstractRetryingClient$State#responseTimeoutMillis()` returns
+					// `Math.min(perAttempt, remainingCallBudget)` - so Armeria's global default silently floors
+					// the deadline every unary call carries, whatever the caller configured or
+					// `executeWithExtendedTimeout` asked for. The cap rides on the DECORATOR, so disabling
+					// retries does not avoid it: `createRetryRule` still returns the always-safe
+					// `onUnprocessed()` rule and the decorator is installed regardless.
+					.responseTimeoutMillisForEachAttempt(0)
 					.newDecorator()
 			);
 		}
@@ -687,6 +698,12 @@ public class EvitaClient implements EvitaContract {
 			clientTimeouts.streamingTimeout(),
 			clientTimeouts.streamingTimeoutUnit().toChronoUnit()
 		);
+		// seeds the unary channel below, so a call that carries no deadline of its own falls back to the
+		// configured timeout rather than to Armeria's global default
+		final Duration unaryTimeout = Duration.of(
+			clientTimeouts.timeout(),
+			clientTimeouts.timeoutUnit().toChronoUnit()
+		);
 		this.onSessionCreationCallback = onSessionCreationCallback == null
 			? Functions.noOpConsumer()
 			: onSessionCreationCallback;
@@ -843,9 +860,13 @@ public class EvitaClient implements EvitaContract {
 		final String uri = uriScheme + "://" + connectionOptions.host() + ":" + connectionOptions.port() + "/";
 		// Unary calls retry; streaming calls must not be decorated at all, or the retry layer freezes their
 		// response-timeout deadline at call start and caps every stream at 15 s (issue #1388).
+		// The channel-level fallback is OUR configured unary timeout, never Armeria's 15 s default: a call site
+		// that forgets `withDeadlineAfter` must land on the value the operator configured. Passing NULL here
+		// leaves `Flags.defaultResponseTimeoutMillis()` in force, which is how a 15 s ceiling reached a client
+		// whose configuration says otherwise.
 		this.unaryChannel = new EvitaClientChannel.Unary(
 			createGrpcClientBuilder(
-				uri, this.clientFactory, createRetryRule(configuration.retry()), null, false,
+				uri, this.clientFactory, createRetryRule(configuration.retry()), unaryTimeout, false,
 				connectionOptions, clientVersion, grpcConfigurator
 			)
 		);
