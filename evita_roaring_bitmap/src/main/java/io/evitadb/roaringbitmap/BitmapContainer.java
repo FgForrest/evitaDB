@@ -745,11 +745,30 @@ public final class BitmapContainer extends Container implements Cloneable {
 	}
 
 	/**
-	 * Hash derived from the bitmap words, consistent with {@link #equals(Object)}.
+	 * Hash of the value set, computed over the chunk's canonical word form — see {@link ContainerHash}, which
+	 * carries the reasoning and the three upstream defects this replaces.
+	 *
+	 * This encoding already *is* the canonical form, so the method simply folds its own words; the other two
+	 * containers report the same words without materializing them, and therefore reach the same number for
+	 * the same set. Empty words are skipped because they contribute nothing, which keeps a sparse chunk cheap
+	 * without changing the result.
+	 *
+	 * **This diverges from upstream deliberately and must survive a re-sync.** Upstream returns
+	 * `Arrays.hashCode(bitmap)`, which folds each word as `(int) (e ^ (e >>> 32))` — and that is `0` for
+	 * `-1L` exactly as it is for `0L`, so an all-ones word is invisible to it. Two disjoint dense chunks
+	 * whose every word is saturated hashed identically, reachable with nothing but `add(int)`.
+	 * {@link ContainerHash#mixWord(long)} exists to close that.
 	 */
 	@Override
 	public int hashCode() {
-		return Arrays.hashCode(this.bitmap);
+		int hash = ContainerHash.seed();
+		for (int wordIndex = 0; wordIndex < this.bitmap.length; ++wordIndex) {
+			final long word = this.bitmap[wordIndex];
+			if (word != 0L) {
+				hash = ContainerHash.fold(hash, wordIndex, word);
+			}
+		}
+		return hash;
 	}
 
 	/**

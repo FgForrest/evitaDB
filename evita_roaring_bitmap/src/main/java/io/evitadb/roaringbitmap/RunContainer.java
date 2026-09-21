@@ -1336,30 +1336,53 @@ public final class RunContainer extends Container implements Cloneable {
 	}
 
 	/**
-	 * Hash derived from the live run pairs, computed from at most the last
-	 * {@link ArrayContainer#HASH_CONTRIBUTING_VALUES} entries of them.
+	 * Hash of the value set, computed over the chunk's canonical word form — see {@link ContainerHash}, which
+	 * carries the reasoning and the three upstream defects this replaces.
 	 *
-	 * **The value is exactly the one the whole-array loop produced, and must stay that way.** The
-	 * recurrence inherited from upstream RoaringBitmap is written `hash += 31 * hash + entry`, and that
-	 * `+=` makes it `hash = 32 * hash + entry` — base `2^5`. The entry `j` places from the end therefore
-	 * carries the coefficient `2^(5 * j)`, and `2^35 == 0` in 32-bit arithmetic, so every entry further
-	 * back than {@link ArrayContainer#HASH_CONTRIBUTING_VALUES} contributes exactly zero. Starting the same
-	 * loop seven entries from the end is an algebraic identity, not an approximation.
+	 * Each run paints the words it spans: the first and last word of a run get a partial mask, the words
+	 * wholly inside it are saturated. Runs are ascending and disjoint, so word indices never decrease and a
+	 * word is folded once — but two runs may share a word (one ending and the next starting inside it), which
+	 * is why the fold waits for the index to change rather than happening per run. The cost is one step per
+	 * word each run touches, so it is `nbrruns + 1023` at worst: neither term bounds it alone, because runs are
+	 * disjoint and ascending — one run covering the whole chunk crosses all 1,023 internal word boundaries, and
+	 * 32,768 single-value runs cross none. The number of *folds* stays at most 1,024, since a fold happens only
+	 * when the word index changes.
 	 *
-	 * The entries are the interleaved `value, length` pairs of the run list, not the values the container
-	 * holds, so this hash has never agreed with {@link ArrayContainer#hashCode()} for the same set even
-	 * though {@link #equals(Object)} does compare the two across encodings. That is upstream behaviour and
-	 * predates this method being shortened; like the collision property, it belongs in a decision record
-	 * rather than in a performance change.
+	 * **This diverges from upstream deliberately and must survive a re-sync.** Upstream folds the interleaved
+	 * `value, length` run pairs with `hash += 31 * hash + entry`, which hashes the *encoding* rather than the
+	 * set: the same values stored as an {@link ArrayContainer} produced a different number, even though
+	 * {@link #equals(Object)} reports the two equal. The `+=` additionally makes the base 32, annihilating
+	 * every entry before the last seven.
 	 */
 	@Override
 	// nbrruns and valueslength are mutable by design
 	@SuppressWarnings("NonFinalFieldReferencedInHashCode")
 	public int hashCode() {
-		final int entries = this.nbrruns * 2;
-		int hash = 0;
-		for (int k = Math.max(0, entries - ArrayContainer.HASH_CONTRIBUTING_VALUES); k < entries; ++k) {
-			hash += 31 * hash + this.valueslength[k];
+		int hash = ContainerHash.seed();
+		int pendingWordIndex = -1;
+		long pendingWord = 0L;
+		for (int rlepos = 0; rlepos < this.nbrruns; ++rlepos) {
+			final int runStart = this.valueslength[2 * rlepos];
+			// the stored length is the run length minus one, so the run covers runStart .. runEnd inclusive
+			final int runEnd = runStart + this.valueslength[2 * rlepos + 1];
+			final int firstWord = runStart >>> 6;
+			final int lastWord = runEnd >>> 6;
+			for (int wordIndex = firstWord; wordIndex <= lastWord; ++wordIndex) {
+				final int lowestBit = wordIndex == firstWord ? runStart & 63 : 0;
+				final int highestBit = wordIndex == lastWord ? runEnd & 63 : 63;
+				final long mask = (-1L >>> (63 - (highestBit - lowestBit))) << lowestBit;
+				if (wordIndex != pendingWordIndex) {
+					if (pendingWordIndex >= 0) {
+						hash = ContainerHash.fold(hash, pendingWordIndex, pendingWord);
+					}
+					pendingWordIndex = wordIndex;
+					pendingWord = 0L;
+				}
+				pendingWord |= mask;
+			}
+		}
+		if (pendingWordIndex >= 0) {
+			hash = ContainerHash.fold(hash, pendingWordIndex, pendingWord);
 		}
 		return hash;
 	}
@@ -2303,11 +2326,24 @@ public final class RunContainer extends Container implements Cloneable {
 
 	/**
 	 * Returns a copy holding only the first `maxcardinality` values in ascending order (truncating the
-	 * run that straddles the limit). Returns a full clone when the limit is not below the cardinality.
+	 * run that straddles the limit). Returns a full clone when the limit is not below the cardinality,
+	 * and an empty container when the limit is zero or below.
+	 *
+	 * **The zero case is handled separately on purpose, and this diverges from upstream.** The truncation
+	 * below shortens the straddling run by `cardinality - maxcardinality`, which is at most that run's own
+	 * length only while at least one value survives. At a limit of zero the loop still stops on the first
+	 * run, the subtraction takes one more than that run holds, and the stored length — a `char` — underflows
+	 * to `65535`. The container then reports one run of 65,536 values: the whole chunk where the first run
+	 * starts at `0`, and a run reaching past `65535` where it starts anywhere else. The second shape is not
+	 * a container at all, and everything that indexes the chunk's 1,024-word form by a value — `hashCode()`
+	 * and {@link #toBitmapContainer()} among them — walks off the end of it.
 	 */
 	@Nonnull
 	@Override
 	public Container limit(final int maxcardinality) {
+		if (maxcardinality <= 0) {
+			return new RunContainer();
+		}
 		if (maxcardinality >= getCardinality()) {
 			return clone();
 		}

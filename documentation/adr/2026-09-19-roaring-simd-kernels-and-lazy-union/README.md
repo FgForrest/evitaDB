@@ -1,7 +1,7 @@
 ---
 title: The roaring containers get an optional Vector API provider, fused word kernels and a CRoaring-style lazy array union; the all-pairs and gather kernels are measured and rejected
 date: 2026-09-19
-updated: 2026-09-19 13:20
+updated: 2026-09-21 07:47
 status: proposed
 kind: optimization
 issues: [1539, 1541, 1542, 1543, 1544]
@@ -70,7 +70,7 @@ walked them again to extract an array. Nothing in the module used the Vector API
 | 2026-09-19 | Lazy array union on the multi-way path (`naivelazyor`) with its own `LAZY_ARRAY_UNION_BOUND` (64 values, chosen by the replay below; first shipped as 256) and an N ≤ 64 input guard in the varargs `naive_or`, rather than routing through the existing container-level `ArrayContainer.lazyor` (bound 1024) | the profile's 26 % is the bitmap round trip for unions whose result is an array 95 % of the time; the container-level bound alone is not usable on the multi-way path because every array fold copies the accumulator, so the cost is quadratic in the number of inputs — a wide union of tiny arrays must promote early, which the input-count guard enforces and a cardinality bound cannot | §Key technical details, §Verification |
 | 2026-09-19 | Sparse-aware extraction kernel (skip all-zero 8-word blocks) behind the provider, routed through `fillArray`, `fillLeastSignificant16bits`, `toArrayContainer` | `Util.fillArray` is 5 % of query CPU and the bitmaps it walks are mostly empty words | §Verification |
 | 2026-09-19 | `FacetReferenceIndex.getFacetReferencingEntityIdsFormula` groups facet ids by group id instead of `Collectors.groupingBy` on the `FacetGroupIndex` object | `FacetGroupIndex` is Lombok `@Data`: hashing the key walks its `TransactionalMap` → every `FacetIdIndex` → every `TransactionalBitmap` → every container, 5.4 % of facet-query CPU per the profile's caller breakdown — the only caller of `ArrayContainer.hashCode` in the workload | engine change folded into this campaign |
-| 2026-09-19 | `ArrayContainer.hashCode` / `RunContainer.hashCode` compute their (unchanged) value from the last seven entries only, in O(1) | The vendored loop reads `hash += 31 * hash + c` (an upstream `+=`, i.e. base 32 = 2^5), so only the last seven values can reach a 32-bit result; the method was 3.8 % of query CPU for a value a seven-step loop reproduces exactly (20,000 random containers, zero mismatches). The value is kept identical on purpose; the poor distribution is a separate decision | §Rejected outright, §Consequences |
+| 2026-09-21 | All three container `hashCode`s are rewritten to hash the chunk's **canonical 1,024-word form** (`ContainerHash`: `SEED + Σ mixWord(word) * 31^i` over non-empty words), replacing three upstream defects at once | Upstream's `hash += 31 * hash + entry` is base 32, so `2^35 == 0` annihilated everything before the last seven entries; `RunContainer` folded run pairs while `ArrayContainer` folded values, so one set had two hashes while `equals` reported them equal — reachable with `runOptimize()`, which `BitmapChanges` calls; and `Arrays.hashCode(long[])` folds `(int)(e ^ (e>>>32))`, which is `0` for `-1L` as for `0L`, so two disjoint 4,160-value chunks built with plain `add(int)` collided. Hashing the canonical form makes the three encodings agree by construction. Cost: `BitmapContainer` walks 1,024 words, `ArrayContainer` its values (≤ 4,096), `RunContainer` `nbrruns + 1023` steps at worst — but the number of *folds* is ≤ 1,024 in all three, a fold happening only when the word index changes | §Rejected outright, §Consequences, §Verification |
 
 ## Rejected outright
 
@@ -87,7 +87,8 @@ walked them again to extract an array. Nothing in the module used the Vector API
 | extending `SystemStatus` with the kernel summary | 27-file ripple across gRPC/GraphQL/REST/driver for a diagnostic string | an operator surface that genuinely needs it |
 | a `ThreadLocal` scratch for lazy-union accumulators | already rejected by the 2026-08 usage-statistics work as hostile to virtual threads | — |
 | VP2INTERSECT | not expressible in the Vector API; and CRoaring does not use it either (its array intersection is `pcmpestrm`), so nothing is lost against the reference implementation | a native/FFM provider, its own decision |
-| a vector polynomial-hash kernel for `ArrayContainer.hashCode` | the shipped recurrence is base 32, so the result depends on the last seven values; an O(1) tail loop returns the identical int and no kernel is needed | the hash is changed to a real base-31 polynomial (a behaviour change with its own record) |
+| a vector polynomial-hash kernel for `ArrayContainer.hashCode` | the method is no longer a sequential polynomial over values — it folds position-weighted word terms, and a container performs at most 1,024 folds whatever its encoding. There is nothing left for a lane kernel to shorten that the word grouping has not already removed | a workload that makes container hashing hot again; nothing does today |
+| keeping the O(1) tail-only hash (read the last seven entries, return upstream's exact value) | it was shipped first, and it is an algebraic identity — but it is only valid *because* the base is 32, so it preserved all three defects and pinned them behind a test asserting they must stay. Its measured 3.8 % of query CPU came entirely from `Collectors.groupingBy` on a Lombok `@Data` `FacetGroupIndex`, and **the same campaign removed that caller** (row above), so after that change it was optimising a method with no hot caller while locking a broken hash into the fork | a caller makes container hashing hot again — in which case the answer is to stop hashing index objects, not to shorten the hash |
 | word-batched array-to-bitmap scatter (one read-modify-write per distinct word in `ilazyor`/`ior`/`or`/`loadData`) | 1.42× on the value-weighted batch replay, **+7.3 % end to end** on the catalog-wide facet summaries of the same catalog; the median operation scatters 4 values into 4 distinct words, where batching saves no write and adds a data-dependent branch per value (bisected on a quiet box, §Verification) | a per-operation replay on real operands that shows a win — the batch's 5.35× write reduction is real only for the mean-42-value tail |
 | the VBMI2 `compress` extraction for `fillArrayAND`/`ANDNOT`/`XOR` | every caller sits on the ≤ 4096-result branch where it measures 0.87–1.7×; it reaches 3.6–8.7× only at ≥ 12.5 % density, which those sites never see | a dense extraction site |
 
@@ -124,9 +125,9 @@ Box: AMD Ryzen AI 9 HX 370 (Zen 5, AVX-512 with VPOPCNTDQ/VBMI2), OpenJDK 21.0.1
 busy gate ≤ 20 % before and averaged across every run; ratios are the finding, absolutes ±10 %.
 
 - **Tests**: the vendored roaring suite runs twice (vector where available, and with `-Devita.roaring.vector=false`):
-  18,023 / 0 failures in each execution on the final tree (17,915 before this work); new:
+  18,147 / 0 failures in each execution on the final tree (17,915 before this work); new:
   `VectorKernelsDifferentialTest`, `VectorKernelsSelectionTest`, `LazyCardinalityProtocolTest`, `LazyArrayUnionTest`,
-  `ContainerTailHashCodeTest`, `ScatterAndFuseFirstIntersectionTest`, `ScalarArrayKernelsTest`, plus the quality-pass
+  `ContainerHashCodeTest`, `ScatterAndFuseFirstIntersectionTest`, `ScalarArrayKernelsTest`, plus the quality-pass
   witnesses (partial-vector tails, both aliasings, the `mergeBulk` sparse policy, the reflective load contract, an
   allocation-differential test for the
   facet bucket map, and the opt-in `-Devita.roaring.vector.require=true` that turns a silent scalar fallback into a
@@ -137,7 +138,15 @@ busy gate ≤ 20 % before and averaged across every run; ratios are the finding,
   `self-test mismatch in extract`; forcing a cardinality in `iand`'s lazy branch fails
   `shouldLeaveLazyCardinalityUnknown` (`expected: <-1> but was: <5000>`); `LAZY_ARRAY_UNION_BOUND = 0` fails
   `shouldKeepTheAccumulatorSparseUnderTheBound` (`expected: <ArrayContainer> but was: <BitmapContainer>`) while the
-  promotion assertions stay green; `HASH_CONTRIBUTING_VALUES = 6` fails four of the six hash tests. Functional
+  promotion assertions stay green. `ContainerHashCodeTest` was run against the **previous** container sources
+  (upstream's three hash implementations restored in the working tree, the new test left in place): **14 of its 19
+  tests fail**, including all three defect regressions — `shouldSurviveRunOptimize` (`expected: <-2042455833> but
+  was: <39>`), `shouldSeeSaturatedWords` (`expected: not equal but was: <-1174962175>`) and
+  `shouldSeeBeyondTheLastSevenValues`. Of the 5 that pass, **four** pin `ContainerHash`'s own invariants and are
+  green by construction; the fifth, `shouldIgnoreTheBackingArraysSlack`, genuinely exercises
+  `ArrayContainer.hashCode` and would catch a loop over `content.length` instead of `cardinality` — it passed
+  because upstream was also correct on that point. Stated precisely here because the first write-up of this
+  record called all five vacuous, which understates the suite and is the kind of claim that gets reused. Functional
   subset `facet | query | indexing` on the final tree: 12,726 / 0 failures (7 skipped). A Codex adversarial review
   of the branch found one issue (property reads outside the provider's fail-safe boundary, fixed) and approved the
   rest; the four-agent quality pass (test-architect, bug-hunter, simplifier, javadoc) landed as one commit.
@@ -167,10 +176,17 @@ busy gate ≤ 20 % before and averaged across every run; ratios are the finding,
   reads 1.80× for that arm because it ratios every arm against the 16-bit baseline).
   The VBMI2 compress form is 2.6–4.4× on the dense real operands and ≤ 1.4× on the sparse ones; it is not shipped
   because `compress` has no AVX2 path and the provider cannot yet gate on VBMI2.
-- **Hash (JMH)**: `ArrayContainer.hashCode` 4.4 / 56.5 / 272 / 1,248 / 4,658 ns at 4 / 64 / 256 / 1024 / 4096 values
-  before; 3.3–5.9 ns flat after (the vector polynomial forms measured 11–17× at ≥ 256 — an order of magnitude
-  short of the constant-time answer); on 5,728 real array containers from the operand dump (mean cardinality 305)
-  259.9 → 3.6 ns per container (71.5×), the vector forms 26.8–31.1 ns.
+- **Hash (JMH) — measured for a design that was then withdrawn.** Upstream's full value loop:
+  `ArrayContainer.hashCode` 4.4 / 56.5 / 272 / 1,248 / 4,658 ns at 4 / 64 / 256 / 1024 / 4096 values, and
+  259.9 ns per container on 5,728 real array containers from the operand dump (mean cardinality 305). The O(1)
+  tail-only form measured 3.3–5.9 ns flat (3.6 ns on the real containers, 71.5×), and the vector polynomial forms
+  11–17× at ≥ 256 — but the tail form did not ship, for the reason in *Rejected outright*.
+  **The shipped canonical-word hash has NOT been measured**, deliberately: the campaign's own engine change
+  removed the only caller the profile could find, so there is no hot path to measure it on, and a JMH run needs a
+  quiet box that was not negotiated. What is known analytically is the bound — at most 1,024 folds for
+  `BitmapContainer` and `RunContainer`, at most one value read plus one fold per occupied word for
+  `ArrayContainer` — against upstream's up-to-4,096-value walk. If container hashing ever becomes hot again, this
+  is the number to go and get.
 - **Scatter — the measurement that lied, and how it was caught**: a word-batched loop (one read-modify-write per
   distinct word) measured 31.0 → 21.8 ns per pair (1.42×) on the JMH batch replay of the 300 real `lazyIOR` pairs
   and shipped. The first quiet-box end-to-end pair then read **+7.3 %** on the catalog-wide facet summaries
@@ -254,13 +270,28 @@ busy gate ≤ 20 % before and averaged across every run; ratios are the finding,
 - Above the container layer the profile names the next lever: facet-summary construction performs ~113 unions
   per query with a mean of 53 inputs, `HashMap` traffic and `TimSort` are 28 % of CPU, and #1540
   (cardinality-only facet evaluation) is still open.
-- `ArrayContainer.hashCode` collides for any two containers that share their last seven values (inherited from upstream
-  RoaringBitmap; `BitmapContainer.hashCode` is `Arrays.hashCode(words)` and is unaffected). Whether bitmap-keyed engine
-  maps suffer from it is answered by the profile's caller breakdown (TBD); changing the value is a behaviour change to
-  be decided separately.
-- `RunContainer.equals(ArrayContainer)` answers `true` for the same value set while the two hash codes differ
-  (an upstream `equals`/`hashCode` contract violation, unrelated to the tail change and left untouched); nothing in
-  the engine keys a map on a container, so it is harmless today and documented here so nobody starts.
+- **The container hash is now the fork's, not upstream's, and a re-sync must keep this side.** All three
+  `hashCode`s hash the canonical 1,024-word form (`ContainerHash`), replacing three upstream defects: the base-32
+  `+=` recurrence that saw only the last seven entries, `RunContainer` hashing run pairs where `ArrayContainer`
+  hashed values, and `Arrays.hashCode(long[])` being blind to an all-ones word. None was reported upstream — that
+  is a standing follow-up, not a decision, and it is deliberately not blocking this work.
+- **`Container.equals` is still not transitive, and that was left alone on purpose.** `RunContainer.equals`
+  answers against any `Container` while `ArrayContainer` and `BitmapContainer` know only their own type and
+  `RunContainer`, so `Array == Run` and `Run == Bitmap` while `Array != Bitmap`. It has **no reachable witness**:
+  a chunk's encoding follows its cardinality, so an array and a bitmap never hold the same set — checked against
+  `remove` from dense, copying and in-place `and`/`andNot`, `xor` and `FastAggregation.naive_or`, all of which
+  demote correctly. Fixing it would change what equality *means* in a vendored fork, for a case nothing reaches;
+  the hash obeys its own contract regardless, because it describes the set rather than the encoding.
+  `ContainerHashCodeTest.KnownEqualsAsymmetry` records the state so the fixed hash is not mistaken for evidence
+  that container equality is sound.
+- **Where the blast radius of a container hash actually is — Lombok, not the formula cache.** A grep for
+  `.hashCode()` says nothing is affected; that grep cannot see generated code. `FacetIdIndex` and
+  `FacetGroupIndex` are `@Data`, so their generated `hashCode` walks every `TransactionalBitmap` down to every
+  container — which is exactly the 3.8 % of query CPU the profile found, through `Collectors.groupingBy`. The
+  formula cache is *not* on that path: `AbstractFormula` keys on `Bitmap#getContentHash(LongHashFunction)`, an
+  xxHash over the materialized array. The call site was removed by this campaign; the annotations that make it
+  possible were not. The durable lesson is that an index type carrying a structural `hashCode` is one map key
+  away from walking the whole index.
 - **A batch replay weights by value; the engine weights by operation.** The word-batched scatter passed a
   differential test, a code review and a real-operand JMH replay at 1.42× and still cost 7.3 % end to end,
   because one invocation over 300 pairs is dominated by the few long operands while the engine performs
@@ -271,7 +302,7 @@ busy gate ≤ 20 % before and averaged across every run; ratios are the finding,
   alone without an end-to-end pair on a quiet box — the pairs run under the bench chain's load read anywhere
   from −0.6 % to +6.3 % on the line that turned out to carry a real +7.3 %.
 - Implementation constants to sweep before changing: `PersistentRoaringBitmap.LAZY_ARRAY_UNION_BOUND` (64) and
-  `FastAggregation.LAZY_ARRAY_UNION_MAX_INPUTS` (64); `ArrayContainer.HASH_CONTRIBUTING_VALUES` (7) is arithmetic,
+  `FastAggregation.LAZY_ARRAY_UNION_MAX_INPUTS` (64); `ContainerHash.WORD_WEIGHT` and its seed are arithmetic,
   not a tuning knob.
 - `Util.unsignedIntersect2by2` gallops on backing-array *capacity*, not on the logical lengths (upstream quirk),
   so the documented 25× rule fires less often than it reads; CRoaring's threshold is 64×. Reported, not changed.

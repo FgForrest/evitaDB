@@ -185,25 +185,54 @@ kernel tests.
 behaviour described in the next section rather than either kernel implementation; it runs on whichever one
 the provider selected, in both surefire executions.
 
-## Tail-only container hash codes (evita-specific divergence — preserve on re-sync)
+## Container hash codes (evita-specific divergence — preserve on re-sync)
 
-`ArrayContainer.hashCode()` and `RunContainer.hashCode()` read only the **last seven** entries of their
-backing array. Upstream reads all of them and reaches the same number.
+All three containers hash the chunk's **canonical 1,024-word form** rather than their own storage, through the
+package-private `ContainerHash`:
 
-The recurrence both inherited from upstream is written `hash += 31 * hash + entry`, and that `+=` makes it
-`hash = 32 * hash + entry` — base `2^5`. The entry `j` places from the end is therefore multiplied by
-`2^(5 * j)`, and `2^35` is `0` in a 32-bit `int`, so every entry before the last seven contributes exactly
-zero. Shortening the loop is an algebraic identity: same statement, shorter range, identical result. The
-constant lives on `ArrayContainer.HASH_CONTRIBUTING_VALUES` and `RunContainer` refers to it.
+```
+hash = SEED + Σ  mixWord(word) * 31^wordIndex      over the container's non-empty words
+```
 
-`BitmapContainer.hashCode()` is `Arrays.hashCode(bitmap)` and is untouched.
+`BitmapContainer` folds its own words; `ArrayContainer` groups its ascending values into words as it reads
+them; `RunContainer` paints the words each run spans. None materializes an array, and the sum is
+order-independent — but **each occupied word must be folded exactly once**, which is why `RunContainer` defers
+a fold until the word index changes (two runs can share one word).
 
-**Do not "fix" the resulting collisions as part of a re-sync.** Two containers differing anywhere but in
-their last seven entries hash the same — they always did, and `ContainerTailHashCodeTest` asserts both the
-equivalence with the vendored full loop and the collision, so that improving the hash is a deliberate change
-with a failing test in front of it. Note also that `RunContainer.hashCode()` hashes the interleaved
-`value, length` run list while `ArrayContainer.hashCode()` hashes values, so the two disagree for a set that
-`RunContainer.equals` reports as equal; that inconsistency is upstream's and predates this change.
+**This replaces three upstream defects, and a re-sync must keep this side of all three.** They are present in
+the released upstream artifacts — the `+=` is visible in `RoaringBitmap-0.9.15` bytecode — and **none has been
+reported upstream**; this fork diverges rather than waiting.
+
+| upstream | what is wrong with it |
+|---|---|
+| `ArrayContainer.hashCode`, `RunContainer.hashCode`: `hash += 31 * hash + entry` | the `+=` makes it `hash = 32 * hash + entry`, base `2^5`. The entry `j` places from the end carries `2^(5 * j)`, and `2^35` is `0` in a 32-bit `int`, so **only the last seven entries contribute at all** — and inside that window only the low `32 - 5j` bits of each. A 4,096-value container was hashed from seven values. |
+| `RunContainer` folds `value, length` run pairs; `ArrayContainer` folds values | one set, two hashes. `RunContainer.equals(ArrayContainer)` reports the two **equal**, so this is a live `equals`/`hashCode` break — reachable with nothing but `runOptimize()`. |
+| `BitmapContainer.hashCode` is `Arrays.hashCode(bitmap)` | that folds each word as `(int) (e ^ (e >>> 32))`, which is `0` for `-1L` exactly as it is for `0L`, so **an all-ones word is invisible**. Two disjoint 4,160-value chunks, built with nothing but `add(int)`, hashed identically. |
+
+`ContainerHash.mixWord` exists because of the third row: it is a 64-to-32 finalizer rather than `Long#hashCode`,
+and it maps `0L` to `0` — which is load-bearing, since skipping an empty word and folding it must be the same
+act. The `31^i` weights are what let a sparse container skip the words it does not occupy at all; a sequential
+`hash = 31 * hash + word` would cost every container 1,024 steps.
+
+Cost: `BitmapContainer` walks 1,024 words and `ArrayContainer` its values (≤ 4,096). `RunContainer` takes one
+step per word each run touches, i.e. `nbrruns + 1023` at worst — neither term bounds it alone, since one run
+covering the chunk costs 1,024 steps at `nbrruns == 1` while 32,768 single-value runs cost 32,768 over 1,024
+distinct words. **Folds** stay ≤ 1,024 in every case, a fold happening only when the word index changes.
+
+`SEED` is a constant offset and nothing more: `hash == SEED` is **not** an emptiness test, because `mixWord` is
+a 64-to-32 map and a word mixing to `0` (or to `-SEED`) puts a non-empty container back on the seed (or on
+`0`). `ContainerHashCodeTest.SeedCarriesNoMeaning` constructs both witnesses.
+
+`ContainerHashCodeTest` pins all of it — each encoding against a reference that materializes the words the slow
+way, the three against each other, and the three defects above as regressions that fail on upstream's code.
+
+**What was deliberately NOT changed: `Container.equals` is still not transitive.** `RunContainer.equals`
+answers against any `Container`, while `ArrayContainer` and `BitmapContainer` know only their own type and
+`RunContainer` — so `Array == Run` and `Run == Bitmap` while `Array != Bitmap`. No public API path reaches it
+(a chunk's encoding is decided by its cardinality, so an array and a bitmap never hold the same set; `remove`,
+`and`, `andNot`, `xor` and `FastAggregation.naive_or` were all checked and demote correctly), and the hash
+agrees across all three encodings regardless. `ContainerHashCodeTest.KnownEqualsAsymmetry` records the state so
+that the fixed hash is not read as evidence that container equality is sound.
 
 ## Sparse lazy union (evita-specific divergence — preserve on re-sync)
 

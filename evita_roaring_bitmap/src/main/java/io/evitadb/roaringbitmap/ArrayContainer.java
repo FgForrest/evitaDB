@@ -50,17 +50,6 @@ public final class ArrayContainer extends Container implements Cloneable {
 	 * sorted array than as a bitmap.
 	 */
 	static final int DEFAULT_MAX_SIZE = 4096; // containers with DEFAULT_MAX_SZE or less integers
-	/**
-	 * How many trailing values {@link #hashCode()} has to read to reproduce the whole-array polynomial.
-	 *
-	 * The recurrence is `hash = 32 * hash + value` (see {@link #hashCode()}), so the value `j` places from
-	 * the end is multiplied by `2^(5 * j)`; at `j = 7` that is `2^35`, which is `0` in a 32-bit `int`.
-	 * Seven is therefore the exact point at which older values stop contributing — not a cut-off chosen
-	 * for speed.
-	 */
-	static final int HASH_CONTRIBUTING_VALUES = 7;
-	// should be ArrayContainers
-
 	@Serial private static final long serialVersionUID = 1L;
 
 	/**
@@ -650,31 +639,41 @@ public final class ArrayContainer extends Container implements Cloneable {
 	}
 
 	/**
-	 * Order-sensitive hash over the stored values, computed from at most the last
-	 * {@link #HASH_CONTRIBUTING_VALUES} of them.
+	 * Hash of the value set, computed over the chunk's canonical word form — see {@link ContainerHash}, which
+	 * carries the reasoning and the three upstream defects this replaces.
 	 *
-	 * **The value is exactly the one the whole-array loop produced, and must stay that way.** The
-	 * recurrence inherited from upstream RoaringBitmap is written `hash += 31 * hash + value`, and that
-	 * `+=` makes it `hash = 32 * hash + value` — base `2^5`. The value `j` places from the end therefore
-	 * carries the coefficient `2^(5 * j)`, and `2^35 == 0` in 32-bit arithmetic, so every value further
-	 * back than {@link #HASH_CONTRIBUTING_VALUES} contributes exactly zero. Starting the same loop at
-	 * `cardinality - 7` is an algebraic identity, not an approximation: the statement is unchanged and only
-	 * the range is shorter.
+	 * The values are ascending, so each occupied word is visited once and in order: bits accumulate into
+	 * `word` until the word index changes, and the completed word is folded before the next one starts. No
+	 * word array is materialized, and empty words are never visited at all — the cost is the cardinality,
+	 * not the chunk's 65,536-value capacity.
 	 *
-	 * **The distribution consequence is real and is deliberately left alone here.** Two containers that
-	 * differ anywhere but in their last seven values collide, and they did before this method was
-	 * shortened — the shorter range makes the property visible rather than introducing it. Whether the
-	 * containers should hash better is a separate question with its own blast radius (every memoized
-	 * formula key in the engine), and it belongs in a decision record rather than in a performance change.
+	 * **This diverges from upstream deliberately and must survive a re-sync.** Upstream folds the values
+	 * themselves with `hash += 31 * hash + value`, whose `+=` makes the base 32 and annihilates everything
+	 * before the last seven values; it also disagrees with {@link RunContainer#hashCode()} for a set the two
+	 * report as {@link #equals(Object) equal}.
 	 */
 	// content/cardinality are read while non-final on purpose: containers are mutable and the hash
 	// reflects their current contents.
 	@SuppressWarnings("NonFinalFieldReferencedInHashCode")
 	@Override
 	public int hashCode() {
-		int hash = 0;
-		for (int k = Math.max(0, this.cardinality - HASH_CONTRIBUTING_VALUES); k < this.cardinality; ++k) {
-			hash += 31 * hash + this.content[k];
+		int hash = ContainerHash.seed();
+		int pendingWordIndex = -1;
+		long pendingWord = 0L;
+		for (int k = 0; k < this.cardinality; ++k) {
+			final int value = this.content[k];
+			final int wordIndex = value >>> 6;
+			if (wordIndex != pendingWordIndex) {
+				if (pendingWordIndex >= 0) {
+					hash = ContainerHash.fold(hash, pendingWordIndex, pendingWord);
+				}
+				pendingWordIndex = wordIndex;
+				pendingWord = 0L;
+			}
+			pendingWord |= 1L << value;
+		}
+		if (pendingWordIndex >= 0) {
+			hash = ContainerHash.fold(hash, pendingWordIndex, pendingWord);
 		}
 		return hash;
 	}
