@@ -1,7 +1,7 @@
 ---
 title: The range index computes its signed multiplicity in one counting pass, and the JoinFormula/DisentangleFormula pair is deleted
 date: 2026-09-18
-updated: 2026-09-18 14:20
+updated: 2026-09-18 20:30
 status: accepted
 kind: optimization
 issues: [1539, 1546]
@@ -9,7 +9,7 @@ prs: [1602]
 areas: [evita_engine/core/query/algebra/base, evita_engine/index/range, evita_test/evita_performance_tests]
 supersedes: []
 superseded-by: []
-relates: [2026-09-10-simd-vector-api-feasibility]
+relates: [2026-09-10-simd-vector-api-feasibility, 2026-09-18-range-counting-kernel-per-operand-overhead]
 ---
 
 # The range index computes its signed multiplicity in one counting pass, and the JoinFormula/DisentangleFormula pair is deleted
@@ -418,6 +418,9 @@ actually sees.
   asserts `!isReadOnly()`. Nothing currently fails if that `if` is deleted.
   `RangeFormulaCacheKeyProbeTest` documents the collision and states plainly that it does not cover the gate.
 - `SPARSE_FACTOR = 4` is a reasoned estimate, not a swept crossover; its javadoc says so.
+  **Resolved** by [2026-09-18-range-counting-kernel-per-operand-overhead](2026-09-18-range-counting-kernel-per-operand-overhead.md),
+  which retires the constant rather than sweeping it: the span scan became an overflow path, so there is no
+  crossover left to estimate.
 - `RangeBitSlicedKernel` lives in test sources as a third independent implementation for the differential test,
   with its measured loss recorded in its javadoc so it is not re-proposed.
 

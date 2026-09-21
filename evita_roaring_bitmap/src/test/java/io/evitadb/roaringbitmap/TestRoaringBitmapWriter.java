@@ -198,4 +198,76 @@ public class TestRoaringBitmapWriter {
 		writer.addMany(4, 5, 6);
 		assertArrayEquals(new int[]{4, 5, 6, 100}, writer.get().toArray());
 	}
+
+	/**
+	 * `addChunk` is an evita-local addition to the fork rather than upstream API (see
+	 * `UPSTREAM_SYNC.md`), so it is re-applied by hand on every upstream re-sync. These three cases
+	 * pin the parts of its contract a re-apply could get wrong silently, for every writer
+	 * configuration - both the interface default that decomposes to {@link RoaringBitmapWriter#add}
+	 * and the constant-memory override that ORs the words straight into its own buffer.
+	 */
+	@ParameterizedTest
+	@MethodSource("params")
+	@DisplayName("addChunk reads only the words inside [fromWord, toWord)")
+	public void addChunkHonoursItsWordRange(
+		Supplier<RoaringBitmapWriter<? extends BitmapDataProvider>> supplier
+	) {
+		RoaringBitmapWriter<? extends BitmapDataProvider> writer = supplier.get();
+		final long[] words = new long[1024];
+		// words[i] carries the container-local offsets i * 64 .. i * 64 + 63
+		words[0] = 1L;                    // offset 0     - below fromWord, must not be read
+		words[5] = 1L | (1L << 63);       // offsets 320 and 383
+		words[9] = 1L << 7;               // offset 583
+		words[1023] = 1L;                 // offset 65472 - at or above toWord, must not be read
+		writer.addChunk((char) 3, words, 5, 10);
+		writer.flush();
+		assertArrayEquals(
+			new int[]{(3 << 16) + 320, (3 << 16) + 383, (3 << 16) + 583},
+			writer.getUnderlying().toArray()
+		);
+	}
+
+	@ParameterizedTest
+	@MethodSource("params")
+	@DisplayName("addChunk below an already-written key lands through the per-value path")
+	public void addChunkBelowTheCurrentKeyStillLands(
+		Supplier<RoaringBitmapWriter<? extends BitmapDataProvider>> supplier
+	) {
+		RoaringBitmapWriter<? extends BitmapDataProvider> writer = supplier.get();
+		// the constant-memory writer buffers ONE key at a time, so this leaves its mark at key 5 and the
+		// chunk below it cannot go through the word buffer. No evita caller emits out of order - the
+		// kernel walks chunks ascending - which is exactly why the branch needs a test of its own
+		writer.add((5 << 16) + 7);
+		final long[] words = new long[1024];
+		words[1] = 1L << 3;               // offset 67
+		writer.addChunk((char) 2, words, 1, 2);
+		writer.flush();
+		assertArrayEquals(
+			new int[]{(2 << 16) + 67, (5 << 16) + 7},
+			writer.getUnderlying().toArray()
+		);
+	}
+
+	@ParameterizedTest
+	@MethodSource("params")
+	@DisplayName("addChunk ORs into the key it shares with add(), losing neither side")
+	public void addChunkMergesWithSingleValueAddsOnTheSameKey(
+		Supplier<RoaringBitmapWriter<? extends BitmapDataProvider>> supplier
+	) {
+		RoaringBitmapWriter<? extends BitmapDataProvider> writer = supplier.get();
+		// the value added BEFORE the chunk is the one at risk: a constant-memory override that copied the
+		// caller's words over its buffer instead of OR-ing them would drop it, and nothing else would notice.
+		// It has to share a WORD with the chunk for that to bite - offset 40 and the chunk's offset 1 are both
+		// in words[0] - or a copy of a disjoint word range leaves it standing and this proves nothing
+		writer.add((7 << 16) + 40);
+		final long[] words = new long[1024];
+		words[0] = 1L << 1;               // offset 1, same word as the 40 above
+		writer.addChunk((char) 7, words, 0, 1);
+		writer.add((7 << 16) + 200);
+		writer.flush();
+		assertArrayEquals(
+			new int[]{(7 << 16) + 1, (7 << 16) + 40, (7 << 16) + 200},
+			writer.getUnderlying().toArray()
+		);
+	}
 }
