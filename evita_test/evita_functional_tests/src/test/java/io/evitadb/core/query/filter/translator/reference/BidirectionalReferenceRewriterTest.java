@@ -58,6 +58,8 @@ import java.util.Optional;
 import java.util.Set;
 
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
+import static io.evitadb.api.query.QueryConstraints.entityHaving;
+import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
@@ -342,6 +344,77 @@ class BidirectionalReferenceRewriterTest {
 				this.queryContext, this.ownerEntitySchema, this.ownerReference, BASELINE_CONSTRAINT, requestedScopes
 			);
 		}
+
+		/**
+		 * Runs the applicability check against an explicitly passed constraint, so that a row can vary the body shape
+		 * rather than the wiring around it.
+		 */
+		boolean isApplicableFor(@Nonnull ReferenceHaving constraint) {
+			return BidirectionalReferenceRewriter.isApplicable(
+				this.queryContext, this.ownerEntitySchema, this.ownerReference, constraint, this.scopes
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Body shapes")
+	class BodyShapes {
+
+		@Test
+		@DisplayName("should accept a negated reference attribute")
+		void shouldAcceptANegatedReferenceAttribute() {
+			final RewriteFixture fixture = RewriteFixture.baseline(EnumSet.of(Scope.LIVE));
+			assertTrue(
+				fixture.isApplicableFor(
+					referenceHaving(OWNER_REFERENCE_NAME, not(attributeEquals(ATTRIBUTE_NAME, 7L)))
+				),
+				"A negated reference attribute is reproducible - the counterpart's reduced indexes for one owner hold " +
+					"exactly that owner's rows, so the complement is taken inside a set the rewrite already builds."
+			);
+		}
+
+		@Test
+		@DisplayName("should decline a doubly negated reference attribute")
+		void shouldDeclineADoublyNegatedReferenceAttribute() {
+			final RewriteFixture fixture = RewriteFixture.baseline(EnumSet.of(Scope.LIVE));
+			assertFalse(
+				fixture.isApplicableFor(
+					referenceHaving(OWNER_REFERENCE_NAME, not(not(attributeEquals(ATTRIBUTE_NAME, 7L))))
+				),
+				"Only one negation, directly over a shape the positive path accepts - a nested `not` is not one of " +
+					"those shapes and must fall through."
+			);
+		}
+
+		@Test
+		@DisplayName("should decline a negated entityHaving")
+		void shouldDeclineANegatedEntityHaving() {
+			final RewriteFixture fixture = RewriteFixture.baseline(EnumSet.of(Scope.LIVE));
+			assertFalse(
+				fixture.isApplicableFor(
+					referenceHaving(OWNER_REFERENCE_NAME, not(entityHaving(attributeEquals(ATTRIBUTE_NAME, 7L))))
+				),
+				"Negating the nested query is a complement against the referenced collection rather than against one " +
+					"owner's rows - a different superset, deliberately still declined."
+			);
+		}
+
+		@Test
+		@DisplayName("should decline a negation standing next to a positive attribute sibling")
+		void shouldDeclineANegationBesideAPositiveSibling() {
+			final RewriteFixture fixture = RewriteFixture.baseline(EnumSet.of(Scope.LIVE));
+			assertFalse(
+				fixture.isApplicableFor(
+					referenceHaving(
+						OWNER_REFERENCE_NAME,
+						attributeEquals(ATTRIBUTE_NAME, 7L),
+						not(attributeEquals(UNRELATED_ATTRIBUTE_NAME, "x"))
+					)
+				),
+				"Two attribute siblings are an implicit conjunction, and a conjunction is not reproducible - the " +
+					"negation's inner constraint lands in the very same list, so the existing size check catches it."
+			);
+		}
 	}
 
 	@Nested
@@ -496,7 +569,7 @@ class BidirectionalReferenceRewriterTest {
 		 *                                   "another entity type" row flips
 		 */
 		@Nonnull
-		private Optional<ReferenceSchemaContract> findCounterpartByScanning(
+		private static Optional<ReferenceSchemaContract> findCounterpartByScanning(
 			@Nonnull String reflectionTargetEntityType,
 			@Nonnull ReflectedReferenceSchemaContract reflection
 		) {

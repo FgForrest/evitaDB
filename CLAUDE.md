@@ -141,6 +141,12 @@ after each other: schema flags are `FILTERABLE` / `SORTABLE` / `UNIQUE` (after `
 across two enums in one package is the failure this rule exists to prevent — and the reuse question ("should
 these be one enum?") must be answered *before* the second one ships, not after.
 
+**A formula's `CLASS_ID` is generated, never invented or copied.** It is the numeric half of the same
+problem: the constant keys the result cache, so two classes sharing one can answer each other's queries.
+Mint it with `tools/generate-class-id.sh <fully.qualified.ClassName>` and never regenerate it afterwards —
+`FormulaClassIdUniquenessTest` fails the build on a duplicate. Why the value is seeded on the class name
+rather than its signature, and what changing an existing one costs: `.claude/rules/formula-class-id.md`.
+
 ## Code Quality Requirements
 
 - Line coverage with unit tests must be >= 70%
