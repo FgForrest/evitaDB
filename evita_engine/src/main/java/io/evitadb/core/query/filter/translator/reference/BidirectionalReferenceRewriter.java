@@ -738,7 +738,11 @@ public class BidirectionalReferenceRewriter {
 			return null;
 		}
 		final int announced = candidates.getCardinality();
-		final int counterpartIndexCount = counterpartIndexes == null ? 0 : counterpartIndexes.getCardinality();
+		// `counterpartIndexes` is populated in the same block that populates `candidates`, and the check above has
+		// already returned when that block never ran - so a null here is a broken premise, not a missing count.
+		// Defaulting it to 0 would silently make `isWorthRewriting` unconditionally true.
+		Assert.isPremiseValid(counterpartIndexes != null, "Counterpart indexes must be resolved when candidates are!");
+		final int counterpartIndexCount = counterpartIndexes.getCardinality();
 
 		PersistentRoaringBitmap ownersInScope = null;
 		for (final Scope scope : scopes) {
@@ -917,7 +921,7 @@ public class BidirectionalReferenceRewriter {
 		).withReferenceSchemaAccessor(counterpartName);
 		// the split accepts at most one attribute child, so it is handed to the visitor exactly as it was written
 		final FilterConstraint attributeConstraint = attributeConstraints.isEmpty() ?
-			null : attributeConstraints.get(0);
+			null : attributeConstraints.getFirst();
 		// a negation is only ever recorded together with the constraint it negated
 		Assert.isPremiseValid(
 			!negatedAttribute || attributeConstraint != null,
