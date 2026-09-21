@@ -29,6 +29,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.BucketCountChanges.BucketCountMemento;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BPlusInternalTreeNode;
@@ -4405,6 +4406,62 @@ class TransactionalBucketBPlusTreeTest {
 					assertEquals(committedBytes, columnBytesOf(committed), "the base kept its eight-slot columns");
 					verifyTreeConsistency(committedTree, 0, 10, 20, 30, 40, 50, 60);
 				}
+			);
+		}
+
+		@Test
+		@DisplayName("a previous-record climb into a leaf whose peek runs ahead of its columns reads what is live")
+		void shouldBoundTheLastRecordByTheColumnLiveRunWhenALeafPeekRunsAhead() {
+			// the leaf-side twin of `shouldBoundTheCursorByTheColumnLiveRunWhenALeafPeekRunsAhead`, on the one leaf
+			// read that does NOT go through a cursor: `computePreviousRecord` climbs to the preceding leaf and asks it
+			// for its last record directly. A column grows by two plain field stores - the longer array published
+			// first, the live count raised second - so a session-free reader can pair a `peek` raised by a warm-up
+			// grow with the count as it stood before it. The unbounded read then addresses a slot the record column
+			// has never materialized, which answers `0` - and `0` is RESERVED_PRIMARY_KEY, the sort index's own "this
+			// record belongs first" sentinel, so the defect shows up as a silently reversed sort order, never as an
+			// exception
+			final TransactionalBucketBPlusTree<Integer> tree =
+				new TransactionalBucketBPlusTree<>(9, 4, 9, 4, Integer.class, null);
+			// records start at ten, so not one of them can be mistaken for the sentinel the unbounded read returns
+			for (int i = 0; i < 12; i++) {
+				tree.addRecord(i, (i + 1) * 10);
+			}
+			final List<BPlusLeafTreeNode<Integer>> leaves = tree.enumerateLeaves();
+			assertTrue(leaves.size() >= 2, "the fixture needs a preceding leaf for the climb to land on");
+			final BPlusLeafTreeNode<Integer> torn = leaves.get(0);
+			final BPlusLeafTreeNode<Integer> probed = leaves.get(1);
+			assertTrue(
+				torn.size() < torn.capacity(),
+				"the torn leaf must hold fewer buckets than its logical capacity - one slot past a FULL leaf lies past "
+					+ "the column's capacity too, and that read is refused outright rather than answered wrongly"
+			);
+
+			// the anchor the climb must land on, derived from the key column rather than from `lastRecord()` itself -
+			// the method under test must not be its own oracle
+			final int expectedAnchor = (torn.keyAt(torn.size() - 1) + 1) * 10;
+			// the probe: the first key of the FOLLOWING leaf, carrying the id its own bucket already holds. Nothing in
+			// that leaf sorts below it, so the answer has to come from the preceding leaf
+			final int probeKey = probed.keyAt(0);
+			final int probeRecordId = (probeKey + 1) * 10;
+			assertEquals(
+				expectedAnchor, tree.computePreviousRecord(probeKey, probeRecordId),
+				"the healthy tree must anchor on the last record of the preceding leaf"
+			);
+
+			// outside a transaction `setPeek` takes the `layer == null` arm, and an UPWARD move raises `peek` without
+			// growing a single column - the one shape that reaches the torn state deterministically through a public
+			// method. `peek` is assigned before the invariant refuses it, so the leaf is left in exactly the torn shape
+			// the climb has to survive, and this tree must not be reused past the last assertion
+			assertThrows(GenericEvitaInternalError.class, () -> torn.setPeek(torn.getPeek() + 1));
+			assertEquals(
+				torn.getRecords().observableLiveRun(), torn.getPeek(),
+				"the fixture must leave peek one slot past the RECORD column's live run, not merely past the keys"
+			);
+
+			assertEquals(
+				expectedAnchor, tree.computePreviousRecord(probeKey, probeRecordId),
+				"the climb must read the record column's live run, not the peek that ran ahead of it - answering "
+					+ EvitaDataTypes.RESERVED_PRIMARY_KEY + " would sort the record to the very front of the index"
 			);
 		}
 	}

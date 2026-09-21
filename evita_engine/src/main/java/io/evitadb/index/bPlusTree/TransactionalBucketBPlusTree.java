@@ -6381,24 +6381,43 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @return the last record id stored in this leaf
 		 */
 		public int lastRecord() {
+			final ValueColumn<M> theKeys;
 			final RecordColumn theRecords;
 			final OverflowColumn theOverflow;
+			final RecordColumn theValueIds;
 			final int thePeek;
 
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
 				? Transaction.getTransactionalMemoryLayerIfExists(this)
 				: null;
 			if (layer == null) {
+				theKeys = this.keys;
 				theRecords = this.records;
 				theOverflow = this.overflow;
+				theValueIds = this.valueIds;
 				thePeek = this.peek;
 			} else {
+				theKeys = layer.keys;
 				theRecords = layer.records;
 				theOverflow = layer.overflow;
+				theValueIds = layer.valueIds;
 				thePeek = layer.peek;
 			}
 			Assert.isPremiseValid(thePeek >= 0, "Cannot read the last record of an empty leaf!");
-			return lastRecordOfBucket(thePeek, theRecords, theOverflow);
+			// the raw `peek` must NOT reach the columns: `computePreviousRecord` climbs to the preceding leaf through
+			// here with no session and no catalog-state guard, so a reader can hold a `peek` a warm-up grow has
+			// already raised while the columns it indexes are still the ones it read a moment earlier. Unbounded,
+			// `records.intAt(peek)` then answers the unmaterialized slot - `0`, which IS
+			// `EvitaDataTypes#RESERVED_PRIMARY_KEY`, the "this record sorts first" sentinel - and the sort index
+			// anchors the record at the head instead of after its true predecessor. A wrong order, silently, rather
+			// than a failure. Bounding by the columns' own live run under-reports to the last bucket the reader can
+			// actually see, which is the staleness this walk is documented to accept
+			final int bound = observableLeafPeek(thePeek, theKeys, theRecords, theOverflow, theValueIds);
+			if (bound < 0) {
+				// a torn reader that can observe no live bucket at all has no predecessor to offer
+				return EvitaDataTypes.RESERVED_PRIMARY_KEY;
+			}
+			return lastRecordOfBucket(bound, theRecords, theOverflow);
 		}
 
 		/**
