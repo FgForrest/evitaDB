@@ -118,7 +118,7 @@ class CollatedKeyIdentityTest {
 			index.addRecord(OTHER_RECORD, ZERO_WIDTH_SPACED);
 
 			assertEquals(
-				2, index.getDistinctValueCount(),
+				2, index.getInvertedIndex().getBucketCount(),
 				"the tie-break makes bucket identity agree with equals - note this must be read off the BUCKET " +
 					"count; `size()` sums per-bucket record counts and would report 2 either way"
 			);
@@ -142,7 +142,7 @@ class CollatedKeyIdentityTest {
 			index.addRecord(OTHER_RECORD, ZERO_WIDTH_SPACED);
 
 			assertEquals(
-				2, index.getDistinctValueCount(),
+				2, index.getInvertedIndex().getBucketCount(),
 				"natural order is consistent with equals, so this flavour is unaffected"
 			);
 		}
@@ -214,7 +214,7 @@ class CollatedKeyIdentityTest {
 			index.addRecord(RECORD, PLAIN);
 			index.addRecord(OTHER_RECORD, ZERO_WIDTH_SPACED);
 
-			assertEquals(2, index.getDistinctValueCount(), "the tie-break gives each spelling its own bucket");
+			assertEquals(2, index.getInvertedIndex().getBucketCount(), "the tie-break gives each spelling its own bucket");
 			assertDoesNotThrow(() -> index.removeRecord(OTHER_RECORD, ZERO_WIDTH_SPACED));
 			assertDoesNotThrow(() -> index.removeRecord(RECORD, PLAIN));
 			assertTrue(index.isEmpty());
@@ -283,7 +283,7 @@ class CollatedKeyIdentityTest {
 			index.addRecord(RECORD, nfc);
 			index.addRecord(OTHER_RECORD, nfd);
 
-			assertEquals(1, index.getDistinctValueCount(), "canonical equivalence is preserved by the normalizer");
+			assertEquals(1, index.getInvertedIndex().getBucketCount(), "canonical equivalence is preserved by the normalizer");
 			assertTrue(index.getRecordsEqualTo(nfc).contains(OTHER_RECORD), "either form finds either record");
 		}
 	}

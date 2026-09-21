@@ -41,8 +41,8 @@ import java.util.Locale;
  * Instances of this class are used as INDEX KEYS — an attribute declared as {@link Locale} is normalized to this
  * type before it reaches the filter and sort value trees, which identify one entry per key by this very
  * comparator. An order that equates two instances the index's other bookkeeping considers distinct therefore
- * merges two entries into one, and the removal of the second fails an internal premise (see
- * `documentation/adr/2026-09-21-cardinality-counter-normalized-keys.md`).
+ * merges two entries into one, and the removal of the second fails the tree's membership premise with
+ * `Sanity check - record not found!`.
  *
  * Ordering by {@link Locale#toLanguageTag()} alone is NOT consistent with equals: an **ill-formed** variant is
  * dropped from the tag, so {@code new Locale("en","US","ill!formed")} and {@code new Locale("en","US")} both tag

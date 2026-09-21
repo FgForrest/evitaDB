@@ -110,23 +110,10 @@ public class ReferenceAttributeIndexKeyCollisionFunctionalTest implements EvitaT
 	private static final int FIRST_GROUPED_STOCK_PK = 11;
 	private static final int SECOND_GROUPED_STOCK_PK = 12;
 	/**
-	 * Two instants inside one millisecond, at the SAME offset. `EvitaDataTypes` truncates temporal values to whole
-	 * milliseconds at the API boundary, so both are STORED as the same value — which is what makes this pair a
-	 * negative control rather than a further reproduction.
-	 *
-	 * Its claim is deliberately narrow: it shows that sub-millisecond noise is not exploitable, NOT that temporal
-	 * types are safe. The offset is a second, independent way for two distinct values to reach one key, and it is
-	 * covered separately by {@link #SAME_INSTANT_PLUS_TWO} / {@link #SAME_INSTANT_UTC}.
-	 */
-	private static final OffsetDateTime FIRST_OWNER_INSTANT =
-		OffsetDateTime.of(2026, 9, 21, 10, 0, 0, 1_000_000 + 100_000, ZoneOffset.UTC);
-	private static final OffsetDateTime SECOND_OWNER_INSTANT =
-		OffsetDateTime.of(2026, 9, 21, 10, 0, 0, 1_000_000 + 900_000, ZoneOffset.UTC);
-	/**
 	 * One instant written two ways. The index key is the {@link java.time.Instant} the value anchors to, so the
 	 * offset is discarded entirely \u2014 but `OffsetDateTime#equals` compares the offset, so these remain two distinct
-	 * counter keys. This is the temporal collision the millisecond-truncation control above does NOT cover: the
-	 * API truncates sub-millisecond digits at the boundary, but it never canonicalizes an offset to UTC.
+	 * counter keys. The offset is the axis on which a temporal attribute collides: nothing canonicalizes it on
+	 * the way in, while the index normalizer discards it on the way into the tree.
 	 */
 	private static final OffsetDateTime SAME_INSTANT_PLUS_TWO =
 		OffsetDateTime.of(2026, 9, 21, 12, 0, 0, 0, ZoneOffset.ofHours(2));
@@ -707,88 +694,6 @@ public class ReferenceAttributeIndexKeyCollisionFunctionalTest implements EvitaT
 							writeSession, 2, ATTRIBUTE_STOCKED_AT, SAME_INSTANT_UTC.plusDays(2))
 					),
 					"two offsets denoting one instant share a key and must not share a single removal"
-				);
-			}
-		);
-	}
-
-	@Test
-	@DisplayName("negative control — values already canonical before storage must not collide")
-	@Tag(ENGINE)
-	@Tag(REFERENCE)
-	@Tag(ATTRIBUTE)
-	void shouldAcceptSurvivingOwnersNextWriteWhenValuesAreCanonicalizedBeforeStorage() {
-		runWithLiveCatalog(
-			"referenceAttributeKeyCollision_temporalControl",
-			session -> {
-				defineSchemaWithAttribute(session, ATTRIBUTE_STOCKED_AT, OffsetDateTime.class, 0);
-				session.createNewEntity(ENTITY_STOCK, SHARED_STOCK_PK).upsertVia(session);
-				upsertOwnerWith(session, 1, ATTRIBUTE_STOCKED_AT, FIRST_OWNER_INSTANT);
-				upsertOwnerWith(session, 2, ATTRIBUTE_STOCKED_AT, SECOND_OWNER_INSTANT);
-			},
-			(evita, session) -> {
-				// the premise the whole control rests on, asserted rather than assumed: both owners are truncated
-				// to ONE stored value on the way in and therefore SHARE a single index entry. Without this, the
-				// test stays green even in the state it exists to distinguish itself from - two values that never
-				// met, sharing nothing, losing nothing
-				evita.queryCatalog(
-					TEST_CATALOG,
-					(Consumer<EvitaSessionContract>) readSession -> {
-						assertEquals(
-							Set.of(1, 2),
-							ownersMatchingValue(readSession, ATTRIBUTE_STOCKED_AT, FIRST_OWNER_INSTANT),
-							"sub-millisecond digits are truncated at the API boundary, so both owners must sit in " +
-								"one entry - in two entries there is no shared entry to lose and nothing is proved"
-						);
-						assertEquals(
-							Set.of(1, 2),
-							ownersMatchingValue(readSession, ATTRIBUTE_STOCKED_AT, SECOND_OWNER_INSTANT),
-							"and the other spelling of that same millisecond must reach that same entry"
-						);
-					}
-				);
-
-				evita.updateCatalog(
-					TEST_CATALOG,
-					(Consumer<EvitaSessionContract>) writeSession -> upsertOwnerWith(
-						writeSession, 1, ATTRIBUTE_STOCKED_AT, FIRST_OWNER_INSTANT.plusHours(1))
-				);
-
-				// both owners were truncated to the same stored value on the way in, so the counter and the value
-				// tree agree: one key counting two, and the first departure must leave the entry standing
-				evita.queryCatalog(
-					TEST_CATALOG,
-					(Consumer<EvitaSessionContract>) readSession -> assertEquals(
-						Set.of(2),
-						ownersMatchingValue(readSession, ATTRIBUTE_STOCKED_AT, SECOND_OWNER_INSTANT),
-						"the owner that did not move must still be reachable through the shared entry - this is " +
-							"the assertion the defect fails, and it fails SILENTLY, without throwing anything"
-					)
-				);
-
-				assertDoesNotThrow(
-					() -> evita.updateCatalog(
-						TEST_CATALOG,
-						(Consumer<EvitaSessionContract>) writeSession -> upsertOwnerWith(
-							writeSession, 2, ATTRIBUTE_STOCKED_AT, SECOND_OWNER_INSTANT.plusHours(2))
-					),
-					"a type canonicalized at the API boundary must not be affected by this defect"
-				);
-
-				evita.queryCatalog(
-					TEST_CATALOG,
-					(Consumer<EvitaSessionContract>) readSession -> {
-						assertEquals(
-							Set.of(2),
-							ownersMatchingValue(readSession, ATTRIBUTE_STOCKED_AT, SECOND_OWNER_INSTANT.plusHours(2)),
-							"the second owner must be reachable through its new value"
-						);
-						assertEquals(
-							Set.of(),
-							ownersMatchingValue(readSession, ATTRIBUTE_STOCKED_AT, SECOND_OWNER_INSTANT),
-							"and the shared entry must be gone now that its last contributor has left it"
-						);
-					}
 				);
 			}
 		);

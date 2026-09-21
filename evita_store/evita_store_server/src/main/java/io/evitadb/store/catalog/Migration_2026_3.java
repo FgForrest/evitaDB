@@ -190,15 +190,9 @@ public interface Migration_2026_3 {
 			CollectionUtils.createHashMap(entityTypeFileIndexes.size());
 
 		for (final CollectionFileReference entityTypeFileIndex : entityTypeFileIndexes) {
-			// the stored header may name a data file generation a compaction has already replaced - the catalog
-			// header is the copy that cannot lag, so the file is resolved from there
-			final EntityCollectionFileHeader entityCollectionHeader = EntityCollectionHeaderReconciler.reconcile(
-				catalogHeader.catalogName(),
-				entityTypeFileIndex,
-				Objects.requireNonNull(
-					storagePartPersistenceService.getStoragePart(
-						catalogVersion, entityTypeFileIndex.entityTypePrimaryKey(), EntityCollectionFileHeader.class
-					)
+			final EntityCollectionFileHeader entityCollectionHeader = Objects.requireNonNull(
+				storagePartPersistenceService.getStoragePart(
+					catalogVersion, entityTypeFileIndex.entityTypePrimaryKey(), EntityCollectionFileHeader.class
 				)
 			);
 			final DefaultEntityCollectionPersistenceService collectionPersistenceService = Objects.requireNonNull(

@@ -148,7 +148,7 @@ class FilterIndexArrayFoldTest {
 			index.addRecord(RECORD, new String[]{PRECOMPOSED, DECOMPOSED});
 
 			assertEquals(
-				1, index.getDistinctValueCount(),
+				1, index.getInvertedIndex().getBucketCount(),
 				"canonically-equivalent spellings are one entry in the shared value tree"
 			);
 			assertTrue(index.getRecordsEqualTo(PRECOMPOSED).contains(RECORD));
@@ -178,7 +178,7 @@ class FilterIndexArrayFoldTest {
 			// is what merges these two, exactly as on the non-localized index
 			final OwnerFilterIndex index = localizedStringIndex();
 			index.addRecord(RECORD, new String[]{PRECOMPOSED, DECOMPOSED});
-			assertEquals(1, index.getDistinctValueCount(), "premise: NFD merges the two spellings into one bucket");
+			assertEquals(1, index.getInvertedIndex().getBucketCount(), "premise: NFD merges the two spellings into one bucket");
 
 			assertDoesNotThrow(() -> index.removeRecord(RECORD, new String[]{PRECOMPOSED, DECOMPOSED}));
 			assertTrue(index.isEmpty());
@@ -195,7 +195,7 @@ class FilterIndexArrayFoldTest {
 			assertNotEquals(distinct[0], distinct[1], "premise: the two values must be DISTINCT to the API");
 			index.addRecord(RECORD, distinct);
 
-			assertEquals(2, index.getDistinctValueCount(), "the fold must not merge what the tree keeps apart");
+			assertEquals(2, index.getInvertedIndex().getBucketCount(), "the fold must not merge what the tree keeps apart");
 			assertDoesNotThrow(() -> index.removeRecord(RECORD, distinct));
 			assertTrue(index.isEmpty());
 		}
@@ -207,7 +207,7 @@ class FilterIndexArrayFoldTest {
 			index.addRecord(RECORD, new String[]{"alpha", "beta"});
 
 			assertEquals(
-				2, index.getDistinctValueCount(),
+				2, index.getInvertedIndex().getBucketCount(),
 				"a collator distinguishes these, so the fold must not touch them"
 			);
 			assertDoesNotThrow(() -> index.removeRecord(RECORD, new String[]{"alpha", "beta"}));
@@ -225,7 +225,7 @@ class FilterIndexArrayFoldTest {
 				new BigDecimal("1.2"), new BigDecimal("1.4"), new BigDecimal("1.1")
 			};
 			index.addRecord(RECORD, colliding);
-			assertEquals(1, index.getDistinctValueCount(), "all three scale to the key 1");
+			assertEquals(1, index.getInvertedIndex().getBucketCount(), "all three scale to the key 1");
 
 			assertDoesNotThrow(() -> index.removeRecord(RECORD, colliding));
 			assertTrue(index.isEmpty());
@@ -243,7 +243,7 @@ class FilterIndexArrayFoldTest {
 			final String[] mixed = {PRECOMPOSED, "alpha", DECOMPOSED, "beta", PRECOMPOSED, "alpha"};
 			index.addRecord(RECORD, mixed);
 
-			assertEquals(3, index.getDistinctValueCount(), "café, alpha and beta - three distinct keys");
+			assertEquals(3, index.getInvertedIndex().getBucketCount(), "café, alpha and beta - three distinct keys");
 			assertTrue(index.getRecordsEqualTo(DECOMPOSED).contains(RECORD), "the folded key kept the record");
 			assertTrue(index.getRecordsEqualTo("alpha").contains(RECORD));
 			assertTrue(index.getRecordsEqualTo("beta").contains(RECORD));
@@ -260,7 +260,7 @@ class FilterIndexArrayFoldTest {
 			index.addRecord(RECORD, allOneKey);
 			index.addRecord(OTHER_RECORD, new String[]{PRECOMPOSED});
 
-			assertEquals(1, index.getDistinctValueCount());
+			assertEquals(1, index.getInvertedIndex().getBucketCount());
 			assertDoesNotThrow(() -> index.removeRecord(RECORD, allOneKey));
 			assertTrue(
 				index.getRecordsEqualTo(PRECOMPOSED).contains(OTHER_RECORD),
@@ -274,7 +274,7 @@ class FilterIndexArrayFoldTest {
 			final OwnerFilterIndex index = stringIndex();
 			index.addRecord(RECORD, new String[]{"alpha", "beta"});
 
-			assertEquals(2, index.getDistinctValueCount(), "distinct keys must never be folded together");
+			assertEquals(2, index.getInvertedIndex().getBucketCount(), "distinct keys must never be folded together");
 			assertDoesNotThrow(() -> index.removeRecord(RECORD, new String[]{"alpha", "beta"}));
 			assertTrue(index.isEmpty());
 		}
@@ -335,7 +335,7 @@ class FilterIndexArrayFoldTest {
 				() -> index.removeRecordDelta(RECORD, new String[]{ZERO_WIDTH_SPACED}),
 				"they are two buckets, so a delta naming one of them names a single distinct key"
 			);
-			assertEquals(1, index.getDistinctValueCount(), "only the delta's own key may leave");
+			assertEquals(1, index.getInvertedIndex().getBucketCount(), "only the delta's own key may leave");
 		}
 
 		@Test
@@ -345,9 +345,9 @@ class FilterIndexArrayFoldTest {
 			index.addRecord(RECORD, new String[]{"alpha"});
 
 			assertDoesNotThrow(() -> index.addRecordDelta(RECORD, new String[]{"beta"}));
-			assertEquals(2, index.getDistinctValueCount());
+			assertEquals(2, index.getInvertedIndex().getBucketCount());
 			assertDoesNotThrow(() -> index.removeRecordDelta(RECORD, new String[]{"beta"}));
-			assertEquals(1, index.getDistinctValueCount(), "only the delta's own key may leave");
+			assertEquals(1, index.getInvertedIndex().getBucketCount(), "only the delta's own key may leave");
 		}
 	}
 
@@ -391,7 +391,7 @@ class FilterIndexArrayFoldTest {
 			final RangePoint<?>[] before = index.getRangeIndex().getRanges();
 
 			index.addRecord(RECORD, distinct);
-			assertEquals(2, index.getDistinctValueCount(), "distinct ranges keep their own buckets");
+			assertEquals(2, index.getInvertedIndex().getBucketCount(), "distinct ranges keep their own buckets");
 			index.removeRecord(RECORD, distinct);
 
 			assertTrue(index.isEmpty());
