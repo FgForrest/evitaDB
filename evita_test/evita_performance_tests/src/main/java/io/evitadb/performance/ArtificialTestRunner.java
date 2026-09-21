@@ -68,6 +68,9 @@ public class ArtificialTestRunner {
 	 * score" instead of "the benchmark never ran".
 	 */
 	private static final String[] FORK_JVM_ARGS = {
+		// the roaring bitmap kernels run on the incubating Vector API where it is resolvable; without this the
+		// forked JVM silently measures the scalar fallback instead
+		"--add-modules", "jdk.incubator.vector",
 		"--add-opens", "java.base/java.lang=ALL-UNNAMED",
 		"--add-opens", "java.base/java.lang.invoke=ALL-UNNAMED",
 		"--add-opens", "java.base/java.math=ALL-UNNAMED",

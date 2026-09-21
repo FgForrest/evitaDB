@@ -269,7 +269,7 @@
 							-->
 							<perCoreThreadCount>false</perCoreThreadCount>
 							<threadCount>4</threadCount>
-							<argLine>${longRunningArgLine} --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
+							<argLine>${longRunningArgLine} --add-modules jdk.incubator.vector --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
 						</configuration>
 					</plugin>
 				</plugins>

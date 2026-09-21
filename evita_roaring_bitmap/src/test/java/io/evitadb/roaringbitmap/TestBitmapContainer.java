@@ -2,6 +2,7 @@ package io.evitadb.roaringbitmap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.roaringbitmap.ValidationRangeConsumer.Value.ABSENT;
@@ -309,6 +310,56 @@ public class TestBitmapContainer {
 			assertEquals(0, bc.iandNot(bc3).getCardinality());
 			bc3.clear();
 			assertEquals(0, bc3.getCardinality());
+		}
+
+		@Test
+		@DisplayName("A pair dense enough for the pigeonhole bound intersects without counting first")
+		public void andTakesThePigeonholeShortcut() {
+			// inclusion-exclusion gives |a & b| >= |a| + |b| - 65536, so a pair whose cardinalities sum far
+			// enough past the universe is dense whatever the overlap looks like and `and` skips its counting
+			// pass; the answer still has to be the intersection, and still has to be a BitmapContainer
+			final BitmapContainer first = new BitmapContainer(0, 40000);
+			final BitmapContainer second = new BitmapContainer(25537, BitmapContainer.MAX_CAPACITY);
+			assertTrue(
+				first.getCardinality() + second.getCardinality() - BitmapContainer.MAX_CAPACITY
+					> ArrayContainer.DEFAULT_MAX_SIZE,
+				"the fixture must satisfy the pigeonhole bound, or it exercises the counting path instead"
+			);
+
+			final Container intersection = first.and(second);
+
+			assertInstanceOf(BitmapContainer.class, intersection);
+			assertEquals(40000 - 25537, intersection.getCardinality());
+			assertEquals(
+				first.andCardinality(second), intersection.getCardinality(),
+				"the shortcut must agree with the counting kernel it skipped"
+			);
+			for (int value = 25537; value < 40000; value++) {
+				assertTrue(intersection.contains((char) value), "shared value " + value);
+			}
+			assertFalse(intersection.contains((char) 25536), "the value below the overlap");
+			assertFalse(intersection.contains((char) 40000), "the value above the overlap");
+		}
+
+		@Test
+		@DisplayName("A pair exactly on the pigeonhole bound still demotes to an ArrayContainer")
+		public void andBelowThePigeonholeBoundStaysCanonical() {
+			// |a| + |b| - 65536 is exactly DEFAULT_MAX_SIZE here, one short of the strict inequality, and the
+			// real intersection is that many values - an ArrayContainer. A shortcut admitting this pair would
+			// hand back a non-canonical dense container that no other assertion in this suite would notice
+			final BitmapContainer first = new BitmapContainer(0, 34816);
+			final BitmapContainer second = new BitmapContainer(30720, BitmapContainer.MAX_CAPACITY);
+			assertEquals(
+				ArrayContainer.DEFAULT_MAX_SIZE,
+				first.getCardinality() + second.getCardinality() - BitmapContainer.MAX_CAPACITY,
+				"the fixture must sit exactly on the bound the shortcut excludes"
+			);
+
+			final Container intersection = first.and(second);
+
+			assertInstanceOf(ArrayContainer.class, intersection);
+			assertEquals(ArrayContainer.DEFAULT_MAX_SIZE, intersection.getCardinality());
+			assertEquals(first.andCardinality(second), intersection.getCardinality());
 		}
 	}
 
@@ -623,6 +674,61 @@ public class TestBitmapContainer {
 			assertEquals(260, iterator.next());
 
 			assertFalse(iterator.hasNext());
+		}
+	}
+
+	@Nested
+	@DisplayName("Word-array width of the operands")
+	class WordArrayWidth {
+
+		// Known limitation, deliberately not fixed: the fused kernels read exactly the first operand's length
+		// and index the second array and the destination over that whole range, so the in-place union and
+		// symmetric difference no longer clamp to the shorter of the two word arrays the way the loops they
+		// replaced did. The clamp was not restored because nothing could reach it. A receiver wider than one
+		// 1024-word chunk is constructible only through the array-wrapping constructor, whose one caller with
+		// a caller-supplied array is `FastAggregation.workShyAnd` - and that path already dies in the lazy
+		// branch of `iand`, which is upstream code this work never touched, before any union or symmetric
+		// difference runs. `LazyCardinalityProtocolTest` pins both halves of that: the supported width
+		// computes its intersection, and the wider one is rejected by the older frame.
+		@Test
+		@DisplayName("An oversized receiver overruns the shorter operand instead of clamping to it")
+		public void operatorsDoNotClampToTheShorterWordArray() {
+			final BitmapContainer ordinary = new BitmapContainer();
+			ordinary.add((char) 7);
+
+			assertThrows(
+				IndexOutOfBoundsException.class, () -> oversizedContainer().ior(ordinary), "in-place union"
+			);
+			assertThrows(
+				IndexOutOfBoundsException.class, () -> oversizedContainer().ixor(ordinary), "in-place xor"
+			);
+			assertThrows(
+				IndexOutOfBoundsException.class, () -> oversizedContainer().or(ordinary), "copying union"
+			);
+		}
+
+		@Test
+		@DisplayName("A container exactly one chunk wide is what every operator supports")
+		public void operatorsAcceptTheOneChunkWidth() {
+			// the counterfactual to the test above: the very same shapes at the supported width answer normally,
+			// which is what makes the index errors a statement about the width and not about the operands
+			final BitmapContainer ordinary = new BitmapContainer();
+			ordinary.add((char) 7);
+			final BitmapContainer exact = new BitmapContainer(new long[BitmapContainer.MAX_CAPACITY / 64], 0);
+
+			assertEquals(1, exact.ior(ordinary).getCardinality());
+			assertEquals(0, exact.ixor(ordinary).getCardinality());
+		}
+
+		/**
+		 * Builds a container whose word array is one word wider than a chunk, which the array-wrapping
+		 * constructor accepts without copying or checking.
+		 *
+		 * @return the oversized container, holding no values
+		 */
+		@Nonnull
+		private BitmapContainer oversizedContainer() {
+			return new BitmapContainer(new long[BitmapContainer.MAX_CAPACITY / 64 + 1], 0);
 		}
 	}
 

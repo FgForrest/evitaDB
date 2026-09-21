@@ -265,6 +265,47 @@ You can take advantage of all the following variables:
     </Tbody>
 </Table>
 
+### SIMD bitmap kernels
+
+The image starts the server with `--add-modules jdk.incubator.vector`, which resolves the JDK's incubating
+[Vector API](https://openjdk.org/jeps/448). evitaDB's bitmap indexes use it for the population-count and boolean
+kernels that sit behind every intersection, union and difference of two dense bitmaps, so those run as SIMD
+instructions on a CPU that offers vector registers at least 256 bits wide.
+
+The module is optional. When it is absent from the runtime, when the CPU offers only narrow vectors, or when the JVM
+runs without an optimizing JIT compiler (`-Xint`, `-XX:TieredStopAtLevel` below 4), the same arithmetic is computed by
+scalar code that produces identical results. Which of the two is in force is reported in a single line at startup:
+
+```
+roaring vector kernels: bitmap=vector(512-bit) array=scalar (bitmap: jdk.incubator.vector present, JIT compiler available, self-test passed; array: no usable vector implementation)
+```
+
+The JVM also prints one `WARNING: Using incubator modules: jdk.incubator.vector` line, which is how the JDK announces
+any incubating module.
+
+Two system properties control the selection, both intended for diagnosis:
+
+<Table caption="System properties selecting the bitmap kernels">
+    <Thead>
+        <Tr>
+            <Th>Property</Th>
+            <Th>Meaning</Th>
+        </Tr>
+    </Thead>
+    <Tbody>
+        <Tr>
+            <Td>**`-Devita.roaring.vector=false`**</Td>
+            <Td>Runs the scalar kernels regardless of what the runtime offers</Td>
+        </Tr>
+        <Tr>
+            <Td>**`-Devita.roaring.vector.bitmap=false`**</Td>
+            <Td>Runs the scalar kernels for the dense-bitmap arithmetic only</Td>
+        </Tr>
+    </Tbody>
+</Table>
+
+Pass either through `EVITA_JAVA_OPTS`.
+
 <Note type="info">
 
 <NoteTitle toggles="true">

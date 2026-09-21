@@ -250,6 +250,31 @@ class RangeCountKernelTest {
 		}
 
 		@Test
+		@DisplayName("An operand that crosses a chunk boundary only on a REFILL, not on its first batch")
+		void shouldCrossAChunkBoundaryDiscoveredByARefill() {
+			// shouldSpanMultipleChunks crosses a boundary too, but its operands are small enough to arrive whole in
+			// the first batch, so the crossing is always found inside a batch the cursor is already draining. The
+			// other half of the mechanism is a cursor that drains a batch to its END while still inside the chunk
+			// and only learns of the boundary from the values the NEXT batch brings - it then files itself into a
+			// higher bucket having consumed nothing from that batch. Nothing else in this suite reaches it: the
+			// randomised sweeps cap an operand at 64 ids, below the batch size, so they never refill at all.
+			//
+			// Putting a whole power-of-two count of ids in the low chunk is what forces the split to land on a batch
+			// boundary rather than inside one. 1,024 keeps that true for any power-of-two batch size up to 1,024,
+			// so the fixture does not silently stop testing this if the kernel's BATCH_SIZE is retuned.
+			final int[] values = new int[1_026];
+			for (int i = 0; i < 1_024; i++) {
+				values[i] = 64_000 + i;
+			}
+			values[1_024] = 70_000;
+			values[1_025] = 70_001;
+			assertAgrees(
+				new Bitmap[]{bitmap(values)},
+				new Bitmap[]{bitmap(64_000, 70_000)}
+			);
+		}
+
+		@Test
 		@DisplayName("Identical families cancel to nothing without needing a special guard")
 		void shouldCancelWhenBothFamiliesAreIdentical() {
 			// the pair being replaced needed an explicit `disentangle(X, X) = empty` guard because FormulaCloner /
@@ -272,14 +297,12 @@ class RangeCountKernelTest {
 		@Test
 		@DisplayName("A negative counter left by one chunk does not survive into the next")
 		void shouldClearNegativeCountersBeforeTheNextChunk() {
-			// PATH: both chunks take the SPARSE emission path by arithmetic. Chunk 0 records 4 writes (offsets 1
-			// and 60,000 from the plus operand, offset 1 from each minus operand) over a span of 60,000, and chunk 1
-			// records 2 writes over the same span; the kernel prefers the touched walk while
-			// `touchedCount * SPARSE_FACTOR < span`, and 16 < 60,000 as well as 8 < 60,000.
-			//
 			// Offset 1 of chunk 0 ends at -1. Offset 1 of chunk 1 (record 65,537) ends at +1 and must be emitted -
-			// which it only can be if the sparse walk zeroed the negative counter unconditionally rather than
+			// which it only can be if the emission walk zeroed the negative counter unconditionally rather than
 			// clearing "only what was emitted". Leave the -1 behind and 65,537 nets to 0 and silently disappears.
+			//
+			// The two chunks share one pooled counter array, so this is also the cheapest check that a chunk hands
+			// that array on clean.
 			assertAgrees(
 				new Bitmap[]{bitmap(1, 60_000, 65_537, 125_536)},
 				new Bitmap[]{bitmap(1), bitmap(1)}
@@ -291,10 +314,9 @@ class RangeCountKernelTest {
 		void shouldHandleAnOffsetWhoseCounterReturnsToZeroMidScatter() {
 			// Offset 9 is written three times: +1 by the plus operand, then -1 and -1 by the two minus operands.
 			// The counter therefore sits at zero after the second write and leaves zero again on the third. This is
-			// the sequence `emitSparse`'s javadoc names as the reason the touched list records EVERY write rather
-			// than appending only on a zero-to-non-zero transition.
-			//
-			// PATH: 4 recorded writes over a span of 39,992, so 16 < 39,992 selects the sparse walk.
+			// the sequence that rules out ever deciding membership of the touched map from the counter's value - the
+			// map records that an offset was WRITTEN, never that it currently holds something, which is why the bit
+			// is set on every write and cleared only by emission.
 			assertAgrees(
 				new Bitmap[]{bitmap(9, 40_000)},
 				new Bitmap[]{bitmap(9), bitmap(9)}
@@ -302,12 +324,14 @@ class RangeCountKernelTest {
 		}
 
 		@Test
-		@DisplayName("A chunk with more writes than the touched list can hold falls back to the span scan")
+		@DisplayName("A chunk written past the touched list's capacity falls back to the span scan")
 		void shouldFallBackToTheSpanScanWhenTheTouchedListOverflows() {
-			// PATH: 20 operands of 500 ids each put 10,000 writes into chunk 0, past the 8,192-entry cap, so
-			// `sparseUsable` flips false mid-scatter and the partial list must be abandoned for the span scan. The
-			// span is 59,999, comfortably above 4 * 8,192 = 32,768, so the sparse predicate would have won had the
-			// list not overflowed - which is what makes this the overflow branch rather than an ordinary dense chunk.
+			// 20 operands of 500 ids each put 10,000 writes into chunk 0 across a span of 59,999 - far more than any
+			// one chunk carries on the shapes the randomised sweeps generate, and more than the 8,192 the touched
+			// list holds. So this is the ONLY case that reaches the overflow fallback: the list is abandoned partway
+			// and emission scans [minLow, maxLow] instead. Both paths read the same counters - the scatter's
+			// `counters[low] += sign` runs whether or not the list is still usable - so what this pins is that the
+			// answer and the state handed on are the same either way.
 			final Bitmap[] plus = new Bitmap[20];
 			for (int operand = 0; operand < plus.length; operand++) {
 				final int[] values = new int[500];
@@ -322,9 +346,8 @@ class RangeCountKernelTest {
 			final Bitmap[] minus = {bitmap(60_000)};
 			assertAgrees(plus, minus);
 
-			// a partial touched list walked as if complete would also leave dirty counters in the POOLED array, so
-			// a second, tiny computation on the same thread is the cheapest available check that the array came
-			// back clean
+			// an emission that missed offsets would leave dirty counters in the POOLED array, so a second, tiny
+			// computation on the same thread is the cheapest available check that the array came back clean
 			assertAgrees(new Bitmap[]{bitmap(3, 7)}, new Bitmap[]{bitmap(7)});
 		}
 
@@ -408,7 +431,8 @@ class RangeCountKernelTest {
 		@Test
 		@DisplayName("Threads borrowing the shared counter pools all get their own answer")
 		void shouldServeConcurrentComputationsFromTheSharedPools() {
-			// The kernel keeps its counter arrays and sparse scratch in two static pools of capacity 8. Sequential
+			// The kernel keeps its counter arrays, touched maps and cursor state in static pools of capacity 8.
+			// Sequential
 			// reuse is well covered by the randomised sweeps above; CONCURRENT reuse is what this adds, because the
 			// failure mode - a dirty array handed back to the pool - corrupts a LATER, unrelated query far away from
 			// whatever caused it.

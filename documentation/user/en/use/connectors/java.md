@@ -362,6 +362,31 @@ to change them, please contact us with your specific use case and we will consid
 
 </Note>
 
+## SIMD bitmap kernels
+
+When evitaDB runs embedded, its bitmap indexes compute the population-count and boolean kernels behind every
+intersection, union and difference of two dense bitmaps as SIMD instructions, provided the JDK's incubating
+[Vector API](https://openjdk.org/jeps/448) is resolvable. It is never resolved by default, so an embedded application
+that wants those kernels starts its JVM with:
+
+```shell
+--add-modules jdk.incubator.vector
+```
+
+The JVM answers with a single `WARNING: Using incubator modules: jdk.incubator.vector` line, which is how it announces
+any incubating module.
+
+The module is optional. Where it is absent, where the CPU offers vector registers narrower than 256 bits, or where the
+JVM runs without an optimizing JIT compiler, the same arithmetic is computed by scalar code that produces identical
+results. evitaDB writes one line at startup naming the implementation in force and the reason for it:
+
+```
+roaring vector kernels: bitmap=vector(512-bit) array=scalar (bitmap: jdk.incubator.vector present, JIT compiler available, self-test passed; array: no usable vector implementation)
+```
+
+Setting `-Devita.roaring.vector=false` selects the scalar kernels whatever the runtime offers, which is useful when
+comparing the two.
+
 ## Custom contracts
 
 The Java API contains only two forms of the data model interfaces:

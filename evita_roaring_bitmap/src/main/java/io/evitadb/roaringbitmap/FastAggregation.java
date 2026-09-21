@@ -52,6 +52,21 @@ public final class FastAggregation {
 		"live container pointer polled from the aggregation queue must have a non-null container";
 
 	/**
+	 * Largest input count for which {@link #naive_or(PersistentRoaringBitmap...)} lets the fold keep a
+	 * small overlap sparse ({@link PersistentRoaringBitmap#LAZY_ARRAY_UNION_BOUND}).
+	 *
+	 * The sparse shape copies the accumulator's values on every fold, which is cheap while the fold is
+	 * short and quadratic once it is not: a union of five thousand bitmaps would pay that copy on every
+	 * input until the bound promoted the chunk anyway. Above this count the fold therefore promotes each
+	 * overlapping chunk on first touch, exactly as it did before the sparse policy existed.
+	 *
+	 * The cap applies only where the input count is **known**. {@link #naive_or(Iterator)} cannot see how
+	 * many bitmaps it is about to be handed, so it keeps the policy and lets the cardinality bound alone
+	 * cap the cost.
+	 */
+	private static final int LAZY_ARRAY_UNION_MAX_INPUTS = 64;
+
+	/**
 	 * Failure message asserting that a poll from a queue proven non-empty returns a non-null element.
 	 * Every guarded {@code poll()} runs only while its queue is known to hold at least one entry — a
 	 * `!isEmpty()` or `size() > 1` guard, or a non-empty start — so the polled value cannot be null.
@@ -421,7 +436,12 @@ public final class FastAggregation {
 					break;
 				}
 			}
-			answer.highLowContainer.append(x1.key(), newc);
+			// a chunk whose inputs cancelled holds no values; appending it would leave the result
+			// claiming a key it has nothing under, and would keep an emptied container alive as the
+			// receiver of the next fold
+			if (!newc.isEmpty()) {
+				answer.highLowContainer.append(x1.key(), newc);
+			}
 			x1.advance();
 			if (x1.getContainer() != null) {
 				pq.add(x1);
@@ -709,14 +729,18 @@ public final class FastAggregation {
 	 * Runs in linear time in the number of bitmaps and allocates only the accumulator; the lightest
 	 * strategy for a small number of inputs.
 	 *
+	 * Folds of at most {@link #LAZY_ARRAY_UNION_MAX_INPUTS} inputs keep a small overlap sparse; wider
+	 * ones promote every overlapping chunk on first touch.
+	 *
 	 * @param bitmaps input bitmaps
 	 * @return their union; an empty (never `null`) bitmap when no input is given
 	 */
 	@Nonnull
 	public static PersistentRoaringBitmap naive_or(@Nonnull final PersistentRoaringBitmap... bitmaps) {
 		final PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
+		final boolean arrayUnionAllowed = bitmaps.length <= LAZY_ARRAY_UNION_MAX_INPUTS;
 		for (int k = 0; k < bitmaps.length; ++k) {
-			answer.naivelazyor(bitmaps[k]);
+			answer.naivelazyor(bitmaps[k], arrayUnionAllowed);
 		}
 		answer.repairAfterLazy();
 		return answer;
