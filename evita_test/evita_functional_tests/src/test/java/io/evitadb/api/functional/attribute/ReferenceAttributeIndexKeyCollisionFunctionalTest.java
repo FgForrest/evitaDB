@@ -85,7 +85,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * describing the data, and the write assertion pins the exception that a client actually observes. A fix that
  * only silenced the exception would leave the first assertion failing.
  *
- * @author Claude (defect A investigation), FG Forrest a.s. (c) 2026
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Reference attribute values that round to one index key must not share a single removal")
 @Tag(ENGINE)
@@ -98,6 +98,8 @@ public class ReferenceAttributeIndexKeyCollisionFunctionalTest implements EvitaT
 	private static final String REFERENCE_STOCKS = "stocks";
 	private static final String ATTRIBUTE_QUANTITY = "quantityOnStock";
 	private static final String ATTRIBUTE_LABEL = "stockLabel";
+	/** An ENTITY-level array attribute — no reference involved, so it lands on the global entity index. */
+	private static final String ATTRIBUTE_LABELS = "productLabels";
 	private static final String ATTRIBUTE_QUANTITIES = "quantitiesOnStock";
 	private static final String ATTRIBUTE_STOCKED_AT = "stockedAt";
 	private static final String ATTRIBUTE_VALID_RANGE = "stockValidRange";
@@ -330,6 +332,30 @@ public class ReferenceAttributeIndexKeyCollisionFunctionalTest implements EvitaT
 	}
 
 	/**
+	 * Returns the primary keys of the products whose ENTITY-level label array contains the given value — the
+	 * entity-level counterpart of {@link #ownersMatchingValue}, with no `referenceHaving` wrapper.
+	 */
+	@Nonnull
+	private static Set<Integer> entitiesMatchingLabel(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull String label
+	) {
+		final EvitaResponse<EntityReference> result = session.query(
+			query(
+				collection(ENTITY_PRODUCT),
+				filterBy(attributeEquals(ATTRIBUTE_LABELS, label)),
+				require(page(1, Integer.MAX_VALUE))
+			),
+			EntityReference.class
+		);
+		final Set<Integer> primaryKeys = new TreeSet<>();
+		for (final EntityReference reference : result.getRecordData()) {
+			primaryKeys.add(reference.getPrimaryKey());
+		}
+		return primaryKeys;
+	}
+
+	/**
 	 * Returns the primary keys of the products whose stock reference carries the given quantity.
 	 */
 	@Nonnull
@@ -529,6 +555,130 @@ public class ReferenceAttributeIndexKeyCollisionFunctionalTest implements EvitaT
 		);
 	}
 
+	/**
+	 * The sharpest form of the defect: **one** owner, one write, no second party at all.
+	 *
+	 * Every other reproduction needs two owners contributing to a shared entry. Here a single owner's array holds
+	 * both colliding values, and the index this lands on — `ReducedEntityIndex` — has NO cardinality counter at
+	 * all, so nothing tracks that the owner reached the one tree entry keyed `1` twice. Replacing the array removes
+	 * the whole prior value: the first element takes the owner out of the bucket, and the second finds it already
+	 * gone and fails `FilterIndex`'s membership premise. This one THROWS rather than unindexing silently — the
+	 * silent variant is #1620's, which needs a counter to get it wrong.
+	 */
+	@Test
+	@DisplayName("should keep an owner indexed when its OWN array drops one of two colliding elements")
+	@Tag(ENGINE)
+	@Tag(REFERENCE)
+	@Tag(ATTRIBUTE)
+	void shouldKeepOwnerIndexedWhenItsOwnArrayDropsOneCollidingElement() {
+		runWithLiveCatalog(
+			"referenceAttributeKeyCollision_intraArray",
+			session -> {
+				defineSchemaWithAttribute(session, ATTRIBUTE_QUANTITIES, BigDecimal[].class, 0);
+				session.createNewEntity(ENTITY_STOCK, SHARED_STOCK_PK).upsertVia(session);
+				upsertOwnerWith(
+					session, 1, ATTRIBUTE_QUANTITIES,
+					new BigDecimal[]{FIRST_OWNER_QUANTITY, SECOND_OWNER_QUANTITY}
+				);
+			},
+			(evita, session) -> {
+				// the premise: both elements of the one array round to SHARED_INDEX_KEY and therefore contribute to
+				// a single tree entry twice over - without that there is no double contribution and nothing to lose
+				evita.queryCatalog(
+					TEST_CATALOG,
+					(Consumer<EvitaSessionContract>) readSession -> {
+						assertEquals(
+							Set.of(1),
+							ownersMatchingValue(readSession, ATTRIBUTE_QUANTITIES, FIRST_OWNER_QUANTITY),
+							"the owner must be indexed under the key its first element rounds to"
+						);
+						assertEquals(
+							Set.of(1),
+							ownersMatchingValue(readSession, ATTRIBUTE_QUANTITIES, SECOND_OWNER_QUANTITY),
+							"and its second element must round to that very same entry, not a second one"
+						);
+					}
+				);
+
+				// the owner drops the second element and keeps the first - so it must remain indexed
+				evita.updateCatalog(
+					TEST_CATALOG,
+					(Consumer<EvitaSessionContract>) writeSession -> upsertOwnerWith(
+						writeSession, 1, ATTRIBUTE_QUANTITIES, new BigDecimal[]{FIRST_OWNER_QUANTITY})
+				);
+
+				evita.queryCatalog(
+					TEST_CATALOG,
+					(Consumer<EvitaSessionContract>) readSession -> assertEquals(
+						Set.of(1),
+						ownersMatchingValue(readSession, ATTRIBUTE_QUANTITIES, FIRST_OWNER_QUANTITY),
+						"the owner still holds a value that rounds to " + SHARED_INDEX_KEY + ", so it must still be " +
+							"found by it - a counter keyed on the raw element drains one of two keys to zero here " +
+							"and removes the entry the surviving element needs"
+					)
+				);
+			}
+		);
+	}
+
+	/**
+	 * The same defect on a plain ENTITY-level array attribute, with references nowhere in the picture.
+	 *
+	 * It lands on the global entity index, which — like the reduced index the test above uses — keeps no
+	 * cardinality counter, so nothing records that one entity reached a single index key through two array
+	 * elements. Included because the reference-shaped reproductions above make the defect look like a
+	 * reference-indexing problem, and it is not: it is `FilterIndex`'s array handling, reachable by any
+	 * collection with an array attribute whose values canonicalize.
+	 */
+	@Test
+	@DisplayName("should keep an entity indexed when its OWN entity-level array drops one colliding element")
+	@Tag(ENGINE)
+	@Tag(ATTRIBUTE)
+	void shouldKeepEntityIndexedWhenItsEntityLevelArrayDropsOneCollidingElement() {
+		runWithLiveCatalog(
+			"entityAttributeKeyCollision_intraArray",
+			session -> {
+				session.defineEntitySchema(ENTITY_PRODUCT)
+					.withAttribute(
+						ATTRIBUTE_LABELS, String[].class,
+						thatIs -> thatIs.filterable().nullable()
+					)
+					.updateVia(session);
+				session.createNewEntity(ENTITY_PRODUCT, 1)
+					.setAttribute(ATTRIBUTE_LABELS, new String[]{PRECOMPOSED_LABEL, DECOMPOSED_LABEL})
+					.upsertVia(session);
+			},
+			(evita, session) -> {
+				// the premise: both spellings are canonically equivalent, so the entity sits in ONE bucket
+				evita.queryCatalog(
+					TEST_CATALOG,
+					(Consumer<EvitaSessionContract>) readSession -> assertEquals(
+						Set.of(1), entitiesMatchingLabel(readSession, PRECOMPOSED_LABEL),
+						"the entity must be findable by the label it carries"
+					)
+				);
+
+				evita.updateCatalog(
+					TEST_CATALOG,
+					(Consumer<EvitaSessionContract>) writeSession -> writeSession
+						.getEntity(ENTITY_PRODUCT, 1, attributeContentAll())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTRIBUTE_LABELS, new String[]{PRECOMPOSED_LABEL})
+						.upsertVia(writeSession)
+				);
+
+				evita.queryCatalog(
+					TEST_CATALOG,
+					(Consumer<EvitaSessionContract>) readSession -> assertEquals(
+						Set.of(1), entitiesMatchingLabel(readSession, PRECOMPOSED_LABEL),
+						"the entity still carries a label that folds to that key, so it must still be found"
+					)
+				);
+			}
+		);
+	}
+
 	@Test
 	@DisplayName("should accept the surviving owner's next write when two offsets denote one instant")
 	@Tag(ENGINE)
@@ -577,14 +727,45 @@ public class ReferenceAttributeIndexKeyCollisionFunctionalTest implements EvitaT
 				upsertOwnerWith(session, 2, ATTRIBUTE_STOCKED_AT, SECOND_OWNER_INSTANT);
 			},
 			(evita, session) -> {
+				// the premise the whole control rests on, asserted rather than assumed: both owners are truncated
+				// to ONE stored value on the way in and therefore SHARE a single index entry. Without this, the
+				// test stays green even in the state it exists to distinguish itself from - two values that never
+				// met, sharing nothing, losing nothing
+				evita.queryCatalog(
+					TEST_CATALOG,
+					(Consumer<EvitaSessionContract>) readSession -> {
+						assertEquals(
+							Set.of(1, 2),
+							ownersMatchingValue(readSession, ATTRIBUTE_STOCKED_AT, FIRST_OWNER_INSTANT),
+							"sub-millisecond digits are truncated at the API boundary, so both owners must sit in " +
+								"one entry - in two entries there is no shared entry to lose and nothing is proved"
+						);
+						assertEquals(
+							Set.of(1, 2),
+							ownersMatchingValue(readSession, ATTRIBUTE_STOCKED_AT, SECOND_OWNER_INSTANT),
+							"and the other spelling of that same millisecond must reach that same entry"
+						);
+					}
+				);
+
 				evita.updateCatalog(
 					TEST_CATALOG,
 					(Consumer<EvitaSessionContract>) writeSession -> upsertOwnerWith(
 						writeSession, 1, ATTRIBUTE_STOCKED_AT, FIRST_OWNER_INSTANT.plusHours(1))
 				);
+
 				// both owners were truncated to the same stored value on the way in, so the counter and the value
-				// tree agree and the shared entry survives - this must stay GREEN, or the exclusion of temporal
-				// types from the defect is wrong
+				// tree agree: one key counting two, and the first departure must leave the entry standing
+				evita.queryCatalog(
+					TEST_CATALOG,
+					(Consumer<EvitaSessionContract>) readSession -> assertEquals(
+						Set.of(2),
+						ownersMatchingValue(readSession, ATTRIBUTE_STOCKED_AT, SECOND_OWNER_INSTANT),
+						"the owner that did not move must still be reachable through the shared entry - this is " +
+							"the assertion the defect fails, and it fails SILENTLY, without throwing anything"
+					)
+				);
+
 				assertDoesNotThrow(
 					() -> evita.updateCatalog(
 						TEST_CATALOG,
@@ -592,6 +773,22 @@ public class ReferenceAttributeIndexKeyCollisionFunctionalTest implements EvitaT
 							writeSession, 2, ATTRIBUTE_STOCKED_AT, SECOND_OWNER_INSTANT.plusHours(2))
 					),
 					"a type canonicalized at the API boundary must not be affected by this defect"
+				);
+
+				evita.queryCatalog(
+					TEST_CATALOG,
+					(Consumer<EvitaSessionContract>) readSession -> {
+						assertEquals(
+							Set.of(2),
+							ownersMatchingValue(readSession, ATTRIBUTE_STOCKED_AT, SECOND_OWNER_INSTANT.plusHours(2)),
+							"the second owner must be reachable through its new value"
+						);
+						assertEquals(
+							Set.of(),
+							ownersMatchingValue(readSession, ATTRIBUTE_STOCKED_AT, SECOND_OWNER_INSTANT),
+							"and the shared entry must be gone now that its last contributor has left it"
+						);
+					}
 				);
 			}
 		);
@@ -860,6 +1057,29 @@ public class ReferenceAttributeIndexKeyCollisionFunctionalTest implements EvitaT
 							writeSession, 2, ATTRIBUTE_CURRENCY, Currency.getInstance("CHF"))
 					),
 					"a bijectively-normalized value must round-trip through the counter"
+				);
+
+				// not throwing is the weaker half of the claim: a normalizer that dropped the entry on the way out
+				// would also not throw. The value has to be QUERYABLE at its new key and absent from the old one
+				evita.queryCatalog(
+					TEST_CATALOG,
+					(Consumer<EvitaSessionContract>) readSession -> {
+						assertEquals(
+							Set.of(2),
+							ownersMatchingValue(readSession, ATTRIBUTE_CURRENCY, Currency.getInstance("CHF")),
+							"the re-inserted value must be reachable through its own entry"
+						);
+						assertEquals(
+							Set.of(),
+							ownersMatchingValue(readSession, ATTRIBUTE_CURRENCY, Currency.getInstance("EUR")),
+							"and the entry it left must no longer list it"
+						);
+						assertEquals(
+							Set.of(1),
+							ownersMatchingValue(readSession, ATTRIBUTE_CURRENCY, Currency.getInstance("GBP")),
+							"removing one distinct value must not disturb another owner's separate entry"
+						);
+					}
 				);
 			}
 		);

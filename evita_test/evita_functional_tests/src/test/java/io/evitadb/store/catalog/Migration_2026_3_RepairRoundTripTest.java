@@ -71,7 +71,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * the migration's storage plumbing but holds no COLLIDING values, so the summing branch — the repair itself —
  * never runs there.
  *
- * @author Claude (defect A investigation), FG Forrest a.s. (c) 2026
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Migration_2026_3 — counter repair across a real storage round trip (v6→v7)")
 @Tag(STORAGE)

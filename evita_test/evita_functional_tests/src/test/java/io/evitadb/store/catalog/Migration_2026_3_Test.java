@@ -53,7 +53,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * key SUMMED rather than overwritten. A count left at one would drop the shared entry on the first owner's
  * departure, which is precisely the corruption the migration exists to stop.
  *
- * @author Claude (defect A investigation), FG Forrest a.s. (c) 2026
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Migration_2026_3 — attribute cardinality counter re-key (v6→v7)")
 @Tag(STORAGE)
