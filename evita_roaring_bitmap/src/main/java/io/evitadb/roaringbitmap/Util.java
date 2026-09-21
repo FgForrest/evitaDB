@@ -4,10 +4,10 @@
 
 package io.evitadb.roaringbitmap;
 
+import io.evitadb.roaringbitmap.kernel.VectorKernels;
+
 import javax.annotation.Nonnull;
 import java.util.Arrays;
-
-import static java.lang.Long.numberOfTrailingZeros;
 
 /**
  * Low-level static helpers shared by the Roaring bitmap container implementations: unsigned
@@ -208,7 +208,9 @@ public final class Util {
 	 * order, each position emitted as its low 16-bit `char`. `container` must be large enough to hold
 	 * the intersection cardinality.
 	 *
-	 * Complexity: `O(words + popcount)`.
+	 * Complexity: `O(words + popcount)`. Runs on the `extractAnd` kernel of
+	 * {@link io.evitadb.roaringbitmap.kernel.BitmapKernels}, which skips whole blocks whose combined
+	 * words are empty where the provider selected a vector implementation.
 	 *
 	 * @param container output array receiving the set-bit positions, filled from index `0`
 	 * @param bitmap1   first word array
@@ -217,17 +219,10 @@ public final class Util {
 	 */
 	public static void fillArrayAND(
 		@Nonnull final char[] container, @Nonnull final long[] bitmap1, @Nonnull final long[] bitmap2) {
-		int pos = 0;
 		if (bitmap1.length != bitmap2.length) {
 			throw new IllegalArgumentException("not supported");
 		}
-		for (int k = 0; k < bitmap1.length; ++k) {
-			long bitset = bitmap1[k] & bitmap2[k];
-			while (bitset != 0) {
-				container[pos++] = (char) (k * 64 + numberOfTrailingZeros(bitset));
-				bitset &= (bitset - 1);
-			}
-		}
+		VectorKernels.BITMAP.extractAnd(bitmap1, bitmap2, container);
 	}
 
 	/**
@@ -235,7 +230,9 @@ public final class Util {
 	 * word array but absent from the second) into `container` in ascending order, each position
 	 * emitted as its low 16-bit `char`. `container` must hold the difference cardinality.
 	 *
-	 * Complexity: `O(words + popcount)`.
+	 * Complexity: `O(words + popcount)`. Runs on the `extractAndNot` kernel of
+	 * {@link io.evitadb.roaringbitmap.kernel.BitmapKernels}, which skips whole blocks whose combined
+	 * words are empty where the provider selected a vector implementation.
 	 *
 	 * @param container output array receiving the set-bit positions, filled from index `0`
 	 * @param bitmap1   first word array
@@ -244,17 +241,33 @@ public final class Util {
 	 */
 	public static void fillArrayANDNOT(
 		@Nonnull final char[] container, @Nonnull final long[] bitmap1, @Nonnull final long[] bitmap2) {
-		int pos = 0;
 		if (bitmap1.length != bitmap2.length) {
 			throw new IllegalArgumentException("not supported");
 		}
-		for (int k = 0; k < bitmap1.length; ++k) {
-			long bitset = bitmap1[k] & (~bitmap2[k]);
-			while (bitset != 0) {
-				container[pos++] = (char) (k * 64 + numberOfTrailingZeros(bitset));
-				bitset &= (bitset - 1);
-			}
+		VectorKernels.BITMAP.extractAndNot(bitmap1, bitmap2, container);
+	}
+
+	/**
+	 * {@link #fillArrayANDNOT(char[], long[], long[])} for a caller that already counted the difference,
+	 * which lets the kernel pick a decoding strategy suited to the density; see
+	 * {@link #fillArray(long[], char[], int)} for what the count buys and what it costs to get wrong.
+	 *
+	 * @param container   output array receiving the set-bit positions, filled from index `0`
+	 * @param bitmap1     first word array
+	 * @param bitmap2     second word array (must have the same length as `bitmap1`)
+	 * @param cardinality number of set bits the caller expects the difference to hold
+	 * @throws IllegalArgumentException if the two word arrays differ in length
+	 */
+	public static void fillArrayANDNOT(
+		@Nonnull final char[] container,
+		@Nonnull final long[] bitmap1,
+		@Nonnull final long[] bitmap2,
+		final int cardinality
+	) {
+		if (bitmap1.length != bitmap2.length) {
+			throw new IllegalArgumentException("not supported");
 		}
+		VectorKernels.BITMAP.extractAndNot(bitmap1, bitmap2, container, cardinality);
 	}
 
 	/**
@@ -262,7 +275,9 @@ public final class Util {
 	 * two word arrays) into `container` in ascending order, each position emitted as its low 16-bit
 	 * `char`. `container` must hold the symmetric-difference cardinality.
 	 *
-	 * Complexity: `O(words + popcount)`.
+	 * Complexity: `O(words + popcount)`. Runs on the `extractXor` kernel of
+	 * {@link io.evitadb.roaringbitmap.kernel.BitmapKernels}, which skips whole blocks whose combined
+	 * words are empty where the provider selected a vector implementation.
 	 *
 	 * @param container output array receiving the set-bit positions, filled from index `0`
 	 * @param bitmap1   first word array
@@ -271,17 +286,33 @@ public final class Util {
 	 */
 	public static void fillArrayXOR(
 		@Nonnull final char[] container, @Nonnull final long[] bitmap1, @Nonnull final long[] bitmap2) {
-		int pos = 0;
 		if (bitmap1.length != bitmap2.length) {
 			throw new IllegalArgumentException("not supported");
 		}
-		for (int k = 0; k < bitmap1.length; ++k) {
-			long bitset = bitmap1[k] ^ bitmap2[k];
-			while (bitset != 0) {
-				container[pos++] = (char) (k * 64 + numberOfTrailingZeros(bitset));
-				bitset &= (bitset - 1);
-			}
+		VectorKernels.BITMAP.extractXor(bitmap1, bitmap2, container);
+	}
+
+	/**
+	 * {@link #fillArrayXOR(char[], long[], long[])} for a caller that already counted the symmetric
+	 * difference, which lets the kernel pick a decoding strategy suited to the density; see
+	 * {@link #fillArray(long[], char[], int)} for what the count buys and what it costs to get wrong.
+	 *
+	 * @param container   output array receiving the set-bit positions, filled from index `0`
+	 * @param bitmap1     first word array
+	 * @param bitmap2     second word array (must have the same length as `bitmap1`)
+	 * @param cardinality number of set bits the caller expects the symmetric difference to hold
+	 * @throws IllegalArgumentException if the two word arrays differ in length
+	 */
+	public static void fillArrayXOR(
+		@Nonnull final char[] container,
+		@Nonnull final long[] bitmap1,
+		@Nonnull final long[] bitmap2,
+		final int cardinality
+	) {
+		if (bitmap1.length != bitmap2.length) {
+			throw new IllegalArgumentException("not supported");
 		}
+		VectorKernels.BITMAP.extractXor(bitmap1, bitmap2, container, cardinality);
 	}
 
 	/**
@@ -340,7 +371,9 @@ public final class Util {
 	 * Exact Hamming weight (population count) of the bits set at absolute bit indices `[start, end)`,
 	 * masking the partial first and last words so only bits inside the range are counted.
 	 *
-	 * Complexity: `O((end - start) / 64)`.
+	 * Complexity: `O((end - start) / 64)`. Runs on the `cardinalityInRange` kernel of
+	 * {@link io.evitadb.roaringbitmap.kernel.BitmapKernels}, so the interior words are counted with SIMD
+	 * where the provider selected a vector implementation.
 	 *
 	 * @param bitmap array of words representing a bitset
 	 * @param start  first bit index (inclusive)
@@ -348,20 +381,8 @@ public final class Util {
 	 * @return number of set bits within the range, `0` when `start >= end`
 	 */
 	public static int cardinalityInBitmapRange(@Nonnull final long[] bitmap, final int start, final int end) {
-		if (start >= end) {
-			return 0;
-		}
-		final int firstword = start / 64;
-		final int endword = (end - 1) / 64;
-		if (firstword == endword) {
-			return Long.bitCount(bitmap[firstword] & ((~0L << start) & (~0L >>> -end)));
-		}
-		int answer = Long.bitCount(bitmap[firstword] & (~0L << start));
-		for (int i = firstword + 1; i < endword; i++) {
-			answer += Long.bitCount(bitmap[i]);
-		}
-		answer += Long.bitCount(bitmap[endword] & (~0L >>> -end));
-		return answer;
+		// masked first and last word, kernel over the whole words between them - `BitmapKernels.cardinalityInRange`
+		return VectorKernels.BITMAP.cardinalityInRange(bitmap, start, end);
 	}
 
 	/**
@@ -1095,22 +1116,38 @@ public final class Util {
 	 * its low 16-bit position (`64 * wordIndex + trailingZeros`). `array` must hold at least the
 	 * bitmap's population count.
 	 *
-	 * Complexity: `O(words + popcount)`.
+	 * Complexity: `O(words + popcount)`. Runs on the `extract` kernel of
+	 * {@link io.evitadb.roaringbitmap.kernel.BitmapKernels}, which skips whole blocks of empty words where
+	 * the provider selected a vector implementation.
+	 *
+	 * **Announcing no cardinality reads as announcing a sparse one**, so the empty-block skip is taken
+	 * unconditionally here. That is the right default for the caller that cannot count — a lazily-counted
+	 * container is a repaired union bitmap, which is the shape the skip was written for. A caller that does
+	 * know the count should say so through {@link #fillArray(long[], char[], int)} instead, because above a
+	 * few hundred values the skip becomes a loss.
 	 *
 	 * @param bitmap source word array representing a bitset
 	 * @param array  output array receiving the set-bit positions, filled from index `0`
 	 */
 	public static void fillArray(@Nonnull final long[] bitmap, @Nonnull final char[] array) {
-		int pos = 0;
-		int base = 0;
-		for (int k = 0; k < bitmap.length; ++k) {
-			long bitset = bitmap[k];
-			while (bitset != 0) {
-				array[pos++] = (char) (base + numberOfTrailingZeros(bitset));
-				bitset &= (bitset - 1);
-			}
-			base += 64;
-		}
+		VectorKernels.BITMAP.extract(bitmap, array);
+	}
+
+	/**
+	 * {@link #fillArray(long[], char[])} for a caller that already knows the bitmap's population count,
+	 * which lets the kernel pick a decoding strategy suited to the density — block skipping pays on a
+	 * sparse word array and costs on a dense one.
+	 *
+	 * The values written are the same either way; the count is advisory and a wrong one costs only speed.
+	 * The overload without it announces nothing, and is read as a sparse container.
+	 *
+	 * @param bitmap      source word array representing a bitset
+	 * @param array       output array receiving the set-bit positions, filled from index `0`
+	 * @param cardinality number of set bits the caller expects `bitmap` to hold
+	 */
+	public static void fillArray(
+		@Nonnull final long[] bitmap, @Nonnull final char[] array, final int cardinality) {
+		VectorKernels.BITMAP.extract(bitmap, array, cardinality);
 	}
 
 	/**

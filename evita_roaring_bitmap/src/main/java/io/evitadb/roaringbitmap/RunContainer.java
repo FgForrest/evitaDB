@@ -1336,15 +1336,53 @@ public final class RunContainer extends Container implements Cloneable {
 	}
 
 	/**
-	 * Hash derived from the live run pairs; consistent with {@link #equals(Object)} across types.
+	 * Hash of the value set, computed over the chunk's canonical word form — see {@link ContainerHash}, which
+	 * carries the reasoning and the three upstream defects this replaces.
+	 *
+	 * Each run paints the words it spans: the first and last word of a run get a partial mask, the words
+	 * wholly inside it are saturated. Runs are ascending and disjoint, so word indices never decrease and a
+	 * word is folded once — but two runs may share a word (one ending and the next starting inside it), which
+	 * is why the fold waits for the index to change rather than happening per run. The cost is one step per
+	 * word each run touches, so it is `nbrruns + 1023` at worst: neither term bounds it alone, because runs are
+	 * disjoint and ascending — one run covering the whole chunk crosses all 1,023 internal word boundaries, and
+	 * 32,768 single-value runs cross none. The number of *folds* stays at most 1,024, since a fold happens only
+	 * when the word index changes.
+	 *
+	 * **This diverges from upstream deliberately and must survive a re-sync.** Upstream folds the interleaved
+	 * `value, length` run pairs with `hash += 31 * hash + entry`, which hashes the *encoding* rather than the
+	 * set: the same values stored as an {@link ArrayContainer} produced a different number, even though
+	 * {@link #equals(Object)} reports the two equal. The `+=` additionally makes the base 32, annihilating
+	 * every entry before the last seven.
 	 */
 	@Override
 	// nbrruns and valueslength are mutable by design
 	@SuppressWarnings("NonFinalFieldReferencedInHashCode")
 	public int hashCode() {
-		int hash = 0;
-		for (int k = 0; k < this.nbrruns * 2; ++k) {
-			hash += 31 * hash + this.valueslength[k];
+		int hash = ContainerHash.seed();
+		int pendingWordIndex = -1;
+		long pendingWord = 0L;
+		for (int rlepos = 0; rlepos < this.nbrruns; ++rlepos) {
+			final int runStart = this.valueslength[2 * rlepos];
+			// the stored length is the run length minus one, so the run covers runStart .. runEnd inclusive
+			final int runEnd = runStart + this.valueslength[2 * rlepos + 1];
+			final int firstWord = runStart >>> 6;
+			final int lastWord = runEnd >>> 6;
+			for (int wordIndex = firstWord; wordIndex <= lastWord; ++wordIndex) {
+				final int lowestBit = wordIndex == firstWord ? runStart & 63 : 0;
+				final int highestBit = wordIndex == lastWord ? runEnd & 63 : 63;
+				final long mask = (-1L >>> (63 - (highestBit - lowestBit))) << lowestBit;
+				if (wordIndex != pendingWordIndex) {
+					if (pendingWordIndex >= 0) {
+						hash = ContainerHash.fold(hash, pendingWordIndex, pendingWord);
+					}
+					pendingWordIndex = wordIndex;
+					pendingWord = 0L;
+				}
+				pendingWord |= mask;
+			}
+		}
+		if (pendingWordIndex >= 0) {
+			hash = ContainerHash.fold(hash, pendingWordIndex, pendingWord);
 		}
 		return hash;
 	}
@@ -2116,7 +2154,9 @@ public final class RunContainer extends Container implements Cloneable {
 	@Nonnull
 	private RunContainer lazyandNot(@Nonnull final ArrayContainer x) {
 		if (x.isEmpty()) {
-			return this;
+			// `andNot` is out of place and its caller owns and mutates the result, so the degenerate case
+			// must hand back a private container rather than this receiver
+			return (RunContainer) clone();
 		}
 		RunContainer answer = new RunContainer(new char[2 * (this.nbrruns + x.cardinality)], 0);
 		int rlepos = 0;
@@ -2244,11 +2284,13 @@ public final class RunContainer extends Container implements Cloneable {
 	 */
 	@Nonnull
 	private Container lazyxor(@Nonnull final ArrayContainer x) {
+		// both `xor` and `ixor` route here, and `xor` is out of place: its caller owns the result and
+		// mutates it, so a degenerate case must hand back a private container rather than an operand
 		if (x.isEmpty()) {
-			return this;
+			return clone();
 		}
 		if (this.nbrruns == 0) {
-			return x;
+			return x.clone();
 		}
 		RunContainer answer = new RunContainer(new char[2 * (this.nbrruns + x.getCardinality())], 0);
 		int rlepos = 0;
@@ -2284,11 +2326,24 @@ public final class RunContainer extends Container implements Cloneable {
 
 	/**
 	 * Returns a copy holding only the first `maxcardinality` values in ascending order (truncating the
-	 * run that straddles the limit). Returns a full clone when the limit is not below the cardinality.
+	 * run that straddles the limit). Returns a full clone when the limit is not below the cardinality,
+	 * and an empty container when the limit is zero or below.
+	 *
+	 * **The zero case is handled separately on purpose, and this diverges from upstream.** The truncation
+	 * below shortens the straddling run by `cardinality - maxcardinality`, which is at most that run's own
+	 * length only while at least one value survives. At a limit of zero the loop still stops on the first
+	 * run, the subtraction takes one more than that run holds, and the stored length — a `char` — underflows
+	 * to `65535`. The container then reports one run of 65,536 values: the whole chunk where the first run
+	 * starts at `0`, and a run reaching past `65535` where it starts anywhere else. The second shape is not
+	 * a container at all, and everything that indexes the chunk's 1,024-word form by a value — `hashCode()`
+	 * and {@link #toBitmapContainer()} among them — walks off the end of it.
 	 */
 	@Nonnull
 	@Override
 	public Container limit(final int maxcardinality) {
+		if (maxcardinality <= 0) {
+			return new RunContainer();
+		}
 		if (maxcardinality >= getCardinality()) {
 			return clone();
 		}

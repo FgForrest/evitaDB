@@ -106,6 +106,7 @@ import io.evitadb.core.transaction.engine.EngineTransactionManager;
 import io.evitadb.core.transaction.engine.operators.DefaultUpgradeExecutor;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
+import io.evitadb.roaringbitmap.RoaringKernels;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
 import io.evitadb.spi.store.engine.EnginePersistenceServiceFactory;
@@ -177,6 +178,12 @@ import static java.util.Optional.ofNullable;
 @ThreadSafe
 @Slf4j
 public final class Evita implements EvitaContract {
+	/**
+	 * Guards the one-time report of which computation kernels the roaring bitmap containers run on. The
+	 * selection is a per-JVM fact, not a per-instance one, and a test run stands up hundreds of instances -
+	 * so the line is written by whichever instance is built first and by none of the rest.
+	 */
+	private static final AtomicBoolean ROARING_KERNELS_REPORTED = new AtomicBoolean(false);
 	/**
 	 * Data store shared among all instances of {@link SessionRegistry} that holds information about active sessions.
 	 */
@@ -496,6 +503,12 @@ public final class Evita implements EvitaContract {
 		@Nullable Consumer<EvitaSessionContract> onSessionTerminationCallback,
 		boolean directExecutor
 	) {
+		// reading the summary is what resolves the kernel selection, so it happens here rather than inside the
+		// first query; an operator who forgot `--add-modules jdk.incubator.vector` sees it in this line
+		if (ROARING_KERNELS_REPORTED.compareAndSet(false, true)) {
+			log.info(RoaringKernels.vectorKernelsSummary());
+		}
+
 		this.configuration = configuration;
 		this.onSessionCreationCallback = onSessionCreationCallback == null ?
 			Functions.noOpConsumer() : onSessionCreationCallback;
