@@ -8041,11 +8041,15 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				replacedPath.set(this.level, newCursorLevel);
 				for (int i = this.level + 1; i < this.path().size(); i++) {
 					final BPlusInternalTreeNode<M> currentNode = newCursorLevel.currentNode();
-					newCursorLevel = new CursorLevel<>(
-						currentNode.getChildren(),
-						currentNode.getPeek(),
-						currentNode.getPeek()
-					);
+					// the children array is read into a local FIRST and `peek` - which doubles as the rightmost child's
+					// index here and is dereferenced by `Cursor#leafNode()` a call later - is bounded by THAT array.
+					// This rebuild is NOT write-path only: `computePreviousRecord` climbs to the preceding leaf through
+					// it with no session and no catalog-state guard, so the two independent reads can pair a `peek`
+					// raised by a warm-up grow with the children array as it stood before that grow. Loading the array
+					// before the count needs no reordering at all, so this escapes on x86 just as readily as on AArch64
+					final BPlusTreeNode<M, ?>[] children = currentNode.getChildren();
+					final int nodePeek = observableInternalPeek(currentNode.getPeek(), children);
+					newCursorLevel = new CursorLevel<>(children, nodePeek, nodePeek);
 					replacedPath.set(i, newCursorLevel);
 				}
 				return new CursorWithLevel<>(
@@ -8076,7 +8080,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				replacedPath.set(this.level, newCursorLevel);
 				for (int i = this.level + 1; i < this.path.size(); i++) {
 					final BPlusInternalTreeNode<M> currentNode = newCursorLevel.currentNode();
-					newCursorLevel = new CursorLevel<>(currentNode.getChildren(), 0, currentNode.getPeek());
+					// bounded by the array this level captures, exactly as `getCursorForPreviousNode` is - the stored
+					// `peek` is consumed by a LATER call, so an unbounded one would surface far from this line
+					final BPlusTreeNode<M, ?>[] children = currentNode.getChildren();
+					newCursorLevel = new CursorLevel<>(
+						children, 0, observableInternalPeek(currentNode.getPeek(), children)
+					);
 					replacedPath.set(i, newCursorLevel);
 				}
 				return new CursorWithLevel<>(

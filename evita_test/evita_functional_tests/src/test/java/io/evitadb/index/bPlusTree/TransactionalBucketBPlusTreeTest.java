@@ -4715,5 +4715,80 @@ class TransactionalBucketBPlusTreeTest {
 				}
 			);
 		}
+
+		@Test
+		@DisplayName("a previous-record climb over an internal node whose peek runs ahead of its children is bounded")
+		void shouldBoundTheRebuiltCursorLevelByTheChildArrayWhenAnInternalPeekRunsAhead() {
+			// the internal-node twin of
+			// `ContentSizedLeafStorage#shouldBoundTheCursorByTheColumnLiveRunWhenALeafPeekRunsAhead`. An internal
+			// node grows by the same two plain field stores a leaf column does - the longer child array published
+			// first, `peek` raised second - and `computePreviousRecord` climbs the spine with no session and no
+			// catalog-state guard, so a reader can pair a `peek` raised by a warm-up grow with the child array as it
+			// stood before that grow. Loading the array before the count needs no reordering at all, so it is a plain
+			// interleaving on x86 as much as on AArch64
+			final TransactionalBucketBPlusTree<Integer> tree =
+				new TransactionalBucketBPlusTree<>(9, 4, 9, 4, Integer.class, null);
+
+			// a nine-key internal block splits after ten children, and BOTH halves of that split are sized exactly to
+			// the children they copied (see shouldSizeASplitInternalNodeToTheHalfItCopied) - which is what makes a
+			// `peek` one slot past the child array reachable without touching the array itself
+			int inserted = 0;
+			BPlusInternalTreeNode<Integer> root = null;
+			while (root == null) {
+				tree.addRecord(inserted, inserted * 10);
+				inserted++;
+				assertTrue(inserted < 100_000, "the fixture never grew a three-level spine");
+				if (tree.getRoot() instanceof BPlusInternalTreeNode<?> internal) {
+					@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> candidate =
+						(BPlusInternalTreeNode<Integer>) internal;
+					if (candidate.getChildren()[0] instanceof BPlusInternalTreeNode<?>) {
+						root = candidate;
+					}
+				}
+			}
+			assertTrue(root.getPeek() >= 1, "the root must separate at least two subtrees");
+
+			@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> torn =
+				(BPlusInternalTreeNode<Integer>) root.getChildren()[0];
+			@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> probed =
+				(BPlusInternalTreeNode<Integer>) root.getChildren()[1];
+			assertEquals(
+				torn.getPeek() + 1, torn.getChildren().length,
+				"the fixture needs an exactly-sized node - with slack in the array a raised peek would address a live "
+					+ "slot instead of running off the end"
+			);
+
+			// the anchor the climb must land on: the last record of the rightmost leaf of the PRECEDING subtree
+			@SuppressWarnings("unchecked") final BPlusLeafTreeNode<Integer> rightmostLeafOfTorn =
+				(BPlusLeafTreeNode<Integer>) torn.getChildren()[torn.getPeek()];
+			final int expectedAnchor = rightmostLeafOfTorn.lastRecord();
+			// the probe: the first key of the leftmost leaf of the FOLLOWING subtree, so neither that leaf nor the
+			// level above it holds a predecessor and the climb has to leave the subtree entirely
+			@SuppressWarnings("unchecked") final BPlusLeafTreeNode<Integer> leftmostLeafOfProbed =
+				(BPlusLeafTreeNode<Integer>) probed.getChildren()[0];
+			final int probeKey = leftmostLeafOfProbed.keyAt(0);
+			assertEquals(
+				(probeKey - 1) * 10, expectedAnchor,
+				"keys ascend by one and records by ten, so the anchor is the record of the key below the probe"
+			);
+			assertEquals(
+				expectedAnchor, tree.computePreviousRecord(probeKey, probeKey * 10),
+				"the healthy tree must anchor on the last record of the preceding subtree"
+			);
+
+			// outside a transaction `setPeek` takes the `layer == null` arm, and an UPWARD move raises `peek` without
+			// growing either array - the one shape that reaches the torn state deterministically through a public
+			// method. The node is left corrupt afterwards, so this tree must not be reused past the last assertion
+			torn.setPeek(torn.getPeek() + 1);
+			assertEquals(
+				torn.getChildren().length, torn.getPeek(),
+				"the fixture must leave peek exactly one slot past the child array"
+			);
+
+			assertEquals(
+				expectedAnchor, tree.computePreviousRecord(probeKey, probeKey * 10),
+				"the climb must address the child array the cursor level captured, not the peek that ran ahead of it"
+			);
+		}
 	}
 }
