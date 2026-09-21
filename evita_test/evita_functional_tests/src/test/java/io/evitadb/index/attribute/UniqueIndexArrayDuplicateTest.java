@@ -125,6 +125,33 @@ class UniqueIndexArrayDuplicateTest {
 	}
 
 	@Test
+	@DisplayName("an array repeating one value THREE times still retires it once")
+	void shouldUnregisterAnArrayRepeatingOneValueThreeTimes() {
+		// the shared helper compacts lazily, exactly like the filter fold; two occurrences exercise only the
+		// first repeat, three exercise a repeat compared against an already-compacted prefix
+		final UniqueIndex index = ownerIndex();
+		index.registerUniqueKey(new String[]{DUPLICATED, DUPLICATED, DUPLICATED}, RECORD);
+
+		assertDoesNotThrow(
+			() -> index.unregisterUniqueKey(new String[]{DUPLICATED, DUPLICATED, DUPLICATED}, RECORD)
+		);
+		assertNull(index.getRecordIdByUniqueValue(DUPLICATED));
+	}
+
+	@Test
+	@DisplayName("repeats INTERLEAVED with distinct values compact to the right survivors")
+	void shouldUnregisterAnArrayOfInterleavedRepeats() {
+		final UniqueIndex index = ownerIndex();
+		final String[] mixed = {"A", "B", "A", "C", "B", "A"};
+		index.registerUniqueKey(mixed, RECORD);
+
+		assertDoesNotThrow(() -> index.unregisterUniqueKey(mixed, RECORD));
+		assertNull(index.getRecordIdByUniqueValue("A"));
+		assertNull(index.getRecordIdByUniqueValue("B"));
+		assertNull(index.getRecordIdByUniqueValue("C"), "every distinct value leaves exactly once");
+	}
+
+	@Test
 	@DisplayName("negative control — an array of distinct values unregisters cleanly")
 	void shouldUnregisterAnArrayOfDistinctValues() {
 		final UniqueIndex index = ownerIndex();

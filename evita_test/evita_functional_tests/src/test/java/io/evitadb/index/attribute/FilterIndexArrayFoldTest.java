@@ -215,6 +215,60 @@ class FilterIndexArrayFoldTest {
 		}
 
 		@Test
+		@DisplayName("THREE elements folding onto one key round-trip, not just two")
+		void shouldRemoveAnArrayOfThreeElementsFoldingOntoOneKey() {
+			// the fold's bookkeeping is N-way, not pairwise: it keeps the accepted elements as a prefix of the
+			// caller's array until the first collision, then compacts into a copy. Two elements exercise only the
+			// FIRST collision; three exercise a collision against an already-compacted prefix
+			final OwnerFilterIndex index = new OwnerFilterIndex(key("qty"), BigDecimal.class, 0);
+			final BigDecimal[] colliding = {
+				new BigDecimal("1.2"), new BigDecimal("1.4"), new BigDecimal("1.1")
+			};
+			index.addRecord(RECORD, colliding);
+			assertEquals(1, index.getDistinctValueCount(), "all three scale to the key 1");
+
+			assertDoesNotThrow(() -> index.removeRecord(RECORD, colliding));
+			assertTrue(index.isEmpty());
+		}
+
+		@Test
+		@DisplayName("collisions INTERLEAVED with distinct keys compact to the right survivors")
+		void shouldFoldACollidingArrayInterleavedWithDistinctKeys() {
+			// THIS is the case that discriminates, and element count is not what makes it so. Once the fold has
+			// compacted, every further accepted element is written at an index that has drifted from its source
+			// position - so only an array that ALTERNATES accepted and dropped elements exercises that write.
+			// Proven: deleting the compacted-array write leaves this test the ONLY red one in the class, while
+			// every two-element case, and even a four-element case where everything collides, stays green
+			final OwnerFilterIndex index = stringIndex();
+			final String[] mixed = {PRECOMPOSED, "alpha", DECOMPOSED, "beta", PRECOMPOSED, "alpha"};
+			index.addRecord(RECORD, mixed);
+
+			assertEquals(3, index.getDistinctValueCount(), "café, alpha and beta - three distinct keys");
+			assertTrue(index.getRecordsEqualTo(DECOMPOSED).contains(RECORD), "the folded key kept the record");
+			assertTrue(index.getRecordsEqualTo("alpha").contains(RECORD));
+			assertTrue(index.getRecordsEqualTo("beta").contains(RECORD));
+
+			assertDoesNotThrow(() -> index.removeRecord(RECORD, mixed));
+			assertTrue(index.isEmpty(), "and every one of them leaves exactly once");
+		}
+
+		@Test
+		@DisplayName("an array of FOUR elements all folding onto one key leaves the bucket once")
+		void shouldRemoveAnArrayOfFourIdenticalKeys() {
+			final OwnerFilterIndex index = stringIndex();
+			final String[] allOneKey = {PRECOMPOSED, DECOMPOSED, PRECOMPOSED, DECOMPOSED};
+			index.addRecord(RECORD, allOneKey);
+			index.addRecord(OTHER_RECORD, new String[]{PRECOMPOSED});
+
+			assertEquals(1, index.getDistinctValueCount());
+			assertDoesNotThrow(() -> index.removeRecord(RECORD, allOneKey));
+			assertTrue(
+				index.getRecordsEqualTo(PRECOMPOSED).contains(OTHER_RECORD),
+				"the bystander survives a four-way fold just as it survives a two-way one"
+			);
+		}
+
+		@Test
 		@DisplayName("negative control — an array whose elements do NOT collide keeps one bucket each")
 		void shouldKeepNonCollidingArrayElementsApart() {
 			final OwnerFilterIndex index = stringIndex();
