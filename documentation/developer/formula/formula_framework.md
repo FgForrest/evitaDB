@@ -127,7 +127,7 @@ Additionally, implement marker interfaces as needed:
 
 ## Writing a new formula: step by step
 
-### 1. Choose a unique class ID
+### 1. Generate a unique class ID
 
 Every concrete formula class must return a unique `long` constant from `getClassId()`. This constant:
 
@@ -135,7 +135,20 @@ Every concrete formula class must return a unique `long` constant from `getClass
 - **must not be inherited** from a superclass,
 - **must be different** for every leaf class.
 
-It is a critical component of the structural hash.
+It is a critical component of the structural hash, which keys the result cache — so two classes sharing
+a value can answer each other's queries out of that cache.
+
+Generate it, never invent it and never copy a sibling's:
+
+```shell
+tools/generate-class-id.sh io.evitadb.core.query.algebra.base.AndFormula
+```
+
+The script derives the value the way a `serialVersionUID` is derived, but seeds it on the fully qualified
+class name alone, so it is reproducible and stays stable across every later edit to the class. Do not use
+the IDE's `serialVersionUID` action instead: that value is derived from the class signature and changes
+whenever a member is added, which the first rule above forbids. `FormulaClassIdUniquenessTest` fails the
+build if two classes ever end up with the same constant.
 
 ```java
 private static final long CLASS_ID = -7493244674442362190L;

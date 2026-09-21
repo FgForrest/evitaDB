@@ -58,7 +58,7 @@ public class IndexTaggedFormula extends AbstractFormula {
 	/**
 	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
 	 */
-	private static final long CLASS_ID = 7_620_431_885_902_117_403L;
+	private static final long CLASS_ID = -1041915437753523562L;
 	/**
 	 * Error message thrown when {@link #getCloneWithInnerFormulas(Formula...)} receives more than one inner formula.
 	 */
