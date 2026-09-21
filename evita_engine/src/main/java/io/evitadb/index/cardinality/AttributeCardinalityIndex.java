@@ -28,6 +28,7 @@ import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.IndexHeapSize;
+import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.PersistentTransactionalMap;
 import io.evitadb.index.result.CardinalityChange;
@@ -42,8 +43,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.math.BigDecimal;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Represents a cardinality index that stores the cardinalities of keys.
@@ -78,6 +79,20 @@ public class AttributeCardinalityIndex
 	 * map on every transaction.
 	 */
 	private final PersistentTransactionalMap<AttributeCardinalityKey, Integer> cardinalities;
+	/**
+	 * Canonicalizer for incoming keys, built on first use by {@link #normalizeKey(Serializable, int)} and kept for
+	 * the life of this index — see that method for why the key must be canonical at all.
+	 *
+	 * Cached rather than built per call because {@link FilterIndex#getNormalizer(Class, int)} returns a *capturing*
+	 * lambda for the `BigDecimal` and `BigDecimalNumberRange` branches (it closes over the scale), so building one
+	 * per write would allocate on the hottest indexing path — once per reference attribute per upsert, and twice
+	 * for an update, which does a remove followed by an insert. Every other branch hands back a non-capturing
+	 * singleton and costs nothing either way.
+	 *
+	 * Transient: a normalizer is derived state, rebuilt on demand after a reload or a transactional copy.
+	 */
+	@SuppressWarnings("TransientFieldNotInitialized")
+	@Nullable private transient CachedNormalizer normalizer;
 
 	public AttributeCardinalityIndex(@Nonnull Class<? extends Serializable> valueType) {
 		this.valueType = valueType;
@@ -92,6 +107,65 @@ public class AttributeCardinalityIndex
 		this.valueType = valueType;
 		this.dirty = new TransactionalBoolean();
 		this.cardinalities = new PersistentTransactionalMap<>(cardinalities);
+	}
+
+	/**
+	 * Canonicalizes an attribute value into the key form this index must count it under. Every caller of
+	 * {@link #addRecord} and {@link #removeRecord} is required to pass the result rather than the raw value.
+	 *
+	 * # Why the counter may not key on the raw value
+	 *
+	 * This index exists to ref-count how many owners contribute the *same* entry to a shared filter index, so the
+	 * entry is dropped only when the last of them goes away. That only works while this index and the value tree
+	 * agree on what "the same entry" means — and the tree does not key on the raw value: it keys on
+	 * {@link FilterIndex#getNormalizer(Class, int)}'s output, which is deliberately **many-to-one** for several
+	 * types (a `BigDecimal` collapses to a scaled `int`, a `String` to its Unicode NFD form, an `OffsetDateTime`
+	 * to a millisecond `Instant` that discards the offset entirely). Two owners holding values that differ only
+	 * below that resolution would otherwise occupy two counter keys but a single tree entry, and the first of them
+	 * to move away would drain its own counter to zero, report `BOUNDARY_CROSSED`, and remove the entry the other
+	 * owner still needs — silently unindexing it, and making that owner's own next write fail the value tree's
+	 * `Sanity check - record not found!` premise from then on.
+	 *
+	 * Canonicalizing here closes that gap by construction: colliding values share one counter key, so the entry
+	 * survives until the last contributor leaves. The normalizer is idempotent, so a value that already arrives
+	 * canonical passes through unchanged.
+	 *
+	 * # What happens if the caller's scale has drifted from the tree's
+	 *
+	 * `indexedDecimalPlaces` comes from the live schema, while the tree's keys were encoded at the scale frozen
+	 * into its own storage part. Those two can in principle diverge — `ModifyAttributeSchemaTypeMutation` carries
+	 * `indexedDecimalPlaces`, so a schema change can move it.
+	 *
+	 * Note the guard that exists for this, {@link FilterIndex#assertIndexedDecimalPlacesUnchanged(int, int,
+	 * String)}, does NOT protect this method: it runs inside the tree write, which happens only after the counter
+	 * has already been mutated and only when the counter reports `BOUNDARY_CROSSED`. The counter is the first
+	 * structure a drifted write touches, not the last.
+	 *
+	 * What makes drift non-silent is cruder and more reliable: a changed scale changes every non-zero key, so an
+	 * insert finds no existing count and reports `BOUNDARY_CROSSED` (carrying the write on into the tree, where
+	 * the guard does fire), and a removal finds no key at all and throws `Cardinality … is null`. Either way it
+	 * fails loudly at the first drifted write rather than quietly miscounting. Do not restate this as "the two
+	 * provably agree" — they are not proven equal here, they are proven not to diverge silently.
+	 *
+	 * @param value                the raw attribute value
+	 * @param indexedDecimalPlaces the attribute's scale; consulted only when the normalizer is (re)built
+	 * @return the canonical key to count this value under
+	 */
+	@Nonnull
+	public Serializable normalizeKey(@Nonnull Serializable value, int indexedDecimalPlaces) {
+		// read the pair through ONE reference so a reader can never combine a function built for one scale with
+		// another scale's guard - the two were separate fields first, which left exactly that race open
+		CachedNormalizer cached = this.normalizer;
+		if (cached == null || cached.scale() != indexedDecimalPlaces) {
+			cached = new CachedNormalizer(
+				indexedDecimalPlaces,
+				FilterIndex.getNormalizer(this.valueType, indexedDecimalPlaces)
+			);
+			// a benign race: two threads may each build an equivalent holder and one write wins. Both are correct
+			// for the same scale, and the record's final fields make even an unsafely-published one fully visible
+			this.normalizer = cached;
+		}
+		return cached.function().apply(value);
 	}
 
 	/**
@@ -154,18 +228,24 @@ public class AttributeCardinalityIndex
 	}
 
 	/**
-	 * Verifies that `value` is storable in this index. A value is compatible when it is an instance of the
-	 * declared {@link #valueType}, or — for a `BigDecimal`-typed index — when it is the order-preserving scaled
-	 * `Integer` surrogate the filter index now uses to encode `BigDecimal` attribute values (the same idempotent
-	 * contract honoured by `FilterIndex.getNormalizer`). Histogram values sourced from a `BigDecimal` attribute's
-	 * filter index arrive already scaled to an `Integer`, so the index records and evicts them in that same form.
+	 * Verifies that `value` is storable in this index. A value is compatible when it is an instance of the declared
+	 * {@link #valueType}, or of the type that {@link FilterIndex#getNormalizer(Class, int)} encodes that declared
+	 * type into — a scaled `Integer` for a `BigDecimal`, an `Instant` for either date-time type, a
+	 * {@link io.evitadb.dataType.ComparableCurrency} / {@link io.evitadb.dataType.ComparableLocale} for their
+	 * unordered originals.
+	 *
+	 * Both forms are admitted because callers are *required* to hand over the normalized key — the counter and the
+	 * shared value tree must agree on what "the same entry" means, or a ref-count reaches zero while an entry is
+	 * still needed (see {@link #normalizeKey(Serializable, int)}, which every caller routes its key through —
+	 * `ReferencedTypeEntityIndex` and `ReducedGroupEntityIndex` on both the insert and the remove path) — while the
+	 * normalizer's idempotence means a value that was already canonical arrives unchanged and must stay acceptable.
 	 *
 	 * @param value the value to validate
 	 */
 	private void assertValueCompatible(@Nonnull Serializable value) {
 		Assert.isTrue(
 			this.valueType.isInstance(value) ||
-				(BigDecimal.class.isAssignableFrom(this.valueType) && value instanceof Integer),
+				FilterIndex.getNormalizedKeyType(this.valueType).isInstance(value),
 			"Value of type `" + value.getClass() + "` is not compatible with this index that accepts only values of type `" + this.valueType + "`!"
 		);
 	}
@@ -222,9 +302,16 @@ public class AttributeCardinalityIndex
 		final VMLayout layout = VMLayout.current();
 		final long keyShell = layout.sizeOfObject(Integer.BYTES + layout.referenceSize());
 		final long boxedInteger = layout.sizeOfObject(Integer.BYTES);
-		// the valueType / dirty / cardinalities slots
-		return layout.sizeOfObject(3L * layout.referenceSize())
+		// the valueType / dirty / cardinalities / normalizer slots
+		return layout.sizeOfObject(4L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
+			// the cached normalizer is built lazily on the first normalizeKey and is absent until then; when it is
+			// there it costs its own record shell (a scale plus a reference) and the function instance the record
+			// points at. A non-capturing branch of `FilterIndex#getNormalizer` hands out a shared singleton, so
+			// charging it to every holder over-reports - the conservative direction this estimate is required to err in
+			+ (this.normalizer == null ?
+				0L :
+				layout.sizeOfObject(Integer.BYTES + layout.referenceSize()) + layout.sizeOfObject(Integer.BYTES))
 			+ this.cardinalities.getHeapSizeInBytes(
 				key -> keyShell + IndexHeapSize.OWNED_KEY_SIZER.applyAsLong(key.value()),
 				cardinality -> boxedInteger
@@ -265,6 +352,22 @@ public class AttributeCardinalityIndex
 		} else {
 			return this;
 		}
+	}
+
+	/**
+	 * The canonicalizer for incoming keys, paired with the scale it was built at.
+	 *
+	 * Held as one immutable reference rather than two fields so {@link #normalizeKey(Serializable, int)} reads a
+	 * consistent pair without synchronization: a single reference write is atomic, and the record's final fields
+	 * are safely visible even when it is published through a data race.
+	 *
+	 * @param scale    the `indexedDecimalPlaces` this function encodes at
+	 * @param function the canonicalizer itself
+	 */
+	private record CachedNormalizer(
+		int scale,
+		@Nonnull Function<Object, Serializable> function
+	) {
 	}
 
 	/**

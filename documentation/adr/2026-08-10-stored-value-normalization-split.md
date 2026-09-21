@@ -1,7 +1,7 @@
 ---
 title: LocalDateTime is a first-class schema type, and its UTC-anchored Instant encoding lives in the index normalizer
 date: 2026-08-10
-updated: 2026-09-04 07:15
+updated: 2026-09-21 13:30
 status: accepted
 kind: fix
 issues: [1403]
@@ -9,7 +9,7 @@ prs: [1404, 1405]
 areas: [evita_common/src/main/java/io/evitadb/dataType, evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/attribute, evita_engine/src/main/java/io/evitadb/index/attribute, evita_engine/src/main/java/io/evitadb/index/bPlusTree]
 supersedes: []
 superseded-by: []
-relates: [2026-08-05-schema-handling-write-path-optimizations, 2026-09-03-content-sized-value-tree-columns, 2026-09-04-millisecond-temporal-precision]
+relates: [2026-08-05-schema-handling-write-path-optimizations, 2026-09-03-content-sized-value-tree-columns, 2026-09-04-millisecond-temporal-precision, 2026-09-21-cardinality-counter-normalized-keys]
 ---
 
 # `LocalDateTime` keeps its declared type end to end; the UTC anchoring that makes it cheap to index moves into `FilterIndex.getNormalizer`
@@ -219,6 +219,12 @@ the one most likely to be re-proposed and is the one to read this record for.
 - **Invariant for the next person:** any future change to `FilterIndex.getNormalizer` for a type that has already been
   persisted is an on-disk format change, and needs a matching conversion in the BWC reader for the format that wrote
   it. The normalizer is not merely a runtime detail.
+  **Amended 2026-09-21 — the conversion must exist, but the BWC reader is not always where it can live.**
+  [2026-09-21-cardinality-counter-normalized-keys](2026-09-21-cardinality-counter-normalized-keys.md) hit a case
+  where it cannot: a `BigDecimal` key needs `indexedDecimalPlaces` to canonicalize, and a Kryo serializer has no
+  schema to read it from. There the conversion moved up into a storage-protocol migration, which holds both the
+  schema and the sibling index. Read the rule as *the conversion happens once, before anything reads the keys* —
+  the reader is the default site, not the only admissible one.
 - 2026.2 was still in testing when this surfaced, so no catalog in the wild carries an attribute auto-evolved to
   `OffsetDateTime` by the defect. Should a test catalog have one, its schema and index remain internally consistent —
   only the declared type is wrong, and re-evolving it is enough.
@@ -228,6 +234,9 @@ the one most likely to be re-proposed and is the one to read this record for.
 - [2026-08-05-schema-handling-write-path-optimizations](2026-08-05-schema-handling-write-path-optimizations.md)
   — same write path through attribute mutations; that record optimizes how schemas are resolved per mutation, this one
   constrains what a mutation may do to the value on the way through.
+- [2026-09-21-cardinality-counter-normalized-keys](2026-09-21-cardinality-counter-normalized-keys.md)
+  — the same `getNormalizer` seam seen from the other side: this record put a fold *into* it, that one repairs a
+  structure that was never taught to read through it, and departs from the BWC-reader invariant above.
 
 ## Timeline
 

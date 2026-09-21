@@ -236,7 +236,7 @@ public abstract sealed class SortIndex
 	public static Comparator createComparatorFor(@Nullable Locale locale, @Nonnull ComparatorSource comparatorSource) {
 		final Comparator nextComparator = String.class.isAssignableFrom(comparatorSource.type()) ?
 			ofNullable(locale)
-				.map(it -> (Comparator) new LocalizedStringComparator(it))
+				.map(it -> (Comparator) new EqualsConsistentLocalizedStringComparator(it))
 				.orElse(Comparator.naturalOrder()) :
 			Comparator.naturalOrder();
 
