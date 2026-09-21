@@ -28,6 +28,7 @@ import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.filter.NegationResolution;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.utils.Assert;
 
@@ -65,14 +66,9 @@ public class NotTranslator implements FilteringConstraintTranslator<Not> {
 			// `not(or(a, not(b)))`, whose disjunction hands up a placeholder for the very same reason.
 			return nestedNegation.getInnerFormula();
 		}
-		if (filterByVisitor.getProcessingScope().isNegationResolvedPerRow()) {
-			// The scope this runs in produces a candidate index set that its caller re-evaluates row by row, and the
-			// reference type-level index backing it answers only "which reduced indexes hold at least one row
-			// matching X" - so it cannot answer the negation at all: an index holding a row that matches X may hold
-			// another row that does not, and subtracting the matches would drop it. Widening to the super set keeps
-			// every index a candidate and leaves the negation to be settled per row, inside the index it belongs to.
-			// The decision belongs to the caller and not to the index type: a type-level scope whose formula is
-			// consumed as the answer - facet filtering - still needs a real subtraction here.
+		if (filterByVisitor.getProcessingScope().getNegationResolution() == NegationResolution.PER_ROW) {
+			// the caller re-examines every candidate row by row, so widening keeps each one a candidate and leaves
+			// the negation to be settled inside the index it belongs to - see NegationResolution
 			return filterByVisitor.getSuperSetFormula();
 		}
 		return new FutureNotFormula(collectedFormulas[0]);

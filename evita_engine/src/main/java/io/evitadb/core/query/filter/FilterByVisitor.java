@@ -646,7 +646,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		if (foundConstraints.isEmpty()) {
 			return null;
 		} else {
-			return foundConstraints.get(0);
+			return foundConstraints.getFirst();
 		}
 	}
 
@@ -791,7 +791,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	/**
 	 * Returns extension of {@link ProcessingScope} that is set for current context.
 	 *
-	 * @see #executeInContext(Class, Supplier, EntityContentRequire, EntitySchemaContract, ReferenceSchemaContract, NestedQueryRestriction, boolean, EntityNestedQueryComparator, AttributeSchemaAccessor, TriFunction, Supplier, Class[])
+	 * @see #executeInContext(Class, Supplier, EntityContentRequire, EntitySchemaContract, ReferenceSchemaContract, NestedQueryRestriction, NegationResolution, EntityNestedQueryComparator, AttributeSchemaAccessor, TriFunction, Supplier, Class[])
 	 */
 	@Nonnull
 	public ProcessingScope<? extends Index<?>> getProcessingScope() {
@@ -939,9 +939,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				EntityIndexType.REFERENCED_ENTITY_TYPE,
 				missingReferencedIndexSupplier,
 				nestedQueryRestriction,
-				// the result is a candidate index set - every consumer of this method re-evaluates the body
-				// against each candidate afterwards, so a negation inside may safely widen to the super set
-				true
+				// every consumer of this method re-evaluates the body against each candidate afterwards
+				NegationResolution.PER_ROW
 			)
 		);
 
@@ -1108,9 +1107,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			// public entry point - the caller passes the whole filter and holds no key set to narrow it with
 			null,
 			// this formula IS the answer - it is computed right here and translated straight into referenced
-			// entity primary keys, with nothing re-examining the rows afterwards. A negation inside therefore
-			// has to stay a real subtraction; widening it would hand back the whole reference family.
-			false
+			// entity primary keys, with nothing re-examining the rows afterwards
+			NegationResolution.IN_PLACE
 		);
 		// we need to translate entity index primary keys to referenced entity primary keys
 		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
@@ -1135,10 +1133,10 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * @param nestedQueryRestriction             optional narrowing applied to the filter of a nested query planned
 	 *                                           for an {@link EntityHaving} inside `filterBy`; NULL leaves the nested
 	 *                                           filter untouched
-	 * @param negationResolvedPerRow             TRUE when the caller re-evaluates the returned formula per reference
-	 *                                           row, which is what allows a negation inside to widen to the super
-	 *                                           set instead of subtracting - see
-	 *                                           {@code ProcessingScope#isNegationResolvedPerRow()}
+	 * @param negationResolution                 where a negation inside `filterBy` is settled; PER_ROW lets it
+	 *                                           widen to the super set because the caller re-examines every row
+	 *                                           afterwards, IN_PLACE keeps it a real subtraction - see
+	 *                                           {@link NegationResolution}
 	 * @return formula computing matching index primary keys
 	 */
 	@Nonnull
@@ -1150,7 +1148,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex>
 			missingReferencedTypeIndexSupplier,
 		@Nullable NestedQueryRestriction nestedQueryRestriction,
-		boolean negationResolvedPerRow
+		@Nonnull NegationResolution negationResolution
 	) {
 		final String referenceName = referenceSchema.getName();
 		final Set<Scope> scopesToLookUp = this.getProcessingScope().getScopes();
@@ -1190,7 +1188,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 						entitySchema,
 						referenceSchema,
 						nestedQueryRestriction,
-						negationResolvedPerRow,
+						negationResolution,
 						null,
 						getProcessingScope().withReferenceSchemaAccessor(referenceSchema.getName()),
 						(theEntity, attributeName, locale) ->
@@ -1371,7 +1369,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			entitySchema,
 			referenceSchema,
 			nestedQueryRestriction,
-			false,
+			NegationResolution.IN_PLACE,
 			entityNestedQueryComparator,
 			attributeSchemaAccessor,
 			attributeValueAccessor,
@@ -1383,9 +1381,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	/**
 	 * Initializes new set of target {@link ProcessingScope} to be used in the visitor.
 	 *
-	 * @param negationResolvedPerRow TRUE only when the caller re-evaluates the produced formula per reference row,
-	 *                               which is what makes it sound for a negation inside to widen to the super set -
-	 *                               see {@code ProcessingScope#isNegationResolvedPerRow()}
+	 * @param negationResolution where a negation emitted in the new scope is settled - see
+	 *                               {@link NegationResolution}
 	 */
 	@SafeVarargs
 	public final <T, S extends Index<?>> T executeInContextAndIsolatedFormulaStack(
@@ -1395,7 +1392,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nullable EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nullable NestedQueryRestriction nestedQueryRestriction,
-		boolean negationResolvedPerRow,
+		@Nonnull NegationResolution negationResolution,
 		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nonnull TriFunction<EntityContract, String, Locale, Stream<Optional<AttributeValue>>> attributeValueAccessor,
@@ -1412,7 +1409,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				entitySchema,
 				referenceSchema,
 				nestedQueryRestriction,
-				negationResolvedPerRow,
+				negationResolution,
 				entityNestedQueryComparator,
 				attributeSchemaAccessor,
 				attributeValueAccessor,
@@ -1444,7 +1441,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nullable EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nullable NestedQueryRestriction nestedQueryRestriction,
-		boolean negationResolvedPerRow,
+		@Nonnull NegationResolution negationResolution,
 		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nonnull TriFunction<EntityContract, String, Locale, Stream<Optional<AttributeValue>>> attributeValueAccessor,
@@ -1462,7 +1459,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 					entitySchema,
 					referenceSchema,
 					nestedQueryRestriction,
-					negationResolvedPerRow,
+					negationResolution,
 					entityNestedQueryComparator,
 					attributeSchemaAccessor,
 					attributeValueAccessor,
@@ -1881,22 +1878,16 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nullable
 		private final NestedQueryRestriction nestedQueryRestriction;
 		/**
-		 * TRUE when a negation emitted in this scope is resolved again, per reference row, by whoever consumes the
-		 * formula this scope produces.
+		 * Where a negation emitted in this scope is settled - see {@link NegationResolution} for why the answer
+		 * belongs to whoever consumes the formula rather than to the index that produced it.
 		 *
-		 * A {@link ReferencedTypeEntityIndex} answers "which reduced indexes hold at least one row matching X", so it
-		 * cannot answer a negation at all: subtracting its matches from the super set drops every index that holds a
-		 * matching row alongside a non-matching one. Where the formula is only a candidate index set that the
-		 * reference body transposer re-evaluates row by row, answering the negation with the whole super set is
-		 * sound - widening a candidate set never loses a row, and the negation is settled afterwards. Where the
-		 * formula is consumed as the answer, it is not sound, and the negation has to stay a real subtraction.
-		 *
-		 * The flag is carried by the scope rather than derived from {@link #indexType} on purpose: the index type
-		 * says what is being read, never whether anyone re-evaluates the result, and several callers funnel into the
-		 * single site that establishes a type-level scope.
+		 * It is carried by the scope rather than derived from {@link #indexType} on purpose: the index type says what
+		 * is being read, never whether anyone re-evaluates the result, and several callers funnel into the single site
+		 * that establishes a type-level scope.
 		 */
 		@Getter
-		private final boolean negationResolvedPerRow;
+		@Nonnull
+		private final NegationResolution negationResolution;
 		/**
 		 * Comparator that holds information about requested ordering so that we can apply it during entity filtering
 		 * (if it's performed) and pre-initialize it.
@@ -2003,7 +1994,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			this.indexSupplier = null;
 			this.indexes = targetIndexes;
 			// a scope built around a known index list is never the reference type-level discovery pass
-			this.negationResolvedPerRow = false;
+			this.negationResolution = NegationResolution.IN_PLACE;
 		}
 
 		@SafeVarargs
@@ -2015,7 +2006,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			@Nullable EntitySchemaContract entitySchema,
 			@Nullable ReferenceSchemaContract referenceSchema,
 			@Nullable NestedQueryRestriction nestedQueryRestriction,
-			boolean negationResolvedPerRow,
+			@Nonnull NegationResolution negationResolution,
 			@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
 			@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 			@Nonnull TriFunction<EntityContract, String, Locale, Stream<Optional<AttributeValue>>> attributeValueAccessor,
@@ -2038,7 +2029,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			this.referenceSchema = referenceSchema;
 			this.nestedQueryRestriction = nestedQueryRestriction;
 			this.entityNestedQueryComparator = entityNestedQueryComparator;
-			this.negationResolvedPerRow = negationResolvedPerRow;
+			this.negationResolution = negationResolution;
 			this.indexSupplier = targetIndexSupplier;
 			this.referencedEntityExpansionFunction = referencedEntityExpansionFunction;
 			this.indexes = null;
