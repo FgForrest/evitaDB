@@ -536,6 +536,35 @@ class TransactionalBucketBPlusTreeTest {
 		}
 
 		@Test
+		@DisplayName("a tree drained to empty still answers every session-free walk")
+		void shouldAnswerEverySessionFreeWalkOnATreeDrainedToEmpty() {
+			// A full drain collapses the spine level by level, and BOTH merge directions finish by emptying their
+			// donor with `setPeek(-1)` one statement before `consolidate` unlinks it. This is the negative control
+			// for `isEmptiedSubtree`: a legitimately empty leaf carries exactly the `peek == -1` an emptied donor
+			// does, so a walk that steps over emptied subtrees must still answer `0` here rather than skipping its
+			// way into a wrong answer or failing outright. `shouldConsolidateOnDeletes` drains only half the
+			// buckets, and `shouldDeleteMultiBucketWhenEmptied` drains fully but never walks afterwards.
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			for (int i = 1; i <= 30; i++) {
+				tree.addRecord(i, i * 10);
+			}
+			assertEquals(30, tree.recordCount(), "the fixture must fill the tree before it drains it");
+			for (int i = 1; i <= 30; i++) {
+				tree.removeRecord(i, i * 10);
+			}
+
+			assertEquals(0, tree.size(), "every bucket was removed");
+			assertEquals(0, tree.recordCount(), "the forward walk must reach the end of a drained tree");
+			assertFalse(tree.cursor().next(), "the forward cursor must be exhausted immediately");
+			assertFalse(tree.reverseCursor().next(), "the reverse cursor must be exhausted immediately");
+			assertFalse(tree.cursor(1).next(), "the keyed cursor must be exhausted immediately");
+			assertTrue(
+				tree.getHeapSizeInBytes(element -> 0L) > 0,
+				"the heap walk must still price a drained tree rather than fail on it"
+			);
+		}
+
+		@Test
 		@DisplayName("collapses tree structure as buckets are deleted")
 		void shouldConsolidateOnDeletes() {
 			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
@@ -4958,6 +4987,163 @@ class TransactionalBucketBPlusTreeTest {
 				expectedAnchor, tree.computePreviousRecord(probeKey, probeKey * 10),
 				"the climb must address the child array the cursor level captured, not the peek that ran ahead of it"
 			);
+		}
+
+		/**
+		 * Builds a tree whose root is internal and whose children are internal nodes in turn, so a whole subtree can
+		 * be emptied beneath it.
+		 *
+		 * @param recordCount the number of records to insert
+		 * @return the tree
+		 */
+		@Nonnull
+		private TransactionalBucketBPlusTree<Integer> deepTree(int recordCount) {
+			final TransactionalBucketBPlusTree<Integer> tree =
+				new TransactionalBucketBPlusTree<>(3, 1, 3, 1, Integer.class, null);
+			for (int i = 0; i < recordCount; i++) {
+				tree.addRecord(i, (i + 1) * 10);
+			}
+			assertTrue(tree.isRootInternal(), "the fixture needs a spine to empty a node inside");
+			return tree;
+		}
+
+		/**
+		 * Builds a tree whose root is internal and whose children are LEAVES, so the emptied donor of a leaf merge
+		 * can be reached directly under the root.
+		 *
+		 * @return the tree, holding the keys `0 .. size() - 1`
+		 */
+		@Nonnull
+		private TransactionalBucketBPlusTree<Integer> shallowTree() {
+			final TransactionalBucketBPlusTree<Integer> tree =
+				new TransactionalBucketBPlusTree<>(3, 1, 3, 1, Integer.class, null);
+			for (int i = 0; i < 100; i++) {
+				tree.addRecord(i, (i + 1) * 10);
+				if (tree.getRoot() instanceof BPlusInternalTreeNode<?> internal
+					&& internal.getPeek() >= 2 && internal.getChildren()[0] instanceof BPlusLeafTreeNode<?>) {
+					return tree;
+				}
+			}
+			throw new IllegalStateException("the fixture never grew a root with three leaf children");
+		}
+
+		/**
+		 * Empties the root child at `victimIndex` while the root still references it — the state `consolidate` leaves
+		 * behind between `mergeWithLeft` and `removeChildOnIndex` — and asserts both session-free walks step over it.
+		 *
+		 * @param tree        the tree to damage, holding the dense key range `0 .. recordCount - 1`
+		 * @param recordCount the number of keys the healthy tree holds
+		 * @param victimIndex the index of the root child to empty
+		 */
+		private void assertWalksSurviveAnEmptiedChild(
+			@Nonnull TransactionalBucketBPlusTree<Integer> tree,
+			int recordCount,
+			int victimIndex
+		) {
+			@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> root =
+				(BPlusInternalTreeNode<Integer>) tree.getRoot();
+			assertTrue(root.getPeek() >= victimIndex, "the root must actually have a child at that index");
+			final BPlusTreeNode<Integer, ?>[] rootChildren = root.getChildren();
+			final BPlusTreeNode<Integer, ?> victim = rootChildren[victimIndex];
+
+			// the key range the emptied child owns, read while it still has content to answer for it
+			final int victimLowerBound = victim.getLeftBoundaryKey();
+			final int victimUpperBound = victimIndex < root.getPeek()
+				? rootChildren[victimIndex + 1].getLeftBoundaryKey() : Integer.MAX_VALUE;
+			final List<Integer> expectedAfterUnlink = new ArrayList<>(recordCount);
+			for (int i = 0; i < recordCount; i++) {
+				if (i < victimLowerBound || i >= victimUpperBound) {
+					expectedAfterUnlink.add(i);
+				}
+			}
+			assertFalse(expectedAfterUnlink.isEmpty(), "emptying one child must not empty the whole tree");
+			assertTrue(
+				expectedAfterUnlink.size() < recordCount, "the emptied child must actually own some of the keys"
+			);
+			assertEquals(recordCount, tree.recordCount(), "the healthy count must see every record");
+
+			// `setPeek(-1)` is exactly what both merge directions perform on their donor - for an internal node down
+			// to nulling its whole child array, for a leaf down to emptying all four columns - and outside a
+			// transaction it takes the same `layer == null` arm the warm-up delete path takes
+			victim.setPeek(-1);
+			assertEquals(-1, victim.getPeek(), "the fixture must leave the victim with nothing live");
+			assertSame(
+				victim, root.getChildren()[victimIndex],
+				"the parent must still reference the emptied node - that window IS the defect"
+			);
+
+			// `recordCount()` is documented as advisory and, explicitly, as a walk that must not FAIL. The emptied
+			// child contributes nothing, so the honest answer under-reports by exactly its own range
+			assertEquals(
+				expectedAfterUnlink.size(), tree.recordCount(),
+				"the session-free count must step over the child being unlinked, not fail on it"
+			);
+
+			final List<Integer> forward = new ArrayList<>(recordCount);
+			final BucketCursor<Integer> cursor = tree.cursor();
+			while (cursor.next()) {
+				forward.add(cursor.value());
+			}
+			assertEquals(expectedAfterUnlink, forward, "the forward walk must step over the emptied child");
+
+			final List<Integer> reverse = new ArrayList<>(recordCount);
+			final BucketCursor<Integer> reverseCursor = tree.reverseCursor();
+			while (reverseCursor.next()) {
+				reverse.add(reverseCursor.value());
+			}
+			final List<Integer> expectedReverse = new ArrayList<>(expectedAfterUnlink);
+			Collections.reverse(expectedReverse);
+			assertEquals(expectedReverse, reverse, "the reverse walk must step over the emptied child");
+		}
+
+		@Test
+		@DisplayName("a walk whose FIRST subtree is being unlinked under-reports it instead of failing")
+		void shouldWalkPastAnEmptiedLeftmostSubtreeTheParentStillReferences() {
+			// `consolidate` empties the donor of a merge BEFORE unlinking it: `mergeWithLeft` ends with
+			// `previousNode.setPeek(-1)`, which for an internal donor also nulls its whole child array, and only the
+			// NEXT statement calls `parent.removeChildOnIndex`. Between those two the parent still points at a node
+			// with no children, and a session-free reader that read the parent's array a moment earlier walks
+			// straight into it - no reordering required, just the window between two plain stores.
+			//
+			// `recordCount()` is the walk that reaches this with no session and no catalog-state guard, and its
+			// contract is explicit: the count is advisory and may under-report, but it must not FAIL. The asymmetry
+			// that breaks it is that `observableInternalPeek` answers `-1` for an emptied node and the descents then
+			// use that answer as an INDEX, where `getHeapSizeInBytes` and `trimmed()` survive the same `-1` by
+			// consuming it as a loop bound a negative count simply skips.
+			//
+			// At index 0 the leftmost descent itself lands inside the emptied node, so the forward walk fails while
+			// the cursor is still being built
+			assertWalksSurviveAnEmptiedChild(deepTree(40), 40, 0);
+		}
+
+		@Test
+		@DisplayName("a walk whose LAST subtree is being unlinked under-reports it instead of failing")
+		void shouldWalkPastAnEmptiedRightmostSubtreeTheParentStillReferences() {
+			// the mirror of the test above: at the rightmost index the leftmost descent succeeds and the forward walk
+			// only meets the emptied node when it steps into it, while the REVERSE cursor's initial descent lands in
+			// it directly. Both directions therefore have to survive both an initial descent and a step
+			assertWalksSurviveAnEmptiedChild(deepTree(40), 40, 1);
+		}
+
+		@Test
+		@DisplayName("a walk over a leaf being unlinked under-reports it instead of failing")
+		void shouldWalkPastAnEmptiedLeafTheParentStillReferences() {
+			// the leaf half of the same window: `BPlusLeafTreeNode#mergeWithLeft` and `#mergeWithRight` empty their
+			// donor with the same `setPeek(-1)` (which empties all four of its columns) and are unlinked by the same
+			// following statement. The failure here is quieter than the internal one - no index runs negative, the
+			// leaf simply reports `leafPeek < 0` and a walk that reads that as "the tree ends here" loses every
+			// bucket AFTER the donor as well as the donor itself
+			final TransactionalBucketBPlusTree<Integer> probe = shallowTree();
+			final int recordCount = probe.recordCount();
+			@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> probeRoot =
+				(BPlusInternalTreeNode<Integer>) probe.getRoot();
+			final int childCount = probeRoot.getPeek() + 1;
+			assertTrue(childCount >= 3, "the fixture needs a MIDDLE leaf, not only a first and a last one");
+			for (int victimIndex = 0; victimIndex < childCount; victimIndex++) {
+				// a fresh tree per victim: emptying a child is not undone, and every position has to be swept -
+				// the first and the last are met by an initial descent, the middle ones only by a step
+				assertWalksSurviveAnEmptiedChild(shallowTree(), recordCount, victimIndex);
+			}
 		}
 	}
 }

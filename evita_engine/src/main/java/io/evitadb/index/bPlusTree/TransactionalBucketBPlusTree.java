@@ -556,8 +556,18 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		final BPlusTreeNode<M, ?>[] children = currentNode.getChildren();
 		// the captured `peek` is what the cursor later indexes `children` by, so it is bounded by that same array -
 		// this descent backs `recordCount()`, the one walk reachable with no session at all
-		path.add(new CursorLevel<>(children, 0, observableInternalPeek(currentNode.getPeek(), children)));
-		if (children[0] instanceof BPlusInternalTreeNode<?> childInternalNode) {
+		final int nodePeek = observableInternalPeek(currentNode.getPeek(), children);
+		// step over any LEADING child that is being unlinked - see `isEmptiedSubtree`. Skipping here rather than
+		// truncating the descent is what keeps the path at full depth: the cursor's level arrays are sized from this
+		// list and a short one cannot re-descend afterwards. A single merge empties a single node, so the loop stops
+		// on a live child; a node whose every child were emptied would leave the descent parked on the last one,
+		// which `ForwardBucketCursor#loadCurrentLeaf` then answers as an empty level
+		int index = 0;
+		while (index < nodePeek && isEmptiedSubtree(children[index])) {
+			index++;
+		}
+		path.add(new CursorLevel<>(children, index, nodePeek));
+		if (nodePeek >= 0 && children[index] instanceof BPlusInternalTreeNode<?> childInternalNode) {
 			//noinspection unchecked
 			addLeftmostCursorLevels((BPlusInternalTreeNode<M>) childInternalNode, path);
 		}
@@ -575,10 +585,16 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	) {
 		final BPlusTreeNode<M, ?>[] children = currentNode.getChildren();
 		// `peek` doubles as the index of the rightmost child here, so it MUST be bounded by the array this level
-		// captured rather than trusted on its own - the two are read independently
+		// captured rather than trusted on its own - the two are read independently - and an emptied node's -1 must
+		// never reach the array at all. The mirror of `addLeftmostCursorLevels`: park on the last live child and
+		// step over any TRAILING one being unlinked
 		final int currentNodePeek = observableInternalPeek(currentNode.getPeek(), children);
-		path.add(new CursorLevel<>(children, currentNodePeek, currentNodePeek));
-		if (children[currentNodePeek] instanceof BPlusInternalTreeNode<?> childInternalNode) {
+		int index = Math.max(0, currentNodePeek);
+		while (index > 0 && isEmptiedSubtree(children[index])) {
+			index--;
+		}
+		path.add(new CursorLevel<>(children, index, currentNodePeek));
+		if (currentNodePeek >= 0 && children[index] instanceof BPlusInternalTreeNode<?> childInternalNode) {
 			//noinspection unchecked
 			addRightmostCursorLevels((BPlusInternalTreeNode<M>) childInternalNode, path);
 		}
@@ -2547,6 +2563,30 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Nonnull BPlusTreeNode<M, ?>[] children
 	) {
 		return Math.min(peek, children.length - 1);
+	}
+
+	/**
+	 * Whether a child holds nothing a reader may descend into — it is `null`, or its `peek` says it has no live
+	 * content at all.
+	 *
+	 * **A `peek` of `-1` is not a torn count but an EMPTIED node**, and that is a different thing from everything
+	 * {@link #observableInternalPeek} guards. Both merge directions end by emptying the donor —
+	 * {@link BPlusInternalTreeNode#mergeWithLeft}, {@link BPlusLeafTreeNode#mergeWithLeft} and their `Right` twins
+	 * all finish with `setPeek(-1)`, which for an internal donor also nulls its whole child array — and only the
+	 * **next** statement in `consolidate` calls `removeChildOnIndex` to unlink it. Between those two the parent still
+	 * references a node with no children, and reaching it needs no reordering at all: a session-free reader that read
+	 * the parent's array before the unlink and the donor's `peek` after the emptying is a plain interleaving.
+	 *
+	 * Every walk that meets one steps **over** it. The subtree contributes nothing, so the count under-reports by
+	 * whatever the delete had not finished unlinking — the same staleness {@link #recordCount()} is documented to
+	 * accept on the grow side, where descending into the node instead fails outright with an
+	 * {@link ArrayIndexOutOfBoundsException} or a nulled slot.
+	 *
+	 * @param node the child about to be descended into
+	 * @return true when nothing beneath this child can be reached
+	 */
+	private static <M extends Comparable<M>> boolean isEmptiedSubtree(@Nullable BPlusTreeNode<M, ?> node) {
+		return node == null || node.getPeek() < 0;
 	}
 
 	/**
@@ -7701,8 +7741,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				this.pathPeeks[i] = cursorLevel.peek();
 			}
 			loadCurrentLeaf();
+			// the leftmost descent can end inside a node being unlinked from its parent, which leaves no leaf at the
+			// bottom of the path. Stepping over that subtree keeps the under-report proportional to it, instead of
+			// reporting the WHOLE tree empty because its first subtree happened to be mid-merge
+			this.exhausted = this.leafPeek < 0 && !moveToNextLeaf();
+			// set AFTER the recovery step too: that step parks on the first bucket, and the first `next()` is the
+			// call that is supposed to land on it
 			this.currentIndex = -1;
-			this.exhausted = this.leafPeek < 0;
 		}
 
 		ForwardBucketCursor(@Nonnull Cursor<M> cursor, @Nonnull M key) {
@@ -7810,9 +7855,17 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		private void loadCurrentLeaf() {
+			final BPlusTreeNode<M, ?> bottom =
+				this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]];
+			// a descent that stopped inside an EMPTIED node parks on a slot that node has already nulled, so the
+			// bottom of the path holds no leaf at all. An empty `leafPeek` is this level's own way of saying so, and
+			// every value accessor on the cursor is gated on `positioned`, which such a level never becomes
+			if (!(bottom instanceof BPlusLeafTreeNode)) {
+				this.leafPeek = -1;
+				return;
+			}
 			//noinspection unchecked
-			final BPlusLeafTreeNode<M> leaf =
-				(BPlusLeafTreeNode<M>) this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]];
+			final BPlusLeafTreeNode<M> leaf = (BPlusLeafTreeNode<M>) bottom;
 			this.leafKeys = leaf.getKeyColumn();
 			this.leafRecords = leaf.getRecords();
 			this.leafOverflow = leaf.getOverflow();
@@ -7830,22 +7883,40 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (this.pathIndex[level] < this.pathPeeks[level]) {
 					this.pathIndex[level] = this.pathIndex[level] + 1;
 					BPlusTreeNode<?, ?> currentNode = this.path[level][this.pathIndex[level]];
+					boolean emptySubtree = false;
 					for (int i = level + 1; i <= this.path.length - 1; i++) {
 						Assert.isPremiseValid(
 							currentNode instanceof BPlusInternalTreeNode, "Internal node expected!");
 						//noinspection unchecked
 						final BPlusTreeNode<M, ?>[] levelChildren =
 							((BPlusInternalTreeNode<M>) currentNode).getChildren();
-						this.path[i] = levelChildren;
-						this.pathIndex[i] = 0;
 						// the pair (array, peek) is stored here and consumed by a LATER call, so a stale peek would
 						// surface far from this line - bound it against the array it is stored beside
-						this.pathPeeks[i] = observableInternalPeek(currentNode.getPeek(), levelChildren);
+						final int levelPeek = observableInternalPeek(currentNode.getPeek(), levelChildren);
+						if (levelPeek < 0) {
+							// an EMPTIED node: `mergeWithLeft` set the donor's peek to -1 and nulled its children,
+							// and the statement that unlinks it from its parent has not run yet. Its subtree holds
+							// nothing this reader may address, so the walk abandons this sibling and takes the next
+							// one - the same under-report the column bounds produce, never a failure
+							emptySubtree = true;
+							break;
+						}
+						this.path[i] = levelChildren;
+						this.pathIndex[i] = 0;
+						this.pathPeeks[i] = levelPeek;
 						currentNode = levelChildren[0];
 					}
-					this.currentIndex = 0;
-					loadCurrentLeaf();
-					return this.leafPeek >= 0;
+					if (!emptySubtree) {
+						this.currentIndex = 0;
+						loadCurrentLeaf();
+						if (this.leafPeek >= 0) {
+							return true;
+						}
+					}
+					// the sibling is being unlinked - an emptied internal node broke the descent above, or the leaf
+					// it led to is itself an emptied merge donor. Take the NEXT sibling rather than ending the walk
+					// here, so the under-report stays proportional to the subtree instead of losing the whole tail
+					continue;
 				} else {
 					level--;
 					parentLevel = level > 0 ? this.path[level] : null;
@@ -7883,7 +7954,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				this.pathIndex[i] = cursorLevel.index();
 			}
 			loadCurrentLeaf();
-			this.exhausted = this.leafPeek < 0;
+			// the rightmost descent can end inside a node being unlinked from its parent - see the forward cursor's
+			// constructor for the whole argument; here the recovery steps to the PREVIOUS subtree
+			this.exhausted = this.leafPeek < 0 && !moveToPrevLeaf();
 		}
 
 		@Override
@@ -7969,9 +8042,17 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		private void loadCurrentLeaf() {
+			final BPlusTreeNode<M, ?> bottom =
+				this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]];
+			// a descent that stopped inside an EMPTIED node parks on a slot that node has already nulled, so the
+			// bottom of the path holds no leaf at all. An empty `leafPeek` is this level's own way of saying so, and
+			// every value accessor on the cursor is gated on `positioned`, which such a level never becomes
+			if (!(bottom instanceof BPlusLeafTreeNode)) {
+				this.leafPeek = -1;
+				return;
+			}
 			//noinspection unchecked
-			final BPlusLeafTreeNode<M> leaf =
-				(BPlusLeafTreeNode<M>) this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]];
+			final BPlusLeafTreeNode<M> leaf = (BPlusLeafTreeNode<M>) bottom;
 			this.leafKeys = leaf.getKeyColumn();
 			this.leafRecords = leaf.getRecords();
 			this.leafOverflow = leaf.getOverflow();
@@ -7989,20 +8070,34 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (this.pathIndex[level] > 0) {
 					this.pathIndex[level] = this.pathIndex[level] - 1;
 					BPlusTreeNode<M, ?> currentNode = this.path[level][this.pathIndex[level]];
+					boolean emptySubtree = false;
 					for (int i = level + 1; i <= this.pathIndex.length - 1; i++) {
 						Assert.isPremiseValid(currentNode instanceof BPlusInternalTreeNode, "Internal node expected!");
 						//noinspection unchecked
 						final BPlusTreeNode<M, ?>[] levelChildren =
 							((BPlusInternalTreeNode<M>) currentNode).getChildren();
-						this.path[i] = levelChildren;
 						// `peek` is the rightmost child's index and is dereferenced on the very next line, against an
 						// array read a moment earlier - bound it by that array
-						this.pathIndex[i] = observableInternalPeek(currentNode.getPeek(), levelChildren);
-						currentNode = levelChildren[this.pathIndex[i]];
+						final int levelPeek = observableInternalPeek(currentNode.getPeek(), levelChildren);
+						if (levelPeek < 0) {
+							// an EMPTIED node, exactly as in `ForwardBucketCursor#moveToNextLeaf`: abandon this
+							// sibling and take the previous one rather than indexing `children[-1]`
+							emptySubtree = true;
+							break;
+						}
+						this.path[i] = levelChildren;
+						this.pathIndex[i] = levelPeek;
+						currentNode = levelChildren[levelPeek];
 					}
-					loadCurrentLeaf();
-					this.currentIndex = this.leafPeek;
-					return this.leafPeek >= 0;
+					if (!emptySubtree) {
+						loadCurrentLeaf();
+						this.currentIndex = this.leafPeek;
+						if (this.leafPeek >= 0) {
+							return true;
+						}
+					}
+					// see `ForwardBucketCursor#moveToNextLeaf`: take the PREVIOUS sibling rather than ending the walk
+					continue;
 				} else {
 					level--;
 					parentLevel = level > 0 ? this.path[level] : null;
