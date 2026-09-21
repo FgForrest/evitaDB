@@ -155,7 +155,7 @@ import static io.evitadb.utils.Assert.isPremiseValid;
  * indexing level or component in the given scope, used heavily as guards throughout the other methods.
  *
  * **Reduced-index membership maintenance** — `recordOwnerEnteredReducedIndex`,
- * `recordOwnerLeftReducedIndex`, `isReducedIndexMembershipMaintained`, `seedFromAdvertisedIndexes`,
+ * `recordOwnerLeftReducedIndex`, `isReducedIndexMembershipUnmaintained`, `seedFromAdvertisedIndexes`,
  * `hasReducedIndexMembership`: keep the reverse lookup that the cross-entity conditional-facet trigger and
  * reference index selection consult ({@link io.evitadb.index.membership.ReducedIndexMembership}) in step with
  * the reduced indexes the lifecycle operations above have just changed. Both boundaries are gated on
@@ -1298,7 +1298,7 @@ public interface ReferenceIndexMutator {
 		int entityPrimaryKey
 	) {
 		final Scope scope = executor.getScope();
-		if (!isReducedIndexMembershipMaintained(referenceSchema, scope)) {
+		if (isReducedIndexMembershipUnmaintained(referenceSchema, scope)) {
 			return;
 		}
 		final GlobalEntityIndex globalIndex = resolveGlobalIndex(executor, scope);
@@ -1314,23 +1314,28 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Tells whether the reverse lookup of this reference is kept current in this scope — the gate both
+	 * Tells whether the reverse lookup of this reference is **not** kept current in this scope — the bail-out both
 	 * maintenance boundaries open with.
 	 *
-	 * It reads the schema and nothing else, which is what makes maintenance stoppable only at a schema change —
-	 * see {@link #recordOwnerEnteredReducedIndex} for where a lookup nothing maintains any more is dropped. The
-	 * decision itself belongs to {@link ReducedIndexMembership#isMaintainedFor}, shared with
-	 * `EntityCollection`'s load-time build and schema-change discard so the three cannot drift apart.
+	 * Stated negatively because that is the only way either call site asks it: a reference advertising no reduced
+	 * index has nothing to record, and the boundary returns at once. It reads the schema and nothing else, which is
+	 * what makes maintenance stoppable only at a schema change — see {@link #recordOwnerEnteredReducedIndex} for
+	 * where a lookup nothing maintains any more is dropped.
+	 *
+	 * The decision itself belongs to {@link ReducedIndexMembership#isMaintainedFor}, shared with
+	 * `EntityCollection`'s load-time build and schema-change discard so the three cannot drift apart. This method is
+	 * that predicate negated and nothing besides — the polarity is local to the two guards below, never a second
+	 * opinion about which references are maintained.
 	 *
 	 * @param referenceSchema schema of the reference whose lookup would be maintained
 	 * @param scope           the scope the write lands in
-	 * @return `true` when a write to this reference has to be recorded into the lookup
+	 * @return `true` when a write to this reference need not be recorded into the lookup
 	 */
-	private static boolean isReducedIndexMembershipMaintained(
+	private static boolean isReducedIndexMembershipUnmaintained(
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Scope scope
 	) {
-		return ReducedIndexMembership.isMaintainedFor(referenceSchema, scope);
+		return !ReducedIndexMembership.isMaintainedFor(referenceSchema, scope);
 	}
 
 	/**
@@ -1439,7 +1444,7 @@ public interface ReferenceIndexMutator {
 		int entityPrimaryKey
 	) {
 		final Scope scope = executor.getScope();
-		if (!isReducedIndexMembershipMaintained(referenceSchema, scope)) {
+		if (isReducedIndexMembershipUnmaintained(referenceSchema, scope)) {
 			return;
 		}
 		if (!hasReducedIndexMembership(executor, referenceSchema, scope)) {
