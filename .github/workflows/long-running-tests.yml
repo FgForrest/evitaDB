@@ -60,6 +60,8 @@ jobs:
           path: 'evita*/**/target/surefire-reports/TEST-*.xml'
           retention-days: 14
 
-      - name: Publish Test Report
+      - name: Publish Test Report   # the check name carries the matrix leg, so the four legs publish four checks
         uses: ./.github/actions/publish-test-report
         if: ${{ env.NEW_COMMIT_COUNT != '0' && always() }}
+        with:
+          check_name: 'JUnit Test Report (${{ matrix.os }}, ${{ matrix.arch }})'

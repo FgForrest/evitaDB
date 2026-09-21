@@ -49,6 +49,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Isolated;
 
 import javax.annotation.Nonnull;
 import java.io.OutputStream;
@@ -120,6 +121,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("gRPC fetchFile must not buffer a whole file for a client that stops consuming")
+// this class asserts on a PROCESS-WIDE measurement - heap plus the direct buffer pool, sampled before and after
+// the settle window - so any test sharing the fork lands inside its delta. The long-running module runs classes
+// concurrently (`<parallel>all</parallel>`, `threadCount` 4, in this module's `longRunning` profile) and several
+// of its neighbours build sizeable in-memory catalogs, which is enough to clear the 32 MB limit on its own.
+// `@Isolated` gives the class exclusive use of the fork for its duration, so the delta measures this handler and
+// nothing else
+@Isolated
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
 @Tag(GRPC)
