@@ -21,6 +21,7 @@
  *   limitations under the License.
  */
 
+
 package io.evitadb.store.index.serializer;
 
 import com.esotericsoftware.kryo.Kryo;
@@ -37,39 +38,33 @@ import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
 import java.util.Map;
-import java.util.Map.Entry;
-
-import static java.util.Optional.ofNullable;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link AttributeCardinalityIndex} from/to binary format.
+ * Reads an {@link AttributeCardinalityIndex} written before its counter keys were canonicalized.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * Parts of this vintage store each key's value with `kryo.writeObject` and therefore read it back as the
+ * index's DECLARED {@link AttributeCardinalityIndex#getValueType()} — the value is not self-describing. That
+ * was sound only while the stored key was always an instance of the declared type, which is exactly what
+ * stopped being true when the counter began keying on the normalized value (a `BigDecimal`-typed index now
+ * holds a scaled `Integer`, an `OffsetDateTime`-typed one an `Instant`). The current serializer therefore
+ * writes the concrete class alongside each value, mirroring `HistogramCardinalityStoragePartSerializer`, and
+ * this reader survives only to parse what the older writer left behind.
+ *
+ * The keys it returns are RAW, un-normalized values. They are re-keyed by the storage-protocol 6 → 7
+ * migration, which owns the attribute schema and therefore the scale the normalizer needs; this reader
+ * deliberately does not attempt it, having no access to either.
+ *
+ * @deprecated only for backward compatibility purposes
+ * @author Claude (defect A investigation), FG Forrest a.s. (c) 2026
  */
+@Deprecated(since = "2026.3", forRemoval = true)
 @RequiredArgsConstructor
-public class AttributeCardinalityIndexStoragePartSerializer extends Serializer<AttributeCardinalityIndexStoragePart> {
+public class AttributeCardinalityIndexStoragePartSerializer_2026_2 extends Serializer<AttributeCardinalityIndexStoragePart> {
 	private final KeyCompressor keyCompressor;
 
 	@Override
 	public void write(Kryo kryo, Output output, AttributeCardinalityIndexStoragePart storagePart) {
-		output.writeInt(storagePart.getEntityIndexPrimaryKey());
-		final long uniquePartId = ofNullable(storagePart.getStoragePartPK()).orElseGet(() -> storagePart.computeUniquePartIdAndSet(this.keyCompressor));
-		output.writeVarLong(uniquePartId, true);
-		output.writeVarInt(this.keyCompressor.getId(storagePart.getAttributeIndexKey()), true);
-
-		final AttributeCardinalityIndex cardinalityIndex = storagePart.getCardinalityIndex();
-		kryo.writeClass(output, cardinalityIndex.getValueType());
-		final Map<AttributeCardinalityKey, Integer> cardinalities = cardinalityIndex.getCardinalities();
-		output.writeVarInt(cardinalities.size(), true);
-		for (Entry<AttributeCardinalityKey, Integer> entry : cardinalities.entrySet()) {
-			// the key value is self-describing: the counter stores the NORMALIZED key, whose class need not be the
-			// declared value type (a BigDecimal-typed index holds a scaled Integer, an OffsetDateTime-typed one an
-			// Instant), so the concrete runtime type is written alongside the value — as
-			// `HistogramCardinalityStoragePartSerializer` already does for the very same structure
-			kryo.writeClassAndObject(output, entry.getKey().value());
-			output.writeVarInt(entry.getKey().recordId(), false);
-			output.writeVarInt(entry.getValue(), true);
-		}
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override
@@ -82,7 +77,7 @@ public class AttributeCardinalityIndexStoragePartSerializer extends Serializer<A
 		final int cardinalityCount = input.readVarInt(true);
 		final Map<AttributeCardinalityKey, Integer> cardinalities = CollectionUtils.createHashMap(cardinalityCount);
 		for (int i = 0; i < cardinalityCount; i++) {
-			final Serializable value = (Serializable) kryo.readClassAndObject(input);
+			final Serializable value = kryo.readObject(input, valueType);
 			final int recordId = input.readVarInt(false);
 			final int cardinality = input.readVarInt(true);
 			cardinalities.put(new AttributeCardinalityKey(recordId, value), cardinality);

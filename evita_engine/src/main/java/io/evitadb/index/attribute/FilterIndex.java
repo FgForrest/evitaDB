@@ -67,6 +67,7 @@ import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.text.Normalizer;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -323,6 +324,37 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		} else {
 			throw new EvitaInvalidUsageException(
 				"Unsupported attribute type `" + attributeType + "`! The type is not comparable!");
+		}
+	}
+
+	/**
+	 * Returns the type an index key of `attributeType` actually has once {@link #getNormalizer(Class, int)} has
+	 * canonicalized it — which for several attribute types is **not** `attributeType` itself: a `BigDecimal` is
+	 * encoded as a scaled {@link Integer}, the two date-time types are anchored to an {@link Instant}, and
+	 * `Currency` / `Locale` are wrapped in their order-defining counterparts.
+	 *
+	 * This exists so that anything validating or declaring the *stored key* type reads the mapping from the same
+	 * place the normalizer is defined. Keeping the two side by side is the point: they are a matched pair, and a
+	 * type added to one branch and forgotten in the other silently rejects (or silently mis-declares) a value the
+	 * normalizer legitimately produces.
+	 *
+	 * @param attributeType declared type of the attribute
+	 * @return the type its normalized index key has
+	 */
+	@Nonnull
+	public static Class<?> getNormalizedKeyType(@Nonnull Class<?> attributeType) {
+		if (OffsetDateTime.class.isAssignableFrom(attributeType) || LocalDateTime.class.isAssignableFrom(attributeType)) {
+			return Instant.class;
+		} else if (Currency.class.isAssignableFrom(attributeType)) {
+			return ComparableCurrency.class;
+		} else if (Locale.class.isAssignableFrom(attributeType)) {
+			return ComparableLocale.class;
+		} else if (BigDecimal.class.isAssignableFrom(attributeType)) {
+			return Integer.class;
+		} else {
+			// every remaining branch of `getNormalizer` is type-preserving: `String` is only re-composed to NFD,
+			// a `BigDecimalNumberRange` is rebuilt as a range, and the rest pass through untouched
+			return attributeType;
 		}
 	}
 
