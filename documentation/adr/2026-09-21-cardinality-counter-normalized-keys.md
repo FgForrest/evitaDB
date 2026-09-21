@@ -1,11 +1,11 @@
 ---
-title: One filter-index entry has one identity, and the counter, the array write path and the localized key order now all use it
+title: One filter-index entry has one identity, and everything that describes an entry now uses it
 date: 2026-09-21
-updated: 2026-09-21 15:35
+updated: 2026-09-21 16:35
 status: accepted
 kind: fix
 issues: [1620]
-prs: []
+prs: [1621]
 areas: [evita_engine/src/main/java/io/evitadb/index/cardinality, evita_engine/src/main/java/io/evitadb/index/attribute, evita_common/src/main/java/io/evitadb/comparator, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog, evita_store/evita_store_server/src/main/java/io/evitadb/store/index/serializer]
 supersedes: []
 superseded-by: []
@@ -37,10 +37,28 @@ something still needed it, or a removal that fails an internal premise over perf
 The unifying rule, which was written down nowhere before this record: **a structure that describes filter-index
 entries must derive its notion of identity from the index, never from the raw value and never from `equals` alone.**
 
+> ## ⚠️ BREAKING CHANGE — reindex localized `String` attributes after upgrading to protocol 7
+>
+> Fix (3) narrows what counts as one value for a **localized `String`** attribute, and that is user-visible.
+> `attributeEquals("ab")` previously matched a stored `"a<ZWSP>b"` and no longer does; the same applies to
+> `attributeInSet`, `attributeBetween` and the ordering comparisons. For data written by this version that is
+> simply the new, exact semantics.
+>
+> **For data written BEFORE it, such values are wrong until the collection is reindexed.** A pre-upgrade engine
+> merged the two spellings into one bucket keyed by whichever arrived first, so after the upgrade a record filed
+> under the other spelling is returned for a value it does not hold, withheld for the value it does, and cannot
+> be removed. Worse, the two query paths disagree about it — the index path yields the record while the prefetch
+> path rejects it — so the answer depends on whether the planner prefetched.
+>
+> The trigger is narrow: two values of one localized `String` attribute differing ONLY in characters the
+> collation ignores (zero-width space, zero-width joiner, directional marks, control characters — soft hyphen,
+> NBSP, BOM and case are all distinguished). But there is **no cheap way to detect it**, so operators must be
+> told rather than screened. See *Consequences* for why no diagnostic was built.
+
 ## Why
 
 `FilterIndex.getNormalizer(plainType, indexedDecimalPlaces)` is the single seam every consumer of an attribute
-index reads its keys through, and on four of its branches it is **many-to-one by design**: a `BigDecimal` becomes
+index reads its keys through, and on four of its RELEASED branches it is **many-to-one by design**: a `BigDecimal` becomes
 an order-preserving scaled `int`, a `BigDecimalNumberRange` has its thresholds rescaled to the same scale, a
 `String` becomes Unicode NFD, and an `OffsetDateTime` becomes an `Instant` that discards the offset. That is the
 point of it — canonical equivalence is a feature, and the shared value tree holds one entry per canonical key.
@@ -158,7 +176,9 @@ Scan the counters at load, and fail the catalog with a diagnostic naming the aff
 
 The two whole-value array loops keep the FIRST RAW element per distinct key; the two delta loops instead
 `Assert.isPremiseValid` that the incoming array names each key at most once. The unique indexes fold their arrays
-onto distinct values through one shared helper.
+onto distinct values through one shared helper — which measures identity with the tree's **comparator**, not with
+`equals` as the filter fold does, because a unique tree holds RAW values under no normalizer and only the
+comparator knows `1.0` and `1.00` are two keys.
 
 - **Pros:** fixes the primitive rather than one caller, so `ReducedEntityIndex`, `GlobalEntityIndex` and every
   future caller are covered at once. The raw element is kept because the tree normalizes its own keys — handing
@@ -181,8 +201,10 @@ Extend the mechanism that masks the defect on the reference-type index to the cl
 - **Rejected because:** it fixes one caller of a broken primitive and leaves `GlobalEntityIndex` — and every later
   caller — exposed, since the defect is in `FilterIndex` itself. Worse, it is not deployable:
   `AttributeCardinalityIndexMapLoader` reads the counter from a **persisted** storage part and never rebuilds it,
-  while multiplicity is recoverable only from the entity body, so every existing catalog would load an empty
-  counter and throw `Cardinality … is null` on the first removal. Revisit only if a counter ever becomes
+  while multiplicity is recoverable only from the entity body, so every existing catalog would load an empty map
+  and fail the premise `Cardinality index for attribute <name> not found.` on the first removal — before any
+  counter is consulted at all. (The key-level `Cardinality of value … is null` is a different failure, inside a
+  counter that does exist.) Revisit only if a counter ever becomes
   reconstructible without a full reindex.
 
 ### Option F — tie-break the shared `LocalizedStringComparator` (declined)
@@ -195,7 +217,8 @@ Make the collation order consistent with `equals` at its source, fixing every us
   `Collator.compare`'s sign, canonically equivalent NFC and NFD forms must compare **equal**, and a caller that
   supplies a `PRIMARY`-strength collator must keep its deliberate `"a" == "á"`. A tie-break breaks all three, and
   the last two are behaviour a user can legitimately depend on. This was proposed, implemented, and reverted when
-  its own test suite refused it.
+  its own test suite refused it. `evita_common/.../comparator` is listed in this record's `areas` for that
+  reason — the branch does not modify it, but this record constrains what may be done to it.
 
 ### Option G — raise the collator's strength to `Collator.IDENTICAL` (declined)
 
@@ -206,7 +229,9 @@ Fold the distinction into the cached collation key instead of comparing again af
   performs once per distinct value. Measured to work: at `IDENTICAL` all four ignorable characters are
   distinguished while Czech collation is preserved (`h` before `ch`, `c` before `č`).
 - **Rejected because:** it costs **+32% on every cached collation key** (374 → 494 bytes on a 59-character
-  sample) and +5% to compute one, and — decisively — it makes the stored key order depend on the JDK's
+  sample) and ~5% more to compute one — both from a throwaway JDK 21.0.12 probe, NOT from the committed
+  `CollatorTieBreakBenchmark`, which has no `IDENTICAL` arm; an independent probe reproduced +34–36% on a
+  58-character Czech sample. Decisively, it also makes the stored key order depend on the JDK's
   `IDENTICAL` collation implementation, where `String.compareTo`'s UTF-16 code-unit order cannot shift under an
   upgrade. Since the tie-break measured free, paying memory *and* adding version sensitivity buys nothing.
   Revisit if a tie-break ever shows up in a profile.
@@ -293,17 +318,32 @@ should be read as the trigger to supersede this record rather than to extend the
   is also what made auditing `OffsetDateTime` counters possible at all: the earlier exclusion of temporal types
   was a symptom of the raw comparison, not a property of the type.
 
-- **The fold measures identity with `equals`, and that is exact only because of the tie-break.** Natural order is
-  consistent with `equals` for every key class the filter index stores — a scaled `Integer`, an `Instant`, a
-  rescaled range whose equality is over the very fields `compareTo` reads, a non-localized `String` — and the
-  localized `String` order is made so by `EqualsConsistentLocalizedStringComparator`. A comparator added here that
+- **The fold measures identity with `equals`, and that is exact only because of the tie-break — with one known
+  exception.** Natural order is consistent with `equals` for a scaled `Integer`, an `Instant`, a rescaled range
+  (whose equality is Lombok over the very fields `compareTo` reads), a non-localized `String` and
+  `ComparableCurrency` (currencies are canonical per code); the localized `String` order is made so by
+  `EqualsConsistentLocalizedStringComparator`.
+
+  **`ComparableLocale` is NOT consistent with equals and is not fixed here.** Its `compareTo` orders by
+  `Locale#toLanguageTag` while its `equals` delegates to `Locale#equals`, and an **ill-formed** variant is
+  dropped from the tag — so `new Locale("en","US","ill!formed")` and `new Locale("en","US")` both tag as `en-US`,
+  compare equal, and are not `equals` (verified by probe on JDK 21.0.12; a WELL-FORMED variant encodes as
+  `x-lvariant-…` and does NOT collide, so the trigger is narrower than "two locales sharing a tag"). A `Locale`
+  array attribute holding such a pair therefore reproduces the array defect this record fixes: the fold keeps
+  both, the tree merges them, and the second removal fails the premise. Left unfixed deliberately — the input is
+  a malformed locale, and closing it means another identity change with the same migration hazard as fix (3) for
+  an exposure nobody has reported. Fix it the same way if it ever appears: tie-break `ComparableLocale#compareTo`. A comparator added here that
   is NOT consistent with `equals` reopens the hole and would have to fold on the comparator instead. The
   dependency is stated at both ends, in `FilterIndex#foldOntoDistinctIndexKeys` and in the comparator's javadoc.
-- **The fold is linear and allocates only when it folds.** Accepted elements stay a prefix of the caller's own
-  array until the first collision forces a compacted copy, so the overwhelmingly common no-collision case returns
-  the input array untouched. An intermediate version ran a quadratic comparator pass on every array write — a
-  real write-path regression on attributes with nothing to do with collation — and was removed once the tie-break
-  made bucket identity equal `equals` for every comparator in play.
+- **The fold is linear, and defers its OUTPUT allocation until it actually folds.** A visited-key set is
+  allocated on every multi-element write; what is deferred is the result array — accepted elements stay a prefix
+  of the caller's own array until the first collision forces a compacted copy, so the overwhelmingly common
+  no-collision case returns the input array itself. An intermediate version of the FILTER index's fold ran a
+  quadratic comparator pass on every array write — a real write-path regression on attributes with nothing to do
+  with collation — and was removed once the tie-break made bucket identity equal `equals` for every comparator in
+  play. The UNIQUE indexes' `foldOntoDistinctValues` still compares through the tree's comparator, deliberately:
+  those trees hold RAW values under no normalizer, so the comparator is the only thing that knows `1.0` and
+  `1.00` are two keys.
 - **The delta entry points validate before either axis is mutated.** The range-type check was hoisted out of the
   range branch, so a malformed delta now leaves the index untouched instead of mutating the range axis and then
   throwing. `removeRecordDelta` also now consumes the array `verifyValueArray` returns rather than the raw one,
@@ -315,12 +355,13 @@ should be read as the trigger to supersede this record rather than to extend the
 
 ## Verification
 
-- `ReferenceAttributeIndexKeyCollisionFunctionalTest` — 10 tests at the public API. **6 fail against the unfixed
-  build** (counterfactual run with the engine change reverted): the colocated-value query and write paths, the
+- `ReferenceAttributeIndexKeyCollisionFunctionalTest` — 12 tests at the public API. Ten cover the counter defect,
+  and **6 of those fail against the unfixed build** (counterfactual run with the engine change reverted): the colocated-value query and write paths, the
   Unicode NFD case, the array branch, the temporal offset collapse, and the grouped-index sibling case. The other
   four are deliberate confirming-negatives — a `Currency` control (bijective normalizer), a range control, a
   temporal control, and a unique-only case that asserts the write is **rejected** with
-  `UniqueValueViolationException`. That last one started as an attempted exploit and refuted itself: a folded
+  `UniqueValueViolationException`. The remaining two are the public-API witnesses for the ARRAY defect — one on
+  the reduced index, one on the global index, i.e. the two classes with no counter to mask it. That last one started as an attempted exploit and refuted itself: a folded
   unique is enforced on the shared tree's normalized key, so the collision is caught at write time. It is kept as
   the assertion that this is so.
 
@@ -345,27 +386,30 @@ should be read as the trigger to supersede this record rather than to extend the
   2026.2 wrote it, through the `serialVersionUID` dispatch to the backward-compatible reader, through the
   re-key, out through the current serializer and back. This is what the pure transform cannot show — that the
   repaired key (an `Integer` in a `BigDecimal`-typed counter) survives the format it has to be stored in.
-- `EvitaBackwardCompatibilityTest` — the integration oracle: five published demo-dataset catalogs (2025.1,
+- `EvitaBackwardCompatibilityTest` — the integration exercise: five published demo-dataset catalogs (2025.1,
   2025.3, 2025.6, 2026.1, 2026.2) downloaded and opened for real, the 2026.2 one entering this migration directly
-  and the others chaining through every earlier step. All five reach protocol 7; six cardinality parts are
-  re-keyed across them and none is skipped. It is also what caught the CORRUPTED-on-boot defect described under
-  `resolveScale`, before either code reviewer reported it.
+  and the others chaining through every earlier step. **What the test asserts** is that no catalog is corrupted
+  and each opens active; that all five reach protocol 7 follows from opening under an engine whose
+  `STORAGE_PROTOCOL_VERSION` is 7, and the count of six re-keyed cardinality parts with none skipped was
+  **observed in the migration log**, not asserted — the run retains no artifact for it. It is also what caught
+  the CORRUPTED-on-boot defect described under `resolveScale`, before either code reviewer reported it.
 - **The audit reports nothing on healthy data.** Across those same five catalogs it raises zero damage errors —
   the check that a diagnostic recommending a reindex does not fire on catalogs that do not need one — and exactly
   one "not checked" warning: `stocks.quantityOnStock in entity index 26 (filter index is stored in paged form)`.
   That single line is also the evidence that the paged gap is real rather than theoretical: a published demo
   dataset already contains one, so any future repair work must cover the paged shape to be worth building.
-- `FilterIndexArrayFoldTest` — 15 tests over the array fold on whole-value writes, deltas and the range axis,
+- `FilterIndexArrayFoldTest` — 16 tests over the array fold on whole-value writes, deltas and the range axis,
   including the localized flavour. **Proven by counterfactual twice**: reverting the fold leaves the three
   whole-value collision cases (NFD string, scaled `BigDecimal`, offset-collapsed `OffsetDateTime`), the bystander
   case and the range-axis case red with `Sanity check - record not found!`; and while identity was still measured
-  by `equals`, the two collated cases were red for exactly that reason and the other twelve green.
+  by `equals` while the tie-break did not yet exist, the two collated cases of the then-14 were red for exactly
+  that reason and the other twelve green.
 - `UniqueIndexArrayDuplicateTest` — 4 tests on the unique siblings. The registration case is green before the fix
   and is what makes the state reachable at all; the two unregistration cases (owner and global) are the defect.
 - `AttributeCardinalityIndexTest.RawMultiplicity` — 2 tests that were green before this work and exist to STAY
   green: they pin that the counter counts every colliding array element and releases its entry only on the last
   removal. They are the guard against someone folding the counter loops along with the bucket ones.
-- `CollatedKeyIdentityTest` — 8 tests on the collated identity decision, in four parts. The premise (a bare
+- `CollatedKeyIdentityTest` — 10 tests on the collated identity decision, in four parts. The premise (a bare
   `Collator` equates the two spellings, the index does not); canonical equivalence (NFC and NFD forms of
   `žluťoučký kůň` land in ONE bucket, which is the invariant that makes the tie-break safe here); the migration
   hazard below; and that the tie-break changes no ordering decision the collation actually makes, checked over
@@ -404,26 +448,44 @@ should be read as the trigger to supersede this record rather than to extend the
 
 ## Consequences & open follow-ups
 
-- **The tie-break strands records that a pre-tie-break engine mis-filed, and that is accepted knowingly.** A
-  catalog written before this change can hold a record whose entity value is `"a<ZWSP>b"` but which sits in the
-  `"ab"` bucket, because the collation merged them at index time and only one spelling reached the disk. Under
-  the new order those are different keys, so that record's removal names a bucket that does not exist and fails
-  the index premise. `CollatedKeyIdentityTest.MigrationHazard` proves both halves over one stored state: it
-  succeeds under the old comparator and throws `Sanity check - record not found!` under the current one, while
-  data written after the change round-trips cleanly. **The hazard is migration-only** — it strands records that
-  are already mis-filed and creates no new ones.
+- **The tie-break breaks pre-existing collator-merged data on the READ path as well as the write path, and that
+  risk is accepted knowingly.** The banner at the top of this record is the operator-facing statement. Measured
+  over one stored bucket keyed `"ab"` holding records 1 and 2, where record 2's entity value is `"a<ZWSP>b"`
+  (`CollatedKeyIdentityTest.MigrationHazard`):
 
-  **No diagnostic was built for it, deliberately.** Finding these records means comparing entity bodies against
-  the tree, which is a reindex-grade scan; and the remedy for a catalog that has them is a reindex anyway, so a
-  diagnostic would cost a full scan to recommend what the failure itself already forces. Note that
-  `Migration_2026_3`'s audit *does* count such a record — its `buckets` map is keyed by `equals`, so the second
-  spelling misses and is tallied as an orphaned counter. That is the right recommendation reached by the wrong
-  route, and the number must not be read as a count of collated damage.
-- **The delta premise now fails at INSERT where the old code failed at removal**, for the one input that can
-  reach it: a localized reference `String[]` holding two collator-equal elements on a counter-bearing index. The
-  counter produces two boundary crossings, the delta names one key twice, and the premise fires. The data was
-  already doomed at that point — the old behaviour was a silent desync followed by a failure on the way out — so
-  moving the failure to the write is the intended trade, not a regression.
+  | | before | after |
+  |---|---|---|
+  | `attributeEquals("ab")` → record 2, index path | yes (collation) | **yes — false positive** |
+  | `attributeEquals("a<ZWSP>b")` → record 2, index path | yes | **no — false negative** |
+  | the same query on the prefetch path | yes | **no — disagrees with the index path** |
+  | `removeRecord(2, "a<ZWSP>b")` | succeeds | throws `Sanity check - record not found!` |
+
+  The prefetch row is the sharpest and was the last thing found. `AbstractAttributeComparisonTranslator` builds
+  its predicate from the very same `FilterIndex.getComparator` and normalizes both sides, so it tracks the index
+  exactly — for correctly-filed data. Over a legacy bucket the two diverge, and the result of a query then
+  depends on whether the planner prefetched. **The hazard is confined to data written before this change**;
+  anything written after it round-trips cleanly on both paths.
+
+  **No diagnostic was built, and a cheap screen does not exist.** The obvious one — scan stored localized
+  `String` bucket keys for collation-ignorable characters and clear catalogs that have none — does NOT work,
+  because the surviving key is whichever spelling was written first: `"ab"` can be the survivor while
+  `"a<ZWSP>b"` was merged into it, so the scan finds nothing while the damage remains. Proving absence requires
+  reading entity bodies, i.e. a full scan, and the remedy is a reindex regardless. Rebuilding the affected
+  indexes inside the migration was considered and is **not implementable**: evitaDB has no reindexing machinery
+  at all (see the `ModifyAttributeSchemaTypeMutation` note below).
+
+  Note also that `Migration_2026_3` visits only `CARDINALITY` manifests, so a localized `String` attribute with
+  no counter — an ordinary filter or sort index — is invisible to it and receives neither repair nor warning.
+  Where a counter does exist the audit tallies such a record as an orphaned counter, because its `buckets` map is
+  keyed by `equals` and the second spelling misses. That is the right recommendation reached by the wrong route,
+  and the number must not be read as a count of collated damage.
+- **The delta premise is unreachable from every production path, which is what a premise should be.**
+  `AttributeCardinalityKey` is a record, so the counter is a map keyed by `equals` on the normalized value and
+  emits at most one `BOUNDARY_CROSSED` per distinct normalized value; and `assertIndexKeysAreDistinct` measures
+  distinctness the same way, by delegating to the fold. Both ends share one identity, so a delta's keys are
+  distinct by construction. (An earlier revision of this record claimed the premise would now fire at INSERT for
+  a localized reference array. That was true only in the window between fix (2) and fix (3), when the assertion
+  still measured identity by the comparator; it went stale when the tie-break landed.)
 - **`LocalizedStringComparator` is untouched and must stay that way.** Its contract is to be a cached collator,
   and it is tested as one. Anyone tempted to "simplify" by moving the tie-break down into it should read Option F
   and then run `LocalizedStringComparatorTest`, which refuses the change in three different ways.
@@ -478,8 +540,11 @@ should be read as the trigger to supersede this record rather than to extend the
 
 - `2026-08-10-stored-value-normalization-split` — introduced the `Instant` branch of `getNormalizer` and set the
   "conversion belongs in the BWC reader" rule this record knowingly departs from, with reasons above.
-- `2026-09-04-millisecond-temporal-precision` — the second temporal fold, and the load-time repair that makes
-  temporal counters unauditable from storage parts.
+- `2026-09-04-millisecond-temporal-precision` — the second temporal fold. Its record stated that the load-time
+  repair made temporal cardinality counters unauditable from storage parts; that ceased to be true once this
+  audit began normalizing the stored bucket as well as the counter key, which puts both sides in one key space.
+  `isCollisionProne` admits `OffsetDateTime` and the type is audited like the other three. The sibling record has
+  been corrected to match.
 
 ## Timeline
 
@@ -495,3 +560,6 @@ should be read as the trigger to supersede this record rather than to extend the
   `String`; the collated gap was confirmed by probe, the tie-break was implemented in the shared comparator,
   **reverted** when that class's own contract suite refused it, and re-scoped to the index key space
 - **2026-09-21** — tie-break measured against `IDENTICAL` strength and against a plain `compareTo`; adopted
+- **2026-09-21** — adversarial review found the read-side half of the migration hazard: a legacy bucket yields
+  false positives AND false negatives, and the index and prefetch paths disagree over it. Verified by probe,
+  pinned by test, accepted as a documented breaking change after no cheap screen could be found

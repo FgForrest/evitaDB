@@ -33,7 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
-| 2026-09-21 | [One filter-index entry has one identity, and the counter, the array write path and the localized key order now all use it](2026-09-21-cardinality-counter-normalized-keys.md) | fix | accepted | #1620 |
+| 2026-09-21 | [One filter-index entry has one identity, and everything that describes an entry now uses it](2026-09-21-cardinality-counter-normalized-keys.md) | fix | accepted | #1620, PR #1621 |
 | 2026-09-19 | [The roaring containers get an optional Vector API provider, fused word kernels and a CRoaring-style lazy array union; the all-pairs and gather kernels are measured and rejected](2026-09-19-roaring-simd-kernels-and-lazy-union/) | optimization | proposed | #1539, #1541, #1542, #1543, #1544, PR #1608 |
 | 2026-09-18 | [The range index computes its signed multiplicity in one counting pass, and the JoinFormula/DisentangleFormula pair is deleted](2026-09-18-range-index-counting-kernel.md) | optimization | accepted | #1539, #1546, PR #1602 |
 | 2026-09-18 | [The range counting kernel drives its merge from chunk buckets, and a finished chunk crosses into the bitmap writer whole](2026-09-18-range-counting-kernel-per-operand-overhead.md) | optimization | proposed | #1604, PR #1605 |

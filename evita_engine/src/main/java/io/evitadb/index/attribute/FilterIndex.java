@@ -1902,8 +1902,9 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * Every production caller already satisfies the contract: the delta arrays are assembled from the values whose
 	 * cardinality crossed that boundary, counted under the very same canonical key this index buckets by.
 	 *
-	 * Distinctness is measured the way {@link #foldOntoDistinctIndexKeys} measures it — by the tree's comparator
-	 * over the normalized values, not by `equals`.
+	 * Distinctness is measured the way {@link #foldOntoDistinctIndexKeys} measures it — by `equals` of the
+	 * normalized values, which is exact for the reason that method's javadoc gives. This delegates to the fold
+	 * rather than restating it precisely so the two can never drift apart.
 	 *
 	 * @param values    the verified raw array elements of the delta
 	 * @param operation what the delta does to the record, for the failure message

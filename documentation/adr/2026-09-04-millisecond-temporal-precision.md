@@ -1,7 +1,7 @@
 ---
 title: Cut every temporal value to whole milliseconds as it enters, and carry every temporal index key in one long column
 date: 2026-09-04
-updated: 2026-09-21 13:30
+updated: 2026-09-21 16:15
 status: accepted
 kind: feature
 issues: [1486]
@@ -320,9 +320,11 @@ catalog a test reads was written by the current writer.
 - [2026-08-05-schema-handling-write-path-optimizations](2026-08-05-schema-handling-write-path-optimizations.md)
   — the same write path through attribute mutations that the boundary truncation sits on.
 - [2026-09-21-cardinality-counter-normalized-keys](2026-09-21-cardinality-counter-normalized-keys.md) — the
-  load-time repair chosen here is what makes temporal cardinality counters unauditable from storage parts: a
-  migration reading parts directly sees the untruncated keys the repair would have fixed, so it reports those
-  counters as unchecked rather than comparing across two key spaces.
+  load-time repair chosen here means a migration reading storage parts directly sees the untruncated keys the
+  repair would have fixed. An earlier revision of this line concluded that temporal cardinality counters are
+  therefore unauditable from parts; that is no longer true. The audit normalizes the STORED bucket as well as the
+  counter key, so both sides land in one key space whatever wrote them, and `OffsetDateTime` is audited like
+  every other collision-prone type.
 
 ## Timeline
 
