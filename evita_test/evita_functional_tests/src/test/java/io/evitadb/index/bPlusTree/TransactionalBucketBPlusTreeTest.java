@@ -55,6 +55,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map.Entry;
+import java.util.OptionalLong;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
@@ -4462,6 +4463,117 @@ class TransactionalBucketBPlusTreeTest {
 				expectedAnchor, tree.computePreviousRecord(probeKey, probeRecordId),
 				"the climb must read the record column's live run, not the peek that ran ahead of it - answering "
 					+ EvitaDataTypes.RESERVED_PRIMARY_KEY + " would sort the record to the very front of the index"
+			);
+		}
+
+		@Test
+		@DisplayName("a bucket the key column still shows but the record column cannot answer for is not fabricated")
+		void shouldBoundTheBucketReadByTheRecordColumnLiveRunWhenTheKeyColumnRunsAhead() {
+			// the CROSS-COLUMN half of the torn-leaf hazard the two tests above cover slot-wise. A leaf carries four
+			// independent columns and each publishes its own live count with a plain store of its own, so a
+			// session-free reader can pair a key column a warm-up grow has already extended with a record column as
+			// it stood before that grow - no reordering required, only the window between the two stores.
+			//
+			// The key column answers for itself: `findKeyPosition` clips the search to the very array it indexes, so
+			// it reports the slot present, and the caller then addresses a DIFFERENT column with that index. The
+			// record column does not answer for itself at all - `intAt` finds `index < size` false and hands back the
+			// unmaterialized slot, `0`, which is a perfectly well-formed primary key. The lookup therefore fabricates
+			// a record the tree has never held instead of under-reporting the bucket the reader cannot see yet, and
+			// nothing throws
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			for (int i = 0; i < 5; i++) {
+				tree.addRecord(i, (i + 1) * 10);
+			}
+			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+			final int lastKey = leaf.keyAt(leaf.size() - 1);
+			final int lastRecord = (lastKey + 1) * 10;
+			assertArrayEquals(
+				new int[]{lastRecord}, tree.getRecordsEqualTo(lastKey).getArray(),
+				"the healthy tree must answer the record the last bucket holds"
+			);
+			assertEquals(
+				lastRecord, tree.computePreviousRecord(lastKey + 1, 1),
+				"the healthy tree must anchor a higher value on the last bucket's record"
+			);
+
+			// shorten the RECORD column ALONE: `fillEmpty` lowers a column's own live count in place and touches no
+			// sibling column, which is the interleaving above with the race taken out of it
+			final RecordColumn records = leaf.getRecords();
+			final int liveRunBeforeTear = records.observableLiveRun();
+			records.fillEmpty(liveRunBeforeTear - 1, liveRunBeforeTear);
+			assertEquals(
+				liveRunBeforeTear - 1, records.observableLiveRun(),
+				"the fixture must lower the record column's live run"
+			);
+			assertEquals(
+				liveRunBeforeTear, leaf.getKeyColumn().observableLiveRun(),
+				"the fixture must leave the KEY column untouched - it is what makes the slot still look present"
+			);
+
+			// the last slot lies beyond what this reader can see, so the honest answer is the one it would have got a
+			// moment earlier in the grow: no such bucket. `SingleRecordBitmap(0)` would be a fabricated entity
+			assertSame(
+				EmptyBitmap.INSTANCE, tree.getRecordsEqualTo(lastKey),
+				"a bucket the record column cannot answer for must under-report, never answer "
+					+ EvitaDataTypes.RESERVED_PRIMARY_KEY
+			);
+			// ... while the slot below it still answers normally, so the bound clips rather than blinds
+			final int lastVisibleKey = leaf.keyAt(liveRunBeforeTear - 2);
+			final int lastVisibleRecord = (lastVisibleKey + 1) * 10;
+			assertArrayEquals(
+				new int[]{lastVisibleRecord}, tree.getRecordsEqualTo(lastVisibleKey).getArray(),
+				"every bucket inside the record column's live run must still be answered"
+			);
+			assertEquals(
+				lastVisibleRecord, tree.computePreviousRecord(lastKey + 1, 1),
+				"the anchor must fall back to the last bucket the record column can answer for, not to "
+					+ EvitaDataTypes.RESERVED_PRIMARY_KEY
+			);
+		}
+
+		@Test
+		@DisplayName("a long payload the key column still shows but the record column cannot answer for is not fabricated")
+		void shouldBoundTheLongPayloadReadByTheRecordColumnLiveRunWhenTheKeyColumnRunsAhead() {
+			// the long-payload twin of the test above, on the one bucket read that resolves its slot through
+			// `getValueIndex` and then hands it to a column that never saw the search: `getLongRecordEqualTo`. The
+			// payload here is a packed `(entityType, pk)` join for the global-unique index, so the unmaterialized slot
+			// does not merely answer a wrong entity - it answers entity type `0`, a decode of a value that was never
+			// written
+			final TransactionalBucketBPlusTree<Integer> tree = TransactionalBucketBPlusTree.withLongPayload(
+				255, 127, 255, 127, Integer.class, null, capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
+			);
+			for (int i = 0; i < 5; i++) {
+				tree.addLongRecord(i, (i + 1) * 1_000_000_007L);
+			}
+			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+			final int lastKey = leaf.keyAt(leaf.size() - 1);
+			final long lastPayload = (lastKey + 1) * 1_000_000_007L;
+			assertEquals(
+				OptionalLong.of(lastPayload), tree.getLongRecordEqualTo(lastKey),
+				"the healthy tree must answer the payload the last bucket holds"
+			);
+			assertTrue(tree.contains(lastKey), "the healthy tree must report the last bucket present");
+
+			final RecordColumn records = leaf.getRecords();
+			final int liveRunBeforeTear = records.observableLiveRun();
+			records.fillEmpty(liveRunBeforeTear - 1, liveRunBeforeTear);
+			assertEquals(
+				liveRunBeforeTear, leaf.getKeyColumn().observableLiveRun(),
+				"the fixture must leave the KEY column untouched - it is what makes the slot still look present"
+			);
+
+			assertEquals(
+				OptionalLong.empty(), tree.getLongRecordEqualTo(lastKey),
+				"a bucket the record column cannot answer for must under-report, never answer a payload of 0"
+			);
+			assertFalse(
+				tree.contains(lastKey),
+				"presence must be answered on the same bound the payload read uses, or the two disagree"
+			);
+			final int lastVisibleKey = leaf.keyAt(liveRunBeforeTear - 2);
+			assertEquals(
+				OptionalLong.of((lastVisibleKey + 1) * 1_000_000_007L), tree.getLongRecordEqualTo(lastVisibleKey),
+				"every bucket inside the record column's live run must still be answered"
 			);
 		}
 	}

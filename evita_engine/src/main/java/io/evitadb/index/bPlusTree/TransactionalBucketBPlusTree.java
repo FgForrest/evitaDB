@@ -6143,6 +6143,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final ValueColumn<M> theKeys;
 			final RecordColumn theRecords;
 			final OverflowColumn theOverflow;
+			final RecordColumn theValueIds;
 			final int thePeek;
 
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
@@ -6152,16 +6153,29 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				theKeys = this.keys;
 				theRecords = this.records;
 				theOverflow = this.overflow;
+				theValueIds = this.valueIds;
 				thePeek = this.peek;
 			} else {
 				theKeys = layer.keys;
 				theRecords = layer.records;
 				theOverflow = layer.overflow;
+				theValueIds = layer.valueIds;
 				thePeek = layer.peek;
 			}
 
+			// the search is bounded by the CROSS-column live run rather than by `peek`, because the index it yields
+			// is used on a column the search never looked at. `findKeyPosition` clips itself to the key array it
+			// indexes, so a key column a warm-up grow has already extended answers "present" for a slot the record
+			// column has not materialized yet - and `RecordColumn#intAt` answers such a slot with `0`, a perfectly
+			// well-formed primary key. Unbounded, the lookup therefore FABRICATES a record the tree has never held,
+			// silently. Bounding under-reports the bucket to absent instead, which is precisely what this reader
+			// would have seen a moment earlier in the same grow - the staleness a session-free reader is documented
+			// to accept. On any consistent observer the bound returns `peek` unchanged
 			final InsertionPosition insertionPosition =
-				theKeys.findKeyPosition(value, 0, thePeek + 1, this.comparator);
+				theKeys.findKeyPosition(
+					value, 0, observableLeafPeek(thePeek, theKeys, theRecords, theOverflow, theValueIds) + 1,
+					this.comparator
+				);
 			if (!insertionPosition.alreadyPresent()) {
 				return EmptyBitmap.INSTANCE;
 			}
@@ -6330,6 +6344,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final ValueColumn<M> theKeys;
 			final RecordColumn theRecords;
 			final OverflowColumn theOverflow;
+			final RecordColumn theValueIds;
 			final int thePeek;
 
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
@@ -6339,16 +6354,23 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				theKeys = this.keys;
 				theRecords = this.records;
 				theOverflow = this.overflow;
+				theValueIds = this.valueIds;
 				thePeek = this.peek;
 			} else {
 				theKeys = layer.keys;
 				theRecords = layer.records;
 				theOverflow = layer.overflow;
+				theValueIds = layer.valueIds;
 				thePeek = layer.peek;
 			}
 
+			// bounded by the cross-column live run, not by `peek` - see `getRecords(M)` for why an index resolved on
+			// the key column alone must never address the record column
 			final InsertionPosition insertionPosition =
-				theKeys.findKeyPosition(value, 0, thePeek + 1, this.comparator);
+				theKeys.findKeyPosition(
+					value, 0, observableLeafPeek(thePeek, theKeys, theRecords, theOverflow, theValueIds) + 1,
+					this.comparator
+				);
 			final int index = insertionPosition.position();
 			if (insertionPosition.alreadyPresent() && recordId != Integer.MIN_VALUE) {
 				// records sharing a value ascend by (signed) id - the anchor is the greatest id strictly below the
@@ -6450,11 +6472,19 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		/**
 		 * Returns the index of the bucket for the given value, or -1 if absent.
 		 *
+		 * The index is safe to address ANY of the leaf's columns with, not merely the key column the search ran over:
+		 * the search is bounded by {@link TransactionalBucketBPlusTree#observableLeafPeek} across all four of them,
+		 * so a slot a torn reader's key column can still see but its record column cannot is reported absent rather
+		 * than handed out for {@link #longRecordAt} to answer with an unmaterialized `0`.
+		 *
 		 * @param value the value to search for
 		 * @return the index of the bucket if found; -1 otherwise
 		 */
 		public int getValueIndex(@Nonnull M value) {
 			final ValueColumn<M> theKeys;
+			final RecordColumn theRecords;
+			final OverflowColumn theOverflow;
+			final RecordColumn theValueIds;
 			final int thePeek;
 
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
@@ -6462,14 +6492,25 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				: null;
 			if (layer == null) {
 				theKeys = this.keys;
+				theRecords = this.records;
+				theOverflow = this.overflow;
+				theValueIds = this.valueIds;
 				thePeek = this.peek;
 			} else {
 				theKeys = layer.keys;
+				theRecords = layer.records;
+				theOverflow = layer.overflow;
+				theValueIds = layer.valueIds;
 				thePeek = layer.peek;
 			}
 
+			// bounded by the cross-column live run, not by `peek` - see `getRecords(M)` for why an index resolved on
+			// the key column alone must never address the record column
 			final InsertionPosition insertionPosition =
-				theKeys.findKeyPosition(value, 0, thePeek + 1, this.comparator);
+				theKeys.findKeyPosition(
+					value, 0, observableLeafPeek(thePeek, theKeys, theRecords, theOverflow, theValueIds) + 1,
+					this.comparator
+				);
 			return insertionPosition.alreadyPresent() ? insertionPosition.position() : -1;
 		}
 
