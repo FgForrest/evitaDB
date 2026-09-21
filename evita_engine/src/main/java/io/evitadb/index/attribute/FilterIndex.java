@@ -57,6 +57,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLea
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLeafPageRemoval;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
 
@@ -72,6 +73,7 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Comparator;
 import java.util.Currency;
@@ -79,6 +81,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -370,7 +373,9 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		@Nonnull AttributeIndexKey attributeIndexKey, @Nonnull Class<?> attributeType) {
 		final Locale locale = attributeIndexKey.locale();
 		if (String.class.isAssignableFrom(attributeType) && locale != null) {
-			return new LocalizedStringComparator(locale);
+			// the index-key flavour, NOT the plain cached collator - see the class javadoc for why bucket identity
+			// must agree with equals and why the tie-break cannot live in the shared comparator
+			return new EqualsConsistentLocalizedStringComparator(locale);
 		} else {
 			return DEFAULT_COMPARATOR;
 		}
@@ -694,7 +699,9 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		}
 
 		if (value instanceof final Object[] valueArray) {
-			for (Object valueItem : verifyValueArray(valueArray)) {
+			// the bucket axis is a SET - see #foldOntoDistinctIndexKeys; the range companion above folds the very
+			// same write through `Range.consolidateRange`, so both axes see one contribution per distinct key
+			for (Comparable valueItem : foldOntoDistinctIndexKeys(verifyValueArray(valueArray))) {
 				this.invertedIndex.addRecord((T) valueItem, recordId);
 			}
 		} else {
@@ -714,33 +721,35 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * should be only added on top of the existing value. This method makes sense only for attributes that are of the
 	 * array type.
 	 *
+	 * The delta must name each index key at most once - see {@link #assertIndexKeysAreDistinct(Comparable[], String)}.
+	 *
 	 * @param recordId the unique identifier of the record
 	 * @param value    the attribute value
 	 * @param <T>      the type of the attribute value
 	 * @throws EvitaInvalidUsageException when the value is not of type Range in case of range index
+	 * @throws GenericEvitaInternalError  when two elements of the delta canonicalize onto one index key
 	 */
 	public <T extends Serializable> void addRecordDelta(
 		int recordId, @Nonnull Object[] value) throws EvitaInvalidUsageException {
-		// if current attribute is Range based assign record also to range index
-		//noinspection VariableNotUsedInsideIf
-		if (this.rangeIndex != null) {
-			if (value instanceof Range[] valueArray) {
-				// this is quite expensive operation, but we need to do it to be able to remove and add the record;
-				// the existing ranges read back from the inverted index are already canonicalized to the index
-				// scale, so the raw delta ranges are canonicalized too before the merge so both sides share one
-				// form and consolidation collapses scale-equal duplicates (no-op for non-`BigDecimal` ranges)
-				final Range[] existingRanges = this.invertedIndex.getValuesForRecord(recordId, Range.class);
-				final Range[] aggregatedRanges = ArrayUtils.mergeArrays(existingRanges, normalizeRanges(valueArray));
+		// validate the whole delta before either axis is touched, so a malformed one leaves the index untouched
+		assertRangeTypeWhenRangeIndexed(value);
+		final Comparable[] valueItems = verifyValueArray(value);
+		assertIndexKeysAreDistinct(valueItems, "added");
 
-				removeRange(recordId, existingRanges);
-				addRange(recordId, aggregatedRanges);
-			} else {
-				throw new EvitaInvalidUsageException(
-					"Value `" + unknownToString(value) + "` is expected to be Range but it is not!");
-			}
+		// if current attribute is Range based assign record also to range index
+		if (this.rangeIndex != null) {
+			// this is quite expensive operation, but we need to do it to be able to remove and add the record;
+			// the existing ranges read back from the inverted index are already canonicalized to the index
+			// scale, so the raw delta ranges are canonicalized too before the merge so both sides share one
+			// form and consolidation collapses scale-equal duplicates (no-op for non-`BigDecimal` ranges)
+			final Range[] existingRanges = this.invertedIndex.getValuesForRecord(recordId, Range.class);
+			final Range[] aggregatedRanges = ArrayUtils.mergeArrays(existingRanges, normalizeRanges((Range[]) value));
+
+			removeRange(recordId, existingRanges);
+			addRange(recordId, aggregatedRanges);
 		}
 
-		for (Object valueItem : verifyValueArray(value)) {
+		for (Comparable valueItem : valueItems) {
 			this.invertedIndex.addRecord((T) valueItem, recordId);
 		}
 
@@ -785,7 +794,10 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		}
 
 		if (value instanceof final Object[] valueArray) {
-			for (Object valueItem : verifyValueArray(valueArray)) {
+			// the bucket axis is a SET - see #foldOntoDistinctIndexKeys; the record joined the folded bucket once,
+			// so it leaves it once. Removing per raw element would take it out on the first colliding element and
+			// then fail the membership pre-check on the second
+			for (Comparable valueItem : foldOntoDistinctIndexKeys(verifyValueArray(valueArray))) {
 				removeRecordFromHistogramAndValueIndex(recordId, (T) valueItem);
 			}
 		} else {
@@ -805,33 +817,34 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * {@link #removeRecord(int, Object)} removes the whole value. This method makes sense only for attributes that
 	 * are of the array type.
 	 *
+	 * The delta must name each index key at most once - see {@link #assertIndexKeysAreDistinct(Comparable[], String)}.
+	 *
 	 * @param recordId the unique identifier of the record
 	 * @param value    the attribute value array
 	 * @param <T>      the type of the attribute value
 	 * @throws EvitaInvalidUsageException when the value is not of type Range in case of range index
+	 * @throws GenericEvitaInternalError  when two elements of the delta canonicalize onto one index key
 	 */
 	public <T extends Serializable> void removeRecordDelta(int recordId, @Nonnull Object[] value) {
-		// if current attribute is Range based assign record also to range index
-		//noinspection VariableNotUsedInsideIf
-		if (this.rangeIndex != null) {
-			if (value instanceof Range[] valueArray) {
-				// this is quite expensive operation, but we need to do it to be able to remove and add the record;
-				// the existing ranges read back from the inverted index are already canonicalized to the index
-				// scale, so the raw delta ranges must be canonicalized too before the set subtraction compares them
-				// by equality (no-op for non-`BigDecimal` ranges)
-				final Range[] existingRanges = this.invertedIndex.getValuesForRecord(recordId, Range.class);
-				final Range[] remainingRanges = getRemainingRanges(normalizeRanges(valueArray), existingRanges);
+		// validate the whole delta before either axis is touched, so a malformed one leaves the index untouched
+		assertRangeTypeWhenRangeIndexed(value);
+		final Comparable[] valueItems = verifyValueArray(value);
+		assertIndexKeysAreDistinct(valueItems, "removed");
 
-				removeRange(recordId, existingRanges);
-				addRange(recordId, remainingRanges);
-			} else {
-				throw new EvitaInvalidUsageException(
-					"Value `" + unknownToString(value) + "` is expected to be Range but it is not!");
-			}
+		// if current attribute is Range based assign record also to range index
+		if (this.rangeIndex != null) {
+			// this is quite expensive operation, but we need to do it to be able to remove and add the record;
+			// the existing ranges read back from the inverted index are already canonicalized to the index
+			// scale, so the raw delta ranges must be canonicalized too before the set subtraction compares them
+			// by equality (no-op for non-`BigDecimal` ranges)
+			final Range[] existingRanges = this.invertedIndex.getValuesForRecord(recordId, Range.class);
+			final Range[] remainingRanges = getRemainingRanges(normalizeRanges((Range[]) value), existingRanges);
+
+			removeRange(recordId, existingRanges);
+			addRange(recordId, remainingRanges);
 		}
 
-		verifyValueArray(value);
-		for (Object valueItem : value) {
+		for (Comparable valueItem : valueItems) {
 			removeRecordFromHistogramAndValueIndex(recordId, (T) valueItem);
 		}
 
@@ -1459,6 +1472,117 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 			normalized[i] = (Range) this.normalizer.apply(ranges[i]);
 		}
 		return normalized;
+	}
+
+	/**
+	 * Folds an array attribute's raw elements onto the DISTINCT index keys they actually address.
+	 *
+	 * The {@link #invertedIndex} is a SET on its key axis — it holds exactly one bucket per key, and a record is in
+	 * that bucket or it is not, never in it twice. Several raw elements of one array may nevertheless address a
+	 * single bucket (two spellings of one string under NFD, two `BigDecimal`s at the same indexed scale, two
+	 * offsets denoting one instant, two strings a collator equates), and such an array does not describe the
+	 * record's key set until it has been folded.
+	 *
+	 * Leaving it unfolded is asymmetric rather than harmless: `addRecord` is idempotent per bucket, while
+	 * `removeRecord` asserts membership before it removes, so the second colliding element would find the record
+	 * already gone and fail an internal premise over perfectly valid data.
+	 *
+	 * **Two elements are one key exactly when the TREE says so.** The inverted index normalizes and then descends
+	 * a tree ordered by {@link #comparator}, so bucket identity is `comparator.compare(normalizer(a),
+	 * normalizer(b)) == 0`. This fold nevertheless compares the normalized keys with `equals`, which is exact
+	 * ONLY because every comparator this index is ever built with is consistent with equals: natural order is,
+	 * for every key class stored here (a scaled `Integer`, an `Instant`, a rescaled range whose equality is over
+	 * the very fields `compareTo` reads, a `String`), and the localized String order is made so by
+	 * {@link EqualsConsistentLocalizedStringComparator} — without whose tie-break the collation would equate
+	 * strings NFD leaves distinct and this fold would silently miss them. A comparator added here that is NOT
+	 * consistent with equals reopens exactly that hole, and would have to fold on the comparator instead.
+	 *
+	 * The RAW element is kept — the first one seen for each key — never the normalized form: the tree applies
+	 * {@link #normalizer} itself on the way in, so handing it an already-normalized value would fold the key twice
+	 * and address the wrong bucket (see {@link #removeRecordFromHistogramAndValueIndex}).
+	 *
+	 * @param values the verified raw array elements
+	 * @return `values` itself when every element already addresses its own bucket (the overwhelmingly common
+	 *         case), otherwise a shorter array holding the first raw element of each distinct key, in encounter
+	 *         order
+	 */
+	@Nonnull
+	private Comparable[] foldOntoDistinctIndexKeys(@Nonnull Comparable[] values) {
+		if (values.length < 2) {
+			return values;
+		}
+		final Set<Serializable> visitedKeys = CollectionUtils.createHashSet(values.length);
+		// the accepted elements are a prefix of `values` itself until the first collision forces a compacted copy
+		Comparable[] distinctValues = null;
+		int distinctCount = 0;
+		for (Comparable value : values) {
+			if (visitedKeys.add(this.normalizer.apply(value))) {
+				if (distinctValues != null) {
+					distinctValues[distinctCount] = value;
+				}
+				distinctCount++;
+			} else if (distinctValues == null) {
+				distinctValues = new Comparable[values.length - 1];
+				System.arraycopy(values, 0, distinctValues, 0, distinctCount);
+			}
+		}
+		return distinctValues == null ? values : Arrays.copyOf(distinctValues, distinctCount);
+	}
+
+	/**
+	 * Verifies that a delta names each index key at most once.
+	 *
+	 * A delta is not a set of contributions the way a whole-value write is — it states which keys the record is
+	 * joining or leaving *entirely*, so the same key twice is a contradiction rather than a duplicate to fold
+	 * away. Folding it would quietly accept a broken contract, and on the removal side it would still be wrong:
+	 * whether the record keeps a bucket through some element the delta does not mention is a question only the
+	 * caller's own multiplicity bookkeeping can answer (see
+	 * {@link io.evitadb.index.cardinality.AttributeCardinalityIndex}), never this index.
+	 *
+	 * Note what this does NOT catch, because no check local to this index could: a delta element whose bucket the
+	 * record still reaches through an element the delta does not mention (holding `{1.2, 1.4}` at scale 0 and
+	 * removing `{1.2}` names one key and still empties the bucket wrongly). The real contract of a bucket-axis
+	 * delta is "each element's key crosses the 0/1 boundary FOR THIS RECORD", which only the caller's own
+	 * multiplicity bookkeeping can establish. The range axis of the same two methods is self-sufficient by
+	 * contrast — it reads the record's remaining ranges back out of the index — so the asymmetry is deliberate and
+	 * must not be "harmonized" away.
+	 *
+	 * Every production caller already satisfies the contract: the delta arrays are assembled from the values whose
+	 * cardinality crossed that boundary, counted under the very same canonical key this index buckets by.
+	 *
+	 * Distinctness is measured the way {@link #foldOntoDistinctIndexKeys} measures it — by the tree's comparator
+	 * over the normalized values, not by `equals`.
+	 *
+	 * @param values    the verified raw array elements of the delta
+	 * @param operation what the delta does to the record, for the failure message
+	 * @throws GenericEvitaInternalError when two elements address one index key
+	 */
+	private void assertIndexKeysAreDistinct(@Nonnull Comparable[] values, @Nonnull String operation) {
+		if (values.length < 2) {
+			return;
+		}
+		// the fold is the definition of "distinct" - reuse it rather than restate it, and inherit its linear fast
+		// path. It returns the array it was given exactly when nothing collided
+		Assert.isPremiseValid(
+			foldOntoDistinctIndexKeys(values) == values,
+			() -> "The values being " + operation + " must address distinct index keys, but `" +
+				unknownToString(values) + "` contains elements that share one!"
+		);
+	}
+
+	/**
+	 * Guards the delta entry points against a non-`Range` array reaching a range-backed index, mirroring the check
+	 * {@link #addRecord(int, Object)} performs for whole values. Hoisted out of the range
+	 * branch so it runs before either axis is mutated.
+	 *
+	 * @param value the raw delta array
+	 * @throws EvitaInvalidUsageException when this index maintains a range axis and the array is not of ranges
+	 */
+	private void assertRangeTypeWhenRangeIndexed(@Nonnull Object[] value) {
+		if (this.rangeIndex != null && !(value instanceof Range[])) {
+			throw new EvitaInvalidUsageException(
+				"Value `" + unknownToString(value) + "` is expected to be Range but it is not!");
+		}
 	}
 
 	/**
