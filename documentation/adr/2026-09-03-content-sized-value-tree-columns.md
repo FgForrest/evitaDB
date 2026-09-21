@@ -1,7 +1,7 @@
 ---
 title: Size the value tree's leaf columns to their live content instead of adding a second array-backed representation
 date: 2026-09-03
-updated: 2026-09-21 07:45
+updated: 2026-09-21 08:35
 status: accepted
 kind: optimization
 issues: [1486]
@@ -449,7 +449,27 @@ proportionally larger against a smaller total, and the census charged the tempor
   rebuilt each level below a sibling from a separately-read `getChildren()` and a raw `getPeek()`, and
   `BPlusLeafTreeNode#lastRecord()` handed a raw `peek` straight to the record column. Both are reached from
   `computePreviousRecord`, in consecutive statements: it climbs to the preceding leaf through the first, then
-  reads that leaf through the second. Fixed in PR #1617, each with a test proven in both arms.
+  reads that leaf through the second. A sweep of the rest of the family then found a third: a slot resolved by
+  `ValueColumn#findKeyPosition`, which clamps to the key array it indexes, was handed to the *record* column,
+  whose live run is independent — so `getRecords`, `previousRecord` and `getValueIndex` needed the
+  cross-column minimum too. All fixed in PR #1617, each with a test proven in both arms.
+- **Worse than an under-report: that third one fabricated data.** The record column does not answer for itself —
+  `intAt` returns the unmaterialized slot, `0`, which is a well-formed primary key. So `getRecordsEqualTo`
+  answered `[0]` where the truth was empty, and `getLongRecordEqualTo` answered `OptionalLong[0]`: a phantom
+  entity in a filter result, and a phantom `(entityType, pk)` join for the global-unique index. **A missing
+  bound in this family does not merely lose data, it can invent it**, because two of the sentinels these
+  columns return for an unmaterialized slot — `0` as a record id and `0` as `RESERVED_PRIMARY_KEY` — are
+  indistinguishable from legitimate answers.
+- **`peek == -1` is the opposite state and needed its own answer, not a clamp.** `observableInternalPeek`
+  guards a `peek` that has run *ahead* of its array; an **emptied** node clamps to `-1`, which the descents
+  then used as a direct index. Both merge directions, on leaves as well as internal nodes, end with
+  `setPeek(-1)` on the donor one statement before `consolidate` unlinks it, so a parent transiently references
+  a node holding nothing. It surfaced four ways through `recordCount()` — two exceptions, one premise failure,
+  and a silent `0` instead of `3`. The walks now step **over** such a subtree and under-report by it, matching
+  the staleness already accepted on the grow side. Truncating the cursor path was tried first and does not
+  work: the cursor's level arrays are sized from that list and a short one cannot re-descend. `addCursorLevels`
+  needed no change, because `searchIndex` refuses `fromIndex(0) > toIndex(-1)` before any child is indexed —
+  which is why the keyed descent, and with it the write path, is untouched by any of this.
 - **The two failures are worth telling apart, because only one of them announces itself.** The cursor rebuild
   throws — `Index N out of bounds for length N`, caught by the long-running sweep on 2026-09-14 (round 153) and
   2026-09-21 (round 4416), and reproducible locally at round 257 under suite load. `lastRecord()` does not: a
