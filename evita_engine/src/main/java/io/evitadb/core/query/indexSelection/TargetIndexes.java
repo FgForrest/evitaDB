@@ -32,6 +32,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -71,7 +72,7 @@ public class TargetIndexes<T extends Index<?>> {
 	/**
 	 * The list of indexes themselves, or `null` while it is still deferred - see {@link #indexSupplier}.
 	 */
-	private List<T> indexes;
+	@Nullable private List<T> indexes;
 	/**
 	 * Resolves {@link #indexes} on first demand, or `null` when they were passed in already resolved.
 	 *
@@ -233,7 +234,7 @@ public class TargetIndexes<T extends Index<?>> {
 	 * Returns true if the catalog index was selected.
 	 */
 	public boolean isCatalogIndex() {
-		return this.indexCount == 1 && getIndexes().get(0) instanceof CatalogIndex;
+		return this.indexCount == 1 && getIndexes().getFirst() instanceof CatalogIndex;
 	}
 
 	/**

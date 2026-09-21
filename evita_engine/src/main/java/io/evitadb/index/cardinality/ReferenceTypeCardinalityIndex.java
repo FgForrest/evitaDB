@@ -276,7 +276,7 @@ public class ReferenceTypeCardinalityIndex
 	 *
 	 * @param committedTree         the already-built cardinality tree to adopt
 	 * @param pageStreamRegistry    the per-index page bookkeeping, carried BY REFERENCE
-	 * @param referencedPrimaryKeys the companion map to re-wrap into a {@link TransactionalMap}
+	 * @param referencedPrimaryKeys the companion map to re-wrap into a {@link io.evitadb.index.map.TransactionalMap}
 	 */
 	private ReferenceTypeCardinalityIndex(
 		@Nonnull LongPayloadBucketTree committedTree,

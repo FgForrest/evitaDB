@@ -569,7 +569,7 @@ class BidirectionalReferenceRewriterTest {
 		 *                                   "another entity type" row flips
 		 */
 		@Nonnull
-		private Optional<ReferenceSchemaContract> findCounterpartByScanning(
+		private static Optional<ReferenceSchemaContract> findCounterpartByScanning(
 			@Nonnull String reflectionTargetEntityType,
 			@Nonnull ReflectedReferenceSchemaContract reflection
 		) {

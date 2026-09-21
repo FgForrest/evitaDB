@@ -146,7 +146,12 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 				final Set<Integer> requestedPrimaryKeys = Arrays.stream(primaryKeys)
 					.boxed()
 					.collect(Collectors.toSet());
-				final Formula indexResult = FormulaFactory.or(
+				// no prefetch alternative is attached here, and none is needed. `isPrefetchPossible()` is
+				// `scope.size() == 1`, and reaching this branch at all means a scope was pushed for the
+				// `referenceHaving` body - so it is false by construction and an alternative guarded on it could
+				// never be reached. Nor would it have anything to contribute: the reduced index family is
+				// populated on every plan, so the formula above answers this constraint on the prefetch plan too.
+				return FormulaFactory.or(
 					processingScope
 						.getIndexStream()
 						// a group reduced index is keyed by the GROUP, so its reference key answers a different
@@ -166,12 +171,6 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 						})
 						.toArray(Formula[]::new)
 				);
-				// no prefetch alternative is attached here, and none is needed. `isPrefetchPossible()` is
-				// `scope.size() == 1`, and reaching this branch at all means a scope was pushed for the
-				// `referenceHaving` body - so it is false by construction and an alternative guarded on it could
-				// never be reached. Nor would it have anything to contribute: the reduced index family is
-				// populated on every plan, so the formula above answers this constraint on the prefetch plan too.
-				return indexResult;
 			} else {
 				return standardResult;
 			}

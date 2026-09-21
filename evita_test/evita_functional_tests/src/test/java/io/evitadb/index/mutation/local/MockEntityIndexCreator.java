@@ -76,8 +76,7 @@ class MockEntityIndexCreator<K extends IndexKey, T extends Index<K>> implements 
 	@Nullable
 	@Override
 	public T getIndexIfExists(@Nonnull K entityIndexKey) {
-		return this.registeredIndexes.containsKey(entityIndexKey) ?
-			this.registeredIndexes.get(entityIndexKey) : this.index;
+		return this.registeredIndexes.getOrDefault(entityIndexKey, this.index);
 	}
 
 	@Nullable

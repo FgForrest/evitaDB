@@ -167,8 +167,8 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 		// the branches must not be subsets of one another, or the disjunction could pass by accident
 		assertFalse(byPrimaryKey.isEmpty(), "The primary-key branch must match something.");
 		assertFalse(byAttribute.isEmpty(), "The attribute branch must match something.");
-		assertFalse(
-			union.equals(byAttribute),
+		assertNotEquals(
+			union, byAttribute,
 			"The primary-key branch must contribute owners the attribute branch does not, or this test is vacuous."
 		);
 

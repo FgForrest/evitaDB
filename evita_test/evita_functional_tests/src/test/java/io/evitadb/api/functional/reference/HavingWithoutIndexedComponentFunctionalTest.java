@@ -249,7 +249,7 @@ public class HavingWithoutIndexedComponentFunctionalTest {
 		 * @return one `SCOPE=[COMPONENT, ...]` group per indexed scope, space separated
 		 */
 		@Nonnull
-		private String describe(@Nonnull ReferenceSchemaContract reference) {
+		private static String describe(@Nonnull ReferenceSchemaContract reference) {
 			final StringBuilder result = new StringBuilder(64);
 			for (Scope scope : Scope.values()) {
 				final Set<ReferenceIndexedComponents> components = reference.getIndexedComponents(scope);
@@ -324,7 +324,7 @@ public class HavingWithoutIndexedComponentFunctionalTest {
 		/**
 		 * The component is present in {@link Scope#LIVE} only, so a query restricted to {@link Scope#ARCHIVED}
 		 * cannot be answered and must say so - the mirror of
-		 * {@link Allowed#shouldAnswerGroupHavingWhenOnlyOneQueriedScopeCarriesTheComponent()}.
+		 * {@link Allowed#shouldAnswerGroupHavingWhenOnlyOneQueriedScopeCarriesTheComponent(Evita)}.
 		 */
 		@DisplayName("Should refuse groupHaving when the only queried scope lacks the component")
 		@UseDataSet(MISSING_INDEXED_COMPONENT)

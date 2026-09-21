@@ -63,6 +63,7 @@ import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.FILTER;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -1084,8 +1085,8 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 		}
 
 		final Collection<ReferenceContract> reflectedProducts = category.getReferences(REF_CATEGORY_PRODUCTS);
-		assertTrue(
-			!reflectedProducts.isEmpty(),
+		assertFalse(
+			reflectedProducts.isEmpty(),
 			"Category `" + categoryPk + "` has no reflected `" + REF_CATEGORY_PRODUCTS + "` rows - the products " +
 				"were not written before this pass, so the reflected end's own `" + REF_ATTR_OWN_NOTE +
 				"` would stay unset."

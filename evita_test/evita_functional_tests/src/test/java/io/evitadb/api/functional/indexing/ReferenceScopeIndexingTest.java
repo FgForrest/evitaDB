@@ -33,7 +33,6 @@ import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -165,7 +164,7 @@ class ReferenceScopeIndexingTest implements EvitaTestSupport {
 	private void defineSchema(@Nonnull Scope... indexedScopes) {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				session.defineEntitySchema(Entities.CATEGORY).updateVia(session);
 				session.defineEntitySchema(Entities.PRODUCT)
 					.withReferenceToEntity(
@@ -204,7 +203,7 @@ class ReferenceScopeIndexingTest implements EvitaTestSupport {
 	private void writeProductInCategory() {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				session.createNewEntity(Entities.CATEGORY, CATEGORY_PK).upsertVia(session);
 				session.createNewEntity(Entities.PRODUCT, PRODUCT_PK)
 					.setReference(REFERENCE_CATEGORIES, CATEGORY_PK)

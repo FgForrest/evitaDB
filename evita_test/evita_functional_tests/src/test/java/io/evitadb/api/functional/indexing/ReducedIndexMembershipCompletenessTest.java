@@ -36,10 +36,11 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
-import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.core.Evita;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
@@ -51,10 +52,9 @@ import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.membership.ReducedIndexMembership;
+import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ExceptionUtils;
-import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -77,25 +77,12 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static io.evitadb.api.query.Query.query;
-import static io.evitadb.api.query.QueryConstraints.collection;
-import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
-import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
-import static io.evitadb.api.query.QueryConstraints.facetHaving;
-import static io.evitadb.api.query.QueryConstraints.filterBy;
-import static io.evitadb.api.query.QueryConstraints.page;
-import static io.evitadb.api.query.QueryConstraints.referenceHaving;
-import static io.evitadb.api.query.QueryConstraints.require;
-import static io.evitadb.api.query.QueryConstraints.userFilter;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.FACET;
 import static io.evitadb.test.TestTags.INDEXING;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.awaitility.Awaitility.await;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Attacks the **quantifier** behind {@link ReducedIndexMembership}, not the mechanism.
@@ -537,7 +524,7 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 				.openForWrite()
 				.withReferenceToEntity(
 					REF_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
-					whichIs -> whichIs.nonIndexed()
+					ReferenceSchemaEditor::nonIndexed
 				)
 				.updateVia(session);
 			// (3) discards the lookup created in step (1), in the same transaction
@@ -586,7 +573,7 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 					.openForWrite()
 					.withReferenceToEntity(
 						REF_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.indexedForFiltering()
+						ReferenceSchemaEditor::indexedForFiltering
 					)
 					.updateVia(session);
 				session.createNewEntity(ENTITY_PRODUCT, REVERTED_PRODUCT_PK)
@@ -1239,8 +1226,8 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 		if (globalIndex == null) {
 			return null;
 		}
-		assertTrue(
-			globalIndex instanceof GlobalEntityIndex,
+		assertInstanceOf(
+			GlobalEntityIndex.class, globalIndex,
 			"scope " + scope + ": the GLOBAL index key resolved to " + globalIndex.getClass().getName()
 		);
 		return (GlobalEntityIndex) globalIndex;
@@ -1444,7 +1431,7 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 			.openForWrite()
 			.withReferenceToEntity(
 				REF_BRAND, ENTITY_BRAND, Cardinality.ZERO_OR_ONE,
-				whichIs -> whichIs.indexedForFilteringAndPartitioning()
+				ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 			)
 			.updateVia(session));
 	}
@@ -1535,17 +1522,10 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Switches the CATEGORY collection's `products` reference between partitioned and merely filterable. The
-	 * product collection's reflected counterpart inherits whichever it is, so this is a schema change on one
-	 * collection that changes the indexing of another.
-	 *
-	 * @param partitioned `true` to index the source reference for filtering and partitioning
-	 */
-	/**
 	 * Indexes the CATEGORY collection's `products` reference or stops indexing it altogether. The product
 	 * collection's reflected counterpart inherits whichever it is, so this is the schema change on one collection
-	 * that ends the membership maintenance of another - merely lowering it, as {@link #setCategoryProductsIndexing}
-	 * does, leaves every partition in place and therefore leaves the lookup maintained.
+	 * that ends the membership maintenance of another - merely lowering it to filtering leaves every partition
+	 * in place and therefore leaves the lookup maintained.
 	 *
 	 * Withdrawing the indexing means withdrawing it **from `LIVE`**, not everywhere: a reflected reference
 	 * requires its source to stay indexed in at least one scope (`ReflectedReferenceSchema#withReferencedSchema`),
@@ -1561,22 +1541,6 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 				whichIs -> whichIs.indexedForFilteringAndPartitioningInScope(
 					indexed ? new Scope[]{Scope.LIVE, Scope.ARCHIVED} : new Scope[]{Scope.ARCHIVED}
 				)
-			)
-			.updateVia(session));
-	}
-
-	private void setCategoryProductsIndexing(boolean partitioned) {
-		tx(session -> session.getEntitySchemaOrThrowException(ENTITY_CATEGORY)
-			.openForWrite()
-			.withReferenceToEntity(
-				REF_PRODUCTS, ENTITY_PRODUCT, Cardinality.ZERO_OR_MORE,
-				whichIs -> {
-					if (partitioned) {
-						whichIs.indexedForFilteringAndPartitioning();
-					} else {
-						whichIs.indexedForFiltering();
-					}
-				}
 			)
 			.updateVia(session));
 	}
@@ -1604,12 +1568,6 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Switches `categories` between partitioned and merely filterable. Lowering it is what stops the membership
-	 * maintenance hooks firing while the reduced indexes keep changing underneath them.
-	 *
-	 * @param partitioned `true` to index the reference for filtering and partitioning, `false` for filtering only
-	 */
-	/**
 	 * Indexes `categories` or stops indexing it altogether. De-indexing is what ends the membership maintenance:
 	 * the lookup follows the reference's indexed **components**, and a reference with none advertises no reduced
 	 * index for the lookup to account for. Merely lowering it to filtering does not - see
@@ -1633,6 +1591,12 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 			.updateVia(session));
 	}
 
+	/**
+	 * Switches `categories` between partitioned and merely filterable. Lowering it is what stops the membership
+	 * maintenance hooks firing while the reduced indexes keep changing underneath them.
+	 *
+	 * @param partitioned `true` to index the reference for filtering and partitioning, `false` for filtering only
+	 */
 	private void setCategoriesIndexing(boolean partitioned) {
 		tx(session -> session.getEntitySchemaOrThrowException(ENTITY_PRODUCT)
 			.openForWrite()

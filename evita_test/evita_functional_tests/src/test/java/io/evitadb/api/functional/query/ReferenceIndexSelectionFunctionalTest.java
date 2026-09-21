@@ -35,7 +35,6 @@ import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -45,17 +44,10 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static io.evitadb.api.query.Query.query;
-import static io.evitadb.api.query.QueryConstraints.collection;
-import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
-import static io.evitadb.api.query.QueryConstraints.filterBy;
-import static io.evitadb.api.query.QueryConstraints.page;
-import static io.evitadb.api.query.QueryConstraints.queryTelemetry;
-import static io.evitadb.api.query.QueryConstraints.referenceHaving;
-import static io.evitadb.api.query.QueryConstraints.require;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.REFERENCE;
@@ -203,7 +195,7 @@ class ReferenceIndexSelectionFunctionalTest implements EvitaTestSupport {
 	private void defineSchema() {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				session.defineEntitySchema(Entities.CATEGORY).updateVia(session);
 				session.defineEntitySchema(Entities.PRODUCT)
 					.withReferenceToEntity(
@@ -229,7 +221,7 @@ class ReferenceIndexSelectionFunctionalTest implements EvitaTestSupport {
 	private void writeData() {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				for (int i = 1; i <= PRODUCT_COUNT; i++) {
 					session.createNewEntity(Entities.CATEGORY, i).upsertVia(session);
 				}
@@ -276,7 +268,7 @@ class ReferenceIndexSelectionFunctionalTest implements EvitaTestSupport {
 			() -> "exactly one reduced-index alternative must be registered for `" + referenceName
 				+ "`, found: " + alternatives
 		);
-		return alternatives.get(0);
+		return alternatives.getFirst();
 	}
 
 	/**

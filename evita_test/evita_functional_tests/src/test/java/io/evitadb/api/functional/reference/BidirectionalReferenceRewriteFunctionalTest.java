@@ -2348,24 +2348,6 @@ public class BidirectionalReferenceRewriteFunctionalTest
 	}
 
 	/**
-	 * Asserts the planner never reached filter planning at all, because index selection had already proved the answer
-	 * empty.
-	 *
-	 * This is the observation that replaces the usual channel on a query whose owner-side discovery finds nothing.
-	 * `IndexSelectionResult#isEmpty` is true when **any** registered `TargetIndexes` is empty, and `QueryPlanner`
-	 * returns an empty plan on that condition *before* `createFilterFormula` runs - so no `PLANNING_FILTER` step and
-	 * no `PLANNING_FILTER_ALTERNATIVE` steps are ever pushed, and
-	 * {@link #assertReferenceIndexOptionRegistered} has nothing to read. Its own guard fires instead, which is what
-	 * it is for.
-	 *
-	 * Asserting the short circuit is strictly stronger than asserting the option was registered and empty: it can
-	 * only happen when `addReferenceIndexOption` registered a zero-index reference option, which in turn can only
-	 * happen when the rewrite declined **and** the owner-side discovery came back empty - exactly the pair of facts
-	 * this row exists to pin.
-	 *
-	 * @param response the response whose `queryTelemetry()` extra result is read
-	 */
-	/**
 	 * Asserts the planner really did plan a filter, i.e. that index selection handed it a non-empty plan.
 	 *
 	 * This is the positive counterpart of {@link #assertPlanningShortCircuited} and it exists for one shape only:
@@ -2385,6 +2367,24 @@ public class BidirectionalReferenceRewriteFunctionalTest
 		);
 	}
 
+	/**
+	 * Asserts the planner never reached filter planning at all, because index selection had already proved the answer
+	 * empty.
+	 *
+	 * This is the observation that replaces the usual channel on a query whose owner-side discovery finds nothing.
+	 * `IndexSelectionResult#isEmpty` is true when **any** registered `TargetIndexes` is empty, and `QueryPlanner`
+	 * returns an empty plan on that condition *before* `createFilterFormula` runs - so no `PLANNING_FILTER` step and
+	 * no `PLANNING_FILTER_ALTERNATIVE` steps are ever pushed, and
+	 * {@link #assertReferenceIndexOptionRegistered} has nothing to read. Its own guard fires instead, which is what
+	 * it is for.
+	 *
+	 * Asserting the short circuit is strictly stronger than asserting the option was registered and empty: it can
+	 * only happen when `addReferenceIndexOption` registered a zero-index reference option, which in turn can only
+	 * happen when the rewrite declined **and** the owner-side discovery came back empty - exactly the pair of facts
+	 * this row exists to pin.
+	 *
+	 * @param response the response whose `queryTelemetry()` extra result is read
+	 */
 	private static void assertPlanningShortCircuited(@Nonnull EvitaResponse<EntityReference> response) {
 		final QueryTelemetry telemetry = response.getExtraResult(QueryTelemetry.class);
 		assertNotNull(telemetry, "Query telemetry must be present - it is the only channel this class can read!");

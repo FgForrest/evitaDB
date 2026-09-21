@@ -31,15 +31,15 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.expression.ExpressionFactory;
-import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.core.Evita;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.dataType.expression.Expression;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
@@ -50,7 +50,6 @@ import io.evitadb.index.facet.FacetIdIndex;
 import io.evitadb.index.facet.FacetReferenceIndex;
 import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -77,12 +76,7 @@ import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.FACET;
 import static io.evitadb.test.TestTags.INDEXING;
 import static org.awaitility.Awaitility.await;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Attacks the premise the reduced-index membership lookup is built on: that a reference advertises each of
@@ -527,8 +521,8 @@ class ReducedIndexMembershipDuplicateAdvertisementTest implements EvitaTestSuppo
 			final EntityIndex typeIndex = collection.getIndexByKeyIfExists(
 				new EntityIndexKey(family, Scope.LIVE, REF_PARAMETER_VALUES)
 			);
-			assertTrue(
-				typeIndex instanceof ReferencedTypeEntityIndex,
+			assertInstanceOf(
+				ReferencedTypeEntityIndex.class, typeIndex,
 				"reference `" + REF_PARAMETER_VALUES + "` must own a " + family + " index - it is declared "
 					+ "with both indexed components, and a missing family makes the whole premise untested"
 			);
@@ -696,7 +690,7 @@ class ReducedIndexMembershipDuplicateAdvertisementTest implements EvitaTestSuppo
 	private void prepare(@Nonnull CatalogState state, @Nonnull String widgetType) {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				session.defineEntitySchema(ENTITY_CATEGORY).updateVia(session);
 				session.defineEntitySchema(ENTITY_PARAMETER_VALUE).updateVia(session);
 				session.defineEntitySchema(ENTITY_PARAMETER)
@@ -910,8 +904,8 @@ class ReducedIndexMembershipDuplicateAdvertisementTest implements EvitaTestSuppo
 		if (globalIndex == null) {
 			return null;
 		}
-		assertTrue(
-			globalIndex instanceof GlobalEntityIndex,
+		assertInstanceOf(
+			GlobalEntityIndex.class, globalIndex,
 			"scope " + scope + ": the GLOBAL index key resolved to " + globalIndex.getClass().getName()
 		);
 		return (GlobalEntityIndex) globalIndex;

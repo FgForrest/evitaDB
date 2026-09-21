@@ -178,7 +178,7 @@ public class ReferenceBodyTransposer {
 		}
 		return switch (perIndexFormulas.size()) {
 			case 0 -> EmptyFormula.INSTANCE;
-			case 1 -> perIndexFormulas.get(0);
+			case 1 -> perIndexFormulas.getFirst();
 			default -> FormulaFactory.or(perIndexFormulas.toArray(Formula[]::new));
 		};
 	}
