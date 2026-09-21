@@ -1,12 +1,12 @@
 ---
 title: One filter-index entry has one identity, and everything that describes an entry now uses it
 date: 2026-09-21
-updated: 2026-09-21 16:35
+updated: 2026-09-21 16:45
 status: accepted
 kind: fix
 issues: [1620]
 prs: [1621]
-areas: [evita_engine/src/main/java/io/evitadb/index/cardinality, evita_engine/src/main/java/io/evitadb/index/attribute, evita_common/src/main/java/io/evitadb/comparator, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog, evita_store/evita_store_server/src/main/java/io/evitadb/store/index/serializer]
+areas: [evita_engine/src/main/java/io/evitadb/index/cardinality, evita_engine/src/main/java/io/evitadb/index/attribute, evita_common/src/main/java/io/evitadb/comparator, evita_common/src/main/java/io/evitadb/dataType, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog, evita_store/evita_store_server/src/main/java/io/evitadb/store/index/serializer]
 supersedes: []
 superseded-by: []
 relates: [2026-08-10-stored-value-normalization-split, 2026-09-04-millisecond-temporal-precision]
@@ -54,6 +54,10 @@ entries must derive its notion of identity from the index, never from the raw va
 > collation ignores (zero-width space, zero-width joiner, directional marks, control characters — soft hyphen,
 > NBSP, BOM and case are all distinguished). But there is **no cheap way to detect it**, so operators must be
 > told rather than screened. See *Consequences* for why no diagnostic was built.
+>
+> A second, far narrower flavour of the same thing applies to `Locale` attributes, whose order also became
+> consistent with `equals` — there the trigger is a locale carrying an **ill-formed** variant, which the language
+> tag silently drops. Same remedy: reindex.
 
 ## Why
 
@@ -324,15 +328,16 @@ should be read as the trigger to supersede this record rather than to extend the
   `ComparableCurrency` (currencies are canonical per code); the localized `String` order is made so by
   `EqualsConsistentLocalizedStringComparator`.
 
-  **`ComparableLocale` is NOT consistent with equals and is not fixed here.** Its `compareTo` orders by
-  `Locale#toLanguageTag` while its `equals` delegates to `Locale#equals`, and an **ill-formed** variant is
-  dropped from the tag — so `new Locale("en","US","ill!formed")` and `new Locale("en","US")` both tag as `en-US`,
-  compare equal, and are not `equals` (verified by probe on JDK 21.0.12; a WELL-FORMED variant encodes as
-  `x-lvariant-…` and does NOT collide, so the trigger is narrower than "two locales sharing a tag"). A `Locale`
-  array attribute holding such a pair therefore reproduces the array defect this record fixes: the fold keeps
-  both, the tree merges them, and the second removal fails the premise. Left unfixed deliberately — the input is
-  a malformed locale, and closing it means another identity change with the same migration hazard as fix (3) for
-  an exposure nobody has reported. Fix it the same way if it ever appears: tie-break `ComparableLocale#compareTo`. A comparator added here that
+  **`ComparableLocale` was a third instance of the same defect, and is fixed the same way.** Its `compareTo`
+  ordered by `Locale#toLanguageTag` while its `equals` delegates to `Locale#equals`, and an **ill-formed**
+  variant is dropped from the tag — so `new Locale("en","US","ill!formed")` and `new Locale("en","US")` both tag
+  as `en-US`, compared equal, and are not `equals` (verified by probe on JDK 21.0.12; a WELL-FORMED variant
+  encodes as `x-lvariant-…` and does NOT collide, so the trigger is narrower than "two locales sharing a tag").
+  A `Locale` attribute holding such a pair reproduced the array defect this record fixes: the fold kept both, the
+  tree merged them, and the second removal failed the premise. Ties are now broken on `Locale#toString()`, which
+  renders every component `equals` compares — chosen over a hand-rolled component comparison because a probe over
+  a corpus including script and extension locales produced **zero** `toString` collisions among non-equal pairs
+  where the language tag produced six. Pinned by `ComparableLocaleTest.ConsistencyWithEqualsTest`. A comparator added here that
   is NOT consistent with `equals` reopens the hole and would have to fold on the comparator instead. The
   dependency is stated at both ends, in `FilterIndex#foldOntoDistinctIndexKeys` and in the comparator's javadoc.
 - **The fold is linear, and defers its OUTPUT allocation until it actually folds.** A visited-key set is
@@ -560,6 +565,8 @@ should be read as the trigger to supersede this record rather than to extend the
   `String`; the collated gap was confirmed by probe, the tie-break was implemented in the shared comparator,
   **reverted** when that class's own contract suite refused it, and re-scoped to the index key space
 - **2026-09-21** — tie-break measured against `IDENTICAL` strength and against a plain `compareTo`; adopted
+- **2026-09-21** — an accuracy pass over this record found a third instance of the same defect in
+  `ComparableLocale`, whose language-tag order drops an ill-formed variant; fixed with a `toString` tie-break
 - **2026-09-21** — adversarial review found the read-side half of the migration hazard: a legacy bucket yields
   false positives AND false negatives, and the index and prefetch paths disagree over it. Verified by probe,
   pinned by test, accepted as a documented breaking change after no cheap screen could be found
