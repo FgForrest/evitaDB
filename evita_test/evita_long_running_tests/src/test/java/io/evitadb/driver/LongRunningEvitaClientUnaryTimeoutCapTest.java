@@ -50,7 +50,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.evitadb.test.TestTags.DRIVER;
 import static io.evitadb.test.TestTags.GRPC;
-import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.SESSION;
 import static io.evitadb.test.TestTags.SLOW;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -134,7 +134,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 @DisplayName("Unary driver calls must honour the configured timeout, not Armeria's 15 s retry default")
 @Tag(DRIVER)
 @Tag(GRPC)
-@Tag(MANAGEMENT)
+@Tag(SESSION)
 @Tag(SLOW)
 public class LongRunningEvitaClientUnaryTimeoutCapTest {
 	/**
