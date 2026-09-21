@@ -181,6 +181,33 @@ class CollatedKeyIdentityTest {
 		}
 
 		@Test
+		@DisplayName("a legacy bucket answers a QUERY differently on the index path and the prefetch path")
+		void shouldAnswerAQueryInconsistentlyOverALegacyBucket() {
+			// this is the query-side half of the same hazard, and it is strictly worse than the write-side half:
+			// the record is not merely un-removable, it is returned for a value it does not hold and withheld for
+			// the value it does - and the two query paths disagree about it, so the answer depends on whether the
+			// planner prefetched. Before the tie-break both paths matched `ab` (collation equality), so this
+			// divergence is introduced BY the tie-break and exists only over data written before it
+			final OwnerFilterIndex index = restore(storedSingleBucket(), production());
+			final Comparator<Comparable> order = production();
+
+			assertTrue(
+				index.getRecordsEqualTo(PLAIN).contains(OTHER_RECORD),
+				"index path: the surviving bucket still yields the record filed under the other spelling"
+			);
+			assertFalse(
+				index.getRecordsEqualTo(ZERO_WIDTH_SPACED).contains(OTHER_RECORD),
+				"index path: and its OWN value no longer finds it"
+			);
+			// AbstractAttributeComparisonTranslator normalizes both sides and compares with this very comparator,
+			// so this is the verdict the prefetch path reaches for the record's real entity value
+			assertNotEquals(
+				0, order.compare(ZERO_WIDTH_SPACED, PLAIN),
+				"prefetch path: rejects what the index path accepted - the two disagree over legacy data"
+			);
+		}
+
+		@Test
 		@DisplayName("data written by the CURRENT engine round-trips, so the hazard is migration-only")
 		void shouldRoundTripBothSpellingsWrittenAfterATieBreak() {
 			final OwnerFilterIndex index = empty(production());
