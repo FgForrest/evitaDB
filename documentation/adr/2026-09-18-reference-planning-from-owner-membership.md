@@ -1,7 +1,7 @@
 ---
 title: Answer reference-planning cardinality from the owner→partition map, widened and retuned to 64
 date: 2026-09-18
-updated: 2026-09-19 17:15
+updated: 2026-09-21 12:55
 status: partially-implemented
 kind: optimization
 issues: [1585, 1603]
@@ -116,10 +116,14 @@ option C wins if a consumer needs the partition set rather than its size.
 
 ## Key technical details
 
-- **Three gates, one predicate.** `declaresConditionalFacetInScope` is read at
-  `ReferenceIndexMutator:1343` (write path), `EntityCollection:1892` (load-time rebuild) and
-  `EntityCollection:1999` (discard on schema change). All three must change together or the
-  `covered ∪ residual == advertised` invariant breaks in the direction that is silent.
+- **Three gates, one predicate.** `ReducedIndexMembership#isMaintainedFor` is the whole decision and a
+  pure function of the schema, which is what makes maintenance stoppable only at a schema change. It is
+  read by the write path (`ReferenceIndexMutator#isReducedIndexMembershipUnmaintained` — that predicate
+  negated, guarding both maintenance boundaries), by the load-time rebuild
+  (`EntityCollection#rebuildReducedIndexMembership`) and by the discard on schema change
+  (`EntityCollection#discardUnmaintainedReducedIndexMemberships`). All three must change together or the
+  `covered ∪ residual == advertised` invariant breaks in the direction that is silent — which is why the
+  three share one method rather than three copies of a condition.
 - **The threshold is a latency dial, never a correctness one.** Any quantity read from the map is *exact
   count over covered partitions + walk over the residual set*, so `T` decides how long that walk is, never
   whether the answer is right. As shipped the only reader is the cross-entity facet trigger: the planner takes
@@ -182,10 +186,10 @@ entirely. What still walks at 64 is `Product.parameterValues` (2,254), `groups` 
 whose bare existence already answers in 0.21–3.2 ms.
 
 The invariant the reuse rests on — that a reduced index is filed in its type index under exactly one
-referenced primary key, which `EntityCollection:1927–1931` states in prose — was confirmed by execution rather
-than by reading: an assertion comparing `ReferenceTypeCardinalityIndex`'s per-index and per-pair tallies on
-every write reported **zero violations** across the `reference | facet` gate (3,384 tests, 0 failures), and an
-inverted counterfactual proved the assertion live on the write path
+referenced primary key, which `EntityCollection#registerReducedIndex` states in prose — was confirmed by
+execution rather than by reading: an assertion comparing `ReferenceTypeCardinalityIndex`'s per-index and
+per-pair tallies on every write reported **zero violations** across the `reference | facet` gate (3,384
+tests, 0 failures), and an inverted counterfactual proved the assertion live on the write path
 (`ReferenceIndexMutator#referenceInsertPerComponent` → `insertPrimaryKeyIfMissing` → `addRecord`).
 
 ### The write-path A/B
