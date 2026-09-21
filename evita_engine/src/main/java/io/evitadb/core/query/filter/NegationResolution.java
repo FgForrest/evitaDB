@@ -45,16 +45,16 @@ import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 public enum NegationResolution {
 
 	/**
-     * The formula is a **candidate set** that the caller re-evaluates against each reference row afterwards, so a
-     * negation inside it may widen to the super set. Widening never loses a row — it keeps every index a candidate
-     * and leaves the negation to be settled per row, inside the index it belongs to.
-     */
+	 * The formula is a **candidate set** that the caller re-evaluates against each reference row afterwards, so a
+	 * negation inside it may widen to the super set. Widening never loses a row — it keeps every index a candidate
+	 * and leaves the negation to be settled per row, inside the index it belongs to.
+	 */
 	PER_ROW,
 
 	/**
-     * The formula **is the answer** — nothing re-examines the rows behind it, so a negation inside it has to stay a
-     * real subtraction. Widening here would hand back the whole reference family instead of the complement.
-     */
+	 * The formula **is the answer** — nothing re-examines the rows behind it, so a negation inside it has to stay a
+	 * real subtraction. Widening here would hand back the whole reference family instead of the complement.
+	 */
 	IN_PLACE
 
 }
