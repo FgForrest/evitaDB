@@ -57,6 +57,34 @@ import java.util.Set;
  */
 @RequiredArgsConstructor
 public class ReferenceSerializer extends Serializer<Reference> {
+	/**
+	 * One-entry memo of the last decoded reference name and what was resolved from it. The references of one entity
+	 * arrive grouped by name, so the previous answer serves the next reference almost every time - which replaces
+	 * a hash plus a set probe plus a schema map lookup per reference with one `String.equals`. An entity may carry
+	 * tens of thousands of references, and this method decodes every one of them.
+	 *
+	 * A plain field is safe: this serializer is instantiated once per {@link Kryo} instance (see
+	 * `EntityStoragePartConfigurer`), and a Kryo instance is never used by two threads at the same time.
+	 */
+	private String memoizedReferenceName;
+	/**
+	 * The name filter the {@link #memoizedNameAllowed} decision was taken under, compared by identity - a different
+	 * filter instance invalidates the decision even when the name repeats.
+	 */
+	private Set<String> memoizedNameFilter;
+	/**
+	 * Whether {@link #memoizedReferenceName} is one the {@link #memoizedNameFilter} lets through.
+	 */
+	private boolean memoizedNameAllowed;
+	/**
+	 * The entity schema {@link #memoizedReferenceSchema} was resolved from, compared by identity - a schema change
+	 * invalidates the resolution.
+	 */
+	private EntitySchema memoizedEntitySchema;
+	/**
+	 * The reference schema of {@link #memoizedReferenceName}, valid while {@link #memoizedEntitySchema} still matches.
+	 */
+	private ReferenceSchema memoizedReferenceSchema;
 
 	@Override
 	public void write(Kryo kryo, Output output, Reference reference) {
@@ -88,7 +116,15 @@ public class ReferenceSerializer extends Serializer<Reference> {
 		final int internalPrimaryKey = input.readVarInt(true);
 		final String referenceName = input.readString();
 		final Set<String> referenceNameFilter = ReferenceNameFilterContext.getReferenceNameFilter();
-		if (referenceNameFilter != null && !referenceNameFilter.contains(referenceName)) {
+		if (!referenceName.equals(this.memoizedReferenceName) || referenceNameFilter != this.memoizedNameFilter) {
+			this.memoizedNameAllowed = referenceNameFilter == null || referenceNameFilter.contains(referenceName);
+			this.memoizedNameFilter = referenceNameFilter;
+			this.memoizedReferenceName = referenceName;
+			// the name decides the reference schema, so a new name invalidates that resolution too
+			this.memoizedEntitySchema = null;
+			this.memoizedReferenceSchema = null;
+		}
+		if (!this.memoizedNameAllowed) {
 			// the caller cannot see this reference, so only advance the stream past it - not materializing it is
 			// the whole point of the filter, and it is what makes a projection over an entity carrying tens of
 			// thousands of back-references cost the handful of references it actually asked for
@@ -101,7 +137,14 @@ public class ReferenceSerializer extends Serializer<Reference> {
 		final EntitySchema schema = io.evitadb.spi.store.catalog.persistence.EntitySchemaContext.getEntitySchema();
 		// resolved once - the schema lookup used to run twice per reference (group type plus construction),
 		// and this method decodes every reference of every entity the query touches
-		final ReferenceSchema referenceSchema = schema.getReferenceOrThrowException(referenceName);
+		final ReferenceSchema referenceSchema;
+		if (schema == this.memoizedEntitySchema) {
+			referenceSchema = this.memoizedReferenceSchema;
+		} else {
+			referenceSchema = schema.getReferenceOrThrowException(referenceName);
+			this.memoizedEntitySchema = schema;
+			this.memoizedReferenceSchema = referenceSchema;
+		}
 		final int entityPrimaryKey = input.readInt();
 		final boolean dropped = input.readBoolean();
 		final boolean groupExists = input.readBoolean();

@@ -272,9 +272,10 @@ class ValidEntityToReferenceMapping {
 	 * @return `true` if the reference is allowed for the given entity, `false` otherwise
 	 */
 	public boolean isReferenceSelected(int entityPrimaryKey, @Nonnull ReferenceContract reference) {
-		return ofNullable(this.mapping.get(entityPrimaryKey))
-			.map(it -> it.contains(entityPrimaryKey, reference))
-			.orElse(false);
+		// deliberately not `ofNullable(...).map(...).orElse(false)`: this is asked about every reference of every
+		// fetched entity, and that form costs two Optionals, a capturing lambda and a boxed Boolean per call
+		final RepresentativeMapping mappingForEntity = this.mapping.get(entityPrimaryKey);
+		return mappingForEntity != null && mappingForEntity.contains(entityPrimaryKey, reference);
 	}
 
 	@Override
