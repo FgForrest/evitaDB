@@ -155,7 +155,7 @@ public abstract class EntityIndex implements
 	 * This part of index collects information about facets in entities. It provides data that are necessary for
 	 * constructing {@link Formula} tree for the constraints related to the facets.
 	 */
-	@Delegate(types = FacetIndexContract.class)
+	@Delegate(types = FacetIndexContract.class, excludes = NotDelegatedFromFacetIndex.class)
 	protected final FacetIndex facetIndex;
 	/**
 	 * This part of index collection information about hierarchy placement of the entities. It provides data that are
@@ -1282,6 +1282,23 @@ public abstract class EntityIndex implements
 	 */
 	protected boolean isRequireLocaleRemoval() {
 		return true;
+	}
+
+	/**
+	 * Methods of {@link FacetIndexContract} that must not be re-exported by the {@link #facetIndex} delegate.
+	 *
+	 * {@link FacetIndexContract#getSize()} counts the entity ids attached to facets. That reads correctly on a
+	 * facet index and dangerously on an entity index, where a bare `getSize()` promises the number of entities
+	 * the index holds and delivers something unrelated - on a production catalog's GLOBAL index it answered
+	 * 2,276,771 against 130,033 entities, and on a reference type index whose reference carries no facets it
+	 * answered 0 against 170,376. Both readings reached query cardinality estimates before this exclusion.
+	 *
+	 * Code that wants the facet count asks a {@link FacetIndex} for it directly.
+	 */
+	private interface NotDelegatedFromFacetIndex {
+
+		int getSize();
+
 	}
 
 }
