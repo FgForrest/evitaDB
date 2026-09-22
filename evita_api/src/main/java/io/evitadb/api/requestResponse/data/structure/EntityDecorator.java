@@ -50,6 +50,7 @@ import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSer
 import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceAttributeValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -229,13 +230,13 @@ public class EntityDecorator implements SealedEntity {
 		int entityPrimaryKey,
 		@Nonnull ReferenceDecorator[] references,
 		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
-		@Nullable BiPredicate<Integer, ReferenceDecorator> referenceFilter,
+		@Nullable BiPredicate<Integer, ReferenceContract> referenceFilter,
 		@Nullable ReferenceComparator referenceComparator,
 		int start,
 		int end
 	) {
 		// when filter is not provided, make it always return true
-		final BiPredicate<Integer, ReferenceDecorator> theReferenceFilter = referenceFilter == null ?
+		final BiPredicate<Integer, ReferenceContract> theReferenceFilter = referenceFilter == null ?
 			(pk, ref) -> true : referenceFilter;
 		if (referenceComparator == null) {
 			// In‑place filtering when no comparator is provided
@@ -299,7 +300,7 @@ public class EntityDecorator implements SealedEntity {
 		int entityPrimaryKey,
 		@Nonnull ReferenceDecorator[] references,
 		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
-		@Nonnull BiPredicate<Integer, ReferenceDecorator> referenceFilter,
+		@Nonnull BiPredicate<Integer, ReferenceContract> referenceFilter,
 		int start,
 		int end
 	) {
@@ -596,19 +597,31 @@ public class EntityDecorator implements SealedEntity {
 		@Nonnull ReferenceDecorator[] outputReferences,
 		@Nullable EvitaRequest evitaRequest
 	) {
-		int index = -1;
 		ReferenceSchemaContract referenceSchema = null;
 		Function<Integer, SealedEntity> entityFetcher = null;
 		Function<Integer, SealedEntity> entityGroupFetcher = null;
 		ReferenceComparator fetchedReferenceComparator = null;
-		BiPredicate<Integer, ReferenceDecorator> entityFilter = null;
+		BiPredicate<Integer, ReferenceContract> entityFilter = null;
+		ReferenceAttributeValueSerializablePredicate attributePredicate = null;
+		boolean referenceNameRequested = false;
 
-		int filteredOutReferences = 0;
-		for (int i = 0; i < outputReferences.length; i++) {
+		// `inputReferences` is grouped by reference name, so a run of one name is a contiguous window - `runStart`
+		// marks where the current run begins in the output and `writeIndex` the next free slot. Both count only the
+		// references that were kept, so the input index and the output index part ways at the first discard
+		int runStart = 0;
+		int writeIndex = 0;
+		for (int i = 0; i < inputReferences.length; i++) {
 			final ReferenceContract referenceContract = inputReferences[i];
 			final String thisReferenceName = referenceContract.getReferenceName();
-			if (referenceSchema == null) {
-				index = i;
+			if (referenceSchema == null || !referenceSchema.getName().equals(thisReferenceName)) {
+				if (referenceSchema != null) {
+					writeIndex -= closeReferenceNameRun(
+						entityPrimaryKey, referencePredicate, referenceFetcher, referenceSchema,
+						entityGroupFetcher, entityFilter, fetchedReferenceComparator,
+						outputReferences, runStart, writeIndex
+					);
+					runStart = writeIndex;
+				}
 				referenceSchema = entitySchema
 					.getReference(thisReferenceName)
 				    .orElseThrow(() -> new GenericEvitaInternalError("Sanity check!"));
@@ -616,57 +629,92 @@ public class EntityDecorator implements SealedEntity {
 				entityGroupFetcher = referenceFetcher.getEntityGroupFetcher(referenceSchema);
 				entityFilter = referenceFetcher.getEntityFilter(referenceSchema);
 				fetchedReferenceComparator = referenceFetcher.getEntityComparator(referenceSchema);
-			} else if (!referenceSchema.getName().equals(thisReferenceName)) {
-				final int subListEnd = i - filteredOutReferences;
-				final int removedHere = sortAndFilterSubList(
-					entityPrimaryKey,
-					outputReferences,
-					referencePredicate,
-					entityFilter,
-					fetchedReferenceComparator,
-					index, subListEnd
-				);
-				noteUnexposedGroups(
-					referenceFetcher, referenceSchema, entityGroupFetcher,
-					outputReferences, index, subListEnd - removedHere
-				);
-				filteredOutReferences += removedHere;
-				index = i - filteredOutReferences;
-				referenceSchema = entitySchema
-					.getReference(thisReferenceName)
-				    .orElseThrow(() -> new GenericEvitaInternalError("Sanity check!"));
-				entityFetcher = referenceFetcher.getEntityFetcher(referenceSchema);
-				entityGroupFetcher = referenceFetcher.getEntityGroupFetcher(referenceSchema);
-				entityFilter = referenceFetcher.getEntityFilter(referenceSchema);
-				fetchedReferenceComparator = referenceFetcher.getEntityComparator(referenceSchema);
+				// both are decided by the reference *name*, and the loop body runs once per reference contract -
+				// resolving them there made an entity carrying tens of thousands of back-references resolve them
+				// that many times, which was the single most expensive frame of the reference fetch
+				attributePredicate = referencePredicate.getAttributePredicate(thisReferenceName);
+				referenceNameRequested = referencePredicate.isReferenceRequested(thisReferenceName);
 			}
 
-			outputReferences[i - filteredOutReferences] = ofNullable(
+			// decide before decorating rather than after: `sortAndFilterSubList` below applies exactly these three
+			// tests, and a reference that cannot pass them has no use for the decorator, the attribute predicate and
+			// the prefetched-body lookup that building one costs. The tests read nothing that decoration adds -
+			// `ReferenceDecorator` delegates its key and its existence, and the validity mapping has always read
+			// representative attribute values off the delegate rather than off the decorator
+			if (!referenceNameRequested || !referenceContract.exists() ||
+				(entityFilter != null && !entityFilter.test(entityPrimaryKey, referenceContract))) {
+				continue;
+			}
+
+			final ReferenceAttributeValueSerializablePredicate thisAttributePredicate = attributePredicate;
+			outputReferences[writeIndex++] = ofNullable(
 				fetchReference(
-					referenceContract, referenceSchema, entityFetcher, entityGroupFetcher, referencePredicate
+					referenceContract, referenceSchema, entityFetcher, entityGroupFetcher, thisAttributePredicate
 				)
 			).orElseGet(() -> new ReferenceDecorator(
 				referenceContract,
-				referencePredicate.getAttributePredicate(thisReferenceName)
+				thisAttributePredicate
 			));
 		}
 		if (referenceSchema != null) {
-			final int subListEnd = outputReferences.length - filteredOutReferences;
-			final int removedHere = sortAndFilterSubList(
-				entityPrimaryKey,
-				outputReferences,
-				referencePredicate,
-				entityFilter,
-				fetchedReferenceComparator,
-				index, subListEnd
+			writeIndex -= closeReferenceNameRun(
+				entityPrimaryKey, referencePredicate, referenceFetcher, referenceSchema,
+				entityGroupFetcher, entityFilter, fetchedReferenceComparator,
+				outputReferences, runStart, writeIndex
 			);
-			noteUnexposedGroups(
-				referenceFetcher, referenceSchema, entityGroupFetcher,
-				outputReferences, index, subListEnd - removedHere
-			);
-			filteredOutReferences += removedHere;
 		}
-		return filteredOutReferences;
+		// the caller reads this back as `outputReferences.length - filteredOutReferences`, so it is counted off the
+		// output array rather than off the input - the two are the same array length at every call site, and saying
+		// it this way keeps that arithmetic exact by construction
+		return outputReferences.length - writeIndex;
+	}
+
+	/**
+	 * Sorts and re-filters the references of one reference name that the surrounding loop has just finished
+	 * collecting, and bills whatever group bodies the survivors cannot expose.
+	 *
+	 * The filtering pass is a second one: the loop already discarded everything these predicates reject, so nothing
+	 * is normally removed here. It is kept because {@link #sortAndFilterSubList} is the place the contract lives -
+	 * a caller that fills the window without pre-filtering (or a predicate that decoration could somehow change the
+	 * answer of) must still get a correctly narrowed result rather than a silently wider one.
+	 *
+	 * @param entityPrimaryKey    primary key of the entity whose references are being built
+	 * @param referencePredicate  predicate deciding which references the caller may see
+	 * @param referenceFetcher    fetcher the bodies were prefetched into
+	 * @param referenceSchema     schema of the references in the window
+	 * @param entityGroupFetcher  fetcher the group bodies were prefetched into
+	 * @param entityFilter        filter narrowing the references to those the query kept, NULL when none applies
+	 * @param referenceComparator comparator ordering the window, NULL when the fetch order stands
+	 * @param outputReferences    the reference array being built
+	 * @param from                index of the first reference of this reference name
+	 * @param toExclusive         index just past the last reference of this reference name
+	 * @return the number of references the filtering pass removed from the window
+	 */
+	private int closeReferenceNameRun(
+		int entityPrimaryKey,
+		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
+		@Nonnull ReferenceSetFetcher referenceFetcher,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Function<Integer, SealedEntity> entityGroupFetcher,
+		@Nullable BiPredicate<Integer, ReferenceContract> entityFilter,
+		@Nullable ReferenceComparator referenceComparator,
+		@Nonnull ReferenceDecorator[] outputReferences,
+		int from,
+		int toExclusive
+	) {
+		final int removedHere = sortAndFilterSubList(
+			entityPrimaryKey,
+			outputReferences,
+			referencePredicate,
+			entityFilter,
+			referenceComparator,
+			from, toExclusive
+		);
+		noteUnexposedGroups(
+			referenceFetcher, referenceSchema, entityGroupFetcher,
+			outputReferences, from, toExclusive - removedHere
+		);
+		return removedHere;
 	}
 
 	/**
@@ -2166,7 +2214,7 @@ public class EntityDecorator implements SealedEntity {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Function<Integer, SealedEntity> referenceEntityFetcher,
 		@Nonnull Function<Integer, SealedEntity> referenceGroupEntityFetcher,
-		@Nonnull ReferenceContractSerializablePredicate referencePredicate
+		@Nonnull ReferenceAttributeValueSerializablePredicate attributePredicate
 	) {
 		final SealedEntity referencedEntity = referenceSchema.isReferencedEntityTypeManaged() ?
 			referenceEntityFetcher.apply(reference.getReferenceKey().primaryKey()) : null;
@@ -2181,9 +2229,7 @@ public class EntityDecorator implements SealedEntity {
 			reference,
 			referencedEntity,
 			referencedGroupEntity,
-			referencePredicate.getAttributePredicate(
-				referenceSchema.getName()
-			)
+			attributePredicate
 		);
 	}
 
