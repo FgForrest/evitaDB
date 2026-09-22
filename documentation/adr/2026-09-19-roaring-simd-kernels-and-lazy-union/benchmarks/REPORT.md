@@ -1,11 +1,12 @@
 <!--
-This file is the bench agent's measurement report, copied verbatim from the (git-ignored) working notes of the
-1541 kernel-bench worktree with only this note prepended. Two things differ from the folder it was written in:
+This file is the bench agent's measurement report, copied verbatim from the (git-ignored) working notes it was
+written in, with only this note prepended. Two things differ from that folder:
 
 - The raw JMH result files (`*.json`, `*.log`), the harness scripts and the replay fixtures it cites are NOT
-  kept in the record — `.claude/rules/adr.md` keeps conclusions and drops the bytes. The file names remain in
-  the text so that a run can be told from its superseded predecessor; the "Superseded files" table below is
-  therefore a statement about which runs the numbers came from, not a list of files present here.
+  kept in the record — `.claude/rules/adr.md` keeps conclusions and drops the bytes — and none of them survives
+  anywhere else either. Every such name in the text below is the label of a run or a fixture, never a path to
+  something present: the "Superseded files" table is a statement about which runs the numbers came from, and
+  the fixtures are described in `../census/REPORT.md` §4.
 - "What was not measured" says no before/after query benchmark was run. That was true of the bench chain; the
   end-to-end query replay was run separately and is quoted in `../README.md` under *Verification — End to end*,
   together with the bisect that reverted the word-batched scatter the "Scatter shapes" section investigates.
@@ -41,7 +42,7 @@ rather than from a synthetic shape.
 - JMH 1.37, average time, one fork unless a table says otherwise, 3×1 s warmup and 5×1 s measurement unless
   stated.
 
-Every run went through `jmh-run.sh`, which is fail-closed on four things: the shaded jar must contain the
+Every run went through the gate script, which is fail-closed on four things: the shaded jar must contain the
 benchmark class, the box must be under 20 % busy over a 15-second window with no competing JVM, the incubator
 module must reach the **forked** JVM, and the result file must contain at least one measurement. Proof of the
 third, from every result JSON:
@@ -411,8 +412,8 @@ bound with no guard runs a 256-input fold at 0.02× of today.
 
 ## Replayed on 300 real multi-way unions
 
-`unions.bin`, five input-count strata, whole-run busy 6.0 %. One invocation folds every union in its stratum, so
-the scores below are divided by the stratum's union count. Ratios against today's per-key fold, which tracks the
+The union fixture — 300 real multi-way unions, five input-count strata — whole-run busy 6.0 %. One invocation
+folds every union in its stratum, so the scores below are divided by the stratum's union count. Ratios against today's per-key fold, which tracks the
 real `naive_or` closely enough to read as end to end.
 
 | stratum | unions in workload | today | T=64 | T=256 | T=1024 | guarded (T=1024, N≤64) |
@@ -646,7 +647,8 @@ the fixture's own description of what it built.
 | Scatter | `replay-scatter` (batch), `scatter-shape` (per operation), `scatter-hot` (destination residency) |
 | Union | `family5-union-v2`, `family5-union-gc-v2`, `family8-union-replay-v2`, `family8-union-replay-gc-v2` |
 
-Harness: `jmh-run.sh` (the gate), `run-all.sh` and `run-wave2..5.sh` (the grid), `rerun-contended.sh` (quiet
-repeats), `summarize.py` and `union-verdict.py` (the tables above), `harness/Validate.java` (the differential
-check, 55 assertions over every kernel, run fail-closed before each wave). Fixtures: `fixtures/operands.bin`,
-`fixtures/unions.bin`, `fixtures/repaired.bin` and their `FORMAT.md`, copied from the census worktree.
+Harness, none of it retained: a fail-closed gate script (the four checks in *Box, build and how a run was
+gated*), a grid driver with per-wave scripts, a quiet-repeat rerun for contended results, two summarisers that
+produced the tables above, and a differential validator — 55 assertions over every kernel, run fail-closed
+before each wave.
+Fixtures: the operand, union and repaired dumps described in `../census/REPORT.md` §4.
