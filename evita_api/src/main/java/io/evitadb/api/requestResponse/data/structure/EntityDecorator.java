@@ -61,6 +61,7 @@ import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.function.Functions;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
@@ -306,10 +307,12 @@ public class EntityDecorator implements SealedEntity {
 		int start,
 		int end
 	) {
+		// see the sibling loop in `fillFilteredSortedAndFetchedReferences` - the key is boxed once, not per reference
+		final Integer boxedEntityPrimaryKey = entityPrimaryKey;
 		int writeIndex = start;
 		for (int i = start; i < end; i++) {
 			final ReferenceDecorator reference = references[i];
-			if (referencePredicate.test(reference) && referenceFilter.test(entityPrimaryKey, reference)) {
+			if (referencePredicate.test(reference) && referenceFilter.test(boxedEntityPrimaryKey, reference)) {
 				references[writeIndex++] = reference;
 			}
 		}
@@ -603,6 +606,9 @@ public class EntityDecorator implements SealedEntity {
 		ReferenceAttributeValueSerializablePredicate attributePredicate = null;
 		boolean referenceNameRequested = false;
 
+		// `BiPredicate<Integer, ...>` boxes its first argument, and the filter below is asked about every reference
+		// of this entity - so the key is boxed once here rather than once per reference
+		final Integer boxedEntityPrimaryKey = entityPrimaryKey;
 		// `inputReferences` is grouped by reference name, so a run of one name is a contiguous window - `runStart`
 		// marks where the current run begins in the output and `writeIndex` the next free slot. Both count only the
 		// references that were kept, so the input index and the output index part ways at the first discard
@@ -640,7 +646,7 @@ public class EntityDecorator implements SealedEntity {
 			// `ReferenceDecorator` delegates its key and its existence, and the validity mapping has always read
 			// representative attribute values off the delegate rather than off the decorator
 			if (!referenceNameRequested || !referenceContract.exists() ||
-				(entityFilter != null && !entityFilter.test(entityPrimaryKey, referenceContract))) {
+				(entityFilter != null && !entityFilter.test(boxedEntityPrimaryKey, referenceContract))) {
 				continue;
 			}
 
@@ -2232,8 +2238,12 @@ public class EntityDecorator implements SealedEntity {
 		@Nonnull Function<Integer, SealedEntity> referenceGroupEntityFetcher,
 		@Nonnull ReferenceAttributeValueSerializablePredicate attributePredicate
 	) {
-		final SealedEntity referencedEntity = referenceSchema.isReferencedEntityTypeManaged() ?
-			referenceEntityFetcher.apply(reference.getReferenceKey().primaryKey()) : null;
+		// the no-op check is not redundant with the managed one: a request that asks for no body at all still
+		// reaches here for every reference of every entity, and `apply` takes an `Integer` - so calling a fetcher
+		// that can only answer NULL costs one boxed key per reference, tens of thousands of them per entity
+		final SealedEntity referencedEntity =
+			referenceSchema.isReferencedEntityTypeManaged() && referenceEntityFetcher != Functions.<Integer, SealedEntity>noOpFunction() ?
+				referenceEntityFetcher.apply(reference.getReferenceKey().primaryKey()) : null;
 
 		final SealedEntity referencedGroupEntity = referenceSchema.isReferencedGroupTypeManaged() && referencedEntity != null ?
 			reference.getGroup().map(group -> referenceGroupEntityFetcher.apply(group.primaryKey())).orElse(null) :

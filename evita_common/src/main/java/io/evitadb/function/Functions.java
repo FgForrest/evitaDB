@@ -65,6 +65,13 @@ public interface Functions {
 	}
 
 	/**
+	 * The single instance {@link #noOpFunction()} hands out. One instance rather than one per call site so that
+	 * a caller holding such a function can recognise it and skip the work of calling it - notably the boxing of
+	 * a primitive key, which on the entity composition path is paid once per reference of every entity read.
+	 */
+	Function<Object, Object> NO_OP_FUNCTION = t -> null;
+
+	/**
 	 * Returns a no-operation function that takes an input argument and always returns null.
 	 * This can be useful in scenarios where a Function is required, but no meaningful operation or computation is performed.
 	 *
@@ -73,8 +80,9 @@ public interface Functions {
 	 * @return a Function that accepts an input of type T and always returns null
 	 */
 	@Nonnull
+	@SuppressWarnings({"unchecked", "rawtypes"})
 	static <T, U> Function<T, U> noOpFunction() {
-		return t -> null;
+		return (Function) NO_OP_FUNCTION;
 	}
 
 	/**

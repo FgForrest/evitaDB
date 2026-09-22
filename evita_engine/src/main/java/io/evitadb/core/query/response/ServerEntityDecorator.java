@@ -618,6 +618,8 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 						// `keptCount` counts the references that survived the filter, so it parts ways with the input
 						// index at the first discard
 						int keptCount = 0;
+						// `BiPredicate<Integer, ...>` boxes its first argument once here rather than per reference
+						final Integer boxedEntityPrimaryKey = entityPrimaryKey;
 						for (int i = 0; i < size; i++) {
 							final ReferenceContract referenceContract = inputReferences[start + i];
 							// decide before decorating rather than after - `sortAndFilterSubList` below applies
@@ -625,7 +627,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 							// group resolution that building one costs are wasted on a reference that fails them.
 							// An entity may carry tens of thousands of back-references of which the query keeps one
 							if (!referenceNameRequested || !referenceContract.exists() ||
-								(referenceFilter != null && !referenceFilter.test(entityPrimaryKey, referenceContract))) {
+								(referenceFilter != null && !referenceFilter.test(boxedEntityPrimaryKey, referenceContract))) {
 								continue;
 							}
 							outputReferences[keptCount++] = ofNullable(
