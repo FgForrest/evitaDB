@@ -42,8 +42,10 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -114,10 +116,20 @@ public class ReferenceSerializer extends Serializer<Reference> {
 			group = null;
 		}
 		final int attributeCount = input.readVarInt(true);
-		final LinkedHashMap<AttributeKey, AttributeValue> attributes = CollectionUtils.createLinkedHashMap(attributeCount);
-		for (int i = 0; i < attributeCount; i++) {
-			final AttributeValue attributeValue = kryo.readObject(input, AttributeValue.class);
-			attributes.put(attributeValue.key(), attributeValue);
+		final Map<AttributeKey, AttributeValue> attributes;
+		if (attributeCount == 0) {
+			// the overwhelmingly common shape - a back-reference carrying no attributes of its own - and an entity
+			// may hold tens of thousands of those. The empty map costs no object, and `Attributes` then collects its
+			// locales over a view whose iterator is a shared singleton instead of over a fresh LinkedHashMap's
+			attributes = Collections.emptyMap();
+		} else {
+			final LinkedHashMap<AttributeKey, AttributeValue> decodedAttributes =
+				CollectionUtils.createLinkedHashMap(attributeCount);
+			for (int i = 0; i < attributeCount; i++) {
+				final AttributeValue attributeValue = kryo.readObject(input, AttributeValue.class);
+				decodedAttributes.put(attributeValue.key(), attributeValue);
+			}
+			attributes = decodedAttributes;
 		}
 
 		return new Reference(
