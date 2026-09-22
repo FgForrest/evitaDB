@@ -140,7 +140,9 @@ public class ReferenceOwnerTranslatingFormula extends AbstractFormula implements
 	) {
 		this.primaryKeyExpander = primaryKeyExpander;
 		this.referencedEntityTypeTransactionalId = referencedEntityGlobalIndex.getId();
-		this.worstCardinality = referencedEntityGlobalIndex.getSize();
+		// the entity count of the referenced collection - NOT `getSize()`, which Lombok delegates onto every
+		// EntityIndex from FacetIndexContract and which therefore answers with the facet index's size
+		this.worstCardinality = referencedEntityGlobalIndex.getAllPrimaryKeys().size();
 		this.expanderDiscriminator = expanderDiscriminator;
 		this.initFields(innerFormula);
 	}
