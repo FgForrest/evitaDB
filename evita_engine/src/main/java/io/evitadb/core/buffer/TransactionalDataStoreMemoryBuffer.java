@@ -203,6 +203,7 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 
 	@Override
 	public <T extends StoragePart> void update(long catalogVersion, @Nonnull T value) {
+		StoragePart.assertPersistable(value, "transactional update");
 		final DataStoreChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this.transactionalMemoryDataSource);
 		if (layer == null) {
 			this.persistenceService.putStoragePart(catalogVersion, value);
@@ -220,6 +221,7 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 
 	@Override
 	public <T extends StoragePart> void trapUpdate(long catalogVersion, @Nonnull T value) {
+		StoragePart.assertPersistable(value, "transactional trapped update");
 		final DataStoreChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this.transactionalMemoryDataSource);
 		Objects.requireNonNullElse(layer, this.dataStoreChanges).trapPutStoragePart(value);
 	}

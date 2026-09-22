@@ -607,6 +607,9 @@ public class EntityDecorator implements SealedEntity {
 		BiPredicate<Integer, ReferenceContract> entityFilter = null;
 		ReferenceAttributeValueSerializablePredicate attributePredicate = null;
 		boolean referenceNameRequested = false;
+		// a projected run carries references another requirement already filtered, sorted and decorated - it is
+		// copied in whole at the run start and must not be filtered or sorted a second time when the run closes
+		boolean runProjected = false;
 
 		// `BiPredicate<Integer, ...>` boxes its first argument, and the filter below is asked about every reference
 		// of this entity - so the key is boxed once here rather than once per reference
@@ -620,14 +623,14 @@ public class EntityDecorator implements SealedEntity {
 			final ReferenceContract referenceContract = inputReferences[i];
 			final String thisReferenceName = referenceContract.getReferenceName();
 			if (referenceSchema == null || !referenceSchema.getName().equals(thisReferenceName)) {
-				if (referenceSchema != null) {
+				if (referenceSchema != null && !runProjected) {
 					writeIndex -= closeReferenceNameRun(
 						entityPrimaryKey, referencePredicate, referenceFetcher, referenceSchema,
 						entityGroupFetcher, entityFilter, fetchedReferenceComparator,
 						outputReferences, runStart, writeIndex
 					);
-					runStart = writeIndex;
 				}
+				runStart = writeIndex;
 				referenceSchema = entitySchema
 					.getReference(thisReferenceName)
 				    .orElseThrow(() -> new GenericEvitaInternalError("Sanity check!"));
@@ -639,7 +642,23 @@ public class EntityDecorator implements SealedEntity {
 				// resolving them there made an entity carrying tens of thousands of back-references resolve them
 				// that many times, which was the single most expensive frame of the reference fetch
 				attributePredicate = referencePredicate.getAttributePredicate(thisReferenceName);
-				referenceNameRequested = referencePredicate.isReferenceRequested(thisReferenceName);
+
+				// when another requirement has already materialized this reference name, the unnamed view is that
+				// projection rather than a second, independently built copy of the same references
+				final ReferenceDecorator[] projection = getUnnamedReferenceViewProjection(
+					thisReferenceName, referencePredicate
+				);
+				runProjected = projection != null;
+				if (runProjected) {
+					for (ReferenceDecorator projectedReference : projection) {
+						outputReferences[writeIndex++] = projectedReference;
+					}
+					// the projection stands for every reference of this name, so the input references it was built
+					// from are skipped rather than decorated a second time
+					referenceNameRequested = false;
+				} else {
+					referenceNameRequested = referencePredicate.isReferenceRequested(thisReferenceName);
+				}
 			}
 
 			// decide before decorating rather than after: `sortAndFilterSubList` below applies exactly these three
@@ -662,7 +681,7 @@ public class EntityDecorator implements SealedEntity {
 				thisAttributePredicate
 			));
 		}
-		if (referenceSchema != null) {
+		if (referenceSchema != null && !runProjected) {
 			writeIndex -= closeReferenceNameRun(
 				entityPrimaryKey, referencePredicate, referenceFetcher, referenceSchema,
 				entityGroupFetcher, entityFilter, fetchedReferenceComparator,
@@ -673,6 +692,31 @@ public class EntityDecorator implements SealedEntity {
 		// output array rather than off the input - the two are the same array length at every call site, and saying
 		// it this way keeps that arithmetic exact by construction
 		return outputReferences.length - writeIndex;
+	}
+
+	/**
+	 * Returns the references the unnamed view should carry for `referenceName`, when they have already been
+	 * materialized elsewhere on this decorator and rebuilding them here would be a second copy of the same data.
+	 *
+	 * Answers NULL here - "build the view from the entity's own references, as always" - and is meant to stay that
+	 * way for every decorator that has only the unnamed view. The client-side decorator the gRPC driver builds is
+	 * exactly that, and projecting there would drop the references altogether. Only `ServerEntityDecorator`, which
+	 * builds named reference chunks beside the unnamed view, overrides it.
+	 *
+	 * A non-NULL answer is used verbatim: the references are already filtered, sorted and decorated by the
+	 * requirement that produced them, so the surrounding loop neither re-filters nor re-sorts them.
+	 *
+	 * @param referenceName      name of the reference the caller is about to materialize
+	 * @param referencePredicate predicate deciding which references the caller may see
+	 * @return the references the unnamed view should carry, possibly empty; NULL to build the view from the
+	 *         entity's own references
+	 */
+	@Nullable
+	protected ReferenceDecorator[] getUnnamedReferenceViewProjection(
+		@Nonnull String referenceName,
+		@Nonnull ReferenceContractSerializablePredicate referencePredicate
+	) {
+		return null;
 	}
 
 	/**

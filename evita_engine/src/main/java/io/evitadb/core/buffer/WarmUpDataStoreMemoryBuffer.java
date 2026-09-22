@@ -164,6 +164,7 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 
 	@Override
 	public <T extends StoragePart> void update(long catalogVersion, @Nonnull T value) {
+		StoragePart.assertPersistable(value, "warm-up update");
 		this.dataStoreChanges.putStoragePart(catalogVersion, value);
 	}
 
@@ -174,6 +175,7 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 
 	@Override
 	public <T extends StoragePart> void trapUpdate(long catalogVersion, @Nonnull T value) {
+		StoragePart.assertPersistable(value, "warm-up trapped update");
 		this.dataStoreChanges.trapPutStoragePart(value);
 	}
 

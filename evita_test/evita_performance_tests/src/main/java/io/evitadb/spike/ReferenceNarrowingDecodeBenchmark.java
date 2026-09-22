@@ -37,7 +37,8 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.spi.store.catalog.persistence.EntitySchemaContext;
-import io.evitadb.spi.store.catalog.persistence.ReferenceNameFilterContext;
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
+import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
@@ -74,7 +75,7 @@ import java.util.concurrent.TimeUnit;
  * A reflected reference makes a shared, low-cardinality entity the owner of one back-reference per entity that
  * points at it, and all of them live in the **same** storage record as the handful of references a projection
  * actually asks for. Narrowing carries the projection's reference-name set into the Kryo deserializer
- * ({@link ReferenceNameFilterContext}), which then materializes only those names and steps the stream past the
+ * ({@link ReferenceDecodeCoverageContext}), which then materializes only those names and steps the stream past the
  * rest. This benchmark prices exactly that decision, in isolation from a running server.
  *
  * The shape is the one measured on a large e-commerce catalogue, parameterized by `backReferences`: one entity
@@ -155,7 +156,7 @@ public class ReferenceNarrowingDecodeBenchmark {
 		private EntitySchema schema;
 		private Kryo kryo;
 		private byte[] serialized;
-		private Set<String> projectedNames;
+		private ReferenceDecodeCoverage projectedNames;
 
 		@Setup(Level.Trial)
 		public void setUp() {
@@ -164,7 +165,7 @@ public class ReferenceNarrowingDecodeBenchmark {
 				SharedClassesConfigurer.INSTANCE
 					.andThen(new EntityStoragePartConfigurer(new ReadWriteKeyCompressor(new ConcurrentHashMap<>())))
 			);
-			this.projectedNames = Set.of(PARAMETER);
+			this.projectedNames = ReferenceDecodeCoverage.ofNames(Set.of(PARAMETER));
 			final ByteArrayOutputStream baos = new ByteArrayOutputStream(4 << 20);
 			try (final ByteBufferOutput output = new ByteBufferOutput(baos, 1 << 20)) {
 				EntitySchemaContext.executeWithSchemaContext(this.schema, () -> {
@@ -178,16 +179,16 @@ public class ReferenceNarrowingDecodeBenchmark {
 		/**
 		 * Decodes the record once under the passed filter.
 		 *
-		 * @param filter the reference names the read may materialize, NULL to decode the record in full
+		 * @param coverage what the read may materialize, NULL to decode the record in full
 		 * @return the decoded storage part
 		 */
 		@Nonnull
-		private ReferencesStoragePart decode(@Nullable Set<String> filter) {
+		private ReferencesStoragePart decode(@Nullable ReferenceDecodeCoverage coverage) {
 			try (final ByteBufferInput input = new ByteBufferInput(new ByteArrayInputStream(this.serialized))) {
 				return EntitySchemaContext.executeWithSchemaContext(
 					this.schema,
-					() -> ReferenceNameFilterContext.executeWithReferenceNameFilter(
-						filter,
+					() -> ReferenceDecodeCoverageContext.executeWithCoverage(
+						coverage,
 						() -> this.kryo.readObject(input, ReferencesStoragePart.class)
 					)
 				);
@@ -198,11 +199,11 @@ public class ReferenceNarrowingDecodeBenchmark {
 		 * Decodes the record and builds the reference index over the result - together, the work one fetched
 		 * entity costs the pipeline.
 		 *
-		 * @param filter the reference names the read may materialize, NULL to decode the record in full
+		 * @param coverage what the read may materialize, NULL to decode the record in full
 		 * @return the number of references that ended up visible, so the JIT cannot discard the work
 		 */
-		private int decodeAndIndex(@Nullable Set<String> filter) {
-			final ReferencesStoragePart part = decode(filter);
+		private int decodeAndIndex(@Nullable ReferenceDecodeCoverage coverage) {
+			final ReferencesStoragePart part = decode(coverage);
 			final References references = new References(
 				this.schema, part.getReferences(), this.schema.getReferences().keySet(),
 				References.DEFAULT_CHUNK_TRANSFORMER
