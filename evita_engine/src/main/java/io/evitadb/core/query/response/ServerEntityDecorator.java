@@ -599,7 +599,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 						);
 						final Function<Integer, SealedEntity> entityFetcher = mrf.getEntityFetcher(referenceSchema);
 						final Function<Integer, SealedEntity> entityGroupFetcher = mrf.getEntityGroupFetcher(referenceSchema);
-						final BiPredicate<Integer, ReferenceDecorator> referenceFilter = mrf.getEntityFilter(referenceSchema);
+						final BiPredicate<Integer, ReferenceContract> referenceFilter = mrf.getEntityFilter(referenceSchema);
 						final ReferenceComparator fetchedReferenceComparator = mrf.getEntityComparator(referenceSchema);
 						final AttributeContent attributeContentToPrefetch = mrf.getAttributeContentToPrefetch(referenceSchema);
 
@@ -614,15 +614,27 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 						final ReferenceAttributeValueSerializablePredicate namedAttributePredicate =
 							namedReferencePredicate.getAttributePredicate(referenceName);
 						final int size = end - start;
+						final boolean referenceNameRequested = namedReferencePredicate.isReferenceRequested(referenceName);
+						// `keptCount` counts the references that survived the filter, so it parts ways with the input
+						// index at the first discard
+						int keptCount = 0;
 						for (int i = 0; i < size; i++) {
 							final ReferenceContract referenceContract = inputReferences[start + i];
-							outputReferences[i] = ofNullable(
+							// decide before decorating rather than after - `sortAndFilterSubList` below applies
+							// exactly these three tests, and the decorator, the prefetched-body lookup and the
+							// group resolution that building one costs are wasted on a reference that fails them.
+							// An entity may carry tens of thousands of back-references of which the query keeps one
+							if (!referenceNameRequested || !referenceContract.exists() ||
+								(referenceFilter != null && !referenceFilter.test(entityPrimaryKey, referenceContract))) {
+								continue;
+							}
+							outputReferences[keptCount++] = ofNullable(
 								fetchReference(
 									referenceContract,
 									referenceSchema,
 									entityFetcher,
 									entityGroupFetcher,
-									namedReferencePredicate
+									namedAttributePredicate
 								)
 							).orElseGet(
 								() -> new ReferenceDecorator(
@@ -638,16 +650,16 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 							namedReferencePredicate,
 							referenceFilter,
 							fetchedReferenceComparator,
-							0, size
+							0, keptCount
 						);
 						// only the references this entity kept - the group prefetch index is shared by the whole
 						// batch, so a reference a filterBy excluded says nothing about what this entity read
 						noteUnexposedGroups(
 							mrf, referenceSchema, entityGroupFetcher,
-							outputReferences, 0, size - filteredOutReferences
+							outputReferences, 0, keptCount - filteredOutReferences
 						);
 						final List<ReferenceContract> namedReferences = Arrays.asList(
-							Arrays.copyOf(outputReferences, size - filteredOutReferences)
+							Arrays.copyOf(outputReferences, keptCount - filteredOutReferences)
 						);
 						final DataChunk<ReferenceContract> chunk = mrf.createChunk(
 							entity, referenceName, namedReferences

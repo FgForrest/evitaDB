@@ -2627,7 +2627,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 */
 	@Nullable
 	@Override
-	public BiPredicate<Integer, ReferenceDecorator> getEntityFilter(
+	public BiPredicate<Integer, ReferenceContract> getEntityFilter(
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
 		return requireFetchedEntities().getEntityFilter(referenceSchema);
