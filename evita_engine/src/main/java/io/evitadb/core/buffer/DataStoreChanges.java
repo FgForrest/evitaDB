@@ -660,6 +660,7 @@ public class DataStoreChanges
 	 * @param <T> the type of the storage part
 	 */
 	public <T extends StoragePart> void putStoragePart(long catalogVersion, @Nonnull T value) {
+		StoragePart.assertPersistable(value, "data store changes");
 		final WarmUpSavepoint savepoint = recordWarmUpSavepointTouch();
 		if (this.trappedChanges != null) {
 			final LongObjectMap<StoragePart> containerChanges = this.trappedChanges.get(value.getClass());
@@ -702,6 +703,9 @@ public class DataStoreChanges
 	 * @param value the storage part to be added, must not be null
 	 */
 	public <T extends StoragePart> void trapPutStoragePart(@Nonnull T value) {
+		// this layer retains the object BY REFERENCE and replays that same instance to later readers, so a partial
+		// value refused here is a value that never becomes visible to anybody
+		StoragePart.assertPersistable(value, "transactional overlay");
 		recordWarmUpSavepointTouch();
 		final long storagePartPK = value.getStoragePartPKOrElseThrowException();
 		final Class<? extends StoragePart> containerType = value.getClass();

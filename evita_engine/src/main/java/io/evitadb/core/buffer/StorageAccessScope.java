@@ -23,7 +23,8 @@
 
 package io.evitadb.core.buffer;
 
-import io.evitadb.spi.store.catalog.persistence.ReferenceNameFilterContext;
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
+import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.utils.CollectionUtils;
 
@@ -157,13 +158,15 @@ public final class StorageAccessScope implements Closeable {
 		@Nullable Object originalKey,
 		@Nonnull Supplier<T> loader
 	) {
-		// a record read under a reference name filter holds only the references of those names, so it may only be
-		// served back to a read that asks for the same ones - the filter is part of the record's identity, not of
-		// the way it was obtained (see ReferenceNameFilterContext). Reads of every other container type run with no
-		// filter bound and are therefore keyed exactly as before.
+		// a record read under a decode coverage holds only the references that coverage admits, so it may only be
+		// served back to a read that asks for exactly the same ones - the coverage is part of the record's identity,
+		// not of the way it was obtained (see ReferenceDecodeCoverageContext). Identity is equality rather than
+		// containment on purpose: a map key can only do equality, and a miss against a wider coverage costs one
+		// redundant decode, never a wrong answer. Reads of every other container type run with no coverage bound and
+		// are therefore keyed exactly as before.
 		final RecordKey key = new RecordKey(
 			owner, catalogVersion, containerType, primaryKey, originalKey,
-			ReferenceNameFilterContext.getReferenceNameFilter()
+			ReferenceDecodeCoverageContext.getDecodeCoverage()
 		);
 		final Object cached = this.records.get(key);
 		if (cached != null) {
@@ -264,7 +267,7 @@ public final class StorageAccessScope implements Closeable {
 	 * @param containerType       type of the storage part
 	 * @param primaryKey          numeric key, {@link Long#MIN_VALUE} when the record is addressed by `originalKey`
 	 * @param originalKey         non-numeric key, NULL when the record is addressed by `primaryKey`
-	 * @param referenceNameFilter reference names the record was decoded for, NULL when it was decoded whole
+	 * @param decodeCoverage      how much of the record was decoded, NULL when it was decoded whole
 	 */
 	private record RecordKey(
 		@Nonnull Object owner,
@@ -272,7 +275,7 @@ public final class StorageAccessScope implements Closeable {
 		@Nonnull Class<?> containerType,
 		long primaryKey,
 		@Nullable Object originalKey,
-		@Nullable Set<String> referenceNameFilter
+		@Nullable ReferenceDecodeCoverage decodeCoverage
 	) {
 	}
 

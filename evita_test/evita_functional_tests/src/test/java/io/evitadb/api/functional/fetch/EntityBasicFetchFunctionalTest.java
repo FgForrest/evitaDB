@@ -29,6 +29,8 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
+import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
@@ -40,11 +42,17 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -195,6 +203,64 @@ class EntityBasicFetchFunctionalTest extends AbstractEntityFetchingFunctionalTes
 				assertNotNull(binaryEntity.getPriceStoragePart());
 				assertNotNull(binaryEntity.getReferenceStoragePart());
 				return null;
+			},
+			SessionFlags.BINARY
+		);
+	}
+
+	@DisplayName("Binary entity references are never narrowed by a coverage bound on the thread")
+	@Test
+	void shouldNeverNarrowBinaryEntityReferences(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
+		// The references container of a binary entity is re-serialized verbatim and handed to the client, so it
+		// has to carry every reference the entity has. The read must therefore BIND an unrestricted coverage
+		// rather than assume the thread holds none - a coverage left behind by a read further up the stack would
+		// otherwise reach it. Both consumers refuse a narrowed part, so the symptom is a failed request rather
+		// than a short entity, but the container must simply come back whole.
+		final byte[] unrestricted = ReferenceDecodeCoverageContext.executeWithCoverage(
+			null, () -> fetchBinaryReferenceStoragePart(evita)
+		);
+		final byte[] underBoundCoverage = ReferenceDecodeCoverageContext.executeWithCoverage(
+			ReferenceDecodeCoverage.of(Set.of(), Map.of(Entities.CATEGORY, new int[]{Integer.MAX_VALUE})),
+			() -> fetchBinaryReferenceStoragePart(evita)
+		);
+
+		assertNotNull(unrestricted);
+		assertTrue(unrestricted.length > 0);
+		// byte for byte the same container, whatever the thread happened to be carrying
+		assertArrayEquals(unrestricted, underBoundCoverage);
+	}
+
+	/**
+	 * Fetches one product in binary form and hands back the serialized references container, so that the same read
+	 * can be performed under two different thread bound coverages and the results compared.
+	 *
+	 * @param evita the test instance to query
+	 * @return the serialized references storage part of the fetched entity
+	 */
+	@Nullable
+	private static byte[] fetchBinaryReferenceStoragePart(@Nonnull Evita evita) {
+		return evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// a referenceContent carrying an entityFetch is what makes `getReferenceEntityFetch()` non-empty,
+				// which is the branch that DECODES the container instead of handing back its stored bytes - the
+				// raw-bytes branch cannot be narrowed at all and would make this test vacuous
+				final EvitaResponse<BinaryEntity> productByPk = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(2)
+						),
+						require(
+							entityFetch(
+								referenceContent(Entities.CATEGORY, entityFetch(attributeContentAll()))
+							)
+						)
+					),
+					BinaryEntity.class
+				);
+				assertEquals(1, productByPk.getRecordData().size());
+				return productByPk.getRecordData().get(0).getReferenceStoragePart();
 			},
 			SessionFlags.BINARY
 		);

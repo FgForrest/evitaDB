@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.Reference;
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -62,8 +63,8 @@ import java.util.stream.Collectors;
  * are stored in single storage container because the data are expected to be small. That expectation does not hold
  * for entities that are referenced by many others - a back-reference is a reference like any other and lands in the
  * same container - so a read may decode only the reference names its projection asks for (see
- * {@link io.evitadb.spi.store.catalog.persistence.ReferenceNameFilterContext}) and the resulting part is then
- * a **narrowed view**, see {@link #getDecodedReferenceNames()}.
+ * {@link io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext}) and the resulting part is
+ * then a **narrowed view**, see {@link #getDecodeCoverage()}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -123,18 +124,22 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 */
 	@Nullable private Set<ComparableReferenceKey> referenceKeysForReassignment = null;
 	/**
-	 * Names of the references this part actually carries, or NULL when it carries all of them.
+	 * How much of the entity's reference set this part actually carries, or NULL when it carries all of it.
 	 *
-	 * A read that projects only some reference names may decode only those (see
-	 * {@link io.evitadb.spi.store.catalog.persistence.ReferenceNameFilterContext}), which makes the part a narrowed
-	 * view rather than the entity's complete reference set. The narrowing is invisible to the read path - the entity
-	 * decorator hides exactly the same names anyway - but it is **not** safe for anything that reasons about the
-	 * absence of a reference: the write path decides cardinalities, internal primary keys and index maintenance from
-	 * this array, and a missing name would read as "the entity has no such reference". Everything of that kind is
-	 * guarded by {@link #assertComplete(String)} / {@link #assertReferenceNameDecoded(String)} so a narrowed part
-	 * fails loudly instead of answering from data it does not have.
+	 * A read that projects only some references may decode only those (see
+	 * {@link io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext}) - by reference name, and within
+	 * a name by referenced entity primary key - which makes the part a narrowed view rather than the entity's
+	 * complete reference set. The narrowing is invisible to the read path, because the entity decorator hides
+	 * exactly the same references anyway, but it is **not** safe for anything that reasons about the absence of
+	 * a reference: the write path decides cardinalities, internal primary keys and index maintenance from this
+	 * array, and a missing reference would read as "the entity does not have it".
+	 *
+	 * Everything of that kind is guarded by {@link #assertComplete(String)} /
+	 * {@link #assertReferenceNameDecoded(String)} so a narrowed part fails loudly instead of answering from data it
+	 * does not have. Note that a name narrowed **by key** is not decoded for the purposes of the second guard
+	 * either: a reference outside the key set was skipped, not found missing.
 	 */
-	@Nullable @Getter private final Set<String> decodedReferenceNames;
+	@Nullable @Getter private final ReferenceDecodeCoverage decodeCoverage;
 
 	/**
 	 * Finds the position of the provided {@link ReferenceKey} in the references array in a general manner.
@@ -172,7 +177,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.lastUsedPrimaryKey = 0;
 		this.sizeInBytes = -1;
-		this.decodedReferenceNames = null;
+		this.decodeCoverage = null;
 	}
 
 	public ReferencesStoragePart(
@@ -188,20 +193,20 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 *                              one is read from the part header and stays correct under narrowing
 	 * @param references            the decoded references, sorted by {@link ReferenceContract#FULL_COMPARATOR}
 	 * @param sizeInBytes           size the whole (un-narrowed) record occupied in the storage
-	 * @param decodedReferenceNames the reference names `references` was decoded for, NULL when all of them were
+	 * @param decodeCoverage        how much of the reference set `references` was decoded for, NULL when all of it
 	 */
 	public ReferencesStoragePart(
 		int entityPrimaryKey,
 		int lastUsedPrimaryKey,
 		@Nonnull Reference[] references,
 		int sizeInBytes,
-		@Nullable Set<String> decodedReferenceNames
+		@Nullable ReferenceDecodeCoverage decodeCoverage
 	) {
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.lastUsedPrimaryKey = lastUsedPrimaryKey;
 		this.references = references;
 		this.sizeInBytes = sizeInBytes;
-		this.decodedReferenceNames = decodedReferenceNames;
+		this.decodeCoverage = decodeCoverage;
 	}
 
 	/**
@@ -211,7 +216,18 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 * @return true when the part is the entity's complete reference set
 	 */
 	public boolean isComplete() {
-		return this.decodedReferenceNames == null;
+		return this.decodeCoverage == null;
+	}
+
+	/**
+	 * A part decoded under a narrowing carries only part of the entity's references, so persisting it would store
+	 * that view as the entity's whole reference set - see {@link #getDecodeCoverage()}.
+	 *
+	 * @return true when this part carries only some of the entity's references
+	 */
+	@Override
+	public boolean isNarrowedView() {
+		return !isComplete();
 	}
 
 	/**
@@ -222,26 +238,29 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 */
 	private void assertComplete(@Nonnull String operation) {
 		Assert.isPremiseValid(
-			this.decodedReferenceNames == null,
+			this.decodeCoverage == null,
 			() -> new GenericEvitaInternalError(
 				"References storage part of entity with primary key " + this.entityPrimaryKey + " was decoded only " +
-					"for reference names " + this.decodedReferenceNames + " and cannot be used for: " + operation + "!"
+					"for " + this.decodeCoverage + " and cannot be used for: " + operation + "!"
 			)
 		);
 	}
 
 	/**
-	 * Fails when this part was decoded without the passed reference name and therefore cannot tell whether the entity
-	 * has such a reference at all.
+	 * Fails when this part cannot tell whether the entity has a reference of the passed name at all.
+	 *
+	 * A name the read narrowed **by referenced primary key** fails here just as a name it skipped entirely does:
+	 * the references outside the key set were skipped rather than found missing, so the array is silent about them
+	 * and "the entity has no such reference" is a plausible wrong answer rather than a failure.
 	 *
 	 * @param referenceName name of the reference the caller asks about
 	 */
 	private void assertReferenceNameDecoded(@Nonnull String referenceName) {
 		Assert.isPremiseValid(
-			this.decodedReferenceNames == null || this.decodedReferenceNames.contains(referenceName),
+			this.decodeCoverage == null || this.decodeCoverage.isNameDecodedWhole(referenceName),
 			() -> new GenericEvitaInternalError(
 				"References storage part of entity with primary key " + this.entityPrimaryKey + " was decoded only " +
-					"for reference names " + this.decodedReferenceNames + " and knows nothing about reference `" +
+					"for " + this.decodeCoverage + " and knows nothing about reference `" +
 					referenceName + "`!"
 			)
 		);

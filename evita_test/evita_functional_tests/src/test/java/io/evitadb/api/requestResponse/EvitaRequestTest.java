@@ -3043,4 +3043,227 @@ class EvitaRequestTest {
 		}
 	}
 
+	@Nested
+	@DisplayName("Reference key narrowing")
+	class ReferenceKeyNarrowing {
+
+		@Test
+		@DisplayName("A key set at the filter's conjunctive root bounds the reference")
+		void shouldNarrowOnRootKeySet() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							referenceContent(
+								"products",
+								filterBy(entityPrimaryKeyInSet(30, 10, 20)),
+								entityFetch(attributeContentAll())
+							)
+						)
+					)
+				)
+			);
+
+			// sorted on the way out, because the decoder binary-searches it
+			assertArrayEquals(new int[]{10, 20, 30}, request.getReferenceKeyNarrowing().get("products"));
+		}
+
+		@Test
+		@DisplayName("A key set nested in an `or` bounds nothing")
+		void shouldNotNarrowForPkConstraintNestedInOr() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							referenceContent(
+								"products",
+								filterBy(
+									or(
+										entityPrimaryKeyInSet(10, 20),
+										attributeEquals("code", "whatever")
+									)
+								),
+								entityFetch(attributeContentAll())
+							)
+						)
+					)
+				)
+			);
+
+			// the `or` admits entities outside the key set, so bounding the decode by it would drop real matches
+			assertTrue(request.getReferenceKeyNarrowing().isEmpty());
+		}
+
+		@Test
+		@DisplayName("A key set nested in a `not` bounds nothing")
+		void shouldNotNarrowForPkConstraintNestedInNot() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							referenceContent(
+								"products",
+								filterBy(not(entityPrimaryKeyInSet(10, 20))),
+								entityFetch(attributeContentAll())
+							)
+						)
+					)
+				)
+			);
+
+			// a negated key set names exactly what must NOT be returned - the inverse of a bound
+			assertTrue(request.getReferenceKeyNarrowing().isEmpty());
+		}
+
+		@Test
+		@DisplayName("Several key sets at one root intersect, because the conjunction admits only what all admit")
+		void shouldIntersectSeveralRootKeySets() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							referenceContent(
+								"products",
+								filterBy(
+									entityPrimaryKeyInSet(10, 20, 30),
+									entityPrimaryKeyInSet(20, 30, 40)
+								),
+								entityFetch(attributeContentAll())
+							)
+						)
+					)
+				)
+			);
+
+			assertArrayEquals(new int[]{20, 30}, request.getReferenceKeyNarrowing().get("products"));
+		}
+
+		@Test
+		@DisplayName("Two requirements naming one reference union their key sets")
+		void shouldUnionKeySetsOfTwoRequirements() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							referenceContent(
+								"products",
+								filterBy(entityPrimaryKeyInSet(10, 20)),
+								entityFetch(attributeContentAll())
+							),
+							referenceContent(
+								"products",
+								filterBy(entityPrimaryKeyInSet(20, 30)),
+								entityFetch(attributeContentAll())
+							)
+						)
+					)
+				)
+			);
+
+			// the caller sees the union of what the requirements matched, so the decode must cover the union
+			assertArrayEquals(new int[]{10, 20, 30}, request.getReferenceKeyNarrowing().get("products"));
+		}
+
+		@Test
+		@DisplayName("One requirement wanting the reference in full un-narrows it for all of them")
+		void shouldNotNarrowWhenAnyRequirementWantsTheWholeReference() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							referenceContent(
+								"products",
+								filterBy(entityPrimaryKeyInSet(10, 20)),
+								entityFetch(attributeContentAll())
+							),
+							// no filter at all - this one wants every `products` reference
+							referenceContent("products", entityFetch(attributeContentAll()))
+						)
+					)
+				)
+			);
+
+			assertTrue(request.getReferenceKeyNarrowing().isEmpty());
+		}
+
+		@Test
+		@DisplayName("A default referenceContent() asks for everything and disables narrowing entirely")
+		void shouldNotNarrowUnderDefaultReferenceRequirement() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							referenceContent(
+								"products",
+								filterBy(entityPrimaryKeyInSet(10, 20)),
+								entityFetch(attributeContentAll())
+							),
+							// names no reference at all => every reference of every name
+							referenceContentAll()
+						)
+					)
+				)
+			);
+
+			assertTrue(request.getReferenceKeyNarrowing().isEmpty());
+		}
+
+		@Test
+		@DisplayName("Narrowing is tracked per reference name, never pooled across names")
+		void shouldKeepNarrowingPerName() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							referenceContent(
+								"products",
+								filterBy(entityPrimaryKeyInSet(10)),
+								entityFetch(attributeContentAll())
+							),
+							referenceContent(
+								"categories",
+								filterBy(entityPrimaryKeyInSet(20)),
+								entityFetch(attributeContentAll())
+							)
+						)
+					)
+				)
+			);
+
+			assertArrayEquals(new int[]{10}, request.getReferenceKeyNarrowing().get("products"));
+			assertArrayEquals(new int[]{20}, request.getReferenceKeyNarrowing().get("categories"));
+			// one name being narrowed must not un-narrow or widen the other
+			assertEquals(2, request.getReferenceKeyNarrowing().size());
+		}
+
+		@Test
+		@DisplayName("A requirement carrying no filter bounds nothing")
+		void shouldNotNarrowWithoutAFilter() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(entityFetch(referenceContent("products", entityFetch(attributeContentAll()))))
+				)
+			);
+
+			assertTrue(request.getReferenceKeyNarrowing().isEmpty());
+		}
+
+		@Test
+		@DisplayName("A request asking for no entity body at all narrows nothing")
+		void shouldNotNarrowWithoutAnEntityRequirement() {
+			final EvitaRequest request = createRequest(query(collection("parameterValue")));
+
+			assertTrue(request.getReferenceKeyNarrowing().isEmpty());
+		}
+	}
+
 }

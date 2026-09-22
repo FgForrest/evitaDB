@@ -26,6 +26,8 @@ package io.evitadb.spi.store.catalog.persistence.storageParts;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.Assert;
 
+import io.evitadb.exception.GenericEvitaInternalError;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
@@ -73,6 +75,25 @@ public interface StoragePart extends Serializable {
 	 * Returns `true` if this storage part has never been written to persistent storage, i.e. its primary key has not
 	 * yet been assigned by {@link #computeUniquePartIdAndSet(KeyCompressor)}.
 	 */
+	/**
+	 * Tells whether this part is a view narrowed by what one read happened to ask for, rather than the whole of what
+	 * it claims to represent.
+	 *
+	 * Parts that can be read narrowed override this. Writing such a part back would not merely store less: it would
+	 * store the narrowed view *as the truth*, silently erasing everything the read skipped. The guard therefore
+	 * lives at every ingress into the data store rather than at the final serializer alone, so a partial value is
+	 * refused before anything retains it by reference.
+	 *
+	 * Phrased as "is narrowed" rather than "is persistable" so that FALSE - the answer a plain part gives, and the
+	 * default a test double gives for a boolean it was never told about - is the harmless one. A guard whose safe
+	 * answer is TRUE rejects everything that merely forgot to answer.
+	 *
+	 * @return true when this part carries only some of what it represents
+	 */
+	default boolean isNarrowedView() {
+		return false;
+	}
+
 	default boolean isNew() {
 		return getStoragePartPK() == null;
 	}
@@ -92,6 +113,26 @@ public interface StoragePart extends Serializable {
 	 *         {@link #getStoragePartPK()}
 	 */
 	long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor);
+
+	/**
+	 * Refuses a part that is not {@link #isPersistable() safe to persist}, naming the ingress that rejected it.
+	 *
+	 * Called at every entrance into the data store - the memory buffers, the transactional overlay and the trapped
+	 * change collector alike - rather than at the serializer alone. The serializer is the last barrier and it does
+	 * hold, but by the time it runs the offending object has already been retained by reference and replayed to
+	 * other readers, so the failure would surface far from whatever produced it.
+	 *
+	 * @param part    the part about to enter the data store
+	 * @param ingress short name of the entrance, used in the error message
+	 */
+	static void assertPersistable(@Nonnull StoragePart part, @Nonnull String ingress) {
+		if (part.isNarrowedView()) {
+			throw new GenericEvitaInternalError(
+				"Storage part " + part.getClass().getSimpleName() + " with primary key " + part.getStoragePartPK() +
+					" carries only part of what it represents and must not enter the data store via " + ingress + "!"
+			);
+		}
+	}
 
 	/**
 	 * Shared tail of the {@link #computeUniquePartIdAndSet(KeyCompressor)} implementation for every part whose identity

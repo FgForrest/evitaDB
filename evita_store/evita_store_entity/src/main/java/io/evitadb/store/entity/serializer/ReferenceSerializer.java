@@ -34,7 +34,8 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.spi.store.catalog.persistence.ReferenceNameFilterContext;
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
+import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,7 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -68,14 +70,21 @@ public class ReferenceSerializer extends Serializer<Reference> {
 	 */
 	private String memoizedReferenceName;
 	/**
-	 * The name filter the {@link #memoizedNameAllowed} decision was taken under, compared by identity - a different
-	 * filter instance invalidates the decision even when the name repeats.
+	 * The coverage the {@link #memoizedNameAdmission} decision was taken under, compared by identity - a different
+	 * coverage instance invalidates the decision even when the name repeats.
 	 */
-	private Set<String> memoizedNameFilter;
+	private ReferenceDecodeCoverage memoizedCoverage;
 	/**
-	 * Whether {@link #memoizedReferenceName} is one the {@link #memoizedNameFilter} lets through.
+	 * What the {@link #memoizedCoverage} lets through for {@link #memoizedReferenceName}. Resolved once per run of
+	 * same-named references rather than per reference, which is what makes the narrowing cheap on a record holding
+	 * tens of thousands of them.
 	 */
-	private boolean memoizedNameAllowed;
+	private NameAdmission memoizedNameAdmission;
+	/**
+	 * The referenced entity primary keys {@link #memoizedReferenceName} is narrowed to, valid only while
+	 * {@link #memoizedNameAdmission} is {@link NameAdmission#BY_KEY}. Sorted ascending.
+	 */
+	private int[] memoizedAdmittedKeys;
 	/**
 	 * The entity schema {@link #memoizedReferenceSchema} was resolved from, compared by identity - a schema change
 	 * invalidates the resolution.
@@ -115,22 +124,71 @@ public class ReferenceSerializer extends Serializer<Reference> {
 		final int version = input.readVarInt(true);
 		final int internalPrimaryKey = input.readVarInt(true);
 		final String referenceName = input.readString();
-		final Set<String> referenceNameFilter = ReferenceNameFilterContext.getReferenceNameFilter();
-		if (!referenceName.equals(this.memoizedReferenceName) || referenceNameFilter != this.memoizedNameFilter) {
-			this.memoizedNameAllowed = referenceNameFilter == null || referenceNameFilter.contains(referenceName);
-			this.memoizedNameFilter = referenceNameFilter;
+		final ReferenceDecodeCoverage coverage = ReferenceDecodeCoverageContext.getDecodeCoverage();
+		if (!referenceName.equals(this.memoizedReferenceName) || coverage != this.memoizedCoverage) {
+			if (coverage == null) {
+				this.memoizedNameAdmission = NameAdmission.WHOLE;
+				this.memoizedAdmittedKeys = null;
+			} else if (coverage.isNameDecodedWhole(referenceName)) {
+				this.memoizedNameAdmission = NameAdmission.WHOLE;
+				this.memoizedAdmittedKeys = null;
+			} else {
+				this.memoizedAdmittedKeys = coverage.getNamesDecodedByKey().get(referenceName);
+				this.memoizedNameAdmission = this.memoizedAdmittedKeys == null ?
+					NameAdmission.NONE : NameAdmission.BY_KEY;
+			}
+			this.memoizedCoverage = coverage;
 			this.memoizedReferenceName = referenceName;
 			// the name decides the reference schema, so a new name invalidates that resolution too
 			this.memoizedEntitySchema = null;
 			this.memoizedReferenceSchema = null;
 		}
-		if (!this.memoizedNameAllowed) {
-			// the caller cannot see this reference, so only advance the stream past it - not materializing it is
-			// the whole point of the filter, and it is what makes a projection over an entity carrying tens of
-			// thousands of back-references cost the handful of references it actually asked for
+		if (this.memoizedNameAdmission == NameAdmission.NONE) {
+			// the caller cannot see any reference of this name, so only advance the stream past it - not
+			// materializing it is the whole point of the coverage, and it is what makes a projection over an entity
+			// carrying tens of thousands of back-references cost the handful of references it actually asked for
 			skipReferenceBody(kryo, input);
 			return null;
 		}
+		if (this.memoizedNameAdmission == NameAdmission.BY_KEY) {
+			// the referenced primary key is the very next field, so narrowing by key costs four bytes and a binary
+			// search on top of the name decision - and saves the body, the objects it would build, and the garbage
+			final int referencedPrimaryKey = input.readInt();
+			if (Arrays.binarySearch(this.memoizedAdmittedKeys, referencedPrimaryKey) < 0) {
+				skipReferenceBodyAfterPrimaryKey(kryo, input);
+				return null;
+			}
+			return readAdmittedReference(kryo, input, referenceName, version, internalPrimaryKey, referencedPrimaryKey);
+		}
+		// the name is admitted in full - the referenced primary key is read here rather than inside the shared
+		// decoder so that both admissions consume the stream in exactly the same order
+		final int referencedPrimaryKey = input.readInt();
+		return readAdmittedReference(kryo, input, referenceName, version, internalPrimaryKey, referencedPrimaryKey);
+	}
+
+	/**
+	 * Decodes the rest of a reference whose header has been consumed and which the coverage admits.
+	 *
+	 * Shared by both admissions so the two cannot drift: a reference let through by name and one let through by key
+	 * are the same bytes decoded the same way, and the only difference is where the referenced primary key was read.
+	 *
+	 * @param kryo                 the Kryo instance used to decode attribute values
+	 * @param input                the input positioned right after the referenced entity primary key
+	 * @param referenceName        name decoded from the header, used to resolve the reference schema
+	 * @param version              version decoded from the header
+	 * @param internalPrimaryKey   internal primary key decoded from the header
+	 * @param referencedPrimaryKey primary key of the referenced entity, already consumed from the stream
+	 * @return the decoded reference
+	 */
+	@Nonnull
+	private Reference readAdmittedReference(
+		@Nonnull Kryo kryo,
+		@Nonnull Input input,
+		@Nonnull String referenceName,
+		int version,
+		int internalPrimaryKey,
+		int referencedPrimaryKey
+	) {
 		// deliberately resolved *after* the skip decision: the accessor builds three Optionals per call and a
 		// skipped reference has no use for the schema, so hoisting it above the filter made the narrowing pay a
 		// schema lookup for every reference it was created to avoid touching
@@ -145,7 +203,6 @@ public class ReferenceSerializer extends Serializer<Reference> {
 			this.memoizedEntitySchema = schema;
 			this.memoizedReferenceSchema = referenceSchema;
 		}
-		final int entityPrimaryKey = input.readInt();
 		final boolean dropped = input.readBoolean();
 		final boolean groupExists = input.readBoolean();
 		final GroupEntityReference group;
@@ -182,7 +239,7 @@ public class ReferenceSerializer extends Serializer<Reference> {
 			// the schema's own name instance, not the one just decoded: `input.readString()` hands back a fresh
 			// String for every reference, so keeping it would retain one per reference and force every later
 			// name comparison through String.equals instead of settling on identity
-			new ReferenceKey(referenceSchema.getName(), entityPrimaryKey, internalPrimaryKey),
+			new ReferenceKey(referenceSchema.getName(), referencedPrimaryKey, internalPrimaryKey),
 			group, attributes, dropped
 		);
 	}
@@ -201,6 +258,20 @@ public class ReferenceSerializer extends Serializer<Reference> {
 	 */
 	private static void skipReferenceBody(@Nonnull Kryo kryo, @Nonnull Input input) {
 		input.readInt();
+		skipReferenceBodyAfterPrimaryKey(kryo, input);
+	}
+
+	/**
+	 * Advances the input past the remainder of a reference whose header **and referenced entity primary key** have
+	 * already been consumed, without materializing anything from it.
+	 *
+	 * This is the tail {@link #skipReferenceBody(Kryo, Input)} runs after reading the primary key, split out because
+	 * a coverage narrowed by key has to read that key to take its decision and must not read it twice.
+	 *
+	 * @param kryo  the Kryo instance used to decode the skipped attribute values
+	 * @param input the input positioned right after the referenced entity primary key
+	 */
+	private static void skipReferenceBodyAfterPrimaryKey(@Nonnull Kryo kryo, @Nonnull Input input) {
 		input.readBoolean();
 		if (input.readBoolean()) {
 			input.readVarInt(true);
@@ -211,6 +282,27 @@ public class ReferenceSerializer extends Serializer<Reference> {
 		for (int i = 0; i < attributeCount; i++) {
 			kryo.readObject(input, AttributeValue.class);
 		}
+	}
+
+	/**
+	 * What a {@link ReferenceDecodeCoverage} lets through for one reference name, resolved once per run of
+	 * same-named references.
+	 */
+	private enum NameAdmission {
+
+		/**
+		 * Every reference of the name may be materialized.
+		 */
+		WHOLE,
+		/**
+		 * Only references whose referenced entity primary key is among the admitted keys may be materialized.
+		 */
+		BY_KEY,
+		/**
+		 * No reference of the name may be materialized.
+		 */
+		NONE
+
 	}
 
 }
