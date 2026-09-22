@@ -9,12 +9,12 @@ disk. Loaded in 51.7 s at `-Xmx48g`, catalog version 24304, state `ALIVE`.
 
 **Box.** AMD Ryzen AI 9 HX 370 (Zen 5, 12c/24t), OpenJDK 21, `-Xmx48g -XX:+ExitOnOutOfMemoryError`.
 
-**How.** Throwaway counters in this worktree's `evita_roaring_bitmap`: a hook on every container materialised by
+**How.** Throwaway counters in a scratch copy of `evita_roaring_bitmap`: a hook on every container materialised by
 `RoaringArray#deserialize`, a hook on each of `Container`'s twelve generic dispatchers, and three counters in
 `Util#unsignedIntersect2by2`, plus lazy-OR structure counters in `FastAggregation`, `toBitmapContainer()` and
-`repairAfterLazy()` (section 7). The harness is
-`evita_test/evita_performance_tests/src/main/java/io/evitadb/spike/RoaringContainerCensus.java`.
-Raw log: `specifications/1541-simd-roaring/logs/census.log`.
+`repairAfterLazy()` (section 7), driven by a `RoaringContainerCensus` harness. The instrumentation and its
+harness were deliberately never merged — they are invasive edits to the vendored module — and are not retained;
+the numbers in this report are the whole of what they produced.
 
 **A JFR profile of the same workload is `census/PROFILE.md`.** Read it alongside section 3: the 12% below is the
 share of query wall clock spent inside `Container`'s generic dispatchers, while the profile puts *all* roaring
@@ -238,14 +238,17 @@ section 5 that reasons about *reachable* work should be read against the profile
 
 ## 4. Operand dump
 
-`census/operands.bin`, 38,158,754 bytes, **6,092 pairs** across 23 combinations, format documented in
-`census/FORMAT.md`, which lists every operation id and all 23 combinations the file carries, alongside two further
-fixtures that came out of the same hooks: **`census/unions.bin`** (300 whole multi-way unions, 17.3 MB, stratified
-by input count) and **`census/repaired.bin`** (300 lazily-unioned bitmaps as `repairAfterLazy` received them,
-2.5 MB). The second one is the fixture for a sparse-extraction kernel: its median container has **12 non-zero
-words out of 1024**, and 89.67% of them leave at least 93.75% of the 8 KiB empty, while `Util.fillArray` walks all
-of it. Reservoir sampling with a fixed seed, up to 300 pairs per (operation, left type, right type),
-captured before the operation ran so an in-place operation cannot corrupt what was recorded.
+The same hooks wrote three binary fixtures. **None is retained** — they are bytes, regenerable from the hooks
+against a production catalog, and what they established is recorded here and in `../benchmarks/REPORT.md`:
+
+- **operands** — 38,158,754 bytes, **6,092 pairs** across 23 combinations, each tagged with its operation id.
+- **unions** — 300 whole multi-way unions, 17.3 MB, stratified by input count.
+- **repaired** — 300 lazily-unioned bitmaps as `repairAfterLazy` received them, 2.5 MB. This is the fixture a
+  sparse-extraction kernel is judged on: its median container has **12 non-zero words out of 1024**, and 89.67%
+  of them leave at least 93.75% of the 8 KiB empty, while `Util.fillArray` walks all of it.
+
+Reservoir sampling with a fixed seed, up to 300 pairs per (operation, left type, right type), captured before
+the operation ran so an in-place operation cannot corrupt what was recorded.
 
 Verified after writing: magic and version correct, every array side sorted ascending, every side's stored
 cardinality equal to the popcount of its payload, no trailing bytes.
@@ -355,9 +358,10 @@ single value.
   quiet.
 - **The all-threads allocation counter is unusable** and the query-thread counter was used instead; see section
   7c for why.
-- **Instrumentation is throwaway** and lives only in this worktree: `CensusHook.java` plus hooks in
-  `Container.java`, `RoaringArray.java`, `Util.java`, `FastAggregation.java`, `ArrayContainer.java`,
-  `BitmapContainer.java` and `RunContainer.java`, and the `RoaringContainerCensus` harness. Nothing is committed.
+- **Instrumentation was throwaway**: a `CensusHook` plus hooks in `Container.java`, `RoaringArray.java`,
+  `Util.java`, `FastAggregation.java`, `ArrayContainer.java`, `BitmapContainer.java` and `RunContainer.java`,
+  driven by a `RoaringContainerCensus` harness. None of it was committed or retained; re-measuring means
+  writing it again against whatever the vendored module looks like then.
 
 ---
 

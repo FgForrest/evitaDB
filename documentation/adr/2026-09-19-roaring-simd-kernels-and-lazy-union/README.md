@@ -1,7 +1,7 @@
 ---
 title: The roaring containers get an optional Vector API provider, fused word kernels and a CRoaring-style lazy array union; the all-pairs and gather kernels are measured and rejected
 date: 2026-09-19
-updated: 2026-09-21 07:47
+updated: 2026-09-22 10:12
 status: proposed
 kind: optimization
 issues: [1539, 1541, 1542, 1543, 1544]
