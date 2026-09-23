@@ -58,10 +58,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -120,8 +118,9 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 */
 	private static final ReadRecord[] UNIDENTIFIED_READ_RECORDS = new ReadRecord[0];
 	/**
-	 * Empty array used to size the projection handed back by
-	 * {@link #getUnnamedReferenceViewProjection(String, ReferenceContractSerializablePredicate)}.
+	 * The empty unnamed reference view
+	 * {@link #getUnnamedReferenceViewProjection(String, ReferenceContractSerializablePredicate)} hands back for a
+	 * reference name only named reference content asked for.
 	 */
 	private static final ReferenceDecorator[] EMPTY_REFERENCE_DECORATORS = new ReferenceDecorator[0];
 
@@ -255,23 +254,6 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 * Specialized reference sets accessible by reference content instance name.
 	 */
 	@Nullable private Map<ReferenceContentKey, DataChunk<ReferenceContract>> namedReferenceSets;
-	/**
-	 * What each named requirement matched for a reference name, before its own chunking sliced a page out of it -
-	 * the projection {@link #getUnnamedReferenceViewProjection(String, ReferenceContractSerializablePredicate)}
-	 * hands to the unnamed view, keyed by reference name and deduplicated across instances.
-	 *
-	 * Lives only for the duration of {@link #fillFilteredSortedAndFetchedReferences}, which is the only thing that
-	 * reads it, and is dropped as soon as that returns - the references it points at are reachable through the
-	 * decorator afterwards and holding a second index of them would retain them twice.
-	 */
-	@Nullable private transient Map<String, List<ReferenceDecorator>> namedReferenceProjections;
-	/**
-	 * Reference names whose unnamed view cannot be served as a projection of the named chunks, because two named
-	 * requirements decorated one and the same stored reference differently. Such a name is built from the entity's
-	 * own references instead, under the implicit requirement the request derived as the union of those named
-	 * requirements - so the view carries what all of them fetched rather than what either one did.
-	 */
-	@Nullable private transient Set<String> unprojectableReferenceNames;
 
 	/**
 	 * Method allows creating the entityDecorator object with up-to-date schema definition. Data of the entity are kept
@@ -705,119 +687,37 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 							}
 						}
 						this.namedReferenceSets.put(rck, chunk);
-						// the unnamed view projects what this requirement *matched*, not the page it displays -
-						// a `page(1, 0)` asking only for a count matches everything and shows nothing, and a view
-						// built from the page would answer a total of zero for it
-						rememberNamedReferenceProjection(referenceName, namedReferences);
 					}
 				}
 			}
 		}
 
-		try {
-			return super.fillFilteredSortedAndFetchedReferences(
-				entityPrimaryKey, entitySchema, referencePredicate, referenceFetcher,
-				inputReferences, outputReferences,
-				evitaRequest
-			);
-		} finally {
-			this.namedReferenceProjections = null;
-			this.unprojectableReferenceNames = null;
-		}
+		return super.fillFilteredSortedAndFetchedReferences(
+			entityPrimaryKey, entitySchema, referencePredicate, referenceFetcher,
+			inputReferences, outputReferences,
+			evitaRequest
+		);
 	}
 
 	/**
-	 * Adds what one named requirement matched for `referenceName` to the projection the unnamed view will show,
-	 * skipping references another instance over the same name already contributed.
-	 *
-	 * Two named instances over one reference name each build their own decorator over the same stored reference, so
-	 * the delegate - the one instance they share - is what tells them apart. That also keeps the deduplication
-	 * correct for a reference whose cardinality allows duplicates, where {@code ReferenceKey} is not unique.
-	 *
-	 * @param referenceName   name of the reference the requirement asked for
-	 * @param namedReferences what it matched, before its own chunking sliced a page out of it
-	 */
-	private void rememberNamedReferenceProjection(
-		@Nonnull String referenceName,
-		@Nonnull List<ReferenceContract> namedReferences
-	) {
-		if (this.unprojectableReferenceNames != null && this.unprojectableReferenceNames.contains(referenceName)) {
-			return;
-		}
-		if (this.namedReferenceProjections == null) {
-			this.namedReferenceProjections = CollectionUtils.createHashMap(4);
-		}
-		final List<ReferenceDecorator> projection = this.namedReferenceProjections
-			.computeIfAbsent(referenceName, name -> new ArrayList<>(namedReferences.size()));
-		final Set<ReferenceContract> alreadyProjected;
-		if (projection.isEmpty()) {
-			alreadyProjected = null;
-		} else {
-			alreadyProjected = Collections.newSetFromMap(new IdentityHashMap<>());
-			for (ReferenceDecorator projected : projection) {
-				alreadyProjected.add(projected.getDelegate());
-			}
-		}
-		for (ReferenceContract reference : namedReferences) {
-			Assert.isPremiseValid(
-				reference instanceof ReferenceDecorator,
-				"Named reference sets are expected to carry decorated references!"
-			);
-			final ReferenceDecorator decorator = (ReferenceDecorator) reference;
-			if (alreadyProjected != null && !alreadyProjected.add(decorator.getDelegate())) {
-				// Two named requirements decorated one and the same stored reference, each with its own attribute
-				// predicate and its own deeply fetched bodies. Neither decorator shows what the requirements
-				// together fetched, and which one a first-wins rule would keep is decided by the alias names,
-				// because the requirements are walked in ReferenceContentKey order. The projection is therefore
-				// abandoned and the view rebuilt from the entity's own references under the request's implicit
-				// requirement for this name - which IS their union.
-				abandonNamedReferenceProjection(referenceName);
-				return;
-			}
-			projection.add(decorator);
-		}
-	}
-
-	/**
-	 * Gives up serving `referenceName`'s unnamed view as a projection of the named chunks, for this composition.
-	 *
-	 * The name is remembered rather than merely dropped from the map, because the requirements are still being
-	 * walked and a later one would otherwise start the projection over and produce a view built from part of them.
-	 *
-	 * @param referenceName name of the reference whose projection is abandoned
-	 */
-	private void abandonNamedReferenceProjection(@Nonnull String referenceName) {
-		if (this.unprojectableReferenceNames == null) {
-			this.unprojectableReferenceNames = CollectionUtils.createHashSet(2);
-		}
-		this.unprojectableReferenceNames.add(referenceName);
-		if (this.namedReferenceProjections != null) {
-			this.namedReferenceProjections.remove(referenceName);
-		}
-	}
-
-	/**
-	 * The unnamed reference view of a reference name this decorator has already built **named** chunks for is the
-	 * projection of those chunks - what the query actually asked to see - rather than a second, independently built
-	 * copy holding every reference of that name.
+	 * A reference name that **only named** reference content asked for has an EMPTY unnamed view on the entity: the
+	 * query asked for those named chunks and for nothing else, so there is nothing for the unnamed view to carry.
 	 *
 	 * Every externally issued query produces named reference content, because a GraphQL field alias or a REST
-	 * projection name becomes the instance name. Without this the entity was composed twice over the same
-	 * references: once as the named chunks the response reads, and once as a complete and *unfiltered* unnamed set.
-	 * On a production catalog where one entity holds 72,342 back-references, that second copy is 72,342 decorators
-	 * and a map sized for them, per entity, per request, for data nothing goes on to read.
+	 * projection name becomes the instance name. Building the unnamed view all the same composed the entity twice
+	 * over the same references: once as the named chunks the response reads, and once as a complete and
+	 * *unfiltered* unnamed set. On a production catalog where one entity holds 72,342 back-references, that second
+	 * copy is 72,342 decorators and a map sized for them, per entity, per request, for data nothing goes on to
+	 * read.
 	 *
-	 * The relaxation this expresses: when no unnamed `referenceContent()` asked for a name, the unnamed view shows
-	 * what the named requirements fetched and nothing more. A caller that wants a different scope declares its own
-	 * unnamed requirement and defines that scope exactly, which turns the projection off for that name.
+	 * The contract this expresses: a query gets what it asked for, and nothing it did not. A caller that wants the
+	 * unnamed view of a name declares its own unnamed `referenceContent()` for it - that makes
+	 * {@link ReferenceContractSerializablePredicate#isReferenceRequestedOnlyAsNamed(String)} answer FALSE and the
+	 * view is built from the entity's own references exactly as before. A catch-all `referenceContent()` does the
+	 * same for every name at once.
 	 *
-	 * Both conditions are load-bearing. The name must have a named chunk, because that chunk is then the only place
-	 * those references exist and the unnamed view would otherwise answer nothing for a name the caller can see. And
-	 * no unnamed requirement may have asked for the name, or the caller explicitly wanted the unnamed view.
-	 *
-	 * This runs after every named chunk is built - the override in
-	 * {@link #fillFilteredSortedAndFetchedReferences} fills `namedReferenceSets` before delegating to the super
-	 * implementation that consults this.
+	 * Answering an EMPTY array rather than NULL is what makes the view empty: NULL means "build the view from the
+	 * entity's own references" and would restore the second copy this exists to avoid.
 	 */
 	@Nullable
 	@Override
@@ -825,16 +725,8 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		@Nonnull String referenceName,
 		@Nonnull ReferenceContractSerializablePredicate referencePredicate
 	) {
-		if (this.namedReferenceProjections == null || !referencePredicate.isReferenceRequestedOnlyAsNamed(referenceName)) {
-			return null;
-		}
-		if (this.unprojectableReferenceNames != null && this.unprojectableReferenceNames.contains(referenceName)) {
-			return null;
-		}
-		// a name the named requirements matched nothing for still projects an EMPTY view rather than NULL - NULL
-		// means "build the view from the entity's own references" and would restore the full copy this avoids
-		final List<ReferenceDecorator> projection = this.namedReferenceProjections.get(referenceName);
-		return projection == null ? null : projection.toArray(EMPTY_REFERENCE_DECORATORS);
+		return referencePredicate.isReferenceRequestedOnlyAsNamed(referenceName) ?
+			EMPTY_REFERENCE_DECORATORS : null;
 	}
 
 	/**

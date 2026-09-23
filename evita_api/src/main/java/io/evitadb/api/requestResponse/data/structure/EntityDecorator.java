@@ -643,8 +643,8 @@ public class EntityDecorator implements SealedEntity {
 				// that many times, which was the single most expensive frame of the reference fetch
 				attributePredicate = referencePredicate.getAttributePredicate(thisReferenceName);
 
-				// when another requirement has already materialized this reference name, the unnamed view is that
-				// projection rather than a second, independently built copy of the same references
+				// a decorator that already knows what the unnamed view of this name must carry says so here, and
+				// the run is taken from its answer instead of being decorated a second time
 				final ReferenceDecorator[] projection = getUnnamedReferenceViewProjection(
 					thisReferenceName, referencePredicate
 				);
@@ -695,13 +695,13 @@ public class EntityDecorator implements SealedEntity {
 	}
 
 	/**
-	 * Returns the references the unnamed view should carry for `referenceName`, when they have already been
-	 * materialized elsewhere on this decorator and rebuilding them here would be a second copy of the same data.
+	 * Returns the references the unnamed view should carry for `referenceName`, for a decorator that can decide
+	 * that without walking the entity's own references - because it knows what the query asked for.
 	 *
 	 * Answers NULL here - "build the view from the entity's own references, as always" - and is meant to stay that
 	 * way for every decorator that has only the unnamed view. The client-side decorator the gRPC driver builds is
-	 * exactly that, and projecting there would drop the references altogether. Only `ServerEntityDecorator`, which
-	 * builds named reference chunks beside the unnamed view, overrides it.
+	 * exactly that, and answering anything else there would drop the references altogether. Only
+	 * `ServerEntityDecorator`, which serves the named reference chunks beside the unnamed view, overrides it.
 	 *
 	 * A non-NULL answer is used verbatim: the references are already filtered, sorted and decorated by the
 	 * requirement that produced them, so the surrounding loop neither re-filters nor re-sorts them.

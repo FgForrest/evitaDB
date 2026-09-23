@@ -2145,6 +2145,35 @@ class EvitaRequestTest {
 		}
 
 		@Test
+		@DisplayName("A catch-all requirement derives no per-name entry of its own")
+		void shouldNotDeriveAnythingWhenACatchAllRequirementIsPresent() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							new ReferenceContent(attributeContentAll()),
+							namedReferenceContent(
+								"alias", filterBy(entityPrimaryKeyInSet(10)), "products"
+							)
+						)
+					)
+				)
+			);
+
+			// the per-name map carries what UNNAMED requirements asked for by name, and nothing else - a named
+			// requirement never adds its own name to it. Were `products` here, getAttributePredicate would read
+			// the map as "this query narrows attributes per name" and hand every OTHER reference an empty
+			// attribute request instead of the catch-all's
+			assertTrue(
+				request.getReferenceEntityFetch().isEmpty(),
+				"A catch-all requirement must leave the per-name requirement map empty: " +
+					request.getReferenceEntityFetch().keySet()
+			);
+			assertNotNull(request.getDefaultReferenceRequirement());
+		}
+
+		@Test
 		@DisplayName("A named requirement bounds its reference the same way an unnamed one does")
 		void shouldNarrowOnRootKeySetOfANamedRequirement() {
 			final EvitaRequest request = createRequest(

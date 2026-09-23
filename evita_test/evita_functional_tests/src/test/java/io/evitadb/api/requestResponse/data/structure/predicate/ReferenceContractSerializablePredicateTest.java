@@ -1549,12 +1549,9 @@ class ReferenceContractSerializablePredicateTest {
 			@Nonnull Map<String, int[]> referenceKeyNarrowing,
 			@Nonnull String... referenceNames
 		) {
-			final Map<String, AttributeRequest> referenceSet = Arrays.stream(referenceNames)
-				.collect(Collectors.toMap(Function.identity(), it -> AttributeRequest.EMPTY));
 			return new ReferenceContractSerializablePredicate(
-				referenceSet,
-				// these names stand for unnamed requirements, which is what this helper builds
-				referenceSet.keySet(),
+				Arrays.stream(referenceNames)
+					.collect(Collectors.toMap(Function.identity(), it -> AttributeRequest.EMPTY)),
 				Collections.emptySet(), null, true, null, Collections.emptySet(),
 				referenceKeyNarrowing
 			);
