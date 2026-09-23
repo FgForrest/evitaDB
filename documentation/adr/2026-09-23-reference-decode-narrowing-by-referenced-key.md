@@ -1,7 +1,7 @@
 ---
 title: Bound the reference decode by the referenced keys a requirement names, and let named reference content own the names only it asked for
 date: 2026-09-23
-updated: 2026-09-23 18:40
+updated: 2026-09-23 18:50
 status: accepted
 kind: optimization
 issues: [1637, 1640]
@@ -190,4 +190,4 @@ an API semantics decision rather than an optimization.
   both **GO WITH CHANGES**; the unnamed-view duplicate identified as the next cost and the blanket skip
   rejected against a specified contract
 - **2026-09-23** — key axis implemented and measured; the derived-unnamed-view union built, reviewed,
-  and removed; the enrichment/limit contract set; PR #1639 merged to dev, #1638 open against master
+  and removed; the enrichment/limit contract set; PR #1639 merged to dev and #1638 to master
