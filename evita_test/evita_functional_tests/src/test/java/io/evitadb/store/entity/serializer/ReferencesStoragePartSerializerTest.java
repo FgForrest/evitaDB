@@ -40,7 +40,8 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.persistence.EntitySchemaContext;
-import io.evitadb.spi.store.catalog.persistence.ReferenceNameFilterContext;
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
+import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
@@ -325,8 +326,8 @@ class ReferencesStoragePartSerializerTest {
 	) {
 		return readWithSchema(
 			serialized,
-			input -> ReferenceNameFilterContext.executeWithReferenceNameFilter(
-				filter,
+			input -> ReferenceDecodeCoverageContext.executeWithCoverage(
+				filter == null ? null : ReferenceDecodeCoverage.ofNames(filter),
 				() -> {
 					final ReferencesStoragePart[] parts = new ReferencesStoragePart[count];
 					for (int i = 0; i < count; i++) {
@@ -344,6 +345,29 @@ class ReferencesStoragePartSerializerTest {
 	@Nonnull
 	private ReferencesStoragePart[] readTwoParts(@Nonnull byte[] serialized, @Nullable Set<String> filter) {
 		return readParts(serialized, filter, 2);
+	}
+
+	/**
+	 * Reads both parts from the stream under a coverage that may narrow by key as well as by name.
+	 *
+	 * Kept apart from {@link #readTwoParts(byte[], Set)} rather than folded into it, because the name-only
+	 * overload is what the reference *name* narrowing exercises and the two axes are asserted separately.
+	 */
+	@Nonnull
+	private ReferencesStoragePart[] readTwoPartsUnderCoverage(
+		@Nonnull byte[] serialized,
+		@Nullable ReferenceDecodeCoverage coverage
+	) {
+		return readWithSchema(
+			serialized,
+			input -> ReferenceDecodeCoverageContext.executeWithCoverage(
+				coverage,
+				() -> new ReferencesStoragePart[]{
+					this.kryo.readObject(input, ReferencesStoragePart.class),
+					this.kryo.readObject(input, ReferencesStoragePart.class)
+				}
+			)
+		);
 	}
 
 	/**
@@ -468,7 +492,7 @@ class ReferencesStoragePartSerializerTest {
 			final ReferencesStoragePart[] parts = readTwoParts(writeTwoParts(), null);
 
 			assertTrue(parts[0].isComplete());
-			assertNull(parts[0].getDecodedReferenceNames());
+			assertNull(parts[0].getDecodeCoverage());
 			assertArrayEquals(
 				new String[]{BRAND, CATEGORY, CATEGORY, PARAMETER, PARAMETER},
 				referenceNamesOf(parts[0])
@@ -492,7 +516,7 @@ class ReferencesStoragePartSerializerTest {
 			final ReferencesStoragePart[] parts = readTwoParts(writeTwoParts(), Set.of(PARAMETER));
 
 			assertFalse(parts[0].isComplete());
-			assertEquals(Set.of(PARAMETER), parts[0].getDecodedReferenceNames());
+			assertEquals(Set.of(PARAMETER), parts[0].getDecodeCoverage().getNamesDecodedWhole());
 			assertArrayEquals(new String[]{PARAMETER, PARAMETER}, referenceNamesOf(parts[0]));
 			assertArrayEquals(new int[]{300, 301}, parts[0].getReferencedIds(PARAMETER));
 			// the header is read before any reference and therefore survives the narrowing untouched
@@ -683,12 +707,12 @@ class ReferencesStoragePartSerializerTest {
 
 			final ReferencesStoragePart[] parts = readWithSchema(
 				serialized,
-				input -> ReferenceNameFilterContext.executeWithReferenceNameFilter(
-					Set.of(BRAND),
+				input -> ReferenceDecodeCoverageContext.executeWithCoverage(
+					ReferenceDecodeCoverage.ofNames(Set.of(BRAND)),
 					() -> {
 						final ReferencesStoragePart narrowed = readPart(input);
 						final ReferencesStoragePart complete =
-							ReferenceNameFilterContext.executeWithReferenceNameFilter(
+							ReferenceDecodeCoverageContext.executeWithCoverage(
 								null, () -> readPart(input)
 							);
 						final ReferencesStoragePart narrowedAgain = readPart(input);
@@ -701,7 +725,7 @@ class ReferencesStoragePartSerializerTest {
 			assertTrue(parts[1].isComplete());
 			assertArrayEquals(new String[]{BRAND, PARAMETER}, referenceNamesOf(parts[1]));
 			assertFalse(parts[2].isComplete());
-			assertEquals(Set.of(BRAND), parts[2].getDecodedReferenceNames());
+			assertEquals(Set.of(BRAND), parts[2].getDecodeCoverage().getNamesDecodedWhole());
 			assertArrayEquals(new String[]{BRAND}, referenceNamesOf(parts[2]));
 		}
 	}
@@ -744,7 +768,7 @@ class ReferencesStoragePartSerializerTest {
 			final ReferencesStoragePart[] parts = readTwoParts(writeLegacyFirstPart(), Set.of(PARAMETER));
 
 			assertTrue(parts[0].isComplete());
-			assertNull(parts[0].getDecodedReferenceNames());
+			assertNull(parts[0].getDecodeCoverage());
 			assertArrayEquals(
 				new String[]{BRAND, CATEGORY, CATEGORY, PARAMETER, PARAMETER},
 				referenceNamesOf(parts[0])
@@ -779,7 +803,7 @@ class ReferencesStoragePartSerializerTest {
 			final ReferencesStoragePart[] parts = readTwoParts(writeMixedLayoutFirstPart(), Set.of(PARAMETER));
 
 			assertTrue(parts[0].isComplete());
-			assertNull(parts[0].getDecodedReferenceNames());
+			assertNull(parts[0].getDecodeCoverage());
 			assertArrayEquals(
 				new String[]{BRAND, CATEGORY, CATEGORY, PARAMETER, PARAMETER},
 				referenceNamesOf(parts[0])
@@ -801,9 +825,235 @@ class ReferencesStoragePartSerializerTest {
 			final ReferencesStoragePart[] parts = readTwoParts(writeLegacyFirstPart(), Set.of(PARAMETER));
 
 			assertFalse(parts[1].isComplete());
-			assertEquals(Set.of(PARAMETER), parts[1].getDecodedReferenceNames());
+			assertEquals(Set.of(PARAMETER), parts[1].getDecodeCoverage().getNamesDecodedWhole());
 			assertArrayEquals(new String[]{PARAMETER}, referenceNamesOf(parts[1]));
 			assertEquals(11, parts[1].getEntityPrimaryKey());
+		}
+	}
+
+	@Nested
+	@DisplayName("Key narrowed decode")
+	class KeyNarrowedDecodeTest {
+
+		@Test
+		@DisplayName("keeps only the requested keys of a name and leaves the stream aligned")
+		void shouldDecodeOnlyRequestedKeys() {
+			final ReferencesStoragePart[] parts = readTwoPartsUnderCoverage(
+				writeTwoParts(),
+				ReferenceDecodeCoverage.of(Set.of(), Map.of(CATEGORY, new int[]{201}))
+			);
+
+			assertFalse(parts[0].isComplete());
+			assertArrayEquals(new String[]{CATEGORY}, referenceNamesOf(parts[0]));
+			assertArrayEquals(new int[]{201}, referencedIdsOf(parts[0]));
+			assertEquals(10, parts[0].getEntityPrimaryKey());
+			assertEquals(5, parts[0].getLastUsedPrimaryKey());
+
+			// the second part proves the skipped brand, the skipped category 200 - which carries a group AND an
+			// attribute - and both parameters consumed exactly the bytes decoding them would have
+			assertEquals(11, parts[1].getEntityPrimaryKey());
+			assertEquals(0, parts[1].getReferences().length);
+		}
+
+		@Test
+		@DisplayName("a key set naming keys the record does not hold yields an empty part, not a broken stream")
+		void shouldDecodeNothingWhenNoKeyMatches() {
+			final ReferencesStoragePart[] parts = readTwoPartsUnderCoverage(
+				writeTwoParts(),
+				ReferenceDecodeCoverage.of(Set.of(), Map.of(CATEGORY, new int[]{777, 888}))
+			);
+
+			assertEquals(0, parts[0].getReferences().length);
+			assertEquals(10, parts[0].getEntityPrimaryKey());
+			assertEquals(11, parts[1].getEntityPrimaryKey());
+		}
+
+		@Test
+		@DisplayName("skips a key-excluded reference carrying a group and a localized attribute")
+		void shouldSkipKeyExcludedReferenceCarryingGroupAndLocalizedAttributes() {
+			// this is the nastiest failure mode of the key axis: a mis-mirrored skip does not fail at the reference,
+			// it DESYNCHRONIZES the stream, and the damage only surfaces on the record that follows. The skipped
+			// body therefore has to be non-trivial - a group plus several attributes, one of them localized.
+			final Map<AttributeKey, AttributeValue> richAttributes = new LinkedHashMap<>(4);
+			final AttributeKey codeKey = new AttributeKey(ATTRIBUTE_CODE);
+			final AttributeKey nameKey = new AttributeKey(ATTRIBUTE_NAME);
+			final AttributeKey localizedLabelKey = new AttributeKey(ATTRIBUTE_LABEL, Locale.ENGLISH);
+			richAttributes.put(codeKey, new AttributeValue(codeKey, "skipped-code"));
+			richAttributes.put(nameKey, new AttributeValue(nameKey, "skipped-name"));
+			richAttributes.put(localizedLabelKey, new AttributeValue(localizedLabelKey, "skipped-label"));
+
+			final ReferencesStoragePart mixed = new ReferencesStoragePart(
+				10, 3,
+				new Reference[]{
+					// excluded by key, and expensive to walk over
+					reference(CATEGORY, 200, 1, 900, richAttributes, false),
+					// admitted by key
+					reference(CATEGORY, 201, 2, 901, Collections.emptyMap(), false),
+					reference(PARAMETER, 300, 3, null, Collections.emptyMap(), false)
+				},
+				-1
+			);
+
+			// the record that follows carries an admitted key of its own, so the alignment is proved by what it
+			// decodes rather than by an empty result - an empty part would look identical to a desynchronized read
+			// that simply matched nothing
+			final ReferencesStoragePart follower = new ReferencesStoragePart(
+				11, 2,
+				new Reference[]{
+					reference(CATEGORY, 201, 1, null, "follower-code"),
+					reference(PARAMETER, 333, 2, null, Collections.emptyMap(), false)
+				},
+				-1
+			);
+
+			final ReferencesStoragePart[] parts = readTwoPartsUnderCoverage(
+				writeParts(mixed, follower),
+				ReferenceDecodeCoverage.of(Set.of(), Map.of(CATEGORY, new int[]{201}))
+			);
+
+			assertArrayEquals(new String[]{CATEGORY}, referenceNamesOf(parts[0]));
+			assertArrayEquals(new int[]{201}, referencedIdsOf(parts[0]));
+			// the group of the reference that WAS admitted survives the neighbouring skip intact - read off the
+			// materialized reference, because a key-narrowed name may not be asked name-scoped questions
+			assertEquals(
+				901,
+				parts[0].getReferences()[0].getGroup().orElseThrow().getPrimaryKey()
+			);
+			// and the record that follows decodes its own admitted reference, attribute and all, which is what
+			// proves the skip consumed exactly the bytes decoding the skipped body would have
+			assertEquals(11, parts[1].getEntityPrimaryKey());
+			assertArrayEquals(new int[]{201}, referencedIdsOf(parts[1]));
+			assertEquals("follower-code", parts[1].getReferences()[0].getAttribute(ATTRIBUTE_CODE));
+		}
+
+		@Test
+		@DisplayName("a dropped reference inside the key set is discarded like any other")
+		void shouldDiscardDroppedReferenceInsideTheKeySet() {
+			final ReferencesStoragePart withDropped = new ReferencesStoragePart(
+				10, 3,
+				new Reference[]{
+					reference(CATEGORY, 200, 1, null, Collections.emptyMap(), true),
+					reference(CATEGORY, 201, 2, null, Collections.emptyMap(), false),
+					reference(PARAMETER, 300, 3, null, Collections.emptyMap(), false)
+				},
+				-1
+			);
+
+			final ReferencesStoragePart[] parts = readTwoPartsUnderCoverage(
+				writeParts(withDropped, secondPart()),
+				ReferenceDecodeCoverage.of(Set.of(), Map.of(CATEGORY, new int[]{200, 201}))
+			);
+
+			// 200 is admitted by key but dropped, so it never materializes - and the stream stays aligned
+			assertArrayEquals(new int[]{201}, referencedIdsOf(parts[0]));
+			assertEquals(11, parts[1].getEntityPrimaryKey());
+		}
+
+		@Test
+		@DisplayName("mixes a whole-decoded name with a key-narrowed one in a single read")
+		void shouldMixWholeAndKeyNarrowedNames() {
+			final ReferencesStoragePart[] parts = readTwoPartsUnderCoverage(
+				writeTwoParts(),
+				ReferenceDecodeCoverage.of(Set.of(PARAMETER), Map.of(CATEGORY, new int[]{200}))
+			);
+
+			assertArrayEquals(new String[]{CATEGORY, PARAMETER, PARAMETER}, referenceNamesOf(parts[0]));
+			assertArrayEquals(new int[]{200, 300, 301}, referencedIdsOf(parts[0]));
+			// the whole-decoded name still answers absence questions...
+			assertArrayEquals(new int[]{300, 301}, parts[0].getReferencedIds(PARAMETER));
+			// ...while the key-narrowed one must not
+			assertThrows(GenericEvitaInternalError.class, () -> parts[0].getReferencedIds(CATEGORY));
+		}
+
+		@Test
+		@DisplayName("refuses to answer about absence for a name it decoded only by key")
+		void shouldRefuseAbsenceQuestionsForAKeyNarrowedName() {
+			final ReferencesStoragePart narrowed = readTwoPartsUnderCoverage(
+				writeTwoParts(),
+				ReferenceDecodeCoverage.of(Set.of(), Map.of(CATEGORY, new int[]{201}))
+			)[0];
+
+			// category 200 was SKIPPED, not found missing - reading the difference as absence is the whole hazard
+			assertThrows(GenericEvitaInternalError.class, () -> narrowed.getReferencedIds(CATEGORY));
+			assertThrows(GenericEvitaInternalError.class, () -> narrowed.getDistinctReferencedIds(CATEGORY));
+			assertThrows(GenericEvitaInternalError.class, () -> narrowed.contains(new ReferenceKey(CATEGORY, 200)));
+			assertThrows(GenericEvitaInternalError.class, narrowed::isEmpty);
+		}
+
+		@Test
+		@DisplayName("refuses to be written back to the storage")
+		void shouldRefuseToSerializeKeyNarrowedPart() {
+			final ReferencesStoragePart narrowed = readTwoPartsUnderCoverage(
+				writeTwoParts(),
+				ReferenceDecodeCoverage.of(Set.of(), Map.of(CATEGORY, new int[]{201}))
+			)[0];
+
+			assertThrows(GenericEvitaInternalError.class, () -> serialize(narrowed));
+		}
+
+		@Test
+		@DisplayName("a narrowed part still reports the size of the whole record")
+		void shouldReportFullRecordSizeForKeyNarrowedPart() {
+			final byte[] serialized = writeTwoParts();
+
+			final OptionalInt completeSize = readTwoParts(serialized, null)[0].sizeInBytes();
+			final OptionalInt narrowedSize = readTwoPartsUnderCoverage(
+				serialized, ReferenceDecodeCoverage.of(Set.of(), Map.of(CATEGORY, new int[]{201}))
+			)[0].sizeInBytes();
+
+			assertTrue(completeSize.isPresent());
+			assertTrue(narrowedSize.isPresent());
+			assertEquals(completeSize.getAsInt(), narrowedSize.getAsInt());
+		}
+
+		@Test
+		@DisplayName("a record in the previous layout comes back complete even under a key coverage")
+		void shouldFullyDecodeLegacyRecordUnderPkCoverage() {
+			// the previous layout assigns internal primary keys by position, so skipping ANY reference - by name or
+			// by key - shifts every key after it. Such a record must report itself complete, exactly as it does
+			// under a name-only coverage.
+			final ReferencesStoragePart[] parts = readTwoPartsUnderCoverage(
+				writeLegacyFirstPart(),
+				ReferenceDecodeCoverage.of(Set.of(), Map.of(CATEGORY, new int[]{201}))
+			);
+
+			assertTrue(parts[0].isComplete());
+			assertNull(parts[0].getDecodeCoverage());
+			assertArrayEquals(
+				new String[]{BRAND, CATEGORY, CATEGORY, PARAMETER, PARAMETER},
+				referenceNamesOf(parts[0])
+			);
+			// every guarded question is answerable again, including the ones the key coverage would have refused
+			assertArrayEquals(new int[]{200, 201}, parts[0].getReferencedIds(CATEGORY));
+			assertFalse(parts[0].isEmpty());
+		}
+
+		@Test
+		@DisplayName("an unrestricted read nested inside a key-narrowed one leaves the narrowing intact")
+		void shouldRestoreOuterKeyCoverageAfterNestedUnrestrictedRead() {
+			final byte[] serialized = writeParts(firstPart(), secondPart(), firstPart());
+			final ReferenceDecodeCoverage coverage =
+				ReferenceDecodeCoverage.of(Set.of(), Map.of(CATEGORY, new int[]{201}));
+
+			final ReferencesStoragePart[] parts = readWithSchema(
+				serialized,
+				input -> ReferenceDecodeCoverageContext.executeWithCoverage(
+					coverage,
+					() -> {
+						final ReferencesStoragePart narrowed = readPart(input);
+						final ReferencesStoragePart complete =
+							ReferenceDecodeCoverageContext.executeWithCoverage(null, () -> readPart(input));
+						final ReferencesStoragePart narrowedAgain = readPart(input);
+						return new ReferencesStoragePart[]{narrowed, complete, narrowedAgain};
+					}
+				)
+			);
+
+			assertArrayEquals(new int[]{201}, referencedIdsOf(parts[0]));
+			assertTrue(parts[1].isComplete());
+			assertFalse(parts[2].isComplete());
+			assertArrayEquals(new int[]{201}, referencedIdsOf(parts[2]));
+			assertEquals(coverage, parts[2].getDecodeCoverage());
 		}
 	}
 

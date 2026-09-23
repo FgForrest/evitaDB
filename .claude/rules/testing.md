@@ -70,9 +70,96 @@ The test suite is split across four sibling modules under `evita_test/`:
   mvn -pl evita_test/evita_functional_tests test -Dgroups="facet & external_api"
   mvn -pl evita_test/evita_functional_tests test -Dgroups="(query | indexing) & !slow"
   ```
-- **Documentation runners** — `mvn -P documentation`. The matching profile in the docs module flips its `skipTests` to `false`; the root profile sets `skipTests=true` everywhere else, so only documentation tests run.
+- **Documentation runners** — `mvn -P documentation`. The matching profile in the docs module flips its `skipTests` to `false`; the root profile sets `skipTests=true` everywhere else, so only documentation tests run. Running them against anything but the public demo server takes a rig — see "Documentation runners" below.
 - **Slow / long-running tests** — `mvn -P longRunning`. Same pattern as `documentation`; selects only the long-running module.
 - **Picking the right tags for a code change** — map the changed source path to layer + capability tags. For example, a change under `evita_engine/src/main/java/io/evitadb/index/facet/` calls for `(facet | indexing) & !slow`; under `evita_external_api/evita_external_api_rest/` use `rest & external_api`. The full path-to-tag mapping is documented in the `TestTags` JavaDoc and in the bulk-tagging script committed during the rollout.
+
+## Documentation runners — running them locally
+
+`UserDocumentationTest#testDocumentation` turns every fenced example in `documentation/user/en/**` into a
+dynamic test and executes it in each language it is written in. Out of the box it runs them against
+**`Environment.DEMO_SERVER`** — the public `demo.evitadb.io:5555` — which is the wrong target for verifying a
+branch: that server runs a different build from the one you are changing, and in a sandbox the packets are
+dropped anyway. Verifying a change means pointing the runners at a local server, which is
+**`Environment.LOCALHOST`**, and that takes four steps in order.
+
+**1. Seed the dataset from the published archive, every time. Never reuse a directory another build wrote.**
+
+```shell
+wget https://evitadb.io/download/evita-demo-dataset.zip
+rm -rf <rig>/data-demo && mkdir -p <rig>/data-demo
+unzip -d <rig>/data-demo evita-demo-dataset.zip      # the archive contains a bare `evita/` catalog folder
+```
+
+The archive carries the catalog and **no engine bootstrap record**; the server writes a fresh one on first
+start. A directory left over from an earlier run does carry one, and its `EngineState` is pinned by a serial
+version UID — so a copy last opened by a newer build stops an older one dead before any port opens:
+
+```
+StoredVersionNotSupportedException: Cannot deserialize class
+io.evitadb.spi.store.engine.model.EngineState with serial version UID <n>.
+Supported backward compatible versions for this class are: ...
+```
+
+That is not a defect in the branch under test. It is a stale `evitaDB.boot`, and re-seeding is the fix.
+Seed a **copy**, never the working `data/` directory — the runners execute write examples.
+
+**2. Start a server over that copy, on plain HTTP.**
+
+TLS is where this rig goes wrong, so take it out of the picture: `api.endpointDefaults.tlsMode=FORCE_NO_TLS`.
+A generated self-signed certificate means trust configuration on three separate clients, and mTLS is not
+self-consistent here anyway — with `api.endpoints.gRPC.mTLS.enabled=true` the server serves `client.crt` /
+`client.key` and then rejects the client presenting them, because the generated certificate is not in
+`allowedClientCertificatePaths`.
+
+**3. Point the harness at it.** **Five** edits, all of them **working-tree only — never commit them**:
+
+| file | change |
+|---|---|
+| `UserDocumentationTest#testDocumentation` | `Environment.DEMO_SERVER` → `Environment.LOCALHOST` |
+| `rest/RestTestContext` | `https://localhost:5555` → `http://localhost:5555` |
+| `graphql/GraphQLTestContext` | `https://localhost:5555` → `http://localhost:5555` |
+| `evitaql/EvitaTestContext` | `ClientTlsOptions.tlsEnabled(false)`, `useGeneratedCertificate(false)` |
+| `src/test/resources/META-INF/documentation/evitaql-init.java` | same, on its `LOCALHOST` branch |
+
+**The fifth one is the easy one to miss, and it costs a whole run.** It is a *resource*, not a source file,
+and it is the JShell bootstrap every JAVA example evaluates - so it builds its **own** `EvitaClient` and none
+of the four above reach it. Its `LOCALHOST` branch ships `useGeneratedCertificate(true).mtlsEnabled(true)`,
+which against a plain-HTTP server fails at startup for every Java example at once:
+
+```
+JavaExecutionException: Failed to download certificates from server http://localhost:5555/system/server.crt
+```
+
+185 errors, one per Java example, all with that single line. The count is the tell: an error total in the
+high hundreds with one repeated message is a rig fault, not a branch fault.
+
+Keep an apply/revert script next to the rig rather than editing by hand, and revert **before** pushing.
+Under `LOCALHOST` the examples marked `local` are skipped by design — they start their own embedded instance
+and would collide on the port.
+
+**4. Run the factory by name, not the class.**
+
+```shell
+mvn -o -P documentation -pl evita_test/evita_documentation_tests -am test \
+  -DroaringBitmap.skipTests=true \
+  -Dtest='UserDocumentationTest#testDocumentation' \
+  -Dsurefire.failIfNoSpecifiedTests=false
+```
+
+`-Dtest=UserDocumentationTest` also selects `testSingleFileDocumentation()`, a debug factory pinned to one
+file against `DEMO_SERVER`. Its javadoc says "the test is disabled" but it carries no `@Disabled` (its sibling
+does), so it runs first and, in a sandbox, burns minutes of kernel SYN-retry per `EvitaClient` construction
+before the real sweep starts.
+
+### Judging the result
+
+**A green run is not the bar, and never has been.** The recorded snippets drift from the published dataset —
+histogram and price-bucket counts especially — so a correct branch still fails a couple of dozen examples.
+The bar is an **A/B against the same lineage**: run the identical rig on the branch and on its merge base,
+sort the failing example names, and `diff`. An empty diff is the pass; a non-empty one names exactly what the
+branch changed. Comparing against a baseline from a *different* lineage silently attributes lineage
+differences to the branch — and reads as the branch having fixed or broken examples it never touched.
 
 ## Reading test results — the false-green traps
 
