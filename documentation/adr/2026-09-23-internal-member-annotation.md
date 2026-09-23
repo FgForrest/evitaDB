@@ -1,7 +1,7 @@
 ---
 title: Mark members that are public only for cross-module reach with @Internal, and enforce it from bytecode
 date: 2026-09-23
-updated: 2026-09-23 19:10
+updated: 2026-09-23 20:40
 status: accepted
 kind: infrastructure
 issues: [1640]
@@ -222,11 +222,32 @@ member references, 0 violations). Four counterfactuals prove it is not passing v
   than summed.
 - **A broken class file is not swallowed by the torn-file retry.** Truncating
   `evita_roaring_bitmap`'s `AppendableStorage.class` to 120 bytes fails the test with that file's
-  path, so the retry that absorbs a concurrent compilation does not also absorb real damage.
+  path, so the retry that absorbs a concurrent compilation does not also absorb real damage. This
+  one is now a committed test rather than a one-off - see below.
 
 Three further floors fail loudly rather than silently passing: fewer than 15 compiled modules found
 (wrong root, or the reactor was not built), fewer than 4 annotated members found (the scan is not
 reading the current build), and the two reference-kind floors above.
+
+**The reader is tested apart from the scan that uses it**, because a reactor-wide scan cannot check
+its own parser: one that had gone blind reports the same clean result as one with nothing to report.
+Four further tests in the same class read the fixed class files of `ClassFileReaderFixtures` and
+`InternalArrayElementFixture` - compiled to order, rather than whichever real class happens to
+exercise a path - and assert the declarations found, the references recorded, the array stripping,
+and that a file still unreadable on the retry is named rather than passed over. Each was proved
+non-vacuous by breaking what it guards:
+
+| broken | tests that fail |
+|---|---|
+| `stripArrayDescriptor` returns its argument unchanged | the array test, **and** the reference test |
+| the `i++` compensating the second pool slot of a `long`/`double` | the declaration test, and the reactor scan (`evita_api`'s `CatalogVersionPin.class` "cannot be read on a second attempt either") |
+| members indexed by name, descriptor dropped | the declaration test, and the reactor scan's member-reference floor (12 to 0) |
+
+The array-element fixture is a **top-level** class on purpose, and the reason is the kind of thing
+that only shows up under `javap`: as a nested class it was also listed in the referencing class's
+`InnerClasses` attribute, which carries a `CONSTANT_Class` entry for the bare name - so the
+end-to-end assertion matched that entry and passed with the array stripping removed. Anything else
+testing this parser has the same trap waiting for it.
 
 The annotations themselves change no behaviour, and the functional slice covering the areas they sit
 in (`(require | reference | session | serialization | contract) & !slow`) confirms it: **12,750

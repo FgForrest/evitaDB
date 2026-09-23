@@ -23,22 +23,28 @@
 
 package io.evitadb.annotation;
 
+import io.evitadb.annotation.ClassFileReaderFixtures.Marked;
+import io.evitadb.annotation.ClassFileReaderFixtures.Referencing;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +55,10 @@ import java.util.function.Function;
 
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.TEST_HARNESS;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -77,6 +87,11 @@ import static org.junit.jupiter.api.Assertions.fail;
  * qualified export (`exports some.package to some.module;`) is the compiler-enforced answer and this annotation is
  * strictly weaker.
  *
+ * {@link ClassFileReader} carries its own tests below, against the fixed class files of
+ * {@link ClassFileReaderFixtures} rather than against whatever the reactor happens to hold. The reactor-wide scan
+ * cannot check the reader that performs it - a scan that had gone blind reports the same clean result as a scan
+ * that found nothing to report, which is why the floors above exist and why the reader is pinned separately.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Members marked @Internal must stay inside the modules allowed to reach them")
@@ -103,7 +118,7 @@ class InternalApiUsageTest implements EvitaTestSupport {
 		"evita_external_api/evita_external_api_graphql",
 		"named reference content exists for the GraphQL field alias; this is the layer that puts one there",
 		"evita_external_api/evita_external_api_grpc/server",
-		"decides the session flags a remote session opens with, which is what makes them server-set rather than client-set"
+		"decides the session flags a remote session opens with, which is what makes them server-set, not client-set"
 	);
 	/**
 	 * Directories that hold no module output and would only make the walk slower - or, in the case of
@@ -139,6 +154,11 @@ class InternalApiUsageTest implements EvitaTestSupport {
 	 * broken class file does not hold the build up.
 	 */
 	private static final long TORN_FILE_RETRY_DELAY_MILLIS = 250L;
+	/**
+	 * Module name handed to the reader by the fixture tests. It never reaches the enforced set - those tests read a
+	 * single class file directly and assert on what comes back, rather than walking the reactor.
+	 */
+	private static final String FIXTURE_MODULE = "fixture";
 
 	@DisplayName("No module outside the allowlist references an @Internal member of another module")
 	@Test
@@ -174,6 +194,124 @@ class InternalApiUsageTest implements EvitaTestSupport {
 		if (!verdict.violations().isEmpty()) {
 			fail(describeViolations(verdict.violations()));
 		}
+	}
+
+	@DisplayName("Every `@Internal` declaration of a known class file is found, and only those")
+	@Test
+	void shouldReadTheInternalDeclarationsOfAKnownClassFile() {
+		final Map<MemberKey, InternalMember> declarations = CollectionUtils.createHashMap(8);
+		ClassFileReader.readDeclarations(classFileOf(Marked.class), FIXTURE_MODULE, declarations);
+
+		final String marked = internalNameOf(Marked.class);
+		assertEquals(
+			4, declarations.size(),
+			"The fixture marks its type, one field, one constructor and one method: " + declarations.keySet()
+		);
+		assertEquals(
+			"use a supported fixture - this type exists to be found by the scan",
+			declarations.get(MemberKey.ofType(marked)).alternative()
+		);
+		assertEquals(
+			"read the supported accessor",
+			declarations.get(new MemberKey(marked, "MARKED_FIELD", "[Ljava/lang/String;")).alternative()
+		);
+		// each marked member has an unmarked overload that differs by descriptor alone: a reader that indexed by
+		// name would hand the allowlist members nobody marked, and the enforcement would be defending the wrong set
+		assertNotNull(declarations.get(new MemberKey(marked, "<init>", "(I)V")));
+		assertNull(declarations.get(new MemberKey(marked, "<init>", "(Ljava/lang/String;)V")));
+		assertNotNull(declarations.get(new MemberKey(marked, "overload", "([Ljava/lang/String;)Ljava/lang/String;")));
+		assertNull(declarations.get(new MemberKey(marked, "overload", "(I)Ljava/lang/String;")));
+		assertEquals(
+			"new io.evitadb.annotation.ClassFileReaderFixtures.Marked(I)V",
+			declarations.get(new MemberKey(marked, "<init>", "(I)V")).displayName()
+		);
+	}
+
+	@DisplayName("Every reference a known class file holds is recorded at descriptor precision")
+	@Test
+	void shouldReadTheReferencesOfAKnownClassFile() {
+		final Set<MemberKey> references = CollectionUtils.createHashSet(64);
+		final String referencingClass = ClassFileReader.readReferences(classFileOf(Referencing.class), references);
+
+		final String marked = internalNameOf(Marked.class);
+		assertEquals(internalNameOf(Referencing.class), referencingClass);
+		assertTrue(references.contains(new MemberKey(marked, "<init>", "(I)V")), references.toString());
+		assertTrue(
+			references.contains(new MemberKey(marked, "<init>", "(Ljava/lang/String;)V")), references.toString()
+		);
+		assertTrue(
+			references.contains(new MemberKey(marked, "MARKED_FIELD", "[Ljava/lang/String;")), references.toString()
+		);
+		assertTrue(
+			references.contains(
+				new MemberKey(marked, "overload", "([Ljava/lang/String;)Ljava/lang/String;")
+			),
+			references.toString()
+		);
+		assertTrue(
+			references.contains(new MemberKey(marked, "overload", "(I)Ljava/lang/String;")), references.toString()
+		);
+		// the fixture names this type only as `new MarkedArrayElement[1][1]`, so its pool holds the array
+		// descriptor and nothing else - this hit exists only because the array wrapper was stripped off
+		assertTrue(
+			references.contains(MemberKey.ofType(internalNameOf(InternalArrayElementFixture.class))),
+			references.toString()
+		);
+	}
+
+	@DisplayName("An array type reference is recorded against the type the array holds")
+	@Test
+	void shouldStripArrayDescriptorsDownToTheElementType() {
+		assertEquals("io/evitadb/Foo", ClassFileReader.stripArrayDescriptor("io/evitadb/Foo"));
+		assertEquals("io/evitadb/Foo", ClassFileReader.stripArrayDescriptor("[Lio/evitadb/Foo;"));
+		assertEquals("io/evitadb/Foo", ClassFileReader.stripArrayDescriptor("[[[Lio/evitadb/Foo;"));
+		// an array of primitives names no declared type at all, and must not be read as one
+		assertEquals("I", ClassFileReader.stripArrayDescriptor("[I"));
+	}
+
+	@DisplayName("A class file still unreadable on the second attempt is named rather than passed over")
+	@Test
+	void shouldReportAClassFileThatIsUnreadableOnBothAttempts(@TempDir Path temporaryDirectory) throws IOException {
+		final byte[] wholeClassFile = Files.readAllBytes(classFileOf(Marked.class));
+		final Path truncated = temporaryDirectory.resolve("Truncated.class");
+		// the magic number survives, so the file is recognisably a class file and fails inside the pool walk -
+		// exactly what a class file caught half-written by a concurrent compilation looks like
+		Files.write(truncated, Arrays.copyOf(wholeClassFile, 64));
+
+		final IllegalStateException failure = assertThrows(
+			IllegalStateException.class,
+			() -> ClassFileReader.readReferences(truncated, CollectionUtils.createHashSet(8))
+		);
+		assertTrue(failure.getMessage().contains("Truncated.class"), failure.getMessage());
+	}
+
+	/**
+	 * Locates the compiled form of a fixture class on the test classpath.
+	 *
+	 * @param type the fixture to read
+	 * @return path of its `.class` file
+	 */
+	@Nonnull
+	private static Path classFileOf(@Nonnull Class<?> type) {
+		final String resourceName = internalNameOf(type) + ".class";
+		final URL resource = type.getClassLoader().getResource(resourceName);
+		assertNotNull(resource, "Fixture `" + resourceName + "` is not on the test classpath!");
+		try {
+			return Path.of(resource.toURI());
+		} catch (URISyntaxException ex) {
+			throw new IllegalStateException("Fixture `" + resourceName + "` is not readable as a file!", ex);
+		}
+	}
+
+	/**
+	 * Names a class the way a constant pool does.
+	 *
+	 * @param type the class to name
+	 * @return its internal name, e.g. `io/evitadb/annotation/ClassFileReaderFixtures$Marked`
+	 */
+	@Nonnull
+	private static String internalNameOf(@Nonnull Class<?> type) {
+		return type.getName().replace('.', '/');
 	}
 
 	/**
