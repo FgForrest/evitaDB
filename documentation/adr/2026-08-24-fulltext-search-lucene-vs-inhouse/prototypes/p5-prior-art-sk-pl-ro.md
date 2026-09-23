@@ -333,8 +333,12 @@ folding wrapper is sufficient infrastructure for Polish.
 - **Meilisearch**: no stemmer, as for every language.
 - **EdeeCMS**: no Slovak analyzer registered at all (`IndexFactory.analyzerConstructorsMap` —
   `IndexFactory.java:59-93`), despite FG Forrest serving Slovak-market shops.
-- **Hunspell `sk_SK`** dictionaries exist (LibreOffice lineage, like the `cs_CZ` one the Czech
-  fixture measured) — this is the one adoptable artifact, and the Czech measurements are the prior
+- **Hunspell `sk_SK`** dictionaries exist — from the **sk-spell** project (Zdenko Podobny,
+  sk-spell.sk.cx, version 2.03-1), obtained via `wooorm/dictionaries`, **not** of LibreOffice lineage;
+  only the `cs_CZ` dictionary the Czech fixture measured came through LibreOffice (an earlier revision
+  of this line said otherwise — see
+  `evita_test/evita_functional_tests/src/test/resources/fulltext/hunspell/README.md` for the verified
+  provenance of all four). This is the one adoptable artifact, and the Czech measurements are the prior
   against it: A10 (Hunspell then fold) scored 74/348 combined recall, A12 (fold then Hunspell)
   20/348, and the false-lemma hazard (a bare-typed word being a *different real word* the dictionary
   confidently lemmatizes) is a property of dictionary lookup, not of Czech. Expected to transfer;

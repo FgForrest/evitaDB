@@ -641,6 +641,13 @@ dictionary, and that is work P5 should not be delayed by.
 > 264,838-headword sk_SK lexicon. Variant A (Hunspell) remains the long-term target and still carries its
 > unresolved licence question; the in-house stemmer does not, which is the other reason it won.
 
+> **Resolved (2026-09-23):** the licence question this section raised ("have to be verified for the specific
+> dictionary, not estimated") is answered, for all four dictionaries rather than only the Slovak one, in
+> `evita_test/evita_functional_tests/src/test/resources/fulltext/hunspell/README.md` — upstream project,
+> exact revision, retrieval path, licence and sha256 per file. None of them is loaded by engine code; they
+> are test fixtures for the coverage sweeps. See P5-2 in §11 for the summary and for why the
+> configured-path fallback proposed there was not needed.
+
 ---
 
 ## 6. Stemming versus prefix and typo
@@ -996,9 +1003,20 @@ The numbered ones follow on from the research; the new ones carry the P5 designa
   memory and different behaviour of the prefix, the typo and the suggester. P1 will decide by the
   dictionary's size and P3 by the suggester's quality. The leaning: variant 3 for e-commerce, variant 1 for
   CMS.
-- **P5-2 — the origin and licence of the Slovak Hunspell dictionary (§5.3).** The licence of the specific
-  dictionary has to be verified, not estimated. Should it turn out incompatible with the distribution, the
-  solution is loading from a configured path instead of packaging into the jar. Until then variant C holds.
+- **P5-2 — the origin and licence of the Slovak Hunspell dictionary (§5.3).** *Resolved (2026-09-23).* The
+  question changed shape on the way: no Hunspell dictionary ships inside evitaDB at all, because the Slovak
+  stemmer that shipped is in-house (§5.3's 2026-09-15 block). The four dictionaries in the repository —
+  `cs_CZ`, `pl_PL`, `sk_SK`, `ro_RO` — are **test fixtures**, read by the lexicon-coverage sweeps and never
+  loaded by engine code or packaged into a distributed artifact.
+  Provenance was **verified byte-for-byte, not estimated**, and is recorded per dictionary in
+  `evita_test/evita_functional_tests/src/test/resources/fulltext/hunspell/README.md`, with attribution in
+  `evita_test/evita_functional_tests/NOTICE`. `sk_SK` (sk-spell 2.03-1, via wooorm/dictionaries
+  `8cfea406b5`), `pl_PL` (Polish Native Lang Project 2008-12-06) and `ro_RO` (Rospell 3.3.10) each offer
+  **MPL** among their licences and are relied on under it. `cs_CZ` (LibreOffice `8cd38fb513`, extension
+  2021.07) is **GPL-2.0 only** and was kept deliberately: it is a separate unmodified work that nothing
+  links against, which is GPL-2.0 §2 mere aggregation — the same reasoning under which FG's `lib_fulltext`
+  has redistributed this exact file since 2021. The configured-path fallback this entry proposed was
+  therefore not needed and is **not** implemented.
 - **P5-3 — when to move to the Lucene 10.x line (§3.1).** Tied to `<java.version>` in the root pom really
   being 21. The transition is mechanical, but it should be done consciously, because it is at the same time
   an opportunity to reconsider the frozen version. The material still missing: how long the 9.x line will

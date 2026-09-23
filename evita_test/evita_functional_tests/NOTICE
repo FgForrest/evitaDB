@@ -1,0 +1,111 @@
+evitaDB - Third-party test data in evita_functional_tests
+=========================================================
+
+This module carries four Hunspell spell-checking dictionaries under
+`src/test/resources/fulltext/hunspell/`. They are third-party works, copied
+unmodified, and they keep their own licences - evitaDB's Business Source
+License does not apply to them.
+
+They are developer instruments: the full-text lexicon-coverage sweeps and the
+branching-stemmer equivalence tests read them to enumerate a language's
+inflected surface forms. No evitaDB code links against them, and this module
+is neither installed nor deployed (maven.install.skip / maven.deploy.skip),
+so no dictionary byte reaches a released artifact.
+
+Provenance, exact upstream revisions and checksums:
+`src/test/resources/fulltext/hunspell/README.md`.
+
+
+Polish dictionary (pl_PL.dic, pl_PL.aff)
+----------------------------------------
+
+From the Polish dictionary pack of the Polish Native Lang Project
+(http://pl.openoffice.org), 2008-12-06 snapshot of the OpenOffice.org
+dictionaries. Dictionary maintainer: Marek Futrega. Corrections:
+Marcin Milkowski. Obtained through github.com/wooorm/dictionaries
+(`dictionary-pl` 2.0.0, commit 8cfea406b505e4d7df52d5a19bce525df98c54ab),
+whose own MIT licence covers the packaging only.
+
+Upstream licence statement, verbatim:
+
+    This dictionary for spell-checking Polish texts is licensed under
+    GPL, LGPL, MPL (Mozilla Public License) and Creative Commons
+    ShareAlike licenses (see http://creativecommons.org/licenses/sa/1.0).
+
+The statement names no versions; the redistributor records the SPDX
+expression (GPL-3.0 OR LGPL-3.0 OR MPL-2.0). evitaDB relies on the MPL
+option.
+
+
+Slovak dictionary (sk_SK.dic, sk_SK.aff)
+----------------------------------------
+
+Slovak dictionaries for ASpell & Hunspell from the sk-spell project
+(http://sk-spell.sk.cx), version 2.03-1 of 2009-12-19, maintained by
+Zdenko Podobny. Obtained through github.com/wooorm/dictionaries
+(`dictionary-sk` 2.0.0, commit 8cfea406b505e4d7df52d5a19bce525df98c54ab).
+
+Upstream licence statement, verbatim:
+
+    Slovak dictionaries for ASpell & Hunspell
+
+    This data are release under these licenses:
+        * The GNU General Public License (GPL) Version 2, June 1991
+        * GNU Lesser General Public License Version 2.1, February 1999
+        * Mozilla Public License 1.1 (MPL 1.1)
+
+    You can find copy of licences in Doc directory.
+    Homepage: http://sk-spell.sk.cx
+
+evitaDB relies on the MPL 1.1 option.
+
+
+Romanian dictionary (ro_RO.dic, ro_RO.aff)
+------------------------------------------
+
+Romanian Hunspell package, Copyright (C) 2005-2013 Rospell Team
+(http://rospell.sourceforge.net), word list version 3.3.10. Obtained through
+github.com/wooorm/dictionaries (`dictionary-ro` 3.0.0, commit
+8cfea406b505e4d7df52d5a19bce525df98c54ab).
+
+Upstream licence statement, verbatim:
+
+    Copyright Terms:
+
+     GPL 2.0/LGPL 2.1/MPL 1.1 tri-license
+
+     The contents of this software may be used under the terms of
+     the GNU General Public License Version 2 or later (see COPYING.GPL), or
+     the GNU Lesser General Public License Version 2.1 or later (the "LGPL",
+     see COPYING.LGPL) or (excepting the LGPLed GNU gettext library in the
+     intl/ directory) the Mozilla Public License Version 1.1 or later
+     (the "MPL", see COPYING.MPL).
+
+     Software distributed under these licenses is distributed on an "AS IS"
+     basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+     licences for the specific language governing rights and limitations
+     under the licenses.
+
+evitaDB relies on the MPL 1.1 option.
+
+
+Czech dictionary (cs_CZ.dic, cs_CZ.aff)
+---------------------------------------
+
+Czech ispell dictionary by Petr Kolar and contributors, converted to Hunspell
+and updated in 2021 by Miroslav Posta (https://www.translatoblog.cz), shipped
+as the LibreOffice Czech spelling extension version 2021.07. Obtained from
+github.com/LibreOffice/dictionaries at commit 8cd38fb513 (2021-06-16).
+
+Upstream licence statement, from the extension's README_en.txt:
+
+    License: GNU/GPL
+
+The attached licence text is the GNU General Public License, Version 2. This
+is the one dictionary of the four that offers no permissive alternative.
+
+evitaDB redistributes it unmodified and alongside - never combined with - its
+own licensed work: no evitaDB code links against it, derives from it, or
+embeds any part of it, and it is read only by tests. That is mere aggregation
+on a storage medium in the sense of GPL-2.0 section 2, which the licence
+permits. See the README named above for the full argument.
