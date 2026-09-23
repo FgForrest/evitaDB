@@ -585,6 +585,7 @@ class EntityReferenceFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 			}
 		);
 	}
+
 	@DisplayName("In internal API, a paginated named reference set reports the total count of everything it matched")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
