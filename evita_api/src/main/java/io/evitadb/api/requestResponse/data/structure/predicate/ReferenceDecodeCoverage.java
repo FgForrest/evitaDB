@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.structure.predicate;
 
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -31,7 +32,6 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -78,7 +78,7 @@ public final class ReferenceDecodeCoverage implements Serializable {
 	 * ascending so that a decoder walking a name's run - which is itself ordered by referenced primary key - can
 	 * merge-walk them and stop probing once it passes the last wanted key.
 	 */
-	@Nonnull private final Map<String, int[]> namesDecodedByKey;
+	@Nonnull private final Map<String, DecodedKeys> namesDecodedByKey;
 	/**
 	 * Precomputed because this type is hashed on every storage record lookup.
 	 */
@@ -125,17 +125,15 @@ public final class ReferenceDecodeCoverage implements Serializable {
 		@Nonnull Set<String> namesDecodedWhole,
 		@Nonnull Map<String, int[]> namesDecodedByKey
 	) {
-		final Map<String, int[]> copiedKeys = new LinkedHashMap<>(namesDecodedByKey.size());
+		final Map<String, DecodedKeys> copiedKeys = CollectionUtils.createLinkedHashMap(namesDecodedByKey.size());
 		for (final Entry<String, int[]> entry : namesDecodedByKey.entrySet()) {
 			Assert.isPremiseValid(
 				!namesDecodedWhole.contains(entry.getKey()),
 				() -> "Reference name `" + entry.getKey() + "` cannot be decoded both whole and by key!"
 			);
-			final int[] sortedCopy = entry.getValue().clone();
-			Arrays.sort(sortedCopy);
-			copiedKeys.put(entry.getKey(), sortedCopy);
+			copiedKeys.put(entry.getKey(), DecodedKeys.of(entry.getValue()));
 		}
-		return new ReferenceDecodeCoverage(Set.copyOf(namesDecodedWhole), copiedKeys);
+		return new ReferenceDecodeCoverage(Set.copyOf(namesDecodedWhole), Map.copyOf(copiedKeys));
 	}
 
 	/**
@@ -194,14 +192,14 @@ public final class ReferenceDecodeCoverage implements Serializable {
 
 	private ReferenceDecodeCoverage(
 		@Nonnull Set<String> namesDecodedWhole,
-		@Nonnull Map<String, int[]> namesDecodedByKey
+		@Nonnull Map<String, DecodedKeys> namesDecodedByKey
 	) {
 		this.namesDecodedWhole = namesDecodedWhole;
 		this.namesDecodedByKey = namesDecodedByKey;
 		int computedHash = namesDecodedWhole.hashCode();
-		for (final Entry<String, int[]> entry : namesDecodedByKey.entrySet()) {
+		for (final Entry<String, DecodedKeys> entry : namesDecodedByKey.entrySet()) {
 			// entry-wise so the result does not depend on iteration order, matching the content equality below
-			computedHash += entry.getKey().hashCode() ^ Arrays.hashCode(entry.getValue());
+			computedHash += entry.getKey().hashCode() ^ entry.getValue().hashCode();
 		}
 		this.hashCode = computedHash;
 	}
@@ -222,8 +220,23 @@ public final class ReferenceDecodeCoverage implements Serializable {
 	 * @return the names decoded by key, never NULL
 	 */
 	@Nonnull
-	public Map<String, int[]> getNamesDecodedByKey() {
+	public Map<String, DecodedKeys> getNamesDecodedByKey() {
 		return this.namesDecodedByKey;
+	}
+
+	/**
+	 * Returns the keys this coverage lets through for the passed reference name, or NULL when the name is not
+	 * bound to a key set at all - either because it is decoded whole, or because it is not decoded.
+	 *
+	 * Exists so that a decoder walking a long run of references of one name can hold the key set itself rather than
+	 * repeating a map lookup per reference; the value handed back is immutable, so holding it is safe.
+	 *
+	 * @param referenceName name of the reference the caller asks about
+	 * @return the admitted keys, or NULL when this name is not key-bound
+	 */
+	@Nullable
+	public DecodedKeys getAdmittedKeys(@Nonnull String referenceName) {
+		return this.namesDecodedByKey.get(referenceName);
 	}
 
 	/**
@@ -251,8 +264,8 @@ public final class ReferenceDecodeCoverage implements Serializable {
 		if (this.namesDecodedWhole.contains(referenceName)) {
 			return true;
 		}
-		final int[] keys = this.namesDecodedByKey.get(referenceName);
-		return keys != null && Arrays.binarySearch(keys, referencedPrimaryKey) >= 0;
+		final DecodedKeys keys = this.namesDecodedByKey.get(referenceName);
+		return keys != null && keys.contains(referencedPrimaryKey);
 	}
 
 	/**
@@ -275,18 +288,13 @@ public final class ReferenceDecodeCoverage implements Serializable {
 				return false;
 			}
 		}
-		for (final Entry<String, int[]> entry : other.namesDecodedByKey.entrySet()) {
+		for (final Entry<String, DecodedKeys> entry : other.namesDecodedByKey.entrySet()) {
 			if (this.namesDecodedWhole.contains(entry.getKey())) {
 				continue;
 			}
-			final int[] ourKeys = this.namesDecodedByKey.get(entry.getKey());
-			if (ourKeys == null) {
+			final DecodedKeys ourKeys = this.namesDecodedByKey.get(entry.getKey());
+			if (ourKeys == null || !ourKeys.containsAll(entry.getValue())) {
 				return false;
-			}
-			for (final int wantedKey : entry.getValue()) {
-				if (Arrays.binarySearch(ourKeys, wantedKey) < 0) {
-					return false;
-				}
 			}
 		}
 		return true;
@@ -308,15 +316,8 @@ public final class ReferenceDecodeCoverage implements Serializable {
 		if (this.hashCode != that.hashCode || !this.namesDecodedWhole.equals(that.namesDecodedWhole)) {
 			return false;
 		}
-		if (this.namesDecodedByKey.size() != that.namesDecodedByKey.size()) {
-			return false;
-		}
-		for (final Entry<String, int[]> entry : this.namesDecodedByKey.entrySet()) {
-			if (!Arrays.equals(entry.getValue(), that.namesDecodedByKey.get(entry.getKey()))) {
-				return false;
-			}
-		}
-		return true;
+		// DecodedKeys compares by content, so the map comparison is a content comparison all the way down
+		return this.namesDecodedByKey.equals(that.namesDecodedByKey);
 	}
 
 	@Override
@@ -325,16 +326,126 @@ public final class ReferenceDecodeCoverage implements Serializable {
 		if (!this.namesDecodedByKey.isEmpty()) {
 			sb.append(", byKey={");
 			boolean first = true;
-			for (final Entry<String, int[]> entry : this.namesDecodedByKey.entrySet()) {
+			for (final Entry<String, DecodedKeys> entry : this.namesDecodedByKey.entrySet()) {
 				if (!first) {
 					sb.append(", ");
 				}
-				sb.append(entry.getKey()).append('=').append(entry.getValue().length).append(" key(s)");
+				sb.append(entry.getKey()).append('=').append(entry.getValue().size()).append(" key(s)");
 				first = false;
 			}
 			sb.append('}');
 		}
 		return sb.append('}').toString();
+	}
+
+	/**
+	 * An immutable, ascending, duplicate free set of referenced entity primary keys one reference name was bound to.
+	 *
+	 * Exists so that the key set can never escape as a mutable array. {@link ReferenceDecodeCoverage} is a cache
+	 * record identity with a precomputed hash - a caller able to mutate a key set behind its back would make an
+	 * already cached value disagree with the coverage that is supposed to describe it, and the disagreement would be
+	 * silent. Wrapping the array rather than copying it on every read keeps that guarantee free on the decode path:
+	 * the copy happens once, when the coverage is built, and the decoder holds this value for a whole run of
+	 * references of one name.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	public static final class DecodedKeys implements Serializable {
+		@Serial private static final long serialVersionUID = -8274519815193506045L;
+
+		/**
+		 * Ascending, duplicate free, and never handed out - see {@link #toArray()}.
+		 */
+		@Nonnull private final int[] keys;
+		/**
+		 * Precomputed alongside the enclosing coverage's, which is hashed on every storage record lookup.
+		 */
+		private final int hashCode;
+
+		/**
+		 * Creates the value from the caller's array, which is copied and sorted - the caller keeps ownership of
+		 * the one it passed and may mutate it afterwards without affecting this value.
+		 *
+		 * @param keys the keys to bind to, in any order
+		 * @return the immutable key set
+		 */
+		@Nonnull
+		public static DecodedKeys of(@Nonnull int[] keys) {
+			final int[] sortedCopy = keys.clone();
+			Arrays.sort(sortedCopy);
+			return new DecodedKeys(sortedCopy);
+		}
+
+		private DecodedKeys(@Nonnull int[] sortedKeys) {
+			this.keys = sortedKeys;
+			this.hashCode = Arrays.hashCode(sortedKeys);
+		}
+
+		/**
+		 * Tells whether the passed referenced entity primary key is one of the bound ones.
+		 *
+		 * @param referencedPrimaryKey primary key of the referenced entity
+		 * @return true when the key is bound
+		 */
+		public boolean contains(int referencedPrimaryKey) {
+			return Arrays.binarySearch(this.keys, referencedPrimaryKey) >= 0;
+		}
+
+		/**
+		 * Tells whether every key of the passed set is also bound here.
+		 *
+		 * @param other the key set that must be contained
+		 * @return true when this set contains all of it
+		 */
+		public boolean containsAll(@Nonnull DecodedKeys other) {
+			for (final int wantedKey : other.keys) {
+				if (!contains(wantedKey)) {
+					return false;
+				}
+			}
+			return true;
+		}
+
+		/**
+		 * Returns how many keys are bound.
+		 *
+		 * @return the number of bound keys
+		 */
+		public int size() {
+			return this.keys.length;
+		}
+
+		/**
+		 * Returns the bound keys as a fresh ascending array the caller owns.
+		 *
+		 * Allocates on every call by design - it exists for tests and diagnostics, never for the decode path, which
+		 * asks {@link #contains(int)} instead.
+		 *
+		 * @return copy of the bound keys, ascending
+		 */
+		@Nonnull
+		public int[] toArray() {
+			return this.keys.clone();
+		}
+
+		@Override
+		public int hashCode() {
+			return this.hashCode;
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+			if (this == obj) {
+				return true;
+			}
+			return obj instanceof final DecodedKeys that && Arrays.equals(this.keys, that.keys);
+		}
+
+		@Override
+		public String toString() {
+			return Arrays.toString(this.keys);
+		}
+
 	}
 
 }

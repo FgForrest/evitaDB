@@ -24,9 +24,8 @@
 package io.evitadb.spi.store.catalog.persistence.storageParts;
 
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.utils.Assert;
-
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -72,10 +71,6 @@ public interface StoragePart extends Serializable {
 	}
 
 	/**
-	 * Returns `true` if this storage part has never been written to persistent storage, i.e. its primary key has not
-	 * yet been assigned by {@link #computeUniquePartIdAndSet(KeyCompressor)}.
-	 */
-	/**
 	 * Tells whether this part is a view narrowed by what one read happened to ask for, rather than the whole of what
 	 * it claims to represent.
 	 *
@@ -94,6 +89,10 @@ public interface StoragePart extends Serializable {
 		return false;
 	}
 
+	/**
+	 * Returns `true` if this storage part has never been written to persistent storage, i.e. its primary key has not
+	 * yet been assigned by {@link #computeUniquePartIdAndSet(KeyCompressor)}.
+	 */
 	default boolean isNew() {
 		return getStoragePartPK() == null;
 	}
@@ -115,7 +114,7 @@ public interface StoragePart extends Serializable {
 	long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor);
 
 	/**
-	 * Refuses a part that is not {@link #isPersistable() safe to persist}, naming the ingress that rejected it.
+	 * Refuses a part whose {@link #isNarrowedView()} is true, naming the ingress that rejected it.
 	 *
 	 * Called at every entrance into the data store - the memory buffers, the transactional overlay and the trapped
 	 * change collector alike - rather than at the serializer alone. The serializer is the last barrier and it does

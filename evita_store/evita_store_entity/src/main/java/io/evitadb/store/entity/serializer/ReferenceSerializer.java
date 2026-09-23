@@ -32,9 +32,10 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Reference;
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage.DecodedKeys;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
 import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -43,7 +44,6 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -82,9 +82,12 @@ public class ReferenceSerializer extends Serializer<Reference> {
 	private NameAdmission memoizedNameAdmission;
 	/**
 	 * The referenced entity primary keys {@link #memoizedReferenceName} is narrowed to, valid only while
-	 * {@link #memoizedNameAdmission} is {@link NameAdmission#BY_KEY}. Sorted ascending.
+	 * {@link #memoizedNameAdmission} is {@link NameAdmission#BY_KEY}.
+	 *
+	 * Held as the coverage's own immutable value rather than a bare array so that memoizing it across a run of
+	 * references cannot alias mutable state the coverage is hashed on.
 	 */
-	private int[] memoizedAdmittedKeys;
+	private DecodedKeys memoizedAdmittedKeys;
 	/**
 	 * The entity schema {@link #memoizedReferenceSchema} was resolved from, compared by identity - a schema change
 	 * invalidates the resolution.
@@ -126,14 +129,12 @@ public class ReferenceSerializer extends Serializer<Reference> {
 		final String referenceName = input.readString();
 		final ReferenceDecodeCoverage coverage = ReferenceDecodeCoverageContext.getDecodeCoverage();
 		if (!referenceName.equals(this.memoizedReferenceName) || coverage != this.memoizedCoverage) {
-			if (coverage == null) {
-				this.memoizedNameAdmission = NameAdmission.WHOLE;
-				this.memoizedAdmittedKeys = null;
-			} else if (coverage.isNameDecodedWhole(referenceName)) {
+			if (coverage == null || coverage.isNameDecodedWhole(referenceName)) {
+				// no narrowing at all, or this name narrowed by nothing but its own presence
 				this.memoizedNameAdmission = NameAdmission.WHOLE;
 				this.memoizedAdmittedKeys = null;
 			} else {
-				this.memoizedAdmittedKeys = coverage.getNamesDecodedByKey().get(referenceName);
+				this.memoizedAdmittedKeys = coverage.getAdmittedKeys(referenceName);
 				this.memoizedNameAdmission = this.memoizedAdmittedKeys == null ?
 					NameAdmission.NONE : NameAdmission.BY_KEY;
 			}
@@ -154,7 +155,7 @@ public class ReferenceSerializer extends Serializer<Reference> {
 			// the referenced primary key is the very next field, so narrowing by key costs four bytes and a binary
 			// search on top of the name decision - and saves the body, the objects it would build, and the garbage
 			final int referencedPrimaryKey = input.readInt();
-			if (Arrays.binarySearch(this.memoizedAdmittedKeys, referencedPrimaryKey) < 0) {
+			if (!this.memoizedAdmittedKeys.contains(referencedPrimaryKey)) {
 				skipReferenceBodyAfterPrimaryKey(kryo, input);
 				return null;
 			}

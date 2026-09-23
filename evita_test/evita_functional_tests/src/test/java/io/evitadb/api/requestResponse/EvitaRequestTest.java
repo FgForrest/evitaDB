@@ -23,6 +23,11 @@
 
 package io.evitadb.api.requestResponse;
 
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.require.ManagedReferencesBehaviour;
+import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.EvitaRequest.ResultForm;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.dataType.Scope;
@@ -2137,6 +2142,131 @@ class EvitaRequestTest {
 			final EvitaRequest request = createRequest(query(collection("parameterValue")));
 
 			assertTrue(request.getReferenceKeyNarrowing().isEmpty());
+		}
+
+		@Test
+		@DisplayName("A named requirement bounds its reference the same way an unnamed one does")
+		void shouldNarrowOnRootKeySetOfANamedRequirement() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							namedReferenceContent(
+								"productAlias",
+								filterBy(entityPrimaryKeyInSet(30, 10, 20)),
+								"products"
+							)
+						)
+					)
+				)
+			);
+
+			// an externally issued query carries an instance name on every requirement - a GraphQL field alias or
+			// a REST projection name becomes one - so this is the shape the narrowing meets in production
+			assertArrayEquals(new int[]{10, 20, 30}, request.getReferenceKeyNarrowing().get("products"));
+		}
+
+		@Test
+		@DisplayName("A named and an unnamed requirement disagreeing un-narrows the reference")
+		void shouldUnNarrowWhenANamedAndAnUnnamedRequirementDisagree() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							namedReferenceContent(
+								"productAlias",
+								filterBy(entityPrimaryKeyInSet(10, 20)),
+								"products"
+							),
+							// no filter at all - this one wants every `products` reference
+							referenceContent("products", entityFetch(attributeContentAll()))
+						)
+					)
+				)
+			);
+
+			// the rule spans both requirement kinds, which is exactly where the two code paths meet
+			assertTrue(request.getReferenceKeyNarrowing().isEmpty());
+		}
+
+		@Test
+		@DisplayName("One filter on a multi name requirement bounds every name it lists")
+		void shouldApplyOneFilterToEveryNameOfAMultiNameRequirement() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							new ReferenceContent(
+								null,
+								ManagedReferencesBehaviour.ANY,
+								new String[]{"products", "categories"},
+								new RequireConstraint[]{entityFetch(attributeContentAll())},
+								new Constraint<?>[]{filterBy(entityPrimaryKeyInSet(10, 20))}
+							)
+						)
+					)
+				)
+			);
+
+			assertArrayEquals(new int[]{10, 20}, request.getReferenceKeyNarrowing().get("products"));
+			assertArrayEquals(new int[]{10, 20}, request.getReferenceKeyNarrowing().get("categories"));
+			assertEquals(2, request.getReferenceKeyNarrowing().size());
+		}
+
+		@Test
+		@DisplayName("A nested requirement's key set never bounds the outer level")
+		void shouldNotLeakANestedRequirementsNarrowingToTheOuterLevel() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							referenceContent(
+								"products",
+								entityFetch(
+									referenceContent(
+										"tags",
+										filterBy(entityPrimaryKeyInSet(1)),
+										entityFetch(attributeContentAll())
+									)
+								)
+							)
+						)
+					)
+				)
+			);
+
+			// `tags` belongs to the referenced entity's own fetch, one level down - bounding the outer decode by
+			// an inner level's keys would skip references the outer level asked for in full
+			assertNull(request.getReferenceKeyNarrowing().get("tags"));
+			assertTrue(request.getReferenceKeyNarrowing().isEmpty());
+		}
+
+		/**
+		 * Builds the named reference content a query carrying reference content instance names produces, which the
+		 * {@link io.evitadb.api.query.QueryConstraints} factory methods have no shorthand for.
+		 *
+		 * @param instanceName  instance name (alias) the requirement carries
+		 * @param filterBy      filter bounding the referenced entities
+		 * @param referenceName name of the reference the requirement asks for
+		 * @return the named reference content requirement
+		 */
+		@Nonnull
+		private ReferenceContent namedReferenceContent(
+			@Nonnull String instanceName,
+			@Nonnull FilterBy filterBy,
+			@Nonnull String referenceName
+		) {
+			return new ReferenceContent(
+				instanceName,
+				ManagedReferencesBehaviour.ANY,
+				new String[]{referenceName},
+				new RequireConstraint[]{entityFetch(attributeContentAll())},
+				new Constraint<?>[]{filterBy}
+			);
 		}
 	}
 }

@@ -26,7 +26,9 @@ package io.evitadb.api.functional.fetch;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.requestResponse.EntityFetchAwareDecorator;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
@@ -38,6 +40,7 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,20 +48,25 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import java.util.Collection;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * This test verifies basic entity fetching functionality including:
@@ -446,6 +454,187 @@ class EntityBasicFetchFunctionalTest extends AbstractEntityFetchingFunctionalTes
 				return null;
 			}
 		);
+	}
+
+
+	/**
+	 * Covers the single decision standing between a reference read that materialized only some of an entity's
+	 * references and a caller that later asks for more of them - the enrichment gate.
+	 *
+	 * The gate compares the coverage the previous read was performed under with the coverage the new requirement
+	 * needs, and its two failure modes pull in opposite directions: a gate that never re-reads hands the caller
+	 * a silently short reference set, and a gate that always re-reads is correct but deletes the whole saving.
+	 * Only the first is asserted here, and deliberately so - the second has no observable at all. A redundant
+	 * re-read is of a record the entity already holds, and the per-entity I/O statistic unions the enrichment's
+	 * read records with the ones already billed precisely so that the same record is never counted twice, so no
+	 * counter moves; the decorator identity short circuit upstream of the gate answers a different question.
+	 * The claim that a coverage which changed nothing produces no new predicate - and therefore nothing for the
+	 * gate to re-read for - is pinned where it is observable, on the predicate itself.
+	 */
+	@Nested
+	@DisplayName("Enrichment after a narrowed reference read")
+	@Tag(REFERENCE)
+	class EnrichmentAfterNarrowedReferenceReadTest {
+
+		@DisplayName("Enrichment asking for a referenced key the first read skipped goes back to the storage")
+		@Test
+		void shouldGoBackToStorageWhenEnrichmentAsksForAKeyTheFirstReadSkipped(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final int[] fixture = findProductWithTwoCategories(session);
+					final int productPk = fixture[0];
+					final int firstCategoryPk = fixture[1];
+					final int secondCategoryPk = fixture[2];
+
+					final SealedEntity narrowed = fetchProductBoundToCategories(session, productPk, firstCategoryPk);
+					assertEquals(
+						Set.of(firstCategoryPk), categoryKeysOf(narrowed),
+						"The first read was bound to a single referenced key and must have materialized only it."
+					);
+
+					final SealedEntity enriched = session.enrichEntity(
+						narrowed,
+						referenceContent(
+							Entities.CATEGORY,
+							filterBy(entityPrimaryKeyInSet(secondCategoryPk)),
+							entityFetch(attributeContentAll())
+						)
+					);
+
+					assertTrue(
+						categoryKeysOf(enriched).contains(secondCategoryPk),
+						"The key the first read skipped has to be read from the storage, not answered from the " +
+							"narrowed reference set already in hand."
+					);
+					return null;
+				}
+			);
+		}
+
+		@DisplayName("Enrichment wanting a key-narrowed reference name whole widens it")
+		@Test
+		void shouldWidenAKeyNarrowedNameWhenEnrichmentWantsItWhole(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final int[] fixture = findProductWithTwoCategories(session);
+					final int productPk = fixture[0];
+					final int firstCategoryPk = fixture[1];
+
+					final Set<Integer> allStoredCategories = categoryKeysOf(
+						session.queryOneSealedEntity(
+							query(
+								collection(Entities.PRODUCT),
+								filterBy(entityPrimaryKeyInSet(productPk)),
+								require(entityFetch(referenceContent(Entities.CATEGORY)))
+							)
+						).orElseThrow()
+					);
+
+					final SealedEntity narrowed = fetchProductBoundToCategories(session, productPk, firstCategoryPk);
+					final SealedEntity enriched = session.enrichEntity(
+						narrowed,
+						referenceContent(Entities.CATEGORY)
+					);
+
+					// a coverage bounded by key can never satisfy a requirement that names no keys at all, so the
+					// whole reference name has to be read again
+					assertEquals(
+						allStoredCategories, categoryKeysOf(enriched),
+						"An enrichment naming no keys wants the reference name whole and must receive all of it."
+					);
+					return null;
+				}
+			);
+		}
+
+		/**
+		 * Fetches one product with its `CATEGORY` references bound to an explicit key set, which is the shape that
+		 * makes the storage read materialize only those keys.
+		 *
+		 * @param session        session to query through
+		 * @param productPk      primary key of the product to fetch
+		 * @param categoryPks    referenced category primary keys the read is bound to
+		 * @return the fetched product
+		 */
+		@Nonnull
+		private SealedEntity fetchProductBoundToCategories(
+			@Nonnull EvitaSessionContract session,
+			int productPk,
+			@Nonnull int... categoryPks
+		) {
+			return session.queryOneSealedEntity(
+				query(
+					collection(Entities.PRODUCT),
+					filterBy(entityPrimaryKeyInSet(productPk)),
+					require(
+						entityFetch(
+							referenceContent(
+								Entities.CATEGORY,
+								filterBy(entityPrimaryKeyInSet(categoryPks)),
+								entityFetch(attributeContentAll())
+							)
+						)
+					)
+				)
+			).orElseThrow();
+		}
+
+		/**
+		 * Finds a product storing at least two `CATEGORY` references, which is the minimum a narrowing can be
+		 * observed on - with a single reference, a bound read and an unbound one return the same thing and every
+		 * assertion in this class would hold for the wrong reason.
+		 *
+		 * @param session session to query through
+		 * @return three element array of the product primary key and two of its referenced category primary keys
+		 */
+		@Nonnull
+		private int[] findProductWithTwoCategories(@Nonnull EvitaSessionContract session) {
+			return session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							entityFetch(referenceContent(Entities.CATEGORY)),
+							page(1, Integer.MAX_VALUE)
+						)
+					)
+				)
+				.getRecordData()
+				.stream()
+				.map(product -> {
+					final int[] categoryPks = product.getReferences(Entities.CATEGORY)
+						.stream()
+						.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+						.distinct()
+						.sorted()
+						.toArray();
+					return categoryPks.length < 2 ?
+						null :
+						new int[]{product.getPrimaryKeyOrThrowException(), categoryPks[0], categoryPks[1]};
+				})
+				.filter(Objects::nonNull)
+				.findFirst()
+				.orElseThrow(
+					() -> new IllegalStateException(
+						"The data set carries no product with two categories - the narrowing cannot be observed."
+					)
+				);
+		}
+
+		/**
+		 * Collects the referenced category primary keys an entity carries.
+		 *
+		 * @param entity entity to read the references off
+		 * @return the referenced category primary keys
+		 */
+		@Nonnull
+		private Set<Integer> categoryKeysOf(@Nonnull SealedEntity entity) {
+			final Collection<ReferenceContract> references = entity.getReferences(Entities.CATEGORY);
+			return references.stream()
+				.map(ReferenceContract::getReferencedPrimaryKey)
+				.collect(Collectors.toSet());
+		}
 	}
 
 }
