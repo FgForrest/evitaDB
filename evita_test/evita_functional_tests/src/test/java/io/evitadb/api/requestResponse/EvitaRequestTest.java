@@ -3147,7 +3147,8 @@ class EvitaRequestTest {
 		void shouldUnionKeySetsOfTwoRequirements() {
 			// carried by NAMED requirements: two unnamed requirements differing in filter are refused outright
 			// by ReferenceContent#combineWith, so the only way two differently-filtered requirements over one
-			// reference name reach the request is through instance names - which is what a GraphQL alias produces
+			// reference name reach the request is through instance names - which is what a GraphQL alias
+			// produces, and the key narrowing has to union across them all the same
 			final EvitaRequest request = createRequest(
 				query(
 					collection("parameterValue"),
