@@ -1496,7 +1496,13 @@ public class EvitaRequest {
 					if (narrowed == null) {
 						narrowed = CollectionUtils.createHashMap(referenceNames.length);
 					}
-					narrowed.merge(referenceName, exactKeys, ReferenceDecodeCoverage::unionSortedKeys);
+					// one requirement may name several references, and `unionSortedKeys` allocates, so the first put
+					// of each name would otherwise hand them all the very same array instance
+					narrowed.merge(
+						referenceName,
+						referenceNames.length > 1 ? exactKeys.clone() : exactKeys,
+						ReferenceDecodeCoverage::unionSortedKeys
+					);
 				}
 			}
 		}

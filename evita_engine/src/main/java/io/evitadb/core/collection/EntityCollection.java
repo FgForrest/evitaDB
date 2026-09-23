@@ -2270,12 +2270,17 @@ public final class EntityCollection implements
 	 * Merges the named reference requirements an entity already carries with the ones an enriching request states.
 	 *
 	 * Enrichment is additive: whatever an earlier request asked for by instance name stays on the entity, so its
-	 * requirement is fetched again here alongside the new ones. Where both name the same instance the enriching
-	 * request wins, because it is the more recent statement of what that instance should carry.
+	 * requirement is fetched again here alongside the new ones.
+	 *
+	 * Naming the same instance twice is a REDEFINITION, not a union, and the enriching request wins. An instance
+	 * name identifies one field of one response, so two filters for it are contradictory rather than cumulative -
+	 * there is no wider set to add to, only a more recent statement of what that name means. Additivity holds
+	 * across instance names, never within one. A review read the additive contract as reaching inside a single
+	 * name; it does not, and `shouldRedefineTheNamedSetWhenEnrichingThroughTheSameAlias` pins that.
 	 *
 	 * @param entity       entity being enriched, which may carry requirements from the requests that built it
 	 * @param requirements named requirements the enriching request states
-	 * @return the union, or `requirements` itself when the entity carries none
+	 * @return the merged requirements, or `requirements` itself when the entity carries none
 	 */
 	@Nonnull
 	private static Map<ReferenceContentKey, RequirementContext> mergeNamedReferenceRequirements(

@@ -632,6 +632,75 @@ class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest 
 		);
 	}
 
+	@DisplayName("Enriching through an instance name already present redefines that set, it does not union it")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldRedefineTheNamedSetWhenEnrichingThroughTheSameAlias(
+		Evita evita,
+		List<SealedEntity> originalProducts
+	) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> it.getReferences(Entities.CATEGORY).size() > 1
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements[0])
+						),
+						require(
+							entityFetch(
+								new ReferenceContent(
+									"allCats",
+									ManagedReferencesBehaviour.ANY,
+									new String[]{Entities.CATEGORY},
+									new RequireConstraint[0],
+									new Constraint<?>[0]
+								)
+							)
+						)
+					)
+				);
+				assertEquals(1, productByPk.getRecordData().size());
+
+				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity theEntity = originalProducts
+					.stream()
+					.filter(it -> Objects.equals(it.getPrimaryKey(), entitiesMatchingTheRequirements[0]))
+					.findFirst()
+					.orElseThrow(() -> new IllegalStateException("Should never happen!"));
+				final int[] allCategories = REFERENCED_ID_EXTRACTOR.apply(theEntity, Entities.CATEGORY);
+
+				assertNamedChunkHasReferencesTo(product, "allCats", Entities.CATEGORY, allCategories);
+
+				// enrichment is additive ACROSS instance names, never WITHIN one. Re-stating `allCats` with a
+				// filter is a redefinition of what that one name means - two filters for a single response field
+				// are contradictory rather than cumulative, so there is no wider set left to add to
+				final SealedEntity enriched = session.enrichEntity(
+					product,
+					new ReferenceContent(
+						"allCats",
+						ManagedReferencesBehaviour.ANY,
+						new String[]{Entities.CATEGORY},
+						new RequireConstraint[0],
+						new Constraint<?>[]{filterBy(entityPrimaryKeyInSet(allCategories[0]))}
+					)
+				);
+
+				assertNamedChunkHasReferencesTo(enriched, "allCats", Entities.CATEGORY, allCategories[0]);
+				// and the unnamed view stays empty - the redefinition must not spill the dropped references there
+				assertTrue(enriched.referencesAvailable(Entities.CATEGORY));
+				assertTrue(enriched.getReferences(Entities.CATEGORY).isEmpty());
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Enriching AND limiting narrows to the named sets the request asks for")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
