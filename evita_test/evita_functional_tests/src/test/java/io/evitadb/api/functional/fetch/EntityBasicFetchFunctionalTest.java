@@ -24,6 +24,10 @@
 package io.evitadb.api.functional.fetch;
 
 import io.evitadb.api.SessionTraits.SessionFlags;
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.require.ManagedReferencesBehaviour;
+import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.EntityFetchAwareDecorator;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.EvitaSessionContract;
@@ -48,7 +52,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -61,7 +69,9 @@ import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -635,6 +645,174 @@ class EntityBasicFetchFunctionalTest extends AbstractEntityFetchingFunctionalTes
 				.map(ReferenceContract::getReferencedPrimaryKey)
 				.collect(Collectors.toSet());
 		}
+	}
+
+	/**
+	 * Covers the unnamed reference view of a name that several named requirements asked for differently.
+	 *
+	 * Each named requirement decorates the stored references it matched with its own attribute predicate and its
+	 * own deeply fetched bodies, so two requirements matching one and the same stored reference produce two
+	 * decorators over one delegate that show different things. The view can show one arrangement, and the request
+	 * therefore derives the implicit requirement behind it as the **union** of the named ones.
+	 *
+	 * Two properties are asserted together, and neither is sufficient alone. The view must not depend on what the
+	 * requirements are called - requirements are walked in {@code ReferenceContentKey} order, so a rule that keeps
+	 * whichever decorator arrives first is decided by the alias names. And the view must carry everything the
+	 * requirements fetched between them, which is checked against what each of them fetches ON ITS OWN: a view
+	 * that showed nothing at all would satisfy the first property perfectly.
+	 */
+	@Nested
+	@DisplayName("Unnamed view of a name several requirements asked for differently")
+	@Tag(REFERENCE)
+	class UnnamedViewOfAMultiplyRequestedReferenceTest {
+
+		@DisplayName("Carries what every requirement fetched, whatever the requirements are called")
+		@Test
+		void shouldUnionWhatEveryNamedRequirementFetched(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final int productPk = findProductWithAtLeastOneCategory(session);
+
+					// what each requirement fetches alone - the two halves the union has to contain
+					final List<String> bodiesAlone = unnamedCategoryView(
+						session, productPk, categoryRequirement("solo", entityFetch(attributeContentAll()))
+					);
+					final List<String> attributesAlone = unnamedCategoryView(
+						session, productPk, categoryRequirement("solo", attributeContentAll())
+					);
+					assertNotEquals(
+						bodiesAlone, attributesAlone,
+						"The two requirements must fetch observably different things, or this test cannot tell a " +
+							"union from either half of it."
+					);
+
+					final List<String> aaaFetchesBodies = unnamedCategoryView(
+						session, productPk,
+						categoryRequirement("aaa", entityFetch(attributeContentAll())),
+						categoryRequirement("zzz", attributeContentAll())
+					);
+					final List<String> aaaFetchesAttributes = unnamedCategoryView(
+						session, productPk,
+						categoryRequirement("aaa", attributeContentAll()),
+						categoryRequirement("zzz", entityFetch(attributeContentAll()))
+					);
+
+					assertEquals(
+						aaaFetchesBodies, aaaFetchesAttributes,
+						"Renaming the requirements must not change the unnamed view. When it does, one " +
+							"requirement's decorator is kept and the other's silently discarded."
+					);
+					assertEquals(
+						unionOf(bodiesAlone, attributesAlone), aaaFetchesBodies,
+						"The unnamed view has to carry everything the requirements fetched between them - the " +
+							"referenced bodies one asked for AND the reference attributes the other did."
+					);
+					return null;
+				}
+			);
+		}
+
+		/**
+		 * Merges two renderings of one reference set into what a view carrying both would look like.
+		 *
+		 * @param left  one rendering
+		 * @param right the other rendering of the same references
+		 * @return the rendering a view containing both would produce
+		 */
+		@Nonnull
+		private List<String> unionOf(@Nonnull List<String> left, @Nonnull List<String> right) {
+			final List<String> merged = new ArrayList<>(left.size());
+			for (int i = 0; i < left.size(); i++) {
+				final String[] mine = left.get(i).split(" ");
+				final String[] theirs = right.get(i).split(" ");
+				final boolean body = mine[1].endsWith("true") || theirs[1].endsWith("true");
+				final String attributes = mine[2].endsWith("<unfetched>") ? theirs[2] : mine[2];
+				merged.add(mine[0] + " body=" + body + " " + attributes);
+			}
+			return merged;
+		}
+
+		/**
+		 * Builds one named `CATEGORY` requirement, the shape a GraphQL field alias produces.
+		 *
+		 * @param instanceName instance name the requirement carries
+		 * @param content      what it asks to be fetched
+		 * @return the named requirement
+		 */
+		@Nonnull
+		private ReferenceContent categoryRequirement(
+			@Nonnull String instanceName,
+			@Nonnull RequireConstraint content
+		) {
+			return new ReferenceContent(
+				instanceName, ManagedReferencesBehaviour.ANY, new String[]{Entities.CATEGORY},
+				new RequireConstraint[]{content}, new Constraint<?>[0]
+			);
+		}
+
+		/**
+		 * Reads the unnamed `CATEGORY` view of one product fetched under the passed requirements, rendered so that
+		 * a failure says WHAT differed rather than merely that something did.
+		 *
+		 * @param session      session to query through
+		 * @param productPk    primary key of the product to fetch
+		 * @param requirements named requirements to fetch it under
+		 * @return one line per reference, ordered by referenced primary key
+		 */
+		@Nonnull
+		private List<String> unnamedCategoryView(
+			@Nonnull EvitaSessionContract session,
+			int productPk,
+			@Nonnull ReferenceContent... requirements
+		) {
+			return session.queryOneSealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(entityPrimaryKeyInSet(productPk)),
+						require(entityFetch(requirements))
+					)
+				)
+				.orElseThrow()
+				.getReferences(Entities.CATEGORY)
+				.stream()
+				.sorted(Comparator.comparingInt(ReferenceContract::getReferencedPrimaryKey))
+				.map(
+					reference -> reference.getReferencedPrimaryKey() +
+						" body=" + reference.getReferencedEntity().isPresent() +
+						" attributes=" + (
+							reference.attributesAvailable() ?
+								reference.getAttributeNames().stream().sorted().toList().toString() :
+								"<unfetched>"
+						)
+				)
+				.toList();
+		}
+
+		/**
+		 * Finds a product storing at least one `CATEGORY` reference - the minimum for two requirements to meet
+		 * over one shared stored reference, which is the situation being pinned.
+		 *
+		 * @param session session to query through
+		 * @return primary key of the product
+		 */
+		private int findProductWithAtLeastOneCategory(@Nonnull EvitaSessionContract session) {
+			return session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						require(entityFetch(referenceContent(Entities.CATEGORY)), page(1, Integer.MAX_VALUE))
+					)
+				)
+				.getRecordData()
+				.stream()
+				.filter(product -> !product.getReferences(Entities.CATEGORY).isEmpty())
+				.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
+				.findFirst()
+				.orElseThrow(
+					() -> new IllegalStateException("The data set carries no product with a category reference.")
+				);
+		}
+
 	}
 
 }

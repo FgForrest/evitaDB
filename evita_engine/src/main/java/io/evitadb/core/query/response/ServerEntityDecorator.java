@@ -265,6 +265,13 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 * decorator afterwards and holding a second index of them would retain them twice.
 	 */
 	@Nullable private transient Map<String, List<ReferenceDecorator>> namedReferenceProjections;
+	/**
+	 * Reference names whose unnamed view cannot be served as a projection of the named chunks, because two named
+	 * requirements decorated one and the same stored reference differently. Such a name is built from the entity's
+	 * own references instead, under the implicit requirement the request derived as the union of those named
+	 * requirements - so the view carries what all of them fetched rather than what either one did.
+	 */
+	@Nullable private transient Set<String> unprojectableReferenceNames;
 
 	/**
 	 * Method allows creating the entityDecorator object with up-to-date schema definition. Data of the entity are kept
@@ -715,6 +722,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 			);
 		} finally {
 			this.namedReferenceProjections = null;
+			this.unprojectableReferenceNames = null;
 		}
 	}
 
@@ -733,6 +741,9 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		@Nonnull String referenceName,
 		@Nonnull List<ReferenceContract> namedReferences
 	) {
+		if (this.unprojectableReferenceNames != null && this.unprojectableReferenceNames.contains(referenceName)) {
+			return;
+		}
 		if (this.namedReferenceProjections == null) {
 			this.namedReferenceProjections = CollectionUtils.createHashMap(4);
 		}
@@ -753,9 +764,35 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 				"Named reference sets are expected to carry decorated references!"
 			);
 			final ReferenceDecorator decorator = (ReferenceDecorator) reference;
-			if (alreadyProjected == null || alreadyProjected.add(decorator.getDelegate())) {
-				projection.add(decorator);
+			if (alreadyProjected != null && !alreadyProjected.add(decorator.getDelegate())) {
+				// Two named requirements decorated one and the same stored reference, each with its own attribute
+				// predicate and its own deeply fetched bodies. Neither decorator shows what the requirements
+				// together fetched, and which one a first-wins rule would keep is decided by the alias names,
+				// because the requirements are walked in ReferenceContentKey order. The projection is therefore
+				// abandoned and the view rebuilt from the entity's own references under the request's implicit
+				// requirement for this name - which IS their union.
+				abandonNamedReferenceProjection(referenceName);
+				return;
 			}
+			projection.add(decorator);
+		}
+	}
+
+	/**
+	 * Gives up serving `referenceName`'s unnamed view as a projection of the named chunks, for this composition.
+	 *
+	 * The name is remembered rather than merely dropped from the map, because the requirements are still being
+	 * walked and a later one would otherwise start the projection over and produce a view built from part of them.
+	 *
+	 * @param referenceName name of the reference whose projection is abandoned
+	 */
+	private void abandonNamedReferenceProjection(@Nonnull String referenceName) {
+		if (this.unprojectableReferenceNames == null) {
+			this.unprojectableReferenceNames = CollectionUtils.createHashSet(2);
+		}
+		this.unprojectableReferenceNames.add(referenceName);
+		if (this.namedReferenceProjections != null) {
+			this.namedReferenceProjections.remove(referenceName);
 		}
 	}
 
@@ -789,6 +826,9 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		@Nonnull ReferenceContractSerializablePredicate referencePredicate
 	) {
 		if (this.namedReferenceProjections == null || !referencePredicate.isReferenceRequestedOnlyAsNamed(referenceName)) {
+			return null;
+		}
+		if (this.unprojectableReferenceNames != null && this.unprojectableReferenceNames.contains(referenceName)) {
 			return null;
 		}
 		// a name the named requirements matched nothing for still projects an EMPTY view rather than NULL - NULL
