@@ -562,6 +562,139 @@ class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest 
 		);
 	}
 
+	@DisplayName("Enriching through another named requirement leaves the first one reachable")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldExposeAnEarlierNamedReferenceThroughTheUnnamedViewAfterEnrichment(
+		Evita evita,
+		List<SealedEntity> originalProducts
+	) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> !it.getReferences(Entities.BRAND).isEmpty() &&
+				!it.getReferences(Entities.CATEGORY).isEmpty()
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements[0])
+						),
+						require(
+							entityFetch(
+								new ReferenceContent(
+									"brandAlias",
+									ManagedReferencesBehaviour.ANY,
+									new String[]{Entities.BRAND},
+									new RequireConstraint[0],
+									new Constraint<?>[0]
+								)
+							)
+						)
+					)
+				);
+				assertEquals(1, productByPk.getRecordData().size());
+
+				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity theEntity = originalProducts
+					.stream()
+					.filter(it -> Objects.equals(it.getPrimaryKey(), entitiesMatchingTheRequirements[0]))
+					.findFirst()
+					.orElseThrow(() -> new IllegalStateException("Should never happen!"));
+
+				// enrichment rebuilds the named chunks from the ENRICHING request alone, so `brandAlias` is not
+				// among them afterwards. The reference predicate is cumulative and still admits `brand`, so the
+				// references were read - and they must stay reachable through the unnamed view rather than falling
+				// between the two, which is what emptying that view on the predicate alone would do
+				final SealedEntity enriched = session.enrichEntity(
+					product,
+					new ReferenceContent(
+						"categoryAlias",
+						ManagedReferencesBehaviour.ANY,
+						new String[]{Entities.CATEGORY},
+						new RequireConstraint[0],
+						new Constraint<?>[0]
+					)
+				);
+
+				// what THIS request asked for by name lives in its chunk, and its unnamed view is empty
+				assertNamedChunkHasReferencesTo(
+					enriched, "categoryAlias", Entities.CATEGORY,
+					REFERENCED_ID_EXTRACTOR.apply(theEntity, Entities.CATEGORY));
+				assertTrue(enriched.referencesAvailable(Entities.CATEGORY));
+				assertTrue(enriched.getReferences(Entities.CATEGORY).isEmpty());
+
+				// and the earlier request's name is served by the unnamed view, in full
+				assertTrue(enriched.referencesAvailable(Entities.BRAND));
+				assertHasReferencesTo(
+					enriched, Entities.BRAND,
+					REFERENCED_ID_EXTRACTOR.apply(theEntity, Entities.BRAND));
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Enriching with no reference content at all leaves a named reference reachable")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldExposeANamedReferenceThroughTheUnnamedViewAfterAnAttributeOnlyEnrichment(
+		Evita evita,
+		List<SealedEntity> originalProducts
+	) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> !it.getReferences(Entities.BRAND).isEmpty()
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements[0])
+						),
+						require(
+							entityFetch(
+								new ReferenceContent(
+									"brandAlias",
+									ManagedReferencesBehaviour.ANY,
+									new String[]{Entities.BRAND},
+									new RequireConstraint[0],
+									new Constraint<?>[0]
+								)
+							)
+						)
+					)
+				);
+				assertEquals(1, productByPk.getRecordData().size());
+
+				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity theEntity = originalProducts
+					.stream()
+					.filter(it -> Objects.equals(it.getPrimaryKey(), entitiesMatchingTheRequirements[0]))
+					.findFirst()
+					.orElseThrow(() -> new IllegalStateException("Should never happen!"));
+
+				// an enrichment that names no reference content at all runs with no reference fetcher and builds no
+				// named chunks whatsoever, so the unnamed view is the only place left for the brands to be - an
+				// enrichment the caller issued over attributes must not subtract references it never mentioned
+				final SealedEntity enriched = session.enrichEntity(product, attributeContentAll());
+
+				assertTrue(enriched.referencesAvailable(Entities.BRAND));
+				assertHasReferencesTo(
+					enriched, Entities.BRAND,
+					REFERENCED_ID_EXTRACTOR.apply(theEntity, Entities.BRAND));
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("A request for all references is never covered by a narrowed read")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
