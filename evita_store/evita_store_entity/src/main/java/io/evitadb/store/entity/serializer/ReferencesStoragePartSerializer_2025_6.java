@@ -29,7 +29,7 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
-import io.evitadb.spi.store.catalog.persistence.ReferenceNameFilterContext;
+import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 
 /**
@@ -49,11 +49,12 @@ public class ReferencesStoragePartSerializer_2025_6 extends Serializer<Reference
 	@Override
 	public ReferencesStoragePart read(Kryo kryo, Input input, Class<? extends ReferencesStoragePart> type) {
 		// this layout predates the internal primary key, so the key is derived from the reference's **position** in
-		// the record - which a reference name filter would renumber, and therefore must not be allowed to apply. The
-		// filter is unbound for the whole read, so every reference arrives materialized (no NULL to dereference
-		// below) and the part this produces is complete, exactly as a caller that never asked for a narrowing
-		// expects. A narrowed decode of this layout would have to be built on something other than the position.
-		return ReferenceNameFilterContext.executeWithReferenceNameFilter(
+		// the record - which any narrowing would renumber, and therefore must not be allowed to apply. The coverage
+		// is unbound for the whole read, so every reference arrives materialized (no NULL to dereference below) and
+		// the part this produces is complete, exactly as a caller that never asked for a narrowing expects. This
+		// holds for the key axis as well as the name axis: a narrowed decode of this layout would have to be built
+		// on something other than the position.
+		return ReferenceDecodeCoverageContext.executeWithCoverage(
 			null,
 			() -> {
 				final long totalBefore = input.total();

@@ -112,11 +112,16 @@ public interface ReferenceSetFetcher {
 	 * Returns FALSE if the entity should contain references with empty {@link ReferenceDecorator#getReferencedEntity()}.
 	 * The predicate is created during `initReferenceIndex` methods invocation, and takes advantage of the indexes.
 	 *
+	 * It is asked about the **raw** {@link ReferenceContract} rather than about the decorator built from it, so that
+	 * a caller can decide a reference's fate before paying for the decorator: an entity may carry tens of thousands
+	 * of back-references of which a filter keeps a handful, and decorating the rest to discard them is the cost this
+	 * signature exists to let callers avoid. Nothing the predicate reads is added by decoration.
+	 *
 	 * @param referenceSchema the reference schema for which the attribute content is requested
 	 * @return filtering predicate or null if no filtering should be applied
 	 */
 	@Nullable
-	BiPredicate<Integer, ReferenceDecorator> getEntityFilter(@Nonnull ReferenceSchemaContract referenceSchema);
+	BiPredicate<Integer, ReferenceContract> getEntityFilter(@Nonnull ReferenceSchemaContract referenceSchema);
 
 	/**
 	 * Retrieves the list of entity content requirements that are scheduled for prefetching.

@@ -1039,8 +1039,8 @@ public class EntityConverter {
 
 		@Nullable
 		@Override
-		public BiPredicate<Integer, ReferenceDecorator> getEntityFilter(@Nonnull ReferenceSchemaContract referenceSchema) {
-			return (entityId, referenceDecorator) -> true;
+		public BiPredicate<Integer, ReferenceContract> getEntityFilter(@Nonnull ReferenceSchemaContract referenceSchema) {
+			return (entityId, reference) -> true;
 		}
 
 		@Nonnull

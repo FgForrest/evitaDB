@@ -91,6 +91,7 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
 import io.evitadb.spi.store.catalog.persistence.accessor.EntityStoragePartAccessor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
@@ -491,6 +492,41 @@ public final class ContainerizedLocalMutationExecutor
 	}
 
 	/**
+	 * Reads an entity's references from the storage with every narrowing explicitly switched off.
+	 *
+	 * The write path may only ever see an entity's WHOLE reference set. It decomposes a removal into one mutation
+	 * per reference the part reports, and it rewrites the part in place - so a part that was decoded under a
+	 * narrowing would drop the references nobody decoded, leaving their reflected counterparts dangling with no
+	 * guard firing anywhere near the damage.
+	 *
+	 * The coverage is bound to NULL here rather than merely assumed to be NULL, because it lives in a thread local
+	 * that a read further up the stack may still own. Every read of a {@link ReferencesStoragePart} *in this class*
+	 * goes through this method for that reason; adding one that calls `fetch` directly reopens the hole.
+	 *
+	 * The same obligation holds at the read sites this helper cannot reach, and is met at each of them instead:
+	 * `ReferencedEntityAttributeValueProvider#getAttributeValues`,
+	 * `ReferenceAttributeDeltaResolver#getInitialAttributeValue`, and the binary entity read in
+	 * `DefaultEntityCollectionPersistenceService`. The rule they all follow is the same: a consumer that needs an
+	 * entity's whole reference set BINDS the unrestricted coverage; it never assumes the thread carries none.
+	 *
+	 * @param dataStoreReader    reader to fetch the part from
+	 * @param entityPrimaryKey   primary key of the entity whose references are read
+	 * @return the complete references part, or NULL when the entity has none stored
+	 */
+	@Nullable
+	private ReferencesStoragePart fetchCompleteReferences(
+		@Nonnull DataStoreReader dataStoreReader,
+		int entityPrimaryKey
+	) {
+		return ReferenceDecodeCoverageContext.executeWithCoverage(
+			null,
+			() -> dataStoreReader.fetch(
+				this.catalogVersion, entityPrimaryKey, ReferencesStoragePart.class
+			)
+		);
+	}
+
+	/**
 	 * Finds the primary reference key associated with the given {@code representativeReferenceKey}.
 	 * Validates that the reference has a known internal primary key and is present in the reference storage.
 	 *
@@ -511,8 +547,8 @@ public final class ContainerizedLocalMutationExecutor
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull Serializable[] representativeAttributeValues
 	) {
-		final ReferencesStoragePart otherReferenceStoragePart = dataStoreReader.fetch(
-			this.catalogVersion, entityPrimaryKey, ReferencesStoragePart.class
+		final ReferencesStoragePart otherReferenceStoragePart = fetchCompleteReferences(
+			dataStoreReader, entityPrimaryKey
 		);
 		Assert.notNull(
 			otherReferenceStoragePart,
@@ -559,11 +595,7 @@ public final class ContainerizedLocalMutationExecutor
 		@Nonnull Function<ReferencesStoragePart, ReferenceKey> defaultValueProvider
 	) {
 		final Optional<ReferencesStoragePart> otherReferenceStoragePart = ofNullable(
-			dataStoreReader.fetch(
-				this.catalogVersion,
-				entityPrimaryKey,
-				ReferencesStoragePart.class
-			)
+			fetchCompleteReferences(dataStoreReader, entityPrimaryKey)
 		);
 		final ReferenceKey primaryRefKeyWithInternalPk = otherReferenceStoragePart
 			.flatMap(
@@ -1366,18 +1398,16 @@ public final class ContainerizedLocalMutationExecutor
 			return ofNullable(getCachedReferenceStorageContainer(entityPrimaryKey))
 				.orElseGet(() -> cacheReferencesStorageContainer(
 					entityPrimaryKey,
-					ofNullable(this.dataStoreReader.fetch(
-						this.catalogVersion, entityPrimaryKey, ReferencesStoragePart.class
-					)).orElseGet(() -> new ReferencesStoragePart(entityPrimaryKey))
+					ofNullable(fetchCompleteReferences(this.dataStoreReader, entityPrimaryKey))
+						.orElseGet(() -> new ReferencesStoragePart(entityPrimaryKey))
 				));
 		} else {
 			// different entity (cross-entity or same-type parent) — non-cached read
 			final DataStoreReader reader = this.entityType.equals(entityType)
 				? this.dataStoreReader
 				: getCrossEntityDataStoreReader(entityType);
-			return ofNullable(reader.fetch(
-				this.catalogVersion, entityPrimaryKey, ReferencesStoragePart.class
-			)).orElseGet(() -> new ReferencesStoragePart(entityPrimaryKey));
+			return ofNullable(fetchCompleteReferences(reader, entityPrimaryKey))
+				.orElseGet(() -> new ReferencesStoragePart(entityPrimaryKey));
 		}
 	}
 
@@ -1961,6 +1991,19 @@ public final class ContainerizedLocalMutationExecutor
 		if (this.entityRemovedEntirely) {
 			// when the entity is being removed we need to keep the initial state of references
 			// in order to correctly propagate reflected references removal
+			//
+			// the copy below is built through the constructor that means "complete", so a narrowed source would come
+			// out the other side claiming a completeness it does not have - and this copy is exactly what decides
+			// which reflected counterparts get removed. Removal genuinely needs every reference of the entity, so
+			// the demand is stated here rather than laundered away.
+			Assert.isPremiseValid(
+				referencesStorageContainer.isComplete(),
+				() -> new GenericEvitaInternalError(
+					"References of entity with primary key " + this.entityPrimaryKey + " were decoded only for " +
+						referencesStorageContainer.getDecodeCoverage() + " and cannot drive its removal - the " +
+						"references that were never decoded would keep their reflected counterparts!"
+				)
+			);
 			this.initialReferencesStorageContainer = new ReferencesStoragePart(
 				referencesStorageContainer.getEntityPrimaryKey(),
 				referencesStorageContainer.getLastUsedPrimaryKey(),

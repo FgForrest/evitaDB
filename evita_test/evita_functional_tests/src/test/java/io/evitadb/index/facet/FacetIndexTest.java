@@ -264,7 +264,7 @@ class FacetIndexTest {
 			final FacetIndex emptyIndex = new FacetIndex();
 
 			assertTrue(emptyIndex.isEmpty());
-			assertEquals(0, emptyIndex.getSize());
+			assertEquals(0, emptyIndex.getAssociationCount());
 			assertTrue(emptyIndex.getReferencedEntities().isEmpty());
 		}
 
@@ -283,7 +283,7 @@ class FacetIndexTest {
 			assertFalse(index.isEmpty());
 			assertEquals(1, index.getReferencedEntities().size());
 			assertTrue(index.getReferencedEntities().contains(Entities.PARAMETER));
-			assertEquals(3, index.getSize());
+			assertEquals(3, index.getAssociationCount());
 		}
 
 		@Test
@@ -305,7 +305,7 @@ class FacetIndexTest {
 			assertFalse(index.isEmpty());
 			assertEquals(1, index.getReferencedEntities().size());
 			assertTrue(index.getReferencedEntities().contains(Entities.BRAND));
-			assertEquals(3, index.getSize());
+			assertEquals(3, index.getAssociationCount());
 		}
 
 		@Test
@@ -333,7 +333,7 @@ class FacetIndexTest {
 			assertEquals(2, index.getReferencedEntities().size());
 			assertTrue(index.getReferencedEntities().contains(Entities.BRAND));
 			assertTrue(index.getReferencedEntities().contains(Entities.PARAMETER));
-			assertEquals(3, index.getSize());
+			assertEquals(3, index.getAssociationCount());
 		}
 	}
 
@@ -353,7 +353,7 @@ class FacetIndexTest {
 			);
 
 			assertFalse(index.isEmpty());
-			assertEquals(1, index.getSize());
+			assertEquals(1, index.getAssociationCount());
 			assertTrue(index.getReferencedEntities().contains(Entities.PARAMETER));
 			// no-group facets should not be found via isFacetInGroup with any group
 			assertFalse(index.isFacetInGroup(Entities.PARAMETER, 1, 1));
@@ -458,7 +458,7 @@ class FacetIndexTest {
 				null, 40
 			);
 
-			assertEquals(4, index.getSize());
+			assertEquals(4, index.getAssociationCount());
 		}
 
 		@Test
@@ -656,7 +656,7 @@ class FacetIndexTest {
 				(original, committed) -> {
 					assertNotSame(original, committed);
 					assertFalse(committed.isEmpty());
-					assertEquals(1, committed.getSize());
+					assertEquals(1, committed.getAssociationCount());
 					assertTrue(committed.getReferencedEntities().contains(Entities.BRAND));
 				}
 			);
@@ -686,7 +686,7 @@ class FacetIndexTest {
 					assertEquals(2, committed.getReferencedEntities().size());
 					assertTrue(committed.getReferencedEntities().contains(Entities.BRAND));
 					assertTrue(committed.getReferencedEntities().contains(Entities.STORE));
-					assertEquals(2, committed.getSize());
+					assertEquals(2, committed.getAssociationCount());
 					assertTrue(committed.isFacetInGroup(Entities.BRAND, 1, 1));
 					assertTrue(committed.isFacetInGroup(Entities.STORE, 2, 5));
 				}
@@ -745,7 +745,7 @@ class FacetIndexTest {
 					// the committed result may or may not be same instance
 					// but it should be empty regardless
 					assertTrue(committed.isEmpty());
-					assertEquals(0, committed.getSize());
+					assertEquals(0, committed.getAssociationCount());
 				}
 			);
 		}
@@ -778,7 +778,7 @@ class FacetIndexTest {
 					// after rollback, committed is null
 					// the original index should remain empty (mutations discarded)
 					assertTrue(original.isEmpty());
-					assertEquals(0, original.getSize());
+					assertEquals(0, original.getAssociationCount());
 				}
 			);
 		}

@@ -208,7 +208,7 @@ class LongRunningFacetIndexTest implements TimeBoundedTestSupport {
 			final String[] entityTypes = baseStructure.keySet().stream().map(ReferenceKey::referenceName).distinct().toArray(String[]::new);
 
 			final int entityTypesLength = facetIndex.getReferencedEntities().size();
-			final int totalCount = facetIndex.getSize();
+			final int totalCount = facetIndex.getAssociationCount();
 			final int operation = random.nextInt(2);
 			if (totalCount < MAX_NODES && (operation == 0 || totalCount < 10)) {
 				final String entityType = entityTypesLength < MAX_ENTITY_TYPES ?

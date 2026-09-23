@@ -383,9 +383,148 @@ class EntityReferenceFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 						)
 					).orElseThrow();
 					shadowless.forEach(ref -> assertFalse(ref.getAttribute(ATTRIBUTE_CATEGORY_SHADOW, Boolean.class)));
-					final Collection<ReferenceContract> allCategories = product.getReferences(Entities.CATEGORY);
-					assertFalse(allCategories.isEmpty());
-					assertEquals(allCategories.size(), shadowfull.getTotalRecordCount() + shadowless.getTotalRecordCount());
+					// the query wrote two NAMED requirements and nothing else, so it gets exactly those two chunks -
+					// the entity's unnamed view of the name carries nothing
+					assertTrue(
+						product.getReferences(Entities.CATEGORY).isEmpty(),
+						"Nothing asked for the unnamed view of the categories, so it carries nothing: " +
+							product.getReferences(Entities.CATEGORY)
+					);
+				}
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("In internal API, a reference only named requirements asked for has an empty unnamed view")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldLeaveTheUnnamedViewEmptyForANamedOnlyReference(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> {
+				final Map<Boolean, Long> shadow = it.getReferences(Entities.CATEGORY)
+					.stream()
+					.collect(
+						Collectors.groupingBy(
+							ref -> ref.getAttribute(ATTRIBUTE_CATEGORY_SHADOW, Boolean.class),
+							Collectors.counting()
+						)
+					);
+				return shadow.getOrDefault(true, 0L) > 0 && shadow.getOrDefault(false, 0L) > 0;
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements)
+						),
+						require(
+							entityFetch(
+								new ReferenceContent(
+									"shadowfull",
+									ManagedReferencesBehaviour.ANY,
+									new String[] { Entities.CATEGORY },
+									new RequireConstraint[]{ attributeContentAll(), entityFetchAll() },
+									new Constraint[]{
+										filterBy(attributeEquals(ATTRIBUTE_CATEGORY_SHADOW, true))
+									}
+								)
+							),
+							page(1, 4)
+						)
+					)
+				);
+
+				assertEquals(4, productByPk.getRecordData().size());
+
+				for (SealedEntity product : productByPk.getRecordData()) {
+					assertInstanceOf(ServerEntityDecorator.class, product);
+					final ServerEntityDecorator serverEntity = (ServerEntityDecorator) product;
+					final DataChunk<ReferenceContract> shadowfull = serverEntity.getReferencesForReferenceContentInstance(
+						new ReferenceContentKey(
+							"shadowfull",
+							Entities.CATEGORY
+						)
+					).orElseThrow();
+					assertFalse(
+						shadowfull.getData().isEmpty(),
+						"The named chunk must carry references, or the empty unnamed view below proves nothing."
+					);
+
+					// no unnamed `referenceContent()` asked for the categories, so the unnamed view of the name
+					// carries nothing - the query gets the named chunk it wrote and not a second, independently
+					// built copy of every category the product stores
+					assertTrue(
+						product.getReferences(Entities.CATEGORY).isEmpty(),
+						"Nothing asked for the unnamed view of the categories, so it carries nothing: " +
+							product.getReferences(Entities.CATEGORY)
+					);
+
+					// the stored entity does carry categories - without this the assertion above would hold for a
+					// product that simply has none, and would say nothing about the rule
+					final SealedEntity originalProduct = originalProducts
+						.stream()
+						.filter(it -> Objects.equals(it.getPrimaryKey(), product.getPrimaryKey()))
+						.findFirst()
+						.orElseThrow();
+					assertFalse(originalProduct.getReferences(Entities.CATEGORY).isEmpty());
+				}
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("In internal API, an unnamed requirement of its own restores the view a named-only one leaves empty")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldBuildTheUnnamedViewWhenAnUnnamedRequirementAsksForIt(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> !it.getReferences(Entities.CATEGORY).isEmpty()
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements)
+						),
+						require(
+							entityFetch(
+								new ReferenceContent(
+									"alias",
+									ManagedReferencesBehaviour.ANY,
+									new String[] { Entities.CATEGORY },
+									new RequireConstraint[]{ attributeContentAll() },
+									new Constraint[0]
+								),
+								// this is what the caller writes when it wants the unnamed view as well, and it is
+								// the control for shouldLeaveTheUnnamedViewEmptyForANamedOnlyReference above - the
+								// only difference between the two queries
+								referenceContent(Entities.CATEGORY)
+							),
+							page(1, 4)
+						)
+					)
+				);
+
+				assertEquals(4, productByPk.getRecordData().size());
+
+				for (SealedEntity product : productByPk.getRecordData()) {
+					assertFalse(
+						product.getReferences(Entities.CATEGORY).isEmpty(),
+						"An unnamed `referenceContent` asked for the view, so it is built from the entity's own " +
+							"references exactly as it always was."
+					);
 				}
 				return null;
 			}
@@ -446,6 +585,147 @@ class EntityReferenceFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 			}
 		);
 	}
+
+	@DisplayName("In internal API, a paginated named reference set reports the total count of everything it matched")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReportTotalRecordCountForPaginatedNamedReferenceSet(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> it.getReferences(Entities.PRICE_LIST).size() > 2
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements)
+						),
+						require(
+							entityFetch(
+								new ReferenceContent(
+									"myPriceLists",
+									ManagedReferencesBehaviour.ANY,
+									new String[] { Entities.PRICE_LIST },
+									new RequireConstraint[]{
+										attributeContentAll(),
+										entityFetchAll(),
+										strip(0, 2)
+									},
+									new Constraint[0]
+								)
+							),
+							page(1, 4)
+						)
+					)
+				);
+
+				assertEquals(4, productByPk.getRecordData().size());
+
+				for (SealedEntity product : productByPk.getRecordData()) {
+					final int storedCount = storedReferenceCount(originalProducts, product, Entities.PRICE_LIST);
+					final ServerEntityDecorator serverEntity = (ServerEntityDecorator) product;
+					final DataChunk<ReferenceContract> myPriceLists = serverEntity.getReferencesForReferenceContentInstance(
+						new ReferenceContentKey("myPriceLists", Entities.PRICE_LIST)
+					).orElseThrow();
+
+					// the strip shows two of them, and the count a pagination widget renders is of everything the
+					// requirement matched - not of the slice it displays
+					assertEquals(2, myPriceLists.getData().size());
+					assertEquals(storedCount, myPriceLists.getTotalRecordCount());
+
+					// the count lives on the named chunk the caller asked through. Only a named requirement asked
+					// for the price lists, so the entity's unnamed view of them carries nothing - not the matched
+					// set, not the displayed strip, and not a total either
+					assertTrue(product.getReferences(Entities.PRICE_LIST).isEmpty());
+					assertEquals(0, product.getReferenceChunk(Entities.PRICE_LIST).getTotalRecordCount());
+				}
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("In internal API, a named reference set may report its total count while fetching no content")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReportTotalRecordCountForCountOnlyNamedReferenceSet(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> it.getReferences(Entities.PRICE_LIST).size() > 2
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements)
+						),
+						require(
+							entityFetch(
+								new ReferenceContent(
+									"priceListCount",
+									ManagedReferencesBehaviour.ANY,
+									new String[] { Entities.PRICE_LIST },
+									new RequireConstraint[]{
+										attributeContentAll(),
+										entityFetchAll(),
+										page(1, 0)
+									},
+									new Constraint[0]
+								)
+							),
+							page(1, 4)
+						)
+					)
+				);
+
+				assertEquals(4, productByPk.getRecordData().size());
+
+				for (SealedEntity product : productByPk.getRecordData()) {
+					final int storedCount = storedReferenceCount(originalProducts, product, Entities.PRICE_LIST);
+					final ServerEntityDecorator serverEntity = (ServerEntityDecorator) product;
+					final DataChunk<ReferenceContract> priceListCount = serverEntity.getReferencesForReferenceContentInstance(
+						new ReferenceContentKey("priceListCount", Entities.PRICE_LIST)
+					).orElseThrow();
+
+					// an empty page is how a caller asks for the count alone - it matched everything and shows none
+					assertTrue(priceListCount.getData().isEmpty());
+					assertEquals(storedCount, priceListCount.getTotalRecordCount());
+
+					// the count is readable off the named chunk the caller asked through, and only there - it
+					// issued no unnamed requirement, so the unnamed view carries nothing
+					assertTrue(product.getReferences(Entities.PRICE_LIST).isEmpty());
+					assertEquals(0, product.getReferenceChunk(Entities.PRICE_LIST).getTotalRecordCount());
+				}
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Returns the number of references of `referenceName` the stored entity carries, so that a test can tell what
+	 * a requirement matched apart from what it displays.
+	 */
+	private static int storedReferenceCount(
+		@Nonnull List<SealedEntity> originalProducts,
+		@Nonnull SealedEntity fetchedProduct,
+		@Nonnull String referenceName
+	) {
+		return originalProducts
+			.stream()
+			.filter(it -> Objects.equals(it.getPrimaryKey(), fetchedProduct.getPrimaryKey()))
+			.findFirst()
+			.orElseThrow()
+			.getReferences(referenceName)
+			.size();
+	}
+
 	@DisplayName("In internal API, a named reference set that requires no initialization could be fetched")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -491,11 +771,13 @@ class EntityReferenceFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 							new ReferenceContentKey("plainCategories", Entities.CATEGORY)
 						)
 						.orElseThrow();
-					final Collection<ReferenceContract> allCategories = product.getReferences(Entities.CATEGORY);
-					assertFalse(allCategories.isEmpty());
+					final int storedCount = storedReferenceCount(originalProducts, product, Entities.CATEGORY);
+					assertTrue(storedCount > 0, "The product must store categories, or nothing below is tested.");
 					// nothing narrows the set, so it holds every reference of that name, unpaginated
-					assertEquals(allCategories.size(), plainCategories.getData().size());
-					assertEquals(allCategories.size(), plainCategories.getTotalRecordCount());
+					assertEquals(storedCount, plainCategories.getData().size());
+					assertEquals(storedCount, plainCategories.getTotalRecordCount());
+					// only a named requirement asked for the categories, so the unnamed view carries nothing
+					assertTrue(product.getReferences(Entities.CATEGORY).isEmpty());
 					for (ReferenceContract category : plainCategories) {
 						// the attributes were asked for and must be there
 						assertNotNull(category.getAttributeValue(ATTRIBUTE_CATEGORY_SHADOW));

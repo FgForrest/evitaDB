@@ -23,6 +23,7 @@
 
 package io.evitadb.spi.store.catalog.persistence.storageParts.entity;
 
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.Droppable;
@@ -916,9 +917,9 @@ class ReferencesStoragePartTest {
 		private static final String UNDECODED = "category";
 
 		/**
-		 * Builds a part carrying only the references of the `brand` name, the shape a read narrowed by a reference
-		 * name filter produces. The size is the one the **whole** record occupied, which is what the narrowing
-		 * promises to keep reporting.
+		 * Builds a part carrying only the references of the `brand` name, the shape a read narrowed by name
+		 * produces. The size is the one the **whole** record occupied, which is what the narrowing promises to
+		 * keep reporting.
 		 */
 		@Nonnull
 		private static ReferencesStoragePart narrowedPart() {
@@ -929,7 +930,7 @@ class ReferencesStoragePartTest {
 					newRef(DECODED, 101, 2, group(901), false)
 				},
 				512,
-				Set.of(DECODED)
+				ReferenceDecodeCoverage.ofNames(Set.of(DECODED))
 			);
 		}
 
@@ -954,11 +955,11 @@ class ReferencesStoragePartTest {
 		void shouldReportItselfIncomplete() {
 			final ReferencesStoragePart narrowed = narrowedPart();
 			assertFalse(narrowed.isComplete());
-			assertEquals(Set.of(DECODED), narrowed.getDecodedReferenceNames());
+			assertEquals(Set.of(DECODED), narrowed.getDecodeCoverage().getNamesDecodedWhole());
 
 			final ReferencesStoragePart complete = completePart();
 			assertTrue(complete.isComplete());
-			assertNull(complete.getDecodedReferenceNames());
+			assertNull(complete.getDecodeCoverage());
 		}
 
 		@Test

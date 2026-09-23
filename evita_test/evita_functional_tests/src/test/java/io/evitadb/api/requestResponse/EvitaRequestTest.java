@@ -23,6 +23,11 @@
 
 package io.evitadb.api.requestResponse;
 
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.require.ManagedReferencesBehaviour;
+import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.EvitaRequest.ResultForm;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.dataType.Scope;
@@ -1913,6 +1918,383 @@ class EvitaRequestTest {
 
 			assertNull(
 				request.getHierarchyWithin("brand")
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Reference key narrowing")
+	class ReferenceKeyNarrowing {
+
+		@Test
+		@DisplayName("A key set at the filter's conjunctive root bounds the reference")
+		void shouldNarrowOnRootKeySet() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							referenceContent(
+								"products",
+								filterBy(entityPrimaryKeyInSet(30, 10, 20)),
+								entityFetch(attributeContentAll())
+							)
+						)
+					)
+				)
+			);
+
+			// sorted on the way out, because the decoder binary-searches it
+			assertArrayEquals(new int[]{10, 20, 30}, request.getReferenceKeyNarrowing().get("products"));
+		}
+
+		@Test
+		@DisplayName("A key set nested in an `or` bounds nothing")
+		void shouldNotNarrowForPkConstraintNestedInOr() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							referenceContent(
+								"products",
+								filterBy(
+									or(
+										entityPrimaryKeyInSet(10, 20),
+										attributeEquals("code", "whatever")
+									)
+								),
+								entityFetch(attributeContentAll())
+							)
+						)
+					)
+				)
+			);
+
+			// the `or` admits entities outside the key set, so bounding the decode by it would drop real matches
+			assertTrue(request.getReferenceKeyNarrowing().isEmpty());
+		}
+
+		@Test
+		@DisplayName("A key set nested in a `not` bounds nothing")
+		void shouldNotNarrowForPkConstraintNestedInNot() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							referenceContent(
+								"products",
+								filterBy(not(entityPrimaryKeyInSet(10, 20))),
+								entityFetch(attributeContentAll())
+							)
+						)
+					)
+				)
+			);
+
+			// a negated key set names exactly what must NOT be returned - the inverse of a bound
+			assertTrue(request.getReferenceKeyNarrowing().isEmpty());
+		}
+
+		@Test
+		@DisplayName("Several key sets at one root intersect, because the conjunction admits only what all admit")
+		void shouldIntersectSeveralRootKeySets() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							referenceContent(
+								"products",
+								filterBy(
+									entityPrimaryKeyInSet(10, 20, 30),
+									entityPrimaryKeyInSet(20, 30, 40)
+								),
+								entityFetch(attributeContentAll())
+							)
+						)
+					)
+				)
+			);
+
+			assertArrayEquals(new int[]{20, 30}, request.getReferenceKeyNarrowing().get("products"));
+		}
+
+		@Test
+		@DisplayName("Two requirements naming one reference union their key sets")
+		void shouldUnionKeySetsOfTwoRequirements() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							referenceContent(
+								"products",
+								filterBy(entityPrimaryKeyInSet(10, 20)),
+								entityFetch(attributeContentAll())
+							),
+							referenceContent(
+								"products",
+								filterBy(entityPrimaryKeyInSet(20, 30)),
+								entityFetch(attributeContentAll())
+							)
+						)
+					)
+				)
+			);
+
+			// the caller sees the union of what the requirements matched, so the decode must cover the union
+			assertArrayEquals(new int[]{10, 20, 30}, request.getReferenceKeyNarrowing().get("products"));
+		}
+
+		@Test
+		@DisplayName("One requirement wanting the reference in full un-narrows it for all of them")
+		void shouldNotNarrowWhenAnyRequirementWantsTheWholeReference() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							referenceContent(
+								"products",
+								filterBy(entityPrimaryKeyInSet(10, 20)),
+								entityFetch(attributeContentAll())
+							),
+							// no filter at all - this one wants every `products` reference
+							referenceContent("products", entityFetch(attributeContentAll()))
+						)
+					)
+				)
+			);
+
+			assertTrue(request.getReferenceKeyNarrowing().isEmpty());
+		}
+
+		@Test
+		@DisplayName("A default referenceContent() asks for everything and disables narrowing entirely")
+		void shouldNotNarrowUnderDefaultReferenceRequirement() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							referenceContent(
+								"products",
+								filterBy(entityPrimaryKeyInSet(10, 20)),
+								entityFetch(attributeContentAll())
+							),
+							// names no reference at all => every reference of every name
+							referenceContentAll()
+						)
+					)
+				)
+			);
+
+			assertTrue(request.getReferenceKeyNarrowing().isEmpty());
+		}
+
+		@Test
+		@DisplayName("Narrowing is tracked per reference name, never pooled across names")
+		void shouldKeepNarrowingPerName() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							referenceContent(
+								"products",
+								filterBy(entityPrimaryKeyInSet(10)),
+								entityFetch(attributeContentAll())
+							),
+							referenceContent(
+								"categories",
+								filterBy(entityPrimaryKeyInSet(20)),
+								entityFetch(attributeContentAll())
+							)
+						)
+					)
+				)
+			);
+
+			assertArrayEquals(new int[]{10}, request.getReferenceKeyNarrowing().get("products"));
+			assertArrayEquals(new int[]{20}, request.getReferenceKeyNarrowing().get("categories"));
+			// one name being narrowed must not un-narrow or widen the other
+			assertEquals(2, request.getReferenceKeyNarrowing().size());
+		}
+
+		@Test
+		@DisplayName("A requirement carrying no filter bounds nothing")
+		void shouldNotNarrowWithoutAFilter() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(entityFetch(referenceContent("products", entityFetch(attributeContentAll()))))
+				)
+			);
+
+			assertTrue(request.getReferenceKeyNarrowing().isEmpty());
+		}
+
+		@Test
+		@DisplayName("A request asking for no entity body at all narrows nothing")
+		void shouldNotNarrowWithoutAnEntityRequirement() {
+			final EvitaRequest request = createRequest(query(collection("parameterValue")));
+
+			assertTrue(request.getReferenceKeyNarrowing().isEmpty());
+		}
+
+		@Test
+		@DisplayName("A catch-all requirement derives no per-name entry of its own")
+		void shouldNotDeriveAnythingWhenACatchAllRequirementIsPresent() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							new ReferenceContent(attributeContentAll()),
+							namedReferenceContent(
+								"alias", filterBy(entityPrimaryKeyInSet(10)), "products"
+							)
+						)
+					)
+				)
+			);
+
+			// the per-name map carries what UNNAMED requirements asked for by name, and nothing else - a named
+			// requirement never adds its own name to it. Were `products` here, getAttributePredicate would read
+			// the map as "this query narrows attributes per name" and hand every OTHER reference an empty
+			// attribute request instead of the catch-all's
+			assertTrue(
+				request.getReferenceEntityFetch().isEmpty(),
+				"A catch-all requirement must leave the per-name requirement map empty: " +
+					request.getReferenceEntityFetch().keySet()
+			);
+			assertNotNull(request.getDefaultReferenceRequirement());
+		}
+
+		@Test
+		@DisplayName("A named requirement bounds its reference the same way an unnamed one does")
+		void shouldNarrowOnRootKeySetOfANamedRequirement() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							namedReferenceContent(
+								"productAlias",
+								filterBy(entityPrimaryKeyInSet(30, 10, 20)),
+								"products"
+							)
+						)
+					)
+				)
+			);
+
+			// an externally issued query carries an instance name on every requirement - a GraphQL field alias or
+			// a REST projection name becomes one - so this is the shape the narrowing meets in production
+			assertArrayEquals(new int[]{10, 20, 30}, request.getReferenceKeyNarrowing().get("products"));
+		}
+
+		@Test
+		@DisplayName("A named and an unnamed requirement disagreeing un-narrows the reference")
+		void shouldUnNarrowWhenANamedAndAnUnnamedRequirementDisagree() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							namedReferenceContent(
+								"productAlias",
+								filterBy(entityPrimaryKeyInSet(10, 20)),
+								"products"
+							),
+							// no filter at all - this one wants every `products` reference
+							referenceContent("products", entityFetch(attributeContentAll()))
+						)
+					)
+				)
+			);
+
+			// the rule spans both requirement kinds, which is exactly where the two code paths meet
+			assertTrue(request.getReferenceKeyNarrowing().isEmpty());
+		}
+
+		@Test
+		@DisplayName("One filter on a multi name requirement bounds every name it lists")
+		void shouldApplyOneFilterToEveryNameOfAMultiNameRequirement() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							new ReferenceContent(
+								null,
+								ManagedReferencesBehaviour.ANY,
+								new String[]{"products", "categories"},
+								new RequireConstraint[]{entityFetch(attributeContentAll())},
+								new Constraint<?>[]{filterBy(entityPrimaryKeyInSet(10, 20))}
+							)
+						)
+					)
+				)
+			);
+
+			assertArrayEquals(new int[]{10, 20}, request.getReferenceKeyNarrowing().get("products"));
+			assertArrayEquals(new int[]{10, 20}, request.getReferenceKeyNarrowing().get("categories"));
+			assertEquals(2, request.getReferenceKeyNarrowing().size());
+		}
+
+		@Test
+		@DisplayName("A nested requirement's key set never bounds the outer level")
+		void shouldNotLeakANestedRequirementsNarrowingToTheOuterLevel() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							referenceContent(
+								"products",
+								entityFetch(
+									referenceContent(
+										"tags",
+										filterBy(entityPrimaryKeyInSet(1)),
+										entityFetch(attributeContentAll())
+									)
+								)
+							)
+						)
+					)
+				)
+			);
+
+			// `tags` belongs to the referenced entity's own fetch, one level down - bounding the outer decode by
+			// an inner level's keys would skip references the outer level asked for in full
+			assertNull(request.getReferenceKeyNarrowing().get("tags"));
+			assertTrue(request.getReferenceKeyNarrowing().isEmpty());
+		}
+
+		/**
+		 * Builds the named reference content a query carrying reference content instance names produces, which the
+		 * {@link io.evitadb.api.query.QueryConstraints} factory methods have no shorthand for.
+		 *
+		 * @param instanceName  instance name (alias) the requirement carries
+		 * @param filterBy      filter bounding the referenced entities
+		 * @param referenceName name of the reference the requirement asks for
+		 * @return the named reference content requirement
+		 */
+		@Nonnull
+		private ReferenceContent namedReferenceContent(
+			@Nonnull String instanceName,
+			@Nonnull FilterBy filterBy,
+			@Nonnull String referenceName
+		) {
+			return new ReferenceContent(
+				instanceName,
+				ManagedReferencesBehaviour.ANY,
+				new String[]{referenceName},
+				new RequireConstraint[]{entityFetch(attributeContentAll())},
+				new Constraint<?>[]{filterBy}
 			);
 		}
 	}

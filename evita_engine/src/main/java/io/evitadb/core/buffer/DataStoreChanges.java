@@ -479,6 +479,7 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	 * @param <T> the type of the storage part
 	 */
 	public <T extends StoragePart> void putStoragePart(long catalogVersion, @Nonnull T value) {
+		StoragePart.assertPersistable(value, "data store changes");
 		if (this.trappedChanges != null) {
 			ofNullable(this.trappedChanges.get(value.getClass()))
 				.ifPresent(it -> it.remove(value.getStoragePartPKOrElseThrowException()));
@@ -493,6 +494,9 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	 * @param value the storage part to be added, must not be null
 	 */
 	public <T extends StoragePart> void trapPutStoragePart(@Nonnull T value) {
+		// this layer retains the object BY REFERENCE and replays that same instance to later readers, so a partial
+		// value refused here is a value that never becomes visible to anybody
+		StoragePart.assertPersistable(value, "transactional overlay");
 		this.trappedChanges = this.trappedChanges == null ? new HashMap<>(64) : this.trappedChanges;
 		final long storagePartPK = value.getStoragePartPKOrElseThrowException();
 		final Class<? extends StoragePart> containerType = value.getClass();

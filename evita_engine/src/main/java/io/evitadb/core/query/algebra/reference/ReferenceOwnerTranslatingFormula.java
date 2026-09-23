@@ -100,7 +100,8 @@ public class ReferenceOwnerTranslatingFormula extends AbstractFormula implements
 	) {
 		this.primaryKeyExpander = primaryKeyExpander;
 		this.referencedEntityTypeTransactionalId = referencedEntityGlobalIndex.getId();
-		this.worstCardinality = referencedEntityGlobalIndex.getSize();
+		// the entity count of the referenced collection
+		this.worstCardinality = referencedEntityGlobalIndex.size();
 		this.initFields(innerFormula);
 	}
 

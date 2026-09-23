@@ -216,7 +216,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 								scope, hierarchyEntityId, entitySchema, referenceSchema, Functions.noOpBiFunction()
 							).forEach(ix -> {
 								theTargetIndexes.add(ix);
-								cardinalityCounter.addAndGet(ix.getAllPrimaryKeys().size());
+								cardinalityCounter.addAndGet(ix.size());
 							});
 						}
 					}

@@ -38,6 +38,9 @@ import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutationExecutor;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithAssignedPrimaryKeys;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.DataStoreReader;
@@ -327,13 +330,29 @@ class LocalMutationExecutorCollector {
 				Entity.class,
 				null
 			);
-			this.fullEntityBody = this.persistenceService.toEntity(
-				this.catalog.getVersion(),
-				entityPrimaryKey,
-				evitaRequest,
-				changeCollector.getEntitySchema(),
-				this.dataStoreReader,
-				changeCollector.getAllEntityStorageParts()
+			// this entity drives destructive work - entity removal decomposes into one RemoveReferenceMutation per
+			// reference it reports, and a scope change reindexes off it - so it must be the entity's whole truth.
+			// An `Entity` carries no marker saying how much of it was decoded, which is why the demand is stated
+			// against the request here instead of being caught downstream: a silently under-read entity would leave
+			// the reflected counterparts of the references nobody decoded dangling, with no guard firing anywhere.
+			Assert.isPremiseValid(
+				ReferenceDecodeCoverage.isComplete(new ReferenceContractSerializablePredicate(evitaRequest).getDecodeCoverage()),
+				() -> new GenericEvitaInternalError(
+					"Write path read of entity " + entityType + " with primary key " + entityPrimaryKey +
+						" must not narrow its references!"
+				)
+			);
+			// and bound explicitly, so a coverage left on the thread by an enclosing read cannot narrow this one
+			this.fullEntityBody = ReferenceDecodeCoverageContext.executeWithCoverage(
+				null,
+				() -> this.persistenceService.toEntity(
+					this.catalog.getVersion(),
+					entityPrimaryKey,
+					evitaRequest,
+					changeCollector.getEntitySchema(),
+					this.dataStoreReader,
+					changeCollector.getAllEntityStorageParts()
+				)
 			);
 			Assert.notNull(
 				this.fullEntityBody,

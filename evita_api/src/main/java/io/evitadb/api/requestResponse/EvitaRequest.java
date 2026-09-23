@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.*;
@@ -39,6 +40,7 @@ import io.evitadb.api.requestResponse.chunk.NoTransformer;
 import io.evitadb.api.requestResponse.chunk.PageTransformer;
 import io.evitadb.api.requestResponse.chunk.StripTransformer;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -133,6 +135,15 @@ public class EvitaRequest {
 	@Nullable private Map<String, RequirementContext> entityFetchRequirements;
 	@Nullable private Map<ReferenceContentKey, RequirementContext> namedEntityFetchRequirements;
 	@Nullable private RequirementContext defaultReferenceRequirement;
+	/**
+	 * Referenced entity primary keys each reference name is narrowed to by the requirements that ask for it, or an
+	 * empty map when no name is narrowed. A name absent from the map is one some requirement wants in full.
+	 *
+	 * Computed alongside the requirement maps and from the same raw requirement list, deliberately: the unnamed map
+	 * collapses duplicate requirements for one name (last wins), and a key set read off the survivor alone would be
+	 * narrower than what the query actually asked for - which drops references rather than merely decoding fewer.
+	 */
+	@Nullable private Map<String, int[]> referenceKeyNarrowing;
 	@Nullable private Function<String, ChunkTransformer> referenceChunkTransformer;
 
 	/**
@@ -255,6 +266,7 @@ public class EvitaRequest {
 		this.entityFetchRequirements = evitaRequest.entityFetchRequirements;
 		this.namedEntityFetchRequirements = evitaRequest.namedEntityFetchRequirements;
 		this.defaultReferenceRequirement = evitaRequest.defaultReferenceRequirement;
+		this.referenceKeyNarrowing = evitaRequest.referenceKeyNarrowing;
 		this.entityPrices = evitaRequest.entityPrices;
 		this.currencySet = evitaRequest.currencySet;
 		this.currency = evitaRequest.currency;
@@ -446,6 +458,7 @@ public class EvitaRequest {
 		this.entityFetchRequirements = null;
 		this.namedEntityFetchRequirements = null;
 		this.defaultReferenceRequirement = null;
+		this.referenceKeyNarrowing = null;
 		this.entityPrices = null;
 		this.accompanyingPrices = null;
 		this.defaultAccompanyingPricePriceLists = evitaRequest.defaultAccompanyingPricePriceLists;
@@ -543,6 +556,7 @@ public class EvitaRequest {
 		this.entityFetchRequirements = null;
 		this.namedEntityFetchRequirements = null;
 		this.defaultReferenceRequirement = null;
+		this.referenceKeyNarrowing = null;
 		this.entityPrices = null;
 		this.start = null;
 		this.conditionalGaps = null;
@@ -1368,6 +1382,7 @@ public class EvitaRequest {
 			if (entityRequirement == null) {
 				this.entityReference = false;
 				this.entityFetchRequirements = Collections.emptyMap();
+				this.referenceKeyNarrowing = Collections.emptyMap();
 			} else {
 				final List<ReferenceContent> referenceContent =
 					QueryUtils.findConstraints(
@@ -1420,9 +1435,140 @@ public class EvitaRequest {
 					}
 				}
 				this.entityFetchRequirements = result;
+				this.referenceKeyNarrowing = computeReferenceKeyNarrowing(referenceContent, defaultReq != null);
 			}
 		}
 		return this.entityFetchRequirements;
+	}
+
+	/**
+	 * Returns, per reference name, the referenced entity primary keys the query's own requirements bound that name
+	 * to - or an empty map when no name is bound.
+	 *
+	 * A name is present only when **every** requirement asking for it names an exact key set in its filter's
+	 * conjunctive root. One requirement wanting the name in full un-narrows it for all of them, because the answer
+	 * the caller sees is the union of what the requirements matched.
+	 *
+	 * @return the per-name key narrowing, never NULL
+	 */
+	@Nonnull
+	public Map<String, int[]> getReferenceKeyNarrowing() {
+		if (this.referenceKeyNarrowing == null) {
+			// both are filled by the same pass
+			getReferenceEntityFetch();
+		}
+		return Objects.requireNonNullElse(this.referenceKeyNarrowing, Collections.emptyMap());
+	}
+
+	/**
+	 * Works out which reference names every requirement asking for them bounds to an exact set of referenced entity
+	 * primary keys.
+	 *
+	 * @param referenceContent      the raw requirements, before any per-name collapsing
+	 * @param defaultRequirementSet whether a default `referenceContent()` requirement is present, which asks for
+	 *                              every reference of every name and therefore bounds nothing
+	 * @return the per-name key narrowing, never NULL
+	 */
+	@Nonnull
+	private static Map<String, int[]> computeReferenceKeyNarrowing(
+		@Nonnull List<ReferenceContent> referenceContent,
+		boolean defaultRequirementSet
+	) {
+		if (defaultRequirementSet) {
+			return Collections.emptyMap();
+		}
+		Map<String, int[]> narrowed = null;
+		Set<String> wantedInFull = null;
+		for (final ReferenceContent rc : referenceContent) {
+			final String[] referenceNames = rc.getInstanceName() == null ?
+				rc.getReferenceNames() : new String[]{rc.getReferenceName()};
+			if (ArrayUtils.isEmpty(referenceNames)) {
+				continue;
+			}
+			final int[] exactKeys = extractRootPrimaryKeys(rc.getFilterBy().orElse(null));
+			for (final String referenceName : referenceNames) {
+				if (exactKeys == null) {
+					if (wantedInFull == null) {
+						wantedInFull = CollectionUtils.createHashSet(referenceNames.length);
+					}
+					wantedInFull.add(referenceName);
+				} else {
+					if (narrowed == null) {
+						narrowed = CollectionUtils.createHashMap(referenceNames.length);
+					}
+					// one requirement may name several references, and `unionSortedKeys` allocates, so the first put
+					// of each name would otherwise hand them all the very same array instance
+					narrowed.merge(
+						referenceName,
+						referenceNames.length > 1 ? exactKeys.clone() : exactKeys,
+						ReferenceDecodeCoverage::unionSortedKeys
+					);
+				}
+			}
+		}
+		if (narrowed == null) {
+			return Collections.emptyMap();
+		}
+		if (wantedInFull != null) {
+			narrowed.keySet().removeAll(wantedInFull);
+		}
+		return narrowed.isEmpty() ? Collections.emptyMap() : narrowed;
+	}
+
+	/**
+	 * Reads the exact referenced entity primary keys a reference filter's **conjunctive root** names, intersecting
+	 * every {@link EntityPrimaryKeyInSet} found there.
+	 *
+	 * Only root children count. A key set nested inside an `or` or a `not` constrains nothing on its own, and
+	 * reading it as a bound would drop references the filter actually matches. This mirrors the rule the reference
+	 * fetch already applies when it bounds its own pass.
+	 *
+	 * @param filterBy the reference filter, NULL when the requirement carries none
+	 * @return the sorted key set, or NULL when the root names no exact keys
+	 */
+	@Nullable
+	private static int[] extractRootPrimaryKeys(@Nullable FilterBy filterBy) {
+		if (filterBy == null) {
+			return null;
+		}
+		int[] result = null;
+		for (final FilterConstraint child : filterBy.getChildren()) {
+			if (child instanceof EntityPrimaryKeyInSet requestedPks) {
+				final int[] primaryKeys = requestedPks.getPrimaryKeys().clone();
+				Arrays.sort(primaryKeys);
+				result = result == null ? primaryKeys : intersectSortedKeys(result, primaryKeys);
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Intersects two ascending, duplicate-free key arrays.
+	 *
+	 * Used when one requirement's filter root names exact keys more than once: the conjunction admits only what all
+	 * of them admit.
+	 *
+	 * @param left  first sorted key set
+	 * @param right second sorted key set
+	 * @return their intersection, sorted ascending
+	 */
+	@Nonnull
+	private static int[] intersectSortedKeys(@Nonnull int[] left, @Nonnull int[] right) {
+		final int[] shared = new int[Math.min(left.length, right.length)];
+		int l = 0;
+		int r = 0;
+		int w = 0;
+		while (l < left.length && r < right.length) {
+			if (left[l] < right[r]) {
+				l++;
+			} else if (left[l] > right[r]) {
+				r++;
+			} else {
+				shared[w++] = left[l++];
+				r++;
+			}
+		}
+		return w == shared.length ? shared : Arrays.copyOf(shared, w);
 	}
 
 	/**

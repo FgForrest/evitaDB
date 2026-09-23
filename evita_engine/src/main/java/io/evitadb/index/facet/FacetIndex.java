@@ -229,7 +229,7 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 	}
 
 	@Override
-	public int getSize() {
+	public int getAssociationCount() {
 		return this.facetingEntities.values()
 			.stream()
 			.mapToInt(FacetReferenceIndex::size)

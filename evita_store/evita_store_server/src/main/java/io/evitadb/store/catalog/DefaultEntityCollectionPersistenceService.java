@@ -72,7 +72,8 @@ import io.evitadb.index.component.loader.LoadContext;
 import io.evitadb.spi.store.catalog.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
-import io.evitadb.spi.store.catalog.persistence.ReferenceNameFilterContext;
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
+import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
 import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart;
@@ -356,11 +357,15 @@ public class DefaultEntityCollectionPersistenceService
 	 * Decides whether the reference container has to be read from the OffsetIndex, i.e. whether what the new
 	 * predicate lets through is not already covered by what the previous read brought in.
 	 *
-	 * The decision is made on the **name sets**, not on the mere presence of a reference requirement. A read narrowed
-	 * by {@link ReferenceNameFilterContext} brings in only the reference names its predicate lets through, so
-	 * "references were fetched before" no longer implies "all references are present" - an enrichment asking for
-	 * a reference name the previous read skipped has to go back to the storage. Answering it from the narrowed part
-	 * would report the entity as having no such reference, which is a plausible wrong answer rather than a failure.
+	 * The decision is made on the **decode coverage**, not on the mere presence of a reference requirement. A read
+	 * narrowed by {@link ReferenceDecodeCoverageContext} brings in only the references its predicate admits, so
+	 * "references were fetched before" no longer implies "all references are present" - an enrichment asking for a
+	 * reference the previous read skipped has to go back to the storage. Answering it from the narrowed part would
+	 * report the entity as having no such reference, which is a plausible wrong answer rather than a failure.
+	 *
+	 * Coverage rather than names because the narrowing has two axes: two requests can agree on every reference name
+	 * and still disagree on which referenced entity keys within them were decoded, and comparing names alone would
+	 * answer "already fetched" to the second one and serve it a silently incomplete set.
 	 *
 	 * @param previousReferenceContractPredicate predicate the entity was previously fetched with, NULL for a first read
 	 * @param newReferenceContractPredicate      predicate the entity is being fetched with now
@@ -376,24 +381,24 @@ public class DefaultEntityCollectionPersistenceService
 		if (previousReferenceContractPredicate == null || !previousReferenceContractPredicate.isRequiresEntityReferences()) {
 			return true;
 		}
-		final Set<String> alreadyFetched = previousReferenceContractPredicate.getVisibleReferenceNames();
+		final ReferenceDecodeCoverage alreadyFetched = previousReferenceContractPredicate.getDecodeCoverage();
 		if (alreadyFetched == null) {
 			// the previous read was not narrowed and therefore brought in everything
 			return false;
 		}
-		final Set<String> newlyVisible = newReferenceContractPredicate.getVisibleReferenceNames();
-		// a request for all references is never covered by a narrowed read
-		return newlyVisible == null || !alreadyFetched.containsAll(newlyVisible);
+		// `covers` answers FALSE for a NULL argument, so a request for all references is never satisfied by
+		// a narrowed read - which is the behaviour this gate needs
+		return !alreadyFetched.covers(newReferenceContractPredicate.getDecodeCoverage());
 	}
 
 	/**
-	 * Fetches reference container from OffsetIndex if it hasn't been already loaded before, decoding only the
-	 * reference names the new predicate lets through.
+	 * Fetches reference container from OffsetIndex if it hasn't been already loaded before, decoding only what the
+	 * new predicate's coverage admits.
 	 *
-	 * The narrowing is safe precisely because the predicate is also what hides references from the caller: a name
-	 * this read skips is one {@link ReferenceContractSerializablePredicate#test(ReferenceContract)} would have
-	 * filtered out of the composed entity anyway. Consumers that need the complete set - the write path above all -
-	 * never come through here, and {@link ReferencesStoragePart} refuses them if they ever do.
+	 * The narrowing is safe precisely because the predicate is also what hides references from the caller: what this
+	 * read skips is what the composed entity would have filtered out anyway. Consumers that need the complete set -
+	 * the write path above all - never come through here, and {@link ReferencesStoragePart} refuses them if they
+	 * ever do.
 	 */
 	@Nullable
 	private static <T> T fetchReferences(
@@ -402,8 +407,8 @@ public class DefaultEntityCollectionPersistenceService
 		@Nonnull Supplier<T> fetcher
 	) {
 		if (shouldFetchReferences(previousReferenceContractPredicate, newReferenceContractPredicate)) {
-			return ReferenceNameFilterContext.executeWithReferenceNameFilter(
-				newReferenceContractPredicate.getVisibleReferenceNames(), fetcher
+			return ReferenceDecodeCoverageContext.executeWithCoverage(
+				newReferenceContractPredicate.getDecodeCoverage(), fetcher
 			);
 		} else {
 			return null;
@@ -1256,27 +1261,35 @@ public class DefaultEntityCollectionPersistenceService
 
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
 		final AtomicReference<ReferencesStoragePart> referencesStoragePartRef = new AtomicReference<>();
-		// deliberately NOT narrowed by ReferenceNameFilterContext: the container is re-serialized verbatim into the
-		// binary entity handed to the client, so it must carry every reference the entity has
+		// The container is re-serialized verbatim into the binary entity handed to the client, so it must carry
+		// every reference the entity has. The unrestricted coverage is BOUND here rather than assumed: it lives in
+		// a thread local that a read further up the stack may still own, and inheriting one would hand the client
+		// a silently incomplete entity - or, since both consumers below refuse a narrowed part, fail the request.
 		byte[] referencesStorageContainer = null;
 		if (shouldFetchReferences(null, new ReferenceContractSerializablePredicate(evitaRequest))) {
-			if (referenceEntityFetch.isEmpty()) {
-				referencesStorageContainer = ioFetchStatistics.record(
-					dataStoreReader.fetchBinary(
-						catalogVersion, entityPrimaryKey, ReferencesStoragePart.class
-					)
-				);
-			} else {
-				final ReferencesStoragePart fetchedPart = ioFetchStatistics.record(
-					dataStoreReader.fetch(
-						catalogVersion, entityPrimaryKey, ReferencesStoragePart.class
-					)
-				);
-				if (fetchedPart != null) {
-					referencesStoragePartRef.set(fetchedPart);
-					referencesStorageContainer = this.storagePartPersistenceService.serializeStoragePart(fetchedPart);
+			referencesStorageContainer = ReferenceDecodeCoverageContext.executeWithCoverage(
+				null,
+				() -> {
+					if (referenceEntityFetch.isEmpty()) {
+						return ioFetchStatistics.record(
+							dataStoreReader.fetchBinary(
+								catalogVersion, entityPrimaryKey, ReferencesStoragePart.class
+							)
+						);
+					} else {
+						final ReferencesStoragePart fetchedPart = ioFetchStatistics.record(
+							dataStoreReader.fetch(
+								catalogVersion, entityPrimaryKey, ReferencesStoragePart.class
+							)
+						);
+						if (fetchedPart != null) {
+							referencesStoragePartRef.set(fetchedPart);
+							return this.storagePartPersistenceService.serializeStoragePart(fetchedPart);
+						}
+						return null;
+					}
 				}
-			}
+			);
 		}
 
 		final BinaryEntity[] referencedEntities = referencesStoragePartRef.get() == null ?
