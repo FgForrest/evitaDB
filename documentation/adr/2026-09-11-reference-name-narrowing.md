@@ -1,7 +1,7 @@
 ---
 title: Decode only the reference names a projection asks for, rather than deriving reference keys from the indexes
 date: 2026-09-11
-updated: 2026-09-23 14:05
+updated: 2026-09-23 15:55
 status: accepted
 kind: optimization
 issues: [1547, 1554]
@@ -120,7 +120,7 @@ read states its own requirement.
 
 - **Entry point:** `ReferenceDecodeCoverageContext.executeWithCoverage(ReferenceDecodeCoverage, Supplier)` binds
   the filter; `DefaultEntityCollectionPersistenceService.fetchReferences` is the only production
-  caller, and it passes `ReferenceContractSerializablePredicate.getVisibleReferenceNames()`.
+  caller, and it passes `ReferenceContractSerializablePredicate.getDecodeCoverage()`.
 - **Named vs unnamed reference content is the trap.** `EvitaRequest.getReferenceEntityFetch()` routes
   *named* requirements — `referenceContent(<instanceName>, '<referenceName>', …)`, which GraphQL and
   REST **always** emit — into a separate `namedEntityFetchRequirements` map and returns only the
@@ -133,11 +133,12 @@ read states its own requirement.
   emptiness, locale presence, internal primary key assignment, any modification — is guarded by
   `assertComplete` / `assertReferenceNameDecoded`. The write path must never receive one; the
   serializer's `write` refuses it.
-- **Re-fetch is decided on name sets, not on a boolean.** `shouldFetchReferences` compares what the
-  previous read brought in against what the new predicate lets through. "References were fetched
-  before" no longer implies "all references are present", and answering an enrichment from a narrowed
-  part would report the entity as having no such reference — a plausible wrong answer rather than a
-  failure.
+- **Re-fetch is decided on decode coverage, not on a boolean.** `shouldFetchReferences` compares the
+  coverage the previous read brought in against the one the new predicate asks for, through
+  `ReferenceDecodeCoverage#covers` - which spans both the name axis and the referenced-key axis.
+  "References were fetched before" no longer implies "all references are present", and answering an
+  enrichment from a narrowed part would report the entity as having no such reference — a plausible
+  wrong answer rather than a failure.
 - **`toBinaryEntity` is deliberately not narrowed.** Its container is re-serialized verbatim into the
   binary entity handed to the client, so it must carry everything.
 - **Resolve the schema *after* the skip decision.** `EntitySchemaContext.getEntitySchema()` builds

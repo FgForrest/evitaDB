@@ -152,8 +152,11 @@ one the name axis uses.
 ### The two axes land on the same floor, and that is the point
 
 At 72 217 the key axis allocates 9 830 302 B and the name axis 9 824 654 B - **0.06 % apart**, although
-the key arm materializes 20 references the name arm skips outright. Those twenty cost 5 648 B between
-them, about 282 B each, which is what an admitted reference genuinely costs to build.
+the key arm materializes 20 references the name arm skips outright. Both come from this section's run,
+which is why the name-axis figure sits 19 B from the 9 824 635 in the name-axis table above: that one is
+its own earlier run, and reading one axis out of each would fold run-to-run drift into a 0.06 % result.
+Those twenty cost 5 648 B between them, about 282 B each, which is what an admitted reference genuinely
+costs to build.
 
 Everything else in that 9.8 MB is the skip path: ~136 B for every one of the 72 217 references walked
 past, whichever axis is doing the walking. So the key axis does not add a new cost or remove a different

@@ -782,13 +782,6 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	}
 
 	/**
-	 * Returns the filtered, sorted and deeply fetched references identified by special reference content instance name,
-	 * if the named request exists.
-	 *
-	 * @param instanceName name of the reference content instance
-	 * @return collection of references
-	 */
-	/**
 	 * Returns the reference sets this decorator carries, keyed by reference content instance name.
 	 *
 	 * Narrowing reads this to keep the sets a limiting request still asks for; nothing else needs the whole map -
@@ -817,6 +810,13 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 			Collections.emptyMap() : this.namedReferenceRequirements;
 	}
 
+	/**
+	 * Returns the filtered, sorted and deeply fetched references identified by special reference content instance name,
+	 * if the named request exists.
+	 *
+	 * @param instanceName name of the reference content instance
+	 * @return collection of references
+	 */
 	@Nonnull
 	public Optional<DataChunk<ReferenceContract>> getReferencesForReferenceContentInstance(@Nonnull ReferenceContentKey instanceName) {
 		if (this.namedReferenceSets == null) {
