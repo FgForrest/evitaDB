@@ -1,5 +1,5 @@
-evitaDB - Vendored third-party source in evita_engine
-=====================================================
+evitaDB - Vendored third-party source and data in evita_engine
+==============================================================
 
 Snowball Polish stemmer
 -----------------------
@@ -29,3 +29,25 @@ No other change was made to the generated algorithm.
 This NOTICE file is provided in compliance with section 4 of the Apache
 License, Version 2.0, and with the attribution clause of the BSD 3-Clause
 License. It states that the derived file has been changed.
+
+
+Polish stop-word list
+---------------------
+
+`io/evitadb/index/fulltext/analysis/polish-stopwords.txt` is a verbatim copy of
+the resource `org/apache/lucene/analysis/pl/stopwords.txt` shipped in Apache
+Lucene 9.12.3's `lucene-analysis-stempel` artifact (https://lucene.apache.org).
+
+Lucene redistributes that file from the carrot2 project
+(https://project.carrot2.org/license.html) under the BSD license, which the
+file's own four-line header states and which is preserved unchanged in the
+copy. The list is therefore attributed to carrot2 under BSD, NOT to Lucene
+under Apache-2.0.
+
+Reason for the copy: `PolishAnalyzer.getDefaultStopSet()` reaches the same 182
+words only through a static initializer that also loads Stempel's 2.2 MB
+stemmer table, and evitaDB uses no Stempel stemmer - its Polish index chain
+stems with the vendored Snowball stemmer above. Copying the 1.2 kB word list
+removed the whole `lucene-analysis-stempel` dependency.
+
+No modification was made to the list or to its header.

@@ -165,12 +165,13 @@ Here the news is exclusively good. All three jars carry a **native `module-info.
 |---|---|
 | `lucene-core` | `org.apache.lucene.core` |
 | `lucene-analysis-common` | `org.apache.lucene.analysis.common` |
-| `lucene-analysis-stempel` | `org.apache.lucene.analysis.stempel` |
+| `lucene-analysis-stempel` | `org.apache.lucene.analysis.stempel` (surveyed, **not shipped** — see §5.2) |
 
 The packages we need are exported: `org.apache.lucene.analysis`, `org.apache.lucene.analysis.standard`,
 `org.apache.lucene.analysis.tokenattributes` and `org.apache.lucene.util.automaton` from the core;
 `org.apache.lucene.analysis.cz`, `.de`, `.en`, `.custom`, `.core`, `.miscellaneous` and `.hunspell` from
-analysis-common; and `analysis.pl` from stempel. The module `org.apache.lucene.analysis.common` declares
+analysis-common; `analysis.pl` came from stempel while that artifact was still under consideration. The
+module `org.apache.lucene.analysis.common` declares
 `requires org.apache.lucene.core` **without `transitive`** (verified with `jar --describe-module` on
 9.12.3, and confirmed by the P5 implementation in PR #1453), so our module-info must require the core
 explicitly — code compiling against `Analyzer` or the token attributes reads types from the core module:
@@ -178,9 +179,10 @@ explicitly — code compiling against `Analyzer` or the token attributes reads t
 ```java
 requires org.apache.lucene.core;
 requires org.apache.lucene.analysis.common;
-// only if the decision falls to support Polish via stempel:
-requires org.apache.lucene.analysis.stempel;
 ```
+
+*(This section originally listed a third `requires org.apache.lucene.analysis.stempel;`, conditional on
+supporting Polish through Stempel. Polish shipped without Stempel and the dependency was removed — §5.2.)*
 
 *(An earlier revision of this section claimed the single `requires` on analysis-common would bring the
 core along; that was wrong — the requires is not transitive.)*
@@ -583,6 +585,24 @@ lazy instance creation in §4.1.
 is finished and tested upstream and deferring it would mean the registry would later have to be extended
 because of one language.
 
+> **Superseded (2026-09-23):** Polish shipped, but **Stempel was never adopted as its stemmer and the
+> `lucene-analysis-stempel` dependency is gone.** Stempel is a statistical trie with no rule table, and the
+> query-side variant fan-out the four folding languages depend on is constructed *over* a stemmer's rules —
+> there is nothing to walk in a trie, so the asymmetric pair could not have been built on it at all (see
+> `p5-prior-art-sk-pl-ro.md` §6). The index chain therefore stems with the vendored `PolishSnowballStemmer`,
+> and the query chain with `PolishVariantStemmer` walked over the same rules.
+>
+> That left `PolishAnalyzer` referenced for one thing only, its 182-word stop list — and reaching it through
+> `PolishAnalyzer.getDefaultStopSet()` is not free: the `DefaultsHolder` behind that call loads
+> `stemmer_20000.tbl` (2.2 MB) in the same static block, for a stemmer nothing uses. The list is 1.2 kB, so
+> it was copied verbatim into `evita_engine/src/main/resources/io/evitadb/index/fulltext/analysis/polish-stopwords.txt`
+> and the whole 519 kB jar dropped from the root `<dependencyManagement>`, from `evita_engine/pom.xml` and
+> from `module-info.java`. Note for attribution: that list is **not** Apache-2.0 from Lucene — its own header
+> says it comes from the carrot2 project under the **BSD** licence, and `evita_engine/NOTICE` records it that
+> way.
+>
+> Consequently the stempel rows of §3.3 and step 1 of §9 below describe a dependency that no longer exists.
+
 ### 5.3 Slovak
 
 Here there is no ready-made path. A `SlovakAnalyzer` in Lucene **does not exist** — verified by searching
@@ -862,7 +882,8 @@ The steps are ordered so that each can be verified independently and so that the
 of production code to the engine that could be broken.
 
 1. **Introduce the dependency.** Add `lucene.version` into the root `pom.xml`'s `<properties>`,
-   `lucene-analysis-common` and `lucene-analysis-stempel` into `<dependencyManagement>`, both as a
+   `lucene-analysis-common` into `<dependencyManagement>` (this step originally added
+   `lucene-analysis-stempel` alongside it; that artifact is not shipped — §5.2), as a
    `<dependency>` into `evita_engine/pom.xml` and the corresponding `requires` into
    `evita_engine/src/main/java/module-info.java`. Verification: `mvn -pl evita_engine compile` passes and
    `mvn dependency:tree` on `evita_java_driver` does not contain `org.apache.lucene`.

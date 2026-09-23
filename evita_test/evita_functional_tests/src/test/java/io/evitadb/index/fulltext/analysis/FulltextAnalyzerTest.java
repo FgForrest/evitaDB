@@ -32,6 +32,10 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,6 +43,8 @@ import java.util.Locale;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
@@ -410,6 +416,47 @@ class FulltextAnalyzerTest {
 			assertIterableEquals(List.of("ksiazk"), terms(POLISH, "książki"));
 			// a capital-letter, stroked-letter word - the lowercase-before-fold guard
 			assertIterableEquals(List.of("lodz"), terms(POLISH, "Łódź"));
+		}
+
+		@Test
+		@DisplayName("Drops stop words on both sides from evitaDB's own copy of the list")
+		void shouldDropPolishStopWords() {
+			// the list is shipped as an evita_engine resource rather than reached through `PolishAnalyzer`, whose
+			// defaults holder loads Stempel's 2.2 MB stemmer table as a side effect - see `BuiltInAnalyzers`
+			assertTrue(terms(POLISH, "i").isEmpty());
+			assertTrue(terms(POLISH, "oraz").isEmpty());
+			assertTrue(terms(POLISH, "się").isEmpty());
+			assertTrue(queryTerms(POLISH, "i").isEmpty());
+			assertTrue(queryTerms(POLISH, "oraz").isEmpty());
+			assertTrue(queryTerms(POLISH, "się").isEmpty());
+			// the whole list is still applied, so a stop word inside a phrase disappears from between the terms
+			assertIterableEquals(List.of("ksiazk", "zeszyt"), terms(POLISH, "książka i zeszyt"));
+			assertIterableEquals(
+				List.of("ksiazk", "ksiazka", "zeszyt"), queryTerms(POLISH, "książka i zeszyt")
+			);
+		}
+
+		@Test
+		@DisplayName("The shipped stop-word resource is the complete Lucene list, not a truncated copy")
+		void shouldShipTheWholePolishStopWordList() throws IOException {
+			// a partial copy would not fail any behavioural test above - it would merely stop dropping the words
+			// it lost - so the count of the resource itself is asserted. 182 is what Lucene 9.12.3 ships.
+			try (
+				final InputStream stream = BuiltInAnalyzers.class.getResourceAsStream("polish-stopwords.txt");
+				final BufferedReader reader = new BufferedReader(
+					new InputStreamReader(requireNonNull(stream, "polish-stopwords.txt is missing"), UTF_8)
+				)
+			) {
+				int words = 0;
+				String line;
+				while ((line = reader.readLine()) != null) {
+					final String trimmed = line.trim();
+					if (!trimmed.isEmpty() && !trimmed.startsWith("#")) {
+						words++;
+					}
+				}
+				assertEquals(182, words);
+			}
 		}
 
 		@Test

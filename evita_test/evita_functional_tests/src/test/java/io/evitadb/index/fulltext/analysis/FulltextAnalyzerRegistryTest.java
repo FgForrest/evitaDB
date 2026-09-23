@@ -129,7 +129,7 @@ class FulltextAnalyzerRegistryTest {
 		void shouldShareOneInstancePerLanguage() {
 			final FulltextAnalyzerRegistry registry = createRegistry();
 			// analysis is a property of a language, so the country part must not fragment the cache - nor pay
-			// for a second chain, which for Polish means a second 2.1 MB stemmer table
+			// for a second chain, which means a second stop-word list and a second set of stemmer tables
 			assertSame(
 				registry.getIndexAnalyzer(ENTITY_TYPE, CZECH_CZ),
 				registry.getIndexAnalyzer(ENTITY_TYPE, CZECH)

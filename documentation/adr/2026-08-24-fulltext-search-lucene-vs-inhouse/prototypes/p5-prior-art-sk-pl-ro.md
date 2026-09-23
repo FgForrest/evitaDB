@@ -1101,7 +1101,8 @@ the fan-out is named for what it is, **stem variants**:
 
 Index chains now: `sk` = lowercase → `SlovakStemmer` → fold; `pl` = lowercase → stop → Snowball →
 fold (Stempel dropped — no rule table to fork over, and §9.3 measured Snowball dominating it on every
-recall metric; `PolishAnalyzer` stays referenced for its stop set alone, so the stempel jar stays);
+recall metric; `PolishAnalyzer` was then referenced for its stop set alone, and since 2026-09-23 not at
+all — the 182-word list is an evitaDB resource and the stempel jar is gone, see `p5-analyzers.md` §5.2);
 `ro` = lowercase → `CommaBelowNormalizationFilter` → stop → Snowball → fold (the R0n shape). `cs` is
 unchanged. Any catalog indexed with the §9.6 `sk`/`pl`/`ro` chains produces different terms now; no
 migration was written, fulltext being pre-release.

@@ -137,7 +137,6 @@ module evita.engine {
 	// token attributes straight from the core.
 	requires org.apache.lucene.core;
 	requires org.apache.lucene.analysis.common;
-	requires org.apache.lucene.analysis.stempel;
 
 	opens io.evitadb.core.metric.event to evita.common;
 	opens io.evitadb.core.metric.event.transaction to jdk.jfr;

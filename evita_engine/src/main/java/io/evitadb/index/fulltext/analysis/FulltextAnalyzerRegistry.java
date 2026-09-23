@@ -49,8 +49,9 @@ import java.util.function.Supplier;
  * {@link AnalyzerAssignment}. Second, the name is translated into an instance. Instances are therefore keyed by
  * **name alone** — the collection and the locale decide *which* analyzer is used, never *which copy of it*, so
  * ten collections referring to `czech` share one chain instead of building ten identical ones. Laziness is not
- * micro-optimization: building a chain loads its data (Czech 172 stop words from a jar resource, Polish a 2.1 MB
- * stemmer table), while sharing one is free because a Lucene `Analyzer` is thread-safe.
+ * micro-optimization: building a chain loads its data (Czech and Polish each read a stop-word list from a jar
+ * resource, and every Snowball chain constructs its stemmer's ending tables), while sharing one is free because
+ * a Lucene `Analyzer` is thread-safe.
  *
  * **The registry is open at runtime.** {@link #register(String, Supplier)} adds an analyzer under a new name,
  * which is what keeps an unusual language or an unusual chain from being a change inside the engine. The name is

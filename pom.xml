@@ -260,7 +260,7 @@
 			<!--
 				Lucene analysis chain - consumed only by evita_engine (see the module boundary rationale
 				in the full-text analyzer package javadoc: the dependency must never reach the client
-				driver). All three artifacts share ${lucene.version} so that a mixed patch level, which
+				driver). Both artifacts share ${lucene.version} so that a mixed patch level, which
 				would silently mix analyzer behaviour, cannot arise.
 			-->
 			<dependency>
@@ -271,11 +271,6 @@
 			<dependency>
 				<groupId>org.apache.lucene</groupId>
 				<artifactId>lucene-analysis-common</artifactId>
-				<version>${lucene.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>org.apache.lucene</groupId>
-				<artifactId>lucene-analysis-stempel</artifactId>
 				<version>${lucene.version}</version>
 			</dependency>
 			<dependency>
