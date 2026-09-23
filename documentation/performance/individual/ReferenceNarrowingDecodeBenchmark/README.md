@@ -111,6 +111,11 @@ Measured on a different day and a different JDK from the name-axis tables above 
 1.37, `-f 1 -wi 3 -w 1 -i 5 -r 1 -bm avgt -prof gc`, `admittedBackReferences=20`. **One fork, so the
 latency column is softer than the three-fork numbers above**; the allocation column is not.
 
+**Run the `decodeAndIndex*` arms with `--add-opens java.base/java.lang=ALL-UNNAMED`** (Byte Buddy needs
+it). Without the flag they fail every warmup iteration with `ExceptionInInitializerError`, JMH prints
+`<failure>` per iteration, **still exits 0**, and simply omits those arms from the JSON - so a partial
+table looks like a complete one. Check the arm count before reading the numbers.
+
 ### Allocation — 3.0× on decode, 3.3× with the index build
 
 `gc.alloc.rate.norm`, B/op:
