@@ -33,6 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-09-23 | [Mark members that are public only for cross-module reach with @Internal, and enforce it from bytecode](2026-09-23-internal-member-annotation.md) | infrastructure | accepted | #1640 |
 | 2026-09-23 | [Bound the reference decode by the referenced keys a requirement names, and let named reference content own the names only it asked for](2026-09-23-reference-decode-narrowing-by-referenced-key.md) | optimization | accepted | #1637, #1640, PR #1638, PR #1639 |
 | 2026-09-21 | [One filter-index entry has one identity, and everything that describes an entry now uses it](2026-09-21-cardinality-counter-normalized-keys.md) | fix | accepted | #1620, PR #1621 |
 | 2026-09-19 | [The roaring containers get an optional Vector API provider, fused word kernels and a CRoaring-style lazy array union; the all-pairs and gather kernels are measured and rejected](2026-09-19-roaring-simd-kernels-and-lazy-union/) | optimization | proposed | #1539, #1541, #1542, #1543, #1544, PR #1608 |

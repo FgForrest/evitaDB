@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.annotation.Internal;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainerWithSuffix;
 import io.evitadb.api.query.ConstraintWithDefaults;
@@ -256,6 +257,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	 *
 	 * @see <a href="https://github.com/FgForrest/evitaDB/issues/902">Issue #902</a>
 	 */
+	@Internal("build an unnamed referenceContent(...) - the instance-name form backs the GraphQL layer")
 	public ReferenceContent(
 		@Nullable String name,
 		@Nonnull ManagedReferencesBehaviour managedReferences,
@@ -710,6 +712,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	 *
 	 * @return reference instance name or null
 	 */
+	@Internal("build an unnamed referenceContent(...) - the instance-name form backs the GraphQL layer")
 	@Nullable
 	public String getInstanceName() {
 		String memoized = this.memoizedInstanceName;
