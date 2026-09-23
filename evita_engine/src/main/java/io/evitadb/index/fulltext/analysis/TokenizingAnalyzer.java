@@ -32,13 +32,11 @@ import org.apache.lucene.analysis.standard.StandardTokenizer;
 /**
  * The lower bound of the language table: word-break tokenization plus lowercasing, no stop words and no stemmer.
  *
- * Used by two built-in analyzers for two different reasons. It is the **generic fallback** for a language
- * evitaDB has no analyzer for, where guessing a stemmer would be worse than not stemming. And it is the Slovak analyzer, because
- * Lucene ships no `SlovakAnalyzer` and no Slovak stop-word list: recall suffers (word forms do not converge)
- * but precision never does — nothing is collapsed by mistake, which in an e-shop is the failure that matters.
- * Substituting the Czech stemmer would be free and might work, but its false-merge rate on Slovak is unmeasured,
- * and a dictionary-based Slovak stemmer (Hunspell) needs a dictionary whose provenance and licence are not
- * settled yet.
+ * This is the **generic fallback**: the analyzer a language evitaDB has no table entry for falls back to, where
+ * guessing a stemmer would be worse than not stemming. Recall suffers — word forms do not converge — but
+ * precision never does, and nothing is collapsed by mistake, which in an e-shop is the failure that matters. It
+ * backs one built-in, `generic`; every language the table does name gets a chain of its own, Slovak included
+ * (see {@link BuiltInAnalyzers}).
  *
  * Note that the chain is composed **by type**, not through Lucene's `CustomAnalyzer` name-based SPI lookup.
  * Factories resolved by name go through `ServiceLoader`, which on the module path only finds providers whose

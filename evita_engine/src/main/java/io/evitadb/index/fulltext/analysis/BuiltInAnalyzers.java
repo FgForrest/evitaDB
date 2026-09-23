@@ -246,7 +246,7 @@ public class BuiltInAnalyzers {
 
 	/**
 	 * Builds the Czech query chain: tokenize, lowercase, drop stop words, fold diacritics, then emit every stem
-	 * variant of each token at its own position.
+	 * variant of each token, all at one position.
 	 *
 	 * @return the Lucene chain
 	 */
@@ -299,7 +299,7 @@ public class BuiltInAnalyzers {
 
 	/**
 	 * Builds the Slovak query chain: tokenize, lowercase, fold diacritics, then emit every stem variant of each
-	 * token at its own position. No stop filter — Lucene ships no Slovak stop set.
+	 * token, all at one position. No stop filter — Lucene ships no Slovak stop set.
 	 *
 	 * @return the Lucene chain
 	 */
@@ -355,7 +355,7 @@ public class BuiltInAnalyzers {
 
 	/**
 	 * Builds the Polish query chain: tokenize, lowercase, drop stop words, fold diacritics, then emit every stem
-	 * variant of each token at its own position.
+	 * variant of each token, all at one position.
 	 *
 	 * @return the Lucene chain
 	 */

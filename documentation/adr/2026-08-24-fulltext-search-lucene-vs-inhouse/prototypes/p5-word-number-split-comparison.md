@@ -3,16 +3,21 @@
 > **Status: comparison record**, the evidence behind the 2026-09-02 revision of
 > [`p5-analyzers.md`](p5-analyzers.md) §4.6 point 2. Measured on branch `258-fulltext-support-p5` with
 > Lucene 9.12.3 (evitaDB) and, for the query-side shapes, Lucene 9.12.1 (the version the old client runs).
-> The old client is the EdeeCMS fulltext library (`prj_fulltext/lib_fulltext`, internal); its splitter is
-> ported verbatim into the test sources as `LegacyWordWithNumberSplitFilter` so that the numbers below are
+> The old client is the EdeeCMS fulltext library (`prj_fulltext/lib_fulltext`, internal); its splitter was
+> ported verbatim into the test sources as `LegacyWordWithNumberSplitFilter` so that the numbers below were
 > measured, not remembered.
 >
-> **Reproduce:**
+> **The §4 table is a historical measurement, taken at commit `298ee6163d`, and is no longer regenerable
+> from the tree.** Once the split step's contract was accepted, `a37950c15e` deleted both the legacy port and
+> the `shouldReportSplitterComparison` reporter that printed the table — deliberately, per §7's test
+> disposition: a comparison instrument that has finished comparing is dead weight, and the two legacy columns
+> describe a chain evitaDB does not ship. To re-run the comparison, check the instrument out with
+> `git show 298ee6163d` rather than rebuilding it.
+>
+> **What can still be reproduced** is the accepted contract, asserted by the surviving test class:
 > ```shell
 > mvn -pl evita_test/evita_functional_tests test -P unitAndFunctional -Dtest=WordNumberSplitAnalysisTest
 > ```
-> The table in §4 is printed to stdout by `shouldReportSplitterComparison`; every other claim is an
-> assertion in the same class.
 
 ---
 
@@ -104,9 +109,9 @@ The five chains measured:
 | `czech-split-appended` | W         | appended  | the built-in Czech chain                                        |
 | `czech-split-in-chain` | W         | in chain  | tokenizer → **W** → lowercase → stop → `CzechStemFilter` → folding|
 
-## 4. Measured terms
+## 4. Measured terms (historical, commit `298ee6163d`)
 
-Terms as `FulltextAnalyzer.getTerms` returns them — after NFC normalization, lowercasing, Czech stop words,
+Terms as `FulltextAnalyzer.getTerms` returned them at that commit — after NFC normalization, lowercasing, Czech stop words,
 `CzechStemFilter` and ASCII folding where the chain has them. The Czech stemmer's palatalization rewrite
 turns a final `c` into `k` and a final `z` into `h` on any token, which is why `xyz` reads `xyh` and `abc`
 reads `abk` wherever the stemmer saw the part.
@@ -236,10 +241,14 @@ placement stay as §7 says — they decide *which terms exist*, the builder deci
 
 ## 8. Sources
 
-- evitaDB: `evita_test/evita_functional_tests/src/test/java/io/evitadb/index/fulltext/analysis/WordNumberSplitAnalysisTest.java`
-  (assertions and the §4 report) and `LegacyWordWithNumberSplitFilter.java` (the port) in the same package;
-  `evita_engine/src/main/java/io/evitadb/index/fulltext/analysis/BuiltInAnalyzers.java` (the chains that
-  would have to be composed).
+- evitaDB, **today**: `evita_test/evita_functional_tests/src/test/java/io/evitadb/index/fulltext/analysis/WordNumberSplitAnalysisTest.java`
+  holds the assertions of the accepted contract (§6/§7);
+  `evita_engine/src/main/java/io/evitadb/index/fulltext/analysis/BuiltInAnalyzers.java` holds the chains that
+  would have to be composed.
+- evitaDB, **at commit `298ee6163d`** (the instrument behind §4, deleted in `a37950c15e` — recover with
+  `git show 298ee6163d:<path>`): `WordNumberSplitAnalysisTest.shouldReportSplitterComparison`, which printed
+  the §4 table, and `LegacyWordWithNumberSplitFilter.java`, the verbatim port of the old client's splitter,
+  both in the same package.
 - Old client (internal, EdeeCMS `prj_fulltext/lib_fulltext`): `org.apache.lucene.analysis.WordWithNumberSplitFilter`,
   `WordWithNumberAnalyzerWrapper`, `AbstractStackTokenFilter`; `com.fg.fulltext.core.configuration.IndexConfig`
   (`enableWordNumberAnalyzer`); `com.fg.fulltext.core.index.IndexFactory` (`wrapWithWordNumberAnalyzer`,

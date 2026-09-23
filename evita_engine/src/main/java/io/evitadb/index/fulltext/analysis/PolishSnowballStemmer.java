@@ -50,8 +50,12 @@ import javax.annotation.Nonnull;
  * by Snowball 3.0.0), with exactly two adaptations:
  *
  * 1. the package and class name, because the original sits in Lucene's `org.tartarus.snowball.ext` package and
- *    this copy must not shadow the upstream one once the pinned Lucene version carries it — at which point this
- *    class should be deleted in favour of it;
+ *    this copy must not shadow the upstream one once the pinned Lucene version carries it. Deleting this class
+ *    in favour of the upstream one is **not** a free swap, for two reasons. It replaces the index-side stemmer,
+ *    so every Polish full-text index built with this copy holds terms the new stemmer may not reproduce — the
+ *    catalog has to be reindexed. And the vendored source is Lucene *main*'s output of a `polish.sbl` that sits
+ *    in no tagged Snowball release, so the algorithm a release eventually ships may differ from this copy:
+ *    compare the two before swapping rather than assuming they agree;
  * 2. private {@link #go_out_grouping}/{@link #go_in_grouping} shims copied from Lucene main's
  *    `SnowballProgram`, because the 9.12.3 runtime predates Snowball 3.0's generated-code contract and lacks
  *    those two methods — everything else the generated code calls (`find_among_b`, `slice_del`, `slice_from`,

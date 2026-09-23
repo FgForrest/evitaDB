@@ -37,10 +37,13 @@ import javax.annotation.Nonnull;
  * (`e`↔`ě`, `a`↔`á`). Two is the entire budget Lucene's Levenshtein automaton can express
  * (`MAXIMUM_SUPPORTED_DISTANCE = 2`), so a keyboard without Czech accents consumes the whole typo tolerance
  * before a single real typo is accounted for, and a longer word carrying three accents becomes unreachable.
- * Typing without accents is the norm in a Czech e-shop rather than an edge case, so the folding is on by
- * default for Czech and Slovak. German deliberately does **not** get it — `GermanAnalyzer` already runs
- * `GermanNormalizationFilter`, which folds umlauts and maps `ß` to `ss` its own way, and a second folding pass
- * would fight it.
+ * Typing without accents is the norm in a Czech e-shop rather than an edge case, so every folding language
+ * ends its chain this way. This **wrapper** is used by the Czech index chain, which is the one built on top of
+ * a complete upstream analyzer (`CzechAnalyzer`) and therefore has no chain of its own to append to; Slovak,
+ * Polish and Romanian compose their chains explicitly and fold inside them, with the same filter in the same
+ * final position (see {@link BuiltInAnalyzers}). German deliberately does **not** get it — `GermanAnalyzer`
+ * already runs `GermanNormalizationFilter`, which folds umlauts and maps `ß` to `ss` its own way, and a second
+ * folding pass would fight it.
  *
  * **Why after the stemmer, never before.** Folding first would hand the stemmer text without diacritics, which
  * drops it into exactly the same silent degradation as feeding it NFD (see
@@ -53,11 +56,13 @@ import javax.annotation.Nonnull;
  * match above an unaccented one. Preserving that would mean carrying the surface form as a second key, which is
  * why {@link AnalyzedTerm#surfaceForm()} is captured before the chain folds anything.
  *
- * **Known gap.** Lucene's {@link ASCIIFoldingFilter} does not honour `KeywordAttribute`, so a token marked as
- * protected from stemming is still folded. It does not matter yet — nothing marks tokens — but when protection
- * of individual terms arrives (a schema-supplied list of expressions exempt from stemming, translated to
- * `SetKeywordMarkerFilter`), the protection would silently end at diacritics folding unless this filter is
- * replaced by a keyword-aware equivalent.
+ * **Keyword protection is not offered, and that is a decision rather than an omission.** Lucene's
+ * {@link ASCIIFoldingFilter} does not honour `KeywordAttribute`, so a token marked as protected from stemming
+ * would still be folded. Per-term protection — a schema-supplied list of expressions exempt from stemming,
+ * translated to `SetKeywordMarkerFilter` — was considered for this pipeline and discarded: the filter's
+ * blindness has no consumer, because nothing in evitaDB marks tokens and no API lets a schema ask for it. The
+ * gap becomes real only if that feature is ever introduced, at which point this filter must be replaced by a
+ * keyword-aware equivalent **before** the marker filter is wired in, or protection will silently end here.
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
  */
