@@ -57,6 +57,7 @@ import io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslat
 import io.evitadb.core.query.sort.segment.translator.SegmentsTranslator;
 import io.evitadb.core.query.sort.translator.OrderByTranslator;
 import io.evitadb.core.query.sort.translator.OrderInScopeTranslator;
+import io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -250,6 +251,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 				null,
 				attributeSchemaAccessor,
 				new ArrayDeque<>(16),
+				null,
 				null
 			)
 		);
@@ -305,7 +307,8 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 					currentScope.locale(),
 					currentScope.attributeSchemaAccessor(),
 					new ArrayDeque<>(16),
-					currentScope.mergeModeDefinition()
+					currentScope.mergeModeDefinition(),
+					currentScope.pickFirstIndexResolver()
 				)
 			);
 			lambda.run();
@@ -338,6 +341,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 					locale,
 					attributeSchemaAccessor,
 					processingScope.sorters(),
+					null,
 					null
 				)
 			);
@@ -348,7 +352,18 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	}
 
 	/**
-	 * Sets different {@link EntityIndex} to be used in scope of lambda.
+	 * Sets different {@link EntityIndex} to be used in scope of lambda, which orders entities by a reference.
+	 *
+	 * @param entityIndex             reduced indexes of the reference, used by consumers that need them at planning
+	 *                                time; ignored in favour of the resolver's planning indexes when a resolver is
+	 *                                passed
+	 * @param referenceSchema         the reference the entities are ordered by
+	 * @param locale                  locale of the ordering or `null` for the locale of the query
+	 * @param attributeSchemaAccessor accessor of the reference attribute schemas
+	 * @param mergeMode               how the sorted values of multiple reduced indexes are combined
+	 * @param pickFirstIndexResolver  resolver of the reduced indexes for a `pickFirst` ordering, `null` otherwise
+	 * @param lambda                  the lambda creating the sorters
+	 * @return the result of the lambda
 	 */
 	public final <T> T executeInContext(
 		@Nonnull EntityIndex[] entityIndex,
@@ -356,6 +371,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		@Nullable Locale locale,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nullable MergeModeDefinition mergeMode,
+		@Nullable PickFirstReducedIndexResolver pickFirstIndexResolver,
 		@Nonnull Supplier<T> lambda
 	) {
 		try {
@@ -371,7 +387,8 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 					locale,
 					attributeSchemaAccessor,
 					processingScope.sorters(),
-					mergeMode
+					mergeMode,
+					pickFirstIndexResolver
 				)
 			);
 			return lambda.get();
@@ -394,12 +411,17 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 
 	/**
 	 * Returns index which is best suited for supplying {@link SortIndex}.
+	 *
+	 * Within a `pickFirst` reference ordering the indexes depend on the selection and are resolved at execution time
+	 * by {@link ProcessingScope#pickFirstIndexResolver()}; a consumer asking for them at planning time gets
+	 * {@link PickFirstReducedIndexResolver#getPlanningIndexes()}.
 	 */
 	@Nonnull
 	public EntityIndex[] getIndexesForSort() {
 		final ProcessingScope theScope = this.scope.peek();
 		isPremiseValid(theScope != null, "Scope is unexpectedly empty!");
-		return theScope.entityIndex();
+		final PickFirstReducedIndexResolver resolver = theScope.pickFirstIndexResolver();
+		return resolver == null ? theScope.entityIndex() : resolver.getPlanningIndexes();
 	}
 
 	/**
@@ -491,6 +513,9 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * @param locale                  contains locale the context refers to
 	 * @param attributeSchemaAccessor consumer verifies prerequisites in attribute schema via {@link AttributeSchemaContract}
 	 * @param sorters                 contains the stack of sorters that are being composed on particular level of the query
+	 * @param mergeModeDefinition     contains the mode of combining sorted values of multiple reduced indexes
+	 * @param pickFirstIndexResolver  resolves the reduced indexes of a `pickFirst` reference ordering at execution time,
+	 *                                `null` outside of such ordering
 	 */
 	public record ProcessingScope(
 		@Nonnull Deque<Set<Scope>> requiredScopes,
@@ -500,7 +525,8 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		@Nullable Locale locale,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nonnull Deque<Sorter> sorters,
-		@Nullable MergeModeDefinition mergeModeDefinition
+		@Nullable MergeModeDefinition mergeModeDefinition,
+		@Nullable PickFirstReducedIndexResolver pickFirstIndexResolver
 	) {
 
 		/**

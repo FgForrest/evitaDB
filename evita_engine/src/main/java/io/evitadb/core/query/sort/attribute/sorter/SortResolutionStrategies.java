@@ -43,7 +43,7 @@ import javax.annotation.Nullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-final class SortResolutionStrategies {
+public final class SortResolutionStrategies {
 
 	/**
 	 * Cached {@link SortResolutionStrategy} constants (indexed by {@link SortResolutionStrategy#ordinal()}) to avoid the
@@ -67,7 +67,7 @@ final class SortResolutionStrategies {
 	 * @return the forced resolution family, or `null` for cost-based selection
 	 */
 	@Nullable
-	static ForcedSortResolution resolveForcedResolution(@Nonnull QueryExecutionContext queryContext) {
+	public static ForcedSortResolution resolveForcedResolution(@Nonnull QueryExecutionContext queryContext) {
 		final QueryPlanningContext planningContext = queryContext.getQueryContext();
 		if (planningContext.isDebugModeEnabled(DebugMode.PREFER_TREE_SORT)) {
 			return ForcedSortResolution.TREE;
@@ -91,7 +91,7 @@ final class SortResolutionStrategies {
 	 * @return a zeroed tally array, or `null` when no step is open to report into
 	 */
 	@Nullable
-	static int[] newStrategyTally(@Nonnull QueryExecutionContext queryContext) {
+	public static int[] newStrategyTally(@Nonnull QueryExecutionContext queryContext) {
 		return queryContext.getQueryContext().getCurrentStep() == null ? null : new int[STRATEGIES.length];
 	}
 
@@ -101,7 +101,7 @@ final class SortResolutionStrategies {
 	 * @param tally      the tally to increment, or `null` when telemetry is off
 	 * @param resolution the resolution whose {@link PositionResolution#strategy()} is counted
 	 */
-	static void tally(@Nullable int[] tally, @Nonnull PositionResolution resolution) {
+	public static void tally(@Nullable int[] tally, @Nonnull PositionResolution resolution) {
 		if (tally != null) {
 			tally[resolution.strategy().ordinal()]++;
 		}
@@ -128,7 +128,7 @@ final class SortResolutionStrategies {
 	 * @param queryContext the execution context whose current telemetry step is annotated
 	 * @param tally        the accumulated per-strategy counts, or `null` when telemetry is off
 	 */
-	static void report(@Nonnull QueryExecutionContext queryContext, @Nullable int[] tally) {
+	public static void report(@Nonnull QueryExecutionContext queryContext, @Nullable int[] tally) {
 		if (tally == null) {
 			return;
 		}

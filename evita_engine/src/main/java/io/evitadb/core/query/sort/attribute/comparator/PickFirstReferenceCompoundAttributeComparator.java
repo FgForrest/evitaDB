@@ -24,30 +24,37 @@
 package io.evitadb.core.query.sort.attribute.comparator;
 
 
-import com.carrotsearch.hppc.IntIntMap;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.PickFirstByEntityProperty;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeMode;
+import io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Function;
-import java.util.function.Supplier;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Comparator for sorting entities according to a sortable compound attribute value. It combines multiple attribute
  * comparators into one. This implementation adheres to {@link MergeMode#APPEND_FIRST} which relates
  * to {@link PickFirstByEntityProperty} ordering.
+ *
+ * It is the prefetch-route twin of the index route built by {@link PickFirstReducedIndexResolver}, and must pick the
+ * very row that route picks: an entity sorts on its first reference, in target order, that carries any element of the
+ * compound - references sharing one target in the order of their representative attribute values - and entities with
+ * equal compound values follow in the order of their primary keys in the direction of the ordering.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -55,13 +62,17 @@ public class PickFirstReferenceCompoundAttributeComparator extends AbstractRefer
 	@Serial private static final long serialVersionUID = 2199278500724685085L;
 
 	/**
-	 * Supplier of the index of the referenced id positions in the main ordering.
+	 * Resolver providing the target order the index route walks.
 	 */
-	@Nonnull private final Supplier<IntIntMap> referencePositionMapSupplier;
+	@Nonnull private final transient PickFirstReducedIndexResolver indexResolver;
 	/**
-	 * Memoized result from {@link #referencePositionMapSupplier} supplier.
+	 * Picks the first reference in target order among the references carrying the compound.
 	 */
-	private IntIntMap referencePositionMap;
+	@Nonnull private final transient Comparator<ReferenceContract> referenceOrder;
+	/**
+	 * Rank of the targets of the entities being sorted, set by {@link #prepareForSelection(Bitmap)}.
+	 */
+	@Nullable private transient IntUnaryOperator targetRank;
 
 	public PickFirstReferenceCompoundAttributeComparator(
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
@@ -69,7 +80,7 @@ public class PickFirstReferenceCompoundAttributeComparator extends AbstractRefer
 		@Nullable Locale locale,
 		@Nonnull Function<String, AttributeSchemaContract> attributeSchemaExtractor,
 		@Nonnull OrderDirection orderDirection,
-		@Nonnull Supplier<IntIntMap> referencePositionMapSupplier
+		@Nonnull PickFirstReducedIndexResolver indexResolver
 	) {
 		super(
 			compoundSchemaContract,
@@ -78,21 +89,32 @@ public class PickFirstReferenceCompoundAttributeComparator extends AbstractRefer
 			attributeSchemaExtractor,
 			orderDirection
 		);
-		this.referencePositionMapSupplier = referencePositionMapSupplier;
+		this.indexResolver = indexResolver;
+		this.referenceOrder = PickFirstReferenceOrder.create(
+			referenceSchema,
+			referencedPrimaryKey -> {
+				Assert.isPremiseValid(
+					this.targetRank != null,
+					"The comparator must be prepared for the selection before it compares entities!"
+				);
+				return this.targetRank.applyAsInt(referencedPrimaryKey);
+			}
+		);
+	}
+
+	@Override
+	public void prepareForSelection(@Nonnull Bitmap entityPrimaryKeys) {
+		this.targetRank = this.indexResolver.getTargetRank(entityPrimaryKeys);
 	}
 
 	@Override
 	@Nonnull
 	protected Optional<ReferenceContract> pickReference(@Nonnull EntityContract entity) {
-		// initialize the reference position map if it hasn't been initialized yet
-		if (this.referencePositionMap == null) {
-			this.referencePositionMap = this.referencePositionMapSupplier.get();
-		}
-		// find the reference contract that has the attribute we are looking for
+		// find the first reference in target order that carries any element of the compound
 		return entity.getReferences(this.referenceSchema.getName())
 			.stream()
-			.filter(it -> Arrays.stream(this.attributeElements).anyMatch(ae -> it.getAttribute(ae.attributeName()) != null))
-			.min(Comparator.comparingInt(it -> this.referencePositionMap.get(it.getReferencedPrimaryKey())));
+			.filter(this::carriesAnyElement)
+			.min(this.referenceOrder);
 	}
 
 	@Override
@@ -100,7 +122,10 @@ public class PickFirstReferenceCompoundAttributeComparator extends AbstractRefer
 		final ReferenceAttributeValue valueToCompare1 = getAndMemoizeValue(o1);
 		final ReferenceAttributeValue valueToCompare2 = getAndMemoizeValue(o2);
 		if (valueToCompare1 != ReferenceAttributeValue.MISSING && valueToCompare2 != ReferenceAttributeValue.MISSING) {
-			return valueToCompare1.compareTo(valueToCompare2);
+			// the picked references are compared on their values only - which target they belong to decided which
+			// reference was picked and must not decide the order of the entities as well
+			final int result = this.comparator.compare(valueToCompare1.attributeValues(), valueToCompare2.attributeValues());
+			return result == 0 ? this.pkComparator.compare(o1, o2) : result;
 		} else {
 			if (valueToCompare1 != ReferenceAttributeValue.MISSING) {
 				return -1;
@@ -110,6 +135,22 @@ public class PickFirstReferenceCompoundAttributeComparator extends AbstractRefer
 				return 0;
 			}
 		}
+	}
+
+	/**
+	 * Tells whether the reference carries a value of at least one element of the compound, read in the locale of the
+	 * query - the condition under which the index route holds the reference in the compound's sort index.
+	 *
+	 * @param reference the reference to test
+	 * @return `true` when at least one element has a value
+	 */
+	private boolean carriesAnyElement(@Nonnull ReferenceContract reference) {
+		for (AttributeElement attributeElement : this.attributeElements) {
+			if (this.attributeValueFetcher.apply(reference, attributeElement.attributeName()) != null) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 }

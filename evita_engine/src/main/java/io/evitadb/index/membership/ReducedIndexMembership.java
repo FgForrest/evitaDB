@@ -50,7 +50,7 @@ import java.util.Set;
  *
  * # What it is for
  *
- * Two readers ask the same question, and both would otherwise answer it by walking **every** reduced index a
+ * Three readers ask the same question, and each would otherwise answer it by walking **every** reduced index a
  * reference advertises:
  *
  * - `ReevaluateExpressionExecutor#collectOwnersOfReducedIndexes` intersects each index's member bitmap against
@@ -60,6 +60,9 @@ import java.util.Set;
  * - `IndexSelectionVisitor` decides whether a `referenceHaving` is better answered from the reference's reduced
  *   indexes or from the main index, and today reaches that decision by materialising the whole candidate set
  *   and summing its cardinalities (issue #1603).
+ * - `PickFirstReducedIndexResolver` finds the reduced indexes holding a row of the owners a `pickFirst` reference
+ *   ordering sorts (issue #1614). Walking the whole family instead costs the same whatever the selection - 158 ms
+ *   for a single owner on a production catalog's 169,073 `Product.media` partitions.
  *
  * This structure removes that walk for the indexes it covers.
  *

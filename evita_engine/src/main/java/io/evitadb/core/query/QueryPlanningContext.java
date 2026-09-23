@@ -841,6 +841,24 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Returns {@link EntityIndex} of the **queried** entity collection by its storage primary key, or `null` when the
+	 * collection holds no index of that key.
+	 *
+	 * The lenient counterpart of {@link #getEntityIndexByPrimaryKey(int, Class)}, for primary keys that come from an
+	 * accelerator rather than from the index that owns them - typically
+	 * {@link io.evitadb.index.membership.ReducedIndexMembership}, whose entries may name an index that has since been
+	 * dropped, or one of a different family than the caller walks. Such a caller must tolerate a miss and check the
+	 * type itself, which is why this method neither asserts the presence nor the type.
+	 *
+	 * @param indexPrimaryKey primary key of the requested index
+	 * @return the index or `null` when the queried collection holds no index of that primary key
+	 */
+	@Nullable
+	public EntityIndex getEntityIndexByPrimaryKeyIfExists(int indexPrimaryKey) {
+		return this.indexesByPk.get(indexPrimaryKey) instanceof EntityIndex entityIndex ? entityIndex : null;
+	}
+
+	/**
 	 * Returns {@link EntityIndex} of the **queried** entity collection by its storage primary key.
 	 *
 	 * The lookup reads {@link #indexesByPk}, which holds the indexes of the collection this context plans over and

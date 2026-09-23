@@ -108,7 +108,8 @@ order the localized attribute string, so that the order is consistent with the n
 The sorting mechanism of evitaDB is somewhat different from what you might be used to. If you sort entities by two
 attributes in an `orderBy` clause of the query, evitaDB sorts them first by the first attribute (if present) and then
 by the second (but only those where the first attribute is missing). If two entities have the same value of the first
-attribute, they are not sorted by the second attribute, but by the primary key (in ascending order).
+attribute, they are not sorted by the second attribute, but by the primary key in the direction of the ordering
+(ascending for an ascending order, descending for a descending one).
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 

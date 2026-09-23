@@ -270,10 +270,12 @@ public class BidirectionalReferenceRewriter {
 		if (split == null) {
 			return null;
 		}
-		// `orderBy(referenceProperty(R, ...))` sorts owners by the position of their reference row among the reduced
-		// indexes index selection picked for R (`ReferencePropertyTranslator#selectReducedEntityIndexSet`). Taking the
-		// rewrite removes that entry, and the sorter silently falls back to *every* reduced index of R - which orders
-		// owners by their first reference row rather than their first *matching* one. Leave those queries alone.
+		// `orderBy(referenceProperty(R, ...))` in its block-by-block forms - `traverseByEntityProperty` and chain
+		// attributes - sorts owners among the reduced indexes index selection picked for R
+		// (`ReferencePropertyTranslator#selectPlanningReducedIndexes`). Taking the rewrite removes that entry, and the
+		// sorter silently falls back to *every* reduced index of R, which changes the blocks. Leave those queries alone.
+		// A pick-first ordering by a comparable value reads no candidate set (it resolves its indexes from the
+		// selection), so for that shape the guard is conservative rather than necessary.
 		if (orderedByTheSameReference(queryContext, ownerReference.getName())) {
 			return null;
 		}
@@ -486,8 +488,10 @@ public class BidirectionalReferenceRewriter {
 	/**
 	 * Tells whether the query sorts by a property of the very reference the rewrite would take over.
 	 *
-	 * The sorter reads the reduced index set index selection registered for that reference name, so removing the entry
-	 * changes the ordering rather than merely the plan - see {@code ReferencePropertyTranslator:104-122}.
+	 * The block-by-block reference orderings read the reduced index set index selection registered for that reference
+	 * name, so removing the entry changes the ordering rather than merely the plan - see
+	 * {@code ReferencePropertyTranslator#selectPlanningReducedIndexes}. The check does not tell those orderings apart
+	 * from a pick-first ordering by a comparable value, which no longer depends on the entry, and declines both.
 	 */
 	private static boolean orderedByTheSameReference(
 		@Nonnull QueryPlanningContext queryContext,

@@ -23,13 +23,15 @@
 
 package io.evitadb.core.query.sort.attribute.comparator;
 
-import com.carrotsearch.hppc.IntIntMap;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.PickFirstByEntityProperty;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeMode;
+import io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -37,30 +39,34 @@ import java.io.Serial;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.function.Function;
-import java.util.function.Supplier;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Attribute comparator sorts entities according to a specified attribute value. It needs to provide a function for
  * accessing the entity attribute value and the simple {@link Comparable} comparator implementation. This implementation
  * adheres to {@link MergeMode#APPEND_FIRST} which relates to {@link PickFirstByEntityProperty} ordering.
  *
+ * It is the prefetch-route twin of the index route built by {@link PickFirstReducedIndexResolver}, and must pick the
+ * very row that route picks: an entity sorts on its first reference, in target order, that carries the attribute -
+ * references sharing one target in the order of their representative attribute values - and entities with equal
+ * values follow in the order of their primary keys in the direction of the ordering.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class PickFirstReferenceAttributeComparator extends AbstractReferenceAttributeComparator {
 	@Serial private static final long serialVersionUID = 2969632214608241409L;
 	/**
-	 * Supplier of the index of the referenced id positions in the main ordering.
+	 * Resolver providing the target order the index route walks.
 	 */
-	@Nonnull protected final Supplier<IntIntMap> referencePositionMapSupplier;
+	@Nonnull private final transient PickFirstReducedIndexResolver indexResolver;
 	/**
-	 * Function that extracts the attribute value from the reference contract.
+	 * Picks the first reference in target order among the references carrying the attribute.
 	 */
-	private final Function<ReferenceContract, Comparable<?>> attributeExtractor;
+	@Nonnull private final transient Comparator<ReferenceContract> referenceOrder;
 	/**
-	 * Memoized result from {@link #referencePositionMapSupplier} supplier.
+	 * Rank of the targets of the entities being sorted, set by {@link #prepareForSelection(Bitmap)}.
 	 */
-	protected IntIntMap referencePositionMap;
+	@Nullable private transient IntUnaryOperator targetRank;
 
 	public PickFirstReferenceAttributeComparator(
 		@Nonnull String attributeName,
@@ -68,7 +74,7 @@ public class PickFirstReferenceAttributeComparator extends AbstractReferenceAttr
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull OrderDirection orderDirection,
-		@Nonnull Supplier<IntIntMap> referencePositionMapSupplier
+		@Nonnull PickFirstReducedIndexResolver indexResolver
 	) {
 		super(
 			attributeName,
@@ -77,24 +83,32 @@ public class PickFirstReferenceAttributeComparator extends AbstractReferenceAttr
 			locale,
 			orderDirection
 		);
-		this.referencePositionMapSupplier = referencePositionMapSupplier;
-		this.attributeExtractor = locale == null ?
-			referenceContract -> referenceContract.getAttribute(attributeName) :
-			referenceContract -> referenceContract.getAttribute(attributeName, locale);
+		this.indexResolver = indexResolver;
+		this.referenceOrder = PickFirstReferenceOrder.create(
+			referenceSchema,
+			referencedPrimaryKey -> {
+				Assert.isPremiseValid(
+					this.targetRank != null,
+					"The comparator must be prepared for the selection before it compares entities!"
+				);
+				return this.targetRank.applyAsInt(referencedPrimaryKey);
+			}
+		);
+	}
+
+	@Override
+	public void prepareForSelection(@Nonnull Bitmap entityPrimaryKeys) {
+		this.targetRank = this.indexResolver.getTargetRank(entityPrimaryKeys);
 	}
 
 	@Nonnull
 	@Override
 	protected Optional<ReferenceContract> pickReference(@Nonnull EntityContract entity) {
-		// initialize the reference position map if it hasn't been initialized yet
-		if (this.referencePositionMap == null) {
-			this.referencePositionMap = this.referencePositionMapSupplier.get();
-		}
-		// find the reference contract that has the attribute we are looking for
+		// find the first reference in target order that has the attribute we are looking for
 		return entity.getReferences(this.referenceName)
 			.stream()
 			.filter(it -> this.attributeExtractor.apply(it) != null)
-			.min(Comparator.comparingInt(it -> this.referencePositionMap.get(it.getReferencedPrimaryKey())));
+			.min(this.referenceOrder);
 	}
 
 	@Override
@@ -102,7 +116,10 @@ public class PickFirstReferenceAttributeComparator extends AbstractReferenceAttr
 		final ReferenceAttributeValue attribute1 = this.attributeValueFetcher.apply(o1);
 		final ReferenceAttributeValue attribute2 = this.attributeValueFetcher.apply(o2);
 		if (attribute1 != null && attribute2 != null) {
-			final int result = attribute1.compareTo(attribute2);
+			// the picked references are compared on their values only - which target they belong to decided which
+			// reference was picked and must not decide the order of the entities as well
+			//noinspection unchecked
+			final int result = attribute1.comparator().compare(attribute1.attributeValue(), attribute2.attributeValue());
 			if (result == 0) {
 				return this.pkComparator.compare(o1, o2);
 			} else {

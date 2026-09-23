@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.sort.attribute.sorter;
 
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.SharedBufferPool;
@@ -143,6 +144,7 @@ class PreSortedRecordsSorterTest {
 			new PreSortedRecordsSorter(
 				MergeMode.APPEND_FIRST,
 				Comparator.naturalOrder(),
+				OrderDirection.ASC,
 				() -> new SortedRecordsProvider[]{new MockSortedRecordsSupplier(7, 2, 4, 1, 3, 8, 5, 9, 6)}
 			),
 			planningContext
@@ -220,6 +222,7 @@ class PreSortedRecordsSorterTest {
 				new PreSortedRecordsSorter(
 					MergeMode.APPEND_FIRST,
 					Comparator.naturalOrder(),
+					OrderDirection.ASC,
 					() -> new SortedRecordsProvider[]{new MockSortedRecordsSupplier(13, 0, 12)}
 				)
 			)
@@ -244,6 +247,7 @@ class PreSortedRecordsSorterTest {
 		final PreSortedRecordsSorter sorter = new PreSortedRecordsSorter(
 			MergeMode.APPEND_FIRST,
 			Comparator.naturalOrder(),
+			OrderDirection.ASC,
 			() -> new SortedRecordsProvider[]{sortedRecordsSupplier}
 		);
 		final QueryExecutionContext queryContext = Mockito.mock(QueryExecutionContext.class);

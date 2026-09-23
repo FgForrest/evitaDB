@@ -117,6 +117,7 @@ public class PrefetchedRecordsSorter implements Sorter {
 			final int peak = sortingContext.peak();
 
 			this.entityComparator.prepareFor(recomputedEndIndex - recomputedStartIndex);
+			this.entityComparator.prepareForSelection(selectedRecordIds);
 
 			if (this.entityComparator instanceof EntityReferenceSensitiveComparator ersc && sortingContext.referenceKey() != null) {
 				ersc.withReferencedEntityId(
