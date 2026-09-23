@@ -129,8 +129,18 @@ public class ReferenceNarrowingDecodeBenchmark {
 	}
 
 	@Benchmark
+	public int decodeKeyNarrowed(RecordState state) {
+		return state.decode(state.projectedKeys).getReferences().length;
+	}
+
+	@Benchmark
 	public int decodeAndIndexAll(RecordState state) {
 		return state.decodeAndIndex(null);
+	}
+
+	@Benchmark
+	public int decodeAndIndexKeyNarrowed(RecordState state) {
+		return state.decodeAndIndex(state.projectedKeys);
 	}
 
 	@Benchmark
@@ -153,10 +163,18 @@ public class ReferenceNarrowingDecodeBenchmark {
 		@Param({"1000", "10000", "72217"})
 		public int backReferences;
 
+		/**
+		 * How many of the `products` back-references the key-narrowed arms admit. A projection naming exact
+		 * referenced keys asks for a page of them, not for the whole run - this is that page.
+		 */
+		@Param({"20"})
+		public int admittedBackReferences;
+
 		private EntitySchema schema;
 		private Kryo kryo;
 		private byte[] serialized;
 		private ReferenceDecodeCoverage projectedNames;
+		private ReferenceDecodeCoverage projectedKeys;
 
 		@Setup(Level.Trial)
 		public void setUp() {
@@ -166,6 +184,16 @@ public class ReferenceNarrowingDecodeBenchmark {
 					.andThen(new EntityStoragePartConfigurer(new ReadWriteKeyCompressor(new ConcurrentHashMap<>())))
 			);
 			this.projectedNames = ReferenceDecodeCoverage.ofNames(Set.of(PARAMETER));
+			// the key axis: `parameter` whole, `products` bounded to the keys the projection named. The back
+			// references carry primary keys 1..backReferences, so admitting the first N of them is the shape a
+			// query naming exact keys at its filter's conjunctive root produces
+			final int[] admittedKeys = new int[Math.min(this.admittedBackReferences, this.backReferences)];
+			for (int i = 0; i < admittedKeys.length; i++) {
+				admittedKeys[i] = i + 1;
+			}
+			this.projectedKeys = ReferenceDecodeCoverage.of(
+				Set.of(PARAMETER), Map.of(PRODUCTS, admittedKeys)
+			);
 			final ByteArrayOutputStream baos = new ByteArrayOutputStream(4 << 20);
 			try (final ByteBufferOutput output = new ByteBufferOutput(baos, 1 << 20)) {
 				EntitySchemaContext.executeWithSchemaContext(this.schema, () -> {

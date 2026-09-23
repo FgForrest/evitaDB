@@ -33,6 +33,7 @@ import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.References.ChunkTransformerAccessor;
