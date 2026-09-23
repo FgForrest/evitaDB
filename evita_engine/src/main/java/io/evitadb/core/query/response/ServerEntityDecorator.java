@@ -718,6 +718,15 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 *
 	 * Answering an EMPTY array rather than NULL is what makes the view empty: NULL means "build the view from the
 	 * entity's own references" and would restore the second copy this exists to avoid.
+	 *
+	 * The view may only be emptied while THIS decorator actually holds a named chunk for the name, which is what
+	 * the second test establishes. The predicate accumulates named reference names across enrichments, but
+	 * {@link #fillFilteredSortedAndFetchedReferences} rebuilds {@link #namedReferenceSets} from the enriching
+	 * request's own named requirements - and builds none at all when that request declares no reference content.
+	 * A name an earlier request asked for by name therefore arrives here still marked "requested only as named"
+	 * with its chunk gone, and emptying its view on that basis would leave references the entity demonstrably read
+	 * reachable through nothing whatsoever. Falling back to the entity's own references is both correct and what
+	 * the reference predicate - cumulative, so it still admits the name - already describes.
 	 */
 	@Nullable
 	@Override
@@ -725,8 +734,31 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		@Nonnull String referenceName,
 		@Nonnull ReferenceContractSerializablePredicate referencePredicate
 	) {
-		return referencePredicate.isReferenceRequestedOnlyAsNamed(referenceName) ?
+		return referencePredicate.isReferenceRequestedOnlyAsNamed(referenceName) &&
+			holdsNamedChunkFor(referenceName) ?
 			EMPTY_REFERENCE_DECORATORS : null;
+	}
+
+	/**
+	 * Tells whether this decorator carries a named chunk over `referenceName` - i.e. whether the named requirements
+	 * this decorator was built from can answer for that name.
+	 *
+	 * The scan is over the named requirements of a single request, which is the number of reference content
+	 * instance names one query declares - a handful, and independent of how many references the entity holds.
+	 *
+	 * @param referenceName name of the reference to look for
+	 * @return TRUE when at least one named chunk covers the reference name
+	 */
+	private boolean holdsNamedChunkFor(@Nonnull String referenceName) {
+		if (this.namedReferenceSets == null) {
+			return false;
+		}
+		for (ReferenceContentKey key : this.namedReferenceSets.keySet()) {
+			if (key.referenceName().equals(referenceName)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
