@@ -27,6 +27,7 @@ import com.github.javafaker.Faker;
 import io.evitadb.api.AbstractHundredProductsFunctionalTest;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -35,6 +36,7 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
 import io.evitadb.core.Evita;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
@@ -237,6 +239,37 @@ abstract class AbstractEntityFetchingFunctionalTest extends AbstractHundredProdu
 	static void assertHasReferencesTo(
 		@Nonnull SealedEntity product, @Nonnull String referenceName, int... primaryKeys) {
 		final Collection<ReferenceContract> references = product.getReferences(referenceName);
+		final Set<Integer> expectedKeys = Arrays.stream(primaryKeys).boxed().collect(Collectors.toSet());
+		assertEquals(primaryKeys.length, references.size());
+		for (ReferenceContract reference : references) {
+			assertEquals(referenceName, reference.getReferenceName());
+			expectedKeys.remove(reference.getReferencedPrimaryKey());
+		}
+		assertTrue(
+			expectedKeys.isEmpty(),
+			"Expected references to these " + referenceName + ": " +
+				expectedKeys.stream().map(Object::toString).collect(Collectors.joining(", ")) +
+				" but were not found!"
+		);
+	}
+
+	/**
+	 * Asserts that the NAMED reference chunk `instanceName` produced holds references to the specified primary
+	 * keys.
+	 *
+	 * A reference name that only named requirements asked for has an EMPTY unnamed view, so
+	 * {@link #assertHasReferencesTo(SealedEntity, String, int...)} cannot see those references - the chunk the
+	 * requirement built is the only place they live.
+	 */
+	static void assertNamedChunkHasReferencesTo(
+		@Nonnull SealedEntity product, @Nonnull String instanceName, @Nonnull String referenceName,
+		int... primaryKeys
+	) {
+		assertInstanceOf(ServerEntityDecorator.class, product);
+		final Collection<ReferenceContract> references = ((ServerEntityDecorator) product)
+			.getReferencesForReferenceContentInstance(new ReferenceContentKey(instanceName, referenceName))
+			.orElseThrow()
+			.getData();
 		final Set<Integer> expectedKeys = Arrays.stream(primaryKeys).boxed().collect(Collectors.toSet());
 		assertEquals(primaryKeys.length, references.size());
 		for (ReferenceContract reference : references) {
