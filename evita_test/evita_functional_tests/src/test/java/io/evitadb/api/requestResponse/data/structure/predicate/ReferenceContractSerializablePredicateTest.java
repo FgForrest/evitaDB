@@ -53,6 +53,16 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.REFERENCE;
@@ -1857,4 +1867,218 @@ class ReferenceContractSerializablePredicateTest {
 			assertFalse(richerCopy.wasFetched("Z"));
 		}
 	}
+
+	/**
+	 * Covers the storage facing half of the predicate - the coverage it hands the decoder, and the rules by which
+	 * an enrichment combines one predicate's key narrowing with another request's.
+	 *
+	 * The coverage is what the enrichment gate compares and what the deserializer decides admission on, so a
+	 * mistake here is never a failure: it is a reference set that is silently shorter than the caller asked for.
+	 */
+	@Nested
+	@DisplayName("Decode coverage")
+	class DecodeCoverageTest {
+		private static final String NARROWED = "narrowed";
+		private static final String WHOLE = "whole";
+
+		@Test
+		@DisplayName("splits the visible names into the ones read whole and the ones bound to keys")
+		void shouldSplitVisibleNamesIntoWholeAndKeyNarrowed() {
+			final ReferenceContractSerializablePredicate predicate = narrowingPredicate(
+				Map.of(NARROWED, new int[]{10, 20}), NARROWED, WHOLE
+			);
+
+			final ReferenceDecodeCoverage coverage = predicate.getDecodeCoverage();
+
+			assertNotNull(coverage);
+			assertEquals(Set.of(WHOLE), coverage.getNamesDecodedWhole());
+			assertEquals(Set.of(NARROWED), coverage.getNamesDecodedByKey().keySet());
+			assertArrayEquals(new int[]{10, 20}, coverage.getAdmittedKeys(NARROWED).toArray());
+		}
+
+		@Test
+		@DisplayName("hands out one and the same coverage instance on every call")
+		void shouldReturnTheSameCoverageInstanceOnEveryCall() {
+			final ReferenceContractSerializablePredicate predicate = narrowingPredicate(
+				Map.of(NARROWED, new int[]{10}), NARROWED, WHOLE
+			);
+
+			// the deserializer compares the bound coverage by identity to resolve a per-name admission once per run
+			// of same-named references - a fresh equal object per read would re-resolve it for every reference
+			assertSame(predicate.getDecodeCoverage(), predicate.getDecodeCoverage());
+		}
+
+		@Test
+		@DisplayName("reports no coverage at all when the predicate narrows nothing away")
+		void shouldReturnNullCoverageWhenNoNameIsNarrowed() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate();
+
+			// unrestricted is the absence of an object, never an object claiming to admit everything
+			assertNull(predicate.getDecodeCoverage());
+			assertTrue(ReferenceDecodeCoverage.isComplete(predicate.getDecodeCoverage()));
+		}
+
+		@Test
+		@DisplayName("keeps a name bound when both sides bind it, to the union of their key sets")
+		void shouldKeepANameNarrowedOnlyWhenBothSidesNarrowIt() {
+			final ReferenceContractSerializablePredicate predicate = narrowingPredicate(
+				Map.of(NARROWED, new int[]{10, 30}), NARROWED
+			);
+
+			final ReferenceContractSerializablePredicate richer = predicate.createRicherCopyWith(
+				narrowingRequest(Map.of(NARROWED, new int[]{20, 30}), NARROWED)
+			);
+
+			final ReferenceDecodeCoverage coverage = richer.getDecodeCoverage();
+			assertNotNull(coverage);
+			// the enriched entity has to satisfy both requirements, so the decode has to cover both key sets
+			assertArrayEquals(new int[]{10, 20, 30}, coverage.getAdmittedKeys(NARROWED).toArray());
+			assertTrue(coverage.getNamesDecodedWhole().isEmpty());
+		}
+
+		@Test
+		@DisplayName("un-binds a name the new request wants in full")
+		void shouldUnNarrowANameTheNewRequestWantsWhole() {
+			final ReferenceContractSerializablePredicate predicate = narrowingPredicate(
+				Map.of(NARROWED, new int[]{10}), NARROWED
+			);
+
+			final ReferenceContractSerializablePredicate richer = predicate.createRicherCopyWith(
+				narrowingRequest(Collections.emptyMap(), NARROWED)
+			);
+
+			assertNameDecodedWhole(richer, NARROWED);
+		}
+
+		@Test
+		@DisplayName("un-binds a name the new request does not mention at all")
+		void shouldUnNarrowANameTheNewRequestDoesNotMention() {
+			final ReferenceContractSerializablePredicate predicate = narrowingPredicate(
+				Map.of(NARROWED, new int[]{10}), NARROWED
+			);
+
+			final ReferenceContractSerializablePredicate richer = predicate.createRicherCopyWith(
+				narrowingRequest(Map.of(WHOLE, new int[]{99}), WHOLE)
+			);
+
+			// deliberately conservative in this direction: widening costs a decode, keeping a narrowing the other
+			// side never agreed to would drop references
+			assertNameDecodedWhole(richer, NARROWED);
+		}
+
+		@Test
+		@DisplayName("stays un-bound when this predicate binds nothing to begin with")
+		void shouldStayUnNarrowedWhenThisPredicateNarrowsNothing() {
+			final ReferenceContractSerializablePredicate predicate = narrowingPredicate(
+				Collections.emptyMap(), NARROWED
+			);
+
+			final ReferenceContractSerializablePredicate richer = predicate.createRicherCopyWith(
+				narrowingRequest(Map.of(NARROWED, new int[]{10}), NARROWED)
+			);
+
+			assertNameDecodedWhole(richer, NARROWED);
+		}
+
+		@Test
+		@DisplayName("hands back itself when the binding did not change")
+		void shouldReturnItselfWhenTheNarrowingDidNotChange() {
+			final ReferenceContractSerializablePredicate predicate = narrowingPredicate(
+				Map.of(NARROWED, new int[]{10, 20}), NARROWED
+			);
+
+			// identity, not equality: the enrichment compares predicates by reference and skips a storage round
+			// trip on it, so a copy allocated when nothing widened turns every enrichment into a re-read
+			assertSame(
+				predicate,
+				predicate.createRicherCopyWith(narrowingRequest(Map.of(NARROWED, new int[]{10, 20}), NARROWED))
+			);
+		}
+
+		@Test
+		@DisplayName("a limited view keeps the binding the read behind it was performed under")
+		void shouldInheritANarrowingIntoALimitedView() {
+			final ReferenceContractSerializablePredicate underlying = narrowingPredicate(
+				Map.of(NARROWED, new int[]{10}), NARROWED
+			);
+
+			final ReferenceContractSerializablePredicate limited =
+				new ReferenceContractSerializablePredicate(
+					narrowingRequest(Map.of(NARROWED, new int[]{10}), NARROWED), underlying
+				);
+
+			final ReferenceDecodeCoverage coverage = limited.getDecodeCoverage();
+			assertNotNull(coverage);
+			// a limited view shows LESS of an entity that has already been read, so it cannot have decoded more
+			// than that read did - claiming the name whole here would let the gate answer "already fetched"
+			assertArrayEquals(new int[]{10}, coverage.getAdmittedKeys(NARROWED).toArray());
+			assertFalse(coverage.isNameDecodedWhole(NARROWED));
+		}
+
+		/**
+		 * Asserts a predicate's coverage reports the passed reference name as materialized in full.
+		 *
+		 * @param predicate     predicate whose coverage is examined
+		 * @param referenceName reference name that must be reported whole
+		 */
+		private void assertNameDecodedWhole(
+			@Nonnull ReferenceContractSerializablePredicate predicate,
+			@Nonnull String referenceName
+		) {
+			final ReferenceDecodeCoverage coverage = predicate.getDecodeCoverage();
+			if (coverage != null) {
+				assertTrue(
+					coverage.isNameDecodedWhole(referenceName),
+					"`" + referenceName + "` must be read whole, not bound to a key set."
+				);
+				assertNull(coverage.getAdmittedKeys(referenceName));
+			}
+		}
+
+		/**
+		 * Builds a predicate asking for the passed reference names, with the passed per-name key binding.
+		 *
+		 * @param referenceKeyNarrowing referenced primary keys each name is bound to
+		 * @param referenceNames        reference names the predicate lets through
+		 * @return the predicate
+		 */
+		@Nonnull
+		private ReferenceContractSerializablePredicate narrowingPredicate(
+			@Nonnull Map<String, int[]> referenceKeyNarrowing,
+			@Nonnull String... referenceNames
+		) {
+			return new ReferenceContractSerializablePredicate(
+				Arrays.stream(referenceNames)
+					.collect(Collectors.toMap(Function.identity(), it -> AttributeRequest.EMPTY)),
+				Collections.emptySet(), null, true, null, Collections.emptySet(),
+				referenceKeyNarrowing
+			);
+		}
+
+		/**
+		 * Builds a request asking for the passed reference names, with the passed per-name key binding.
+		 *
+		 * @param referenceKeyNarrowing referenced primary keys each name is bound to
+		 * @param referenceNames        reference names the request asks for
+		 * @return the request stub
+		 */
+		@Nonnull
+		private EvitaRequest narrowingRequest(
+			@Nonnull Map<String, int[]> referenceKeyNarrowing,
+			@Nonnull String... referenceNames
+		) {
+			final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
+			Mockito.when(evitaRequest.isRequiresEntityReferences()).thenReturn(true);
+			Mockito.when(evitaRequest.getReferenceEntityFetch())
+				.thenReturn(getDefaultRequirementContext(Arrays.asList(referenceNames)));
+			Mockito.when(evitaRequest.getNamedReferenceEntityFetch()).thenReturn(Collections.emptyMap());
+			Mockito.when(evitaRequest.getImplicitLocale()).thenReturn(null);
+			Mockito.when(evitaRequest.getRequiredLocales()).thenReturn(Collections.emptySet());
+			Mockito.when(evitaRequest.getDefaultReferenceRequirement()).thenReturn(null);
+			Mockito.when(evitaRequest.getReferenceKeyNarrowing()).thenReturn(referenceKeyNarrowing);
+			return evitaRequest;
+		}
+	}
+
 }

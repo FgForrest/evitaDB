@@ -7,8 +7,8 @@ materializes only the names the caller can see and steps the stream past the res
 It exists because the end-to-end effect could only be measured against a restored production
 catalogue, on a shared box, where the run-to-run floor is wide enough to swallow anything under
 ~30 %. This benchmark takes the server out of the picture: one pre-serialized record, one decode,
-two arms that differ **only** in the filter bound by
-`ReferenceNameFilterContext.executeWithReferenceNameFilter`.
+two arms that differ **only** in the coverage bound by
+`ReferenceDecodeCoverageContext.executeWithCoverage`.
 
 ## What is measured
 

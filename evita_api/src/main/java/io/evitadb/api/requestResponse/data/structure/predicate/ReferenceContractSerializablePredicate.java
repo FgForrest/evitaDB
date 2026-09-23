@@ -395,7 +395,11 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		this.implicitLocale = evitaRequest.getImplicitLocale();
 		this.locales = evitaRequest.getRequiredLocales();
 		this.underlyingPredicate = underlyingPredicate;
-		this.referenceKeyNarrowing = Collections.emptyMap();
+		// inherited, never reset: a limited view shows LESS of an entity that has already been read, so it cannot
+		// have decoded more than the read behind it did. Claiming an empty narrowing here would report a name as
+		// decoded whole when the data behind it was decoded by key, and the enrichment gate - which compares
+		// coverage - would then answer "already fetched" and serve a silently short reference set.
+		this.referenceKeyNarrowing = underlyingPredicate.referenceKeyNarrowing;
 		this.visibleReferenceNames = computeVisibleReferenceNames();
 	}
 
@@ -518,18 +522,6 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	}
 
 	/**
-	 * Returns the reference names this predicate lets through, or NULL when it lets **all** of them through.
-	 *
-	 * This is the set form of {@link #isReferenceRequested(String)}, and the two cannot drift because both read
-	 * {@link #visibleReferenceNames}: the storage layer uses this set to decode only the references the caller will
-	 * be able to see (see `io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext`), so a name missing
-	 * here is a name that is never materialized - and the visibility methods therefore have to report it as not
-	 * fetched rather than as present and empty. NULL is returned both when all references are allowed and when none
-	 * are - the latter never reaches the storage layer, which checks {@code isRequiresEntityReferences()} first.
-	 *
-	 * @return the allowed reference names, or NULL when the predicate does not narrow them by name
-	 */
-	/**
 	 * Returns how much of an entity's reference set a read performed under this predicate may materialize, or NULL
 	 * when it may materialize all of it.
 	 *
@@ -569,6 +561,18 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		return this.memoizedDecodeCoverage;
 	}
 
+	/**
+	 * Returns the reference names this predicate lets through, or NULL when it lets **all** of them through.
+	 *
+	 * This is the set form of {@link #isReferenceRequested(String)}, and the two cannot drift because both read
+	 * {@link #visibleReferenceNames}: the storage layer uses this set to decode only the references the caller will
+	 * be able to see (see `io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext`), so a name missing
+	 * here is a name that is never materialized - and the visibility methods therefore have to report it as not
+	 * fetched rather than as present and empty. NULL is returned both when all references are allowed and when none
+	 * are - the latter never reaches the storage layer, which checks {@code isRequiresEntityReferences()} first.
+	 *
+	 * @return the allowed reference names, or NULL when the predicate does not narrow them by name
+	 */
 	@Nullable
 	public Set<String> getVisibleReferenceNames() {
 		return this.visibleReferenceNames;

@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.buffer.DataStoreReader;
+import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import lombok.RequiredArgsConstructor;
 
@@ -126,9 +127,15 @@ class ReferencedEntityAttributeValueProvider implements ReflectedReferenceAttrib
 		@Nonnull ReferenceKey referenceCarrier,
 		@Nonnull String attributeName
 	) {
-		// fetch the referenced entity reference part, this is quite expensive operation
-		final ReferencesStoragePart referencedEntityReferencePart = this.dataStoreReader.fetch(
-			this.catalogVersion, referenceCarrier.primaryKey(), ReferencesStoragePart.class
+		// fetch the referenced entity reference part, this is quite expensive operation.
+		// The unrestricted coverage is bound explicitly: this runs on the caller's thread during an upsert, which
+		// may be a thread a read further up the stack narrowed, and the lookup below asks for one specific
+		// reference of the referenced entity - a narrowed part would report it missing rather than skipped.
+		final ReferencesStoragePart referencedEntityReferencePart = ReferenceDecodeCoverageContext.executeWithCoverage(
+			null,
+			() -> this.dataStoreReader.fetch(
+				this.catalogVersion, referenceCarrier.primaryKey(), ReferencesStoragePart.class
+			)
 		);
 		if (referencedEntityReferencePart == null) {
 			return List.of();

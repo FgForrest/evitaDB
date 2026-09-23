@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.structure.predicate;
 
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage.DecodedKeys;
 import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -237,7 +238,7 @@ class ReferenceDecodeCoverageTest {
 			final ReferenceDecodeCoverage coverage = ReferenceDecodeCoverage.of(
 				Set.of(), Map.of("products", new int[]{30, 10, 20})
 			);
-			assertArrayEquals(new int[]{10, 20, 30}, coverage.getNamesDecodedByKey().get("products"));
+			assertArrayEquals(new int[]{10, 20, 30}, coverage.getAdmittedKeys("products").toArray());
 			assertTrue(coverage.isReferenceDecoded("products", 10));
 			assertTrue(coverage.isReferenceDecoded("products", 20));
 			assertTrue(coverage.isReferenceDecoded("products", 30));
@@ -289,5 +290,74 @@ class ReferenceDecodeCoverageTest {
 			assertEquals(left, right);
 			assertEquals(left.hashCode(), right.hashCode());
 		}
+
+
+		@Test
+		@DisplayName("Mutating the array the coverage handed out does not reach the coverage either")
+		void shouldNotLetTheHandedOutArrayReachTheCoverage() {
+			final ReferenceDecodeCoverage coverage = ReferenceDecodeCoverage.of(
+				Set.of(), Map.of("products", new int[]{10, 20, 30})
+			);
+
+			final int[] handedOut = coverage.getAdmittedKeys("products").toArray();
+			handedOut[0] = 999;
+
+			// this is the direction that matters: the coverage is a cache record identity with a precomputed hash,
+			// so a caller able to edit a key set behind its back would make an already cached value disagree with
+			// the coverage that describes it, silently
+			assertTrue(coverage.isReferenceDecoded("products", 10));
+			assertFalse(coverage.isReferenceDecoded("products", 999));
+			assertArrayEquals(new int[]{10, 20, 30}, coverage.getAdmittedKeys("products").toArray());
+		}
+
+		@Test
+		@DisplayName("The map of key-narrowed names refuses to be written to")
+		void shouldRefuseWritesToTheKeyNarrowedNameMap() {
+			final ReferenceDecodeCoverage coverage = ReferenceDecodeCoverage.of(
+				Set.of(), Map.of("products", new int[]{10})
+			);
+
+			final Map<String, DecodedKeys> namesDecodedByKey = coverage.getNamesDecodedByKey();
+			assertThrows(
+				UnsupportedOperationException.class,
+				() -> namesDecodedByKey.put("categories", DecodedKeys.of(new int[]{1}))
+			);
+			assertThrows(UnsupportedOperationException.class, () -> namesDecodedByKey.remove("products"));
+		}
+
+		@Test
+		@DisplayName("The set of whole-decoded names refuses to be written to")
+		void shouldRefuseWritesToTheWholeDecodedNameSet() {
+			final ReferenceDecodeCoverage coverage = ReferenceDecodeCoverage.of(
+				Set.of("categories"), Map.of()
+			);
+
+			final Set<String> namesDecodedWhole = coverage.getNamesDecodedWhole();
+			assertThrows(UnsupportedOperationException.class, () -> namesDecodedWhole.add("products"));
+		}
+
+		@Test
+		@DisplayName("Identity survives every attempt a caller can make to change it")
+		void shouldKeepIdentityStableAgainstEveryCallerAttempt() {
+			final int[] callersKeys = {10, 20};
+			final ReferenceDecodeCoverage coverage = ReferenceDecodeCoverage.of(
+				Set.of("categories"), Map.of("products", callersKeys)
+			);
+			final ReferenceDecodeCoverage twin = ReferenceDecodeCoverage.of(
+				Set.of("categories"), Map.of("products", new int[]{10, 20})
+			);
+			final int hashBefore = coverage.hashCode();
+
+			callersKeys[1] = 999;
+			coverage.getAdmittedKeys("products").toArray()[0] = 999;
+
+			assertEquals(hashBefore, coverage.hashCode());
+			assertEquals(coverage, twin);
+			assertEquals(coverage.hashCode(), twin.hashCode());
+		}
+
+	
+
 	}
+
 }

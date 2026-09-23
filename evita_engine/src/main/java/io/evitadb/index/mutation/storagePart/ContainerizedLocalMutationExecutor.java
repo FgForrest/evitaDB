@@ -492,19 +492,6 @@ public final class ContainerizedLocalMutationExecutor
 	}
 
 	/**
-	 * Finds the primary reference key associated with the given {@code representativeReferenceKey}.
-	 * Validates that the reference has a known internal primary key and is present in the reference storage.
-	 *
-	 * @param referenceSchema The schema defining the structure of the reference.
-	 * @param dataStoreReader The data store reader instance to fetch reference storage part data.
-	 * @param entityPrimaryKey The primary key of the entity to which the reference belongs.
-	 * @param referenceKey The generic reference key whose associated primary reference key is to be found.
-	 * @param representativeAttributeValues The representative attribute values used to identifythe reference uniquely.
-	 * @return The primary reference key with a known internal primary key.
-	 * @throws EntityMissingException If the reference storage part is not found for the given entity primary key.
-	 * @throws AssertionError If the primary reference key does not have a known internal primary key.
-	 */
-	/**
 	 * Reads an entity's references from the storage with every narrowing explicitly switched off.
 	 *
 	 * The write path may only ever see an entity's WHOLE reference set. It decomposes a removal into one mutation
@@ -513,8 +500,14 @@ public final class ContainerizedLocalMutationExecutor
 	 * guard firing anywhere near the damage.
 	 *
 	 * The coverage is bound to NULL here rather than merely assumed to be NULL, because it lives in a thread local
-	 * that a read further up the stack may still own. Every write-path read of a {@link ReferencesStoragePart} goes
-	 * through this method for that reason; adding a fifth one that calls `fetch` directly reopens the hole.
+	 * that a read further up the stack may still own. Every read of a {@link ReferencesStoragePart} *in this class*
+	 * goes through this method for that reason; adding one that calls `fetch` directly reopens the hole.
+	 *
+	 * The same obligation holds at the read sites this helper cannot reach, and is met at each of them instead:
+	 * `ReferencedEntityAttributeValueProvider#getAttributeValues`,
+	 * `ReferenceAttributeDeltaResolver#getInitialAttributeValue`, and the binary entity read in
+	 * `DefaultEntityCollectionPersistenceService`. The rule they all follow is the same: a consumer that needs an
+	 * entity's whole reference set BINDS the unrestricted coverage; it never assumes the thread carries none.
 	 *
 	 * @param dataStoreReader    reader to fetch the part from
 	 * @param entityPrimaryKey   primary key of the entity whose references are read
@@ -533,6 +526,19 @@ public final class ContainerizedLocalMutationExecutor
 		);
 	}
 
+	/**
+	 * Finds the primary reference key associated with the given {@code representativeReferenceKey}.
+	 * Validates that the reference has a known internal primary key and is present in the reference storage.
+	 *
+	 * @param referenceSchema The schema defining the structure of the reference.
+	 * @param dataStoreReader The data store reader instance to fetch reference storage part data.
+	 * @param entityPrimaryKey The primary key of the entity to which the reference belongs.
+	 * @param referenceKey The generic reference key whose associated primary reference key is to be found.
+	 * @param representativeAttributeValues The representative attribute values used to identifythe reference uniquely.
+	 * @return The primary reference key with a known internal primary key.
+	 * @throws EntityMissingException If the reference storage part is not found for the given entity primary key.
+	 * @throws AssertionError If the primary reference key does not have a known internal primary key.
+	 */
 	@Nonnull
 	private ReferenceKey findPrimaryReferenceKeyOrThrow(
 		@Nonnull ReferenceSchema referenceSchema,
