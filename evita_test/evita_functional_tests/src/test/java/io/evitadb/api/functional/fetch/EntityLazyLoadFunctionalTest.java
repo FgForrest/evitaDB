@@ -542,11 +542,17 @@ class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest 
 					.findFirst()
 					.orElseThrow(() -> new IllegalStateException("Should never happen!"));
 
-				assertHasReferencesTo(
-					product, Entities.BRAND, REFERENCED_ID_EXTRACTOR.apply(theEntity, Entities.BRAND));
+				// the requirement asked through an instance name, so the brands live in that named chunk. The
+				// unnamed view of `brand` is empty: the query asked for the chunk and for nothing else
+				assertNamedChunkHasReferencesTo(
+					product, "brandAlias", Entities.BRAND,
+					REFERENCED_ID_EXTRACTOR.apply(theEntity, Entities.BRAND));
+				assertTrue(product.referencesAvailable(Entities.BRAND));
+				assertTrue(product.getReferences(Entities.BRAND).isEmpty());
 
-				// the named requirement narrows the storage read to `brand`, so the entity does not carry its store
-				// references at all - it has to say so rather than answer an empty collection for data nobody read
+				// and `store` is the other case entirely - the named requirement narrows the storage read to
+				// `brand`, so the store references were never read and the entity has to say so rather than answer
+				// an empty collection, which is what it answers for a name it DID read but nobody asked to see
 				assertTrue(REFERENCED_ID_EXTRACTOR.apply(theEntity, Entities.STORE).length > 0);
 				assertFalse(product.referencesAvailable(Entities.STORE));
 				assertThrows(
