@@ -339,7 +339,13 @@ public final class ReferenceDecodeCoverage implements Serializable {
 	}
 
 	/**
-	 * An immutable, ascending, duplicate free set of referenced entity primary keys one reference name was bound to.
+	 * An immutable, ascending run of the referenced entity primary keys one reference name was bound to.
+	 *
+	 * Ascending but NOT deduplicated: the keys arrive from the `entityPrimaryKeyInSet` a query wrote, which is
+	 * cloned and sorted but never deduplicated, so `entityPrimaryKeyInSet(10, 10, 20)` binds `{10, 10, 20}`. That
+	 * costs a redundant probe and nothing else - every operation here is a binary search or an element-wise
+	 * comparison - but two coverages differing only in a repeat do compare unequal, so the enrichment gate treats
+	 * them as different reads.
 	 *
 	 * Exists so that the key set can never escape as a mutable array. {@link ReferenceDecodeCoverage} is a cache
 	 * record identity with a precomputed hash - a caller able to mutate a key set behind its back would make an
@@ -354,7 +360,7 @@ public final class ReferenceDecodeCoverage implements Serializable {
 		@Serial private static final long serialVersionUID = -8274519815193506045L;
 
 		/**
-		 * Ascending, duplicate free, and never handed out - see {@link #toArray()}.
+		 * Ascending, possibly carrying repeats, and never handed out - see {@link #toArray()}.
 		 */
 		@Nonnull private final int[] keys;
 		/**
