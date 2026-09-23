@@ -549,12 +549,13 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			createAttributeKey(referenceSchema, attributeSchema, allowedLocales, locale, value),
 			lookupKey -> new AttributeCardinalityIndex(attributeSchema.getPlainType())
 		);
+		final int indexedDecimalPlaces = attributeSchema.getIndexedDecimalPlaces();
 		if (value instanceof Serializable[] valueArray) {
 			// for array values we need to add only new items to the index (their former cardinality was zero)
 			final Serializable[] onlyNewItemsValueArray = (Serializable[]) Array.newInstance(valueArray.getClass().getComponentType(), valueArray.length);
 			int onlyNewItemsValueArrayIndex = 0;
 			for (Serializable valueItem : valueArray) {
-				if (theCardinalityIndex.addRecord(valueItem, recordId) == CardinalityChange.BOUNDARY_CROSSED) {
+				if (theCardinalityIndex.addRecord(theCardinalityIndex.normalizeKey(valueItem, indexedDecimalPlaces), recordId) == CardinalityChange.BOUNDARY_CROSSED) {
 					onlyNewItemsValueArray[onlyNewItemsValueArrayIndex++] = valueItem;
 				}
 			}
@@ -567,7 +568,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			}
 		} else {
 			// for non-array values we need to call super method only if cardinality was zero
-			if (theCardinalityIndex.addRecord(value, recordId) == CardinalityChange.BOUNDARY_CROSSED) {
+			if (theCardinalityIndex.addRecord(theCardinalityIndex.normalizeKey(value, indexedDecimalPlaces), recordId) == CardinalityChange.BOUNDARY_CROSSED) {
 				super.insertFilterAttribute(
 					referenceSchema, attributeSchema, allowedLocales, locale,
 					value, recordId, foldedUnique
@@ -593,12 +594,13 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			theCardinalityIndex != null,
 			() -> "Cardinality index for attribute " + attributeSchema.getName() + " not found."
 		);
+		final int indexedDecimalPlaces = attributeSchema.getIndexedDecimalPlaces();
 		if (value instanceof Serializable[] valueArray) {
 			// for array values we need to remove only items which cardinality reaches zero
 			final Serializable[] onlyRemovedItemsValueArray = (Serializable[]) Array.newInstance(valueArray.getClass().getComponentType(), valueArray.length);
 			int onlyRemovedItemsValueArrayIndex = 0;
 			for (Serializable valueItem : valueArray) {
-				if (theCardinalityIndex.removeRecord(valueItem, recordId) == CardinalityChange.BOUNDARY_CROSSED) {
+				if (theCardinalityIndex.removeRecord(theCardinalityIndex.normalizeKey(valueItem, indexedDecimalPlaces), recordId) == CardinalityChange.BOUNDARY_CROSSED) {
 					onlyRemovedItemsValueArray[onlyRemovedItemsValueArrayIndex++] = valueItem;
 				}
 			}
@@ -611,7 +613,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			}
 		} else {
 			// for non-array values we need to call super method only if cardinality reaches zero
-			if (theCardinalityIndex.removeRecord(value, recordId) == CardinalityChange.BOUNDARY_CROSSED) {
+			if (theCardinalityIndex.removeRecord(theCardinalityIndex.normalizeKey(value, indexedDecimalPlaces), recordId) == CardinalityChange.BOUNDARY_CROSSED) {
 				super.removeFilterAttribute(
 					referenceSchema, attributeSchema, allowedLocales, locale,
 					value, recordId
