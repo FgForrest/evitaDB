@@ -3145,20 +3145,19 @@ class EvitaRequestTest {
 		@Test
 		@DisplayName("Two requirements naming one reference union their key sets")
 		void shouldUnionKeySetsOfTwoRequirements() {
+			// carried by NAMED requirements: two unnamed requirements differing in filter are refused outright
+			// by ReferenceContent#combineWith, so the only way two differently-filtered requirements over one
+			// reference name reach the request is through instance names - which is what a GraphQL alias produces
 			final EvitaRequest request = createRequest(
 				query(
 					collection("parameterValue"),
 					require(
 						entityFetch(
-							referenceContent(
-								"products",
-								filterBy(entityPrimaryKeyInSet(10, 20)),
-								entityFetch(attributeContentAll())
+							namedReferenceContent(
+								"first", filterBy(entityPrimaryKeyInSet(10, 20)), "products"
 							),
-							referenceContent(
-								"products",
-								filterBy(entityPrimaryKeyInSet(20, 30)),
-								entityFetch(attributeContentAll())
+							namedReferenceContent(
+								"second", filterBy(entityPrimaryKeyInSet(20, 30)), "products"
 							)
 						)
 					)
@@ -3172,18 +3171,21 @@ class EvitaRequestTest {
 		@Test
 		@DisplayName("One requirement wanting the reference in full un-narrows it for all of them")
 		void shouldNotNarrowWhenAnyRequirementWantsTheWholeReference() {
+			// NAMED requirements for the same reason as above - one filtered, one asking for the whole reference
 			final EvitaRequest request = createRequest(
 				query(
 					collection("parameterValue"),
 					require(
 						entityFetch(
-							referenceContent(
-								"products",
-								filterBy(entityPrimaryKeyInSet(10, 20)),
-								entityFetch(attributeContentAll())
+							namedReferenceContent(
+								"filtered", filterBy(entityPrimaryKeyInSet(10, 20)), "products"
 							),
 							// no filter at all - this one wants every `products` reference
-							referenceContent("products", entityFetch(attributeContentAll()))
+							new ReferenceContent(
+								"unfiltered", ManagedReferencesBehaviour.ANY, new String[]{"products"},
+								new RequireConstraint[]{entityFetch(attributeContentAll())},
+								new Constraint<?>[0]
+							)
 						)
 					)
 				)
