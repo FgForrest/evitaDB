@@ -23,6 +23,7 @@
 
 package io.evitadb.index.fulltext.analysis;
 
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import lombok.Getter;
 import org.apache.lucene.analysis.Analyzer;
@@ -30,6 +31,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.apache.lucene.store.AlreadyClosedException;
 
 import javax.annotation.Nonnull;
 import java.io.Closeable;
@@ -54,7 +56,10 @@ import java.util.List;
  *    see {@link #analyze(String, AnalyzedTermConsumer)}.
  *
  * Instances are created and shared by {@link FulltextAnalyzerRegistry}, one per analyzer name; nothing else
- * should build one, because a chain nobody owns is a chain nobody closes.
+ * should build one, because a chain nobody owns is a chain nobody closes. For the same reason **a handle must
+ * not outlive the registry that handed it out**: the registry closes every instance it created, and a caller
+ * still holding one afterwards gets an {@link EvitaInvalidUsageException} from
+ * {@link #analyze(String, AnalyzedTermConsumer)} rather than a Lucene internal.
  *
  * **Thread safety and lifecycle.** A Lucene `Analyzer` is thread-safe and so is this wrapper, but the mechanism
  * has consequences worth knowing. The analyzer caches its stream components in a `CloseableThreadLocal`, which
@@ -147,6 +152,8 @@ public class FulltextAnalyzer implements Closeable {
 	 *
 	 * @param text     text to analyse
 	 * @param consumer callback receiving each produced term
+	 * @throws EvitaInvalidUsageException when the registry that owns this analyzer has already been closed, i.e.
+	 *                                    when the caller kept the handle past its owner's lifetime
 	 */
 	public void analyze(@Nonnull String text, @Nonnull AnalyzedTermConsumer consumer) {
 		// NFC on the boundary - see the method javadoc; removing this silently disables stemming of every
@@ -172,6 +179,13 @@ public class FulltextAnalyzer implements Closeable {
 				);
 			}
 			tokenStream.end();
+		} catch (AlreadyClosedException e) {
+			// Lucene reports a released CloseableThreadLocal as an IllegalStateException, which would otherwise
+			// escape raw. The caller holds a handle that outlived its registry - the same usage error the
+			// registry itself reports when it is asked for an analyzer after close()
+			throw new EvitaInvalidUsageException(
+				"Full-text analyzer `" + this.analyzerName + "` has already been closed."
+			);
 		} catch (IOException e) {
 			// the chain reads from an in-memory reader, so this cannot happen for reasons outside our control
 			throw new GenericEvitaInternalError(

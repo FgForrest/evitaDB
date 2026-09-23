@@ -32,7 +32,6 @@ import org.apache.lucene.analysis.Analyzer;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Closeable;
-import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -74,6 +73,14 @@ import java.util.function.Supplier;
  * components in a `CloseableThreadLocal` whose `hardRefs` map holds them for the lifetime of the process
  * otherwise. After closing, every accessor of this registry fails rather than handing out an analyzer whose
  * components were already released.
+ *
+ * Closing races with a lookup that is already in flight, so {@link #getAnalyzer(String, Locale, AnalyzerSlot)}
+ * checks the flag **twice**: once before building a chain, and once after the instance has been published into
+ * {@link #instances}. Only the second check is load-bearing — an entry published after `close()` has walked
+ * past its key would otherwise be owned by nobody and closed by no one. **A successful removal from
+ * {@link #instances} is what confers ownership**, in both directions: `close()` closes only what it managed to
+ * remove, and a late lookup closes only what it managed to remove afterwards, so every instance is released
+ * exactly once no matter which of the two wins.
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -260,15 +267,25 @@ public class FulltextAnalyzerRegistry implements Closeable {
 	/**
 	 * Releases every analyzer instance this registry created. Mandatory when the catalog is closed — see the
 	 * class javadoc.
+	 *
+	 * The flag is raised before the drain, which is the half of the handshake this method owns: a lookup that
+	 * publishes its instance after the drain has passed observes the raised flag and releases that instance
+	 * itself. See {@link #getAnalyzer(String, Locale, AnalyzerSlot)}.
+	 *
+	 * The map is **drained entry by entry rather than iterated and then cleared**, because `clear()` would
+	 * discard a concurrently published entry without closing it — and would do so invisibly, since the late
+	 * lookup's own removal then finds nothing and concludes somebody else took ownership. Removing each
+	 * instance before closing it keeps that conclusion true.
 	 */
 	@Override
 	public void close() {
 		this.closed = true;
-		final Collection<FulltextAnalyzer> createdInstances = this.instances.values();
-		for (final FulltextAnalyzer analyzer : createdInstances) {
-			analyzer.close();
+		for (final String name : this.instances.keySet()) {
+			final FulltextAnalyzer analyzer = this.instances.remove(name);
+			if (analyzer != null) {
+				analyzer.close();
+			}
 		}
-		this.instances.clear();
 	}
 
 	/**
@@ -277,6 +294,10 @@ public class FulltextAnalyzerRegistry implements Closeable {
 	 * The mode is validated on every lookup rather than only when the instance is built — the same analyzer is
 	 * shared by every slot referring to it, so a search-time only chain that a query slot already instantiated
 	 * must still be refused when an indexing slot asks for it.
+	 *
+	 * The closed flag is checked twice, before and after the instance is published — see the class javadoc. A
+	 * lookup that loses the race releases the instance it just created, so that {@link #close()} never leaves a
+	 * chain behind whose stream components nothing will free.
 	 *
 	 * @param entityType entity collection the value / query text belongs to
 	 * @param locale     locale of the text
@@ -309,13 +330,24 @@ public class FulltextAnalyzerRegistry implements Closeable {
 		// runtime-swappable component impossible to bake into an index. Getting here means the assignment never
 		// passed validateAssignment, hence an internal error rather than a usage one
 		definition.mode().checkAllowedInMode(slot.getRequiredMode());
-		return this.instances.computeIfAbsent(
+		final FulltextAnalyzer analyzer = this.instances.computeIfAbsent(
 			name,
 			analyzerName -> {
 				assertNotClosed();
 				return new FulltextAnalyzer(analyzerName, definition.mode(), definition.factory().get());
 			}
 		);
+		if (this.closed) {
+			// close() ran while the factory was still building the chain and may have walked past this key
+			// before the entry existed - take the instance back out and release it here, because nothing else
+			// ever will. The removal is also what prevents a double close: close() likewise closes only what
+			// it removed, so a false return here means close() already owns and released this instance
+			if (this.instances.remove(name, analyzer)) {
+				analyzer.close();
+			}
+			throw registryClosedException();
+		}
+		return analyzer;
 	}
 
 	/**
@@ -358,10 +390,20 @@ public class FulltextAnalyzerRegistry implements Closeable {
 	 * released would otherwise produce results that look merely empty.
 	 */
 	private void assertNotClosed() {
-		Assert.isTrue(
-			!this.closed,
-			() -> new EvitaInvalidUsageException("Full-text analyzer registry has already been closed.")
-		);
+		Assert.isTrue(!this.closed, () -> registryClosedException());
+	}
+
+	/**
+	 * The error every attempt to use a closed registry reports. Factored out so that the message and the
+	 * exception type are defined once, and so that a caller which has *already* established that the registry
+	 * is closed can throw it outright instead of going through {@link #assertNotClosed()} - a guard call in a
+	 * branch where the condition is known reads as a no-op, which it is not.
+	 *
+	 * @return the exception to throw, never null
+	 */
+	@Nonnull
+	private static EvitaInvalidUsageException registryClosedException() {
+		return new EvitaInvalidUsageException("Full-text analyzer registry has already been closed.");
 	}
 
 	/**

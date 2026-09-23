@@ -23,6 +23,7 @@
 
 package io.evitadb.index.fulltext.analysis;
 
+import io.evitadb.exception.EvitaInvalidUsageException;
 import org.apache.lucene.analysis.ro.RomanianAnalyzer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +49,7 @@ import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -644,6 +646,32 @@ class FulltextAnalyzerTest {
 		void shouldLeaveUniformLanguagesAlone() {
 			assertIterableEquals(terms(ENGLISH, "books"), queryTerms(ENGLISH, "books"));
 			assertIterableEquals(terms(GERMAN, "Tische"), queryTerms(GERMAN, "Tische"));
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Analyzer lifecycle")
+	class Lifecycle {
+
+		@Test
+		@DisplayName("A handle kept past its registry's close reports a usage error, not a Lucene internal")
+		void shouldReportClosedAnalyzerAsUsageError() {
+			final FulltextAnalyzerRegistry ownRegistry = new FulltextAnalyzerRegistry();
+			final FulltextAnalyzer analyzer = ownRegistry.getIndexAnalyzer(ENTITY_TYPE, CZECH);
+			assertFalse(analyzer.getTerms("Česká Republika").isEmpty());
+
+			ownRegistry.close();
+
+			// Lucene answers a released CloseableThreadLocal with AlreadyClosedException, an
+			// IllegalStateException that says nothing about what the caller did wrong
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class, () -> analyzer.getTerms("Česká Republika")
+			);
+			assertTrue(
+				exception.getMessage().contains("already been closed"),
+				"Unexpected message: " + exception.getMessage()
+			);
 		}
 
 	}
