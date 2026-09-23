@@ -1,7 +1,7 @@
 ---
 title: Decode only the reference names a projection asks for, rather than deriving reference keys from the indexes
 date: 2026-09-11
-updated: 2026-09-14 20:35
+updated: 2026-09-23 14:05
 status: accepted
 kind: optimization
 issues: [1547, 1554]
@@ -16,7 +16,7 @@ relates: [2026-08-05-schema-handling-write-path-optimizations, 2026-09-12-commit
 
 `ReferencesStoragePart` is read as a unit: one Kryo record holding every reference an entity has.
 The read path now carries the projection's reference-name set into the deserializer through a
-thread-bound `ReferenceNameFilterContext`, so a reference whose name the caller could never see is
+thread-bound `ReferenceDecodeCoverageContext`, so a reference whose name the caller could never see is
 stepped over in the stream instead of being materialized. No persisted byte changed.
 
 ## Why
@@ -118,7 +118,7 @@ read states its own requirement.
 
 ## Key technical details
 
-- **Entry point:** `ReferenceNameFilterContext.executeWithReferenceNameFilter(Set, Supplier)` binds
+- **Entry point:** `ReferenceDecodeCoverageContext.executeWithCoverage(ReferenceDecodeCoverage, Supplier)` binds
   the filter; `DefaultEntityCollectionPersistenceService.fetchReferences` is the only production
   caller, and it passes `ReferenceContractSerializablePredicate.getVisibleReferenceNames()`.
 - **Named vs unnamed reference content is the trap.** `EvitaRequest.getReferenceEntityFetch()` routes
@@ -128,7 +128,7 @@ read states its own requirement.
   came back empty for every externally issued query and the whole mechanism was inert while its unit
   tests stayed green. `namedReferenceNames` exists to close that gap; anything else deriving a
   requirement set from a request must account for both maps.
-- **A narrowed part is not the entity's reference set.** `ReferencesStoragePart.decodedReferenceNames`
+- **A narrowed part is not the entity's reference set.** `ReferencesStoragePart#getDecodeCoverage()`
   records what was decoded, and every operation that reasons about the *absence* of a reference —
   emptiness, locale presence, internal primary key assignment, any modification — is guarded by
   `assertComplete` / `assertReferenceNameDecoded`. The write path must never receive one; the
@@ -168,10 +168,15 @@ under the serializer's own frame, fell to 0.01 %.
 Three follow-ups, ranked by measured cost:
 
 - **Do not materialize the name of a reference that will be rejected** — 7.8 % of JVM CPU, 24 % of
-  all allocation. Kryo length-prefixes the string, so a skip can compare the encoded length against
-  the projected names' lengths and bypass the decode entirely when no candidate can match. Costs a
-  dependency on Kryo's string encoding, which must be pinned by a test that writes with Kryo and reads
-  with the fast path.
+  all allocation. **The mechanism first recorded here does not exist.** Kryo does not length-prefix
+  these strings: `Output.writeString` (5.6.2, line 688) writes an ASCII string of 2 to 32 characters
+  raw and unprefixed, terminating it by setting the high bit on its last byte - and a reference name is
+  exactly that shape. Only an empty or single-character name, one longer than 32 characters, or a
+  non-ASCII one takes the prefixed `writeVarIntFlag` branch. The idea survives in a different form:
+  scan to the high-bit terminator to learn the length without allocating a `String` or its backing
+  `byte[]`, then compare. That is a scan rather than a read, and because the encoding is mixed a fast
+  path has to handle both branches. Costs a dependency on Kryo's string encoding, which must be pinned
+  by a test that writes with Kryo and reads with the fast path.
 - **Skip attribute values without decoding them** — 5.0 % of JVM CPU, 16.6 % of all allocation. Needs
   a length-aware skip in `AttributeValueSerializer`; same format-coupling argument. Note that skipped
   back-references are **not** attribute-free: a reflected reference inherits its source's attributes.
