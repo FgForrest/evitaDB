@@ -46,6 +46,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -162,6 +163,7 @@ import io.evitadb.spi.store.catalog.trafficRecorder.TrafficRecorder;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.dataType.DataChunk;
 import io.evitadb.utils.IOUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -622,7 +624,13 @@ public final class EntityCollection implements
 	@Nonnull
 	public ServerEntityDecorator enrichEntity(@Nonnull EntityContract entity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
-		final Map<ReferenceContentKey, RequirementContext> namedReferenceEntityFetch = evitaRequest.getNamedReferenceEntityFetch();
+		// enrichment adds and never subtracts, so the named sets this entity already carries have to survive a
+		// request that does not mention them. They are fetched again rather than carried over: this read may land on
+		// a newer body, and a chunk built against the older one would answer out of it. What this request asks for
+		// wins wherever the two name the same instance.
+		final Map<ReferenceContentKey, RequirementContext> namedReferenceEntityFetch = mergeNamedReferenceRequirements(
+			entity, evitaRequest.getNamedReferenceEntityFetch()
+		);
 		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
 		final ReferenceFetcher referenceFetcher = referenceEntityFetch.isEmpty() &&
 			namedReferenceEntityFetch.isEmpty() &&
@@ -2259,6 +2267,39 @@ public final class EntityCollection implements
 	}
 
 	/**
+	 * Merges the named reference requirements an entity already carries with the ones an enriching request states.
+	 *
+	 * Enrichment is additive: whatever an earlier request asked for by instance name stays on the entity, so its
+	 * requirement is fetched again here alongside the new ones. Where both name the same instance the enriching
+	 * request wins, because it is the more recent statement of what that instance should carry.
+	 *
+	 * @param entity       entity being enriched, which may carry requirements from the requests that built it
+	 * @param requirements named requirements the enriching request states
+	 * @return the union, or `requirements` itself when the entity carries none
+	 */
+	@Nonnull
+	private static Map<ReferenceContentKey, RequirementContext> mergeNamedReferenceRequirements(
+		@Nonnull EntityContract entity,
+		@Nonnull Map<ReferenceContentKey, RequirementContext> requirements
+	) {
+		if (!(entity instanceof ServerEntityDecorator decorator)) {
+			return requirements;
+		}
+		final Map<ReferenceContentKey, RequirementContext> carried = decorator.getNamedReferenceRequirements();
+		if (carried.isEmpty()) {
+			return requirements;
+		} else if (requirements.isEmpty()) {
+			return carried;
+		}
+		final Map<ReferenceContentKey, RequirementContext> result = CollectionUtils.createHashMap(
+			carried.size() + requirements.size()
+		);
+		result.putAll(carried);
+		result.putAll(requirements);
+		return result;
+	}
+
+	/**
 	 * Limits the server entity based on the specified request requirements. This method applies or extends various
 	 * predicates to the server entity to ensure that only the required information is included in the response.
 	 * The data present in the internal entity are not modified in any way.
@@ -2305,8 +2346,68 @@ public final class EntityCollection implements
 			entity.getCatalogVersion(),
 			// this decorator performs no I/O of its own - it only narrows the predicates of an entity that is
 			// already in memory, so the whole statistic is owed by the entity it wraps and is resolved lazily
-			0, 0, entity, null
+			0, 0, entity, null,
+			// limiting is the subtractive half of the pair enrichment forms: a named set the limiting request does
+			// not ask for is dropped, while the ones it still asks for are kept as they are. Nothing is re-read, so
+			// the surviving sets stay exactly the chunks the request that built them produced.
+			retainNamedReferenceSets(entity.getNamedReferenceSets(), evitaRequest),
+			retainNamedReferenceRequirements(entity.getNamedReferenceRequirements(), evitaRequest)
 		);
+	}
+
+	/**
+	 * Keeps the named reference sets the limiting request still asks for and drops the rest.
+	 *
+	 * @param namedReferenceSets sets the entity being narrowed carries
+	 * @param evitaRequest       request stating what the narrowed entity may expose
+	 * @return the retained sets, or NULL when nothing is retained
+	 */
+	@Nullable
+	private static Map<ReferenceContentKey, DataChunk<ReferenceContract>> retainNamedReferenceSets(
+		@Nullable Map<ReferenceContentKey, DataChunk<ReferenceContract>> namedReferenceSets,
+		@Nonnull EvitaRequest evitaRequest
+	) {
+		if (namedReferenceSets == null || namedReferenceSets.isEmpty()) {
+			return null;
+		}
+		final Set<ReferenceContentKey> retained = evitaRequest.getNamedReferenceEntityFetch().keySet();
+		final Map<ReferenceContentKey, DataChunk<ReferenceContract>> result = CollectionUtils.createHashMap(
+			Math.min(namedReferenceSets.size(), retained.size())
+		);
+		for (Map.Entry<ReferenceContentKey, DataChunk<ReferenceContract>> entry : namedReferenceSets.entrySet()) {
+			if (retained.contains(entry.getKey())) {
+				result.put(entry.getKey(), entry.getValue());
+			}
+		}
+		return result.isEmpty() ? null : result;
+	}
+
+	/**
+	 * Keeps the named requirements matching the sets {@link #retainNamedReferenceSets} kept, so a later enrichment
+	 * re-fetches exactly what the narrowed entity still carries and nothing the narrowing removed.
+	 *
+	 * @param namedReferenceRequirements requirements the entity being narrowed carries
+	 * @param evitaRequest               request stating what the narrowed entity may expose
+	 * @return the retained requirements, or NULL when nothing is retained
+	 */
+	@Nullable
+	private static Map<ReferenceContentKey, RequirementContext> retainNamedReferenceRequirements(
+		@Nonnull Map<ReferenceContentKey, RequirementContext> namedReferenceRequirements,
+		@Nonnull EvitaRequest evitaRequest
+	) {
+		if (namedReferenceRequirements.isEmpty()) {
+			return null;
+		}
+		final Set<ReferenceContentKey> retained = evitaRequest.getNamedReferenceEntityFetch().keySet();
+		final Map<ReferenceContentKey, RequirementContext> result = CollectionUtils.createHashMap(
+			Math.min(namedReferenceRequirements.size(), retained.size())
+		);
+		for (Map.Entry<ReferenceContentKey, RequirementContext> entry : namedReferenceRequirements.entrySet()) {
+			if (retained.contains(entry.getKey())) {
+				result.put(entry.getKey(), entry.getValue());
+			}
+		}
+		return result.isEmpty() ? null : result;
 	}
 
 	/**

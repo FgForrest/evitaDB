@@ -183,8 +183,14 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	@Nonnull private final Map<String, RequirementContext> referenceFetch;
 	/**
 	 * Requirement aggregation exported from {@link EvitaRequest#getNamedReferenceEntityFetch()}.
+	 *
+	 * This is NOT always the same map as the request's own. An enrichment is additive, so it fetches the named
+	 * requirements of every request that contributed to the entity - the ones this request states, plus the ones
+	 * earlier requests stated and this one did not repeat. The decorator therefore reads what to build from HERE
+	 * rather than from the request: the request describes what the caller asked for now, this describes everything
+	 * the entity must end up carrying.
 	 */
-	@Nonnull private final Map<ReferenceContentKey, RequirementContext> namedReferenceFetch;
+	@Nonnull @Getter private final Map<ReferenceContentKey, RequirementContext> namedReferenceFetch;
 	/**
 	 * Default requirement context for the case when the requirement context is not specified for the reference.
 	 */

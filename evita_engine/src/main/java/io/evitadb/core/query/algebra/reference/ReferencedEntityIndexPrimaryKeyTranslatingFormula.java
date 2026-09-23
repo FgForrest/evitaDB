@@ -225,9 +225,9 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 
 		this.expansionFunction = expansionFunction != null ? expansionFunction : UnaryOperator.identity();
 		this.referencedEntityTypeIndex = referencedTypeEntityIndex;
-		// the count of keys the index advertises - NOT `getSize()`, which Lombok delegates onto every
-		// EntityIndex from FacetIndexContract and which therefore answers with the facet index's size
-		this.worstCardinality = referencedTypeEntityIndex.getAllPrimaryKeys().size();
+		// the records this index accommodates - reduced index primary keys, which is what a filter evaluated
+		// against it yields and therefore the right ceiling for this formula
+		this.worstCardinality = referencedTypeEntityIndex.size();
 		this.initFields(innerFormula);
 	}
 

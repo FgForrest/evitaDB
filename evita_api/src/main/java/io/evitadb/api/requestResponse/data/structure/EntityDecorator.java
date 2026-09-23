@@ -607,9 +607,9 @@ public class EntityDecorator implements SealedEntity {
 		BiPredicate<Integer, ReferenceContract> entityFilter = null;
 		ReferenceAttributeValueSerializablePredicate attributePredicate = null;
 		boolean referenceNameRequested = false;
-		// a projected run carries references another requirement already filtered, sorted and decorated - it is
-		// copied in whole at the run start and must not be filtered or sorted a second time when the run closes
-		boolean runProjected = false;
+		// a skipped run belongs to a name whose unnamed view must stay empty - nothing is written for it, so there
+		// is nothing to filter or sort when the run closes either
+		boolean runSkipped = false;
 
 		// `BiPredicate<Integer, ...>` boxes its first argument, and the filter below is asked about every reference
 		// of this entity - so the key is boxed once here rather than once per reference
@@ -623,7 +623,7 @@ public class EntityDecorator implements SealedEntity {
 			final ReferenceContract referenceContract = inputReferences[i];
 			final String thisReferenceName = referenceContract.getReferenceName();
 			if (referenceSchema == null || !referenceSchema.getName().equals(thisReferenceName)) {
-				if (referenceSchema != null && !runProjected) {
+				if (referenceSchema != null && !runSkipped) {
 					writeIndex -= closeReferenceNameRun(
 						entityPrimaryKey, referencePredicate, referenceFetcher, referenceSchema,
 						entityGroupFetcher, entityFilter, fetchedReferenceComparator,
@@ -643,22 +643,11 @@ public class EntityDecorator implements SealedEntity {
 				// that many times, which was the single most expensive frame of the reference fetch
 				attributePredicate = referencePredicate.getAttributePredicate(thisReferenceName);
 
-				// a decorator that already knows what the unnamed view of this name must carry says so here, and
-				// the run is taken from its answer instead of being decorated a second time
-				final ReferenceDecorator[] projection = getUnnamedReferenceViewProjection(
-					thisReferenceName, referencePredicate
-				);
-				runProjected = projection != null;
-				if (runProjected) {
-					for (ReferenceDecorator projectedReference : projection) {
-						outputReferences[writeIndex++] = projectedReference;
-					}
-					// the projection stands for every reference of this name, so the input references it was built
-					// from are skipped rather than decorated a second time
-					referenceNameRequested = false;
-				} else {
-					referenceNameRequested = referencePredicate.isReferenceRequested(thisReferenceName);
-				}
+				// a decorator that knows this name's unnamed view has to stay empty says so here, and the whole
+				// run is then skipped rather than decorated into a view nothing will read
+				runSkipped = isUnnamedReferenceViewEmpty(thisReferenceName, referencePredicate);
+				referenceNameRequested = !runSkipped &&
+					referencePredicate.isReferenceRequested(thisReferenceName);
 			}
 
 			// decide before decorating rather than after: `sortAndFilterSubList` below applies exactly these three
@@ -681,7 +670,7 @@ public class EntityDecorator implements SealedEntity {
 				thisAttributePredicate
 			));
 		}
-		if (referenceSchema != null && !runProjected) {
+		if (referenceSchema != null && !runSkipped) {
 			writeIndex -= closeReferenceNameRun(
 				entityPrimaryKey, referencePredicate, referenceFetcher, referenceSchema,
 				entityGroupFetcher, entityFilter, fetchedReferenceComparator,
@@ -695,28 +684,22 @@ public class EntityDecorator implements SealedEntity {
 	}
 
 	/**
-	 * Returns the references the unnamed view should carry for `referenceName`, for a decorator that can decide
-	 * that without walking the entity's own references - because it knows what the query asked for.
+	 * Tells whether the unnamed view of `referenceName` has to stay EMPTY on this decorator - for a decorator that
+	 * can decide that without walking the entity's own references, because it knows what the query asked for.
 	 *
-	 * Answers NULL here - "build the view from the entity's own references, as always" - and is meant to stay that
-	 * way for every decorator that has only the unnamed view. The client-side decorator the gRPC driver builds is
-	 * exactly that, and answering anything else there would drop the references altogether. Only
-	 * `ServerEntityDecorator`, which serves the named reference chunks beside the unnamed view, overrides it.
-	 *
-	 * A non-NULL answer is used verbatim: the references are already filtered, sorted and decorated by the
-	 * requirement that produced them, so the surrounding loop neither re-filters nor re-sorts them.
+	 * Answering TRUE skips the whole run of that name: nothing is written to the unnamed view and the input
+	 * references are not decorated into one. The default is FALSE, which builds the view from the entity's own
+	 * references as usual.
 	 *
 	 * @param referenceName      name of the reference the caller is about to materialize
 	 * @param referencePredicate predicate deciding which references the caller may see
-	 * @return the references the unnamed view should carry, possibly empty; NULL to build the view from the
-	 *         entity's own references
+	 * @return TRUE when the unnamed view of that name must carry nothing
 	 */
-	@Nullable
-	protected ReferenceDecorator[] getUnnamedReferenceViewProjection(
+	protected boolean isUnnamedReferenceViewEmpty(
 		@Nonnull String referenceName,
 		@Nonnull ReferenceContractSerializablePredicate referencePredicate
 	) {
-		return null;
+		return false;
 	}
 
 	/**
