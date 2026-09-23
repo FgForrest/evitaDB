@@ -117,12 +117,6 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 * lead to opposite accounting, the first to a union and the second to the summed-ints fall-back.
 	 */
 	private static final ReadRecord[] UNIDENTIFIED_READ_RECORDS = new ReadRecord[0];
-	/**
-	 * The empty unnamed reference view
-	 * {@link #getUnnamedReferenceViewProjection(String, ReferenceContractSerializablePredicate)} hands back for a
-	 * reference name only named reference content asked for.
-	 */
-	private static final ReferenceDecorator[] EMPTY_REFERENCE_DECORATORS = new ReferenceDecorator[0];
 
 	/**
 	 * The count of I/O fetches used to load this entity from underlying storage, **excluding** those its
@@ -254,6 +248,16 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 * Specialized reference sets accessible by reference content instance name.
 	 */
 	@Nullable private Map<ReferenceContentKey, DataChunk<ReferenceContract>> namedReferenceSets;
+	/**
+	 * The named requirements the sets above were built from, keyed the same way.
+	 *
+	 * Kept because a chunk cannot be re-produced from itself. An enrichment is additive: it must end up carrying
+	 * every named set the entity already had plus whatever it asks for anew, and the earlier sets can only be
+	 * rebuilt against the freshly read body if what the earlier request asked for is still known. Carrying the
+	 * requirements rather than re-using the old chunks is what keeps an enrichment that lands on a newer body from
+	 * answering out of the older one.
+	 */
+	@Nullable private Map<ReferenceContentKey, RequirementContext> namedReferenceRequirements;
 
 	/**
 	 * Method allows creating the entityDecorator object with up-to-date schema definition. Data of the entity are kept
@@ -326,6 +330,44 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		@Nullable ServerEntityDecorator deferredIoStatisticsSource,
 		@Nullable ReadRecord[] ownReadRecords
 	) {
+		return decorate(
+			entity, entitySchema, parentEntity,
+			localePredicate, hierarchyPredicate, attributePredicate, associatedDataValuePredicate,
+			referencePredicate, pricePredicate, alignedNow,
+			catalogId, catalogVersion, ioFetchCount, ioFetchedBytes,
+			deferredIoStatisticsSource, ownReadRecords,
+			null, null
+		);
+	}
+
+	/**
+	 * The same, for a caller that also has named reference sets to place on the result - the narrowing half of
+	 * enrichment, which keeps the sets a limiting request still asks for instead of re-reading them.
+	 *
+	 * @param namedReferenceSets         sets to expose by reference content instance name, NULL when there are none
+	 * @param namedReferenceRequirements the requirements those sets were built from, keyed the same way
+	 */
+	@Nonnull
+	public static ServerEntityDecorator decorate(
+		@Nonnull Entity entity,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable EntityClassifierWithParent parentEntity,
+		@Nonnull LocaleSerializablePredicate localePredicate,
+		@Nonnull HierarchySerializablePredicate hierarchyPredicate,
+		@Nonnull AttributeValueSerializablePredicate attributePredicate,
+		@Nonnull AssociatedDataValueSerializablePredicate associatedDataValuePredicate,
+		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
+		@Nonnull PriceContractSerializablePredicate pricePredicate,
+		@Nonnull OffsetDateTime alignedNow,
+		@Nullable UUID catalogId,
+		long catalogVersion,
+		int ioFetchCount,
+		int ioFetchedBytes,
+		@Nullable ServerEntityDecorator deferredIoStatisticsSource,
+		@Nullable ReadRecord[] ownReadRecords,
+		@Nullable Map<ReferenceContentKey, DataChunk<ReferenceContract>> namedReferenceSets,
+		@Nullable Map<ReferenceContentKey, RequirementContext> namedReferenceRequirements
+	) {
 		final ServerEntityDecorator result = new ServerEntityDecorator(
 			entity, entitySchema, parentEntity,
 			localePredicate, hierarchyPredicate,
@@ -335,6 +377,8 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 			catalogId, catalogVersion, ioFetchCount, ioFetchedBytes, ownReadRecords
 		);
 		result.deferredIoStatisticsSource = deferredIoStatisticsSource;
+		result.namedReferenceSets = namedReferenceSets;
+		result.namedReferenceRequirements = namedReferenceRequirements;
 		return result;
 	}
 
@@ -403,7 +447,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 			referencePredicate, pricePredicate,
 			alignedNow,
 			ioFetchCount, ioFetchedBytes,
-			entity.namedReferenceSets, ownReadRecords
+			entity.namedReferenceSets, entity.namedReferenceRequirements, ownReadRecords
 		);
 		result.deferredIoStatisticsSource = deferredIoStatisticsSource;
 		return result;
@@ -510,6 +554,8 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 * @param ioFetchedBytes     bytes the caller read to produce THIS decorator, on the same terms
 	 * @param namedReferenceSets reference sets keyed by reference content instance name, or NULL when the request
 	 *                           declares none
+	 * @param namedReferenceRequirements the requirements those sets were built from, keyed the same way, or NULL
+	 *                           when there are none
 	 * @param ownReadRecords     identities of the records those reads obtained, NULL when the caller does not carry
 	 *                           them
 	 */
@@ -526,6 +572,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		int ioFetchCount,
 		int ioFetchedBytes,
 		@Nullable Map<ReferenceContentKey, DataChunk<ReferenceContract>> namedReferenceSets,
+		@Nullable Map<ReferenceContentKey, RequirementContext> namedReferenceRequirements,
 		@Nullable ReadRecord[] ownReadRecords
 	) {
 		super(
@@ -538,6 +585,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		this.ioFetchCount = ioFetchCount;
 		this.ioFetchedBytes = ioFetchedBytes;
 		this.namedReferenceSets = namedReferenceSets;
+		this.namedReferenceRequirements = namedReferenceRequirements;
 		this.ownReadRecords = ownReadRecords;
 		// this constructor attaches no references, but it does attach whatever parent it is handed
 		this.attachesBodies = parentEntity instanceof SealedEntity;
@@ -554,9 +602,14 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		@Nullable EvitaRequest evitaRequest
 	) {
 		if (evitaRequest != null && referenceFetcher instanceof ReferencedEntityFetcher serverFetcher) {
-			final Map<ReferenceContentKey, RequirementContext> namedReferenceEntityFetch = evitaRequest.getNamedReferenceEntityFetch();
+			// deliberately the FETCHER's map rather than the request's: on an enrichment it carries the named
+			// requirements of every request that contributed to this entity, so the sets an earlier request asked
+			// for are rebuilt here against the body this read just materialised instead of being lost or carried
+			// over stale. On a first fetch the two maps are the same thing.
+			final Map<ReferenceContentKey, RequirementContext> namedReferenceEntityFetch = serverFetcher.getNamedReferenceFetch();
 			if (!namedReferenceEntityFetch.isEmpty()) {
 				final Entity entity = getDelegate();
+				this.namedReferenceRequirements = namedReferenceEntityFetch;
 				this.namedReferenceSets = CollectionUtils.createHashMap(namedReferenceEntityFetch.size());
 				ReferenceSchemaContract referenceSchema = null;
 				int start = 0;
@@ -716,49 +769,16 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 * view is built from the entity's own references exactly as before. A catch-all `referenceContent()` does the
 	 * same for every name at once.
 	 *
-	 * Answering an EMPTY array rather than NULL is what makes the view empty: NULL means "build the view from the
-	 * entity's own references" and would restore the second copy this exists to avoid.
-	 *
-	 * The view may only be emptied while THIS decorator actually holds a named chunk for the name, which is what
-	 * the second test establishes. The predicate accumulates named reference names across enrichments, but
-	 * {@link #fillFilteredSortedAndFetchedReferences} rebuilds {@link #namedReferenceSets} from the enriching
-	 * request's own named requirements - and builds none at all when that request declares no reference content.
-	 * A name an earlier request asked for by name therefore arrives here still marked "requested only as named"
-	 * with its chunk gone, and emptying its view on that basis would leave references the entity demonstrably read
-	 * reachable through nothing whatsoever. Falling back to the entity's own references is both correct and what
-	 * the reference predicate - cumulative, so it still admits the name - already describes.
+	 * Nothing here has to guard against the named chunks having gone missing. Enrichment re-fetches every named
+	 * requirement the entity carries, so a name reported as requested only as named still has its chunks - see
+	 * {@link #getNamedReferenceRequirements()}. Were that not so, a name would be reachable through neither view.
 	 */
-	@Nullable
 	@Override
-	protected ReferenceDecorator[] getUnnamedReferenceViewProjection(
+	protected boolean isUnnamedReferenceViewEmpty(
 		@Nonnull String referenceName,
 		@Nonnull ReferenceContractSerializablePredicate referencePredicate
 	) {
-		return referencePredicate.isReferenceRequestedOnlyAsNamed(referenceName) &&
-			holdsNamedChunkFor(referenceName) ?
-			EMPTY_REFERENCE_DECORATORS : null;
-	}
-
-	/**
-	 * Tells whether this decorator carries a named chunk over `referenceName` - i.e. whether the named requirements
-	 * this decorator was built from can answer for that name.
-	 *
-	 * The scan is over the named requirements of a single request, which is the number of reference content
-	 * instance names one query declares - a handful, and independent of how many references the entity holds.
-	 *
-	 * @param referenceName name of the reference to look for
-	 * @return TRUE when at least one named chunk covers the reference name
-	 */
-	private boolean holdsNamedChunkFor(@Nonnull String referenceName) {
-		if (this.namedReferenceSets == null) {
-			return false;
-		}
-		for (ReferenceContentKey key : this.namedReferenceSets.keySet()) {
-			if (key.referenceName().equals(referenceName)) {
-				return true;
-			}
-		}
-		return false;
+		return referencePredicate.isReferenceRequestedOnlyAsNamed(referenceName);
 	}
 
 	/**
@@ -768,6 +788,35 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 * @param instanceName name of the reference content instance
 	 * @return collection of references
 	 */
+	/**
+	 * Returns the reference sets this decorator carries, keyed by reference content instance name.
+	 *
+	 * Narrowing reads this to keep the sets a limiting request still asks for; nothing else needs the whole map -
+	 * a reader after one set asks {@link #getReferencesForReferenceContentInstance(ReferenceContentKey)}.
+	 *
+	 * @return the sets, or NULL when this decorator carries none
+	 */
+	@Nullable
+	public Map<ReferenceContentKey, DataChunk<ReferenceContract>> getNamedReferenceSets() {
+		return this.namedReferenceSets;
+	}
+
+	/**
+	 * Returns the named requirements the reference sets on this decorator were built from.
+	 *
+	 * An enrichment reads this to fetch them again alongside whatever it asks for anew - enrichment adds and never
+	 * subtracts, so a set an earlier request asked for has to survive one that does not mention it. Rebuilding from
+	 * the requirement rather than carrying the old chunk over is what keeps the answer consistent with the body the
+	 * enrichment actually read.
+	 *
+	 * @return the requirements keyed by reference content instance name, empty when this decorator carries none
+	 */
+	@Nonnull
+	public Map<ReferenceContentKey, RequirementContext> getNamedReferenceRequirements() {
+		return this.namedReferenceRequirements == null ?
+			Collections.emptyMap() : this.namedReferenceRequirements;
+	}
+
 	@Nonnull
 	public Optional<DataChunk<ReferenceContract>> getReferencesForReferenceContentInstance(@Nonnull ReferenceContentKey instanceName) {
 		if (this.namedReferenceSets == null) {

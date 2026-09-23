@@ -427,6 +427,20 @@ public abstract class EntityIndex implements
 	}
 
 	/**
+	 * Returns the number of records this index accommodates - its weight.
+	 *
+	 * What a record is depends on the index: {@link GlobalEntityIndex} and the reduced indexes hold entity primary
+	 * keys, while {@link ReferencedTypeEntityIndex} holds the primary keys of the reduced indexes it navigates to,
+	 * not the referenced entities' own. In each case this is the count of what the index actually stores, which is
+	 * the figure a cardinality estimate wants.
+	 *
+	 * @return count of records held by this index
+	 */
+	public int size() {
+		return this.entityIds.size();
+	}
+
+	/**
 	 * Inserts information that entity with `entityPrimaryKey` has localized attribute / associated data of passed `locale`.
 	 * If such information is already present no changes are made.
 	 *
@@ -1287,17 +1301,19 @@ public abstract class EntityIndex implements
 	/**
 	 * Methods of {@link FacetIndexContract} that must not be re-exported by the {@link #facetIndex} delegate.
 	 *
-	 * {@link FacetIndexContract#getSize()} counts the entity ids attached to facets. That reads correctly on a
-	 * facet index and dangerously on an entity index, where a bare `getSize()` promises the number of entities
-	 * the index holds and delivers something unrelated - on a production catalog's GLOBAL index it answered
-	 * 2,276,771 against 130,033 entities, and on a reference type index whose reference carries no facets it
-	 * answered 0 against 170,376. Both readings reached query cardinality estimates before this exclusion.
+	 * {@link FacetIndexContract#getAssociationCount()} counts facet-to-entity associations, which is a facet
+	 * concept and not a property of the entity index that happens to own a facet index. Re-exporting it would put
+	 * a second, unrelated count on {@link EntityIndex} beside {@link #size()} - which is what went wrong when the
+	 * method was still called `getSize()`: a bare `getSize()` on an entity index read as the number of records it
+	 * holds and answered 2,276,771 against 130,033 entities on a production catalog's global index, and 0 against
+	 * 170,376 on a reference type index whose reference carries no facets. Both readings reached query cardinality
+	 * estimates.
 	 *
-	 * Code that wants the facet count asks a {@link FacetIndex} for it directly.
+	 * Code that wants the association count asks a {@link FacetIndex} for it directly.
 	 */
 	private interface NotDelegatedFromFacetIndex {
 
-		int getSize();
+		int getAssociationCount();
 
 	}
 

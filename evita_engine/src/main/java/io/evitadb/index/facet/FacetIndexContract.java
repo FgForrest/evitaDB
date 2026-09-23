@@ -102,8 +102,13 @@ public interface FacetIndexContract {
 	Map<String, FacetReferenceIndex> getFacetingEntities();
 
 	/**
-	 * Returns count of all indexed entity primary keys in this index.
+	 * Returns the number of facet-to-entity associations this index holds - the count of entity ids attached to
+	 * facets, summed over every reference and every group.
+	 *
+	 * **This is not a count of entities, and it is not the index's size.** An entity attached to three facets
+	 * contributes three. On a production catalog's global index the sum came to 2,276,771 against 130,033 entities.
+	 * The number of records an index accommodates is {@link io.evitadb.index.EntityIndex#size()}.
 	 */
-	int getSize();
+	int getAssociationCount();
 
 }

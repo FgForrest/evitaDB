@@ -216,7 +216,7 @@ final class IndexCardinalityProjection {
 			indexKey.type(),
 			indexKey.scope(),
 			discriminator,
-			entityIndex.getAllPrimaryKeys().size(),
+			entityIndex.size(),
 			entityIndex instanceof ReferencedTypeEntityIndex referencedTypeIndex ?
 				referencedTypeIndex.getAllTrackedReferencedEntityPrimaryKeys().size() : null,
 			attributes.toArray(AttributeCardinality[]::new)
