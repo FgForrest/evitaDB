@@ -146,6 +146,13 @@ public class EvitaRequest {
 	@Nullable private Scope[] scopesAsArray;
 	@Nullable private Set<Scope> scopes;
 	@Nullable private Map<String, RequirementContext> entityFetchRequirements;
+	/**
+	 * Reference names an **unnamed** `referenceContent` requirement asked for by name. Kept apart from
+	 * {@link #entityFetchRequirements}, which also carries the implicit requirement synthesised for a name only
+	 * named requirements asked for - telling the two apart is what lets the server decide whether the entity's
+	 * unnamed reference view may be served as a projection of the named chunks.
+	 */
+	@Nullable private Set<String> explicitlyUnnamedReferenceNames;
 	@Nullable private Map<ReferenceContentKey, RequirementContext> namedEntityFetchRequirements;
 	@Nullable private RequirementContext defaultReferenceRequirement;
 	/**
@@ -1561,6 +1568,7 @@ public class EvitaRequest {
 			if (entityRequirement == null) {
 				this.entityReference = false;
 				this.entityFetchRequirements = Collections.emptyMap();
+				this.explicitlyUnnamedReferenceNames = Collections.emptySet();
 				this.referenceKeyNarrowing = Collections.emptyMap();
 			} else {
 				final List<ReferenceContent> referenceContent =
@@ -1643,6 +1651,26 @@ public class EvitaRequest {
 						getRequirementContext(folded, folded.getAttributeContent().orElse(null))
 					);
 				}
+				this.explicitlyUnnamedReferenceNames = result.isEmpty() ?
+					Collections.emptySet() : Set.copyOf(result.keySet());
+				// A reference name nothing asked for unnamed still has an unnamed view on the entity, and what that
+				// view shows is what the named requirements fetched - all of them. Deriving it as their union here,
+				// where the requirements still exist, is what lets the view carry every alias's attributes and
+				// bodies; reconciling the decorators afterwards cannot, because a decorator no longer knows what
+				// was asked for. With a single named requirement the union is that requirement, which is why the
+				// common shape costs nothing.
+				//
+				// ReferenceContent#combineWith, which folds the unnamed requirements above, cannot serve here: it
+				// refuses two requirements whose filters differ, and named requirements differ in filter by design.
+				if (namedResult != null) {
+					for (final Map.Entry<ReferenceContentKey, RequirementContext> named : namedResult.entrySet()) {
+						final String refName = named.getKey().referenceName();
+						if (this.explicitlyUnnamedReferenceNames.contains(refName)) {
+							continue;
+						}
+						result.merge(refName, named.getValue(), EvitaRequest::unionContentOf);
+					}
+				}
 				this.entityReference = !referenceContent.isEmpty();
 				this.defaultReferenceRequirement = defaultReq;
 				this.namedEntityFetchRequirements = namedResult;
@@ -1651,6 +1679,46 @@ public class EvitaRequest {
 			}
 		}
 		return this.entityFetchRequirements;
+	}
+
+	/**
+	 * Unions the **content** of two requirements over one reference name - what each asks to be fetched.
+	 *
+	 * `filterBy` and `orderBy` are deliberately NOT unioned: they scope *which* references a single named
+	 * requirement matched and how its own chunk is ordered, not what each reference carries. The entity's unnamed
+	 * view was never scoped by any one of them, and a union of two filters is a disjunction this model does not
+	 * express. The chunking of the first requirement is kept for the same reason - the unnamed view is not paged.
+	 *
+	 * @param left  one requirement over the reference name
+	 * @param right the other requirement over the same reference name
+	 * @return a requirement asking for everything either of them asked for
+	 */
+	@Nonnull
+	private static RequirementContext unionContentOf(
+		@Nonnull RequirementContext left,
+		@Nonnull RequirementContext right
+	) {
+		return new RequirementContext(
+			left.managedReferencesBehaviour(),
+			EntityContentRequire.combineRequirements(left.attributeContent(), right.attributeContent()),
+			EntityFetchRequire.combineRequirements(left.entityFetch(), right.entityFetch()),
+			EntityFetchRequire.combineRequirements(left.entityGroupFetch(), right.entityGroupFetch()),
+			left.filterBy(),
+			left.orderBy(),
+			left.referenceChunkTransformer()
+		);
+	}
+
+	/**
+	 * Returns the reference names an **unnamed** requirement asked for by name.
+	 *
+	 * @return the explicitly unnamed reference names, never NULL
+	 */
+	@Nonnull
+	public Set<String> getExplicitlyUnnamedReferenceNames() {
+		getReferenceEntityFetch();
+		return this.explicitlyUnnamedReferenceNames == null ?
+			Collections.emptySet() : this.explicitlyUnnamedReferenceNames;
 	}
 
 	/**

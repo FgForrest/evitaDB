@@ -96,6 +96,12 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 */
 	@Nonnull @Getter private final Map<String, AttributeRequest> referenceSet;
 	/**
+	 * Names an **unnamed** requirement asked for. A subset of {@link #referenceSet}'s keys, which also carries the
+	 * implicit requirement the request synthesises for a name only named requirements asked for - so this is what
+	 * tells "the caller wanted the unnamed view of this name" apart from "the unnamed view was derived for it".
+	 */
+	@Nonnull private final Set<String> explicitlyUnnamedReferenceNames;
+	/**
 	 * Default attribute requirements applied to references that don't have explicit attribute requirements in
 	 * `referenceSet`. This allows setting a baseline attribute policy for all references while allowing specific
 	 * overrides per reference type. May be null if no default is specified.
@@ -284,6 +290,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	public ReferenceContractSerializablePredicate() {
 		this.requiresEntityReferences = true;
 		this.referenceSet = Collections.emptyMap();
+		this.explicitlyUnnamedReferenceNames = Collections.emptySet();
 		this.namedReferenceNames = Collections.emptySet();
 		this.defaultAttributeRequest = null;
 		this.implicitLocale = null;
@@ -305,6 +312,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	public ReferenceContractSerializablePredicate(@Nonnull EvitaRequest evitaRequest) {
 		this.requiresEntityReferences = evitaRequest.isRequiresEntityReferences();
 		this.referenceSet = getReferenceSet(evitaRequest);
+		this.explicitlyUnnamedReferenceNames = evitaRequest.getExplicitlyUnnamedReferenceNames();
 		this.namedReferenceNames = getNamedReferenceNames(evitaRequest);
 		this.defaultAttributeRequest = ofNullable(evitaRequest.getDefaultReferenceRequirement())
 			.map(RequirementContext::attributeRequest)
@@ -332,6 +340,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		@Nonnull RequirementContext requirementContext
 	) {
 		this.requiresEntityReferences = true;
+		this.explicitlyUnnamedReferenceNames = Set.of(referenceName);
 		this.referenceSet = Map.of(
 			referenceName,
 			requirementContext.attributeRequest()
@@ -357,6 +366,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	public ReferenceContractSerializablePredicate(boolean requiresEntityReferences) {
 		this.requiresEntityReferences = requiresEntityReferences;
 		this.referenceSet = Collections.emptyMap();
+		this.explicitlyUnnamedReferenceNames = Collections.emptySet();
 		this.namedReferenceNames = Collections.emptySet();
 		this.defaultAttributeRequest = null;
 		this.implicitLocale = null;
@@ -388,6 +398,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		);
 		this.requiresEntityReferences = evitaRequest.isRequiresEntityReferences();
 		this.referenceSet = getReferenceSet(evitaRequest);
+		this.explicitlyUnnamedReferenceNames = evitaRequest.getExplicitlyUnnamedReferenceNames();
 		this.namedReferenceNames = getNamedReferenceNames(evitaRequest);
 		this.defaultAttributeRequest = ofNullable(evitaRequest.getDefaultReferenceRequirement())
 			.map(RequirementContext::attributeRequest)
@@ -411,9 +422,12 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		@Nullable Locale implicitLocale,
 		@Nullable Set<Locale> locales
 	) {
+		// every entry of an explicitly passed reference set came from an unnamed requirement - this overload is
+		// never handed the implicit requirement the request synthesises, which only reaches the request-driven
+		// constructors
 		this(
-			referenceSet, namedReferenceNames, defaultAttributeRequest, requiresEntityReferences,
-			implicitLocale, locales, Collections.emptyMap()
+			referenceSet, referenceSet.keySet(), namedReferenceNames, defaultAttributeRequest,
+			requiresEntityReferences, implicitLocale, locales, Collections.emptyMap()
 		);
 	}
 
@@ -422,6 +436,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * another's requirements.
 	 *
 	 * @param referenceSet             attribute requirements per unnamed reference name
+	 * @param explicitlyUnnamedReferenceNames names an unnamed requirement asked for
 	 * @param namedReferenceNames      names asked for through named requirements
 	 * @param defaultAttributeRequest  attribute requirement of a default `referenceContent()`, NULL when absent
 	 * @param requiresEntityReferences whether references are required at all
@@ -431,6 +446,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 */
 	ReferenceContractSerializablePredicate(
 		@Nonnull Map<String, AttributeRequest> referenceSet,
+		@Nonnull Set<String> explicitlyUnnamedReferenceNames,
 		@Nonnull Set<String> namedReferenceNames,
 		@Nullable AttributeRequest defaultAttributeRequest,
 		boolean requiresEntityReferences,
@@ -439,6 +455,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		@Nonnull Map<String, int[]> referenceKeyNarrowing
 	) {
 		this.referenceSet = referenceSet;
+		this.explicitlyUnnamedReferenceNames = explicitlyUnnamedReferenceNames;
 		this.namedReferenceNames = namedReferenceNames;
 		this.defaultAttributeRequest = defaultAttributeRequest;
 		this.requiresEntityReferences = requiresEntityReferences;
@@ -603,13 +620,17 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * A catch-all `referenceContent()` (a non-NULL {@link #defaultAttributeRequest}) asks for every reference there
 	 * is, so it makes this FALSE for every name.
 	 *
+	 * Asked of {@link #explicitlyUnnamedReferenceNames} rather than of {@link #referenceSet}, because the latter
+	 * also carries the implicit requirement the request synthesises for a name only named requirements asked for -
+	 * which is every such name, and testing it there would switch this off for all of them.
+	 *
 	 * @param referenceName name of the reference to decide about
 	 * @return TRUE when only a named requirement asked for this reference name
 	 */
 	public boolean isReferenceRequestedOnlyAsNamed(@Nonnull String referenceName) {
 		return this.defaultAttributeRequest == null
 			&& this.namedReferenceNames.contains(referenceName)
-			&& !this.referenceSet.containsKey(referenceName);
+			&& !this.explicitlyUnnamedReferenceNames.contains(referenceName);
 	}
 
 	/**
@@ -686,6 +707,10 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		} else {
 			return new ReferenceContractSerializablePredicate(
 				requiredReferencedEntities,
+				// an enrichment can only ever add an explicit unnamed requirement, never retract one
+				CollectionUtils.combine(
+					this.explicitlyUnnamedReferenceNames, evitaRequest.getExplicitlyUnnamedReferenceNames()
+				),
 				combinedNamedReferenceNames,
 				mergeAttributeRequests(this.defaultAttributeRequest, defaultAttributeRequest),
 				this.requiresEntityReferences || doesRequireEntityReferences,
