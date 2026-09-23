@@ -82,7 +82,7 @@ import static java.util.Map.entry;
  * | `cs`     | `CzechAnalyzer` + folding                                    | stop, fold, Czech stem variants       |
  * | `sk`     | {@link SlovakStemmer} + folding                              | fold, Slovak stem variants            |
  * | `pl`     | stop, {@link PolishSnowballStemmer}, folding                 | stop, fold, Polish stem variants      |
- * | `ro`     | {@link CommaBelowNormalizationFilter}, stop, Snowball, folding| stop, fold, Romanian stem variants    |
+ * | `ro`     | {@link CommaBelowNormalizationFilter}, stop, Snowball, folding| comma-below, stop, fold, Romanian stem variants |
  * | `en`     | `EnglishAnalyzer`                                            | same (uniform)                        |
  * | `de`     | `GermanAnalyzer`                                             | same (uniform)                        |
  *
@@ -398,13 +398,19 @@ public class BuiltInAnalyzers {
 	}
 
 	/**
-	 * Builds the Romanian query chain: tokenize, lowercase, drop stop words, fold diacritics, then emit every
-	 * stem variant of each token at its own position.
+	 * Builds the Romanian query chain: tokenize, lowercase, normalize comma-below spellings, drop stop words,
+	 * fold diacritics, then emit every stem variant of each token, all at one position.
 	 *
-	 * The comma-below normalization the index chain needs is absent here on purpose: folding collapses `ș` and
-	 * `ş` to the same `s` before the variant stemmer ever reads the token, so normalizing first would change
-	 * nothing but cost a pass. The stop filter is the one component that still sees the raw spelling, and its
-	 * cedilla-written entries are matched by the stop words users actually type.
+	 * The comma-below normalization is here **because of the stop filter**, and for no other reason. The stop
+	 * filter is the single component of this chain that reads the raw spelling, and the pinned Lucene's
+	 * Romanian list is written in cedilla throughout — 24 of its 230 entries carry `ş`/`ţ` and none carries
+	 * `ș`/`ț`. A user typing modern Romanian writes `și`, which without this filter survives the stop filter,
+	 * gets folded to `si` and is then asked of an index that dropped the word. Everything downstream is
+	 * unaffected either way: {@link ASCIIFoldingFilter} collapses `ș` and `ş` to the same `s` before the
+	 * variant stemmer ever sees the token.
+	 *
+	 * `normalize()` — the single-term prefix/fuzzy path — deliberately does not run it: that path has no stop
+	 * filter, so folding alone already reconciles the two orthographies there.
 	 *
 	 * @return the Lucene chain
 	 */
@@ -414,9 +420,8 @@ public class BuiltInAnalyzers {
 			@Override
 			protected TokenStreamComponents createComponents(String fieldName) {
 				final Tokenizer source = new StandardTokenizer();
-				TokenStream stream = new StopFilter(
-					new LowerCaseFilter(source), RomanianAnalyzer.getDefaultStopSet()
-				);
+				TokenStream stream = new CommaBelowNormalizationFilter(new LowerCaseFilter(source));
+				stream = new StopFilter(stream, RomanianAnalyzer.getDefaultStopSet());
 				stream = new ASCIIFoldingFilter(stream);
 				stream = new VariantStemFilter(stream, new RomanianVariantStemmer());
 				return new TokenStreamComponents(source, stream);

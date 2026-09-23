@@ -47,8 +47,12 @@ import java.io.IOException;
  * exists to feed. Appended after the stemmer it would do nothing useful: the stemmer would already have failed
  * to recognise the comma-below endings.
  *
- * Index side only. The query side folds diacritics away before the stem variants are computed, and folding
- * collapses `ș` and `ş` to the same `s`, so the distinction never survives to matter there.
+ * **Both Romanian chains run it, and in both it sits ahead of the stop filter.** That filter is the single
+ * component of either chain that reads the raw spelling before folding flattens it, and the pinned Lucene's
+ * Romanian stop list is cedilla-written throughout — 24 of its 230 entries carry `ş`/`ţ`, none carries `ș`/`ț`.
+ * Without this filter the query side would let a modern-spelt `și` through the stop filter, fold it to `si`,
+ * and ask the index for a word the index side dropped. Everything downstream of the stop filter genuinely does
+ * not care, because `ASCIIFoldingFilter` collapses `ș` and `ş` to the same `s` before the stemmer reads them.
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
  */

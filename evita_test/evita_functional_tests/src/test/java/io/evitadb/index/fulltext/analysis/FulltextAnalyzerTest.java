@@ -23,6 +23,7 @@
 
 package io.evitadb.index.fulltext.analysis;
 
+import org.apache.lucene.analysis.ro.RomanianAnalyzer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -465,6 +466,62 @@ class FulltextAnalyzerTest {
 			// pinned Lucene's stop list and Snowball tables are written in cedilla only, so the index chain
 			// normalizes the comma-below spellings into them before stemming
 			assertIterableEquals(List.of("masin", "masin"), terms(ROMANIAN, "ma\u0219in\u0103 ma\u015Fin\u0103"));
+		}
+
+		@Test
+		@DisplayName("A stop word typed in the modern orthography is dropped by the query chain too")
+		void shouldDropCommaBelowStopWordsOnTheSearchSide() {
+			// the query chain's stop filter reads the raw spelling and the pinned Lucene's list is written in
+			// cedilla only, so without the comma-below normalization `și` would survive as the term `si`, which
+			// no document can hold - the index side drops it
+			assertTrue(queryTerms(ROMANIAN, "\u0219i").isEmpty());
+			assertTrue(queryTerms(ROMANIAN, "e\u0219ti").isEmpty());
+			assertTrue(queryTerms(ROMANIAN, "ni\u0219te").isEmpty());
+			// the legacy spellings the list itself carries have always worked - both must behave the same
+			assertTrue(queryTerms(ROMANIAN, "\u015Fi").isEmpty());
+			assertTrue(queryTerms(ROMANIAN, "e\u015Fti").isEmpty());
+			assertTrue(queryTerms(ROMANIAN, "ni\u015Fte").isEmpty());
+		}
+
+		@Test
+		@DisplayName("Both chains agree on which words of a phrase are stop words")
+		void shouldAgreeOnStopWordsAcrossBothChains() {
+			// `mașină și rochie` - "a car and a dress" - written the way modern Romanian is written. The `și` has
+			// to disappear on both sides: it is not in the index, so a query term for it can only subtract
+			final String phrase = "ma\u0219in\u0103 \u0219i rochie";
+			assertIterableEquals(List.of("masin", "roch"), terms(ROMANIAN, phrase));
+			assertIterableEquals(
+				List.of("masina", "masin", "rochie", "roch"), queryTerms(ROMANIAN, phrase)
+			);
+		}
+
+		@Test
+		@DisplayName("Every default stop word is dropped in both orthographies by both chains")
+		void shouldStopEveryDefaultStopWordInBothOrthographies() {
+			// the generalization of the two tests above: 24 of the 230 entries of the pinned Lucene stop list are
+			// written with a cedilla, and a user typing modern Romanian writes every one of them with a comma
+			// below. Both chains have to drop both spellings, or a re-ordering of either chain silently starts
+			// indexing (or querying for) a stop word.
+			for (final Object stopWord : RomanianAnalyzer.getDefaultStopSet()) {
+				final String cedilla = new String((char[]) stopWord);
+				final String commaBelow = cedilla.replace('\u015F', '\u0219').replace('\u0163', '\u021B');
+				assertTrue(
+					terms(ROMANIAN, cedilla).isEmpty(),
+					"Index chain kept the stop word `" + cedilla + "`."
+				);
+				assertTrue(
+					terms(ROMANIAN, commaBelow).isEmpty(),
+					"Index chain kept the comma-below spelling `" + commaBelow + "` of stop word `" + cedilla + "`."
+				);
+				assertTrue(
+					queryTerms(ROMANIAN, cedilla).isEmpty(),
+					"Query chain kept the stop word `" + cedilla + "`."
+				);
+				assertTrue(
+					queryTerms(ROMANIAN, commaBelow).isEmpty(),
+					"Query chain kept the comma-below spelling `" + commaBelow + "` of stop word `" + cedilla + "`."
+				);
+			}
 		}
 
 	}
