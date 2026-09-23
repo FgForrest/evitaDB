@@ -1457,7 +1457,7 @@ public class EvitaRequest {
 						if (this.explicitlyUnnamedReferenceNames.contains(refName)) {
 							continue;
 						}
-						result.merge(refName, named.getValue(), EvitaRequest::unionContentOf);
+						result.merge(refName, contentOnly(named.getValue()), EvitaRequest::unionContentOf);
 					}
 				}
 				this.entityFetchRequirements = result;
@@ -1468,12 +1468,35 @@ public class EvitaRequest {
 	}
 
 	/**
+	 * Strips a named requirement down to what it asks to be FETCHED, dropping how it scopes and pages its own
+	 * chunk.
+	 *
+	 * A named requirement's `filterBy`, `orderBy` and chunking describe the chunk that requirement returns - the
+	 * page a GraphQL field alias asked for. The entity's unnamed view is not that chunk and was never scoped or
+	 * paged by it, and {@link #getReferenceChunkTransformer(String)} resolves its transformer from this very map:
+	 * leaving the page in place makes the unnamed view report the page's size as the reference set's total.
+	 *
+	 * @param named the named requirement to derive from
+	 * @return the same content, unscoped and unpaged
+	 */
+	@Nonnull
+	private static RequirementContext contentOnly(@Nonnull RequirementContext named) {
+		return new RequirementContext(
+			named.managedReferencesBehaviour(),
+			named.attributeContent(),
+			named.entityFetch(),
+			named.entityGroupFetch(),
+			null,
+			null,
+			NoTransformer.INSTANCE
+		);
+	}
+
+	/**
 	 * Unions the **content** of two requirements over one reference name - what each asks to be fetched.
 	 *
-	 * `filterBy` and `orderBy` are deliberately NOT unioned: they scope *which* references a single named
-	 * requirement matched and how its own chunk is ordered, not what each reference carries. The entity's unnamed
-	 * view was never scoped by any one of them, and a union of two filters is a disjunction this model does not
-	 * express. The chunking of the first requirement is kept for the same reason - the unnamed view is not paged.
+	 * Both operands have already been through {@link #contentOnly(RequirementContext)}, so neither carries a
+	 * filter, an ordering or a page to reconcile.
 	 *
 	 * @param left  one requirement over the reference name
 	 * @param right the other requirement over the same reference name
@@ -1489,9 +1512,9 @@ public class EvitaRequest {
 			EntityContentRequire.combineRequirements(left.attributeContent(), right.attributeContent()),
 			EntityFetchRequire.combineRequirements(left.entityFetch(), right.entityFetch()),
 			EntityFetchRequire.combineRequirements(left.entityGroupFetch(), right.entityGroupFetch()),
-			left.filterBy(),
-			left.orderBy(),
-			left.referenceChunkTransformer()
+			null,
+			null,
+			NoTransformer.INSTANCE
 		);
 	}
 
