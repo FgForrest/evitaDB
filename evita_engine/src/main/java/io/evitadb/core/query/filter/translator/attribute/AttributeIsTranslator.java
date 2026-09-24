@@ -56,8 +56,6 @@ import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
@@ -115,23 +113,11 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 						EnclosingContainerRelation.DISJUNCTION
 					)
 				);
-			} else if (scopes.stream().anyMatch(attributeSchema::isUniqueInScope)) {
-				return wrapFormula(
-					attributeSchema,
-					attributeKey,
-					FutureNotFormula.postProcess(
-						createNullUniqueSubtractionFormula(referenceSchema, attributeSchema, filterByVisitor),
-						EnclosingContainerRelation.DISJUNCTION
-					)
-				);
 			} else {
 				return wrapFormula(
 					attributeSchema,
 					attributeKey,
-					FutureNotFormula.postProcess(
-						createNullFilterableSubtractionFormula(referenceSchema, attributeSchema, filterByVisitor),
-						EnclosingContainerRelation.DISJUNCTION
-					)
+					createNullSubtractionFormula(referenceSchema, attributeSchema, filterByVisitor)
 				);
 			}
 		} else {
@@ -143,42 +129,93 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	}
 
 	/**
-	 * Creates an array of Formulas for filtering entities where a specified attribute is null based on information
-	 * in filter indexes. The formulas apply a subtraction operation to filter out records with non-null attributes.
+	 * Creates the formula selecting the records that carry no value of the attribute: one `superSet \ carriers`
+	 * subtraction per entity index in scope, joined by a disjunction.
 	 *
+	 * The per-index formulas are built through {@link FilterByVisitor#applyOnIndexes(java.util.function.Function)},
+	 * which tags each with the index that produced it whenever a `referenceHaving` body is being translated - the tag
+	 * is what lets `ReferenceBodyTransposer` answer the null test one reference row at a time, instead of reading it
+	 * as index-independent and combining a null row of one partition with a sibling constraint met by another.
+	 *
+	 * Per index the contribution is:
+	 *
+	 * - every record of the index, when nothing in it carries the attribute - that index is one where every record
+	 *   is null, not one that has nothing to say;
+	 * - nothing, when {@link #subtractionMayYieldRecords(Formula, Formula)} proves every record carries it;
+	 * - the subtraction otherwise.
+	 *
+	 * An all-empty result collapses to {@link EmptyFormula} during planning.
+	 *
+	 * @param referenceSchema the reference schema the attribute belongs to, or NULL for an entity attribute
 	 * @param attributeSchema the schema definition of the attribute being processed
-	 * @param filterByVisitor     the visitor responsible for filtering operations
-	 * @return an array of Formulas representing the null filterable subtraction conditions
+	 * @param filterByVisitor the visitor responsible for filtering operations
+	 * @return the null formula, or {@link EmptyFormula} when no index can hold a null record
 	 */
 	@Nonnull
-	private static Formula[] createNullFilterableSubtractionFormula(
+	private static Formula createNullSubtractionFormula(
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
-		// this runs once per entity index in scope, which for a reference filter is once per referenced entity of
-		// the whole collection - an allocation-light loop, not a stream
-		final List<Formula> subtractions = new ArrayList<>(64);
-		final Locale locale = attributeSchema.isLocalized() ? filterByVisitor.getLocale() : null;
-		filterByVisitor.getEntityIndexStream().forEach(
-			it -> {
-				final FilterIndex filterIndex = it.getFilterIndex(referenceSchema, attributeSchema, locale);
-				if (filterIndex == null) {
-					// nothing in this index carries the attribute, so every record in it is null
-					final Formula allPrimaryKeys = it.getAllPrimaryKeysFormula();
-					if (!(allPrimaryKeys instanceof EmptyFormula)) {
-						subtractions.add(allPrimaryKeys);
-					}
-				} else {
-					final Formula subtracted = filterIndex.getAllRecordsFormula();
-					final Formula superSet = it.getAllPrimaryKeysFormula();
-					if (subtractionMayYieldRecords(subtracted, superSet)) {
-						subtractions.add(new NotFormula(subtracted, superSet));
-					}
+		final Locale locale = filterByVisitor.getLocale();
+		// `applyOnIndexes`, never `applyOnFilterIndexes` / `applyOnUniqueIndexes`: those turn an index without the
+		// attribute into EMPTY before the lambda runs, and for a null test that is the index where EVERY record matches
+		return filterByVisitor.applyOnIndexes(
+			entityIndex -> {
+				final Formula superSet = entityIndex.getAllPrimaryKeysFormula();
+				if (superSet instanceof EmptyFormula) {
+					// nothing is tracked here, so nothing can be null here
+					return EmptyFormula.INSTANCE;
 				}
+				final Formula carriers = getCarriersFormula(entityIndex, referenceSchema, attributeSchema, locale);
+				if (carriers == null) {
+					// nothing in this index carries the attribute, so every record in it is null
+					return superSet;
+				}
+				return subtractionMayYieldRecords(carriers, superSet) ?
+					new NotFormula(carriers, superSet) : EmptyFormula.INSTANCE;
 			}
 		);
-		return subtractions.toArray(Formula.EMPTY_FORMULA_ARRAY);
+	}
+
+	/**
+	 * Returns the records of the index that carry a value of the attribute, or NULL when the index keeps no
+	 * structure for it at all - which means none of its records carries a value.
+	 *
+	 * The filter index answers for unique attributes too: {@link EntityIndex#upsertAttribute} writes it for every
+	 * attribute that is unique **or** filterable, so it is present wherever the unique index is - and also in the
+	 * indexes that keep no unique index at all, such as an index of a scope where the attribute is merely
+	 * filterable. The one exception is a localized attribute unique across locales rather than within one: its unique
+	 * index holds the record once whatever locale carries the value, while its filter index is split per locale. That
+	 * one keeps reading the unique index, so its null test still means "no value in any locale" - the reading its
+	 * `attributeIs(NOT_NULL)` has - and still works without a query locale, which such an attribute allows.
+	 *
+	 * @param entityIndex     the index to read
+	 * @param referenceSchema the reference schema the attribute belongs to, or NULL for an entity attribute
+	 * @param attributeSchema the schema definition of the attribute being processed
+	 * @param locale          the query locale, or NULL when none was requested
+	 * @return the carrying records, or NULL when the index keeps no structure for the attribute
+	 */
+	@Nullable
+	private static Formula getCarriersFormula(
+		@Nonnull EntityIndex entityIndex,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nullable Locale locale
+	) {
+		final Scope scope = entityIndex.getIndexKey().scope();
+		if (attributeSchema.isLocalized() &&
+			attributeSchema.isUniqueInScope(scope) &&
+			!attributeSchema.isUniqueWithinLocaleInScope(scope)
+		) {
+			final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(referenceSchema, attributeSchema, locale);
+			return uniqueIndex == null ? null : uniqueIndex.getRecordIdsFormula();
+		} else {
+			final FilterIndex filterIndex = entityIndex.getFilterIndex(
+				referenceSchema, attributeSchema, attributeSchema.isLocalized() ? locale : null
+			);
+			return filterIndex == null ? null : filterIndex.getAllRecordsFormula();
+		}
 	}
 
 	/**
@@ -192,9 +229,9 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	 *
 	 * An index whose every record carries a value for the attribute contributes nothing to an `attributeIs(NULL)`
 	 * disjunction, yet it still costs a {@link NotFormula} and its two operands in the tree - and the enclosing
-	 * disjunction is built by the non-folding one-argument {@link io.evitadb.core.query.algebra.utils.FormulaFactory}
-	 * `or`, so those nodes survive planning, hashing, cost estimation and every post-processor walk. Dropping them
-	 * here is what lets an all-empty disjunction collapse to {@link EmptyFormula} instead.
+	 * disjunction folds only constant operands, so those nodes would survive planning, hashing, cost estimation and
+	 * every post-processor walk. Dropping them here is what lets an all-empty disjunction collapse to
+	 * {@link EmptyFormula} instead.
 	 *
 	 * The test is the exact subset relation rather than a cardinality comparison: equal sizes would only imply an
 	 * empty difference under the assumption that the filter index never holds a record the entity index does not,
@@ -248,38 +285,6 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 				)
 			)
 		};
-	}
-
-	/**
-	 * Creates an array of Formulas for filtering entities where a specified attribute is null based on information
-	 * in unique indexes. The formulas apply a subtraction operation to filter out records with non-null attributes.
-	 *
-	 * @param attributeSchema the schema definition of the attribute being processed
-	 * @param filterByVisitor     the visitor responsible for filtering operations
-	 * @return an array of Formulas representing the null filterable subtraction conditions
-	 */
-	@Nonnull
-	private static Formula[] createNullUniqueSubtractionFormula(
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull AttributeSchemaContract attributeSchema,
-		@Nonnull FilterByVisitor filterByVisitor
-	) {
-		final List<Formula> subtractions = new ArrayList<>(64);
-		filterByVisitor.getEntityIndexStream().forEach(
-			it -> {
-				final UniqueIndex uniqueIndex = it.getUniqueIndex(
-					referenceSchema, attributeSchema, filterByVisitor.getLocale()
-				);
-				if (uniqueIndex != null) {
-					final Formula subtracted = uniqueIndex.getRecordIdsFormula();
-					final Formula superSet = it.getAllPrimaryKeysFormula();
-					if (subtractionMayYieldRecords(subtracted, superSet)) {
-						subtractions.add(new NotFormula(subtracted, superSet));
-					}
-				}
-			}
-		);
-		return subtractions.toArray(Formula.EMPTY_FORMULA_ARRAY);
 	}
 
 	/**

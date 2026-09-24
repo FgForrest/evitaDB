@@ -33,8 +33,11 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.Scope;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
@@ -47,9 +50,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -60,9 +65,11 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.FACET;
 import static io.evitadb.test.TestTags.FILTER;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -89,8 +96,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * ## The fixture
  *
  * `rowOwner` holds three references to `rowTarget` (targets 1-3 are the partitions): `rows` (`a`, `b`, unique `u`),
- * `links` (`x`, array `arr`, localized `loc`) and `empty`, which is never written. `rowTarget.owners` reflects
- * `rows`, which is the direction in which the bidirectional rewrite answers. Rows as `(a, b, u)`:
+ * `links` (`x`, array `arr`, localized `loc`, localized unique `lu`) and `empty`, which is never written.
+ * `rowTarget.owners` reflects `rows`, which is the direction in which the bidirectional rewrite answers. Rows as
+ * `(a, b, u)`:
  *
  * | owner | `rows` |
  * |---|---|
@@ -102,8 +110,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * | 6-25 | T2 `(9, 3, ⊥)` - fillers that make the rewrite pay off from the target end |
  *
  * So for `a`, T1 is a partition in which **no** row carries it (it has no filter index for `a` at all), T3 mixes a
- * null row with a non-null one, and T2 carries it on every row. `links` repeats the pattern for `x`, and adds an
- * array attribute and a localized one - see {@link #setUpRowScopedNullDataSet(Evita)}.
+ * null row with a non-null one, and T2 carries it on every row. For `u`, T1 has no index at all and T2 and T3 are
+ * mixed. `links` repeats the pattern for `x`, and adds an array attribute and two localized ones - see
+ * {@link #setUpRowScopedNullDataSet(Evita)}. The multi-scope rows use a fixture of their own, so that no archived
+ * entity can change which route the single-scope rows take - see {@link #setUpMultiScopeNullDataSet(Evita)}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -115,8 +125,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(ATTRIBUTE)
 public class ReferenceHavingAttributeIsNullFunctionalTest {
 	private static final String ROW_SCOPED_NULL = "rowScopedNull";
+	private static final String MULTI_SCOPE_NULL = "rowScopedNullMultiScope";
 	private static final String ENTITY_OWNER = "rowOwner";
 	private static final String ENTITY_TARGET = "rowTarget";
+	private static final String ENTITY_SCOPED_OWNER = "scopedRowOwner";
+	private static final String ENTITY_SCOPED_TARGET = "scopedRowTarget";
 	private static final String REF_ROWS = "rows";
 	private static final String REF_LINKS = "links";
 	private static final String REF_EMPTY = "empty";
@@ -147,6 +160,10 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 	 */
 	private static final String LOC = "loc";
 	/**
+	 * `links`: `String`, localized, unique across locales (not within a locale), nullable.
+	 */
+	private static final String LU = "lu";
+	/**
 	 * `empty`: `Long`, filterable, nullable - declared on a reference that never receives a row.
 	 */
 	private static final String E = "e";
@@ -157,23 +174,29 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 	private static final int TARGET_COUNT = 3;
 	private static final int FIRST_FILLER_PK = 6;
 	private static final int LAST_FILLER_PK = 25;
+	/**
+	 * Prefix of the `PLANNING_FILTER_ALTERNATIVE` argument describing the owner-side reduced-index option.
+	 */
+	private static final String REFERENCE_INDEX_OPTION_PREFIX = "Index type: REFERENCED_ENTITY composed of ";
 
 	/**
 	 * Builds the fixture described on the class.
 	 *
-	 * `links` rows as `(x, arr, loc)`, `loc` listed per locale:
+	 * `links` rows as `(x, arr, loc, lu)`, the localized values listed per locale:
 	 *
 	 * | owner | `links` |
 	 * |---|---|
-	 * | 1 | T1 `(⊥, [1, 2], en)`, T2 `(3, ⊥, de)` |
-	 * | 2 | T1 `(4, ⊥, -)` |
-	 * | 3 | T3 `(⊥, [5], en + de)` |
-	 * | 4 | T2 `(⊥, [1, 6], de)` |
-	 * | 5 | T1 `(7, [9], de)` |
+	 * | 1 | T1 `(⊥, [1, 2], en, -)`, T2 `(3, ⊥, de, -)` |
+	 * | 2 | T1 `(4, ⊥, -, en)` |
+	 * | 3 | T3 `(⊥, [5], en + de, de)` |
+	 * | 4 | T2 `(⊥, [1, 6], de, -)` |
+	 * | 5 | T1 `(7, [9], de, -)` |
 	 *
 	 * In German, T1 therefore mixes a row carrying `loc` only in English (owner 1) and a row carrying none (owner 2)
-	 * with a row carrying it (owner 5); T1 and T2 each mix an array-valued row with a null one. Every owner carries
-	 * a `name` in both locales, so `entityLocaleEquals` keeps every owner in play and the oracle need not narrow.
+	 * with a row carrying it (owner 5); T1 and T2 each mix an array-valued row with a null one. Owner 2's only row
+	 * carries `lu` in English alone, which is what tells "no value in the query locale" from "no value at all" apart.
+	 * Every owner carries a `name` in both locales, so `entityLocaleEquals` keeps every owner in play and the oracle
+	 * need not narrow.
 	 *
 	 * @param evita the engine instance provided by the test extension
 	 * @return the owners and targets as stored, for the oracles
@@ -204,6 +227,7 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 							.withAttribute(X, Long.class, thatIs -> thatIs.filterable().nullable())
 							.withAttribute(ARR, Long[].class, thatIs -> thatIs.filterable().nullable())
 							.withAttribute(LOC, String.class, thatIs -> thatIs.filterable().localized().nullable())
+							.withAttribute(LU, String.class, thatIs -> thatIs.unique().localized().nullable())
 					)
 					.withReferenceToEntity(
 						REF_EMPTY, ENTITY_TARGET, Cardinality.ZERO_OR_MORE,
@@ -226,27 +250,30 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 				upsertOwner(
 					session, 1,
 					new Row[]{row(1, null, 1L, null), row(2, 5L, 2L, "x1")},
-					new Link[]{link(1, null, new Long[]{1L, 2L}, "p1en", null), link(2, 3L, null, null, "p1de")}
+					new Link[]{
+						link(1, null, new Long[]{1L, 2L}, "p1en", null, null, null),
+						link(2, 3L, null, null, "p1de", null, null)
+					}
 				);
 				upsertOwner(
 					session, 2,
 					new Row[]{row(1, null, 2L, null)},
-					new Link[]{link(1, 4L, null, null, null)}
+					new Link[]{link(1, 4L, null, null, null, "lu2en", null)}
 				);
 				upsertOwner(
 					session, 3,
 					new Row[]{row(2, 5L, 2L, "x3")},
-					new Link[]{link(3, null, new Long[]{5L}, "p3en", "p3de")}
+					new Link[]{link(3, null, new Long[]{5L}, "p3en", "p3de", null, "lu3de")}
 				);
 				upsertOwner(
 					session, 4,
 					new Row[]{row(3, null, 1L, null), row(2, 5L, 1L, "x4")},
-					new Link[]{link(2, null, new Long[]{1L, 6L}, null, "p4de")}
+					new Link[]{link(2, null, new Long[]{1L, 6L}, null, "p4de", null, null)}
 				);
 				upsertOwner(
 					session, 5,
 					new Row[]{row(3, 7L, 2L, "x5")},
-					new Link[]{link(1, 7L, new Long[]{9L}, null, "p5de")}
+					new Link[]{link(1, 7L, new Long[]{9L}, null, "p5de", null, null)}
 				);
 				for (int fillerPk = FIRST_FILLER_PK; fillerPk <= LAST_FILLER_PK; fillerPk++) {
 					upsertOwner(session, fillerPk, new Row[]{row(2, 9L, 3L, null)}, new Link[0]);
@@ -257,6 +284,70 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 				assertEquals(LAST_FILLER_PK, owners.size(), "Fixture guard: unexpected owner count!");
 				assertEquals(TARGET_COUNT, targets.size(), "Fixture guard: unexpected target count!");
 				return new DataCarrier("originalOwners", owners, "originalTargets", targets);
+			}
+		);
+	}
+
+	/**
+	 * Builds the multi-scope fixture: `scopedRowOwner` with `rows` (`a`, `b`) indexed in both scopes, pointing at
+	 * two live targets. Rows as `(a, b)`:
+	 *
+	 * | owner | scope | `rows` |
+	 * |---|---|---|
+	 * | 1 | LIVE | T1 `(⊥, 1)`, T2 `(5, 2)` |
+	 * | 2 | LIVE | T1 `(9, 2)` |
+	 * | 3 | LIVE | T1 `(⊥, 2)` |
+	 * | 4 | ARCHIVED | T1 `(⊥, 1)`, T2 `(7, 1)` |
+	 * | 5 | ARCHIVED | T2 `(8, 2)` |
+	 * | 6 | ARCHIVED | T2 `(⊥, 2)` |
+	 *
+	 * Each scope has its own partition family: in LIVE T1 is mixed and T2 fully carries `a`; in ARCHIVED T1 carries
+	 * no `a` at all and T2 is mixed - so both scopes hold a partition the old exact subtraction dropped.
+	 *
+	 * @param evita the engine instance provided by the test extension
+	 * @return the owners as stored, in both scopes
+	 */
+	@DataSet(value = MULTI_SCOPE_NULL, destroyAfterClass = true)
+	DataCarrier setUpMultiScopeNullDataSet(@Nonnull Evita evita) {
+		return evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(ENTITY_SCOPED_TARGET).withoutGeneratedPrimaryKey().updateVia(session);
+				session.defineEntitySchema(ENTITY_SCOPED_OWNER)
+					.withoutGeneratedPrimaryKey()
+					.withReferenceToEntity(
+						REF_ROWS, ENTITY_SCOPED_TARGET, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs
+							.indexedForFilteringAndPartitioningInScope(Scope.values())
+							.withAttribute(A, Long.class, thatIs -> thatIs.filterableInScope(Scope.values()).nullable())
+							.withAttribute(B, Long.class, thatIs -> thatIs.filterableInScope(Scope.values()))
+					)
+					.updateVia(session);
+				for (int targetPk = 1; targetPk <= 2; targetPk++) {
+					session.upsertEntity(session.createNewEntity(ENTITY_SCOPED_TARGET, targetPk));
+				}
+				upsertScopedOwner(session, 1, row(1, null, 1L, null), row(2, 5L, 2L, null));
+				upsertScopedOwner(session, 2, row(1, 9L, 2L, null));
+				upsertScopedOwner(session, 3, row(1, null, 2L, null));
+				upsertScopedOwner(session, 4, row(1, null, 1L, null), row(2, 7L, 1L, null));
+				upsertScopedOwner(session, 5, row(2, 8L, 2L, null));
+				upsertScopedOwner(session, 6, row(2, null, 2L, null));
+				for (int archivedPk = 4; archivedPk <= 6; archivedPk++) {
+					session.archiveEntity(ENTITY_SCOPED_OWNER, archivedPk);
+				}
+
+				final List<SealedEntity> owners = session.queryListOfSealedEntities(
+					Query.query(
+						collection(ENTITY_SCOPED_OWNER),
+						filterBy(scope(Scope.LIVE, Scope.ARCHIVED)),
+						require(entityFetch(entityFetchAllContent()), page(1, Integer.MAX_VALUE))
+					)
+				);
+				assertEquals(
+					3, owners.stream().filter(it -> it.getScope() == Scope.ARCHIVED).count(),
+					"Fixture guard: three owners must be archived!"
+				);
+				return new DataCarrier("originalScopedOwners", owners);
 			}
 		);
 	}
@@ -285,12 +376,12 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 				TEST_CATALOG,
 				session -> {
 					assertOwners(
-						session, originalOwners, referenceHaving(REF_ROWS, attributeIsNull(A)),
-						anyRow(REF_ROWS, row -> row.getAttribute(A) == null)
+						session, originalOwners, anyRow(REF_ROWS, row -> row.getAttribute(A) == null),
+						referenceHaving(REF_ROWS, attributeIsNull(A))
 					);
 					assertOwners(
-						session, originalOwners, referenceHaving(REF_LINKS, attributeIsNull(X)),
-						anyRow(REF_LINKS, row -> row.getAttribute(X) == null)
+						session, originalOwners, anyRow(REF_LINKS, row -> row.getAttribute(X) == null),
+						referenceHaving(REF_LINKS, attributeIsNull(X))
 					);
 					return null;
 				}
@@ -340,8 +431,9 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 					for (boolean preferIndexScan : new boolean[]{true, false}) {
 						assertThrows(
 							AttributeNotFoundException.class,
-							() -> queryOwners(
-								session, referenceHaving(REF_ROWS, attributeIsNull(UNKNOWN)), preferIndexScan
+							() -> query(
+								session, ENTITY_OWNER, preferIndexScan,
+								referenceHaving(REF_ROWS, attributeIsNull(UNKNOWN))
 							),
 							"`" + UNKNOWN + "` is not declared on `" + REF_ROWS + "` and must be refused " +
 								"(preferIndexScan=" + preferIndexScan + ")"
@@ -368,8 +460,12 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 				session -> {
 					for (boolean preferIndexScan : new boolean[]{true, false}) {
 						assertTrue(
-							pks(queryOwners(session, referenceHaving(REF_EMPTY, attributeIsNull(E)), preferIndexScan))
-								.isEmpty(),
+							pks(
+								query(
+									session, ENTITY_OWNER, preferIndexScan,
+									referenceHaving(REF_EMPTY, attributeIsNull(E))
+								)
+							).isEmpty(),
 							"A reference without rows matches no owner (preferIndexScan=" + preferIndexScan + ")"
 						);
 					}
@@ -380,27 +476,729 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 	}
 
 	/**
-	 * Runs the filter against the owner collection under both index-scan preferences and asserts the owners equal the
-	 * ones the oracle selects from the entity bodies.
+	 * The null test must be answered against one row at a time, like every other leaf of the body. Each shape below
+	 * combines T1 (no row carries `a`, so the partition has no filter index for it) with T3 (a null row next to a
+	 * non-null one) under a different connective - the combination that fails when a partition without the index is
+	 * read as contributing nothing instead of contributing every row.
+	 */
+	@DisplayName("Row scoping of a filterable attribute")
+	@Nested
+	class RowScopingOfAFilterableAttribute {
+
+		@DisplayName("Should answer every connective against a single row")
+		@UseDataSet(ROW_SCOPED_NULL)
+		@Test
+		void shouldAnswerEveryConnectiveAgainstASingleRow(Evita evita, List<SealedEntity> originalOwners) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					// owner 1 holds a null row with b = 1 and a non-null row with b = 2 - a cross-row reading adds it
+					assertRows(
+						session, originalOwners, REF_ROWS,
+						and(attributeIsNull(A), attributeEquals(B, 2L)),
+						row -> row.getAttribute(A) == null && Objects.equals(row.getAttribute(B), 2L)
+					);
+					assertRows(
+						session, originalOwners, REF_ROWS,
+						and(attributeIsNull(A), attributeEquals(B, 1L)),
+						row -> row.getAttribute(A) == null && Objects.equals(row.getAttribute(B), 1L)
+					);
+					assertRows(
+						session, originalOwners, REF_ROWS,
+						and(attributeIsNull(A), not(attributeEquals(B, 1L))),
+						row -> row.getAttribute(A) == null && !Objects.equals(row.getAttribute(B), 1L)
+					);
+					// owners 1 and 4 hold a non-null row next to a null one, and must not be taken away by it
+					assertRows(
+						session, originalOwners, REF_ROWS,
+						not(attributeIsNull(A)),
+						row -> row.getAttribute(A) != null
+					);
+					assertRows(
+						session, originalOwners, REF_ROWS,
+						not(and(attributeIsNull(A), attributeEquals(B, 2L))),
+						row -> !(row.getAttribute(A) == null && Objects.equals(row.getAttribute(B), 2L))
+					);
+					assertRows(
+						session, originalOwners, REF_ROWS,
+						and(not(attributeIsNull(A)), attributeEquals(B, 2L)),
+						row -> row.getAttribute(A) != null && Objects.equals(row.getAttribute(B), 2L)
+					);
+					assertRows(
+						session, originalOwners, REF_ROWS,
+						or(attributeIsNull(A), not(attributeEquals(B, 2L))),
+						row -> row.getAttribute(A) == null || !Objects.equals(row.getAttribute(B), 2L)
+					);
+					assertRows(
+						session, originalOwners, REF_ROWS,
+						or(
+							and(attributeIsNull(A), attributeEquals(B, 1L)),
+							and(attributeIsNotNull(A), attributeEquals(B, 3L))
+						),
+						row -> row.getAttribute(A) == null ?
+							Objects.equals(row.getAttribute(B), 1L) : Objects.equals(row.getAttribute(B), 3L)
+					);
+					// controls: the positive spelling was row-scoped all along
+					assertRows(
+						session, originalOwners, REF_ROWS,
+						and(attributeIsNotNull(A), attributeEquals(B, 2L)),
+						row -> row.getAttribute(A) != null && Objects.equals(row.getAttribute(B), 2L)
+					);
+					assertRows(
+						session, originalOwners, REF_ROWS,
+						not(attributeIsNotNull(A)),
+						row -> row.getAttribute(A) == null
+					);
+					return null;
+				}
+			);
+		}
+	}
+
+	/**
+	 * A unique attribute is answered through the filter index every unique attribute also maintains, so a partition
+	 * without the attribute contributes every row, exactly as for a filterable one. Checked on both routes the
+	 * engine can take and on the fetch path.
+	 */
+	@DisplayName("Unique attribute")
+	@Nested
+	class UniqueAttribute {
+
+		/**
+		 * Asked from the owner end, the rewrite declines on its cost gate and the reduced indexes of `rows` answer.
+		 */
+		@DisplayName("Should answer the null test of a unique attribute on the owner side")
+		@UseDataSet(ROW_SCOPED_NULL)
+		@Test
+		void shouldAnswerTheNullTestOfAUniqueAttributeOnTheOwnerSide(Evita evita, List<SealedEntity> originalOwners) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertRows(
+						session, ENTITY_OWNER, originalOwners, REF_ROWS, Route.OWNER_SIDE,
+						attributeIsNull(U), row -> row.getAttribute(U) == null
+					);
+					assertRows(
+						session, ENTITY_OWNER, originalOwners, REF_ROWS, Route.OWNER_SIDE,
+						not(attributeIsNull(U)), row -> row.getAttribute(U) != null
+					);
+					assertRows(
+						session, ENTITY_OWNER, originalOwners, REF_ROWS, Route.OWNER_SIDE,
+						and(attributeIsNull(U), attributeEquals(B, 2L)),
+						row -> row.getAttribute(U) == null && Objects.equals(row.getAttribute(B), 2L)
+					);
+					assertRows(
+						session, ENTITY_OWNER, originalOwners, REF_ROWS, Route.OWNER_SIDE,
+						attributeIsNotNull(U), row -> row.getAttribute(U) != null
+					);
+					return null;
+				}
+			);
+		}
+
+		/**
+		 * Asked from the target end, a single leaf is answered by the bidirectional rewrite on the owners' reduced
+		 * indexes, and a conjunction - which the rewrite declines - by the targets' own. The route is asserted, so
+		 * a row cannot pass on the path it was not written for.
+		 */
+		@DisplayName("Should answer the null test of a unique attribute through the rewrite")
+		@UseDataSet(ROW_SCOPED_NULL)
+		@Test
+		void shouldAnswerTheNullTestOfAUniqueAttributeThroughTheRewrite(
+			Evita evita,
+			List<SealedEntity> originalTargets
+		) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertRows(
+						session, ENTITY_TARGET, originalTargets, REF_OWNERS, Route.REWRITE,
+						attributeIsNull(U), row -> row.getAttribute(U) == null
+					);
+					assertRows(
+						session, ENTITY_TARGET, originalTargets, REF_OWNERS, Route.REWRITE,
+						not(attributeIsNull(U)), row -> row.getAttribute(U) != null
+					);
+					assertRows(
+						session, ENTITY_TARGET, originalTargets, REF_OWNERS, Route.OWNER_SIDE,
+						and(attributeIsNull(U), attributeEquals(B, 2L)),
+						row -> row.getAttribute(U) == null && Objects.equals(row.getAttribute(B), 2L)
+					);
+					assertRows(
+						session, ENTITY_TARGET, originalTargets, REF_OWNERS, Route.REWRITE,
+						attributeIsNull(A), row -> row.getAttribute(A) == null
+					);
+					assertRows(
+						session, ENTITY_TARGET, originalTargets, REF_OWNERS, Route.REWRITE,
+						not(attributeIsNull(A)), row -> row.getAttribute(A) != null
+					);
+					return null;
+				}
+			);
+		}
+
+		@DisplayName("Should fetch exactly the rows lacking a unique attribute")
+		@UseDataSet(ROW_SCOPED_NULL)
+		@Test
+		void shouldFetchExactlyTheRowsLackingAUniqueAttribute(Evita evita, List<SealedEntity> originalOwners) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertFetchedRows(
+						session, originalOwners, REF_ROWS, attributeIsNull(U), row -> row.getAttribute(U) == null
+					);
+					assertFetchedRows(
+						session, originalOwners, REF_ROWS, not(attributeIsNull(U)), row -> row.getAttribute(U) != null
+					);
+					return null;
+				}
+			);
+		}
+	}
+
+	/**
+	 * Array-valued and localized attributes reach the filter index in their own ways - one row contributes several
+	 * values, or a value exists only in some locales - and the null test must still mean "this row, in this locale,
+	 * carries nothing".
+	 */
+	@DisplayName("Array and localized attributes")
+	@Nested
+	class ArrayAndLocalizedAttributes {
+
+		@DisplayName("Should find the null rows of an array attribute")
+		@UseDataSet(ROW_SCOPED_NULL)
+		@Test
+		void shouldFindTheNullRowsOfAnArrayAttribute(Evita evita, List<SealedEntity> originalOwners) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertRows(
+						session, originalOwners, REF_LINKS,
+						attributeIsNull(ARR), row -> row.getAttribute(ARR) == null
+					);
+					assertRows(
+						session, originalOwners, REF_LINKS,
+						not(attributeIsNull(ARR)), row -> row.getAttribute(ARR) != null
+					);
+					assertRows(
+						session, originalOwners, REF_LINKS,
+						and(attributeIsNull(ARR), attributeEquals(X, 3L)),
+						row -> row.getAttribute(ARR) == null && Objects.equals(row.getAttribute(X), 3L)
+					);
+					assertFetchedRows(
+						session, originalOwners, REF_LINKS, attributeIsNull(ARR), row -> row.getAttribute(ARR) == null
+					);
+					return null;
+				}
+			);
+		}
+
+		/**
+		 * Owner 1's T1 row carries `loc` in English only, so asked in German it is a null row - in a partition where
+		 * owner 5's row does carry a German value.
+		 */
+		@DisplayName("Should find the rows lacking a localized attribute in the query locale")
+		@UseDataSet(ROW_SCOPED_NULL)
+		@Test
+		void shouldFindTheRowsLackingALocalizedAttributeInTheQueryLocale(
+			Evita evita,
+			List<SealedEntity> originalOwners
+		) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					for (Locale locale : List.of(Locale.GERMAN, Locale.ENGLISH)) {
+						assertOwners(
+							session, originalOwners,
+							anyRow(REF_LINKS, row -> row.getAttribute(LOC, locale) == null),
+							entityLocaleEquals(locale), referenceHaving(REF_LINKS, attributeIsNull(LOC))
+						);
+						assertOwners(
+							session, originalOwners,
+							anyRow(REF_LINKS, row -> row.getAttribute(LOC, locale) != null),
+							entityLocaleEquals(locale), referenceHaving(REF_LINKS, not(attributeIsNull(LOC)))
+						);
+						assertOwners(
+							session, originalOwners,
+							anyRow(
+								REF_LINKS,
+								row -> row.getAttribute(LOC, locale) == null && row.getAttribute(X) == null
+							),
+							entityLocaleEquals(locale),
+							referenceHaving(REF_LINKS, and(attributeIsNull(LOC), attributeIsNull(X)))
+						);
+					}
+					return null;
+				}
+			);
+		}
+
+		/**
+		 * A localized attribute that is unique across locales (not within one) keeps one unique index for all of its
+		 * locales, while its filter index is split per locale. Its null test therefore keeps meaning "carries no value
+		 * in any locale" - the reading its `attributeIsNotNull` has always had, so the two still partition the rows -
+		 * and still works without a query locale, which such an attribute allows. Owner 2's only row carries `lu` in
+		 * English alone, so it is the owner a per-locale reading would add in German.
+		 */
+		@DisplayName("Should read a localized unique attribute across all its locales")
+		@UseDataSet(ROW_SCOPED_NULL)
+		@Test
+		void shouldReadALocalizedUniqueAttributeAcrossAllItsLocales(Evita evita, List<SealedEntity> originalOwners) {
+			final Predicate<ReferenceContract> lacksLuEverywhere =
+				row -> row.getAttribute(LU, Locale.ENGLISH) == null && row.getAttribute(LU, Locale.GERMAN) == null;
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertOwners(
+						session, originalOwners, anyRow(REF_LINKS, lacksLuEverywhere),
+						entityLocaleEquals(Locale.GERMAN), referenceHaving(REF_LINKS, attributeIsNull(LU))
+					);
+					assertOwners(
+						session, originalOwners, anyRow(REF_LINKS, lacksLuEverywhere.negate()),
+						entityLocaleEquals(Locale.GERMAN), referenceHaving(REF_LINKS, attributeIsNotNull(LU))
+					);
+					assertOwners(
+						session, originalOwners, anyRow(REF_LINKS, lacksLuEverywhere),
+						referenceHaving(REF_LINKS, attributeIsNull(LU))
+					);
+					return null;
+				}
+			);
+		}
+	}
+
+	/**
+	 * Null tests on two references in one query, and one nested inside another reference's body through
+	 * `entityHaving`, must each stay scoped to the rows of their own reference.
+	 */
+	@DisplayName("Several references in one query")
+	@Nested
+	class SeveralReferencesInOneQuery {
+
+		@DisplayName("Should scope sibling null tests to their own reference")
+		@UseDataSet(ROW_SCOPED_NULL)
+		@Test
+		void shouldScopeSiblingNullTestsToTheirOwnReference(Evita evita, List<SealedEntity> originalOwners) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertOwners(
+						session, originalOwners,
+						anyRow(REF_ROWS, row -> row.getAttribute(A) == null)
+							.and(anyRow(REF_LINKS, row -> row.getAttribute(X) == null)),
+						referenceHaving(REF_ROWS, attributeIsNull(A)),
+						referenceHaving(REF_LINKS, attributeIsNull(X))
+					);
+					assertOwners(
+						session, originalOwners,
+						anyRow(REF_ROWS, row -> row.getAttribute(A) == null && Objects.equals(row.getAttribute(B), 1L))
+							.and(anyRow(REF_LINKS, row -> row.getAttribute(X) != null)),
+						referenceHaving(REF_ROWS, and(attributeIsNull(A), attributeEquals(B, 1L))),
+						referenceHaving(REF_LINKS, not(attributeIsNull(X)))
+					);
+					return null;
+				}
+			);
+		}
+
+		/**
+		 * The inner `referenceHaving(owners, attributeIsNull(a))` selects the targets that some owner references
+		 * through a row lacking `a`; the outer body then asks for a row that points at such a target and itself
+		 * lacks (or carries) `a`.
+		 *
+		 * This row guards the nesting against regressions but cannot catch a cross-row reading: `entityHaving` narrows
+		 * the candidate partitions to exactly the matching targets, so no candidate holds a row it rejects, and every
+		 * partition of the reflected `owners` holds a single row. Measured green with the per-index tagging reverted;
+		 * the sibling row above is the one that goes red.
+		 */
+		@DisplayName("Should scope a null test nested through entityHaving")
+		@UseDataSet(ROW_SCOPED_NULL)
+		@Test
+		void shouldScopeANullTestNestedThroughEntityHaving(
+			Evita evita,
+			List<SealedEntity> originalOwners,
+			List<SealedEntity> originalTargets
+		) {
+			final Set<Integer> targetsWithANullRow = selectPks(
+				originalTargets, anyRow(REF_OWNERS, row -> row.getAttribute(A) == null)
+			);
+			assertFalse(targetsWithANullRow.isEmpty(), "Fixture guard: some target must have a null owner row!");
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertRows(
+						session, originalOwners, REF_ROWS,
+						and(attributeIsNull(A), entityHaving(referenceHaving(REF_OWNERS, attributeIsNull(A)))),
+						row -> row.getAttribute(A) == null &&
+							targetsWithANullRow.contains(row.getReferencedPrimaryKey())
+					);
+					assertRows(
+						session, originalOwners, REF_ROWS,
+						and(not(attributeIsNull(A)), entityHaving(referenceHaving(REF_OWNERS, attributeIsNull(A)))),
+						row -> row.getAttribute(A) != null &&
+							targetsWithANullRow.contains(row.getReferencedPrimaryKey())
+					);
+					return null;
+				}
+			);
+		}
+	}
+
+	/**
+	 * Every scope has its own partition family, and `inScope` applies a body to one of them only.
+	 */
+	@DisplayName("Several scopes")
+	@Nested
+	class SeveralScopes {
+
+		@DisplayName("Should find the null rows in every requested scope")
+		@UseDataSet(MULTI_SCOPE_NULL)
+		@Test
+		void shouldFindTheNullRowsInEveryRequestedScope(Evita evita, List<SealedEntity> originalScopedOwners) {
+			final Predicate<ReferenceContract> lacksA = row -> row.getAttribute(A) == null;
+			final Predicate<ReferenceContract> lacksAWithB2 =
+				row -> row.getAttribute(A) == null && Objects.equals(row.getAttribute(B), 2L);
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertMatches(
+						session, ENTITY_SCOPED_OWNER, originalScopedOwners, anyRow(REF_ROWS, lacksA), null,
+						scope(Scope.LIVE, Scope.ARCHIVED), referenceHaving(REF_ROWS, attributeIsNull(A))
+					);
+					// the archived owners are not constrained at all
+					assertMatches(
+						session, ENTITY_SCOPED_OWNER, originalScopedOwners,
+						it -> it.getScope() == Scope.ARCHIVED || anyRow(REF_ROWS, lacksA).test(it), null,
+						scope(Scope.LIVE, Scope.ARCHIVED),
+						inScope(Scope.LIVE, referenceHaving(REF_ROWS, attributeIsNull(A)))
+					);
+					assertMatches(
+						session, ENTITY_SCOPED_OWNER, originalScopedOwners, anyRow(REF_ROWS, lacksAWithB2), null,
+						scope(Scope.LIVE, Scope.ARCHIVED),
+						inScope(
+							Scope.LIVE,
+							referenceHaving(REF_ROWS, and(attributeIsNull(A), attributeEquals(B, 2L)))
+						),
+						inScope(
+							Scope.ARCHIVED,
+							referenceHaving(REF_ROWS, and(attributeIsNull(A), attributeEquals(B, 2L)))
+						)
+					);
+					assertMatches(
+						session, ENTITY_SCOPED_OWNER, originalScopedOwners,
+						it -> it.getScope() == Scope.ARCHIVED && anyRow(REF_ROWS, lacksA.negate()).test(it), null,
+						scope(Scope.ARCHIVED), referenceHaving(REF_ROWS, not(attributeIsNull(A)))
+					);
+					return null;
+				}
+			);
+		}
+	}
+
+	/**
+	 * `facetHaving` is the one caller that evaluates its body on the type-level index **in place**: nothing
+	 * re-examines the rows behind the answer, so a null test there reads "a facet none of whose rows carries the
+	 * attribute", while its positive leaves read "a facet some of whose rows do". That asymmetry is consistent with
+	 * how a negation is resolved in place, and whether it is what `facetHaving` should mean is an open specification
+	 * question, not part of #1584 - these rows pin the answer as it stands so that a change to it is deliberate.
+	 */
+	@DisplayName("facetHaving")
+	@Nested
+	@Tag(FACET)
+	class FacetHavingNullTest {
+
+		@DisplayName("Should keep reading the null test of facetHaving at the facet level")
+		@UseDataSet(ROW_SCOPED_NULL)
+		@Test
+		void shouldKeepReadingTheNullTestOfFacetHavingAtTheFacetLevel(Evita evita, List<SealedEntity> originalOwners) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					for (String attributeName : List.of(A, U)) {
+						final Set<Integer> facetsWithoutAnyValue = new TreeSet<>();
+						for (int targetPk = 1; targetPk <= TARGET_COUNT; targetPk++) {
+							final int theTargetPk = targetPk;
+							final boolean noRowCarries = originalOwners.stream()
+								.flatMap(it -> it.getReferences(REF_ROWS).stream())
+								.filter(row -> row.getReferencedPrimaryKey() == theTargetPk)
+								.allMatch(row -> row.getAttribute(attributeName) == null);
+							if (noRowCarries) {
+								facetsWithoutAnyValue.add(targetPk);
+							}
+						}
+						assertFalse(facetsWithoutAnyValue.isEmpty(), "Fixture guard: some facet must lack `" +
+							attributeName + "` on every row!");
+						assertOwners(
+							session, originalOwners,
+							anyRow(REF_ROWS, row -> facetsWithoutAnyValue.contains(row.getReferencedPrimaryKey())),
+							facetHaving(REF_ROWS, attributeIsNull(attributeName))
+						);
+					}
+					return null;
+				}
+			);
+		}
+	}
+
+	/**
+	 * Identity I1 of the row-scoped semantics (`documentation/adr/2026-09-17-row-scoped-reference-having-body/
+	 * row-scoped-semantics.md`, §6): `RH(φ) ∪ RH(¬φ) = RH()` - every row is either null or not. Each side is also
+	 * held to its body oracle, and the fixture guard insists on an owner that lands on both sides, so the identity
+	 * cannot hold because one side is empty.
+	 */
+	@DisplayName("Identities")
+	@Nested
+	class Identities {
+
+		@DisplayName("Should split every owner with a row between the null test and its negation")
+		@UseDataSet(ROW_SCOPED_NULL)
+		@Test
+		void shouldSplitEveryOwnerWithARowBetweenTheNullTestAndItsNegation(
+			Evita evita,
+			List<SealedEntity> originalOwners
+		) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertIdentityOne(
+						session, originalOwners, attributeIsNull(A), row -> row.getAttribute(A) == null
+					);
+					assertIdentityOne(
+						session, originalOwners, attributeIsNotNull(A), row -> row.getAttribute(A) != null
+					);
+					assertIdentityOne(
+						session, originalOwners, attributeIsNull(U), row -> row.getAttribute(U) == null
+					);
+					return null;
+				}
+			);
+		}
+
+		/**
+		 * Asserts `RH(φ) ∪ RH(¬φ) = RH()` on `rows`, with both sides checked against the bodies and non-vacuous.
+		 *
+		 * @param session      session to query through
+		 * @param originals    owners as stored
+		 * @param phi          the body φ
+		 * @param rowPredicate φ evaluated on one row
+		 */
+		private static void assertIdentityOne(
+			@Nonnull EvitaSessionContract session,
+			@Nonnull List<SealedEntity> originals,
+			@Nonnull FilterConstraint phi,
+			@Nonnull Predicate<ReferenceContract> rowPredicate
+		) {
+			final Set<Integer> positive = selectPks(originals, anyRow(REF_ROWS, rowPredicate));
+			final Set<Integer> negative = selectPks(originals, anyRow(REF_ROWS, rowPredicate.negate()));
+			final Set<Integer> both = new TreeSet<>(positive);
+			both.retainAll(negative);
+			assertFalse(both.isEmpty(), "Fixture guard: some owner must hold a row on each side of `" + phi + "`!");
+			for (boolean preferIndexScan : new boolean[]{true, false}) {
+				final Set<Integer> phiSide = pks(
+					query(session, ENTITY_OWNER, preferIndexScan, referenceHaving(REF_ROWS, phi))
+				);
+				final Set<Integer> notPhiSide = pks(
+					query(session, ENTITY_OWNER, preferIndexScan, referenceHaving(REF_ROWS, not(phi)))
+				);
+				final Set<Integer> bare = pks(query(session, ENTITY_OWNER, preferIndexScan, referenceHaving(REF_ROWS)));
+				assertEquals(positive, phiSide, "RH(" + phi + ") (preferIndexScan=" + preferIndexScan + ")");
+				assertEquals(negative, notPhiSide, "RH(not(" + phi + ")) (preferIndexScan=" + preferIndexScan + ")");
+				final Set<Integer> union = new TreeSet<>(phiSide);
+				union.addAll(notPhiSide);
+				assertEquals(bare, union, "I1 for `" + phi + "` (preferIndexScan=" + preferIndexScan + ")");
+				assertEquals(
+					selectPks(originals, it -> !it.getReferences(REF_ROWS).isEmpty()), bare,
+					"RH() (preferIndexScan=" + preferIndexScan + ")"
+				);
+			}
+		}
+	}
+
+	/**
+	 * The route that answered a `referenceHaving`, as read off the query telemetry.
+	 */
+	private enum Route {
+		/**
+		 * The reduced indexes of the queried reference itself answered - the reference option was registered.
+		 */
+		OWNER_SIDE,
+		/**
+		 * The bidirectional rewrite answered on the reduced indexes of the counterpart reference - the owner-side
+		 * option was never registered although the filter was planned.
+		 */
+		REWRITE
+	}
+
+	/**
+	 * Asserts on the owner collection that `referenceHaving(referenceName, body)` returns the owners holding a row
+	 * the row predicate selects.
+	 *
+	 * @param session       session to query through
+	 * @param originals     owners as stored
+	 * @param referenceName the reference
+	 * @param body          the `referenceHaving` body
+	 * @param rowPredicate  the body, evaluated on one row
+	 */
+	private static void assertRows(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull List<SealedEntity> originals,
+		@Nonnull String referenceName,
+		@Nonnull FilterConstraint body,
+		@Nonnull Predicate<ReferenceContract> rowPredicate
+	) {
+		assertRows(session, ENTITY_OWNER, originals, referenceName, null, body, rowPredicate);
+	}
+
+	/**
+	 * Asserts that `referenceHaving(referenceName, body)` returns the entities holding a row the row predicate
+	 * selects, and - when a route is passed - that the index-scan plan took that route.
+	 *
+	 * @param session       session to query through
+	 * @param entityType    collection to query
+	 * @param originals     entities of that collection as stored
+	 * @param referenceName the reference
+	 * @param route         the route the index-scan plan must take, or NULL when any will do
+	 * @param body          the `referenceHaving` body
+	 * @param rowPredicate  the body, evaluated on one row
+	 */
+	private static void assertRows(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull String entityType,
+		@Nonnull List<SealedEntity> originals,
+		@Nonnull String referenceName,
+		@Nullable Route route,
+		@Nonnull FilterConstraint body,
+		@Nonnull Predicate<ReferenceContract> rowPredicate
+	) {
+		assertMatches(
+			session, entityType, originals, anyRow(referenceName, rowPredicate), route,
+			referenceHaving(referenceName, body)
+		);
+	}
+
+	/**
+	 * Asserts on the owner collection that the filter returns the owners the oracle selects.
 	 *
 	 * @param session   session to query through
 	 * @param originals owners as stored
-	 * @param filter    the filter to apply
 	 * @param oracle    decides from an owner's body whether it must be returned
+	 * @param filter    the filter constraints
 	 */
 	private static void assertOwners(
 		@Nonnull EvitaSessionContract session,
 		@Nonnull List<SealedEntity> originals,
-		@Nonnull FilterConstraint filter,
-		@Nonnull Predicate<SealedEntity> oracle
+		@Nonnull Predicate<SealedEntity> oracle,
+		@Nonnull FilterConstraint... filter
+	) {
+		assertMatches(session, ENTITY_OWNER, originals, oracle, null, filter);
+	}
+
+	/**
+	 * Runs the filter under both index-scan preferences and asserts the entities equal the ones the oracle selects
+	 * from the entity bodies. The route is asserted on the index-scan plan only: without `PREFER_INDEX_SCAN` a
+	 * collection this small may be answered from prefetched bodies, which records no route at all.
+	 *
+	 * @param session    session to query through
+	 * @param entityType collection to query
+	 * @param originals  entities of that collection as stored
+	 * @param oracle     decides from an entity's body whether it must be returned
+	 * @param route      the route the index-scan plan must take, or NULL when any will do
+	 * @param filter     the filter constraints
+	 */
+	private static void assertMatches(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull String entityType,
+		@Nonnull List<SealedEntity> originals,
+		@Nonnull Predicate<SealedEntity> oracle,
+		@Nullable Route route,
+		@Nonnull FilterConstraint... filter
 	) {
 		final Set<Integer> expected = selectPks(originals, oracle);
+		final String description = String.join(", ", Arrays.stream(filter).map(Object::toString).toList());
 		for (boolean preferIndexScan : new boolean[]{true, false}) {
+			final EvitaResponse<EntityReference> response = query(session, entityType, preferIndexScan, filter);
 			assertEquals(
-				expected, pks(queryOwners(session, filter, preferIndexScan)),
-				"Wrong owners for `" + filter + "` (preferIndexScan=" + preferIndexScan + ")"
+				expected, pks(response),
+				"Wrong `" + entityType + "` for `" + description + "` (preferIndexScan=" + preferIndexScan + ")"
 			);
+			if (route != null && preferIndexScan) {
+				assertEquals(
+					route, routeOf(response),
+					() -> "Wrong route for `" + description + "`:\n" + response.getExtraResult(QueryTelemetry.class)
+				);
+			}
 		}
+	}
+
+	/**
+	 * Reads the route that answered the query off its telemetry, through the channel
+	 * `BidirectionalReferenceRewriteFunctionalTest` documents: the rewrite decides during index selection and, when
+	 * it fires, returns before the owner-side reference option is registered - so that option's
+	 * `PLANNING_FILTER_ALTERNATIVE` step is present exactly when the owner side answers. The channel holds only for a
+	 * `referenceHaving` directly under the filter or an `and`, which is where every route-asserting row puts it.
+	 *
+	 * @param response the response carrying the telemetry
+	 * @return the route, or NULL when the filter was not planned at all
+	 */
+	@Nullable
+	private static Route routeOf(@Nonnull EvitaResponse<EntityReference> response) {
+		final QueryTelemetry telemetry = Objects.requireNonNull(
+			response.getExtraResult(QueryTelemetry.class), "The query must collect telemetry!"
+		);
+		if (!hasStep(telemetry, QueryPhase.PLANNING_FILTER)) {
+			return null;
+		} else if (hasStepArgument(telemetry, QueryPhase.PLANNING_FILTER_ALTERNATIVE, REFERENCE_INDEX_OPTION_PREFIX)) {
+			return Route.OWNER_SIDE;
+		} else {
+			return Route.REWRITE;
+		}
+	}
+
+	/**
+	 * Answers whether some telemetry step belongs to the phase.
+	 *
+	 * @param telemetry the telemetry subtree
+	 * @param phase     the phase looked for
+	 * @return true when such a step exists
+	 */
+	private static boolean hasStep(@Nonnull QueryTelemetry telemetry, @Nonnull QueryPhase phase) {
+		if (telemetry.getOperation() == phase) {
+			return true;
+		}
+		for (QueryTelemetry step : telemetry.getSteps()) {
+			if (hasStep(step, phase)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Answers whether some telemetry step of the phase carries an argument starting with the prefix.
+	 *
+	 * @param telemetry the telemetry subtree
+	 * @param phase     the phase of the step
+	 * @param prefix    the argument prefix
+	 * @return true when such a step exists
+	 */
+	private static boolean hasStepArgument(
+		@Nonnull QueryTelemetry telemetry,
+		@Nonnull QueryPhase phase,
+		@Nonnull String prefix
+	) {
+		if (telemetry.getOperation() == phase && telemetry.getArguments() != null) {
+			for (String argument : telemetry.getArguments()) {
+				if (argument.startsWith(prefix)) {
+					return true;
+				}
+			}
+		}
+		for (QueryTelemetry step : telemetry.getSteps()) {
+			if (hasStepArgument(step, phase, prefix)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -455,37 +1253,20 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 	}
 
 	/**
-	 * Queries the owner collection with the passed filter, collecting the telemetry the route assertions read.
-	 *
-	 * @param session         session to query through
-	 * @param filter          the filter to apply
-	 * @param preferIndexScan whether to forbid answering from prefetched entity bodies
-	 * @return the response
-	 */
-	@Nonnull
-	private static EvitaResponse<EntityReference> queryOwners(
-		@Nonnull EvitaSessionContract session,
-		@Nonnull FilterConstraint filter,
-		boolean preferIndexScan
-	) {
-		return query(session, ENTITY_OWNER, filter, preferIndexScan);
-	}
-
-	/**
 	 * Queries the passed collection with the passed filter, collecting the telemetry the route assertions read.
 	 *
 	 * @param session         session to query through
 	 * @param entityType      collection to query
-	 * @param filter          the filter to apply
 	 * @param preferIndexScan whether to forbid answering from prefetched entity bodies
+	 * @param filter          the filter constraints
 	 * @return the response
 	 */
 	@Nonnull
 	private static EvitaResponse<EntityReference> query(
 		@Nonnull EvitaSessionContract session,
 		@Nonnull String entityType,
-		@Nonnull FilterConstraint filter,
-		boolean preferIndexScan
+		boolean preferIndexScan,
+		@Nonnull FilterConstraint... filter
 	) {
 		return session.query(
 			Query.query(
@@ -527,7 +1308,10 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 	 * @return sorted primary keys
 	 */
 	@Nonnull
-	private static Set<Integer> selectPks(@Nonnull List<SealedEntity> entities, @Nonnull Predicate<SealedEntity> predicate) {
+	private static Set<Integer> selectPks(
+		@Nonnull List<SealedEntity> entities,
+		@Nonnull Predicate<SealedEntity> predicate
+	) {
 		return entities.stream()
 			.filter(predicate)
 			.map(SealedEntity::getPrimaryKeyOrThrowException)
@@ -581,20 +1365,7 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 		final EntityBuilder builder = session.createNewEntity(ENTITY_OWNER, pk)
 			.setAttribute(ATTR_NAME, Locale.ENGLISH, "owner" + pk)
 			.setAttribute(ATTR_NAME, Locale.GERMAN, "Besitzer" + pk);
-		for (Row row : rows) {
-			builder.setReference(
-				REF_ROWS, row.target(),
-				whichIs -> {
-					if (row.a() != null) {
-						whichIs.setAttribute(A, row.a());
-					}
-					whichIs.setAttribute(B, row.b());
-					if (row.u() != null) {
-						whichIs.setAttribute(U, row.u());
-					}
-				}
-			);
-		}
+		setRows(builder, rows);
 		for (Link link : links) {
 			builder.setReference(
 				REF_LINKS, link.target(),
@@ -611,10 +1382,52 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 					if (link.locDe() != null) {
 						whichIs.setAttribute(LOC, Locale.GERMAN, link.locDe());
 					}
+					if (link.luEn() != null) {
+						whichIs.setAttribute(LU, Locale.ENGLISH, link.luEn());
+					}
+					if (link.luDe() != null) {
+						whichIs.setAttribute(LU, Locale.GERMAN, link.luDe());
+					}
 				}
 			);
 		}
 		session.upsertEntity(builder);
+	}
+
+	/**
+	 * Writes one owner of the multi-scope fixture with its `rows` references.
+	 *
+	 * @param session session to write through
+	 * @param pk      primary key of the owner
+	 * @param rows    rows of `rows`; `u` is ignored, the fixture does not declare it
+	 */
+	private static void upsertScopedOwner(@Nonnull EvitaSessionContract session, int pk, @Nonnull Row... rows) {
+		final EntityBuilder builder = session.createNewEntity(ENTITY_SCOPED_OWNER, pk);
+		setRows(builder, rows);
+		session.upsertEntity(builder);
+	}
+
+	/**
+	 * Sets the `rows` references on the builder.
+	 *
+	 * @param builder builder of the owner
+	 * @param rows    rows to set
+	 */
+	private static void setRows(@Nonnull EntityBuilder builder, @Nonnull Row[] rows) {
+		for (Row row : rows) {
+			builder.setReference(
+				REF_ROWS, row.target(),
+				whichIs -> {
+					if (row.a() != null) {
+						whichIs.setAttribute(A, row.a());
+					}
+					whichIs.setAttribute(B, row.b());
+					if (row.u() != null) {
+						whichIs.setAttribute(U, row.u());
+					}
+				}
+			);
+		}
 	}
 
 	/**
@@ -630,9 +1443,10 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 	 */
 	@Nonnull
 	private static Link link(
-		int target, @Nullable Long x, @Nullable Long[] arr, @Nullable String locEn, @Nullable String locDe
+		int target, @Nullable Long x, @Nullable Long[] arr,
+		@Nullable String locEn, @Nullable String locDe, @Nullable String luEn, @Nullable String luDe
 	) {
-		return new Link(target, x, arr, locEn, locDe);
+		return new Link(target, x, arr, locEn, locDe, luEn, luDe);
 	}
 
 	/**
@@ -654,9 +1468,12 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 	 * @param arr    value of `arr`
 	 * @param locEn  English value of `loc`
 	 * @param locDe  German value of `loc`
+	 * @param luEn   English value of `lu`
+	 * @param luDe   German value of `lu`
 	 */
 	private record Link(
-		int target, @Nullable Long x, @Nullable Long[] arr, @Nullable String locEn, @Nullable String locDe
+		int target, @Nullable Long x, @Nullable Long[] arr,
+		@Nullable String locEn, @Nullable String locDe, @Nullable String luEn, @Nullable String luDe
 	) {
 	}
 
