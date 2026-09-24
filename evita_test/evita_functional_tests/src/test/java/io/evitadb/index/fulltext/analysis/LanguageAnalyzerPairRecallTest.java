@@ -23,6 +23,8 @@
 
 package io.evitadb.index.fulltext.analysis;
 
+import io.evitadb.index.fulltext.analysis.AnalysisApproachMeasurer.MatchStrategy;
+import io.evitadb.index.fulltext.analysis.AnalysisApproachMeasurer.Measurement;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -31,13 +33,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.test.TestTags.ENGINE;
@@ -49,9 +46,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * every stored inflected form of the same word**, and does not thereby collapse words that mean different
  * things.
  *
- * Two metrics, both taken from the records the design was chosen on. Every accented form of the language's
- * fixture is typed on a bare keyboard and run through the language's `*-search` chain; its terms then have to
- * share at least one term with the `*index*` chain's terms of
+ * Two metrics, both taken from the records the design was chosen on and computed by the same
+ * {@link AnalysisApproachMeasurer} that produced those records. Every accented form of the language's fixture
+ * is typed on a bare keyboard and run through the language's `*-search` chain; its terms then have to share at
+ * least one term with the `*index*` chain's terms of
  *
  * - **that same form** — accent-typed recall, the minimum a folding pair has to deliver;
  * - **every other form of the same lemma** — bare-typed cross-form recall, which additionally needs the
@@ -91,7 +89,8 @@ class LanguageAnalyzerPairRecallTest {
 	}
 
 	/**
-	 * Runs the language's analyzer pair over its fixture and returns the two measured numbers.
+	 * Runs the language's built-in analyzer pair over its fixture under exact term matching — what the index
+	 * does — and returns the measurement.
 	 *
 	 * @param locale           locale whose built-in analyzer pair is measured
 	 * @param vocabulary       lemmas carrying the recall measurement
@@ -108,114 +107,12 @@ class LanguageAnalyzerPairRecallTest {
 	) {
 		final FulltextAnalyzer index = this.registry.getIndexAnalyzer(ENTITY_TYPE, locale);
 		final FulltextAnalyzer search = this.registry.getSearchAnalyzer(ENTITY_TYPE, locale);
-
-		final List<Lemma> allLemmas = new ArrayList<>(vocabulary.size() + confusableLemmas.size());
-		allLemmas.addAll(vocabulary);
-		allLemmas.addAll(confusableLemmas);
-
-		// every form is analysed once per side and cached - the false-merge measurement alone compares tens of
-		// thousands of pairs, and re-running a chain for each would dominate the run time
-		final Map<String, Set<String>> indexTerms = new HashMap<>(256);
-		final Map<String, Set<String>> queryTerms = new HashMap<>(256);
-		for (final Lemma lemma : allLemmas) {
-			for (final String form : lemma.forms()) {
-				indexTerms.computeIfAbsent(form, f -> termsOf(index, f));
-				queryTerms.computeIfAbsent(form, f -> termsOf(search, f));
-				queryTerms.computeIfAbsent(bareTyper.apply(form), f -> termsOf(search, f));
-			}
-		}
-
-		int accentTypedForms = 0;
-		final List<String> accentTypedMisses = new ArrayList<>(32);
-		int pairs = 0;
-		final List<String> misses = new ArrayList<>(32);
-		for (final Lemma lemma : vocabulary) {
-			for (final String queryForm : lemma.forms()) {
-				final String bareQueryForm = bareTyper.apply(queryForm);
-				if (bareQueryForm.equals(queryForm)) {
-					// a form spelled without diacritics is vacuous here - its bare typing IS the form
-					continue;
-				}
-				// the simplest question first: does the bare typing of a form still find that very form?
-				accentTypedForms++;
-				if (!intersects(queryTerms.get(bareQueryForm), indexTerms.get(queryForm))) {
-					accentTypedMisses.add(
-						"`" + bareQueryForm + "` " + queryTerms.get(bareQueryForm) + " misses its own form `"
-							+ queryForm + "` " + indexTerms.get(queryForm)
-					);
-				}
-				for (final String valueForm : lemma.forms()) {
-					if (queryForm.equals(valueForm)) {
-						continue;
-					}
-					pairs++;
-					if (!intersects(queryTerms.get(bareQueryForm), indexTerms.get(valueForm))) {
-						misses.add(
-							lemma.lemma() + ": query `" + bareQueryForm + "` "
-								+ queryTerms.get(bareQueryForm) + " misses value `" + valueForm + "` "
-								+ indexTerms.get(valueForm)
-						);
-					}
-				}
-			}
-		}
-
-		final List<String> falseMerges = new ArrayList<>(32);
-		for (final Lemma queryLemma : allLemmas) {
-			for (final Lemma valueLemma : allLemmas) {
-				if (queryLemma == valueLemma) {
-					continue;
-				}
-				for (final String queryForm : queryLemma.forms()) {
-					for (final String valueForm : valueLemma.forms()) {
-						if (intersects(queryTerms.get(queryForm), indexTerms.get(valueForm))) {
-							falseMerges.add(
-								"query `" + queryForm + "` (" + queryLemma.lemma() + ") "
-									+ queryTerms.get(queryForm) + " matches value `" + valueForm + "` ("
-									+ valueLemma.lemma() + ") " + indexTerms.get(valueForm)
-							);
-						}
-					}
-				}
-			}
-		}
 		return new Recall(
-			accentTypedForms - accentTypedMisses.size(), accentTypedForms, accentTypedMisses,
-			pairs - misses.size(), pairs, misses, falseMerges
+			AnalysisApproachMeasurer.measure(
+				index.getAnalyzerName() + "/" + search.getAnalyzerName(),
+				index, search, MatchStrategy.EXACT, vocabulary, confusableLemmas, bareTyper
+			)
 		);
-	}
-
-	/**
-	 * Analyses one word and returns the distinct terms the chain emitted for it.
-	 *
-	 * @param analyzer chain to run
-	 * @param word     word to analyse
-	 * @return the emitted terms
-	 */
-	@Nonnull
-	private static Set<String> termsOf(@Nonnull FulltextAnalyzer analyzer, @Nonnull String word) {
-		final List<AnalyzedTerm> analyzedTerms = analyzer.getTerms(word);
-		final Set<String> terms = new LinkedHashSet<>(analyzedTerms.size());
-		for (final AnalyzedTerm analyzedTerm : analyzedTerms) {
-			terms.add(analyzedTerm.term());
-		}
-		return terms;
-	}
-
-	/**
-	 * Tells whether a query's terms reach a value's terms — an exact term match, which is what the index does.
-	 *
-	 * @param queryTerms terms the query text produced
-	 * @param valueTerms terms the stored value produced
-	 * @return true when the two share at least one term
-	 */
-	private static boolean intersects(@Nonnull Set<String> queryTerms, @Nonnull Set<String> valueTerms) {
-		for (final String queryTerm : queryTerms) {
-			if (valueTerms.contains(queryTerm)) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	@Nested
@@ -253,8 +150,6 @@ class LanguageAnalyzerPairRecallTest {
 				SlovakAnalysisFixture.CONFUSABLE_LEMMAS,
 				Lemma::stripAccents
 			);
-			// the four outstanding pairs are the documented cost of the in-house stemmer's deliberately omitted
-			// paradigms; the chain this replaced scored 0 of 323 because it did not stem at all
 			recall.assertAccentTypedMatched(125, 125);
 			// the four outstanding pairs are the documented cost of the in-house stemmer's deliberately omitted
 			// paradigms; the fold-only chain this replaced scored 0 of 323, because it did not stem at all
@@ -312,25 +207,12 @@ class LanguageAnalyzerPairRecallTest {
 	}
 
 	/**
-	 * What one language's measurement produced.
+	 * The three pinned numbers of one language's measurement, with the assertions that name every failing case
+	 * when a pin moves.
 	 *
-	 * @param accentTypedMatched accented forms their own bare typing found
-	 * @param accentTypedForms   accented forms measured
-	 * @param accentTypedMisses  the forms that were not found, carried verbatim so a failure names them
-	 * @param matched            ordered same-lemma pairs a bare-typed query found
-	 * @param pairs              ordered same-lemma pairs measured
-	 * @param misses             the pairs that were not found, carried verbatim so a failure names them
-	 * @param falseMerges        ordered cross-lemma pairs the chains merged, carried verbatim
+	 * @param measurement the full measurement of the language's analyzer pair
 	 */
-	private record Recall(
-		int accentTypedMatched,
-		int accentTypedForms,
-		@Nonnull List<String> accentTypedMisses,
-		int matched,
-		int pairs,
-		@Nonnull List<String> misses,
-		@Nonnull List<String> falseMerges
-	) {
+	private record Recall(@Nonnull Measurement measurement) {
 
 		/**
 		 * Asserts the accent-typed recall - a bare-typed word finding its own stored form - is exactly the
@@ -341,31 +223,33 @@ class LanguageAnalyzerPairRecallTest {
 		 */
 		void assertAccentTypedMatched(int expectedMatched, int expectedForms) {
 			assertEquals(
-				expectedForms, this.accentTypedForms,
+				expectedForms, this.measurement.accentedFormCount(),
 				"The fixture no longer offers the pinned number of accented forms - the pinned recall below "
 					+ "is not comparable until this is understood."
 			);
 			assertEquals(
-				expectedMatched, this.accentTypedMatched,
-				"Accent-typed recall moved. Outstanding forms:\n" + String.join("\n", this.accentTypedMisses)
+				expectedMatched, this.measurement.accentTypedMatched(),
+				"Accent-typed recall moved. Outstanding forms:\n"
+					+ String.join("\n", this.measurement.accentTypingMisses())
 			);
 		}
 
 		/**
-		 * Asserts the bare-typed recall is exactly the pinned score.
+		 * Asserts the bare-typed cross-form recall is exactly the pinned score.
 		 *
 		 * @param expectedMatched pinned number of found pairs
 		 * @param expectedPairs   pinned number of measured pairs
 		 */
 		void assertMatched(int expectedMatched, int expectedPairs) {
 			assertEquals(
-				expectedPairs, this.pairs,
+				expectedPairs, this.measurement.bareTypedCrossFormPairCount(),
 				"The fixture no longer offers the pinned number of measurable pairs - the pinned recall below "
 					+ "is not comparable until this is understood."
 			);
 			assertEquals(
-				expectedMatched, this.matched,
-				"Bare-typed recall moved. Outstanding pairs:\n" + String.join("\n", this.misses)
+				expectedMatched, this.measurement.bareTypedCrossFormMatched(),
+				"Bare-typed recall moved. Outstanding pairs:\n"
+					+ String.join("\n", this.measurement.bareTypedCrossFormMisses())
 			);
 		}
 
@@ -376,8 +260,8 @@ class LanguageAnalyzerPairRecallTest {
 		 */
 		void assertFalseMergesAtMost(int expected) {
 			assertEquals(
-				expected, this.falseMerges.size(),
-				"False merges moved. Merged pairs:\n" + String.join("\n", this.falseMerges)
+				expected, this.measurement.falseMerges().size(),
+				"False merges moved. Merged pairs:\n" + String.join("\n", this.measurement.falseMerges())
 			);
 		}
 

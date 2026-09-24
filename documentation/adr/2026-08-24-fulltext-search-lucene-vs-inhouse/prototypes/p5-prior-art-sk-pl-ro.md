@@ -1119,6 +1119,15 @@ pipeline benchmarks, the `lucene-analysis-morfologik` test dependency and the
 this record and in `p5-approach-measurements-accent-vs-stemming.md` /
 `p5-word-number-split-comparison.md`; the instruments themselves are recoverable from git history.
 
+> **Revised (2026-09-24):** `AnalysisApproachMeasurer` is back in test scope, permanently, and off the list
+> above. It was deleted only because no matrix remained to call it — yet `LanguageAnalyzerPairRecallTest` had
+> re-implemented three of its five metrics by hand, so the metric definitions lived twice. The recall test now
+> runs on the measurer (byte-identical pins: cs 119/119 · 348/348 · 54, sk 125/125 · 351/355 · 0,
+> pl 62/62 · 148/175 · 24, ro 49/49 · 99/120 · 0), which gives the harness a permanent production consumer and
+> means the next language's matrix is built from templates in the tree rather than from history — see
+> `.claude/skills/new-language-analyzer/`. The per-language `*AnalysisApproachMatrixTest`s stay deleted; that
+> is the part of the instrument that is genuinely per language and per decision.
+
 What replaced them:
 
 - `*VariantStemmerLexiconTest` ×4 (renamed from `*FoldedStemmerLexiconTest`) now sweep the **production**
