@@ -130,7 +130,7 @@ class InternalApiUsageTest implements EvitaTestSupport {
 	/**
 	 * Floor on the number of `@Internal` members the scan must find. Without it a run against an unbuilt or
 	 * mis-resolved tree would find nothing, report no violation and pass - proving the opposite of what it claims.
-	 * Seven members carried the annotation when this was written; the floor sits below that with room for members
+	 * Nine members carried the annotation when this was written; the floor sits below that with room for members
 	 * to come and go, and only has to be high enough that an empty scan fails.
 	 */
 	private static final int MINIMAL_EXPECTED_INTERNAL_MEMBERS = 4;
@@ -138,7 +138,7 @@ class InternalApiUsageTest implements EvitaTestSupport {
 	 * Floors on the number of **allowed** cross-module references the scan must observe, one per reference kind.
 	 * A clean result means nothing unless the scan can be shown to see references at all, and the two kinds are
 	 * counted apart because they are read by two different branches of the constant pool walk - a scan that had
-	 * lost the member branch would still find plenty of type references and look healthy. The build held six
+	 * lost the member branch would still find plenty of type references and look healthy. The build held five
 	 * allowed type references and twelve member ones when this was written.
 	 */
 	private static final int MINIMAL_EXPECTED_ALLOWED_TYPE_REFERENCES = 1;
