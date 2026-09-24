@@ -87,8 +87,9 @@ public interface FilteredPriceRecordAccessor {
 	}
 
 	/**
-	 * Capability probe used by `PriceHistogramComputer` to decide whether it may bypass the per-entity
-	 * `FilteredPriceRecordsCollector` and read the per-inner-record records directly from each accessor.
+	 * Capability probe used by `PriceHistogramComputer` to partition the accessor set: accessors that
+	 * answer `true` contribute their per-inner-record records directly, everything else is served by the
+	 * per-entity `FilteredPriceRecordsCollector`.
 	 *
 	 * Returns `true` only when {@link #getFilteredPriceRecordsForHistogram(QueryExecutionContext)} is
 	 * guaranteed to expose the per-inner-record histogram side-output for this accessor's scope:
@@ -102,8 +103,15 @@ public interface FilteredPriceRecordAccessor {
 	 * - `FlattenedFormulaWithFilteredPricesForHistogram` (the cached form of the above) always returns
 	 *   `true`.
 	 * - Wrapper accessors (e.g. `SelectionFormula`) propagate the capability from their inner
-	 *   accessors so the histogram bypass continues to fire even when prefetch wiring inserts a
-	 *   wrapper between the histogram and the histogram-aware termination formula.
+	 *   accessors so the per-inner-record granularity survives prefetch wiring inserting a wrapper
+	 *   between the histogram and the histogram-aware termination formula.
+	 *
+	 * **A `false` answer only forfeits this accessor's own contribution.** It must never be read as
+	 * "the whole histogram falls back to per-entity granularity" — the accessors of a single query
+	 * routinely mix answers, because a `filterBy` builds one price branch per
+	 * {@link PriceInnerRecordHandling} present in the catalog and only the `LOWEST_PRICE` branch has
+	 * per-inner-record data points to give. Treating the probe as all-or-nothing is what made the
+	 * histogram silently revert to per-entity granularity for mixed pools (issue #1433).
 	 *
 	 * Implementations that override this method must keep its evaluation allocation-free — the probe
 	 * is called once per accessor during histogram planning, but cumulatively across multi-tenant

@@ -33,7 +33,6 @@ import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.array.UnorderedLookupTree;
 import io.evitadb.index.attribute.ChainIndex.ChainDescriptor;
 import io.evitadb.index.attribute.ChainIndex.ChainElementState;
@@ -74,6 +73,7 @@ import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static io.evitadb.index.attribute.ChainIndexAssertions.assertHeadMarksMatchChains;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -299,44 +299,6 @@ class ChainIndexTest {
 			ConsistencyState.BROKEN, report.state(),
 			() -> "Index reported BROKEN internal state:\n" + report.report()
 		);
-	}
-
-	/**
-	 * Cross-checks the element array's internal chain-head bitmask against the authoritative head set
-	 * ({@link ChainIndex#chains} keys): every chain head must be marked at its own position and no other position may
-	 * be marked. This is the one invariant the index's read paths cannot see - getUnorderedLookup and
-	 * getConsistencyReport resolve heads by {@code indexOf} and never consult the bitmask - so a missing or stray
-	 * {@code markAsHead}/{@code unmarkAsHead} at any mutation site would stay invisible until a later {@code findRun}
-	 * trips over it. Asserting it directly pins a head-mark desync to the operation that caused it. A single `O(N·log N)`
-	 * walk catches both directions: a missing mark makes {@code findHeadCovering} return an earlier head; a stray mark
-	 * makes it return the stray position.
-	 */
-	private static void assertHeadMarksMatchChains(@Nonnull ChainIndex index) {
-		final int length = index.elements.getLength();
-		if (length == 0) {
-			assertEquals(0, index.chains.size(), "Empty element array must carry no chain descriptors.");
-			return;
-		}
-		final boolean[] expectedHead = new boolean[length];
-		for (final Integer headPk : index.chains.keySet()) {
-			expectedHead[index.elements.indexOf(headPk)] = true;
-		}
-		assertTrue(expectedHead[0], "Logical position 0 must be a chain head.");
-		int expectedCovering = -1;
-		for (int p = 0; p < length; p++) {
-			if (expectedHead[p]) {
-				expectedCovering = p;
-			}
-			final TransactionalUnorderedIntArray.HeadLocation head = index.elements.findHeadCovering(p);
-			assertEquals(
-				expectedCovering, head.headPosition(),
-				"Head-mark bitmask disagrees with chains.keySet() at position " + p
-			);
-			assertEquals(
-				index.elements.get(expectedCovering), head.recordId(),
-				"Covering-head record id mismatch at position " + p
-			);
-		}
 	}
 
 	/**
@@ -2199,7 +2161,7 @@ class ChainIndexTest {
 	 * Exercises the two non-adjacent {@link ChainIndex} run-merge relocate branches (the adjacent branch is the
 	 * ubiquitous default covered everywhere). A relocate (remove + re-insert) resets a moved run's head to non-head, so
 	 * these tests pin that {@code mergeRunAfter}'s idempotent {@code markAsHead(target)} / {@code unmarkAsHead(follower)}
-	 * restores the exact head-mark set - asserted directly via {@link #assertHeadMarksMatchChains}.
+	 * restores the exact head-mark set - asserted directly via {@link ChainIndexAssertions#assertHeadMarksMatchChains}.
 	 */
 	@Nested
 	@DisplayName("Run merge relocation")
@@ -2865,6 +2827,76 @@ class ChainIndexTest {
 				}
 				return new ChainIndex(refKey, attrKey, rootPart.getChains(), rootPart.getElementStates());
 			}
+		}
+	}
+
+	@Nested
+	@DisplayName("Content-sized footprint")
+	class ContentSizedFootprintTest {
+
+		/**
+		 * The heap gate for a one-record chain index. The engine's own accounting measured **1,336 B** after the two
+		 * trees behind the chain's `elements` were content-sized, against **6,136 B** before it. A chain index's
+		 * position-tree leaves are PAGE sized (1024 records) rather than block sized, so a single leaf used to carry
+		 * an `int[1025]` — 4,120 B — no matter how few records the chain held; that one array is 4,088 B of the
+		 * 4,800 B difference, the remaining 712 B being the value index's two leaf arrays.
+		 */
+		private static final long ONE_RECORD_CHAIN_INDEX_GATE = 1_500L;
+
+		/**
+		 * The heap gate for an EMPTY chain index — measured **696 B** after, against **1,496 B** before. An empty
+		 * chain has no position-tree leaf at all, so the whole 800 B is the value index's eagerly allocated root leaf.
+		 * Every figure here moved up by the `warmUpTouchStamp` long that per-entity warm-up rollback put on
+		 * each participating object. The gate moved with it. A genuine sizing regression is not this shape:
+		 * the smallest one is a single column back at its leaf block, which is 280 B on its own.
+		 */
+		private static final long EMPTY_CHAIN_INDEX_GATE = 800L;
+
+		@Test
+		@DisplayName("a one-record chain index stays under the content-sized gate")
+		void shouldKeepAOneRecordChainIndexUnderTheGate() {
+			final ChainIndex chainIndex = new ChainIndex(new AttributeIndexKey(null, "a", null));
+			chainIndex.upsertPredecessor(Predecessor.HEAD, 1);
+
+			final long heap = chainIndex.getHeapSizeInBytes();
+			assertTrue(
+				heap <= ONE_RECORD_CHAIN_INDEX_GATE,
+				"a one-record chain index must stay under " + ONE_RECORD_CHAIN_INDEX_GATE
+					+ " B (measured 1336 B after content sizing, 6136 B before it), was " + heap
+			);
+		}
+
+		@Test
+		@DisplayName("an empty chain index no longer pays for a full value-index leaf block")
+		void shouldKeepAnEmptyChainIndexUnderTheGate() {
+			final ChainIndex chainIndex = new ChainIndex(new AttributeIndexKey(null, "a", null));
+
+			final long heap = chainIndex.getHeapSizeInBytes();
+			assertTrue(
+				heap <= EMPTY_CHAIN_INDEX_GATE,
+				"an empty chain index must stay under " + EMPTY_CHAIN_INDEX_GATE
+					+ " B (measured 752 B after content sizing and the warm-up touch stamps, 1496 B before it), was " + heap
+			);
+		}
+
+		@Test
+		@DisplayName("the footprint still grows with the records the chain actually holds")
+		void shouldStillGrowWithTheRecordCount() {
+			final ChainIndex small = new ChainIndex(new AttributeIndexKey(null, "a", null));
+			small.upsertPredecessor(Predecessor.HEAD, 1);
+			final ChainIndex large = new ChainIndex(new AttributeIndexKey(null, "a", null));
+			large.upsertPredecessor(Predecessor.HEAD, 1);
+			for (int recordId = 2; recordId <= 500; recordId++) {
+				large.upsertPredecessor(new Predecessor(recordId - 1), recordId);
+			}
+
+			// content sizing must not have turned the accounting into a constant - a 500-record chain still costs
+			// more than a one-record one, which is what proves the arrays follow the content in both directions
+			assertTrue(
+				large.getHeapSizeInBytes() > small.getHeapSizeInBytes() * 10,
+				"a 500-record chain must still cost far more than a one-record one, was "
+					+ large.getHeapSizeInBytes() + " vs " + small.getHeapSizeInBytes()
+			);
 		}
 	}
 

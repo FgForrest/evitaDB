@@ -27,6 +27,7 @@ package io.evitadb.api.exception;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionLayer;
+import io.evitadb.exception.NotMonitored;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -58,8 +59,16 @@ import java.io.Serial;
  * "name" on entity 1 doesn't conflict with modifying attribute "price" on the same entity,
  * allowing higher concurrency than whole-entity locking would provide.
  *
+ * **Monitoring:**
+ * The type is marked {@link NotMonitored}: a conflict is a benign, expected outcome of concurrent
+ * writers, not an engine fault. Counting it would move `io_evitadb_errors_total` and, through the
+ * same counter, raise the `EVITA_DB_INTERNAL_ERRORS` health signal. Conflicts are tracked instead
+ * through `TransactionConflictEvent` (`io_evitadb_transaction_transaction_conflict_total`), which
+ * also breaks them down by conflict policy, resolution layer and conflict scope.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@NotMonitored
 public class ConflictingCatalogMutationException extends TransactionException {
 	@Serial private static final long serialVersionUID = 4792726509766583503L;
 	/**

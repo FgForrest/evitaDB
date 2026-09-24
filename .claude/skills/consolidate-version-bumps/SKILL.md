@@ -133,9 +133,7 @@ git -C "$WT" diff --stat
 ```
 
 ### Step 6 — Build and test locally
-Use `mvn` below; if your `CLAUDE.md` configures a Maven proxy (e.g. `rtk mvn`),
-substitute it. Compile gate (compiles + test-compiles the whole reactor; catches
-API breaks):
+Compile gate (compiles + test-compiles the whole reactor; catches API breaks):
 ```shell
 mvn clean install -DskipTests            # expect exit 0
 ```

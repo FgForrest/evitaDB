@@ -29,6 +29,7 @@ import io.evitadb.index.bPlusTree.ValueColumnFactory;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.Comparator;
 
 /**
@@ -98,6 +99,57 @@ final class UniqueIndexBPlusTreeSupport {
 	}
 
 	/**
+	 * Folds an array-typed attribute's elements onto the DISTINCT values the value tree can actually hold.
+	 *
+	 * A unique-index tree is a MAP from value to its single owner, so one value occupies one entry no matter how
+	 * many times the attribute array repeats it. Both indexes apply such an array in two passes — verify every
+	 * element, then mutate every element — and the mutating pass re-derives ownership from the tree as it goes.
+	 * A repeated element therefore passes verification twice and is then retired twice: the first occurrence
+	 * removes the sole entry and the second finds no owner, failing over data the registration side accepts
+	 * (re-claiming a value the same record already owns is explicitly allowed).
+	 *
+	 * Distinctness is measured with the tree's own {@link #comparatorFor comparator} rather than `equals`, since
+	 * that comparator is what decides whether two values are one entry — for {@link BigDecimal} it deliberately
+	 * keeps `1.0` and `1.00` apart.
+	 *
+	 * @param values     the raw array elements
+	 * @param comparator the value order this tree is keyed by
+	 * @return `values` itself when no element repeats (the overwhelmingly common case), otherwise a shorter array
+	 *         of the same component type holding the first occurrence of each distinct value, in encounter order
+	 */
+	@Nonnull
+	static Object[] foldOntoDistinctValues(@Nonnull Object[] values, @Nonnull Comparator<Comparable<?>> comparator) {
+		if (values.length < 2) {
+			return values;
+		}
+		// the accepted elements are a prefix of `values` itself until the first repeat forces a compacted copy
+		Object[] acceptedValues = values;
+		int acceptedCount = 0;
+		boolean compacted = false;
+		for (Object value : values) {
+			boolean repeated = false;
+			for (int i = 0; i < acceptedCount; i++) {
+				if (comparator.compare((Comparable<?>) acceptedValues[i], (Comparable<?>) value) == 0) {
+					repeated = true;
+					break;
+				}
+			}
+			if (repeated) {
+				if (!compacted) {
+					acceptedValues = Arrays.copyOf(values, values.length - 1);
+					compacted = true;
+				}
+			} else {
+				if (compacted) {
+					acceptedValues[acceptedCount] = value;
+				}
+				acceptedCount++;
+			}
+		}
+		return compacted ? Arrays.copyOf(acceptedValues, acceptedCount) : values;
+	}
+
+	/**
 	 * Creates a fresh, empty value tree with a single-`long` payload column (used by {@link GlobalUniqueIndex} to hold
 	 * the packed entity tuple), ordered by the given comparator and with a front-coded leaf column for String keys.
 	 *
@@ -128,6 +180,11 @@ final class UniqueIndexBPlusTreeSupport {
 	 * self-comparable {@code Comparable} whose concrete type is fixed only at runtime, so the generic key/comparator/
 	 * column-factory wiring into the parameterized tree constructor is the one place the erased key forces unchecked
 	 * casts — they are confined to this single helper rather than smeared across every call site.
+	 *
+	 * The leaf column comes from {@link ValueColumnFactory#forKey}, the *raw* key space, because a unique index runs
+	 * no normalizer: it stores the declared value verbatim. `forFilterKey` would be wrong here in two independent
+	 * ways — it remaps the temporal types to `Instant`, which these trees never produce, and it can select the range
+	 * column, which needs an `indexedDecimalPlaces` a unique index has no notion of.
 	 *
 	 * @param plainType   the plain (array-unwrapped) attribute type (selects the leaf column kind)
 	 * @param comparator  the value order

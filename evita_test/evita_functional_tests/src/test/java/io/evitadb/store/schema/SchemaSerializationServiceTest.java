@@ -33,32 +33,27 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.mutation.conflict.GranularConflictPolicy;
-import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.EvolutionMode;
-import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
-import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
+import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import io.evitadb.store.shared.kryo.SharedClassesConfigurer;
-import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
 import io.evitadb.utils.NamingConvention;
 import lombok.Data;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -74,13 +69,13 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Map;
-import org.junit.jupiter.api.Tag;
+import java.util.Set;
 
 import static io.evitadb.test.Assertions.assertExactlyEquals;
-import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.HISTOGRAM;
-import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.STORAGE;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies {@link EntitySchema} serialization and deserialization.
@@ -179,6 +174,70 @@ class SchemaSerializationServiceTest {
 		assertEquals(
 			ConflictResolutionOverride.ENTITY,
 			deserialized.getAssociatedData("labels").orElseThrow().getConflictResolutionOverride()
+		);
+	}
+
+	@Test
+	@DisplayName("should round-trip per-scope filter accelerators through the schema serializers")
+	void shouldRoundTripFilterAccelerators() {
+		// every attribute of the shared fixture below is either plainly filterable or not filterable at all, so the
+		// accelerator section is only ever written empty there - these attributes are what puts a non-empty map
+		// through the writer and the reader
+		final EntitySchemaContract createdSchema = createEntitySchemaBuilder()
+			.withAttribute(
+				"name", String.class,
+				whichIs -> whichIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+			)
+			.withAttribute(
+				"tags", String[].class,
+				whichIs -> whichIs
+					.filterableInScope(Scope.LIVE, Scope.ARCHIVED)
+					.acceleratedForInScope(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+			)
+			.withAttribute("ean", String.class, AttributeSchemaEditor::filterable)
+			// the case the filterability-bound validation used to reject: `unique()` provides the filter index the
+			// accelerator needs, so the attribute never has to be declared filterable to carry one
+			.withAttribute(
+				"code", String.class,
+				whichIs -> whichIs.unique().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+			)
+			.toInstance();
+
+		final EntitySchema deserialized = roundTripEntitySchema(createKryo(), createdSchema);
+
+		assertEquals(createdSchema, deserialized);
+		assertExactlyEquals(createdSchema, deserialized);
+
+		// read explicitly rather than relying on the equality above: a writer and a reader that both dropped the
+		// field would still compare equal, since the absent map is a perfectly valid state
+		assertEquals(
+			Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+			deserialized.getAttribute("name").orElseThrow().getAcceleratorsInScope(Scope.LIVE)
+		);
+		// a String[] attribute carries the capability just as a String one does …
+		assertEquals(
+			Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+			deserialized.getAttribute("tags").orElseThrow().getAcceleratorsInScope(Scope.LIVE)
+		);
+		// … while its archived scope stays filterable with no acceleration declared, which is a different state from
+		// "not filterable" and must survive as such
+		assertTrue(deserialized.getAttribute("tags").orElseThrow().isFilterableInScope(Scope.ARCHIVED));
+		assertEquals(
+			Set.of(),
+			deserialized.getAttribute("tags").orElseThrow().getAcceleratorsInScope(Scope.ARCHIVED)
+		);
+		// the size-prefixed empty section a plain `filterable()` writes must not read back as a spurious entry
+		assertTrue(
+			deserialized.getAttribute("ean").orElseThrow().getAcceleratorsInScopes().isEmpty(),
+			"a plainly filterable attribute came back carrying an accelerator entry"
+		);
+		// the unique-only attribute keeps both its uniqueness and the accelerator riding on the uniqueness index
+		final AttributeSchemaContract uniqueOnly = deserialized.getAttribute("code").orElseThrow();
+		assertFalse(uniqueOnly.isFilterableInScope(Scope.LIVE));
+		assertTrue(uniqueOnly.isUniqueInScope(Scope.LIVE));
+		assertEquals(
+			Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+			uniqueOnly.getAcceleratorsInScope(Scope.LIVE)
 		);
 	}
 

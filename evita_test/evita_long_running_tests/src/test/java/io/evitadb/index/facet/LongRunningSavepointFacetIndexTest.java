@@ -24,28 +24,24 @@
 package io.evitadb.index.facet;
 
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
+import io.evitadb.core.transaction.memory.AbstractSavepointFuzzTest;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
+import io.evitadb.index.facet.LongRunningFacetReferenceIndexTest.FacetSnapshot;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
 import static io.evitadb.test.TestTags.FACET;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
-import static io.evitadb.utils.AssertionUtils.assertSavepointCommitKeeps;
-import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
 
 /**
  * Generational randomized backfill proof that {@link FacetIndex} — together with its nested {@link FacetReferenceIndex}
@@ -62,54 +58,25 @@ import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
  * so the commit-time layer-sweep verification proves the restore left no dangling layer. The run is time-bounded; the
  * random seed is echoed on failure for deterministic reproduction.
  *
+ * The scenario is declared once and run by {@link AbstractSavepointFuzzTest} in BOTH phases: the transactional
+ * savepoint described above, and the WARM_UP savepoint where the same writes land straight on the delegate
+ * structures and are rewound from the inverses they journal themselves. See that class for the shape of one
+ * generation, for the mid-savepoint read every case is asserted through, and for why the warm-up half runs
+ * exclusively.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("FacetIndex savepoint rollback/commit backfill (generational fuzz)")
 @Tag(INDEXING)
 @Tag(FACET)
 @Tag(TRANSACTION)
-class LongRunningSavepointFacetIndexTest implements TimeBoundedTestSupport {
+class LongRunningSavepointFacetIndexTest extends AbstractSavepointFuzzTest<Map<String, FacetSnapshot>> {
 	private static final int MAX_OPS = 10;
 
-	@ParameterizedTest(name = "Savepoint rollback restores the exact pre-savepoint facet contents")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Savepoint rollback restores the exact pre-savepoint facet contents")
-	void shouldRollBackFacetIndex(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final FacetIndexState state = new FacetIndexState(random);
-			assertSavepointRollbackRestores(
-				state.index,
-				tested -> state.applyRandomMutations(random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningFacetIndexTest::snapshot,
-				tested -> {
-					// a guaranteed-visible mutation makes the in-savepoint batch non-vacuous
-					state.forceMutation();
-					state.applyRandomMutations(random, random.nextInt(MAX_OPS));
-				}
-			);
-			return iteration + 1;
-		});
-	}
-
-	@ParameterizedTest(name = "Savepoint commit keeps the in-savepoint facet contents")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Savepoint commit keeps the in-savepoint facet contents")
-	void shouldCommitFacetIndex(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final FacetIndexState state = new FacetIndexState(random);
-			assertSavepointCommitKeeps(
-				state.index,
-				tested -> state.applyRandomMutations(random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningFacetIndexTest::snapshot,
-				tested -> {
-					state.forceMutation();
-					state.applyRandomMutations(random, random.nextInt(MAX_OPS));
-				}
-			);
-			return iteration + 1;
-		});
+	@Nonnull
+	@Override
+	protected FuzzGeneration<Map<String, FacetSnapshot>> newGeneration(@Nonnull Random random) {
+		return new FacetIndexState(random);
 	}
 
 	/**
@@ -119,7 +86,7 @@ class LongRunningSavepointFacetIndexTest implements TimeBoundedTestSupport {
 	 * {@link ReferenceKey} — so `null` is passed. The initial non-empty index is seeded outside any transaction;
 	 * mutations are applied to the index (and mirrored in the model) within the framework's transaction.
 	 */
-	private static final class FacetIndexState {
+	private static final class FacetIndexState implements FuzzGeneration<Map<String, FacetSnapshot>> {
 		private static final int MAX_FACET_ID = 5;
 		private static final int MAX_GROUP_ID = 3;
 		private static final int MAX_ENTITY_ID = 30;
@@ -135,6 +102,30 @@ class LongRunningSavepointFacetIndexTest implements TimeBoundedTestSupport {
 			for (int i = 0; i < seedOperations; i++) {
 				addRandomFacet(random);
 			}
+		}
+
+		@Nonnull
+		@Override
+		public TransactionalStateProducer<?> subject() {
+			return this.index;
+		}
+
+		@Nonnull
+		@Override
+		public Map<String, FacetSnapshot> contents() {
+			return LongRunningFacetIndexTest.snapshot(this.index);
+		}
+
+		@Override
+		public void applyBaselineOperations(@Nonnull Random random) {
+			applyRandomMutations(random, 1 + random.nextInt(MAX_OPS));
+		}
+
+		@Override
+		public void applySavepointOperations(@Nonnull Random random) {
+			applyRandomMutations(random, random.nextInt(MAX_OPS));
+			// applied LAST: a marker applied first enters the model and a later random operation can undo it
+			forceMutation();
 		}
 
 		/**

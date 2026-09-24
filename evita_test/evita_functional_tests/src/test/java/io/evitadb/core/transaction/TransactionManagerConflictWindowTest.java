@@ -48,6 +48,7 @@ import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -352,7 +353,7 @@ class TransactionManagerConflictWindowTest {
 	 * committing transaction's snapshot version is older than the ring buffer's effective start (seeded
 	 * from the living catalog's version at construction time), so the very first scan throws the ring
 	 * buffer's {@code OutsideScopeException} and the manager falls back to recomputing conflict keys from
-	 * {@link Catalog#getCommittedLiveMutationStream(long, long)}. This is the same code path a real,
+	 * {@link Catalog#getCommittedLiveMutationStream(long, long, VersionSource)}. This is the same code path a real,
 	 * genuinely aged-out ring-buffer entry would take; forcing it via the snapshot/effective-start gap
 	 * avoids depending on the ring buffer's internal eviction/capacity bookkeeping.
 	 *
@@ -384,7 +385,7 @@ class TransactionManagerConflictWindowTest {
 			when(catalog.getLastCatalogVersionInMutationStream()).thenReturn(RECOMPUTE_LIVING_VERSION);
 			when(catalog.getFirstCatalogVersionInMutationStream()).thenReturn(RECOMPUTE_LIVING_VERSION);
 			when(catalog.getEntitySchema(anyString())).thenReturn(Optional.empty());
-			when(catalog.getCommittedLiveMutationStream(anyLong(), anyLong()))
+			when(catalog.getCommittedLiveMutationStream(anyLong(), anyLong(), any()))
 				.thenReturn(Stream.of(committedMutation));
 
 			final EvitaConfiguration configuration = EvitaConfiguration.builder()

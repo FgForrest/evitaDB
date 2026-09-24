@@ -34,7 +34,6 @@ import java.util.ServiceLoader;
 import java.util.ServiceLoader.Provider;
 
 import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
-import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * Singleton registry for {@link ObjectPropertyAccessor}s and {@link ObjectElementAccessor}s. Accessors are registered
@@ -47,7 +46,15 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  */
 public class ObjectAccessorRegistry {
 
-	private static ObjectAccessorRegistry INSTANCE;
+	/**
+	 * Holder that defers construction to first access. Class initialization is serialized by the JVM, so the
+	 * instance is published safely without locking on every lookup - a plain lazily assigned static field is
+	 * neither atomic nor visible across threads, and a racing reader would build a second registry and overwrite
+	 * the first, silently discarding accessors registered on it in the meantime.
+	 */
+	private static final class Holder {
+		private static final ObjectAccessorRegistry INSTANCE = new ObjectAccessorRegistry();
+	}
 
 	/**
 	 * Map of property accessors keyed by the exact type they are registered for.
@@ -86,10 +93,7 @@ public class ObjectAccessorRegistry {
 	 */
 	@Nonnull
 	public static ObjectAccessorRegistry getInstance() {
-		if (INSTANCE == null) {
-			INSTANCE = new ObjectAccessorRegistry();
-		}
-		return INSTANCE;
+		return Holder.INSTANCE;
 	}
 
 	private ObjectAccessorRegistry() {
@@ -106,9 +110,9 @@ public class ObjectAccessorRegistry {
 			.map(Provider::get)
 			.toList();
 
-		this.propertyAccessors = createHashMap(foundPropertyAccessors.size());
-		this.elementAccessors = createHashMap(foundElementAccessors.size());
-		this.methodAccessors = createHashMap(foundMethodAccessors.size());
+		this.propertyAccessors = createConcurrentHashMap(foundPropertyAccessors.size());
+		this.elementAccessors = createConcurrentHashMap(foundElementAccessors.size());
+		this.methodAccessors = createConcurrentHashMap(foundMethodAccessors.size());
 		this.propertyAccessorCache = createConcurrentHashMap(Math.round(foundPropertyAccessors.size() * 1.5f));
 		this.elementAccessorCache = createConcurrentHashMap(Math.round(foundElementAccessors.size() * 1.5f));
 		this.methodAccessorCache = createConcurrentHashMap(Math.round(foundMethodAccessors.size() * 1.5f));

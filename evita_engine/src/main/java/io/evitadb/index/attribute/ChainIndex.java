@@ -346,8 +346,8 @@ public class ChainIndex implements
 	) {
 		// 0. a chain page is positional and carries no ordering invariant, so the stale leaf-page twin corruption
 		// manifests as duplicate record ids across pages; assert none exists before assembly (fails fast otherwise — the
-		// paged layout never shipped in a released version, so a duplicate is never a production catalog and is not
-		// silently repaired)
+		// paged layout shipped in the 2026.2 line, so a production catalog CAN carry a duplicate, and nothing persisted
+		// says which of the two pages is authoritative, so it is not silently repaired)
 		assertNoDuplicateChainRecords(pages, attributeIndexKey);
 		// 1. assemble the element array 1:1 from the pages (boundary-stable, one leaf per page, dirty=false)
 		final List<LeafPageInput> pageInputs = new ArrayList<>(pages.size());
@@ -433,10 +433,12 @@ public class ChainIndex implements
 	 * Asserts that no record id appears in more than one persisted chain-index leaf page. Unlike the key-ordered paged
 	 * indexes a chain page is positional and carries no ordering invariant to violate, so the stale leaf-page twin
 	 * corruption — a writer race persisting a frozen stale snapshot of a leaf page alongside the page that superseded it
-	 * — manifests instead as DUPLICATE record ids across pages. Because the paged persistence layout has never shipped
-	 * in a released version, no production catalog can carry such a twin; a duplicate is index corruption that is not
-	 * silently repaired but fails fast here with a {@link GenericEvitaInternalError} naming the record id, both
-	 * offending page sequences, the attribute identity and an operator remediation hint.
+	 * — manifests instead as DUPLICATE record ids across pages. The paged persistence layout **has** shipped, in the
+	 * 2026.2 release line, so a production catalog really can carry such a twin. A duplicate is nevertheless index
+	 * corruption that is not silently repaired: nothing in the persisted state says which of the two pages superseded
+	 * the other, and dropping the wrong copy would silently reorder the chain. It fails fast here with a
+	 * {@link GenericEvitaInternalError} naming the record id, both offending page sequences, the attribute identity
+	 * and an operator remediation hint.
 	 *
 	 * @param pages             the persisted leaf pages in ascending logical order
 	 * @param attributeIndexKey the attribute identity of this index (diagnostics)
@@ -918,8 +920,8 @@ public class ChainIndex implements
 	 * at COLLECT time, before this flush has written anything (the baseline-capture pass re-enters this pipeline), so
 	 * it cannot lean on the previous flush's bytes having landed by now. It does not need to: a flush that fails
 	 * during trunk incorporation SUSPENDS the catalog's transaction processing ({@code TransactionManager.suspend}),
-	 * and a flush that fails on the warm-up path POISONS the collection's buffer
-	 * ({@code WarmUpDataStoreMemoryBuffer.poison}), so every later collect of it refuses deterministically. Those two
+	 * and a flush that fails on the warm-up path makes the catalog UNPUBLISHABLE
+	 * ({@code Catalog.markUnpublishable}), so every later flush of it refuses deterministically. Those two
 	 * are the same invariant in different dresses: after a failed flush no later flush of that data ever runs, so
 	 * nothing can ever diff against the baselines it left behind. A flush that does NOT fail leaves `staged` holding
 	 * exactly the page set it wrote — the baseline the next flush must diff against — regardless of which path staged
@@ -1189,6 +1191,20 @@ public class ChainIndex implements
 		return new ChainIndexChanges(this);
 	}
 
+	/**
+	 * The chain data this index writes lives in contained transactional structures that journal their own writes, and
+	 * the lazily created {@link #chainIndexChanges} helper the delegate branch installs journals its own memoized
+	 * caches through the {@link io.evitadb.core.transaction.memory.Snapshotable} contract it already implements.
+	 * Instantiating that helper inside a rolled-back mutation is harmless — it holds nothing but rebuildable caches,
+	 * so the installed instance is indistinguishable from the `null` slot it replaced.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
+	}
+
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
@@ -1214,7 +1230,7 @@ public class ChainIndex implements
 		// publish point on the transactional path only; it is not the only one — a staged set that never reaches a merge
 		// (the warm-up path has no merge at all) is published by the next flush instead, see `publishPreviousFlush`. (No
 		// discard counterpart is needed: a pre-flush abort never stages, and a failed flush suspends this catalog's
-		// transaction processing — on the warm-up path it poisons the collection's buffer instead, the same invariant
+		// transaction processing — on the warm-up path it marks the catalog unpublishable instead, the same invariant
 		// in another dress — so no later flush ever diffs against the baseline a failed one left behind; restart
 		// rebuilds a clean registry from disk.)
 		this.pageStreamRegistry.publishStaged();

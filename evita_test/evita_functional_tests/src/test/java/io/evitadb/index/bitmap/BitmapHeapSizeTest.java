@@ -159,6 +159,20 @@ class BitmapHeapSizeTest {
 		}
 
 		@Test
+		void shouldMatchMeasuredHeapForSortedArrayBitmap() {
+			// the view charges the array it borrows in full, which is what makes this figure comparable with every
+			// other implementation's - the price of a record set, not of the wrapper
+			final SortedArrayBitmap bitmap = new SortedArrayBitmap(contiguous(1, 100));
+			assertEquals(JolHeapSize.ownedSize(bitmap), bitmap.getHeapSizeInBytes());
+		}
+
+		@Test
+		void shouldMatchMeasuredHeapForEmptySortedArrayBitmap() {
+			final SortedArrayBitmap bitmap = new SortedArrayBitmap();
+			assertEquals(JolHeapSize.ownedSize(bitmap), bitmap.getHeapSizeInBytes());
+		}
+
+		@Test
 		void shouldMatchMeasuredHeapForEmptyRoaringBitmap() {
 			final BaseBitmap bitmap = new BaseBitmap();
 			assertEquals(JolHeapSize.ownedSize(bitmap), bitmap.getHeapSizeInBytes());
@@ -264,6 +278,18 @@ class BitmapHeapSizeTest {
 				single.getHeapSizeInBytes() * 5 < roaring.getHeapSizeInBytes(),
 				"the single-record representation exists precisely because roaring's fixed overhead dwarfs "
 					+ "one record"
+			);
+		}
+
+		@Test
+		void shouldShowSortedArrayBitmapBeingLeanerThanRoaringForAHandfulOfRecords() {
+			final int[] ids = contiguous(1, 8);
+			final SortedArrayBitmap sortedArray = new SortedArrayBitmap(ids);
+			final BaseBitmap roaring = new BaseBitmap(ids);
+
+			assertTrue(
+				sortedArray.getHeapSizeInBytes() * 2 < roaring.getHeapSizeInBytes(),
+				"the sorted-array tier exists precisely because roaring's fixed overhead dwarfs a handful of records"
 			);
 		}
 	}

@@ -33,6 +33,7 @@ import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
 import io.evitadb.api.query.require.EntityContentRequire;
@@ -262,25 +263,34 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	private EntitySchema entitySchema;
 	/**
-	 * Contains reference to the {@link HierarchyFilteringPredicate} that keeps information about all hierarchy nodes
-	 * that should be included/excluded from traversal.
+	 * Contains the {@link HierarchyFilteringPredicate} of each translated hierarchy filter constraint, keeping
+	 * information about which hierarchy nodes that constraint includes or excludes from traversal.
 	 *
 	 * It is resolved by the filtering phase and handed over to the requirement phase, so that hierarchy statistics
-	 * observe exactly the same node visibility as the filter did. It can be set only once per context - see
-	 * {@link #setHierarchyHavingPredicate(HierarchyFilteringPredicate)}.
+	 * observe exactly the same node visibility as the filter did. Keyed by the constraint for the same reason as
+	 * {@link #rootHierarchyNodesFormula} - a query may carry several hierarchy filters and the statistics of one
+	 * hierarchy must never observe the visibility another one declared. Read through
+	 * {@link #getHierarchyHavingPredicate(HierarchyFilterConstraint)}. Lazily allocated by
+	 * {@link #setHierarchyHavingPredicate(HierarchyFilterConstraint, HierarchyFilteringPredicate)}.
 	 */
-	@Getter
-	private HierarchyFilteringPredicate hierarchyHavingPredicate;
+	@Nullable
+	private Map<HierarchyFilterConstraint, HierarchyFilteringPredicate> hierarchyHavingPredicate;
 	/**
-	 * Contains reference to the {@link Formula} that calculates the root hierarchy node ids used for filtering
-	 * the query result to be reused in other query evaluation phases (require). Shares the write-once contract of
-	 * {@link #hierarchyHavingPredicate} and is read through {@link #getRootHierarchyNodes()}.
+	 * Contains the {@link Formula} that calculates the root hierarchy node ids of each translated hierarchy filter
+	 * constraint, so that the requirement phase (hierarchy statistics) can reuse what the filtering phase already
+	 * computed. Keyed by the constraint itself, because a single query may legitimately carry several of them -
+	 * two subtrees joined by `or`, or two constraints aimed at different references - and the statistics of one
+	 * hierarchy must never observe the roots of another. Read through
+	 * {@link #getRootHierarchyNodes(HierarchyFilterConstraint)}. Lazily allocated by
+	 * {@link #setRootHierarchyNodesFormula(HierarchyFilterConstraint, Formula)}.
 	 */
-	private Formula rootHierarchyNodesFormula;
+	@Nullable
+	private Map<HierarchyFilterConstraint, Formula> rootHierarchyNodesFormula;
 	/**
 	 * The index contains rules for facet summary computation regarding the inter facet relation. The key in the index
-	 * is a tuple consisting of `referenceName` and `typeOfRule`, the value in the index is prepared predicate allowing
-	 * to mark the group id involved in special relation handling.
+	 * is a tuple consisting of `referenceName`, `typeOfRule` and the {@link FacetGroupRelationLevel} the relation was
+	 * asked about, the value in the index is prepared predicate allowing to mark the group id involved in special
+	 * relation handling.
 	 *
 	 * The predicates are expensive - each of them plans and evaluates the group filter - and are asked about many
 	 * group ids in a row, hence the memoization. Lazily allocated by {@link #getFacetRelationTuples()}.
@@ -305,6 +315,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * what makes a second drain of the same context a no-op.
 	 */
 	@Nullable private List<SchemaCapabilityUsage> requestedCapabilities;
+	/**
+	 * Memoized results of per-constraint planning decisions that are asked for twice in a single plan - once while
+	 * index selection decides which indexes it must discover, and again while the filter translator builds the
+	 * formula.
+	 *
+	 * @see #computeOncePerConstraint(Constraint, Set, Supplier) for the contract and why it is not shared with
+	 * {@link #parentContext}
+	 */
+	private Map<ConstraintScopeCacheKey, Object> constraintScopeCache;
 
 
 	/**
@@ -822,7 +841,11 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns {@link EntityIndex} of external entity type by its primary key.
+	 * Returns {@link EntityIndex} of the **queried** entity collection by its storage primary key.
+	 *
+	 * The lookup reads {@link #indexesByPk}, which holds the indexes of the collection this context plans over and
+	 * nothing else. Whenever the primary keys were announced by an index of a *different* collection, use
+	 * {@link #getEntityIndexByPrimaryKey(String, int, Class)} instead - see the reasoning there.
 	 *
 	 * The primary key is expected to come from an index that already knows the index exists (typically
 	 * {@link ReferencedTypeEntityIndex} listing its reduced indexes), therefore a missing index is treated as
@@ -834,10 +857,33 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull
 	public <T extends EntityIndex> T getEntityIndexByPrimaryKey(int indexPrimaryKey, @Nonnull Class<T> indexType) {
-		final Index<?> index = this.indexesByPk.get(indexPrimaryKey);
+		return getEntityIndexByPrimaryKey(this.entityType, indexPrimaryKey, indexType);
+	}
+
+	/**
+	 * Returns {@link EntityIndex} of the named entity collection by its storage primary key.
+	 *
+	 * Index primary keys come from a per-collection sequence ({@link io.evitadb.core.sequence.SequenceType#INDEX} is
+	 * requested per entity type), so the same number names a different index in every collection. A caller resolving
+	 * keys handed out by {@link ReferencedTypeEntityIndex#getAllReferenceIndexes(int)} therefore has to say which
+	 * collection that type index belonged to - exactly as {@link #getEntityIndex(String, EntityIndexKey, Class)} does
+	 * for the by-key path. Resolving them against the queried collection instead returns whichever of its indexes
+	 * happens to carry the same number, which is a wrong answer rather than a missing one.
+	 */
+	@Nonnull
+	public <T extends EntityIndex> T getEntityIndexByPrimaryKey(
+		@Nullable String entityType,
+		int indexPrimaryKey,
+		@Nonnull Class<T> indexType
+	) {
+		final Index<?> index = Objects.equals(this.entityType, entityType) ?
+			this.indexesByPk.get(indexPrimaryKey) :
+			getEntityCollectionOrThrowException(entityType, "access entity index")
+				.getIndexByPrimaryKeyIfExists(indexPrimaryKey);
 		Assert.isPremiseValid(
 			indexType.isInstance(index),
-			() -> "Expected index of type " + indexType + " but got " + (index == null ? "NULL" : index.getClass()) + "!"
+			() -> "Expected index of type " + indexType + " with primary key " + indexPrimaryKey + " in collection `" +
+				entityType + "` but got " + (index == null ? "NULL" : index.getClass()) + "!"
 		);
 		//noinspection unchecked
 		return (T) index;
@@ -906,7 +952,14 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 						referencedEntityId
 					);
 					return Arrays.stream(allReducedEntityIndexPks)
-						.mapToObj(pk -> getEntityIndexByPrimaryKey(pk, ReducedEntityIndex.class));
+						.mapToObj(
+							// the keys were handed out by the type index of `entitySchema`, so they have to be
+							// resolved there too - this is the one branch that can be asked about a collection
+							// other than the queried one
+							pk -> getEntityIndexByPrimaryKey(
+								entitySchema.getName(), pk, ReducedEntityIndex.class
+							)
+						);
 				})
 				.orElseGet(() -> {
 					final ReducedEntityIndex missingIndex = missingIndexSupplier.apply(entitySchema, entityIndexKey);
@@ -963,7 +1016,12 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 					groupEntityId
 				);
 				return Arrays.stream(allReducedEntityIndexPks)
-					.mapToObj(pk -> getEntityIndexByPrimaryKey(pk, ReducedGroupEntityIndex.class));
+					.mapToObj(
+						// same reasoning as in #getReducedEntityIndexes - the keys belong to `entitySchema`
+						pk -> getEntityIndexByPrimaryKey(
+							entitySchema.getName(), pk, ReducedGroupEntityIndex.class
+						)
+					);
 			})
 			.orElseGet(() -> {
 				final ReducedGroupEntityIndex missingIndex =
@@ -1389,6 +1447,62 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Memoizes a planning decision that is derived twice for the same constraint within a single plan, so that the
+	 * second derivation is a map lookup instead of a repeat of the work.
+	 *
+	 * The canonical case is {@link io.evitadb.core.query.filter.translator.reference.BidirectionalReferenceRewriter}:
+	 * {@link io.evitadb.core.query.indexSelection.IndexSelectionVisitor} asks whether a constraint will be answered
+	 * from the counterpart end - because if it will, the owner-side index set must not be discovered at all - and the
+	 * reference translator then asks for the plan itself. Both derivations read the same schemas and the same
+	 * index cardinalities and cannot disagree.
+	 *
+	 * **Why this is sound.** The supplier must be a pure function of this context's schemas and indexes, the
+	 * constraint and the scopes. Planning runs against a committed catalog snapshot, so no index can change
+	 * underneath it mid-plan and the second evaluation is guaranteed to equal the first. A supplier that reads
+	 * anything else does not belong here.
+	 *
+	 * **Why `scopes` is part of the key.** The same constraint is planned more than once under *different*
+	 * processing scopes, because index selection explores alternative {@link io.evitadb.core.query.indexSelection.TargetIndexes}
+	 * and each alternative carries its own scope set. Keying on the constraint alone would hand back a decision
+	 * taken for a different scope set - a wrong answer rather than a slow one, and one that would stay invisible on
+	 * a single-scope schema where {@link Scope#DEFAULT_SCOPES} makes every alternative agree.
+	 *
+	 * **Why it is not delegated to {@link #parentContext}.** Unlike
+	 * {@link #computeOnlyOnce(List, FilterConstraint, Supplier, long...)}, whose key carries the index identifiers
+	 * and therefore identifies the context too, a decision memoized here is only valid against the schemas and
+	 * indexes of the context that produced it. A nested query has its own, so it gets its own cache.
+	 *
+	 * Constraints do not implement value equality, so the key compares them by identity. That makes a miss possible
+	 * when the same constraint is rebuilt rather than reused - and a miss costs exactly what the call cost before
+	 * this method existed, never a wrong result.
+	 *
+	 * @param constraint the constraint the decision belongs to, compared by identity
+	 * @param scopes     processing scopes the decision was taken under
+	 * @param supplier   derives the decision; may return NULL, which is memoized as such
+	 * @param <T>        type of the memoized decision
+	 * @return the decision, freshly derived or memoized, NULL when the supplier yields NULL
+	 */
+	@Nullable
+	public <T> T computeOncePerConstraint(
+		@Nonnull Constraint<?> constraint,
+		@Nonnull Set<Scope> scopes,
+		@Nonnull Supplier<T> supplier
+	) {
+		if (this.constraintScopeCache == null) {
+			this.constraintScopeCache = new HashMap<>();
+		}
+		final ConstraintScopeCacheKey cacheKey = new ConstraintScopeCacheKey(constraint, scopes);
+		final Object cached = this.constraintScopeCache.get(cacheKey);
+		if (cached != null) {
+			//noinspection unchecked
+			return cached == NULL_DECISION ? null : (T) cached;
+		}
+		final T computed = supplier.get();
+		this.constraintScopeCache.put(cacheKey, computed == null ? NULL_DECISION : computed);
+		return computed;
+	}
+
+	/**
 	 * Returns bitmap with newly generated virtual primary keys using masking function
 	 * {@link #getOrRegisterEntityReferenceMaskId(EntityReferenceContract)}.
 	 *
@@ -1501,30 +1615,64 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 
 	/**
-	 * Sets resolved hierarchy root nodes formula to be shared among filter and requirement phase. Can be called
-	 * only once per context - two different root sets within one query would mean the filter and the hierarchy
-	 * statistics disagree about what the hierarchy is.
+	 * Sets resolved hierarchy root nodes formula of a single hierarchy filter constraint, to be shared among the
+	 * filter and the requirement phase.
 	 *
+	 * The first formula recorded for a constraint wins. A constraint is translated once per scope index and the
+	 * translation deliberately lets the first applicable scope take precedence (LIVE before ARCHIVED), so the roots
+	 * have to follow the same precedence rather than being overwritten by a later scope.
+	 *
+	 * @param hierarchyFilterConstraint the constraint whose roots were resolved
 	 * @param rootHierarchyNodesFormula formula computing primary keys of the hierarchy roots
 	 */
-	public void setRootHierarchyNodesFormula(@Nonnull Formula rootHierarchyNodesFormula) {
-		Assert.isPremiseValid(this.rootHierarchyNodesFormula == null, "The hierarchy filtering formula can be set only once!");
-		this.rootHierarchyNodesFormula = rootHierarchyNodesFormula;
+	public void setRootHierarchyNodesFormula(
+		@Nonnull HierarchyFilterConstraint hierarchyFilterConstraint,
+		@Nonnull Formula rootHierarchyNodesFormula
+	) {
+		if (this.rootHierarchyNodesFormula == null) {
+			this.rootHierarchyNodesFormula = CollectionUtils.createHashMap(4);
+		}
+		this.rootHierarchyNodesFormula.putIfAbsent(hierarchyFilterConstraint, rootHierarchyNodesFormula);
 	}
 
 	/**
-	 * Sets resolved hierarchy having/exclusion predicate to be shared among filter and requirement phase. Setting
-	 * it repeatedly is tolerated as long as the predicate is equal to the one already stored - the same constraint
-	 * may legitimately be resolved by more than one translator - but a *different* predicate is rejected.
+	 * Sets resolved hierarchy having/exclusion predicate of a single hierarchy filter constraint, to be shared among
+	 * the filter and the requirement phase.
 	 *
-	 * @param hierarchyHavingPredicate predicate deciding which hierarchy nodes are traversable
+	 * The first predicate recorded for a constraint wins, for the same reason as in
+	 * {@link #setRootHierarchyNodesFormula(HierarchyFilterConstraint, Formula)}: a constraint is translated once per
+	 * scope index and the first applicable scope takes precedence.
+	 *
+	 * @param hierarchyFilterConstraint the constraint whose node visibility was resolved
+	 * @param hierarchyHavingPredicate  predicate deciding which hierarchy nodes are traversable
 	 */
-	public void setHierarchyHavingPredicate(@Nonnull HierarchyFilteringPredicate hierarchyHavingPredicate) {
-		Assert.isPremiseValid(
-			this.hierarchyHavingPredicate == null || this.hierarchyHavingPredicate.equals(hierarchyHavingPredicate),
-			"The hierarchy exclusion predicate can be set only once!"
-		);
-		this.hierarchyHavingPredicate = hierarchyHavingPredicate;
+	public void setHierarchyHavingPredicate(
+		@Nonnull HierarchyFilterConstraint hierarchyFilterConstraint,
+		@Nonnull HierarchyFilteringPredicate hierarchyHavingPredicate
+	) {
+		if (this.hierarchyHavingPredicate == null) {
+			this.hierarchyHavingPredicate = CollectionUtils.createHashMap(4);
+		}
+		this.hierarchyHavingPredicate.putIfAbsent(hierarchyFilterConstraint, hierarchyHavingPredicate);
+	}
+
+	/**
+	 * Returns the node visibility predicate declared by the passed hierarchy filter constraint.
+	 *
+	 * The caller passes the constraint the extra result decided to describe - resolved by
+	 * {@link EvitaRequest#getHierarchyWithin(String)} - so the visibility always belongs to that very hierarchy.
+	 * A NULL constraint, and a constraint that declares no `having` / `havingAnyChild` / `excluding` filter, both
+	 * yield NULL, which the computers read as "every node is traversable".
+	 *
+	 * @param hierarchyFilterConstraint the constraint whose node visibility is asked for, may be NULL
+	 * @return the predicate declared by that constraint, or NULL when it declared none
+	 */
+	@Nullable
+	public HierarchyFilteringPredicate getHierarchyHavingPredicate(
+		@Nullable HierarchyFilterConstraint hierarchyFilterConstraint
+	) {
+		return this.hierarchyHavingPredicate == null || hierarchyFilterConstraint == null ?
+			null : this.hierarchyHavingPredicate.get(hierarchyFilterConstraint);
 	}
 
 	/**
@@ -1634,12 +1782,16 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable Integer groupId,
 		@Nonnull FacetGroupRelationLevel level,
-		@Nonnull BiFunction<EvitaRequest, String, Optional<FacetFilterBy>> facetSettingsRetriever
+		@Nonnull FacetSettingsRetriever facetSettingsRetriever
 		) {
 		final String referenceName = referenceSchema.getName();
 		final FacetRelationType theDefault = level == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP ?
 			this.evitaRequest.getDefaultFacetRelationType() : this.evitaRequest.getDefaultGroupRelationType();
-		final Optional<FacetFilterBy> facetSettings = facetSettingsRetriever.apply(this.evitaRequest, referenceName);
+		// the settings are read for the level being asked about - a relation declared between groups must not
+		// decide the relation between the facets inside one group, and vice versa
+		final Optional<FacetFilterBy> facetSettings = facetSettingsRetriever.apply(
+			this.evitaRequest, referenceName, level
+		);
 		if (facetSettings.isEmpty()) {
 			return theDefault == relationType;
 		} else {
@@ -1651,7 +1803,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 				} else {
 					final boolean requestedExplicitly = getFacetRelationTuples()
 						.computeIfAbsent(
-							new FacetRelationTuple(referenceName, relationType),
+							new FacetRelationTuple(referenceName, relationType, level),
 							refName -> {
 								final String referencedGroupType = referenceSchema.getReferencedGroupType();
 								Assert.isTrue(
@@ -1686,13 +1838,20 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns primary key of all root hierarchy nodes that cover the requested hierarchy.
+	 * Returns primary keys of all root hierarchy nodes that cover the hierarchy requested by the passed constraint.
 	 *
+	 * The caller passes the constraint the extra result decided to describe - resolved by
+	 * {@link EvitaRequest#getHierarchyWithin(String)} - so the roots always belong to that very hierarchy. A NULL
+	 * constraint, and a constraint that declares no roots of its own (`hierarchyWithinRoot`), both yield an empty
+	 * bitmap, which the producers read as "the index roots".
+	 *
+	 * @param hierarchyFilterConstraint the constraint whose roots are asked for, may be NULL
 	 * @return bitmap of root hierarchy nodes
 	 */
 	@Nonnull
-	public Bitmap getRootHierarchyNodes() {
+	public Bitmap getRootHierarchyNodes(@Nullable HierarchyFilterConstraint hierarchyFilterConstraint) {
 		return ofNullable(this.rootHierarchyNodesFormula)
+			.map(it -> hierarchyFilterConstraint == null ? null : it.get(hierarchyFilterConstraint))
 			.map(Formula::compute)
 			.orElse(EmptyBitmap.INSTANCE);
 	}
@@ -1825,25 +1984,86 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Tuple that wraps {@link ReferenceSchemaContract#getName()} and {@link FacetRelationType} into one object used as
-	 * the {@link #facetRelationTuples} key.
+	 * Tuple that wraps {@link ReferenceSchemaContract#getName()}, {@link FacetRelationType} and
+	 * {@link FacetGroupRelationLevel} into one object used as the {@link #facetRelationTuples} key. The level is
+	 * part of the key because the two levels are orthogonal and each carries its own filter, so a predicate
+	 * memoized for one must never be reused to answer the other.
 	 *
 	 * @param referenceName name of the reference the facet group belongs to
 	 * @param relation      relation type the memoized predicate decides about
+	 * @param level         the {@link FacetGroupRelationLevel} the relation was asked about (within group vs.
+	 *                      between groups)
 	 */
 	private record FacetRelationTuple(
 		@Nonnull String referenceName,
-		@Nonnull FacetRelationType relation
+		@Nonnull FacetRelationType relation,
+		@Nonnull FacetGroupRelationLevel level
 	) {
 
 	}
 
 	/**
-	 * The internal caching key.
+	 * Pulls the settings of one facet relation type for a reference at a particular
+	 * {@link FacetGroupRelationLevel} out of the request. This is what binds the shared
+	 * {@link #isFacetGroupRelationType} implementation to one of the four relations; the level is part of the lookup
+	 * because the two levels are orthogonal and carry their own settings.
+	 */
+	@FunctionalInterface
+	private interface FacetSettingsRetriever {
+
+		/**
+		 * Returns the settings declared for the given reference at the given level.
+		 *
+		 * @param request       request to read the settings from
+		 * @param referenceName name of the reference the facets belong to
+		 * @param level         level the relation is being asked about
+		 * @return the settings, empty when the query declared none for that reference at that level
+		 */
+		@Nonnull
+		Optional<FacetFilterBy> apply(
+			@Nonnull EvitaRequest request,
+			@Nonnull String referenceName,
+			@Nonnull FacetGroupRelationLevel level
+		);
+
+	}
+
+	/**
+	 * Stands in for a memoized NULL in {@link #constraintScopeCache}, so that "decided, and the answer is no plan"
+	 * is distinguishable from "not decided yet" without a second map lookup.
+	 */
+	private static final Object NULL_DECISION = new Object();
+
+	/**
+	 * Key of {@link #constraintScopeCache}. The constraint is compared by identity - constraints do not implement
+	 * value equality - and the scope set is part of the key because the same constraint is planned under different
+	 * scope sets when index selection explores alternatives.
 	 *
-	 * `equals` and `hashCode` are overridden on purpose: the record's generated implementations compare array
-	 * components by identity, which would make every key unique and turn the cache into a memory leak that never
-	 * hits.
+	 * @param constraint the constraint the memoized decision belongs to
+	 * @param scopes     processing scopes the decision was taken under
+	 */
+	private record ConstraintScopeCacheKey(
+		@Nonnull Constraint<?> constraint,
+		@Nonnull Set<Scope> scopes
+	) {
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (o == null || getClass() != o.getClass()) return false;
+			final ConstraintScopeCacheKey that = (ConstraintScopeCacheKey) o;
+			return this.constraint == that.constraint && this.scopes.equals(that.scopes);
+		}
+
+		@Override
+		public int hashCode() {
+			return 31 * System.identityHashCode(this.constraint) + this.scopes.hashCode();
+		}
+
+	}
+
+	/**
+	 * The internal caching key.
 	 *
 	 * @param indexKeys  array of {@link EntityIndex#getId()} that were used for result calculation
 	 * @param constraint the constraint that has been evaluated on those indexes

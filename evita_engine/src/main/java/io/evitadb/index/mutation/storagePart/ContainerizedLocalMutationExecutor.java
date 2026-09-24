@@ -91,6 +91,7 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
 import io.evitadb.spi.store.catalog.persistence.accessor.EntityStoragePartAccessor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
@@ -491,6 +492,41 @@ public final class ContainerizedLocalMutationExecutor
 	}
 
 	/**
+	 * Reads an entity's references from the storage with every narrowing explicitly switched off.
+	 *
+	 * The write path may only ever see an entity's WHOLE reference set. It decomposes a removal into one mutation
+	 * per reference the part reports, and it rewrites the part in place - so a part that was decoded under a
+	 * narrowing would drop the references nobody decoded, leaving their reflected counterparts dangling with no
+	 * guard firing anywhere near the damage.
+	 *
+	 * The coverage is bound to NULL here rather than merely assumed to be NULL, because it lives in a thread local
+	 * that a read further up the stack may still own. Every read of a {@link ReferencesStoragePart} *in this class*
+	 * goes through this method for that reason; adding one that calls `fetch` directly reopens the hole.
+	 *
+	 * The same obligation holds at the read sites this helper cannot reach, and is met at each of them instead:
+	 * `ReferencedEntityAttributeValueProvider#getAttributeValues`,
+	 * `ReferenceAttributeDeltaResolver#getInitialAttributeValue`, and the binary entity read in
+	 * `DefaultEntityCollectionPersistenceService`. The rule they all follow is the same: a consumer that needs an
+	 * entity's whole reference set BINDS the unrestricted coverage; it never assumes the thread carries none.
+	 *
+	 * @param dataStoreReader    reader to fetch the part from
+	 * @param entityPrimaryKey   primary key of the entity whose references are read
+	 * @return the complete references part, or NULL when the entity has none stored
+	 */
+	@Nullable
+	private ReferencesStoragePart fetchCompleteReferences(
+		@Nonnull DataStoreReader dataStoreReader,
+		int entityPrimaryKey
+	) {
+		return ReferenceDecodeCoverageContext.executeWithCoverage(
+			null,
+			() -> dataStoreReader.fetch(
+				this.catalogVersion, entityPrimaryKey, ReferencesStoragePart.class
+			)
+		);
+	}
+
+	/**
 	 * Finds the primary reference key associated with the given {@code representativeReferenceKey}.
 	 * Validates that the reference has a known internal primary key and is present in the reference storage.
 	 *
@@ -511,8 +547,8 @@ public final class ContainerizedLocalMutationExecutor
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull Serializable[] representativeAttributeValues
 	) {
-		final ReferencesStoragePart otherReferenceStoragePart = dataStoreReader.fetch(
-			this.catalogVersion, entityPrimaryKey, ReferencesStoragePart.class
+		final ReferencesStoragePart otherReferenceStoragePart = fetchCompleteReferences(
+			dataStoreReader, entityPrimaryKey
 		);
 		Assert.notNull(
 			otherReferenceStoragePart,
@@ -559,11 +595,7 @@ public final class ContainerizedLocalMutationExecutor
 		@Nonnull Function<ReferencesStoragePart, ReferenceKey> defaultValueProvider
 	) {
 		final Optional<ReferencesStoragePart> otherReferenceStoragePart = ofNullable(
-			dataStoreReader.fetch(
-				this.catalogVersion,
-				entityPrimaryKey,
-				ReferencesStoragePart.class
-			)
+			fetchCompleteReferences(dataStoreReader, entityPrimaryKey)
 		);
 		final ReferenceKey primaryRefKeyWithInternalPk = otherReferenceStoragePart
 			.flatMap(
@@ -1366,18 +1398,16 @@ public final class ContainerizedLocalMutationExecutor
 			return ofNullable(getCachedReferenceStorageContainer(entityPrimaryKey))
 				.orElseGet(() -> cacheReferencesStorageContainer(
 					entityPrimaryKey,
-					ofNullable(this.dataStoreReader.fetch(
-						this.catalogVersion, entityPrimaryKey, ReferencesStoragePart.class
-					)).orElseGet(() -> new ReferencesStoragePart(entityPrimaryKey))
+					ofNullable(fetchCompleteReferences(this.dataStoreReader, entityPrimaryKey))
+						.orElseGet(() -> new ReferencesStoragePart(entityPrimaryKey))
 				));
 		} else {
 			// different entity (cross-entity or same-type parent) — non-cached read
 			final DataStoreReader reader = this.entityType.equals(entityType)
 				? this.dataStoreReader
 				: getCrossEntityDataStoreReader(entityType);
-			return ofNullable(reader.fetch(
-				this.catalogVersion, entityPrimaryKey, ReferencesStoragePart.class
-			)).orElseGet(() -> new ReferencesStoragePart(entityPrimaryKey));
+			return ofNullable(fetchCompleteReferences(reader, entityPrimaryKey))
+				.orElseGet(() -> new ReferencesStoragePart(entityPrimaryKey));
 		}
 	}
 
@@ -1524,7 +1554,7 @@ public final class ContainerizedLocalMutationExecutor
 				verifyReferenceAttributes(
 					targetEntityScope, this.entityContainer, this.referencesStorageContainer,
 					inputMutations, missingMandatedAttributes, mutationCollector,
-					implicitMutationBehavior
+					implicitMutationBehavior, true
 				);
 			}
 
@@ -1595,8 +1625,14 @@ public final class ContainerizedLocalMutationExecutor
 						this.referencesStorageContainer, List.of(), mutationCollector,
 						EnumSet.of(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES)
 					);
-				} else if (this.referencesStorageContainer != null && this.referencesStorageContainer.isDirty()) {
-					if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFLECTED_REFERENCES)) {
+				} else {
+					final boolean referencesDirty = this.referencesStorageContainer != null
+						&& this.referencesStorageContainer.isDirty();
+					// Reflected-reference propagation is driven purely by the batch's own
+					// `InsertReferenceMutation` / `RemoveReferenceMutation` entries, so a batch that names no
+					// reference has nothing for it to do. It keeps the dirty trigger it has always had.
+					if (referencesDirty
+						&& implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFLECTED_REFERENCES)) {
 						verifyReflectedReferences(
 							this.entityPrimaryKey, this.initialEntityScope, targetEntityScope,
 							inputMutations, mutationCollector,
@@ -1604,14 +1640,37 @@ public final class ContainerizedLocalMutationExecutor
 						);
 					}
 					if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES)) {
+						// Attribute verification does NOT share that trigger, because an added entity locale makes
+						// references non-compliant without touching any of them:
+						// `processReferenceAttributesWithDefaultValue` iterates the ENTITY locales for every
+						// localized mandatory / default-valued attribute. A batch that only writes a localized
+						// attribute or associated-data value in a locale the entity did not yet declare therefore
+						// leaves every existing reference short of that locale's value, and the reference container
+						// never becomes dirty to say so - it is usually not even loaded.
+						//
+						// Gating on the dirty flag alone made the outcome depend on an unrelated co-mutation: the
+						// same locale introduced alongside any reference write repaired EVERY reference, and
+						// introduced on its own repaired none. Loading the container for the locale-added case
+						// costs one storage read on a batch that adds an entity locale, which is rare; a clean
+						// container is never persisted (`addIfDirty`) and never sorted again
+						// (`assignMissingIdsAndSort` short-circuits once primary keys are assigned).
+						final ReferencesStoragePart referencesToVerify;
+						if (referencesDirty) {
+							referencesToVerify = this.referencesStorageContainer;
+						} else if (hasAddedEntityLocale()) {
+							referencesToVerify = getReferencesStoragePart(this.entityType, this.entityPrimaryKey);
+						} else {
+							referencesToVerify = null;
+						}
 						verifyReferenceAttributes(
 							targetEntityScope,
 							this.entityContainer,
-							this.referencesStorageContainer,
+							referencesToVerify,
 							inputMutations,
 							missingMandatedAttributes,
 							mutationCollector,
-							implicitMutationBehavior
+							implicitMutationBehavior,
+							false
 						);
 					}
 
@@ -1961,6 +2020,19 @@ public final class ContainerizedLocalMutationExecutor
 		if (this.entityRemovedEntirely) {
 			// when the entity is being removed we need to keep the initial state of references
 			// in order to correctly propagate reflected references removal
+			//
+			// the copy below is built through the constructor that means "complete", so a narrowed source would come
+			// out the other side claiming a completeness it does not have - and this copy is exactly what decides
+			// which reflected counterparts get removed. Removal genuinely needs every reference of the entity, so
+			// the demand is stated here rather than laundered away.
+			Assert.isPremiseValid(
+				referencesStorageContainer.isComplete(),
+				() -> new GenericEvitaInternalError(
+					"References of entity with primary key " + this.entityPrimaryKey + " were decoded only for " +
+						referencesStorageContainer.getDecodeCoverage() + " and cannot drive its removal - the " +
+						"references that were never decoded would keep their reflected counterparts!"
+				)
+			);
 			this.initialReferencesStorageContainer = new ReferencesStoragePart(
 				referencesStorageContainer.getEntityPrimaryKey(),
 				referencesStorageContainer.getLastUsedPrimaryKey(),
@@ -2642,6 +2714,16 @@ public final class ContainerizedLocalMutationExecutor
 	 * and ensures all mandatory attributes are accounted for. It checks for missing attributes,
 	 * processes attributes with default values, and updates the mutation collector if necessary.
 	 *
+	 * On an existing entity the verification covers the references the batch touched, not the whole container:
+	 * an untouched reference is trusted to have been compliant when it was last written. A schema change that
+	 * makes an already-stored reference non-compliant — a reference attribute newly made mandatory, or newly
+	 * given a default value — is therefore not detected by a later upsert that touches a *different* reference
+	 * of the same entity, where it once would have been repaired (or refused) by that unrelated write. Such an
+	 * entity is repaired by writing the reference itself. That is the narrowing issue #1531 made deliberately.
+	 * Three conditions still send the check back over the whole container: an entity-scoped locale added by the
+	 * batch ({@link #hasAddedEntityLocale()}), decided here, plus the two unresolvable-key conditions listed on
+	 * {@link #collectTouchedReferences}.
+	 *
 	 * @param scope The scope of the current operation.
 	 * @param entityStorageContainer The container representing the entity's body storage.
 	 * @param referencesStoragePart The container holding the entity's references storage, which may be null.
@@ -2649,6 +2731,12 @@ public final class ContainerizedLocalMutationExecutor
 	 * @param missingMandatedAttributes A list to collect information about missing mandated attributes.
 	 * @param mutationCollector The collector for recording attribute mutations.
 	 * @param implicitMutations The set of implicit mutation behaviors to consider during the verification process.
+	 * @param scanAllReferences True for a brand-new entity, whose every reference must be verified. False for an
+	 *                          existing one, where only the references the mutations touched are re-verified - see
+	 *                          {@link #collectTouchedReferences} for why, and for the two unresolvable-key
+	 *                          conditions that send this path back to the full scan anyway. An added entity-scoped
+	 *                          locale ({@link #hasAddedEntityLocale()}) is a third such condition, and this method
+	 *                          decides it rather than that one.
 	 * @throws MandatoryAttributesNotProvidedException If mandatory attributes are missing and cannot be resolved.
 	 */
 	private void verifyReferenceAttributes(
@@ -2658,7 +2746,8 @@ public final class ContainerizedLocalMutationExecutor
 		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations,
 		@Nonnull List<Object> missingMandatedAttributes,
 		@Nonnull MutationCollector mutationCollector,
-		@Nonnull EnumSet<ImplicitMutationBehavior> implicitMutations
+		@Nonnull EnumSet<ImplicitMutationBehavior> implicitMutations,
+		boolean scanAllReferences
 	) throws MandatoryAttributesNotProvidedException {
 		if (referencesStoragePart == null) {
 			return;
@@ -2693,39 +2782,190 @@ public final class ContainerizedLocalMutationExecutor
 				);
 			}
 		};
-		ReferenceSchema referenceSchema = null;
-		for (Reference reference : referencesStoragePart.getReferences()) {
-			if (reference.exists()) {
-				if (referenceSchema == null ||
-					!referenceSchema.getName().equals(reference.getReferenceName())) {
-					referenceSchema = entitySchema.getReferenceOrThrowException(reference.getReferenceName());
-				}
-				// skip references whose schema declares no mandatory / default-valued attributes -
-				// there is nothing to verify or default here, so we avoid probing the reference attributes
-				// for the common case
-				if (referenceSchema.getNonNullableOrDefaultValueAttributes().isEmpty()) {
-					continue;
-				}
-				missingReferenceMandatedAttribute.clear();
-				// point the shared handler at the reference currently being verified
-				currentReferenceKey[0] = reference.getReferenceKey();
+		// An existing entity only needs the references the mutations actually touched re-verified - EXCEPT when the
+		// batch added an entity locale. `processReferenceAttributesWithDefaultValue` iterates the entity locales for
+		// every localized mandatory / default-valued attribute, so a new entity locale makes references the batch
+		// never touched non-compliant in that locale. Falling back to the full scan there is deliberate: the partial
+		// alternative (re-scanning everything against only the added locales) would have to exclude the references
+		// verified by the touched pass, and the two key forms cannot be compared reliably enough to make that
+		// exclusion safe. Adding an entity locale is rare, and the full scan is what used to happen unconditionally.
+		final List<Reference> touchedReferences = scanAllReferences || hasAddedEntityLocale() ?
+			null : collectTouchedReferences(referencesStoragePart, inputMutations);
 
-				// probe the reference directly for each mandatory / default-valued schema attribute instead of
-				// materializing the full key set of the reference (a HashSet per reference on the hot path)
-				processReferenceAttributesWithDefaultValue(
-					referenceSchema, entityLocales, reference, missingAttributeHandler
-				);
-
-				if (!missingReferenceMandatedAttribute.isEmpty()) {
-					missingMandatedAttributes.add(
-						new MissingReferenceAttribute(
-							referenceSchema.getName(),
-							new ArrayList<>(missingReferenceMandatedAttribute)
-						)
+		if (touchedReferences == null) {
+			ReferenceSchema referenceSchema = null;
+			for (Reference reference : referencesStoragePart.getReferences()) {
+				if (reference.exists()) {
+					if (referenceSchema == null ||
+						!referenceSchema.getName().equals(reference.getReferenceName())) {
+						referenceSchema = entitySchema.getReferenceOrThrowException(reference.getReferenceName());
+					}
+					verifySingleReferenceAttributes(
+						referenceSchema, entityLocales, reference, currentReferenceKey,
+						missingReferenceMandatedAttribute, missingMandatedAttributes, missingAttributeHandler
 					);
 				}
 			}
+		} else {
+			for (final Reference reference : touchedReferences) {
+				verifySingleReferenceAttributes(
+					entitySchema.getReferenceOrThrowException(reference.getReferenceName()),
+					entityLocales, reference, currentReferenceKey,
+					missingReferenceMandatedAttribute, missingMandatedAttributes, missingAttributeHandler
+				);
+			}
 		}
+	}
+
+	/**
+	 * Verifies a single reference against the mandatory / default-valued attributes its schema declares, recording
+	 * any that are missing and emitting default-value mutations for the rest.
+	 *
+	 * Extracted so the full scan and the touched-references-only scan share one implementation - the two paths must
+	 * never diverge in what they consider compliant.
+	 *
+	 * @param referenceSchema                  schema of the verified reference
+	 * @param entityLocales                    locales the entity declares, probed for localized attributes
+	 * @param reference                        the reference being verified
+	 * @param currentReferenceKey              single-element holder pointing the shared handler at this reference
+	 * @param missingReferenceMandatedAttribute scratch list the handler accumulates missing attributes into
+	 * @param missingMandatedAttributes        output list of missing mandatory attributes across all references
+	 * @param missingAttributeHandler          handler invoked for each missing / defaulted attribute
+	 */
+	private static void verifySingleReferenceAttributes(
+		@Nonnull ReferenceSchema referenceSchema,
+		@Nonnull Set<Locale> entityLocales,
+		@Nonnull Reference reference,
+		@Nonnull ReferenceKey[] currentReferenceKey,
+		@Nonnull List<AttributeKey> missingReferenceMandatedAttribute,
+		@Nonnull List<Object> missingMandatedAttributes,
+		@Nonnull MissingAttributeHandler missingAttributeHandler
+	) {
+		// skip references whose schema declares no mandatory / default-valued attributes -
+		// there is nothing to verify or default here, so we avoid probing the reference attributes
+		// for the common case
+		if (referenceSchema.getNonNullableOrDefaultValueAttributes().isEmpty()) {
+			return;
+		}
+		missingReferenceMandatedAttribute.clear();
+		// point the shared handler at the reference currently being verified
+		currentReferenceKey[0] = reference.getReferenceKey();
+
+		// probe the reference directly for each mandatory / default-valued schema attribute instead of
+		// materializing the full key set of the reference (a HashSet per reference on the hot path)
+		processReferenceAttributesWithDefaultValue(
+			referenceSchema, entityLocales, reference, missingAttributeHandler
+		);
+
+		if (!missingReferenceMandatedAttribute.isEmpty()) {
+			missingMandatedAttributes.add(
+				new MissingReferenceAttribute(
+					referenceSchema.getName(),
+					new ArrayList<>(missingReferenceMandatedAttribute)
+				)
+			);
+		}
+	}
+
+	/**
+	 * Tells whether this entity application added an entity-scoped locale.
+	 *
+	 * Only {@link LocaleScope#ENTITY} counts: it is registered solely when the entity's own locale set actually
+	 * changed, so an attribute written in a locale the entity already declares does not trigger it.
+	 *
+	 * Answers two questions in {@link #popImplicitMutations}, and they are easy to confuse. It decides **whether**
+	 * an existing entity's references are verified at all when the reference container is clean - a locale-only
+	 * batch would otherwise be skipped entirely - and, once verification runs, **how much** of the container it
+	 * covers, by sending {@link #verifyReferenceAttributes} back to the full scan.
+	 *
+	 * @return true when at least one added locale carries {@link LocaleScope#ENTITY}
+	 */
+	private boolean hasAddedEntityLocale() {
+		if (this.addedLocales == null) {
+			return false;
+		}
+		for (final EnumSet<LocaleScope> scopes : this.addedLocales.values()) {
+			if (scopes.contains(LocaleScope.ENTITY)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Resolves the references named by the incoming mutations, so an existing entity can be verified without walking
+	 * its whole reference container.
+	 *
+	 * This is the point of the optimization: a nested application on an *entangled* entity - one reached through a
+	 * reflected reference - carries a handful of mutations while the entity itself may hold thousands of references
+	 * accumulated from every entity that points at it. Scanning all of them per application made bulk ingest cost
+	 * grow with catalog size (issue #1531).
+	 *
+	 * Resolution is by binary search over the (name, primary key)-ordered container. **Returns `null` whenever any
+	 * key cannot be resolved unambiguously**, which makes the caller fall back to the full scan - the incremental
+	 * path must never verify less than the full one would. Exactly two conditions make THIS method return `null`:
+	 *
+	 * - the key carries no known internal primary key, so it names no single reference to look up;
+	 * - the container holds no slot for the key at all, which means the key is stale rather than that there is
+	 *   nothing to verify.
+	 *
+	 * They are not the whole fall-back set. {@link #verifyReferenceAttributes} adds a third condition of its own
+	 * and evaluates it BEFORE calling this method at all - an entity-scoped locale added by the batch
+	 * ({@link #hasAddedEntityLocale()}) - so an audit of what still reaches the full scan has to read both sites.
+	 *
+	 * A reference the batch **removed** is none of the three: its slot resolves, so the key is proved current, and
+	 * it is skipped exactly as the full scan skips it on its own `exists()` check. A batch containing a removal
+	 * therefore stays on the incremental path.
+	 *
+	 * @param referencesStoragePart the container to resolve against
+	 * @param inputMutations        mutations applied to this entity in this batch
+	 * @return the touched, still-existing references, or null when the caller must scan everything
+	 */
+	@Nullable
+	private List<Reference> collectTouchedReferences(
+		@Nonnull ReferencesStoragePart referencesStoragePart,
+		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations
+	) {
+		List<Reference> result = null;
+		Set<ReferenceKey> seen = null;
+		for (final LocalMutation<?, ?> inputMutation : inputMutations) {
+			if (!(inputMutation instanceof final ReferenceMutation<?> referenceMutation)) {
+				continue;
+			}
+			final ReferenceKey referenceKey =
+				getReferenceKeyManager().getAssignedReferenceKey(referenceMutation.getReferenceKey());
+			// only a key resolved to a concrete reference can be looked up without ambiguity; anything else
+			// (an unassigned or generic key) sends the caller back to the full scan
+			if (!referenceKey.isKnownInternalPrimaryKey()) {
+				return null;
+			}
+			if (seen == null) {
+				seen = CollectionUtils.createHashSet(inputMutations.size());
+				result = new ArrayList<>(inputMutations.size());
+			}
+			if (!seen.add(referenceKey)) {
+				continue;
+			}
+			// resolved including a dropped reference on purpose: the two cases below are different verdicts, and
+			// `findReference` cannot tell them apart
+			final Reference resolvedReference = referencesStoragePart.findReferenceIncludingDropped(referenceKey);
+			// A mutation naming a reference the container holds no slot for at all means our key is stale, not
+			// that there is nothing to verify: `ReferenceKeyManager#reassignReferenceKey` only mirrors a
+			// reassignment into `assignedPrimaryKeys` when the old key is present in `createdReferenceKeys`, so a
+			// reference whose already-positive internal id is reassigned outside that path leaves us holding the
+			// pre-reassignment key. Falling back to the full scan is the only safe reading - silently verifying
+			// fewer references than before would surface as a missing default value, with no exception anywhere.
+			if (resolvedReference == null) {
+				return null;
+			}
+			// A reference the batch dropped is skipped rather than verified, exactly as the full scan skips it on
+			// its own `exists()` check - and unlike the stale key above, the slot proves the key resolved, so the
+			// batch stays on the incremental path instead of paying the whole-container scan for every removal.
+			if (resolvedReference.exists()) {
+				result.add(resolvedReference);
+			}
+		}
+		return result == null ? List.of() : result;
 	}
 
 	/**

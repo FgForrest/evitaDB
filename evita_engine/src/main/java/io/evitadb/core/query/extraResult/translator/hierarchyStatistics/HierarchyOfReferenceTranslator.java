@@ -26,6 +26,7 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics;
 import io.evitadb.api.exception.EntityIsNotHierarchicalException;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
+import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.HierarchyOfReference;
 import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.requestResponse.EvitaRequest;
@@ -104,18 +105,17 @@ public class HierarchyOfReferenceTranslator
 			if (globalIndex != null) {
 				// safe: globalIndex != null implies the optional was present
 				final EntityCollection targetCollection = targetCollectionRef.orElseThrow();
-				final NestedContextSorter sorter = hierarchyOfReference.getOrderBy()
-					.map(
-						it -> extraResultPlanner.createSorter(
-							it, null, targetCollection,
-							() -> "Hierarchy statistics of `" + referencedEntitySchema.getName() + "`: " + it
-						)
-					)
-					.orElse(null);
+				final OrderBy orderBy = hierarchyOfReference.getOrderBy().orElse(null);
+				final NestedContextSorter sorter = orderBy == null ?
+					null :
+					extraResultPlanner.createSorter(
+						orderBy, null, targetCollection,
+						() -> "Hierarchy statistics of `" + referencedEntitySchema.getName() + "`: " + orderBy
+					);
 
 				// the request is more complex
 				hierarchyStatisticsProducer.interpret(
-					extraResultPlanner.getQueryContext()::getRootHierarchyNodes,
+					() -> extraResultPlanner.getQueryContext().getRootHierarchyNodes(hierarchyWithin),
 					referencedEntitySchema,
 					referenceSchema,
 					extraResultPlanner.getAttributeSchemaAccessor().withReferenceSchemaAccessor(referenceName),
@@ -155,6 +155,7 @@ public class HierarchyOfReferenceTranslator
 					},
 					null,
 					hierarchyOfReference.getEmptyHierarchicalEntityBehaviour(),
+					orderBy,
 					sorter,
 					() -> {
 						for (RequireConstraint child : hierarchyOfReference) {

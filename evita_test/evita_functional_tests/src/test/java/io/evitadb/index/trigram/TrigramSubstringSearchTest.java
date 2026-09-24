@@ -1,0 +1,1312 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2026
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.index.trigram;
+
+import io.evitadb.api.APITestConstants;
+import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
+import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
+import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.attribute.AttributeFormula;
+import io.evitadb.core.query.filter.translator.attribute.AttributeContainsTranslator;
+import io.evitadb.core.query.filter.translator.attribute.AttributeEndsWithTranslator;
+import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.TransactionHandler;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.invertedIndex.InvertedIndex.MatchedBuckets;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.utils.NamingConvention;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.UUID;
+import java.util.function.BiPredicate;
+
+import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.INDEXING;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Verifies that {@link TrigramSubstringSearch} is INTERCHANGEABLE with the bucket scan it replaces - the same entity
+ * primary keys, for `contains` and `ends with`, over ASCII, Unicode and collation-ordered corpora - and that every
+ * situation in which it must decline is a fall back to that scan rather than a wrong or missing answer.
+ *
+ * The corpus is built directly on a {@link GlobalEntityIndex} rather than through a catalog, because what is under
+ * test is the index-level path and nothing above it: that keeps the whole suite in-memory and lets the corpus be
+ * shaped so the selectivity gate is deliberately met by some patterns and deliberately missed by others.
+ * `AttributeSubstringIndexFunctionalTest` covers the same ground through the query engine.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+ */
+@Tag(INDEXING)
+@Tag(ATTRIBUTE)
+@DisplayName("Trigram substring search")
+class TrigramSubstringSearchTest {
+
+	private static final String ENTITY_TYPE = "Product";
+	private static final String ATTRIBUTE_TITLE = "title";
+	private static final String ATTRIBUTE_LOCALIZED_TITLE = "localizedTitle";
+	private static final Locale FRENCH = Locale.FRENCH;
+	private static final Set<Locale> ALLOWED_LOCALES = Set.of(FRENCH);
+	private static final int INDEX_PK = 1;
+
+	/**
+	 * Values planted with the `zebra` pattern. Deliberately above
+	 * {@link io.evitadb.core.query.response.TransactionalDataRelatedStructure#EXCESSIVE_HIGH_CARDINALITY} (100), which
+	 * is the bitmap count at which the folded formula stops keying on its individual buckets and falls back to the
+	 * index-level token set - the only shape in which the trigram index's own identity is observable.
+	 *
+	 * It is also the widest candidate set any test here searches for, so it is what {@link #FILLER_VALUES} has to be
+	 * sized against. This value must NOT be lowered to make that sizing cheaper - the cache-key assertions depend on
+	 * it clearing the high-cardinality threshold, and the filler is the free side of the ratio.
+	 */
+	private static final int ZEBRA_VALUES = 120;
+
+	/**
+	 * Filler values, carrying none of the searched patterns. Their count alone is what puts the corpus past the gate,
+	 * so a pattern that IS selective enough is actually accelerated instead of silently taking the scan and proving
+	 * nothing.
+	 *
+	 * Past the whole gate, not merely past
+	 * {@link TrigramSubstringSearch#MINIMAL_ACCELERATED_DISTINCT_VALUE_COUNT}: `zebra` is planted in
+	 * {@link #ZEBRA_VALUES} values, so the corpus must also reach
+	 * {@link TrigramSubstringSearch#accelerationThreshold} for that bound or the accelerated path declines and every
+	 * parity case here compares the scan against itself. Derived rather than written down because
+	 * {@link TrigramSubstringSearch#REQUIRED_NARROWING_FACTOR} is a measured constant expected to be retuned;
+	 * the floor of 700 keeps the corpus exactly what it was at the factor this fixture was first written for.
+	 */
+	private static final int FILLER_VALUES = Math.max(
+		700, (int) TrigramSubstringSearch.accelerationThreshold(ZEBRA_VALUES)
+	);
+
+	/**
+	 * Values containing `omega` - three of which end with it. Deliberately BELOW the high-cardinality threshold, so
+	 * the folded formula takes the other branch and keys on the individual buckets it verified.
+	 */
+	private static final int OMEGA_VALUES = 5;
+
+	/**
+	 * Two values carrying a lone UTF-16 surrogate, and the value that carries a real question mark in the same place.
+	 *
+	 * `String#getBytes(UTF_8)` has no encoding for half a surrogate pair and substitutes `0x3F` for it, so a UTF-8
+	 * pattern built from the first two would be matched as though the user had typed the third. That is what makes the
+	 * triple the sharp case for whether a pattern may be offered to the byte-containment path at all. TWO surrogate
+	 * values rather than one, so the count of predicate consultations tells the byte path apart from the predicate one
+	 * - with a single candidate both answer "once" and the comparison would prove nothing.
+	 *
+	 * **Do not trim these from the corpus.** They are also the only thing in the suite that reaches the defect's
+	 * user-visible shape rather than its column-level one: indexing a value that carries a lone surrogate is what
+	 * drives `InvertedIndex#notifyValueCreated` to re-probe the tree and miss the bucket it just created. With the
+	 * column's WTF-8 encoding reverted, every test in this class fails during fixture setup with "The bucket freshly
+	 * created for value `lone ... ` carries no value id" - the production error, and the reason the accelerator could
+	 * not index such a value at all before that encoding landed. No test NAME says so, so someone shortening this
+	 * corpus for speed would remove the only guard on that path without any signal that they had.
+	 */
+	private static final String SURROGATE_VALUE = "lone \ud800 half";
+	private static final String LONGER_SURROGATE_VALUE = "lone \ud800 halfway";
+	private static final String QUESTION_MARK_VALUE = "lone ? half";
+
+	/**
+	 * Precomposed (NFC) `café`: the final character is U+00E9 LATIN SMALL LETTER E WITH ACUTE. The form a user types.
+	 */
+	private static final String NFC_CAFE = "café";
+
+	/**
+	 * Decomposed (NFD) `café`: `e` followed by U+0301 COMBINING ACUTE ACCENT. The form the shared value tree stores,
+	 * whatever it was given.
+	 */
+	private static final String NFD_CAFE = Normalizer.normalize(NFC_CAFE, Normalizer.Form.NFD);
+
+	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(
+		APITestConstants.TEST_CATALOG, NamingConvention.generate(APITestConstants.TEST_CATALOG),
+		null,
+		EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE
+	);
+
+	/**
+	 * `title` is a plain capability-declaring `String`; `localizedTitle` is the same under a locale, which is what
+	 * installs a collation comparator on its shared value tree and routes the scan it is compared against through
+	 * the non-contiguous branch.
+	 */
+	private static final EntitySchemaContract SCHEMA = new InternalEntitySchemaBuilder(
+		CATALOG_SCHEMA, EntitySchema._internalBuild(ENTITY_TYPE)
+	)
+		.withAttribute(ATTRIBUTE_TITLE, String.class,
+			thatIs -> thatIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+		)
+		.withAttribute(
+			ATTRIBUTE_LOCALIZED_TITLE, String.class,
+			thatIs -> thatIs.localized().filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+		)
+		.toInstance();
+
+	private static final BiPredicate<String, String> CONTAINS = AttributeContainsTranslator.createPredicate();
+	private static final BiPredicate<String, String> ENDS_WITH = AttributeEndsWithTranslator.createPredicate();
+
+	/**
+	 * Builds the corpus every test in this class searches, in one deterministic order.
+	 *
+	 * Its shape is the fixture: the fillers make the corpus big enough to be worth accelerating and share no trigram
+	 * with any searched pattern; `zebra` is planted widely enough to cross the high-cardinality bitmap threshold;
+	 * `omega` distinguishes `contains` from `ends with`; `abcd` is planted alongside a value holding both of its
+	 * trigrams in the WRONG order, which only exact verification can reject; and `café` is stored precomposed so the
+	 * normalizer visibly rewrites it.
+	 *
+	 * @return the distinct attribute values, in insertion order
+	 */
+	@Nonnull
+	private static List<String> corpus() {
+		final List<String> values = new ArrayList<>(FILLER_VALUES + ZEBRA_VALUES + 10);
+		for (int i = 0; i < FILLER_VALUES; i++) {
+			values.add(String.format("item-%04d", i));
+		}
+		for (int i = 0; i < ZEBRA_VALUES; i++) {
+			values.add(String.format("widget zebra %03d", i));
+		}
+		// ends with `omega`
+		values.add("omega");
+		values.add("tail omega");
+		values.add("long tail omega");
+		// contains `omega` but does not end with it
+		values.add("omega leads here");
+		values.add("an omega inside x");
+		// `abcd`'s two trigrams, planted so that NEITHER posting is a subset of the other and the intersection really
+		// drops an entry. The ORDER matters: value ids ascend with insertion, `abc` is the cheapest posting (equal
+		// cardinality, lower packed key), and `abcz` is the entry that gets dropped from it - putting it FIRST means
+		// the survivors move down a slot, which is what makes an in-place compaction of the index's own posting
+		// observable at all (see `shouldNotWriteIntoTheIndexOwnPostings`). Planted last, the compaction would rewrite
+		// each slot with the value it already held and the test would be decorative.
+		values.add("abcz");
+		values.add("zbcdz");
+		// a true `abcd` match, and a decoy holding `abc` and `bcd` but never `abcd`
+		values.add("xxabcdxx");
+		values.add("bcd then abc");
+		// the accented pair - one matches `café`, the other only its ASCII prefix
+		values.add(NFC_CAFE + " noir");
+		values.add("decaf latte");
+		// the surrogate triple, appended last: `recordsOf` is positional and every assertion here derives its counts
+		// from the corpus, so adding at the end leaves every other case untouched
+		values.add(SURROGATE_VALUE);
+		values.add(LONGER_SURROGATE_VALUE);
+		values.add(QUESTION_MARK_VALUE);
+		return values;
+	}
+
+	/**
+	 * @param name the attribute name declared on {@link #SCHEMA}
+	 * @return the assembled entity-level attribute schema
+	 */
+	@Nonnull
+	private static EntityAttributeSchemaContract attribute(@Nonnull String name) {
+		return SCHEMA.getAttribute(name).orElseThrow();
+	}
+
+	/**
+	 * @param name   the attribute name
+	 * @param locale the locale, or `null` for a language-agnostic attribute
+	 * @return the key both the shared value tree and the trigram map are filed under
+	 */
+	@Nonnull
+	private static AttributeIndexKey keyOf(@Nonnull String name, @Nullable Locale locale) {
+		return new AttributeIndexKey(null, name, locale);
+	}
+
+	/**
+	 * Builds a global index holding the whole corpus under one attribute.
+	 *
+	 * Every distinct value carries TWO records rather than one, which is not incidental: a single-record bucket is
+	 * backed by a `SingleRecordBitmap` that owns no transactional identity at all, so a formula folded over such
+	 * buckets gathers an EMPTY transactional id set and the cache-key assertions below would be asserted against
+	 * nothing. Two records make every bucket a real `TransactionalBitmap`, which is also the shape a production
+	 * corpus of any size has.
+	 *
+	 * @param attributeName the attribute to write to
+	 * @param locale        the locale to write under, or `null`
+	 * @return the populated index
+	 */
+	@Nonnull
+	private static GlobalEntityIndex populatedIndex(@Nonnull String attributeName, @Nullable Locale locale) {
+		final GlobalEntityIndex index = new GlobalEntityIndex(
+			INDEX_PK, ENTITY_TYPE, new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE)
+		);
+		final List<String> values = corpus();
+		for (int i = 0; i < values.size(); i++) {
+			for (final int recordId : recordsOf(i)) {
+				index.upsertAttribute(
+					null, attribute(attributeName), ALLOWED_LOCALES, Scope.LIVE, locale, values.get(i), recordId
+				);
+			}
+		}
+		return index;
+	}
+
+	/**
+	 * @param valueIndex the position of a value in {@link #corpus()}
+	 * @return the record ids that value is written for
+	 */
+	@Nonnull
+	private static int[] recordsOf(int valueIndex) {
+		return new int[]{2 * valueIndex + 1, 2 * valueIndex + 2};
+	}
+
+	/**
+	 * @param values the corpus values
+	 * @return the ascending union of the record ids those values are written for
+	 */
+	@Nonnull
+	private static int[] recordsOfAll(@Nonnull String... values) {
+		final BaseBitmap union = new BaseBitmap();
+		for (final String value : values) {
+			for (final int record : recordsOf(value)) {
+				union.add(record);
+			}
+		}
+		return union.getArray();
+	}
+
+	/**
+	 * @param value the corpus value
+	 * @return the record ids that value is written for
+	 */
+	@Nonnull
+	private static int[] recordsOf(@Nonnull String value) {
+		final int valueIndex = corpus().indexOf(value);
+		assertTrue(valueIndex >= 0, "`" + value + "` is not part of the corpus");
+		return recordsOf(valueIndex);
+	}
+
+	/**
+	 * @param index         the populated index
+	 * @param attributeName the attribute written to
+	 * @param locale        the locale written under, or `null`
+	 * @return the attribute's filter index, which is a view over the very tree the trigram postings are keyed by
+	 */
+	@Nonnull
+	private static FilterIndex filterIndexOf(
+		@Nonnull GlobalEntityIndex index, @Nonnull String attributeName, @Nullable Locale locale
+	) {
+		final FilterIndex filterIndex = index.getFilterIndex(keyOf(attributeName, locale));
+		assertNotNull(filterIndex, "the corpus must have created the shared value tree");
+		return filterIndex;
+	}
+
+	/**
+	 * @param index         the populated index
+	 * @param attributeName the attribute written to
+	 * @param locale        the locale written under, or `null`
+	 * @return the attribute's trigram index
+	 */
+	@Nonnull
+	private static TrigramIndex trigramIndexOf(
+		@Nonnull GlobalEntityIndex index, @Nonnull String attributeName, @Nullable Locale locale
+	) {
+		final TrigramIndex trigramIndex = index.getTrigramIndex(keyOf(attributeName, locale));
+		assertNotNull(trigramIndex, "the corpus must have created the trigram index");
+		return trigramIndex;
+	}
+
+	/**
+	 * Runs the accelerated path, insisting it did NOT decline - a test that means to compare two paths must fail
+	 * loudly rather than silently compare the scan with itself.
+	 *
+	 * @param index         the populated index
+	 * @param attributeName the attribute to search
+	 * @param locale        the locale to search under, or `null`
+	 * @param pattern       the raw search pattern
+	 * @param predicate     the exact predicate, `contains` or `ends with`
+	 * @return the buckets the accelerated path matched
+	 */
+	@Nonnull
+	private static MatchedBuckets matched(
+		@Nonnull GlobalEntityIndex index,
+		@Nonnull String attributeName,
+		@Nullable Locale locale,
+		@Nonnull String pattern,
+		@Nonnull BiPredicate<String, String> predicate
+	) {
+		// the shape is derived from the predicate the caller passed, exactly as a translator states its own - so every
+		// `contains` assertion in this class exercises the verification short-circuit rather than routing around it
+		final MatchedBuckets buckets = TrigramSubstringSearch.match(
+			trigramIndexOf(index, attributeName, locale),
+			filterIndexOf(index, attributeName, locale).getInvertedIndex(),
+			pattern, predicate,
+			threshold -> filterIndexOf(index, attributeName, locale).getInvertedIndex().getBucketCount(),
+			predicate == CONTAINS ? StringSearchShape.CONTAINMENT : StringSearchShape.ANCHORED
+		);
+		assertNotNull(
+			buckets,
+			"the trigram path declined `" + pattern + "` - this test compares it against the scan, so a decline "
+				+ "would make the comparison vacuous"
+		);
+		return buckets;
+	}
+
+	/**
+	 * Unions the matched buckets' record sets, which is what any assembly of them - eager or deferred - must
+	 * ultimately produce. Comparing THIS against the scan is what makes the parity assertions independent of how the
+	 * buckets are folded into a formula.
+	 *
+	 * @param index         the populated index
+	 * @param attributeName the attribute to search
+	 * @param locale        the locale to search under, or `null`
+	 * @param pattern       the raw search pattern
+	 * @param predicate     the exact predicate, `contains` or `ends with`
+	 * @return the matching record ids, ascending
+	 */
+	@Nonnull
+	private static int[] acceleratedKeys(
+		@Nonnull GlobalEntityIndex index,
+		@Nonnull String attributeName,
+		@Nullable Locale locale,
+		@Nonnull String pattern,
+		@Nonnull BiPredicate<String, String> predicate
+	) {
+		final BaseBitmap union = new BaseBitmap();
+		for (final Bitmap recordSet : matched(index, attributeName, locale, pattern, predicate).recordSets()) {
+			union.addAll(recordSet);
+		}
+		return union.getArray();
+	}
+
+	/**
+	 * Assembles the matched buckets into the EAGER formula the translator builds today. Used only by the cache-key
+	 * assertions, which are about that assembly and nothing else.
+	 *
+	 * @param index         the populated index
+	 * @param attributeName the attribute to search
+	 * @param locale        the locale to search under, or `null`
+	 * @param pattern       the raw search pattern
+	 * @param predicate     the exact predicate, `contains` or `ends with`
+	 * @return the eagerly assembled formula
+	 */
+	@Nonnull
+	private static Formula accelerated(
+		@Nonnull GlobalEntityIndex index,
+		@Nonnull String attributeName,
+		@Nullable Locale locale,
+		@Nonnull String pattern,
+		@Nonnull BiPredicate<String, String> predicate
+	) {
+		return filterIndexOf(index, attributeName, locale).getInvertedIndex().toFormula(
+			matched(index, attributeName, locale, pattern, predicate),
+			TrigramSubstringSearch.versionIdsOf(trigramIndexOf(index, attributeName, locale))
+		);
+	}
+
+	/**
+	 * Asserts the accelerated path and the scan return exactly the same primary keys.
+	 *
+	 * @param index         the populated index
+	 * @param attributeName the attribute to search
+	 * @param locale        the locale to search under, or `null`
+	 * @param pattern       the raw search pattern
+	 * @param endsWith      `true` compares `ends with`, `false` compares `contains`
+	 */
+	private static void assertParity(
+		@Nonnull GlobalEntityIndex index,
+		@Nonnull String attributeName,
+		@Nullable Locale locale,
+		@Nonnull String pattern,
+		boolean endsWith
+	) {
+		final FilterIndex filterIndex = filterIndexOf(index, attributeName, locale);
+		final int[] scanned = (endsWith
+			? filterIndex.getRecordsWhoseValuesEndsWith(pattern)
+			: filterIndex.getRecordsWhoseValuesContains(pattern)).compute().getArray();
+		final int[] matchedKeys = acceleratedKeys(
+			index, attributeName, locale, pattern, endsWith ? ENDS_WITH : CONTAINS
+		);
+		assertArrayEquals(
+			scanned, matchedKeys,
+			"the trigram path and the scan disagree on `" + pattern + "` (" + (endsWith ? "endsWith" : "contains")
+				+ ") - scan produced " + scanned.length + " keys, trigram path " + matchedKeys.length
+		);
+	}
+
+	/**
+	 * Runs `insideTransaction` with a real transaction bound to the calling thread, rolling it back afterwards - the
+	 * same fixture `ValueIdTest` uses, for the same reason: what is asserted is what a reader sees WHILE the
+	 * transaction is open.
+	 *
+	 * @param insideTransaction the body to run with a transaction on the thread
+	 */
+	private static void executeInsideTransaction(@Nonnull Runnable insideTransaction) {
+		Transaction.executeInTransactionIfProvided(
+			new Transaction(
+				UUID.randomUUID(),
+				new TransactionHandler() {
+					@Override
+					public void registerMutation(@Nonnull Mutation mutation) {
+						// no mutation recording is needed for a structure-level test
+					}
+
+					@Override
+					public void commit(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+						// unused - the transaction is always rolled back
+					}
+
+					@Override
+					public void rollback(
+						@Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Throwable cause
+					) {
+						// the writes made inside are discarded; only what was observed inside matters
+					}
+				},
+				false
+			),
+			() -> {
+				final Transaction transaction = Transaction.getTransaction().orElseThrow();
+				try {
+					insideTransaction.run();
+				} finally {
+					// closed in a finally so a failing assertion cannot leave a transaction bound to the thread and
+					// poison every test that runs after it in the same fork
+					transaction.setRollbackOnly();
+					transaction.close();
+				}
+			}
+		);
+	}
+
+	@Nested
+	@DisplayName("the accelerated path answers exactly what the scan would")
+	class Parity {
+
+		@Test
+		@DisplayName("contains agrees with the scan across the whole corpus")
+		void shouldAgreeWithTheScanOnContains() {
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			for (final String pattern : new String[]{"zebra", "omega", "abcd", "widget zebra 007", "tail"}) {
+				assertParity(index, ATTRIBUTE_TITLE, null, pattern, false);
+			}
+		}
+
+		@Test
+		@DisplayName("endsWith agrees with the scan across the whole corpus")
+		void shouldAgreeWithTheScanOnEndsWith() {
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			for (final String pattern : new String[]{"omega", "zebra", "abcdxx", "here"}) {
+				assertParity(index, ATTRIBUTE_TITLE, null, pattern, true);
+			}
+		}
+
+		@Test
+		@DisplayName("a candidate holding every trigram in the wrong order is rejected by verification")
+		void shouldRejectAFalseCandidate() {
+			// `bcd then abc` posts against both `abc` and `bcd`, so it survives the intersection and can only be
+			// removed by the exact predicate - if verification were skipped this would return two keys, not one
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final TrigramIndex trigramIndex = trigramIndexOf(index, ATTRIBUTE_TITLE, null);
+			assertEquals(
+				2, trigramIndex.resolveCandidateValueIds(TrigramCodec.extractUniqueTrigrams("abcd")).length,
+				"the intersection must nominate the decoy as well, or this test proves nothing about verification"
+			);
+			assertArrayEquals(
+				recordsOf("xxabcdxx"),
+				acceleratedKeys(index, ATTRIBUTE_TITLE, null, "abcd", CONTAINS)
+			);
+		}
+
+		@Test
+		@DisplayName("a three-code-point contains needs no verification, and answers the scan exactly")
+		void shouldSkipVerificationForAPatternExactlyOneTrigramWide() {
+			// `abc` is three code points, so it yields one trigram which IS the whole pattern; the posting under that
+			// key is therefore already the answer and containment has nothing left to reject. The assertion that
+			// matters is not that it is fast but that it is still RIGHT - so it is compared against the scan.
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final TrigramIndex trigramIndex = trigramIndexOf(index, ATTRIBUTE_TITLE, null);
+			final int[] candidates = trigramIndex.resolveCandidateValueIds(
+				TrigramCodec.extractUniqueTrigrams("abc")
+			);
+			assertEquals(
+				3, candidates.length,
+				"three corpus values hold `abc`; if this changes the test below is measuring something else"
+			);
+			assertParity(index, ATTRIBUTE_TITLE, null, "abc", false);
+
+			// Parity alone would stay green if the predicate ran anyway, so the predicate is COUNTED - what this test
+			// is named for is that verification does not happen. `ebr` is used rather than `abc` because it draws 120
+			// candidates: the property being pinned is that the predicate is consulted a CONSTANT number of times
+			// regardless of how many candidates there are, and 1-versus-120 shows that where 1-versus-3 would not.
+			final InvertedIndex tree = filterIndexOf(index, ATTRIBUTE_TITLE, null).getInvertedIndex();
+			final int[] invocations = new int[1];
+			final BiPredicate<String, String> counting = (value, pattern) -> {
+				invocations[0]++;
+				return CONTAINS.test(value, pattern);
+			};
+
+			final MatchedBuckets skipped = TrigramSubstringSearch.match(
+				trigramIndex, tree, "ebr", counting,
+				threshold -> tree.getBucketCount(), StringSearchShape.CONTAINMENT
+			);
+			assertNotNull(skipped);
+			assertEquals(ZEBRA_VALUES, skipped.recordSets().length, "every candidate must still be answered");
+			assertEquals(
+				1, invocations[0],
+				"the predicate must be consulted ONCE - the check that it really is containment - and never per "
+					+ "candidate; anything scaling with the candidate count means verification still runs"
+			);
+
+			// the same query, told its predicate is anchored, verifies every candidate - which pins the counter as a
+			// working instrument rather than one that never fires, and shows what the short circuit removes
+			invocations[0] = 0;
+			final MatchedBuckets verified = TrigramSubstringSearch.match(
+				trigramIndex, tree, "ebr", counting,
+				threshold -> tree.getBucketCount(), StringSearchShape.ANCHORED
+			);
+			assertNotNull(verified);
+			assertEquals(
+				ZEBRA_VALUES, invocations[0],
+				"the anchored form must consult the predicate once per candidate"
+			);
+			assertEquals(
+				skipped.recordSets().length, verified.recordSets().length,
+				"and must reach the very same answer, which is why skipping it is safe"
+			);
+		}
+
+		@Test
+		@DisplayName("a containment candidate is settled from the stored bytes, so the predicate is consulted once")
+		void shouldSettleContainmentCandidatesFromTheStoredBytes() {
+			// Parity cannot see this: the byte comparison answers exactly what the predicate answers, so every parity
+			// case in this class stays green with the whole byte path deleted. What the byte path changes is WHO
+			// answers, so the predicate is COUNTED instead. Under `CONTAINMENT` it must be consulted exactly ONCE -
+			// the check that it really is containment - and all 120 candidates then settled off the column's stored
+			// bytes, decoding no `String` at all.
+			//
+			// `zebra` rather than a three-code-point pattern on purpose: at three code points verification is skipped
+			// outright, and a count of 1 would then prove only that. This pattern is three trigrams wide, so
+			// verification genuinely runs - just not through the predicate.
+			//
+			// CALIBRATION: dropping the byte pattern, or making the key column report that it cannot match bytes,
+			// turns the first count from 1 into 120.
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final TrigramIndex trigramIndex = trigramIndexOf(index, ATTRIBUTE_TITLE, null);
+			final InvertedIndex tree = filterIndexOf(index, ATTRIBUTE_TITLE, null).getInvertedIndex();
+			assertEquals(
+				ZEBRA_VALUES,
+				trigramIndex.resolveCandidateValueIds(TrigramCodec.extractUniqueTrigrams("zebra")).length,
+				"the pattern must nominate every planted value, or 1-versus-N is not the comparison being made"
+			);
+
+			final int[] invocations = new int[1];
+			final BiPredicate<String, String> counting = (value, pattern) -> {
+				invocations[0]++;
+				return CONTAINS.test(value, pattern);
+			};
+
+			final MatchedBuckets fromBytes = TrigramSubstringSearch.match(
+				trigramIndex, tree, "zebra", counting,
+				threshold -> tree.getBucketCount(), StringSearchShape.CONTAINMENT
+			);
+			assertNotNull(fromBytes);
+			assertEquals(ZEBRA_VALUES, fromBytes.recordSets().length, "every candidate must still be answered");
+			assertEquals(
+				1, invocations[0],
+				"the predicate must be consulted ONCE - the check that it really is containment - and never per "
+					+ "candidate; anything scaling with the candidate count means the stored bytes did not answer"
+			);
+
+			// the same query declared anchored has no byte form to answer from and must decode every candidate, which
+			// pins the counter as a working instrument rather than one that never fires, and shows what the byte path
+			// actually removes
+			invocations[0] = 0;
+			final MatchedBuckets fromStrings = TrigramSubstringSearch.match(
+				trigramIndex, tree, "zebra", counting,
+				threshold -> tree.getBucketCount(), StringSearchShape.ANCHORED
+			);
+			assertNotNull(fromStrings);
+			assertEquals(
+				ZEBRA_VALUES, invocations[0],
+				"the anchored form must consult the predicate once per candidate"
+			);
+			assertEquals(
+				fromBytes.recordSets().length, fromStrings.recordSets().length,
+				"and must reach the very same answer, which is why answering from the bytes is safe"
+			);
+		}
+
+		@Test
+		@DisplayName("a surrogate-bearing pattern is verified through the predicate, never against the stored bytes")
+		void shouldTakeThePredicatePathForASurrogateBearingPattern() {
+			// A pattern carrying an unpaired surrogate has no faithful UTF-8 form, so offering it to the byte
+			// containment path would match on a question mark the user never typed. The path is declined for such a
+			// pattern and the predicate - which compares UTF-16 code units and is unaffected - answers instead. This is
+			// the only case in the suite that reaches that decision: no other pattern here is unrepresentable in UTF-8.
+			//
+			// CALIBRATION: making the loss test answer `true` unconditionally builds the pattern's bytes as
+			// `65 20 3F 20 68`, which cannot occur in the stored `... 65 20 ED A0 80 20 68 ...`. Both true matches
+			// are then dropped - measured: four record ids expected, none returned.
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final TrigramIndex trigramIndex = trigramIndexOf(index, ATTRIBUTE_TITLE, null);
+			final InvertedIndex tree = filterIndexOf(index, ATTRIBUTE_TITLE, null).getInvertedIndex();
+			final String pattern = "e \ud800 h";
+			final int[] candidates = trigramIndex.resolveCandidateValueIds(
+				TrigramCodec.extractUniqueTrigrams(pattern)
+			);
+			assertEquals(
+				2, candidates.length,
+				"both surrogate-bearing values must be nominated, or one-versus-many is not the comparison being made"
+			);
+
+			final int[] invocations = new int[1];
+			final BiPredicate<String, String> counting = (value, searched) -> {
+				invocations[0]++;
+				return CONTAINS.test(value, searched);
+			};
+			final MatchedBuckets matched = TrigramSubstringSearch.match(
+				trigramIndex, tree, pattern, counting,
+				threshold -> tree.getBucketCount(), StringSearchShape.CONTAINMENT
+			);
+			assertNotNull(matched, "the accelerated path must not decline - the pattern is selective enough");
+
+			final BaseBitmap union = new BaseBitmap();
+			for (final Bitmap recordSet : matched.recordSets()) {
+				union.addAll(recordSet);
+			}
+			assertArrayEquals(
+				recordsOfAll(SURROGATE_VALUE, LONGER_SURROGATE_VALUE), union.getArray(),
+				"the surrogate-bearing values must still be matched, which the byte path could not have done"
+			);
+			assertEquals(
+				candidates.length, invocations[0],
+				"the predicate must be consulted once per candidate; a count of one would mean the stored bytes "
+					+ "answered, which for a pattern UTF-8 cannot carry is exactly what must not happen"
+			);
+
+			// and the converse, which is the claim a user would phrase: a real question mark matches only the value
+			// that really holds one. Before the key column stored WTF-8 the two values were held as identical bytes,
+			// so nothing downstream could have told them apart.
+			assertArrayEquals(
+				recordsOf(QUESTION_MARK_VALUE),
+				acceleratedKeys(index, ATTRIBUTE_TITLE, null, "e ? h", CONTAINS),
+				"a question-mark pattern must not pick up a value whose corresponding character is a surrogate"
+			);
+		}
+
+		@Test
+		@DisplayName("a predicate that is not containment is refused rather than trusted")
+		void shouldRefuseAContainmentClaimItsPredicateDoesNotSupport() {
+			// `StringSearchShape` is the caller's word about a predicate this class cannot introspect, and acting on
+			// that word unchecked is the one way the short-circuit returns wrong answers: `xabcx` ends with nothing
+			// but `x`, yet a skipped verification would return it for an `endsWith` search. The claim is therefore
+			// tested against the predicate before it is acted on, once per query.
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final InvertedIndex tree = filterIndexOf(index, ATTRIBUTE_TITLE, null).getInvertedIndex();
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> TrigramSubstringSearch.match(
+					trigramIndexOf(index, ATTRIBUTE_TITLE, null), tree, "abc", ENDS_WITH,
+					threshold -> tree.getBucketCount(), StringSearchShape.CONTAINMENT
+				)
+			);
+			assertTrue(
+				error.getPrivateMessage().contains("containment"),
+				"the refusal must name what it refused, but was: " + error.getPrivateMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("a containment claim the BYTE path would have acted on is refused just as loudly")
+		void shouldRefuseAContainmentClaimTheBytePathWouldHaveActedOn() {
+			// The witness fires for two reasons now - verification skipped outright, OR verification answered from the
+			// stored bytes - and the sibling above reaches only the first, because its three-code-point pattern is
+			// self-verifying and would fire the witness with or without a byte pattern. `abcd` is two trigrams wide,
+			// so verification genuinely runs and the claim is acted on ONLY because a byte pattern was built for it.
+			// That is the arm this covers, and without it the widened condition would be untested.
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final InvertedIndex tree = filterIndexOf(index, ATTRIBUTE_TITLE, null).getInvertedIndex();
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> TrigramSubstringSearch.match(
+					trigramIndexOf(index, ATTRIBUTE_TITLE, null), tree, "abcd", ENDS_WITH,
+					threshold -> tree.getBucketCount(), StringSearchShape.CONTAINMENT
+				)
+			);
+			assertTrue(
+				error.getPrivateMessage().contains("containment"),
+				"the refusal must name what it refused, but was: " + error.getPrivateMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("a byte pattern offered without a predicate is refused as the contradiction it is")
+		void shouldRefuseABytePatternWithoutAPredicate() {
+			// The two arguments say opposite things. A null predicate is the caller stating that every candidate it
+			// hands over is ALREADY known to match, so nothing need be decoded; a byte pattern asks for each of them
+			// to be re-tested against the column's stored bytes. Worse, the byte path applies only where the key
+			// column can match bytes - anywhere else the call would fall back to the predicate that is not there.
+			// There is no reading of the pair both arguments agree on, so it is refused rather than resolved.
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final InvertedIndex tree = filterIndexOf(index, ATTRIBUTE_TITLE, null).getInvertedIndex();
+			final int[] candidates = trigramIndexOf(index, ATTRIBUTE_TITLE, null)
+				.resolveCandidateValueIds(TrigramCodec.extractUniqueTrigrams("omega"));
+			assertTrue(candidates.length > 0, "the pattern must nominate something or this test proves nothing");
+
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> tree.getRecordsOfValueIdsMatching(
+					candidates, candidates.length, null, "omega".getBytes(StandardCharsets.UTF_8)
+				)
+			);
+			assertTrue(
+				error.getPrivateMessage().contains("null predicate"),
+				"the refusal must name what it refused, but was: " + error.getPrivateMessage()
+			);
+
+			// and the same call with the predicate the pattern stands in for is accepted, and answers
+			assertTrue(
+				tree.getRecordsOfValueIdsMatching(
+					candidates, candidates.length,
+					value -> String.valueOf(value).contains("omega"),
+					"omega".getBytes(StandardCharsets.UTF_8)
+				).recordSets().length > 0,
+				"the refusal must be scoped to the contradiction, not to the byte path itself"
+			);
+		}
+
+		@Test
+		@DisplayName("a longer pattern that collapses to ONE trigram is still verified")
+		void shouldVerifyAPatternWhoseTrigramsDeduplicateToOne() {
+			// CALIBRATION: this is the case that makes "the pattern produced one trigram" the WRONG condition for
+			// skipping verification, and the reason the condition is written on the code point count instead.
+			// `0000` is four code points whose three windows are all `000`, which extractUniqueTrigrams deduplicates
+			// down to a single trigram. That trigram's posting holds every value containing `000` - `widget zebra 000`
+			// and every filler whose four-digit suffix carries three consecutive zeros - and only `item-0000` contains
+			// `0000`. Relaxing the condition to `trigrams.length == 1` returns the whole posting instead of the one.
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final TrigramIndex trigramIndex = trigramIndexOf(index, ATTRIBUTE_TITLE, null);
+
+			final long[] trigrams = TrigramCodec.extractUniqueTrigrams("0000");
+			assertEquals(1, trigrams.length, "the pattern must collapse to ONE trigram or this test proves nothing");
+			assertEquals(4, "0000".codePointCount(0, "0000".length()), "and must still be wider than a trigram");
+
+			final int[] candidates = trigramIndex.resolveCandidateValueIds(trigrams);
+			assertTrue(
+				candidates.length > 1,
+				"the posting must nominate values that do NOT contain the pattern, or verification has nothing to do"
+			);
+			assertArrayEquals(
+				recordsOf("item-0000"), acceleratedKeys(index, ATTRIBUTE_TITLE, null, "0000", CONTAINS),
+				"only `item-0000` contains `0000`; every other candidate merely holds the trigram `000`"
+			);
+			assertParity(index, ATTRIBUTE_TITLE, null, "0000", false);
+		}
+
+		@Test
+		@DisplayName("a three-code-point endsWith is still verified, because occurrence is not enough for it")
+		void shouldVerifyAnAnchoredPatternExactlyOneTrigramWide() {
+			// same width as the short-circuited case above, and the short circuit must NOT apply: `ega` occurs in all
+			// five `omega` values but only three of them END with it. An anchored predicate is never satisfied by
+			// mere occurrence, however narrow the pattern is.
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final TrigramIndex trigramIndex = trigramIndexOf(index, ATTRIBUTE_TITLE, null);
+			assertEquals(
+				OMEGA_VALUES,
+				trigramIndex.resolveCandidateValueIds(TrigramCodec.extractUniqueTrigrams("ega")).length,
+				"every `omega` value must be nominated, or verification is not the thing being tested"
+			);
+			assertArrayEquals(
+				recordsOfAll("omega", "tail omega", "long tail omega"),
+				acceleratedKeys(index, ATTRIBUTE_TITLE, null, "ega", ENDS_WITH)
+			);
+			assertParity(index, ATTRIBUTE_TITLE, null, "ega", true);
+		}
+
+		@Test
+		@DisplayName("the intersection leaves the index's own postings untouched")
+		void shouldNotWriteIntoTheIndexOwnPostings() {
+			// the cheapest posting of `abcd` is the index's OWN array, shared by reference with every index version
+			// that has not rewritten it, and the intersection really drops one of its entries - so an intersection
+			// that compacted in place would corrupt the posting rather than merely produce a wrong answer once
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final TrigramIndex trigramIndex = trigramIndexOf(index, ATTRIBUTE_TITLE, null);
+			final long[] trigrams = TrigramCodec.extractUniqueTrigrams("abcd");
+			final int[][] postingsBefore = new int[trigrams.length][];
+			for (int i = 0; i < trigrams.length; i++) {
+				postingsBefore[i] = trigramIndex.getValueIdsOf(trigrams[i]).getArray();
+				assertEquals(3, postingsBefore[i].length, "both postings must be wider than their intersection");
+			}
+
+			final int[] first = trigramIndex.resolveCandidateValueIds(trigrams);
+			assertEquals(2, first.length, "the intersection must really drop an entry, or nothing is being compacted");
+
+			for (int i = 0; i < trigrams.length; i++) {
+				assertArrayEquals(
+					postingsBefore[i], trigramIndex.getValueIdsOf(trigrams[i]).getArray(),
+					"posting of `" + TrigramCodec.toDisplayString(trigrams[i]) + "` was written into"
+				);
+			}
+			assertArrayEquals(first, trigramIndex.resolveCandidateValueIds(trigrams));
+		}
+
+		@Test
+		@DisplayName("a precomposed pattern matches a value the tree stores decomposed")
+		void shouldMatchAcrossUnicodeNormalizationForms() {
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final InvertedIndex tree = filterIndexOf(index, ATTRIBUTE_TITLE, null).getInvertedIndex();
+			// the tree really did rewrite the value into NFD, or the two probe forms below would be the same probe
+			// twice and this test would say nothing about normalization at all
+			assertEquals(
+				NFD_CAFE + " noir",
+				tree.getValueById(tree.getValueId(NFC_CAFE + " noir")),
+				"the shared value tree must store the decomposed form"
+			);
+			for (final String pattern : new String[]{NFC_CAFE, NFD_CAFE}) {
+				assertParity(index, ATTRIBUTE_TITLE, null, pattern, false);
+				assertArrayEquals(
+					recordsOf(NFC_CAFE + " noir"),
+					acceleratedKeys(index, ATTRIBUTE_TITLE, null, pattern, CONTAINS),
+					"`" + pattern + "` must find the accented value in either normalization form"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("a collation-ordered localized attribute agrees with its scan too")
+		void shouldAgreeWithTheScanUnderACollationComparator() {
+			// a localized String attribute installs a LocalizedStringComparator, under which the tree's key order is
+			// no longer codepoint order - the reverse lookup resolves through the directory rather than through that
+			// order, so the two paths must still coincide
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_LOCALIZED_TITLE, FRENCH);
+			for (final String pattern : new String[]{"zebra", "omega", NFC_CAFE}) {
+				assertParity(index, ATTRIBUTE_LOCALIZED_TITLE, FRENCH, pattern, false);
+			}
+			assertParity(index, ATTRIBUTE_LOCALIZED_TITLE, FRENCH, "omega", true);
+		}
+
+		@Test
+		@DisplayName("a pattern no value contains resolves to nothing, without an intersection")
+		void shouldResolveAnAbsentPatternToNothing() {
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final MatchedBuckets buckets = TrigramSubstringSearch.match(
+				trigramIndexOf(index, ATTRIBUTE_TITLE, null),
+				filterIndexOf(index, ATTRIBUTE_TITLE, null).getInvertedIndex(),
+				"xyzzy", CONTAINS
+			);
+			assertNotNull(buckets, "an absent pattern is an ANSWER, not a decline");
+			assertTrue(buckets.isEmpty());
+			assertEquals(
+				0,
+				filterIndexOf(index, ATTRIBUTE_TITLE, null)
+					.getRecordsWhoseValuesContains("xyzzy").compute().size()
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("every reason to decline hands the query back to the scan")
+	class Fallbacks {
+
+		@Test
+		@DisplayName("a pattern under three code points declines")
+		void shouldDeclineAPatternShorterThanATrigram() {
+			// CALIBRATION: this guard is what keeps the pattern away from the index at all. `pricePattern` now
+			// REFUSES a trigram-less pattern rather than answering null - answering null would say "no value contains
+			// this", which is the opposite of the truth for a pattern the index simply cannot describe - so removing
+			// the guard turns `contains("it")` into an internal error rather than into the empty answer it used to
+			// produce. Either way it must not reach the index: the assertion on the scan's own answer is what makes
+			// the 700 filler values this would lose visible here.
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			assertNull(
+				TrigramSubstringSearch.match(
+					trigramIndexOf(index, ATTRIBUTE_TITLE, null),
+					filterIndexOf(index, ATTRIBUTE_TITLE, null).getInvertedIndex(),
+					"it", CONTAINS
+				)
+			);
+			assertEquals(
+				2 * FILLER_VALUES,
+				filterIndexOf(index, ATTRIBUTE_TITLE, null)
+					.getRecordsWhoseValuesContains("it").compute().size(),
+				"the scan this declines to must have a non-empty answer, or the guard would be indistinguishable "
+					+ "from the empty-posting short circuit"
+			);
+		}
+
+		@Test
+		@DisplayName("an empty pattern declines rather than nominating every value")
+		void shouldDeclineAnEmptyPattern() {
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			assertNull(
+				TrigramSubstringSearch.match(
+					trigramIndexOf(index, ATTRIBUTE_TITLE, null),
+					filterIndexOf(index, ATTRIBUTE_TITLE, null).getInvertedIndex(),
+					"", CONTAINS
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("an open transaction declines instead of under-reporting")
+		void shouldDeclineWhileATransactionIsOpen() {
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final TrigramIndex trigramIndex = trigramIndexOf(index, ATTRIBUTE_TITLE, null);
+			final InvertedIndex tree = filterIndexOf(index, ATTRIBUTE_TITLE, null).getInvertedIndex();
+			// force the directory into existence outside the transaction, so what the body below meets is a built one
+			assertFalse(matched(index, ATTRIBUTE_TITLE, null, "omega", CONTAINS).isEmpty());
+
+			executeInsideTransaction(() -> {
+				assertNull(TrigramSubstringSearch.match(trigramIndex, tree, "omega", CONTAINS));
+				// CALIBRATION: this is exactly what the pre-flight above avoids. Remove that check and the verification
+				// it guards raises this error on an ordinary query rather than falling back
+				assertThrows(
+					GenericEvitaInternalError.class,
+					() -> tree.getRecordsOfValueIdsMatching(
+						trigramIndex.resolveCandidateValueIds(TrigramCodec.extractUniqueTrigrams("omega")),
+						1, value -> true
+					)
+				);
+			});
+
+			assertFalse(
+				matched(index, ATTRIBUTE_TITLE, null, "omega", CONTAINS).isEmpty(),
+				"the decline must be scoped to the open transaction"
+			);
+		}
+
+		@Test
+		@DisplayName("a pattern covering too much of the corpus declines")
+		void shouldDeclineAnUnselectivePattern() {
+			// `item` is carried by every filler value, so its cheapest posting covers all but a handful of the corpus
+			// - far past whatever share REQUIRED_NARROWING_FACTOR admits, at any value it is ever retuned to. The
+			// scan visits each of those values once, while the trigram path would visit them once AND pay a directory
+			// probe and a bucket descent on top
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			assertNull(
+				TrigramSubstringSearch.match(
+					trigramIndexOf(index, ATTRIBUTE_TITLE, null),
+					filterIndexOf(index, ATTRIBUTE_TITLE, null).getInvertedIndex(),
+					"item", CONTAINS
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("a corpus below the floor declines however selective the pattern is")
+		void shouldDeclineOnATinyCorpus() {
+			final GlobalEntityIndex index = new GlobalEntityIndex(
+				INDEX_PK, ENTITY_TYPE, new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE)
+			);
+			index.upsertAttribute(
+				null, attribute(ATTRIBUTE_TITLE), ALLOWED_LOCALES, Scope.LIVE, null, "solitary zebra", 1);
+			assertNull(
+				TrigramSubstringSearch.match(
+					trigramIndexOf(index, ATTRIBUTE_TITLE, null),
+					filterIndexOf(index, ATTRIBUTE_TITLE, null).getInvertedIndex(),
+					"zebra", CONTAINS
+				),
+				"a one-leaf tree is scanned as a contiguous array; nothing can beat that"
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("the A/B threshold is a decision of its own")
+	class SelectivityGate {
+
+		@Test
+		@DisplayName("a corpus below the floor is never accelerated")
+		void shouldRefuseBelowTheFloor() {
+			assertFalse(
+				TrigramSubstringSearch.isWorthAccelerating(
+					0, TrigramSubstringSearch.MINIMAL_ACCELERATED_DISTINCT_VALUE_COUNT - 1
+				)
+			);
+			assertTrue(
+				TrigramSubstringSearch.isWorthAccelerating(
+					1, TrigramSubstringSearch.MINIMAL_ACCELERATED_DISTINCT_VALUE_COUNT
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("the candidate bound must stay within its share of the corpus")
+		void shouldRefuseAnUnselectiveCandidateBound() {
+			final int corpusSize = 4_000;
+			final int share = corpusSize / TrigramSubstringSearch.REQUIRED_NARROWING_FACTOR;
+			assertTrue(TrigramSubstringSearch.isWorthAccelerating(share, corpusSize));
+			assertFalse(TrigramSubstringSearch.isWorthAccelerating(share + 1, corpusSize));
+		}
+
+		@Test
+		@DisplayName("this suite's own corpus still clears the gate it is calibrated against")
+		void shouldKeepTheCorpusAboveTheGate() {
+			// named and asserted separately so that a retune of REQUIRED_NARROWING_FACTOR reddens THIS case first,
+			// saying the fixture needs resizing - rather than reddening a dozen Parity and CacheKey cases, which reads
+			// as "the retune broke the accelerator" to whoever sees it next
+			final int corpusSize = corpus().size();
+			assertTrue(
+				TrigramSubstringSearch.isWorthAccelerating(ZEBRA_VALUES, corpusSize),
+				"`zebra` is planted in " + ZEBRA_VALUES + " of " + corpusSize + " values, which no longer clears the "
+					+ "gate - FILLER_VALUES derives from the threshold precisely so this cannot happen, so if it has "
+					+ "the derivation is wrong rather than the corpus"
+			);
+		}
+
+		@Test
+		@DisplayName("the single-comparison threshold decides exactly what the two-part formula did")
+		void shouldAgreeWithTheTwoPartFormulaItReplaces() {
+			// `isWorthAccelerating` is now one comparison against `accelerationThreshold`, so that a caller summing a
+			// fan-out can stop the moment its running total reaches that target instead of walking every index. The
+			// fold relies on `c <= n / d` and `c * d <= n` being the same predicate under floor division - true, but
+			// exactly the kind of identity that is wrong at one boundary and right everywhere else, so it is swept
+			// rather than spot-checked. Deliberately including the corner where n is NOT a multiple of the factor.
+			for (int distinctValueCount = 0; distinctValueCount <= 2_048; distinctValueCount++) {
+				for (int candidateUpperBound = 0; candidateUpperBound <= 600; candidateUpperBound += 7) {
+					final boolean asWrittenBefore =
+						distinctValueCount >= TrigramSubstringSearch.MINIMAL_ACCELERATED_DISTINCT_VALUE_COUNT
+							&& candidateUpperBound
+							<= distinctValueCount / TrigramSubstringSearch.REQUIRED_NARROWING_FACTOR;
+					assertEquals(
+						asWrittenBefore,
+						TrigramSubstringSearch.isWorthAccelerating(candidateUpperBound, distinctValueCount),
+						"the two forms of the gate disagree at candidateUpperBound=" + candidateUpperBound
+							+ ", distinctValueCount=" + distinctValueCount
+					);
+				}
+			}
+		}
+
+		/**
+		 * NOTE, so nobody mistakes this for protection it does not give: this case derives the corpus it expects
+		 * from `accelerationThreshold` itself, so it pins the RELATIONSHIP between that method and
+		 * `isWorthAccelerating` and not the value either produces. It survives any self-consistent corruption of
+		 * the threshold - measured: adding `+ 1` to the product inside `accelerationThreshold` leaves this case
+		 * green, and leaves the pre-existing `shouldRefuseAnUnselectiveCandidateBound` green too, because 4000 is
+		 * not divisible by the factor and the slack absorbs it. `shouldAgreeWithTheTwoPartFormulaItReplaces` is
+		 * the only guard on the arithmetic, because it compares against a formula written out independently.
+		 */
+		@Test
+		@DisplayName("the threshold is the smallest corpus the bound is accepted against")
+		void shouldReportTheSmallestAcceptedCorpus() {
+			final int candidateUpperBound = 500;
+			final long threshold = TrigramSubstringSearch.accelerationThreshold(candidateUpperBound);
+			assertTrue(threshold <= Integer.MAX_VALUE, "the sweep below needs the threshold to fit an int");
+			assertTrue(
+				TrigramSubstringSearch.isWorthAccelerating(candidateUpperBound, (int) threshold),
+				"the threshold itself must be accepted"
+			);
+			assertFalse(
+				TrigramSubstringSearch.isWorthAccelerating(candidateUpperBound, (int) threshold - 1),
+				"one distinct value short of the threshold must be refused"
+			);
+		}
+	}
+
+	/**
+	 * Pins the EAGER assembly of the matched buckets, and only that: every assertion here goes through
+	 * {@link InvertedIndex#toFormula}, whose cache identity is content-addressed precisely because the selection has
+	 * already happened. A deferred assembly would hash the question instead of the answer, and these assertions would
+	 * have to be restated rather than merely re-pointed. Everything the substring path does BEFORE the fold is pinned
+	 * by the sibling classes, which never mention a formula.
+	 */
+	@Nested
+	@DisplayName("the eager assembly keys on everything its answer depends on")
+	class CacheKey {
+
+		@Test
+		@DisplayName("the accelerated formula and the scan's share one cache entry")
+		void shouldHashIdenticallyToTheScan() {
+			// A far stronger statement than "different results hash differently": the two paths agree on the answer
+			// AND land on the same cache entry, so accelerating a query cannot fragment the formula cache. It holds
+			// because both fold the very same bucket record sets, and `AbstractBitmapCacheableFormula` sorts the
+			// bitmap ids before hashing - so the candidate order the trigram path produces (ascending VALUE id) and
+			// the bucket order the scan produces (ascending KEY) are indistinguishable to the hash.
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final FilterIndex filterIndex = filterIndexOf(index, ATTRIBUTE_TITLE, null);
+			for (final String pattern : new String[]{"zebra", "omega", "abcd", NFC_CAFE}) {
+				assertEquals(
+					filterIndex.getRecordsWhoseValuesContains(pattern).getHash(),
+					accelerated(index, ATTRIBUTE_TITLE, null, pattern, CONTAINS).getHash(),
+					"contains `" + pattern + "` must hash the same on both paths"
+				);
+				assertEquals(
+					filterIndex.getRecordsWhoseValuesEndsWith(pattern).getHash(),
+					accelerated(index, ATTRIBUTE_TITLE, null, pattern, ENDS_WITH).getHash(),
+					"endsWith `" + pattern + "` must hash the same on both paths"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("only the high-cardinality answer diverges from the scan in its staleness ids")
+		void shouldDivergeFromTheScanOnlyAboveTheCardinalityCap() {
+			// the two axes come apart exactly where `AbstractBitmapCacheableFormula` stops keying on individual
+			// bitmaps: below the cap both paths gather the same per-bucket ids, above it the trigram path's extra
+			// token appears - which is the whole point of carrying it
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final FilterIndex filterIndex = filterIndexOf(index, ATTRIBUTE_TITLE, null);
+			assertArrayEquals(
+				filterIndex.getRecordsWhoseValuesContains("omega").gatherTransactionalIds(),
+				accelerated(index, ATTRIBUTE_TITLE, null, "omega", CONTAINS).gatherTransactionalIds(),
+				"below the cap the two paths must gather identical transactional ids"
+			);
+			final long[] scanned = filterIndex.getRecordsWhoseValuesContains("zebra").gatherTransactionalIds();
+			final long[] acceleratedIds =
+				accelerated(index, ATTRIBUTE_TITLE, null, "zebra", CONTAINS).gatherTransactionalIds();
+			assertEquals(
+				scanned.length + 1, acceleratedIds.length,
+				"above the cap the accelerated answer adds exactly the trigram index id"
+			);
+			assertTrue(
+				Arrays.stream(acceleratedIds)
+					.anyMatch(id -> id == trigramIndexOf(index, ATTRIBUTE_TITLE, null).getId())
+			);
+		}
+
+		@Test
+		@DisplayName("a high-cardinality match keys on the trigram index's own identity")
+		void shouldFoldInTheTrigramIndexIdentity() {
+			// above EXCESSIVE_HIGH_CARDINALITY bitmaps the folded formula stops keying on its individual buckets and
+			// falls back to the token set handed to it - which is where the trigram index's identity has to be, since
+			// no leaf token can express a change to the postings that decided WHICH buckets were verified
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final TrigramIndex trigramIndex = trigramIndexOf(index, ATTRIBUTE_TITLE, null);
+			final Formula formula = accelerated(index, ATTRIBUTE_TITLE, null, "zebra", CONTAINS);
+			assertEquals(2 * ZEBRA_VALUES, formula.compute().size());
+			assertTrue(
+				Arrays.stream(formula.gatherTransactionalIds()).anyMatch(id -> id == trigramIndex.getId()),
+				"the trigram index id must be among " + Arrays.toString(formula.gatherTransactionalIds())
+			);
+		}
+
+		@Test
+		@DisplayName("a low-cardinality match keys on the buckets it actually read")
+		void shouldFoldInTheVerifiedLeaves() {
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final Formula formula = accelerated(index, ATTRIBUTE_TITLE, null, "omega", CONTAINS);
+			assertEquals(2 * OMEGA_VALUES, formula.compute().size());
+			assertEquals(
+				OMEGA_VALUES, formula.gatherTransactionalIds().length,
+				"below the high-cardinality threshold the formula keys on the record set of each verified bucket"
+			);
+		}
+
+		@Test
+		@DisplayName("contains and endsWith over the same term do not share a key when they differ")
+		void shouldNotCollideAcrossConstraintKinds() {
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final Formula contains = accelerated(index, ATTRIBUTE_TITLE, null, "omega", CONTAINS);
+			final Formula endsWith = accelerated(index, ATTRIBUTE_TITLE, null, "omega", ENDS_WITH);
+			assertNotEquals(contains.compute().size(), endsWith.compute().size());
+			assertNotEquals(contains.getHash(), endsWith.getHash());
+		}
+
+		@Test
+		@DisplayName("different search terms do not share a key")
+		void shouldNotCollideAcrossSearchTerms() {
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			assertNotEquals(
+				accelerated(index, ATTRIBUTE_TITLE, null, "omega", CONTAINS).getHash(),
+				accelerated(index, ATTRIBUTE_TITLE, null, "zebra", CONTAINS).getHash()
+			);
+		}
+
+		@Test
+		@DisplayName("two indexes holding identical values do not share a key")
+		void shouldNotCollideAcrossIndexes() {
+			// the two trees hold exactly the same strings, so nothing but the identity of the record sets they were
+			// folded over can tell the two formulas apart - which is precisely what a cache key over index state
+			// has to do, since the two indexes can be written to independently
+			final GlobalEntityIndex first = populatedIndex(ATTRIBUTE_TITLE, null);
+			final GlobalEntityIndex second = populatedIndex(ATTRIBUTE_TITLE, null);
+			assertNotEquals(
+				accelerated(first, ATTRIBUTE_TITLE, null, "omega", CONTAINS).getHash(),
+				accelerated(second, ATTRIBUTE_TITLE, null, "omega", CONTAINS).getHash()
+			);
+		}
+
+		@Test
+		@DisplayName("the same result under two attribute names does not share a key")
+		void shouldNotCollideAcrossAttributes() {
+			// the attribute discriminator is the enclosing AttributeFormula's, exactly as it is for every other
+			// attribute filter - the trigram path produces the same shape of inner formula the scan does, so it
+			// inherits that discrimination rather than restating it
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final Formula inner = accelerated(index, ATTRIBUTE_TITLE, null, "omega", CONTAINS);
+			assertNotEquals(
+				new AttributeFormula(false, new AttributeKey(ATTRIBUTE_TITLE), inner).getHash(),
+				new AttributeFormula(false, new AttributeKey(ATTRIBUTE_LOCALIZED_TITLE), inner).getHash()
+			);
+		}
+
+		@Test
+		@DisplayName("a write that adds a match changes the gathered transactional ids")
+		void shouldInvalidateWhenTheDataChanges() {
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final Formula before = accelerated(index, ATTRIBUTE_TITLE, null, "omega", CONTAINS);
+			final long[] idsBefore = before.gatherTransactionalIds();
+			final long hashBefore = before.getHash();
+
+			// two records again, so the new bucket is a TransactionalBitmap with an identity of its own rather than a
+			// SingleRecordBitmap, which owns none and would leave the gathered id set unchanged
+			index.upsertAttribute(
+				null, attribute(ATTRIBUTE_TITLE), ALLOWED_LOCALES, Scope.LIVE, null, "one more omega", 100_001);
+			index.upsertAttribute(
+				null, attribute(ATTRIBUTE_TITLE), ALLOWED_LOCALES, Scope.LIVE, null, "one more omega", 100_002);
+
+			final Formula after = accelerated(index, ATTRIBUTE_TITLE, null, "omega", CONTAINS);
+			assertEquals(before.compute().size() + 2, after.compute().size());
+			assertNotEquals(hashBefore, after.getHash());
+			assertFalse(Arrays.equals(idsBefore, after.gatherTransactionalIds()));
+		}
+	}
+
+}

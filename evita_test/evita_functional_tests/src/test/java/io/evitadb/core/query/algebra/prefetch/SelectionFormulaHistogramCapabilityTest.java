@@ -32,11 +32,13 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.core.query.algebra.price.termination.LowestPriceTerminationFormula;
 import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
+import io.evitadb.core.query.algebra.price.translate.PriceIdToEntityIdTranslateFormula;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -50,6 +52,7 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Currency;
+import java.util.List;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.HISTOGRAM;
@@ -95,18 +98,20 @@ class SelectionFormulaHistogramCapabilityTest {
 		}
 
 		@Test
-		@DisplayName("should not expose histogram capability when any inner accessor is missing it")
-		void shouldNotExposeHistogramCapabilityWhenAnyInnerAccessorMissing() {
+		@DisplayName("should expose histogram capability when only some inner accessors expose it")
+		void shouldExposeHistogramCapabilityWhenAnyInnerAccessorExposes() {
 			final LowestPriceTerminationFormula withFlag = newLp(new ArrayBitmap(1, 2), true);
 			final LowestPriceTerminationFormula withoutFlag = newLp(new ArrayBitmap(3, 4), false);
 			final SelectionFormula selection = new SelectionFormula(
 				new AndFormula(withFlag, withoutFlag), new NoopBitmapFilter()
 			);
 
-			// the "all-true" semantics mean a single un-flagged accessor poisons the wrapper's capability —
-			// otherwise the histogram producer would try to call `getFilteredPriceRecordsForHistogram` on
-			// the un-flagged LP and trip its `GenericEvitaInternalError` guard
-			assertFalse(selection.exposesPerInnerRecordHistogramRecords());
+			// "any-true" semantics: a single SelectionFormula wraps the whole price filter container, so in
+			// a catalog mixing PriceInnerRecordHandling values its inner set legitimately holds both a
+			// flagged LOWEST_PRICE branch and un-flagged NONE/SUM branches. Poisoning the capability on the
+			// un-flagged one is what silently dropped the histogram to per-entity granularity (issue #1433);
+			// the un-flagged branch's entities are topped up by the producer's per-entity collector pass.
+			assertTrue(selection.exposesPerInnerRecordHistogramRecords());
 		}
 
 		@Test
@@ -145,34 +150,36 @@ class SelectionFormulaHistogramCapabilityTest {
 		}
 
 		/**
-		 * The size-1 fast path must consult `exposesPerInnerRecordHistogramRecords` on the inner accessor
-		 * before delegating to its histogram-side accessor. When the inner accessor does NOT expose the
-		 * per-inner-record side-output (the common case for un-flagged LPs), the fast path must instead
-		 * fall back to the per-entity `getFilteredPriceRecords(...)` — matching the default interface
-		 * behaviour for non-histogram-aware accessors.
+		 * With no exposing inner accessor at all there is nothing per-inner-record to contribute, so the
+		 * wrapper must fall back to its own per-entity `getFilteredPriceRecords(...)` — matching the default
+		 * interface behaviour for non-histogram-aware accessors — rather than tripping the un-flagged LP's
+		 * histogram-collection guard. Defensive only: the producer probes the capability first.
 		 */
 		@Test
-		@DisplayName("should fall back to per-entity records when single inner accessor misses capability")
-		void shouldFallBackToPerEntityRecordsWhenSingleInnerAccessorMissesCapability() {
+		@DisplayName("should fall back to per-entity records when no inner accessor exposes the capability")
+		void shouldFallBackToPerEntityRecordsWhenNoInnerAccessorExposesCapability() {
 			final LowestPriceTerminationFormula unflaggedLp = newLp(EmptyFormula.INSTANCE, false);
 			// trigger compute() so the un-flagged LP populates `filteredPriceRecords` (per-entity side)
-			// while leaving `perInnerRecordPriceRecords` deliberately null — the fast path must therefore
+			// while leaving `perInnerRecordPriceRecords` deliberately null — the fallback must therefore
 			// route to the per-entity records via the capability check rather than tripping the LP's guard
 			unflaggedLp.compute();
-			final FilteredPriceRecords expected = unflaggedLp.getFilteredPriceRecords(null);
 			final SelectionFormula selection = new SelectionFormula(unflaggedLp, new NoopBitmapFilter());
+			// the per-entity fallback asserts a non-null execution context — the production planner always
+			// sets one via initialize() before any histogram fabrication
+			initializeForNonPrefetch(selection);
 
 			final FilteredPriceRecords actual = selection.getFilteredPriceRecordsForHistogram(null);
 
-			// fast path must mirror the default interface behaviour for non-histogram-aware accessors —
-			// delegate to `getFilteredPriceRecords(...)` rather than propagating the LP's guard error
-			assertSame(expected, actual);
+			// per-entity shape, no merge attempt, no guard error — the LP's delegate is EmptyFormula so the
+			// per-entity view is legitimately empty
+			assertInstanceOf(ResolvedFilteredPriceRecords.class, actual);
+			assertEquals(0, ((ResolvedFilteredPriceRecords) actual).getPriceRecords().length);
 		}
 
 		/**
 		 * Empty-merge branch: when every inner accessor exposes empty per-inner-record records, the
 		 * merged array has length 0 and `SelectionFormula.getFilteredPriceRecordsForHistogram` returns
-		 * the shared {@link FilteredPriceRecords#EMPTY} singleton. Two flag-on LPs sharing the same
+		 * the shared {@link ResolvedFilteredPriceRecords#EMPTY} singleton. Two flag-on LPs sharing the same
 		 * empty input drive the size>=2 branch through the empty-result path.
 		 */
 		@Test
@@ -193,7 +200,7 @@ class SelectionFormulaHistogramCapabilityTest {
 			// size>=2 branch — merged.length == 0 short-circuits to the shared empty singleton instead
 			// of allocating a fresh ResolvedFilteredPriceRecords; this is the only legitimate use of the
 			// EMPTY singleton on the histogram path
-			assertSame(FilteredPriceRecords.EMPTY, actual);
+			assertSame(ResolvedFilteredPriceRecords.EMPTY, actual);
 		}
 
 		/**
@@ -220,7 +227,7 @@ class SelectionFormulaHistogramCapabilityTest {
 
 			// must produce a non-null FilteredPriceRecords instance — either the EMPTY singleton (when
 			// merged.length == 0) or a freshly allocated ResolvedFilteredPriceRecords carrying the merge
-			final boolean validShape = actual == FilteredPriceRecords.EMPTY
+			final boolean validShape = actual == ResolvedFilteredPriceRecords.EMPTY
 				|| actual instanceof ResolvedFilteredPriceRecords;
 			assertTrue(validShape, "merge must return EMPTY singleton or ResolvedFilteredPriceRecords");
 		}
@@ -247,15 +254,15 @@ class SelectionFormulaHistogramCapabilityTest {
 		}
 
 		/**
-		 * When the inner-accessor set is mixed (one flag-on, one flag-off LP), the size>=2 branch of
-		 * `SelectionFormula.getFilteredPriceRecordsForHistogram` must short-circuit on the same
-		 * capability probe the size-1 fast path uses, falling back to per-entity records rather than
-		 * routing the flag-off LP through its histogram side-output (which would trip the LP's guard).
-		 * This mirrors the default interface behaviour for non-histogram-aware accessors.
+		 * The mixed inner-accessor set is the shape a catalog mixing `PriceInnerRecordHandling` values
+		 * produces (issue #1433): one flagged `LOWEST_PRICE` termination formula next to an un-flagged
+		 * branch. The wrapper must contribute the flagged accessor's per-inner-record side-output and
+		 * silently skip the un-flagged one — never route the un-flagged LP through its histogram accessor
+		 * (which would trip its guard) and never discard the flagged contribution.
 		 */
 		@Test
-		@DisplayName("should fall back to per-entity records when accessor set is mixed")
-		void shouldFallBackToPerEntityRecordsWhenAccessorSetIsMixed() {
+		@DisplayName("should contribute only the exposing accessor's records when accessor set is mixed")
+		void shouldContributeOnlyExposingAccessorRecordsWhenAccessorSetIsMixed() {
 			final LowestPriceTerminationFormula flagOn = newLp(EmptyFormula.INSTANCE, true);
 			final LowestPriceTerminationFormula flagOff = newLp(EmptyFormula.INSTANCE, false);
 			flagOn.compute();
@@ -263,25 +270,76 @@ class SelectionFormulaHistogramCapabilityTest {
 			final SelectionFormula selection = new SelectionFormula(
 				new AndFormula(flagOn, flagOff), new NoopBitmapFilter()
 			);
-			// size>=2 fallback routes through `this.getFilteredPriceRecords()` which asserts a non-null
-			// execution context — the production planner always sets one via initialize() before any
-			// histogram fabrication, so the unit test mirrors that invariant rather than testing an
-			// uninitialised formula
-			initializeForNonPrefetch(selection);
 
-			// graceful-fallback contract: the wrapper consults exposesPerInnerRecordHistogramRecords()
-			// before entering the size>=2 merge loop. A flag-off inner accessor poisons the wrapper's
-			// capability, so the producer reads per-entity records instead of tripping the flag-off LP.
-			assertFalse(selection.exposesPerInnerRecordHistogramRecords());
+			assertTrue(selection.exposesPerInnerRecordHistogramRecords());
+
+			// exactly one exposing inner accessor → fast path hands back that accessor's own side-output
+			// instance; reaching the un-flagged LP would have thrown GenericEvitaInternalError instead
 			final FilteredPriceRecords actual = selection.getFilteredPriceRecordsForHistogram(null);
 
-			// no exception, no merge attempt — the wrapper produced a valid per-entity FilteredPriceRecords
-			// matching what `getFilteredPriceRecords(...)` would return. `getFilteredPriceRecords` allocates
-			// a fresh ResolvedFilteredPriceRecords per call, so identity comparison would not hold; the
-			// invariant under test is "fallback returns per-entity shape", which is captured by the
-			// instance check plus an empty-array assertion (both LP delegates wrap EmptyFormula.INSTANCE).
-			assertInstanceOf(ResolvedFilteredPriceRecords.class, actual);
-			assertEquals(0, ((ResolvedFilteredPriceRecords) actual).getPriceRecords().length);
+			assertSame(flagOn.getFilteredPriceRecordsForHistogram(null), actual);
+		}
+	}
+
+	@Nested
+	@DisplayName("Accessor set partitioning")
+	class AccessorPartitioningTest {
+
+		/**
+		 * Regression guard for the second half of issue #1433: `SelectionFormula` implements
+		 * {@link FilteredPriceRecordAccessor} unconditionally, so a wrapper the planner inserted above a
+		 * **price-free** sub-tree is gathered into the histogram's accessor list even though it has no
+		 * prices at all. Under the old all-or-nothing rule that lone empty wrapper closed the
+		 * per-inner-record path for every sibling accessor on its own.
+		 */
+		@Test
+		@DisplayName("should keep the exposing accessor when a price-free wrapper sits beside it")
+		void shouldKeepExposingAccessorBesidePriceFreeWrapper() {
+			final SelectionFormula priceFreeWrapper = new SelectionFormula(
+				new ConstantFormula(new ArrayBitmap(1, 2, 3)), new NoopBitmapFilter()
+			);
+			final LowestPriceTerminationFormula flaggedLp = newLp(new ArrayBitmap(4, 5), true);
+			final List<FilteredPriceRecordAccessor> accessors = List.of(priceFreeWrapper, flaggedLp);
+
+			assertTrue(FilteredPriceRecords.anyAccessorExposesPerInnerRecordHistogram(accessors));
+			assertEquals(
+				List.of(flaggedLp),
+				FilteredPriceRecords.collectPerInnerRecordHistogramAccessors(accessors),
+				"A price-free wrapper must drop out of the partition without taking its siblings with it"
+			);
+		}
+
+		/**
+		 * The raw `PriceIdToEntityIdTranslateFormula` the SHALLOW accessor scan surfaces for the `NONE`
+		 * branch (it pierces the non-accessor `PlainPriceTerminationFormula` above it) must stay out of the
+		 * per-inner-record partition: it holds one record per translated price id rather than per-entity
+		 * winners, so merging it would inflate the buckets. It is served by the per-entity collector instead.
+		 */
+		@Test
+		@DisplayName("should exclude the price-id translate formula from the per-inner-record partition")
+		void shouldExcludeTranslateFormulaFromPerInnerRecordPartition() {
+			final PriceIdToEntityIdTranslateFormula translateFormula = new PriceIdToEntityIdTranslateFormula(
+				new ConstantFormula(new ArrayBitmap(1, 2))
+			);
+			final LowestPriceTerminationFormula flaggedLp = newLp(new ArrayBitmap(3, 4), true);
+			final List<FilteredPriceRecordAccessor> accessors = List.of(translateFormula, flaggedLp);
+
+			assertFalse(translateFormula.exposesPerInnerRecordHistogramRecords());
+			assertEquals(
+				List.of(flaggedLp),
+				FilteredPriceRecords.collectPerInnerRecordHistogramAccessors(accessors)
+			);
+		}
+
+		@Test
+		@DisplayName("should report no exposing accessors when none carry the histogram flag")
+		void shouldReportNoExposingAccessorsWhenNoneCarryTheFlag() {
+			final List<FilteredPriceRecordAccessor> accessors = List.of(
+				newLp(new ArrayBitmap(1, 2), false), newLp(new ArrayBitmap(3, 4), false)
+			);
+
+			assertFalse(FilteredPriceRecords.anyAccessorExposesPerInnerRecordHistogram(accessors));
+			assertTrue(FilteredPriceRecords.collectPerInnerRecordHistogramAccessors(accessors).isEmpty());
 		}
 	}
 

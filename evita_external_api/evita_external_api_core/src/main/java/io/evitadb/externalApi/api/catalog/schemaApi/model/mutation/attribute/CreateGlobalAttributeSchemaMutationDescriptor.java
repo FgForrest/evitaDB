@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverri
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeFilterAcceleratorsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -109,6 +110,23 @@ public interface CreateGlobalAttributeSchemaMutationDescriptor extends Attribute
 			This array defines in which scopes the attribute will be filterable. It will not be filterable in not-specified scopes.
 			""")
 		.type(nullable(Scope[].class))
+		.build();
+	PropertyDescriptor ACCELERATORS_IN_SCOPES = PropertyDescriptor.builder()
+		.name("acceleratorsInScopes")
+		.description("""
+			Optional accelerations the attribute's filter index should maintain, per scope. Each accelerator costs
+			additional memory and additional write-path work, so none of them is implied by making the attribute
+			filterable or unique - only the ones listed here are maintained.
+
+			The property is optional; when it is omitted the attribute carries no acceleration anywhere, which is the
+			behaviour of every client that predates filter accelerators. A scope may only be named here when the very
+			same mutation also gives the attribute a filter index there - i.e. makes it filterable or unique in that
+			scope.
+			""")
+		.type(nullableListRef(ScopedAttributeFilterAcceleratorsDescriptor.THIS))
+		.build();
+	PropertyDescriptor ACCELERATORS_IN_SCOPES_INPUT = PropertyDescriptor.from(ACCELERATORS_IN_SCOPES)
+		.type(nullableListRef(ScopedAttributeFilterAcceleratorsDescriptor.THIS_INPUT))
 		.build();
 	PropertyDescriptor SORTABLE_IN_SCOPES = PropertyDescriptor.builder()
 		.name("sortableInScopes")
@@ -197,6 +215,7 @@ public interface CreateGlobalAttributeSchemaMutationDescriptor extends Attribute
 		.staticProperty(UNIQUE_IN_SCOPES)
 		.staticProperty(UNIQUE_GLOBALLY_IN_SCOPES)
 		.staticProperty(FILTERABLE_IN_SCOPES)
+		.staticProperty(ACCELERATORS_IN_SCOPES)
 		.staticProperty(SORTABLE_IN_SCOPES)
 		.staticProperty(LOCALIZED)
 		.staticProperty(NULLABLE)
@@ -209,5 +228,6 @@ public interface CreateGlobalAttributeSchemaMutationDescriptor extends Attribute
 		.name("CreateGlobalAttributeSchemaMutationInput")
 		.staticProperty(UNIQUE_IN_SCOPES_INPUT)
 		.staticProperty(UNIQUE_GLOBALLY_IN_SCOPES_INPUT)
+		.staticProperty(ACCELERATORS_IN_SCOPES_INPUT)
 		.build();
 }

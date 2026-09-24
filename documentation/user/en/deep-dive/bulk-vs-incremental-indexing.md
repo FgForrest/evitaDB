@@ -11,12 +11,13 @@ author: 'Ing. Jan Novotný'
 Bulk indexing is used for rapid indexing of large volumes of source data from an external data store. At this initial stage of the catalog's lifecycle, we don't require transaction support or concurrency. The only goal is to index as much data as possible in the shortest time possible. This phase has the following characteristics:
 
 1. Only a single client (single session) can be open at a time.
-2. No rollback is possible - if any error occurs (even part-way through a single entity write), the client must handle recovery on its own (see [Atomicity of individual writes](#atomicity-of-individual-writes)).
-3. All changes to indexes are kept in memory and written when the session closes; in case of a database crash, all changes are lost.
+2. There are no transactions - a group of writes cannot be committed or discarded as a unit. A *single* entity write is still atomic on its own, so an error part-way through one leaves nothing behind (see [Atomicity of individual writes](#atomicity-of-individual-writes)).
+3. All changes to indexes are kept in memory and written when the session closes; in case of a database crash, everything written since the last session close is lost.
+4. A failure that cannot be reverted returns the catalog to the last state it published and makes it inactive (see [Failures that cannot be reverted](#failures-that-cannot-be-reverted)).
 
 <Note type="info">
 
-How much data you write between session closes is a deliberate trade-off. Closing the session is the only moment when index changes reach the disk, so frequent closes act as checkpoints — the work completed so far is durable, and a crash costs you at most the block still in progress. You pay for that in throughput: every close has to collect and persist the modified parts of each index the block touched, and the more data the catalog already holds, the more that costs — so the price is paid repeatedly and rises as the import progresses. Writing the whole dataset within a single session avoids almost all of that cost and gives the fastest possible import, but it keeps the entire result in flight: nothing is durable until the end, the memory held by the pending index changes grows for the whole duration, and any failure — including a single half-applied write, for which this phase offers no rollback — puts you back at the beginning (see [Atomicity of individual writes](#atomicity-of-individual-writes)). Prefer one large block for imports short enough to simply repeat, and periodic closes for imports long enough that losing all the work would hurt.
+How much data you write between session closes is a deliberate trade-off. Closing the session is the only moment when index changes reach the disk, so frequent closes act as checkpoints — the work completed so far is durable, and a crash costs you at most the block still in progress. You pay for that in throughput: every close has to collect and persist the modified parts of each index the block touched, and the more data the catalog already holds, the more that costs — so the price is paid repeatedly and rises as the import progresses. Writing the whole dataset within a single session avoids almost all of that cost and gives the fastest possible import, but it keeps the entire result in flight: nothing is durable until the end, the memory held by the pending index changes grows for the whole duration, and anything that loses the session — a crash, an out-of-memory condition — puts you back at the beginning. A single rejected entity write is not such a failure: it is reverted on its own and the import simply continues (see [Atomicity of individual writes](#atomicity-of-individual-writes)). Prefer one large block for imports short enough to simply repeat, and periodic closes for imports long enough that losing all the work would hurt.
 
 </Note>
 
@@ -28,22 +29,37 @@ Incremental indexing is the phase in which we continuously synchronize changes f
 
 ## Atomicity of individual writes
 
-The granularity at which a write is atomic differs between the two phases. A single write — an [`upsertEntity`](../use/api/write-data.md#upsert) or [`deleteEntity`](../use/api/write-data.md#removal) call together with all the index changes it implies (attributes, references, facets, prices, hierarchy placement, reflected references) — is treated as one unit of work.
+A single write — an [`upsertEntity`](../use/api/write-data.md#upsert) or [`deleteEntity`](../use/api/write-data.md#removal) call together with all the index changes it implies (attributes, references, facets, prices, hierarchy placement, reflected references) — is treated as one unit of work. That unit is atomic, and it behaves the same way in **both** phases.
 
-### ALIVE phase — every write is atomic
+If applying an entity mutation fails part-way through — for example because it violates a unique constraint or another consistency rule after some of its index entries have already been written — the engine reverts exactly that entity's partial changes. The index entries already written for it are removed, any unique value it reserved becomes available again, and its stored body goes back to what it was before the call. Nothing half-applied is left behind, such as an orphaned facet or a phantom price.
 
-In the ALIVE phase each entity upsert or removal is **atomic on its own**, in addition to the atomicity of the enclosing transaction. If applying a single entity mutation fails part-way through — for example because it violates a unique constraint or another consistency rule after some of its index entries have already been written — the engine surgically reverts exactly that entity's partial changes and leaves the surrounding transaction untouched. The failing call throws an exception, but every entity written before it in the same transaction remains valid, and the client may catch the exception and continue writing further entities and then commit. One failed entity therefore never corrupts the transaction nor leaks a half-applied index entry (such as an orphaned facet or a phantom price), and any value it tried to reserve (e.g. a unique attribute) becomes available again immediately. This per-entity revert is independent of the enclosing transaction's own outcome: committing publishes only the entities that succeeded, and rolling back discards everything as usual.
+The failing call throws an exception and the session stays usable. You may catch it, skip or retry the offending entity, and continue writing the rest of your data. Neither compensating on the client side nor rebuilding the catalog is needed because of a single rejected entity.
 
-### WARM-UP phase — no per-write rollback
+In the ALIVE phase the enclosing transaction is untouched by the failure: every entity written before the failing one remains valid, and you may commit afterwards — the commit publishes exactly the entities that succeeded. Rolling back still discards everything, as usual.
 
-In the WARM-UP (bulk indexing) phase there is **no per-write rollback**. Bulk indexing deliberately writes index changes in place to maximize throughput and does not maintain the transactional diff layers that per-entity revert relies on. If an entity upsert or removal fails part-way through, the changes already applied for that entity remain in the in-memory index and the catalog is left in an inconsistent state for that entity.
+One thing is deliberately not rewound: the primary key drawn for a failed entity is not returned to the pool. Primary key sequences guarantee uniqueness, not contiguity, so a reverted write leaves a harmless gap in the numbering.
 
-Because the engine cannot undo a partial write in this phase, **recovery is the client's responsibility**. There are two options:
+## Failures that cannot be reverted
 
-1. **Compensate on the client side** — detect the failure and re-apply the correct, complete state for the affected entity (or remove it) so the index is returned to a consistent state before continuing. This is only safe if you can reconstruct exactly what was partially written.
-2. **Discard and rebuild** (recommended) — abandon the half-built catalog and re-run the bulk import from scratch. Because warm-up is designed for fast initial loading, a full rebuild is usually inexpensive. If you need to rebuild while already serving live traffic, build a fresh catalog in the background and swap it in atomically — see [Full reindex of the live catalog](#full-reindex-of-the-live-catalog) below.
+A [single failed write](#atomicity-of-individual-writes) is reverted on its own and costs you nothing beyond that one entity. Some failures reach further than one entity, and the bulk indexing phase answers all of them the same way — by returning the catalog to the last state it published.
 
-If you require per-entity atomicity during the initial load, transition the catalog to the ALIVE phase first and load the data through transactions instead, accepting the lower write throughput in exchange for the guarantee.
+Three failures behave like this:
+
+- **A schema change refused by validation.** The catalog schema is validated as a whole when a session closes, because a schema is routinely built across several steps whose intermediate states are allowed not to validate — a reflected reference may be declared before the reference it reflects, for instance. By the time the refusal is known, the change has already been applied to every entity collection it touches.
+- **A failure while writing the collected changes** at session close.
+- **A failed revert of a single entity write**, where the revert itself throws.
+
+In each case the catalog stops accepting writes and stops publishing. That refusal is what protects the data on disk, and it holds from the moment the failure is detected. The engine then moves the catalog to the *inactive* state (see [Control Engine](../use/api/control-engine.md)). <LS to="j">Activating it again with the `activateCatalog` method of <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass> loads</LS><LS to="e,r,g,c">Activating it again loads</LS> the last published state from disk — the newest state that reached the disk, which a session close writes and a collection-level schema operation may write again mid-session. Its schema and its indexes are consistent with each other, because nothing is published unless the schema validates. Everything written after it has to be replayed.
+
+Moving a catalog to the inactive state is itself an engine-level operation, and one such operation is refused while another is in flight for the same catalog. Where the engine cannot complete the move, the catalog is left refusing every write and every publication, and restarting the engine loads the same published state that activating it would have. The server log says which of the two happened.
+
+### Why the recovery is this coarse
+
+The bulk indexing phase earns its speed by leaving out the machinery a narrower recovery would need.
+
+There is no transaction to roll back. A schema change is applied to each entity collection separately, together with the structural work it implies — root nodes for an entity that becomes hierarchical, reference indexes, capability registries — and only then is the catalog validated as a whole. Sending a corrective schema change afterwards repeats that work on top of what already ran rather than reversing it, and nothing guarantees the result matches what a clean path would have produced. Reloading the last published state is the only recovery that is consistent by construction.
+
+It also costs less than it may appear. Nothing written since the last session close was durable in the first place, so what the reload discards is exactly the work you had not yet checkpointed. How large that is, is the trade-off described at the top of this chapter: frequent session closes make each failure cheap and the import slower, while a single long session makes the import as fast as possible and each failure expensive.
 
 ## Full reindex of the live catalog
 

@@ -44,6 +44,7 @@ import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryAdapter;
 import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryProducer;
+import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryProducer.SummaryDeclaration;
 import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryResultAdapter;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.dataType.Scope;
@@ -176,12 +177,19 @@ public class ReferenceSummaryTranslator
 			facetIndexes, resultAdapter, extraResultPlanner
 		);
 
+		// the references a reference-specific summary of the same spelling claims are not described by this
+		// constraint, so they take no part in validating its requirements - see `collectReferenceSpecificNames`
+		final Set<String> referencesDescribedBySpecificSummary = resultAdapter.collectReferenceSpecificNames(
+			extraResultPlanner.getEvitaRequest().getQuery().getRequire()
+		);
+
 		final EntityFetch facetEntityRequirement = referenceEntityRequirement != null ?
 			verifyFetch(
 				entitySchema,
 				referenceSchema -> referenceSchema.isReferencedEntityTypeManaged() ?
 					referenceSchema.getReferencedEntityType() : null,
 				referenceEntityRequirement,
+				referencesDescribedBySpecificSummary,
 				extraResultPlanner
 			) :
 			null;
@@ -192,9 +200,18 @@ public class ReferenceSummaryTranslator
 				                   ? referenceSchema.getReferencedGroupType()
 					: null,
 				groupEntityRequirement,
+				referencesDescribedBySpecificSummary,
 				extraResultPlanner
 			) :
 			null;
+
+		// a second all-references summary constraint of the same kind must not silently replace the first one
+		referenceSummaryProducer.assertDefaultSummaryNotRedeclared(
+			new SummaryDeclaration(
+				statisticsDepth, referenceEntityRequirement, groupEntityRequirement,
+				filterBy, filterGroupBy, orderBy, orderGroupBy
+			)
+		);
 
 		referenceSummaryProducer.requireDefaultReferenceSummary(
 			statisticsDepth,
@@ -225,6 +242,32 @@ public class ReferenceSummaryTranslator
 	}
 
 	/**
+	 * Resolves the reference schemas a nested `referenceContent` addresses. A single requirement may list several
+	 * reference names at once - the multi-name form the GraphQL API and the query language both allow - and each of
+	 * them has to be declared by the schema of the entity the summary fetches.
+	 *
+	 * @param referenceContent nested requirement naming at least one reference
+	 * @param referencedSchema schema of the entity the summary fetches the references from
+	 * @return schemas of the references the requirement addresses, in the order it lists them
+	 * @throws ReferenceNotFoundException when the schema declares no reference of one of the listed names
+	 */
+	@Nonnull
+	private static Collection<ReferenceSchemaContract> resolveNestedReferenceSchemas(
+		@Nonnull ReferenceContent referenceContent,
+		@Nonnull EntitySchemaContract referencedSchema
+	) {
+		final String[] nestedReferenceNames = referenceContent.getReferenceNames();
+		final List<ReferenceSchemaContract> nestedReferenceSchemas = new ArrayList<>(nestedReferenceNames.length);
+		for (final String nestedReferenceName : nestedReferenceNames) {
+			nestedReferenceSchemas.add(
+				referencedSchema.getReference(nestedReferenceName)
+					.orElseThrow(() -> new ReferenceNotFoundException(nestedReferenceName, referencedSchema))
+			);
+		}
+		return nestedReferenceSchemas;
+	}
+
+	/**
 	 * Verify the fetch requirement for a given referenced type.
 	 *
 	 * @param entitySchema       the entity schema
@@ -239,11 +282,16 @@ public class ReferenceSummaryTranslator
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull Function<ReferenceSchemaContract, String> referencedType,
 		@Nonnull T requirement,
+		@Nonnull Set<String> referencesDescribedBySpecificSummary,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
 	) {
 		entitySchema.getReferences()
 			.values()
 			.stream()
+			// a reference claimed by a reference-specific summary is not described by this generic one at all, so
+			// its requirements must not be validated against that reference's schema either - a fetch that is valid
+			// only for the references the generic form actually governs would otherwise be refused
+			.filter(referenceSchema -> !referencesDescribedBySpecificSummary.contains(referenceSchema.getName()))
 			.filter(
 				referenceSchema -> extraResultPlanner
 					.getEvitaRequest()
@@ -269,16 +317,14 @@ public class ReferenceSummaryTranslator
 									         associatedDataContent, referencedSchema, extraResultPlanner
 								         );
 							         } else if (require instanceof ReferenceContent referenceContent) {
+								         // a `referenceContent` may address several references at once, and every name it
+								         // lists has to be declared by the referenced entity's schema
 								         final Collection<ReferenceSchemaContract> referencedEntityReferenceSchemas =
 									         referenceContent.isAllRequested()
 										         ?
 										         referencedSchema.getReferences().values()
 										         :
-											         List.of(
-												         referencedSchema.getReference(referenceContent.getReferenceName())
-												         .orElseThrow(() -> new ReferenceNotFoundException(
-													         referenceContent.getReferenceName(), referencedSchema))
-											         );
+											         resolveNestedReferenceSchemas(referenceContent, referencedSchema);
 								         for (ReferenceSchemaContract referencedEntityReferenceSchema : referencedEntityReferenceSchemas) {
 									         referenceContent.getAttributeContent()
 										         .ifPresent(it -> AttributeContentTranslator.verifyAttributes(

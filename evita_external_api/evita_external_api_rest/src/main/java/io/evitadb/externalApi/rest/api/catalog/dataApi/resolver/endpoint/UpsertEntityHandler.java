@@ -60,6 +60,8 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.evitadb.api.query.QueryConstraints.entityFetch;
+
 /**
  * Handles upsert request for entity.
  *
@@ -126,6 +128,8 @@ public class UpsertEntityHandler extends EntityHandler<CollectionRestHandlingCon
 
 				final Optional<EntityContentRequire[]> requires = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
 					rawRequire.flatMap(this::getEntityContentRequires));
+
+				requires.ifPresent(it -> executionContext.provideEntityRequirement(entityFetch(it)));
 
 				return executionContext.executeAsyncInTransactionThreadPool(() -> {
 					final EntityClassifier upsertedEntity = requestExecutedEvent.measureInternalEvitaDBExecution(() ->

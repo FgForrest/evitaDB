@@ -288,6 +288,7 @@ public class SumPriceEntityByPriceFilteringFunctionalTest extends EntityByPriceF
 
 	@DisplayName("Should return price histogram for returned products excluding price between query")
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_SUM_PRICES)
+	@Test
 	@Override
 	void shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterUsingPrefetch(Evita evita, List<SealedEntity> originalProductEntities) {
 		super.shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterUsingPrefetch(evita, originalProductEntities);

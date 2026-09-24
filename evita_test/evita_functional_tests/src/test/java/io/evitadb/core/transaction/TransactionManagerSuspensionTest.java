@@ -116,7 +116,7 @@ class TransactionManagerSuspensionTest {
 		when(this.catalog.getEntitySchema(anyString())).thenReturn(Optional.empty());
 		// a fresh stream per call - a Stream is single-use, and what happens on the SECOND drain is the whole subject
 		// of these tests, so handing out an already-consumed one would fake the very result being asserted
-		when(this.catalog.getCommittedLiveMutationStream(anyLong(), anyLong()))
+		when(this.catalog.getCommittedLiveMutationStream(anyLong(), anyLong(), any()))
 			.thenAnswer(invocation -> Stream.of(transactionMutation()));
 
 		final EvitaConfiguration configuration = EvitaConfiguration.builder()

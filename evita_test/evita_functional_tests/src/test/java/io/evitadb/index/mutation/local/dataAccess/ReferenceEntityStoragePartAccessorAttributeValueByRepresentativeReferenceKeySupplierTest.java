@@ -466,7 +466,7 @@ class ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceK
 		boolean representative
 	) {
 		return AttributeSchema._internalBuild(
-			name, null, null, null,
+			name, null, null, null, null,
 			localized, false, representative,
 			String.class, null, ConflictResolutionOverride.INHERITED
 		);

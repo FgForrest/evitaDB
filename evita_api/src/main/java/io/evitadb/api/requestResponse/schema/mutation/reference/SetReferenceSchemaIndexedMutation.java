@@ -381,9 +381,14 @@ public class SetReferenceSchemaIndexedMutation
 				ReferenceSchema.filterComponentsArrayForNoneScopes(
 					this.indexedComponentsInScopes, indexedScopes
 				);
+			// every indexed scope the array does not cover falls back to the default rather than staying empty:
+			// an indexed scope with no components builds no index at all, so leaving one empty here hands back a
+			// reference that reports itself indexed and silently stops indexing anything written to that scope
 			final Map<Scope, Set<ReferenceIndexedComponents>> indexedComponents =
 				filteredComponentsArray != null
-					? ReferenceSchema.toIndexedComponentsEnumMap(filteredComponentsArray)
+					? ReferenceSchema.withDefaultsForUncoveredScopes(
+						ReferenceSchema.toIndexedComponentsEnumMap(filteredComponentsArray), indexedScopes
+					)
 					: ReferenceSchema.defaultIndexedComponents(indexedScopes);
 
 			if (indexedScopes.equals(referenceSchema.getReferenceIndexTypeInScopes()) &&

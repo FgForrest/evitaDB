@@ -23,17 +23,21 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import javax.annotation.Nonnull;
 import java.util.Locale;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.HIERARCHY;
+import static io.evitadb.test.TestTags.PRICE;
+import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.REQUIRE;
 
 /**
@@ -175,17 +179,107 @@ class DefaultPrefetchRequirementCollectorTest {
 		}
 
 		@Test
-		@DisplayName("should add multiple non-combinable requirements of same type")
-		void shouldAddMultipleNonCombinableRequirementsOfSameType() {
+		@DisplayName("should not narrow the union to existing managed references")
+		void shouldNotNarrowTheUnionToExistingManagedReferences() {
 			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
 
-			// DataInLocales requirements are combinable, but let's use them to test the array expansion
+			// what `ReferenceHavingTranslator` contributes on the client's behalf, and what the client wrote
+			collector.addRequirementsToPrefetch(referenceContent("brand"));
+			collector.addRequirementsToPrefetch(referenceContent(ManagedReferencesBehaviour.EXISTING, "brand"));
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(1, requirements.length);
+			assertInstanceOf(ReferenceContent.class, requirements[0]);
+			assertEquals(
+				ManagedReferencesBehaviour.ANY,
+				((ReferenceContent) requirements[0]).getManagedReferencesBehaviour(),
+				"The prefetch union narrowed what is loaded - a filter answered from the prefetched body would " +
+					"stop seeing dangling references the index still holds!"
+			);
+		}
+
+		@Test
+		@DisplayName("should not narrow the union whichever order the requirements arrive in")
+		void shouldNotNarrowTheUnionWhicheverOrderTheRequirementsArriveIn() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			collector.addRequirementsToPrefetch(referenceContent(ManagedReferencesBehaviour.EXISTING, "brand"));
+			collector.addRequirementsToPrefetch(referenceContent("brand"));
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(1, requirements.length);
+			assertEquals(
+				ManagedReferencesBehaviour.ANY,
+				((ReferenceContent) requirements[0]).getManagedReferencesBehaviour()
+			);
+		}
+
+		@Test
+		@DisplayName("should combine two data in locales requirements into one")
+		void shouldCombineTwoDataInLocalesRequirementsIntoOne() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
 			collector.addRequirementsToPrefetch(dataInLocales(Locale.ENGLISH));
 			collector.addRequirementsToPrefetch(dataInLocales(new Locale("cs")));
 
 			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
 			assertEquals(1, requirements.length);
 			assertInstanceOf(DataInLocales.class, requirements[0]);
+		}
+
+		@Test
+		@DisplayName("should not bound the parent chain the union loads")
+		@Tag(HIERARCHY)
+		void shouldNotBoundTheParentChainTheUnionLoads() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			// the client's own entityFetch, and the entityFetch written inside a hierarchyOfSelf computer
+			collector.addRequirementsToPrefetch(hierarchyContent(stopAt(distance(1))));
+			collector.addRequirementsToPrefetch(hierarchyContent(stopAt(distance(2))));
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(1, requirements.length);
+			assertInstanceOf(HierarchyContent.class, requirements[0]);
+			assertTrue(
+				((HierarchyContent) requirements[0]).getStopAt().isEmpty(),
+				"The prefetch union bounded the parent chain - the two bounds describe two separate output slots, " +
+					"each materialised from its own derived request!"
+			);
+		}
+
+		@Test
+		@DisplayName("should not bound the parent chain whichever order the requirements arrive in")
+		@Tag(HIERARCHY)
+		void shouldNotBoundTheParentChainWhicheverOrderTheRequirementsArriveIn() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			collector.addRequirementsToPrefetch(hierarchyContent(stopAt(distance(2))));
+			collector.addRequirementsToPrefetch(hierarchyContent(stopAt(distance(1))));
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(1, requirements.length);
+			assertTrue(((HierarchyContent) requirements[0]).getStopAt().isEmpty());
+		}
+
+		@Test
+		@DisplayName("should keep the parent bodies a bounded hierarchy content asks for")
+		@Tag(HIERARCHY)
+		void shouldKeepTheParentBodiesABoundedHierarchyContentAsksFor() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			collector.addRequirementsToPrefetch(
+				hierarchyContent(stopAt(distance(1)), entityFetch(attributeContent("code")))
+			);
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(1, requirements.length);
+			final HierarchyContent hierarchyContent = (HierarchyContent) requirements[0];
+			assertTrue(hierarchyContent.getStopAt().isEmpty());
+			assertEquals(
+				entityFetch(attributeContent("code")),
+				hierarchyContent.getEntityFetch().orElseThrow(),
+				"The strip dropped the parent bodies along with the bound!"
+			);
 		}
 	}
 
@@ -279,15 +373,228 @@ class DefaultPrefetchRequirementCollectorTest {
 		}
 	}
 
-	/**
-	 * Helper method to create an EntityFetch with given requirements.
-	 *
-	 * @param requirements the requirements to include in the EntityFetch
-	 * @return an EntityFetch instance containing the given requirements
-	 */
-	@Nonnull
-	private static EntityFetch createEntityFetch(@Nonnull EntityContentRequire... requirements) {
-		return entityFetch(requirements);
+	@Nested
+	@DisplayName("Reference content merging")
+	@Tag(REFERENCE)
+	class ReferenceContentMergingTest {
+
+		@Test
+		@DisplayName("should drop a name specific requirement contained within the one for all references")
+		void shouldDropSpecificReferenceContentContainedWithinAllReferences() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			collector.addRequirementsToPrefetch(referenceContentAll());
+			collector.addRequirementsToPrefetch(referenceContent("category"));
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(1, requirements.length);
+			assertEquals(referenceContentAll(), requirements[0]);
+		}
+
+		@Test
+		@DisplayName("should drop a name specific requirement when the one for all references arrives after it")
+		void shouldDropSpecificReferenceContentWhenAllReferencesArrivesAfterIt() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			// the containment is tested in both directions, so which of two nested requirements a translator
+			// happened to contribute first cannot change what is loaded
+			collector.addRequirementsToPrefetch(referenceContent("category"));
+			collector.addRequirementsToPrefetch(referenceContentAll());
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(1, requirements.length);
+			assertEquals(referenceContentAll(), requirements[0]);
+		}
+
+		@Test
+		@DisplayName("should combine two reference contents naming the same set of references")
+		void shouldCombineTwoReferenceContentsWithIdenticalNameSets() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			collector.addRequirementsToPrefetch(
+				referenceContent(new String[]{"a", "b"}, entityFetch(attributeContent("code")))
+			);
+			collector.addRequirementsToPrefetch(
+				referenceContent(new String[]{"b", "a"}, entityFetch(attributeContent("name")))
+			);
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(1, requirements.length);
+			assertEquals(
+				referenceContent(new String[]{"a", "b"}, entityFetch(attributeContent("code", "name"))),
+				requirements[0]
+			);
+		}
+
+		@Test
+		@DisplayName("should keep reference contents whose name sets merely overlap apart")
+		void shouldKeepReferenceContentsWithOverlappingNameSetsApart() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			collector.addRequirementsToPrefetch(referenceContent("a", "b"));
+			collector.addRequirementsToPrefetch(referenceContent("b", "c"));
+
+			assertEquals(2, collector.getRequirementsToPrefetch().length);
+		}
+
+		/**
+		 * The prefetch asks what must be **loaded**, and a filter, an order and a page only decide how the loaded
+		 * references are projected into the response. They are therefore stripped at the door, both from the
+		 * requirements the constructor seeds and from the ones added later.
+		 */
+		@Test
+		@DisplayName("should strip the filter, the order and the chunking of an entering requirement")
+		void shouldStripOutputRestrictionsOfEnteringRequirement() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector(
+				entityFetch(
+					referenceContent(
+						"a",
+						filterBy(entityPrimaryKeyInSet(5)),
+						orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)),
+						entityFetch(attributeContent("code")),
+						page(1, 1)
+					)
+				)
+			);
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(1, requirements.length);
+			assertEquals(referenceContent("a", entityFetch(attributeContent("code"))), requirements[0]);
+		}
+
+		/**
+		 * The pair the client-facing fold refuses - one sibling filtering the reference, the other one not - is
+		 * exactly the pair the query planner produces on its own whenever a filtered reference is also named by
+		 * `referenceHaving`. The collector must accept it, and it does because neither side reaches the merge
+		 * carrying a filter.
+		 */
+		@Test
+		@DisplayName("should accept a one sided filter the client facing fold refuses")
+		void shouldAcceptOneSidedFilterRefusedByClientFacingFold() {
+			final ReferenceContent filtered = referenceContent("a", filterBy(entityPrimaryKeyInSet(5)));
+			final ReferenceContent bare = referenceContent("a");
+
+			// the very same pair, judged by the rule that shapes the response, has no union
+			assertThrows(EvitaInvalidUsageException.class, () -> filtered.combineWith(bare));
+
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+			collector.addRequirementsToPrefetch(filtered);
+			collector.addRequirementsToPrefetch(bare);
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(1, requirements.length);
+			assertEquals(referenceContent("a"), requirements[0]);
+		}
+
+		/**
+		 * The shape the query planner actually builds: the client's filtered `referenceContent` meets the
+		 * `referenceContentWithAttributes` the sort translator contributes for the very same reference. Both enter
+		 * unrestricted, so the merge unites their bodies instead of refusing them.
+		 */
+		@Test
+		@DisplayName("should unite a filtered client requirement with the planner's sort attribute requirement")
+		void shouldUniteFilteredClientRequirementWithPlannerSortAttributeRequirement() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			collector.addRequirementsToPrefetch(
+				new ReferenceContent("a", attributeContent("priority"))
+			);
+			collector.addRequirementsToPrefetch(
+				referenceContent(
+					"a",
+					filterBy(entityPrimaryKeyInSet(5)),
+					entityFetch(attributeContent("code"))
+				)
+			);
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(1, requirements.length);
+			final ReferenceContent merged = (ReferenceContent) requirements[0];
+			assertTrue(merged.getFilterBy().isEmpty());
+			assertArrayEquals(
+				new String[]{"priority"},
+				merged.getAttributeContent().orElseThrow().getAttributeNames()
+			);
+			assertEquals(entityFetch(attributeContent("code")), merged.getEntityRequirement().orElseThrow());
+		}
+
+		/**
+		 * Two different filters are no longer a disagreement once both are stripped - the prefetch loads every
+		 * reference of that name and lets the response projection pick the slice each requirement asked for.
+		 */
+		@Test
+		@DisplayName("should accept two differently filtered requirements for one reference")
+		void shouldAcceptTwoDifferentlyFilteredRequirementsForOneReference() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			collector.addRequirementsToPrefetch(referenceContent("a", filterBy(entityPrimaryKeyInSet(1, 2))));
+			collector.addRequirementsToPrefetch(referenceContent("a", filterBy(entityPrimaryKeyInSet(3, 4))));
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(1, requirements.length);
+			assertEquals(referenceContent("a"), requirements[0]);
+		}
+	}
+
+	@Nested
+	@DisplayName("Accompanying price merging")
+	@Tag(PRICE)
+	class AccompanyingPriceMergingTest {
+
+		@Test
+		@DisplayName("should keep accompanying prices of different names apart")
+		void shouldKeepAccompanyingPricesOfDifferentNamesApart() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			collector.addRequirementsToPrefetch(accompanyingPriceContent("a", "basic"));
+			collector.addRequirementsToPrefetch(accompanyingPriceContent("b", "reference"));
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(2, requirements.length);
+		}
+
+		@Test
+		@DisplayName("should refuse two accompanying prices of one name computed from different price lists")
+		void shouldRefuseAccompanyingPricesOfOneNameWithDifferentPriceLists() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			collector.addRequirementsToPrefetch(accompanyingPriceContent("a", "basic"));
+
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> collector.addRequirementsToPrefetch(accompanyingPriceContent("a", "reference"))
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Contained requirements")
+	class ContainedRequirementTest {
+
+		@Test
+		@DisplayName("should keep the wider price content whichever of the two arrived first")
+		void shouldKeepTheWiderPriceContentRegardlessOfOrder() {
+			// the client asks for no prices, a hierarchy scoped entity fetch asks for all of them - the union answers
+			// what has to be LOADED, and `NONE` demands nothing, so the wider requirement wins in both orders. The
+			// client-facing fold refuses the very same pair, which is why the union must never reach `combineWith`
+			final DefaultPrefetchRequirementCollector noneFirst = new DefaultPrefetchRequirementCollector();
+			noneFirst.addRequirementsToPrefetch(priceContent(PriceContentMode.NONE));
+			noneFirst.addRequirementsToPrefetch(priceContentAll());
+
+			final DefaultPrefetchRequirementCollector allFirst = new DefaultPrefetchRequirementCollector();
+			allFirst.addRequirementsToPrefetch(priceContentAll());
+			allFirst.addRequirementsToPrefetch(priceContent(PriceContentMode.NONE));
+
+			assertArrayEquals(
+				new EntityContentRequire[]{priceContentAll()},
+				noneFirst.getRequirementsToPrefetch()
+			);
+			assertArrayEquals(
+				new EntityContentRequire[]{priceContentAll()},
+				allFirst.getRequirementsToPrefetch()
+			);
+		}
+
 	}
 
 }

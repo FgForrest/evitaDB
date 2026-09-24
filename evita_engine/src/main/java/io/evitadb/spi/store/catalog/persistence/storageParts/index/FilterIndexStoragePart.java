@@ -26,10 +26,12 @@ package io.evitadb.spi.store.catalog.persistence.storageParts.index;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.Range;
+import io.evitadb.index.invertedIndex.ValueIdAllocator;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.RecordWithCompressedId;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
@@ -49,7 +51,13 @@ import java.util.Objects;
  */
 @ToString(of = {"attributeIndexKey", "entityIndexPrimaryKey"})
 public class FilterIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeIndexKey> {
-	@Serial private static final long serialVersionUID = 3847290165472938104L;
+	// bumped from 3847290165472938105L when DateTimeRange moved to millisecond comparison granularity: the byte layout
+	// is unchanged, but a range index over DateTimeRange now persists epoch-MILLISECOND thresholds where the previous
+	// shape persisted epoch-seconds, and nothing in an untyped `long` says which. The released 2026.2 shape
+	// (…104L) is read - and rescaled - by FilterIndexStoragePartSerializer_2026_2; the intermediate …105L dev shape is
+	// deliberately left unregistered so a stale unreleased-dev catalog fails loud (and is regenerated) rather than
+	// having its second thresholds read as milliseconds, exactly as the HistogramIndexStoragePart bump does.
+	@Serial private static final long serialVersionUID = 3847290165472938106L;
 
 	/**
 	 * Unique id that identifies {@link io.evitadb.index.EntityIndex}.
@@ -137,9 +145,38 @@ public class FilterIndexStoragePart implements AttributeIndexStoragePart, Record
 	 */
 	@Nonnull @Getter private final int[] rangeLeafPageSequences;
 	/**
+	 * The value id high-water mark of the shared value tree — the id the next mint will hand out — or
+	 * {@link ValueIdAllocator#UNASSIGNED_VALUE_ID} when the tree carries no value ids.
+	 *
+	 * Persisted explicitly rather than derived as `max(live id) + 1`, for the same reason
+	 * {@link #highWaterPageSequence} is: the id of a value that has died must never be handed out again, and a derived
+	 * maximum forgets exactly those. Because the root part is skipped on a commit that changed no page list, the
+	 * emitter forces a rewrite whenever this mark has advanced (`InvertedIndex#isValueIdHighWaterDirty`).
+	 */
+	@Getter private final int nextValueId;
+	/**
+	 * The stable value id of each inline bucket, positionally aligned with {@link #histogramPoints}, or `null` when the
+	 * tree carries no value ids. The `PAGED` counterpart lives on each {@link FilterIndexLeafPagePart}; this is the
+	 * `SINGLE` shape's copy, where the whole index rides the root.
+	 */
+	@Nullable @Getter private final int[] inlineValueIds;
+	/**
 	 * Id used for lookups in file offset index for this particular container.
 	 */
 	@Nullable @Getter @Setter private Long storagePartPK;
+	/**
+	 * Read-path provenance, never persisted: `true` when this part was decoded by a backward-compatible serializer of
+	 * a format written before {@link io.evitadb.dataType.DateTimeRange} moved from second to millisecond comparison
+	 * granularity. The {@link #rangeIndex} of such a part — and, when {@link #rangePaged}, the range leaf pages listed
+	 * on it — hold epoch-**second** thresholds and must be rescaled before the index goes live.
+	 *
+	 * It is a marker rather than a constructor argument because it describes **which reader produced this instance**,
+	 * not anything the record carries: the current serializer never sets it, every backward-compatible one does, and
+	 * a part built by the write path is millisecond-scaled by construction. Only a range index over `DateTimeRange`
+	 * is affected — a threshold is an untyped `long` shared with every `NumberRange` subtype — so the flag is a
+	 * necessary, never a sufficient, condition; the declared {@link #attributeType} decides the rest.
+	 */
+	@Getter @Setter private boolean secondGranularityRangeThresholds;
 
 	/**
 	 * Creates a fresh filter index part whose storage part PK is not yet assigned (computed before persistence) with a
@@ -268,6 +305,41 @@ public class FilterIndexStoragePart implements AttributeIndexStoragePart, Record
 		@Nonnull int[] rangeLeafPageSequences,
 		@Nullable Long storagePartPK
 	) {
+		this(
+			entityIndexPrimaryKey, attributeIndexKey, attributeType, histogramPoints, rangeIndex, indexedDecimalPlaces,
+			paged, highWaterPageSequence, leafPageSequences, rangePaged, rangeHighWaterPageSequence,
+			rangeLeafPageSequences, ValueIdAllocator.UNASSIGNED_VALUE_ID, null, storagePartPK
+		);
+	}
+
+	/**
+	 * Canonical constructor carrying every field, including the value id column of the `SINGLE` shape and the value id
+	 * high-water mark of the shared value tree. The 13-argument sibling delegates here with no value ids at all, which
+	 * is the shape of every tree no subsystem has registered as a consumer of.
+	 */
+	public FilterIndexStoragePart(
+		@Nonnull Integer entityIndexPrimaryKey,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Class<?> attributeType,
+		@Nonnull ValueToRecordBitmap[] histogramPoints,
+		@Nullable RangeIndex rangeIndex,
+		int indexedDecimalPlaces,
+		boolean paged,
+		int highWaterPageSequence,
+		@Nonnull int[] leafPageSequences,
+		boolean rangePaged,
+		int rangeHighWaterPageSequence,
+		@Nonnull int[] rangeLeafPageSequences,
+		int nextValueId,
+		@Nullable int[] inlineValueIds,
+		@Nullable Long storagePartPK
+	) {
+		Assert.isPremiseValid(
+			inlineValueIds == null || inlineValueIds.length == histogramPoints.length,
+			() -> "The inline value id column must have exactly one id per inline bucket, but has " +
+				(inlineValueIds == null ? 0 : inlineValueIds.length) + " ids for " + histogramPoints.length +
+				" buckets!"
+		);
 		// the type-less 2024.5 format is unsupported: a null attributeType must fail fast at construction
 		this.attributeType = Objects.requireNonNull(attributeType);
 		this.entityIndexPrimaryKey = entityIndexPrimaryKey;
@@ -281,6 +353,8 @@ public class FilterIndexStoragePart implements AttributeIndexStoragePart, Record
 		this.rangePaged = rangePaged;
 		this.rangeHighWaterPageSequence = rangeHighWaterPageSequence;
 		this.rangeLeafPageSequences = rangeLeafPageSequences;
+		this.nextValueId = nextValueId;
+		this.inlineValueIds = inlineValueIds;
 		this.storagePartPK = storagePartPK;
 	}
 

@@ -49,7 +49,6 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.SetRe
 import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
 import io.evitadb.externalApi.api.catalog.model.cdc.DataSiteDescriptor;
 import io.evitadb.externalApi.api.catalog.model.cdc.SchemaSiteDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ReferenceAttributeSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationUnionDescriptor;
@@ -235,6 +234,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 					typeRefTo(ModifyAttributeSchemaTypeMutationDescriptor.THIS.name()),
 					typeRefTo(RemoveAttributeSchemaMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaFilterableMutationDescriptor.THIS.name()),
+					typeRefTo(SetAttributeSchemaAcceleratedMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaLocalizedMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaNullableMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.THIS.name()),
@@ -350,6 +350,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			ModifyAttributeSchemaTypeMutationDescriptor.THIS_INPUT,
 			RemoveAttributeSchemaMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaFilterableMutationDescriptor.THIS_INPUT,
+			SetAttributeSchemaAcceleratedMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaLocalizedMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaNullableMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.THIS_INPUT,
@@ -479,6 +480,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			ModifyAttributeSchemaTypeMutationDescriptor.THIS,
 			RemoveAttributeSchemaMutationDescriptor.THIS,
 			SetAttributeSchemaFilterableMutationDescriptor.THIS,
+			SetAttributeSchemaAcceleratedMutationDescriptor.THIS,
 			SetAttributeSchemaLocalizedMutationDescriptor.THIS,
 			SetAttributeSchemaNullableMutationDescriptor.THIS,
 			SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.THIS,

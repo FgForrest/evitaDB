@@ -59,6 +59,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.PRICE;
 
@@ -179,7 +180,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			final PriceRecordContract[] priceRecords = tested.getPriceRecords();
 			assertEquals(3, priceRecords.length);
 			assertArrayEquals(new int[]{100, 200, 300}, tested.getIndexedPriceEntityIds().getArray());
-			assertArrayEquals(new int[]{1, 2, 3}, tested.getIndexedPriceIds());
+			assertArrayEquals(new int[]{1, 2, 3}, tested.getIndexedPriceIds().getArray());
 		}
 
 		@Test
@@ -204,7 +205,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			final PriceRecordContract[] priceRecords = tested.getPriceRecords();
 			assertEquals(2, priceRecords.length);
 			assertArrayEquals(new int[]{100, 300}, tested.getIndexedPriceEntityIds().getArray());
-			assertArrayEquals(new int[]{1, 3}, tested.getIndexedPriceIds());
+			assertArrayEquals(new int[]{1, 3}, tested.getIndexedPriceIds().getArray());
 		}
 	}
 
@@ -241,7 +242,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			);
 			assertArrayEquals(
 				new int[]{10},
-				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getIndexedPriceIds()
+				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getIndexedPriceIds().getArray()
 			);
 			assertEquals(1, PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getPriceRecords().length);
 		}
@@ -303,7 +304,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			);
 			assertArrayEquals(
 				new int[]{10, 20},
-				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getIndexedPriceIds()
+				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getIndexedPriceIds().getArray()
 			);
 			assertEquals(
 				2,
@@ -339,7 +340,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 	}
 
 	/**
-	 * Tests verifying the `removePrice` method including the `containsAnyOf` entity eviction logic.
+	 * Tests verifying the `removePrice` method including the `containsAnyPriceOf` entity eviction logic.
 	 */
 	@Nested
 	@DisplayName("Remove price")
@@ -378,7 +379,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			);
 			assertArrayEquals(
 				new int[]{20},
-				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getIndexedPriceIds()
+				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getIndexedPriceIds().getArray()
 			);
 			assertEquals(
 				1,
@@ -551,7 +552,60 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 
 			tested.removePrice(5, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex);
 			assertArrayEquals(new int[]{99}, tested.getIndexedPriceEntityIds().getArray());
-			assertArrayEquals(new int[]{7}, tested.getIndexedPriceIds());
+			assertArrayEquals(new int[]{7}, tested.getIndexedPriceIds().getArray());
+		}
+
+		/**
+		 * Every other fixture here gives a price the same number for its internal price id and its price id, which
+		 * leaves an eviction walk that read price ids indistinguishable from one that reads internal ids. Here they
+		 * differ: a walk over the price ids (710, 720) would find neither in the price-record tree and would evict
+		 * entity 42 while one of its prices is still indexed.
+		 */
+		@Test
+		@DisplayName("should keep an entity whose prices remain when its price ids differ from its internal ids")
+		void shouldKeepEntityWhilePricesRemainWhenPriceIdsDifferFromInternalPriceIds() {
+			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(createPriceRecord(10, 710, 42), null);
+			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(createPriceRecord(20, 720, 42), null);
+
+			final PriceListAndCurrencyPriceRefIndex tested = createAttachedRefIndexFromPriceIds(
+				PriceListAndCurrencyPriceRefIndexTest.this.superIndex,
+				new int[]{10, 20}
+			);
+			assertArrayEquals(new int[]{42}, tested.getIndexedPriceEntityIds().getArray());
+
+			tested.removePrice(10, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex);
+
+			assertArrayEquals(new int[]{42}, tested.getIndexedPriceEntityIds().getArray());
+			assertArrayEquals(new int[]{20}, tested.getIndexedPriceIds().getArray());
+
+			tested.removePrice(20, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex);
+
+			assertArrayEquals(new int[]{}, tested.getIndexedPriceEntityIds().getArray());
+			assertTrue(tested.isEmpty());
+		}
+
+		/**
+		 * Entity 99's only price carries the price id 20, which is another entity's internal price id - legal, because
+		 * the super index's duplicate guard is per entity. An eviction walk that probed the price-record tree with
+		 * price ids would therefore find entity 42's record and keep entity 99 indexed with nothing left in this index.
+		 */
+		@Test
+		@DisplayName("should evict a single-price entity whose price id collides with another entity's internal id")
+		void shouldEvictASinglePriceEntityWhosePriceIdCollidesWithAnotherEntitysInternalPriceId() {
+			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(createPriceRecord(10, 710, 42), null);
+			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(createPriceRecord(20, 720, 42), null);
+			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(createPriceRecord(30, 20, 99), null);
+
+			final PriceListAndCurrencyPriceRefIndex tested = createAttachedRefIndexFromPriceIds(
+				PriceListAndCurrencyPriceRefIndexTest.this.superIndex,
+				new int[]{10, 20, 30}
+			);
+			assertArrayEquals(new int[]{42, 99}, tested.getIndexedPriceEntityIds().getArray());
+
+			tested.removePrice(30, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex);
+
+			assertArrayEquals(new int[]{42}, tested.getIndexedPriceEntityIds().getArray());
+			assertArrayEquals(new int[]{10, 20}, tested.getIndexedPriceIds().getArray());
 		}
 	}
 
@@ -584,6 +638,18 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			final GenericEvitaInternalError exception = assertThrows(
 				GenericEvitaInternalError.class,
 				() -> PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getLowestPriceRecordsForEntity(42)
+			);
+			assertTrue(exception.getMessage().contains("super price index"));
+		}
+
+		@Test
+		@DisplayName("should reject forEachLowestPriceRecordOfEntity through the inherited default")
+		void shouldRejectForEachLowestPriceRecordOfEntity() {
+			final GenericEvitaInternalError exception = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> PriceListAndCurrencyPriceRefIndexTest.this.refIndex.forEachLowestPriceRecordOfEntity(
+					42, priceRecord -> fail("no price record may be handed out by a reduced index!")
+				)
 			);
 			assertTrue(exception.getMessage().contains("super price index"));
 		}
@@ -800,7 +866,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 					);
 					assertArrayEquals(
 						new int[]{10},
-						committed.getIndexedPriceIds()
+						committed.getIndexedPriceIds().getArray()
 					);
 					// original is unchanged (empty)
 					assertTrue(original.isEmpty());

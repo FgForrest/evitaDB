@@ -30,3 +30,25 @@ not translation drift a re-run will fix. If a translation defect survives a seco
 translation attempt, a narrow hand-fix of just the broken span is allowed instead of a third
 automated retry. Scope the edit to the minimum needed to correct the defect, and call out in the
 commit message that it's a hand-fix and why (bug class, that it reproduced twice).
+
+### A rejected file is a tool bug, not a hand-fix case
+
+Comenius validates each translation against the structure of its source and **throws away** one whose
+blank-line or heading count drifted, reporting `Translation failed for <file>: blank line count changed
+(N -> M)`. This is a different situation from the mistranslation above, and it has a different answer.
+
+The cause observed so far is the model normalizing blank lines the source carries — dropping the trailing
+blank line of a chunk, or collapsing a doubled blank line. Both are deterministic: the same file fails
+with byte-identical numbers on every run, and the plugin's own repair pass (`after-repair.md`) leaves
+blank lines untouched. **Do not spend a second run on it, and do not edit the English source to appease
+the validator** — a blank line the source legitimately carries is not a defect, and the file is the
+source of truth for every other consumer.
+
+A hand-fix is usually not even possible: for a chunked file only the failed unit is preserved under
+`target/comenius-failures/<locale>/<file>/<unit>/`, so the rest of the translation is gone and the Czech
+page cannot be assembled. The correct response is to leave that page one revision behind, say so
+explicitly in the commit message, and report the plugin bug — the mojo exposes no strictness or
+tolerance parameter to work around it.
+
+`tools/translate.sh` exits non-zero and names the rejected files when this happens; the plugin itself
+ends the build successfully, so never read a green Maven run as a complete sync.

@@ -31,10 +31,16 @@ import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 
+import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.require.Require;
+import io.evitadb.api.query.require.FacetSummaryOfReference;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Deprecated {@link ReferenceSummaryResultAdapter} implementation that emits the legacy
@@ -99,6 +105,17 @@ public final class FacetSummaryAdapter implements ReferenceSummaryResultAdapter<
 		@Nonnull Map<String, Collection<FacetGroupStatistics>> statisticsByReferenceName
 	) {
 		return new FacetSummary(statisticsByReferenceName);
+	}
+
+	@Nonnull
+	@Override
+	public Set<String> collectReferenceSpecificNames(@Nullable Require require) {
+		return require == null ?
+			Set.of() :
+			QueryUtils.findConstraints(require, FacetSummaryOfReference.class)
+				.stream()
+				.map(FacetSummaryOfReference::getReferenceName)
+				.collect(Collectors.toSet());
 	}
 
 }

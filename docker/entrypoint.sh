@@ -63,6 +63,7 @@ if [ "$1" = "" ]; then
     set -x
     exec java \
         -javaagent:${EVITA_BIN_DIR}${EVITA_JAR_NAME} \
+        --add-modules jdk.incubator.vector \
         $EVITA_JAVA_OPTS \
         -jar "${EVITA_BIN_DIR}${EVITA_JAR_NAME}" \
         "strictConfigFileCheck=$EVITA_STRICT_CONFIG_FILE_CHECK" \

@@ -85,6 +85,12 @@ public interface GrpcEntityReferenceWithParentOrBuilder extends
   /**
    * <pre>
    * Recursive pointer to parent entity.
+   *
+   * When the ancestor above this one carries a requested body, this field still holds that ancestor - reduced to
+   * its primary key and its own chain of primary keys - so that a client which does not know `parentEntity` still
+   * receives the complete chain of ancestor primary keys, only without their bodies. Unset means nothing is
+   * reported above this ancestor: it is a hierarchy root, or the chain was cut by a `stopAt` bound or by the
+   * `MATCHING` parents behaviour.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
@@ -94,6 +100,12 @@ public interface GrpcEntityReferenceWithParentOrBuilder extends
   /**
    * <pre>
    * Recursive pointer to parent entity.
+   *
+   * When the ancestor above this one carries a requested body, this field still holds that ancestor - reduced to
+   * its primary key and its own chain of primary keys - so that a client which does not know `parentEntity` still
+   * receives the complete chain of ancestor primary keys, only without their bodies. Unset means nothing is
+   * reported above this ancestor: it is a hierarchy root, or the chain was cut by a `stopAt` bound or by the
+   * `MATCHING` parents behaviour.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
@@ -103,9 +115,63 @@ public interface GrpcEntityReferenceWithParentOrBuilder extends
   /**
    * <pre>
    * Recursive pointer to parent entity.
+   *
+   * When the ancestor above this one carries a requested body, this field still holds that ancestor - reduced to
+   * its primary key and its own chain of primary keys - so that a client which does not know `parentEntity` still
+   * receives the complete chain of ancestor primary keys, only without their bodies. Unset means nothing is
+   * reported above this ancestor: it is a hierarchy root, or the chain was cut by a `stopAt` bound or by the
+   * `MATCHING` parents behaviour.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParentOrBuilder getParentOrBuilder();
+
+  /**
+   * <pre>
+   * The very same ancestor as `parent`, carrying the body that was requested for it.
+   *
+   * Set only under the `COMPLETE` parents behaviour, which keeps an ancestor whose requested body could not be
+   * materialized in the chain as a bodyless pointer and continues the walk above it - so an ancestor carrying a
+   * body may sit above one that does not. Unset means the ancestor above this one has no body to report, either
+   * because none was requested, because it could not be materialized, or because there is no ancestor at all;
+   * read `parent` in that case. When both are set they describe one and the same ancestor, and `parentEntity` is
+   * the richer of the two.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 5;</code>
+   * @return Whether the parentEntity field is set.
+   */
+  boolean hasParentEntity();
+  /**
+   * <pre>
+   * The very same ancestor as `parent`, carrying the body that was requested for it.
+   *
+   * Set only under the `COMPLETE` parents behaviour, which keeps an ancestor whose requested body could not be
+   * materialized in the chain as a bodyless pointer and continues the walk above it - so an ancestor carrying a
+   * body may sit above one that does not. Unset means the ancestor above this one has no body to report, either
+   * because none was requested, because it could not be materialized, or because there is no ancestor at all;
+   * read `parent` in that case. When both are set they describe one and the same ancestor, and `parentEntity` is
+   * the richer of the two.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 5;</code>
+   * @return The parentEntity.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getParentEntity();
+  /**
+   * <pre>
+   * The very same ancestor as `parent`, carrying the body that was requested for it.
+   *
+   * Set only under the `COMPLETE` parents behaviour, which keeps an ancestor whose requested body could not be
+   * materialized in the chain as a bodyless pointer and continues the walk above it - so an ancestor carrying a
+   * body may sit above one that does not. Unset means the ancestor above this one has no body to report, either
+   * because none was requested, because it could not be materialized, or because there is no ancestor at all;
+   * read `parent` in that case. When both are set they describe one and the same ancestor, and `parentEntity` is
+   * the richer of the two.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 5;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getParentEntityOrBuilder();
 }

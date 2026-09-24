@@ -29,6 +29,7 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
+import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 
 /**
@@ -47,24 +48,35 @@ public class ReferencesStoragePartSerializer_2025_6 extends Serializer<Reference
 
 	@Override
 	public ReferencesStoragePart read(Kryo kryo, Input input, Class<? extends ReferencesStoragePart> type) {
-		final long totalBefore = input.total();
-		final int entityPrimaryKey = input.readInt();
+		// this layout predates the internal primary key, so the key is derived from the reference's **position** in
+		// the record - which any narrowing would renumber, and therefore must not be allowed to apply. The coverage
+		// is unbound for the whole read, so every reference arrives materialized (no NULL to dereference below) and
+		// the part this produces is complete, exactly as a caller that never asked for a narrowing expects. This
+		// holds for the key axis as well as the name axis: a narrowed decode of this layout would have to be built
+		// on something other than the position.
+		return ReferenceDecodeCoverageContext.executeWithCoverage(
+			null,
+			() -> {
+				final long totalBefore = input.total();
+				final int entityPrimaryKey = input.readInt();
 
-		final int referenceCount = input.readVarInt(true);
-		final Reference[] references = new Reference[referenceCount];
-		for (int i = 0; i < referenceCount; i++) {
-			// assign missing primary keys
-			final Reference reference = kryo.readObject(input, Reference.class);
-			// we can't assign default internal primary keys to reflected references,
-			// because they need to track internal primary keys or the origin reference
-			references[i] = reference.getReferenceSchemaOrThrow() instanceof ReflectedReferenceSchemaContract ?
-				reference :
-				new Reference(i + 1, reference);
-		}
+				final int referenceCount = input.readVarInt(true);
+				final Reference[] references = new Reference[referenceCount];
+				for (int i = 0; i < referenceCount; i++) {
+					// assign missing primary keys
+					final Reference reference = kryo.readObject(input, Reference.class);
+					// we can't assign default internal primary keys to reflected references,
+					// because they need to track internal primary keys or the origin reference
+					references[i] = reference.getReferenceSchemaOrThrow() instanceof ReflectedReferenceSchemaContract ?
+						reference :
+						new Reference(i + 1, reference);
+				}
 
-		return new ReferencesStoragePart(
-			entityPrimaryKey, referenceCount, references,
-			Math.toIntExact(input.total() - totalBefore)
+				return new ReferencesStoragePart(
+					entityPrimaryKey, referenceCount, references,
+					Math.toIntExact(input.total() - totalBefore)
+				);
+			}
 		);
 	}
 

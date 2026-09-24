@@ -359,7 +359,9 @@ class LongRunningEvitaGenerationalTest implements EvitaTestSupport, TimeBoundedT
 	@Nonnull
 	private static <T> T pickRandom(@Nonnull Random random, @Nonnull Collection<T> theSet) {
 		Assert.isTrue(!theSet.isEmpty(), "There are no values to choose from!");
-		final int index = theSet.size() == 1 ? 0 : random.nextInt(theSet.size() - 1) + 1;
+		// the index must span [0, size) - drawing from [1, size) walked past the first candidate, so whichever
+		// value the collection happens to iterate first could never be selected
+		final int index = random.nextInt(theSet.size());
 		final Iterator<T> it = theSet.iterator();
 		for (int i = 0; i < index; i++) {
 			it.next();

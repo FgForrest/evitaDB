@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.model;
 
 import io.evitadb.api.requestResponse.cdc.Operation;
-import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 

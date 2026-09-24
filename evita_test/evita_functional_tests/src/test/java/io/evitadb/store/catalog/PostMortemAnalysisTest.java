@@ -100,7 +100,7 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 
 	@Test
 	void analyzeBootFile() {
-		final String catalogName = "decodoma_sk";
+		final String catalogName = "production_catalog_secondary";
 		final Path basePath = Path.of("/www/oss/evitaDB/data/");
 		final StorageSettings storageOptions = new StorageSettings(
 			StorageOptions.builder()
@@ -123,7 +123,7 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 
 	@Test
 	void analyzeWriteAheadLog() {
-		final String catalogName = "decodoma_cz";
+		final String catalogName = "production_catalog";
 		final Path basePath = Path.of("/www/oss/evitaDB/data/");
 		final Path catalogFilePath = basePath.resolve(catalogName);
 
@@ -166,7 +166,7 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 
 	@Test
 	void analyzeCatalogHeader() {
-		final String catalogName = "decodoma_cz";
+		final String catalogName = "production_catalog";
 		final Path basePath = Path.of("/www/oss/evitaDB/data/");
 		final Path catalogFilePath = basePath.resolve(catalogName);
 		final OffsetIndexRecordTypeRegistry recordRegistry = new OffsetIndexRecordTypeRegistry();
@@ -268,7 +268,7 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 
 	@Test
 	void readAllCurrentContentsOfTheDatabase() {
-		final String catalogName = "decodoma_cz";
+		final String catalogName = "production_catalog";
 		final Path basePath = Path.of("/www/oss/evitaDB/data/");
 		final Path exportPath = Path.of("/www/oss/evitaDB/export/");
 
@@ -375,9 +375,9 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 			TransactionOptions.builder()
 				.build()
 		);
-		final String catalogName = "decodoma_cz";
+		final String catalogName = "production_catalog";
 		final Path fileToCheck = storageSettings.storageDirectory().resolve(catalogName).resolve(
-			"decodoma_cz_0.catalog"
+			"production_catalog_0.catalog"
 		);
 		try (
 			final ObservableInput<RandomAccessFileInputStream> observableInput = new ObservableInput<>(

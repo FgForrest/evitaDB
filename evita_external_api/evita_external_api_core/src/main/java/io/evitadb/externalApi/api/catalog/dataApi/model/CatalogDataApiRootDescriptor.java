@@ -27,7 +27,6 @@ import io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor;
 import io.evitadb.externalApi.api.model.EndpointDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
-import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**

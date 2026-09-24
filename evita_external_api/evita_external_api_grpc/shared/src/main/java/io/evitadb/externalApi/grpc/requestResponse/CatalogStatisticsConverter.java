@@ -91,16 +91,19 @@ import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toG
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCatalogStatisticsComponent;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcComponentAvailability;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcEntityIndexType;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcIndexBrowseOrdering;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcOrderDirection;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcSchemaCapability;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcSchemaElementKind;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcScope;
-import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcIndexBrowseOrdering;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcStoragePartGroup;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcStoragePartKind;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toIndexBrowseOrdering;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toOrderDirection;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toSchemaCapability;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toSchemaElementKind;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toScope;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toStoragePartGroup;
 
 /**
  * Translates the component-selected statistics model between its Java and its gRPC form, in both directions - the
@@ -470,11 +473,17 @@ public class CatalogStatisticsConverter {
 			.setStoragePartType(usage.storagePartType())
 			.setCount(usage.count())
 			.setTotalBytes(usage.totalBytes())
+			.setGroup(toGrpcStoragePartGroup(usage.group()))
+			.setKind(toGrpcStoragePartKind(usage.kind()))
 			.build();
 	}
 
 	/**
 	 * Reads a storage-part histogram back from the wire.
+	 *
+	 * The entry's `kind` is deliberately not read: it is a property of the group, so deriving it from the decoded
+	 * group makes a usage record that reports a contradicting pair impossible to construct. The field exists on the
+	 * wire for clients whose generated enums carry no behaviour, not as a second source of truth.
 	 *
 	 * @param grpcUsages the received entries
 	 * @return their Java form
@@ -485,7 +494,10 @@ public class CatalogStatisticsConverter {
 		for (int i = 0; i < usages.length; i++) {
 			final GrpcStoragePartUsage grpcUsage = grpcUsages.get(i);
 			usages[i] = new StoragePartUsage(
-				grpcUsage.getStoragePartType(), grpcUsage.getCount(), grpcUsage.getTotalBytes()
+				grpcUsage.getStoragePartType(),
+				toStoragePartGroup(grpcUsage.getGroup()),
+				grpcUsage.getCount(),
+				grpcUsage.getTotalBytes()
 			);
 		}
 		return usages;

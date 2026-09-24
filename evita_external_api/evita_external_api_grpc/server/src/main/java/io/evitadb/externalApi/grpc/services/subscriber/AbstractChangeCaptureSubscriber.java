@@ -166,7 +166,9 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 		this.responseObserver = responseObserver;
 		this.versionSupplier = versionSupplier;
 		this.serviceContext = serviceContext;
-		this.responseTimeoutMillis = this.serviceContext.requestTimeoutMillis();
+		// captured once, before the first capture is delivered - re-reading it per message would compound
+		// the budget instead of restating it, see `GrpcTimeoutUtil#captureRequestTimeoutMillis`
+		this.responseTimeoutMillis = GrpcTimeoutUtil.captureRequestTimeoutMillis(this.serviceContext);
 		final long idleTimeoutMillis = this.serviceContext.config().server().config().idleTimeoutMillis();
 		this.heartBeatDelay = resolveHeartBeatDelay(this.responseTimeoutMillis, idleTimeoutMillis);
 		this.heartBeatTask = new DelayedAsyncTask(
@@ -207,7 +209,7 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 		} else {
 			effectiveTimeoutMillis = Long.MAX_VALUE;
 		}
-		return Math.min(Math.max(effectiveTimeoutMillis - 5000L, 1000L), 300000L);
+		return Math.clamp(effectiveTimeoutMillis - 5000L, 1000L, 300000L);
 	}
 
 	/**

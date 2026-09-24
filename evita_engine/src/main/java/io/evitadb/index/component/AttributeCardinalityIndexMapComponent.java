@@ -34,7 +34,6 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeInde
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 
 import javax.annotation.Nonnull;
-import java.util.Map.Entry;
 
 /**
  * {@link IndexComponent} adapter for the per-attribute {@link AttributeCardinalityIndex} map carried

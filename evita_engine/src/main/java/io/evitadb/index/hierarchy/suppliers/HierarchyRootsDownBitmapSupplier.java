@@ -41,7 +41,7 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class HierarchyRootsDownBitmapSupplier extends AbstractHierarchyBitmapSupplier {
-	private static final long CLASS_ID = -946906775L;
+	private static final long CLASS_ID = -1945151245875671346L;
 	/**
 	 * Contains set of entity primary keys whose subtrees should be excluded from listing.
 	 */

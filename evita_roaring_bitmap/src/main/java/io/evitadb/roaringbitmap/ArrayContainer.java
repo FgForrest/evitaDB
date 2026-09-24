@@ -4,7 +4,6 @@
 
 package io.evitadb.roaringbitmap;
 
-
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.DataInput;
@@ -51,8 +50,6 @@ public final class ArrayContainer extends Container implements Cloneable {
 	 * sorted array than as a bitmap.
 	 */
 	static final int DEFAULT_MAX_SIZE = 4096; // containers with DEFAULT_MAX_SZE or less integers
-	// should be ArrayContainers
-
 	@Serial private static final long serialVersionUID = 1L;
 
 	/**
@@ -642,16 +639,41 @@ public final class ArrayContainer extends Container implements Cloneable {
 	}
 
 	/**
-	 * Order-sensitive hash over the stored values.
+	 * Hash of the value set, computed over the chunk's canonical word form — see {@link ContainerHash}, which
+	 * carries the reasoning and the three upstream defects this replaces.
+	 *
+	 * The values are ascending, so each occupied word is visited once and in order: bits accumulate into
+	 * `word` until the word index changes, and the completed word is folded before the next one starts. No
+	 * word array is materialized, and empty words are never visited at all — the cost is the cardinality,
+	 * not the chunk's 65,536-value capacity.
+	 *
+	 * **This diverges from upstream deliberately and must survive a re-sync.** Upstream folds the values
+	 * themselves with `hash += 31 * hash + value`, whose `+=` makes the base 32 and annihilates everything
+	 * before the last seven values; it also disagrees with {@link RunContainer#hashCode()} for a set the two
+	 * report as {@link #equals(Object) equal}.
 	 */
 	// content/cardinality are read while non-final on purpose: containers are mutable and the hash
 	// reflects their current contents.
 	@SuppressWarnings("NonFinalFieldReferencedInHashCode")
 	@Override
 	public int hashCode() {
-		int hash = 0;
+		int hash = ContainerHash.seed();
+		int pendingWordIndex = -1;
+		long pendingWord = 0L;
 		for (int k = 0; k < this.cardinality; ++k) {
-			hash += 31 * hash + this.content[k];
+			final int value = this.content[k];
+			final int wordIndex = value >>> 6;
+			if (wordIndex != pendingWordIndex) {
+				if (pendingWordIndex >= 0) {
+					hash = ContainerHash.fold(hash, pendingWordIndex, pendingWord);
+				}
+				pendingWordIndex = wordIndex;
+				pendingWord = 0L;
+			}
+			pendingWord |= 1L << value;
+		}
+		if (pendingWordIndex >= 0) {
+			hash = ContainerHash.fold(hash, pendingWordIndex, pendingWord);
 		}
 		return hash;
 	}
@@ -1171,10 +1193,14 @@ public final class ArrayContainer extends Container implements Cloneable {
 	 * Fills this container from the set bits of a bitmap container, used when demoting a
 	 * {@link BitmapContainer} back to an array. Assumes `content` is already sized to hold the
 	 * bitmap's cardinality.
+	 *
+	 * That cardinality is passed on to the extraction kernel, which is the one thing this site knows and
+	 * the kernel does not: a demotion carries up to {@link #DEFAULT_MAX_SIZE} values, well past the count
+	 * at which skipping empty blocks stops paying for itself.
 	 */
 	void loadData(@Nonnull final BitmapContainer bitmapContainer) {
 		this.cardinality = bitmapContainer.cardinality;
-		Util.fillArray(bitmapContainer.bitmap, this.content);
+		Util.fillArray(bitmapContainer.bitmap, this.content, this.cardinality);
 	}
 
 	/**

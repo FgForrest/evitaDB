@@ -5417,6 +5417,56 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should honour the requested bucket count of each attribute histogram")
+	void shouldReturnAttributeHistogramsWithTheirOwnBucketCounts(GraphQLTester tester) {
+		// the resolver emits one `attributeHistogram` requirement per attribute, and one producer serves them all -
+		// the bucket count therefore has to travel with the attribute rather than with the producer
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+					         query {
+					             queryProduct {
+					                 recordPage(size: %d) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					                 extraResults {
+					                     attributeHistogram {
+					                         quantity {
+					                             buckets(requestedCount: 20) {
+					                                 threshold
+					                             }
+					                         }
+					                         priority {
+					                             buckets(requestedCount: 3) {
+					                                 threshold
+					                             }
+					                         }
+					                     }
+					                 }
+					             }
+					         }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS,
+					ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_PRIORITY) + ".buckets",
+				hasSize(lessThanOrEqualTo(3))
+			)
+			.body(
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS,
+					ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY) + ".buckets",
+				hasSize(greaterThan(3))
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return attribute histogram in specific scope")
 	void shouldReturnAttributeHistogramInSpecificScope(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
@@ -7249,7 +7299,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 									megaMenu: fromRoot { %s }
 								}
 							}
-							otherHierarchy {
+							otherHierarchy: hierarchy {
 								self {
 									megaMenu: siblings { %s }
 								}
@@ -7262,7 +7312,92 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				getLevelInfoFragment())
 			.executeAndThen()
 			.statusCode(200)
-			.body(ERRORS_PATH, hasSize(greaterThan(0)));
+			.body(ERRORS_PATH, hasSize(greaterThan(0)))
+			.body(ERRORS_PATH + "[0].message", containsString("megaMenu"));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return self hierarchies requested by two separate hierarchy fields")
+	void shouldReturnSelfHierarchiesRequestedByTwoHierarchyFields(Evita evita, GraphQLTester tester) {
+		final Hierarchy hierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityLocaleEquals(CZECH_LOCALE)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// two constraints aimed at a single target contribute to one result container
+							hierarchyOfSelf(
+								fromRoot(
+									"megaMenu",
+									entityFetch(hierarchyContent(), attributeContent()),
+									stopAt(distance(2))
+								)
+							),
+							hierarchyOfSelf(
+								siblings(
+									"rootSiblings",
+									entityFetch(hierarchyContent(), attributeContent()),
+									stopAt(distance(1))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				return response.getExtraResult(Hierarchy.class);
+			});
+
+		final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(
+			hierarchy.getSelfHierarchy("megaMenu"));
+		assertFalse(flattenedMegaMenu.isEmpty());
+		final List<Map<String, Object>> flattenedRootSiblings = createFlattenedHierarchy(
+			hierarchy.getSelfHierarchy("rootSiblings"));
+		assertFalse(flattenedRootSiblings.isEmpty());
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryCategory(
+						filterBy: {
+							entityLocaleEquals: cs_CZ
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								self {
+									megaMenu: fromRoot(stopAt: { distance: 2 }) { %s }
+								}
+							}
+							siblingHierarchy: hierarchy {
+								self {
+									rootSiblings: siblings(stopAt: { distance: 1 }) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getLevelInfoFragment(),
+				getLevelInfoFragment())
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(SELF_MEGA_MENU_PATH, equalTo(flattenedMegaMenu))
+			.body(
+				CATEGORY_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + ".siblingHierarchy." +
+					HierarchyDescriptor.SELF.name() + ".rootSiblings",
+				equalTo(flattenedRootSiblings)
+			);
 	}
 
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
@@ -7876,7 +8011,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 									megaMenu: fromRoot { %s }
 								}
 							}
-							otherHierarchy {
+							otherHierarchy: hierarchy {
 								category(emptyHierarchicalEntityBehaviour: REMOVE_EMPTY) {
 									megaMenu: siblings { %s }
 								}
@@ -7889,7 +8024,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				getLevelInfoFragment())
 			.executeAndThen()
 			.statusCode(200)
-			.body(ERRORS_PATH, hasSize(greaterThan(0)));
+			.body(ERRORS_PATH, hasSize(greaterThan(0)))
+			.body(ERRORS_PATH + "[0].message", containsString("megaMenu"));
 	}
 
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
@@ -8036,6 +8172,108 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, hasSize(greaterThan(0)));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return referenced hierarchies requested by a scoped and an unscoped hierarchy field")
+	void shouldReturnReferencedHierarchiesFromScopedAndUnscopedHierarchyFields(Evita evita, GraphQLTester tester) {
+		final Hierarchy hierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinRoot(Entities.CATEGORY)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// the scope wrapper is exactly what forbids folding the two into a single constraint
+							inScope(
+								Scope.LIVE,
+								hierarchyOfReference(
+									Entities.CATEGORY,
+									orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+									fromRoot(
+										"megaMenu",
+										entityFetch(hierarchyContent(), attributeContent()),
+										stopAt(distance(2))
+									)
+								)
+							),
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								fromRoot(
+									"sideMenu",
+									entityFetch(hierarchyContent(), attributeContent()),
+									stopAt(distance(1))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				return response.getExtraResult(Hierarchy.class);
+			});
+
+		final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(
+			hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu"));
+		assertFalse(flattenedMegaMenu.isEmpty());
+		final List<Map<String, Object>> flattenedSideMenu = createFlattenedHierarchy(
+			hierarchy.getReferenceHierarchy(Entities.CATEGORY, "sideMenu"));
+		assertFalse(flattenedSideMenu.isEmpty());
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							entityLocaleEquals: cs_CZ
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							inScope(scope: LIVE) {
+								hierarchy {
+									category(
+										orderBy: {attributeCodeNatural: DESC},
+										emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
+									) {
+										megaMenu: fromRoot(stopAt: { distance: 2 }) { %s }
+									}
+								}
+							}
+							hierarchy {
+								category(
+									orderBy: {attributeCodeNatural: DESC},
+									emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
+								) {
+									sideMenu: fromRoot(stopAt: { distance: 1 }) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getLevelInfoFragment(),
+				getLevelInfoFragment())
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, GraphQLExtraResultsDescriptor.IN_SCOPE,
+					ExtraResultsDescriptor.HIERARCHY, "category", "megaMenu"),
+				equalTo(flattenedMegaMenu)
+			)
+			.body(REFERENCED_HIERARCHY_PATH + ".sideMenu", equalTo(flattenedSideMenu));
 	}
 
 	@Test

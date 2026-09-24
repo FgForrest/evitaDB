@@ -106,8 +106,8 @@ biggest budgets are spent.
 1. Fragmenting-workload JMH: **fork/star** (N elements declaring the same/duplicate predecessors) and
    **odds-then-evens** (long-absent predecessors). NOT descending order (refuted trigger — stays C≤2). This
    baselines the collapse cliff for Phases 2–3.
-2. Real max chain size on production-shaped datasets (senesi / decodoma **scratch copies only** — never open
-   the real decodoma directory with feature-branch code). If real chains cap at ~10⁵, Phases 1–3 may suffice
+2. Real max chain size on production-shaped datasets (**scratch copies only** — never open
+   a real production catalog directory with feature-branch code). If real chains cap at ~10⁵, Phases 1–3 may suffice
    and Phase 4 can be gated on demand.
 
 ### Phase 1 — Fix C (flatten-once) + Fix D (read-path package); no format change
@@ -316,7 +316,7 @@ entity-scoped whole-collection `Predecessor` case can trigger it — and that ca
 in practice (`LongRunningChainIndexTest:491-495` bounds live subchains to units/tens across 200k moves; in-order
 build keeps C=1). **Fragmentation (C→N/2, the cliff) is a bulk-import / shuffled-load concern, not
 steady-state.** No real dataset is confirmed to declare a `Predecessor` attribute; no safe scratch dataset copy
-exists (only the untouchable 2.7 GB real `decodoma_cz`).
+exists (only the untouchable 2.7 GB real production catalog).
 
 ### Phase 0 verdict & gating
 
@@ -327,11 +327,11 @@ exists (only the untouchable 2.7 GB real `decodoma_cz`).
 - **Phase 4 (persistence) stays GATED** on confirming a real single chain with **N ≳ 10⁵ under steady-state
   mutation** — now measured, see 0.2b.
 
-### 0.2b — decodoma_cz measured (gate RESOLVED → defer Phase 4)
+### 0.2b — gate catalog measured (gate RESOLVED → defer Phase 4)
 
 Chain sizes read directly from persisted `ChainIndexStoragePart` records on a disposable copy
-(`/var/tmp/decodoma-bench`, original never booted) via a new untracked extractor
-`evita_test/evita_performance_tests/src/main/java/io/evitadb/spike/ChainSizeExtractor.java`. decodoma **does**
+(`/var/tmp/catalog-bench`, original never booted) via a new untracked extractor
+`evita_test/evita_performance_tests/src/main/java/io/evitadb/spike/ChainSizeExtractor.java`. The gate catalog **does**
 use Predecessor ordering (the earlier plaintext grep missed it — Kryo encodes attribute *types* by registration
 id): chain-indexed attributes are `order` (entity `Predecessor`) and `orderInCategory` / `orderInGroup` /
 `orderInParameter` (reference `ReferencedEntityPredecessor`).
@@ -366,7 +366,7 @@ Consequences for the plan:
 - **Phase 3a (`findRun` head-bitmap augmentation) is the sole effective lever** for this data; it also removes the
   same O(C) factor from `getUnorderedLookup`'s per-chain work, and Fix D (read-path memoization) matters because
   high-C rebuilds are otherwise recomputed on every mutation→query cycle.
-- **Phase 2 (single-pass collapse) is a cheap tidy/safety win but will NOT reduce real decodoma cost** (nothing
+- **Phase 2 (single-pass collapse) is a cheap tidy/safety win but will NOT reduce real production cost** (nothing
   collapsible; nothing to restart-on). It remains worth doing for the merge-heavy transient regime but is not the
   payoff for permanent-fragmentation data. Fork/star (present-non-tail) is negligible in real data (0–1
   whole-collection; 349 ≈ 6% of reference-scoped successors).
@@ -498,7 +498,7 @@ Grounded in the post-Phase-1+3a `ChainIndex.java` (1025 lines) and the `EntityIn
 Replace `collapse()`'s O(C)-per-mutation work (`new ArrayList<>(this.chains.keySet())` snapshot at `:741`
 + restart-after-every-merge `break` at `:771`) with a targeted work-queue seeded only by the events that can
 create a *newly collapsible* pair. Turns steady-state collapse from **O(C) → O(seeds) per mutation**: the real
-decodoma `PickupPoint | order` index (C = 32,910 permanent orphans) currently rescans all 32,910 chains on
+gate catalog's `PickupPoint | order` index (C = 32,910 permanent orphans) currently rescans all 32,910 chains on
 *every* single-element mutation (finding zero merges) and allocates a 32,910-element `ArrayList` each time — Fix B
 makes it O(1). Also kills the fork/star bulk-import Θ(C²)-per-pass warm-up. **Supersedes Phase 2** (single-pass
 collapse folds in as the merge-heavy special case).

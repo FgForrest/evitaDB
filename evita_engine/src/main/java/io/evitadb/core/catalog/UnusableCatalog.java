@@ -77,7 +77,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
-import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 import java.util.stream.Stream;
 
@@ -294,6 +293,17 @@ public final class UnusableCatalog implements CatalogContract {
 	@Nonnull
 	@Override
 	public ServerTask<Void, FileForFetch> backup(
+		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
+		boolean includingWAL,
+		@Nullable LongFunction<CatalogVersionPin> onStart
+	) throws TemporalDataNotAvailableException {
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
+	}
+
+	@Nonnull
+	@Override
+	public ServerTask<Void, FileForFetch> createBackupTask(
 		@Nullable OffsetDateTime pastMoment,
 		@Nullable Long catalogVersion,
 		boolean includingWAL,

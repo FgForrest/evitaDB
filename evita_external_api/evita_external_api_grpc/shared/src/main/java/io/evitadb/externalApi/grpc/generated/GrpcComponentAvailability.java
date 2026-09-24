@@ -171,7 +171,7 @@ public enum GrpcComponentAvailability
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(43);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(44);
   }
 
   private static final GrpcComponentAvailability[] VALUES = values();

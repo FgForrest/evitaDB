@@ -25,6 +25,7 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -37,6 +38,7 @@ import org.junit.jupiter.api.Tag;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.REQUIRE;
 
 /**
@@ -250,6 +252,19 @@ class EntityGroupFetchTest {
 
 			assertEquals(entityGroupFetch(attributeContent("code", "name"), associatedDataContentAll()), combined);
 		}
+
+		@Test
+		@DisplayName("should keep a name specific reference content beside the one for all references")
+		void shouldKeepNameSpecificReferenceContentBesideAllReferencesRequirement() {
+			final EntityGroupFetch combined = entityGroupFetch(referenceContentAllWithAttributes())
+				.combineWith(entityGroupFetch(referenceContent("brand")));
+
+			assertEquals(2, combined.getRequirements().length);
+			assertEquals(
+				entityGroupFetch(referenceContentAllWithAttributes(), referenceContent("brand")),
+				combined
+			);
+		}
 	}
 
 	@Nested
@@ -331,5 +346,48 @@ class EntityGroupFetchTest {
 			assertNotSame(entityGroupFetch, newEntityGroupFetch);
 			assertArrayEquals(new RequireConstraint[]{}, newEntityGroupFetch.getRequirements());
 		}
+	}
+
+	@Nested
+	@DisplayName("Duplicate requirement reduction")
+	class DuplicateRequirementReductionTest {
+
+		@Test
+		@DisplayName("a group fetch without duplicates reduces to itself")
+		void shouldReturnSelfWhenNoDuplicates() {
+			final EntityGroupFetch entityGroupFetch = entityGroupFetch(attributeContent("code"), priceContentAll());
+
+			assertSame(entityGroupFetch, entityGroupFetch.combineDuplicateRequirements());
+		}
+
+		@Test
+		@DisplayName("two requirements of one kind fold into a single group fetch requirement")
+		void shouldReduceDuplicateRequirementsIntoOne() {
+			final EntityGroupFetch entityGroupFetch = entityGroupFetch(
+				attributeContent("code"), attributeContent("name")
+			);
+
+			final EntityGroupFetch reduced = entityGroupFetch.combineDuplicateRequirements();
+
+			assertNotSame(entityGroupFetch, reduced);
+			assertInstanceOf(EntityGroupFetch.class, reduced);
+			assertEquals(entityGroupFetch(attributeContent("code", "name")), reduced);
+		}
+
+		@Test
+		@DisplayName("two contradicting siblings are refused")
+		@Tag(REFERENCE)
+		void shouldPropagateConflictWhenSiblingsContradict() {
+			final EntityGroupFetch entityGroupFetch = entityGroupFetch(
+				referenceContent("a", filterBy(attributeEquals("code", "x"))),
+				referenceContent("a", filterBy(attributeEquals("code", "y")))
+			);
+
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				entityGroupFetch::combineDuplicateRequirements
+			);
+		}
+
 	}
 }

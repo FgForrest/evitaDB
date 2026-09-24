@@ -153,7 +153,7 @@ public enum GrpcStatisticsBase
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(10);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(11);
   }
 
   private static final GrpcStatisticsBase[] VALUES = values();

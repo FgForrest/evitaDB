@@ -25,10 +25,13 @@ package io.evitadb.index.price;
 
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
+import io.evitadb.index.range.RangeIndex;
+import io.evitadb.utils.VMLayout;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -42,6 +45,7 @@ import static io.evitadb.index.IndexHeapSizeAssertions.assertDivergenceDoesNotGr
 import static io.evitadb.index.IndexHeapSizeAssertions.assertMatchesMeasuredHeap;
 import static io.evitadb.index.IndexHeapSizeAssertions.measuredHeapOf;
 import static io.evitadb.test.TestTags.INDEXING;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -223,6 +227,79 @@ class PriceIndexHeapSizeTest {
 			assertEquals(
 				first.getHeapSizeInBytes(), second.getHeapSizeInBytes(),
 				"a reduced index's figure must depend on what it references, not on how many others reference it"
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("cold-loaded reduced index")
+	class ColdLoadedRefIndexes {
+
+		/**
+		 * How many internal price ids the cold-load fixture carries. Large enough that a per-index `int[]` duplicate of
+		 * them would dominate any alignment noise, small enough to stay a unit test.
+		 */
+		private static final int COLD_LOADED_PRICE_COUNT = 512;
+
+		/**
+		 * A cold-loaded reduced index must charge the ids it holds exactly ONCE - as the bitmap that holds them.
+		 *
+		 * The reduced index is the production cold-load shape: `PriceRefIndexLoader` reads a storage part and hands its
+		 * `int[]` of internal price ids straight to the constructor. That array used to be retained in a
+		 * `memoizedIndexedPriceIds` field beside the bitmap built from it, so every such index paid for the same ids
+		 * twice for the sake of one cold defensive caller. On a production e-commerce catalog holding 283,275 price
+		 * indexes over 33,806,439 indexed price references that duplicate was worth up to about 140 MB.
+		 *
+		 * Two fixtures differing in NOTHING but their ids isolate the charge: both carry a fresh empty validity index,
+		 * no entity-id bitmap and no price-record tree, so the difference between their reported figures is precisely
+		 * what an index bills for holding the ids. It must equal what the bitmap alone costs.
+		 */
+		@Test
+		void shouldChargeItsIndexedPriceIdsOnceRatherThanTwice() {
+			final int[] priceIds = new int[COLD_LOADED_PRICE_COUNT];
+			for (int i = 0; i < priceIds.length; i++) {
+				priceIds[i] = AUTOBOX_CACHE_CEILING + i + 1;
+			}
+			final PriceListAndCurrencyPriceRefIndex coldLoaded = new PriceListAndCurrencyPriceRefIndex(
+				Scope.LIVE, PRICE_INDEX_KEY, new RangeIndex(), priceIds
+			);
+			final PriceListAndCurrencyPriceRefIndex coldLoadedEmpty = new PriceListAndCurrencyPriceRefIndex(
+				Scope.LIVE, PRICE_INDEX_KEY, new RangeIndex(), new int[0]
+			);
+
+			final long chargedForTheIds =
+				coldLoaded.getHeapSizeInBytes() - coldLoadedEmpty.getHeapSizeInBytes();
+			final long theBitmapAlone = new TransactionalBitmap(priceIds).getHeapSizeInBytes()
+				- new TransactionalBitmap(new int[0]).getHeapSizeInBytes();
+			final long anIntArrayOfTheSameIds =
+				VMLayout.current().sizeOfArray(COLD_LOADED_PRICE_COUNT, Integer.BYTES);
+
+			assertEquals(
+				theBitmapAlone, chargedForTheIds,
+				"a cold-loaded reduced index holding " + COLD_LOADED_PRICE_COUNT + " internal price ids must charge " +
+					"them once, as the bitmap that holds them: " + theBitmapAlone + " B. The eagerly built int[] " +
+					"duplicate this index used to keep beside that bitmap added " + anIntArrayOfTheSameIds + " B " +
+					"more, taking the same ids to " + (theBitmapAlone + anIntArrayOfTheSameIds) + " B"
+			);
+		}
+
+		/**
+		 * The array the storage part hands the constructor must not be retained: mutating it afterwards must not be
+		 * visible through the index. This is the direct observable consequence of dropping the memo - the memo WAS that
+		 * array, kept by reference, so with it restored the index would report the caller's later edits as its own ids.
+		 */
+		@Test
+		void shouldNotRetainTheArrayItWasColdLoadedFrom() {
+			final int[] priceIds = {AUTOBOX_CACHE_CEILING + 1, AUTOBOX_CACHE_CEILING + 2};
+			final PriceListAndCurrencyPriceRefIndex coldLoaded = new PriceListAndCurrencyPriceRefIndex(
+				Scope.LIVE, PRICE_INDEX_KEY, new RangeIndex(), priceIds
+			);
+			priceIds[0] = AUTOBOX_CACHE_CEILING + 9999;
+			assertArrayEquals(
+				new int[]{AUTOBOX_CACHE_CEILING + 1, AUTOBOX_CACHE_CEILING + 2},
+				coldLoaded.getIndexedPriceIds().getArray(),
+				"the index must read its ids from its own bitmap, never from the caller's array"
 			);
 		}
 

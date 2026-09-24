@@ -24,7 +24,6 @@
 package io.evitadb.index.bPlusTree;
 
 import io.evitadb.core.transaction.Transaction;
-import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
@@ -40,10 +39,7 @@ import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Pins the transactional invariants that let {@link TransactionalElementBPlusTree.BPlusLeafTreeNode#setPeek(int)} blank
@@ -118,9 +114,10 @@ class ElementLeafSharedArrayShrinkTest {
 							"its elements until commit and reintroduces the stale-observer bug class; got " +
 							token.getClass().getName()
 					);
-					assertTrue(
-						token instanceof Integer,
-						"a dirty-scope token must be an Integer boundary probe key; got " + token.getClass().getName()
+					assertInstanceOf(
+						Integer.class, token,
+						"a dirty-scope token must be an Integer boundary probe key; got " + token.getClass()
+							.getName()
 					);
 				}
 			},

@@ -7,6 +7,12 @@ inputs:
   report_paths:
     description: 'Glob pattern for test report XML files'
     default: '**/TEST-*.xml'
+  check_name:
+    description: >
+      Name of the published check run. Every leg of a matrix build must pass a DISTINCT name - the underlying
+      action addresses the check by name, so legs sharing one overwrite each other and only the last to finish
+      stays visible.
+    default: 'JUnit Test Report'
 runs:
   using: 'composite'
   steps:
@@ -14,6 +20,7 @@ runs:
       uses: mikepenz/action-junit-report@a294a61c909bd8a4b563024a2faa28897fd53ebc # v6.1.0
       with:
         report_paths: ${{ inputs.report_paths }}
+        check_name: ${{ inputs.check_name }}
         require_tests: true
         fail_on_failure: true
         summary: true

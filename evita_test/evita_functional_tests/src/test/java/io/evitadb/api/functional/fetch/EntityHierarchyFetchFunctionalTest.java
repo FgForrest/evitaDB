@@ -24,7 +24,10 @@
 package io.evitadb.api.functional.fetch;
 
 import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.query.require.HierarchyContent;
+import io.evitadb.api.requestResponse.EntityFetchAwareDecorator;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -41,8 +44,10 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
+import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.Optional;
 
@@ -1180,6 +1185,267 @@ class EntityHierarchyFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 				return null;
 			}
 		);
+	}
+
+	/**
+	 * Pins that the reads a requested parent chain costs are reported by the entity that asked for it, and are
+	 * reported exactly once.
+	 *
+	 * A parent body is read only because `hierarchyContent` asked for it, so its cost belongs to the statistics of
+	 * the entity that carried the requirement. The bounded arm is what makes this measurable without knowing any
+	 * absolute cost: both arms read the leaf and its immediate parent identically, so whatever the unbounded arm
+	 * reports over the bounded one is exactly what the chain above the immediate parent contributed - and that is
+	 * the root's own cost, once.
+	 */
+	@DisplayName("Should count the IO statistics of a requested parent chain exactly once")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldCountTheIoStatisticsOfARequestedParentChainExactlyOnce(Evita evita, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// a category deep enough to have a genuine root above its immediate parent
+				final int deepChildPk = deepestCategoryPk(categoryHierarchy);
+
+				final EntityFetchAwareDecorator withoutChain = fetchCategoryWith(
+					session, deepChildPk, hierarchyContent()
+				);
+				final EntityFetchAwareDecorator boundedChain = fetchCategoryWith(
+					session, deepChildPk, hierarchyContent(stopAt(distance(1)), entityFetch(attributeContentAll()))
+				);
+				final EntityFetchAwareDecorator wholeChain = fetchCategoryWith(
+					session, deepChildPk, hierarchyContent(entityFetch(attributeContentAll()))
+				);
+
+				assertTrue(
+					boundedChain.getIoFetchCount() > withoutChain.getIoFetchCount(),
+					"Reading a parent body the request asked for has to cost the asking entity something."
+				);
+
+				// everything above the immediate parent is exactly the aggregate of the immediate parent's own
+				// parent, whatever the depth - that aggregate already carries its own ancestors
+				final EntityFetchAwareDecorator aboveImmediate = parentBodyOf(parentBodyOf(wholeChain));
+				assertTrue(
+					aboveImmediate.getIoFetchCount() > 0,
+					"Reading the chain above the immediate parent has to cost at least one fetch."
+				);
+				assertEquals(
+					aboveImmediate.getIoFetchCount(),
+					wholeChain.getIoFetchCount() - boundedChain.getIoFetchCount(),
+					"The chain above the immediate parent must contribute its fetch count exactly once."
+				);
+				assertEquals(
+					aboveImmediate.getIoFetchedBytes(),
+					wholeChain.getIoFetchedBytes() - boundedChain.getIoFetchedBytes(),
+					"The chain above the immediate parent must contribute its fetched Bytes exactly once."
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Pins that a parent chain carried over into an **enrichment** is still reported exactly once.
+	 *
+	 * An enrichment does not re-read a parent it already has: the reference fetcher reuses the bodies the input
+	 * decorator resolved and re-attaches them to the decorator it produces, so the very same chain is reachable from
+	 * both ends of the deferred statistics chain - and the re-attached one is a freshly wrapped instance, which is
+	 * why telling the two apart by comparing instances against the input does not hold. The arms differ only in how
+	 * far the chain reaches, so whatever the unbounded arm reports over the bounded one is exactly what the chain
+	 * above the immediate parent contributed, enrichment or not.
+	 */
+	@DisplayName("Should count the IO statistics of a parent chain carried into an enrichment exactly once")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldCountTheIoStatisticsOfAParentChainCarriedIntoAnEnrichmentExactlyOnce(
+		Evita evita, Hierarchy categoryHierarchy
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final int deepChildPk = deepestCategoryPk(categoryHierarchy);
+
+				final EntityFetchAwareDecorator boundedChain = enrichCategoryWith(
+					session, deepChildPk, hierarchyContent(stopAt(distance(1)), entityFetch(attributeContentAll()))
+				);
+				final EntityFetchAwareDecorator wholeChain = enrichCategoryWith(
+					session, deepChildPk, hierarchyContent(entityFetch(attributeContentAll()))
+				);
+
+				// everything above the immediate parent is exactly the aggregate of the immediate parent's own
+				// parent, whatever the depth - that aggregate already carries its own ancestors
+				final EntityFetchAwareDecorator aboveImmediate = parentBodyOf(parentBodyOf(wholeChain));
+				assertTrue(
+					aboveImmediate.getIoFetchCount() > 0,
+					"Reading the chain above the immediate parent has to cost at least one fetch."
+				);
+				assertEquals(
+					aboveImmediate.getIoFetchCount(),
+					wholeChain.getIoFetchCount() - boundedChain.getIoFetchCount(),
+					"The chain above the immediate parent must survive an enrichment counted exactly once."
+				);
+				assertEquals(
+					aboveImmediate.getIoFetchedBytes(),
+					wholeChain.getIoFetchedBytes() - boundedChain.getIoFetchedBytes(),
+					"The chain above the immediate parent must survive an enrichment counted exactly once in Bytes."
+				);
+				return null;
+			}
+		);
+	}
+	/**
+	 * Pins that an entity reports what it would have cost fetched on its own, whatever else shares its page.
+	 *
+	 * A page holding a category and its own ancestor reaches the ancestor's storage parts twice: once for the
+	 * ancestor as a returned entity, once for the child's parent chain. Only one of those asks goes to the storage,
+	 * and an accounting that bills whoever got there first would report the child's chain as free - making the same
+	 * entity cost different amounts depending on its page-mates, which is precisely what the per-entity statistic
+	 * must not do.
+	 */
+	@DisplayName("Should report the same cost for an entity whether or not its own ancestor shares the page")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldNotLetAPageMateChangeWhatAnEntityCost(Evita evita, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final int deepChildPk = deepestCategoryPk(categoryHierarchy);
+				final HierarchyContent wholeChain = hierarchyContent(entityFetch(attributeContentAll()));
+
+				final EntityFetchAwareDecorator alone = fetchCategoryWith(session, deepChildPk, wholeChain);
+				final int parentPk = ((SealedEntity) parentBodyOf(alone)).getPrimaryKeyOrThrowException();
+
+				final EntityFetchAwareDecorator besideItsParent = categoryFromPageWith(
+					session, wholeChain, deepChildPk, deepChildPk, parentPk
+				);
+
+				assertTrue(
+					alone.getIoFetchCount() > 0,
+					"The fixture must make fetching the chain cost something at all."
+				);
+				assertEquals(
+					alone.getIoFetchCount(),
+					besideItsParent.getIoFetchCount(),
+					"What one entity cost must not move with what else happens to share its page."
+				);
+				assertEquals(
+					alone.getIoFetchedBytes(),
+					besideItsParent.getIoFetchedBytes(),
+					"What one entity cost in Bytes must not move with what else happens to share its page."
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Fetches several categories in one page and returns the one asked for.
+	 *
+	 * @param session      session to query through
+	 * @param hierarchy    the hierarchy requirement shaping the parent chain
+	 * @param wantedPk     primary key of the category to return
+	 * @param primaryKeys  primary keys making up the page
+	 * @return the wanted entity, as the decorator that carries its I/O statistics
+	 */
+	@Nonnull
+	private static EntityFetchAwareDecorator categoryFromPageWith(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull HierarchyContent hierarchy,
+		int wantedPk,
+		@Nonnull int... primaryKeys
+	) {
+		final EvitaResponse<SealedEntity> response = session.querySealedEntity(
+			query(
+				collection(Entities.CATEGORY),
+				filterBy(entityPrimaryKeyInSet(Arrays.stream(primaryKeys).boxed().toArray(Integer[]::new))),
+				require(entityFetch(hierarchy))
+			)
+		);
+		final SealedEntity wanted = response.getRecordData()
+			.stream()
+			.filter(it -> it.getPrimaryKeyOrThrowException() == wantedPk)
+			.findFirst()
+			.orElseThrow(() -> new AssertionError("The page must contain the entity under test."));
+		return assertInstanceOf(EntityFetchAwareDecorator.class, wanted);
+	}
+
+	/**
+	 * Returns the primary key of the deepest category the fixture offers, which therefore has a genuine ancestor
+	 * above its immediate parent.
+	 *
+	 * @param categoryHierarchy the fixture hierarchy
+	 * @return primary key of the deepest category
+	 */
+	private static int deepestCategoryPk(@Nonnull Hierarchy categoryHierarchy) {
+		final HierarchyItem deepChild = categoryHierarchy
+			.getAllChildItems(categoryHierarchy.getRootItems().get(0).getCode())
+			.stream()
+			.max(Comparator.comparingInt(HierarchyItem::getLevel))
+			.orElseThrow();
+		assertTrue(deepChild.getLevel() >= 3, "The fixture must offer a chain of at least two ancestors.");
+		return Integer.parseInt(deepChild.getCode());
+	}
+
+	/**
+	 * Fetches a single category carrying the passed parent chain and then enriches it with its own attributes, so
+	 * the result is produced by the enrichment path rather than by a single fetch.
+	 *
+	 * @param session    session to query through
+	 * @param primaryKey primary key of the category to fetch
+	 * @param hierarchy  the hierarchy requirement shaping the parent chain
+	 * @return the enriched entity, as the decorator that carries its I/O statistics
+	 */
+	@Nonnull
+	private static EntityFetchAwareDecorator enrichCategoryWith(
+		@Nonnull EvitaSessionContract session,
+		int primaryKey,
+		@Nonnull HierarchyContent hierarchy
+	) {
+		final SealedEntity fetched = (SealedEntity) fetchCategoryWith(session, primaryKey, hierarchy);
+		final SealedEntity enriched = session.enrichEntity(
+			fetched,
+			attributeContentAll(),
+			hierarchy
+		);
+		return assertInstanceOf(EntityFetchAwareDecorator.class, enriched);
+	}
+
+	/**
+	 * Fetches a single category by primary key under the passed hierarchy requirement.
+	 *
+	 * @param session      session to query through
+	 * @param primaryKey   primary key of the category to fetch
+	 * @param hierarchy    the hierarchy requirement shaping the parent chain
+	 * @return the returned entity, as the decorator that carries its I/O statistics
+	 */
+	@Nonnull
+	private static EntityFetchAwareDecorator fetchCategoryWith(
+		@Nonnull EvitaSessionContract session,
+		int primaryKey,
+		@Nonnull HierarchyContent hierarchy
+	) {
+		final EvitaResponse<SealedEntity> response = session.querySealedEntity(
+			query(
+				collection(Entities.CATEGORY),
+				filterBy(entityPrimaryKeyInSet(primaryKey)),
+				require(entityFetch(hierarchy))
+			)
+		);
+		assertEquals(1, response.getRecordData().size());
+		return assertInstanceOf(EntityFetchAwareDecorator.class, response.getRecordData().get(0));
+	}
+
+	/**
+	 * Returns the parent of the passed entity, which the fixture guarantees carries a body.
+	 *
+	 * @param entity entity whose parent is taken
+	 * @return the parent, as the decorator that carries its I/O statistics
+	 */
+	@Nonnull
+	private static EntityFetchAwareDecorator parentBodyOf(@Nonnull EntityFetchAwareDecorator entity) {
+		final EntityClassifierWithParent parent = ((SealedEntity) entity).getParentEntity()
+			.orElseThrow(() -> new AssertionError("The fixture must offer an ancestor carrying a body."));
+		return assertInstanceOf(EntityFetchAwareDecorator.class, parent);
 	}
 
 }

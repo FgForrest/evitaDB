@@ -28,6 +28,8 @@ import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.array.CompositeLongArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.AbstractReducedEntityIndex;
@@ -45,7 +47,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
-import io.evitadb.index.map.TransactionalMap;
+import io.evitadb.index.map.PersistentTransactionalProducerMap;
 import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.page.PageStreamRegistry;
 import io.evitadb.index.result.CardinalityChange;
@@ -56,8 +58,11 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NumberUtils;
+import io.evitadb.roaringbitmap.FastAggregation;
+import io.evitadb.roaringbitmap.IntIterator;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
@@ -70,6 +75,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.PrimitiveIterator.OfInt;
+import java.util.function.IntConsumer;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.OptionalLong;
@@ -100,8 +107,16 @@ import static java.util.Optional.ofNullable;
  */
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class ReferenceTypeCardinalityIndex
-	implements VoidTransactionMemoryProducer<ReferenceTypeCardinalityIndex>, IndexDataStructure, Serializable {
+	implements VoidTransactionMemoryProducer<ReferenceTypeCardinalityIndex>, IndexDataStructure,
+	WarmUpTouchStamped, Serializable {
 	@Serial private static final long serialVersionUID = -7416602590381722682L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 
 	/**
 	 * Block-size geometry of the cardinality bucket tree — a 256-entry leaf with the matching minimum split thresholds
@@ -142,7 +157,8 @@ public class ReferenceTypeCardinalityIndex
 	 * Index that for each referenced entity primary key keeps the bitmap of all reduced entity index primary keys that
 	 * contains entity primary keys referencing this entity.
 	 */
-	@Nonnull @Getter private final TransactionalMap<Integer, TransactionalBitmap> referencedPrimaryKeysIndex;
+	@Nonnull @Getter
+	private final PersistentTransactionalProducerMap<Integer, TransactionalBitmap> referencedPrimaryKeysIndex;
 	/**
 	 * Helper bitmap that contains all referenced entity primary keys that are present in keys of
 	 * {@link #referencedPrimaryKeysIndex}.
@@ -224,7 +240,7 @@ public class ReferenceTypeCardinalityIndex
 		this.dirty = new TransactionalBoolean();
 		this.cardinalities = createEmptyTree();
 		this.pageStreamRegistry = new PageStreamRegistry();
-		this.referencedPrimaryKeysIndex = new TransactionalMap<>(
+		this.referencedPrimaryKeysIndex = new PersistentTransactionalProducerMap<>(
 			CollectionUtils.createHashMap(16), TransactionalBitmap.class, TransactionalBitmap::new);
 	}
 
@@ -249,7 +265,7 @@ public class ReferenceTypeCardinalityIndex
 		}
 		this.cardinalities = tree;
 		this.pageStreamRegistry = new PageStreamRegistry();
-		this.referencedPrimaryKeysIndex = new TransactionalMap<>(
+		this.referencedPrimaryKeysIndex = new PersistentTransactionalProducerMap<>(
 			referencedPrimaryKeys, TransactionalBitmap.class, TransactionalBitmap::new);
 	}
 
@@ -260,7 +276,7 @@ public class ReferenceTypeCardinalityIndex
 	 *
 	 * @param committedTree         the already-built cardinality tree to adopt
 	 * @param pageStreamRegistry    the per-index page bookkeeping, carried BY REFERENCE
-	 * @param referencedPrimaryKeys the companion map to re-wrap into a {@link TransactionalMap}
+	 * @param referencedPrimaryKeys the companion map to re-wrap into a {@link io.evitadb.index.map.TransactionalMap}
 	 */
 	private ReferenceTypeCardinalityIndex(
 		@Nonnull LongPayloadBucketTree committedTree,
@@ -270,7 +286,7 @@ public class ReferenceTypeCardinalityIndex
 		this.dirty = new TransactionalBoolean();
 		this.cardinalities = committedTree;
 		this.pageStreamRegistry = pageStreamRegistry;
-		this.referencedPrimaryKeysIndex = new TransactionalMap<>(
+		this.referencedPrimaryKeysIndex = new PersistentTransactionalProducerMap<>(
 			referencedPrimaryKeys, TransactionalBitmap.class, TransactionalBitmap::new);
 	}
 
@@ -319,10 +335,15 @@ public class ReferenceTypeCardinalityIndex
 				indexIdBitmap = new TransactionalBitmap();
 				this.referencedPrimaryKeysIndex.put(referencedEntityPrimaryKey, indexIdBitmap);
 			}
+			// the bitmap mutates through its own diff layer, which the map cannot see - declare it so the commit walks
+			// only this key. Harmless when the branch above has just put the entry: a created key already takes
+			// precedence over the mark
+			this.referencedPrimaryKeysIndex.markValueMutated(referencedEntityPrimaryKey);
 			indexIdBitmap.add(indexPrimaryKey);
 		}
 
 		if (!isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.memoizedAllReferencedPrimaryKeys = null;
 		}
 		this.dirty.setToTrue();
@@ -357,7 +378,9 @@ public class ReferenceTypeCardinalityIndex
 				() -> new GenericEvitaInternalError(
 					"Referenced entity primary key " + referencedEntityPrimaryKey + " is unexpectedly not found in the index!")
 			);
-			// remove the index primary key from the bitmap
+			// remove the index primary key from the bitmap - same in-place mutation as on the insert path, and a
+			// subsequent map-remove of an emptied bitmap is tracked separately as a removal, which wins over the mark
+			this.referencedPrimaryKeysIndex.markValueMutated(referencedEntityPrimaryKey);
 			indexIdBitmap.remove(indexPrimaryKey);
 			// clean up empty bitmap to avoid memory leaks
 			if (indexIdBitmap.isEmpty()) {
@@ -371,10 +394,31 @@ public class ReferenceTypeCardinalityIndex
 			}
 		}
 		if (!isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.memoizedAllReferencedPrimaryKeys = null;
 		}
 		this.dirty.setToTrue();
 		return removed ? CardinalityChange.BOUNDARY_CROSSED : CardinalityChange.NO_BOUNDARY_CROSSING;
+	}
+
+	/**
+	 * Records, for the warm-up savepoint bracketing the current root entity mutation if one is open, that
+	 * {@link #memoizedAllReferencedPrimaryKeys} has to be left INVALIDATED should the mutation be rolled back (see
+	 * {@link WarmUpSavepoint}).
+	 *
+	 * Both mutators already null the memo on the forward path; the journal entry covers a read performed LATER inside
+	 * the same root entity mutation, which would repopulate it from the half-mutated cardinalities and leave it stale
+	 * once those are rewound. Re-invalidating on restore costs one recomputation and makes no claim about a captured
+	 * bitmap's validity.
+	 *
+	 * Recorded once per savepoint, and only from the non-transactional branch - inside a transaction no warm-up
+	 * savepoint is ever open. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			savepoint.pushPostRestoreInvalidation(() -> this.memoizedAllReferencedPrimaryKeys = null);
+		}
 	}
 
 	/**
@@ -460,6 +504,29 @@ public class ReferenceTypeCardinalityIndex
 	}
 
 	/**
+	 * Visits every reduced-index primary key advertised by this index, in a single pass over the forward
+	 * map.
+	 *
+	 * Callers that need *all* advertised partitions should prefer this over
+	 * {@link #getAllTrackedReferencedEntityPrimaryKeys()} followed by
+	 * {@link #getAllReferenceIndexes(int)} per key: that shape boxes every referenced PK, performs a
+	 * second hash lookup into this same map for each, and allocates an `int[]` per entry. This walks the
+	 * `entrySet` once and iterates each bitmap primitively, allocating nothing per partition - which
+	 * matters because the cross-entity facet fan-out performs exactly this traversal on every trigger,
+	 * over every partition of the collection.
+	 *
+	 * @param consumer invoked once per advertised reduced-index primary key
+	 */
+	public void forEachIndexPrimaryKey(@Nonnull IntConsumer consumer) {
+		for (final Map.Entry<Integer, TransactionalBitmap> entry : this.referencedPrimaryKeysIndex.entrySet()) {
+			final OfInt it = entry.getValue().iterator();
+			while (it.hasNext()) {
+				consumer.accept(it.nextInt());
+			}
+		}
+	}
+
+	/**
 	 * Returns the set of referenced entity primary keys (i.e., the keys of the forward mapping) whose
 	 * index primary key bitmaps have a non-empty intersection with the given set of index primary keys.
 	 *
@@ -504,38 +571,53 @@ public class ReferenceTypeCardinalityIndex
 	public Bitmap getIndexPrimaryKeys(@Nonnull PersistentRoaringBitmap referencedEntityPrimaryKeys) {
 		if (referencedEntityPrimaryKeys.isEmpty()) {
 			return EmptyBitmap.INSTANCE;
-		} else {
-			PersistentRoaringBitmap allReferencedPrimaryKeys;
-			if (Transaction.isTransactionAvailable()) {
-				final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-				for (Integer referencedEntityId : this.referencedPrimaryKeysIndex.keySet()) {
-					writer.add(referencedEntityId);
-				}
-				allReferencedPrimaryKeys = writer.get();
-			} else {
-				allReferencedPrimaryKeys = this.memoizedAllReferencedPrimaryKeys;
-				if (allReferencedPrimaryKeys == null) {
-					final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-					for (Integer referencedEntityId : this.referencedPrimaryKeysIndex.keySet()) {
-						writer.add(referencedEntityId);
-					}
-					allReferencedPrimaryKeys = writer.get();
-					this.memoizedAllReferencedPrimaryKeys = allReferencedPrimaryKeys;
-				}
-			}
-			final PersistentRoaringBitmap matchingReferencedEntityPks = PersistentRoaringBitmap.and(
-				allReferencedPrimaryKeys,
-				referencedEntityPrimaryKeys
-			);
-			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-			for (Integer matchingReferencedEntityPk : matchingReferencedEntityPks) {
-				final TransactionalBitmap indexIds = Objects.requireNonNull(
-					this.referencedPrimaryKeysIndex.get(matchingReferencedEntityPk)
-				);
-				indexIds.forEach(writer::add);
-			}
-			return new BaseBitmap(writer.get());
 		}
+		final PersistentRoaringBitmap matchingReferencedEntityPks = PersistentRoaringBitmap.and(
+			allReferencedPrimaryKeys(),
+			referencedEntityPrimaryKeys
+		);
+		final int matchCount = matchingReferencedEntityPks.getCardinality();
+		if (matchCount == 0) {
+			return EmptyBitmap.INSTANCE;
+		}
+		// gather the partition bitmaps first and union them in one aggregation pass: appending the keys one by one
+		// costs a binary search plus an array shift per key inside the target container, which for a reference whose
+		// partitions hold tens of thousands of keys dominates the whole lookup
+		final PersistentRoaringBitmap[] partitions = new PersistentRoaringBitmap[matchCount];
+		final IntIterator it = matchingReferencedEntityPks.getIntIterator();
+		int index = 0;
+		while (it.hasNext()) {
+			partitions[index++] = RoaringBitmapBackedBitmap.getRoaringBitmap(
+				Objects.requireNonNull(this.referencedPrimaryKeysIndex.get(it.next()))
+			);
+		}
+		// `partitions` are the LIVE bitmaps of this index, so the aggregation must not borrow from them: the naive
+		// fold (FastAggregation#or) appends the tail of each input by structural sharing, which writes the sharing
+		// flags back into the source - an unsynchronised write into index state from a read path, and a window in
+		// which the answer still aliases the index's own containers. The horizontal merge clones every container it
+		// takes, leaving the inputs untouched.
+		return matchCount == 1 ?
+			new BaseBitmap(partitions[0].clone()) :
+			new BaseBitmap(FastAggregation.horizontal_or(partitions));
+	}
+
+	/**
+	 * Returns the bitmap of every referenced entity primary key tracked by this index, memoized outside
+	 * a transaction and rebuilt on each call inside one (where the contents may still change).
+	 *
+	 * @return bitmap of all referenced entity primary keys, never {@code null}
+	 */
+	@Nonnull
+	private PersistentRoaringBitmap allReferencedPrimaryKeys() {
+		if (Transaction.isTransactionAvailable()) {
+			return buildReferencedPrimaryKeysBitmap();
+		}
+		PersistentRoaringBitmap result = this.memoizedAllReferencedPrimaryKeys;
+		if (result == null) {
+			result = buildReferencedPrimaryKeysBitmap();
+			this.memoizedAllReferencedPrimaryKeys = result;
+		}
+		return result;
 	}
 
 	/**
@@ -669,9 +751,9 @@ public class ReferenceTypeCardinalityIndex
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
 		final long boxedInteger = layout.sizeOfObject(Integer.BYTES);
-		// the dirty / cardinalities / pageStreamRegistry / referencedPrimaryKeysIndex /
+		// warmUpTouchStamp + the dirty / cardinalities / pageStreamRegistry / referencedPrimaryKeysIndex /
 		// memoizedAllReferencedPrimaryKeys slots
-		long size = layout.sizeOfObject(5L * layout.referenceSize())
+		long size = layout.sizeOfObject(Long.BYTES + 5L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.cardinalities.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER)
 			+ this.referencedPrimaryKeysIndex.getHeapSizeInBytes(
@@ -715,8 +797,8 @@ public class ReferenceTypeCardinalityIndex
 			// This is the EARLIEST publish point on the transactional path only; it is not the only one — a staged set
 			// that never reaches a merge (the warm-up path has no merge at all) is published by the next flush instead,
 			// see `publishPreviousFlush`. (No discard counterpart is needed: a pre-flush abort never stages, and a
-			// failed flush suspends this catalog's transaction processing — on the warm-up path it poisons the
-			// collection's buffer instead, the same invariant in another dress — so no later flush ever diffs against
+			// failed flush suspends this catalog's transaction processing — on the warm-up path it marks the
+			// catalog unpublishable instead, the same invariant in another dress — so no later flush ever diffs against
 			// the baseline a failed one left behind; restart rebuilds a clean registry from disk.)
 			this.pageStreamRegistry.publishStaged();
 			return new ReferenceTypeCardinalityIndex(
@@ -827,8 +909,8 @@ public class ReferenceTypeCardinalityIndex
 	 * COLLECT time, before this flush has written anything (the baseline-capture pass re-enters this pipeline), so it
 	 * cannot lean on the previous flush's bytes having landed by now. It does not need to: a flush that fails during
 	 * trunk incorporation SUSPENDS the catalog's transaction processing ({@code TransactionManager.suspend}), and a
-	 * flush that fails on the warm-up path POISONS the collection's buffer
-	 * ({@code WarmUpDataStoreMemoryBuffer.poison}), so every later collect of it refuses deterministically. Those two
+	 * flush that fails on the warm-up path makes the catalog UNPUBLISHABLE
+	 * ({@code Catalog.markUnpublishable}), so every later flush of it refuses deterministically. Those two
 	 * are the same invariant in different dresses: after a failed flush no later flush of that data ever runs, so
 	 * nothing can ever diff against the baselines it left behind. A flush that does NOT fail leaves `staged` holding
 	 * exactly the page set it wrote — the baseline the next flush must diff against — regardless of which path staged

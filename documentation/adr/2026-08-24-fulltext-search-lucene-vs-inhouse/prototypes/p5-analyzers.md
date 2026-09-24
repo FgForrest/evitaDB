@@ -77,12 +77,23 @@ P5 rests on several conclusions the research already closed and is not to reopen
 ### 3.1 Which line: 9.12.x, or 10.x
 
 The research (VK8) says the 9.12.x line runs on JDK 11 and above, the 10.x line requires JDK 21, and that
-with the confirmed JDK 21 baseline (Z1) both are available. **Verification against the repo shifts that
-conclusion.** The root `pom.xml` on the `dev` branch still has `<java.version>17</java.version>`
-(`pom.xml:124`) and that value propagates into `<release>`, `<source>` and `<target>` (`pom.xml:654-656`).
-The upgrade to JDK 21 did happen and passed, but has not landed in `dev` yet. Choosing the 10.x line would
-therefore condition P5 on the baseline in the pom being raised first — which is work outside the
-prototype's scope and outside its control.
+with the confirmed JDK 21 baseline (Z1) both are available. Verification against the repo used to shift that
+conclusion: the root `pom.xml` on `dev` still held `<java.version>17</java.version>`, so choosing the 10.x
+line would have conditioned P5 on a baseline raise outside the prototype's scope and outside its control.
+
+**[2026-09-17] That obstacle is gone — the baseline landed.** `pom.xml:124` now reads
+`<java.version>21</java.version>` and propagates into `<release>`, `<source>` and `<target>`
+(`pom.xml:751-753`). Both lines are genuinely available and the choice below is free rather than forced. Two
+facts arrived with the bump that P5 has to respect:
+
+- **The driver keeps a JDK 17 floor.** `<java.driver.release>17</java.driver.release>` (`pom.xml:135`) pins
+  `evita_common`, `evita_api`, `evita_query` and the three gRPC shared/client modules to release 17, because
+  the Java driver is built from them (`2026-09-08-jdk21-safe-modernization`; the `ci-dev` and `pr-review`
+  workflows prove it per build through `.github/actions/verify-driver-on-jdk17`). `evita_engine` is **not** among them — so §3.2's recommendation
+  is now enforced by the build rather than only reasoned, and a Lucene 10.x dependency, which needs JDK 21 at
+  runtime, is safe there for exactly that reason.
+- **The bytecode argument for 9.12.x weakens; it does not reverse.** Major version 55 loads on 21 exactly as
+  it loaded on 17, so nothing about the 9.12 line broke. It merely stopped being the only option.
 
 The other half of the answer is that it hardly matters, because **the API we will be calling is
 practically identical between the two lines**. A file comparison between the tags `releases/lucene/9.12.3`
@@ -109,22 +120,38 @@ levels**, not from the recommended combination: `lucene-core-9.12.3.jar` is 4.27
 `lucene-analysis-common-9.12.1.jar` 1.72 MB and `lucene-analysis-stempel-9.12.1.jar` 519 kB. As an
 order-of-magnitude figure that suffices, as a configuration template it does not. The class
 `org.apache.lucene.analysis.Analyzer` in the 9.12.3 jar carries class file major version 55, i.e. Java 11
-bytecode — on today's seventeen baseline it loads without any intervention.
+bytecode — it loads without any intervention on the JDK 21 baseline just as it did on 17.
 
 **Recommendation: start on the 9.12.x line and pin all three artifacts to the same patch version** (at the
 time of writing 9.12.3, the highest released in this line) through a single `lucene.version` property in
 the root pom. Mixing patch levels across Lucene artifacts is exactly what a plan resting on determinism
 must not let arise implicitly. The line has no functional disadvantage for us, does not commit P5 to
 somebody else's work, and the upgrade to 10.x is cheap later precisely because the API used does not
-differ — once the baseline in the pom really jumps to 21, the transition is a mechanical version-number
-change. When exactly to do it is open question P5-3; the support window of the 9.x line against 10.x has to
-be verified at the source (the research cites `endoflife.date`), not estimated.
+differ — the transition is a mechanical version-number change. When exactly to do it is open question P5-3;
+the support window of the 9.x line against 10.x has to be verified at the source (the research cites
+`endoflife.date`), not estimated.
+
+**[2026-09-17] The recommendation stands, but on one leg instead of two.** It rested on "the baseline is 17"
+and on "the value gained is zero". The first has expired; the second has not. Starting on 9.12.x is now a
+choice to not spend the move, no longer a constraint imposed from outside — which also means the *only*
+remaining input to P5-3 is the support window, and it should be settled at the source before the P5 → P1
+gate rather than carried further as an open question.
 
 **A rejected variant: start on 10.x right away.** The only advantage is longer support and the transition
 not having to be repeated. It lost because it ties the delivery of P5 to JDK 21 landing in `dev`, which
 the prototype has no way of influencing, and because the value gained is zero — not one class we call
 behaves differently in 10.x. It will be worth revisiting the moment `java.version` in the root pom really
 is 21; until then it is merely a risk taken on without a counterpart.
+
+**[2026-09-17] Re-opened, as that condition said it should be — and half of the rejection has expired.**
+`java.version` really is 21, so the first reason is void: nothing about 10.x is outside the prototype's
+control any more, and `evita_engine`'s release-21 compilation (the driver-floor bullet above) means the jar's
+JDK 21 requirement costs nothing that is not already paid. The second reason survives untouched — the comparison table above is still
+the measurement, and not one class we call behaves differently — so this is now a choice between *free* and
+*free*, decided by the support window alone (P5-3) rather than by risk. Two consequences worth stating so
+this is not re-litigated a third time: whoever settles P5-3 should settle it for good and record the
+end-of-life dates they read, and whichever line wins, all three artifacts stay pinned to one patch level
+through the single `lucene.version` property — that requirement is independent of the line.
 
 ### 3.2 Which module the dependency belongs in
 
@@ -149,6 +176,15 @@ therefore reaches neither the driver nor the uber-jar. The fulltext structures m
 analyzer has no consumer outside the engine and the driver must not get it. The entry into
 `evita_engine/pom.xml` is one `<dependency>` block beside the existing ones (Kryo, hppc, Byte Buddy) and one
 `requires` line in `evita_engine/src/main/java/module-info.java`.
+
+**[2026-09-17] The build now enforces this boundary instead of merely permitting it.** The JDK 21 bump gave
+the driver-path modules an explicit release-17 pin — `evita_common`, `evita_api`, `evita_query` and the three
+gRPC shared/client modules set `<java.release>${java.driver.release}</java.release>`, and the `ci-dev` and
+`pr-review` workflows compile and run the driver smoke on a real JDK 17
+(`.github/actions/verify-driver-on-jdk17`). The dependency chain traced by
+hand above is therefore no longer the only thing standing between Lucene and the uber-jar: putting the
+analyzers in `evita_common` would now also have to survive javac at `--release 17` and that CI job. The
+recommendation does not change; its failure mode got louder, which is the outcome this paragraph wanted.
 
 **A considered variant: a separate module `evita_analysis`.** It would make sense if the analyzers had a
 consumer outside the engine too, or if they were to be switchable off in a distribution. Neither holds
@@ -305,6 +341,14 @@ For today's engine that is fine: evitaDB uses virtual threads nowhere (verified 
 does hit. Should analysis ever be called from virtual threads, though, both properties turn against us: a
 per-thread cache stops making sense, because every task gets a new thread, and a `synchronized` block on
 JDK 21 pins the carrier thread.
+
+**[2026-09-17] That hypothetical has been answered, and in P5's favour.** The platform is on JDK 21 now, and
+the question was put deliberately: `2026-09-10-jdk21-virtual-threads-and-scoped-values` analysed every
+executor, all 21 `ThreadLocal`s and all 69 `synchronized` sites and decided that virtual threads stay out of
+the server — request work is CPU-bound and file I/O never unmounts a virtual thread on 21 anyway. So the
+premise of the paragraph above is not merely absent today, it is a standing decision. The recommendation
+below is unchanged and now cheaper to justify: keep the default `ReuseStrategy`, keep the seam, and if that
+decision is ever reversed, this is the site the reversal has to visit.
 
 **A recommendation for P5: leave the default behaviour and write a comment about it at the site.** The
 prototype has platform threads and changing that now would mean solving a problem we do not have. What P5
@@ -974,8 +1018,8 @@ convergence.
 ### 10.3 Real attribute values
 
 Smoke tests over artificial words will not show how the analyzer behaves on real content. The harness
-therefore needs a sample of real values: product names and short descriptions from a production catalog
-(senesi or decodoma, the same datasets P1 will then use) and a sample of long texts for the CMS profile (Z8).
+therefore needs a sample of real values: product names and short descriptions from a production e-commerce
+catalog (the same dataset P1 will then use) and a sample of long texts for the CMS profile (Z8).
 
 The output is not an assert but **material for a manual review**: for every value the terms it decomposed
 into are printed, and a human looks at whether the tokenization did something unexpected. Typical findings

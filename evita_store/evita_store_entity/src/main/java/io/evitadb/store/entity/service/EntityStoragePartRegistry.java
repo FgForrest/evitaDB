@@ -23,6 +23,7 @@
 
 package io.evitadb.store.entity.service;
 
+import io.evitadb.api.statistics.StoragePartGroup;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AttributesStoragePart;
@@ -47,12 +48,14 @@ public class EntityStoragePartRegistry implements StoragePartRegistry {
 	@Override
 	public Collection<StoragePartRecord> listStorageParts() {
 		return Arrays.asList(
-			new StoragePartRecord((byte) 1, EntitySchemaStoragePart.class),
-			new StoragePartRecord((byte) 2, EntityBodyStoragePart.class),
-			new StoragePartRecord((byte) 3, AttributesStoragePart.class),
-			new StoragePartRecord((byte) 4, AssociatedDataStoragePart.class),
-			new StoragePartRecord((byte) 5, PricesStoragePart.class),
-			new StoragePartRecord((byte) 6, ReferencesStoragePart.class)
+			// the entity schema is registered here because it lives in a collection's data store, but it is metadata
+			// rather than entity data - which is why the group cannot be inferred from the declaring registry
+			new StoragePartRecord((byte) 1, EntitySchemaStoragePart.class, StoragePartGroup.SCHEMA),
+			new StoragePartRecord((byte) 2, EntityBodyStoragePart.class, StoragePartGroup.ENTITY_BODY),
+			new StoragePartRecord((byte) 3, AttributesStoragePart.class, StoragePartGroup.ATTRIBUTE_DATA),
+			new StoragePartRecord((byte) 4, AssociatedDataStoragePart.class, StoragePartGroup.ASSOCIATED_DATA),
+			new StoragePartRecord((byte) 5, PricesStoragePart.class, StoragePartGroup.PRICE_DATA),
+			new StoragePartRecord((byte) 6, ReferencesStoragePart.class, StoragePartGroup.REFERENCE_DATA)
 		);
 	}
 }

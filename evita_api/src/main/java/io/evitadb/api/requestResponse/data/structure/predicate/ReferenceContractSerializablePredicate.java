@@ -27,12 +27,12 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.AttributeRequest;
+import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.data.structure.Entity;
-import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.SerializablePredicate;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
@@ -74,8 +74,14 @@ import static java.util.Optional.ofNullable;
  * **Underlying predicate pattern**: Supports an optional underlying predicate that represents the original entity's
  * complete reference scope. This pattern is used when creating limited views from fully-fetched entities.
  *
- * **Empty map semantics**: An empty `referenceSet` map means "all references are allowed" when
- * `requiresEntityReferences` is true.
+ * **Empty map semantics**: An empty `referenceSet` map does **not** mean "all references are allowed", and a
+ * non-empty one does not mean the opposite. A present `defaultAttributeRequest` says the query also carried a
+ * catch-all `referenceContent` requirement, and the fetcher loads every reference the specific entries do not name
+ * from that requirement. Such a reference is therefore visible too, and it is the default request - not an empty
+ * one - that shapes its attributes; the specific entries only override the baseline for the references they name.
+ * A **named** requirement, meanwhile, narrows the entity without reaching `referenceSet` at all. The rule is
+ * therefore stated once and nowhere else - by {@link #visibleReferenceNames}, which every name question is
+ * answered from, one reference at a time or a whole schema at once.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -95,6 +101,19 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * overrides per reference type. May be null if no default is specified.
 	 */
 	@Nullable @Getter private final AttributeRequest defaultAttributeRequest;
+	/**
+	 * Reference names requested through **named** reference content, i.e. `referenceContent(<instanceName>,
+	 * '<referenceName>', ...)`, which every externally issued query produces - a GraphQL field alias or a REST
+	 * projection name becomes the instance name.
+	 *
+	 * These never reach {@link #referenceSet}: {@link EvitaRequest#getReferenceEntityFetch()} routes named
+	 * requirements into a separate map keyed by instance name, because attribute requirements of a named reference
+	 * are resolved per instance rather than per reference name. That makes `referenceSet` empty for such a query and
+	 * {@link #test(ReferenceContract)} consequently let everything through - correct for visibility, but useless as
+	 * a description of what the query actually asked for. This set restores that description so the storage layer can
+	 * decode only the references some requirement names (see {@link #getVisibleReferenceNames()}).
+	 */
+	@Nonnull private final Set<String> namedReferenceNames;
 	/**
 	 * Indicates whether any references were requested with the entity. When false, all reference access will fail.
 	 * When true, references are accessible subject to name and attribute filtering.
@@ -118,6 +137,63 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * Must not be nested (only one level allowed).
 	 */
 	@Nullable @Getter private final ReferenceContractSerializablePredicate underlyingPredicate;
+	/**
+	 * The reference names this predicate lets through, NULL when it lets **all** of them through. Computed once in
+	 * the constructor because it is consulted per reference on the entity composition path and the union of
+	 * {@link #referenceSet} and {@link #namedReferenceNames} would otherwise be rebuilt on every single call.
+	 *
+	 * This is the single source of truth of *what this predicate is about*. Every question about names is answered
+	 * from it - the storage layer decodes only these names through {@link #getVisibleReferenceNames()}, the entity
+	 * indexes exactly these names through {@link #getRequestedReferenceNames(EntitySchemaContract)}, and the
+	 * visibility methods hide everything else through {@link #isReferenceCovered(String)}. Keeping all three on one
+	 * field is what stops them from drifting apart: a name the entity indexes but the predicate hides is answered
+	 * with a {@link ContextMissingException} for a reference the entity was asked for and does hold.
+	 */
+	@Nullable private final Set<String> visibleReferenceNames;
+	/**
+	 * Lazily derived from {@link #visibleReferenceNames} and then kept, so that every read performed under this
+	 * predicate binds the very same instance - see {@link #getDecodeCoverage()} for why identity matters here.
+	 * Transient because it is a derivable cache, not state: a deserialized predicate rebuilds it on first ask.
+	 */
+	@Nullable private transient ReferenceDecodeCoverage memoizedDecodeCoverage;
+	/**
+	 * Referenced entity primary keys each visible reference name is bound to, empty when none is bound.
+	 *
+	 * Populated only from an {@link EvitaRequest}: a name lands here when **every** requirement asking for it names
+	 * an exact key set in its filter's conjunctive root, which is precisely when the references outside that set
+	 * cannot appear in the answer anyway. See {@link EvitaRequest#getReferenceKeyNarrowing()}.
+	 */
+	@Nonnull private final Map<String, int[]> referenceKeyNarrowing;
+
+	/**
+	 * Computes {@link #visibleReferenceNames} - the union of the explicitly requested reference names and the names
+	 * of the named reference requirements, or NULL when the predicate does not narrow by name at all.
+	 *
+	 * Reads {@link #requiresEntityReferences}, {@link #defaultAttributeRequest}, {@link #referenceSet} and
+	 * {@link #namedReferenceNames} directly - every constructor calls this as its last statement, once those four
+	 * fields are already assigned.
+	 *
+	 * @return the allowed reference names, or NULL when every name is allowed
+	 */
+	@Nullable
+	private Set<String> computeVisibleReferenceNames() {
+		if (!this.requiresEntityReferences || this.defaultAttributeRequest != null) {
+			// a default `referenceContent()` requirement asks for every reference there is
+			return null;
+		}
+		if (this.namedReferenceNames.isEmpty()) {
+			return this.referenceSet.isEmpty() ? null : this.referenceSet.keySet();
+		}
+		if (this.referenceSet.isEmpty()) {
+			return this.namedReferenceNames;
+		}
+		final Set<String> result = CollectionUtils.createHashSet(
+			this.referenceSet.size() + this.namedReferenceNames.size()
+		);
+		result.addAll(this.referenceSet.keySet());
+		result.addAll(this.namedReferenceNames);
+		return result;
+	}
 
 	/**
 	 * Creates a map of reference names to their associated attribute requests based on the entity fetch
@@ -138,6 +214,25 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 					entry -> entry.getValue().attributeRequest()
 				)
 			);
+	}
+
+	/**
+	 * Collects the distinct reference names of all **named** reference requirements of the request.
+	 *
+	 * @param evitaRequest the request to read the named requirements from
+	 * @return distinct reference names named requirements point at, empty when there are none
+	 */
+	@Nonnull
+	private static Set<String> getNamedReferenceNames(@Nonnull EvitaRequest evitaRequest) {
+		final Map<ReferenceContentKey, RequirementContext> namedFetch = evitaRequest.getNamedReferenceEntityFetch();
+		if (namedFetch.isEmpty()) {
+			return Collections.emptySet();
+		}
+		final Set<String> result = CollectionUtils.createHashSet(namedFetch.size());
+		for (final ReferenceContentKey key : namedFetch.keySet()) {
+			result.add(key.referenceName());
+		}
+		return result;
 	}
 
 	/**
@@ -189,10 +284,13 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	public ReferenceContractSerializablePredicate() {
 		this.requiresEntityReferences = true;
 		this.referenceSet = Collections.emptyMap();
+		this.namedReferenceNames = Collections.emptySet();
 		this.defaultAttributeRequest = null;
 		this.implicitLocale = null;
 		this.locales = Collections.emptySet();
 		this.underlyingPredicate = null;
+		this.referenceKeyNarrowing = Collections.emptyMap();
+		this.visibleReferenceNames = computeVisibleReferenceNames();
 	}
 
 	/**
@@ -207,12 +305,15 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	public ReferenceContractSerializablePredicate(@Nonnull EvitaRequest evitaRequest) {
 		this.requiresEntityReferences = evitaRequest.isRequiresEntityReferences();
 		this.referenceSet = getReferenceSet(evitaRequest);
+		this.namedReferenceNames = getNamedReferenceNames(evitaRequest);
 		this.defaultAttributeRequest = ofNullable(evitaRequest.getDefaultReferenceRequirement())
 			.map(RequirementContext::attributeRequest)
 			.orElse(null);
 		this.implicitLocale = evitaRequest.getImplicitLocale();
 		this.locales = evitaRequest.getRequiredLocales();
 		this.underlyingPredicate = null;
+		this.referenceKeyNarrowing = evitaRequest.getReferenceKeyNarrowing();
+		this.visibleReferenceNames = computeVisibleReferenceNames();
 	}
 
 	/**
@@ -235,12 +336,15 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 			referenceName,
 			requirementContext.attributeRequest()
 		);
+		this.namedReferenceNames = Collections.emptySet();
 		this.defaultAttributeRequest = ofNullable(evitaRequest.getDefaultReferenceRequirement())
 			.map(RequirementContext::attributeRequest)
 			.orElse(null);
 		this.implicitLocale = evitaRequest.getImplicitLocale();
 		this.locales = evitaRequest.getRequiredLocales();
 		this.underlyingPredicate = null;
+		this.referenceKeyNarrowing = Collections.emptyMap();
+		this.visibleReferenceNames = computeVisibleReferenceNames();
 	}
 
 	/**
@@ -253,10 +357,13 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	public ReferenceContractSerializablePredicate(boolean requiresEntityReferences) {
 		this.requiresEntityReferences = requiresEntityReferences;
 		this.referenceSet = Collections.emptyMap();
+		this.namedReferenceNames = Collections.emptySet();
 		this.defaultAttributeRequest = null;
 		this.implicitLocale = null;
 		this.locales = Collections.emptySet();
 		this.underlyingPredicate = null;
+		this.referenceKeyNarrowing = Collections.emptyMap();
+		this.visibleReferenceNames = computeVisibleReferenceNames();
 	}
 
 	/**
@@ -281,27 +388,65 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		);
 		this.requiresEntityReferences = evitaRequest.isRequiresEntityReferences();
 		this.referenceSet = getReferenceSet(evitaRequest);
+		this.namedReferenceNames = getNamedReferenceNames(evitaRequest);
 		this.defaultAttributeRequest = ofNullable(evitaRequest.getDefaultReferenceRequirement())
 			.map(RequirementContext::attributeRequest)
 			.orElse(null);
 		this.implicitLocale = evitaRequest.getImplicitLocale();
 		this.locales = evitaRequest.getRequiredLocales();
 		this.underlyingPredicate = underlyingPredicate;
+		// inherited, never reset: a limited view shows LESS of an entity that has already been read, so it cannot
+		// have decoded more than the read behind it did. Claiming an empty narrowing here would report a name as
+		// decoded whole when the data behind it was decoded by key, and the enrichment gate - which compares
+		// coverage - would then answer "already fetched" and serve a silently short reference set.
+		this.referenceKeyNarrowing = underlyingPredicate.referenceKeyNarrowing;
+		this.visibleReferenceNames = computeVisibleReferenceNames();
 	}
 
 	ReferenceContractSerializablePredicate(
 		@Nonnull Map<String, AttributeRequest> referenceSet,
+		@Nonnull Set<String> namedReferenceNames,
 		@Nullable AttributeRequest defaultAttributeRequest,
 		boolean requiresEntityReferences,
 		@Nullable Locale implicitLocale,
 		@Nullable Set<Locale> locales
 	) {
+		this(
+			referenceSet, namedReferenceNames, defaultAttributeRequest, requiresEntityReferences,
+			implicitLocale, locales, Collections.emptyMap()
+		);
+	}
+
+	/**
+	 * Creates a predicate carrying an explicit per-name key narrowing, used when enriching one predicate with
+	 * another's requirements.
+	 *
+	 * @param referenceSet             attribute requirements per unnamed reference name
+	 * @param namedReferenceNames      names asked for through named requirements
+	 * @param defaultAttributeRequest  attribute requirement of a default `referenceContent()`, NULL when absent
+	 * @param requiresEntityReferences whether references are required at all
+	 * @param implicitLocale           implicit locale of the request
+	 * @param locales                  locales the request requires
+	 * @param referenceKeyNarrowing    referenced primary keys each name is bound to, empty when none is bound
+	 */
+	ReferenceContractSerializablePredicate(
+		@Nonnull Map<String, AttributeRequest> referenceSet,
+		@Nonnull Set<String> namedReferenceNames,
+		@Nullable AttributeRequest defaultAttributeRequest,
+		boolean requiresEntityReferences,
+		@Nullable Locale implicitLocale,
+		@Nullable Set<Locale> locales,
+		@Nonnull Map<String, int[]> referenceKeyNarrowing
+	) {
 		this.referenceSet = referenceSet;
+		this.namedReferenceNames = namedReferenceNames;
 		this.defaultAttributeRequest = defaultAttributeRequest;
 		this.requiresEntityReferences = requiresEntityReferences;
 		this.implicitLocale = implicitLocale;
 		this.locales = locales;
 		this.underlyingPredicate = null;
+		this.referenceKeyNarrowing = referenceKeyNarrowing;
+		this.visibleReferenceNames = computeVisibleReferenceNames();
 	}
 
 	/**
@@ -316,14 +461,14 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	/**
 	 * Checks whether references with the specified name were fetched with the entity.
 	 *
-	 * An empty `referenceSet` means all references were fetched (when `requiresEntityReferences` is true).
+	 * An empty `referenceSet` means all references were fetched (when `requiresEntityReferences` is true), and so
+	 * does a present `defaultAttributeRequest` beside a non-empty one - see {@link #isReferenceCovered(String)}.
 	 *
 	 * @param referenceName the reference name to check
 	 * @return true if the reference is accessible
 	 */
 	public boolean wasFetched(@Nonnull String referenceName) {
-		return this.requiresEntityReferences &&
-			(this.referenceSet.isEmpty() || this.referenceSet.containsKey(referenceName));
+		return this.requiresEntityReferences && isReferenceCovered(referenceName);
 	}
 
 	/**
@@ -348,8 +493,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * @throws ContextMissingException if the reference was not fetched with the entity
 	 */
 	public void checkFetched(@Nonnull String referenceName) throws ContextMissingException {
-		if (!(this.requiresEntityReferences && (this.referenceSet.isEmpty() || this.referenceSet.containsKey(
-			referenceName)))) {
+		if (!(this.requiresEntityReferences && isReferenceCovered(referenceName))) {
 			throw ContextMissingException.referenceContextMissing(referenceName);
 		}
 	}
@@ -360,7 +504,8 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * A reference passes the test if all of the following conditions are met:
 	 * - References are required (`requiresEntityReferences` is true)
 	 * - The reference exists (not dropped)
-	 * - The reference name matches (if `referenceSet` is non-empty)
+	 * - The reference is covered, i.e. it is named by `referenceSet`, or `referenceSet` is empty, or a
+	 *   `defaultAttributeRequest` covers everything the set does not name
 	 *
 	 * Note: This method only tests reference-level visibility, not attribute-level filtering within the reference.
 	 *
@@ -370,12 +515,67 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	@Override
 	public boolean test(ReferenceContract reference) {
 		if (this.requiresEntityReferences) {
-			final String referenceName = reference.getReferenceName();
-			return reference.exists() &&
-				(this.referenceSet.isEmpty() || this.referenceSet.containsKey(referenceName));
+			return reference.exists() && isReferenceCovered(reference.getReferenceName());
 		} else {
 			return false;
 		}
+	}
+
+	/**
+	 * Returns how much of an entity's reference set a read performed under this predicate may materialize, or NULL
+	 * when it may materialize all of it.
+	 *
+	 * This is the storage-facing form of {@link #getVisibleReferenceNames()}: the same decision, expressed in the
+	 * vocabulary the decoder speaks. The two cannot drift because this is derived from that.
+	 *
+	 * **The instance is memoized**, and deliberately so. The deserializer compares the bound coverage by identity to
+	 * resolve a per-name admission once per run of same-named references; handing it a fresh equal object per
+	 * storage read would defeat that memo and re-resolve the admission for every one of the tens of thousands of
+	 * references such a record can hold. It also keeps the coverage usable as part of a cache record's identity.
+	 *
+	 * @return the coverage, or NULL when nothing is narrowed away
+	 */
+	@Nullable
+	public ReferenceDecodeCoverage getDecodeCoverage() {
+		final Set<String> visibleNames = getVisibleReferenceNames();
+		if (visibleNames == null) {
+			return null;
+		}
+		if (this.memoizedDecodeCoverage == null) {
+			if (this.referenceKeyNarrowing.isEmpty()) {
+				this.memoizedDecodeCoverage = ReferenceDecodeCoverage.ofNames(visibleNames);
+			} else {
+				final Set<String> decodedWhole = CollectionUtils.createHashSet(visibleNames.size());
+				final Map<String, int[]> decodedByKey = CollectionUtils.createHashMap(this.referenceKeyNarrowing.size());
+				for (final String referenceName : visibleNames) {
+					final int[] boundKeys = this.referenceKeyNarrowing.get(referenceName);
+					if (boundKeys == null) {
+						decodedWhole.add(referenceName);
+					} else {
+						decodedByKey.put(referenceName, boundKeys);
+					}
+				}
+				this.memoizedDecodeCoverage = ReferenceDecodeCoverage.of(decodedWhole, decodedByKey);
+			}
+		}
+		return this.memoizedDecodeCoverage;
+	}
+
+	/**
+	 * Returns the reference names this predicate lets through, or NULL when it lets **all** of them through.
+	 *
+	 * This is the set form of {@link #isReferenceRequested(String)}, and the two cannot drift because both read
+	 * {@link #visibleReferenceNames}: the storage layer uses this set to decode only the references the caller will
+	 * be able to see (see `io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext`), so a name missing
+	 * here is a name that is never materialized - and the visibility methods therefore have to report it as not
+	 * fetched rather than as present and empty. NULL is returned both when all references are allowed and when none
+	 * are - the latter never reaches the storage layer, which checks {@code isRequiresEntityReferences()} first.
+	 *
+	 * @return the allowed reference names, or NULL when the predicate does not narrow them by name
+	 */
+	@Nullable
+	public Set<String> getVisibleReferenceNames() {
+		return this.visibleReferenceNames;
 	}
 
 	/**
@@ -383,20 +583,75 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * of reference requirements and the reference set.
 	 *
 	 * @param referenceName the name of the reference to check.
-	 * @return `true` if references are required and the reference name is either part of the set
-	 * or the set is empty; `false` otherwise.
+	 * @return `true` if references are required and the reference is covered per
+	 * {@link #isReferenceCovered(String)}; `false` otherwise.
 	 */
 	public boolean isReferenceRequested(@Nonnull String referenceName) {
-		if (this.requiresEntityReferences) {
-			return this.referenceSet.isEmpty() || this.referenceSet.containsKey(referenceName);
-		} else {
-			return false;
+		return this.requiresEntityReferences && isReferenceCovered(referenceName);
+	}
+
+	/**
+	 * Tells whether `referenceName` was asked for **only** through a named reference content instance, i.e.
+	 * `referenceContent(<instanceName>, '<referenceName>', ...)`, and through no unnamed requirement.
+	 *
+	 * Such a name is visible - {@link #isReferenceRequested(String)} answers TRUE for it, because
+	 * {@link #getVisibleReferenceNames()} folds both kinds of requirement together so that the storage read is never
+	 * narrower than the visibility - but nothing asked for the entity's unnamed reference view to carry it. The
+	 * server-side decorator uses that to avoid materializing a second, unfiltered copy of a reference set it has
+	 * already built as a named chunk.
+	 *
+	 * A catch-all `referenceContent()` (a non-NULL {@link #defaultAttributeRequest}) asks for every reference there
+	 * is, so it makes this FALSE for every name.
+	 *
+	 * @param referenceName name of the reference to decide about
+	 * @return TRUE when only a named requirement asked for this reference name
+	 */
+	public boolean isReferenceRequestedOnlyAsNamed(@Nonnull String referenceName) {
+		return this.defaultAttributeRequest == null
+			&& this.namedReferenceNames.contains(referenceName)
+			&& !this.referenceSet.containsKey(referenceName);
+	}
+
+	/**
+	 * Combines this predicate's per-name key narrowing with the one the passed request carries.
+	 *
+	 * A name stays narrowed only when **both** sides narrow it, and then to the union of their key sets - because
+	 * the enriched entity has to satisfy both. When either side wants the name in full, or does not mention it at
+	 * all, the name drops out and is read whole.
+	 *
+	 * That is deliberately conservative in one direction: a name this predicate narrowed and the new request never
+	 * mentions is widened rather than kept narrow. Widening only ever costs a decode; keeping a narrowing the other
+	 * side never agreed to would drop references, and enrichment is far too rare to trade that risk for the saving.
+	 *
+	 * @param evitaRequest the request being merged in
+	 * @return the combined narrowing, never NULL
+	 */
+	@Nonnull
+	private Map<String, int[]> combineReferenceKeyNarrowing(@Nonnull EvitaRequest evitaRequest) {
+		if (this.referenceKeyNarrowing.isEmpty()) {
+			return Collections.emptyMap();
 		}
+		final Map<String, int[]> requestNarrowing = evitaRequest.getReferenceKeyNarrowing();
+		if (requestNarrowing.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		final Map<String, int[]> combined = CollectionUtils.createHashMap(this.referenceKeyNarrowing.size());
+		for (final Entry<String, int[]> entry : this.referenceKeyNarrowing.entrySet()) {
+			final int[] requestedKeys = requestNarrowing.get(entry.getKey());
+			if (requestedKeys != null) {
+				combined.put(entry.getKey(), ReferenceDecodeCoverage.unionSortedKeys(entry.getValue(), requestedKeys));
+			}
+		}
+		return combined.isEmpty() ? Collections.emptyMap() : combined;
 	}
 
 	/**
 	 * Creates a richer copy of the current `ReferenceContractSerializablePredicate` instance
 	 * by combining its existing state with the details from the provided `EvitaRequest`.
+	 *
+	 * The result is **monotonic**: nothing either side made visible may become invisible on the copy. Reference
+	 * names are therefore not merely unioned - each side's catch-all requirement is folded into the names only the
+	 * other side lists, see {@link #combineReferencedEntities(EvitaRequest)}.
 	 *
 	 * @param evitaRequest the `EvitaRequest` containing additional requirements and state to merge into the new instance.
 	 * @return a new `ReferenceContractSerializablePredicate` instance that combines the state from the current instance
@@ -408,25 +663,35 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		PredicateLocaleHelper.assertImplicitLocalesConsistent(this.implicitLocale, evitaRequest);
 
 		final Map<String, AttributeRequest> requiredReferencedEntities = combineReferencedEntities(evitaRequest);
+		final Set<String> combinedNamedReferenceNames = combineNamedReferenceNames(evitaRequest);
 		final boolean doesRequireEntityReferences = evitaRequest.isRequiresEntityReferences();
 		final AttributeRequest defaultAttributeRequest = ofNullable(evitaRequest.getDefaultReferenceRequirement())
 			.map(RequirementContext::attributeRequest)
 			.orElse(null);
 
+		final Map<String, int[]> combinedKeyNarrowing = combineReferenceKeyNarrowing(evitaRequest);
+
 		if ((this.requiresEntityReferences || !doesRequireEntityReferences) &&
 			Objects.equals(this.referenceSet, requiredReferencedEntities) &&
+			Objects.equals(this.namedReferenceNames, combinedNamedReferenceNames) &&
 			Objects.equals(this.defaultAttributeRequest, defaultAttributeRequest) &&
 			Objects.equals(this.implicitLocale, evitaRequest.getImplicitLocale()) &&
-			Objects.equals(this.locales, requiredLocales)
+			Objects.equals(this.locales, requiredLocales) &&
+			ReferenceDecodeCoverage.sameNarrowing(this.referenceKeyNarrowing, combinedKeyNarrowing)
 		) {
+			// identity matters here, not merely equality: `appliesExactly` compares predicates by reference and the
+			// enrichment skips a storage round trip on it, so a copy allocated when nothing widened would turn every
+			// enrichment into a re-read
 			return this;
 		} else {
 			return new ReferenceContractSerializablePredicate(
 				requiredReferencedEntities,
+				combinedNamedReferenceNames,
 				mergeAttributeRequests(this.defaultAttributeRequest, defaultAttributeRequest),
 				this.requiresEntityReferences || doesRequireEntityReferences,
 				PredicateLocaleHelper.resolveImplicitLocale(this.implicitLocale, evitaRequest),
-				requiredLocales
+				requiredLocales,
+				combinedKeyNarrowing
 			);
 		}
 	}
@@ -434,18 +699,46 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	/**
 	 * Retrieves a predicate that can be used to filter attribute values for a specific reference.
 	 *
+	 * The entry `referenceSet` holds for the reference wins, because a reference-specific requirement overrides the
+	 * baseline. A reference the set does not name falls back to `defaultAttributeRequest` - it was fetched from the
+	 * catch-all requirement that request describes, so its attributes are the ones that requirement asked for. Only
+	 * when there is no default at all does the reference end up with no attributes.
+	 *
 	 * @param referenceName the name of the reference for which to obtain the attribute predicate.
 	 * @return a `ReferenceAttributeValueSerializablePredicate` configured for the specified reference name.
 	 */
 	@Nonnull
 	public ReferenceAttributeValueSerializablePredicate getAttributePredicate(@Nonnull String referenceName) {
+		final AttributeRequest specificRequest = this.referenceSet.get(referenceName);
+		final AttributeRequest fallbackRequest = this.defaultAttributeRequest == null ?
+			AttributeRequest.EMPTY : this.defaultAttributeRequest;
 		return new ReferenceAttributeValueSerializablePredicate(
 			this.implicitLocale,
 			this.locales,
-			this.referenceSet.isEmpty() ?
-				(this.defaultAttributeRequest == null ? AttributeRequest.EMPTY : this.defaultAttributeRequest) :
-				this.referenceSet.getOrDefault(referenceName, AttributeRequest.EMPTY)
+			specificRequest == null ? fallbackRequest : specificRequest
 		);
+	}
+
+	/**
+	 * Returns names of the references the query asked for, i.e. the names a fetched entity has to expose - every one
+	 * of them, including those that came back holding nothing.
+	 *
+	 * This is {@link #isReferenceCovered(String)} answered for the whole schema at once - it reads the same
+	 * {@link #visibleReferenceNames} and therefore cannot disagree with it - and it exists because the caller needs
+	 * the names before it has any reference in hand: an entity indexes its references by name, and a name missing
+	 * from that index reads as "no such references" rather than "none matched".
+	 *
+	 * @param entitySchema schema whose reference names are returned when the query asked for all of them
+	 * @return names of the references the query asked for
+	 */
+	@Nonnull
+	public Set<String> getRequestedReferenceNames(@Nonnull EntitySchemaContract entitySchema) {
+		// deriving this from `referenceSet` alone names every reference in the schema for a named-only query, whose
+		// requirements never reach that map - and the entity then indexes a name `isReferenceCovered` refuses to
+		// hand back, which surfaces as a ContextMissingException for a reference the query did ask for
+		return this.visibleReferenceNames == null ?
+			entitySchema.getReferences().keySet() :
+			this.visibleReferenceNames;
 	}
 
 	/**
@@ -478,9 +771,42 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	/**
 	 * Combines and merges referenced entity attribute requests from the provided EvitaRequest.
 	 *
+	 * A reference one side names specifically and the other side covers only by its catch-all requirement is merged
+	 * with **that side's default**, not with nothing: the catch-all is the requirement the reference was fetched
+	 * from there, so its attributes are already on the entity and dropping them would make
+	 * {@link #createRicherCopyWith(EvitaRequest)} hide what an earlier fetch had made visible. Seeding the merged
+	 * map from the two per-name maps alone creates an entry narrower than the default the merged predicate keeps,
+	 * and {@link #getAttributePredicate(String)} prefers that entry over the default - which is exactly how
+	 * `referenceContentAllWithAttributes()` followed by a bare `referenceContent(<name>)` used to lose the
+	 * attributes of the named reference. The merged default itself is left to the caller.
+	 *
 	 * @param evitaRequest the EvitaRequest containing the reference entity fetch requirements.
 	 * @return a map of combined AttributeRequests for referenced entities.
 	 */
+	/**
+	 * Combines the named reference names already carried by this predicate with those of the passed request, the same
+	 * way {@link #combineReferencedEntities(EvitaRequest)} combines the unnamed ones. An enrichment must never narrow
+	 * the set below what was already fetched, or the re-fetch decision would consider the previous read complete.
+	 *
+	 * @param evitaRequest the request whose named requirements are to be merged in
+	 * @return the combined set of named reference names
+	 */
+	@Nonnull
+	private Set<String> combineNamedReferenceNames(@Nonnull EvitaRequest evitaRequest) {
+		final Set<String> newNames = getNamedReferenceNames(evitaRequest);
+		if (this.namedReferenceNames.isEmpty()) {
+			return newNames;
+		} else if (newNames.isEmpty()) {
+			return this.namedReferenceNames;
+		}
+		final Set<String> result = CollectionUtils.createHashSet(
+			this.namedReferenceNames.size() + newNames.size()
+		);
+		result.addAll(this.namedReferenceNames);
+		result.addAll(newNames);
+		return result;
+	}
+
 	@Nonnull
 	private Map<String, AttributeRequest> combineReferencedEntities(@Nonnull EvitaRequest evitaRequest) {
 		final Map<String, AttributeRequest> requiredReferences;
@@ -488,11 +814,25 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		if (!this.requiresEntityReferences) {
 			requiredReferences = getReferenceSet(evitaRequest);
 		} else if (evitaRequest.isRequiresEntityReferences()) {
+			final AttributeRequest newDefaultAttributeRequest =
+				ofNullable(evitaRequest.getDefaultReferenceRequirement())
+					.map(RequirementContext::attributeRequest)
+					.orElse(null);
 			requiredReferences = new HashMap<>(this.referenceSet.size() + referenceEntityFetch.size());
-			requiredReferences.putAll(this.referenceSet);
+			for (Entry<String, AttributeRequest> existingEntry : this.referenceSet.entrySet()) {
+				final String referenceName = existingEntry.getKey();
+				requiredReferences.put(
+					referenceName,
+					referenceEntityFetch.containsKey(referenceName) ?
+						existingEntry.getValue() :
+						mergeAttributeRequests(existingEntry.getValue(), newDefaultAttributeRequest)
+				);
+			}
 			for (Entry<String, RequirementContext> newEntry : referenceEntityFetch.entrySet()) {
 				final String referenceName = newEntry.getKey();
-				final AttributeRequest existingAttributeRequest = requiredReferences.get(referenceName);
+				final AttributeRequest existingAttributeRequest = this.referenceSet.getOrDefault(
+					referenceName, this.defaultAttributeRequest
+				);
 				final AttributeRequest newAttributeRequest = newEntry.getValue().attributeRequest();
 				final AttributeRequest mergedAttributeRequest = mergeAttributeRequests(
 					existingAttributeRequest, newAttributeRequest
@@ -503,6 +843,32 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 			requiredReferences = this.referenceSet;
 		}
 		return requiredReferences;
+	}
+
+	/**
+	 * Returns TRUE when the query asked for the named reference, i.e. when the reference was fetched along with the
+	 * entity and may therefore be handed to the client.
+	 *
+	 * Three shapes cover a reference, and they mirror what the fetcher does:
+	 *
+	 * - an **empty** `referenceSet` - the query named no reference specifically, so every one of them is fetched
+	 * - a `referenceSet` **naming** the reference - the reference has its own requirement
+	 * - a present `defaultAttributeRequest` - the query carried a catch-all `referenceContent` requirement beside the
+	 *   reference-specific ones, and the fetcher loads every reference the specific ones do not name from it
+	 *
+	 * The third case is the one easy to miss: leaving it out hides references that were fetched, which surfaces to
+	 * the client as a `ContextMissingException` telling it to add a `referenceContent` requirement the query already
+	 * has. This method does **not** consider `requiresEntityReferences` - every caller gates on that separately,
+	 * because "no references at all" is reported differently from "not this reference".
+	 *
+	 * @param referenceName name of the reference to check
+	 * @return TRUE when the reference was fetched along with the entity
+	 */
+	private boolean isReferenceCovered(@Nonnull String referenceName) {
+		// this admits exactly the names the storage read was narrowed to, because it reads the very set that
+		// narrowed it - deciding it a second time from `referenceSet` is what let a named-only query report every
+		// schema reference as fetched while the read had skipped all but the named ones
+		return this.visibleReferenceNames == null || this.visibleReferenceNames.contains(referenceName);
 	}
 
 }

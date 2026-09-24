@@ -120,7 +120,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=86
+   *     See GrpcAttributeSchemaMutations.proto;l=90
    * @return The enum numeric value on the wire for unique.
    */
   @java.lang.Deprecated int getUniqueValue();
@@ -133,7 +133,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=86
+   *     See GrpcAttributeSchemaMutations.proto;l=90
    * @return The unique.
    */
   @java.lang.Deprecated io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique();
@@ -147,7 +147,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=90
+   *     See GrpcAttributeSchemaMutations.proto;l=94
    * @return The enum numeric value on the wire for uniqueGlobally.
    */
   @java.lang.Deprecated int getUniqueGloballyValue();
@@ -160,7 +160,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=90
+   *     See GrpcAttributeSchemaMutations.proto;l=94
    * @return The uniqueGlobally.
    */
   @java.lang.Deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType getUniqueGlobally();
@@ -175,7 +175,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    *
    * <code>bool filterable = 6 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.filterable is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=95
+   *     See GrpcAttributeSchemaMutations.proto;l=99
    * @return The filterable.
    */
   @java.lang.Deprecated boolean getFilterable();
@@ -190,7 +190,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    *
    * <code>bool sortable = 7 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.sortable is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=100
+   *     See GrpcAttributeSchemaMutations.proto;l=104
    * @return The sortable.
    */
   @java.lang.Deprecated boolean getSortable();
@@ -527,4 +527,58 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    * @return The conflictResolutionOverride.
    */
   io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride getConflictResolutionOverride();
+
+  /**
+   * <pre>
+   * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+   * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+   * which is what an older client sends - means no acceleration anywhere.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators> 
+      getAcceleratorsInScopesList();
+  /**
+   * <pre>
+   * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+   * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+   * which is what an older client sends - means no acceleration anywhere.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators getAcceleratorsInScopes(int index);
+  /**
+   * <pre>
+   * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+   * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+   * which is what an older client sends - means no acceleration anywhere.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+   */
+  int getAcceleratorsInScopesCount();
+  /**
+   * <pre>
+   * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+   * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+   * which is what an older client sends - means no acceleration anywhere.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder> 
+      getAcceleratorsInScopesOrBuilderList();
+  /**
+   * <pre>
+   * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+   * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+   * which is what an older client sends - means no acceleration anywhere.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder getAcceleratorsInScopesOrBuilder(
+      int index);
 }

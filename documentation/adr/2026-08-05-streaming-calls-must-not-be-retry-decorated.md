@@ -1,7 +1,7 @@
 ---
 title: Never decorate a streaming gRPC channel with RetryingClient
 date: 2026-08-05
-updated: 2026-08-05 09:45
+updated: 2026-09-21 20:40
 status: accepted
 kind: fix
 issues: [1388]
@@ -9,15 +9,23 @@ prs: [1389]
 areas: [evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver]
 supersedes: []
 superseded-by: []
-relates: [2026-08-03-driver-connection-resilience, 2026-08-04-client-pool-fail-fast-and-cdc-channel-isolation]
+relates: [2026-08-03-driver-connection-resilience, 2026-08-04-client-pool-fail-fast-and-cdc-channel-isolation, 2026-08-24-grpc-streaming-backpressure-readiness-gate]
 ---
 
 # Never decorate a streaming gRPC channel with RetryingClient
 
-Armeria's `RetryingClient` freezes the call's response-timeout budget at call start. On a unary call that
-is invisible. On a streaming call it is fatal, because the driver's whole design for long-lived streams is
-a *rolling* deadline re-armed on every message — and a frozen deadline cannot be re-armed. The driver now
-builds separate channels for unary and streaming stubs, and only the unary one is decorated.
+Armeria's `RetryingClient` freezes the call's response-timeout budget at call start. On a streaming call
+that is fatal, because the driver's whole design for long-lived streams is a *rolling* deadline re-armed
+on every message — and a frozen deadline cannot be re-armed. The driver now builds separate channels for
+unary and streaming stubs, and only the unary one is decorated.
+
+> **Corrected — #1631.** This record originally read "on a unary call that is invisible". It is not
+> invisible. The same frozen budget silently *floors* a unary call's own deadline, because
+> `AbstractRetryingClient$State#responseTimeoutMillis()` returns `Math.min(perAttempt, remainingCallBudget)`
+> and `RetryConfigBuilder` seeds `perAttempt` from `Flags.defaultResponseTimeoutMillis()` (15 s) rather than
+> from `0`. Decorating the unary channel is still the right call — but it is only harmless once the
+> decorator carries `responseTimeoutMillisForEachAttempt(0)`, which it did not until #1631. See
+> *Consequences & open follow-ups*.
 
 ## Why
 
@@ -208,11 +216,14 @@ through the rewired stubs.
   stub from the retry-decorated channel no longer compiles. This was the recommended hardening in the
   first revision of this record and is the reason the "no regression test" item below is acceptable:
   the compiler is a stronger guard than the test would have been.
-- **Still open — no runtime regression test for the timeout itself.** A test that discriminates needs a
-  stream emitting messages over a span exceeding the initial budget, which needs a controllable slow
-  server the driver harness does not have. Every cheaper shape either depends on server timing — passing
-  on a fast machine whether or not the bug is present — or asserts wiring that the type system now
-  guards anyway. A test that passes for the wrong reason would be worse than this note.
+- **Still open — no runtime regression test for the *streaming* timeout.** A test that discriminates needs
+  a stream emitting messages over a span exceeding the initial budget. Every cheaper shape either depends
+  on server timing — passing on a fast machine whether or not the bug is present — or asserts wiring that
+  the type system now guards anyway. The obstacle this bullet originally named, "a controllable slow server
+  the driver harness does not have", is no longer one: #1631 built exactly that — a stub `EvitaService`
+  that withholds its answer for a calibrated interval — in `LongRunningEvitaClientUnaryTimeoutCapTest`, and
+  the same fixture shape extends to a streaming stub. What remains is choosing budgets distinct enough that
+  the measured interval alone names which clock governed.
 - **`grpcConfigurator` runs once per channel — three times, not once.** The caller-supplied
   `Consumer<GrpcClientBuilder>` is applied **last** to each of the three builders, so it can override
   everything the driver configured. Two consequences worth knowing: a side-effecting configurator runs
@@ -224,11 +235,22 @@ through the rewired stubs.
   `evita_functional_tests` and test-scope dependencies are not transitive. Every server-starting test there
   died in `setUp`; masked because they are `@Disabled`. Any empirical claim produced from that module
   before this fix was not reproducible from the command line.
+- **Corrected — the freeze was never invisible on unary calls either (#1631).** The decorator carries a
+  per-attempt budget of its own, seeded by `RetryConfigBuilder:39` from `Flags.defaultResponseTimeoutMillis()`
+  rather than from `0`, and `AbstractRetryingClient:303-319` min-es it with the call's remaining budget. So
+  every unary request was capped at 15 s whatever the caller configured — `executeWithExtendedTimeout`
+  included — and the cap rode on the *decorator*, not the rule, so disabling retry never avoided it. Fixed
+  by `responseTimeoutMillisForEachAttempt(0)` plus seeding the unary channel's `responseTimeout` from the
+  configured timeout; the seed is what stops `0` from disabling the timeout altogether, because `State`
+  turns its timeout off when the root context carries none. Guarded by
+  `LongRunningEvitaClientUnaryTimeoutCapTest`.
 - **Worth knowing for the next review of this kind.** Nothing in #1367's diff revealed this. The freeze
   lives in Armeria's `AbstractRetryingClient`, not in any changed line, and that commit asked the right
   question — *which requests are safe to replay* — and answered it correctly. Reviewing the diff carefully
   and still missing this was the expected outcome. The generalisable lesson is that **installing a
-  decorator changes a call's timeout semantics**, and that is the thing to check when one is added.
+  decorator changes a call's timeout semantics**, and that is the thing to check when one is added — on
+  *every* call shape it is installed on, not only the one that fails loudly. #1631 is the same lesson
+  collected twice: this record checked the shape that broke and assumed the other was fine.
 
 ## Related work
 
@@ -238,10 +260,15 @@ through the rewired stubs.
   *Consequences*.
 - `2026-08-04-client-pool-fail-fast-and-cdc-channel-isolation` — the CDC channel/event-loop isolation this
   builder split sits alongside; both landed in PR #1389, which two agents staged together.
+- `2026-08-24-grpc-streaming-backpressure-readiness-gate` — the server-side half of the same call sites:
+  this record says the driver must not retry a stream, that one says the server must pace it against
+  transport readiness rather than pushing at disk speed.
 
 ## Timeline
 
-- **2026-08-04** — cap observed as a `goLive` failure while benchmarking a 386k-entity Senesi bulk load;
+- **2026-08-04** — cap observed as a `goLive` failure while benchmarking a 386k-entity production-catalog bulk load;
   root-caused the same night to `c9e72b8c4`.
 - **2026-08-05** — issue #1388 filed, fixed, and verified; CDC half measured after an earlier reading
   against a half-applied fix suggested a second, non-existent cause.
+- **2026-09-21** — the unary half of the same freeze observed in production as a bulk reindex abandoned at
+  78 %; filed as #1631, fixed, and this record's "invisible on unary" premise corrected.

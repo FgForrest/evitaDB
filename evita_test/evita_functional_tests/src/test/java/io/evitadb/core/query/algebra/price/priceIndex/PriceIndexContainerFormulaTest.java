@@ -41,14 +41,10 @@ import javax.annotation.Nonnull;
 import java.util.Currency;
 import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.PRICE;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link PriceIndexContainerFormula} verifying delegation, caching, hashing,
@@ -135,7 +131,7 @@ class PriceIndexContainerFormulaTest {
 
 			final Formula clone = original.getCloneWithInnerFormulas(createConstantFormula(3, 4));
 
-			assertTrue(clone instanceof PriceIndexContainerFormula);
+			assertInstanceOf(PriceIndexContainerFormula.class, clone);
 			final PriceIndexContainerFormula typedClone = (PriceIndexContainerFormula) clone;
 			assertSame(index, typedClone.getPriceIndex());
 		}

@@ -30,7 +30,6 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
@@ -215,7 +214,6 @@ public final class EntitySchema implements EntitySchemaContract {
 	 * the calculation is expensive, it is memoized.
 	 */
 	private volatile Boolean memoizedLocalized;
-
 	/**
 	 * Method generates name variant index used for quickly looking up for schemas by name in specific name convention.
 	 */
@@ -475,6 +473,7 @@ public final class EntitySchema implements EntitySchemaContract {
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isFilterableInScope)
 					.toArray(Scope[]::new),
+				AttributeSchema.toAcceleratorsArray(attributeSchemaContract.getAcceleratorsInScopes()),
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isSortableInScope)
 					.toArray(Scope[]::new),
@@ -511,6 +510,7 @@ public final class EntitySchema implements EntitySchemaContract {
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isFilterableInScope)
 					.toArray(Scope[]::new),
+				AttributeSchema.toAcceleratorsArray(attributeSchemaContract.getAcceleratorsInScopes()),
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isSortableInScope)
 					.toArray(Scope[]::new),
@@ -961,20 +961,27 @@ public final class EntitySchema implements EntitySchemaContract {
 
 	@Override
 	public void validate(@Nonnull CatalogSchemaContract catalogSchema) throws SchemaAlteringException {
+		Stream<String> attributeErrors = Stream.empty();
 		for (EntityAttributeSchemaContract attribute : this.attributes.values()) {
 			assertNotReferencedEntityPredecessor(attribute.getName(), attribute.getType());
+			// accumulated rather than thrown, so that a schema with several broken attributes reports all of them
+			// in one exception alongside the reference errors gathered below
+			attributeErrors = Stream.concat(attributeErrors, attribute.validate());
 		}
-		final List<String> errors = getReferences()
-			.values()
-			.stream()
-			.flatMap(ref -> {
-				try {
-					ref.validate(catalogSchema, this);
-					return Stream.empty();
-				} catch (SchemaAlteringException e) {
-					return Stream.of(e.getMessage());
-				}
-			})
+		final List<String> errors = Stream.concat(
+				attributeErrors,
+				getReferences()
+					.values()
+					.stream()
+					.flatMap(ref -> {
+						try {
+							ref.validate(catalogSchema, this);
+							return Stream.empty();
+						} catch (SchemaAlteringException e) {
+							return Stream.of(e.getMessage());
+						}
+					})
+			)
 			.map(it -> "\t" + it)
 			.toList();
 		if (!errors.isEmpty()) {

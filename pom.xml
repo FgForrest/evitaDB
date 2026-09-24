@@ -25,7 +25,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>io.evitadb</groupId>
 	<artifactId>evita_root</artifactId>
-	<version>2026.2-SNAPSHOT</version>
+	<version>2026.3-SNAPSHOT</version>
 	<packaging>pom</packaging>
 	<name>evitaDB - Root &amp; modules aggregator</name>
 	<url>https://evitadb.io</url>
@@ -121,15 +121,27 @@
 	</organization>
 
 	<properties>
-		<java.version>17</java.version>
+		<java.version>21</java.version>
+		<!--
+			Language and API level javac enforces (its `release` flag), as opposed to `java.version`, which is the JDK
+			the build runs on and the toolchain it selects. The two agree everywhere except in the modules the
+			Java driver is built from: those set `java.release` to `${java.driver.release}` so that the driver
+			(`evita_java_driver`, `evita_java_driver_observability`, `evita_java_driver_all_in_one`) keeps
+			compiling against - and running on - JDK 17 while the server requires JDK 21. javac 21 with
+			`release` 17 rejects every JDK 18+ language feature and API in those modules, so a regression
+			fails the build instead of the consumer's classloader.
+		-->
+		<java.release>${java.version}</java.release>
+		<java.driver.release>17</java.driver.release>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<slf4j.version>2.0.18</slf4j.version>
 		<logback.version>1.6.1</logback.version>
 		<kryo.version>5.6.2</kryo.version>
-		<jackson.version>2.22.1</jackson.version>
+		<jackson.version>2.22.2</jackson.version>
 		<jackson.annotations.version>2.22</jackson.annotations.version>
-		<snakeyaml.version>2.6</snakeyaml.version>
+		<snakeyaml.version>2.7</snakeyaml.version>
 		<roaringbitmap.version>1.6.18</roaringbitmap.version>
+		<junit.jupiter.version>6.1.3</junit.jupiter.version>
 		<!--
 			Deliberately frozen, and NOT a candidate for routine bumps (see the `ignore` entry in
 			.github/dependabot.yml). The Lucene analysis chain defines the CONTENT of the future
@@ -145,25 +157,16 @@
 		<maven.compiler.version>3.15.0</maven.compiler.version>
 		<maven.toolchains.version>3.3.0</maven.toolchains.version>
 		<lombok.version>1.18.46</lombok.version>
-		<grpc.version>1.83.1</grpc.version>
-		<bouncyCastle.version>1.85</bouncyCastle.version>
-		<swagger.version>2.2.52</swagger.version>
-		<armeria.version>1.40.0</armeria.version>
-		<!--
-			Overrides the netty version armeria 1.40.0 itself pulls in (4.2.15.Final) to pick up
-			GHSA-558v-64gr-wgg4 / GHSA-q6cq-mhr2-jmr5 / GHSA-6jqx-86gh-f27w and the other netty-codec-*
-			advisories fixed in 4.2.16.Final, ahead of armeria's next release. Patch bump within the
-			same 4.2.x line - see the netty-codec-* overrides in dependencyManagement below for why
-			only those artifacts (not a full netty-bom import) are pinned. Drop this override (and the
-			property) once armeria itself depends on >= 4.2.16.Final.
-		-->
-		<netty.version>4.2.16.Final</netty.version>
+		<grpc.version>1.84.0</grpc.version>
+		<bouncyCastle.version>1.86</bouncyCastle.version>
+		<swagger.version>2.2.55</swagger.version>
+		<armeria.version>1.41.1</armeria.version>
 		<prometheus.version>1.8.0</prometheus.version>
-		<micrometer.version>1.17.0</micrometer.version>
+		<micrometer.version>1.17.1</micrometer.version>
 		<byteBuddy.version>1.17.8</byteBuddy.version>
 		<graphql.version>25.0</graphql.version>
-		<okhttp.version>5.4.0</okhttp.version>
-		<opentelemetry.version>1.64.0</opentelemetry.version>
+		<okhttp.version>5.5.0</okhttp.version>
+		<opentelemetry.version>1.65.0</opentelemetry.version>
 		<opentelemetry.semconv.version>1.43.0</opentelemetry.semconv.version>
 		<minio.version>8.6.0</minio.version>
 		<jol.version>0.17</jol.version>
@@ -175,6 +178,16 @@
 		-->
 		<surefire.useUnlimitedThreads>true</surefire.useUnlimitedThreads>
 		<surefire.threadCount>4</surefire.threadCount>
+		<!--
+			Heap of the single surefire fork - one number for local builds and CI alike, deliberately
+			a single property rather than a -D override on each CI command line, so that a workflow
+			added later cannot inherit a different heap in silence.
+
+			8g, and raising it is not the lever it looks like - see the surefire-plugin comment below,
+			which records both a 12g and a 9g attempt failing on the GitHub-hosted runners. Raise it
+			ONLY through the `largeMachine` profile, on a developer box.
+		-->
+		<surefire.maxHeapSize>8g</surefire.maxHeapSize>
 		<!--
 			Lets CI skip evita_roaring_bitmap's (colocated, vendor-suite) tests on pushes/PRs that
 			don't touch that module, to save CI time. Defaults to false (tests run) for local dev
@@ -212,41 +225,6 @@
 
 	<dependencyManagement>
 		<dependencies>
-			<!--
-				See the netty.version comment in <properties> above: overrides only the netty-codec-*
-				artifacts armeria 1.40.0 pulls in that carry an open Dependabot advisory, without a full
-				netty-bom import - importing netty-bom manages every io.netty:* artifact (incl.
-				netty-handler and netty-resolver-dns, neither of which is itself vulnerable), which was
-				observed to flip netty-handler's mediated scope from "provided" to "runtime" in
-				evita_external_api_grpc_shared and break its module-info.java (`requires io.netty.handler`
-				needs compile-time visibility). Mixing patch versions within the same netty 4.2.x line is
-				binary-compatible, so pinning just the affected artifacts is sufficient and safer.
-			-->
-			<dependency>
-				<groupId>io.netty</groupId>
-				<artifactId>netty-codec-http2</artifactId>
-				<version>${netty.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>io.netty</groupId>
-				<artifactId>netty-codec-http</artifactId>
-				<version>${netty.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>io.netty</groupId>
-				<artifactId>netty-codec-compression</artifactId>
-				<version>${netty.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>io.netty</groupId>
-				<artifactId>netty-codec-haproxy</artifactId>
-				<version>${netty.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>io.netty</groupId>
-				<artifactId>netty-codec-dns</artifactId>
-				<version>${netty.version}</version>
-			</dependency>
 			<dependency>
 				<groupId>com.esotericsoftware</groupId>
 				<artifactId>kryo</artifactId>
@@ -255,7 +233,7 @@
 			<dependency>
 				<groupId>com.carrotsearch</groupId>
 				<artifactId>hppc</artifactId>
-				<version>0.10.0</version>
+				<version>0.11.1</version>
 			</dependency>
 			<!--
 				Lucene analysis chain - consumed only by evita_engine (see the module boundary rationale
@@ -282,6 +260,25 @@
 				<groupId>one.edee.oss</groupId>
 				<artifactId>proxycian_bytebuddy</artifactId>
 				<version>1.4.0</version>
+			</dependency>
+			<!--
+				byteBuddy.version is declared on each direct dependency (evita_engine,
+				evita_external_api_graphql), which leaves it unmanaged wherever byte-buddy arrives only
+				transitively - and there the newest requestor wins. assertj-core 3.27.7 asks for 1.18.3, so
+				evita_functional_tests resolved byte-buddy 1.18.3 against byte-buddy-agent 1.17.8: two halves
+				of one library, at different minor versions, on the same classpath. The agent code under test
+				is instrumentation, so the suite was exercising a Byte Buddy production does not ship. Managing
+				both artifacts here pins them together everywhere, including transitive-only modules.
+			-->
+			<dependency>
+				<groupId>net.bytebuddy</groupId>
+				<artifactId>byte-buddy</artifactId>
+				<version>${byteBuddy.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>net.bytebuddy</groupId>
+				<artifactId>byte-buddy-agent</artifactId>
+				<version>${byteBuddy.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>com.squareup.okhttp3</groupId>
@@ -435,7 +432,7 @@
 			<dependency>
 				<groupId>org.apache.httpcomponents.client5</groupId>
 				<artifactId>httpclient5</artifactId>
-				<version>5.6.3</version>
+				<version>5.6.4</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
@@ -471,11 +468,33 @@
 		</dependency>
 	</dependencies>
 	<profiles>
-		<!-- using a toolchain when version doesn't match -->
+		<!--
+			Engages the toolchains plugin when Maven itself runs on a JDK *older* than the one the
+			project targets, so javac (and everything else that honours the build-wide toolchain,
+			notably maven-javadoc-plugin) is forked from a matching JDK. That covers the *forked*
+			work - `mvn compile` and `mvn test` therefore succeed on an older default JDK.
+
+			It does NOT make a full build work there, and this profile must not be read as saying so.
+			evitaDB is a modular (JPMS) project and `maven-archiver` assembles modular JARs with the
+			in-process `jar` tool of the JVM Maven itself runs on, which no toolchain can redirect; on
+			an older host `package`/`install` therefore fails at packaging, after compilation already
+			succeeded, for every module carrying a module-info.java. **Maven itself must run on JDK 21**
+			- see the [!IMPORTANT] note under "How to build evitaDB" in README.md.
+
+			The range must therefore always be [1.3,${java.version}) - it was [1.3,17) while the
+			project targeted 17 and moves to [1.3,21) with the target. Note that <jdk> activation
+			matches the JVM Maven itself runs on (the `java.version` *system* property), which
+			unfortunately shares its name with the <java.version> POM property below - do not pass
+			-Djava.version=... on the command line, it silently changes profile activation.
+
+			maven-compiler-plugin and surefire additionally select the toolchain directly via their
+			own <jdkToolchain>, so those two would survive without this profile; javadoc and any
+			other toolchain-aware plugin would not.
+		-->
 		<profile>
 			<id>toolchains</id>
 			<activation>
-				<jdk>[1.3,17)</jdk>
+				<jdk>[1.3,21)</jdk>
 			</activation>
 			<build>
 				<plugins>
@@ -620,6 +639,21 @@
 			</build>
 		</profile>
 		<!--
+			Raises the surefire fork heap for machines that have the memory to spare. OPT-IN, and
+			deliberately not the default: the whole functional suite fans out to one test class per
+			core in a single fork, so on a many-core workstation the 8g default is marginal and the
+			suite dies with an OutOfMemoryError three minutes in - while on the GitHub-hosted runners
+			a larger heap is the wrong medicine and has now got a build killed twice, at 12g and at
+			9g (see the surefire-plugin comment). Use as `mvn test -P unitAndFunctional,largeMachine` on a
+			developer box; never in CI.
+		-->
+		<profile>
+			<id>largeMachine</id>
+			<properties>
+				<surefire.maxHeapSize>12g</surefire.maxHeapSize>
+			</properties>
+		</profile>
+		<!--
 			Adds the heavy modules that are excluded from the default reactor.
 			Activate for: CI dev/PR builds (jacoco aggregate report), performance
 			pipeline (benchmarks uber-jar) and — most importantly — the release
@@ -637,6 +671,45 @@
 	<build>
 		<pluginManagement>
 			<plugins>
+				<plugin>
+					<!--
+						Guards the Java driver's dependency graph at the JDK 17 floor that javac already
+						enforces for the driver's own sources (`java.release`). javac cannot see the bytecode
+						level of a dependency, so without this rule a dependency bump shipping JDK 18+ classes
+						would pass every build here and fail in the consumer's classloader. Referenced from the
+						two driver modules; test-scoped dependencies are ignored because they never reach a
+						consumer. Multi-release overlays (META-INF/versions/N) above the floor are legitimate
+						and the rule skips them.
+					-->
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-enforcer-plugin</artifactId>
+					<version>3.6.2</version>
+					<dependencies>
+						<dependency>
+							<groupId>org.codehaus.mojo</groupId>
+							<artifactId>extra-enforcer-rules</artifactId>
+							<version>1.12.0</version>
+						</dependency>
+					</dependencies>
+					<executions>
+						<execution>
+							<id>driver-dependencies-stay-at-driver-jdk</id>
+							<goals>
+								<goal>enforce</goal>
+							</goals>
+							<configuration>
+								<rules>
+									<enforceBytecodeVersion>
+										<maxJdkVersion>${java.driver.release}</maxJdkVersion>
+										<ignoredScopes>
+											<ignoredScope>test</ignoredScope>
+										</ignoredScopes>
+									</enforceBytecodeVersion>
+								</rules>
+							</configuration>
+						</execution>
+					</executions>
+				</plugin>
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-shade-plugin</artifactId>
@@ -701,10 +774,16 @@
 					<jdkToolchain>
 						<version>${java.version}</version>
 					</jdkToolchain>
-					<release>${java.version}</release>
-					<source>${java.version}</source>
-					<target>${java.version}</target>
-					<compilerVersion>${java.version}</compilerVersion>
+					<release>${java.release}</release>
+					<source>${java.release}</source>
+					<target>${java.release}</target>
+					<!--
+						The `add-modules jdk.incubator.vector` javac argument is deliberately NOT here. Only
+						`evita_roaring_bitmap` compiles against the incubating Vector API, and it adds the
+						argument in its own POM; the modules reachable from the Java driver compile at
+						`${java.driver.release}` and must not be handed an incubating module they neither use
+						nor could resolve at that API level.
+					-->
 					<compilerArgs>
 						<arg>-parameters</arg>
 					</compilerArgs>
@@ -744,6 +823,23 @@
 						`surefire.useUnlimitedThreads`/`surefire.threadCount` (see root <properties>) to
 						cap concurrency to the runner's actual core count, which bounds the off-heap
 						driver and makes 8g a safe, comfortable step up from the previous 5g.
+
+						A 9g attempt was made and reverted, and it is worth knowing why it looked
+						reasonable. The prompt was a *contained* `OutOfMemoryError: Java heap space` in
+						the functional suite - the fork dying inside its own budget rather than the OS
+						taking the job, which is the opposite of the 12g failure above and therefore
+						looks like the one case where more heap is the answer. It is not. 9g failed
+						`dev` and three branches, four runs out of four, each dying 8-13 minutes in
+						where the same suite at 8g finishes green in 16-25. One of the four was a
+						config-only branch off clean `dev`, so the heap was the variable and no
+						feature's footprint was involved.
+
+						Read with the 12g result, that is the whole rule for this runner: the ceiling
+						is set by total RAM, not by -Xmx, and every gigabyte handed to the heap is one
+						taken from the off-heap driver that decides whether the job survives. So when
+						the suite outgrows this heap, the lever is `surefire.threadCount` and not this
+						number - fewer concurrently-alive embedded instances shrink the heap working
+						set and the off-heap footprint at the same time.
 					-->
 					<!--
 						`jol.magicFieldOffset` lets JOL resolve field offsets on classes where
@@ -756,8 +852,17 @@
 						the add-opens flags below cannot substitute for it, because this is not a package-access
 						restriction.
 					-->
-					<argLine>${surefireArgLine} -Xmx8g -Duser.country=US, -Duser.language=us
+					<!--
+						The locale is pinned so that a developer box running a non-US OS locale does not flip
+						locale-sensitive assertions (collation order, decimal separators, month names). Both codes
+						had been wrong since they were introduced: `us` is not an ISO-639 language and the country
+						carried a stray comma, so the default locale resolved to `us_US,` and every lookup fell back
+						to root. That happened to behave like en-US for the operations the suite exercises, which is
+						why it went unnoticed - it was still deterministic, just not the locale anyone had asked for.
+					-->
+					<argLine>${surefireArgLine} -Xmx${surefire.maxHeapSize} -Duser.country=US -Duser.language=en
 						-Dfile.encoding=${project.build.sourceEncoding} -Djol.magicFieldOffset=true
+						--add-modules jdk.incubator.vector
 						--add-opens java.base/java.lang.invoke=ALL-UNNAMED
 						--add-opens java.base/java.lang.invoke=ALL-UNNAMED
 						--add-opens java.base/java.lang=ALL-UNNAMED
@@ -850,7 +955,7 @@
 			<plugin>
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
-				<version>0.8.14</version>
+				<version>0.8.15</version>
 				<executions>
 					<execution>
 						<id>prepare-agent</id>

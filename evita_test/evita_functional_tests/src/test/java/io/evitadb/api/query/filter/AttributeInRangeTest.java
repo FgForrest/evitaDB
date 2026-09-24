@@ -75,11 +75,15 @@ class AttributeInRangeTest {
 		@Test
 		@DisplayName("should create OffsetDateTime variant via factory method")
 		void shouldCreateMomentViaFactoryClassWorkAsExpected() {
-			final OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-			final AttributeInRange constraint = attributeInRange("validity", now);
+			// the moment carries sub-millisecond digits, which the query boundary discards
+			final OffsetDateTime moment = OffsetDateTime.of(2026, 5, 20, 12, 19, 26, 123_456_789, ZoneOffset.UTC);
+			final AttributeInRange constraint = attributeInRange("validity", moment);
 
 			assertEquals("validity", constraint.getAttributeName());
-			assertEquals(now, constraint.getTheMoment());
+			assertEquals(
+				OffsetDateTime.of(2026, 5, 20, 12, 19, 26, 123_000_000, ZoneOffset.UTC),
+				constraint.getTheMoment()
+			);
 			assertNull(constraint.getTheValue());
 		}
 
@@ -135,10 +139,14 @@ class AttributeInRangeTest {
 		@Test
 		@DisplayName("should return the moment for OffsetDateTime variant")
 		void shouldReturnTheMoment() {
-			final OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-			final AttributeInRange constraint = attributeInRange("validity", now);
+			// the moment carries sub-millisecond digits, which the query boundary discards
+			final OffsetDateTime moment = OffsetDateTime.of(2026, 5, 20, 12, 19, 26, 123_456_789, ZoneOffset.UTC);
+			final AttributeInRange constraint = attributeInRange("validity", moment);
 
-			assertEquals(now, constraint.getTheMoment());
+			assertEquals(
+				OffsetDateTime.of(2026, 5, 20, 12, 19, 26, 123_000_000, ZoneOffset.UTC),
+				constraint.getTheMoment()
+			);
 		}
 
 		@Test

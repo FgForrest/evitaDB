@@ -27,16 +27,16 @@ import io.evitadb.api.query.filter.AttributeInRange;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.query.algebra.base.DisentangleFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
-import io.evitadb.core.query.algebra.base.JoinFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
-import io.evitadb.core.query.algebra.utils.FormulaFactory;
+import io.evitadb.core.query.algebra.base.RangeCountFormula;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
-import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.bPlusTree.TransactionalLongBPlusTree;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -46,8 +46,8 @@ import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.page.PageStreamRegistry;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
-import lombok.Data;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -87,10 +87,33 @@ import java.util.stream.Collectors;
  * This situation will lead to problems when such record is removed because on removal it removes the shared border
  * information for all ranges.
  *
+ * ## Threshold scale — a persisted-format contract
+ *
+ * A threshold is an **untyped** `long` and this index carries no record of what it measures: one and the same class
+ * serves `DateTimeRange` and all five `NumberRange` subtypes. The scale is entirely the caller's, and every threshold
+ * in one index must be derived the same way — for a `DateTimeRange` index that is a whole epoch **millisecond**
+ * ({@link DateTimeRange#toComparableLong}), for a `NumberRange` index it is the bound's own numeric value.
+ *
+ * That matters beyond the live structure, because the scale is not self-describing on disk either. What identifies a
+ * persisted index's scale is the `serialVersionUID` of the **root** storage part that owns it — never a leaf page,
+ * which holds bare thresholds and nothing that could disambiguate them. A `DateTimeRange` index is the only one whose
+ * scale ever changed (epoch seconds → epoch milliseconds); one written by a release predating that move is repaired
+ * on load by {@link #rescaledFromSecondGranularity} / {@link #rescaledFromSecondGranularityPages}, routed by the
+ * declared attribute type so a numeric index is never inflated a thousandfold. `AttributeIndexLoader#loadRangeIndex`
+ * carries the full argument and names the other three load paths that make the same repair.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Serializable {
+public class RangeIndex
+	implements VoidTransactionMemoryProducer<RangeIndex>, WarmUpTouchStamped, Serializable {
 	@Serial private static final long serialVersionUID = -6580254774575839798L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 
 	/**
 	 * Wrapper that adapts a committed value coming out of the B+ tree commit into a {@link TransactionalRangePoint}.
@@ -100,6 +123,13 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 */
 	private static final Function<Object, TransactionalRangePoint> RANGE_POINT_WRAPPER =
 		TransactionalRangePoint.class::cast;
+
+	/**
+	 * Initial capacity for the two operand families a range query collects. A family holds one bitmap per threshold
+	 * point that contributed, which for the queries this index serves is a handful in the common case and grows by
+	 * doubling when it is not - the value only avoids the first few array copies, it caps nothing.
+	 */
+	private static final int DEFAULT_OPERAND_FAMILY_SIZE = 16;
 
 	/**
 	 * Leaf block size of the threshold → range-point tree. Unlike the comparator-keyed inverted index, this tree is
@@ -133,13 +163,13 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	/**
 	 * Unique transactional id for this index instance. Overrides the {@link VoidTransactionMemoryProducer} default
 	 * (the constant `1L`) so that a formula-cache token seeded from this id — the `indexTransactionId` of the
-	 * {@link JoinFormula}/{@link DisentangleFormula} built by this index's range queries — is UNIQUE per index yet
+	 * {@link RangeCountFormula} built by this index's range queries — is UNIQUE per index yet
 	 * STABLE across commits that did not touch it: an untouched index is carried forward by reference from
 	 * {@link #createCopyWithMergedTransactionalMemory} (preserving its id), while a mutated index becomes a fresh
 	 * instance with a fresh id (correctly invalidating dependent cached formulas). With the constant `1L` default the
 	 * token never changed across commits, so a cached result over a `> EXCESSIVE_HIGH_CARDINALITY`-bucket range was
-	 * never invalidated — the stale-read defect tracked as issue #37. This is a runtime-only field, regenerated on
-	 * load — it is never persisted (the persisted form carries no id).
+	 * never invalidated and a committed write went unseen by every later query that hit the cache. This is a
+	 * runtime-only field, regenerated on load — it is never persisted (the persisted form carries no id).
 	 */
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 
@@ -192,37 +222,6 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 			result.addEnd(rangePoint.getEnds());
 		}
 		return result;
-	}
-
-	/**
-	 * Collects all starts and ends from the range points between `fromIndex` and `toIndex` (inclusive) of the passed
-	 * materialized snapshot array and returns them collected in a simple DTO.
-	 */
-	@Nonnull
-	static StartsEndsDTO collectsStartsAndEnds(int fromIndex, int toIndex, @Nonnull TransactionalRangePoint[] ranges) {
-		final StartsEndsDTO result = new StartsEndsDTO();
-		for (int i = fromIndex; i <= toIndex; i++) {
-			final RangePoint<?> rangePoint = ranges[i];
-			result.addStart(rangePoint.getStarts());
-			result.addEnd(rangePoint.getEnds());
-		}
-		return result;
-	}
-
-	/**
-	 * Materializes the transactional view of all range points into a positionally addressable array, ordered ascending
-	 * by threshold. Used by the {@link RangeLookup}-based queries which reproduce the original positional index math; the
-	 * border sentinels guarantee at least two entries. This is the same O(N) scan the array-backed implementation
-	 * performed for these full-range queries.
-	 */
-	@Nonnull
-	private TransactionalRangePoint[] materializeRanges() {
-		final List<TransactionalRangePoint> result = new ArrayList<>(this.ranges.size());
-		final Iterator<TransactionalRangePoint> it = this.ranges.valueIterator();
-		while (it.hasNext()) {
-			result.add(it.next());
-		}
-		return result.toArray(new TransactionalRangePoint[0]);
 	}
 
 	/**
@@ -359,6 +358,15 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	/**
 	 * Adds new record with the interval from/to to the range. The updater mutates and returns the SAME
 	 * {@link TransactionalRangePoint} instance (never swaps it) so the value's transactional diff layer is preserved.
+	 *
+	 * Both bounds must be derived in the same scale every other threshold of this index was — normally
+	 * {@code Range#getFrom()} / {@code Range#getTo()}, which for a `DateTimeRange` is already the epoch millisecond.
+	 * See the class javadoc: nothing here can detect a bound handed over in a different scale, and a mixed-scale index
+	 * answers every query over it with the wrong records and no exception.
+	 *
+	 * @param from     the interval's lower threshold, inclusive
+	 * @param to       the interval's upper threshold, inclusive
+	 * @param recordId the record valid over that interval
 	 */
 	public void addRecord(long from, long to, int recordId) {
 		this.dirty.setToTrue();
@@ -383,6 +391,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 			}
 		);
 		if (!Transaction.isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.envelopingNowCache = null;
 		}
 	}
@@ -391,13 +400,42 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * Removes record with the interval from/to from the range. Each affected point is mutated in place; once a point
 	 * becomes obsolete (no starts, no ends) and is not a border sentinel it is deleted from the tree, which releases
 	 * its transactional layer.
+	 *
+	 * The two bounds must be the very thresholds {@link #addRecord} was called with, in the same scale — a removal at
+	 * a threshold this record never started at silently leaves the original interval in place.
+	 *
+	 * @param start    the interval's lower threshold, as it was added
+	 * @param end      the interval's upper threshold, as it was added
+	 * @param recordId the record whose interval is dropped
 	 */
 	public void removeRecord(long start, long end, int recordId) {
 		this.dirty.setToTrue();
 		removeFromPoint(start, recordId, true);
 		removeFromPoint(end, recordId, false);
 		if (!Transaction.isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.envelopingNowCache = null;
+		}
+	}
+
+	/**
+	 * Records, for the warm-up savepoint bracketing the current root entity mutation if one is open, that
+	 * {@link #envelopingNowCache} has to be left INVALIDATED should the mutation be rolled back (see
+	 * {@link WarmUpSavepoint}).
+	 *
+	 * The two mutators above already drop the cache on the forward path, so the state a rollback finds is normally
+	 * correct. The journal entry exists for the case where a query runs LATER inside the same root entity mutation:
+	 * {@link #getRecordsValidNowFormula(long)} would repopulate the cache from the half-mutated range tree, and that
+	 * value would then outlive the rollback of the points underneath it. Re-invalidating on restore costs one
+	 * recomputation and makes no claim about a captured value's validity.
+	 *
+	 * Recorded once per savepoint, and only from the non-transactional branch — inside a transaction no warm-up
+	 * savepoint is ever open. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			savepoint.pushPostRestoreInvalidation(() -> this.envelopingNowCache = null);
 		}
 	}
 
@@ -451,10 +489,18 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * The computation is based on starts and end of their validity ranges. Record is valid when there is single
 	 * end threshold and not even single start for the same record.
 	 *
-	 * We also need to avoid situation when there is another full range after the actual one. This situation is solved
-	 * by combining {@link JoinFormula} - which is something like OR join that leaves duplicate record ids in place.
-	 * After that {@link DisentangleFormula} excludes all record ids that are in both bitmaps on the same place. This
-	 * operation will exclude all ranges that both start and ends after examined range.
+	 * A record can hold several validity spans, so "valid" is not a set membership question but a counting one:
+	 * over the scanned suffix the record must END more often than it STARTS, which is what excludes a range that
+	 * both starts and ends after the examined point. {@link RangeCountFormula} computes exactly that signed count.
+	 *
+	 * This is the one range query that counts over a SUFFIX rather than a prefix, and it stays that way on purpose.
+	 * The two directions are arithmetically identical - per record `E(>=t) - S(>=t)` equals `S(<t) - E(<t)`, since
+	 * flipping the walk subtracts that record's whole span count from both families - so this could be routed
+	 * through {@link #createPrefixCountFormula(long, boolean, long, boolean)} as `(t, false, t, false)`. Two reasons
+	 * not to: at `Long.MIN_VALUE` the prefix form collects nothing and short-circuits to {@link EmptyFormula},
+	 * where this returns a zero-valued {@link RangeCountFormula} carrying the index id - the same records, but a
+	 * different formula identity, and that identity is read as the index's staleness token. And no caller would
+	 * gain: the suffix walk is already a single counting pass.
 	 */
 	@Nonnull
 	public Formula getRecordsFrom(long threshold) {
@@ -467,7 +513,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 			startsEndsDTO.addStart(point.getStarts());
 			startsEndsDTO.addEnd(point.getEnds());
 		}
-		return createDisentangleFormulaIfNecessary(
+		return createRangeCountFormulaIfNecessary(
 			getId(), startsEndsDTO.getRangeEndsAsBitmapArray(),
 			startsEndsDTO.getRangeStartsAsBitmapArray()
 		);
@@ -479,28 +525,13 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * The computation is based on starts and end of their validity ranges. Record is valid when there is single
 	 * start threshold and not even single end for the same record.
 	 *
-	 * We also need to avoid situation when there is another full range before the actual one. This situation is solved
-	 * by combining {@link JoinFormula} - which is something like OR join that leaves duplicate record ids in place.
-	 * After that {@link DisentangleFormula} excludes all record ids that are in both bitmaps on the same place. This
-	 * operation will exclude all ranges that both start and ends after examined range.
+	 * A record can hold several validity spans, so "valid" is not a set membership question but a counting one:
+	 * over the scanned prefix the record must START more often than it ENDS, which is what excludes a range that
+	 * both starts and ends before the examined point. {@link RangeCountFormula} computes exactly that signed count.
 	 */
 	@Nonnull
 	public Formula getRecordsTo(long threshold) {
-		// the array implementation collected all points from the start up to (and including when present) the threshold;
-		// this is exactly the forward stream of points whose key is lesser than or equal to the threshold
-		final StartsEndsDTO startsEndsDTO = new StartsEndsDTO();
-		final Iterator<TransactionalLongBPlusTree.Entry<TransactionalRangePoint>> it = this.ranges.entryIterator();
-		while (it.hasNext()) {
-			final TransactionalLongBPlusTree.Entry<TransactionalRangePoint> entry = it.next();
-			if (entry.key() > threshold) {
-				// keys are ascending - everything that follows is past the threshold
-				break;
-			}
-			final TransactionalRangePoint point = entry.value();
-			startsEndsDTO.addStart(point.getStarts());
-			startsEndsDTO.addEnd(point.getEnds());
-		}
-		return createDisentangleFormulaIfNecessary(getId(), startsEndsDTO.getRangeStartsAsBitmapArray(), startsEndsDTO.getRangeEndsAsBitmapArray());
+		return createPrefixCountFormula(threshold, true, threshold, true);
 	}
 
 	/**
@@ -510,46 +541,13 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 *
 	 * Method finds all records which start range is before `threshold` and end range is after `threshold` argument.
 	 * Records starting or ending exactly with `threshold` are part of the result.
+	 *
+	 * Implemented as the `(threshold, true, threshold, false)` instance of the signed-count prefix in
+	 * {@link #createPrefixCountFormula(long, boolean, long, boolean)}; see that method for the counting rationale.
 	 */
 	@Nonnull
 	public Formula getRecordsEnvelopingInclusive(long threshold) {
-		final TransactionalRangePoint[] points = materializeRanges();
-		final RangeLookup rangeLookup = new RangeLookup(points, threshold, threshold);
-
-		final int startIndex = rangeLookup.isStartThresholdFound() ? rangeLookup.getStartIndex() : rangeLookup.getStartIndex() - 1;
-		final int endIndex = rangeLookup.isEndThresholdFound() ? rangeLookup.getEndIndex() + 1 : rangeLookup.getEndIndex();
-
-		final StartsEndsDTO before = startIndex >= 0 ?
-			collectsStartsAndEnds(0, startIndex, points) : new StartsEndsDTO();
-		final StartsEndsDTO after = endIndex < points.length ?
-			collectsStartsAndEnds(endIndex, points.length - 1, points) : new StartsEndsDTO();
-
-		final AndFormula envelopeFormula = new AndFormula(
-			createDisentangleFormulaIfNecessary(getId(), before.getRangeStartsAsBitmapArray(), before.getRangeEndsAsBitmapArray()),
-			createDisentangleFormulaIfNecessary(getId(), after.getRangeEndsAsBitmapArray(), after.getRangeStartsAsBitmapArray())
-		);
-
-		// both should be true or false since we have same threshold
-		if (rangeLookup.isStartThresholdFound() && rangeLookup.isEndThresholdFound()) {
-			Assert.isPremiseValid(
-				rangeLookup.getStartIndex() == rangeLookup.getEndIndex(),
-				"Premise is invalid!"
-			);
-			final Bitmap starts = points[rangeLookup.getStartIndex()].getStarts();
-			final Bitmap ends = points[rangeLookup.getEndIndex()].getEnds();
-
-			if (starts.isEmpty() && ends.isEmpty()) {
-				return envelopeFormula;
-			} else {
-				return FormulaFactory.or(
-					envelopeFormula,
-					starts.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(starts),
-					ends.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(ends)
-				);
-			}
-		} else {
-			return envelopeFormula;
-		}
+		return createPrefixCountFormula(threshold, true, threshold, false);
 	}
 
 	/**
@@ -562,8 +560,9 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * Bypasses the cache entirely when called inside a transaction, since the transactional view of the
 	 * underlying {@code ranges} array may differ from the committed view that backs the cache.
 	 *
-	 * @param now epoch-second value of the moment to evaluate (typically
-	 *            {@code request.getAlignedNow().toEpochSecond()})
+	 * @param now comparison value of the moment to evaluate, in whatever scale the index's thresholds were derived
+	 *            in — for a `DateTimeRange` index that is
+	 *            {@code DateTimeRange.toComparableLong(request.getAlignedNow())}, a whole epoch millisecond
 	 * @return formula computing the records whose validity range envelopes {@code now}
 	 */
 	@Nonnull
@@ -591,56 +590,133 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	}
 
 	/**
-	 * Creates a DisentangleFormula if necessary based on the given id and bitmap arrays.
-	 * If the left or right bitmap array produces effectively empty bitmap, DisentangleFormula is not created and
-	 * more optimized result is returned.
+	 * Computes the records whose ranges satisfy a two-bound signed count taken over a single ascending prefix of the
+	 * threshold tree: `#{ranges whose start satisfies the starts bound} - #{ranges whose end satisfies the ends bound}`.
 	 *
-	 * @param id     the id for the DisentangleFormula
-	 * @param left   the left bitmap array to be used for the DisentangleFormula
-	 * @param right  the right bitmap array to be used for the DisentangleFormula
-	 * @return a Formula object representing the DisentangleFormula if necessary
+	 * Every range query this index answers is an instance of that one count. Because a range's start never exceeds its
+	 * end and BOTH endpoints are indexed here, a range whose end satisfies the (never wider) ends bound necessarily has
+	 * a start satisfying the starts bound - so the subtraction cancels exactly the ranges that are already over, and
+	 * leaves each still-matching range counted once:
+	 *
+	 * - {@link #getRecordsTo(long)}                            starts `<= t`, ends `<= t`  -> ranges with `a <= t < b`
+	 * - {@link #getRecordsEnvelopingInclusive(long)}           starts `<= t`, ends `< t`   -> ranges with `a <= t <= b`
+	 * - {@link #getRecordsWithRangesOverlapping(long, long)}   starts `<= to`, ends `< from` -> meets `[from, to]`
+	 *
+	 * That cancellation is what removes the second counting family, the intersection of the two, and the boundary
+	 * fix-up the positional implementation needed: a range ending exactly ON the queried threshold is admitted by the
+	 * ends bound being STRICT, not by being OR-ed back in afterwards.
+	 *
+	 * A record may hold several ranges, so membership is a counting question rather than a set question - the strictly
+	 * positive signed multiplicity {@link RangeCountFormula} computes means at least one of the record's ranges matches.
+	 *
+	 * @param startsBound     highest threshold whose STARTS still contribute `+1`
+	 * @param startsInclusive whether a point sitting exactly on `startsBound` contributes its starts
+	 * @param endsBound       highest threshold whose ENDS still contribute `-1`; never admits a threshold the starts
+	 *                        bound rejects, which is the premise the cancellation argument above rests on
+	 * @param endsInclusive   whether a point sitting exactly on `endsBound` contributes its ends
+	 * @return the formula computing the records whose signed count is strictly positive
 	 */
 	@Nonnull
-	private static Formula createDisentangleFormulaIfNecessary(long id, @Nonnull Bitmap[] left, @Nonnull Bitmap[] right) {
-		final Formula leftFormula = createJoinFormulaIfNecessary(id, left);
-		final Formula rightFormula = createJoinFormulaIfNecessary(id, right);
-		if (leftFormula instanceof EmptyFormula) {
-			return EmptyFormula.INSTANCE;
-		} else if (rightFormula instanceof EmptyFormula) {
-			if (leftFormula instanceof ConstantFormula) {
-				return leftFormula;
-			} else if (leftFormula instanceof JoinFormula joinFormula) {
-				return joinFormula.getAsOrFormula();
-			} else {
-				throw new GenericEvitaInternalError("Unexpected formula type: " + leftFormula.getClass().getSimpleName() + "!");
+	private Formula createPrefixCountFormula(
+		long startsBound, boolean startsInclusive,
+		long endsBound, boolean endsInclusive
+	) {
+		Assert.isPremiseValid(
+			endsBound < startsBound || (endsBound == startsBound && (startsInclusive || !endsInclusive)),
+			"The ends bound must never admit a threshold the starts bound rejects!"
+		);
+		final List<Bitmap> starts = new ArrayList<>(DEFAULT_OPERAND_FAMILY_SIZE);
+		final List<Bitmap> ends = new ArrayList<>(DEFAULT_OPERAND_FAMILY_SIZE);
+		final Iterator<TransactionalLongBPlusTree.Entry<TransactionalRangePoint>> it = this.ranges.entryIterator();
+		while (it.hasNext()) {
+			final TransactionalLongBPlusTree.Entry<TransactionalRangePoint> entry = it.next();
+			final long threshold = entry.key();
+			if (startsInclusive ? threshold > startsBound : threshold >= startsBound) {
+				// keys ascend and the ends bound never reaches past the starts bound, so nothing that follows can
+				// contribute to either family - this is the whole reason the query stops at the queried point instead
+				// of scanning the index end to end
+				break;
 			}
-		} else {
-			return new DisentangleFormula(leftFormula, rightFormula);
+			final TransactionalRangePoint point = entry.value();
+			final Bitmap pointStarts = point.getStarts();
+			if (!pointStarts.isEmpty()) {
+				starts.add(pointStarts);
+			}
+			if (endsInclusive ? threshold <= endsBound : threshold < endsBound) {
+				final Bitmap pointEnds = point.getEnds();
+				if (!pointEnds.isEmpty()) {
+					ends.add(pointEnds);
+				}
+			}
 		}
+		return createRangeCountFormulaIfNecessary(
+			getId(), starts.toArray(Bitmap[]::new), ends.toArray(Bitmap[]::new)
+		);
 	}
 
 	/**
-	 * Creates a join formula if necessary based on the given id and bitmap array.
-	 * If the bitmap array contains only one bitmap, a ConstantFormula is created with that bitmap.
-	 * If the bitmap array is empty, an EmptyFormula is returned.
-	 * Otherwise, a JoinFormula is created with the given id and filtered bitmaps.
+	 * Creates the formula computing which records have a strictly higher membership count in `plus` than in
+	 * `minus` - the signed multiplicity that decides range validity.
 	 *
-	 * @param id     the id for the JoinFormula
-	 * @param bitmaps the bitmap array to be filtered and used for the JoinFormula
-	 * @return a Formula object representing the join formula if necessary
+	 * Degenerate families short-circuit: an empty plus family can never reach a positive count, and an empty minus
+	 * family leaves nothing to cancel against, so the answer is just the union.
+	 *
+	 * @param id    transactional id of this index - the staleness token for a high-cardinality operand set
+	 * @param plus  bitmaps each membership of which contributes `+1` to a record's count
+	 * @param minus bitmaps each membership of which contributes `-1`
+	 * @return the formula computing the records whose signed count is strictly positive
 	 */
 	@Nonnull
-	private static Formula createJoinFormulaIfNecessary(long id, @Nonnull Bitmap[] bitmaps) {
-		final Bitmap[] filteredBitmaps = Arrays.stream(bitmaps)
-			.filter(it -> !(it instanceof EmptyBitmap))
-			.toArray(Bitmap[]::new);
-		if (filteredBitmaps.length == 0) {
+	private static Formula createRangeCountFormulaIfNecessary(
+		long id, @Nonnull Bitmap[] plus, @Nonnull Bitmap[] minus
+	) {
+		final Bitmap[] filteredPlus = withoutEmpty(plus);
+		if (filteredPlus.length == 0) {
 			return EmptyFormula.INSTANCE;
-		} else if (filteredBitmaps.length == 1) {
-			return new ConstantFormula(filteredBitmaps[0]);
-		} else {
-			return new JoinFormula(id, filteredBitmaps);
 		}
+		final Bitmap[] filteredMinus = withoutEmpty(minus);
+		if (filteredMinus.length == 0) {
+			// with nothing to cancel against, "counted at least once" is exactly the union
+			return filteredPlus.length == 1 ?
+				new ConstantFormula(filteredPlus[0]) : new OrFormula(new long[]{id}, filteredPlus);
+		}
+		return new RangeCountFormula(id, filteredPlus, filteredMinus);
+	}
+
+	/**
+	 * Drops empty bitmaps from an operand family.
+	 *
+	 * Tests {@link Bitmap#isEmpty()} rather than `instanceof EmptyBitmap` as the previous implementation did: a
+	 * threshold point legitimately carries an EMPTY `TransactionalBitmap` on one side (the obsolete-point check
+	 * only removes a point whose starts AND ends are both empty), and such an operand contributes nothing to the
+	 * count while still inflating the family. The computed result is unchanged either way; this simply stops an
+	 * operand that cannot affect the answer from being carried through the formula.
+	 *
+	 * It also replaces a `Arrays.stream(...).filter(...).toArray(...)` pipeline that ran in the planning phase on
+	 * every range query, for every matching index.
+	 *
+	 * @param bitmaps the family to filter
+	 * @return the same array when nothing was empty, otherwise a compacted copy
+	 */
+	@Nonnull
+	private static Bitmap[] withoutEmpty(@Nonnull Bitmap[] bitmaps) {
+		int nonEmpty = 0;
+		for (final Bitmap bitmap : bitmaps) {
+			if (!bitmap.isEmpty()) {
+				nonEmpty++;
+			}
+		}
+		if (nonEmpty == bitmaps.length) {
+			return bitmaps;
+		}
+		final Bitmap[] result = new Bitmap[nonEmpty];
+		int index = 0;
+		for (final Bitmap bitmap : bitmaps) {
+			if (!bitmap.isEmpty()) {
+				result[index++] = bitmap;
+			}
+		}
+		return result;
 	}
 
 	/**
@@ -649,23 +725,23 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 *
 	 * Method finds all records which start range is before `from` and ends after or equal to `from` or
 	 * which ends after `from` but before or equal to `to`.
+	 *
+	 * An inverted window - one whose lower bound exceeds its upper bound - describes an empty set of points, so no
+	 * range can have a point in common with it and the answer is {@link EmptyFormula}. The bound order is not
+	 * validated anywhere upstream: neither `AttributeBetween#isApplicable()` nor `DateTimeRange#between` orders the
+	 * pair, and `AttributeBetweenTranslator` hands both bounds straight to this method. Its own scalar branch builds
+	 * `value >= from && value <= to`, which is unsatisfiable for an inverted pair and therefore already answers such
+	 * a query with an empty result - the indexed range path agrees with it rather than failing the query.
+	 *
+	 * A correctly-ordered pair is implemented as the `(to, true, from, false)` instance of the signed-count prefix
+	 * in {@link #createPrefixCountFormula(long, boolean, long, boolean)}; see that method for the counting rationale.
 	 */
 	@Nonnull
 	public Formula getRecordsWithRangesOverlapping(long from, long to) {
-		final TransactionalRangePoint[] points = materializeRanges();
-		final RangeLookup rangeLookup = new RangeLookup(points, from, to);
-		final StartsEndsDTO between = collectsStartsAndEnds(rangeLookup.getStartIndex(), rangeLookup.getEndIndex(), points);
-		final StartsEndsDTO before = collectsStartsAndEnds(0, Math.min(rangeLookup.getStartIndex(), rangeLookup.getEndIndex()), points);
-		final StartsEndsDTO after = collectsStartsAndEnds(Math.max(rangeLookup.getStartIndex(), rangeLookup.getEndIndex()), points.length - 1, points);
-
-		return new OrFormula(
-			between.getRangeStarts(),
-			between.getRangeEnds(),
-			new AndFormula(
-				createDisentangleFormulaIfNecessary(getId(), before.getRangeStartsAsBitmapArray(), before.getRangeEndsAsBitmapArray()),
-				createDisentangleFormulaIfNecessary(getId(), after.getRangeEndsAsBitmapArray(), after.getRangeStartsAsBitmapArray())
-			)
-		);
+		if (from > to) {
+			return EmptyFormula.INSTANCE;
+		}
+		return createPrefixCountFormula(to, true, from, false);
 	}
 
 	/*
@@ -742,8 +818,8 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * at COLLECT time, before this flush has written anything (the baseline-capture pass re-enters this pipeline), so
 	 * it cannot lean on the previous flush's bytes having landed by now. It does not need to: a flush that fails
 	 * during trunk incorporation SUSPENDS the catalog's transaction processing ({@code TransactionManager.suspend}),
-	 * and a flush that fails on the warm-up path POISONS the collection's buffer
-	 * ({@code WarmUpDataStoreMemoryBuffer.poison}), so every later collect of it refuses deterministically. Those two
+	 * and a flush that fails on the warm-up path makes the catalog UNPUBLISHABLE
+	 * ({@code Catalog.markUnpublishable}), so every later flush of it refuses deterministically. Those two
 	 * are the same invariant in different dresses: after a failed flush no later flush of that data ever runs, so
 	 * nothing can ever diff against the baselines it left behind. A flush that does NOT fail leaves `staged` holding
 	 * exactly the page set it wrote — the baseline the next flush must diff against — regardless of which path staged
@@ -852,6 +928,191 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	}
 
 	/**
+	 * Rescales one threshold persisted while {@link DateTimeRange} still compared at **second** granularity into the
+	 * millisecond scale it compares at now. Applicable **only** to a range index over `DateTimeRange`: the threshold
+	 * is an untyped `long` shared with every `NumberRange` subtype, whose thresholds are the bounds' own numeric
+	 * values and must never be touched. See {@code AttributeIndexLoader#loadRangeIndex} for how the declared
+	 * attribute type routes this.
+	 *
+	 * Three cases, and the separation between them is unambiguous by four orders of magnitude:
+	 *
+	 * - a threshold **below** {@link DateTimeRange#MIN_REPRESENTABLE_EPOCH_SECOND} is an open-from bound. The legacy
+	 *   sentinel was `LocalDateTime.MIN.atOffset(other).toEpochSecond()` ≈ `-3.156e16`, and the index's own lower
+	 *   border point is `Long.MIN_VALUE`; both land here and both map onto {@link DateTimeRange#OPEN_FROM_THRESHOLD},
+	 *   which is what an open-from bound is worth today.
+	 * - a threshold **above** {@link DateTimeRange#MAX_REPRESENTABLE_EPOCH_SECOND} is the symmetric open-to case
+	 *   (legacy sentinel ≈ `+3.156e16`, upper border `Long.MAX_VALUE`) and maps onto
+	 *   {@link DateTimeRange#OPEN_TO_THRESHOLD}.
+	 * - anything else is a real moment — no date expressible as a scalar temporal attribute exceeds ~1e11 seconds,
+	 *   while the window edge sits at ~9.22e15 — and is multiplied by 1000. The multiplication is exact: a value
+	 *   written at second granularity has no millisecond component to recover, so every legacy range lands on a zero
+	 *   millisecond remainder.
+	 *
+	 * The mapping is monotone but **not injective**: several legacy sentinels (one per zone offset they were paired
+	 * with) collapse onto one open-bound constant, and onto the border point already sitting there. Callers must
+	 * therefore merge colliding points rather than assume the thresholds stay distinct — see
+	 * {@link #rescaleSecondGranularityPoints}.
+	 *
+	 * @param threshold the persisted second-granularity threshold
+	 * @return the equivalent millisecond-granularity threshold
+	 */
+	public static long rescaleSecondGranularityThreshold(long threshold) {
+		if (threshold < DateTimeRange.MIN_REPRESENTABLE_EPOCH_SECOND) {
+			return DateTimeRange.OPEN_FROM_THRESHOLD;
+		} else if (threshold > DateTimeRange.MAX_REPRESENTABLE_EPOCH_SECOND) {
+			return DateTimeRange.OPEN_TO_THRESHOLD;
+		} else {
+			return threshold * 1000L;
+		}
+	}
+
+	/**
+	 * Rebuilds an **inline** range index persisted at second granularity onto the millisecond scale, merging the
+	 * points whose thresholds collide after the rescale. The result is a fresh, clean, non-paged index; the caller
+	 * (the load path) hands it on exactly as it would have handed on the deserialized one.
+	 *
+	 * The repair is passive, like the inverted index's sub-millisecond bucket merge: nothing is written back here, so
+	 * every load of an untouched legacy catalog repeats it, and the first flush of the index persists the millisecond
+	 * form — after which this reader is no longer consulted for it.
+	 *
+	 * @param index the just-deserialized index whose thresholds are epoch seconds
+	 * @return an equivalent index whose thresholds are epoch milliseconds
+	 */
+	@Nonnull
+	public static RangeIndex rescaledFromSecondGranularity(@Nonnull RangeIndex index) {
+		return new RangeIndex(
+			rescaleSecondGranularityPoints(index.ranges.valueIterator(), index.ranges.size())
+		);
+	}
+
+	/**
+	 * Rebuilds a **range-`PAGED`** index persisted at second granularity onto the millisecond scale.
+	 *
+	 * Unlike {@link #fromPersistedPages} this is deliberately **not** boundary-stable: the pages are flattened,
+	 * rescaled, merged and replayed into a fresh tree whose leaves carry no page identity, while the registry is
+	 * seeded with the persisted high-water **and the persisted live-page list**. The first flush of the index
+	 * therefore allocates a new page sequence for every leaf, writes every page in the millisecond form and frees
+	 * every legacy page — and, because that makes the live page list change, it necessarily re-emits the root record
+	 * in the same commit.
+	 *
+	 * That atomicity is the whole point, and boundary stability is what has to give for it. The scale of a persisted
+	 * threshold is carried by the **root** record's `serialVersionUID`, not by the leaf pages; a flush that rewrote
+	 * some leaf pages in milliseconds while leaving the legacy root in place (or the reverse) would produce a
+	 * catalog whose scale marker disagrees with its content, and the next load would rescale already-rescaled
+	 * thresholds — silently, since nothing in a `long` says which scale it is in. Re-paginating the whole index once
+	 * costs one rewrite of a structure that has just been upgraded anyway.
+	 *
+	 * @param orderedPageSequences  the persisted leaf-page sequences in ascending threshold order
+	 * @param perPagePoints         the range points of each leaf page, positionally aligned with `orderedPageSequences`
+	 * @param highWaterPageSequence the persisted stream high-water (largest page sequence ever allocated)
+	 * @return the rebuilt index, whose thresholds are epoch milliseconds and whose leaves are unpaged
+	 */
+	@Nonnull
+	public static RangeIndex rescaledFromSecondGranularityPages(
+		@Nonnull int[] orderedPageSequences,
+		@Nonnull TransactionalRangePoint[][] perPagePoints,
+		int highWaterPageSequence
+	) {
+		Assert.isPremiseValid(
+			orderedPageSequences.length == perPagePoints.length,
+			"The number of page sequences must match the number of leaf-page point arrays."
+		);
+		Assert.isPremiseValid(orderedPageSequences.length > 0, "A paged range index must have at least one leaf page.");
+		int pointCount = 0;
+		for (final TransactionalRangePoint[] pagePoints : perPagePoints) {
+			pointCount += pagePoints.length;
+		}
+		final List<TransactionalRangePoint> flattened = new ArrayList<>(pointCount);
+		for (final TransactionalRangePoint[] pagePoints : perPagePoints) {
+			flattened.addAll(Arrays.asList(pagePoints));
+		}
+		final RangeIndex rescaled = new RangeIndex(
+			rescaleSecondGranularityPoints(flattened.iterator(), pointCount)
+		);
+		// declare the legacy pages live so the first flush diffs against them, frees every one and re-emits the root
+		rescaled.pageStreamRegistry.restore(RANGE_PAGE_STREAM, highWaterPageSequence, orderedPageSequences);
+		return rescaled;
+	}
+
+	/**
+	 * Walks an ascending stream of second-granularity points, rescales each threshold through
+	 * {@link #rescaleSecondGranularityThreshold} and merges the runs that land on the same value by unioning their
+	 * `starts` / `ends` bitmaps.
+	 *
+	 * The merge is not an edge case: every legacy open-from bound rescales onto the very `Long.MIN_VALUE` the index's
+	 * lower border point already occupies (and symmetrically at the top), so any index holding a one-sided range
+	 * collides. Merging is also what makes the reloaded index agree with the write path — after the repair the point
+	 * carrying an open-ended range's records IS the border point, which is exactly where
+	 * {@code FilterIndex.removeRecord} will look for it once the range is removed.
+	 *
+	 * @param points        the persisted points in ascending threshold order
+	 * @param expectedCount the number of points the iterator will yield, used to pre-size the result
+	 * @return the rescaled points, in ascending threshold order and with distinct thresholds
+	 */
+	@Nonnull
+	private static TransactionalRangePoint[] rescaleSecondGranularityPoints(
+		@Nonnull Iterator<TransactionalRangePoint> points, int expectedCount
+	) {
+		final List<TransactionalRangePoint> result = new ArrayList<>(expectedCount);
+		// the point whose threshold the next one may still collide with; its merged bitmaps stay null until a
+		// collision actually happens, so an index with nothing to merge allocates no bitmap it does not need
+		TransactionalRangePoint carried = null;
+		long carriedThreshold = 0L;
+		BaseBitmap mergedStarts = null;
+		BaseBitmap mergedEnds = null;
+		while (points.hasNext()) {
+			final TransactionalRangePoint point = points.next();
+			final long threshold = rescaleSecondGranularityThreshold(point.getThreshold());
+			if (carried == null) {
+				carried = point;
+				carriedThreshold = threshold;
+			} else if (threshold == carriedThreshold) {
+				if (mergedStarts == null) {
+					mergedStarts = new BaseBitmap(carried.getStarts());
+					mergedEnds = new BaseBitmap(carried.getEnds());
+				}
+				mergedStarts.addAll(point.getStarts());
+				mergedEnds.addAll(point.getEnds());
+			} else {
+				result.add(materializeRescaledPoint(carried, carriedThreshold, mergedStarts, mergedEnds));
+				carried = point;
+				carriedThreshold = threshold;
+				mergedStarts = null;
+				mergedEnds = null;
+			}
+		}
+		if (carried != null) {
+			result.add(materializeRescaledPoint(carried, carriedThreshold, mergedStarts, mergedEnds));
+		}
+		return result.toArray(new TransactionalRangePoint[0]);
+	}
+
+	/**
+	 * Materializes one rescaled point. A {@link TransactionalRangePoint}'s threshold is final, so a fresh instance is
+	 * always minted; the record bitmaps are the merged ones when a collision produced them, otherwise the source
+	 * point's own.
+	 *
+	 * @param source       the point the rescaled one is derived from
+	 * @param threshold    the rescaled threshold
+	 * @param mergedStarts the union of every colliding point's starts, or `null` when nothing collided
+	 * @param mergedEnds   the union of every colliding point's ends, or `null` when nothing collided
+	 * @return the rescaled point
+	 */
+	@Nonnull
+	private static TransactionalRangePoint materializeRescaledPoint(
+		@Nonnull TransactionalRangePoint source,
+		long threshold,
+		@Nullable BaseBitmap mergedStarts,
+		@Nullable BaseBitmap mergedEnds
+	) {
+		return new TransactionalRangePoint(
+			threshold,
+			mergedStarts == null ? source.getStarts() : mergedStarts,
+			mergedEnds == null ? source.getEnds() : mergedEnds
+		);
+	}
+
+	/**
 	 * One leaf page produced by the granular write path: its stable page sequence and its range points in ascending
 	 * threshold order.
 	 *
@@ -885,8 +1146,8 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 */
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// id + the ranges / dirty / pageStreamRegistry / envelopingNowCache slots
-		long size = layout.sizeOfObject(Long.BYTES + 4L * layout.referenceSize())
+		// id + warmUpTouchStamp + the ranges / dirty / pageStreamRegistry / envelopingNowCache slots
+		long size = layout.sizeOfObject(2L * Long.BYTES + 4L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.ranges.getHeapSizeInBytes(
 				point -> ((TransactionalRangePoint) point).getHeapSizeInBytes()
@@ -917,8 +1178,8 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 			// the EARLIEST publish point on the transactional path only; it is not the only one — a staged set that
 			// never reaches a merge (the warm-up path has no merge at all) is published by the next flush instead, see
 			// `publishPreviousFlush`. (No discard counterpart is needed: a pre-flush abort never stages, and a failed
-			// flush suspends this catalog's transaction processing — on the warm-up path it poisons the collection's
-			// buffer instead, the same invariant in another dress — so no later flush ever diffs against the baseline
+			// flush suspends this catalog's transaction processing — on the warm-up path it marks the catalog
+			// unpublishable instead, the same invariant in another dress — so no later flush ever diffs against the baseline
 			// a failed one left behind; restart rebuilds a clean registry from disk.)
 			this.pageStreamRegistry.publishStaged();
 			return new RangeIndex(
@@ -1024,7 +1285,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 			if (this.rangeStarts.isEmpty()) {
 				return EmptyFormula.INSTANCE;
 			} else if (this.rangeStarts.size() == 1) {
-				return this.rangeStarts.get(0);
+				return this.rangeStarts.getFirst();
 			} else {
 				return new OrFormula(
 					this.rangeStarts.toArray(EMPTY_ARRAY)
@@ -1040,7 +1301,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 			if (this.rangeEnds.isEmpty()) {
 				return EmptyFormula.INSTANCE;
 			} else if (this.rangeEnds.size() == 1) {
-				return this.rangeEnds.get(0);
+				return this.rangeEnds.getFirst();
 			} else {
 				return new OrFormula(
 					this.rangeEnds.toArray(EMPTY_ARRAY)
@@ -1164,84 +1425,6 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * @param result             materialized bitmap of record ids valid at any {@code now} in the interval
 	 */
 	record EnvelopingNowCache(long validFromInclusive, long validToInclusive, @Nonnull Bitmap result) {
-	}
-
-	/**
-	 * Range lookup will find and return positions of the `from` / `to` ranges in the `ranges` array. It computes their
-	 * indexes and will provide access to the set of records in form of {@link TransactionalRangePoint} at those indexes
-	 * for access to directly assigned records at these bounds.
-	 */
-	@Data
-	static class RangeLookup {
-		private final int startIndex;
-		private final TransactionalRangePoint startPoint;
-		private final int endIndex;
-		private final TransactionalRangePoint endPoint;
-
-		RangeLookup(@Nonnull TransactionalRangePoint[] ranges, long from, long to) {
-			final int indexFrom = binarySearchThreshold(ranges, from);
-			if (indexFrom >= 0) {
-				this.startIndex = indexFrom;
-				this.startPoint = ranges[indexFrom];
-			} else {
-				this.startIndex = -1 * (indexFrom) - 1;
-				this.startPoint = null;
-			}
-
-			if (from == to) {
-				this.endIndex = this.startIndex;
-				this.endPoint = this.startPoint;
-			} else {
-				final int indexTo = binarySearchThreshold(ranges, to);
-				if (indexTo >= 0) {
-					this.endIndex = indexTo;
-					this.endPoint = ranges[indexTo];
-				} else {
-					this.endIndex = -1 * (indexTo) - 2;
-					this.endPoint = null;
-				}
-			}
-		}
-
-		/**
-		 * Binary search over the ascending-by-threshold `ranges` array reproducing the {@link java.util.Arrays#binarySearch}
-		 * contract: returns the index of the matching threshold or `-(insertionPoint) - 1` when not found.
-		 *
-		 * @param ranges    the range points ordered ascending by threshold
-		 * @param threshold the threshold to search for
-		 * @return the found index or the negative insertion-point encoding
-		 */
-		private static int binarySearchThreshold(@Nonnull TransactionalRangePoint[] ranges, long threshold) {
-			int low = 0;
-			int high = ranges.length - 1;
-			while (low <= high) {
-				final int mid = (low + high) >>> 1;
-				final long midThreshold = ranges[mid].getThreshold();
-				if (midThreshold < threshold) {
-					low = mid + 1;
-				} else if (midThreshold > threshold) {
-					high = mid - 1;
-				} else {
-					return mid;
-				}
-			}
-			return -(low + 1);
-		}
-
-		/**
-		 * Returns true if start point was found in the index.
-		 */
-		boolean isStartThresholdFound() {
-			return this.startPoint != null;
-		}
-
-		/**
-		 * Returns true if end point was found in the index.
-		 */
-		boolean isEndThresholdFound() {
-			return this.endPoint != null;
-		}
-
 	}
 
 }

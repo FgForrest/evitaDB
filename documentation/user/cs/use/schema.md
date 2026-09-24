@@ -6,7 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
 translated: 'true'
-commit: '939634b9ad902a7fb058d9e91ef6e2b6c637964d'
+commit: '044b3d295fbf419acd145e3f373e656a32e2aa16'
 ---
 evitaDB interně udržuje schéma pro každou [entitní kolekci](data-model.md#kolekce) / [katalog](data-model.md#katalog), ačkoliv podporuje [uvolněný přístup](#evoluce), kdy je schéma automaticky vytvářeno na základě dat vložených do databáze.
 
@@ -43,13 +43,15 @@ Existují následující typy schémat:
 - [schéma katalogu](#katalog)
 - [schéma entity](#entita)
 - [schéma atributu](#atributy)
-- [schéma složeného atributu pro řazení](#složené-atributy-pro-řazení)
-- [schéma přidružených dat](#přidružená-data)
+- [schéma složeného atributu pro řazení](#složeniny-řaditelných-atributů)
+- [schéma asociovaných dat](#asociovaná-data)
 - [schéma reference](#reference)
 
 ### Katalog
 
-Schéma katalogu obsahuje seznam [entitních schémat](#entita), `name` a `description` katalogu. Také uchovává slovník [globálních schémat atributů](#globální-schéma-atributu), které lze sdílet mezi více [entitními schématy](#entita).
+Schéma katalogu obsahuje seznam [schémat entit](#entita), `name` a `description` katalogu. Uchovává také
+slovník [globálních schémat atributů](#globální-schéma-atributu), která mohou být sdílena mezi více
+[schématy entit](#entita).
 
 <Note type="info">
 
@@ -58,11 +60,14 @@ Schéma katalogu obsahuje seznam [entitních schémat](#entita), `name` a `descr
 ##### Požadavky na názvy a varianty názvů
 </NoteTitle>
 
-Každý pojmenovaný datový objekt – [katalog](#katalog), [entita](#entita), [atribut](#atributy), [přidružená data](#přidružená-data) a [reference](#reference) musí být v rámci svého nadřazeného rozsahu jednoznačně identifikovatelný svým názvem.
+Každý pojmenovaný datový objekt – [katalog](#katalog), [entita](#entita), [atribut](#atributy),
+[asociovaná data](#asociovaná-data) a [reference](#reference) musí být jednoznačně identifikovatelný svým názvem v rámci
+nadřazeného rozsahu.
 
-Logika validace názvů a rezervovaná slova jsou obsaženy ve třídě <LS to="j,e,r,g"><SourceClass>evita_common/src/main/java/io/evitadb/utils/ClassifierUtils.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Utils/ClassifierUtils.cs</SourceClass></LS>.
+Logika validace názvu a rezervovaná slova jsou obsaženy ve třídě <LS to="j,e,r,g"><SourceClass>evita_common/src/main/java/io/evitadb/utils/ClassifierUtils.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Utils/ClassifierUtils.cs</SourceClass></LS>.
 
-Ve schématu každého pojmenovaného objektu existuje také speciální vlastnost `nameVariants`. Obsahuje varianty názvu objektu v různých "vývojářských" notacích jako *camelCase*, *PascalCase*, *snake_case* a podobně. Kompletní výčet viz
+V každém schématu pojmenovaného objektu existuje také speciální vlastnost `nameVariants`. Obsahuje varianty
+názvu objektu v různých "vývojářských" notacích jako *camelCase*, *PascalCase*, *snake_case* a podobně. Kompletní výčet najdete v
 <LS to="j,e,r,g"><SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/api/catalog/schemaApi/model/NameVariantsDescriptor.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Utils/NamingConvention.cs</SourceClass></LS>.
 
 </Note>
@@ -71,7 +76,7 @@ Ve schématu každého pojmenovaného objektu existuje také speciální vlastno
 
 <NoteTitle toggles="false">
 
-##### Seznam mutací týkajících se katalogu
+##### Seznam mutací souvisejících s katalogem
 </NoteTitle>
 
 Mutace na nejvyšší úrovni:
@@ -85,10 +90,10 @@ V rámci `ModifyCatalogSchemaMutation` můžete použít mutace:
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/ModifyCatalogSchemaNameMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Catalogs/ModifyCatalogSchemaNameMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/ModifyCatalogSchemaDescriptionMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Catalogs/ModifyCatalogSchemaDescriptionMutation.cs</SourceClass></LS>**
 
-A [mutace entity na nejvyšší úrovni](#entita).
+A také [mutace entit na nejvyšší úrovni](#entita).
 
 <LS to="j,c">
-Schéma katalogu je popsáno:
+Schéma katalogu je popsáno v:
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/CatalogSchemaContract.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/ICatalogSchema.cs</SourceClass></LS>
 </LS>
 
@@ -96,25 +101,32 @@ Schéma katalogu je popsáno:
 
 #### Globální schéma atributu
 
-Globální schéma atributu má stejnou strukturu jako [schéma atributu](#atributy) s jednou další vlastností. Globální atribut může být označen jako `uniqueGlobally`, což znamená, že hodnoty takového atributu musí být unikátní napříč všemi entitami a typy entit v celém katalogu.
+Globální schéma atributu má stejnou strukturu jako [schéma atributu](#atributy) s jednou další
+charakteristikou. Globální atribut může být označen jako `uniqueGlobally`, což znamená, že hodnoty takového atributu musí být
+unikátní napříč všemi entitami a typy entit v celém katalogu.
 
 <Note type="question">
 
 <NoteTitle toggles="true">
 
-##### K čemu je dobrá globální jedinečnost?
+##### K čemu je globální jedinečnost dobrá?
 </NoteTitle>
 
-Je užitečná například pro URL entity, které chceme mít přirozeně unikátní mezi všemi entitami v katalogu. Globálně unikátní atribut nám umožňuje požádat evitaDB o entitu s konkrétní hodnotou, aniž bychom předem znali její typ. Řeší to situaci, kdy do vaší aplikace přijde nový požadavek a vy potřebujete zjistit, zda existuje entita, která mu odpovídá (bez ohledu na to, zda je to produkt, kategorie, značka, skupina nebo jakékoliv typy máte ve svém projektu).
+Je užitečná například pro URL entity, které mají být přirozeně jedinečné mezi všemi entitami v katalogu. Globálně
+jedinečný atribut nám umožňuje požádat evitaDB o entitu s konkrétní hodnotou, aniž bychom předem znali její typ.
+To řeší případ, kdy do vaší aplikace přijde nový požadavek a potřebujete zjistit, zda existuje entita,
+která mu odpovídá (bez ohledu na to, zda jde o produkt, kategorii, značku, skupinu nebo jakékoliv jiné typy ve vašem projektu).
 </Note>
 
-Globální atribut může být také použit jako "definice slovníku" pro atribut, který je použit ve více entitních kolekcích, a chceme zajistit, že je ve všech pojmenován a popsán stejně. Entitní kolekce nemůže definovat atribut se stejným názvem jako globální atribut. Může pouze "použít" globální atribut s tímto názvem a tím sdílet jeho kompletní definici.
+Globální atribut lze také použít jako "definici slovníku" pro atribut, který je využíván ve více kolekcích entit a chceme zajistit,
+že bude ve všech pojmenován a popsán stejně. Kolekce entit nemůže definovat atribut se stejným názvem jako globální atribut.
+Může pouze "použít" globální atribut s tímto názvem a tím sdílet jeho kompletní definici.
 
 <Note type="info">
 
 <NoteTitle toggles="false">
 
-##### Seznam mutací týkajících se globálního atributu
+##### Seznam mutací souvisejících s globálním atributem
 </NoteTitle>
 
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/CreateGlobalAttributeSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/CreateGlobalAttributeSchemaMutation.cs</SourceClass></LS>**
@@ -124,7 +136,7 @@ Globální atribut může být také použit jako "definice slovníku" pro atrib
 A samozřejmě všechny [standardní mutace atributů](#atributy).
 
 <LS to="j,c">
-Globální schéma atributu je popsáno:
+Globální schéma atributu je popsáno v:
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/GlobalAttributeSchemaContract.java</SourceClass></LS>
 <LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/IGlobalAttributeSchema.cs</SourceClass></LS>
 </LS>
@@ -141,22 +153,22 @@ Schéma entity obsahuje informace o `name`, `description` a:
 - [povolení hierarchické struktury](#umístění-v-hierarchii)
 - [povolení cenových informací](#ceny)
 - [atributy](#atributy)
-- [složené atributy pro řazení](#složené-atributy-pro-řazení)
-- [přidružená data](#přidružená-data)
+- [složené atributy pro řazení](#složeniny-řaditelných-atributů)
+- [asociovaná data](#asociovaná-data)
 - [reference](#reference)
 
-Schéma entity může být označeno jako *deprecated* (zastaralé), což bude propagováno do generované dokumentace webového API.
+Schéma entity může být označeno jako *zastaralé*, což se projeví i v generované dokumentaci webového API.
 
 <Note type="info">
 
 <NoteTitle toggles="false">
 
-##### Seznam mutací týkajících se typu entity
+##### Seznam mutací souvisejících s typem entity
 </NoteTitle>
 
 <LS to="j,e,r,g">
 
-Mutace entity na nejvyšší úrovni:
+Mutace entit na nejvyšší úrovni:
 
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/CreateEntitySchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Catalogs/CreateEntitySchemaMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/RemoveEntitySchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Catalogs/RemoveEntitySchemaMutation.cs</SourceClass></LS>**
@@ -171,7 +183,7 @@ V rámci `ModifyEntitySchemaMutation` můžete použít mutace:
 </LS>
 
 <LS to="j,c">
-Schéma entity je popsáno:
+Schéma entity je popsáno v:
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/EntitySchemaContract.java</SourceClass></LS>
 <LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/IEntitySchema.cs</SourceClass></LS>
 </LS>
@@ -182,13 +194,15 @@ Schéma entity je popsáno:
 
 Pokud je povoleno generování primárního klíče, evitaDB přiřadí nově vložené entitě unikátní
 <LS to="j,e,r,g">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LS>
-<LS to="c">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LS> číslo. Primární klíč vždy začíná na `1` a zvyšuje se o `1`. evitaDB zaručuje jeho jedinečnost v rámci stejného typu entity. Primární klíče generované tímto způsobem jsou optimální pro binární operace ve využívaných datových strukturách.
+<LS to="c">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LS> číslo.
+Primární klíč vždy začíná hodnotou `1` a zvyšuje se o `1`. evitaDB zaručuje jeho jedinečnost v rámci stejného
+typu entity. Takto generované primární klíče jsou optimální pro binární operace ve využívaných datových strukturách.
 
 <Note type="info">
 
 <NoteTitle toggles="false">
 
-##### Seznam mutací týkajících se primárního klíče
+##### Seznam mutací souvisejících s primárním klíčem
 </NoteTitle>
 
 V rámci `ModifyEntitySchemaMutation` můžete použít mutaci:
@@ -199,24 +213,34 @@ V rámci `ModifyEntitySchemaMutation` můžete použít mutaci:
 
 #### Evoluce
 
-Doporučujeme přístup "schema-first", ale existují případy, kdy se nechcete zabývat schématem a chcete pouze vkládat a dotazovat data (například při rychlém prototypování). Když je vytvořen nový [katalog](data-model.md#katalog), je nastaven do režimu "automatické evoluce", kdy se schéma přizpůsobuje datům při prvním vložení. Pokud chcete mít nad schématem přísnou kontrolu, musíte evoluci omezit změnou výchozího schématu. V přísném režimu evitaDB vyhodí výjimku, pokud vstupní data porušují schéma.
+Doporučujeme přístup "schema-first", ale existují případy, kdy se nechcete zabývat schématem a chcete pouze
+vkládat a dotazovat se na data (například při rychlém prototypování). Když je vytvořen nový [katalog](data-model.md#katalog), je nastaven
+do režimu "automatické evoluce", kdy se schéma přizpůsobuje datům při prvním vložení. Pokud chcete mít nad schématem
+přísnou kontrolu, musíte evoluci omezit změnou výchozího schématu. V přísném režimu evitaDB vyhodí výjimku,
+pokud vstupní data poruší schéma.
 
-Stále musíte ručně vytvářet [entitní kolekce](data-model.md#kolekce), ale poté můžete ihned vkládat data a schéma bude odpovídajícím způsobem vytvořeno. Existující schémata budou při každém vkládání/aktualizaci entity validována – nebude povoleno uložit stejný atribut jednou jako číslo a podruhé jako řetězec. První použití nastaví schéma, které musí být od té chvíle respektováno.
+Stále musíte ručně vytvořit [kolekce entit](data-model.md#kolekce), ale poté můžete ihned vkládat
+svá data a schéma se podle toho vytvoří. Existující schémata budou stále validována při každém vkládání/aktualizaci entity –
+nebude možné uložit stejný atribut jednou jako číslo a podruhé jako řetězec. První použití nastaví schéma, které musí být od té chvíle respektováno.
 
 <Note type="info">
-Pokud má první entita svůj primární klíč, evitaDB očekává, že všechny entity budou mít při vkládání nastavený primární klíč. Pokud má první entita primární klíč nastavený na `NULL`, evitaDB bude generovat primární klíče za vás a odmítne externí primární klíče. Nová schémata atributů jsou implicitně vytvořena jako `nullable`, `filterable` a datové typy, které nejsou polem, jako `sortable`. To znamená, že klient může ihned filtrovat/řadit téměř podle čehokoliv, ale samotná databáze bude spotřebovávat hodně prostředků. Reference budou vytvořeny jako `indexed`, ale ne `faceted`.
+Pokud má první entita svůj primární klíč, evitaDB očekává, že všechny entity budou mít při vkládání nastavený primární klíč.
+Pokud má první entita primární klíč nastaven na `NULL`, evitaDB vygeneruje primární klíče za vás a odmítne
+externí primární klíče. Nová schémata atributů jsou implicitně vytvořena jako `nullable`, `filterable` a datové typy, které nejsou polem,
+jako `sortable`. To znamená, že klient může ihned filtrovat/řadit téměř podle čehokoliv, ale samotná databáze bude spotřebovávat hodně prostředků.
+Reference budou vytvořeny jako `indexed`, ale ne `faceted`.
 </Note>
 
-Existuje několik dílčích uvolněných režimů mezi přísným a plně automatickým režimem evoluce – viz
+Existuje několik částečně volných režimů mezi přísným a plně automatickým režimem evoluce – podrobnosti viz
 <LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/EvolutionMode.java</SourceClass></LS>
-<LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/EvolutionMode.cs</SourceClass></LS> pro detaily.
-Například – můžete přísně kontrolovat celé schéma, kromě nových definic jazyků nebo měn, které mohou být automaticky přidány při prvním použití.
+<LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/EvolutionMode.cs</SourceClass></LS>.
+Například – můžete přísně kontrolovat celé schéma, kromě nových definic jazyků nebo měn, které je povoleno přidávat automaticky při prvním použití.
 
 <Note type="info">
 
 <NoteTitle toggles="false">
 
-##### Seznam mutací týkajících se režimu evoluce
+##### Seznam mutací souvisejících s režimem evoluce
 </NoteTitle>
 
 V rámci `ModifyEntitySchemaMutation` můžete použít mutace:
@@ -228,23 +252,29 @@ V rámci `ModifyEntitySchemaMutation` můžete použít mutace:
 
 #### Jazyky a měny
 
-Schéma specifikuje seznam povolených měn a jazyků. Předpokládáme, že seznam povolených měn/jazyků bude poměrně malý (jednotky, maximálně nižší desítky) a pokud je systém zná předem, může pro každou z nich generovat enumy ve webových API. To pomáhá vývojářům psát dotazy s automatickým doplňováním. Dalším pozitivním efektem je, že e-commerce systémy často nerozšiřují seznam používaných měn nebo jazyků (protože je s tím obvykle spojeno mnoho ručních operací), a mít povolenou množinu hlídanou systémem eliminuje možnost vložení neplatných cen nebo lokalizací omylem.
+Schéma určuje seznam povolených měn a jazyků. Předpokládáme, že seznam povolených měn/jazyků bude relativně malý
+(jednotky, maximálně nižší desítky) a pokud je systém zná předem, může pro ně vygenerovat výčtové typy
+pro webová API. To pomáhá vývojářům psát dotazy s automatickým doplňováním. Má to i další pozitivní efekt.
+E-commerce systémy obvykle seznam používaných měn nebo jazyků příliš často nerozšiřují (protože je s tím spojeno mnoho
+manuálních operací) a mít povolenou množinu hlídanou systémem eliminuje možnost vložení neplatných cen nebo lokalizací omylem.
 
 <Note type="question">
 
 <NoteTitle toggles="true">
 
-##### Proč nejsou cenové seznamy uvedeny ve schématu, když měny ano?
+##### Proč nejsou ceníky uvedeny ve schématu, když měny ano?
 </NoteTitle>
 
-Cenové seznamy jsou blíže "datům" než jazyky nebo měny. Očekává se, že se množina cenových seznamů bude měnit velmi často a jejich počet může dosáhnout vysoké kardinality (tisíce, desetitisíce). Nebylo by praktické pro ně generovat hodnoty výčtu a měnit schémata Web API pokaždé, když je cenový seznam přidán nebo odebrán.
+Ceníky jsou blíže "datům" než jazyky nebo měny. Očekává se, že množina ceníků se bude měnit velmi často
+a jejich počet může dosáhnout vysoké kardinality (tisíce, desetitisíce). Nebylo by praktické pro ně generovat
+výčtové hodnoty a měnit schémata Web API pokaždé, když je ceník přidán nebo odebrán.
 </Note>
 
 <Note type="info">
 
 <NoteTitle toggles="false">
 
-##### Seznam mutací týkajících se jazyků a měn
+##### Seznam mutací souvisejících s jazyky a měnami
 </NoteTitle>
 
 V rámci `ModifyEntitySchemaMutation` můžete použít mutace:
@@ -258,23 +288,35 @@ V rámci `ModifyEntitySchemaMutation` můžete použít mutace:
 
 #### Umístění v hierarchii
 
-Pokud je povoleno umístění v hierarchii, entity tohoto typu mohou tvořit stromovou strukturu. Každá entita může mít maximálně jednoho rodiče a nula nebo více potomků. Ani hloubka stromu, ani počet sourozenců na každé úrovni není omezen.
+Pokud je povoleno umístění v hierarchii, entity tohoto typu mohou tvořit stromovou strukturu. Každá entita může mít maximálně
+jednoho rodiče a nula nebo více potomků. Ani hloubka stromu, ani počet sourozenců na každé úrovni nejsou omezeny.
 
-Povolení umístění v hierarchii znamená vytvoření nové instance
-<SourceClass>evita_engine/src/main/java/io/evitadb/index/hierarchy/HierarchyIndex.java</SourceClass> pro daný typ entity. Pokud jiná entita odkazuje na hierarchickou entitu a reference je označena jako *indexed*, je pro každou hierarchickou entitu vytvořen speciální
-<SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass>. Tento index bude obsahovat zredukované indexy atributů a cen odkazující entity, což umožňuje rychlé vyhodnocení podmínek filtru [`withinHierarchy`](../query/filtering/hierarchy.md).
+Povolení umístění v hierarchii znamená vytvoření nového
+<SourceClass>evita_engine/src/main/java/io/evitadb/index/hierarchy/HierarchyIndex.java</SourceClass> pro daný
+typ entity. Pokud jiná entita odkazuje na hierarchickou entitu a reference je označena jako *indexed*, je pro každou hierarchickou entitu vytvořen speciální
+<SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass>. Tento index bude
+uchovávat zredukované indexy atributů a cen odkazující entity, což umožňuje rychlé vyhodnocení
+[filtračních podmínek `withinHierarchy`](../query/filtering/hierarchy.md).
 
-##### Sirotčí uzly v hierarchii
+##### Sirotčí uzly hierarchie
 
-Typickým problémem při vytváření stromové struktury je pořadí, ve kterém jsou uzly do stromu připojovány. Aby byl strom konzistentní, měl by se začít od kořenových uzlů a postupně sestupovat po ose jejich potomků. To však není vždy snadné, když potřebujeme zkopírovat existující strom do externího systému (pro skriptování je mnohem jednodušší a výkonnější indexovat po dávkách v přirozeném pořadí záznamů). Podobná situace nastává, když je potřeba odstranit mezilehlý uzel stromu, ale jeho potomky nikoliv. Můžeme vývojáře nutit, aby před odstraněním rodiče převedli potomky k jiným rodičům, ale často nemají přímou kontrolu nad pořadím operací a nemohou to snadno udělat.
+Typickým problémem při vytváření stromové struktury je pořadí, ve kterém jsou uzly do stromu připojovány. Aby byl strom konzistentní,
+mělo by se začít od kořenových uzlů a postupně sestupovat po ose jejich potomků. To však není vždy snadné,
+když potřebujeme zkopírovat existující strom do externího systému (pro skriptování je mnohem jednodušší a efektivnější indexovat po dávkách v přirozeném pořadí záznamů).
+Podobná situace nastává, když je třeba odstranit mezilehlý uzel stromu, ale jeho potomky ne. Můžeme vývojáře nutit,
+aby nejprve převedli potomky k jinému rodiči, než odstraní jejich rodiče, ale často nemají přímou kontrolu nad pořadím operací a nemohou to snadno provést.
 
-Proto evitaDB rozpoznává tzv. **sirotčí uzly v hierarchii**. Sirotčí uzel je uzel, který se deklaruje jako potomek rodičovského uzlu s určitým primárním klíčem, který evitaDB zatím nezná (nebo je sirotčí uzel sám). Sirotčí uzly se neúčastní vyhodnocování [dotazů na hierarchické struktury](../query/filtering/hierarchy.md), ale jsou přítomny v indexu. Pokud je uzel s odkazovaným primárním klíčem připojen do hlavního stromu hierarchie, sirotčí uzly (podstromy) jsou také připojeny. Tímto způsobem se strom hierarchie nakonec stane konzistentním.
+Proto evitaDB rozpoznává tzv. **sirotčí uzly hierarchie**. Sirotčí uzel je uzel, který se deklaruje jako potomek rodičovského uzlu s určitým primárním klíčem,
+který evitaDB ještě nezná (nebo je sirotčí uzel sám). Sirotčí uzly se neúčastní vyhodnocování
+[dotazů na hierarchické struktury](../query/filtering/hierarchy.md),
+ale jsou přítomny v indexu. Pokud je uzel s referencovaným primárním klíčem připojen do hlavního stromu hierarchie,
+jsou sirotčí uzly (podstromy) také připojeny. Tímto způsobem se strom hierarchie nakonec stane konzistentním.
 
 <Note type="info">
 
 <NoteTitle toggles="false">
 
-##### Seznam mutací týkajících se umístění v hierarchii
+##### Seznam mutací souvisejících s umístěním v hierarchii
 </NoteTitle>
 
 V rámci `ModifyEntitySchemaMutation` můžete použít mutaci:
@@ -285,14 +327,17 @@ V rámci `ModifyEntitySchemaMutation` můžete použít mutaci:
 
 ### Ceny
 
-Pokud jsou ceny povoleny, entity tohoto typu mohou mít s sebou spojenou sadu cen a mohou být [filtrovány](../query/filtering/price.md) a [řazeny](../query/ordering/price.md) podle cenových omezení. Jedna entita může mít nula nebo více cen (systém je navržen pro situace, kdy má entita desítky nebo stovky cen). Pro každou kombinaci `priceList` a `currency` existuje speciální
+Pokud jsou ceny povoleny, entity tohoto typu mohou mít s sebou svázanou sadu cen a lze je
+[filtrovat](../query/filtering/price.md) a [řadit](../query/ordering/price.md) podle cenových omezení. Jedna entita
+může mít nula nebo více cen (systém je navržen pro situace, kdy má entita desítky nebo stovky cen).
+Pro každou kombinaci `priceList` a `currency` existuje speciální
 <SourceClass>evita_engine/src/main/java/io/evitadb/index/price/PriceListAndCurrencyPriceSuperIndex.java</SourceClass>.
 
 <Note type="info">
 
 <NoteTitle toggles="false">
 
-##### Seznam mutací týkajících se umístění v hierarchii
+##### Seznam mutací souvisejících s umístěním v hierarchii
 </NoteTitle>
 
 V rámci `ModifyEntitySchemaMutation` můžete použít mutaci:
@@ -303,29 +348,29 @@ V rámci `ModifyEntitySchemaMutation` můžete použít mutaci:
 
 ### Atributy
 
-Typ entity může mít nula nebo více atributů. Systém je navržen pro situace, kdy má entita desítky atributů. Měli byste věnovat pozornost počtu `filterable` / `sortable` / `unique` atributů. Pro každý filtrovatelný atribut existuje samostatná instance
-<SourceClass>evita_engine/src/main/java/io/evitadb/index/attribute/FilterIndex.java</SourceClass>, pro každý řaditelný atribut
-<SourceClass>evita_engine/src/main/java/io/evitadb/index/attribute/SortIndex.java</SourceClass> a pro každý unikátní atribut
-<SourceClass>evita_engine/src/main/java/io/evitadb/index/attribute/UniqueIndex.java</SourceClass> nebo
-<SourceClass>evita_engine/src/main/java/io/evitadb/index/attribute/GlobalUniqueIndex.java</SourceClass>. Atributy, které nejsou ani `filterable` / `sortable` / `unique`, nespotřebovávají operační paměť.
+Typ entity může mít nula nebo více atributů. Systém je navržen pro situace, kdy má entita desítky atributů. Měli byste věnovat pozornost počtu atributů `filterable` / `sortable` / `unique`. Pro každý filtrující atribut existuje samostatná instance
+<SourceClass>evita_engine/src/main/java/io/evitadb/index/attribute/FilterIndex.java</SourceClass>, pro každý řaditelný atribut <SourceClass>evita_engine/src/main/java/io/evitadb/index/attribute/SortIndex.java</SourceClass> a pro každý unikátní atribut <SourceClass>evita_engine/src/main/java/io/evitadb/index/attribute/UniqueIndex.java</SourceClass>
+nebo <SourceClass>evita_engine/src/main/java/io/evitadb/index/attribute/GlobalUniqueIndex.java</SourceClass>. Atributy, které nejsou `filterable` / `sortable` / `unique`, nespotřebovávají operační paměť.
+
+Atribut, který nese filtrující index, může navíc využít [akcelerátor filtru](#akcelerátory-filtru), který poskytuje rychlejší odpovědi na určité podmínky za cenu větší paměti a vyšší zátěže při zápisu.
 
 <LS to="j,e,r,g">
 
-Schéma atributu může být označeno jako `localized`, což znamená, že má smysl pouze v konkrétní
+Schéma atributu může být označeno jako `localized`, což znamená, že dává smysl pouze v konkrétním
 <LS to="j,e,r,g">[locale](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Locale.html)</LS>
 <LS to="c">[locale](https://learn.microsoft.com/en-us/dotnet/api/system.globalization.cultureinfo)</LS>.
 </LS>
 
-Schéma atributu může být označeno jako *deprecated* (zastaralé), což bude propagováno do generované dokumentace webového API.
+Schéma atributu může být označeno jako *deprecated*, což se projeví v generované dokumentaci webového API.
 
 <Note type="info">
 
 <NoteTitle toggles="false">
 
-##### Seznam mutací týkajících se atributu
+##### Seznam mutací souvisejících s atributem
 </NoteTitle>
 
-V rámci `ModifyEntitySchemaMutation` můžete použít mutaci:
+V rámci `ModifyEntitySchemaMutation` můžete použít mutace:
 
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/CreateAttributeSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/CreateAttributeSchemaMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/RemoveAttributeSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/RemoveAttributeSchemaMutation.cs</SourceClass></LS>**
@@ -334,6 +379,7 @@ V rámci `ModifyEntitySchemaMutation` můžete použít mutaci:
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/ModifyAttributeSchemaDefaultValueMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/ModifyAttributeSchemaDefaultValueMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/ModifyAttributeSchemaDeprecationNoticeMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/ModifyAttributeSchemaDeprecationNoticeMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/ModifyAttributeSchemaTypeMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/ModifyAttributeSchemaTypeMutation.cs</SourceClass></LS>**
+- **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaAcceleratedMutation.java</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaFilterableMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/SetAttributeSchemaFilterableMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaLocalizedMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/SetAttributeSchemaLocalizedMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaNullableMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/SetAttributeSchemaNullableMutation.cs</SourceClass></LS>**
@@ -342,7 +388,7 @@ V rámci `ModifyEntitySchemaMutation` můžete použít mutaci:
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaUniqueMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/SetAttributeSchemaUniqueMutation.cs</SourceClass></LS>**
 
 <LS to="j,c">
-Schéma atributu je popsáno:
+Schéma atributu je popsáno v:
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/AttributeSchemaContract.java</SourceClass></LS>
 <LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/IAttributeSchema.cs</SourceClass></LS>
 </LS>
@@ -351,32 +397,137 @@ Schéma atributu je popsáno:
 
 #### Výchozí hodnota
 
-Atribut může mít definovanou výchozí hodnotu. Tato hodnota se použije, když je vytvořena nová entita a pro daný atribut nebyla přiřazena žádná hodnota. V žádné jiné situaci na výchozí hodnotě nezáleží.
+Atribut může mít definovanou výchozí hodnotu. Tato hodnota se použije při vytvoření nové entity, pokud není konkrétnímu atributu přiřazena žádná hodnota. V žádné jiné situaci nemá výchozí hodnota význam.
 
 #### Povolený počet desetinných míst
 
-Nastavení povoleného počtu desetinných míst je optimalizace, která umožňuje převést bohaté číselné typy (například <LS to="j,e,r,g">[BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html)</LS><LS to="c">[decimal](https://learn.microsoft.com/en-us/dotnet/api/system.decimal)</LS> pro přesné vyjádření čísla) na primitivní typ <LS to="j,e,r,g">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LS><LS to="c">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LS>, který je mnohem úspornější a lze jej použít pro rychlé binární vyhledávání v poli/bitsetu. Původní bohatý formát je stále přítomen v kontejneru atributu, ale interně databáze používá primitivní formu, pokud je atribut součástí podmínek filtru nebo řazení.
+Nastavení povoleného počtu desetinných míst je optimalizace, která umožňuje převést bohaté číselné typy (například
+<LS to="j,e,r,g">[BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html)</LS><LS to="c">[decimal](https://learn.microsoft.com/en-us/dotnet/api/system.decimal)</LS> pro přesné
+zobrazení čísel) na primitivní typ <LS to="j,e,r,g">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LS><LS to="c">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LS>, který je mnohem úspornější a lze jej použít pro rychlé binární vyhledávání v poli/bitset reprezentaci. Původní bohatý formát zůstává v kontejneru atributu, ale interně databáze používá primitivní formu, pokud je atribut součástí podmínek filtru nebo řazení.
 
-Pokud číslo nelze převést do kompaktní formy (například má více číslic ve zlomkové části, než je povoleno), je vyhozena výjimka a aktualizace entity je odmítnuta.
+Pokud nelze číslo převést do úsporné formy (například má více číslic v desetinné části, než se očekává),
+je vyhozena výjimka a aktualizace entity je odmítnuta.
 
-### Složené atributy pro řazení
+#### Akcelerátory filtru
 
-Složený atribut pro řazení je virtuální atribut složený z hodnot několika jiných atributů, který lze použít pouze pro řazení. evitaDB vyžaduje předem připravený index řazení, aby mohla entity řadit. Tato skutečnost činí řazení mnohem rychlejším než ad-hoc řazení podle hodnoty atributu. Také mechanismus řazení v evitaDB je poněkud odlišný od toho, na co jste možná zvyklí. Pokud řadíte entity podle dvou atributů v klauzuli `orderBy` dotazu, evitaDB je nejprve seřadí podle prvního atributu (pokud je přítomen) a poté podle druhého (ale pouze ty, kde první atribut chybí). Pokud mají dvě entity stejnou hodnotu prvního atributu, nejsou řazeny podle druhého atributu, ale podle primárního klíče (vzestupně). Pokud chceme použít rychlé "předřazené" indexy, není jiná možnost, protože sekundární pořadí by nebylo známo až do doby dotazu.
+Označení atributu jako `filterable` nebo `unique` vytvoří index, který najde entity podle přesné hodnoty nebo podle rozsahu hodnot, aniž by prohledával ostatní. Ne každý dotaz však může takový index využít. Dotaz typu *substring* – „dej mi produkty, jejichž kód obsahuje někde `epix`“ – nemůže, protože index seřazený podle celých hodnot nic neříká o tom, co je uprostřed těchto hodnot. evitaDB proto odpovídá tak, že postupně zkoumá každou jedinečnou hodnotu tohoto atributu. U kolekce s několika tisíci různými hodnotami je to dostatečně rychlé; u kolekce se stovkami tisíc je to nejpomalejší část dotazu.
 
-Toto výchozí chování řazení podle více atributů není vždy žádoucí, proto evitaDB umožňuje definovat složený atribut pro řazení, což je virtuální atribut složený z hodnot několika jiných atributů. evitaDB vám také umožňuje určit pořadí "předřazovacího" chování (vzestupně/sestupně) pro každý z těchto atributů a také chování pro hodnoty NULL (první/poslední), pokud atribut v entitě zcela chybí. Složený atribut pro řazení se pak použije v klauzuli `orderBy` dotazu místo zadání více jednotlivých atributů, abyste dosáhli očekávaného chování řazení při zachování rychlosti "předřazených" indexů.
+**Akcelerátor filtru** je dodatečný index, který evitaDB udržuje vedle běžného indexu, aby mohl takový dotaz zodpovědět přímo. Akcelerátory nejsou nikdy zapnuty automaticky: každý z nich zabírá paměť po celou dobu, kdy jsou data načtena, a každý zápis nebo aktualizace tohoto atributu je o něco dražší. Deklarujete pouze ty, které vaše dotazy skutečně potřebují, na atributech, které je skutečně potřebují, a za ostatní nic neplatíte.
 
-Složený atribut pro řazení je vytvořen pouze tehdy, pokud je alespoň jeden z jeho atributů v entitě přítomen. Tato skutečnost je zásadní pro standardní mechanismus řazení evitaDB, kde jsou takové entity předány dalšímu řadiči definovanému v dotazu (nebo jsou řazeny podle primárního klíče vzestupně, pokud není definován žádný další řadič).
+Dostupné akcelerátory jsou konstanty v
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/AttributeFilterAccelerator.java</SourceClass>.
+Každá konstanta pojmenovává *schopnost, kterou index získává*, nikdy ne datovou strukturu, která ji poskytuje – struktura je interní detail a může se mezi verzemi měnit.
 
-Schéma složeného atributu pro řazení může být označeno jako *deprecated* (zastaralé), což bude propagováno do generované dokumentace webového API.
+##### Deklarace akcelerátoru
+
+Akcelerátor se deklaruje na atributu, vedle `filterable` / `unique` / `sortable`, ale nezávisle na nich.
+
+<LS to="j">
+
+```java
+entitySchemaBuilder
+	.withAttribute(
+		"code", String.class,
+		whichIs -> whichIs
+			.unique()
+			.acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+	);
+```
+
+</LS>
+
+Na builderu schématu atributu jsou k dispozici čtyři metody:
+
+<dl>
+    <dt>`acceleratedFor(accelerators...)`</dt>
+    <dd>deklaruje uvedené akcelerátory ve výchozím rozsahu – tedy pro entity, které jsou aktivní a ne archivované</dd>
+    <dt>`acceleratedForInScope(scope, accelerators...)`</dt>
+    <dd>deklaruje je pro konkrétní [scope](#scopy), takže můžete akcelerovat pouze živá data, aniž byste platili za stejný index nad archivovanými daty</dd>
+    <dt>`nonAcceleratedFor(accelerators...)`</dt>
+    <dd>odebere uvedené akcelerátory ze všech rozsahů</dd>
+    <dt>`nonAcceleratedForInScope(scope, accelerators...)`</dt>
+    <dd>odebere je pouze z jednoho konkrétního rozsahu</dd>
+</dl>
+
+Akcelerátor zrychluje **existující** index, takže musí existovat něco, co lze akcelerovat: rozsah, ve kterém jej deklarujete, musí být také `filterable` nebo `unique`, jinak je deklarace odmítnuta. Stačí jeden z těchto příznaků – atribut `unique` je indexován ve stejné struktuře jako `filterable` – takže není třeba deklarovat oba jen kvůli akcelerátoru.
+
+##### Vyhledávání podřetězce
+
+`SUBSTRING_SEARCH` je v současnosti jediný akcelerátor. Zrychluje
+[`attributeContains`](../query/filtering/string.md#attribut-obsahuje) a
+[`attributeEndsWith`](../query/filtering/string.md#attribut-končí-na). Nikdy nemění *které* entity tyto podmínky vracejí – výsledky jsou identické s akcelerátorem i bez něj – pouze rychlost jejich nalezení.
+
+**Jak to funguje.** Každý další kompromis vychází přímo z tohoto principu, proto si zaslouží odstavec. Když je akcelerátor zapnutý, evitaDB rozdělí každou hodnotu atributu na překrývající se trojice znaků: `garmin` se stane
+`gar`, `arm`, `rmi`, `min`. Pro každou takovou trojici si pamatuje, které hodnoty ji obsahují. Hledaný vzor se rozdělí stejným způsobem a pouze hodnota obsahující *všechny* trojice vzoru může být kandidátem na shodu – evitaDB tedy protne tyto seznamy a pak přesně ověří hrst přeživších kandidátů. Místo zkoumání všech různých hodnot zkoumá pouze ty, které už vypadají slibně.
+
+<Note type="question">
+
+<NoteTitle toggles="true">
+
+##### Proč není akcelerováno i `attributeStartsWith`?
+
+</NoteTitle>
+
+Protože už je rychlé a akcelerátor by ho zpomalil. Hodnoty jsou uloženy v seřazeném pořadí, takže vše začínající stejným prefixem je pohromadě: evitaDB skočí přímo na první takovou hodnotu a čte dál, dokud prefix odpovídá, aniž by se dotýkala ostatních. Pokud by se to směrovalo přes akcelerátor, znamenalo by to protínání seznamů trojic a následné ověřování kandidátů – více práce pro stejnou odpověď.
+
+</Note>
+
+**Kde lze deklarovat.** Při změně schématu se kontroluje každé z následujících pravidel a změna je odmítnuta, pokud není splněno:
+
+<dl>
+    <dt>typ atributu je `String` nebo `String[]`</dt>
+    <dd>pouze text lze rozdělit na podřetězce; žádný jiný datový typ nelze</dd>
+    <dt>jde o atribut entity, ne reference</dt>
+    <dd>atributy sdílené napříč celým katalogem také vyhovují, ale atributy připojené k
+    [reference](#reference) nikoli. Index je veden pro každou kolekci entit zvlášť a nikdy nevidí hodnoty uložené na referencích. Plánem je tuto restrikci v budoucnu zrušit</dd>
+    <dt>kolekce entit ještě neobsahuje žádné entity</dt>
+    <dd>index se plní při vkládání entit a evitaDB nemá způsob, jak jej zpětně vytvořit pro již existující data – akcelerátor tedy musí být deklarován před vložením první entity</dd>
+</dl>
+
+<Note type="warning">
+
+<NoteTitle toggles="false">
+
+##### Nelze zapnout tento akcelerátor pro již existující data
+</NoteTitle>
+
+Protože je deklarace odmítnuta u kolekce, která už obsahuje entity, není možné akcelerátor na existujícím, naplněném katalogu zapnout dodatečně.
+
+Cesta dnes je vytvořit nový katalog, deklarovat v něm akcelerátor před vložením jakýchkoli dat, data do něj nahrát a pak původní katalog nahradit novým. Počítejte s tím při plánování migrace – jde o plný reimport, nikoli jen úpravu schématu.
+
+</Note>
+
+**Rozhodování, které atributy akcelerovat.** Náklady na paměť se platí za každý atribut a jsou značné, takže toto rozhodnutí si zaslouží více pozornosti než prosté příznaky `filterable` / `sortable` / `unique`:
+
+- **Krátké hodnoty složené z mnoha různých znaků mají největší přínos** – kódy produktů, katalogová čísla, jména.
+  Čím rozmanitější znaky, tím vzácnější je každá trojice znaků a tím méně kandidátů musí být ověřeno.
+- **Dlouhé hodnoty složené z mála různých znaků mají nejmenší přínos.** Nejhorší případ je dlouhý čistě číselný identifikátor: s pouhými deseti číslicemi se některé trojice vyskytují ve třetině všech hodnot, takže průnik seznamů téměř nic nezúží a většinu práce stejně udělá ověřovací krok.
+- **Hodnoty kratší než tři znaky nelze indexovat vůbec**, stejně jako hledané vzory kratší než tři znaky – takové dotazy tiše spadnou zpět na procházení všech hodnot. Atribut, který je dotazován pouze jedno- nebo dvouznakovými vzory, z akcelerátoru nic nezíská, přesto za něj platí plnou cenu.
+- **Dvakrát zvažte hash, URL a dlouhý volný text.** To jsou nejdražší atributy pro akceleraci, protože téměř každá hodnota je jedinečná a dlouhá. U obsahového katalogu s přibližně milionem článků stál jeden dlouhý textový atribut asi 159 MB heapu, zatímco atribut s často se opakujícími hodnotami asi 21 MB. Akcelerace hrstky atributů, které byly skutečně hledány podle podřetězce, stála asi 184 MB celkem; akcelerace všech textových atributů v tomtéž katalogu by stála 743 MB, většina by padla na hash, identifikátory a URL, ve kterých nikdo nikdy nehledal.
+
+**evitaDB akcelerátor nevyužívá vždy, záměrně.** Před použitím odhaduje engine, kolik hodnot lze vzorem vyloučit. Pokud je vzor tak běžný, že by odpovídal velké části hodnot, je použití akcelerátoru pomalejší než prostý průchod, a tak se použije průchod. Tento odhad je záměrně opatrný, takže občas je dotaz procházen, i když by akcelerátor byl rychlejší. Výsledky jsou však vždy stejné.
+
+**Dotazy zapsané v rámci read-write session jsou vždy procházeny.** Akcelerátor odpovídá z poslední publikované verze dat, takže nevidí změny, které otevřená transakce provedla, ale ještě necommitla. Místo odpovědi, která by je ignorovala, evitaDB použije průchod pro celý dotaz. To je důležité například při importu nebo synchronizaci, kdy čtete s `attributeContains` ze stejné session, do které zapisujete: výsledky jsou správné, ale dorazí rychlostí průchodu. Pro akcelerovanou cestu čtěte v samostatné read-only session
+(`evita.queryCatalog(...)`).
+
+### Složeniny řaditelných atributů
+
+Složenina řaditelných atributů je virtuální atribut složený z hodnot několika jiných atributů, který lze použít pouze pro řazení. evitaDB vyžaduje předem připravený index pro řazení entit. Tato skutečnost činí řazení mnohem rychlejším než ad-hoc řazení podle hodnoty atributu. Mechanismus řazení v evitaDB je také trochu odlišný od toho, na co můžete být zvyklí. Pokud řadíte entity podle dvou atributů v klauzuli `orderBy` dotazu, evitaDB je nejprve seřadí podle prvního atributu (pokud je přítomen) a pak podle druhého (ale pouze ty, kde první atribut chybí). Pokud mají dvě entity stejnou hodnotu prvního atributu, nejsou řazeny podle druhého atributu, ale podle primárního klíče (vzestupně). Pokud chceme využít rychlé „předřazené“ indexy, jinak to nejde, protože sekundární pořadí by nebylo známo až v době dotazu.
+
+Toto výchozí chování řazení podle více atributů není vždy žádoucí, proto evitaDB umožňuje definovat složeninu řaditelných atributů, což je virtuální atribut složený z hodnot několika jiných atributů. evitaDB vám také umožňuje určit pořadí „předřazeného“ chování (vzestupně/sestupně) pro každý z těchto atributů a také chování pro hodnoty NULL (první/poslední), pokud atribut v entitě zcela chybí. Složenina řaditelných atributů se pak použije v klauzuli `orderBy` dotazu místo zadávání více jednotlivých atributů, abyste dosáhli očekávaného chování řazení při zachování rychlosti „předřazených“ indexů.
+
+Složenina řaditelných atributů se vytvoří pouze tehdy, pokud je alespoň jeden z jejích atributů v entitě přítomen. Tato skutečnost je zásadní pro standardní mechanismus řazení v evitaDB, kde jsou takové entity předány dalšímu řadiči definovanému v dotazu (nebo řazeny podle primárního klíče vzestupně, pokud není definován žádný jiný řadič).
+
+Schéma složeniny řaditelných atributů může být označeno jako *deprecated*, což se projeví v generované dokumentaci webového API.
 
 <Note type="info">
 
 <NoteTitle toggles="false">
 
-##### Seznam mutací týkajících se složeného atributu pro řazení
+##### Seznam mutací souvisejících se složeninou řaditelných atributů
 </NoteTitle>
 
-V rámci `ModifyEntitySchemaMutation` můžete použít mutaci:
+V rámci `ModifyEntitySchemaMutation` můžete použít mutace:
 
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/sortableAttributeCompound/CreateSortableAttributeCompoundSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/SortableAttributeCompounds/CreateSortableAttributeCompoundSchemaMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/sortableAttributeCompound/RemoveSortableAttributeCompoundSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/SortableAttributeCompounds/RemoveSortableAttributeCompoundSchemaMutation.cs</SourceClass></LS>**
@@ -385,29 +536,29 @@ V rámci `ModifyEntitySchemaMutation` můžete použít mutaci:
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/sortableAttributeCompound/ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/SortableAttributeCompounds/ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/sortableAttributeCompound/SetSortableAttributeCompoundIndexedMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/SortableAttributeCompounds/SetSortableAttributeCompoundIndexedMutation.cs</SourceClass></LS>**
 
-Schéma složeného atributu pro řazení je popsáno:
+Schéma složeniny řaditelných atributů je popsáno v:
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/SortableAttributeCompoundSchemaContract.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/ISortableAttributeCompoundSchema.cs</SourceClass></LS>
 
 </Note>
 
-### Přidružená data
+### Asociovaná data
 
-Typ entity může mít nula nebo více přidružených dat. Systém je navržen pro situace, kdy má entita desítky přidružených datových položek.
+Typ entity může mít nula nebo více asociovaných dat. Systém je navržen pro situace, kdy má entita desítky položek asociovaných dat.
 
-Schéma přidružených dat může být označeno jako `localized`, což znamená, že má smysl pouze v konkrétní
+Schéma asociovaných dat může být označeno jako `localized`, což znamená, že dává smysl pouze v konkrétním
 <LS to="j,e,r,g">[locale](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Locale.html)</LS>
 <LS to="c">[locale](https://learn.microsoft.com/en-us/dotnet/api/system.globalization.cultureinfo)</LS>.
 
-Schéma přidružených dat může být označeno jako *deprecated* (zastaralé), což bude propagováno do generované dokumentace webového API.
+Schéma asociovaných dat může být označeno jako *deprecated*, což se projeví v generované dokumentaci webového API.
 
 <Note type="info">
 
 <NoteTitle toggles="false">
 
-##### Seznam mutací týkajících se přidružených dat
+##### Seznam mutací souvisejících s asociovanými daty
 </NoteTitle>
 
-V rámci `ModifyEntitySchemaMutation` můžete použít mutaci:
+V rámci `ModifyEntitySchemaMutation` můžete použít mutace:
 
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/associatedData/CreateAssociatedDataSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/AssociatedData/CreateAssociatedDataSchemaMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/associatedData/RemoveAssociatedDataSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/AssociatedData/RemoveAssociatedDataSchemaMutation.cs</SourceClass></LS>**
@@ -419,16 +570,16 @@ V rámci `ModifyEntitySchemaMutation` můžete použít mutaci:
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/associatedData/SetAssociatedDataSchemaNullableMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/AssociatedData/SetAssociatedDataSchemaNullableMutation.cs</SourceClass></LS>**
 
 <LS to="j,c">
-Schéma přidružených dat je popsáno: <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/AssociatedDataSchemaContract.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/IAssociatedDataSchema.cs</SourceClass></LS>
+Schéma asociovaných dat je popsáno v: <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/AssociatedDataSchemaContract.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/IAssociatedDataSchema.cs</SourceClass></LS>
 </LS>
 
 </Note>
 
 ### Reference
 
-Typ entity může mít nula nebo více referencí. Reference mohou být spravované nebo nespravované. Spravované reference odkazují na entity ve stejném katalogu a evitaDB může kontrolovat jejich konzistenci. Nespravované reference odkazují na entity, které jsou spravovány externími systémy mimo rozsah evitaDB. Entita může mít samoreferenci, která odkazuje na stejný typ entity. Typ entity může mít několik referencí na stejný typ entity.
+Typ entity může mít žádné nebo více referencí. Reference mohou být spravované nebo nespravované. Spravované reference odkazují na entity ve stejném katalogu a evitaDB může kontrolovat jejich konzistenci. Nespravované reference odkazují na entity, které jsou spravovány externími systémy mimo rozsah evitaDB. Entita může mít samoodkaz, který odkazuje na stejný typ entity. Typ entity může mít několik referencí na stejný typ entity.
 
-Reference mohou mít nula nebo více atributů, které platí pouze pro konkrétní "odkaz" mezi těmito dvěma instancemi entity. [Globální atribut](#globální-schéma-atributu) nelze použít jako atribut reference. Jinak platí pro atributy reference stejná pravidla jako pro běžné atributy entity.
+Reference mohou mít žádné nebo více atributů, které platí pouze pro konkrétní „spojení“ mezi těmito dvěma instancemi entit. [Globální atribut](#globální-schéma-atributu) nemůže být použit jako atribut reference. Jinak platí pro atributy referencí stejná pravidla jako pro běžné atributy entity.
 
 <Note type="info">
 
@@ -437,11 +588,11 @@ Reference mohou mít nula nebo více atributů, které platí pouze pro konkrét
 ##### Seznam mutací souvisejících s referencí
 </NoteTitle>
 
-V rámci `ModifyEntitySchemaMutation` můžete použít mutace:
+V rámci `ModifyEntitySchemaMutation` můžete použít mutaci:
 
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/CreateReferenceSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/CreateReferenceSchemaMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/CreateReflectedReferenceSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/CreateReflectedReferenceSchemaMutation.cs</SourceClass></LS>**
-- **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/CreateReflectedReferenceSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>(zatím není podporováno v C# driveru – viz [issue 8](https://github.com/FgForrest/evitaDB-C-Sharp-client/issues/8))</SourceClass></LS>**
+- **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/CreateReflectedReferenceSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>(not yet supported in C# driver - see [issue 8](https://github.com/FgForrest/evitaDB-C-Sharp-client/issues/8))</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/RemoveReferenceSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/RemoveReferenceSchemaMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReferenceSchemaNameMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/ModifyReferenceSchemaNameMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReferenceSchemaDescriptionMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/ModifyReferenceSchemaDescriptionMutation.cs</SourceClass></LS>**
@@ -452,14 +603,14 @@ V rámci `ModifyEntitySchemaMutation` můžete použít mutace:
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReflectedReferenceAttributeInheritanceSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/ModifyReflectedReferenceAttributeInheritanceSchemaMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/SetReferenceSchemaIndexedMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/SetReferenceSchemaIndexedMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/SetReferenceSchemaFacetedMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/SetReferenceSchemaFacetedMutation.cs</SourceClass></LS>**
-- **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/SetReferenceSchemaBucketedMutation.java</SourceClass></LS><LS to="c"><SourceClass>(zatím není podporováno v C# driveru)</SourceClass></LS>**
+- **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/SetReferenceSchemaBucketedMutation.java</SourceClass></LS><LS to="c"><SourceClass>(not yet supported in C# driver)</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReferenceAttributeSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/ModifyReferenceAttributeSchemaMutation.cs</SourceClass></LS>**
-- **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReflectedReferenceAttributeInheritanceSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>(zatím není podporováno v C# driveru – viz [issue 8](https://github.com/FgForrest/evitaDB-C-Sharp-client/issues/8))</SourceClass></LS>**
+- **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReflectedReferenceAttributeInheritanceSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>(not yet supported in C# driver - see [issue 8](https://github.com/FgForrest/evitaDB-C-Sharp-client/issues/8))</SourceClass></LS>**
 
 `ModifyReferenceAttributeSchemaMutation` očekává vnořené [mutace atributů](#atributy).
 
 <LS to="j,c">
-Schéma reference je popsáno pomocí:
+Schéma reference je popsáno zde:
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ReferenceSchemaContract.java</SourceClass></LS>
 <LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/IReferenceSchema.cs</SourceClass></LS> a
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ReflectedReferenceSchemaContract.java</SourceClass></LS>
@@ -468,9 +619,9 @@ Schéma reference je popsáno pomocí:
 
 </Note>
 
-#### Směrovost reference
+#### Směrovost referencí
 
-Reference jsou svou povahou jednosměrné, což znamená, že pokud reference směřuje z entity A na entitu B, neznamená to, že entita B automaticky odkazuje na entitu A. Je možné nastavit obousměrnou referenci vytvořením tzv. "reflektované reference" na druhém typu entity a identifikací původní reference, která má být reflektována. Reflektovaná reference může, ale nemusí, dědit atributy z původní reference, a může také definovat své vlastní samostatné atributy. To lze popsat následujícím ERD diagramem:
+Reference jsou svou povahou jednosměrné, což znamená, že pokud reference směřuje z entity A na entitu B, neznamená to, že entita B automaticky odkazuje na entitu A. Je možné nastavit obousměrnou referenci vytvořením tzv. „odrážené reference“ na druhém typu entity a identifikací původní reference, která má být odražena. Odrážená reference může, ale nemusí dědit atributy z původní reference, a může také definovat své vlastní samostatné atributy. Toto lze popsat následujícím ERD diagramem:
 
 ```mermaid
 erDiagram
@@ -488,11 +639,11 @@ erDiagram
     }
 ```
 
-Reflektované reference jsou automaticky vytvářeny, aktualizovány a odstraňovány při manipulaci s původní referencí. Funguje to i opačně – při manipulaci s reflektovanou referencí je aktualizována původní reference.
+Odrážené reference jsou automaticky vytvářeny, aktualizovány a odstraňovány při manipulaci s původní referencí. Funguje to i opačně – při manipulaci s odráženou referencí je aktualizována původní reference.
 
 <Note type="warning">
 
-Existuje jemný rozdíl mezi původní referencí a reflektovanou referencí. Původní reference může existovat, i když odkazovaná entita ještě neexistuje (reference je sirotčí). Na druhou stranu, když vytvoříte reflektovanou referenci, odkazovaná entita musí existovat. Je to proto, že reflektovaná reference okamžitě vytvoří původní referenci a ta musí mít platný cíl. Toto chování je potřeba pro udržení konzistence při přesunu entit mezi různými [scopami](#scopy), které s původními a reflektovanými referencemi zacházejí odlišně.
+Existuje jemný rozdíl mezi původní referencí a odráženou referencí. Původní reference může existovat, i když odkazovaná entita (zatím) neexistuje (reference je osiřelá). Na druhou stranu, když vytvoříte odráženou referenci, odkazovaná entita musí existovat. Je to proto, že odrážená reference okamžitě vytvoří původní referenci a ta musí mít platný cíl. Toto chování je potřeba pro zachování konzistence při přesunu entit mezi různými [scopami](#scopy), které s původními a odráženými referencemi zacházejí odlišně.
 
 </Note>
 
@@ -500,94 +651,94 @@ Pokud reference obsahuje atribut, který není definován na druhé straně, a r
 
 #### Indexování referencí
 
-Pro každou referenci definovanou ve schématu entity je třeba zvolit úroveň indexování. K dispozici jsou tři úrovně <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/dto/ReferenceIndexType.java</SourceClass>:
+Pro každou z referencí definovaných ve schématu entity je potřeba zvolit úroveň indexování. K dispozici jsou tři úrovně <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/dto/ReferenceIndexType.java</SourceClass>:
 
 <dl>
     <dt>NONE</dt>
-    <dd>Reference nemá žádný dostupný index. To znamená, že referenci nelze použít v žádném filtrování nebo řazení dotazů. Tento typ použijte, pokud nepotřebujete filtrovat ani řadit podle existence reference nebo jakéhokoliv atributu reference a chcete minimalizovat využití paměti a disku.</dd>
+    <dd>Reference nemá k dispozici žádný index. To znamená, že reference nemůže být použita v žádném filtrování nebo řazení dotazů. Tento typ použijte, pokud nepotřebujete filtrovat ani řadit podle existence reference nebo jakéhokoli atributu reference a chcete minimalizovat využití paměti a disku.</dd>
     <dt>FOR_FILTERING</dt>
-    <dd>Reference má pouze základní index, který je nezbytný pro vyhodnocení podmínek filtru [`referencedEntityHaving`](../query/filtering/references.md) a interpretaci řazení pomocí [`referenceProperty`](../query/ordering/reference.md). Toto je minimální úroveň indexování, která umožňuje filtrování podle existence reference a jejích atributů. Tento typ použijte, pokud potřebujete základní možnosti filtrování referencí, ale chcete minimalizovat využití paměti a disku. Je vhodný pro reference, které nejsou často používány ve složitých dotazech, nebo když je optimalizace úložiště důležitější než výkon dotazů. Toto je doporučený výchozí typ indexování pro reference a je dostačující pro většinu případů použití.</dd>
+    <dd>Reference má pouze základní index, který je nutný pro podmínky filtru [`referencedEntityHaving`](../query/filtering/references.md) a interpretaci řazení [`referenceProperty`](../query/ordering/reference.md). Toto je minimální úroveň indexování, která umožňuje filtrovat podle existence reference a atributů reference. Tento typ použijte, pokud potřebujete základní možnosti filtrování referencí, ale chcete minimalizovat využití paměti a disku. Je vhodný pro reference, které nejsou často používány v komplexních dotazech, nebo když je optimalizace úložiště důležitější než výkon dotazů. Toto je doporučený výchozí typ indexování pro reference a je dostačující pro většinu případů použití.</dd>
     <dt>FOR_FILTERING_AND_PARTITIONING</dt>
-    <dd>Reference má základní index potřebný pro vyhodnocení podmínek filtru [`referencedEntityHaving`](../query/filtering/references.md) a interpretaci řazení pomocí [`referenceProperty`](../query/ordering/reference.md), a navíc i partitioning indexy pro hlavní typ entity (tj. typ entity, který obsahuje schéma reference), což může výrazně urychlit vykonání dotazu, pokud je reference součástí filtrování dotazu. Toto pokročilé indexování vytváří další datové struktury, které umožňují efektivnější vykonávání dotazů rozdělením dat na základě referenčních vztahů. To může významně zlepšit výkon u složitých dotazů, které zahrnují filtrování podle referencí, zejména při práci s velkými datovými sadami. Tento typ použijte, pokud je filtrování podle referencí často používáno v dotazech a výkon dotazů je kritický. Uvědomte si, že tato možnost vyžaduje více paměti a diskového prostoru ve srovnání s úrovní `FOR_FILTERING`.</dd>
+    <dd>Reference má základní index potřebný pro podmínky filtru [`referencedEntityHaving`](../query/filtering/references.md) a interpretaci řazení [`referenceProperty`](../query/ordering/reference.md), a také partitioning indexy pro hlavní typ entity (tj. typ entity, který obsahuje schéma reference), což může výrazně urychlit provádění dotazu, když je reference součástí filtrování dotazu. Toto pokročilé indexování vytváří další datové struktury, které umožňují efektivnější provádění dotazů rozdělením dat na základě referenčních vztahů. To může výrazně zlepšit výkon u složitých dotazů zahrnujících filtrování referencí, zejména při práci s velkými datovými sadami. Tento typ použijte, pokud je filtrování referencí často používáno v dotazech a výkon dotazů je kritický. Uvědomte si, že tato možnost vyžaduje více paměti a diskového prostoru ve srovnání s úrovní `FOR_FILTERING`.</dd>
 </dl>
 
-Partitioning indexy jsou reprezentovány třídou <SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass> a takový index je vytvořen pro každou referenci použitou v jakékoliv entitě ve schématu a bude obsahovat podmnožinu atributových, cenových a dalších indexů redukovaných pouze na entity s danou referencí. Ukažme si to na příkladu – řekněme, že máme typ entity `Product`, který má referenci `categories` na typ entity `Category`, která je indexována jako `FOR_FILTERING_AND_PARTITIONING`. Představme si, že potřebujeme najít všechny produkty zařazené do konkrétní kategorie, které zároveň splňují dalších deset podmínek (jsou publikované, aktuálně platné, mají dostupnou cenu v uživatelském ceníku a v EUR atd.). Takový dotaz můžeme vyhodnotit nad jedním velkým indexem, kde jsou tyto informace dostupné pro všechny známé produkty v databázi, nebo (pokud použijeme partitioning) můžeme využít mnohem menší index, ve kterém najdeme všechny potřebné informace pouze pro produkty, které mají platnou vazbu na kategorii, pro kterou dotaz vyhodnocujeme. Logicky bude odpověď na dotaz výrazně rychlejší, protože množství prohledávaných dat je výrazně menší. Nevýhodou tohoto přístupu je, že vyžaduje relativně velké množství paměťového prostoru.
+Partitioning indexy jsou reprezentovány <SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass> a takový index je vytvořen pro každou referenci použitou v jakékoli entitě ve schématu a bude obsahovat podmnožinu atributů, cen a dalších indexů omezenou pouze na entity s danou referencí. Popišme si to na příkladu – řekněme, že máme typ entity `Product`, který má referenci `categories` na typ entity `Category`, která je indexována jako `FOR_FILTERING_AND_PARTITIONING`. Představme si, že potřebujeme najít všechny produkty zařazené do konkrétní kategorie, které zároveň splňují deset dalších podmínek (jsou publikované, aktuálně platné, mají dostupnou cenu v uživatelově ceníku a v EUR atd.). Takový dotaz můžeme vyhodnotit nad jedním velkým indexem, kde jsou tyto informace k dispozici pro všechny známé produkty v databázi, nebo (pokud použijeme partitioning) můžeme použít mnohem menší index, ve kterém najdeme všechny potřebné informace pouze pro produkty, které mají platný odkaz na kategorii, pro kterou tento dotaz vyhodnocujeme. Logicky bude odpověď na dotaz výrazně rychlejší, protože množství prohledávaných dat je výrazně menší. Nevýhodou tohoto přístupu je, že vyžaduje poměrně velké množství paměti.
 
-##### Referenční facety
+##### Facety referencí
 
-Pokud je reference označena jako *faceted* (faktová), je pro daný typ entity vytvořen speciální <SourceClass>evita_engine/src/main/java/io/evitadb/index/facet/FacetReferenceIndex.java</SourceClass>. Tento index obsahuje optimalizované datové struktury pro výpočet [souhrnu referencí](../query/requirements/reference.md#referenční-souhrn) — tedy počtů a statistik, které umožňují filtrování pomocí zaškrtávacích políček v e-commerce rozhraních (například „Značka: Nike (42), Adidas (31), Puma (18)“).
+Pokud je reference označena jako *faceted*, je pro typ entity vytvořen speciální <SourceClass>evita_engine/src/main/java/io/evitadb/index/facet/FacetReferenceIndex.java</SourceClass>. Tento index obsahuje optimalizované datové struktury pro výpočet [souhrnu referencí](../query/requirements/reference.md#referenční-souhrn) — počty a statistiky, které pohánějí filtrování ve stylu zaškrtávacích políček v e-commerce UI (např. „Značka: Nike (42), Adidas (31), Puma (18)“).
 
-Když je reference označena jako faktová, všechny její instance jsou vloženy do indexu referenčních facet. Reference mohou (ale nemusí) být organizovány do skupin facet, které odkazují na *řízený* nebo *neřízený* typ entity. Facetový index je vytvářen při **indexaci** — tedy při vytváření nebo aktualizaci entit — takže výpočet [souhrnu referencí](../query/requirements/reference.md#referenční-souhrn) při dotazování čte přímo předem připravený index a běží na plnou rychlost.
+Když je reference označena jako faceted, všechny její instance jsou vloženy do facet reference indexu. Reference mohou (ale nemusí) být organizovány do facet skupin, které odkazují na *spravovaný* nebo *nespravovaný* typ entity. Facet index je sestavován při **indexování** — když jsou entity vytvářeny nebo aktualizovány — takže výpočet [souhrnu referencí](../query/requirements/reference.md#referenční-souhrn) při dotazu čte přímo předem sestavený index a běží na plnou rychlost.
 
-Ve výchozím nastavení se **každá** instance faktové reference účastní facetového indexu. Možnost [podmíněného indexování](#podmíněné-indexování-pomocí-výrazů) popsaná níže vám umožní toto chování zúžit pomocí výrazu.
+Ve výchozím nastavení **každá** instance faceted reference participuje ve facet indexu. Možnost [podmíněného indexování](#podmíněné-indexování-pomocí-výrazů) popsaná níže vám umožní toto zúžit pomocí výrazu.
 
-##### Referenční histogramy
+##### Histogramy referencí
 
-evitaDB umí vypočítat [histogramy](../query/requirements/histogram.md) pro libovolný číselný filtrovatelný atribut entity pomocí požadavku `attributeHistogram`. Tento přístup však vyžaduje, aby klient explicitně pojmenoval každý atribut, pro který chce histogramy získat. Pokud se sada relevantních atributů dynamicky mění — například když různé skupiny parametrů produktů potřebují různou prezentaci filtrů (některé jako zaškrtávací políčka, jiné jako posuvníky s rozsahem) — musí si klient udržovat vlastní logiku mapování, aby rozhodl, pro které atributy má histogramy požadovat. To vytváří složitou middleware a cache logiku na straně klienta.
+evitaDB může vypočítat [histogramy](../query/requirements/histogram.md) pro jakýkoli číselný filtrovatelný atribut entity prostřednictvím požadavku `attributeHistogram`. Tento přístup však vyžaduje, aby klient explicitně pojmenoval každý atribut, pro který chce histogramy. Když se sada relevantních atributů dynamicky mění — například když různé skupiny parametrů produktů potřebují různou prezentaci filtrů (některé jako zaškrtávací políčka, jiné jako posuvníky rozsahu) — musí si klient udržovat vlastní mapovací logiku, aby rozhodl, pro které atributy má histogramy požadovat. To vytváří složitou middleware a cache logiku na straně klienta.
 
-**Indexování histogramů po intervalech** na referencích tento problém řeší tím, že histogramy povyšuje na plnohodnotnou součást schématu reference. Když je reference označena jako *bucketed* (s intervaly), evitaDB vytváří a udržuje index histogramu vedle indexu facet. Tyto histogramy na úrovni referencí jsou pak **automaticky zahrnuty do [souhrnu referencí](../query/requirements/reference.md#referenční-souhrn)** — stejně jako facetové informace. Klient jednoduše požádá o souhrn a v jedné odpovědi obdrží jak počty pro zaškrtávací políčka, tak intervalové histogramy, aniž by musel jmenovat jednotlivé atributy.
+**Indexování histogramu po skupinách** na referencích toto řeší tím, že histogramy činí nedílnou součástí schématu reference. Když je reference označena jako *bucketed*, evitaDB sestaví a udržuje index histogramu vedle facet indexu. Tyto histogramy na úrovni reference jsou pak **automaticky zahrnuty do [souhrnu referencí](../query/requirements/reference.md#referenční-souhrn)** — stejně jako facety. Klient jednoduše požádá o souhrn a obdrží jak počty pro facety (zaškrtávací políčka), tak intervalové histogramy v jediné odpovědi, bez nutnosti pojmenovávat jednotlivé atributy.
 
 <Note type="info">
 
 <NoteTitle toggles="true">
 
-##### Facetové zaškrtávací políčka a intervalové posuvníky na jedné referenci
+##### Facetová zaškrtávací políčka a bucketované posuvníky na jedné referenci
 
 </NoteTitle>
 
-Představte si entitu Product s referencí `parameterValues` na ParameterValue, seskupenou podle Parameter. Každá skupina parametrů má atribut `inputWidgetType`, který určuje, jak má být uživateli prezentována:
+Zvažte entitu Product s referencí `parameterValues` na ParameterValue, seskupenou podle Parameter. Každá skupina parametrů má atribut `inputWidgetType`, který určuje, jak má být prezentována uživateli:
 
-- Parametry s `inputWidgetType == 'CHECKBOX'` → reference je **facetová** (uživatelé vybírají pomocí zaškrtávacích políček)
-- Parametry s `inputWidgetType == 'INTERVAL'` → reference je **bucketovaná** pro histogram (uživatelé posouvají rozsahovou lištu)
+- Parametry s `inputWidgetType == 'CHECKBOX'` → reference je **faceted** (uživatelé vybírají ze zaškrtávacích políček)
+- Parametry s `inputWidgetType == 'INTERVAL'` → reference je **bucketed** pro histogram (uživatelé posouvají rozsahový posuvník)
 
-Oba způsoby fungují současně v rámci jedné definice reference. [Podmíněné výrazy](#podmíněné-indexování-pomocí-výrazů) (`facetedPartially` a `bucketedPartially`) nasměrují každou skupinu k odpovídajícímu typu indexu při indexaci.
+Obě ošetření koexistují v jedné definici reference. [Podmíněné výrazy](#podmíněné-indexování-pomocí-výrazů) (`facetedPartially` a `bucketedPartially`) nasměrují každou skupinu na odpovídající typ indexu při indexování.
 
 </Note>
 
-Při definici histogramu zadáváte **výraz pro hodnotu** — [EvitaEL výraz](../query/expression-language.md), který určuje, jakou hodnotu atributu uložit jako hodnotu bucketu histogramu pro každou instanci reference. Například `$reference.referencedEntity.attributes['basicUnitValue']` získá atribut `basicUnitValue` z referencované entity. Každá reference může definovat více **pojmenovaných histogramových indexů** v každém rozsahu — název histogramu identifikuje slot indexu a různé rozsahy mohou pro stejný název používat různé výrazy pro hodnotu.
+Při definování histogramu zadáváte **výraz hodnoty** — [EvitaEL výraz](../query/expression-language.md), který určuje, jakou hodnotu atributu uložit jako hodnotu bucketu histogramu pro každou instanci reference. Například `$reference.referencedEntity.attributes['basicUnitValue']` získá atribut `basicUnitValue` z referencované entity. Každá reference může definovat více **pojmenovaných indexů histogramu** v každém scope — název histogramu identifikuje slot indexu a různé scope mohou používat různé výrazy hodnoty pro stejný název.
 
-Výraz pro hodnotu může vést buď na **skalární číselný** atribut (`Byte`, `Short`, `Integer`, `Long`, `BigDecimal`), nebo na **číselný rozsah** atribut (`ByteNumberRange`, `ShortNumberRange`, `IntegerNumberRange`, `LongNumberRange`, `BigDecimalNumberRange`). Jakýkoli jiný typ — včetně `DateTimeRange` a neskalárních číselných typů — je při definici schématu odmítnut. Stejně jako facetová data jsou i všechna data histogramu vytvářena **při indexaci** — výraz pro hodnotu je vyhodnocen při vytváření nebo aktualizaci entit a dotazovací engine čte přímo předpřipravený index bez jakéhokoli dalšího vyhodnocování výrazů.
+Výraz hodnoty může vyhodnotit buď na **skalární číselný** atribut (`Byte`, `Short`, `Integer`, `Long`, `BigDecimal`) nebo na **číselný rozsah** atribut (`ByteNumberRange`, `ShortNumberRange`, `IntegerNumberRange`, `LongNumberRange`, `BigDecimalNumberRange`). Jakýkoli jiný typ — včetně `DateTimeRange` a neskalárních čísel — je při definici schématu odmítnut. Stejně jako facety jsou všechna data histogramu sestavována při **indexování** — výraz hodnoty je vyhodnocen při vytváření nebo aktualizaci entit a dotazovací engine čte přímo předem sestavený index bez jakéhokoli vyhodnocování výrazů.
 
-###### Histogramy s hodnotami typu rozsah
+###### Zdroje histogramu typu rozsah
 
-Pokud výraz pro hodnotu odkazuje na atribut typu `NumberRange`, instance reference nepřispívá jediným bodem — přispívá celým intervalem `[from, to]`. evitaDB indexuje krajní body rozsahu a při dotazování se každá instance reference započítá do **každého histogramového bucketu, se kterým se její interval překrývá**, přičemž se používá uzavřená intervalová sémantika (rozsah je započítán jak na své dolní, tak horní hranici). Jediná instance reference, jejíž rozsah zasahuje do více bucketů, tedy zvýší počet výskytů *každého* z těchto bucketů. Minimum a maximum histogramu (`min` / `max`) jsou určeny nejnižší hodnotou `from` a nejvyšší hodnotou `to` ze všech přispívajících rozsahů; neomezené rozsahy (bez hranice `from` nebo `to`) se započítávají od / po příslušný konec intervalu. Skalární i rozsahové histogramy mohou na jedné referenci koexistovat pod různými názvy histogramů.
+Když výraz hodnoty vyhodnotí na atribut typu `NumberRange`, instance reference nepřispívá jediným bodem — přispívá celým intervalem `[from, to]`. evitaDB indexuje krajní body rozsahu a při dotazu je každá instance reference započítána do **každého bucketu histogramu, se kterým se její interval překrývá**, s uzavřenou intervalovou sémantikou (rozsah je započítán jak na dolní, tak na horní hranici). Jediná instance reference, jejíž rozsah zasahuje do několika bucketů, tedy zvýší počet výskytů *každého* z těchto bucketů. `min` / `max` histogramu jsou převzaty z nejnižšího `from` a nejvyššího `to` napříč přispívajícími rozsahy a neomezené rozsahy (bez `from` nebo `to`) se účastní od/po příslušný konec rozpětí. Skalární a rozsahové histogramy mohou na stejné referenci koexistovat pod různými názvy histogramů.
 
 <Note type="info">
 
-Protože jeden prvek může spadat do více bucketů najednou, `overallCount` rozsahového histogramu (a součet výskytů v bucketech) počítá **přiřazení (instance × překrytý bucket)**, nikoli počet unikátních instancí reference — obvykle je tedy vyšší než počet přispívajících instancí. Je to záměrné: například rozsah dostupnosti nebo platnosti by měl "vyplnit" každou pozici posuvníku, kterou pokrývá.
+Protože jeden prvek může spadat do více bucketů najednou, `overallCount` rozsahového histogramu (a součet výskytů v bucketech) počítá **(instance × překrytý bucket)**, nikoli odlišné instance referencí — obvykle je větší než počet přispívajících instancí. Toto je záměrné: dostupnostní nebo platnostní rozsah by měl „vyplnit“ každou pozici posuvníku, kterou pokrývá.
 
-Na rozdíl od skalárních zdrojů nesmí rozsahový zdroj deklarovat výchozí hodnotu `?? value`. Chybějící rozsah jednoduše nepřispívá ničím, místo aby se zredukoval na bodovou hodnotu, proto je zadání výchozí hodnoty při definici schématu odmítnuto.
+Na rozdíl od skalárních zdrojů nesmí rozsahový zdroj deklarovat výchozí hodnotu `?? value`. Chybějící rozsah prostě nepřispívá ničím, místo aby se zhroutil na bodovou hodnotu, takže zadání výchozí hodnoty je při definici schématu odmítnuto.
 
 </Note>
 
-Histogramová data jsou udržována ve stejných zredukovaných indexech entit, které obsahují facetová data — `ReducedGroupEntityIndex` pro seskupené reference a `ReferencedTypeEntityIndex` pro neseskupené reference. Díky tomu je výpočet histogramu při dotazování stejně rychlý jako výpočet facetového souhrnu: data jsou již předem rozdělená a připravená.
+Data histogramu jsou udržována ve stejných redukovaných indexech entit, které obsahují data facety — `ReducedGroupEntityIndex` pro seskupené reference a `ReferencedTypeEntityIndex` pro neseskupené reference. To činí výpočet histogramu při dotazu stejně rychlým jako výpočet souhrnu facety: data jsou již rozdělená a připravená.
 
 ##### Podmíněné indexování pomocí výrazů
 
-Jak [indexování facet](#referenční-facety), tak [referenční histogramy](#referenční-histogramy) podporují podmíněnou účast prostřednictvím výrazů `facetedPartially` a `bucketedPartially`. Výraz `facetedPartially` určuje, které instance reference budou zahrnuty do facetového indexu; výraz `bucketedPartially` určuje, které instance se budou účastnit histogramového indexu. Pokud reference obsahuje jak facety, tak histogramy, mohou podmíněné výrazy rozdělit instance reference do různých typů indexů — například směrovat zaškrtávací parametry do facetového indexu a intervalové parametry do histogramového indexu, a to vše v rámci jedné definice reference.
+Jak [indexování facety](#facety-referencí), tak [histogramy referencí](#histogramy-referencí) podporují podmíněnou účast prostřednictvím `facetedPartially` a `bucketedPartially`. Výraz `facetedPartially` řídí, které instance referencí jsou zahrnuty do facet indexu; výraz `bucketedPartially` řídí, které se účastní indexu histogramu. Když reference obsahuje jak facety, tak histogramy, mohou podmíněné výrazy rozdělit instance referencí do různých typů indexů — například nasměrovat parametry zaškrtávacího políčka do facet indexu a intervalové parametry do histogramového indexu, vše v jedné definici reference.
 
-Oba výrazy používají stejný jazyk [EvitaEL expression](../query/expression-language.md) a jsou **vyhodnocovány při indexaci** — tedy při vytváření nebo aktualizaci entit. Výsledek výrazu určuje, zda bude konkrétní instance reference přidána do příslušného indexu nebo z něj odebrána. Výrazy nehrají žádnou roli při dotazování; v tomto okamžiku již indexy obsahují pouze ty instance reference, které prošly svými podmínkami, a výpočet souhrnů probíhá maximální rychlostí.
+Oba výrazy používají stejný jazyk [EvitaEL výrazů](../query/expression-language.md) a jsou **vyhodnocovány při indexování** — tj. při vytváření nebo aktualizaci entit. Výsledek výrazu určuje, zda je každá jednotlivá instance reference přidána do příslušného indexu nebo z něj odstraněna. Výrazy nehrají žádnou roli při dotazování; v té době již indexy obsahují pouze instance referencí, které prošly svými podmínkami, a výpočet souhrnu běží na plnou rychlost.
 
-**Přiřazení ke konkrétnímu histogramu (`assignedWhen`).** `bucketedPartially` je *brána na úrovni reference* — rozhoduje, které instance reference jsou vůbec způsobilé pro indexování do histogramu. Pojmenovaný histogram může navíc deklarovat selektor `assignedWhen`, který se aplikuje **navíc k této bráně**: mezi již způsobilými instancemi rozhoduje, které z nich přispívají *do tohoto konkrétního* histogramu. Oba výrazy jsou kombinovány logickým AND (`bucketedPartially && assignedWhen`). Protože každý pojmenovaný histogram má svůj vlastní `assignedWhen`, může na jedné referenci existovat několik histogramů, které vybírají překrývající se nebo disjunktní množiny instancí — instance přispívá do *každého* histogramu, jehož `assignedWhen` vyhodnotí na `true`, a také do každého histogramu, který `assignedWhen` vůbec nedefinuje. Stejně jako ostatní podmíněné výrazy je `assignedWhen` vyhodnocován při indexaci a používá stejné datové cesty `$entity` / `$reference` popsané níže.
+**Přiřazení pro každý histogram (`assignedWhen`).** `bucketedPartially` je *brána na úrovni reference* — rozhoduje, které instance referencí jsou vůbec způsobilé pro bucketované indexování. Pojmenovaný histogram může navíc deklarovat selektor `assignedWhen`, který se aplikuje **navrch** této brány: mezi již způsobilými instancemi rozhoduje, které z nich naplní *tento konkrétní* histogram. Oba jsou kombinovány pomocí AND (`bucketedPartially && assignedWhen`). Protože každý pojmenovaný histogram nese svůj vlastní `assignedWhen`, několik histogramů na jedné referenci může vybírat překrývající se nebo disjunktní množiny instancí — instance přispívá do *každého* histogramu, jehož `assignedWhen` vyhodnotí na `true`, plus do jakéhokoli histogramu, který `assignedWhen` vůbec nedefinuje. Stejně jako ostatní podmíněné výrazy je `assignedWhen` vyhodnocován při indexování a používá stejné datové cesty `$entity` / `$reference` popsané níže.
 
 **Dostupné datové cesty ve výrazu:**
 
-Výraz má k dispozici dvě kontextové proměnné — `$entity` (vlastnická entita) a `$reference` (konkrétní reference, která se vyhodnocuje). Pomocí těchto proměnných lze přistupovat k datům vlastnické entity, samotné reference a — až o jeden skok — k referencované entitě, skupinové entitě nebo rodičovské entitě. Níže jsou cesty seřazeny od nejčastěji používaných po méně časté:
+Výraz dostává dvě kontextové proměnné — `$entity` (vlastnící entita) a `$reference` (konkrétní reference, která je vyhodnocována). Prostřednictvím nich můžete přistupovat k datům na vlastnické entitě, samotné referenci a — až o jeden skok — na referencované entitě, skupinové entitě nebo rodičovské entitě. Cesty jsou uvedeny níže od nejčastěji používaných po nejméně:
 
-- `$reference.referencedEntity.attributes['x']` — atributy referencované entity (například ověření atributu `status` referencované kategorie)
+- `$reference.referencedEntity.attributes['x']` — atributy referencované entity (např. kontrola atributu `status` referencované kategorie)
 - `$reference.groupEntity?.attributes['x']` — atributy skupinové entity (použijte `?.` pro bezpečnou navigaci, protože skupina může chybět)
-- `$reference.attributes['x']` — atributy na úrovni reference (atributy na samotném odkazu)
+- `$reference.attributes['x']` — atributy na úrovni reference (atributy na samotném spojení)
 - `$entity.attributes['x']` — atributy vlastnické entity
-- `$entity.parentEntity.attributes['x']` — atributy hierarchického rodiče vlastnické entity (rodič je stejný typ entity — toto je cesta mezi entitami)
-- `$entity.parentEntity != null` — ověření, zda má vlastnická entita vůbec rodiče
+- `$entity.parentEntity.attributes['x']` — atributy hierarchického rodiče vlastnické entity (rodič je stejný typ entity — toto je cesta napříč entitami)
+- `$entity.parentEntity != null` — kontrola, zda má vlastnická entita vůbec rodiče
 - `$entity.parent` — primární klíč rodiče vlastnické entity (integer)
 - `$reference.referencedPrimaryKey` — primární klíč referencované entity (integer)
 
-Můžete také přistupovat k referencím a jejich atributům na referencované, skupinové nebo rodičovské entitě. Například výraz `$reference.referencedEntity.references['tag'].any(($.attributes['weight'] ?? 0) > 5)` ověří, zda některá reference `tag` na referencované entitě má atribut `weight` větší než 5.
+Můžete také přecházet do referencí referencované, skupinové nebo rodičovské entity a jejich atributů. Například `$reference.referencedEntity.references['tag'].any(($.attributes['weight'] ?? 0) > 5)` kontroluje, zda některá reference `tag` na referencované entitě má atribut `weight` větší než 5.
 
 <Note type="info">
 
-Výrazy mohou sahat maximálně **o jednu entitu dál** od vlastnické entity. Můžete přejít k referencované, skupinové nebo rodičovské entitě a číst její vlastnosti — včetně jejích vlastních referencí a jejich atributů — ale nemůžete pokračovat dále k další entitě. Toto omezení udržuje závislostní graf mezi entitami předvídatelný a zajišťuje, že změny lze efektivně sledovat a znovu vyhodnocovat.
+Výrazy mohou dosáhnout maximálně **jednu entitu hluboko** od vlastnické entity. Můžete přejít na referencovanou entitu, skupinovou entitu nebo rodičovskou entitu a číst její vlastnosti — včetně jejích vlastních referencí a jejich atributů — ale nemůžete pokračovat dále k třetí entitě. Toto omezení udržuje graf závislostí mezi entitami předvídatelný a zajišťuje, že změny lze efektivně sledovat a přehodnocovat.
 
 </Note>
 
@@ -595,10 +746,10 @@ Výrazy mohou sahat maximálně **o jednu entitu dál** od vlastnické entity. M
 
 <NoteTitle toggles="true">
 
-###### Automatické přeindexování při změnách dat
+###### Automatické přeindexování při změně dat
 </NoteTitle>
 
-evitaDB analyzuje každý výraz již při definici schématu, aby zjistila, na kterých datech závisí. Od tohoto okamžiku, kdykoli dojde ke změně relevantního atributu nebo reference — dokonce i na *jiné* entitě (například na referencované entitě nebo skupinové entitě) — evitaDB automaticky znovu vyhodnotí výraz pro všechny dotčené instance referencí a odpovídajícím způsobem aktualizuje facetový nebo histogramový index. Toto probíhá transparentně během zápisové operace, takže indexy jsou vždy v souladu s aktuálními daty a není potřeba žádné ruční přeindexování.
+evitaDB analyzuje každý výraz při definici schématu, aby určila, na jakých datech závisí. Od té chvíle, kdykoli je příslušný atribut nebo reference změněna — i na *jiné* entitě (např. referencované entitě nebo skupinové entitě) — evitaDB automaticky znovu vyhodnotí výraz pro všechny ovlivněné instance referencí a podle toho aktualizuje facet nebo histogramový index. Toto probíhá transparentně během zápisu, takže indexy jsou vždy konzistentní s aktuálními daty a není potřeba žádné ruční přeindexování.
 
 </Note>
 
@@ -609,29 +760,29 @@ evitaDB analyzuje každý výraz již při definici schématu, aby zjistila, na 
 ###### Nepřeložitelné výrazy
 </NoteTitle>
 
-Ne všechny výrazy jsou podporovány. Každý výraz musí být při definici schématu přeložitelný na evitaDB `FilterBy` constraint. Výrazy s dynamickými cestami atributů (kde název atributu není řetězcový literál) nebo s nepodporovanými operátory jsou ihned odmítnuty s jasnou chybovou zprávou.
+Ne všechny výrazy jsou podporovány. Každý výraz musí být při definici schématu přeložitelný do evitaDB `FilterBy` constraintu. Výrazy s dynamickými cestami atributů (kde název atributu není stringový literál) nebo nepodporovanými operátory jsou okamžitě odmítnuty s jasnou chybovou zprávou.
 
 </Note>
 
 <Note type="warning">
 
-###### Reflektované reference a podmíněné indexování
+###### Odrážené reference a podmíněné indexování
 
-[Reflektované reference](#směrovost-reference) **nemohou** dědit výrazy pro podmíněné indexování ze zdrojové reference. Výrazy `facetedPartially` a `bucketedPartially` (stejně jako výrazy pro hodnoty histogramu) obsahují směrově specifické cesty — zejména `$reference.referencedEntity` — které se vyhodnocují na různé typy entit v závislosti na tom, ze které strany reference jsou použity. Pokud by se takový výraz zdědil doslova na reflektované straně, vedlo by to k vyhledávání atributů na nesprávném typu entity.
+[Odrážené reference](#směrovost-referencí) **nemohou** dědit podmíněné indexovací výrazy ze zdrojové reference. Výrazy `facetedPartially` i `bucketedPartially` (stejně jako výrazy hodnot histogramu) obsahují směrově specifické cesty — zejména `$reference.referencedEntity` — které se vyhodnocují na různé typy entit podle toho, ze které strany reference jsou vyhodnocovány. Dědění takového výrazu doslova na odražené straně by způsobilo, že by hledal atributy na nesprávném typu entity.
 
-Pokud zdrojová reference definuje `facetedPartially`, musí reflektovaná reference explicitně definovat své vlastní faceted nastavení (pomocí `facetedInScope` s vlastním výrazem `facetedPartially` napsaným pro reflektovaný směr, nebo jednoduše `faceted` bez částečného výrazu). Pokus o použití `withFacetedInherited()`, když má zdrojová reference `facetedPartially`, vede k vyhození výjimky `InvalidSchemaMutationException`. Stejná výjimka je vyhozena i v případě, že je do zdrojové reference přidán `facetedPartially`, zatímco reflektovaná reference již dědí její faceted nastavení.
+Pokud zdrojová reference definuje `facetedPartially`, musí odrážená reference explicitně definovat své vlastní nastavení facety (pomocí `facetedInScope` s vlastním výrazem `facetedPartially` napsaným pro odražený směr, nebo jednoduše `faceted` bez částečného výrazu). Pokus o použití `withFacetedInherited()` když zdroj má `facetedPartially` vede k `InvalidSchemaMutationException`. Stejná výjimka je vyhozena, pokud je `facetedPartially` přidán ke zdrojové referenci, která už má odráženou referenci dědící její nastavení facety.
 
-Definice histogramů (`bucketedInScope`, `bucketedPartiallyInScope`, včetně hodnot každého histogramu a výrazů `assignedWhen`) nejsou reflektovanými referencemi nikdy děděny. Pokud reflektovaná reference potřebuje indexování histogramu, musí si svou konfiguraci definovat explicitně.
+Definice histogramu (`bucketedInScope`, `bucketedPartiallyInScope`, včetně hodnoty a výrazů `assignedWhen` každého histogramu) nejsou nikdy odráženými referencemi děděny. Pokud odrážená reference potřebuje indexování histogramu, musí si explicitně definovat vlastní konfiguraci.
 
 </Note>
 
 #### Kardinalita reference
 
-Každé schéma reference má určitou kardinalitu. Kardinalita popisuje očekávaný počet vztahů tohoto typu. V evitaDB definujeme pouze jednosměrné vztahy z pohledu entity. Řídíme se [standardy ERD modelování](https://www.gleek.io/blog/crows-foot-notation.html). Kardinalita ovlivňuje návrh schémat Web API (vracení pouze jedné reference nebo pole) a také nám pomáhá chránit konzistenci dat, aby odpovídala mentálnímu modelu tvůrce.
+Každé schéma reference má určitou kardinalitu. Kardinalita popisuje očekávaný počet vztahů tohoto typu. V evitaDB definujeme pouze jednosměrné vztahy z pohledu entity. Řídíme se ERD modelovacími [standardy](https://www.gleek.io/blog/crows-foot-notation.html). Kardinalita ovlivňuje návrh schémat Web API (vracení pouze jedné reference nebo pole) a také nám pomáhá chránit konzistenci dat tak, aby odpovídala mentálnímu modelu tvůrce.
 
-Pokud povolíte definici *duplicitních* referencí pomocí některého z typů kardinality: `ZERO_OR_MORE_WITH_DUPLICATES` nebo `ONE_OR_MORE_WITH_DUPLICATES`, budete moci definovat dvě reference na stejnou cílovou entitu v rámci jedné instance entity. V takovém případě musíte vybrat alespoň jeden atribut reference, který by obě reference odlišil, a nastavit jej jako `representative`. Reprezentativní atribut pak bude použit k identifikaci konkrétní reference při dotazování nebo manipulaci s entitou. Pokud není definován žádný reprezentativní atribut, je při pokusu o vytvoření duplicitních referencí vyhozena výjimka.
+Pokud povolíte definici *duplicitních* referencí pomocí jednoho z typů kardinality: `ZERO_OR_MORE_WITH_DUPLICATES` nebo `ONE_OR_MORE_WITH_DUPLICATES`, budete moci definovat dvě reference na stejnou cílovou entitu v rámci jedné instance entity. V takovém případě musíte vybrat alespoň jeden atribut reference, který by obě reference odlišil, a nastavit jej jako `representative`. Reprezentativní atribut pak bude použit k identifikaci konkrétní reference při dotazování nebo manipulaci s entitou. Pokud není definován žádný reprezentativní atribut, je při pokusu o vytvoření duplicitních referencí vyhozena výjimka.
 
-Existují situace, kdy se duplicitní reference hodí. Představte si, že máte typ entity `Product`, který má referenci `medias` na entitu typu `Media`. Chcete mít možnost propojit více mediálních položek s jedním produktem a zároveň je rozlišovat podle jejich role (například "náhled", "galerie", "video" atd.). V takovém případě můžete definovat atribut reference `role` jako `representative` a poté budete moci vytvořit více referencí na stejnou entitu `Media` s různými hodnotami `role`.
+Existují situace, kdy se duplicitní reference hodí. Představte si, že máte typ entity `Product`, který má referenci `medias` na entitu typu `Media`. Chcete být schopni propojit více mediálních položek s jedním produktem a zároveň je chcete rozlišit podle jejich role (např. „náhled“, „galerie“, „video“ atd.). V takovém případě můžete definovat atribut reference `role` jako `representative` a pak budete moci vytvořit více referencí na stejnou entitu `Media` s různými hodnotami `role`.
 
 ## Scopy
 

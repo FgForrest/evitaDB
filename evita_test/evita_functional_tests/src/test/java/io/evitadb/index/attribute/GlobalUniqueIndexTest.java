@@ -33,11 +33,15 @@ import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.Locale;
 
@@ -299,6 +303,101 @@ class GlobalUniqueIndexTest {
 		assertDoesNotThrow(
 			() -> index.registerUniqueKey("en-value", Entities.PRODUCT, Locale.GERMAN, 4, this.classifierResolver)
 		);
+	}
+
+
+	/**
+	 * A globally-unique temporal attribute. `GlobalUniqueIndex` is created unconditionally for a `uniqueGlobally`
+	 * attribute — unlike `OwnerUniqueIndex` there is no folding into the shared filter tree — so this is the shortest
+	 * path from a schema to the raw-valued unique tree, and it is where selecting the `Instant`-keyed leaf column
+	 * threw a `ClassCastException`. See {@code ValueColumnFactory#forKey}.
+	 */
+	@Nested
+	@DisplayName("Temporal unique attributes")
+	class TemporalValueTest {
+		private static final OffsetDateTime NOON =
+			OffsetDateTime.of(2026, 5, 20, 12, 19, 26, 123_000_000, ZoneOffset.UTC);
+		private static final OffsetDateTime NOON_PLUS_ONE_MILLI =
+			OffsetDateTime.of(2026, 5, 20, 12, 19, 26, 124_000_000, ZoneOffset.UTC);
+		/**
+		 * The very same instant as {@link #NOON} written at a different offset — `OffsetDateTime.compareTo` breaks
+		 * the instant tie on the local date-time, so the two are distinct unique keys that an epoch-millisecond
+		 * encoding would fold into one.
+		 */
+		private static final OffsetDateTime NOON_AT_PLUS_TWO =
+			OffsetDateTime.of(2026, 5, 20, 14, 19, 26, 123_000_000, ZoneOffset.ofHours(2));
+
+		@Test
+		@DisplayName("an OffsetDateTime value is registered and retrieved back")
+		void shouldRegisterAndRetrieveAnOffsetDateTimeValue() {
+			final GlobalUniqueIndex index = new GlobalUniqueIndex(
+				Scope.LIVE, new AttributeKey("validFrom"), OffsetDateTime.class
+			);
+			index.registerUniqueKey(NOON, Entities.PRODUCT, null, 1, GlobalUniqueIndexTest.this.classifierResolver);
+			index.registerUniqueKey(
+				NOON_PLUS_ONE_MILLI, Entities.PRODUCT, null, 2, GlobalUniqueIndexTest.this.classifierResolver
+			);
+
+			assertEquals(
+				new EntityReferenceWithLocale(Entities.PRODUCT, 1, null),
+				index.getEntityReferenceByUniqueValue(NOON, null, GlobalUniqueIndexTest.this.classifierResolver)
+					.orElse(null)
+			);
+			assertEquals(
+				new EntityReferenceWithLocale(Entities.PRODUCT, 2, null),
+				index.getEntityReferenceByUniqueValue(
+					NOON_PLUS_ONE_MILLI, null, GlobalUniqueIndexTest.this.classifierResolver
+				).orElse(null)
+			);
+			assertNull(
+				index.getEntityReferenceByUniqueValue(
+					NOON.plusSeconds(1), null, GlobalUniqueIndexTest.this.classifierResolver
+				).orElse(null)
+			);
+		}
+
+		@Test
+		@DisplayName("a duplicate OffsetDateTime value is refused")
+		void shouldRefuseADuplicateOffsetDateTimeValue() {
+			final GlobalUniqueIndex index = new GlobalUniqueIndex(
+				Scope.LIVE, new AttributeKey("validFrom"), OffsetDateTime.class
+			);
+			index.registerUniqueKey(NOON, Entities.PRODUCT, null, 1, GlobalUniqueIndexTest.this.classifierResolver);
+
+			assertThrows(
+				UniqueValueViolationException.class,
+				() -> index.registerUniqueKey(
+					NOON, Entities.PRODUCT, null, 2, GlobalUniqueIndexTest.this.classifierResolver
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("two offsets naming the same instant stay two distinct unique keys")
+		void shouldKeepTwoOffsetsOfOneInstantDistinct() {
+			// an index whose leaf column reduced its keys to `Instant` would raise a uniqueness violation here
+			assertEquals(NOON.toInstant(), NOON_AT_PLUS_TWO.toInstant());
+
+			final GlobalUniqueIndex index = new GlobalUniqueIndex(
+				Scope.LIVE, new AttributeKey("validFrom"), OffsetDateTime.class
+			);
+			index.registerUniqueKey(NOON, Entities.PRODUCT, null, 1, GlobalUniqueIndexTest.this.classifierResolver);
+			index.registerUniqueKey(
+				NOON_AT_PLUS_TWO, Entities.PRODUCT, null, 2, GlobalUniqueIndexTest.this.classifierResolver
+			);
+
+			assertEquals(
+				new EntityReferenceWithLocale(Entities.PRODUCT, 1, null),
+				index.getEntityReferenceByUniqueValue(NOON, null, GlobalUniqueIndexTest.this.classifierResolver)
+					.orElse(null)
+			);
+			assertEquals(
+				new EntityReferenceWithLocale(Entities.PRODUCT, 2, null),
+				index.getEntityReferenceByUniqueValue(
+					NOON_AT_PLUS_TWO, null, GlobalUniqueIndexTest.this.classifierResolver
+				).orElse(null)
+			);
+		}
 	}
 
 }

@@ -61,6 +61,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -71,8 +72,10 @@ import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
+import io.evitadb.api.requestResponse.data.structure.ParentChainEnd;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
@@ -89,6 +92,9 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -117,6 +123,7 @@ import io.evitadb.core.catalog.VolatileStateProjection;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
+import io.evitadb.core.buffer.StorageAccessScope;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.QueryPlanningContext;
@@ -147,12 +154,15 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.MapChanges.ValueMerger;
 import io.evitadb.index.map.PersistentTransactionalProducerMap;
+import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
+import io.evitadb.index.mutation.ContributionVerdicts;
 import io.evitadb.index.mutation.EntityIndexMutation;
 import io.evitadb.index.mutation.IndexMutation;
 import io.evitadb.index.mutation.IndexMutationExecutor;
 import io.evitadb.index.mutation.IndexMutationExecutorRegistry;
 import io.evitadb.index.mutation.IndexMutationTarget;
+import io.evitadb.index.mutation.ReevaluateExpressionMutation;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.index.reference.ReferenceChanges;
@@ -182,6 +192,7 @@ import io.evitadb.spi.store.catalog.trafficRecorder.TrafficRecorder;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.dataType.DataChunk;
 import io.evitadb.utils.IOUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -194,6 +205,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -451,7 +463,7 @@ public final class EntityCollection implements
 			// initialize container buffer
 			final StoragePartPersistenceService<StorageDescriptor> storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService();
 			this.dataStoreBuffer = catalogState == CatalogState.WARMING_UP ?
-				new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService) :
+				new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService, this::getInternalSchema) :
 				new TransactionalDataStoreMemoryBuffer(this, storagePartPersistenceService);
 			this.dataStoreReader = new DataStoreReaderBridge(
 				this.dataStoreBuffer,
@@ -558,7 +570,7 @@ public final class EntityCollection implements
 		);
 
 		this.dataStoreBuffer = catalogState == CatalogState.WARMING_UP ?
-			new WarmUpDataStoreMemoryBuffer(this.persistenceService.getStoragePartPersistenceService()) :
+			new WarmUpDataStoreMemoryBuffer(this.persistenceService.getStoragePartPersistenceService(), this::getInternalSchema) :
 			new TransactionalDataStoreMemoryBuffer(this, this.persistenceService.getStoragePartPersistenceService());
 		this.dataStoreReader = new DataStoreReaderBridge(
 			this.dataStoreBuffer,
@@ -618,7 +630,7 @@ public final class EntityCollection implements
 		this.indexPkSequence = indexPkSequence;
 		this.pricePkSequence = pricePkSequence;
 		this.dataStoreBuffer = catalogState == CatalogState.WARMING_UP ?
-			new WarmUpDataStoreMemoryBuffer(persistenceService.getStoragePartPersistenceService()) :
+			new WarmUpDataStoreMemoryBuffer(persistenceService.getStoragePartPersistenceService(), this::getInternalSchema) :
 			new TransactionalDataStoreMemoryBuffer(this, persistenceService.getStoragePartPersistenceService());
 		this.dataStoreReader = new DataStoreReaderBridge(
 			this.dataStoreBuffer,
@@ -705,7 +717,13 @@ public final class EntityCollection implements
 	@Nonnull
 	public ServerEntityDecorator enrichEntity(@Nonnull EntityContract entity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
-		final Map<ReferenceContentKey, RequirementContext> namedReferenceEntityFetch = evitaRequest.getNamedReferenceEntityFetch();
+		// enrichment adds and never subtracts, so the named sets this entity already carries have to survive a
+		// request that does not mention them. They are fetched again rather than carried over: this read may land on
+		// a newer body, and a chunk built against the older one would answer out of it. What this request asks for
+		// wins wherever the two name the same instance.
+		final Map<ReferenceContentKey, RequirementContext> namedReferenceEntityFetch = mergeNamedReferenceRequirements(
+			entity, evitaRequest.getNamedReferenceEntityFetch()
+		);
 		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
 		final ReferenceFetcher referenceFetcher = referenceEntityFetch.isEmpty() &&
 			namedReferenceEntityFetch.isEmpty() &&
@@ -1077,6 +1095,8 @@ public final class EntityCollection implements
 
 			updatedSchema = refreshReflectedSchemas(originalSchema, updatedSchema, updatedReferenceSchemas);
 
+			verifyNoAcceleratorAddedToNonEmptyCollection(originalSchema, updatedSchema);
+
 			if (updatedSchema.version() > originalSchema.version()) {
 				/* TOBEDONE JNO (#501) - apply this just before commit happens in case validations are enabled */
 				// assertAllReferencedEntitiesExist(newSchema);
@@ -1243,7 +1263,7 @@ public final class EntityCollection implements
 		for (final Scope scope : Scope.values()) {
 			final EntityIndex globalIndex = getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope));
 			if (globalIndex != null) {
-				final int scopeRecords = globalIndex.getAllPrimaryKeys().size();
+				final int scopeRecords = globalIndex.size();
 				switch (scope) {
 					case LIVE -> liveRecords = scopeRecords;
 					case ARCHIVED -> archivedRecords = scopeRecords;
@@ -1791,9 +1811,8 @@ public final class EntityCollection implements
 					entityWithFetchCount.entity(),
 					// use original schema
 					getInternalSchema(),
-					// fetch parents if requested
-					partiallyLoadedEntity.parentAvailable() ?
-						partiallyLoadedEntity.getParentEntity().orElse(null) : null,
+					// carry the already resolved parent chain over verbatim - see #carryResolvedParentChain
+					carryResolvedParentChain(partiallyLoadedEntity),
 					// show / hide locales the entity is fetched in
 					partiallyLoadedEntity.getLocalePredicate(),
 					// show / hide parent the entity is fetched with
@@ -1808,10 +1827,15 @@ public final class EntityCollection implements
 					partiallyLoadedEntity.getPricePredicate(),
 					// propagate original date time
 					partiallyLoadedEntity.getAlignedNow(),
-					// propagate information about I/O fetch count
+					// provenance of the data this read produced - recordable only from a committed snapshot
+					materialisedCatalogId(),
+					materialisedCatalogVersion(),
+					// the reads this enrichment performed itself; the ones that produced its input stay owed by the
+					// input decorator and are resolved only if somebody asks for the aggregate
 					entityWithFetchCount.ioFetchCount(),
-					// propagate information about I/O fetched bytes
-					entityWithFetchCount.ioFetchedBytes()
+					entityWithFetchCount.ioFetchedBytes(),
+					partiallyLoadedEntity,
+					entityWithFetchCount.readRecords()
 				);
 			}
 		} else {
@@ -1835,6 +1859,211 @@ public final class EntityCollection implements
 	@Nullable
 	public EntityIndex getIndexByKeyIfExists(@Nonnull EntityIndexKey entityIndexKey) {
 		return this.dataStoreBuffer.getIndexIfExists(entityIndexKey, this.indexes::get);
+	}
+
+	/**
+	 * Rebuilds the reduced-index membership lookup that the cross-entity conditional-facet trigger and reference
+	 * index selection consult instead of walking every reduced index of this collection. Called once, after a
+	 * load has put every index in place and every schema has been resolved.
+	 *
+	 * # Why this runs at load and never inside a transaction
+	 *
+	 * The lookup is derived state, so it is not persisted and has to be rebuilt when a collection comes back
+	 * from disk. It must be rebuilt **outside** a transaction: building it inside one would record every
+	 * entry into that transaction's diff layer, and merging such a diff would overwrite entries a
+	 * concurrently-committed transaction had already contributed — a whole-structure write racing with
+	 * entry-level ones. At load there is no transaction and no concurrency, which is what makes this the
+	 * single safe moment.
+	 *
+	 * # Which references get a slice
+	 *
+	 * Every reference that advertises reduced indexes in the scope, decided by
+	 * {@link ReducedIndexMembership#isMaintainedFor} — the same gate
+	 * `ReferenceIndexMutator#recordOwnerEnteredReducedIndex` applies on the write path. The two must agree: a
+	 * reference skipped here but maintained on write would carry a lookup whose contents begin at an arbitrary
+	 * moment in its life, and one built here but not maintained on write would freeze at its load-time contents
+	 * while its reduced indexes kept changing. Either way the reader consults a slice that omits indexes the
+	 * reference advertises, which is a **wrong answer**, not a slow one — so the decision is stated once, in
+	 * that method, and never restated at either site.
+	 *
+	 * A reference whose components are raised without a reindex (issue #409) is the case that makes the
+	 * agreement load-bearing: it acquires reduced indexes with no slice to record them in, and
+	 * `ReferenceIndexMutator#seedFromAdvertisedIndexes` is what records everything already advertised on the
+	 * first write after the change.
+	 */
+	public void rebuildReducedIndexMembership() {
+		final EntitySchema schema = getInternalSchema();
+		for (final Scope scope : Scope.values()) {
+			final GlobalEntityIndex typedGlobalIndex = asGlobalEntityIndexIfExists(
+				getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope)), scope
+			);
+			if (typedGlobalIndex == null) {
+				continue;
+			}
+			for (final ReferenceSchemaContract referenceSchema : schema.getReferences().values()) {
+				if (!ReducedIndexMembership.isMaintainedFor(referenceSchema, scope)) {
+					continue;
+				}
+				final ReducedIndexMembership membership =
+					typedGlobalIndex.getOrCreateReducedIndexMembership(referenceSchema.getName());
+				for (final EntityIndexType family : ReducedIndexMembership.REFERENCED_TYPE_INDEX_FAMILIES) {
+					final EntityIndexKey typeIndexKey = new EntityIndexKey(family, scope, referenceSchema.getName());
+					final ReferencedTypeEntityIndex typedTypeIndex = asReferencedTypeEntityIndexIfExists(
+						getIndexByKeyIfExists(typeIndexKey), typeIndexKey
+					);
+					if (typedTypeIndex == null) {
+						continue;
+					}
+					typedTypeIndex.forEachReferenceIndexPrimaryKey(
+						reducedIndexPk -> registerReducedIndex(membership, reducedIndexPk)
+					);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Registers one reduced index into the membership lookup.
+	 *
+	 * The traversal cannot in fact advertise a primary key twice. A reduced index is filed in its type index
+	 * under exactly one referenced (or group) primary key — `ReferenceIndexMutator#referenceInsertPerComponent`
+	 * is the only writer and always pairs the index with the key it was resolved by — so
+	 * {@link ReferencedTypeEntityIndex#forEachReferenceIndexPrimaryKey} emits each key once, and the entity and
+	 * group families draw from one primary-key sequence and never collide.
+	 *
+	 * The index sharing this check was once justified by is real, but it belongs to the OWNER side: several of
+	 * one owner's references resolve to a single {@link ReducedGroupEntityIndex}, which is why
+	 * `ReferenceIndexMutator#forEachUniqueReferenceIndex` de-duplicates by identity. It cannot reach a walk over
+	 * *advertised indexes*, which is what this one is.
+	 *
+	 * A repeat is therefore a programming error, and it is left to surface as one:
+	 * {@link ReducedIndexMembership#registerIndex} and {@link ReducedIndexMembership#registerIndexAsResidual}
+	 * both refuse a primary key they already hold. This method used to swallow the repeat with an
+	 * {@link ReducedIndexMembership#isKnown} pre-check, which turned a corrupt advertisement into a silent
+	 * no-op at the one moment the whole structure is built from scratch.
+	 *
+	 * @param membership      the lookup being built
+	 * @param reducedIndexPk  primary key of the advertised reduced index
+	 */
+	private void registerReducedIndex(
+		@Nonnull ReducedIndexMembership membership,
+		int reducedIndexPk
+	) {
+		final EntityIndex reducedIndex = getIndexByPrimaryKeyIfExists(reducedIndexPk);
+		if (reducedIndex == null) {
+			// Advertised but not resolvable, so its members cannot be read and coverage cannot be decided.
+			// Recording it as residual keeps `covered ∪ residual == advertised` - the invariant that lets a
+			// caller tell "this index is accounted for" from "this index is unknown to the map" - and leaves
+			// the index on the probe, which is exactly where it was before the map existed.
+			membership.registerIndexAsResidual(reducedIndexPk);
+			return;
+		}
+		membership.registerIndex(reducedIndexPk, reducedIndex.getAllPrimaryKeys());
+	}
+
+	/**
+	 * Drops every reduced-index membership lookup this schema change stops maintaining.
+	 *
+	 * The lookup is maintained only while the reference advertises reduced indexes in the scope — see
+	 * {@link ReducedIndexMembership#isMaintainedFor}, a pure function of the schema, so a schema change is the only
+	 * event that can end maintenance. A lookup kept past it freezes while its reduced indexes go on changing.
+	 * Trusted again when the components come back, it makes the reader skip every partition created in between:
+	 * a **wrong answer**, not a slow one.
+	 *
+	 * Doing it here rather than on the write path is what makes it free. The condition is rare and discrete, so it
+	 * is evaluated once per schema change instead of once per reference write, and the write path keeps the bit test
+	 * it already does. What replaces the dropped lookup is nothing at all: an absent lookup puts the reference back
+	 * on the full walk, and `ReferenceIndexMutator#seedFromAdvertisedIndexes` rebuilds it from the reference's own
+	 * advertisement on the first write after the components return.
+	 *
+	 * It hangs off {@link #exchangeSchema} rather than off {@link #updateSchema} because that is where every schema
+	 * change converges: a **reflected** reference inherits its index type from another collection's reference and is
+	 * resolved by `notifyAboutExternalReferenceUpdate` → `exchangeSchema`, a path that never passes through
+	 * `updateSchema` (see the note in `verifyNoAcceleratorAddedToNonEmptyCollection`). Hooked one level up, that
+	 * reference would keep a lookup nothing maintains.
+	 *
+	 * @param updatedSchema the schema this collection has just been exchanged to
+	 */
+	private void discardUnmaintainedReducedIndexMemberships(@Nonnull EntitySchema updatedSchema) {
+		for (final Scope scope : Scope.values()) {
+			final GlobalEntityIndex globalIndex = asGlobalEntityIndexIfExists(
+				getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope)), scope
+			);
+			if (globalIndex == null) {
+				continue;
+			}
+			// a copy, so the removals below cannot disturb the iteration
+			final Set<String> maintainedReferences = globalIndex.getReducedIndexMembershipReferenceNames();
+			if (maintainedReferences.isEmpty()) {
+				continue;
+			}
+			GlobalEntityIndex writableGlobalIndex = null;
+			for (final String referenceName : maintainedReferences) {
+				final ReferenceSchemaContract referenceSchema = updatedSchema.getReferences().get(referenceName);
+				if (referenceSchema != null && ReducedIndexMembership.isMaintainedFor(referenceSchema, scope)) {
+					continue;
+				}
+				if (writableGlobalIndex == null) {
+					// enrolled for modification only once there is something to drop - that registration is what gets
+					// the index's transactional layer swept at commit
+					writableGlobalIndex = (GlobalEntityIndex) this.dataStoreBuffer.getOrCreateIndexForModification(
+						new EntityIndexKey(EntityIndexType.GLOBAL, scope), this.indexes::get
+					);
+				}
+				writableGlobalIndex.removeReducedIndexMembership(referenceName);
+			}
+		}
+	}
+
+	/**
+	 * Casts an index registered under a `GLOBAL` key, or returns `null` when the scope holds none.
+	 *
+	 * Absence is a legitimate state — a scope no entity has entered yet — while an index registered under
+	 * that key and turning out to be something other than a {@link GlobalEntityIndex} is a programming error
+	 * that must surface rather than be skipped.
+	 *
+	 * @param index the index resolved from the `GLOBAL` key, may be `null`
+	 * @param scope the scope the key was read in, for the error message
+	 * @return the cast index, or `null` when there is none
+	 */
+	@Nullable
+	private GlobalEntityIndex asGlobalEntityIndexIfExists(@Nullable EntityIndex index, @Nonnull Scope scope) {
+		if (index == null) {
+			return null;
+		}
+		Assert.isPremiseValid(
+			index instanceof GlobalEntityIndex,
+			() -> "Invalid type of the global index (`" + index.getClass() + "`) in scope `" + scope +
+				"` of entity collection `" + getSchema().getName() + "`."
+		);
+		return (GlobalEntityIndex) index;
+	}
+
+	/**
+	 * Casts an index registered under a `REFERENCED_*_TYPE` key, or returns `null` when there is none.
+	 *
+	 * Absence is a legitimate state — the reference simply has no partitions of that family yet — while an
+	 * index registered under such a key and turning out to be something other than a
+	 * {@link ReferencedTypeEntityIndex} is a programming error that must surface rather than be skipped.
+	 *
+	 * @param index          the index resolved from the key, may be `null`
+	 * @param entityIndexKey the key the index was read under, for the error message
+	 * @return the cast index, or `null` when there is none
+	 */
+	@Nullable
+	private ReferencedTypeEntityIndex asReferencedTypeEntityIndexIfExists(
+		@Nullable EntityIndex index,
+		@Nonnull EntityIndexKey entityIndexKey
+	) {
+		if (index == null) {
+			return null;
+		}
+		Assert.isPremiseValid(
+			index instanceof ReferencedTypeEntityIndex,
+			() -> "Invalid type of the index (`" + index.getClass() + "`) registered under `" + entityIndexKey +
+				"` in entity collection `" + getSchema().getName() + "`."
+		);
+		return (ReferencedTypeEntityIndex) index;
 	}
 
 	/**
@@ -1915,6 +2144,38 @@ public final class EntityCollection implements
 			for (final IndexMutation mutation : entityIndexMutation.mutations()) {
 				IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this.entityIndexCreator);
 			}
+		} finally {
+			this.entityIndexCreator.setSession(null);
+		}
+	}
+
+	/**
+	 * Read-only counterpart of {@link #applyIndexMutations} used by `LocalMutationExecutorCollector`'s pre-pass:
+	 * evaluates every histogram trigger's condition for the mutation's affected owners **without writing
+	 * anything**, so the caller can capture the pre-mutation answer before the batch is applied. The result is
+	 * handed back on the dispatched mutation as
+	 * {@link ReevaluateExpressionMutation#previouslyIndexedOwnerPKs()}; see
+	 * {@link ReevaluateExpressionExecutor#evaluateHistogramConditionState} for why the executor cannot derive it
+	 * itself.
+	 *
+	 * The session is set for the duration of the evaluation exactly as in {@link #applyIndexMutations}, because
+	 * condition evaluation goes through `evaluateFilter()` and needs a `QueryPlanningContext`.
+	 *
+	 * @param mutation the cross-entity re-evaluation signal about to be applied
+	 * @param session  active session for query evaluation, may be null during WAL replay
+	 * @return the condition's answer, keyed by histogram name, or `null` when the reference
+	 *         declares no histogram trigger and there is therefore nothing to guard
+	 */
+	@Nullable
+	public Map<String, ContributionVerdicts> evaluateHistogramConditionState(
+		@Nonnull ReevaluateExpressionMutation mutation,
+		@Nullable EvitaSessionContract session
+	) {
+		this.entityIndexCreator.setSession(session);
+		try {
+			return IndexMutationExecutorRegistry.INSTANCE.evaluateHistogramConditionState(
+				mutation, this.entityIndexCreator
+			);
 		} finally {
 			this.entityIndexCreator.setSession(null);
 		}
@@ -2067,12 +2328,16 @@ public final class EntityCollection implements
 					)
 				);
 		} catch (Throwable ex) {
-			// the collected changes are lost and this collection's persisted state is now incomplete: refuse every
-			// later flush of it rather than write on top of baselines that claim the lost changes were persisted.
+			// The collected changes are gone and the baselines they were collected against have already advanced, so
+			// no later flush of this catalog can reconstruct them - it would diff against baselines claiming the lost
+			// changes are on disk and publish a state silently missing them. The refusal therefore belongs to the
+			// CATALOG rather than to this collection: publication is catalog-wide, and it is the only thing that has
+			// to be stopped. Nothing on disk is harmed - see `.claude/rules/durability-model.md`.
+			//
 			// Catching Throwable rather than RuntimeException is deliberate: an Error such as an OutOfMemoryError mid
-			// flush must poison too, otherwise a later collect could silently write over baselines. The cause is always
-			// rethrown, so this never uses exceptions for control flow
-			this.dataStoreBuffer.poison(ex);
+			// flush loses the changes just the same. The cause is always rethrown, so this never uses exceptions for
+			// control flow
+			this.catalog.markUnpublishable(ex);
 			throw ex;
 		}
 	}
@@ -2108,7 +2373,8 @@ public final class EntityCollection implements
 			Transaction.createTransactionalPersistenceService(
 				this.persistenceService.getStoragePartPersistenceService()
 			),
-			true
+			true,
+			this::getInternalSchema
 		);
 	}
 
@@ -2464,6 +2730,205 @@ public final class EntityCollection implements
 	}
 
 	/**
+	 * Dry-runs the given mutations against this collection's current schema and raises the
+	 * accelerator-on-populated-collection refusal **without exchanging anything**.
+	 *
+	 * This exists because a catalog-level change to a global attribute fans out into one
+	 * {@link io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation} per consuming
+	 * collection, and {@link io.evitadb.core.catalog.Catalog#updateSchema} applies them one at a time - each
+	 * exchanging its schema and persisting a storage part in its own `finally`. A refusal raised by the *third*
+	 * collection therefore cannot undo the first two: the catalog's revert restores only the catalog schema. Running
+	 * this over every affected collection before the first exchange is what makes the cascade all-or-nothing.
+	 *
+	 * **It raises the non-empty-collection refusal and nothing else** - every other failure of the dry run is
+	 * swallowed. That is deliberate rather than lazy, and it is exactly sufficient:
+	 *
+	 * - Replaying a mutation outside its real batch can fail for reasons that would not arise in the real pass - an
+	 *   entity mutation naming a global attribute an earlier mutation in the same batch creates, for instance.
+	 *   Surfacing those here would turn a working schema change into a spurious rejection.
+	 * - The refusals the mutations raise themselves - wrong data type, accelerator on a reference attribute - depend
+	 *   only on the attribute, which a cascade sends identically to every consuming collection. They therefore fire
+	 *   on the *first* collection visited, before anything has been exchanged, and need no preflight to be atomic.
+	 * - The non-empty-collection refusal is the one rule whose verdict differs *per collection*, which is exactly
+	 *   what lets it accept collection A and then refuse collection B. It is the only rule that needs this.
+	 *
+	 * @param catalogSchema  the catalog schema the mutations are applied against
+	 * @param schemaMutation the mutations that are about to be applied
+	 * @throws InvalidSchemaMutationException when an accelerator would be added to this non-empty collection
+	 */
+	public void verifySchemaMutationsApplicable(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull LocalEntitySchemaMutation... schemaMutation
+	) {
+		final EntitySchema originalSchema = getInternalSchema();
+		final EntitySchema updatedSchema;
+		try {
+			EntitySchema schemaSoFar = originalSchema;
+			for (final EntitySchemaMutation theMutation : schemaMutation) {
+				final EntitySchemaContract mutated = theMutation.mutate(catalogSchema, schemaSoFar);
+				if (!(mutated instanceof EntitySchema theSchema)) {
+					// the mutation drops the collection or produces something this preflight cannot reason about -
+					// leave the verdict entirely to the real pass
+					return;
+				}
+				schemaSoFar = theSchema;
+			}
+			updatedSchema = schemaSoFar;
+		} catch (RuntimeException ex) {
+			// A deliberate swallow, and a genuine exemption from "never silently skip unexpected states" - the three
+			// reasons that must all hold for it to stay one are in this method's javadoc. Nothing is lost by staying
+			// quiet: this is a pure dry run against a copy, and the real pass runs moments later with the correct
+			// surrounding state and reports every genuine failure itself.
+			return;
+		}
+		verifyNoAcceleratorAddedToNonEmptyCollection(originalSchema, updatedSchema);
+	}
+
+	/**
+	 * Refuses a schema change that would newly declare a
+	 * {@link io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator} on a collection that already holds
+	 * entities.
+	 *
+	 * **Why this is a refusal rather than a rebuild.** The indexes backing a filter accelerator are built incrementally
+	 * as entities are indexed; there is no reindexing machinery that could walk the existing entities and back-fill
+	 * one. Accepting the mutation would therefore produce an index that silently answers only for entities written
+	 * *after* the schema change - queries would return fewer results than they should, with nothing anywhere saying
+	 * why. Failing loudly at the schema boundary is the only honest outcome available, and it is cheap to work around:
+	 * declare the accelerator before the data goes in.
+	 *
+	 * The check is a diff of the resulting schema against the original rather than an inspection of the incoming
+	 * mutations, so that every route into the schema is covered at one place - the dedicated set mutation, an
+	 * attribute created with accelerators already on it, a reference attribute, and whatever combination the mutation
+	 * pipeline collapses those into.
+	 *
+	 * **Attributes are matched by name, and that is correct even across a rename.**
+	 * {@link io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation} does not
+	 * remove the attribute it renames - `EntityAttributeSchemaMutation#replaceAttributeIfDifferent` filters the
+	 * existing attributes by the *updated* name, so the original survives alongside the copy and the schema really
+	 * does end up with a second attribute carrying the accelerator. That second attribute needs its own index built
+	 * over entities that are already stored, which is precisely what this refusal exists to prevent, so refusing is
+	 * the right answer rather than a false positive. Were that duplication ever fixed, a rename would stop growing
+	 * the schema and this per-name comparison would need to follow the attribute through it - see
+	 * `AttributeFilterAcceleratorRefusalTest.UnrelatedChanges`, whose two rename tests pin both halves of that reasoning.
+	 *
+	 * {@link #isEmpty()} is consulted **only when an accelerator was actually added**, because it is a storage read and
+	 * the overwhelmingly common schema change adds none. In a transactional catalog that read *does* include the open
+	 * transaction's own writes: {@link #isEmpty()} goes through the collection's {@link DataStoreReader}, which is
+	 * backed by {@link io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer} once the catalog is live, and
+	 * {@link io.evitadb.core.buffer.DataStoreChanges#countStorageParts} layers the transaction's trapped inserts and
+	 * removals over the persisted count. An entity upserted earlier in the same transaction therefore makes the
+	 * collection non-empty here, and the accelerator is refused - proven by the `AfterGoingLive` group of
+	 * `AttributeFilterAcceleratorRefusalTest`, whose same-transaction upsert case is refused while its otherwise
+	 * identical empty-collection counterfactual is accepted.
+	 *
+	 * @param originalSchema the schema as it stood before the mutations were applied
+	 * @param updatedSchema  the schema the mutations produced
+	 * @throws InvalidSchemaMutationException when an accelerator would be added to a collection that is not empty
+	 */
+	private void verifyNoAcceleratorAddedToNonEmptyCollection(
+		@Nonnull EntitySchema originalSchema,
+		@Nonnull EntitySchema updatedSchema
+	) {
+		for (final EntityAttributeSchemaContract updatedAttribute : updatedSchema.getAttributes().values()) {
+			final AttributeSchemaContract originalAttribute = originalSchema.getAttributes()
+				.get(updatedAttribute.getName());
+			assertNoCapabilityAdded(originalAttribute, updatedAttribute, updatedSchema.getName(), null);
+		}
+		// this reference loop is defence in depth today - nothing it walks can currently fail it, because
+		// `AbstractAttributeSchemaMutation#verifyAcceleratorNotOnReferenceAttribute` refuses a filter accelerator on ANY
+		// reference attribute before it can reach a schema at all. That restriction is documented as liftable once the
+		// index learns to host reference attribute values, and on the day it is lifted this loop becomes the live
+		// guard - so it has to be correct for reflected references already. They are the awkward shape here: a
+		// reflected reference is resolved by `notifyAboutExternalReferenceUpdate` -> `exchangeSchema`, a path that
+		// never passes through `updateSchema` and so never reaches this check. Whatever it declares therefore has to
+		// be vetted here, while its target is still missing, rather than deferred to the resolution that follows
+		for (final ReferenceSchemaContract updatedReference : updatedSchema.getReferences().values()) {
+			final ReferenceSchemaContract originalReference = originalSchema.getReferences()
+				.get(updatedReference.getName());
+			final Map<String, AttributeSchemaContract> originalAttributes = originalReference == null ?
+				Collections.emptyMap() : getAttributesVisibleWithoutTarget(originalReference);
+			final Map<String, AttributeSchemaContract> updatedAttributes =
+				getAttributesVisibleWithoutTarget(updatedReference);
+			for (final AttributeSchemaContract updatedAttribute : updatedAttributes.values()) {
+				assertNoCapabilityAdded(
+					originalAttributes.get(updatedAttribute.getName()), updatedAttribute,
+					updatedSchema.getName(), updatedReference.getName()
+				);
+			}
+		}
+	}
+
+	/**
+	 * Returns the attributes of the given reference that can be read without knowing what the reference inherits from
+	 * - all of them for an ordinary reference, and the half it declares itself for an **unresolved reflected**
+	 * reference.
+	 *
+	 * A reflected reference does declare attributes of its own -
+	 * {@link io.evitadb.api.requestResponse.schema.builder.ReflectedReferenceSchemaBuilder#withAttribute} puts them
+	 * there - and presents them merged with the ones it inherits from the reference it reflects. While the target is
+	 * missing that inherited half is unknowable, so {@link ReflectedReferenceSchema#getAttributes()} declines to
+	 * answer at all and throws; {@link ReflectedReferenceSchema#getDeclaredAttributes()} answers the declared half
+	 * without throwing.
+	 *
+	 * Reading only the declared half costs the caller nothing, because the inherited half is a copy of the target
+	 * reference's own attributes and is vetted against the collection that declares *it*.
+	 *
+	 * @param referenceSchema the reference whose attributes are to be read
+	 * @return the attributes readable in the reference's current resolution state
+	 */
+	@Nonnull
+	private static Map<String, AttributeSchemaContract> getAttributesVisibleWithoutTarget(
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		// ReferenceSchema is sealed and permits only ReflectedReferenceSchema, so this narrowing covers every
+		// reference an EntitySchema can hold
+		return referenceSchema instanceof final ReflectedReferenceSchema reflectedReference
+			&& !reflectedReference.isReflectedReferenceAvailable() ?
+			reflectedReference.getDeclaredAttributes() : referenceSchema.getAttributes();
+	}
+
+	/**
+	 * The per-attribute half of {@link #verifyNoAcceleratorAddedToNonEmptyCollection(EntitySchema, EntitySchema)}
+	 * - compares one attribute's accelerators before and after, scope by scope, and refuses any addition while the
+	 * collection holds entities. An accelerator being *removed* is always allowed: dropping an index needs no data.
+	 *
+	 * @param originalAttribute the attribute as it stood before, or null when the mutation creates it
+	 * @param updatedAttribute  the attribute the mutations produced
+	 * @param entityType        the entity type, for the error message
+	 * @param referenceName     the reference the attribute belongs to, or null for an entity-level attribute
+	 * @throws InvalidSchemaMutationException when an accelerator would be added to a collection that is not empty
+	 */
+	private void assertNoCapabilityAdded(
+		@Nullable AttributeSchemaContract originalAttribute,
+		@Nonnull AttributeSchemaContract updatedAttribute,
+		@Nonnull String entityType,
+		@Nullable String referenceName
+	) {
+		final Map<Scope, Set<AttributeFilterAccelerator>> updatedCapabilities =
+			updatedAttribute.getAcceleratorsInScopes();
+		if (updatedCapabilities.isEmpty()) {
+			return;
+		}
+		for (final Entry<Scope, Set<AttributeFilterAccelerator>> entry : updatedCapabilities.entrySet()) {
+			final Set<AttributeFilterAccelerator> alreadyDeclared = originalAttribute == null ?
+				Set.of() : originalAttribute.getAcceleratorsInScope(entry.getKey());
+			for (final AttributeFilterAccelerator accelerator : entry.getValue()) {
+				if (!alreadyDeclared.contains(accelerator) && !isEmpty()) {
+					throw new InvalidSchemaMutationException(
+						"Cannot declare filter accelerator `" + accelerator + "` on attribute `" +
+							updatedAttribute.getName() + "`" +
+							(referenceName == null ? "" : " of reference `" + referenceName + "`") +
+							" in entity `" + entityType + "` scope `" + entry.getKey() + "`, because the collection " +
+							"already contains entities! The index backing this accelerator is built as entities are " +
+							"indexed and there is no way to build it for entities that are already stored - " +
+							"declare the accelerator before inserting data, or remove the existing entities first."
+					);
+				}
+			}
+		}
+	}
+
+	/**
 	 * Refreshes the given schemas based on the references provided.
 	 *
 	 * @param originalSchema          the original schema to be refreshed
@@ -2554,6 +3019,10 @@ public final class EntityCollection implements
 	 * leave the registry holding counters for capabilities the schema no longer declares, and leave a newly declared
 	 * capability without the row whose observation window is supposed to open at this very mutation.
 	 *
+	 * {@link #discardUnmaintainedReducedIndexMemberships} rides on the same property, and specifically on the
+	 * reflected-reference half of it: that is the adoption path `updateSchema` never sees, and a reflected reference
+	 * lowered from the collection it reflects is exactly the case a hook one level up would miss.
+	 *
 	 * # What a rollback leaves behind, in both directions
 	 *
 	 * The alignment runs against the schema the exchange has just published, so it precedes the commit of a
@@ -2607,7 +3076,145 @@ public final class EntityCollection implements
 		);
 		// only after the exchange is known to have won the race - a losing exchange changed nothing to align against
 		this.usageRegistry.alignWith(updatedSchema);
+		discardUnmaintainedReducedIndexMemberships(updatedSchema);
 		this.catalog.entitySchemaUpdated(updatedSchema);
+	}
+
+	/**
+	 * Tells whether data read from this collection right now come from a committed, immutable catalog snapshot -
+	 * the only situation in which the catalog version is a token that moves whenever the data move, and therefore
+	 * the only situation in which it can be recorded as an entity's provenance.
+	 *
+	 * Both conditions are load-bearing. A warming-up catalog never advances its version at all
+	 * ({@link Catalog#setVersion(long)} asserts an open transaction and warm-up opens none), so equal versions stop
+	 * implying equal bytes the moment anything is written. Inside a transaction the reader sees an overlay that no
+	 * version describes: the catalog still reports the version the transaction is based on, which is exactly the
+	 * version every concurrent reader of the committed snapshot sits at - and if the transaction rolls back, the
+	 * data it produced never existed anywhere.
+	 *
+	 * @return TRUE when a read performed now yields data belonging to a committed catalog snapshot
+	 */
+	private boolean readsCommittedSnapshot() {
+		return this.catalog.getCatalogState() == CatalogState.ALIVE && !Transaction.isTransactionAvailable();
+	}
+
+	/**
+	 * Returns the identity to record as the provenance of data materialised from this collection right now, or NULL
+	 * when there is no committed snapshot to attribute them to.
+	 *
+	 * @return catalog identity to stamp on a freshly materialised decorator
+	 */
+	@Nullable
+	private UUID materialisedCatalogId() {
+		return readsCommittedSnapshot() ? this.catalog.getCatalogId() : null;
+	}
+
+	/**
+	 * Returns the version to record as the provenance of data materialised from this collection right now, or
+	 * {@link ServerEntityDecorator#UNKNOWN_CATALOG_VERSION} when there is no committed snapshot to attribute them to.
+	 *
+	 * This is deliberately *not* the version a storage read is performed at - that one is always
+	 * {@link Catalog#getVersion()}, whatever the state. The two differ precisely in the cases this method exists to
+	 * catch, and collapsing them into a single local reintroduces the staleness the provenance rule prevents.
+	 *
+	 * @return catalog version to stamp on a freshly materialised decorator
+	 */
+	private long materialisedCatalogVersion() {
+		return readsCommittedSnapshot() ?
+			this.catalog.getVersion() : ServerEntityDecorator.UNKNOWN_CATALOG_VERSION;
+	}
+
+	/**
+	 * Merges the named reference requirements an entity already carries with the ones an enriching request states.
+	 *
+	 * Enrichment is additive: whatever an earlier request asked for by instance name stays on the entity, so its
+	 * requirement is fetched again here alongside the new ones.
+	 *
+	 * Naming the same instance twice is a REDEFINITION, not a union, and the enriching request wins. An instance
+	 * name identifies one field of one response, so two filters for it are contradictory rather than cumulative -
+	 * there is no wider set to add to, only a more recent statement of what that name means. Additivity holds
+	 * across instance names, never within one. A review read the additive contract as reaching inside a single
+	 * name; it does not, and `shouldRedefineTheNamedSetWhenEnrichingThroughTheSameAlias` pins that.
+	 *
+	 * @param entity       entity being enriched, which may carry requirements from the requests that built it
+	 * @param requirements named requirements the enriching request states
+	 * @return the merged requirements, or `requirements` itself when the entity carries none
+	 */
+	@Nonnull
+	private static Map<ReferenceContentKey, RequirementContext> mergeNamedReferenceRequirements(
+		@Nonnull EntityContract entity,
+		@Nonnull Map<ReferenceContentKey, RequirementContext> requirements
+	) {
+		if (!(entity instanceof ServerEntityDecorator decorator)) {
+			return requirements;
+		}
+		final Map<ReferenceContentKey, RequirementContext> carried = decorator.getNamedReferenceRequirements();
+		if (carried.isEmpty()) {
+			return requirements;
+		} else if (requirements.isEmpty()) {
+			return carried;
+		}
+		final Map<ReferenceContentKey, RequirementContext> result = CollectionUtils.createHashMap(
+			carried.size() + requirements.size()
+		);
+		result.putAll(carried);
+		result.putAll(requirements);
+		return result;
+	}
+
+	/**
+	 * Keeps the named reference sets the limiting request still asks for and drops the rest.
+	 *
+	 * @param namedReferenceSets sets the entity being narrowed carries
+	 * @param evitaRequest       request stating what the narrowed entity may expose
+	 * @return the retained sets, or NULL when nothing is retained
+	 */
+	@Nullable
+	private static Map<ReferenceContentKey, DataChunk<ReferenceContract>> retainNamedReferenceSets(
+		@Nullable Map<ReferenceContentKey, DataChunk<ReferenceContract>> namedReferenceSets,
+		@Nonnull EvitaRequest evitaRequest
+	) {
+		if (namedReferenceSets == null || namedReferenceSets.isEmpty()) {
+			return null;
+		}
+		final Set<ReferenceContentKey> retained = evitaRequest.getNamedReferenceEntityFetch().keySet();
+		final Map<ReferenceContentKey, DataChunk<ReferenceContract>> result = CollectionUtils.createHashMap(
+			Math.min(namedReferenceSets.size(), retained.size())
+		);
+		for (Map.Entry<ReferenceContentKey, DataChunk<ReferenceContract>> entry : namedReferenceSets.entrySet()) {
+			if (retained.contains(entry.getKey())) {
+				result.put(entry.getKey(), entry.getValue());
+			}
+		}
+		return result.isEmpty() ? null : result;
+	}
+
+	/**
+	 * Keeps the named requirements matching the sets {@link #retainNamedReferenceSets} kept, so a later enrichment
+	 * re-fetches exactly what the narrowed entity still carries and nothing the narrowing removed.
+	 *
+	 * @param namedReferenceRequirements requirements the entity being narrowed carries
+	 * @param evitaRequest               request stating what the narrowed entity may expose
+	 * @return the retained requirements, or NULL when nothing is retained
+	 */
+	@Nullable
+	private static Map<ReferenceContentKey, RequirementContext> retainNamedReferenceRequirements(
+		@Nonnull Map<ReferenceContentKey, RequirementContext> namedReferenceRequirements,
+		@Nonnull EvitaRequest evitaRequest
+	) {
+		if (namedReferenceRequirements.isEmpty()) {
+			return null;
+		}
+		final Set<ReferenceContentKey> retained = evitaRequest.getNamedReferenceEntityFetch().keySet();
+		final Map<ReferenceContentKey, RequirementContext> result = CollectionUtils.createHashMap(
+			Math.min(namedReferenceRequirements.size(), retained.size())
+		);
+		for (Map.Entry<ReferenceContentKey, RequirementContext> entry : namedReferenceRequirements.entrySet()) {
+			if (retained.contains(entry.getKey())) {
+				result.put(entry.getKey(), entry.getValue());
+			}
+		}
+		return result.isEmpty() ? null : result;
 	}
 
 	/**
@@ -2635,9 +3242,8 @@ public final class EntityCollection implements
 			entity.getDelegate(),
 			// use original schema
 			getInternalSchema(),
-			// show / hide parent entity
-			entity.parentAvailable() && evitaRequest.isRequiresParent() ?
-				entity.getParentEntity().orElse(null) : null,
+			// carry the already resolved parent chain over verbatim - see #carryResolvedParentChain
+			carryResolvedParentChain(entity),
 			// show / hide locales the entity is fetched in
 			newLocalePredicate,
 			// show / hide parent information
@@ -2652,10 +3258,17 @@ public final class EntityCollection implements
 			newPricePredicate,
 			// propagate original date time
 			entity.getAlignedNow(),
-			// propagate original I/O fetch count
-			entity.getIoFetchCount(),
-			// propagate original I/O fetched bytes
-			entity.getIoFetchedBytes()
+			// narrowing reads nothing, so the data keep the provenance of the entity being narrowed
+			entity.getCatalogId(),
+			entity.getCatalogVersion(),
+			// this decorator performs no I/O of its own - it only narrows the predicates of an entity that is
+			// already in memory, so the whole statistic is owed by the entity it wraps and is resolved lazily
+			0, 0, entity, null,
+			// limiting is the subtractive half of the pair enrichment forms: a named set the limiting request does
+			// not ask for is dropped, while the ones it still asks for are kept as they are. Nothing is re-read, so
+			// the surviving sets stay exactly the chunks the request that built them produced.
+			retainNamedReferenceSets(entity.getNamedReferenceSets(), evitaRequest),
+			retainNamedReferenceRequirements(entity.getNamedReferenceRequirements(), evitaRequest)
 		);
 	}
 
@@ -2666,8 +3279,12 @@ public final class EntityCollection implements
 	 *
 	 * @param sealedEntity the entity to be enriched
 	 * @param evitaRequest the request containing parameters for enriching the entity
-	 * @return an enriched ServerEntityDecorator instance based on the provided entity and request
+	 * @return an enriched ServerEntityDecorator instance based on the provided entity and request - possibly the very
+	 * instance that was passed in, when the request widens none of its predicates and its data are known to be
+	 * current
 	 * @throws EntityAlreadyRemovedException if the entity has been removed
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException if the entity demonstrably came from another catalog -
+	 * entity versions are numbered per entity, so a foreign entity cannot be enriched here at all
 	 */
 	@Nonnull
 	private ServerEntityDecorator enrichEntityInternal(
@@ -2675,6 +3292,20 @@ public final class EntityCollection implements
 		@Nonnull EvitaRequest evitaRequest
 	) throws EntityAlreadyRemovedException {
 		final ServerEntityDecorator partiallyLoadedEntity = (ServerEntityDecorator) sealedEntity;
+		// an entity that demonstrably belongs to another catalog cannot be enriched here at all. The enrichment
+		// reuses the parts the input decorator already holds whenever the *entity* version of the stored body
+		// matches, and entity versions are numbered per entity - so two catalogs' primary key 1 routinely agree on
+		// it and the foreign entity would be handed back as if it were this catalog's own
+		final UUID entityCatalogId = partiallyLoadedEntity.getCatalogId();
+		Assert.isTrue(
+			entityCatalogId == null || entityCatalogId.equals(this.catalog.getCatalogId()),
+			() -> "Entity `" + partiallyLoadedEntity.getType() + "` with primary key `" +
+				partiallyLoadedEntity.getPrimaryKeyOrThrowException() + "` was fetched from a different catalog " +
+				"than `" + this.catalog.getName() + "` and cannot be enriched by this session!"
+		);
+		// the version every storage read below is performed at - unconditional, whatever the catalog state, and
+		// deliberately NOT the provenance stamped on the result; see materialisedCatalogVersion()
+		final long catalogVersion = this.catalog.getVersion();
 		// return decorator that hides information not requested by original query
 		final LocaleSerializablePredicate newLocalePredicate = partiallyLoadedEntity.createLocalePredicateRicherCopyWith(evitaRequest);
 		final HierarchySerializablePredicate newHierarchyPredicate = partiallyLoadedEntity.createHierarchyPredicateRicherCopyWith(evitaRequest);
@@ -2682,10 +3313,47 @@ public final class EntityCollection implements
 		final AssociatedDataValueSerializablePredicate newAssociatedDataPredicate = partiallyLoadedEntity.createAssociatedDataPredicateRicherCopyWith(evitaRequest);
 		final ReferenceContractSerializablePredicate newReferenceContractPredicate = partiallyLoadedEntity.createReferencePredicateRicherCopyWith(evitaRequest);
 		final PriceContractSerializablePredicate newPriceContractPredicate = partiallyLoadedEntity.createPricePredicateRicherCopyWith(evitaRequest);
+
+		// every `createRicherCopyWith` returns the very same instance when the request asks for nothing the entity
+		// does not already carry, so identity across all six is an exact test for "this entity is already at the
+		// requested scope" - provided each is compared against the predicate it was copied from, which is what
+		// `appliesExactly` does. An entity a query returned is narrowed by `limitEntity` and keeps the scope it was
+		// fetched at as the narrowing predicate's underlying one, so comparing against the *fetched* scope instead
+		// pits a copy of the narrowing predicate against the underlying one and can never match, whatever the
+		// request asks for. Enriching such an entity anyway costs a storage round trip that provably fetches
+		// nothing - all it can do is re-read the body to compare versions.
+		//
+		// That comparison is worth skipping only when its outcome is known in advance, which is what the first
+		// clause below establishes. A committed catalog snapshot is immutable, so an entity carrying the identity
+		// and version of the snapshot this collection would read has, by construction, the same stored bytes that
+		// read would return; and the check costs a pointer compare and a `long` compare instead of the body read it
+		// replaces, which is the whole point (comparing *entity* versions would need that read). Everything that is
+		// not such a snapshot - a warming-up catalog, a transaction overlay, a cache restore - carries
+		// UNKNOWN_CATALOG_VERSION and fails this clause at the source, so the shortcut never sees it.
+		//
+		// The transaction clause covers the remaining direction: an entity materialised from the committed snapshot
+		// *before* a transaction opened still carries that snapshot honestly, but a reader inside the transaction
+		// must see the overlay, which no snapshot describes.
+		//
+		// When either clause fails the method falls through to the ordinary enrichment, which re-reads every part at
+		// the version this collection reads, refetching the whole entity whenever the stored entity version has
+		// moved on, and still raises EntityAlreadyRemovedException for an entity deleted meanwhile. Stale input is
+		// therefore refreshed rather than rejected - deliberately not a conflict exception, which is a writer-side
+		// signal and would turn any concurrent commit into a failed read.
+		if (partiallyLoadedEntity.isMaterialisedFrom(this.catalog.getCatalogId(), catalogVersion) &&
+			!Transaction.isTransactionAvailable() &&
+			partiallyLoadedEntity.appliesExactly(
+				newLocalePredicate, newHierarchyPredicate, newAttributePredicate,
+				newAssociatedDataPredicate, newReferenceContractPredicate, newPriceContractPredicate
+			)
+		) {
+			return partiallyLoadedEntity;
+		}
+
 		final EntitySchema internalSchema = getInternalSchema();
 
 		final EntityWithFetchCount entityWithFetchCount = this.persistenceService.enrichEntity(
-			this.catalog.getVersion(),
+			catalogVersion,
 			// use all data from existing entity
 			partiallyLoadedEntity,
 			newHierarchyPredicate,
@@ -2701,8 +3369,8 @@ public final class EntityCollection implements
 			entityWithFetchCount.entity(),
 			// use original schema
 			internalSchema,
-			// fetch parents if requested
-			null,
+			// carry the already resolved parent chain over verbatim - see #carryResolvedParentChain
+			carryResolvedParentChain(partiallyLoadedEntity),
 			// show / hide locales the entity is fetched in
 			newLocalePredicate,
 			// show / hide parent information
@@ -2717,10 +3385,15 @@ public final class EntityCollection implements
 			newPriceContractPredicate,
 			// propagate original date time
 			partiallyLoadedEntity.getAlignedNow(),
-			// propagate information about I/O fetch count
+			// provenance of the data this enrichment produced - recordable only from a committed snapshot
+			materialisedCatalogId(),
+			materialisedCatalogVersion(),
+			// the reads this enrichment performed itself; the ones that produced its input stay owed by the input
+			// decorator and are resolved only if somebody asks for the aggregate
 			entityWithFetchCount.ioFetchCount(),
-			// propagate information about I/O fetched bytes
-			entityWithFetchCount.ioFetchedBytes()
+			entityWithFetchCount.ioFetchedBytes(),
+			partiallyLoadedEntity,
+			entityWithFetchCount.readRecords()
 		);
 	}
 
@@ -2789,6 +3462,24 @@ public final class EntityCollection implements
 	}
 
 	/**
+	 * Returns the parent chain the passed decorator already carries, exactly as it stands in its slot.
+	 *
+	 * Every re-wrap builds a fresh decorator over a raw {@link Entity} delegate, and that delegate still carries the
+	 * immediate parent primary key the entity was stored with. A NULL slot therefore does not mean "no parent" - it
+	 * means "nobody resolved the parent", and {@link EntityDecorator#getParentEntity()} then falls back to that raw
+	 * ancestor. Reading the slot through the interpreting getter would collapse a resolved-and-empty chain
+	 * ({@link ParentChainEnd#INSTANCE}) to NULL and resurrect the very ancestor the parent fetch removed, so the raw
+	 * slot travels instead - body, bodyless pointer and terminator alike.
+	 *
+	 * @param entity the decorator being re-wrapped
+	 * @return the raw parent slot of the passed decorator, NULL when its chain was never resolved
+	 */
+	@Nullable
+	private static EntityClassifierWithParent carryResolvedParentChain(@Nonnull EntityDecorator entity) {
+		return entity.getParentEntityWithoutCheckingPredicate().orElse(null);
+	}
+
+	/**
 	 * Injects referenced entity bodies into the main entity.
 	 *
 	 * @param sealedEntity     main entity to be enriched
@@ -2805,14 +3496,18 @@ public final class EntityCollection implements
 		final EntityClassifierWithParent parentEntity;
 		final EntitySchema internalSchema = getInternalSchema();
 		if (internalSchema.isWithHierarchy() && sealedEntity.getHierarchyPredicate().isRequiresHierarchy()) {
-			if (sealedEntity.getParentEntityWithoutCheckingPredicate().map(SealedEntity.class::isInstance).orElse(false)) {
-				parentEntity = sealedEntity.getParentEntityWithoutCheckingPredicate().get();
+			final EntityClassifierWithParent resolvedChain = carryResolvedParentChain(sealedEntity);
+			final Function<Integer, EntityClassifierWithParent> parentFetcher =
+				referenceFetcher.getParentEntityFetcher();
+			if (resolvedChain instanceof SealedEntity || parentFetcher == null) {
+				// a chain topped by a body cannot be walked again - the bodies this fetch reuses are the ones the
+				// previous one read, and only the immediate parent is among them; a fetcher resolving no parents at
+				// all must not overwrite a chain either, or the raw ancestor resurfaces through the empty slot
+				parentEntity = resolvedChain;
 			} else {
 				final OptionalInt theParent = sealedEntity.getDelegate().getParent();
 				parentEntity = theParent.isPresent() ?
-					ofNullable(referenceFetcher.getParentEntityFetcher())
-						.map(it -> it.apply(theParent.getAsInt()))
-						.orElse(null) : null;
+					parentFetcher.apply(theParent.getAsInt()) : resolvedChain;
 			}
 		} else {
 			parentEntity = null;
@@ -2841,8 +3536,14 @@ public final class EntityCollection implements
 			new ReferenceContractSerializablePredicate(evitaRequest),
 			new PriceContractSerializablePredicate(evitaRequest, contextAvailable),
 			evitaRequest.getAlignedNow(),
+			// provenance of the data this read produced - recordable only from a committed snapshot, which a
+			// mutation result never is: in ALIVE a write needs a transaction, and WARMING_UP is not ALIVE
+			materialisedCatalogId(),
+			materialisedCatalogVersion(),
 			fullEntityWithCount.ioFetchCount(),
-			fullEntityWithCount.ioFetchedBytes()
+			fullEntityWithCount.ioFetchedBytes(),
+			null,
+			fullEntityWithCount.readRecords()
 		);
 	}
 
@@ -3473,6 +4174,25 @@ public final class EntityCollection implements
 		@Nullable
 		@Override
 		public <T extends StoragePart> T fetch(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
+			final StorageAccessScope cache = StorageAccessScope.getIfActive();
+			return cache == null ?
+				doFetch(catalogVersion, primaryKey, containerType) :
+				cache.fetch(
+					this, catalogVersion, containerType, primaryKey, null,
+					() -> doFetch(catalogVersion, primaryKey, containerType)
+				);
+		}
+
+		/**
+		 * Performs the actual read of a storage part addressed by its numeric key.
+		 *
+		 * @param catalogVersion version of the catalog the record is read at
+		 * @param primaryKey     numeric key of the record
+		 * @param containerType  type of the requested storage part
+		 * @return the record or NULL when it does not exist
+		 */
+		@Nullable
+		private <T extends StoragePart> T doFetch(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
 			return EntitySchemaContext.executeWithSchemaContext(
 				this.schemaSupplier.get(),
 				() -> this.dataStoreReader.fetch(catalogVersion, primaryKey, containerType)
@@ -3491,6 +4211,31 @@ public final class EntityCollection implements
 		@Nullable
 		@Override
 		public <T extends StoragePart, U extends Comparable<U>> T fetch(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer) {
+			final StorageAccessScope cache = StorageAccessScope.getIfActive();
+			return cache == null ?
+				doFetch(catalogVersion, originalKey, containerType, compressedKeyComputer) :
+				cache.fetch(
+					this, catalogVersion, containerType, Long.MIN_VALUE, originalKey,
+					() -> doFetch(catalogVersion, originalKey, containerType, compressedKeyComputer)
+				);
+		}
+
+		/**
+		 * Performs the actual read of a storage part addressed by a non-numeric key.
+		 *
+		 * @param catalogVersion         version of the catalog the record is read at
+		 * @param originalKey            key of the record before compression
+		 * @param containerType          type of the requested storage part
+		 * @param compressedKeyComputer  translates `originalKey` into the compressed numeric key
+		 * @return the record or NULL when it does not exist
+		 */
+		@Nullable
+		private <T extends StoragePart, U extends Comparable<U>> T doFetch(
+			long catalogVersion,
+			@Nonnull U originalKey,
+			@Nonnull Class<T> containerType,
+			@Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer
+		) {
 			return EntitySchemaContext.executeWithSchemaContext(
 				this.schemaSupplier.get(),
 				() -> this.dataStoreReader.fetch(catalogVersion, originalKey, containerType, compressedKeyComputer)

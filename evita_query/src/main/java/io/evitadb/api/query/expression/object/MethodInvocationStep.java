@@ -47,7 +47,7 @@ import java.util.List;
  */
 @RequiredArgsConstructor
 @EqualsAndHashCode
-public class MethodInvocationStep implements ObjectOperationStep {
+public final class MethodInvocationStep implements ObjectOperationStep {
 
 	@Serial private static final long serialVersionUID = 2616337062617784804L;
 

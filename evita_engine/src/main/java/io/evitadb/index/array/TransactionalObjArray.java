@@ -27,9 +27,12 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.iterator.ConstantObjIterator;
 import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -60,8 +63,15 @@ import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
  */
 @ThreadSafe
 public class TransactionalObjArray<T>
-	implements TransactionalLayerProducer<ObjArrayChanges<T>, T[]>, Serializable {
+	implements TransactionalLayerProducer<ObjArrayChanges<T>, T[]>, WarmUpTouchStamped, Serializable {
 	@Serial private static final long serialVersionUID = 3207853222537134300L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	@Nonnull private T[] delegate;
 	@Nonnull private final Comparator<T> comparator;
@@ -108,6 +118,7 @@ public class TransactionalObjArray<T>
 	public void add(@Nonnull T recordId) {
 		final ObjArrayChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			recordWarmUpSavepointTouch();
 			this.delegate = ArrayUtils.insertRecordIntoOrderedArray(
 				recordId, this.delegate, this.comparator
 			);
@@ -131,11 +142,37 @@ public class TransactionalObjArray<T>
 	public void remove(@Nonnull T recordId) {
 		final ObjArrayChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			recordWarmUpSavepointTouch();
 			this.delegate = ArrayUtils.removeRecordFromOrderedArray(
 				recordId, this.delegate, this.comparator
 			);
 		} else {
 			layer.removeRecordId(recordId, this.comparator);
+		}
+	}
+
+	/**
+	 * Captures the {@link #delegate} array REFERENCE for the warm-up savepoint bracketing the current root entity
+	 * mutation, if one is open, so that a failed mutation rewinds this array to exactly the contents it held before the
+	 * mutation began (see {@link WarmUpSavepoint} and {@link TransactionalIntArray#recordWarmUpSavepointTouch()}, which
+	 * this mirrors).
+	 *
+	 * Both writes on this branch REPLACE the delegate with a freshly allocated array, so the outgoing reference is
+	 * already an immutable snapshot of the pre-mutation contents — the capture is one field read and the restore one
+	 * field assignment, which is why it is made on the first write-touch only.
+	 *
+	 * The ELEMENTS are captured by reference, exactly as a {@link io.evitadb.core.transaction.memory.Snapshotable}
+	 * memento captures nested producers: an element that carries mutable state of its own is rewound by that element's
+	 * own journaling, never from here.
+	 *
+	 * Must be called BEFORE the reassignment. Outside a savepoint it costs one {@link ThreadLocal} read returning
+	 * `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			final T[] preImage = this.delegate;
+			savepoint.push(() -> this.delegate = preImage);
 		}
 	}
 
@@ -236,6 +273,19 @@ public class TransactionalObjArray<T>
 	@Override
 	public ObjArrayChanges<T> createLayer() {
 		return isTransactionAvailable() ? new ObjArrayChanges<>(this.delegate) : null;
+	}
+
+	/**
+	 * The delegate branch replaces {@link #delegate} with a freshly allocated array rather than writing into the
+	 * existing one, and {@link #recordWarmUpSavepointTouch()} captures the outgoing reference before each first write.
+	 * Elements are captured by reference: one carrying mutable state of its own is rewound by that element's own
+	 * journalling, exactly as a nested producer is inside a memento.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
 	}
 
 	@Nonnull

@@ -153,6 +153,7 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 			buildingContext,
 			this.propertyBuilderTransformer,
 			this.objectBuilderTransformer,
+			this.unionBuilderTransformer,
 			this.dictionaryBuilderTransformer
 		);
 		this.fullResponseObjectBuilder = new FullResponseObjectBuilder(

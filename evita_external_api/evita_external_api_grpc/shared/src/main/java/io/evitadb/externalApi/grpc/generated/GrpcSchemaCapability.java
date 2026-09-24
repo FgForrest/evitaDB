@@ -133,6 +133,21 @@ public enum GrpcSchemaCapability
    * <code>SCHEMA_CAPABILITY_PRICE_INDEXED = 8;</code>
    */
   SCHEMA_CAPABILITY_PRICE_INDEXED(8),
+  /**
+   * <pre>
+   * The element's filter index also answers substring matching -
+   * `filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)`, and the trigram index it costs.
+   * Carried by a `SCHEMA_ELEMENT_KIND_ATTRIBUTE` row, always *alongside*
+   * `SCHEMA_CAPABILITY_FILTERABLE` rather than instead of it: the acceleration is strictly additive, so an attribute
+   * carrying this one is filterable too and the two rows describe two separately-droppable costs. Read them together
+   * - a high filterable count with a near-zero count here says the attribute is filtered often but almost never by
+   * `attributeContains` or `attributeEndsWith`, which is exactly the reading that justifies dropping the capability
+   * while keeping the attribute filterable.
+   * </pre>
+   *
+   * <code>SCHEMA_CAPABILITY_SUBSTRING_ACCELERATED = 9;</code>
+   */
+  SCHEMA_CAPABILITY_SUBSTRING_ACCELERATED(9),
   UNRECOGNIZED(-1),
   ;
 
@@ -220,6 +235,21 @@ public enum GrpcSchemaCapability
    * <code>SCHEMA_CAPABILITY_PRICE_INDEXED = 8;</code>
    */
   public static final int SCHEMA_CAPABILITY_PRICE_INDEXED_VALUE = 8;
+  /**
+   * <pre>
+   * The element's filter index also answers substring matching -
+   * `filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)`, and the trigram index it costs.
+   * Carried by a `SCHEMA_ELEMENT_KIND_ATTRIBUTE` row, always *alongside*
+   * `SCHEMA_CAPABILITY_FILTERABLE` rather than instead of it: the acceleration is strictly additive, so an attribute
+   * carrying this one is filterable too and the two rows describe two separately-droppable costs. Read them together
+   * - a high filterable count with a near-zero count here says the attribute is filtered often but almost never by
+   * `attributeContains` or `attributeEndsWith`, which is exactly the reading that justifies dropping the capability
+   * while keeping the attribute filterable.
+   * </pre>
+   *
+   * <code>SCHEMA_CAPABILITY_SUBSTRING_ACCELERATED = 9;</code>
+   */
+  public static final int SCHEMA_CAPABILITY_SUBSTRING_ACCELERATED_VALUE = 9;
 
 
   public final int getNumber() {
@@ -255,6 +285,7 @@ public enum GrpcSchemaCapability
       case 6: return SCHEMA_CAPABILITY_BUCKETED;
       case 7: return SCHEMA_CAPABILITY_HIERARCHY_INDEXED;
       case 8: return SCHEMA_CAPABILITY_PRICE_INDEXED;
+      case 9: return SCHEMA_CAPABILITY_SUBSTRING_ACCELERATED;
       default: return null;
     }
   }
@@ -285,7 +316,7 @@ public enum GrpcSchemaCapability
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(48);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(49);
   }
 
   private static final GrpcSchemaCapability[] VALUES = values();

@@ -29,6 +29,8 @@ import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.function.Functions;
@@ -43,6 +45,8 @@ import io.evitadb.index.component.loader.LoadedComponentBundle.Histograms;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.map.TransactionalMap;
+import io.evitadb.index.range.RangeIndex;
+import io.evitadb.index.range.TransactionalRangePoint;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
@@ -88,9 +92,12 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.OutputStream;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -98,6 +105,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -141,6 +149,8 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 		new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, REFERENCE_NAME);
 	/** > 1 leaf page (bucket leaf capacity) so the histogram pages out across several leaves. */
 	private static final int VALUE_COUNT = 3200;
+	/** The scale a `BigDecimalNumberRange` histogram freezes its bounds at, and rebuilds them at on reload. */
+	private static final int BIG_DECIMAL_SCALE = 2;
 	/** Survivors kept after the `PAGED -> SINGLE` collapse; a handful of buckets fit inside a single bucket leaf. */
 	private static final int COLLAPSE_KEEP = 12;
 	private static final long PERSISTED_VERSION = 1L;
@@ -330,6 +340,533 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 					IOUtils.closeQuietly(reloaded::close);
 				}
 			}
+		}
+
+		@Test
+		@DisplayName("a date-time-range PAGED histogram reloads its bounds through the loader without instant drift")
+		void shouldReloadPagedDateTimeRangeTypedHistogramThroughTheRealLoader() {
+			// the sibling above pages an `IntegerNumberRange`, whose bounds are the caller's own numbers. A
+			// `DateTimeRange`'s comparison longs are DERIVED - whole epoch milliseconds - and every bucket in this
+			// fixture is built at a different zone offset, so a reload that mishandled the derivation would move the
+			// instants without moving anything the `equals`-based parity assertions can see
+			final SimpleHistogramIndex source = new SimpleHistogramIndex(
+				HISTOGRAM_NAME, REFERENCE_NAME, DateTimeRange.class, 0
+			);
+			for (int i = 1; i <= VALUE_COUNT; i++) {
+				source.insertValue(null, dateTimeRange(i), i);
+			}
+
+			final List<StoragePart> emitted = emit(source);
+			final HistogramIndexStoragePart root = histogramRoot(emitted);
+			assertTrue(root.isPaged(), "the date-time-range histogram must page its bucket axis out");
+			assertTrue(root.isRangePaged(), "the date-time-range histogram must page its range axis out");
+			assertTrue(leafPages(emitted).size() >= 3, "the bucket axis must emit at least three leaf pages");
+			assertTrue(
+				rangeLeafPages(emitted).size() >= 3, "the range axis must emit at least three range leaf pages"
+			);
+
+			final OffsetIndexDescriptor descriptor = persist(stripRemovals(emitted));
+			OffsetIndex reloaded = null;
+			try {
+				reloaded = loadOffsetIndex(descriptor, PERSISTED_VERSION);
+				final HistogramIndex restored = reloadThroughLoader(
+					reloaded, SIMPLE_MANIFEST_KEYS, PERSISTED_VERSION, HISTOGRAM_NAME
+				);
+				assertReloadIdentical(source, restored, null);
+				assertSameRangeQueries(
+					source, restored,
+					new long[][]{
+						{dateTimeRange(1).getFrom(), dateTimeRange(5).getTo()},
+						{dateTimeRange(1600).getFrom(), dateTimeRange(1600).getTo()},
+						{dateTimeRange(VALUE_COUNT).getFrom(), dateTimeRange(VALUE_COUNT).getTo()},
+						{dateTimeRange(1).getFrom() - 3600L, dateTimeRange(VALUE_COUNT).getTo() + 3600L}
+					}
+				);
+
+				final FilterIndex restoredFilter = restored.getFilterIndex(null);
+				assertNotNull(restoredFilter, "the reloaded histogram must expose a filter index");
+				final ValueToRecordBitmap[] restoredBuckets =
+					restoredFilter.getInvertedIndex().getValueToRecordBitmap();
+				assertEquals(
+					VALUE_COUNT, restoredBuckets.length, "every distinct range must reload as its own bucket"
+				);
+				// `assertReloadIdentical` compares bucket values with `equals`, which `DateTimeRange` generates from
+				// its two comparison longs alone - so it cannot see WHICH instants a bucket came back as, only that
+				// the two indexes agree. `toString` renders both bounds as ISO_OFFSET_DATE_TIME and does, and the
+				// buckets ascend by (from, to), which for this domain is ordinal order - so the source ranges,
+				// re-rendered at UTC, are an independent oracle for the instants themselves. The offsets they were
+				// WRITTEN at differ per ordinal and are deliberately not preserved; what must survive is the moment
+				for (int i = 0; i < restoredBuckets.length; i++) {
+					assertEquals(
+						atUtc(dateTimeRange(i + 1)).toString(), restoredBuckets[i].getValue().toString(),
+						"bucket " + i + " must reload naming the same two instants it was written with"
+					);
+				}
+
+				assertEquals(
+					0, emit(restored).size(),
+					"an untouched reloaded date-time-range paged histogram must emit nothing on its first flush"
+				);
+			} finally {
+				if (reloaded != null) {
+					IOUtils.closeQuietly(reloaded::close);
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("a big-decimal-range PAGED histogram reloads its bounds at the frozen index scale")
+		void shouldReloadPagedBigDecimalRangeTypedHistogramThroughTheRealLoader() {
+			// the reload threads the persisted `indexedDecimalPlaces` into every leaf column it rebuilds, and a
+			// range rebuilt at the wrong scale is still `equals` to the right one: the comparison longs, the
+			// ordering and the range-index thresholds are all scale-invariant. Only the precise bounds move, and
+			// this is the only test in the suite that reaches them through the paged reload
+			final SimpleHistogramIndex source = new SimpleHistogramIndex(
+				HISTOGRAM_NAME, REFERENCE_NAME, BigDecimalNumberRange.class, BIG_DECIMAL_SCALE
+			);
+			for (int i = 1; i <= VALUE_COUNT; i++) {
+				source.insertValue(null, bigDecimalRange(i), i);
+			}
+
+			final List<StoragePart> emitted = emit(source);
+			final HistogramIndexStoragePart root = histogramRoot(emitted);
+			assertTrue(root.isPaged(), "the big-decimal-range histogram must page its bucket axis out");
+			assertTrue(root.isRangePaged(), "the big-decimal-range histogram must page its range axis out");
+			assertTrue(leafPages(emitted).size() >= 3, "the bucket axis must emit at least three leaf pages");
+			assertTrue(
+				rangeLeafPages(emitted).size() >= 3, "the range axis must emit at least three range leaf pages"
+			);
+
+			final OffsetIndexDescriptor descriptor = persist(stripRemovals(emitted));
+			OffsetIndex reloaded = null;
+			try {
+				reloaded = loadOffsetIndex(descriptor, PERSISTED_VERSION);
+				final HistogramIndex restored = reloadThroughLoader(
+					reloaded, SIMPLE_MANIFEST_KEYS, PERSISTED_VERSION, HISTOGRAM_NAME
+				);
+				assertReloadIdentical(source, restored, null);
+				// a big-decimal threshold IS the scaled long, so the probes are expressed as the longs the bounds
+				// encode to rather than as the decimal values a caller would write
+				assertSameRangeQueries(
+					source, restored,
+					new long[][]{
+						{bigDecimalRange(1).getFrom(), bigDecimalRange(5).getTo()},
+						{bigDecimalRange(1600).getFrom(), bigDecimalRange(1600).getTo()},
+						{bigDecimalRange(VALUE_COUNT).getFrom(), bigDecimalRange(VALUE_COUNT).getTo()},
+						{bigDecimalRange(1).getFrom() - 100L, bigDecimalRange(VALUE_COUNT).getTo() + 100L}
+					}
+				);
+
+				// the scale-level pass, the analogue of the date-time sibling's offset pass: `toString` renders the
+				// PRECISE bounds, and `BigDecimal`'s rendering carries its scale - so a bucket reloaded at scale 0
+				// renders "[105,180]" where the source renders "[1.05,1.80]", which nothing above can see
+				final FilterIndex restoredFilter = restored.getFilterIndex(null);
+				assertNotNull(restoredFilter, "the reloaded histogram must expose a filter index");
+				final ValueToRecordBitmap[] restoredBuckets =
+					restoredFilter.getInvertedIndex().getValueToRecordBitmap();
+				assertEquals(
+					VALUE_COUNT, restoredBuckets.length, "every distinct range must reload as its own bucket"
+				);
+				for (int i = 0; i < restoredBuckets.length; i++) {
+					assertEquals(
+						bigDecimalRange(i + 1).toString(), restoredBuckets[i].getValue().toString(),
+						"bucket " + i + " must reload at the frozen index scale"
+					);
+				}
+
+				assertEquals(
+					0, emit(restored).size(),
+					"an untouched reloaded big-decimal-range paged histogram must emit nothing on its first flush"
+				);
+			} finally {
+				if (reloaded != null) {
+					IOUtils.closeQuietly(reloaded::close);
+				}
+			}
+		}
+	}
+
+	/**
+	 * The legacy threshold-scale repair, driven through the histogram loader.
+	 *
+	 * Every catalog format written before {@code DateTimeRange} moved from second to millisecond comparison
+	 * granularity persisted its range-index thresholds as epoch **seconds**. A threshold is an untyped `long` shared
+	 * with all five `NumberRange` subtypes, whose thresholds are the bounds' own numeric values and were never
+	 * rescaled — so the repair is routed on the declared value type, and applying it to the wrong one inflates a
+	 * numeric range's bounds by a thousand and answers every query over it with the wrong records, silently.
+	 *
+	 * `HistogramIndexMapLoader` is the twin of `AttributeIndexLoader`'s filter-index repair and carries the same two
+	 * branches — the inline range companion and the range-`PAGED` axis — which `AttributeIndexLoaderTest`'s legacy
+	 * nest covers for the attribute side. These drive the histogram side through the real store: the legacy-scaled
+	 * thresholds are really written and read back, and only the read-path provenance mark, which no current writer
+	 * can persist, is stamped by the read service (see {@link OffsetIndexReadService}).
+	 */
+	@Nested
+	@DisplayName("Legacy second-granularity range thresholds")
+	class LegacyRangeThresholdScale {
+		/** The moment the seeded validity opens at; the fixture is five days wide. */
+		private static final OffsetDateTime LEGACY_VALID_FROM = OffsetDateTime.parse("2026-05-20T12:19:26Z");
+		/** A moment inside the seeded validity, used as the positive query probe. */
+		private static final OffsetDateTime LEGACY_INSIDE = OffsetDateTime.parse("2026-05-21T00:00:00Z");
+		/** A moment after the seeded validity, used as the negative query probe. */
+		private static final OffsetDateTime LEGACY_OUTSIDE = OffsetDateTime.parse("2026-06-01T00:00:00Z");
+		/** Range points per persisted leaf page, so the fixture really spans several of them. */
+		private static final int LEGACY_RANGE_PAGE_SIZE = 64;
+		/**
+		 * How many one-record validity ranges the paged fixture holds. Two thresholds each plus the two border
+		 * sentinels puts the rescaled point count comfortably above the range tree's leaf block size, so the
+		 * repaired index pages again rather than collapsing to an inline companion — which is what makes the
+		 * root-plus-every-page assertion below say anything.
+		 */
+		private static final int LEGACY_PAGED_RECORDS = 300;
+		/** Seconds between the lower bounds of two consecutive ranges in the paged fixture. */
+		private static final int LEGACY_RANGE_STRIDE_SECONDS = 3_600;
+		/** Width, in seconds, of each range in the paged fixture — narrower than the stride, so they never overlap. */
+		private static final int LEGACY_RANGE_WIDTH_SECONDS = 1_800;
+
+		@Test
+		@DisplayName("a range-PAGED second-granularity histogram is rescaled across its leaf pages")
+		void shouldRescaleARangePagedSecondGranularityDateTimeHistogram() {
+			final ValueToRecordBitmap[] buckets = new ValueToRecordBitmap[LEGACY_PAGED_RECORDS];
+			for (int record = 1; record <= LEGACY_PAGED_RECORDS; record++) {
+				buckets[record - 1] = new ValueToRecordBitmap(pagedValidity(record), record);
+			}
+			final List<StoragePart> seeded = legacyRangePagedParts(
+				DateTimeRange.class, buckets, pagedSecondGranularityPoints()
+			);
+			final int seededPageCount = rangeLeafPages(seeded).size();
+			assertTrue(seededPageCount > 1, "the fixture must span several persisted range leaf pages");
+
+			final OffsetIndexDescriptor descriptor = persist(seeded);
+			OffsetIndex reloaded = null;
+			try {
+				reloaded = loadOffsetIndex(descriptor, PERSISTED_VERSION);
+				final HistogramIndex restored = reloadThroughLoader(
+					reloaded, SIMPLE_MANIFEST_KEYS, PERSISTED_VERSION, HISTOGRAM_NAME, true
+				);
+				final FilterIndex filter = restored.getFilterIndex(null);
+				assertNotNull(filter, "the reloaded histogram must expose a filter index");
+
+				// THE assertion: a probe reduced by the CURRENT converter must find the record. Without the rescale
+				// the stored thresholds sit a thousand times below it and this returns nothing
+				final DateTimeRange first = pagedValidity(1);
+				final DateTimeRange last = pagedValidity(LEGACY_PAGED_RECORDS);
+				assertArrayEquals(
+					new int[]{1},
+					filter.getRecordsValidInFormula(first.getFrom() + 1_000L).compute().getArray(),
+					"a moment inside the first reloaded paged validity must select its record"
+				);
+				assertArrayEquals(
+					new int[]{LEGACY_PAGED_RECORDS},
+					filter.getRecordsValidInFormula(last.getFrom() + 1_000L).compute().getArray(),
+					"and so must a moment inside the last one, which sits on another leaf page"
+				);
+				assertArrayEquals(
+					new int[0],
+					filter.getRecordsValidInFormula(first.getTo() + 1_000L).compute().getArray(),
+					"a moment in the gap between two validities must select nothing"
+				);
+				// a probe left in the OLD scale must now miss, which is what says the thresholds really moved
+				assertArrayEquals(
+					new int[0],
+					filter.getRecordsValidInFormula(first.getFrom() / 1_000L).compute().getArray(),
+					"a second-granularity probe must no longer land inside the rescaled paged range"
+				);
+
+				// the repair is PASSIVE: it costs one rescale per load and rewrites nothing on its own, so a reload
+				// that is never followed by a write leaves the persisted legacy form untouched
+				final List<StoragePart> afterReload = emit(restored);
+				assertTrue(
+					rangeLeafPages(afterReload).isEmpty() && leafPageRemovals(afterReload).isEmpty(),
+					"a reload alone must not rewrite or free a single range leaf page"
+				);
+
+				// ... but the rescaled index is deliberately NOT boundary-stable, and the whole atomicity argument
+				// rests on the first flush that DOES touch it moving the root and every leaf page together: the
+				// persisted scale is carried by the ROOT record, so a commit rewriting pages while leaving the
+				// legacy root behind would produce a catalog whose scale marker disagrees with its content
+				restored.insertValue(null, pagedValidity(LEGACY_PAGED_RECORDS + 1), LEGACY_PAGED_RECORDS + 1);
+				final List<StoragePart> firstFlush = emit(restored);
+				final HistogramIndexStoragePart rewrittenRoot = histogramRoot(firstFlush);
+				assertTrue(
+					rewrittenRoot.isRangePaged(),
+					"the repaired index must still page its range axis, or the assertions below say nothing"
+				);
+				assertEquals(
+					seededPageCount, leafPageRemovals(firstFlush).size(),
+					"every legacy range leaf page must be freed by the same commit that re-emits the root"
+				);
+				assertEquals(
+					rewrittenRoot.getRangeLeafPageSequences().length, rangeLeafPages(firstFlush).size(),
+					"every live range leaf page must be re-emitted alongside the root"
+				);
+			} finally {
+				if (reloaded != null) {
+					IOUtils.closeQuietly(reloaded::close);
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("an inline second-granularity histogram is rescaled and answers queries at the right moments")
+		void shouldRescaleAnInlineSecondGranularityDateTimeHistogram() {
+			final DateTimeRange validity = DateTimeRange.between(LEGACY_VALID_FROM, LEGACY_VALID_FROM.plusDays(5));
+			final HistogramIndexStoragePart root = legacyInlineRoot(
+				DateTimeRange.class,
+				new ValueToRecordBitmap[]{new ValueToRecordBitmap(validity, 1)},
+				secondGranularityPoints(
+					LEGACY_VALID_FROM.toEpochSecond(), LEGACY_VALID_FROM.plusDays(5).toEpochSecond(), 1
+				)
+			);
+
+			final OffsetIndexDescriptor descriptor = persist(List.<StoragePart>of(root));
+			OffsetIndex reloaded = null;
+			try {
+				reloaded = loadOffsetIndex(descriptor, PERSISTED_VERSION);
+				final FilterIndex filter = reloadThroughLoader(
+					reloaded, SIMPLE_MANIFEST_KEYS, PERSISTED_VERSION, HISTOGRAM_NAME, true
+				).getFilterIndex(null);
+				assertNotNull(filter, "the reloaded histogram must expose a filter index");
+
+				assertArrayEquals(
+					new int[]{1},
+					filter.getRecordsValidInFormula(DateTimeRange.toComparableLong(LEGACY_INSIDE))
+						.compute().getArray(),
+					"a moment inside the reloaded validity must select the record"
+				);
+				assertArrayEquals(
+					new int[0],
+					filter.getRecordsValidInFormula(DateTimeRange.toComparableLong(LEGACY_OUTSIDE))
+						.compute().getArray(),
+					"a moment after the reloaded validity must select nothing"
+				);
+				assertArrayEquals(
+					new int[0],
+					filter.getRecordsValidInFormula(LEGACY_INSIDE.toEpochSecond()).compute().getArray(),
+					"a second-granularity probe must no longer land inside the rescaled range"
+				);
+			} finally {
+				if (reloaded != null) {
+					IOUtils.closeQuietly(reloaded::close);
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("an open-ended second-granularity histogram lands on the constant sentinel, points merged")
+		void shouldRescaleAnOpenEndedSecondGranularityDateTimeHistogram() {
+			// a pre-change open-ended range ended on `LocalDateTime.MAX.atOffset(from.getOffset()).toEpochSecond()`,
+			// which collides with the index's own `Long.MAX_VALUE` border point once rescaled - the collision the
+			// repair has to MERGE rather than duplicate, since a range index cannot hold one threshold twice
+			final DateTimeRange openEnded = DateTimeRange.since(LEGACY_VALID_FROM);
+			final long legacyOpenTo = LocalDateTime.MAX.atOffset(ZoneOffset.UTC).toEpochSecond();
+			final HistogramIndexStoragePart root = legacyInlineRoot(
+				DateTimeRange.class,
+				new ValueToRecordBitmap[]{new ValueToRecordBitmap(openEnded, 1)},
+				secondGranularityPoints(LEGACY_VALID_FROM.toEpochSecond(), legacyOpenTo, 1)
+			);
+
+			final OffsetIndexDescriptor descriptor = persist(List.<StoragePart>of(root));
+			OffsetIndex reloaded = null;
+			try {
+				reloaded = loadOffsetIndex(descriptor, PERSISTED_VERSION);
+				final FilterIndex filter = reloadThroughLoader(
+					reloaded, SIMPLE_MANIFEST_KEYS, PERSISTED_VERSION, HISTOGRAM_NAME, true
+				).getFilterIndex(null);
+				assertNotNull(filter, "the reloaded histogram must expose a filter index");
+
+				assertArrayEquals(
+					new int[]{1},
+					filter.getRecordsValidInFormula(DateTimeRange.toComparableLong(LEGACY_INSIDE))
+						.compute().getArray(),
+					"a moment inside the open-ended validity must select the record"
+				);
+				assertArrayEquals(
+					new int[]{1},
+					filter.getRecordsValidInFormula(DateTimeRange.toComparableLong(LEGACY_OUTSIDE))
+						.compute().getArray(),
+					"a moment far after the lower bound must still select an open-ended record"
+				);
+				assertArrayEquals(
+					new int[0],
+					filter.getRecordsValidInFormula(
+						DateTimeRange.toComparableLong(LEGACY_VALID_FROM.minusDays(1))
+					).compute().getArray(),
+					"a moment before the lower bound must select nothing"
+				);
+
+				// the legacy sentinel and the border point really did merge onto one threshold rather than
+				// duplicating it - four persisted points, three after the repair
+				final RangeIndex reloadedRange = filter.getRangeIndex();
+				assertNotNull(reloadedRange, "the range companion must reload");
+				assertEquals(3, reloadedRange.getRanges().length, "the colliding points must have merged");
+				assertEquals(
+					DateTimeRange.OPEN_TO_THRESHOLD,
+					reloadedRange.getRanges()[reloadedRange.getRanges().length - 1].getThreshold(),
+					"the legacy open sentinel and the border point must share the constant threshold"
+				);
+			} finally {
+				if (reloaded != null) {
+					IOUtils.closeQuietly(reloaded::close);
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("a numeric-range histogram read from the same legacy format keeps its thresholds untouched")
+		void shouldLeaveANumericRangeHistogramUntouched() {
+			// the control, and the one that matters most: the provenance mark is set on this part exactly as it is
+			// on the three above, so ONLY the declared value type keeps the rescale away from it. An
+			// `IntegerNumberRange` threshold is the caller's own number and was never in seconds
+			final IntegerNumberRange quantity = IntegerNumberRange.between(10, 20);
+			final HistogramIndexStoragePart root = legacyInlineRoot(
+				IntegerNumberRange.class,
+				new ValueToRecordBitmap[]{new ValueToRecordBitmap(quantity, 1)},
+				secondGranularityPoints(10L, 20L, 1)
+			);
+
+			final OffsetIndexDescriptor descriptor = persist(List.<StoragePart>of(root));
+			OffsetIndex reloaded = null;
+			try {
+				reloaded = loadOffsetIndex(descriptor, PERSISTED_VERSION);
+				final FilterIndex filter = reloadThroughLoader(
+					reloaded, SIMPLE_MANIFEST_KEYS, PERSISTED_VERSION, HISTOGRAM_NAME, true
+				).getFilterIndex(null);
+				assertNotNull(filter, "the reloaded histogram must expose a filter index");
+
+				assertArrayEquals(
+					new int[]{1}, filter.getRecordsValidInFormula(15L).compute().getArray(),
+					"the numeric thresholds must be read back verbatim - 15 lies inside [10, 20]"
+				);
+				assertArrayEquals(
+					new int[0], filter.getRecordsValidInFormula(15_000L).compute().getArray(),
+					"a rescaled numeric index would have moved [10, 20] to [10000, 20000] and matched here instead"
+				);
+				final RangeIndex reloadedRange = filter.getRangeIndex();
+				assertNotNull(reloadedRange, "the range companion must reload");
+				assertEquals(10L, reloadedRange.getRanges()[1].getThreshold(), "the lower bound stays 10");
+				assertEquals(20L, reloadedRange.getRanges()[2].getThreshold(), "the upper bound stays 20");
+			} finally {
+				if (reloaded != null) {
+					IOUtils.closeQuietly(reloaded::close);
+				}
+			}
+		}
+
+		/**
+		 * The `ordinal`-th validity of the paged fixture: {@value #LEGACY_RANGE_WIDTH_SECONDS} seconds wide and
+		 * {@value #LEGACY_RANGE_STRIDE_SECONDS} seconds after its predecessor, so the ranges ascend and never touch.
+		 *
+		 * @param ordinal the one-based ordinal, which is also the record id the range belongs to
+		 * @return the validity range
+		 */
+		@Nonnull
+		private DateTimeRange pagedValidity(int ordinal) {
+			final OffsetDateTime from = LEGACY_VALID_FROM.plusSeconds((long) ordinal * LEGACY_RANGE_STRIDE_SECONDS);
+			return DateTimeRange.between(from, from.plusSeconds(LEGACY_RANGE_WIDTH_SECONDS));
+		}
+
+		/**
+		 * Builds the range points a pre-millisecond writer left on disk for the whole paged fixture: the lower
+		 * border sentinel, one start / end pair per record in ascending threshold order, and the upper sentinel.
+		 *
+		 * @return the points, in ascending threshold order and at second granularity
+		 */
+		@Nonnull
+		private TransactionalRangePoint[] pagedSecondGranularityPoints() {
+			final TransactionalRangePoint[] points = new TransactionalRangePoint[2 * LEGACY_PAGED_RECORDS + 2];
+			points[0] = new TransactionalRangePoint(Long.MIN_VALUE);
+			for (int record = 1; record <= LEGACY_PAGED_RECORDS; record++) {
+				final DateTimeRange validity = pagedValidity(record);
+				points[2 * record - 1] = new TransactionalRangePoint(
+					validity.getFrom() / 1_000L, new int[]{record}, new int[0]
+				);
+				points[2 * record] = new TransactionalRangePoint(
+					validity.getTo() / 1_000L, new int[0], new int[]{record}
+				);
+			}
+			points[points.length - 1] = new TransactionalRangePoint(Long.MAX_VALUE);
+			return points;
+		}
+
+		/**
+		 * Builds the range points a pre-millisecond writer left on disk for one record valid over `[from, to]`,
+		 * including the two border sentinels a range index always carries.
+		 *
+		 * @param from     the lower threshold in the writer's own scale
+		 * @param to       the upper threshold in the writer's own scale
+		 * @param recordId the record the range belongs to
+		 * @return the four range points, in ascending threshold order
+		 */
+		@Nonnull
+		private TransactionalRangePoint[] secondGranularityPoints(long from, long to, int recordId) {
+			return new TransactionalRangePoint[]{
+				new TransactionalRangePoint(Long.MIN_VALUE),
+				new TransactionalRangePoint(from, new int[]{recordId}, new int[0]),
+				new TransactionalRangePoint(to, new int[0], new int[]{recordId}),
+				new TransactionalRangePoint(Long.MAX_VALUE)
+			};
+		}
+
+		/**
+		 * Builds a histogram root whose bucket axis is inline and whose range companion is inline too, carrying the
+		 * supplied legacy-scaled thresholds — the shape a small pre-millisecond histogram was persisted in.
+		 *
+		 * @param valueType   the declared value type, which is what routes the rescale
+		 * @param buckets     the inline bucket points
+		 * @param rangePoints the inline range points, in ascending threshold order and at second granularity
+		 * @return the root storage part
+		 */
+		@Nonnull
+		private HistogramIndexStoragePart legacyInlineRoot(
+			@Nonnull Class<?> valueType,
+			@Nonnull ValueToRecordBitmap[] buckets,
+			@Nonnull TransactionalRangePoint[] rangePoints
+		) {
+			return new HistogramIndexStoragePart(
+				ENTITY_INDEX_PK, HISTOGRAM_NAME, null, valueType, buckets, new RangeIndex(rangePoints), 0
+			);
+		}
+
+		/**
+		 * Builds a histogram whose range axis is `PAGED` across several leaf pages holding legacy-scaled thresholds,
+		 * plus the root that lists them. The bucket axis stays inline, so the emission this fixture provokes on
+		 * reload carries range pages and nothing else.
+		 *
+		 * @param valueType   the declared value type, which is what routes the rescale
+		 * @param buckets     the inline bucket points
+		 * @param rangePoints the range points, in ascending threshold order and at second granularity
+		 * @return the leaf pages followed by the root, ready to be persisted
+		 */
+		@Nonnull
+		private List<StoragePart> legacyRangePagedParts(
+			@Nonnull Class<?> valueType,
+			@Nonnull ValueToRecordBitmap[] buckets,
+			@Nonnull TransactionalRangePoint[] rangePoints
+		) {
+			final int pageCount =
+				(rangePoints.length + LEGACY_RANGE_PAGE_SIZE - 1) / LEGACY_RANGE_PAGE_SIZE;
+			final int[] pageSequences = new int[pageCount];
+			final List<StoragePart> parts = new ArrayList<>(pageCount + 1);
+			for (int page = 0; page < pageCount; page++) {
+				final int from = page * LEGACY_RANGE_PAGE_SIZE;
+				final int to = Math.min(from + LEGACY_RANGE_PAGE_SIZE, rangePoints.length);
+				final TransactionalRangePoint[] pagePoints = new TransactionalRangePoint[to - from];
+				System.arraycopy(rangePoints, from, pagePoints, 0, to - from);
+				pageSequences[page] = page;
+				parts.add(
+					new HistogramRangeIndexLeafPagePart(ENTITY_INDEX_PK, HISTOGRAM_NAME, null, page, pagePoints)
+				);
+			}
+			parts.add(
+				new HistogramIndexStoragePart(
+					ENTITY_INDEX_PK, HISTOGRAM_NAME, null, valueType, buckets, null, 0,
+					false, -1, new int[0],
+					true, pageCount - 1, pageSequences,
+					null
+				)
+			);
+			return parts;
 		}
 	}
 
@@ -1037,6 +1574,62 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Builds the ordinal's distinct `DateTimeRange`, an hour wide, at a zone offset varying with the ordinal. The
+	 * offsets vary per ordinal on purpose: the reloaded leaf column stores only the two comparison longs, so a
+	 * reload that mishandled the derivation would move the instants without moving anything an `equals`-based
+	 * parity assertion can see.
+	 *
+	 * Ordinals map to strictly ascending `getFrom()` instants: the moment advances a full hour (3600 s) per ordinal,
+	 * and the offset trails that within each five-ordinal cycle (steps of 1800 s) and overshoots it at the cycle's
+	 * wrap (a 7200 s swing the other way) — either way `instant = moment − offset` keeps climbing, so bucket order
+	 * is ordinal order and the ranges double as a reload oracle.
+	 *
+	 * @param ordinal the ordinal to derive the range from
+	 * @return an ascending, deterministic date-time range
+	 */
+	@Nonnull
+	private static DateTimeRange dateTimeRange(int ordinal) {
+		final ZoneOffset offset = ZoneOffset.ofTotalSeconds((ordinal % 5 - 2) * 1800);
+		final LocalDateTime moment = LocalDateTime.of(2024, 1, 1, 0, 0).plusHours(ordinal);
+		return DateTimeRange.between(moment.atOffset(offset), moment.plusHours(1).atOffset(offset));
+	}
+
+	/**
+	 * Re-renders a range with both of its bounds moved to UTC, naming the very same two instants. This is the form
+	 * the reloaded leaf column rebuilds a `DateTimeRange` key in — its two comparison longs identify instants and
+	 * carry no offset — so it is the oracle a reload's instants are checked against.
+	 *
+	 * @param range the range to re-render
+	 * @return the same two instants, both expressed at UTC
+	 */
+	@Nonnull
+	private static DateTimeRange atUtc(@Nonnull DateTimeRange range) {
+		return DateTimeRange.between(
+			Objects.requireNonNull(range.getPreciseFrom()).withOffsetSameInstant(ZoneOffset.UTC),
+			Objects.requireNonNull(range.getPreciseTo()).withOffsetSameInstant(ZoneOffset.UTC)
+		);
+	}
+
+	/**
+	 * Builds the ordinal's distinct `BigDecimalNumberRange`, three quarters of a unit wide, at
+	 * {@link #BIG_DECIMAL_SCALE}. The scale is what the reloaded leaf column has to rebuild the precise bounds at —
+	 * the two comparison longs it stores carry no scale of their own, so a reload that lost it is invisible to every
+	 * equality, ordering and range-overlap assertion.
+	 *
+	 * Ordinals map to strictly ascending `getFrom()` thresholds — the lower bound advances a whole unit per ordinal
+	 * while the range spans three quarters of one — so bucket order is ordinal order and the ranges double as a
+	 * reload oracle.
+	 *
+	 * @param ordinal the ordinal to derive the range from
+	 * @return an ascending, deterministic big decimal range
+	 */
+	@Nonnull
+	private static BigDecimalNumberRange bigDecimalRange(int ordinal) {
+		final BigDecimal from = BigDecimal.valueOf(ordinal * 100L + 5L, BIG_DECIMAL_SCALE);
+		return BigDecimalNumberRange.between(from, from.add(new BigDecimal("0.75")), BIG_DECIMAL_SCALE);
+	}
+
+	/**
 	 * Builds a fresh non-localized histogram under the given name, paged across several bucket leaves — used to place
 	 * two independently-paged histograms in a single owning map.
 	 */
@@ -1081,13 +1674,30 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 	 * range-typed histogram, exercising the reassembled range axis.
 	 */
 	private static void assertSameRangeQueries(@Nonnull HistogramIndex expected, @Nonnull HistogramIndex actual) {
+		assertSameRangeQueries(
+			expected, actual,
+			new long[][]{
+				{1L, 5L}, {100L, 105L}, {1000L, 1000L}, {VALUE_COUNT - 3L, VALUE_COUNT + 1L}, {0L, VALUE_COUNT + 100L}
+			}
+		);
+	}
+
+	/**
+	 * Asserts the supplied range-overlap probes return the identical record ids against the source and the reloaded
+	 * range-typed histogram. The probes are a parameter because a threshold is whatever the indexed range type
+	 * encodes to — small integers for an `IntegerNumberRange` histogram, epoch seconds for a `DateTimeRange` one.
+	 *
+	 * @param expected the source histogram
+	 * @param actual   the reloaded histogram
+	 * @param probes   the `(from, to)` threshold pairs to probe with
+	 */
+	private static void assertSameRangeQueries(
+		@Nonnull HistogramIndex expected, @Nonnull HistogramIndex actual, @Nonnull long[][] probes
+	) {
 		final FilterIndex expectedFilter = expected.getFilterIndex(null);
 		final FilterIndex actualFilter = actual.getFilterIndex(null);
 		assertNotNull(expectedFilter, "the source range histogram must expose a filter index");
 		assertNotNull(actualFilter, "the reloaded range histogram must expose a filter index");
-		final long[][] probes = {
-			{1L, 5L}, {100L, 105L}, {1000L, 1000L}, {VALUE_COUNT - 3L, VALUE_COUNT + 1L}, {0L, VALUE_COUNT + 100L}
-		};
 		for (final long[] probe : probes) {
 			final Bitmap expectedRecords = expectedFilter.getRecordsOverlapping(probe[0], probe[1]);
 			final Bitmap actualRecords = actualFilter.getRecordsOverlapping(probe[0], probe[1]);
@@ -1138,7 +1748,30 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 		long catalogVersion,
 		@Nonnull String histogramName
 	) {
-		final StoragePartPersistenceService<StorageDescriptor> service = new OffsetIndexReadService(offsetIndex);
+		return reloadThroughLoader(offsetIndex, manifestKeys, catalogVersion, histogramName, false);
+	}
+
+	/**
+	 * Reloads a histogram through the production loader, optionally presenting every histogram root as one a
+	 * backward-compatible serializer decoded — which is what routes the legacy threshold rescale.
+	 *
+	 * @param offsetIndex                     the store the loader reads from
+	 * @param manifestKeys                    the histogram sub-index keys the manifest advertises
+	 * @param catalogVersion                  the catalog version to read at
+	 * @param histogramName                   the histogram the caller wants back
+	 * @param markSecondGranularityThresholds whether the roots are presented as second-granularity
+	 * @return the reconstructed histogram
+	 */
+	@Nonnull
+	private static HistogramIndex reloadThroughLoader(
+		@Nonnull OffsetIndex offsetIndex,
+		@Nonnull Set<HistogramIndexStorageKey> manifestKeys,
+		long catalogVersion,
+		@Nonnull String histogramName,
+		boolean markSecondGranularityThresholds
+	) {
+		final StoragePartPersistenceService<StorageDescriptor> service =
+			new OffsetIndexReadService(offsetIndex, markSecondGranularityThresholds);
 		final LoadedComponentBundle bundle = new HistogramIndexMapLoader().load(
 			loadContext(service, manifestKeys, catalogVersion)
 		);
@@ -1364,16 +1997,40 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 	 * Thin READ-ONLY {@link StoragePartPersistenceService} over a real {@link OffsetIndex}: it forwards the only two
 	 * methods the loader calls — {@link #getStoragePart} and {@link #getReadOnlyKeyCompressor} — straight to the real
 	 * store and fails loudly on everything else.
+	 *
+	 * `markSecondGranularityThresholds` reproduces the one thing a round trip through the CURRENT serializer cannot
+	 * produce: the read-path provenance mark that says a part was decoded by a backward-compatible reader. Only such
+	 * a reader ever sets it (see {@code HistogramIndexStoragePartSerializer_2026_2.read}), and the current writer has
+	 * no way to persist it — so a legacy catalog is reproduced by writing legacy-scaled thresholds through the real
+	 * store and stamping the mark here, on the same object and at the same point in the read the serializer would.
+	 *
+	 * @param offsetIndex                    the real store to read from
+	 * @param markSecondGranularityThresholds whether every histogram root read is marked as carrying
+	 *                                       second-granularity range thresholds
 	 */
-	private record OffsetIndexReadService(@Nonnull OffsetIndex offsetIndex)
-		implements StoragePartPersistenceService<StorageDescriptor> {
+	private record OffsetIndexReadService(
+		@Nonnull OffsetIndex offsetIndex, boolean markSecondGranularityThresholds
+	) implements StoragePartPersistenceService<StorageDescriptor> {
+
+		/**
+		 * A plain read-only view: every part comes back exactly as the current serializer wrote it.
+		 *
+		 * @param offsetIndex the real store to read from
+		 */
+		private OffsetIndexReadService(@Nonnull OffsetIndex offsetIndex) {
+			this(offsetIndex, false);
+		}
 
 		@Nullable
 		@Override
 		public <T extends StoragePart> T getStoragePart(
 			long catalogVersion, long storagePartPk, @Nonnull Class<T> containerType
 		) {
-			return this.offsetIndex.get(catalogVersion, storagePartPk, containerType);
+			final T part = this.offsetIndex.get(catalogVersion, storagePartPk, containerType);
+			if (this.markSecondGranularityThresholds && part instanceof HistogramIndexStoragePart root) {
+				root.setSecondGranularityRangeThresholds(true);
+			}
+			return part;
 		}
 
 		@Nonnull

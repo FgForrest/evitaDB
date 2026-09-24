@@ -888,6 +888,21 @@ The principle does transfer in one direction: future sub-capabilities *of the fu
 (suggester participation, vectors) belong inside the search profile — variant C's container for exactly
 this — not as sibling flags beside `searchable()`.
 
+**Correction (2026-08-31): the premise of the paragraph above no longer holds, and the conclusion is
+stronger for it.** Substring did *not* stay folded into `filterable(...)`. It moved onto its own builder
+axis — `acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)` — because the third leg of the
+discriminator turned out to be false for it: substring *can* exist without `filterable`. A foldable
+`unique` attribute has no separate unique store, its values live in the same shared filter tree, and the
+2026-08-25 shape refused to let anyone name that structure. The fold had bound the accelerator to the
+flag that happened to produce the index rather than to the index itself.
+
+So the discriminator survives, with its third leg read more carefully — "cannot exist without the *host
+flag*" is the wrong test; "cannot exist without the *structure the host flag provides*" is the right one,
+and substring failed the first while passing the second. `searchable` still fails on all three legs, and
+now fails the first one in the same way substring did: it exists without `filterable`, and that is its
+normal case. Nothing in the rejection of folding `searchable` needs revisiting — only the example that
+was cited in its support. See the 2026-08-31 decision row in the record's README.
+
 ### 5.5 The complete set of methods of the recommended variant
 
 The snippets above show only ordinary usage. Because the choice of variant per S1 is practically

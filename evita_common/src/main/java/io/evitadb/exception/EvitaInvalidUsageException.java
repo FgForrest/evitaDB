@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,10 +23,10 @@
 
 package io.evitadb.exception;
 
-import io.evitadb.utils.StringUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 
 /**
@@ -40,7 +40,15 @@ public class EvitaInvalidUsageException extends IllegalArgumentException impleme
 	@Serial private static final long serialVersionUID = 2004640911160330154L;
 
 	@Getter private final String publicMessage;
-	@Getter private final String errorCode;
+	/**
+	 * Lazily resolved {@link #getErrorCode()} - see the identical field on {@link EvitaInternalError} for why it is
+	 * computed on first read and why the data race on it is benign. Client-side exceptions are constructed on
+	 * ordinary rejection paths, so keeping the stack walk and two MD5 hashes off construction matters most here.
+	 *
+	 * Non-null from construction only when the code was supplied explicitly, which happens when an exception is
+	 * rebuilt on the client from data that crossed the wire.
+	 */
+	@Nullable private String errorCode;
 
 	/**
 	 * Method is targeted to be used on the client.
@@ -53,27 +61,25 @@ public class EvitaInvalidUsageException extends IllegalArgumentException impleme
 	public EvitaInvalidUsageException(@Nonnull String privateMessage, @Nonnull String publicMessage) {
 		super(privateMessage);
 		this.publicMessage = publicMessage;
-		final StackTraceElement stackTraceElement = getProperStackLine();
-		this.errorCode = StringUtils.hashChars(stackTraceElement.getClassName()) + ":" +
-			StringUtils.hashChars(stackTraceElement.getMethodName()) + ":" +
-			stackTraceElement.getLineNumber();
 	}
 
 	public EvitaInvalidUsageException(@Nonnull String publicMessage) {
-		this(publicMessage, publicMessage);
+		// deliberately calls `super(...)` rather than delegating to the two-argument constructor - see the note on
+		// constructor delegation at the bottom of this class
+		super(publicMessage);
+		this.publicMessage = publicMessage;
 	}
 
 	public EvitaInvalidUsageException(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause) {
 		super(privateMessage, cause);
 		this.publicMessage = publicMessage;
-		final StackTraceElement stackTraceElement = getProperStackLine();
-		this.errorCode = StringUtils.hashChars(stackTraceElement.getClassName()) + ":" +
-			StringUtils.hashChars(stackTraceElement.getMethodName()) + ":" +
-			stackTraceElement.getLineNumber();
 	}
 
 	public EvitaInvalidUsageException(@Nonnull String publicMessage, @Nonnull Throwable cause) {
-		this(publicMessage, publicMessage, cause);
+		// deliberately calls `super(...)` rather than delegating to the three-argument constructor - see the note on
+		// constructor delegation at the bottom of this class
+		super(publicMessage, cause);
+		this.publicMessage = publicMessage;
 	}
 
 	private EvitaInvalidUsageException(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull String errorCode) {
@@ -88,13 +94,28 @@ public class EvitaInvalidUsageException extends IllegalArgumentException impleme
 		return getMessage();
 	}
 
-	private StackTraceElement getProperStackLine() {
-		final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
-		int index = 1;
-		while (index < stackTrace.length && this.getClass().getName().equals(stackTrace[index].getClassName())) {
-			index++;
+	@Nonnull
+	@Override
+	public String getErrorCode() {
+		String theErrorCode = this.errorCode;
+		if (theErrorCode == null) {
+			theErrorCode = ErrorCodeResolver.resolveErrorCode(this);
+			this.errorCode = theErrorCode;
 		}
-		return stackTrace[index];
+		return theErrorCode;
 	}
+
+	/*
+	 * ## No constructor of this class may delegate to another one
+	 *
+	 * The observability agent (`ErrorMonitoringAgent`) counts every client error by instrumenting the constructors
+	 * of this class - the single root that all 122 concrete client-error types pass through exactly once. That
+	 * "exactly once" holds only while no constructor here calls `this(...)`: a delegating constructor enters two
+	 * instrumented constructors for one object, and `io_evitadb_client_errors_total` silently counts it twice. That
+	 * is precisely what used to happen here, and it went unnoticed because nothing fails - the number is merely
+	 * wrong.
+	 *
+	 * `EvitaErrorMonitoringTest` fails if this is reintroduced.
+	 */
 
 }

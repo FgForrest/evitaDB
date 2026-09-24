@@ -31,10 +31,16 @@ import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatisti
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 
+import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.require.Require;
+import io.evitadb.api.query.require.ReferenceSummaryOfReference;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * {@link ReferenceSummaryResultAdapter} implementation that emits the canonical
@@ -84,6 +90,17 @@ public final class ReferenceSummaryAdapter implements ReferenceSummaryResultAdap
 		@Nonnull Map<String, Collection<ReferenceGroupStatistics>> statisticsByReferenceName
 	) {
 		return new ReferenceSummary(statisticsByReferenceName);
+	}
+
+	@Nonnull
+	@Override
+	public Set<String> collectReferenceSpecificNames(@Nullable Require require) {
+		return require == null ?
+			Set.of() :
+			QueryUtils.findConstraints(require, ReferenceSummaryOfReference.class)
+				.stream()
+				.map(ReferenceSummaryOfReference::getReferenceName)
+				.collect(Collectors.toSet());
 	}
 
 }

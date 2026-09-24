@@ -23,16 +23,13 @@
 
 package io.evitadb.index.attribute;
 
+import io.evitadb.core.transaction.memory.AbstractSavepointFuzzTest;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -41,7 +38,6 @@ import java.util.Random;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertSavepointCommitKeeps;
 import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
@@ -63,52 +59,26 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * verification proves the restore left no dangling layer. The run is time-bounded; the random seed is echoed on failure
  * for deterministic reproduction.
  *
+ * The scenario is declared once and run by {@link AbstractSavepointFuzzTest} in BOTH phases: the transactional
+ * savepoint described above, and the WARM_UP savepoint where the same writes land straight on the delegate
+ * structures and are rewound from the inverses they journal themselves. See that class for the shape of one
+ * generation, for the mid-savepoint read every case is asserted through, and for why the warm-up half runs
+ * exclusively.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("ChainIndex savepoint rollback/commit backfill (generational fuzz)")
 @Tag(INDEXING)
 @Tag(ATTRIBUTE)
 @Tag(TRANSACTION)
-class LongRunningSavepointChainIndexTest implements TimeBoundedTestSupport {
+class LongRunningSavepointChainIndexTest extends AbstractSavepointFuzzTest<List<Integer>> {
 	private static final int CHAIN_SIZE = 24;
 	private static final int MAX_OPS = 10;
 
-	@ParameterizedTest(name = "Savepoint rollback restores the exact pre-savepoint chain order")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Savepoint rollback restores the exact pre-savepoint chain order")
-	void shouldRollBackChainIndex(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final ChainState state = new ChainState(CHAIN_SIZE);
-			assertSavepointRollbackRestores(
-				state.index,
-				tested -> state.applyRandomMoves(random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningSavepointChainIndexTest::chainContents,
-				tested -> {
-					// a guaranteed reordering move makes the in-savepoint batch non-vacuous
-					state.forceReorder();
-					state.applyRandomMoves(random, 1 + random.nextInt(MAX_OPS));
-				}
-			);
-			return iteration + 1;
-		});
-	}
-
-	@ParameterizedTest(name = "Savepoint commit keeps the in-savepoint chain order")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Savepoint commit keeps the in-savepoint chain order")
-	void shouldCommitChainIndex(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final ChainState state = new ChainState(CHAIN_SIZE);
-			assertSavepointCommitKeeps(
-				state.index,
-				tested -> state.applyRandomMoves(random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningSavepointChainIndexTest::chainContents,
-				tested -> state.applyRandomMoves(random, 1 + random.nextInt(MAX_OPS))
-			);
-			return iteration + 1;
-		});
+	@Nonnull
+	@Override
+	protected FuzzGeneration<List<Integer>> newGeneration(@Nonnull Random random) {
+		return new ChainState(CHAIN_SIZE);
 	}
 
 	@Test
@@ -127,8 +97,8 @@ class LongRunningSavepointChainIndexTest implements TimeBoundedTestSupport {
 			tested -> rollbackState.applyRandomMoves(rollbackRandom, 1 + rollbackRandom.nextInt(MAX_OPS)),
 			LongRunningSavepointChainIndexTest::chainContents,
 			tested -> {
-				rollbackState.forceReorder();
 				rollbackState.applyRandomMoves(rollbackRandom, 1 + rollbackRandom.nextInt(MAX_OPS));
+				rollbackState.insertMarkerElement();
 			}
 		);
 
@@ -140,8 +110,8 @@ class LongRunningSavepointChainIndexTest implements TimeBoundedTestSupport {
 			tested -> commitState.applyRandomMoves(commitRandom, 1 + commitRandom.nextInt(MAX_OPS)),
 			LongRunningSavepointChainIndexTest::chainContents,
 			tested -> {
-				commitState.forceReorder();
 				commitState.applyRandomMoves(commitRandom, 1 + commitRandom.nextInt(MAX_OPS));
+				commitState.insertMarkerElement();
 			}
 		);
 	}
@@ -165,7 +135,7 @@ class LongRunningSavepointChainIndexTest implements TimeBoundedTestSupport {
 	 * generated that keep the chain consistent. The initial single chain `1..N` is built outside any transaction; moves
 	 * are applied to the index (and mirrored in the model) within the framework's transaction.
 	 */
-	private static final class ChainState {
+	private static final class ChainState implements FuzzGeneration<List<Integer>> {
 		private final int size;
 		private final ChainIndex index = new ChainIndex(new AttributeIndexKey(null, "a", null));
 		private final int[] pred;
@@ -174,14 +144,43 @@ class LongRunningSavepointChainIndexTest implements TimeBoundedTestSupport {
 
 		ChainState(int size) {
 			this.size = size;
-			this.pred = new int[size + 1];
-			this.succ = new int[size + 1];
+			// one slot beyond the chain for the reserved marker element appended by insertMarkerElement()
+			this.pred = new int[size + 2];
+			this.succ = new int[size + 2];
 			this.head = 1;
 			for (int pk = 1; pk <= size; pk++) {
 				this.pred[pk] = pk - 1;
 				this.succ[pk] = pk == size ? 0 : pk + 1;
 				this.index.upsertPredecessor(pk == 1 ? Predecessor.HEAD : new Predecessor(pk - 1), pk);
 			}
+		}
+
+		@Nonnull
+		@Override
+		public TransactionalStateProducer<?> subject() {
+			return this.index;
+		}
+
+		@Nonnull
+		@Override
+		public List<Integer> contents() {
+			return LongRunningSavepointChainIndexTest.chainContents(this.index);
+		}
+
+		@Override
+		public void applyBaselineOperations(@Nonnull Random random) {
+			applyRandomMoves(random, 1 + random.nextInt(MAX_OPS));
+		}
+
+		@Override
+		public void applySavepointOperations(@Nonnull Random random) {
+			applyRandomMoves(random, 1 + random.nextInt(MAX_OPS));
+			// applied LAST, and an INSERT rather than a move: a reordering marker is not a guarantee at all, because
+			// the random moves preceding it can leave the chain one move away from the pre-savepoint order and the
+			// marker then puts it right back - which is exactly what the harness's mid-savepoint read caught. A brand
+			// new element outside the 1..size range the moves draw from changes the chain's length, so it cannot be
+			// undone by anything in the batch
+			insertMarkerElement();
 		}
 
 		/**
@@ -202,15 +201,21 @@ class LongRunningSavepointChainIndexTest implements TimeBoundedTestSupport {
 		}
 
 		/**
-		 * Performs one guaranteed-reordering move: relocate the tail element to the chain head.
+		 * Applies one guaranteed-visible change: prepends a brand-new element whose primary key sits outside the
+		 * `1..size` range the random moves draw from, so nothing in the batch can move it or take it back out.
 		 */
-		void forceReorder() {
-			int tail = this.head;
-			while (tail != 0 && this.succ[tail] != 0) {
-				tail = this.succ[tail];
+		void insertMarkerElement() {
+			final int markerPk = this.size + 1;
+			final int oldHead = this.head;
+			this.pred[markerPk] = 0;
+			this.succ[markerPk] = oldHead;
+			this.head = markerPk;
+			if (oldHead != 0) {
+				this.pred[oldHead] = markerPk;
 			}
-			if (tail != 0 && this.pred[tail] != 0) {
-				move(tail, 0);
+			this.index.upsertPredecessor(Predecessor.HEAD, markerPk);
+			if (oldHead != 0) {
+				this.index.upsertPredecessor(new Predecessor(markerPk), oldHead);
 			}
 		}
 

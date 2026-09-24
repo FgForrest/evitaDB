@@ -4,14 +4,6 @@
   "type" : "Category",
   "version" : 1,
   "scope" : "LIVE",
-  "parentEntity" : {
-    "primaryKey" : 66482,
-    "type" : "Category",
-    "parentEntity" : {
-      "primaryKey" : 66468,
-      "type" : "Category"
-    }
-  },
   "locales" : [
     "en"
   ],
@@ -59,6 +51,14 @@
   "representedCategory" : null,
   "media" : [ ],
   "tags" : [ ],
-  "products" : [ ]
+  "products" : [ ],
+  "parentEntity" : {
+    "primaryKey" : 66482,
+    "type" : "Category",
+    "parentEntity" : {
+      "primaryKey" : 66468,
+      "type" : "Category"
+    }
+  }
 }
 ```

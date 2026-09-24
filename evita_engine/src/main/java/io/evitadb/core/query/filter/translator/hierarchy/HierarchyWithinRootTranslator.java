@@ -94,6 +94,7 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 						hierarchyWithinRoot,
 						() -> createFormulaFromHierarchyIndex(
 							createAndStoreHavingPredicate(
+								hierarchyWithinRoot,
 								null,
 								queryContext,
 								scopesToLookup,

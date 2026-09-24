@@ -43,11 +43,14 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
+import io.evitadb.index.invertedIndex.ValueLifecycleSink;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.range.TransactionalRangePoint;
 import io.evitadb.core.buffer.TrappedChanges;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
@@ -58,9 +61,11 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLea
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLeafPageRemoval;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NumberUtils;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -69,10 +74,14 @@ import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.text.Normalizer;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Comparator;
 import java.util.Currency;
@@ -80,6 +89,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
@@ -106,7 +116,7 @@ import static io.evitadb.utils.StringUtils.unknownToString;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @SuppressWarnings({"unchecked", "rawtypes"})
-public abstract sealed class FilterIndex implements IndexDataStructure, Serializable
+public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTouchStamped, Serializable
 	permits OwnerFilterIndex, FilterIndexView {
 	public static final Function<Object, Serializable> NO_NORMALIZATION = Serializable.class::cast;
 	static final Comparator<Comparable> DEFAULT_COMPARATOR = Comparator.naturalOrder();
@@ -116,6 +126,13 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 */
 	private static final ValueToRecordBitmap[] EMPTY_HISTOGRAM_POINTS = new ValueToRecordBitmap[0];
 	@Serial private static final long serialVersionUID = -6813305126746774103L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 	private static final String ERROR_RANGE_TYPE_NOT_SUPPORTED = "This filter index doesn't handle Range type!";
 	/**
 	 * Aggregation lambda used by {@link #getRangeHistogramOfAllRecords(Class, int)} when producing the subset's
@@ -200,21 +217,58 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 */
 	@Nonnull private final Comparator<? extends Comparable> comparator;
 	/**
-	 * This field speeds up all requests for all data in this index (which happens quite often). This formula can be
+	 * This field speeds up all requests for all data in this index (which happens quite often). This bitmap can be
 	 * computed anytime by calling `((InvertedIndex) this.histogram).getSortedRecords(null, null)`. Original operation
 	 * needs to perform costly join of all internally held bitmaps and that's why we memoize the result.
+	 *
+	 * # Only the bitmap is memoized, never the formula wrapping it
+	 *
+	 * A {@link Formula} node carries **per-query** state:
+	 * {@link io.evitadb.core.query.algebra.AbstractFormula#initialize(io.evitadb.core.query.QueryExecutionContext)}
+	 * writes the executing query's context onto every node of the plan it is part of, and that context transitively
+	 * reaches the {@link io.evitadb.api.EvitaSessionContract} and the entire catalog generation the query ran
+	 * against. A formula held for the lifetime of this index would therefore pin the first session that ever used
+	 * it — and everything that session reached — until the index is written to again, which on a read-mostly index
+	 * is never.
+	 *
+	 * Memoizing the bitmap keeps the expensive part — the join of all internally held bitmaps — and the
+	 * {@link ConstantFormula} built around it per call is a handful of bytes over the shared bitmap.
+	 *
+	 * What keeps that cheap in CPU as well is where the formula's cache key comes from. Once the value tree holds
+	 * more than one bucket the memoized bitmap is a `BaseBitmap`, which is not a
+	 * {@link io.evitadb.core.transaction.memory.TransactionalLayerProducer} and so has no transactional id to key
+	 * on; `ConstantFormula#includeAdditionalHash` falls through to hashing its **contents**, eagerly, in the
+	 * constructor. That would be `O(records)` on every call — measured at roughly 1.4 µs for 1k records, 83 µs for
+	 * 100k and 309 µs for 500k — were the hash not memoized on the bitmap itself. It is: because this field hands
+	 * out the same `BaseBitmap` instance every time, {@link Bitmap#getContentHash} computes the walk once and every
+	 * later formula reads it back. Replacing this bitmap with a per-call copy would silently reinstate that cost.
+	 * See `documentation/adr/2026-08-28-index-lifetime-formula-memoization.md`.
+	 *
+	 * Do not turn this back into a `Formula` field.
 	 */
-	@Nullable private transient Formula memoizedAllRecordsFormula;
+	@Nullable private transient Bitmap memoizedAllRecords;
 	/**
 	 * Memoized result of {@link #getRangeHistogramOfAllRecords(Class, int)}. The cached subset is keyed implicitly
 	 * by the leaf's {@link RangeIndex} state — the steady-state query path against an unchanged leaf pays zero
 	 * allocation. Set to `null` whenever the index is mutated outside a transaction (mirrors
-	 * {@link #memoizedAllRecordsFormula}); the merged-transactional copy starts fresh.
+	 * {@link #memoizedAllRecords}); the merged-transactional copy starts fresh.
 	 *
 	 * The inner numeric type passed by callers is invariant for a given leaf — it is derived from
 	 * {@link #attributeType} via {@link EvitaDataTypes#resolveRangeInnerNumericType(Class)} — so it does not
 	 * need to be tracked alongside the cached subset; a fail-fast assertion in
 	 * {@link #getRangeHistogramOfAllRecords(Class, int)} guards against schema/index drift.
+	 *
+	 * # {@link InvertedIndexSubSet#getFormula()} must never be called on this subset
+	 *
+	 * This is the one subset in the codebase that lives as long as its index, and
+	 * {@link InvertedIndexSubSet#getFormula()} memoizes the formula it builds. Calling it here would park a
+	 * query-lifetime formula node in an index-lifetime structure and pin the calling session's whole catalog
+	 * generation — the leak {@link #memoizedAllRecords} documents. Its only consumer,
+	 * `AttributeHistogramComputer`, reads {@link InvertedIndexSubSet#getBuckets()} instead, which is stateless.
+	 *
+	 * The bitmap treatment applied to {@link #memoizedAllRecords} is not available here: the subset's aggregation
+	 * lambda may legitimately return a lazy `DeferredFormula`, so materializing a bitmap eagerly would change
+	 * behaviour rather than preserve it.
 	 */
 	@Nullable private transient InvertedIndexSubSet memoizedRangeHistogramSubSet;
 
@@ -249,10 +303,19 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 *
 	 * `BigDecimal` values are normalized to an order-preserving scaled `int` (respecting the schema's
 	 * `indexedDecimalPlaces`) so the value tree stores them in the compact `IntValueColumn`. Temporal values
-	 * (`OffsetDateTime` and `LocalDateTime`, the latter anchored at UTC) are normalized to an `Instant` so the tree
-	 * stores them in the parallel-array `InstantValueColumn` rather than boxing them. The normalizer is
-	 * idempotent: an already-normalized value (and `null`) passes through unchanged, so a value may be normalized
-	 * more than once on a probe→lookup path without a `ClassCastException`.
+	 * (`OffsetDateTime` and `LocalDateTime`, the latter anchored at UTC) are normalized to a **millisecond-exact**
+	 * `Instant` so the tree stores them in the single-`long` `LongValueColumn` rather than boxing them. The
+	 * normalizer is idempotent: an already-normalized value (and `null`) passes through unchanged, so a value may be
+	 * normalized more than once on a probe→lookup path without a `ClassCastException`.
+	 *
+	 * **The millisecond truncation here is not redundant with the one `EvitaDataTypes` applies, and neither may be
+	 * removed in favour of the other.** That one canonicalizes every temporal value entering through the API — through
+	 * `toSupportedStoredTypeOrItsArray` on the write path and `toSupportedType` on the query path, two entry points
+	 * over one truncating implementation — so what a client stores and what a client filters by agree. This one
+	 * canonicalizes the *index key*, whatever its provenance — including a bucket value rehydrated from a catalog
+	 * written before millisecond truncation existed, which never passes through the API boundary at all. Together
+	 * they are what makes `LongKeyCodec#INSTANT` a true bijection on the domain the tree actually sees; drop either
+	 * and an instant carrying sub-millisecond digits reaches a codec that silently floors it.
 	 *
 	 * @param attributeType        type of the attribute
 	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values to a scaled `int`; ignored
@@ -265,17 +328,21 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		int indexedDecimalPlaces
 	) {
 		if (OffsetDateTime.class.isAssignableFrom(attributeType)) {
-			return comparable -> comparable instanceof OffsetDateTime offsetDateTime
-				? offsetDateTime.toInstant()
-				: (Serializable) comparable;
+			return FilterIndex::toMillisecondInstant;
 		} else if (LocalDateTime.class.isAssignableFrom(attributeType)) {
-			// a local date time has no offset of its own, so it is anchored at UTC - a *constant* offset, which makes
-			// the mapping a lossless bijection AND monotonic with `LocalDateTime`'s natural order, so bucket lookup and
-			// ordered iteration are unaffected. This is purely the index encoding: the schema keeps declaring
-			// `LocalDateTime`, and the value handed back to the client comes from `AttributesStoragePart`, not here
-			return comparable -> comparable instanceof LocalDateTime localDateTime
-				? localDateTime.toInstant(ZoneOffset.UTC)
-				: (Serializable) comparable;
+			// a local date time has no offset of its own, so it is anchored at UTC - a *constant* offset, so the
+			// ANCHORING is a lossless bijection and monotonic with `LocalDateTime`'s natural order, and bucket lookup
+			// and ordered iteration are unaffected. (The millisecond truncation that follows it is deliberately lossy
+			// and applies to every temporal branch alike - see this method's javadoc.) This is purely the index
+			// encoding: the schema keeps declaring `LocalDateTime`, and the value handed back to the client comes
+			// from `AttributesStoragePart`, not here
+			return FilterIndex::toUtcAnchoredMillisecondInstant;
+		} else if (LocalTime.class.isAssignableFrom(attributeType)) {
+			// a local time keeps its declared type - `LongKeyCodec.LOCAL_TIME` already encodes it losslessly as
+			// nano-of-day - so only the millisecond truncation applies. Without this branch the type fell through to
+			// NO_NORMALIZATION while every query probe was still cut to milliseconds at the data-type boundary, so a
+			// value written before that truncation existed kept a nanosecond-exact key that no probe could ever match
+			return FilterIndex::toMillisecondLocalTime;
 		} else if (Currency.class.isAssignableFrom(attributeType)) {
 			return comparable -> comparable instanceof Currency currency
 				? new ComparableCurrency(currency)
@@ -316,6 +383,132 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	}
 
 	/**
+	 * Returns the type an index key of `attributeType` actually has once {@link #getNormalizer(Class, int)} has
+	 * canonicalized it — which for several attribute types is **not** `attributeType` itself: a `BigDecimal` is
+	 * encoded as a scaled {@link Integer}, the two date-time types are anchored to an {@link Instant}, and
+	 * `Currency` / `Locale` are wrapped in their order-defining counterparts.
+	 *
+	 * This exists so that anything validating or declaring the *stored key* type reads the mapping from the same
+	 * place the normalizer is defined. Keeping the two side by side is the point: they are a matched pair, and a
+	 * type added to one branch and forgotten in the other silently rejects (or silently mis-declares) a value the
+	 * normalizer legitimately produces.
+	 *
+	 * @param attributeType declared type of the attribute
+	 * @return the type its normalized index key has
+	 */
+	@Nonnull
+	public static Class<?> getNormalizedKeyType(@Nonnull Class<?> attributeType) {
+		if (OffsetDateTime.class.isAssignableFrom(attributeType) || LocalDateTime.class.isAssignableFrom(attributeType)) {
+			return Instant.class;
+		} else if (Currency.class.isAssignableFrom(attributeType)) {
+			return ComparableCurrency.class;
+		} else if (Locale.class.isAssignableFrom(attributeType)) {
+			return ComparableLocale.class;
+		} else if (BigDecimal.class.isAssignableFrom(attributeType)) {
+			return Integer.class;
+		} else {
+			// every remaining branch of `getNormalizer` is type-preserving: `LocalTime` is only truncated, `String`
+			// is only re-composed to NFD, a `BigDecimalNumberRange` is rebuilt as a range, and the rest pass through
+			return attributeType;
+		}
+	}
+
+	/**
+	 * Cuts a {@link LocalTime} index key to whole milliseconds, leaving anything else untouched.
+	 *
+	 * Unlike the two date-time branches this performs no re-anchoring: `LocalTime` keeps its declared type all the way
+	 * to {@link io.evitadb.index.bPlusTree.LongKeyCodec#LOCAL_TIME}, which encodes nano-of-day and is injective, so the
+	 * truncation is the only thing the key needs.
+	 *
+	 * It is what makes a legacy catalog's keys reachable again. Reload runs every persisted value through this
+	 * normalizer, so two values that differed only below the millisecond now collapse onto one key and are merged by
+	 * the comparator-based collision repair before the tree's ascending checks ever see them - the same path that
+	 * already handles sub-millisecond `Instant` twins.
+	 *
+	 * @param value the value to normalize
+	 * @return the value truncated to whole milliseconds, or the value itself when it is not a `LocalTime`
+	 */
+	@Nullable
+	private static Serializable toMillisecondLocalTime(@Nullable Object value) {
+		return value instanceof LocalTime localTime ? truncateToMilliseconds(localTime) : (Serializable) value;
+	}
+
+	/**
+	 * Normalizes an `OffsetDateTime` attribute value into the millisecond-exact `Instant` the value tree keys it by.
+	 *
+	 * Accepts an `Instant` as well, and truncates that too — which is what makes the normalizer's idempotence hold
+	 * for values of *any* provenance rather than only for ones this method produced. A bucket value rehydrated from a
+	 * catalog written before millisecond truncation existed arrives here as a nano-precise `Instant`, and returning
+	 * it unchanged would push a value outside `LongKeyCodec#INSTANT`'s domain straight into the leaf column.
+	 *
+	 * @param value the raw attribute value (or an already-normalized one, or `null`)
+	 * @return the millisecond-exact instant, or the value unchanged when it is neither temporal type
+	 */
+	@Nullable
+	private static Serializable toMillisecondInstant(@Nullable Object value) {
+		if (value instanceof OffsetDateTime offsetDateTime) {
+			return truncateToMilliseconds(offsetDateTime.toInstant());
+		} else if (value instanceof Instant instant) {
+			return truncateToMilliseconds(instant);
+		} else {
+			return (Serializable) value;
+		}
+	}
+
+	/**
+	 * The `LocalDateTime` twin of {@link #toMillisecondInstant(Object)}: anchors the wall-clock value at UTC — a
+	 * *constant* offset, hence a lossless, order-preserving mapping — and truncates it to whole milliseconds.
+	 *
+	 * @param value the raw attribute value (or an already-normalized one, or `null`)
+	 * @return the millisecond-exact UTC instant, or the value unchanged when it is neither temporal type
+	 */
+	@Nullable
+	private static Serializable toUtcAnchoredMillisecondInstant(@Nullable Object value) {
+		if (value instanceof LocalDateTime localDateTime) {
+			return truncateToMilliseconds(localDateTime.toInstant(ZoneOffset.UTC));
+		} else if (value instanceof Instant instant) {
+			return truncateToMilliseconds(instant);
+		} else {
+			return (Serializable) value;
+		}
+	}
+
+	/**
+	 * Truncates an instant to whole milliseconds, discarding the sub-millisecond digits `LongKeyCodec#INSTANT` cannot
+	 * represent. Truncation is towards the millisecond *below* on both sides of the epoch (`Instant#truncatedTo`
+	 * floors), which is what keeps the mapping monotonic.
+	 *
+	 * An already-millisecond-exact instant is returned as the very same instance rather than as an equal copy: this
+	 * runs once per indexed value on the write path, and after the truncation `EvitaDataTypes` applies at the API
+	 * boundary the overwhelming majority of values are already exact.
+	 *
+	 * @param instant the instant to truncate
+	 * @return the millisecond-exact instant
+	 */
+	@Nonnull
+	private static Instant truncateToMilliseconds(@Nonnull Instant instant) {
+		return instant.getNano() % 1_000_000 == 0 ? instant : instant.truncatedTo(ChronoUnit.MILLIS);
+	}
+
+	/**
+	 * The `LocalTime` twin of {@link #truncateToMilliseconds(Instant)}: discards the sub-millisecond digits so that a
+	 * key and a query probe derived from the same wall-clock time meet.
+	 *
+	 * `LongKeyCodec#LOCAL_TIME` encodes nano-of-day and could represent the full precision, so unlike the `Instant`
+	 * branch this truncation is not forced by the codec's domain - it is what makes the index agree with the
+	 * millisecond precision every other surface already applies.
+	 *
+	 * An already-exact value is returned as the very same instance, for the same reason as its twin.
+	 *
+	 * @param value the local time to truncate
+	 * @return the millisecond-exact local time
+	 */
+	@Nonnull
+	private static LocalTime truncateToMilliseconds(@Nonnull LocalTime value) {
+		return value.getNano() % 1_000_000 == 0 ? value : value.truncatedTo(ChronoUnit.MILLIS);
+	}
+
+	/**
 	 * Returns the appropriate comparator for particular attribute type and key.
 	 *
 	 * @param attributeIndexKey key containing information about used locale
@@ -327,7 +520,9 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		@Nonnull AttributeIndexKey attributeIndexKey, @Nonnull Class<?> attributeType) {
 		final Locale locale = attributeIndexKey.locale();
 		if (String.class.isAssignableFrom(attributeType) && locale != null) {
-			return new LocalizedStringComparator(locale);
+			// the index-key flavour, NOT the plain cached collator - see the class javadoc for why bucket identity
+			// must agree with equals and why the tie-break cannot live in the shared comparator
+			return new EqualsConsistentLocalizedStringComparator(locale);
 		} else {
 			return DEFAULT_COMPARATOR;
 		}
@@ -579,12 +774,12 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 *
 	 * The memos are charged where they hold something nothing else does:
 	 *
-	 * - {@link #memoizedAllRecordsFormula} contributes its scaffolding (see
-	 *   {@link IndexHeapSize#memoizedFormulaSizeInBytes}) plus the union it wraps — but only once the value tree
-	 *   holds **more than one** bucket. With exactly one, the aggregation short-circuits and the union IS that
-	 *   bucket's own bitmap, charged already by the tree; with more, it is a bitmap this index materialized and
-	 *   nothing else holds. Leaving it out would be a shortfall that grows with the data, which is the one shape a
-	 *   deliberate divergence must never have.
+	 * - {@link #memoizedAllRecords} contributes the union it holds — but only once the value tree holds **more than
+	 *   one** bucket. With exactly one, the aggregation short-circuits and the union IS that bucket's own bitmap,
+	 *   charged already by the tree; with more, it is a bitmap this index materialized and nothing else holds.
+	 *   Leaving it out would be a shortfall that grows with the data, which is the one shape a deliberate
+	 *   divergence must never have. No formula scaffolding is charged because none is retained — the memo is the
+	 *   bitmap alone, and the {@link ConstantFormula} wrapping it is built fresh per call and dies with the query.
 	 * - {@link #memoizedRangeHistogramSubSet} contributes **in full**, buckets included. Unlike a slice off the value
 	 *   tree, the range histogram materializes a fresh {@link ValueToRecordBitmap} per range point, each carrying a
 	 *   `clone()` of the running active-set bitmap, and nothing else in the catalog holds those. On a range
@@ -596,16 +791,15 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	protected final long getSharedHeapSizeInBytes(long ownFieldBytes) {
 		final VMLayout layout = VMLayout.current();
 		// the attributeIndexKey / invertedIndex / rangeIndex / attributeType / normalizer / comparator /
-		// memoizedAllRecordsFormula / memoizedRangeHistogramSubSet slots, then the indexedDecimalPlaces int
+		// memoizedAllRecords / memoizedRangeHistogramSubSet slots, then the indexedDecimalPlaces int and the
+		// warmUpTouchStamp
 		long size = layout.sizeOfObject(
-			8L * layout.referenceSize() + Integer.BYTES + ownFieldBytes
+			8L * layout.referenceSize() + Integer.BYTES + Long.BYTES + ownFieldBytes
 		);
-		size += IndexHeapSize.memoizedFormulaSizeInBytes(this.memoizedAllRecordsFormula);
-		if (this.memoizedAllRecordsFormula instanceof final ConstantFormula unionFormula
-			&& this.invertedIndex.getBucketCount() > 1) {
+		if (this.memoizedAllRecords != null && this.invertedIndex.getBucketCount() > 1) {
 			// more than one bucket, so the memoized union was computed rather than short-circuited to a bucket's own
 			// bitmap - this index materialized it and nothing else in the catalog holds it
-			size += unionFormula.getDelegate().getHeapSizeInBytes();
+			size += this.memoizedAllRecords.getHeapSizeInBytes();
 		}
 		if (this.memoizedRangeHistogramSubSet != null) {
 			size += this.memoizedRangeHistogramSubSet.getHeapSizeInBytes(RANGE_HISTOGRAM_BUCKET_SIZER);
@@ -721,6 +915,23 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 */
 	public <T extends Serializable> void addRecord(
 		int recordId, @Nonnull Object value) throws EvitaInvalidUsageException {
+		addRecord(recordId, value, null);
+	}
+
+	/**
+	 * Value-lifecycle-reporting variant of {@link #addRecord(int, Object)}: `sink` learns about every distinct value
+	 * this write brings into existence. An array attribute may bring several into existence in one call, so the sink
+	 * may be notified more than once.
+	 *
+	 * @param recordId the ID of the record to add
+	 * @param value    the value of the record to add
+	 * @param sink     learns about the values born by this write, or `null` when nobody is interested
+	 * @param <T>      the type of the value, must implement Comparable<T>
+	 * @throws EvitaInvalidUsageException when the value is not of type Range in case of range index
+	 */
+	public <T extends Serializable> void addRecord(
+		int recordId, @Nonnull Object value, @Nullable ValueLifecycleSink sink
+	) throws EvitaInvalidUsageException {
 		// if current attribute is Range based assign record also to range index
 		if (this.rangeIndex != null) {
 			if (value instanceof Range[] valueArray) {
@@ -740,15 +951,18 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		}
 
 		if (value instanceof final Object[] valueArray) {
-			for (Object valueItem : verifyValueArray(valueArray)) {
-				this.invertedIndex.addRecord((T) valueItem, recordId);
+			// the bucket axis is a SET - see #foldOntoDistinctIndexKeys; the range companion above folds the very
+			// same write through `Range.consolidateRange`, so both axes see one contribution per distinct key
+			for (Comparable valueItem : foldOntoDistinctIndexKeys(verifyValueArray(valueArray))) {
+				this.invertedIndex.addRecord((T) valueItem, recordId, sink);
 			}
 		} else {
-			this.invertedIndex.addRecord((T) value, recordId);
+			this.invertedIndex.addRecord((T) value, recordId, sink);
 		}
 
 		if (!isTransactionAvailable()) {
-			this.memoizedAllRecordsFormula = null;
+			recordWarmUpSavepointTouch();
+			this.memoizedAllRecords = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
 		markDirty();
@@ -760,38 +974,57 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * should be only added on top of the existing value. This method makes sense only for attributes that are of the
 	 * array type.
 	 *
+	 * The delta must name each index key at most once - see {@link #assertIndexKeysAreDistinct(Comparable[], String)}.
+	 *
 	 * @param recordId the unique identifier of the record
 	 * @param value    the attribute value
 	 * @param <T>      the type of the attribute value
 	 * @throws EvitaInvalidUsageException when the value is not of type Range in case of range index
+	 * @throws GenericEvitaInternalError  when two elements of the delta canonicalize onto one index key
 	 */
 	public <T extends Serializable> void addRecordDelta(
 		int recordId, @Nonnull Object[] value) throws EvitaInvalidUsageException {
-		// if current attribute is Range based assign record also to range index
-		//noinspection VariableNotUsedInsideIf
-		if (this.rangeIndex != null) {
-			if (value instanceof Range[] valueArray) {
-				// this is quite expensive operation, but we need to do it to be able to remove and add the record;
-				// the existing ranges read back from the inverted index are already canonicalized to the index
-				// scale, so the raw delta ranges are canonicalized too before the merge so both sides share one
-				// form and consolidation collapses scale-equal duplicates (no-op for non-`BigDecimal` ranges)
-				final Range[] existingRanges = this.invertedIndex.getValuesForRecord(recordId, Range.class);
-				final Range[] aggregatedRanges = ArrayUtils.mergeArrays(existingRanges, normalizeRanges(valueArray));
+		addRecordDelta(recordId, value, null);
+	}
 
-				removeRange(recordId, existingRanges);
-				addRange(recordId, aggregatedRanges);
-			} else {
-				throw new EvitaInvalidUsageException(
-					"Value `" + unknownToString(value) + "` is expected to be Range but it is not!");
-			}
+	/**
+	 * Value-lifecycle-reporting variant of {@link #addRecordDelta(int, Object[])} — see
+	 * {@link #addRecord(int, Object, ValueLifecycleSink)} for what the sink is told.
+	 *
+	 * @param recordId the unique identifier of the record
+	 * @param value    the attribute value
+	 * @param sink     learns about the values born by this write, or `null` when nobody is interested
+	 * @param <T>      the type of the attribute value
+	 * @throws EvitaInvalidUsageException when the value is not of type Range in case of range index
+	 */
+	public <T extends Serializable> void addRecordDelta(
+		int recordId, @Nonnull Object[] value, @Nullable ValueLifecycleSink sink
+	) throws EvitaInvalidUsageException {
+		// validate the whole delta before either axis is touched, so a malformed one leaves the index untouched
+		assertRangeTypeWhenRangeIndexed(value);
+		final Comparable[] valueItems = verifyValueArray(value);
+		assertIndexKeysAreDistinct(valueItems, "added");
+
+		// if current attribute is Range based assign record also to range index
+		if (this.rangeIndex != null) {
+			// this is quite expensive operation, but we need to do it to be able to remove and add the record;
+			// the existing ranges read back from the inverted index are already canonicalized to the index
+			// scale, so the raw delta ranges are canonicalized too before the merge so both sides share one
+			// form and consolidation collapses scale-equal duplicates (no-op for non-`BigDecimal` ranges)
+			final Range[] existingRanges = this.invertedIndex.getValuesForRecord(recordId, Range.class);
+			final Range[] aggregatedRanges = ArrayUtils.mergeArrays(existingRanges, normalizeRanges((Range[]) value));
+
+			removeRange(recordId, existingRanges);
+			addRange(recordId, aggregatedRanges);
 		}
 
-		for (Object valueItem : verifyValueArray(value)) {
-			this.invertedIndex.addRecord((T) valueItem, recordId);
+		for (Comparable valueItem : valueItems) {
+			this.invertedIndex.addRecord((T) valueItem, recordId, sink);
 		}
 
 		if (!isTransactionAvailable()) {
-			this.memoizedAllRecordsFormula = null;
+			recordWarmUpSavepointTouch();
+			this.memoizedAllRecords = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
 		markDirty();
@@ -808,6 +1041,23 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 */
 	public <T extends Serializable> void removeRecord(
 		int recordId, @Nonnull Object value) throws EvitaInvalidUsageException {
+		removeRecord(recordId, value, null);
+	}
+
+	/**
+	 * Value-lifecycle-reporting variant of {@link #removeRecord(int, Object)}: `sink` learns about every distinct
+	 * value this write takes out of existence.
+	 *
+	 * @param recordId the unique identifier of the record
+	 * @param value    the attribute value
+	 * @param sink     learns about the values that died in this write, or `null` when nobody is interested
+	 * @param <T>      the type of the value
+	 * @throws EvitaInvalidUsageException when the removed record is not actually registered for the attribute or
+	 *                                    when the value is not of type Range in case of range index
+	 */
+	public <T extends Serializable> void removeRecord(
+		int recordId, @Nonnull Object value, @Nullable ValueLifecycleSink sink
+	) throws EvitaInvalidUsageException {
 		// if current attribute is Range based assign record also to range index
 		if (this.rangeIndex != null) {
 			if (value instanceof Object[]) {
@@ -831,15 +1081,19 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		}
 
 		if (value instanceof final Object[] valueArray) {
-			for (Object valueItem : verifyValueArray(valueArray)) {
-				removeRecordFromHistogramAndValueIndex(recordId, (T) valueItem);
+			// the bucket axis is a SET - see #foldOntoDistinctIndexKeys; the record joined the folded bucket once,
+			// so it leaves it once. Removing per raw element would take it out on the first colliding element and
+			// then fail the membership pre-check on the second
+			for (Comparable valueItem : foldOntoDistinctIndexKeys(verifyValueArray(valueArray))) {
+				removeRecordFromHistogramAndValueIndex(recordId, (T) valueItem, sink);
 			}
 		} else {
-			removeRecordFromHistogramAndValueIndex(recordId, (T) value);
+			removeRecordFromHistogramAndValueIndex(recordId, (T) value, sink);
 		}
 
 		if (!isTransactionAvailable()) {
-			this.memoizedAllRecordsFormula = null;
+			recordWarmUpSavepointTouch();
+			this.memoizedAllRecords = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
 		markDirty();
@@ -851,38 +1105,56 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * {@link #removeRecord(int, Object)} removes the whole value. This method makes sense only for attributes that
 	 * are of the array type.
 	 *
+	 * The delta must name each index key at most once - see {@link #assertIndexKeysAreDistinct(Comparable[], String)}.
+	 *
 	 * @param recordId the unique identifier of the record
 	 * @param value    the attribute value array
 	 * @param <T>      the type of the attribute value
 	 * @throws EvitaInvalidUsageException when the value is not of type Range in case of range index
+	 * @throws GenericEvitaInternalError  when two elements of the delta canonicalize onto one index key
 	 */
 	public <T extends Serializable> void removeRecordDelta(int recordId, @Nonnull Object[] value) {
-		// if current attribute is Range based assign record also to range index
-		//noinspection VariableNotUsedInsideIf
-		if (this.rangeIndex != null) {
-			if (value instanceof Range[] valueArray) {
-				// this is quite expensive operation, but we need to do it to be able to remove and add the record;
-				// the existing ranges read back from the inverted index are already canonicalized to the index
-				// scale, so the raw delta ranges must be canonicalized too before the set subtraction compares them
-				// by equality (no-op for non-`BigDecimal` ranges)
-				final Range[] existingRanges = this.invertedIndex.getValuesForRecord(recordId, Range.class);
-				final Range[] remainingRanges = getRemainingRanges(normalizeRanges(valueArray), existingRanges);
+		removeRecordDelta(recordId, value, null);
+	}
 
-				removeRange(recordId, existingRanges);
-				addRange(recordId, remainingRanges);
-			} else {
-				throw new EvitaInvalidUsageException(
-					"Value `" + unknownToString(value) + "` is expected to be Range but it is not!");
-			}
+	/**
+	 * Value-lifecycle-reporting variant of {@link #removeRecordDelta(int, Object[])} — see
+	 * {@link #removeRecord(int, Object, ValueLifecycleSink)} for what the sink is told.
+	 *
+	 * @param recordId the unique identifier of the record
+	 * @param value    the attribute value array
+	 * @param sink     learns about the values that died in this write, or `null` when nobody is interested
+	 * @param <T>      the type of the attribute value
+	 * @throws EvitaInvalidUsageException when the value is not of type Range in case of range index
+	 */
+	public <T extends Serializable> void removeRecordDelta(
+		int recordId, @Nonnull Object[] value, @Nullable ValueLifecycleSink sink
+	) {
+		// validate the whole delta before either axis is touched, so a malformed one leaves the index untouched
+		assertRangeTypeWhenRangeIndexed(value);
+		final Comparable[] valueItems = verifyValueArray(value);
+		assertIndexKeysAreDistinct(valueItems, "removed");
+
+		// if current attribute is Range based assign record also to range index
+		if (this.rangeIndex != null) {
+			// this is quite expensive operation, but we need to do it to be able to remove and add the record;
+			// the existing ranges read back from the inverted index are already canonicalized to the index
+			// scale, so the raw delta ranges must be canonicalized too before the set subtraction compares them
+			// by equality (no-op for non-`BigDecimal` ranges)
+			final Range[] existingRanges = this.invertedIndex.getValuesForRecord(recordId, Range.class);
+			final Range[] remainingRanges = getRemainingRanges(normalizeRanges((Range[]) value), existingRanges);
+
+			removeRange(recordId, existingRanges);
+			addRange(recordId, remainingRanges);
 		}
 
-		verifyValueArray(value);
-		for (Object valueItem : value) {
-			removeRecordFromHistogramAndValueIndex(recordId, (T) valueItem);
+		for (Comparable valueItem : valueItems) {
+			removeRecordFromHistogramAndValueIndex(recordId, (T) valueItem, sink);
 		}
 
 		if (!isTransactionAvailable()) {
-			this.memoizedAllRecordsFormula = null;
+			recordWarmUpSavepointTouch();
+			this.memoizedAllRecords = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
 		markDirty();
@@ -939,7 +1211,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * `starts` / `ends` bitmaps are still applied to the rolling active set so that records with open-ended
 	 * ranges (`from == null` / `to == null`) participate in / exit the appropriate buckets. The result is
 	 * memoized — outside transactions, repeated calls return the cached subset; on mutation the cache is
-	 * invalidated alongside {@link #memoizedAllRecordsFormula}.
+	 * invalidated alongside {@link #memoizedAllRecords}.
 	 *
 	 * Throws {@link GenericEvitaInternalError} when invoked on a filter index that has no range companion.
 	 *
@@ -1037,7 +1309,14 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 */
 	@Nonnull
 	public Bitmap getAllRecords() {
-		return getAllRecordsFormula().compute();
+		// if there is transaction open, there might be changes in the histogram data, and we can't easily use cache
+		if (isTransactionAvailable() && isDirty()) {
+			return getHistogramOfAllRecords().getFormula().compute();
+		}
+		if (this.memoizedAllRecords == null) {
+			this.memoizedAllRecords = getHistogramOfAllRecords().getFormula().compute();
+		}
+		return this.memoizedAllRecords;
 	}
 
 	/**
@@ -1048,20 +1327,13 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * raw OR-of-buckets tree from {@link InvertedIndexSubSet#getFormula()} prevents query-planner rewrites that
 	 * would otherwise distribute surrounding {@code NOT(OR(b₁..b_N), U)} via De Morgan into a wide
 	 * {@code AND(NOT b₁ ... NOT b_N)} — a transformation that explodes cost for high-cardinality indexes.
+	 *
+	 * A **fresh** formula is returned on every call. What is memoized is the bitmap behind it — see
+	 * {@link #memoizedAllRecords} for why an index must never hand out the same formula instance twice.
 	 */
 	public Formula getAllRecordsFormula() {
-		// if there is transaction open, there might be changes in the histogram data, and we can't easily use cache
-		if (isTransactionAvailable() && isDirty()) {
-			final Bitmap allRecords = getHistogramOfAllRecords().getFormula().compute();
-			return allRecords.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(allRecords);
-		} else {
-			if (this.memoizedAllRecordsFormula == null) {
-				final Bitmap allRecords = getHistogramOfAllRecords().getFormula().compute();
-				this.memoizedAllRecordsFormula = allRecords.isEmpty() ?
-					EmptyFormula.INSTANCE : new ConstantFormula(allRecords);
-			}
-			return this.memoizedAllRecordsFormula;
-		}
+		final Bitmap allRecords = getAllRecords();
+		return allRecords.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(allRecords);
 	}
 
 	/**
@@ -1242,7 +1514,8 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * dirty index whose tree spans multiple leaves emits the granular `PAGED` shape: one {@link FilterIndexLeafPagePart}
 	 * per CHANGED leaf plus the fused `PAGED` root carrying each axis's high-water and ordered live leaf-page list —
 	 * re-emitted only when an axis's page list changed (or a non-paged axis carries varying inline data); when both
-	 * axes are page-stable the root is byte-identical to disk and skipped. The leaf pages
+	 * axes are page-stable AND the bucket axis's value-id high-water mark hasn't advanced this commit, the root is
+	 * byte-identical to disk and skipped. The leaf pages
 	 * carry the sub-index identity so their stream id (and primary key) is resolved store-side at write time.
 	 *
 	 * @param entityIndexPrimaryKey the owning entity index pk
@@ -1265,7 +1538,11 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		// pages the root is nothing but two page-lists + immutable schema, so it can be skipped whenever NEITHER list
 		// changed this commit (a leaf allocated/freed) — collapsing the steady-state root cost to O(1) instead of
 		// O(live pages). An absent range (no companion) contributes nothing that varies, so it is root-stable too.
-		final boolean bucketRootStable = bucket.paged() && !bucket.listChanged();
+		// a commit can mint value ids into an existing leaf without ever allocating or freeing a page, and the root is
+		// the only place the id high-water mark lives — so a changed mark forces the root out even when both page lists
+		// are stable, or a restart would re-mint ids the leaf pages already carry
+		final boolean bucketRootStable =
+			bucket.paged() && !bucket.listChanged() && !bucket.valueIdHighWaterChanged();
 		final boolean rangeRootStable = range.rangePaged()
 			? !range.listChanged()
 			: range.inlineRangeIndex() == null;
@@ -1278,9 +1555,12 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 				entityIndexPrimaryKey, this.attributeIndexKey, this.attributeType,
 				bucket.histogramPoints(), range.inlineRangeIndex(), this.indexedDecimalPlaces,
 				bucket.paged(), bucket.highWaterPageSequence(), bucket.leafPageSequences(),
-				range.rangePaged(), range.rangeHighWaterPageSequence(), range.rangeLeafPageSequences(), null
+				range.rangePaged(), range.rangeHighWaterPageSequence(), range.rangeLeafPageSequences(),
+				bucket.nextValueId(), bucket.inlineValueIds(), null
 			)
 		);
+		// the root just written carries the current high-water mark, so the next commit that mints nothing leaves it be
+		this.invertedIndex.markValueIdHighWaterEmitted();
 	}
 
 	/**
@@ -1303,7 +1583,9 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 			final PageEmission<InvertedIndex.LeafPage> emission = this.invertedIndex.collectChangedPages();
 			for (final InvertedIndex.LeafPage page : emission.changedPages()) {
 				sink.addChangeToStore(
-					new FilterIndexLeafPagePart(entityIndexPrimaryKey, streamKey, page.pageSequence(), page.buckets())
+					new FilterIndexLeafPagePart(
+						entityIndexPrimaryKey, streamKey, page.pageSequence(), page.buckets(), page.valueIds()
+					)
 				);
 			}
 			// remove the leaf pages a merge dropped this commit so they don't leak (the OffsetIndex never reclaims an
@@ -1313,7 +1595,8 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 			}
 			return new BucketAxis(
 				EMPTY_HISTOGRAM_POINTS, true, emission.highWaterPageSequence(), emission.orderedPageSequences(),
-				emission.pageListChanged()
+				emission.pageListChanged(),
+				this.invertedIndex.getNextValueId(), null, this.invertedIndex.isValueIdHighWaterDirty()
 			);
 		}
 		// SINGLE shape: the index collapsed back to a single leaf. Remove every leaf page from its prior PAGED life
@@ -1330,7 +1613,8 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		// SINGLE: the inline histogram rides the root and can change every commit, so force the root re-emit
 		// (listChanged=true)
 		return new BucketAxis(
-			this.invertedIndex.getValueToRecordBitmap(), false, -1, ArrayUtils.EMPTY_INT_ARRAY, true
+			this.invertedIndex.getValueToRecordBitmap(), false, -1, ArrayUtils.EMPTY_INT_ARRAY, true,
+			this.invertedIndex.getNextValueId(), this.invertedIndex.getValueIds(), true
 		);
 	}
 
@@ -1395,13 +1679,21 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * @param listChanged      for a `PAGED` part, whether the live leaf-page list changed this commit (a leaf was
 	 *                         allocated or freed); meaningless (and forced `true`) for a `SINGLE` part whose inline
 	 *                         histogram always rides the root
+	 * @param nextValueId      the bucket axis's next-value-id high-water mark to persist on the root
+	 * @param inlineValueIds   the `SINGLE` part's inline value-id column, parallel to `histogramPoints`; `null` for a
+	 *                         `PAGED` part, whose value ids live in the leaf pages instead
+	 * @param valueIdHighWaterChanged whether the value-id high-water mark advanced this commit, forcing the root to
+	 *                         re-emit even when both axes are otherwise page-stable
 	 */
 	private record BucketAxis(
 		@Nonnull ValueToRecordBitmap[] histogramPoints,
 		boolean paged,
 		int highWaterPageSequence,
 		@Nonnull int[] leafPageSequences,
-		boolean listChanged
+		boolean listChanged,
+		int nextValueId,
+		@Nullable int[] inlineValueIds,
+		boolean valueIdHighWaterChanged
 	) {
 	}
 
@@ -1425,6 +1717,33 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		@Nonnull int[] rangeLeafPageSequences,
 		boolean listChanged
 	) {
+	}
+
+	/**
+	 * Records, for the warm-up savepoint bracketing the current root entity mutation if one is open, that this index's
+	 * memoized bitmaps have to be left INVALIDATED should the mutation be rolled back (see {@link WarmUpSavepoint}).
+	 *
+	 * The forward mutators already null both memos, so the state a rollback finds them in would be correct — were it
+	 * not for reads. A query executed later within the same root entity mutation (uniqueness checks and reference
+	 * cascades routinely run one) repopulates them from the HALF-MUTATED index, and that value would then survive the
+	 * rollback of the data underneath it. Re-nulling on restore is what closes that window.
+	 *
+	 * The memos are re-invalidated rather than restored to their captured pre-images on purpose: an absolute restore of
+	 * the underlying inverted index costs the memos nothing but a recomputation, whereas a captured bitmap would have
+	 * to be trusted to have been valid, which nothing here can establish.
+	 *
+	 * The touch is recorded once per savepoint - the whole cached state is these two slots, so a single re-invalidation
+	 * covers every write - and only from the non-transactional branch, since inside a transaction no warm-up savepoint
+	 * is ever open. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			savepoint.pushPostRestoreInvalidation(() -> {
+				this.memoizedAllRecords = null;
+				this.memoizedRangeHistogramSubSet = null;
+			});
+		}
 	}
 
 	/**
@@ -1508,6 +1827,118 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	}
 
 	/**
+	 * Folds an array attribute's raw elements onto the DISTINCT index keys they actually address.
+	 *
+	 * The {@link #invertedIndex} is a SET on its key axis — it holds exactly one bucket per key, and a record is in
+	 * that bucket or it is not, never in it twice. Several raw elements of one array may nevertheless address a
+	 * single bucket (two spellings of one string under NFD, two `BigDecimal`s at the same indexed scale, two
+	 * offsets denoting one instant, two strings a collator equates), and such an array does not describe the
+	 * record's key set until it has been folded.
+	 *
+	 * Leaving it unfolded is asymmetric rather than harmless: `addRecord` is idempotent per bucket, while
+	 * `removeRecord` asserts membership before it removes, so the second colliding element would find the record
+	 * already gone and fail an internal premise over perfectly valid data.
+	 *
+	 * **Two elements are one key exactly when the TREE says so.** The inverted index normalizes and then descends
+	 * a tree ordered by {@link #comparator}, so bucket identity is `comparator.compare(normalizer(a),
+	 * normalizer(b)) == 0`. This fold nevertheless compares the normalized keys with `equals`, which is exact
+	 * ONLY because every comparator this index is ever built with is consistent with equals: natural order is,
+	 * for every key class stored here (a scaled `Integer`, an `Instant`, a rescaled range whose equality is over
+	 * the very fields `compareTo` reads, a `String`), and the localized String order is made so by
+	 * {@link EqualsConsistentLocalizedStringComparator} — without whose tie-break the collation would equate
+	 * strings NFD leaves distinct and this fold would silently miss them. A comparator added here that is NOT
+	 * consistent with equals reopens exactly that hole, and would have to fold on the comparator instead.
+	 *
+	 * The RAW element is kept — the first one seen for each key — never the normalized form: the tree applies
+	 * {@link #normalizer} itself on the way in, so handing it an already-normalized value would fold the key twice
+	 * and address the wrong bucket (see {@link #removeRecordFromHistogramAndValueIndex}).
+	 *
+	 * @param values the verified raw array elements
+	 * @return `values` itself when every element already addresses its own bucket (the overwhelmingly common
+	 *         case), otherwise a shorter array holding the first raw element of each distinct key, in encounter
+	 *         order
+	 */
+	@Nonnull
+	private Comparable[] foldOntoDistinctIndexKeys(@Nonnull Comparable[] values) {
+		if (values.length < 2) {
+			return values;
+		}
+		final Set<Serializable> visitedKeys = CollectionUtils.createHashSet(values.length);
+		// the accepted elements are a prefix of `values` itself until the first collision forces a compacted copy
+		Comparable[] distinctValues = null;
+		int distinctCount = 0;
+		for (Comparable value : values) {
+			if (visitedKeys.add(this.normalizer.apply(value))) {
+				if (distinctValues != null) {
+					distinctValues[distinctCount] = value;
+				}
+				distinctCount++;
+			} else if (distinctValues == null) {
+				distinctValues = new Comparable[values.length - 1];
+				System.arraycopy(values, 0, distinctValues, 0, distinctCount);
+			}
+		}
+		return distinctValues == null ? values : Arrays.copyOf(distinctValues, distinctCount);
+	}
+
+	/**
+	 * Verifies that a delta names each index key at most once.
+	 *
+	 * A delta is not a set of contributions the way a whole-value write is — it states which keys the record is
+	 * joining or leaving *entirely*, so the same key twice is a contradiction rather than a duplicate to fold
+	 * away. Folding it would quietly accept a broken contract, and on the removal side it would still be wrong:
+	 * whether the record keeps a bucket through some element the delta does not mention is a question only the
+	 * caller's own multiplicity bookkeeping can answer (see
+	 * {@link io.evitadb.index.cardinality.AttributeCardinalityIndex}), never this index.
+	 *
+	 * Note what this does NOT catch, because no check local to this index could: a delta element whose bucket the
+	 * record still reaches through an element the delta does not mention (holding `{1.2, 1.4}` at scale 0 and
+	 * removing `{1.2}` names one key and still empties the bucket wrongly). The real contract of a bucket-axis
+	 * delta is "each element's key crosses the 0/1 boundary FOR THIS RECORD", which only the caller's own
+	 * multiplicity bookkeeping can establish. The range axis of the same two methods is self-sufficient by
+	 * contrast — it reads the record's remaining ranges back out of the index — so the asymmetry is deliberate and
+	 * must not be "harmonized" away.
+	 *
+	 * Every production caller already satisfies the contract: the delta arrays are assembled from the values whose
+	 * cardinality crossed that boundary, counted under the very same canonical key this index buckets by.
+	 *
+	 * Distinctness is measured the way {@link #foldOntoDistinctIndexKeys} measures it — by `equals` of the
+	 * normalized values, which is exact for the reason that method's javadoc gives. This delegates to the fold
+	 * rather than restating it precisely so the two can never drift apart.
+	 *
+	 * @param values    the verified raw array elements of the delta
+	 * @param operation what the delta does to the record, for the failure message
+	 * @throws GenericEvitaInternalError when two elements address one index key
+	 */
+	private void assertIndexKeysAreDistinct(@Nonnull Comparable[] values, @Nonnull String operation) {
+		if (values.length < 2) {
+			return;
+		}
+		// the fold is the definition of "distinct" - reuse it rather than restate it, and inherit its linear fast
+		// path. It returns the array it was given exactly when nothing collided
+		Assert.isPremiseValid(
+			foldOntoDistinctIndexKeys(values) == values,
+			() -> "The values being " + operation + " must address distinct index keys, but `" +
+				unknownToString(values) + "` contains elements that share one!"
+		);
+	}
+
+	/**
+	 * Guards the delta entry points against a non-`Range` array reaching a range-backed index, mirroring the check
+	 * {@link #addRecord(int, Object, ValueLifecycleSink)} performs for whole values. Hoisted out of the range
+	 * branch so it runs before either axis is mutated.
+	 *
+	 * @param value the raw delta array
+	 * @throws EvitaInvalidUsageException when this index maintains a range axis and the array is not of ranges
+	 */
+	private void assertRangeTypeWhenRangeIndexed(@Nonnull Object[] value) {
+		if (this.rangeIndex != null && !(value instanceof Range[])) {
+			throw new EvitaInvalidUsageException(
+				"Value `" + unknownToString(value) + "` is expected to be Range but it is not!");
+		}
+	}
+
+	/**
 	 * Drops a single value→record association from the backing {@link #invertedIndex}. This is the shared
 	 * removal primitive behind both {@link #removeRecord(int, Object)} (whole value) and
 	 * {@link #removeRecordDelta(int, Object[])} (partial array contents), invoked once per scalar value item.
@@ -1521,18 +1952,21 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 *
 	 * @param recordId the record id to detach from the value's bucket
 	 * @param value    the raw attribute value whose association is removed
+	 * @param sink     learns when this removal takes the value out of existence, or `null` when nobody is interested
 	 * @param <T>      the attribute value type
 	 * @throws EvitaInvalidUsageException when the record is not registered for the (normalized) value — signals a
 	 *                                    mismatch between the mutation being applied and the index state
 	 */
-	private <T extends Serializable> void removeRecordFromHistogramAndValueIndex(int recordId, @Nonnull T value) {
+	private <T extends Serializable> void removeRecordFromHistogramAndValueIndex(
+		int recordId, @Nonnull T value, @Nullable ValueLifecycleSink sink
+	) {
 		// sanity check first - the record must currently be assigned to this value's bucket
 		final Serializable normalizedValue = this.normalizer.apply(value);
 		isTrue(
 			this.invertedIndex.getRecordsEqualTo(normalizedValue).contains(recordId),
 			"Sanity check - record not found!"
 		);
-		this.invertedIndex.removeRecord(value, recordId);
+		this.invertedIndex.removeRecord(value, sink, recordId);
 	}
 
 }

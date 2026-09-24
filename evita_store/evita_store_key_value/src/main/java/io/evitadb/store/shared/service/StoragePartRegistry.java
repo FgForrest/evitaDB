@@ -23,6 +23,7 @@
 
 package io.evitadb.store.shared.service;
 
+import io.evitadb.api.statistics.StoragePartGroup;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 
 import javax.annotation.Nonnull;
@@ -43,14 +44,27 @@ public interface StoragePartRegistry {
 	Collection<StoragePartRecord> listStorageParts();
 
 	/**
-	 * Record representing single {@link StoragePart} type along with its unique byte id.
+	 * Record representing single {@link StoragePart} type along with its unique byte id and the group it belongs to.
+	 *
+	 * The `group` is what makes a storage-part breakdown readable by a client that has never heard of the class named
+	 * in it: the set of part types is open and grows with every index structure the engine gains, while
+	 * {@link StoragePartGroup} is closed. Declaring it here rather than deriving it later is deliberate - a new part
+	 * type cannot be registered without being classified, because this constructor will not compile without it. The
+	 * alternatives were both silent on omission: a name test ({@code EntityIdsStoragePart} and
+	 * {@code HistogramCardinalityStoragePart} are index parts with no `Index` in their names) and a marker interface
+	 * (a forgotten marker falls through to a default). Nor can the group be inferred from which registry declares the
+	 * type: {@code EntitySchemaStoragePart} is declared by the entity registry yet is
+	 * {@link StoragePartGroup#SCHEMA}, and {@code GlobalUniqueIndexStoragePart} is an
+	 * {@link StoragePartGroup#ATTRIBUTE_INDEX} living in the catalog's own data store.
 	 *
 	 * @param id       unique id among all other storage parts
 	 * @param partType the class of storage part
+	 * @param group    which group of stored data this part belongs to, as reported by the storage composition statistics
 	 */
 	record StoragePartRecord(
 		byte id,
-		@Nonnull Class<? extends StoragePart> partType
+		@Nonnull Class<? extends StoragePart> partType,
+		@Nonnull StoragePartGroup group
 	) {
 	}
 

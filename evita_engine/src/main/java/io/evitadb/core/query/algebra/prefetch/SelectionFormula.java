@@ -258,18 +258,26 @@ public class SelectionFormula extends AbstractFormula implements ChildrenDepende
 
 	/**
 	 * Propagates the histogram side-output capability from inner accessors so {@link PriceHistogramComputer}'s
-	 * bypass continues to fire even when prefetch wiring (`PriceInPriceListsTranslator`) inserts a
-	 * {@link SelectionFormula} between the histogram and the histogram-aware
+	 * per-inner-record path continues to fire even when prefetch wiring (`PriceInPriceListsTranslator`) inserts
+	 * a {@link SelectionFormula} between the histogram and the histogram-aware
 	 * `io.evitadb.core.query.algebra.price.termination.LowestPriceTerminationFormula`. A naive
-	 * top-level-only probe would miss wrapped LPs and incorrectly disable the bypass.
+	 * top-level-only probe would miss wrapped LPs and incorrectly disable the per-inner-record granularity.
 	 *
-	 * Semantics are "all-true": this wrapper exposes the side-output only if **every** inner accessor
-	 * does. The histogram producer collects the accessor list from a `withoutUserFilter` view of the
-	 * filtering tree, so wrappers above un-flagged inner LPs (e.g. price-between LPs under
-	 * `UserFilterFormula`) never end up in the histogram accessor list in the first place.
+	 * Semantics are "any-true": this wrapper exposes the side-output when **at least one** inner accessor
+	 * does. A single `SelectionFormula` is inserted above the whole price filter container, so in a catalog
+	 * mixing {@link io.evitadb.api.requestResponse.data.PriceInnerRecordHandling} values its inner accessor
+	 * set legitimately contains both the flagged `LOWEST_PRICE` termination formula and the non-exposing
+	 * `NONE`/`SUM` branches. Under the previous "all-true" rule that mix silently dropped the histogram back
+	 * to per-entity granularity (issue #1433). {@link #getFilteredPriceRecordsForHistogram} therefore returns
+	 * only the *exposing* inners' contribution, and the histogram producer routes every entity not covered by
+	 * it through the per-entity collector.
 	 *
 	 * **Prefetch parity**: the probe ignores `isPrefetchExecution()` — both alternative plans (index and
-	 * prefetch) must return the same histogram or `VERIFY_ALTERNATIVE_INDEX_RESULTS` fails. The cost of
+	 * prefetch) must return the same histogram. `QueryPlanner.verifyConsistentResultsInAllPlans` executes
+	 * the query under the bitmap-favouring *and* the prefetch-favouring policy and compares the whole
+	 * `EvitaResponse`, extra results included, so a divergence raises `InconsistentResultsException` — but
+	 * only when a query enables `VERIFY_ALTERNATIVE_INDEX_RESULTS` **and** `PREFER_PREFETCHING` together.
+	 * The cost of
 	 * running the inner LP's `computeInternal()` on the prefetch path to populate the side-output is
 	 * accepted because histogram queries are inherently expensive; the alternative is silently wrong
 	 * histograms whenever prefetch is enabled.
@@ -284,22 +292,26 @@ public class SelectionFormula extends AbstractFormula implements ChildrenDepende
 
 	/**
 	 * One-shot computation backing {@link #exposesPerInnerRecordHistogramRecords()}. Delegates to the
-	 * shared {@link FilteredPriceRecords#allAccessorsExposePerInnerRecordHistogram(Collection)} probe
-	 * so the "all-or-nothing" rule cannot drift between the wrapper and the histogram producer. An
-	 * empty inner-accessor set returns `false` because there is no histogram-aware LP to forward to.
+	 * shared {@link FilteredPriceRecords#anyAccessorExposesPerInnerRecordHistogram(Collection)} probe
+	 * so the rule cannot drift between the wrapper and the histogram producer. An empty inner-accessor
+	 * set returns `false` because there is no histogram-aware LP to forward to — notably, a wrapper
+	 * inserted above a price-free sub-tree must not claim a capability it has no records for.
 	 *
-	 * @return `true` iff every inner {@link FilteredPriceRecordAccessor} exposes the per-inner-record
-	 *         histogram side-output
+	 * @return `true` iff at least one inner {@link FilteredPriceRecordAccessor} exposes the
+	 *         per-inner-record histogram side-output
 	 */
 	private boolean computeExposesPerInnerRecordHistogramRecords() {
-		return FilteredPriceRecords.allAccessorsExposePerInnerRecordHistogram(findInnerAccessors());
+		return FilteredPriceRecords.anyAccessorExposesPerInnerRecordHistogram(findInnerAccessors());
 	}
 
 	/**
-	 * Walks the delegate's inner accessors and merges their per-inner-record histogram records into a
-	 * single flat array. Called by {@link PriceHistogramComputer} only when
-	 * {@link #exposesPerInnerRecordHistogramRecords()} returned `true`, so every inner accessor is
-	 * guaranteed to populate its side-output without throwing.
+	 * Merges the per-inner-record histogram records of the delegate's **histogram-exposing** inner
+	 * accessors into a single flat array. Non-exposing inner accessors (the `NONE` and `SUM` handling
+	 * branches, which have no per-inner-record data points to contribute) are deliberately skipped: the
+	 * entities they cover are picked up by `PriceHistogramComputer`'s per-entity collector pass over
+	 * whatever the returned records did not cover. Calling
+	 * {@link FilteredPriceRecordAccessor#getFilteredPriceRecordsForHistogram} on them here would either
+	 * trip a flag-off LP's guard or contribute raw per-price-id records that inflate the buckets.
 	 *
 	 * Always delegates to the inner accessors — even on the prefetch path — so both alternative plans
 	 * produce the same histogram (see the JavaDoc on
@@ -309,60 +321,31 @@ public class SelectionFormula extends AbstractFormula implements ChildrenDepende
 	 *
 	 * Behaviour matrix:
 	 *
-	 * - no inner accessors → fall back to {@link #getFilteredPriceRecords(QueryExecutionContext)};
-	 * - any inner accessor missing the capability → fall back to per-entity records (the wrapper
-	 *   honours the default interface contract for non-histogram-aware accessors rather than tripping
-	 *   the merge guard mid-loop on a flag-off LP);
-	 * - single histogram-aware inner accessor → size-1 fast path returns its records directly without
-	 *   the intermediate array and `System.arraycopy` round-trip;
-	 * - two or more histogram-aware inner accessors → the actual concatenation is delegated to
+	 * - no exposing inner accessor → fall back to {@link #getFilteredPriceRecords(QueryExecutionContext)},
+	 *   honouring the default interface contract for non-histogram-aware accessors. Defensive only: the
+	 *   caller probes {@link #exposesPerInnerRecordHistogramRecords()} first;
+	 * - exactly one exposing inner accessor → fast path returns its records directly, without the
+	 *   intermediate array and `System.arraycopy` round-trip;
+	 * - two or more exposing inner accessors → the concatenation is delegated to
 	 *   {@link FilteredPriceRecords#mergePerInnerRecordHistogramRecords(Collection, QueryExecutionContext)}
 	 *   so the algorithm stays in one place.
-	 *
-	 * The capability-mismatch fallbacks differ intentionally between size-1 and size≥2:
-	 *
-	 * - size-1 falls back to the *inner* accessor's per-entity records because the wrapper's view
-	 *   over a single delegate is, by construction, that single delegate's view — there is nothing to
-	 *   merge and routing through the wrapper would just add a no-op `createFromFormulas` round-trip;
-	 * - size≥2 falls back to the *wrapper's* per-entity records because per-inner-record arrays from
-	 *   multiple accessors can overlap on the same entity primary key, and only the wrapper's own
-	 *   `getFilteredPriceRecords` knows how to reduce them (via `createFromFormulas`) into a single
-	 *   coherent per-entity view.
-	 *
-	 * Today both fallbacks are dead in production because the caller (`PriceHistogramComputer`)
-	 * always probes `exposesPerInnerRecordHistogramRecords()` first; the asymmetry is kept as a
-	 * defensive safety net in case that contract ever loosens.
 	 */
 	@Nonnull
 	@Override
 	public FilteredPriceRecords getFilteredPriceRecordsForHistogram(@Nonnull QueryExecutionContext context) {
-		final Collection<FilteredPriceRecordAccessor> innerAccessors = findInnerAccessors();
-		if (innerAccessors.isEmpty()) {
+		final List<FilteredPriceRecordAccessor> exposingAccessors =
+			FilteredPriceRecords.collectPerInnerRecordHistogramAccessors(findInnerAccessors());
+		if (exposingAccessors.isEmpty()) {
 			return getFilteredPriceRecords(context);
 		}
-		if (innerAccessors.size() == 1) {
-			// size-1 fast path — common case where the delegate wraps a single histogram-aware LP; avoids the
-			// intermediate array and `System.arraycopy` round-trip below. Mirror the default interface
-			// contract: when the inner accessor is not histogram-aware, fall back to its per-entity records
-			// rather than trip the LP's histogram-collection guard.
-			final FilteredPriceRecordAccessor inner = innerAccessors.iterator().next();
-			if (!inner.exposesPerInnerRecordHistogramRecords()) {
-				return inner.getFilteredPriceRecords(context);
-			}
-			return inner.getFilteredPriceRecordsForHistogram(context);
-		}
-		if (!exposesPerInnerRecordHistogramRecords()) {
-			// size>=2 capability mismatch — at least one inner accessor lacks the side-output, so entering
-			// the merge loop would trip the flag-off LP's guard. Defer to the wrapper's per-entity output
-			// (which the production planner always initialises with a non-null context) instead. Mirrors
-			// the default interface contract for non-histogram-aware accessors.
-			return getFilteredPriceRecords(context);
+		if (exposingAccessors.size() == 1) {
+			return exposingAccessors.get(0).getFilteredPriceRecordsForHistogram(context);
 		}
 		final PriceRecordContract[] merged = FilteredPriceRecords.mergePerInnerRecordHistogramRecords(
-			innerAccessors, context
+			exposingAccessors, context
 		);
 		if (merged.length == 0) {
-			return FilteredPriceRecords.EMPTY;
+			return ResolvedFilteredPriceRecords.EMPTY;
 		}
 		return new ResolvedFilteredPriceRecords(merged, SortingForm.NOT_SORTED);
 	}

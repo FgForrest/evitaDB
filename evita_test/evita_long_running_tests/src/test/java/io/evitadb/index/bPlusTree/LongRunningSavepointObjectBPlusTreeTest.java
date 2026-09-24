@@ -23,14 +23,11 @@
 
 package io.evitadb.index.bPlusTree;
 
+import io.evitadb.core.transaction.memory.AbstractSavepointFuzzTest;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree.Entry;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
 import java.util.Iterator;
@@ -39,10 +36,7 @@ import java.util.TreeMap;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
-import static io.evitadb.utils.AssertionUtils.assertSavepointCommitKeeps;
-import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
 
 /**
  * Generational randomized proof that {@link TransactionalObjectBPlusTree}'s node layers
@@ -59,63 +53,27 @@ import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
  * the restore left no dangling or stale layer. A marker key outside the random key range guarantees the in-savepoint
  * batch is never a no-op. The run is time-bounded; the random seed is echoed on failure for deterministic reproduction.
  *
+ * The scenario is declared once and run by {@link AbstractSavepointFuzzTest} in BOTH phases: the transactional
+ * savepoint described above, and the WARM_UP savepoint where the same writes land straight on the delegate
+ * structures and are rewound from the inverses they journal themselves. See that class for the shape of one
+ * generation, for the mid-savepoint read every case is asserted through, and for why the warm-up half runs
+ * exclusively.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("Object B+ tree savepoint rollback/commit (generational fuzz)")
 @Tag(INDEXING)
 @Tag(DATA_TYPE)
 @Tag(TRANSACTION)
-class LongRunningSavepointObjectBPlusTreeTest implements TimeBoundedTestSupport {
+class LongRunningSavepointObjectBPlusTreeTest extends AbstractSavepointFuzzTest<TreeMap<Integer, Integer>> {
 	private static final int KEY_SPACE = 48;
 	private static final int VALUE_SPACE = 1000;
 	private static final int MARKER_KEY = KEY_SPACE + 1;
 
-	@ParameterizedTest(name = "Savepoint rollback restores the exact pre-savepoint tree contents")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Savepoint rollback restores the exact pre-savepoint tree contents")
-	void shouldRollBackObjectTreeToSavepoint(@Nonnull GenerationalTestInput input) {
-		runFor(
-			input,
-			1000,
-			0L,
-			(random, iteration) -> {
-				final TransactionalObjectBPlusTree<Integer, Integer> tree = newSeededTree(random);
-				assertSavepointRollbackRestores(
-					tree,
-					tested -> applyRandomOps(tested, random, 1 + random.nextInt(10)),
-					LongRunningSavepointObjectBPlusTreeTest::readContents,
-					tested -> {
-						// a marker key outside the random key range guarantees a non-vacuous in-savepoint batch
-						tested.insert(MARKER_KEY, Integer.MAX_VALUE);
-						applyRandomOps(tested, random, 1 + random.nextInt(10));
-					}
-				);
-				return iteration + 1;
-			}
-		);
-	}
-
-	@ParameterizedTest(name = "Savepoint commit keeps the in-savepoint tree contents")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Savepoint commit keeps the in-savepoint tree contents")
-	void shouldCommitObjectTreeSavepoint(@Nonnull GenerationalTestInput input) {
-		runFor(
-			input,
-			1000,
-			0L,
-			(random, iteration) -> {
-				final TransactionalObjectBPlusTree<Integer, Integer> tree = newSeededTree(random);
-				assertSavepointCommitKeeps(
-					tree,
-					tested -> applyRandomOps(tested, random, 1 + random.nextInt(10)),
-					LongRunningSavepointObjectBPlusTreeTest::readContents,
-					tested -> applyRandomOps(tested, random, 1 + random.nextInt(10))
-				);
-				return iteration + 1;
-			}
-		);
+	@Nonnull
+	@Override
+	protected FuzzGeneration<TreeMap<Integer, Integer>> newGeneration(@Nonnull Random random) {
+		return new TreeState(random);
 	}
 
 	/**
@@ -181,6 +139,42 @@ class LongRunningSavepointObjectBPlusTreeTest implements TimeBoundedTestSupport 
 			}
 		}
 		throw new IllegalStateException("unreachable");
+	}
+
+	/**
+	 * One generation's fixture: a freshly seeded object tree, read and mutated through its own public
+	 * surface so the harness's mid-savepoint read goes through the same iterator a query would.
+	 */
+	private static final class TreeState implements FuzzGeneration<TreeMap<Integer, Integer>> {
+		private final TransactionalObjectBPlusTree<Integer, Integer> tree;
+
+		TreeState(@Nonnull Random random) {
+			this.tree = newSeededTree(random);
+		}
+
+		@Nonnull
+		@Override
+		public TransactionalStateProducer<?> subject() {
+			return this.tree;
+		}
+
+		@Nonnull
+		@Override
+		public TreeMap<Integer, Integer> contents() {
+			return readContents(this.tree);
+		}
+
+		@Override
+		public void applyBaselineOperations(@Nonnull Random random) {
+			applyRandomOps(this.tree, random, 1 + random.nextInt(10));
+		}
+
+		@Override
+		public void applySavepointOperations(@Nonnull Random random) {
+			applyRandomOps(this.tree, random, 1 + random.nextInt(10));
+			// applied LAST: a marker inserted first is a key like any other and a later random op can delete it
+			this.tree.insert(MARKER_KEY, Integer.MAX_VALUE);
+		}
 	}
 
 }

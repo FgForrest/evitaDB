@@ -441,7 +441,7 @@ class SharedRgeiMutationMatrixTest {
 				"Entity PK must be visible in the price leaf bitmap"
 			);
 			// internal price id appears exactly once
-			final int[] indexedPriceIds = priceLeaf.getIndexedPriceIds();
+			final int[] indexedPriceIds = priceLeaf.getIndexedPriceIds().getArray();
 			assertEquals(1, indexedPriceIds.length, "Exactly one internal price id must be present");
 			assertEquals(internalPriceId, indexedPriceIds[0]);
 		}
@@ -716,7 +716,7 @@ class SharedRgeiMutationMatrixTest {
 		@Nonnull Class<? extends Serializable> type
 	) {
 		return AttributeSchema._internalBuild(
-			name, null, new Scope[]{Scope.LIVE}, null,
+			name, null, new Scope[]{Scope.LIVE}, null, null,
 			false, false, false, type, null,
 			ConflictResolutionOverride.INHERITED
 		);

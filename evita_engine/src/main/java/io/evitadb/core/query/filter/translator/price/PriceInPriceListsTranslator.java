@@ -40,7 +40,6 @@ import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.price.alternative.SellingPriceAvailableBitmapFilter;
 import io.evitadb.core.query.sort.price.translator.PriceDiscountTranslator;
 import io.evitadb.function.TriFunction;
-import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 
 import javax.annotation.Nonnull;

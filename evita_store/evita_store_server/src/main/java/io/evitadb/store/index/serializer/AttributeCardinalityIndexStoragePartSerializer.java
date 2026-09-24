@@ -62,7 +62,11 @@ public class AttributeCardinalityIndexStoragePartSerializer extends Serializer<A
 		final Map<AttributeCardinalityKey, Integer> cardinalities = cardinalityIndex.getCardinalities();
 		output.writeVarInt(cardinalities.size(), true);
 		for (Entry<AttributeCardinalityKey, Integer> entry : cardinalities.entrySet()) {
-			kryo.writeObject(output, entry.getKey().value());
+			// the key value is self-describing: the counter stores the NORMALIZED key, whose class need not be the
+			// declared value type (a BigDecimal-typed index holds a scaled Integer, an OffsetDateTime-typed one an
+			// Instant), so the concrete runtime type is written alongside the value — as
+			// `HistogramCardinalityStoragePartSerializer` already does for the very same structure
+			kryo.writeClassAndObject(output, entry.getKey().value());
 			output.writeVarInt(entry.getKey().recordId(), false);
 			output.writeVarInt(entry.getValue(), true);
 		}
@@ -78,7 +82,7 @@ public class AttributeCardinalityIndexStoragePartSerializer extends Serializer<A
 		final int cardinalityCount = input.readVarInt(true);
 		final Map<AttributeCardinalityKey, Integer> cardinalities = CollectionUtils.createHashMap(cardinalityCount);
 		for (int i = 0; i < cardinalityCount; i++) {
-			final Serializable value = kryo.readObject(input, valueType);
+			final Serializable value = (Serializable) kryo.readClassAndObject(input);
 			final int recordId = input.readVarInt(false);
 			final int cardinality = input.readVarInt(true);
 			cardinalities.put(new AttributeCardinalityKey(recordId, value), cardinality);

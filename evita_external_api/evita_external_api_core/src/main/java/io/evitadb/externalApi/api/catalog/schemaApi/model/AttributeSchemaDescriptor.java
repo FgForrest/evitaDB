@@ -79,6 +79,19 @@ public interface AttributeSchemaDescriptor extends NamedSchemaWithDeprecationDes
 		.type(nonNull(Scope[].class))
 		.build();
 
+	PropertyDescriptor ACCELERATORS_IN_SCOPES = PropertyDescriptor.builder()
+		.name("acceleratorsInScopes")
+		.description("""
+			Optional accelerations the attribute's filter index maintains, per scope. Each accelerator costs
+			additional memory and additional write-path work, so none of them is implied by marking the attribute
+			filterable or unique - only the ones declared here are maintained.
+
+			Returns array of scopes and the accelerators maintained in them; a scope that declares none is not listed
+			at all.
+			""")
+		.type(nonNullListRef(ScopedAttributeFilterAcceleratorsDescriptor.THIS))
+		.build();
+
 	PropertyDescriptor SORTABLE = PropertyDescriptor.builder()
 		.name("sortable")
 		.description("""
@@ -173,6 +186,7 @@ public interface AttributeSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			DEPRECATION_NOTICE,
 			UNIQUENESS_TYPE,
 			FILTERABLE,
+			ACCELERATORS_IN_SCOPES,
 			SORTABLE,
 			LOCALIZED,
 			NULLABLE,

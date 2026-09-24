@@ -51,22 +51,26 @@ import java.util.function.ToLongFunction;
  * # What the figure is exact about, and what it is not
  *
  * Everything except the bucket table is exact. The table's capacity cannot be read from outside the JDK — the field
- * is not public and `java.base` does not open `java.util` — so it is reconstructed from the entry count. Two
- * construction paths produce different tables for the same content, and neither can be told from the other after
- * the fact:
+ * is not public and `java.base` does not open `java.util` — so it is reconstructed from the entry count. Nothing
+ * afterwards can tell which way a map was built, and on the JDK this code runs on it does not have to: the two
+ * construction paths land on the same table for the same content.
  *
  * - **organic growth**, `put` by `put`, doubles when the entry count *exceeds* the load-factor threshold, so a map
- *   holding exactly 12 entries still sits on a 16-slot table.
+ *   holding exactly 12 entries sits on a 16-slot table.
  * - **`new HashMap<>(source)`** — how {@link PersistentTransactionalMap} builds and thaws its warm-up buffer, and
  *   what `EntityCollection` hands to its index maps — sizes the table to hold the whole source *without* an
- *   immediate resize, so the same 12 entries get 32 slots.
+ *   immediate resize, which for those same 12 entries is a 16-slot table too.
  *
- * {@link #tableCapacityFor} therefore reports the **larger** of the two, on the standing rule that where several
- * figures are defensible the higher one is the answer: under-reporting memory is the failure that matters, since it
- * is what leads to under-provisioning. The cost is that an organically grown map holding exactly 12, 24, 48 or 96
- * entries — the sizes sitting precisely on a threshold — is over-reported by one table doubling. Every other size,
- * and every copied map at or above the floor, is exact. Both the exact sizes and the over-reported ones are pinned
- * by tests so the choice stays visible.
+ * {@link #tableCapacityFor} therefore reports one figure rather than choosing between two, and from seven entries
+ * upwards — where a copied map first reaches {@link #MINIMUM_TABLE_CAPACITY} — that figure is **exact** whichever
+ * way the map was built. The agreement is a property of a *particular* JDK rather than a law: it arrived in JDK 19,
+ * and {@link #tableCapacityFor} carries the coupling and what it costs if a later release moves the arithmetic on.
+ *
+ * Below seven entries the two paths still part company, and there the floor decides: a copied map really does hold
+ * fewer than sixteen slots — two for a single entry — where a grown one holds the default 16, and the larger of
+ * them is what gets reported, on the standing rule that where several figures are defensible the higher one is the
+ * answer. Under-reporting memory is the failure that matters, since it is what leads to under-provisioning. Both
+ * the exact sizes and that small-map over-report are pinned by tests so the choice stays visible.
  *
  * A map created **pre-sized above its eventual content** is the one case that still reads low:
  * `CollectionUtils.createHashMap(64)` holding three entries really owns a 128-slot table while the reconstruction
@@ -91,9 +95,10 @@ import java.util.function.ToLongFunction;
  */
 public final class MapHeapSize {
 	/**
-	 * Smallest table **organic growth** allocates once something is put into a map. The copy constructor goes below
-	 * it — two slots for a single-entry source — which is exactly why this is applied as a floor rather than as the
-	 * answer: the reconstruction reports whichever path would have allocated more.
+	 * Smallest table **organic growth** allocates once something is put into a map. Below seven entries the copy
+	 * constructor goes under it — two slots for a single-entry source — which is exactly why this is applied as a
+	 * floor rather than as the answer: that range is the only one where the two construction paths still disagree,
+	 * and the reconstruction reports whichever of them would have allocated more.
 	 */
 	private static final int MINIMUM_TABLE_CAPACITY = 16;
 
@@ -188,22 +193,26 @@ public final class MapHeapSize {
 	}
 
 	/**
-	 * Reconstructs the bucket-table capacity of a `HashMap` holding `entryCount` entries, as the **larger** of what
-	 * the two construction paths would have produced — see the class javadoc for why the upper bound is the right
-	 * one to take.
+	 * Reconstructs the bucket-table capacity of a `HashMap` holding `entryCount` entries — see the class javadoc
+	 * for why a single figure answers for both construction paths.
 	 *
-	 * The formula is `HashMap(Map)`'s own: `(size / loadFactor) + 1` rounded up to a power of two, floored at
-	 * {@link #MINIMUM_TABLE_CAPACITY}. That floor is what makes it an upper bound rather than just the copy
-	 * constructor's answer: the copy constructor allocates below 16 slots for a small source (two slots for a
-	 * single entry), where a grown map would hold the default 16. Above the floor the same expression already
-	 * dominates organic growth, which rounds one doubling lower at the sizes that sit exactly on a load-factor
-	 * threshold.
+	 * The formula is `HashMap#putMapEntries`' own: `ceil(size / loadFactor)` rounded up to a power of two, floored
+	 * at {@link #MINIMUM_TABLE_CAPACITY}. **It replays one specific JDK version's arithmetic, and that arithmetic
+	 * has moved before.** Up to JDK 18 the same method asked for `(size / loadFactor) + 1` — one slot too many
+	 * whenever the count divides by three, which bought a whole extra doubling at 12, 24, 48 and 96 entries.
+	 * [JDK-8281631](https://bugs.openjdk.org/browse/JDK-8281631) replaced it with the ceiling above in JDK 19, which
+	 * is what makes the copy constructor agree with organic growth. Should a later release move it again, this line
+	 * has to move with it, and nothing but the heap-size tests standing on those threshold sizes will say so.
+	 *
+	 * The floor is what keeps the answer an upper bound rather than merely the copy constructor's: below seven
+	 * entries the copy constructor allocates under 16 slots (two for a single entry) where a grown map holds the
+	 * default 16. At and above it the two paths allocate the same table, so the expression is exact for either.
 	 *
 	 * @param entryCount number of entries currently in the map; must be positive
 	 * @return the inferred table length in slots, never below what either construction path would allocate
 	 */
 	private static int tableCapacityFor(int entryCount) {
-		final int required = (int) (entryCount / LOAD_FACTOR + 1.0f);
+		final int required = (int) Math.ceil(entryCount / (double) LOAD_FACTOR);
 		if (required >= MAXIMUM_TABLE_CAPACITY) {
 			return MAXIMUM_TABLE_CAPACITY;
 		}

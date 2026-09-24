@@ -26,6 +26,8 @@ package io.evitadb.api.requestResponse.data.mutation;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
+import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
@@ -53,11 +55,18 @@ import java.util.stream.Stream;
  * Exact mutations also allows engine implementation to safely update only those indexes that the change really affects
  * and doesn't require additional analysis.
  *
+ * The hierarchy is closed - the `permits` clause below enumerates every direct subtype, and each of those is
+ * sealed in turn down to `final` leaves. A dispatch that covers {@link NamedLocalMutation}'s three branches plus
+ * {@link io.evitadb.api.requestResponse.data.mutation.parent.ParentMutation}, {@link PriceMutation},
+ * {@link io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation} and
+ * {@link SetEntityScopeMutation} therefore sees every mutation that can exist.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Immutable
 @ThreadSafe
-public non-sealed interface LocalMutation<T, S extends Comparable<S>> extends CatalogBoundMutation, Comparable<LocalMutation<T, S>> {
+public sealed interface LocalMutation<T, S extends Comparable<S>> extends CatalogBoundMutation, Comparable<LocalMutation<T, S>>
+	permits NamedLocalMutation, SchemaEvolvingLocalMutation, PriceMutation, SetEntityScopeMutation {
 	long PRIORITY_REMOVAL = 10L;
 	long PRIORITY_UPSERT = 0L;
 

@@ -75,4 +75,41 @@ class QueryContainerSerializerTest extends AbstractContainerSerializerTest {
 		);
 	}
 
+	/**
+	 * The recorded query is persisted as a whole {@link io.evitadb.api.query.Query}, so its header has to
+	 * survive the round-trip too — the separate {@code labels} array indexes the recording, but the query text
+	 * an operator replays or exports comes from the query itself.
+	 *
+	 * See issue #1507.
+	 */
+	@Test
+	void shouldSerializeAndDeserializeContainerWithLabelledQueryHead() {
+		assertSerializationRound(
+			new QueryContainer(
+				UUID.randomUUID(),
+				4,
+				"Labelled query",
+				query(
+					head(
+						collection("a"),
+						label("rest_method", "CartController.updateCartByOperation")
+					),
+					filterBy(entityPrimaryKeyInSet(1, 2)),
+					orderBy(attributeNatural("c")),
+					require(entityFetchAll())
+				),
+				new Label[]{
+					new Label("rest_method", "CartController.updateCartByOperation"),
+				},
+				OffsetDateTime.now(),
+				456,
+				4,
+				7,
+				650,
+				new int[]{1, 2, 3},
+				null
+			)
+		);
+	}
+
 }

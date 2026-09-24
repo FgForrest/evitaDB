@@ -72,8 +72,22 @@ class SingleRecordBitmapTest {
 			assertEquals(42, bitmap.get(0));
 			assertEquals(42, bitmap.getFirst());
 			assertEquals(42, bitmap.getLast());
+			assertEquals(42, bitmap.getRecordId());
 			assertArrayEquals(new int[]{42}, bitmap.getArray());
 			assertEquals("[42]", bitmap.toString());
+		}
+
+		@Test
+		@DisplayName("the record id comes back as it was given, negative ids included")
+		void shouldExposeTheRecordIdWhateverItsSign() {
+			// `getRecordId` is what a fold over single-record operands reads instead of allocating a one-element
+			// array, and it is the value that then reaches a Roaring builder - which orders UNSIGNED, so a negative
+			// id is not an eccentricity here but the case the fold's ordering has to cope with. This class already
+			// takes signed ids seriously in `indexOf`; the accessor must be just as literal about them.
+			assertEquals(-1, new SingleRecordBitmap(-1).getRecordId());
+			assertEquals(Integer.MIN_VALUE, new SingleRecordBitmap(Integer.MIN_VALUE).getRecordId());
+			assertEquals(Integer.MAX_VALUE, new SingleRecordBitmap(Integer.MAX_VALUE).getRecordId());
+			assertEquals(0, new SingleRecordBitmap(0).getRecordId());
 		}
 
 		@Test

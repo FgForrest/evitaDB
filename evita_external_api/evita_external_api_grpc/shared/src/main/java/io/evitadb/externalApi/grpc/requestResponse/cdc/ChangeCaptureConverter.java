@@ -413,6 +413,7 @@ public class ChangeCaptureConverter {
 		} else if (body instanceof final HostSystemEvent hostEvent) {
 			builder.setHostEvent(toGrpcHostSystemEvent(hostEvent));
 		} else if (body != null) {
+			// HEADER content mode carries no body at all - a null body deliberately leaves the oneof unset
 			throw new GenericEvitaInternalError(
 				"Unsupported SystemCaptureBody type: " + body.getClass().getName()
 			);
@@ -597,8 +598,8 @@ public class ChangeCaptureConverter {
 	/**
 	 * Converts a {@link HostSystemEvent} to a {@link GrpcHostSystemEvent}.
 	 *
-	 * Pattern-switches over the sealed variant set; defensively rejects any unknown
-	 * subtype with a {@link GenericEvitaInternalError} (the sealed contract makes this
+	 * Dispatches over the sealed variant set with an `instanceof` chain; defensively rejects any
+	 * unknown subtype with a {@link GenericEvitaInternalError} (the sealed contract makes this
 	 * unreachable, but the defensive-design rule applies anyway).
 	 *
 	 * @param event the host event to convert
@@ -607,8 +608,9 @@ public class ChangeCaptureConverter {
 	@Nonnull
 	public static GrpcHostSystemEvent toGrpcHostSystemEvent(@Nonnull HostSystemEvent event) {
 		final GrpcHostSystemEvent.Builder builder = GrpcHostSystemEvent.newBuilder();
-		// pattern-matching switch on sealed types is a Java 21 feature; evitaDB targets Java 17
-		// so we use an `instanceof`-pattern chain that the compiler still supports here
+		// a pattern-matching switch over the sealed variants is a Java 21 feature, and this module is
+		// reachable from the Java driver, which stays at the JDK 17 language level (`java.release` in
+		// the root POM) - hence the `instanceof` chain with a defensive tail
 		if (event instanceof HostSystemEvent.CatalogInstalledIntoLiveView installed) {
 			builder.setCatalogInstalled(
 				GrpcCatalogInstalledIntoLiveView.newBuilder()

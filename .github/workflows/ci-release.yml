@@ -3,26 +3,33 @@
 name: CI Release branch
 
 on:
-  # Dispatched by CI Master branch once it has fast-forwarded (or created)
-  # the target release_* branch — see the "Dispatch release build" step
-  # there. There used to also be a `workflow_run` trigger fired from a
-  # successful "CI Master branch" run, but that path always minted "vX.Y.0"
-  # verbatim from pom.xml, so it could only ever cut a fresh release and
-  # errored out (after an already-completed Maven Central deploy!) on every
-  # later merge onto an already-released minor. workflow_dispatch runs the
-  # same tag-scanning version resolution used below for direct release_*
-  # pushes, so both a brand-new minor and its Nth hotfix are handled by one
-  # unified path.
+  # Manual re-run of a release build from the Actions UI or `gh workflow run`
+  # on a release_* branch. The normal trigger is the push below: CI Master
+  # branch fast-forwards (or creates) the release branch as the release bot
+  # GitHub App, and App-authored pushes fire `on: push` like a human's —
+  # only GITHUB_TOKEN-authored pushes are suppressed. Either way the version
+  # is resolved below by scanning existing tags for the branch's major.minor,
+  # so a brand-new minor and its Nth hotfix share one path. (A `workflow_run`
+  # trigger from CI Master used to mint "vX.Y.0" verbatim from pom.xml and so
+  # could only ever cut a fresh release — see
+  # documentation/adr/2026-08-02-ci-release-pipeline-patch-versioning-fix.md.)
   workflow_dispatch:
   push:
     branches:
       - "release_*"
-    paths: # but react only to changes in code or pipeline definition
+    # React only to changes in code or pipeline definition. This list must
+    # stay a superset of ci-master.yml's `paths` filter: whatever makes CI
+    # Master fast-forward a release branch must also make this workflow
+    # build it, or the branch moves and no release follows.
+    paths:
       - evita*/**/*.java
-      - evita_external_api/evita_external_api_lab/src/main/resources/META-INF/lab/gui/dist/**
       - evita*/**/pom.xml
       - pom.xml
-      - .github/workflows/*
+      - jacoco/**/pom.xml
+      - evita*/**/dist/**.*
+      - evita_external_api/evita_external_api_lab/src/main/resources/META-INF/lab/gui/dist/**
+      - docker/**
+      - .github/**
 
 jobs:
   build:
@@ -62,11 +69,12 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         # Extract version from branch name (e.g., release_2025-7 -> 2025.7).
-        # This runs for every trigger now (workflow_dispatch from CI Master,
-        # or a direct push to a release_* branch) — there is no longer a
-        # shortcut that trusts a pre-computed version, because the only
-        # previous source of one (the pom.xml-derived "vX.Y.0" from CI
-        # Master) can't distinguish a fresh minor from its Nth hotfix.
+        # This runs for every trigger (the release bot's fast-forward push
+        # from CI Master, a hotfix PR merged onto a release_* branch, or a
+        # manual workflow_dispatch) — there is no shortcut that trusts a
+        # pre-computed version, because the only previous source of one
+        # (the pom.xml-derived "vX.Y.0" from CI Master) can't distinguish a
+        # fresh minor from its Nth hotfix.
         BRANCH_NAME="${GITHUB_REF#refs/heads/}"
         echo "Branch name: $BRANCH_NAME"
 
@@ -149,10 +157,10 @@ jobs:
         fi
 
     - name: Setup Java JDK
-      uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0  # setup JDK 17 for building
+      uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1  # setup JDK 21 for building
       with:
         distribution: 'temurin'
-        java-version: '17'
+        java-version: '21'
         cache: 'maven'
         server-id: ossrh
         server-username: MAVEN_USERNAME
@@ -400,21 +408,18 @@ jobs:
         name: version.txt
         path: 'version.txt'
 
-    # DockerHub-deploy used to pick this run up via a `workflow_run` listener
-    # on this workflow's completion — that only fires reliably when this
-    # run's own actor is a human (e.g. a direct push to a release_* branch).
-    # When CI Master branch dispatched this very run via `gh workflow run`
-    # (GITHUB_TOKEN-authored, the standard dev -> master path), its actor is
-    # `github-actions[bot]` and GitHub's anti-recursion rule blocks that
-    # completion from cascading further — only workflow_dispatch/
-    # repository_dispatch are exempted, and only for one hop. Dispatch it
-    # explicitly instead (same mechanism as the CI Master hand-off, applied
-    # one hop further), passing this run's own id so it pulls the artifacts
-    # just uploaded above rather than the release's zip asset — the release
-    # is typically still a draft at this point (publishing happens later,
-    # separately) and a draft has no real downloadable git tag yet. Placed
-    # ahead of the enrichment tail below (not gated on it) so a Claude
-    # enrichment failure can never delay or block the Docker publish.
+    # DockerHub-deploy is dispatched explicitly rather than picked up via a
+    # `workflow_run` listener on this workflow's completion. The listener was
+    # dropped while this run was still dispatched from CI Master under
+    # GITHUB_TOKEN, whose runs' completions never cascade into further
+    # automatic triggers. Today's trigger (the release bot's push) would
+    # cascade, but the explicit dispatch stays because it also carries this
+    # run's own id, so the Docker build pulls the artifacts just uploaded
+    # above rather than the release's zip asset — the release is typically
+    # still a draft at this point (publishing happens later, separately) and
+    # a draft has no real downloadable git tag yet. Placed ahead of the
+    # enrichment tail below (not gated on it) so a Claude enrichment failure
+    # can never delay or block the Docker publish.
     - name: Dispatch Docker publish
       if: success()
       env:

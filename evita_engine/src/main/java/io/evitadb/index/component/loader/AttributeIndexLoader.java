@@ -23,6 +23,7 @@
 
 package io.evitadb.index.component.loader;
 
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.FilterIndex;
@@ -33,6 +34,7 @@ import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortIndexView;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.invertedIndex.ValueIdAllocator;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.range.TransactionalRangePoint;
@@ -315,7 +317,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		);
 		sharedValueIndexes.put(attributeIndexKey, shared);
 		final RangeIndex rangeIndex = loadRangeIndex(
-			catalogVersion, entityIndexId, service, part, attributeIndexKey, key
+			catalogVersion, entityIndexId, service, part, attributeIndexKey, key, plainType
 		);
 		if (rangeIndex != null) {
 			sharedRangeIndexes.put(attributeIndexKey, rangeIndex);
@@ -361,15 +363,43 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		int indexedDecimalPlaces
 	) {
 		if (!part.isPaged()) {
-			return new InvertedIndex(
+			final InvertedIndex inlineIndex = new InvertedIndex(
 				plainType, part.getHistogramPoints(), normalizer, comparator, indexedDecimalPlaces
 			);
+			// the root's high-water mark and its inline column must agree about whether the tree carries ids at all,
+			// exactly as the root and the leaf pages must in the PAGED branch below. A column under a root claiming
+			// none would otherwise fail deep inside the allocator with a message naming neither the attribute nor the
+			// cause, and a root claiming ids its column does not carry would load SILENTLY without them - after which
+			// the populated tree can never be switched back on, the next flush persists no mark, and the record of
+			// which ids were already handed out is gone for good
+			isPremiseValid(
+				(part.getInlineValueIds() != null) ==
+					(part.getNextValueId() != ValueIdAllocator.UNASSIGNED_VALUE_ID),
+				"The root of filter index " + key.attribute() + " and its inline buckets disagree about value ids - " +
+					"the root's high-water mark is " + part.getNextValueId() + " while its buckets " +
+					(part.getInlineValueIds() != null ? "carry" : "do not carry") + " an id column."
+			);
+			// the inline shape replays its buckets through the ordinary insert path, which carries no ids - so the
+			// persisted column is stamped back on afterwards, in the ascending key order it was written in. The
+			// column is realigned first: the replay can legitimately end up with fewer buckets than were written when
+			// two persisted values collapse onto one tree key, and the stamping refuses a column that does not align
+			if (part.getInlineValueIds() != null) {
+				inlineIndex.restoreValueIds(
+					part.getNextValueId(),
+					InvertedIndex.alignPersistedValueIds(
+						part.getHistogramPoints(), part.getInlineValueIds(), normalizer, comparator
+					)
+				);
+			}
+			return inlineIndex;
 		}
 		final int streamId = service.getReadOnlyKeyCompressor().getId(
 			new LeafStreamKey(entityIndexId, new AttributeKeyWithIndexType(attributeIndexKey, AttributeIndexType.FILTER))
 		);
 		final int[] orderedPageSequences = part.getLeafPageSequences();
 		final ValueToRecord[][] perPageBuckets = new ValueToRecord[orderedPageSequences.length][];
+		final int[][] perPageValueIds = new int[orderedPageSequences.length][];
+		int pagesWithValueIds = 0;
 		for (int i = 0; i < orderedPageSequences.length; i++) {
 			final int pageSequence = orderedPageSequences[i];
 			final FilterIndexLeafPagePart leafPage = service.getStoragePart(
@@ -382,11 +412,44 @@ public final class AttributeIndexLoader implements ComponentLoader {
 					" was not found in persistent storage!"
 			);
 			perPageBuckets[i] = leafPage.getBuckets();
+			final int[] pageValueIds = leafPage.getValueIds();
+			perPageValueIds[i] = pageValueIds;
+			if (pageValueIds != null) {
+				pagesWithValueIds++;
+			}
 		}
-		return InvertedIndex.fromPersistedPages(
-			plainType, orderedPageSequences, perPageBuckets, part.getHighWaterPageSequence(),
-			normalizer, comparator, indexedDecimalPlaces
+		// the id column is an all-or-nothing property of a persisted generation: a tree carries it on every leaf or on
+		// none. A mixture means a run switched the ids on or off without rewriting every page, and loading it would
+		// mint replacement ids over the pages that lost theirs - silently handing already-published ids to different
+		// values. Refuse it here, where the attribute can still be named, rather than repairing it by invention
+		isPremiseValid(
+			pagesWithValueIds == 0 || pagesWithValueIds == orderedPageSequences.length,
+			"The leaf pages of filter index " + key.attribute() + " disagree about value ids - " + pagesWithValueIds +
+				" of " + orderedPageSequences.length + " pages carry the id column. The column is written for every " +
+				"page of a generation or for none, so this index was persisted by a run that changed its " +
+				"id-carrying mode without rewriting the pages it had already written."
 		);
+		final boolean anyValueIds = pagesWithValueIds > 0;
+		// the root's high-water mark and the pages must agree about whether the tree carries ids at all: a root that
+		// claims ids its pages do not hold would reload without them (silently dropping a consumer's addressing), and
+		// pages carrying ids under a root that claims none would fail deep inside the allocator with a message naming
+		// neither the attribute nor the real cause
+		isPremiseValid(
+			anyValueIds == (part.getNextValueId() != ValueIdAllocator.UNASSIGNED_VALUE_ID),
+			"The root of filter index " + key.attribute() + " and its leaf pages disagree about value ids - the " +
+				"root's high-water mark is " + part.getNextValueId() + " while its pages " +
+				(anyValueIds ? "carry" : "do not carry") + " an id column."
+		);
+		final InvertedIndex pagedIndex = InvertedIndex.fromPersistedPages(
+			plainType, orderedPageSequences, perPageBuckets, anyValueIds ? perPageValueIds : null,
+			part.getHighWaterPageSequence(), normalizer, comparator, indexedDecimalPlaces
+		);
+		if (anyValueIds) {
+			// the ids came back inside the pages; this only re-attaches the allocator at the persisted high-water so
+			// the sequence continues where the previous run left off
+			pagedIndex.restoreValueIds(part.getNextValueId());
+		}
+		return pagedIndex;
 	}
 
 	/**
@@ -395,12 +458,35 @@ public final class AttributeIndexLoader implements ComponentLoader {
 	 * listed {@link RangeIndexLeafPagePart} in order — keyed by `join(rangeStreamId, pageSequence)`, the stream id resolved
 	 * with {@link StreamKind#RANGE} — and reassembles boundary-stable.
 	 *
+	 * ## Where an attribute filter index's legacy threshold scale is repaired
+	 *
+	 * A range threshold is an untyped `long`: the same {@link RangeIndex} serves `DateTimeRange` and all five
+	 * `NumberRange` subtypes, and only for `DateTimeRange` did the scale ever change (epoch seconds → epoch
+	 * milliseconds). Rescaling the wrong type would inflate a numeric range's bounds by a thousand and answer every
+	 * `attributeInRange` over it with the wrong records — silently. Two independent facts must therefore meet, and for
+	 * a filter index this method is the only place both are known: **which reader produced the part**
+	 * ({@link FilterIndexStoragePart#isSecondGranularityRangeThresholds()}, set by every backward-compatible
+	 * serializer and by none other) and **the declared attribute type** the part persists.
+	 *
+	 * Both shapes are repaired here rather than inside the serializers, because a range-`PAGED` axis keeps its
+	 * thresholds in leaf-page records the root's serializer never reads.
+	 *
+	 * **The same repair elsewhere.** Three other structures carry second-granularity thresholds and are repaired on
+	 * their own load paths, on the same reasoning but with the type decided differently — change one and check all
+	 * four: {@code HistogramIndexMapLoader#reloadOwnerFilterIndex} for a histogram's RANGE axis (same two facts,
+	 * different part), {@code PriceIndexHeaderSerializer#readWithSecondGranularityValidity} for a price validity index
+	 * (rescaled unconditionally, because its thresholds are only ever a price validity `DateTimeRange`), and
+	 * {@code Migration_2025_6}, which must rescale eagerly rather than at load because it *rewrites* the part under
+	 * the current uid and would otherwise relabel second thresholds as millisecond ones irrecoverably.
+	 *
 	 * @param catalogVersion    the catalog version to read pages at
 	 * @param entityIndexId     the owning entity index pk (part of the page-stream key)
 	 * @param service           the storage-part persistence service to read from
 	 * @param part              the already-fetched FILTER root part
 	 * @param attributeIndexKey the sub-index identity (part of the page-stream key)
 	 * @param key               the manifest key, used only for failure messages
+	 * @param plainType         the declared (non-array) attribute type, which decides whether a legacy threshold
+	 *                          scale applies to this index at all
 	 * @return the reloaded range companion, or `null` when the attribute has none
 	 */
 	@Nullable
@@ -410,10 +496,19 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		@Nonnull StoragePartPersistenceService<?> service,
 		@Nonnull FilterIndexStoragePart part,
 		@Nonnull AttributeIndexKey attributeIndexKey,
-		@Nonnull AttributeIndexStorageKey key
+		@Nonnull AttributeIndexStorageKey key,
+		@Nonnull Class<?> plainType
 	) {
+		// a part read by a backward-compatible serializer carries second-granularity thresholds, but only a
+		// `DateTimeRange` index ever measured its thresholds in seconds - every NumberRange threshold is the bound's
+		// own numeric value and must be left exactly as persisted
+		final boolean rescaleThresholds =
+			part.isSecondGranularityRangeThresholds() && DateTimeRange.class.equals(plainType);
 		if (!part.isRangePaged()) {
-			return part.getRangeIndex();
+			final RangeIndex inlineRange = part.getRangeIndex();
+			return rescaleThresholds && inlineRange != null
+				? RangeIndex.rescaledFromSecondGranularity(inlineRange)
+				: inlineRange;
 		}
 		final int rangeStreamId = service.getReadOnlyKeyCompressor().getId(
 			new LeafStreamKey(
@@ -437,9 +532,16 @@ public final class AttributeIndexLoader implements ComponentLoader {
 			);
 			perPagePoints[i] = leafPage.getPoints();
 		}
-		return RangeIndex.fromPersistedPages(
-			"attribute " + attributeIndexKey, rangePageSequences, perPagePoints, part.getRangeHighWaterPageSequence()
-		);
+		// the rescaled reload is deliberately NOT boundary-stable - see the method's javadoc for why root and pages
+		// have to move to the millisecond form in one commit
+		return rescaleThresholds
+			? RangeIndex.rescaledFromSecondGranularityPages(
+				rangePageSequences, perPagePoints, part.getRangeHighWaterPageSequence()
+			)
+			: RangeIndex.fromPersistedPages(
+				"attribute " + attributeIndexKey, rangePageSequences, perPagePoints,
+				part.getRangeHighWaterPageSequence()
+			);
 	}
 
 	/**

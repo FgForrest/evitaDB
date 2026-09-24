@@ -23,6 +23,7 @@
 
 package io.evitadb.index.invertedIndex.suppliers;
 
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordPrimitive;
@@ -41,7 +42,14 @@ import static io.evitadb.test.TestTags.CACHE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Verifies the formula-cache identity of {@link HistogramBitmapSupplier}: the typed value-hash dispatch used to
@@ -256,6 +264,43 @@ class HistogramBitmapSupplierTest {
 			);
 
 			assertEquals(4, supplier.getEstimatedCardinality());
+		}
+
+		@Test
+		@DisplayName("Construction reads no bucket's record set, so the union really is deferred")
+		void shouldNotUnionTheBucketsAtConstruction() {
+			// the whole point of wrapping this supplier in a DeferredFormula is that the union is paid only if the
+			// formula is actually computed. Reading a bucket's record set at construction defeats that outright - the
+			// attribute-histogram path unions the WHOLE index while the plan is still being costed
+			final ValueToRecord bucket = mock(ValueToRecord.class);
+			when(bucket.getValue()).thenReturn(5);
+			when(bucket.size()).thenReturn(3);
+			when(bucket.getRecordIds()).thenReturn(new BaseBitmap(1, 2, 3));
+
+			final HistogramBitmapSupplier supplier = new HistogramBitmapSupplier(
+				1L, new ValueToRecord[]{bucket}
+			);
+			verify(bucket, never()).getRecordIds();
+			// the cheap facts are still available without the union - they come off `size()`
+			assertEquals(3, supplier.getEstimatedCardinality());
+			verify(bucket, never()).getRecordIds();
+
+			assertArrayEquals(new int[]{1, 2, 3}, supplier.get().getArray());
+			verify(bucket, atLeastOnce()).getRecordIds();
+		}
+
+		@Test
+		@DisplayName("An empty slice neither throws nor reports a nonsensical ratio")
+		void shouldNotDivideByZeroOnAnEmptySlice() {
+			// `costToPerformance = cost / (size * operationCost)` divides by zero when the slice unions to nothing.
+			// A bucket that holds no record id is the reachable shape - the tree deletes drained buckets, but a
+			// caller may hand this supplier a freshly built, still-empty one
+			final HistogramBitmapSupplier supplier = assertDoesNotThrow(
+				() -> new HistogramBitmapSupplier(1L, new ValueToRecord[]{new ValueToRecordBitmap(5)})
+			);
+			assertTrue(supplier.get().isEmpty());
+			assertDoesNotThrow(supplier::getCostToPerformanceRatio);
+			assertDoesNotThrow(supplier::getCost);
 		}
 
 		@Test

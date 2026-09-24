@@ -43,7 +43,15 @@ import lombok.RequiredArgsConstructor;
  * non-paged part whose page metadata defaults to the `SINGLE` sentinel. Like the other
  * deprecated readers its {@link #write} throws — this legacy format must never be written again.
  *
- * @deprecated only for backward compatibility purposes
+ * That vintage also predates the millisecond move, so its validity thresholds are epoch **seconds** rather than the
+ * epoch **milliseconds** {@code DateTimeRange} compares at now — a difference in meaning that no untyped `long`
+ * carries a marker for, and which only the serial-version-uid that routed the read here reveals. The index is
+ * rescaled by {@link RangeIndex#rescaledFromSecondGranularity} on the way out;
+ * {@link PriceIndexHeaderSerializer#readWithSecondGranularityValidity} holds the argument for why a price validity
+ * index is the one range structure that can be rescaled without consulting a declared type.
+ *
+ * @deprecated only for backward compatibility purposes; can be removed once no catalog predating both the granular
+ *             `PAGED` layout and millisecond comparison granularity is still in use.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Deprecated(since = "2026.2", forRemoval = true)
@@ -62,7 +70,11 @@ public class PriceListAndCurrencySuperIndexStoragePartSerializer_2026_1 extends 
 		final long uniquePartId = input.readVarLong(true);
 		final PriceIndexKey priceIndexKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 
-		final RangeIndex validityIndex = kryo.readObject(input, RangeIndex.class);
+		// every format older than 2026.3 persisted the validity thresholds as epoch SECONDS - see
+		// PriceIndexHeaderSerializer#readWithSecondGranularityValidity for why the rescale needs no type routing here
+		final RangeIndex validityIndex = RangeIndex.rescaledFromSecondGranularity(
+			kryo.readObject(input, RangeIndex.class)
+		);
 
 		final PriceRecordContract[] priceRecords = PriceRecordCodec.readPriceRecords(input);
 

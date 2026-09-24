@@ -31,12 +31,12 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescri
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ConflictResolutionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeFilterAcceleratorsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedHistogramIndexDefinitionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedBucketedPartiallyDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFacetedPartiallyDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexedComponentsDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ReferenceAttributeSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationUnionDescriptor;
@@ -110,6 +110,12 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 			this.objectBuilderTransformer).build()
 		);
 		this.buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS_INPUT.to(
+			this.inputObjectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(ScopedAttributeFilterAcceleratorsDescriptor.THIS.to(
+			this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(ScopedAttributeFilterAcceleratorsDescriptor.THIS_INPUT.to(
 			this.inputObjectBuilderTransformer).build()
 		);
 		this.buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS.to(
@@ -220,6 +226,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 			ModifyAttributeSchemaTypeMutationDescriptor.THIS_INPUT,
 			RemoveAttributeSchemaMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaFilterableMutationDescriptor.THIS_INPUT,
+			SetAttributeSchemaAcceleratedMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaLocalizedMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaNullableMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaRepresentativeMutationDescriptor.THIS_INPUT,
@@ -326,6 +333,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 			ModifyAttributeSchemaTypeMutationDescriptor.THIS,
 			RemoveAttributeSchemaMutationDescriptor.THIS,
 			SetAttributeSchemaFilterableMutationDescriptor.THIS,
+			SetAttributeSchemaAcceleratedMutationDescriptor.THIS,
 			SetAttributeSchemaLocalizedMutationDescriptor.THIS,
 			SetAttributeSchemaNullableMutationDescriptor.THIS,
 			SetAttributeSchemaRepresentativeMutationDescriptor.THIS,

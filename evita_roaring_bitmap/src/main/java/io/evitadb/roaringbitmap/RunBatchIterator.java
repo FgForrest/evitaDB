@@ -42,7 +42,7 @@ final class RunBatchIterator implements ContainerBatchIterator {
 	 * resumes it.
 	 */
 	@Override
-	public int next(final int key, @Nonnull final int[] buffer, final int offset) {
+	public int next(final int key, @Nonnull final int[] buffer, final int offset, final int limit) {
 		int consumed = 0;
 		final RunContainer container = Objects.requireNonNull(
 			this.runs, "RunBatchIterator: container released or never wrapped");
@@ -50,7 +50,7 @@ final class RunBatchIterator implements ContainerBatchIterator {
 			final int runStart = (container.getValue(this.run));
 			final int runLength = (container.getLength(this.run));
 			final int chunkStart = runStart + this.cursor;
-			final int usableBufferLength = buffer.length - offset - consumed;
+			final int usableBufferLength = limit - offset - consumed;
 			final int chunkEnd = chunkStart + Math.min(runLength - this.cursor, usableBufferLength - 1);
 			final int chunk = chunkEnd - chunkStart + 1;
 			for (int i = 0; i < chunk; ++i) {
@@ -63,7 +63,7 @@ final class RunBatchIterator implements ContainerBatchIterator {
 			} else {
 				this.cursor += chunk;
 			}
-		} while ((offset + consumed) < buffer.length && this.run != container.numberOfRuns());
+		} while ((offset + consumed) < limit && this.run != container.numberOfRuns());
 		return consumed;
 	}
 

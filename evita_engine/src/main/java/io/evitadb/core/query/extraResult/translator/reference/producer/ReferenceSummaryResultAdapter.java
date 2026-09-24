@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.extraResult.translator.reference.producer;
 
+import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
@@ -34,6 +35,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Factory that converts the intermediate statistics map built by
@@ -121,5 +123,20 @@ public interface ReferenceSummaryResultAdapter<T extends ReferenceGroupStatistic
 	EvitaResponseExtraResult createResult(
 		@Nonnull Map<String, Collection<T>> statisticsByReferenceName
 	);
+
+	/**
+	 * Returns the names of the references that a reference-specific summary constraint of *this adapter's spelling*
+	 * claims within the passed require tree. A generic summary does not describe such a reference at all - the
+	 * specific form replaces it completely - so the generic requirements must not be validated against it either.
+	 *
+	 * The two spellings never mix inside one producer, which is why the question is asked of the adapter rather
+	 * than answered by matching both constraint classes at once: a `facetSummary` is not overridden by a
+	 * `referenceSummaryOfReference`, and pretending otherwise would let an invalid fetch through.
+	 *
+	 * @param require the require part of the query, `null` when the query carries none
+	 * @return names of the references claimed by a reference-specific constraint of this spelling
+	 */
+	@Nonnull
+	Set<String> collectReferenceSpecificNames(@Nullable Require require);
 
 }

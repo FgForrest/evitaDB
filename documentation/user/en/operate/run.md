@@ -8,8 +8,8 @@ author: 'Ing. Jan Novotný'
 proofreading: 'done'
 ---
 
-The Docker image is based on RedHat JDK / Linux (see <SourceClass>docker/Dockerfile</SourceClass>) base
-image (Fedora family) and is published to [Docker Hub](https://hub.docker.com/repository/docker/evitadb/evitadb/general).
+The Docker image is based on the Azul Zulu OpenJDK 21 image (see <SourceClass>docker/Dockerfile</SourceClass>)
+and is published to [Docker Hub](https://hub.docker.com/repository/docker/evitadb/evitadb/general).
 
 ### Install Docker
 
@@ -220,8 +220,8 @@ You can take advantage of all the following variables:
     </Thead>
     <Tbody>
         <Tr>
-            <Td>**`EVITA_CONFIG_FILE`**</Td>
-            <Td>Path to configuration file, default: `/evita/conf/evita-configuration.yaml`</Td>
+            <Td>**`EVITA_CONFIG_DIR`**</Td>
+            <Td>Path to the directory with configuration files, default: `/evita/conf/`</Td>
         </Tr>
         <Tr>
             <Td>**`EVITA_STRICT_CONFIG_FILE_CHECK`**</Td>
@@ -229,16 +229,24 @@ You can take advantage of all the following variables:
         </Tr>
         <Tr>
             <Td>**`EVITA_STORAGE_DIR`**</Td>
-            <Td>Path to storage directory, default: `/evita/data`</Td>
+            <Td>Path to storage directory, default: `/evita/data/`</Td>
+        </Tr>
+        <Tr>
+            <Td>**`EVITA_EXPORT_DIR`**</Td>
+            <Td>Path to export directory (temporary storage for backups and exports), default: `/evita/export/`</Td>
         </Tr>
         <Tr>
             <Td>**`EVITA_CERTIFICATE_DIR`**</Td>
-            <Td>Path to directory with automatically generated server certificates. Default: `/evita/certificates`</Td>
+            <Td>Path to directory with automatically generated server certificates. Default: `/evita/certificates/`</Td>
+        </Tr>
+        <Tr>
+            <Td>**`EVITA_LOG_FILE`**</Td>
+            <Td>Path to the Logback configuration file, default: `/evita/logback.xml`</Td>
         </Tr>
         <Tr>
             <Td>**`EVITA_JAVA_OPTS`**</Td>
             <Td>Java commandline arguments
-            (list of basic arguments [can be found here](https://docs.oracle.com/en/java/javase/17/docs/specs/man/java.html#overview-of-java-options)),
+            (list of basic arguments [can be found here](https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html#overview-of-java-options)),
             default: none (empty string)</Td>
         </Tr>
         <Tr>
@@ -256,6 +264,47 @@ You can take advantage of all the following variables:
         </Tr>
     </Tbody>
 </Table>
+
+### SIMD bitmap kernels
+
+The image starts the server with `--add-modules jdk.incubator.vector`, which resolves the JDK's incubating
+[Vector API](https://openjdk.org/jeps/448). evitaDB's bitmap indexes use it for the population-count and boolean
+kernels that sit behind every intersection, union and difference of two dense bitmaps, so those run as SIMD
+instructions on a CPU that offers vector registers at least 256 bits wide.
+
+The module is optional. When it is absent from the runtime, when the CPU offers only narrow vectors, or when the JVM
+runs without an optimizing JIT compiler (`-Xint`, `-XX:TieredStopAtLevel` below 4), the same arithmetic is computed by
+scalar code that produces identical results. Which of the two is in force is reported in a single line at startup:
+
+```
+roaring vector kernels: bitmap=vector(512-bit) array=scalar (bitmap: jdk.incubator.vector present, JIT compiler available, self-test passed; array: no usable vector implementation)
+```
+
+The JVM also prints one `WARNING: Using incubator modules: jdk.incubator.vector` line, which is how the JDK announces
+any incubating module.
+
+Two system properties control the selection, both intended for diagnosis:
+
+<Table caption="System properties selecting the bitmap kernels">
+    <Thead>
+        <Tr>
+            <Th>Property</Th>
+            <Th>Meaning</Th>
+        </Tr>
+    </Thead>
+    <Tbody>
+        <Tr>
+            <Td>**`-Devita.roaring.vector=false`**</Td>
+            <Td>Runs the scalar kernels regardless of what the runtime offers</Td>
+        </Tr>
+        <Tr>
+            <Td>**`-Devita.roaring.vector.bitmap=false`**</Td>
+            <Td>Runs the scalar kernels for the dense-bitmap arithmetic only</Td>
+        </Tr>
+    </Tbody>
+</Table>
+
+Pass either through `EVITA_JAVA_OPTS`.
 
 <Note type="info">
 

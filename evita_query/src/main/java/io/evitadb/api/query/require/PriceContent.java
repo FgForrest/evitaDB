@@ -31,6 +31,7 @@ import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.filter.PriceInPriceLists;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 
@@ -207,11 +208,42 @@ public class PriceContent extends AbstractRequireConstraintLeaf
 		return false;
 	}
 
+	/**
+	 * Combines two price content requirements into one that satisfies both.
+	 *
+	 * {@link PriceContentMode#RESPECTING_FILTER} and {@link PriceContentMode#ALL} differ in *how many* prices come
+	 * back, so the wider of the two answers both, and the additional price lists of the two are united.
+	 * {@link PriceContentMode#NONE} is not a third width - it is the opposite instruction, saying that no prices are
+	 * to be returned at all. Widening it to the other requirement's mode would hand a client who asked for no prices
+	 * a body full of them, so the pair is refused with an {@link EvitaInvalidUsageException} instead.
+	 *
+	 * The refusal answers the client-facing question ("return exactly this"). The prefetch union asks the other one
+	 * ("load at least this"), where `NONE` demands nothing and is absorbed by any other requirement - see
+	 * {@link DefaultPrefetchRequirementCollector}, which tests containment in both directions so that a nested pair
+	 * never reaches this method.
+	 *
+	 * @param anotherRequirement another requirement to be combined with, must be a price content requirement
+	 * @param <T> type of the requirement to be combined with
+	 * @return a requirement satisfying both, which may be either of the two instances or a newly created one
+	 * @throws GenericEvitaInternalError when the other requirement is not a price content requirement
+	 * @throws EvitaInvalidUsageException when one requirement fetches no prices while the other fetches them
+	 */
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override
 	public <T extends EntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
 		if (anotherRequirement instanceof PriceContent anotherPriceContent) {
+			// `NONE` is not the weakest of three widths, it is the opposite instruction: the other two say which prices
+			// to return, `NONE` says to return none. Taking the higher mode would answer a client who asked for no
+			// prices with prices, so the pair is refused rather than widened
+			if ((getFetchMode() == PriceContentMode.NONE) != (anotherPriceContent.getFetchMode() == PriceContentMode.NONE)) {
+				final String reason = "Cannot combine a price content requirement fetching no prices with one that " +
+					"fetches them";
+				throw new EvitaInvalidUsageException(
+					reason + ": " + this + " and " + anotherRequirement + ".",
+					reason + "."
+				);
+			}
 			if (anotherPriceContent.getFetchMode().ordinal() >= getFetchMode().ordinal()) {
 				final Set<String> additionalPriceListsToFetch = getAdditionalPriceListsToFetchAsSet();
 				if (anotherPriceContent.getAdditionalPriceListsToFetchAsSet().containsAll(additionalPriceListsToFetch)) {

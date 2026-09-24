@@ -339,10 +339,6 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.BoolValue measured_;
   /**
    * <pre>
-   * When observation of this index began, and therefore the window the two counters and the two stamps above are read
-   * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-   * A server that knows this field always sets it; absent only from a server predating it, and the window is then
-   * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
    * Whether the readings above were taken at all. False on a server started with
    * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
    * nor the write path reach for one.
@@ -365,10 +361,6 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * When observation of this index began, and therefore the window the two counters and the two stamps above are read
-   * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-   * A server that knows this field always sets it; absent only from a server predating it, and the window is then
-   * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
    * Whether the readings above were taken at all. False on a server started with
    * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
    * nor the write path reach for one.
@@ -391,10 +383,6 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * When observation of this index began, and therefore the window the two counters and the two stamps above are read
-   * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-   * A server that knows this field always sets it; absent only from a server predating it, and the window is then
-   * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
    * Whether the readings above were taken at all. False on a server started with
    * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
    * nor the write path reach for one.
@@ -418,6 +406,13 @@ private static final long serialVersionUID = 0L;
   public static final int OBSERVEDSINCE_FIELD_NUMBER = 9;
   private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince_;
   /**
+   * <pre>
+   * When observation of this index began, and therefore the window the two counters and the two stamps above are read
+   * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
+   * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+   * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
    * @return Whether the observedSince field is set.
    */
@@ -426,6 +421,13 @@ private static final long serialVersionUID = 0L;
     return ((bitField0_ & 0x00000020) != 0);
   }
   /**
+   * <pre>
+   * When observation of this index began, and therefore the window the two counters and the two stamps above are read
+   * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
+   * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+   * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
    * @return The observedSince.
    */
@@ -434,6 +436,13 @@ private static final long serialVersionUID = 0L;
     return observedSince_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : observedSince_;
   }
   /**
+   * <pre>
+   * When observation of this index began, and therefore the window the two counters and the two stamps above are read
+   * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
+   * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+   * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
    */
   @java.lang.Override
@@ -2036,10 +2045,6 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.BoolValue, com.google.protobuf.BoolValue.Builder, com.google.protobuf.BoolValueOrBuilder> measuredBuilder_;
     /**
      * <pre>
-     * When observation of this index began, and therefore the window the two counters and the two stamps above are read
-     * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
-     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
      * Whether the readings above were taken at all. False on a server started with
      * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
      * nor the write path reach for one.
@@ -2061,10 +2066,6 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * When observation of this index began, and therefore the window the two counters and the two stamps above are read
-     * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
-     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
      * Whether the readings above were taken at all. False on a server started with
      * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
      * nor the write path reach for one.
@@ -2090,10 +2091,6 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * When observation of this index began, and therefore the window the two counters and the two stamps above are read
-     * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
-     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
      * Whether the readings above were taken at all. False on a server started with
      * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
      * nor the write path reach for one.
@@ -2124,10 +2121,6 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * When observation of this index began, and therefore the window the two counters and the two stamps above are read
-     * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
-     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
      * Whether the readings above were taken at all. False on a server started with
      * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
      * nor the write path reach for one.
@@ -2156,10 +2149,6 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * When observation of this index began, and therefore the window the two counters and the two stamps above are read
-     * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
-     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
      * Whether the readings above were taken at all. False on a server started with
      * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
      * nor the write path reach for one.
@@ -2195,10 +2184,6 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * When observation of this index began, and therefore the window the two counters and the two stamps above are read
-     * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
-     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
      * Whether the readings above were taken at all. False on a server started with
      * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
      * nor the write path reach for one.
@@ -2226,10 +2211,6 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * When observation of this index began, and therefore the window the two counters and the two stamps above are read
-     * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
-     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
      * Whether the readings above were taken at all. False on a server started with
      * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
      * nor the write path reach for one.
@@ -2252,10 +2233,6 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * When observation of this index began, and therefore the window the two counters and the two stamps above are read
-     * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
-     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
      * Whether the readings above were taken at all. False on a server started with
      * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
      * nor the write path reach for one.
@@ -2281,10 +2258,6 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * When observation of this index began, and therefore the window the two counters and the two stamps above are read
-     * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
-     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
      * Whether the readings above were taken at all. False on a server started with
      * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
      * nor the write path reach for one.
@@ -2318,6 +2291,13 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> observedSinceBuilder_;
     /**
+     * <pre>
+     * When observation of this index began, and therefore the window the two counters and the two stamps above are read
+     * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
+     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
      * @return Whether the observedSince field is set.
      */
@@ -2325,6 +2305,13 @@ private static final long serialVersionUID = 0L;
       return ((bitField0_ & 0x00000200) != 0);
     }
     /**
+     * <pre>
+     * When observation of this index began, and therefore the window the two counters and the two stamps above are read
+     * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
+     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
      * @return The observedSince.
      */
@@ -2336,6 +2323,13 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * When observation of this index began, and therefore the window the two counters and the two stamps above are read
+     * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
+     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
      */
     public Builder setObservedSince(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
@@ -2352,6 +2346,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * When observation of this index began, and therefore the window the two counters and the two stamps above are read
+     * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
+     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
      */
     public Builder setObservedSince(
@@ -2366,6 +2367,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * When observation of this index began, and therefore the window the two counters and the two stamps above are read
+     * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
+     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
      */
     public Builder mergeObservedSince(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
@@ -2387,6 +2395,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * When observation of this index began, and therefore the window the two counters and the two stamps above are read
+     * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
+     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
      */
     public Builder clearObservedSince() {
@@ -2400,6 +2415,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * When observation of this index began, and therefore the window the two counters and the two stamps above are read
+     * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
+     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getObservedSinceBuilder() {
@@ -2408,6 +2430,13 @@ private static final long serialVersionUID = 0L;
       return getObservedSinceFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * When observation of this index began, and therefore the window the two counters and the two stamps above are read
+     * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
+     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getObservedSinceOrBuilder() {
@@ -2419,6 +2448,13 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * When observation of this index began, and therefore the window the two counters and the two stamps above are read
+     * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
+     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

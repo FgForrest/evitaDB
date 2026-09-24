@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.function.IntBinaryOperator;
@@ -277,6 +278,32 @@ class ArrayUtilsTest {
 	@Nested
 	@DisplayName("Removal tests")
 	class RemovalTests {
+
+		@Test
+		@DisplayName("Should remove int from array on index")
+		void shouldRemoveIntFromArrayOnIndex() {
+			final int[] records = new int[]{1, 2, 5, 6, 8, 9};
+
+			assertArrayEquals(new int[]{2, 5, 6, 8, 9}, removeIntFromArrayOnIndex(records, 0));
+			assertArrayEquals(new int[]{1, 2, 6, 8, 9}, removeIntFromArrayOnIndex(records, 2));
+			assertArrayEquals(new int[]{1, 2, 5, 6, 8}, removeIntFromArrayOnIndex(records, records.length - 1));
+			assertArrayEquals(new int[0], removeIntFromArrayOnIndex(new int[]{42}, 0));
+			// the source is never modified - every caller shares the array it hands in with someone else
+			assertArrayEquals(new int[]{1, 2, 5, 6, 8, 9}, records);
+		}
+
+		@Test
+		@DisplayName("Should refuse to remove int from array on index outside it")
+		void shouldRefuseToRemoveIntFromArrayOnIndexOutsideIt() {
+			assertThrows(
+				IndexOutOfBoundsException.class,
+				() -> removeIntFromArrayOnIndex(new int[]{1, 2, 3}, 3)
+			);
+			assertThrows(
+				IndexOutOfBoundsException.class,
+				() -> removeIntFromArrayOnIndex(new int[]{1, 2, 3}, -1)
+			);
+		}
 
 		@Test
 		@DisplayName("Should remove ints from array and keep order")
@@ -858,6 +885,68 @@ class ArrayUtilsTest {
 			Integer[] array2 = {1, 2, 3};
 
 			assertTrue(ArrayUtils.compare(array1, array2) < 0);
+		}
+	}
+
+	@Nested
+	@DisplayName("Unsigned in-place sort")
+	class SortUnsigned {
+
+		@Test
+		@DisplayName("Should order negative ids ABOVE every positive one")
+		void shouldOrderNegativeIdsLast() {
+			// -1 is 0xFFFFFFFF, the greatest unsigned int there is; Integer.MIN_VALUE is the smallest of the negatives
+			// in signed order and so the first of them here. A plain Arrays.sort would put all three at the FRONT
+			final int[] records = {7, -1, 0, Integer.MAX_VALUE, Integer.MIN_VALUE, -2, 3};
+			ArrayUtils.sortUnsigned(records);
+
+			assertArrayEquals(
+				new int[]{0, 3, 7, Integer.MAX_VALUE, Integer.MIN_VALUE, -2, -1}, records,
+				"Unsigned order runs 0 .. MAX_VALUE, then MIN_VALUE .. -1."
+			);
+			for (int i = 1; i < records.length; i++) {
+				assertTrue(
+					Integer.compareUnsigned(records[i - 1], records[i]) < 0,
+					"Result must be ascending under Integer#compareUnsigned at position " + i + "."
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("Should leave an all-non-negative array exactly as a plain sort would")
+		void shouldMatchPlainSortWithoutNegatives() {
+			final int[] records = {40, 5, Integer.MAX_VALUE, 0, 17};
+			final int[] plainlySorted = records.clone();
+			Arrays.sort(plainlySorted);
+
+			ArrayUtils.sortUnsigned(records);
+
+			assertArrayEquals(plainlySorted, records);
+		}
+
+		@Test
+		@DisplayName("Should preserve every value and be idempotent")
+		void shouldPreserveValuesAndBeIdempotent() {
+			// the flip is its own inverse, so no value may be altered - only their order
+			final int[] records = {-1, Integer.MIN_VALUE, 0, -1, 9};
+			ArrayUtils.sortUnsigned(records);
+			final int[] once = records.clone();
+			ArrayUtils.sortUnsigned(records);
+
+			assertArrayEquals(once, records, "Sorting an already unsigned-sorted array must change nothing.");
+			assertArrayEquals(new int[]{0, 9, Integer.MIN_VALUE, -1, -1}, records, "Duplicates must survive intact.");
+		}
+
+		@Test
+		@DisplayName("Should accept empty and single-element arrays")
+		void shouldAcceptDegenerateArrays() {
+			final int[] empty = new int[0];
+			ArrayUtils.sortUnsigned(empty);
+			assertEquals(0, empty.length);
+
+			final int[] single = {-42};
+			ArrayUtils.sortUnsigned(single);
+			assertArrayEquals(new int[]{-42}, single);
 		}
 	}
 }

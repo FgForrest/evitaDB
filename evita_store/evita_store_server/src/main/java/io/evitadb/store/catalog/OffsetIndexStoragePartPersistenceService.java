@@ -421,7 +421,10 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 			final RecordTypeUsage usage = entry.getValue();
 			if (usage.count() > 0) {
 				composition[index++] = new StoragePartFootprint(
-					entry.getKey(), usage.count(), usage.totalBytes()
+					entry.getKey(),
+					this.offsetIndex.getRecordTypeRegistry().groupFor(entry.getKey()),
+					usage.count(),
+					usage.totalBytes()
 				);
 			}
 		}

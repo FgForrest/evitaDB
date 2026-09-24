@@ -85,10 +85,7 @@ import static io.evitadb.api.query.QueryConstraints.referenceContentAll;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.FILTER;
 import static io.evitadb.test.TestTags.INDEXING;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Writer-side reproduction harness for a stale leaf-page twin corruption: two on-disk leaf pages of a persisted
@@ -278,10 +275,7 @@ class StaleLeafPageTwinWriterReproductionTest implements EvitaTestSupport {
 						Thread.currentThread().interrupt();
 						fail(seedInfo(attemptPhase) + " interrupted while joining upsert threads");
 					}
-					assertTrue(
-						!thread.isAlive(),
-						seedInfo(attemptPhase) + " thread " + thread.getName() + " hung!"
-					);
+					assertFalse(thread.isAlive(), seedInfo(attemptPhase) + " thread " + thread.getName() + " hung!");
 				}
 				for (final TreeMap<Integer, OffsetDateTime> localModel : threadModels) {
 					this.publishedByPk.putAll(localModel);
@@ -400,10 +394,7 @@ class StaleLeafPageTwinWriterReproductionTest implements EvitaTestSupport {
 						Thread.currentThread().interrupt();
 						fail(seedInfo(attemptPhase) + " interrupted while joining upsert threads");
 					}
-					assertTrue(
-						!thread.isAlive(),
-						seedInfo(attemptPhase) + " thread " + thread.getName() + " hung!"
-					);
+					assertFalse(thread.isAlive(), seedInfo(attemptPhase) + " thread " + thread.getName() + " hung!");
 				}
 				for (final TreeMap<Integer, OffsetDateTime> localModel : threadModels) {
 					this.publishedByPk.putAll(localModel);
@@ -1014,8 +1005,8 @@ class StaleLeafPageTwinWriterReproductionTest implements EvitaTestSupport {
 						);
 					}
 				}
-				assertTrue(
-					expectedIdx == expectedRecords.size(),
+				assertEquals(
+					expectedIdx, expectedRecords.size(),
 					seedInfo(phase) + " " + indexName + ": bucket[" + position + "]=" + bucketKey +
 						" lost expected record(s): holds " + bucket.getRecordIds() + ", expected " +
 						expectedRecords

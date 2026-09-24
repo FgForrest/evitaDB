@@ -112,14 +112,6 @@ public class ValueToRecordPrimitive implements ValueToRecord {
 	}
 
 	@Override
-	public int recordSetHashCode() {
-		// canonical single-record hash shared with ValueToRecordBitmap: 31 * 1 + id, so a primitive {5} and a
-		// cardinality-1 bitmap {5} hash identically. A bucket is the primitive representation only when it holds a
-		// single record, which is exactly the cardinality at which ValueToRecordBitmap mirrors this same formula.
-		return 31 + this.recordId;
-	}
-
-	@Override
 	public int compareTo(@Nonnull ValueToRecord o) {
 		//noinspection unchecked,rawtypes
 		return ((Comparable) this.value).compareTo(o.getValue());

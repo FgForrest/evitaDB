@@ -26,8 +26,6 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.UseGlobalAttributeSchemaMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
-import java.util.List;
-
 /**
  * Descriptor representing {@link io.evitadb.api.requestResponse.schema.mutation.attribute.UseGlobalAttributeSchemaMutation}.
  *

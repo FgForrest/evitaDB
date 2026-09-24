@@ -23,12 +23,14 @@
 
 package io.evitadb.spi.store.catalog.persistence.storageParts.entity;
 
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
+import io.evitadb.api.requestResponse.data.mutation.reference.ComparableReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.data.structure.ReferenceAttributes;
@@ -41,6 +43,8 @@ import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefiniti
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart.MissingReferenceBehavior;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
@@ -48,17 +52,19 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import org.junit.jupiter.api.Tag;
+import java.util.Set;
+import java.util.function.UnaryOperator;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.when;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.EXPORT;
 import static io.evitadb.test.TestTags.REFERENCE;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests for ReferencesStoragePart focusing on sorted order of references and key operations.
@@ -170,6 +176,102 @@ class ReferencesStoragePartTest {
 				assertTrue(
 					ReferenceKey.FULL_COMPARATOR.compare(arr[i - 1].getReferenceKey(), ref.getReferenceKey()) < 0);
 			}
+		}
+	}
+
+	@Test
+	@DisplayName("should re-sort when an assigned id overtakes an already numbered duplicate")
+	void shouldReSortWhenAssignedIdOvertakesAlreadyNumberedDuplicate() {
+		// `assignMissingIdsAndSort` only re-sorts when the assignment actually disturbed the ordering. This is
+		// the shape where it genuinely does: a brand new reference sorts *before* its already numbered duplicates
+		// (its internal primary key is still negative), but the id it receives is drawn from the counter and is
+		// therefore *higher* than theirs - so the container comes out of the assignment loop unsorted.
+		final io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart part =
+			new io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart(
+				2, 10,
+				new Reference[]{
+					newRef("B", 1, 1, null, false),
+					newRef("D", 1, 4, null, false),
+					newRef("D", 1, 6, null, false),
+					newRef("E", 1, 7, null, false)
+				},
+				128
+			);
+
+		// inserted at the head of the `D` cluster, because -3 precedes both 4 and 6
+		part.replaceOrAddReference(
+			new ReferenceKey("D", 1, -3),
+			existing -> newRef("D", 1, -3, null, false),
+			() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
+		);
+
+		final Map<ComparableReferenceKey, ReferenceKey> assignedKeys = part.assignMissingIdsAndSort();
+		assertEquals(1, assignedKeys.size(), "Exactly one reference had a missing internal primary key");
+
+		final ReferenceContract[] references = part.getReferencesAsCollection().toArray(new ReferenceContract[0]);
+		assertEquals(5, references.length);
+		// the whole container must be sorted again - the newly numbered reference now belongs behind its duplicates
+		for (int i = 1; i < references.length; i++) {
+			assertTrue(
+				ReferenceKey.FULL_COMPARATOR.compare(
+					references[i - 1].getReferenceKey(), references[i].getReferenceKey()
+				) < 0,
+				"References must stay sorted, but `" + references[i - 1].getReferenceKey() +
+					"` is followed by `" + references[i].getReferenceKey() + "`"
+			);
+		}
+		// the assigned id continues the container's own counter
+		assertEquals(11, references[3].getReferenceKey().internalPrimaryKey());
+		assertEquals("D", references[3].getReferenceName());
+	}
+
+	@Test
+	@DisplayName("should keep order when appended references are numbered in place")
+	void shouldKeepOrderWhenAppendedReferencesAreNumberedInPlace() {
+		// the counterpart of the test above and the ordinary path: every inserted reference is numbered in array
+		// order from a monotonically growing counter, so the container leaves the assignment loop already sorted
+		// and the guarded `Arrays.sort` runs as a no-op. The guard itself (`lupkBefore != lastUsedPrimaryKey`) is
+		// still true here - it only asks whether *any* id was assigned, not whether that assignment disturbed the
+		// ordering. The shape that genuinely skips the sort is the insertion of a reference already carrying a
+		// known positive internal key: it flips `unassignedPrimaryKeys` without triggering a single assignment,
+		// and it is not what this test covers. The observable outcome must be identical either way.
+		final io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart part =
+			new io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart(
+				3, 10,
+				new Reference[]{
+					newRef("A", 1, 1, null, false),
+					newRef("C", 1, 2, null, false)
+				},
+				128
+			);
+
+		part.replaceOrAddReference(
+			new ReferenceKey("B", 5, -1),
+			existing -> newRef("B", 5, -1, null, false),
+			() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
+		);
+		part.replaceOrAddReference(
+			new ReferenceKey("B", 2, -2),
+			existing -> newRef("B", 2, -2, null, false),
+			() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
+		);
+
+		assertEquals(2, part.assignMissingIdsAndSort().size());
+
+		final ReferenceContract[] references = part.getReferencesAsCollection().toArray(new ReferenceContract[0]);
+		assertEquals(4, references.length);
+		for (int i = 1; i < references.length; i++) {
+			assertTrue(
+				ReferenceKey.FULL_COMPARATOR.compare(
+					references[i - 1].getReferenceKey(), references[i].getReferenceKey()
+				) < 0,
+				"References must stay sorted, but `" + references[i - 1].getReferenceKey() +
+					"` is followed by `" + references[i].getReferenceKey() + "`"
+			);
+			assertTrue(
+				references[i].getReferenceKey().isKnownInternalPrimaryKey(),
+				"Every reference must end up with a terminal internal primary key"
+			);
 		}
 	}
 
@@ -902,6 +1004,139 @@ class ReferencesStoragePartTest {
 		for (int i = 1; i < arr.length; i++) {
 			assertTrue(
 				ReferenceKey.FULL_COMPARATOR.compare(arr[i - 1].getReferenceKey(), arr[i].getReferenceKey()) < 0);
+		}
+	}
+
+	@Nested
+	@DisplayName("Narrowed view refusals")
+	class NarrowedViewTest {
+		private static final String DECODED = "brand";
+		private static final String UNDECODED = "category";
+
+		/**
+		 * Builds a part carrying only the references of the `brand` name, the shape a read narrowed by name
+		 * produces. The size is the one the **whole** record occupied, which is what the narrowing promises to
+		 * keep reporting.
+		 */
+		@Nonnull
+		private static ReferencesStoragePart narrowedPart() {
+			return new ReferencesStoragePart(
+				1, 2,
+				new Reference[]{
+					newRef(DECODED, 100, 1, group(900), false),
+					newRef(DECODED, 101, 2, group(901), false)
+				},
+				512,
+				ReferenceDecodeCoverage.ofNames(Set.of(DECODED))
+			);
+		}
+
+		/**
+		 * The same references, but carrying the entity's complete reference set - the counterfactual every refusal
+		 * below is measured against.
+		 */
+		@Nonnull
+		private static ReferencesStoragePart completePart() {
+			return new ReferencesStoragePart(
+				1, 2,
+				new Reference[]{
+					newRef(DECODED, 100, 1, group(900), false),
+					newRef(DECODED, 101, 2, group(901), false)
+				},
+				512
+			);
+		}
+
+		@Test
+		@DisplayName("reports itself incomplete and names what it carries")
+		void shouldReportItselfIncomplete() {
+			final ReferencesStoragePart narrowed = narrowedPart();
+			assertFalse(narrowed.isComplete());
+			assertEquals(Set.of(DECODED), narrowed.getDecodeCoverage().getNamesDecodedWhole());
+
+			final ReferencesStoragePart complete = completePart();
+			assertTrue(complete.isComplete());
+			assertNull(complete.getDecodeCoverage());
+		}
+
+		@Test
+		@DisplayName("answers normally about a reference name it did decode")
+		void shouldAnswerAboutDecodedReferenceName() {
+			// a guard that rejects too much turns the optimisation into an outage - everything the narrowing kept
+			// must stay as answerable as it was before
+			final ReferencesStoragePart narrowed = narrowedPart();
+
+			assertArrayEquals(new int[]{100, 101}, narrowed.getReferencedIds(DECODED));
+			assertArrayEquals(new int[]{100, 101}, narrowed.getDistinctReferencedIds(DECODED));
+			assertArrayEquals(new int[]{900, 901}, narrowed.getDistinctReferencedGroupIds(DECODED));
+			assertTrue(narrowed.contains(new ReferenceKey(DECODED, 100, 1)));
+			assertTrue(narrowed.findReference(new ReferenceKey(DECODED, 100, 1)).isPresent());
+		}
+
+		@Test
+		@DisplayName("refuses questions that span every reference name")
+		void shouldRefuseWholePartQuestions() {
+			// both of these are called exclusively from the write path, so a failure here is the alarm that says
+			// a narrowed part escaped the read path
+			final ReferencesStoragePart narrowed = narrowedPart();
+
+			assertThrows(GenericEvitaInternalError.class, narrowed::isEmpty);
+			assertThrows(GenericEvitaInternalError.class, () -> narrowed.isLocalePresent(Locale.ENGLISH));
+			assertThrows(GenericEvitaInternalError.class, narrowed::assignMissingIdsAndSort);
+		}
+
+		@Test
+		@DisplayName("refuses to be modified")
+		void shouldRefuseModification() {
+			final ReferencesStoragePart narrowed = narrowedPart();
+
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> narrowed.replaceOrAddReference(
+					new ReferenceKey(DECODED, 100, 1),
+					UnaryOperator.identity(),
+					() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("refuses questions about a reference name it did not decode")
+		void shouldRefuseQuestionsAboutUndecodedReferenceName() {
+			final ReferencesStoragePart narrowed = narrowedPart();
+
+			assertThrows(GenericEvitaInternalError.class, () -> narrowed.getReferencedIds(UNDECODED));
+			assertThrows(GenericEvitaInternalError.class, () -> narrowed.getDistinctReferencedIds(UNDECODED));
+			assertThrows(GenericEvitaInternalError.class, () -> narrowed.getDistinctReferencedGroupIds(UNDECODED));
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> narrowed.contains(new ReferenceKey(UNDECODED, 100, 1))
+			);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> narrowed.findReference(new ReferenceKey(UNDECODED, 100, 1))
+			);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> narrowed.findReferencesOrThrowException(new ReferenceKey(UNDECODED, 100))
+			);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> narrowed.findAllReferences(new ReferenceKey(UNDECODED, 100), Droppable::exists)
+			);
+		}
+
+		@Test
+		@DisplayName("hands over what it carries through the unguarded accessors")
+		void shouldExposeNarrowedReferencesThroughUnguardedAccessors() {
+			// entity composition reads the array itself and must keep working - a well meant guard here would break
+			// every narrowed read
+			final ReferencesStoragePart narrowed = narrowedPart();
+
+			assertEquals(2, narrowed.getReferences().length);
+			final Collection<ReferenceContract> asCollection = narrowed.getReferencesAsCollection();
+			assertEquals(2, asCollection.size());
+			assertEquals(512, narrowed.sizeInBytes().orElse(-1));
 		}
 	}
 

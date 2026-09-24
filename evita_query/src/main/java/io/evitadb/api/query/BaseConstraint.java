@@ -188,22 +188,27 @@ public abstract class BaseConstraint<T extends Constraint<T>> implements Constra
 	 * Avoids creating a new array if all arguments are already of supported types.
 	 *
 	 * This method performs a two-pass optimization:
-	 * 1. First pass: Check if any argument is unsupported (avoids allocation in common case)
+	 * 1. First pass: Check if any argument needs normalizing (avoids allocation in common case)
 	 * 2. Second pass: Only if conversion is needed, allocate new array and convert all arguments
 	 *
 	 * evitaDB supports a limited set of types for query arguments to ensure serializability across network
 	 * protocols (gRPC, REST) and storage formats. Unsupported types are automatically converted to the nearest
 	 * supported equivalent (e.g., `java.sql.Date` to `java.time.LocalDate`).
 	 *
+	 * The first pass asks {@link EvitaDataTypes#requiresNormalization(Serializable)} rather than testing the type
+	 * for supportedness alone. A temporal value is of a supported type yet still has to be normalized, because
+	 * evitaDB cuts every temporal value to whole milliseconds - and a probe that kept its sub-millisecond digits
+	 * would never match the stored value that was cut when it was written.
+	 *
 	 * @param arguments the raw arguments passed to the constraint constructor
-	 * @return either the original array (if all types are supported) or a new array with converted values
+	 * @return either the original array (if all values are already normal) or a new array with converted values
 	 */
 	@Nonnull
 	private static Serializable[] convertArgumentsIfNeeded(@Nonnull Serializable[] arguments) {
 		// first pass: check if conversion is needed (avoids allocation in common case)
 		boolean needsConversion = false;
 		for (final Serializable argument : arguments) {
-			if (argument != null && !EvitaDataTypes.isSupportedTypeOrItsArrayOrEnum(argument.getClass())) {
+			if (argument != null && EvitaDataTypes.requiresNormalization(argument)) {
 				needsConversion = true;
 				break;
 			}

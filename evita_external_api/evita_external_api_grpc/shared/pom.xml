@@ -31,10 +31,13 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_external_api</artifactId>
-		<version>2026.2-SNAPSHOT</version>
+		<version>2026.3-SNAPSHOT</version>
 		<relativePath>../../pom.xml</relativePath>
 	</parent>
 	<properties>
+		<!-- Reachable from the Java driver: stays at the JDK 17 language and API level
+		     (see java.release in the root POM). -->
+		<java.release>${java.driver.release}</java.release>
 		<sonar.exclusions>src/main/java/io/evitadb/externalApi/grpc/generated/**</sonar.exclusions>
 	</properties>
 	<build>

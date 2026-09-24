@@ -29,6 +29,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.trigram.StringSearchShape;
 
 import javax.annotation.Nonnull;
 import java.util.function.BiPredicate;
@@ -45,7 +46,8 @@ public class AttributeContainsTranslator extends AbstractAttributeStringSearchTr
 		super(
 			"contains",
 			FilterIndex::getRecordsWhoseValuesContains,
-			createPredicate()
+			createPredicate(),
+			StringSearchShape.CONTAINMENT
 		);
 	}
 
@@ -63,6 +65,17 @@ public class AttributeContainsTranslator extends AbstractAttributeStringSearchTr
 	@Override
 	public Formula translate(@Nonnull AttributeContains attributeContains, @Nonnull FilterByVisitor filterByVisitor) {
 		return translateInternal(attributeContains, filterByVisitor);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * A value containing the search term contains it as a contiguous run of code points, so every trigram of the term
+	 * is a trigram of the value and the intersection cannot lose a match.
+	 */
+	@Override
+	protected boolean isServedByTrigramIndex() {
+		return true;
 	}
 
 }

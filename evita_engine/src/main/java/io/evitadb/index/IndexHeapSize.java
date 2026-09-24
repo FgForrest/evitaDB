@@ -106,12 +106,19 @@ public final class IndexHeapSize {
 	 *
 	 * # Why a memoized formula is charged this shallowly
 	 *
-	 * A memoized formula is a query answer an index kept, and every bitmap reachable from one is in exactly one of two
-	 * states, neither of which this figure may follow:
+	 * The sole remaining caller is {@link io.evitadb.index.invertedIndex.InvertedIndexSubSet}. The index structures
+	 * that used to memoize a formula — a filter index's all-records union, an owner unique index's record ids, a
+	 * hierarchy index's node set — memoize the **bitmap** instead and build a fresh wrapper per call, because a
+	 * formula node retains the execution context of the first query to initialize it and would pin that query's
+	 * session and catalog generation for the lifetime of the index. A subset cannot follow them: its aggregation
+	 * lambda may return a lazy `DeferredFormula`, so materializing eagerly would change behaviour.
 	 *
-	 * - **an alias of index data already charged** — a single-bucket union short-circuits to the bucket's own bitmap,
-	 *   and a formula's `memoizedResult` resolves to its own delegate. Following either would charge one bitmap twice
-	 *   for an index that has answered a single query, which rule 1 forbids outright.
+	 * A memoized formula is a query answer a structure kept, and every bitmap reachable from one is in exactly one of
+	 * two states, neither of which this figure may follow:
+	 *
+	 * - **an alias of index data already charged** — a formula's `memoizedResult` resolves to its own delegate, and a
+	 *   single-bucket aggregation short-circuits to that bucket's own bitmap. Following either would charge one
+	 *   bitmap twice for a structure that has answered a single query, which rule 1 forbids outright.
 	 * - **a recomputable union**, dropped the moment the index is mutated and rebuilt on the next read.
 	 *
 	 * Following an arbitrary formula tree would additionally need a heap API across the whole query algebra — a query

@@ -30,7 +30,9 @@ import org.openjdk.jol.vm.VM;
 import javax.annotation.Nonnull;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.Locale;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Ground truth for heap-size estimates, measured with JOL rather than asserted from a remembered number.
@@ -58,6 +60,42 @@ import java.util.Set;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public final class JolHeapSize {
+
+	/**
+	 * The JDK flyweights this repository's arithmetic prices at **zero**, and which a walk must therefore stop at.
+	 *
+	 * # Why a `Locale` is not merely subtracted but made opaque
+	 *
+	 * `EvitaDataTypes#estimateSize` charges `0` for a `Locale` — "flyweights owned by the JVM" — and
+	 * `IndexHeapSize#OWNED_KEY_SIZER` charges a `ComparableLocale` for its wrapper alone. Every index in the codebase
+	 * therefore reports a locale it holds as free, and a walk that charged one would accuse correct arithmetic of
+	 * under-counting. That much a borrowed root could handle.
+	 *
+	 * What a borrowed root **cannot** handle is that a `Locale`'s own subgraph *grows while the JVM runs*.
+	 * `Locale#toLanguageTag` memoises its result into the instance's `languageTag` field — 48 bytes, a `String` and
+	 * its `byte[]` — and every locale evitaDB uses is a JVM-wide constant that any code anywhere may materialise at
+	 * any moment. Subtracting it by naming it a shared root only works if it is named *and* if the materialisation
+	 * happens outside the window between the borrowed walk and the charging walk; miss either and the figure moves by
+	 * exactly those 48 bytes, in whichever direction the two walks happened to straddle.
+	 *
+	 * That is not hypothetical: it is what made `EntityIndexHeapSizeTest#shouldChargeTheHistogramLeafPageBaseline`
+	 * (which compares two walks of one index) and `CatalogIndexHeapSizeTest#shouldNotAccumulateCachedViewsOnFlush`
+	 * (likewise) fail intermittently, at that same 48-byte quantum, whenever a *concurrent* test in the same surefire
+	 * fork touched `Locale.ENGLISH` between the two readings.
+	 *
+	 * Stopping the walk **at** the locale removes the window entirely: nothing beneath it can enter the figure, no
+	 * matter when it appears. The remaining reference slot is charged to the holder as it always was.
+	 *
+	 * # Why only `Locale`
+	 *
+	 * The neighbouring flyweights the model also prices at zero — `Currency`, enum constants, an interned
+	 * `ZoneOffset` — are *immutable* once created: naming one as a borrowed root is sufficient, which is what the
+	 * call sites already do, and widening this predicate to them would change figures those tests currently pin for
+	 * no hermeticity gain. Add a type here when its subgraph can grow after construction, not merely because it is
+	 * shared.
+	 */
+	private static final Predicate<Object> JVM_FLYWEIGHT = object -> object instanceof Locale;
+
 	private JolHeapSize() {
 	}
 
@@ -79,6 +117,9 @@ public final class JolHeapSize {
 	 * singleton, an interned instance, a structure another owner maintains. Passing none asserts that the object owns
 	 * its entire reachable graph.
 	 *
+	 * The {@link #JVM_FLYWEIGHT} types need no such entry and cannot be re-included by one: the walk stops at them
+	 * whether they are named or not, because naming alone would not make the figure hermetic.
+	 *
 	 * @param instance    the object whose owned footprint is wanted
 	 * @param sharedRoots roots of the subgraphs `instance` borrows rather than owns
 	 * @return the owned footprint in bytes
@@ -96,20 +137,23 @@ public final class JolHeapSize {
 		// original's backing arrays directly, never "through" the original, so a path test would charge them.
 		// Enumerating a named root is safe: those are this codebase's own structures, not mutating underfoot.
 		//
-		// A CLASS is excluded by NOT BEING TRAVERSED AT ALL - see `ClassBlindGraphWalker` for why removing it from
-		// the sum afterwards is not enough, and why descending into one makes a figure depend on JVM history.
+		// A CLASS, and every JVM_FLYWEIGHT, is excluded by NOT BEING TRAVERSED AT ALL - see `ClassBlindGraphWalker`
+		// for why removing one from the sum afterwards is not enough, and why descending into one makes a figure
+		// depend on JVM history rather than on the object being measured.
 		final Set<Object> borrowed = Collections.newSetFromMap(new IdentityHashMap<>());
 		if (sharedRoots.length > 0) {
 			Collections.addAll(borrowed, sharedRoots);
-			new ClassBlindGraphWalker().walk(borrowed::add, sharedRoots);
+			new ClassBlindGraphWalker(JVM_FLYWEIGHT).walk(borrowed::add, sharedRoots);
 		}
 
 		final long[] owned = new long[1];
 		if (!(instance instanceof Class) && !borrowed.contains(instance)) {
-			// the walker hands its visitor every object it REACHES but never the root it starts from
+			// the walker hands its visitor every object it REACHES but never the root it starts from. A flyweight
+			// passed here IS what the caller asked about, so it is charged its own shell - it is only free to the
+			// structures that merely reference it
 			owned[0] += VM.current().sizeOf(instance);
 		}
-		new ClassBlindGraphWalker().walk(
+		new ClassBlindGraphWalker(JVM_FLYWEIGHT).walk(
 			visited -> {
 				if (!borrowed.contains(visited)) {
 					owned[0] += VM.current().sizeOf(visited);

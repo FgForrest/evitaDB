@@ -397,7 +397,7 @@ public enum GrpcCatalogStatisticsComponent
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(42);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(43);
   }
 
   private static final GrpcCatalogStatisticsComponent[] VALUES = values();

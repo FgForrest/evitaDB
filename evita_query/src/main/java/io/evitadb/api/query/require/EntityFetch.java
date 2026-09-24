@@ -29,6 +29,7 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 
 import javax.annotation.Nonnull;
@@ -68,7 +69,9 @@ import java.util.stream.Stream;
  * bodies), and inside {@link HierarchyContent} (to load bodies of parent hierarchy nodes).
  *
  * When multiple `entityFetch` requirements are combined (e.g., from different API layers), their sub-requirements are
- * merged via {@link EntityContentRequireCombiningCollector}, so the result always fetches the union of requested data.
+ * merged by {@link EntityFetchRequire#combineDuplicateRequirements(EntityContentRequire[])}, so the result fetches
+ * the union of the requested data — unless two of the merged sub-requirements contradict each other, in which case
+ * the merge is refused with an {@link EvitaInvalidUsageException} rather than resolved silently.
  *
  * Example — fetching selected attributes of a Brand entity:
  *
@@ -87,6 +90,40 @@ import java.util.stream.Stream;
  * )
  * ```
  *
+ * ## Two content requirements of the same kind in one entityFetch
+ *
+ * Several content requirements of one kind placed in a single `entityFetch` are not an error and none of them is
+ * dropped — they are folded into the one requirement the query is executed with, following the same "the superset
+ * wins" rule the individual requirements use among themselves:
+ *
+ * ```
+ * entityFetch(
+ *     attributeContent("code"),
+ *     attributeContent("name")
+ * )
+ * ```
+ *
+ * fetches `code` **and** `name`, exactly as `attributeContent("code", "name")` would.
+ *
+ * Two kinds may legitimately occur several times in one container, and they fold **per key** rather than into one
+ * requirement altogether: a {@link ReferenceContent} is keyed by the references it names (an aliased instance by its
+ * instance name as well), an {@link AccompanyingPriceContent} by the name of the price it calculates. So
+ * `referenceContent("brand")` beside `referenceContent("categories")` stays two requirements, while two
+ * `referenceContent("brand")` requirements become one. A name-specific requirement is never folded into a
+ * `referenceContentAll…()` written beside it — the specific one wins the lookup for the reference it names and the
+ * default one remains the fallback for every other reference.
+ *
+ * Two siblings that cannot be reconciled are refused with an {@link EvitaInvalidUsageException} instead of one of
+ * them silently winning: two `referenceContent` requirements for one reference carrying different `filterBy`,
+ * `orderBy` or chunking constraints, two `hierarchyContent` requirements bounding the parent chain differently, or
+ * two `accompanyingPriceContent` requirements calculating one price from different price list sequences.
+ * {@link EntityFetchRequire#combineDuplicateRequirements()} defines the fold; `EvitaRequest#getEntityRequirement()`
+ * is where it is applied to the query the client sent, once per request.
+ *
+ * The fold is **shallow** — it reconciles the direct children of the container it is called on. An `entityFetch`
+ * nested inside a {@link ReferenceContent} is reduced when the request for the referenced entity is derived, not by
+ * the outer call, so each fetch scope is reduced by the request that executes it.
+ *
  * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#entity-fetch)
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
@@ -99,6 +136,17 @@ import java.util.stream.Stream;
 )
 public class EntityFetch extends AbstractRequireConstraintContainer implements EntityFetchRequire {
 	@Serial private static final long serialVersionUID = -781235795350040285L;
+
+	/**
+	 * Memoized children re-typed as content requirements. This constraint is immutable, so the cast array can only
+	 * ever have one value, and {@link #getRequirements()} is the most frequently asked question about it - the
+	 * duplicate fold, the containment check, the prefetch collector and `EvitaRequest` all go through it.
+	 *
+	 * The array is shared with the caller exactly as {@link #getChildren()} shares its own, and is `volatile`
+	 * because a racy publication of an array is not covered by the final-field guarantee. It is `transient`
+	 * because it is derived state that a deserialized instance recomputes on demand.
+	 */
+	private transient volatile EntityContentRequire[] memoizedRequirements;
 
 	protected EntityFetch(RequireConstraint[] requireConstraints) {
 		super(requireConstraints);
@@ -121,9 +169,14 @@ public class EntityFetch extends AbstractRequireConstraintContainer implements E
 	@Nonnull
 	@Override
 	public EntityContentRequire[] getRequirements() {
-		return Arrays.stream(getChildren())
-			.map(EntityContentRequire.class::cast)
-			.toArray(EntityContentRequire[]::new);
+		EntityContentRequire[] memoized = this.memoizedRequirements;
+		if (memoized == null) {
+			memoized = Arrays.stream(getChildren())
+				.map(EntityContentRequire.class::cast)
+				.toArray(EntityContentRequire[]::new);
+			this.memoizedRequirements = memoized;
+		}
+		return memoized;
 	}
 
 	@Override
@@ -135,6 +188,24 @@ public class EntityFetch extends AbstractRequireConstraintContainer implements E
 		return false;
 	}
 
+	/**
+	 * Merges this fetch with another one into a single fetch requesting the union of both bodies. The merge is the
+	 * very same keyed fold that reduces duplicate requirements written side by side
+	 * ({@link EntityFetchRequire#combineDuplicateRequirements(EntityContentRequire[])}), applied to the concatenation
+	 * of both requirement lists - so a united body follows exactly the precedence a body written once would.
+	 *
+	 * Containment is deliberately **not** consulted here: a `referenceContent("brand")` is contained within a
+	 * `referenceContentAllWithAttributes()`, yet the two are resolved through different lookups (the reference-name
+	 * specific requirement wins over the default one), and dropping the specific one would silently widen the body
+	 * fetched for `brand`. The prefetch union computed by {@link DefaultPrefetchRequirementCollector} does drop
+	 * contained requirements - that one deliberately asks for a superset.
+	 *
+	 * @param anotherRequirement another fetch to be merged in, NULL yields this very instance
+	 * @param <T> type of the requirement to be combined with
+	 * @return a new fetch covering both this one and `anotherRequirement`
+	 * @throws EvitaInvalidUsageException when two requirements of one kind contradict each other
+	 * @throws GenericEvitaInternalError when `anotherRequirement` is not an `entityFetch`
+	 */
 	@Nonnull
 	@Override
 	public <T extends EntityFetchRequire> T combineWith(@Nullable T anotherRequirement) {
@@ -144,11 +215,14 @@ public class EntityFetch extends AbstractRequireConstraintContainer implements E
 		}
 
 		if (anotherRequirement instanceof EntityFetch anotherEntityFetch) {
-			final EntityContentRequire[] combinedContentRequirements = Stream.concat(
-					Arrays.stream(getRequirements()),
-					Arrays.stream(anotherEntityFetch.getRequirements())
-				)
-				.collect(new EntityContentRequireCombiningCollector());
+			final EntityContentRequire[] combinedContentRequirements =
+				EntityFetchRequire.combineDuplicateRequirements(
+					Stream.concat(
+							Arrays.stream(getRequirements()),
+							Arrays.stream(anotherEntityFetch.getRequirements())
+						)
+						.toArray(EntityContentRequire[]::new)
+				);
 
 			//noinspection unchecked
 			return (T) new EntityFetch(combinedContentRequirements);
@@ -158,6 +232,17 @@ public class EntityFetch extends AbstractRequireConstraintContainer implements E
 				"Only entity fetch requirement can be combined with this one!"
 			);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public <T extends EntityFetchRequire> T combineDuplicateRequirements() {
+		final EntityContentRequire[] requirements = getRequirements();
+		final EntityContentRequire[] reduced = EntityFetchRequire.combineDuplicateRequirements(requirements);
+		//noinspection unchecked
+		return reduced == requirements ?
+			(T) this :
+			(T) getCopyWithNewChildren(reduced, getAdditionalChildren());
 	}
 
 	@Nonnull

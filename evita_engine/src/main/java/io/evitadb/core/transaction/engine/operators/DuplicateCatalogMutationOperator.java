@@ -30,7 +30,6 @@ import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
-import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.engine.CatalogFolderReservation;
 import io.evitadb.core.engine.ExpandedEngineState;

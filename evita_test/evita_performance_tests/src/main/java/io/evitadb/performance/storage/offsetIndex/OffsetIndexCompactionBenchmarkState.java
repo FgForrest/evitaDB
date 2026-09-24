@@ -26,6 +26,7 @@ package io.evitadb.performance.storage.offsetIndex;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
+import io.evitadb.api.statistics.StoragePartGroup;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
@@ -170,8 +171,10 @@ public class OffsetIndexCompactionBenchmarkState {
 		// `RawBytesStoragePart` is a benchmark-only type unknown to the production
 		// `EntityStoragePartRegistry` SPI; register it explicitly so `OffsetIndex.put` can resolve
 		// its type id. Picked 99 to stay well clear of the production range (currently up to 52).
+		// the group is irrelevant to this benchmark - it never reads a storage composition - but every registered
+		// type declares one, so the closest honest value is used
 		this.recordTypeRegistry.registerFileOffsetIndexType(
-			(byte) 99, RawBytesStoragePart.class
+			(byte) 99, RawBytesStoragePart.class, StoragePartGroup.ENTITY_BODY
 		);
 		this.storageSettings = new StorageSettings(
 			StorageOptions.builder(StorageOptions.temporary())

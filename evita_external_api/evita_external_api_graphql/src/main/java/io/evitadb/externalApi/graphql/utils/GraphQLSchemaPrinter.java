@@ -42,8 +42,11 @@ public class GraphQLSchemaPrinter {
 	@Nonnull private static final SchemaPrinter schemaPrinter;
 
 	static {
+		// only the *definitions* of the built-in directives are noise - every schema implies them. Their
+		// applications carry information (`@deprecated` above all) and must stay in the printed DSL, so the filter
+		// belongs on `includeDirectiveDefinition` rather than on `includeDirectives`, which suppresses both.
 		schemaPrinter = new SchemaPrinter(Options.defaultOptions()
-			.includeDirectives(directive -> !IMPLICIT_DIRECTIVES.contains(directive)));
+			.includeDirectiveDefinition(directive -> !IMPLICIT_DIRECTIVES.contains(directive)));
 	}
 
 	/**

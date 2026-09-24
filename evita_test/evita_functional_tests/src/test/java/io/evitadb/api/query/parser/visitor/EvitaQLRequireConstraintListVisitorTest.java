@@ -29,6 +29,7 @@ import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
+import io.evitadb.api.query.require.HierarchyParentsBehaviour;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -36,6 +37,10 @@ import java.util.List;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContent;
+import static io.evitadb.api.query.QueryConstraints.distance;
+import static io.evitadb.api.query.QueryConstraints.entityFetch;
+import static io.evitadb.api.query.QueryConstraints.hierarchyContent;
+import static io.evitadb.api.query.QueryConstraints.stopAt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -74,6 +79,41 @@ class EvitaQLRequireConstraintListVisitorTest {
         assertEquals(
             List.of(attributeContent("code"), attributeContent("age")),
             constraintList4
+        );
+    }
+
+    @Test
+    void shouldParseRequireConstraintListWithHierarchyContentParentsBehaviour() {
+        final List<RequireConstraint> constraintList1 = parseRequireConstraintListUnsafe(
+            "hierarchyContent(COMPLETE),attributeContent('code')"
+        );
+        assertEquals(
+            List.of(hierarchyContent(HierarchyParentsBehaviour.COMPLETE), attributeContent("code")),
+            constraintList1
+        );
+
+        final List<RequireConstraint> constraintList2 = parseRequireConstraintListUnsafe(
+            "hierarchyContent(COMPLETE, stopAt(distance(1)), entityFetch(attributeContent('code'))),attributeContent('name')"
+        );
+        assertEquals(
+            List.of(
+                hierarchyContent(
+                    HierarchyParentsBehaviour.COMPLETE,
+                    stopAt(distance(1)),
+                    entityFetch(attributeContent("code"))
+                ),
+                attributeContent("name")
+            ),
+            constraintList2
+        );
+
+        final List<RequireConstraint> constraintList3 = parseRequireConstraintList(
+            "hierarchyContent(?, entityFetch(attributeContent(?)))",
+            HierarchyParentsBehaviour.MATCHING, "code"
+        );
+        assertEquals(
+            List.of(hierarchyContent(HierarchyParentsBehaviour.MATCHING, entityFetch(attributeContent("code")))),
+            constraintList3
         );
     }
 

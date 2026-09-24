@@ -29,7 +29,6 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.math.BigDecimal;
-import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
@@ -49,7 +48,7 @@ public interface UpsertPriceMutationDescriptor extends PriceMutationDescriptor {
 			Some special products (such as master products, or product sets) may contain prices of all "subordinate" products
 			so that the aggregating product can represent them in certain views on the product. In that case there is need
 			to distinguish the projected prices of the subordinate product in the one that represents them.
-						
+
 			Inner record id must contain positive value.
 			""")
 		.type(nullable(Integer.class))

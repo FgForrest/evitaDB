@@ -26,11 +26,9 @@ package io.evitadb.externalApi.api.model.mutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import javax.annotation.Nonnull;
 import java.util.function.Predicate;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
  * Ancestor descriptor for all descriptor of {@link io.evitadb.api.requestResponse.mutation.Mutation} implementations.

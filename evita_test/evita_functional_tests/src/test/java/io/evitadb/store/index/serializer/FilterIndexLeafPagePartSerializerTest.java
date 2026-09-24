@@ -96,7 +96,8 @@ class FilterIndexLeafPagePartSerializerTest {
 			entityIndexPrimaryKey,
 			new AttributeKeyWithIndexType(null, attr, null, AttributeIndexType.FILTER),
 			pageSequence,
-			buckets
+			buckets,
+			null
 		);
 		page.computeUniquePartIdAndSet(this.keyCompressor);
 		return page;

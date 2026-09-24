@@ -78,6 +78,7 @@ import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.driver.cdc.ClientChangeCapturePublisher;
 import io.evitadb.driver.cdc.ClientChangeSystemCaptureProcessor;
 import io.evitadb.driver.config.ClientConnectionOptions;
+import io.evitadb.driver.EvitaClientChannel.TimeoutTier;
 import io.evitadb.driver.config.ClientTimeoutOptions;
 import io.evitadb.driver.config.ClientTlsOptions;
 import io.evitadb.driver.config.EvitaClientConfiguration;
@@ -192,6 +193,12 @@ public class EvitaClient implements EvitaContract {
 	private static final long CDC_CALLBACK_DRAIN_TIMEOUT_MS = 5_000L;
 	/**
 	 * Client call timeout.
+	 *
+	 * The bottom of the stack is the configured {@link ClientTimeoutOptions#timeout()} - the *whole-call*
+	 * tier. Anything above it was pushed by {@link #executeWithExtendedTimeout} and is an explicit
+	 * caller override. Prefer {@link #resolveTimeout(TimeoutTier)} over reading this directly: peeking
+	 * at it hands every call the whole-call budget, which is wrong for a stream and is precisely the bug
+	 * {@link TimeoutTier} was introduced to end.
 	 */
 	final ThreadLocal<LinkedList<Timeout>> timeout;
 	/**
@@ -487,8 +494,13 @@ public class EvitaClient implements EvitaContract {
 	 *                          maps the gRPC deadline onto the Armeria response timeout before the decorator
 	 *                          chain runs, and every streaming call site here applies `withDeadlineAfter`, so on
 	 *                          those paths this value is overwritten anyway. Measured: disabling it changes
-	 *                          nothing (see the ADR's *Verification*). It is kept so that a future call site
-	 *                          which forgets the deadline still gets a sane window rather than 15 s.
+	 *                          nothing (see the ADR's *Verification*). It is kept so that a call site which
+	 *                          forgets the deadline still lands on a configured window rather than on Armeria's
+	 *                          default. **Every call site now passes one** - the unary channel used to pass NULL,
+	 *                          which is precisely how a 15 s ceiling reached clients configured for far longer.
+	 * @param streaming         `true` for a channel carrying server-streaming calls, which lifts Armeria's
+	 *                          10 MiB total-response-length cap - see the call site for why that cap is
+	 *                          meaningless on a stream and fatal for large file downloads
 	 * @param connectionOptions connection options providing the client id reported to the server
 	 * @param clientVersion     semantic version of this client, or NULL when it could not be parsed
 	 * @param grpcConfigurator  optional caller-supplied customization applied last, so it can override defaults
@@ -500,6 +512,7 @@ public class EvitaClient implements EvitaContract {
 		@Nonnull ClientFactory clientFactory,
 		@Nullable RetryRule retryRule,
 		@Nullable Duration responseTimeout,
+		boolean streaming,
 		@Nonnull ClientConnectionOptions connectionOptions,
 		@Nullable SemVer clientVersion,
 		@Nullable Consumer<GrpcClientBuilder> grpcConfigurator
@@ -517,11 +530,30 @@ public class EvitaClient implements EvitaContract {
 			grpcClientBuilder.decorator(
 				RetryingClient.builder(retryRule)
 					.useRetryAfter(true)
+					// `0` means "no per-attempt budget of its own - defer to the call's". Without it
+					// `RetryConfigBuilder` seeds this from `Flags.defaultResponseTimeoutMillis()` (15 s), and
+					// `AbstractRetryingClient$State#responseTimeoutMillis()` returns
+					// `Math.min(perAttempt, remainingCallBudget)` - so Armeria's global default silently floors
+					// the deadline every unary call carries, whatever the caller configured or
+					// `executeWithExtendedTimeout` asked for. The cap rides on the DECORATOR, so disabling
+					// retries does not avoid it: `createRetryRule` still returns the always-safe
+					// `onUnprocessed()` rule and the decorator is installed regardless.
+					.responseTimeoutMillisForEachAttempt(0)
 					.newDecorator()
 			);
 		}
 		if (responseTimeout != null) {
 			grpcClientBuilder.responseTimeout(responseTimeout);
+		}
+		if (streaming) {
+			// Armeria caps a response at 10 MiB by default, and the cap counts the *entire* HTTP body -
+			// which for a server-streaming call is every message added together, not the largest one.
+			// That is a sane guard on a unary reply and a hard ceiling on a stream: `fetchFile` could not
+			// download a backup larger than 10 MiB at all, dying part-way through with
+			// RESOURCE_EXHAUSTED. A stream's total length is not a meaningful safety bound - what needs
+			// bounding is how much is in flight at once, which is the server's job (see
+			// `GrpcOutboundGate`) - so the cap is lifted here and left in place for unary calls.
+			grpcClientBuilder.maxResponseLength(0);
 		}
 
 		ofNullable(grpcConfigurator).ifPresent(it -> it.accept(grpcClientBuilder));
@@ -543,40 +575,67 @@ public class EvitaClient implements EvitaContract {
 	/**
 	 * Handles a {@link StatusRuntimeException} by checking the status code and performing appropriate actions.
 	 *
+	 * The server writes the status description as `errorCode + ": " + publicMessage` (see
+	 * `GlobalExceptionHandlerInterceptor#createErrorStatus` on the server side), so {@link #ERROR_MESSAGE_PATTERN}
+	 * has to be matched against the description **exactly as it arrived**. Prepending the status name first - as this
+	 * method used to - makes the anchored `(\w+:\w+:\w+)` group unmatchable, because `\w` does not cover the space
+	 * that follows `INTERNAL:`. The effect was that no error code was ever recovered from a gRPC status and every
+	 * server error reached the caller re-coded against a line of this class instead.
+	 *
+	 * The status name is therefore only prepended on the fallback path, where the description carries no code and the
+	 * name is the sole classification available.
+	 *
+	 * Package-private rather than private so `EvitaClientErrorTransformationTest` can drive it directly; it needs no
+	 * server, and standing up one to assert on a regex would only obscure what is being tested.
+	 *
 	 * @param statusRuntimeException the {@link StatusRuntimeException} to handle
 	 * @param onUnauthenticated      the action to perform when the status code is {@link Code#UNAUTHENTICATED}
+	 * @return the exception to be raised towards the caller
 	 */
 	@Nonnull
-	private static RuntimeException transformStatusRuntimeException(
+	static RuntimeException transformStatusRuntimeException(
 		@Nonnull StatusRuntimeException statusRuntimeException,
 		@Nonnull Runnable onUnauthenticated
 	) {
 		final Code statusCode = statusRuntimeException.getStatus().getCode();
-		final String description = ofNullable(statusRuntimeException.getStatus().getDescription())
-			.map(it -> statusCode.name() + ": " + it)
-			.orElseGet(statusCode::name);
+		final String rawDescription = statusRuntimeException.getStatus().getDescription();
+		// matched against the untouched description; an absent description cannot carry a code, and the empty string
+		// never matches the pattern, so it needs no separate branch
+		final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(rawDescription == null ? "" : rawDescription);
+		final boolean codeRecovered = expectedFormat.matches();
 		if (statusCode == Code.UNAUTHENTICATED) {
 			onUnauthenticated.run();
 			return new InstanceTerminatedException("session");
 		} else if (statusCode == Code.INVALID_ARGUMENT || statusCode == Code.PERMISSION_DENIED) {
-			final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
-			if (expectedFormat.matches()) {
-				return EvitaInvalidUsageException.createExceptionWithErrorCode(
+			return codeRecovered ?
+				EvitaInvalidUsageException.createExceptionWithErrorCode(
 					expectedFormat.group(2), expectedFormat.group(1)
-				);
-			} else {
-				return new EvitaInvalidUsageException(description);
-			}
+				) :
+				new EvitaInvalidUsageException(describeUncoded(statusCode, rawDescription));
 		} else {
-			final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
-			if (expectedFormat.matches()) {
-				return GenericEvitaInternalError.createExceptionWithErrorCode(
+			return codeRecovered ?
+				GenericEvitaInternalError.createExceptionWithErrorCode(
 					expectedFormat.group(2), expectedFormat.group(1)
-				);
-			} else {
-				return new GenericEvitaInternalError(description);
-			}
+				) :
+				new GenericEvitaInternalError(describeUncoded(statusCode, rawDescription));
 		}
+	}
+
+	/**
+	 * Builds the message for a status whose description carries no evitaDB error code - a status raised by gRPC
+	 * itself, or by an interceptor that never saw an evitaDB exception. The status name is prepended because it is
+	 * the only classification such a message has; a description that does carry a code keeps the server's own public
+	 * text verbatim instead.
+	 *
+	 * @param statusCode     the code of the status being transformed
+	 * @param rawDescription the status description exactly as received, may be `null`
+	 * @return the message to construct the client-side exception with
+	 */
+	@Nonnull
+	private static String describeUncoded(@Nonnull Code statusCode, @Nullable String rawDescription) {
+		return ofNullable(rawDescription)
+			.map(it -> statusCode.name() + ": " + it)
+			.orElseGet(statusCode::name);
 	}
 
 	public EvitaClient(
@@ -638,6 +697,12 @@ public class EvitaClient implements EvitaContract {
 		this.streamingTimeout = Duration.of(
 			clientTimeouts.streamingTimeout(),
 			clientTimeouts.streamingTimeoutUnit().toChronoUnit()
+		);
+		// seeds the unary channel below, so a call that carries no deadline of its own falls back to the
+		// configured timeout rather than to Armeria's global default
+		final Duration unaryTimeout = Duration.of(
+			clientTimeouts.timeout(),
+			clientTimeouts.timeoutUnit().toChronoUnit()
 		);
 		this.onSessionCreationCallback = onSessionCreationCallback == null
 			? Functions.noOpConsumer()
@@ -795,22 +860,26 @@ public class EvitaClient implements EvitaContract {
 		final String uri = uriScheme + "://" + connectionOptions.host() + ":" + connectionOptions.port() + "/";
 		// Unary calls retry; streaming calls must not be decorated at all, or the retry layer freezes their
 		// response-timeout deadline at call start and caps every stream at 15 s (issue #1388).
+		// The channel-level fallback is OUR configured unary timeout, never Armeria's 15 s default: a call site
+		// that forgets `withDeadlineAfter` must land on the value the operator configured. Passing NULL here
+		// leaves `Flags.defaultResponseTimeoutMillis()` in force, which is how a 15 s ceiling reached a client
+		// whose configuration says otherwise.
 		this.unaryChannel = new EvitaClientChannel.Unary(
 			createGrpcClientBuilder(
-				uri, this.clientFactory, createRetryRule(configuration.retry()), null, connectionOptions,
-				clientVersion, grpcConfigurator
+				uri, this.clientFactory, createRetryRule(configuration.retry()), unaryTimeout, false,
+				connectionOptions, clientVersion, grpcConfigurator
 			)
 		);
 		this.streamingChannel = new EvitaClientChannel.Streaming(
 			createGrpcClientBuilder(
-				uri, this.clientFactory, null, this.streamingTimeout, connectionOptions, clientVersion,
-				grpcConfigurator
+				uri, this.clientFactory, null, this.streamingTimeout, true,
+				connectionOptions, clientVersion, grpcConfigurator
 			)
 		);
 		this.cdcChannel = new EvitaClientChannel.Cdc(
 			createGrpcClientBuilder(
-				uri, this.cdcClientFactory, null, this.streamingTimeout, connectionOptions, clientVersion,
-				grpcConfigurator
+				uri, this.cdcClientFactory, null, this.streamingTimeout, true,
+				connectionOptions, clientVersion, grpcConfigurator
 			)
 		);
 		this.evitaServiceFutureStub = this.unaryChannel.stub(EvitaServiceFutureStub.class);
@@ -1615,6 +1684,27 @@ public class EvitaClient implements EvitaContract {
 		} finally {
 			callTimeouts.pop();
 		}
+	}
+
+	/**
+	 * Resolves the deadline a call of the passed tier runs under.
+	 *
+	 * An explicit {@link #executeWithExtendedTimeout} override wins over both tiers: the caller named a
+	 * duration for the work inside that lambda, and silently substituting a configured default for it -
+	 * in either direction - would defeat the point of the API. Absent an override, the tier decides, so
+	 * that a streaming call is budgeted per message rather than per call.
+	 *
+	 * @param tier which of the configured budgets applies, normally taken from the channel the call's
+	 *             stub was built from
+	 * @return the timeout to deadline the call with
+	 */
+	@Nonnull
+	Timeout resolveTimeout(@Nonnull TimeoutTier tier) {
+		final LinkedList<Timeout> callTimeouts = this.timeout.get();
+		// the stack is seeded with exactly one element, so anything beyond that is a caller override
+		return callTimeouts.size() > 1 ?
+			Objects.requireNonNull(callTimeouts.peek()) :
+			tier.resolve(this.configuration.timeouts());
 	}
 
 	/**

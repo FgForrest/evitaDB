@@ -31,6 +31,7 @@
 java \
         -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8005 \
         -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints \
+        --add-modules jdk.incubator.vector \
         --add-opens java.base/jdk.internal.misc=ALL-UNNAMED \
         --add-opens java.base/java.lang=ALL-UNNAMED \
         --add-opens java.base/java.lang.invoke=ALL-UNNAMED \

@@ -96,6 +96,7 @@ import io.evitadb.externalApi.grpc.services.converter.WriteAheadLogVersionDescri
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.externalApi.grpc.services.subscriber.ChangeCatalogCaptureSubscriber;
+import io.evitadb.externalApi.grpc.utils.GrpcOutboundGate;
 import io.evitadb.externalApi.grpc.utils.GrpcTimeoutUtil;
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
 import io.evitadb.externalApi.grpc.utils.QueryWithParameters;
@@ -121,6 +122,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -609,7 +611,19 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		}
 	}
 
-	public EvitaSessionService(@Nonnull Evita evita, @Nonnull HeaderOptions headers) {
+	/**
+	 * How long a streamed response may make no progress before it is abandoned -
+	 * `api.endpoints.gRPC.streamingRequestTimeoutInMillis`.
+	 * Handed to every {@link GrpcOutboundGate} this service attaches.
+	 */
+	private final long streamingRequestTimeoutInMillis;
+
+	public EvitaSessionService(
+		@Nonnull Evita evita,
+		@Nonnull HeaderOptions headers,
+		long streamingRequestTimeoutInMillis
+	) {
+		this.streamingRequestTimeoutInMillis = streamingRequestTimeoutInMillis;
 		this.evita = evita;
 		this.trackSourceQueries = evita.getConfiguration().server().trafficRecording().sourceQueryTrackingEnabled();
 		this.tracingContext = ExternalApiTracingContextProvider.getContext(Metadata.class, headers);
@@ -767,6 +781,19 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		StreamObserver<GrpcGoLiveAndCloseWithProgressResponse> responseObserver
 	) {
 		final ServiceRequestContext serviceContext = ServiceRequestContext.current();
+		// resolved before the first progress tick, so that every re-arm below restates the same budget
+		// rather than compounding it. This is a stream, so it gets the streaming budget rather than the
+		// call's whole-request one - a go-live phase that reports no progress for longer than
+		// `api.requestTimeoutInMillis` would otherwise kill the stream mid-flight.
+		final long configuredRequestTimeoutMillis = GrpcTimeoutUtil.resolveStreamingBudgetMillis(
+			serviceContext, this.streamingRequestTimeoutInMillis
+		);
+		// Armed once here, not only from inside the progress callback: the first tick is separated from
+		// this point by the executor hand-off *and* by however long go-live takes to report any progress
+		// at all, and none of that is covered by a re-arm that has not happened yet. Without this the
+		// whole-request budget still bounds the run-up to the first tick - which is exactly the window a
+		// go-live is least able to promise anything about.
+		GrpcTimeoutUtil.reArmRequestTimeoutIfEnabled(serviceContext, configuredRequestTimeoutMillis);
 		executeWithClientContext(
 			session -> {
 				if (session == null) {
@@ -788,7 +815,9 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 									responseObserver.onNext(response);
 									this.lastUpdate = System.currentTimeMillis();
 								}
-								GrpcTimeoutUtil.reArmRequestTimeoutIfEnabled(serviceContext, serviceContext.requestTimeoutMillis());
+								GrpcTimeoutUtil.reArmRequestTimeoutIfEnabled(
+									serviceContext, configuredRequestTimeoutMillis
+								);
 							}
 						}
 					);
@@ -903,7 +932,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 						.setTaskStatus(status)
 						.build(),
 					responseObserver,
-					serviceContext
+					serviceContext,
+					this.streamingRequestTimeoutInMillis
 				);
 			},
 			this.evita.getRequestExecutor(),
@@ -936,7 +966,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 						.setTaskStatus(status)
 						.build(),
 					responseObserver,
-					serviceContext
+					serviceContext,
+					this.streamingRequestTimeoutInMillis
 				);
 			},
 			this.evita.getRequestExecutor(),
@@ -954,14 +985,28 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 * @param responseBuilder  function to build the gRPC response from a task status
 	 * @param responseObserver observer to stream responses to
 	 * @param serviceContext   Armeria service context for timeout management
+	 * @param streamingRequestTimeoutInMillis
+	 *                         `api.endpoints.gRPC.streamingRequestTimeoutInMillis` - the budget each
+	 *                         re-arm restates. Passed in rather than read here because this helper is
+	 *                         static; the poll below happens to refresh the deadline every second
+	 *                         regardless of whether anything was sent, so the whole-request budget would
+	 *                         also survive today - but that is an accident of the poll interval, not a
+	 *                         property anyone should have to preserve.
 	 * @param <T>              the gRPC response type
 	 */
 	private static <T> void streamBackupProgress(
 		@Nonnull Task<?, FileForFetch> backupTask,
 		@Nonnull Function<GrpcTaskStatus, T> responseBuilder,
 		@Nonnull StreamObserver<T> responseObserver,
-		@Nonnull ServiceRequestContext serviceContext
+		@Nonnull ServiceRequestContext serviceContext,
+		long streamingRequestTimeoutInMillis
 	) {
+		// resolved before the first message, so that every re-arm below restates the same budget rather
+		// than compounding it, and from the streaming budget because this is a stream - see
+		// `GrpcTimeoutUtil#resolveStreamingBudgetMillis`
+		final long configuredRequestTimeoutMillis = GrpcTimeoutUtil.resolveStreamingBudgetMillis(
+			serviceContext, streamingRequestTimeoutInMillis
+		);
 		// send initial status
 		responseObserver.onNext(
 			responseBuilder.apply(toGrpcTaskStatus(backupTask.getStatus()))
@@ -981,7 +1026,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 						responseBuilder.apply(toGrpcTaskStatus(backupTask.getStatus()))
 					);
 				}
-				GrpcTimeoutUtil.reArmRequestTimeoutIfEnabled(serviceContext, serviceContext.requestTimeoutMillis());
+				GrpcTimeoutUtil.reArmRequestTimeoutIfEnabled(serviceContext, configuredRequestTimeoutMillis);
 			} catch (ExecutionException e) {
 				// task failed
 				GlobalExceptionHandlerInterceptor.sendErrorToClient(
@@ -2418,6 +2463,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	private void streamMutationsHistory(
 		@Nonnull GetMutationsHistoryRequest request,
 		@Nonnull StreamObserver<GetMutationsHistoryResponse> responseObserver,
+		@Nonnull String methodName,
 		@Nonnull BiFunction<EvitaInternalSessionContract, ChangeCatalogCaptureRequest, Stream<ChangeCatalogCapture>> mutationsHistoryStream
 	) {
 		final ServerCallStreamObserver<GetMutationsHistoryResponse> serverCallStreamObserver =
@@ -2425,16 +2471,23 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 
 		final AtomicReference<Stream<ChangeCatalogCapture>> mutationsHistoryStreamRef = new AtomicReference<>();
 
-		// avoid returning error when client cancels the stream
-		serverCallStreamObserver.setOnCancelHandler(
+		// the gate paces the loop below to the client's consumption rate; it owns the call's cancel
+		// handler (gRPC keeps only the last one registered), so the stream cleanup that used to be
+		// registered here is handed to it. Both must happen synchronously, before this method returns.
+		final GrpcOutboundGate outboundGate = GrpcOutboundGate.attach(
+			serverCallStreamObserver,
+			// the caller's own RPC name - this helper backs both the forward and the reversed variant,
+			// and a stall must name the one the client actually invoked
+			methodName,
+			// avoid returning error when client cancels the stream
 			() -> {
 				log.info("Client cancelled the mutation history request.");
 				ofNullable(mutationsHistoryStreamRef.get())
 					.ifPresent(BaseStream::close);
-			}
+			},
+			this.streamingRequestTimeoutInMillis
 		);
 
-		final ServiceRequestContext serviceContext = ServiceRequestContext.current();
 		executeWithClientContext(
 			session -> {
 				try (
@@ -2445,19 +2498,29 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					mutationsHistoryStreamRef.set(capturedMutations);
 					final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
 
-					capturedMutations.forEach(
-						cdcEvent -> {
-							final GetMutationsHistoryResponse.Builder builder = GetMutationsHistoryResponse
-								.newBuilder();
-							final GrpcChangeCatalogCapture event = ChangeCaptureConverter
-								.toGrpcChangeCatalogCapture(cdcEvent, clientVersion);
-							// we send mutations one by one, but we may want to send them in batches in the future
-							builder.addChangeCapture(event);
-							responseObserver.onNext(builder.build());
-							GrpcTimeoutUtil.reArmRequestTimeoutIfEnabled(serviceContext, serviceContext.requestTimeoutMillis());
+					// pulled through an iterator rather than `forEach` so the loop can stop early when
+					// the client disappears - the captures are produced lazily, so abandoning it here
+					// also stops the underlying WAL reads
+					final Iterator<ChangeCatalogCapture> captureIterator = capturedMutations.iterator();
+					while (captureIterator.hasNext()) {
+						if (!outboundGate.awaitWritable()) {
+							log.debug("Client of `{}` disconnected, abandoning stream.", methodName);
+							return;
 						}
-					);
+						final GetMutationsHistoryResponse.Builder builder = GetMutationsHistoryResponse
+							.newBuilder();
+						final GrpcChangeCatalogCapture event = ChangeCaptureConverter
+							.toGrpcChangeCatalogCapture(captureIterator.next(), clientVersion);
+						// we send mutations one by one, but we may want to send them in batches in the future
+						builder.addChangeCapture(event);
+						// the Armeria deadline is re-armed by `awaitWritable` above, per granted message -
+						// see `GrpcOutboundGate#grantNextMessageWindow`
+						responseObserver.onNext(builder.build());
+					}
 				}
+				// the final capture's window is the only one still standing - give the half-close a
+				// full budget of its own
+				outboundGate.grantCompletionWindow();
 				responseObserver.onCompleted();
 			},
 			this.evita.getRequestExecutor(),
@@ -2478,7 +2541,10 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	public void getMutationsHistory(
 		GetMutationsHistoryRequest request, StreamObserver<GetMutationsHistoryResponse> responseObserver
 	) {
-		streamMutationsHistory(request, responseObserver, EvitaInternalSessionContract::getMutationsHistoryReversed);
+		streamMutationsHistory(
+			request, responseObserver, "getMutationsHistory",
+			EvitaInternalSessionContract::getMutationsHistoryReversed
+		);
 	}
 
 	/**
@@ -2493,7 +2559,10 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	public void getMutationsHistoryForward(
 		GetMutationsHistoryRequest request, StreamObserver<GetMutationsHistoryResponse> responseObserver
 	) {
-		streamMutationsHistory(request, responseObserver, EvitaInternalSessionContract::getMutationsHistoryForward);
+		streamMutationsHistory(
+			request, responseObserver, "getMutationsHistoryForward",
+			EvitaInternalSessionContract::getMutationsHistoryForward
+		);
 	}
 
 	/**

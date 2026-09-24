@@ -72,4 +72,35 @@ public interface TransactionalLayerCreator<T> {
 	 */
 	T createLayer();
 
+	/**
+	 * Declares that this creator's DELEGATE branch — the one it takes when there is no diff layer to write into — is
+	 * safe to run inside an open {@link WarmUpSavepoint}, i.e. that a failed bulk-indexing entity mutation can be
+	 * rewound to the state this object held before the mutation began.
+	 *
+	 * The declaration is honoured, not verified — {@link WarmUpSavepoint#verifyRollbackSupported} only reads it, so
+	 * returning `true` without meeting one of the two conditions below silently reintroduces the partial-rollback gap
+	 * the mechanism exists to close. Exactly one of them must hold:
+	 *
+	 * - **The delegate branch journals what it writes.** Before each in-place write it records the inverse restoring
+	 *   the state it is about to overwrite, through {@link WarmUpSavepoint#recordFirstTouch(Snapshotable)},
+	 *   {@link WarmUpSavepoint#claimFirstTouch(Object)} + {@link WarmUpSavepoint#push(Runnable)}, or
+	 *   {@link WarmUpSavepoint#writeLayer(TransactionalLayerCreator, boolean)}.
+	 * - **The delegate branch writes nothing of its own.** The diff layer is pure in-transaction bookkeeping (dirty
+	 *   tracking that only a commit-merge consumes), so outside a transaction there is simply no state to rewind;
+	 *   whatever real state the operation touches lives in contained transactional structures that journal their own
+	 *   writes. This is the shape of the composite index layers — see `CatalogIndex` or `AttributeIndex`.
+	 *
+	 * Defaulting to `false` is what makes the mechanism safe by construction: a structure ported to the warm-up write
+	 * path without journalling its writes is caught the first time a bracketed mutation reaches it, rather than
+	 * discovered later as an index that a rollback quietly failed to rewind. The default costs nothing outside
+	 * WARM_UP — the check runs only on the layer-null branch, only while the mechanism is switched on, and only while
+	 * a savepoint is actually open.
+	 *
+	 * @return `true` when a warm-up savepoint can rewind everything this creator's delegate branch writes
+	 * @see WarmUpSavepoint
+	 */
+	default boolean supportsWarmUpRollback() {
+		return false;
+	}
+
 }

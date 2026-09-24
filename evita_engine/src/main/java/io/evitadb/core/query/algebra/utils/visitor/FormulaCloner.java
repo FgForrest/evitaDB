@@ -25,17 +25,17 @@ package io.evitadb.core.query.algebra.utils.visitor;
 
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaVisitor;
-import io.evitadb.core.query.algebra.base.DisentangleFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
+import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.IdentityHashMap;
-import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
@@ -193,34 +193,6 @@ public class FormulaCloner implements FormulaVisitor {
 							formulaToStore = null;
 						}
 					}
-				} else if (formula instanceof DisentangleFormula disentangleFormula && updatedChildren.size() < 2) {
-					// DisentangleFormula(main, control) requires two positional siblings — the same
-					// dedup-collapse pattern that hits NotFormula above can drop one of them when
-					// FormulaDeduplicator unifies structurally equivalent inputs. Without this guard
-					// the fall-through would call `getCloneWithInnerFormulas([X])` and throw
-					// ArrayIndexOutOfBoundsException on `innerFormulas[1]`.
-					if (updatedChildren.isEmpty()) {
-						// both children stripped — no operation possible, drop the wrapper
-						formulaToStore = null;
-					} else {
-						// Determine which child survived
-						final Formula processedMain = this.formulasProcessed.get(disentangleFormula.getInnerFormulas()[0]);
-						final Formula processedControl = this.formulasProcessed.get(disentangleFormula.getInnerFormulas()[1]);
-						if (processedMain != null && processedMain == processedControl
-							&& updatedChildren.contains(processedMain)) {
-							// Both positional siblings post-process to the same formula instance
-							// (FormulaDeduplicator collapsing structurally equivalent inputs).
-							// Mathematically `disentangle(X, X) = ∅`.
-							formulaToStore = EmptyFormula.INSTANCE;
-						} else if (processedMain != null && updatedChildren.contains(processedMain)) {
-							// Main survived, control was removed → `disentangle(main, ∅) = main`
-							// (matches RangeIndex.createDisentangleFormulaIfNecessary semantics).
-							formulaToStore = processedMain;
-						} else {
-							// Control survived, main was removed → nothing to disentangle → drop
-							formulaToStore = null;
-						}
-					}
 				} else {
 					// recreate parent formula with new children
 					final Formula recreated = formula.getCloneWithInnerFormulas(
@@ -257,7 +229,7 @@ public class FormulaCloner implements FormulaVisitor {
 	 * @see io.evitadb.core.cache.FormulaCacheVisitor
 	 */
 	protected void pushContext(@Nonnull Deque<SubTree> stack, @Nonnull Formula formula) {
-		stack.push(new DefaultSubTree());
+		stack.push(new DefaultSubTree(formula.getInnerFormulas().length));
 	}
 
 	/**
@@ -307,11 +279,34 @@ public class FormulaCloner implements FormulaVisitor {
 	 * Default implementation of {@link SubTree} contract used in the formula cloner.
 	 */
 	private static class DefaultSubTree implements SubTree {
-		@Getter private final Set<Formula> children = new LinkedHashSet<>(16);
+		/**
+		 * How many children this sub-tree can expect - the visited formula's inner formula count.
+		 */
+		private final int expectedChildren;
+		/**
+		 * Created by the first {@link #add(Formula)} and left NULL when none arrives. One sub-tree is pushed per
+		 * visited node, and the leaves - the majority of a formula tree - never register a child, so a set created
+		 * in the constructor was allocated for nothing on every one of them.
+		 */
+		@Nullable private Set<Formula> children;
+
+		DefaultSubTree(int expectedChildren) {
+			this.expectedChildren = expectedChildren;
+		}
 
 		@Override
 		public void add(@Nonnull Formula formula) {
+			if (this.children == null) {
+				this.children = CollectionUtils.createLinkedHashSet(Math.max(this.expectedChildren, 1));
+			}
 			this.children.add(formula);
+		}
+
+		@Nonnull
+		@Override
+		public Set<Formula> getChildren() {
+			// callers only ever read this set - see the `updatedChildren` uses in #visit
+			return this.children == null ? Collections.emptySet() : this.children;
 		}
 
 	}

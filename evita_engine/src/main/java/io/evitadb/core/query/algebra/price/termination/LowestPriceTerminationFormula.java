@@ -582,7 +582,7 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 			// hot path above can rely on a non-empty bitmap and skip the corresponding guards.
 			this.filteredPriceRecords = new ResolvedFilteredPriceRecords();
 			if (this.collectPerInnerRecordPrices) {
-				// allocate a fresh empty instance — must not alias the shared `FilteredPriceRecords.EMPTY`
+				// allocate a fresh empty instance — must not alias the shared `ResolvedFilteredPriceRecords.EMPTY`
 				// singleton because the histogram cache writer subsequently invokes `prepareForFlattening()`
 				// on this side-output, which would race across concurrent empty-input histogram queries
 				this.perInnerRecordPriceRecords = new ResolvedFilteredPriceRecords();

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,10 +23,10 @@
 
 package io.evitadb.exception;
 
-import io.evitadb.utils.StringUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 
 /**
@@ -39,33 +39,42 @@ import java.io.Serial;
 public abstract class EvitaInternalError extends IllegalStateException implements EvitaError {
 	@Serial private static final long serialVersionUID = -1040832658535384105L;
 	@Getter private final String publicMessage;
-	@Getter private final String errorCode;
+	/**
+	 * Lazily resolved {@link #getErrorCode()}. Non-final and computed on first read rather than in the constructor:
+	 * resolving it walks a stack trace and MD5-hashes two strings, and the overwhelming majority of exceptions are
+	 * thrown, handled and discarded without anybody ever asking for their code.
+	 *
+	 * A data race on this field is benign - every thread derives the same value from the same immutable stack trace,
+	 * and `String` is safely publishable through a race because all of its fields are final. This is the same
+	 * pattern `String#hashCode` uses, and it is why the field needs no `volatile`.
+	 *
+	 * Non-null from construction only when the code was supplied explicitly, which happens when an exception is
+	 * rebuilt on the client from data that crossed the wire.
+	 */
+	@Nullable private String errorCode;
 
 	protected EvitaInternalError(@Nonnull String privateMessage, @Nonnull String publicMessage) {
 		super(privateMessage);
 		this.publicMessage = publicMessage;
-		final StackTraceElement stackTraceElement = getProperStackLine();
-
-		this.errorCode = StringUtils.hashChars(stackTraceElement.getClassName()) + ":" +
-			StringUtils.hashChars(stackTraceElement.getMethodName()) + ":" +
-			stackTraceElement.getLineNumber();
 	}
 
 	protected EvitaInternalError(@Nonnull String publicMessage) {
-		this(publicMessage, publicMessage);
+		// deliberately calls `super(...)` rather than delegating to the two-argument constructor - see the note on
+		// constructor delegation at the bottom of this class
+		super(publicMessage);
+		this.publicMessage = publicMessage;
 	}
 
 	protected EvitaInternalError(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause) {
 		super(privateMessage, cause);
 		this.publicMessage = publicMessage;
-		final StackTraceElement stackTraceElement = getProperStackLine();
-		this.errorCode = StringUtils.hashChars(stackTraceElement.getClassName()) + ":" +
-			StringUtils.hashChars(stackTraceElement.getMethodName()) + ":" +
-			stackTraceElement.getLineNumber();
 	}
 
 	protected EvitaInternalError(@Nonnull String publicMessage, @Nonnull Throwable cause) {
-		this(publicMessage, publicMessage, cause);
+		// deliberately calls `super(...)` rather than delegating to the three-argument constructor - see the note on
+		// constructor delegation at the bottom of this class
+		super(publicMessage, cause);
+		this.publicMessage = publicMessage;
 	}
 
 	protected EvitaInternalError(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull String errorCode) {
@@ -80,13 +89,28 @@ public abstract class EvitaInternalError extends IllegalStateException implement
 		return getMessage();
 	}
 
-	private StackTraceElement getProperStackLine() {
-		final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
-		int index = 1;
-		while (index < stackTrace.length && this.getClass().getName().equals(stackTrace[index].getClassName())) {
-			index++;
+	@Nonnull
+	@Override
+	public String getErrorCode() {
+		String theErrorCode = this.errorCode;
+		if (theErrorCode == null) {
+			theErrorCode = ErrorCodeResolver.resolveErrorCode(this);
+			this.errorCode = theErrorCode;
 		}
-		return stackTrace[index];
+		return theErrorCode;
 	}
+
+	/*
+	 * ## No constructor of this class may delegate to another one
+	 *
+	 * The observability agent (`ErrorMonitoringAgent`) counts every evitaDB error by instrumenting the constructors
+	 * of this class - the single root that every internal error passes through exactly once, whatever its depth in
+	 * the hierarchy. That "exactly once" holds only while no constructor here calls `this(...)`: a delegating
+	 * constructor enters two instrumented constructors for one object, and the error metric silently counts it
+	 * twice. The duplication is invisible in normal use - nothing fails, the number is merely wrong - which is why
+	 * the rule is written here rather than left to be noticed.
+	 *
+	 * `EvitaErrorMonitoringTest` fails if this is reintroduced.
+	 */
 
 }

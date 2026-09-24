@@ -66,7 +66,7 @@ import java.util.stream.Collectors;
  * regenerating summaries when the source JavaDoc or method signature has changed (tracked via
  * {@code @SourceHash} annotation).
  *
- * Invoked via: {@code mvn -pl evita_test/evita_functional_tests exec:java -Pgenerate-javadoc}
+ * Invoked via: {@code mvn -pl evita_test/evita_documentation_tests test-compile exec:java -Pgenerate-javadoc}
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

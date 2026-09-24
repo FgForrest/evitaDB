@@ -1878,6 +1878,57 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return error for one accompanying price name with two different price list sequences")
+	void shouldReturnErrorForOneAccompanyingPriceNameWithTwoPriceListSequences(
+		@Nonnull GraphQLTester tester,
+		@Nonnull List<SealedEntity> originalProductEntities
+	) {
+		final Integer desiredEntity = originalProductEntities.stream()
+			.filter(entity ->
+				entity.getPrices(CURRENCY_CZK).stream()
+					.anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
+			.map(entity -> entity.getPrimaryKey())
+			.findFirst()
+			.orElseThrow();
+
+		// both selections are unaliased, so both name the accompanying price `accompanyingPrice` - one name cannot be
+		// calculated from two different price list sequences, and silently serving the first one to both fields would
+		// answer `priceForSaleMin` with a price the query never asked for
+		tester.test(TEST_CATALOG)
+			.document("""
+				query {
+					getProduct(
+						primaryKey: %s,
+						priceInPriceLists: "basic",
+						priceInCurrency: CZK
+					) {
+						primaryKey
+						type
+						priceForSale {
+							priceWithTax
+							accompanyingPrice(priceLists: "reference") {
+								priceWithTax
+							}
+						}
+						priceForSaleMin {
+							priceWithTax
+							accompanyingPrice(priceLists: "vip") {
+								priceWithTax
+							}
+						}
+					}
+				}
+				""",
+				desiredEntity)
+			.executeAndExpectErrorsAndThen();
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for accompanying prices without price lists in all prices for sale")
 	void shouldReturnErrorForAccompanyingPricesWithoutPriceListsInAllPricesForSale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final Integer desiredEntity = originalProductEntities.stream()

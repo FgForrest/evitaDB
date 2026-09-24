@@ -23,10 +23,14 @@
 
 package io.evitadb.core.collection;
 
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.utils.Assert;
+import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -55,7 +59,14 @@ import java.util.Arrays;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @see EntityCollection#getIndexCount()
  */
-final class IndexPopulation {
+final class IndexPopulation implements WarmUpTouchStamped {
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 	/**
 	 * Number of scopes, which is the stride of {@link #countsByTypeAndScope}.
 	 */
@@ -94,6 +105,7 @@ final class IndexPopulation {
 	 * @param indexKey key of the created index
 	 */
 	void recordCreated(@Nonnull EntityIndexKey indexKey) {
+		recordWarmUpSavepointTouch();
 		this.countsByTypeAndScope[slotOf(indexKey)]++;
 	}
 
@@ -111,7 +123,41 @@ final class IndexPopulation {
 			this.countsByTypeAndScope[slot] > 0,
 			() -> "Index `" + indexKey + "` was dropped from a collection that holds none of its kind and scope!"
 		);
+		recordWarmUpSavepointTouch();
 		this.countsByTypeAndScope[slot]--;
+	}
+
+	/**
+	 * Captures the whole counter block for the warm-up savepoint bracketing the current root entity mutation, if one is
+	 * open, so that an entity mutation that created or dropped indexes and then failed leaves the split counts exactly
+	 * as it found them (see {@link WarmUpSavepoint}).
+	 *
+	 * On the two non-transactional paths that reach the mutators above the counts move in place, which is what makes
+	 * this the one piece of index bookkeeping a warm-up rollback has to remember explicitly - the structural argument
+	 * in the type JavaDoc ("rollback correctness is structural rather than something a counter has to remember to
+	 * undo") holds for the transactional path only, where the discarded diff layer does the work.
+	 *
+	 * The capture is made on the FIRST write-touch, not per operation: this object's entire mutable state is one
+	 * fixed-size `int[]` of a dozen cells, so its whole-state pre-image is already `O(1)` and one clone covers however
+	 * many indexes a single entity mutation creates - and a reference-heavy entity creates a reduced index per
+	 * referenced entity. The restore copies the captured cells back into the live array rather than swapping the
+	 * reference, which is an equally absolute restore and lets the field stay `final`.
+	 *
+	 * The other two callers are naturally inert: catalog load and WAL replay run with no savepoint open, and the
+	 * commit-time merge (`EntityCollection#mergePopulation`) both runs under a transaction and works on a
+	 * {@link #copy()} this savepoint has never seen.
+	 *
+	 * Must be called BEFORE the counter moves. Outside a savepoint it costs one {@link ThreadLocal} read returning
+	 * `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			final int[] preImage = Arrays.copyOf(this.countsByTypeAndScope, this.countsByTypeAndScope.length);
+			savepoint.push(
+				() -> System.arraycopy(preImage, 0, this.countsByTypeAndScope, 0, preImage.length)
+			);
+		}
 	}
 
 	/**

@@ -34,7 +34,10 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
+import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.attribute.FilterIndex;
@@ -50,8 +53,11 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.component.loader.LoadedComponentBundle.AttributeIndexes;
 import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.invertedIndex.ValueIdAllocator;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.page.PageEmission;
+import io.evitadb.index.range.RangeIndex;
+import io.evitadb.index.range.TransactionalRangePoint;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
@@ -71,6 +77,8 @@ import javax.annotation.Nullable;
 import java.io.OutputStream;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -118,6 +126,8 @@ class AttributeIndexLoaderTest {
 	private static final String ATTRIBUTE_PRIORITY = "priority";
 	private static final int INDEX_PK = 7;
 	private static final long CATALOG_VERSION = 1L;
+	/** Passed to the seeding helper when every persisted leaf page is to keep its value id column. */
+	private static final int NO_STRIPPED_PAGE = -1;
 	private static final EntityIndexKey ENTITY_INDEX_KEY =
 		new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE);
 
@@ -434,6 +444,71 @@ class AttributeIndexLoaderTest {
 		}
 
 		/**
+		 * Seeds a FILTER part carrying an inline range companion whose thresholds are epoch **seconds**, exactly as
+		 * every format written before {@code DateTimeRange} moved to millisecond comparison granularity persisted
+		 * them, and marks it with the read-path provenance flag a backward-compatible serializer sets.
+		 *
+		 * @param key         the attribute key
+		 * @param type        the declared attribute type (what decides whether the rescale applies at all)
+		 * @param points      the inline bucket points
+		 * @param rangePoints the range points, in ascending threshold order and at second granularity
+		 */
+		void seedLegacySecondGranularityFilter(
+			@Nonnull AttributeIndexKey key, @Nonnull Class<?> type,
+			@Nonnull ValueToRecordBitmap[] points, @Nonnull TransactionalRangePoint[] rangePoints
+		) {
+			final FilterIndexStoragePart part = new FilterIndexStoragePart(
+				INDEX_PK, key, type, points, new RangeIndex(rangePoints)
+			);
+			part.setSecondGranularityRangeThresholds(true);
+			seed(AttributeIndexType.FILTER, key, part);
+		}
+
+		/**
+		 * Seeds a range-`PAGED` FILTER part whose range leaf pages hold epoch-**second** thresholds: the pages are
+		 * emitted from a live index built at second granularity, stored under the RANGE stream, and the root is
+		 * marked with the read-path provenance flag.
+		 *
+		 * @param key         the attribute key
+		 * @param type        the declared attribute type
+		 * @param points      the inline bucket points
+		 * @param rangePoints the range points, in ascending threshold order and at second granularity
+		 * @param pageSize    how many range points to place on each persisted leaf page
+		 */
+		void seedLegacySecondGranularityPagedFilter(
+			@Nonnull AttributeIndexKey key, @Nonnull Class<?> type,
+			@Nonnull ValueToRecordBitmap[] points, @Nonnull TransactionalRangePoint[] rangePoints, int pageSize
+		) {
+			final int rangeStreamId = this.keyCompressor.getId(
+				new LeafStreamKey(
+					INDEX_PK, new AttributeKeyWithIndexType(key, AttributeIndexType.FILTER), LeafStreamKey.StreamKind.RANGE
+				)
+			);
+			final int pageCount = (rangePoints.length + pageSize - 1) / pageSize;
+			final int[] pageSequences = new int[pageCount];
+			for (int page = 0; page < pageCount; page++) {
+				final int from = page * pageSize;
+				final int to = Math.min(from + pageSize, rangePoints.length);
+				final TransactionalRangePoint[] pagePoints = new TransactionalRangePoint[to - from];
+				System.arraycopy(rangePoints, from, pagePoints, 0, to - from);
+				pageSequences[page] = page;
+				this.partsById.put(
+					AbstractLeafPagePart.computeUniquePartId(rangeStreamId, page),
+					new RangeIndexLeafPagePart(rangeStreamId, page, pagePoints,
+						AbstractLeafPagePart.computeUniquePartId(rangeStreamId, page))
+				);
+			}
+			final FilterIndexStoragePart part = new FilterIndexStoragePart(
+				INDEX_PK, key, type, points, null, 0,
+				false, -1, new int[0],
+				true, pageCount - 1, pageSequences,
+				null
+			);
+			part.setSecondGranularityRangeThresholds(true);
+			seed(AttributeIndexType.FILTER, key, part);
+		}
+
+		/**
 		 * Seeds a granular `PAGED` FILTER part: emits the source index's leaf pages, stores each as a
 		 * {@link FilterIndexLeafPagePart} keyed by `pack(streamId, pageSequence)`, and stores the `PAGED` root carrying the
 		 * high-water and the ordered leaf-page list. The stream id is resolved through the shared compressor exactly as
@@ -444,21 +519,86 @@ class AttributeIndexLoaderTest {
 		 * @param source a multi-leaf inverted index whose leaf pages are persisted
 		 */
 		void seedPagedFilter(@Nonnull AttributeIndexKey key, @Nonnull Class<?> type, @Nonnull InvertedIndex source) {
+			seedPagedFilter(key, type, source, source.getNextValueId(), NO_STRIPPED_PAGE);
+		}
+
+		/**
+		 * Seeds a granular `PAGED` FILTER part exactly as the three-argument sibling does, but lets the caller write a
+		 * value id high-water mark into the root that differs from the source's, and persist one page WITHOUT its id
+		 * column. Those are the two shapes a persisted generation can take when a run changed the tree's id-carrying
+		 * mode and did not rewrite everything it had already written.
+		 *
+		 * @param key                 the attribute key
+		 * @param type                the attribute value type
+		 * @param source              a multi-leaf inverted index whose leaf pages are persisted
+		 * @param nextValueId         the value id high-water mark to write into the root
+		 * @param strippedPageOrdinal the position, in ascending key order, of the page to persist without its id
+		 *                            column, or {@link #NO_STRIPPED_PAGE} to keep every column
+		 */
+		void seedPagedFilter(
+			@Nonnull AttributeIndexKey key, @Nonnull Class<?> type, @Nonnull InvertedIndex source,
+			int nextValueId, int strippedPageOrdinal
+		) {
 			final int streamId = this.keyCompressor.getId(
 				new LeafStreamKey(INDEX_PK, new AttributeKeyWithIndexType(key, AttributeIndexType.FILTER))
 			);
 			final PageEmission<InvertedIndex.LeafPage> emission = source.collectChangedPages();
+			final int[] orderedPageSequences = emission.orderedPageSequences();
+			final int strippedPageSequence = strippedPageOrdinal == NO_STRIPPED_PAGE
+				? NO_STRIPPED_PAGE : orderedPageSequences[strippedPageOrdinal];
 			for (final InvertedIndex.LeafPage page : emission.changedPages()) {
 				final long pagePk = AbstractLeafPagePart.computeUniquePartId(streamId, page.pageSequence());
+				final int[] valueIds = page.pageSequence() == strippedPageSequence ? null : page.valueIds();
 				this.partsById.put(
-					pagePk, new FilterIndexLeafPagePart(streamId, page.pageSequence(), page.buckets(), pagePk)
+					pagePk,
+					new FilterIndexLeafPagePart(streamId, page.pageSequence(), page.buckets(), valueIds, pagePk)
 				);
 			}
 			seed(
 				AttributeIndexType.FILTER, key,
-				FilterIndexStoragePart.paged(
-					INDEX_PK, key, type, null, 0,
-					emission.highWaterPageSequence(), emission.orderedPageSequences(), null
+				new FilterIndexStoragePart(
+					INDEX_PK, key, type, new ValueToRecordBitmap[0], null, 0,
+					true, emission.highWaterPageSequence(), orderedPageSequences,
+					false, -1, new int[0],
+					nextValueId, null, null
+				)
+			);
+		}
+
+		/**
+		 * Seeds an inline (`SINGLE`) FILTER part carrying the source's buckets and their value id column — the shape a
+		 * small id-carrying index is persisted in, where the whole tree rides the root rather than per-leaf pages.
+		 *
+		 * @param key    the attribute key
+		 * @param type   the attribute value type
+		 * @param source a single-leaf inverted index whose buckets ride the root
+		 */
+		void seedInlineFilter(@Nonnull AttributeIndexKey key, @Nonnull Class<?> type, @Nonnull InvertedIndex source) {
+			seedInlineFilter(key, type, source, source.getNextValueId(), source.getValueIds());
+		}
+
+		/**
+		 * Seeds an inline (`SINGLE`) FILTER part exactly as the three-argument sibling does, but lets the caller
+		 * write a value id high-water mark and an inline id column that disagree with each other. Those are the two
+		 * shapes an inline generation takes when a run changed its id-carrying mode and rewrote only one of the two.
+		 *
+		 * @param key            the attribute key
+		 * @param type           the attribute value type
+		 * @param source         a single-leaf inverted index whose buckets ride the root
+		 * @param nextValueId    the value id high-water mark to write into the root
+		 * @param inlineValueIds the inline id column to write into the root, or `null` to write none
+		 */
+		void seedInlineFilter(
+			@Nonnull AttributeIndexKey key, @Nonnull Class<?> type, @Nonnull InvertedIndex source,
+			int nextValueId, @Nullable int[] inlineValueIds
+		) {
+			seed(
+				AttributeIndexType.FILTER, key,
+				new FilterIndexStoragePart(
+					INDEX_PK, key, type, source.getValueToRecordBitmap(), null, 0,
+					false, -1, new int[0],
+					false, -1, new int[0],
+					nextValueId, inlineValueIds, null
 				)
 			);
 		}
@@ -885,6 +1025,452 @@ class AttributeIndexLoaderTest {
 				)
 			);
 			return (EntitySchema) builder.toInstance();
+		}
+	}
+
+	/**
+	 * Pins the loader's refusal to reload a filter index whose persisted generation disagrees with itself about value
+	 * ids. The id column is written for every leaf page of a generation or for none of them, and the root's high-water
+	 * mark records which of the two it is. A generation that breaks either rule was written by a run that changed the
+	 * tree's id-carrying mode without rewriting what it had already written — and loading it would mint replacement ids
+	 * over the pages that lost theirs, handing already-published ids to different values while the tree looks perfectly
+	 * healthy. Every one of these tests therefore asserts that the load THROWS: an assertion on the resulting ids would
+	 * pass vacuously against a tree that silently re-minted.
+	 */
+	@Nested
+	@DisplayName("value ids are all-or-nothing across a persisted generation")
+	class ValueIdConsistencyOnLoad {
+
+		private static final String ATTRIBUTE_NAME = "name";
+		/** Distinct values seeded into each paged source — more than one leaf block (256), so the tree pages out. */
+		private static final int VALUE_COUNT = 1_000;
+		/** Distinct values seeded into an inline source — comfortably inside one leaf block, so it stays `SINGLE`. */
+		private static final int INLINE_VALUE_COUNT = 20;
+		/** Names the registration that switches the id column on; only its presence matters, never its value. */
+		private static final String ID_CONSUMER = "attribute-index-loader-test";
+
+		@Test
+		@DisplayName("should refuse a generation whose leaf pages disagree about carrying value ids")
+		void shouldRejectMixedValueIdColumnsAcrossLeafPages() {
+			final AttributeIndexKey key = new AttributeIndexKey(null, ATTRIBUTE_NAME, null);
+			final InvertedIndex source = pagedSourceWithValueIds(key);
+			final SeededStorage storage = new SeededStorage();
+			// the first page loses its id column while the rest keep theirs - what a run leaves behind when it switches
+			// the ids on or off and rewrites only the pages it happened to dirty
+			storage.seedPagedFilter(key, String.class, source, source.getNextValueId(), 0);
+
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class, () -> load(storage, key)
+			);
+			assertTrue(
+				error.getMessage().contains("disagree about value ids"),
+				"the refusal must name the disagreement, but was: " + error.getMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("should refuse a root claiming value ids its leaf pages do not carry")
+		void shouldRejectRootClaimingValueIdsItsPagesDoNotCarry() {
+			final AttributeIndexKey key = new AttributeIndexKey(null, ATTRIBUTE_NAME, null);
+			final InvertedIndex source = pagedSourceWithoutValueIds(key);
+			final SeededStorage storage = new SeededStorage();
+			// no page carries an id column, yet the root records a high-water mark - the shape a run leaves behind when
+			// it drops the ids and the pages that held them are never rewritten
+			storage.seedPagedFilter(key, String.class, source, 500, NO_STRIPPED_PAGE);
+
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class, () -> load(storage, key)
+			);
+			assertTrue(
+				error.getMessage().contains("do not carry"),
+				"the refusal must say which side carries the ids, but was: " + error.getMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("should refuse leaf pages carrying value ids their root does not claim")
+		void shouldRejectPagesCarryingValueIdsTheRootDoesNotClaim() {
+			final AttributeIndexKey key = new AttributeIndexKey(null, ATTRIBUTE_NAME, null);
+			final InvertedIndex source = pagedSourceWithValueIds(key);
+			final SeededStorage storage = new SeededStorage();
+			// every page carries its id column while the root says the tree has none - reloading this would restart the
+			// allocator at the unassigned sentinel and hand ids already written into the pages out a second time
+			storage.seedPagedFilter(key, String.class, source, ValueIdAllocator.UNASSIGNED_VALUE_ID, NO_STRIPPED_PAGE);
+
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class, () -> load(storage, key)
+			);
+			// asserted on the text because the allocator itself refuses a zero high-water further down the load path:
+			// without this check the reload still fails, but with a message naming neither the attribute nor the cause
+			assertTrue(
+				error.getMessage().contains(ATTRIBUTE_NAME) && error.getMessage().contains("disagree about value ids"),
+				"the refusal must name the attribute and the disagreement, but was: " + error.getMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("should reload a consistent id-carrying generation with every id attached to its own value")
+		void shouldLoadConsistentValueIdCarryingGeneration() {
+			final AttributeIndexKey key = new AttributeIndexKey(null, ATTRIBUTE_NAME, null);
+			final InvertedIndex source = pagedSourceWithValueIds(key);
+			final SeededStorage storage = new SeededStorage();
+			storage.seedPagedFilter(key, String.class, source);
+
+			final AttributeIndexes bundle = load(storage, key);
+
+			final InvertedIndex loaded = bundle.sharedValueIndexes().get(key);
+			assertNotNull(loaded, "the PAGED filter part must rebuild a shared inverted index");
+			assertTrue(loaded.carriesValueIds(), "an id-carrying generation must reload id-carrying");
+			assertEquals(source.getNextValueId(), loaded.getNextValueId(), "the high-water mark must continue");
+			for (int i = 0; i < VALUE_COUNT; i++) {
+				final String value = String.format("value-%05d", i);
+				assertEquals(
+					source.getValueId(value), loaded.getValueId(value),
+					"value " + value + " did not come back with the id it was persisted under"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should reload an inline generation with its id column stamped back in key order")
+		void shouldLoadInlineValueIdCarryingGeneration() {
+			final AttributeIndexKey key = new AttributeIndexKey(null, ATTRIBUTE_NAME, null);
+			final InvertedIndex source = inlineSourceWithValueIds(key);
+			final SeededStorage storage = new SeededStorage();
+			storage.seedInlineFilter(key, String.class, source);
+
+			final AttributeIndexes bundle = load(storage, key);
+
+			final InvertedIndex loaded = bundle.sharedValueIndexes().get(key);
+			assertNotNull(loaded, "the SINGLE filter part must rebuild a shared inverted index");
+			assertTrue(loaded.carriesValueIds(), "an id-carrying generation must reload id-carrying");
+			assertEquals(source.getNextValueId(), loaded.getNextValueId(), "the high-water mark must continue");
+			for (int i = 0; i < INLINE_VALUE_COUNT; i++) {
+				final String value = String.format("value-%05d", i);
+				assertEquals(
+					source.getValueId(value), loaded.getValueId(value),
+					"value " + value + " did not come back with the id it was persisted under"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should refuse an inline root claiming value ids its own column does not carry")
+		void shouldRejectInlineRootClaimingValueIdsItsColumnDoesNotCarry() {
+			final AttributeIndexKey key = new AttributeIndexKey(null, ATTRIBUTE_NAME, null);
+			final InvertedIndex source = inlineSourceWithValueIds(key);
+			final SeededStorage storage = new SeededStorage();
+			// the root records a high-water mark while its inline column is gone - the shape a run leaves behind when
+			// it drops the ids of a SINGLE index and rewrites the buckets without the mark
+			storage.seedInlineFilter(key, String.class, source, 500, null);
+
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class, () -> load(storage, key)
+			);
+			assertTrue(
+				error.getMessage().contains(ATTRIBUTE_NAME) && error.getMessage().contains("disagree about value ids"),
+				"the refusal must name the attribute and the disagreement, but was: " + error.getMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("should refuse an inline id column under a root claiming no value ids")
+		void shouldRejectInlineColumnUnderARootClaimingNoValueIds() {
+			final AttributeIndexKey key = new AttributeIndexKey(null, ATTRIBUTE_NAME, null);
+			final InvertedIndex source = inlineSourceWithValueIds(key);
+			final SeededStorage storage = new SeededStorage();
+			// the converse: the buckets keep their id column while the root says the tree has none, so a reload would
+			// restart the allocator at the unassigned sentinel and hand the persisted ids out a second time
+			storage.seedInlineFilter(
+				key, String.class, source, ValueIdAllocator.UNASSIGNED_VALUE_ID, source.getValueIds()
+			);
+
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class, () -> load(storage, key)
+			);
+			// asserted on the text because the allocator itself refuses a zero high-water further down the load path:
+			// without this check the reload still fails, but with a message naming neither the attribute nor the cause
+			assertTrue(
+				error.getMessage().contains(ATTRIBUTE_NAME) && error.getMessage().contains("disagree about value ids"),
+				"the refusal must name the attribute and the disagreement, but was: " + error.getMessage()
+			);
+		}
+
+		/**
+		 * Builds a multi-leaf inverted index that carries value ids, by registering a consumer on it while it is still
+		 * empty (the only moment a tree may be switched on) and filling it afterwards.
+		 *
+		 * @param key the attribute key whose comparator and normalizer the index is built with
+		 * @return the populated, id-carrying, multi-leaf index
+		 */
+		@Nonnull
+		private static InvertedIndex pagedSourceWithValueIds(@Nonnull AttributeIndexKey key) {
+			final InvertedIndex source = newSource(key);
+			source.attachValueIdConsumer(ID_CONSUMER);
+			fill(source);
+			return source;
+		}
+
+		/**
+		 * Builds a single-leaf inverted index that carries value ids, filled in DESCENDING key order.
+		 *
+		 * The order is the whole point: the inline shape replays its buckets through the ordinary insert path and has
+		 * its persisted column stamped back positionally, so a fixture whose ids happen to be minted in the same order
+		 * the column is written in cannot fail however the stamp-back is ordered.
+		 *
+		 * @param key the attribute key whose comparator and normalizer the index is built with
+		 * @return the populated, id-carrying, single-leaf index
+		 */
+		@Nonnull
+		private static InvertedIndex inlineSourceWithValueIds(@Nonnull AttributeIndexKey key) {
+			final InvertedIndex source = newSource(key);
+			source.attachValueIdConsumer(ID_CONSUMER);
+			for (int i = INLINE_VALUE_COUNT - 1; i >= 0; i--) {
+				source.addRecord(String.format("value-%05d", i), i + 1);
+			}
+			assertFalse(source.isPaged(), "the seeded index must stay inside a single leaf (SINGLE)");
+			return source;
+		}
+
+		/**
+		 * Builds a multi-leaf inverted index that carries no value ids at all — the shape of every tree no subsystem
+		 * has registered as a consumer of.
+		 *
+		 * @param key the attribute key whose comparator and normalizer the index is built with
+		 * @return the populated, id-less, multi-leaf index
+		 */
+		@Nonnull
+		private static InvertedIndex pagedSourceWithoutValueIds(@Nonnull AttributeIndexKey key) {
+			final InvertedIndex source = newSource(key);
+			fill(source);
+			return source;
+		}
+
+		/**
+		 * @param key the attribute key whose comparator and normalizer the index is built with
+		 * @return a fresh empty `String` inverted index
+		 */
+		@Nonnull
+		private static InvertedIndex newSource(@Nonnull AttributeIndexKey key) {
+			return new InvertedIndex(
+				String.class, FilterIndex.getNormalizer(String.class, 0),
+				FilterIndex.getComparator(key, String.class), 0
+			);
+		}
+
+		/**
+		 * Inserts {@link #VALUE_COUNT} distinct values, one record each, so the tree spans several leaves and is
+		 * persisted in the `PAGED` shape.
+		 *
+		 * @param source the index to fill
+		 */
+		private static void fill(@Nonnull InvertedIndex source) {
+			for (int i = 0; i < VALUE_COUNT; i++) {
+				source.addRecord(String.format("value-%05d", i), i);
+			}
+			assertTrue(source.isPaged(), "the seeded index must be multi-leaf (PAGED)");
+		}
+	}
+
+	/**
+	 * The legacy threshold-scale repair, driven through the production loader.
+	 *
+	 * Every catalog format written before {@code DateTimeRange} moved from second to millisecond comparison
+	 * granularity persisted its range-index thresholds as epoch **seconds**. A threshold is an untyped `long` shared
+	 * with all five `NumberRange` subtypes, whose thresholds are the bounds' own numeric values and were never
+	 * rescaled — so the repair has to be routed on the declared attribute type, and applying it to the wrong one
+	 * inflates a numeric range's bounds by a thousand and answers every query over it with the wrong records,
+	 * silently.
+	 *
+	 * These tests seed thresholds a pre-change writer would have produced and assert on **what a query returns**,
+	 * which is the only assertion that fails when the rescale is dropped, doubled, or aimed at the wrong type.
+	 */
+	@Nested
+	@DisplayName("legacy second-granularity range thresholds")
+	class LegacyRangeThresholdScale {
+
+		/** The moment the seeded ranges are built around; the fixture is a full day wide on each side of it. */
+		private static final OffsetDateTime VALID_FROM = OffsetDateTime.parse("2026-05-20T12:19:26Z");
+		/** A moment inside the seeded range, used as the query probe. */
+		private static final OffsetDateTime INSIDE = OffsetDateTime.parse("2026-05-21T00:00:00Z");
+		/** A moment after the seeded range, used as the negative query probe. */
+		private static final OffsetDateTime OUTSIDE = OffsetDateTime.parse("2026-06-01T00:00:00Z");
+
+		@Test
+		@DisplayName("an inline second-granularity range is rescaled and answers queries at the right moments")
+		void shouldRescaleAnInlineSecondGranularityDateTimeRange() {
+			final AttributeIndexKey key = new AttributeIndexKey(null, "validity", null);
+			final DateTimeRange validity = DateTimeRange.between(VALID_FROM, VALID_FROM.plusDays(5));
+			// what a pre-change writer left on disk: the very thresholds `getFrom()` / `getTo()` returned then,
+			// which were whole epoch SECONDS
+			final SeededStorage storage = new SeededStorage();
+			storage.seedLegacySecondGranularityFilter(
+				key, DateTimeRange.class,
+				new ValueToRecordBitmap[]{new ValueToRecordBitmap(validity, 1)},
+				secondGranularityPoints(
+					VALID_FROM.toEpochSecond(), VALID_FROM.plusDays(5).toEpochSecond(), 1
+				)
+			);
+
+			final FilterIndex loaded = load(storage, key).filterIndexes().get(key);
+			assertNotNull(loaded, "the FILTER part must reload");
+
+			// THE assertion: a probe reduced by the CURRENT converter must find the record. Without the rescale the
+			// stored thresholds sit a thousand times below the probe and this returns nothing
+			assertArrayEquals(
+				new int[]{1},
+				loaded.getRecordsValidInFormula(DateTimeRange.toComparableLong(INSIDE)).compute().getArray(),
+				"a moment inside the reloaded validity must select the record"
+			);
+			// ... and a moment outside must still select nothing, so the test cannot pass by matching everything
+			assertArrayEquals(
+				new int[0],
+				loaded.getRecordsValidInFormula(DateTimeRange.toComparableLong(OUTSIDE)).compute().getArray(),
+				"a moment after the reloaded validity must select nothing"
+			);
+			// a probe left in the OLD scale must now miss, which is what says the thresholds really moved
+			assertArrayEquals(
+				new int[0],
+				loaded.getRecordsValidInFormula(INSIDE.toEpochSecond()).compute().getArray(),
+				"a second-granularity probe must no longer land inside the rescaled range"
+			);
+		}
+
+		@Test
+		@DisplayName("an open-ended second-granularity range is rescaled onto the constant sentinels")
+		void shouldRescaleAnOpenEndedSecondGranularityDateTimeRange() {
+			final AttributeIndexKey key = new AttributeIndexKey(null, "validity", null);
+			final DateTimeRange openEnded = DateTimeRange.since(VALID_FROM);
+			// a pre-change open-ended range ended on `LocalDateTime.MAX.atOffset(from.getOffset()).toEpochSecond()`,
+			// which collides with the index's own `Long.MAX_VALUE` border point once rescaled - the collision the
+			// repair has to MERGE rather than trip over
+			final long legacyOpenTo = java.time.LocalDateTime.MAX.atOffset(ZoneOffset.UTC).toEpochSecond();
+			final SeededStorage storage = new SeededStorage();
+			storage.seedLegacySecondGranularityFilter(
+				key, DateTimeRange.class,
+				new ValueToRecordBitmap[]{new ValueToRecordBitmap(openEnded, 1)},
+				secondGranularityPoints(VALID_FROM.toEpochSecond(), legacyOpenTo, 1)
+			);
+
+			final FilterIndex loaded = load(storage, key).filterIndexes().get(key);
+			assertNotNull(loaded, "the FILTER part must reload");
+			assertArrayEquals(
+				new int[]{1},
+				loaded.getRecordsValidInFormula(DateTimeRange.toComparableLong(INSIDE)).compute().getArray(),
+				"a moment inside the open-ended validity must select the record"
+			);
+			assertArrayEquals(
+				new int[]{1},
+				loaded.getRecordsValidInFormula(DateTimeRange.toComparableLong(OUTSIDE)).compute().getArray(),
+				"a moment far after the lower bound must still select an open-ended record"
+			);
+			assertArrayEquals(
+				new int[0],
+				loaded.getRecordsValidInFormula(
+					DateTimeRange.toComparableLong(VALID_FROM.minusDays(1))
+				).compute().getArray(),
+				"a moment before the lower bound must select nothing"
+			);
+			// the open bound really did land on the constant sentinel, merged into the index's own border point
+			final RangeIndex reloadedRange = load(storage, key).sharedRangeIndexes().get(key);
+			assertNotNull(reloadedRange, "the range companion must reload");
+			assertEquals(
+				DateTimeRange.OPEN_TO_THRESHOLD, reloadedRange.getRanges()[reloadedRange.getRanges().length - 1]
+					.getThreshold(),
+				"the legacy open sentinel and the border point must have merged onto one threshold"
+			);
+		}
+
+		@Test
+		@DisplayName("a range-PAGED second-granularity range is rescaled across its leaf pages")
+		void shouldRescaleAPagedSecondGranularityDateTimeRange() {
+			final AttributeIndexKey key = new AttributeIndexKey(null, "validity", null);
+			final DateTimeRange validity = DateTimeRange.between(VALID_FROM, VALID_FROM.plusDays(5));
+			final SeededStorage storage = new SeededStorage();
+			// two points per page, so the repair has to walk pages and reassemble - and the border sentinels sit on
+			// different pages from the payload thresholds
+			storage.seedLegacySecondGranularityPagedFilter(
+				key, DateTimeRange.class,
+				new ValueToRecordBitmap[]{new ValueToRecordBitmap(validity, 1)},
+				secondGranularityPoints(
+					VALID_FROM.toEpochSecond(), VALID_FROM.plusDays(5).toEpochSecond(), 1
+				),
+				2
+			);
+
+			final FilterIndex loaded = load(storage, key).filterIndexes().get(key);
+			assertNotNull(loaded, "the FILTER part must reload");
+			assertArrayEquals(
+				new int[]{1},
+				loaded.getRecordsValidInFormula(DateTimeRange.toComparableLong(INSIDE)).compute().getArray(),
+				"a moment inside the reloaded paged validity must select the record"
+			);
+			assertArrayEquals(
+				new int[0],
+				loaded.getRecordsValidInFormula(DateTimeRange.toComparableLong(OUTSIDE)).compute().getArray(),
+				"a moment after the reloaded paged validity must select nothing"
+			);
+			assertArrayEquals(
+				new int[0],
+				loaded.getRecordsValidInFormula(INSIDE.toEpochSecond()).compute().getArray(),
+				"a second-granularity probe must no longer land inside the rescaled paged range"
+			);
+		}
+
+		@Test
+		@DisplayName("a numeric range index read from the same legacy format keeps its thresholds untouched")
+		void shouldLeaveANumericRangeIndexUntouched() {
+			// the control, and the one that matters most: the provenance flag is set on this part exactly as it is
+			// on the three above, so ONLY the declared attribute type keeps the rescale away from it. An
+			// `IntegerNumberRange` threshold is the caller's own number and was never in seconds
+			final AttributeIndexKey key = new AttributeIndexKey(null, "quantity", null);
+			final IntegerNumberRange range = IntegerNumberRange.between(10, 20);
+			final SeededStorage storage = new SeededStorage();
+			storage.seedLegacySecondGranularityFilter(
+				key, IntegerNumberRange.class,
+				new ValueToRecordBitmap[]{new ValueToRecordBitmap(range, 1)},
+				secondGranularityPoints(10L, 20L, 1)
+			);
+
+			final FilterIndex loaded = load(storage, key).filterIndexes().get(key);
+			assertNotNull(loaded, "the FILTER part must reload");
+			assertArrayEquals(
+				new int[]{1}, loaded.getRecordsValidInFormula(15L).compute().getArray(),
+				"the numeric thresholds must be read back verbatim - 15 lies inside [10, 20]"
+			);
+			assertArrayEquals(
+				new int[0], loaded.getRecordsValidInFormula(15_000L).compute().getArray(),
+				"a rescaled numeric index would have moved [10, 20] to [10000, 20000] and matched here instead"
+			);
+			final RangeIndex reloadedRange = load(storage, key).sharedRangeIndexes().get(key);
+			assertNotNull(reloadedRange, "the range companion must reload");
+			final long[] thresholds = new long[reloadedRange.getRanges().length];
+			for (int i = 0; i < thresholds.length; i++) {
+				thresholds[i] = reloadedRange.getRanges()[i].getThreshold();
+			}
+			assertArrayEquals(
+				new long[]{Long.MIN_VALUE, 10L, 20L, Long.MAX_VALUE}, thresholds,
+				"every numeric threshold must survive byte for byte"
+			);
+		}
+
+		/**
+		 * Builds the range points a pre-change writer would have persisted for one record whose range spans
+		 * `[from, to]`, including the two border sentinels the index always carries.
+		 *
+		 * @param from     the lower threshold, in the scale the writer used
+		 * @param to       the upper threshold, in the scale the writer used
+		 * @param recordId the record the range belongs to
+		 * @return the four range points, in ascending threshold order
+		 */
+		@Nonnull
+		private static TransactionalRangePoint[] secondGranularityPoints(long from, long to, int recordId) {
+			return new TransactionalRangePoint[]{
+				new TransactionalRangePoint(Long.MIN_VALUE),
+				new TransactionalRangePoint(from, new int[]{recordId}, new int[0]),
+				new TransactionalRangePoint(to, new int[0], new int[]{recordId}),
+				new TransactionalRangePoint(Long.MAX_VALUE)
+			};
 		}
 	}
 }

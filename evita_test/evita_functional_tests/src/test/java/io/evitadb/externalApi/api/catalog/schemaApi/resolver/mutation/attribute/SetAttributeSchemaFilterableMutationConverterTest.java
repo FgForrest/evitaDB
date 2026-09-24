@@ -126,4 +126,5 @@ class SetAttributeSchemaFilterableMutationConverterTest {
 					.build()
 			);
 	}
+
 }

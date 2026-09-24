@@ -84,6 +84,40 @@ enum GrpcGlobalAttributeUniquenessType {
   UNIQUE_WITHIN_CATALOG_LOCALE = 2;
 }
 
+// An optional acceleration an attribute's filter index maintains on top of the plain index that `filterable` or
+// `unique` already provides. Each member costs extra memory and extra write-path work, which is why none of them is
+// implied by those declarations - an attribute declares the ones its workload actually queries and nothing else.
+//
+// A capability is always declared together with filterability and per scope, carried by
+// `GrpcScopedAttributeFilterAccelerators`. "Accelerated but not filterable" is not a representable state - a mutation
+// arriving
+// over the wire that names a scope the attribute is not filterable in is refused by the server.
+//
+// The members name the capability the index *gains*, never the physical structure that provides it - the structure is
+// an engine implementation detail that may change without the schema changing.
+enum GrpcAttributeFilterAccelerator {
+
+  // Default value, never sent by the server and rejected when received. Absence of an acceleration is expressed by
+  // an empty `accelerators` list, not by this member, so an explicit zero on the wire is always a client mistake.
+  ATTRIBUTE_FILTER_ACCELERATOR_UNSPECIFIED = 0;
+  // Substring matching against the attribute's values is served from a dedicated index instead of scanning every
+  // distinct value of the attribute.
+  //
+  // It accelerates `attributeContains` and `attributeEndsWith`, and only those two. `attributeStartsWith` is
+  // deliberately excluded - it already has an anchored range-scan fast path over the shared value tree, so routing it
+  // through this index would trade a cheap prefix walk for a more expensive one. Declaring the capability never
+  // changes what a query matches; only the way candidates are found differs.
+  //
+  // Patterns shorter than three code points cannot be decomposed into a trigram and fall back to the ordinary value
+  // scan, so an attribute queried only with one- or two-character patterns gains nothing while still paying the cost.
+  //
+  // Allowed only on attributes of type `String` or `String[]`; any other type is refused at schema-mutation time.
+  // Enabling it on an entity collection that already holds data is refused as well - the index is built as entities
+  // are indexed, so the accelerator must be declared before the data is inserted.
+  ATTRIBUTE_FILTER_ACCELERATOR_SUBSTRING_SEARCH = 1;
+
+}
+
 // Determines which price will be used for filtering.
 enum GrpcQueryPriceMode {
   // Price computation operations will use actual price with tax added for filtering.
@@ -188,14 +222,16 @@ enum GrpcHistogramBehavior {
   // better user experience.
   // Bucket boundaries are positioned at equal intervals across the value range.
   OPTIMIZED = 1;
-  // Histogram always contains the number of buckets you asked for.
-  // Bucket boundaries are positioned based on cumulative frequency distribution, so each bucket covers
-  // approximately equal portion of total records.
+  // Histogram will never contain more buckets than you asked for, and contains fewer whenever a single value is held
+  // by so many entities that it collapses several quantile intervals into one.
+  // Bucket boundaries are positioned on the empirical quantile function, so each bucket covers approximately equal
+  // portion of total records. Every boundary is a value the data actually contains, so no bucket is ever empty.
+  // `relativeFrequency` carries the smoothed value density normalised to the curve maximum, in the range (0, 100].
   EQUALIZED = 2;
-  // Histogram will never contain more buckets than you asked for, but may contain less when the data is scarce.
-  // Bucket boundaries are positioned based on cumulative frequency distribution, so each bucket covers
-  // approximately equal portion of total records.
-  EQUALIZED_OPTIMIZED = 3;
+  // Deprecated: use EQUALIZED instead. Identical to EQUALIZED - the equalised algorithm never emits an empty bucket,
+  // so there is nothing for the "optimized" variant to drop; the constant is kept because it is part of the published
+  // query grammar.
+  EQUALIZED_OPTIMIZED = 3 [deprecated = true];
 }
 
 // This enumeration controls behavior of the `ReferenceContent` related to managed entities.
@@ -1184,5 +1220,110 @@ enum GrpcSchemaCapability {
   // The entity's prices are indexed - `withPrice()` in an indexed scope, and the price indexes it costs. Carried by a
   // `SCHEMA_ELEMENT_KIND_ENTITY` row.
   SCHEMA_CAPABILITY_PRICE_INDEXED = 8;
+  // The element's filter index also answers substring matching -
+  // `filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)`, and the trigram index it costs.
+  // Carried by a `SCHEMA_ELEMENT_KIND_ATTRIBUTE` row, always *alongside*
+  // `SCHEMA_CAPABILITY_FILTERABLE` rather than instead of it: the acceleration is strictly additive, so an attribute
+  // carrying this one is filterable too and the two rows describe two separately-droppable costs. Read them together
+  // - a high filterable count with a near-zero count here says the attribute is filtered often but almost never by
+  // `attributeContains` or `attributeEndsWith`, which is exactly the reading that justifies dropping the capability
+  // while keeping the attribute filterable.
+  SCHEMA_CAPABILITY_SUBSTRING_ACCELERATED = 9;
+
+}
+
+// The enumeration controls what the `hierarchyContent` requirement does with an ancestor whose requested body
+// cannot be materialized. An ancestor may be present in the hierarchy index and still fail to yield a body: it may
+// hold no data in the locale the query filters by, it may have been deleted, or the parent primary key may point at
+// an entity that was never created. The chain is walked from the immediate parent upwards, and this enumeration
+// decides what happens when the walk reaches such a node.
+//
+// The choice only has anything to act on when `hierarchyContent` carries an inner `entityFetch`. A bare
+// `hierarchyContent()` requests no body at all, so nothing can fail to materialize and both values return the
+// complete chain of parent primary keys.
+enum GrpcHierarchyParentsBehaviour {
+  // The chain is cut just below the first ancestor whose requested body cannot be materialized - that ancestor and
+  // everything above it is left out entirely, so every ancestor the caller receives carries the requested body.
+  //
+  // This is the default, and deliberately the zero value: a query parameter that is absent from the request - as it
+  // always is for a client built against a server release that predates this enumeration - therefore selects the
+  // behaviour `hierarchyContent` has always had, and can never be mistaken for `COMPLETE`.
+  MATCHING = 0;
+  // Every ancestor is returned. One whose requested body cannot be materialized arrives as a bodyless pointer
+  // carrying nothing but its primary key, and the walk continues above it - so an ancestor carrying a body may well
+  // appear above a bodyless one. A client selecting this value must be prepared for a returned ancestor that carries
+  // no body.
+  COMPLETE = 1;
+}
+
+// What a storage part fundamentally is - the coarse fold of `GrpcStoragePartGroup`, and the one a composition table
+// uses when it wants three rows rather than fourteen. The three answer different questions: entity data shrinks only
+// by storing less, an index shrinks by indexing less (a schema decision that loses no data), and metadata is what the
+// store needs to describe itself and cannot be acted on at all.
+enum GrpcStoragePartKind {
+
+  // Default value, never sent by the server. Every reported storage-part type carries an explicit kind.
+  STORAGE_PART_KIND_UNSPECIFIED = 0;
+  // The entity's own persisted state - body, attributes, associated data, prices, references.
+  STORAGE_PART_KIND_ENTITY_DATA = 1;
+  // Structures the engine derived from entity data to answer queries. Every byte is reconstructible by a reindex and
+  // every byte was asked for by a schema flag.
+  STORAGE_PART_KIND_INDEX = 2;
+  // Schema and header records - what the data store needs to describe itself.
+  STORAGE_PART_KIND_METADATA = 3;
+
+}
+
+// Which kind of data one storage-part type holds. This is the classification a composition table groups by, and it
+// exists because `GrpcStoragePartUsage.storagePartType` cannot serve as one: that field is the simple class name of a
+// storage part, an OPEN set that grows whenever the engine gains an index structure, and nothing in a name says which
+// entries are indexes - two of the engine's index parts carry no `Index` in their class name at all.
+//
+// This set is CLOSED on purpose. A new storage-part type is expected to land in an existing group, so a client that
+// knows these values keeps rendering a correct table across engine versions without being taught anything; adding a
+// value here is a deliberate, documented event rather than a side effect of adding a part type.
+//
+// The index groups mirror the data groups on purpose - `ATTRIBUTE_DATA` against `ATTRIBUTE_INDEX`, `PRICE_DATA`
+// against `PRICE_INDEX`, `REFERENCE_DATA` against `REFERENCE_INDEX`. The pair is what a schema owner reads to see
+// what indexing a feature costs against what storing it costs.
+enum GrpcStoragePartGroup {
+
+  // Default value, never sent by the server. Every reported storage-part type carries an explicit group.
+  STORAGE_PART_GROUP_UNSPECIFIED = 0;
+  // The entity's own record - primary key, scope, locales, parent and the manifest of the parts it owns.
+  STORAGE_PART_GROUP_ENTITY_BODY = 1;
+  // Attribute values as stored, one record per entity and locale.
+  STORAGE_PART_GROUP_ATTRIBUTE_DATA = 2;
+  // Associated data values as stored. Usually the largest data group - this is where documents and images end up.
+  STORAGE_PART_GROUP_ASSOCIATED_DATA = 3;
+  // Prices as stored, one record per entity.
+  STORAGE_PART_GROUP_PRICE_DATA = 4;
+  // References to other entities as stored, including their own attributes.
+  STORAGE_PART_GROUP_REFERENCE_DATA = 5;
+  // An index's own record rather than the values it indexes: which sub-indexes exist, and which entities it covers.
+  // Deliberately small - the attribute, price and facet structures are stored apart precisely so this one is not
+  // rewritten when they change, which is why it is a poor proxy for the index footprint.
+  STORAGE_PART_GROUP_INDEX_MANIFEST = 6;
+  // Everything built because an attribute is filterable, sortable, unique or part of a sortable compound.
+  STORAGE_PART_GROUP_ATTRIBUTE_INDEX = 7;
+  // Everything built to answer price-based filtering and ordering.
+  STORAGE_PART_GROUP_PRICE_INDEX = 8;
+  // Everything built to resolve references between entities. Faceting is charged separately.
+  STORAGE_PART_GROUP_REFERENCE_INDEX = 9;
+  // The facet index - what a facet summary is computed from. Charged apart from `REFERENCE_INDEX` because `faceted`
+  // and `indexed` are separate schema decisions.
+  STORAGE_PART_GROUP_FACET_INDEX = 10;
+  // The hierarchy index - the tree structure a hierarchical collection is queried through.
+  STORAGE_PART_GROUP_HIERARCHY_INDEX = 11;
+  // Everything built for the bucketed histogram indexes a REFERENCE SCHEMA declares - bucketed values, their range
+  // trees and cardinality gating. Named for the reference on purpose: the `attributeHistogram` and `priceHistogram`
+  // extra results are computed on the fly from the filter and price indexes and have no persisted storage part at
+  // all, so they never appear in a composition breakdown. Bytes here are the cost of the reference-schema histogram
+  // definitions read back by the `referenceHistogram` require constraint.
+  STORAGE_PART_GROUP_REFERENCE_HISTOGRAM_INDEX = 12;
+  // Schema records - the catalog schema and one entity schema per collection.
+  STORAGE_PART_GROUP_SCHEMA = 13;
+  // Header records the data store keeps to describe itself and its collections.
+  STORAGE_PART_GROUP_HEADER = 14;
 
 }

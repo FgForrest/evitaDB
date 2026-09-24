@@ -40,12 +40,12 @@ jobs:
           echo "NEW_COMMIT_COUNT=$COMMIT_COUNT" >> $GITHUB_ENV
           echo "Commits found in dev branch: $COMMIT_COUNT"
 
-      - name: Setup Java JDK   # this should setup JDK 17 but only if something was committed to dev branch in the last week
-        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0  # setup JDK 17 for building
+      - name: Setup Java JDK   # sets up JDK 21, but only if something was committed to dev in the last week
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1  # setup JDK 21 for building
         if: ${{ env.NEW_COMMIT_COUNT != '0' }}
         with:
            distribution: 'temurin'
-           java-version: '17'
+           java-version: '21'
            cache: 'maven'
 
       - name: Long running tests   # this run Maven tests but only if something was committed to dev branch in the last week
@@ -60,6 +60,8 @@ jobs:
           path: 'evita*/**/target/surefire-reports/TEST-*.xml'
           retention-days: 14
 
-      - name: Publish Test Report
+      - name: Publish Test Report   # the check name carries the matrix leg, so the four legs publish four checks
         uses: ./.github/actions/publish-test-report
         if: ${{ env.NEW_COMMIT_COUNT != '0' && always() }}
+        with:
+          check_name: 'JUnit Test Report (${{ matrix.os }}, ${{ matrix.arch }})'

@@ -41,7 +41,7 @@ against the working tree on 2026-07-15 (this reviewer DOES have repository acces
    dirty-leaf REGISTRY populated at mutation time, not from the maintainer map, not from node
    back-references, and not from a tree walk.** The "O(dirty leaves), no full-tree walk" wording is
    a hard requirement: B-walk is O(touched-tree-size) per dirty tree, a commit touches dozens of
-   trees at senesi scale (380k+ entries ≈ 1.5–3k leaves per large tree), so B-walk is 10⁴–10⁵ leaf
+   trees at production scale (380k+ entries ≈ 1.5–3k leaves per large tree), so B-walk is 10⁴–10⁵ leaf
    visits per commit — a measurable single-shot regression, which the acceptance criteria forbid.
    O(dirty × height) relocation descents are compliant: the proposal's "two comparisons per leaf"
    prices the per-leaf CHECK; locating the leaf via a root descent is the navigation cost the

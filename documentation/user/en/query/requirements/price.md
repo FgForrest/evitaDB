@@ -132,3 +132,17 @@ defines prioritized list of price list names that will be used for all [`accompa
 requirements that don't specify their own price list sequence. This is useful when you want to specify a default rule
 at the top level of your query, so that you don't have to repeat the same price list sequence in every 
 [`accompanyingPriceContent`](fetching.md#accompanying-price-content) nested in [`entityFetch`](fetching.md#entity-fetch) containers.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### What if some requirements name their own price lists and others don't?
+</NoteTitle>
+
+Within a single entity fetch, one accompanying price name must be requested consistently: either every requirement
+for it defers to this default, or every one of them names its own price lists. A pair that mixes the two is refused
+even when the default currently resolves to the very same price lists - see
+[folding accompanyingPriceContent per price name](fetching.md#folding-accompanyingpricecontent-per-price-name).
+
+</Note>

@@ -27,9 +27,9 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.Require;
 
@@ -42,7 +42,10 @@ public class QuerySerializer extends Serializer<Query> {
 
 	@Override
 	public void write(Kryo kryo, Output output, Query object) {
-		kryo.writeObjectOrNull(output, object.getCollection(), Collection.class);
+		// the header is written polymorphically - it is a whole HeadConstraint subtree (a bare `collection`, a bare
+		// `label`, or a `head` container holding both), and persisting only the extracted Collection would drop
+		// every label the query was tagged with
+		kryo.writeClassAndObject(output, object.getHead());
 		kryo.writeObjectOrNull(output, object.getFilterBy(), FilterBy.class);
 		kryo.writeObjectOrNull(output, object.getOrderBy(), OrderBy.class);
 		kryo.writeObjectOrNull(output, object.getRequire(), Require.class);
@@ -51,7 +54,7 @@ public class QuerySerializer extends Serializer<Query> {
 	@Override
 	public Query read(Kryo kryo, Input input, Class<? extends Query> type) {
 		return Query.query(
-			kryo.readObjectOrNull(input, Collection.class),
+			(HeadConstraint) kryo.readClassAndObject(input),
 			kryo.readObjectOrNull(input, FilterBy.class),
 			kryo.readObjectOrNull(input, OrderBy.class),
 			kryo.readObjectOrNull(input, Require.class)

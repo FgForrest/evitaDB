@@ -56,6 +56,20 @@ public class SingleRecordBitmap implements Bitmap {
 		this.recordId = recordId;
 	}
 
+	/**
+	 * Returns the lone record id this bitmap holds.
+	 *
+	 * {@link #get(int)} answers exactly the same thing at index `0` and allocates nothing either, so this is a naming
+	 * convenience rather than a cheaper route: a fold reading `getRecordId()` says what it means, where `get(0)`
+	 * carries an index that could only ever be zero. What such a fold must NOT reach for is {@link #getArray()},
+	 * which allocates a one-element array per call - the very cost the fold exists to avoid.
+	 *
+	 * @return the record id
+	 */
+	public int getRecordId() {
+		return this.recordId;
+	}
+
 	@Override
 	public boolean isEmpty() {
 		return false;

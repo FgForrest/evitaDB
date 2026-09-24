@@ -98,12 +98,8 @@ public abstract class AbstractBitmapCacheableFormula extends AbstractCacheableFo
 			);
 			bitmapIdCount = this.indexTransactionId.length;
 		} else {
-			bitmapIdCount = 0;
-			for (final Bitmap bitmap : this.bitmaps) {
-				if (bitmap instanceof TransactionalLayerProducer) {
-					bitmapIdCount++;
-				}
-			}
+			// every bitmap contributes a token, whether or not it owns a transactional identity - see the loop below
+			bitmapIdCount = this.bitmaps.length;
 		}
 		int innerIdCount = 0;
 		for (final Formula formula : this.innerFormulas) {
@@ -116,9 +112,18 @@ public abstract class AbstractBitmapCacheableFormula extends AbstractCacheableFo
 			pos = this.indexTransactionId.length;
 		} else {
 			for (final Bitmap bitmap : this.bitmaps) {
-				if (bitmap instanceof TransactionalLayerProducer) {
-					result[pos++] = ((TransactionalLayerProducer<?, ?>) bitmap).getId();
-				}
+				// A bitmap that owns a transactional identity is keyed on that identity; one that does not is keyed
+				// on its CONTENTS. Skipping the latter - which is what this loop used to do - left a cacheable
+				// formula built over such bitmaps with no staleness dependency at all, so a cached answer could
+				// never be invalidated by a write to them. That was a latent hole for the single-record bucket
+				// view, and a live one for the sorted-array bucket tier, whose record sets are read-only views
+				// created per read and therefore cannot carry an identity of their own.
+				//
+				// A content hash is a legitimate member of this set: the cache validates a hit by comparing the
+				// HASH of the whole set (`CacheEden` compares `getTransactionalIdHash()`), never by resolving an
+				// individual id back to an object. It is also strictly stronger than an object id for this purpose,
+				// because it changes when the data changes even where the holder was mutated in place.
+				result[pos++] = bitmapIdentityToken(bitmap, HASH_FUNCTION);
 			}
 		}
 		for (final Formula innerFormula : this.innerFormulas) {
@@ -136,15 +141,14 @@ public abstract class AbstractBitmapCacheableFormula extends AbstractCacheableFo
 		} else {
 			final long[] hashes = new long[this.bitmaps.length];
 			for (int i = 0; i < this.bitmaps.length; i++) {
-				if (this.bitmaps[i] instanceof TransactionalLayerProducer) {
-					hashes[i] = ((TransactionalLayerProducer<?, ?>) this.bitmaps[i]).getId();
-				} else {
-					// this shouldn't happen for long arrays - these are expected to be always linked to transactional
-					// bitmaps located in indexes and represented by "transactional id"
-					hashes[i] = hashFunction.hashInts(this.bitmaps[i].getArray());
-				}
+				hashes[i] = bitmapIdentityToken(this.bitmaps[i], hashFunction);
 			}
 			Arrays.sort(hashes);
+			// NOT folded in here: `indexTransactionId`. It is a STALENESS token set, not part of the identity of the
+			// computation, and the two differ - the trigram-accelerated path carries the accelerator's own id while
+			// the scan over the same buckets cannot, yet both must land on one cache entry (see
+			// TrigramSubstringSearchTest#shouldHashIdenticallyToTheScan). Staleness is carried by
+			// `gatherBitmapIdsInternal` instead, which is what the cache validates a hit against.
 			return hashFunction.hashLongs(hashes);
 		}
 	}

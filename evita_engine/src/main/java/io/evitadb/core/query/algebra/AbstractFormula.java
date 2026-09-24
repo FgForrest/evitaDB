@@ -32,6 +32,8 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.index.bitmap.SortedArrayBitmap;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
@@ -70,27 +72,78 @@ public abstract class AbstractFormula implements Formula {
 	/**
 	 * Contains memoized value of {@link #getEstimatedCost()}  of this formula.
 	 */
-	private Long estimatedCost;
+	private long estimatedCost;
 	/**
-	 * Contains memoized value of {@link #getCost()}  of this formula.
+	 * Contains memoized value of {@link #getCost()} of this formula. Valid only when {@link #costComputed} is TRUE.
 	 */
-	@Nullable private Long cost;
+	private long cost;
 	/**
-	 * Contains memoized value of {@link #getCostToPerformanceRatio()} of this formula.
+	 * TRUE once {@link #cost} holds a computed value. The flag is needed because {@link #getCostInternal()}
+	 * accumulates inner costs without an overflow guard and may therefore produce any `long` - including one that
+	 * would be indistinguishable from a sentinel.
 	 */
-	@Nullable private Long costToPerformance;
+	private boolean costComputed;
+	/**
+	 * Contains memoized value of {@link #getCostToPerformanceRatio()} of this formula. Valid only when
+	 * {@link #costToPerformanceComputed} is TRUE.
+	 */
+	private long costToPerformance;
+	/**
+	 * TRUE once {@link #costToPerformance} holds a computed value - see {@link #costComputed} for why this is a flag
+	 * and not a sentinel value.
+	 */
+	private boolean costToPerformanceComputed;
 	/**
 	 * Contains memoized value of {@link #getHash()} method.
 	 */
-	private Long hash;
+	private long hash;
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} method.
+	 *
+	 * This field is also what tells an initialized formula from an uninitialized one. The other three values
+	 * {@link #initFields(Formula...)} assigns - {@link #hash}, {@link #transactionalIdHash} and
+	 * {@link #estimatedCost} - are primitives and cannot carry a not-yet-assigned state of their own, so every
+	 * initialization check reads this one reference instead. It is assigned in the middle of `initFields`, after
+	 * the hash and before the two values derived from it, and the formula is unreachable by anything but
+	 * `initFields` itself until that method returns.
 	 */
 	private long[] transactionalIds;
 	/**
 	 * Contains memoized value of {@link #getTransactionalIdHash()} method.
 	 */
-	private Long transactionalIdHash;
+	private long transactionalIdHash;
+
+	/**
+	 * Returns the token that identifies `bitmap` for cache-keying and staleness purposes, in the one place both the
+	 * key and the token set are derived from - so the two can never disagree about what a bitmap operand is.
+	 *
+	 * Three cases, in order of how much identity the bitmap carries:
+	 *
+	 * - a {@link TransactionalLayerProducer} owns a transactional id, and that id is the token;
+	 * - a {@link SortedArrayBitmap} stamped with an owner is a read-only view built per read over storage somebody
+	 *   else holds, so the token combines that owner's identity with the CONTENTS - the owner tells two structures
+	 *   holding equal record sets apart, the contents catch a change to the set;
+	 * - anything else is identified by its contents alone.
+	 *
+	 * A content hash is a legitimate token here: the cache validates a hit by comparing the HASH of the whole token
+	 * set (see {@code CacheEden}), never by resolving an individual token back to an object.
+	 *
+	 * @param bitmap       the bitmap operand to identify
+	 * @param hashFunction the hash function to fold contents with
+	 * @return the identifying token
+	 */
+	protected static long bitmapIdentityToken(@Nonnull Bitmap bitmap, @Nonnull LongHashFunction hashFunction) {
+		if (bitmap instanceof final TransactionalLayerProducer<?, ?> producer) {
+			return producer.getId();
+		}
+		if (bitmap instanceof final SortedArrayBitmap arrayView
+			&& arrayView.getOwnerId() != SortedArrayBitmap.NO_OWNER) {
+			return hashFunction.hashLongs(
+				new long[]{arrayView.getOwnerId(), bitmap.getContentHash(hashFunction)}
+			);
+		}
+		return bitmap.getContentHash(hashFunction);
+	}
 
 	/**
 	 * Initializes the fields of this formula. This method is called from the constructor and should be used to
@@ -132,13 +185,13 @@ public abstract class AbstractFormula implements Formula {
 
 	@Override
 	public final long getHash() {
-		Assert.isPremiseValid(this.hash != null, "The formula must be initialized prior to calling getHash().");
+		Assert.isPremiseValid(this.transactionalIds != null, "The formula must be initialized prior to calling getHash().");
 		return this.hash;
 	}
 
 	@Override
 	public long getTransactionalIdHash() {
-		Assert.isPremiseValid(this.transactionalIdHash != null, "The formula must be initialized prior to calling getTransactionalIdHash().");
+		Assert.isPremiseValid(this.transactionalIds != null, "The formula must be initialized prior to calling getTransactionalIdHash().");
 		return this.transactionalIdHash;
 	}
 
@@ -151,17 +204,18 @@ public abstract class AbstractFormula implements Formula {
 
 	@Override
 	public long getEstimatedCost() {
-		Assert.isPremiseValid(this.estimatedCost != null, "The formula must be initialized prior to calling getEstimatedCost().");
+		Assert.isPremiseValid(this.transactionalIds != null, "The formula must be initialized prior to calling getEstimatedCost().");
 		return this.estimatedCost;
 	}
 
 	@Override
 	public final long getCost() {
-		if (this.cost == null) {
+		if (!this.costComputed) {
 			if (this.memoizedResult == null) {
 				return Long.MAX_VALUE;
 			} else {
 				this.cost = getCostInternal();
+				this.costComputed = true;
 			}
 		}
 		return this.cost;
@@ -170,18 +224,21 @@ public abstract class AbstractFormula implements Formula {
 	@Nullable
 	@Override
 	public final Long getMemoizedCost() {
-		// deliberately a bare field read: the whole point of this accessor is that it cannot fall through to
-		// getCostInternal(), which computes inner formulas. Null here means "nobody has paid for this cost yet"
-		return this.cost;
+		// deliberately free of charge: this accessor must never fall through to getCostInternal(), which computes
+		// inner formulas - including ones the query itself skipped. Null means "nobody has paid for this cost yet".
+		// The emptiness has to be read from the flag rather than from `cost` itself: the field is a primitive, so an
+		// unpriced node holds 0 and a bare field read would autobox it into a cost that was never paid.
+		return this.costComputed ? this.cost : null;
 	}
 
 	@Override
 	public final long getCostToPerformanceRatio() {
-		if (this.costToPerformance == null) {
+		if (!this.costToPerformanceComputed) {
 			if (this.memoizedResult == null) {
 				return Long.MAX_VALUE;
 			} else {
 				this.costToPerformance = getCostToPerformanceInternal();
+				this.costToPerformanceComputed = true;
 			}
 		}
 		return this.costToPerformance;
@@ -212,8 +269,8 @@ public abstract class AbstractFormula implements Formula {
 	@Override
 	public void clearMemory() {
 		this.memoizedResult = null;
-		this.cost = null;
-		this.costToPerformance = null;
+		this.costComputed = false;
+		this.costToPerformanceComputed = false;
 	}
 
 	@Nonnull

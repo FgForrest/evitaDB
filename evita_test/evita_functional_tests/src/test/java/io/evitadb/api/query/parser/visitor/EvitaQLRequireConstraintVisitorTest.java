@@ -2009,11 +2009,128 @@ class EvitaQLRequireConstraintVisitorTest {
 	}
 
 	@Test
+	void shouldParseHierarchyContentConstraintWithParentsBehaviour() {
+		// the behaviour may stand alone - `emptyArgs` does not match a single value token
+		final RequireConstraint constraint1 = parseRequireConstraintUnsafe("hierarchyContent(COMPLETE)");
+		assertEquals(hierarchyContent(HierarchyParentsBehaviour.COMPLETE), constraint1);
+
+		final RequireConstraint constraint2 = parseRequireConstraintUnsafe("hierarchyContent(MATCHING)");
+		assertEquals(hierarchyContent(HierarchyParentsBehaviour.MATCHING), constraint2);
+
+		final RequireConstraint constraint3 = parseRequireConstraintUnsafe("hierarchyContent(COMPLETE, stopAt(distance(1)))");
+		assertEquals(hierarchyContent(HierarchyParentsBehaviour.COMPLETE, stopAt(distance(1))), constraint3);
+
+		final RequireConstraint constraint4 = parseRequireConstraintUnsafe(
+			"hierarchyContent(COMPLETE, entityFetch(attributeContent('code')))"
+		);
+		assertEquals(
+			hierarchyContent(HierarchyParentsBehaviour.COMPLETE, entityFetch(attributeContent("code"))),
+			constraint4
+		);
+
+		final RequireConstraint constraint5 = parseRequireConstraintUnsafe(
+			"hierarchyContent(MATCHING, stopAt(distance(1)), entityFetch(attributeContent('code')))"
+		);
+		assertEquals(
+			hierarchyContent(
+				HierarchyParentsBehaviour.MATCHING,
+				stopAt(distance(1)),
+				entityFetch(attributeContent("code"))
+			),
+			constraint5
+		);
+
+		final RequireConstraint constraint6 = parseRequireConstraintUnsafe(
+			"hierarchyContent(COMPLETE, stopAt(distance(1)), entityFetch(attributeContent('code')))"
+		);
+		assertEquals(
+			hierarchyContent(
+				HierarchyParentsBehaviour.COMPLETE,
+				stopAt(distance(1)),
+				entityFetch(attributeContent("code"))
+			),
+			constraint6
+		);
+
+		// the behaviour may also arrive as a positional or named parameter
+		final RequireConstraint constraint7 = parseRequireConstraint(
+			"hierarchyContent(?, entityFetch(attributeContent(?)))",
+			HierarchyParentsBehaviour.COMPLETE, "code"
+		);
+		assertEquals(
+			hierarchyContent(HierarchyParentsBehaviour.COMPLETE, entityFetch(attributeContent("code"))),
+			constraint7
+		);
+
+		final RequireConstraint constraint8 = parseRequireConstraint(
+			"hierarchyContent(@behaviour, stopAt(distance(@dist)), entityFetch(attributeContent(@name)))",
+			Map.of("behaviour", HierarchyParentsBehaviour.COMPLETE, "dist", 1, "name", "code")
+		);
+		assertEquals(
+			hierarchyContent(
+				HierarchyParentsBehaviour.COMPLETE,
+				stopAt(distance(1)),
+				entityFetch(attributeContent("code"))
+			),
+			constraint8
+		);
+
+		// every row above bounds the walk with `stopAt(distance(...))`, so the grammar alternative where a
+		// leading value token is followed by a child carrying a nested `filterBy` is exercised only here
+		final RequireConstraint constraint9 = parseRequireConstraintUnsafe(
+			"hierarchyContent(COMPLETE, stopAt(node(filterBy(entityPrimaryKeyInSet(1)))), " +
+				"entityFetch(attributeContent('code')))"
+		);
+		assertEquals(
+			hierarchyContent(
+				HierarchyParentsBehaviour.COMPLETE,
+				stopAt(node(filterBy(entityPrimaryKeyInSet(1)))),
+				entityFetch(attributeContent("code"))
+			),
+			constraint9
+		);
+	}
+
+	@Test
+	void shouldParseToStringOutputOfHierarchyContentConstraintBack() {
+		// the default behaviour is hidden from `toString`, an explicit non-default one is printed and must parse back
+		final HierarchyContent matching = hierarchyContent(
+			HierarchyParentsBehaviour.MATCHING, stopAt(distance(1)), entityFetch(attributeContent("code"))
+		);
+		assertEquals("hierarchyContent(stopAt(distance(1)),entityFetch(attributeContent('code')))", matching.toString());
+		assertEquals(matching, parseRequireConstraintUnsafe(matching.toString()));
+
+		final HierarchyContent complete = hierarchyContent(
+			HierarchyParentsBehaviour.COMPLETE, stopAt(distance(1)), entityFetch(attributeContent("code"))
+		);
+		assertEquals(
+			"hierarchyContent(COMPLETE,stopAt(distance(1)),entityFetch(attributeContent('code')))",
+			complete.toString()
+		);
+		assertEquals(complete, parseRequireConstraintUnsafe(complete.toString()));
+
+		final HierarchyContent completeAlone = hierarchyContent(HierarchyParentsBehaviour.COMPLETE);
+		assertEquals("hierarchyContent(COMPLETE)", completeAlone.toString());
+		assertEquals(completeAlone, parseRequireConstraintUnsafe(completeAlone.toString()));
+	}
+
+	@Test
 	void shouldNotParseHierarchyContentConstraint() {
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("hierarchyContent"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("hierarchyContent(stopAt(distance(1)))"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("hierarchyContent(attributeContent('code'))"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("hierarchyContent(entityFetch(attributeContent('code')), stopAt(distance(1)))"));
+		assertThrows(
+			EvitaSyntaxException.class,
+			() -> parseRequireConstraintUnsafe("hierarchyContent(stopAt(distance(1)), COMPLETE)")
+		);
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("hierarchyContent(COMPLETE, MATCHING)"));
+		// the token is routed through a value visitor restricted to the behaviour enum, so a literal that names
+		// no constant of it must be refused rather than silently resolving to the default
+		assertThrows(
+			EvitaSyntaxException.class,
+			() -> parseRequireConstraintUnsafe("hierarchyContent(NOT_A_BEHAVIOUR)")
+		);
 	}
 
 	@Test

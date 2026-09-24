@@ -1231,3 +1231,10 @@ max_line_length = off
 [documentation/**]
 trim_trailing_whitespace = false
 max_line_length = off
+
+# Skill definitions carry a YAML front matter block whose `description:` and `allowed-tools:` values
+# must each be ONE logical line -- that string is what the agent matches a task against, so wrapping
+# it is not a formatting choice, it changes the parsed value. Every SKILL.md in the tree already
+# exceeds 120 columns on those two lines; the limit is simply not expressible here.
+[.claude/skills/**/SKILL.md]
+max_line_length = off

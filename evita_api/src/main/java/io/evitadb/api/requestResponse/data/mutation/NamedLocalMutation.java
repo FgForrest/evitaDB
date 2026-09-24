@@ -23,6 +23,10 @@
 
 package io.evitadb.api.requestResponse.data.mutation;
 
+import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDataMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
+
 import javax.annotation.Nonnull;
 
 /**
@@ -30,7 +34,8 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public interface NamedLocalMutation<T, S extends Comparable<S>> extends LocalMutation<T, S> {
+public sealed interface NamedLocalMutation<T, S extends Comparable<S>> extends LocalMutation<T, S>
+	permits AttributeMutation, AssociatedDataMutation, ReferenceMutation {
 
 	/**
 	 * Returns the name of the container that this mutation is targeting.

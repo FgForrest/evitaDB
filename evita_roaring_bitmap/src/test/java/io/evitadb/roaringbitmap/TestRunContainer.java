@@ -3500,6 +3500,45 @@ public class TestRunContainer {
 		}
 
 		@Test
+		@DisplayName("limit(0) empties the container, whichever value the first run starts at")
+		public void limitToZero() {
+			// the truncation arithmetic subtracts the whole first run plus one, so at a limit of zero the
+			// stored length underflows to `(char) -1` and the container comes back holding one run of 65,536
+			// values. Where the first run starts at 0 that silently reports the *full* chunk; where it starts
+			// higher the run overruns the chunk entirely - `last()` answers above 65,535 and anything that
+			// indexes a 1,024-word form by it, `toBitmapContainer()` and `hashCode()` among them, walks off the
+			// end. Both shapes are checked because only the second one announces itself.
+			for (final int firstValue : new int[]{0, 100}) {
+				final RunContainer container = new RunContainer();
+				container.add((char) firstValue);
+				container.add((char) (firstValue + 1));
+				container.add((char) (firstValue + 400));
+
+				final Container limited = container.limit(0);
+				assertEquals(0, limited.getCardinality(), "limit(0) kept values, first run at " + firstValue);
+				assertTrue(limited.isEmpty(), "limit(0) is not empty, first run at " + firstValue);
+				assertEquals(0, limited.toBitmapContainer().getCardinality());
+				assertEquals(new RunContainer().hashCode(), limited.hashCode());
+			}
+		}
+
+		@Test
+		@DisplayName("limit(0) agrees with the other two encodings")
+		public void limitToZeroAgreesAcrossEncodings() {
+			Container array = new ArrayContainer();
+			Container run = new RunContainer();
+			Container bitmap = new BitmapContainer();
+			for (int value = 0; value < 5000; value++) {
+				array = array.add((char) (100 + value));
+				run = run.add((char) (100 + value));
+				bitmap = bitmap.add((char) (100 + value));
+			}
+			assertEquals(0, array.limit(0).getCardinality());
+			assertEquals(0, bitmap.limit(0).getCardinality());
+			assertEquals(0, run.limit(0).getCardinality());
+		}
+
+		@Test
 		@DisplayName("rank counts values up to the given key")
 		public void rank() {
 			RunContainer container = new RunContainer();

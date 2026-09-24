@@ -199,7 +199,7 @@ public enum GrpcEntityIndexType
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(44);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(45);
   }
 
   private static final GrpcEntityIndexType[] VALUES = values();

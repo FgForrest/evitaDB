@@ -43,7 +43,9 @@ import java.io.Serializable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(callSuper = true, exclude = "decisiveTimestamp")
-public abstract class AssociatedDataSchemaEvolvingMutation extends AssociatedDataMutation implements SchemaEvolvingLocalMutation<AssociatedDataValue, AssociatedDataKey> {
+public abstract sealed class AssociatedDataSchemaEvolvingMutation extends AssociatedDataMutation
+	implements SchemaEvolvingLocalMutation<AssociatedDataValue, AssociatedDataKey>
+	permits UpsertAssociatedDataMutation {
 	@Serial private static final long serialVersionUID = -1200943946647440138L;
 	@Getter private final long decisiveTimestamp = System.nanoTime();
 

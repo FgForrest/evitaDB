@@ -143,7 +143,7 @@ atributu, nejsou dále řazeny podle druhého atributu, ale podle primárního k
 
 Pokud chceme využít rychlé „předřazené“ indexy, není jiná možnost, protože sekundární pořadí by nebylo známo až do
 doby vykonání dotazu. Pokud chcete řadit podle více atributů konvenčním způsobem, je potřeba předem definovat
-[compound atribut pro řazení](../../use/schema.md#složené-atributy-pro-řazení) a použít jeho název místo
+[compound atribut pro řazení](../../use/schema.md#složeniny-řaditelných-atributů) a použít jeho název místo
 výchozího názvu atributu. Tento compound atribut pokrývá více atributů a připraví speciální index pro řazení právě
 této kombinace atributů, přičemž respektuje předdefinované pořadí a chování hodnot NULL.
 V dotazu pak můžete použít název compound atributu místo výchozího názvu atributu a dosáhnout očekávaných výsledků.

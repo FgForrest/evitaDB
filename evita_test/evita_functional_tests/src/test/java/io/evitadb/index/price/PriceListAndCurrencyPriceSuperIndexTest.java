@@ -43,6 +43,7 @@ import io.evitadb.index.price.model.entityPrices.EntityPrices;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
+import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
@@ -59,8 +60,10 @@ import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Currency;
+import java.util.List;
 import java.util.Random;
 import java.util.function.IntConsumer;
 import java.util.stream.IntStream;
@@ -79,6 +82,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.PRICE;
 
@@ -278,7 +282,7 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 					);
 					assertArrayEquals(
 						new int[]{1, 2},
-						committed.getIndexedPriceIds()
+						committed.getIndexedPriceIds().getArray()
 					);
 				}
 			);
@@ -379,6 +383,41 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 		}
 
 		@Test
+		@DisplayName("the writer reads its own uncommitted price ids inside the transaction")
+		void shouldReadTheWritersOwnUncommittedPriceIdsInsideATransaction() {
+			final PriceListAndCurrencyPriceSuperIndex tested =
+				new PriceListAndCurrencyPriceSuperIndex(
+					PRICE_INDEX_KEY, new RangeIndex(),
+					new PriceRecordContract[]{createPriceRecord(10, 10, 1)}
+				);
+
+			assertStateAfterCommit(
+				tested,
+				index -> {
+					index.addPrice(createPriceRecord(20, 20, 2), null);
+
+					// the bitmap handed out resolves the calling transaction's own overlay, so the id just written is
+					// already visible through it - an implementation answering from a committed-only snapshot would
+					// still report {10} here
+					assertArrayEquals(
+						new int[]{10, 20}, index.getIndexedPriceIds().getArray(),
+						"the writer must observe its own uncommitted price id"
+					);
+				},
+				(original, committed) -> {
+					assertArrayEquals(
+						new int[]{10}, original.getIndexedPriceIds().getArray(),
+						"the pre-commit instance keeps the ids it was loaded with"
+					);
+					assertArrayEquals(
+						new int[]{10, 20}, committed.getIndexedPriceIds().getArray(),
+						"and the committed copy agrees with what the writer saw"
+					);
+				}
+			);
+		}
+
+		@Test
 		@DisplayName(
 			"all nested fields are reflected in committed copy"
 		)
@@ -422,7 +461,7 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 					);
 
 					// indexedPriceIds
-					assertArrayEquals(new int[]{5}, committed.getIndexedPriceIds());
+					assertArrayEquals(new int[]{5}, committed.getIndexedPriceIds().getArray());
 				}
 			);
 		}
@@ -516,47 +555,45 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 		}
 
 		@Test
-		@DisplayName("addPrice invalidates memoizedIndexedPriceIds cache")
-		void shouldInvalidateMemoizedCacheOnAdd() {
+		@DisplayName("addPrice shows up in the live indexed price id bitmap")
+		void shouldReflectAnAddedPriceInTheIndexedPriceIds() {
 			final PriceListAndCurrencyPriceSuperIndex tested =
 				new PriceListAndCurrencyPriceSuperIndex(PRICE_INDEX_KEY);
 			tested.addPrice(createPriceRecord(1, 1, 100), null);
 
-			// read to populate cache
-			final int[] firstRead = tested.getIndexedPriceIds();
-			assertArrayEquals(new int[]{1}, firstRead);
+			// the bitmap handed out is the index's own, so a reference taken before the mutation sees it afterwards -
+			// which is exactly what the deleted int[] memo could not do without being invalidated on every write
+			final Bitmap heldAcrossTheMutation = tested.getIndexedPriceIds();
+			assertArrayEquals(new int[]{1}, heldAcrossTheMutation.getArray());
 
-			// add another price -- cache should be invalidated
 			tested.addPrice(createPriceRecord(2, 2, 200), null);
 
-			final int[] secondRead = tested.getIndexedPriceIds();
-			assertArrayEquals(new int[]{1, 2}, secondRead);
+			assertArrayEquals(new int[]{1, 2}, heldAcrossTheMutation.getArray());
+			assertArrayEquals(new int[]{1, 2}, tested.getIndexedPriceIds().getArray());
 		}
 
 		@Test
-		@DisplayName("removePrice invalidates memoizedIndexedPriceIds cache")
-		void shouldInvalidateMemoizedCacheOnRemove() {
+		@DisplayName("removePrice shows up in the live indexed price id bitmap")
+		void shouldReflectARemovedPriceInTheIndexedPriceIds() {
 			final PriceListAndCurrencyPriceSuperIndex tested =
 				new PriceListAndCurrencyPriceSuperIndex(PRICE_INDEX_KEY);
 			tested.addPrice(createPriceRecord(1, 1, 100), null);
 			tested.addPrice(createPriceRecord(2, 2, 200), null);
 
-			// read to populate cache
-			final int[] firstRead = tested.getIndexedPriceIds();
-			assertArrayEquals(new int[]{1, 2}, firstRead);
+			final Bitmap heldAcrossTheMutation = tested.getIndexedPriceIds();
+			assertArrayEquals(new int[]{1, 2}, heldAcrossTheMutation.getArray());
 
-			// remove a price -- cache should be invalidated
 			tested.removePrice(100, 1, null);
 
-			final int[] secondRead = tested.getIndexedPriceIds();
-			assertArrayEquals(new int[]{2}, secondRead);
+			assertArrayEquals(new int[]{2}, heldAcrossTheMutation.getArray());
+			assertArrayEquals(new int[]{2}, tested.getIndexedPriceIds().getArray());
 		}
 
 		@Test
 		@DisplayName(
-			"memoizedIndexedPriceIds re-populates from indexedPriceIds"
+			"a cold-loaded index hands out its own bitmap and keeps no second copy of the ids"
 		)
-		void shouldRepopulateMemoizedIndexedPriceIds() {
+		void shouldHandOutTheLiveBitmapAfterAColdLoad() {
 			final PriceRecordContract price = createPriceRecord(5, 5, 42);
 			final PriceListAndCurrencyPriceSuperIndex tested =
 				new PriceListAndCurrencyPriceSuperIndex(
@@ -564,13 +601,13 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 					new PriceRecordContract[]{price}
 				);
 
-			// constructor pre-populates memoizedIndexedPriceIds
-			final int[] firstRead = tested.getIndexedPriceIds();
-			assertArrayEquals(new int[]{5}, firstRead);
+			assertArrayEquals(new int[]{5}, tested.getIndexedPriceIds().getArray());
 
-			// second read should return the same cached array
-			final int[] secondRead = tested.getIndexedPriceIds();
-			assertSame(firstRead, secondRead);
+			// every read returns the very same live structure - there is no per-call materialization, and no eagerly
+			// built int[] duplicate of the ids the bitmap already holds
+			assertSame(tested.getIndexedPriceIds(), tested.getIndexedPriceIds());
+			// an array taken off it is freshly built each time, which is what proves nothing is cached behind it
+			assertNotSame(tested.getIndexedPriceIds().getArray(), tested.getIndexedPriceIds().getArray());
 		}
 	}
 
@@ -658,6 +695,37 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 			assertThrows(
 				PriceListAndCurrencyPriceIndexTerminated.class,
 				tested::getPriceRecords
+			);
+		}
+
+		/**
+		 * A terminated index must reject every entity-keyed lookup rather than answer it. The streaming form is the
+		 * one that matters most: it reports absence as `false`, so a guard that moved below the map lookup would turn
+		 * "this index is gone" into the indistinguishable "this entity has no prices".
+		 */
+		@Test
+		@DisplayName(
+			"terminate() followed by any entity-keyed lookup throws terminated exception"
+		)
+		void shouldThrowOnEntityLookupsAfterTermination() {
+			final PriceListAndCurrencyPriceSuperIndex tested =
+				new PriceListAndCurrencyPriceSuperIndex(PRICE_INDEX_KEY);
+			tested.addPrice(createPriceRecord(10, 10, 42), null);
+			tested.terminate();
+
+			assertThrows(
+				PriceListAndCurrencyPriceIndexTerminated.class,
+				() -> tested.forEachLowestPriceRecordOfEntity(
+					42, priceRecord -> fail("a terminated index must hand out no price record!")
+				)
+			);
+			assertThrows(
+				PriceListAndCurrencyPriceIndexTerminated.class,
+				() -> tested.getLowestPriceRecordsForEntity(42)
+			);
+			assertThrows(
+				PriceListAndCurrencyPriceIndexTerminated.class,
+				() -> tested.getInternalPriceIdsForEntity(42)
 			);
 		}
 
@@ -905,6 +973,86 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 	}
 
 	/**
+	 * Tests pinning that the allocation-free lowest-price lookup reports exactly what the array-returning one does.
+	 */
+	@Nested
+	@DisplayName("Streaming lowest-price lookup")
+	class StreamingLowestPriceLookupTest {
+
+		/**
+		 * The entity's two prices sit in different inner-record groups, so its holder reports one lowest price per
+		 * group and the streaming loop is walked more than once. Two prices of a single group would collapse to one
+		 * lowest price and leave the loop body indistinguishable from a straight-line read.
+		 */
+		@Test
+		@DisplayName("forEachLowestPriceRecordOfEntity() streams what the array form returns")
+		void shouldStreamWhatTheArrayFormReturns() {
+			final PriceListAndCurrencyPriceSuperIndex tested =
+				new PriceListAndCurrencyPriceSuperIndex(PRICE_INDEX_KEY);
+			tested.addPrice(createInnerRecordSpecificPriceRecord(10, 10, 42, 1), null);
+			tested.addPrice(createInnerRecordSpecificPriceRecord(20, 20, 42, 2), null);
+
+			final List<PriceRecordContract> streamed = new ArrayList<>();
+			final boolean found = tested.forEachLowestPriceRecordOfEntity(42, streamed::add);
+
+			assertTrue(found);
+			assertEquals(2, streamed.size());
+			assertArrayEquals(
+				tested.getLowestPriceRecordsForEntity(42),
+				streamed.toArray(PriceRecordContract[]::new)
+			);
+		}
+
+		@Test
+		@DisplayName("forEachLowestPriceRecordOfEntity() streams the single price of a one-price entity")
+		void shouldStreamTheSinglePriceOfAOnePriceEntity() {
+			final PriceListAndCurrencyPriceSuperIndex tested =
+				new PriceListAndCurrencyPriceSuperIndex(PRICE_INDEX_KEY);
+			tested.addPrice(createPriceRecord(10, 10, 42), null);
+
+			final List<PriceRecordContract> streamed = new ArrayList<>();
+			final boolean found = tested.forEachLowestPriceRecordOfEntity(42, streamed::add);
+
+			assertTrue(found);
+			assertEquals(1, streamed.size());
+			assertEquals(10, streamed.get(0).internalPriceId());
+		}
+
+		@Test
+		@DisplayName("forEachLowestPriceRecordOfEntity() reports false and streams nothing for an unknown entity")
+		void shouldReportNothingForUnknownEntity() {
+			final PriceListAndCurrencyPriceSuperIndex tested =
+				new PriceListAndCurrencyPriceSuperIndex(PRICE_INDEX_KEY);
+			tested.addPrice(createPriceRecord(10, 10, 42), null);
+
+			final boolean found = tested.forEachLowestPriceRecordOfEntity(
+				999, priceRecord -> fail("entity 999 has no price in this index!")
+			);
+
+			assertFalse(found);
+		}
+
+		/**
+		 * An entity that was indexed and then lost its last price must be as silent as one that was never indexed -
+		 * a holder left behind empty, or a consumer fed from one, would report prices the index no longer has.
+		 */
+		@Test
+		@DisplayName("forEachLowestPriceRecordOfEntity() reports false once the entity's last price is removed")
+		void shouldReportNothingForAnEntityWhoseLastPriceWasRemoved() {
+			final PriceListAndCurrencyPriceSuperIndex tested =
+				new PriceListAndCurrencyPriceSuperIndex(PRICE_INDEX_KEY);
+			tested.addPrice(createPriceRecord(10, 10, 42), null);
+			tested.removePrice(42, 10, null);
+
+			final boolean found = tested.forEachLowestPriceRecordOfEntity(
+				42, priceRecord -> fail("entity 42 lost its last price in this index!")
+			);
+
+			assertFalse(found);
+		}
+	}
+
+	/**
 	 * Tests verifying storage part creation and dirty flag management.
 	 */
 	@Nested
@@ -1037,7 +1185,7 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 			);
 			assertArrayEquals(
 				new int[]{10, 20},
-				tested.getIndexedPriceIds()
+				tested.getIndexedPriceIds().getArray()
 			);
 
 			// remove one price
@@ -1100,6 +1248,27 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 			internalPriceId,
 			priceId,
 			entityPrimaryKey,
+			12100,
+			10000
+		);
+	}
+
+	/**
+	 * Creates a `PriceRecordInnerRecordSpecific` belonging to the given inner record group, with the
+	 * given entityPrimaryKey and the same tax values as {@link #createPriceRecord(int, int, int)}.
+	 */
+	@Nonnull
+	private static PriceRecordContract createInnerRecordSpecificPriceRecord(
+		int internalPriceId,
+		int priceId,
+		int entityPrimaryKey,
+		int innerRecordId
+	) {
+		return new PriceRecordInnerRecordSpecific(
+			internalPriceId,
+			priceId,
+			entityPrimaryKey,
+			innerRecordId,
 			12100,
 			10000
 		);

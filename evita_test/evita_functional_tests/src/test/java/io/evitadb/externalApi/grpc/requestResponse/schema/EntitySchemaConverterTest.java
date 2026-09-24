@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.*;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
@@ -120,6 +121,9 @@ class EntitySchemaConverterTest {
 						new ScopedGlobalAttributeUniquenessType(Scope.LIVE, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG)
 					},
 					new Scope[]{Scope.LIVE},
+					new ScopedAttributeFilterAccelerators[]{
+						new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+					},
 					new Scope[]{Scope.LIVE},
 					true,
 					true,
@@ -184,6 +188,9 @@ class EntitySchemaConverterTest {
 								new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
 							},
 							new Scope[]{Scope.LIVE},
+							new ScopedAttributeFilterAccelerators[]{
+								new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+							},
 							new Scope[]{Scope.LIVE},
 							true,
 							true,
@@ -351,6 +358,61 @@ class EntitySchemaConverterTest {
 			entitySchema,
 			EntitySchemaConverter.convert(grpcEntitySchema)
 		);
+	}
+
+	@Test
+	void shouldRoundTripAcceleratorOnUniqueOnlyAttributeThroughGrpc() {
+		// the attribute is never declared filterable - `unique()` alone provides the filter index the accelerator
+		// rides on. That combination was refused before the accelerator axis was lifted out of `filterable(...)`,
+		// so this is the case the wire format has to prove it now carries
+		final EntitySchema entitySchema = EntitySchema._internalBuild(
+			1,
+			Entities.PRODUCT,
+			null,
+			null,
+			null,
+			false,
+			false,
+			Scope.NO_SCOPE,
+			false,
+			Scope.NO_SCOPE,
+			2,
+			Set.of(),
+			Set.of(),
+			Map.of(
+				"code", EntityAttributeSchema._internalBuild(
+					"code", null, null,
+					new ScopedAttributeUniquenessType[]{
+						new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+					},
+					Scope.NO_SCOPE,
+					new ScopedAttributeFilterAccelerators[]{
+						new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+					},
+					Scope.NO_SCOPE,
+					false, false, false,
+					String.class, null, 0,
+					ConflictResolutionOverride.INHERITED
+				)
+			),
+			Map.of(),
+			Map.of(),
+			EnumSet.noneOf(EvolutionMode.class),
+			Map.of()
+		);
+		final CatalogSchema catalogSchema = createCatalogSchemaWithSingleEntitySchema(entitySchema);
+
+		final GrpcEntitySchema grpcEntitySchema = EntitySchemaConverter.convert(catalogSchema, entitySchema, true);
+		final EntitySchemaContract roundTripped = EntitySchemaConverter.convert(grpcEntitySchema);
+
+		final AttributeSchemaContract code = roundTripped.getAttribute("code").orElseThrow();
+		assertFalse(code.isFilterableInScope(Scope.LIVE));
+		assertTrue(code.isUniqueInScope(Scope.LIVE));
+		assertEquals(
+			Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+			code.getAcceleratorsInScope(Scope.LIVE)
+		);
+		assertEntitySchema(entitySchema, roundTripped);
 	}
 
 	@Test

@@ -28,6 +28,7 @@ import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
@@ -74,7 +75,7 @@ class ValidEntityToReferenceMapping {
 	 * multiple references pointing to the same entity. For references without duplicates, the key contains
 	 * only the reference key (name + primary key).
 	 */
-	private final Function<ReferenceDecorator, RepresentativeReferenceKey> representativeKeyProducer;
+	private final Function<ReferenceContract, RepresentativeReferenceKey> representativeKeyProducer;
 	/**
 	 * Contains the source entity PK to allowed referenced entity PKs index.
 	 * Key: source entity primary key
@@ -103,8 +104,13 @@ class ValidEntityToReferenceMapping {
 		this.mapping = new IntObjectHashMap<>(expectedEntityCount);
 		if (referenceSchema.getCardinality().allowsDuplicates()) {
 			final RepresentativeAttributeDefinition rad = referenceSchema.getRepresentativeAttributeDefinition();
+			// representative values are read off the RAW contract, never off a decorator wrapping it:
+			// `ReferenceDecorator` narrows its attribute values by the request's attribute predicate, so a
+			// representative attribute the request did not ask for would read as its default here and produce
+			// a different key than the same reference produces on the pre-decoration path
 			this.representativeKeyProducer = ref -> new RepresentativeReferenceKey(
-				ref.getReferenceKey(), rad.getRepresentativeValues(ref.getDelegate()));
+				ref.getReferenceKey(),
+				rad.getRepresentativeValues(ref instanceof ReferenceDecorator rd ? rd.getDelegate() : ref));
 		} else {
 			this.representativeKeyProducer = ref -> new RepresentativeReferenceKey(ref.getReferenceKey());
 		}
@@ -258,17 +264,18 @@ class ValidEntityToReferenceMapping {
 
 	/**
 	 * Returns `true` if the given `reference` is allowed to be visible for the specified `entityPrimaryKey`.
-	 * Delegates to {@link RepresentativeMapping#contains(int, ReferenceDecorator)} which evaluates both
+	 * Delegates to {@link RepresentativeMapping#contains(int, ReferenceContract)} which evaluates both
 	 * simple primary key presence and representative key restrictions.
 	 *
 	 * @param entityPrimaryKey the primary key of the source entity
 	 * @param reference        the reference decorator to check visibility for
 	 * @return `true` if the reference is allowed for the given entity, `false` otherwise
 	 */
-	public boolean isReferenceSelected(int entityPrimaryKey, @Nonnull ReferenceDecorator reference) {
-		return ofNullable(this.mapping.get(entityPrimaryKey))
-			.map(it -> it.contains(entityPrimaryKey, reference))
-			.orElse(false);
+	public boolean isReferenceSelected(int entityPrimaryKey, @Nonnull ReferenceContract reference) {
+		// deliberately not `ofNullable(...).map(...).orElse(false)`: this is asked about every reference of every
+		// fetched entity, and that form costs two Optionals, a capturing lambda and a boxed Boolean per call
+		final RepresentativeMapping mappingForEntity = this.mapping.get(entityPrimaryKey);
+		return mappingForEntity != null && mappingForEntity.contains(entityPrimaryKey, reference);
 	}
 
 	@Override

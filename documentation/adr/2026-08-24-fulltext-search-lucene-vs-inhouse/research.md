@@ -103,8 +103,10 @@ of the wider context (§1.1) shift some of the consequences.
 
 - **Z1 — JDK 21 baseline?** Confirmed and done: the upgrade of evitaDB to JDK 21 happened and passed
   (2026-08-11). → The entry condition of the vector branch (§5) is satisfied; the text branch does not
-  depend on the JDK. Note: the upgrade has not landed in the `dev` branch yet (`pom.xml` holds 17) — for
-  P6, raising the baseline is an entry condition (P6 plan, §3).
+  depend on the JDK. The note that used to sit here — that the upgrade had not landed in `dev`, where
+  `pom.xml` still held 17, making the raise an entry condition for P6 — **expired on 2026-09-17**: the
+  baseline landed (#1518) and `pom.xml` holds 21. What P6 still lacks is not the version but the module
+  switches (`--add-modules jdk.incubator.vector`), which no pom in the tree carries (P6 plan, §3).
 - **Z2 — What is the corpus (global vs. reduced)?** Undecided; the question is the cost of separate
   corpora. → **The question dissolves** — the cascade needs no corpus (§2.1) and the structures live only
   in `GlobalEntityIndex` (§4.1). The cost of "variant 2" = 0, because separate corpora are not needed.
@@ -775,7 +777,8 @@ Fulltext is < 1 % of reads, but index maintenance runs on **every** write of a s
 tax is paid even by those who never query fulltext. Maintenance is incremental: a token diff of the old
 and new value → adjusting postings (diff layers) + COW of the impact sidecar chunks of the affected terms.
 The risky case: an entity with a long description = hundreds of affected terms per mutation. Target: ≤ 10 %
-of commit throughput on a real WAL (P2, harness `WalReplayBenchmark` + the senesi export). Mitigation
+of commit throughput on a real WAL (P2, harness `WalReplayBenchmark` + the production e-commerce export).
+Mitigation
 should the target not hold: the fulltext delta is applied in batch/asynchronously during trunk
 incorporation (the Z3 fallback permits it) — the write path then pays nothing for fulltext beyond
 serializing the mutation.
@@ -792,7 +795,7 @@ today's state.
 ### 5.1 Timing and choice
 
 The entry condition **JDK 21+** (Panama SIMD for distance functions) is satisfied — the upgrade to JDK 21
-happened (Z1). Revision per §1.1: the hybrid (text × vector × visual) is the core of the Sage experiment,
+happened (Z1) and, since 2026-09-17, is in `dev` itself rather than only in a trial branch. Revision per §1.1: the hybrid (text × vector × visual) is the core of the Sage experiment,
 so the vector branch belongs in the prototype right behind the text core, not in the epilogue (§7, phase
 F2). Candidates: **jVector** (Apache 2.0, an embeddable ANN library without Lucene formats) vs. an
 **in-house HNSW**. Spike P6 decides; a priori jVector has the edge — the risky structure of the task
@@ -930,13 +933,13 @@ A shorter list than in the first version of the research:
   normalization. Harness: unit tests + real attribute values. Criteria: `attributeContains` unchanged in
   behaviour; smoke quality of cs/en stemming.
 - **P1 — the core of the risk.** Dictionary + postings + impact sidecar + the composite scorer of phase 1
-  over the senesi/decodoma catalog **and over a CMS dataset with long texts (Z8)**, RAM via JOL. Criteria:
+  over a production e-commerce catalog **and over a CMS dataset with long texts (Z8)**, RAM via JOL. Criteria:
   RAM ≤ 150 MB per 1M products and locale; the CMS profile within the bounds of the §4.8 estimate; phase 1
   ≤ 25 ms per 1M candidates (1 thread); quality side-by-side against `attributeContains` on ~50 real
   queries.
 - **P2 — transactional maintenance.** COW of sidecar chunks under a real write load; harness
-  `WalReplayBenchmark` + the senesi WAL. Criterion: a drop in commit throughput ≤ 10 %, otherwise activate
-  the fallback of §4.5(3).
+  `WalReplayBenchmark` + the production e-commerce WAL. Criterion: a drop in commit throughput ≤ 10 %,
+  otherwise activate the fallback of §4.5(3).
 - **P7 — rank profiles, boost channel, feature export.** The query-context boost map in phase 1 (an effect
   on the full order, not merely the top-K), the profile as configuration, the feature vector and
   annotations of recognized entities in the `require` response (§1.3). Criteria: a boost demonstrably lifts
@@ -979,7 +982,8 @@ the query language:
   [The query side and the rank function](prototypes/query-design.md)
 
 The plans correct the research on several points (the full argument is in them): `bitmap.rank` is not
-usable in the hot loop (P1 §3.2); JDK 21 is not in `dev` yet (P5 §3.1, P6 §3); `float[]` is not a supported
+usable in the hot loop (P1 §3.2); JDK 21 was not in `dev` at the time of the plans and has since landed,
+leaving the module switches rather than the version as the open half (P5 §3.1, P6 §3); `float[]` is not a supported
 type — the embedding path of §5.6 is technically closed today (P6 §5.4); the "D5" precedent means "do not
 maintain global alignment", not "copy chunks" (P2 §3.3); a mechanism for reindexing on a schema change does
 not exist and the change passes silently (schema-design §4.3, §7); `orderBy` is a chain of substitutes, so

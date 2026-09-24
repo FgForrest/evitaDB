@@ -45,13 +45,24 @@ public class ConstantFormula extends AbstractFormula {
 	 */
 	private static final long CLASS_ID = 2713157071360876502L;
 	/**
-	 * Reusable empty long array returned when the delegate bitmap has no transactional identity.
-	 */
-	private static final long[] EMPTY_LONG_ARRAY = new long[0];
-	/**
 	 * Bitmap of entity primary keys that this constant formula directly returns as its result.
 	 */
 	@Getter private final Bitmap delegate;
+	/**
+	 * Memoized {@link #getEstimatedCardinality()} - `-1` until the first call, a value no real cardinality can take
+	 * because the constructor rejects an empty delegate.
+	 *
+	 * The class already treats `delegate.size()` as fixed for the instance's lifetime: the delegate is final,
+	 * `estimatedCost` is derived from that very same call and frozen at construction time by
+	 * {@link AbstractFormula#initFields}, and {@link AbstractFormula#clearMemory()} deliberately does not reset it.
+	 * The memo only makes that standing assumption explicit, and therefore stays correct even for a caller that
+	 * retains a constant formula across several computations.
+	 *
+	 * Worth memoizing because {@link TransactionalBitmap#size()} probes the transactional memory layer's ThreadLocal
+	 * on every call before it ever reaches its own cached cardinality, and a filter over a reference fans out to one
+	 * constant formula per reduced index - hundreds of thousands of them.
+	 */
+	private int memoizedCardinality = -1;
 
 	public ConstantFormula(@Nonnull Bitmap delegate) {
 		Assert.isPremiseValid(!delegate.isEmpty(), "For empty bitmaps use EmptyFormula.INSTANCE!");
@@ -59,11 +70,21 @@ public class ConstantFormula extends AbstractFormula {
 		this.initFields();
 	}
 
+	/**
+	 * The staleness token set of this formula: the delegate's transactional id when it owns one, its CONTENT hash
+	 * otherwise.
+	 *
+	 * The content fallback matters because a delegate without a transactional identity is now ordinary rather than
+	 * exotic - a single-record bucket view and a sorted-array bucket view are both read-only projections created per
+	 * read, so neither can carry an id. Returning an empty set for those left a cacheable answer with no staleness
+	 * dependency at all, which is to say a cached result that no write could ever invalidate. The cache compares the
+	 * HASH of this set rather than resolving individual ids, so a content hash serves the purpose, and it mirrors what
+	 * {@link #includeAdditionalHash} has always done for the same delegate.
+	 */
 	@Nonnull
 	@Override
 	public long[] gatherBitmapIdsInternal() {
-		return this.delegate instanceof TransactionalBitmap txBitmap ?
-			new long[]{txBitmap.getId()} : EMPTY_LONG_ARRAY;
+		return new long[]{bitmapIdentityToken(this.delegate, HASH_FUNCTION)};
 	}
 
 	@Override
@@ -73,18 +94,18 @@ public class ConstantFormula extends AbstractFormula {
 
 	@Override
 	public int getEstimatedCardinality() {
-		return this.delegate.size();
+		if (this.memoizedCardinality == -1) {
+			this.memoizedCardinality = this.delegate.size();
+		}
+		return this.memoizedCardinality;
 	}
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		if (this.delegate instanceof TransactionalLayerProducer) {
-			return ((TransactionalLayerProducer<?, ?>) this.delegate).getId();
-		} else {
-			// this shouldn't happen for long arrays - these are expected to be always linked to transactional
-			// bitmaps located in indexes and represented by "transactional id"
-			return hashFunction.hashInts(this.delegate.getArray());
-		}
+		// the same token the staleness set is built from - see AbstractFormula#bitmapIdentityToken. The walk a
+		// content hash costs is `O(size)`, which is why index memos hand out the same bitmap instance every time:
+		// `BaseBitmap#getContentHash` memoizes it, so only the first formula pays
+		return bitmapIdentityToken(this.delegate, hashFunction);
 	}
 
 	@Override

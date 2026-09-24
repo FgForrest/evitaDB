@@ -24,6 +24,7 @@
 package io.evitadb.spike.mock;
 
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
@@ -35,8 +36,8 @@ import java.util.Currency;
 
 /**
  * Mock extension of {@link PriceListAndCurrencyPriceSuperIndex} that stores a pre-built array
- * of {@link PriceRecordContract} and their extracted price IDs. Overrides
- * {@link #getPriceRecords()} and {@link #getIndexedPriceIds()} to return the pre-built arrays
+ * of {@link PriceRecordContract} and a bitmap of their extracted price IDs. Overrides
+ * {@link #getPriceRecords()} and {@link #getIndexedPriceIds()} to return the pre-built structures
  * directly, bypassing the real index's transactional storage layer.
  *
  * Used by {@link PriceIdsWithPriceRecordsRecordState} to back the {@link PriceIdContainerFormula}
@@ -47,16 +48,16 @@ import java.util.Currency;
 public class MockPriceListAndCurrencyPriceSuperIndex extends PriceListAndCurrencyPriceSuperIndex {
 	@Serial private static final long serialVersionUID = -8175819375673200637L;
 	private final PriceRecordContract[] entitiesPriceRecords;
-	private final int[] priceIds;
+	private final Bitmap priceIds;
 
 	public MockPriceListAndCurrencyPriceSuperIndex(PriceRecordContract[] entitiesPriceRecords) {
 		super(new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE));
 		this.entitiesPriceRecords = entitiesPriceRecords;
-		this.priceIds = new int[entitiesPriceRecords.length];
+		final int[] extractedPriceIds = new int[entitiesPriceRecords.length];
 		for (int i = 0; i < entitiesPriceRecords.length; i++) {
-			this.priceIds[i] = entitiesPriceRecords[i].internalPriceId();
-
+			extractedPriceIds[i] = entitiesPriceRecords[i].internalPriceId();
 		}
+		this.priceIds = new BaseBitmap(extractedPriceIds);
 	}
 
 	@Nonnull
@@ -67,7 +68,7 @@ public class MockPriceListAndCurrencyPriceSuperIndex extends PriceListAndCurrenc
 
 	@Nonnull
 	@Override
-	public int[] getIndexedPriceIds() {
+	public Bitmap getIndexedPriceIds() {
 		return this.priceIds;
 	}
 

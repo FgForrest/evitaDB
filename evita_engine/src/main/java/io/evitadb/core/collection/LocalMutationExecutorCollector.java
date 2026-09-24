@@ -38,6 +38,9 @@ import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutationExecutor;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithAssignedPrimaryKeys;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.DataStoreReader;
@@ -47,11 +50,15 @@ import io.evitadb.core.traffic.TrafficRecordingEngine.MutationApplicationRecord;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer.Savepoint;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.mutation.ContributionVerdicts;
 import io.evitadb.index.mutation.EntityIndexMutation;
 import io.evitadb.index.mutation.IndexImplicitMutations;
+import io.evitadb.index.mutation.IndexMutation;
+import io.evitadb.index.mutation.ReevaluateExpressionMutation;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
@@ -59,14 +66,17 @@ import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceServi
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService.EntityWithFetchCount;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -160,6 +170,155 @@ class LocalMutationExecutorCollector {
 	 * by rebuilding (warm-up), or the whole in-memory transaction is discarded on failure (WAL replay).
 	 */
 	@Nullable private Savepoint savepoint;
+	/**
+	 * The warm-up counterpart of {@link #savepoint}: the non-transactional savepoint bracketing the root entity
+	 * mutation while the catalog is being bulk loaded. Warm-up writes go in place to the index delegates rather than to
+	 * diff layers, so there is no maintainer to drive — the structures record the inverse of each mutation into this
+	 * savepoint's journal instead, and it replays them on failure.
+	 *
+	 * {@code null} whenever a transaction is active (that path uses {@link #savepoint} exclusively) or when the
+	 * mutation opted out of atomic rollback (WAL replay). The two savepoint kinds are mutually exclusive by
+	 * construction: at most one of them is ever open.
+	 */
+	@Nullable private WarmUpSavepoint warmUpSavepoint;
+	/**
+	 * Per-histogram condition state captured by {@link #capturePreMutationConditionState} **before** a batch's
+	 * local mutations were applied, keyed by the {@link ReevaluateExpressionMutation} it belongs to.
+	 *
+	 * This is the only surviving witness of the pre-mutation answer: the index-trigger phase deliberately runs
+	 * after the container implicit-mutation phase, so by dispatch time every readable source already reflects the
+	 * post-mutation state. Without it, `ReevaluateExpressionExecutor`'s remove-before-add cannot distinguish
+	 * *"this reference contributed (value → owner)"* from *"somebody's contribution for (value, owner) exists"*,
+	 * and its removal consumes a sibling reference's cardinality unit whenever two of an owner's references
+	 * normalise to the same histogram bucket.
+	 *
+	 * Keying by the mutation works because {@link ReevaluateExpressionMutation}'s identity covers only the four
+	 * core fields, so the pre-pass envelope and the dispatched one compare equal. **The target entity type has to
+	 * be part of the key as well**, because it is deliberately *not* part of that identity: two owner entity types
+	 * that declare a trigger on the same reference name, dependency type and scope produce two envelopes carrying
+	 * mutations that compare equal, and their condition state is evaluated against different collections. Keyed by
+	 * the mutation alone, the second envelope would silently inherit the first collection's answer and suppress
+	 * removals it should perform, leaving stale histogram entries — the very failure this class exists to prevent.
+	 *
+	 * Entries are inserted with put-if-absent semantics: a collector is shared with the nested invocations spawned
+	 * for external mutations, and the first capture within one root batch is the truly pre-batch one.
+	 *
+	 * **Lifetime is what makes put-if-absent safe.** A collector is constructed per root entity mutation (see
+	 * `EntityCollection#applyMutations`) and its nested invocations — implicit and external mutations derived from
+	 * that root — share it by design. Everything accumulated here therefore belongs to one root mutation, whose
+	 * genuine pre-state is the *first* capture; entries are never carried into a second root mutation, so a later
+	 * mutation of the same entity re-captures from scratch. Do not add a clear on the dispatch path: a nested
+	 * invocation would wipe the enclosing one's captures before it dispatches.
+	 *
+	 * Lazily allocated — stays null for the overwhelming majority of mutations, which fire no histogram trigger.
+	 */
+	@Nullable private Map<ConditionStateKey, Map<String, ContributionVerdicts>> preMutationConditionState;
+
+	/**
+	 * Key of {@link #preMutationConditionState} — a captured condition answer belongs to one trigger *in one
+	 * target collection*, and {@link ReevaluateExpressionMutation} alone cannot express that: its identity
+	 * deliberately excludes the target entity type so that the pre-pass envelope and the dispatched one compare
+	 * equal, which means two owner entity types sharing a reference name, dependency type and scope collide.
+	 *
+	 * @param entityType target collection the state was evaluated against
+	 * @param mutation   the cross-entity re-evaluation signal the state belongs to
+	 */
+	private record ConditionStateKey(
+		@Nonnull String entityType,
+		@Nonnull ReevaluateExpressionMutation mutation
+	) {
+	}
+
+	/**
+	 * Evaluates the histogram conditions of every cross-entity trigger the supplied mutations are about to fire,
+	 * and stores the answers in {@link #preMutationConditionState}. Reads only — nothing is written to any index.
+	 *
+	 * Must be called **before** `localMutations` are applied, because "the condition holds right now" is only the
+	 * pre-mutation answer for as long as nothing has been applied. Trigger identities come from
+	 * {@link EntityIndexLocalMutationExecutor#peekIndexImplicitMutations}, which may return a superset (it cannot
+	 * know which attribute writes turn out to be no-ops); a surplus entry is simply never looked up.
+	 *
+	 * Cost is one condition evaluation per firing cross-entity histogram trigger. Mutations that fire none — the
+	 * overwhelming majority — do not allocate at all: `evaluateHistogramConditionState` short-circuits on an empty
+	 * trigger collection and no map is created.
+	 *
+	 * @param session            active session for query evaluation, may be null during WAL replay
+	 * @param entityIndexUpdater the index executor of the entity being mutated
+	 * @param localMutations     the mutations about to be applied
+	 * @param entityRemoval      `true` when the batch removes the entity entirely
+	 */
+	private void capturePreMutationConditionState(
+		@Nullable EvitaSessionContract session,
+		@Nonnull EntityIndexLocalMutationExecutor entityIndexUpdater,
+		@Nonnull List<? extends LocalMutation<?, ?>> localMutations,
+		boolean entityRemoval
+	) {
+		final IndexImplicitMutations prospective = entityIndexUpdater.peekIndexImplicitMutations(
+			localMutations, entityRemoval
+		);
+		for (final EntityIndexMutation indexMutation : prospective.indexMutations()) {
+			for (final IndexMutation candidate : indexMutation.mutations()) {
+				if (!(candidate instanceof ReevaluateExpressionMutation reevaluation)) {
+					continue;
+				}
+				final ConditionStateKey key = new ConditionStateKey(indexMutation.entityType(), reevaluation);
+				if (this.preMutationConditionState != null
+					&& this.preMutationConditionState.containsKey(key)) {
+					// an earlier capture in this batch is the true pre-mutation state — keep it
+					continue;
+				}
+				// null means the reference declares no histogram trigger (a facet-only trigger, say) — there is
+				// nothing to guard, and storing an empty map would wrongly suppress removals
+				final Map<String, ContributionVerdicts> conditionState = this.catalog
+					.getCollectionForEntityOrThrowException(indexMutation.entityType())
+					.evaluateHistogramConditionState(reevaluation, session);
+				if (conditionState != null) {
+					if (this.preMutationConditionState == null) {
+						this.preMutationConditionState = CollectionUtils.createHashMap(8);
+					}
+					this.preMutationConditionState.put(key, conditionState);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Returns `entityIndexMutation` with every {@link ReevaluateExpressionMutation} in it carrying the condition
+	 * state {@link #capturePreMutationConditionState} recorded for it, or the original envelope untouched when
+	 * nothing was captured (no histogram trigger fired — the common case, and allocation-free).
+	 *
+	 * @param entityIndexMutation the envelope about to be dispatched
+	 * @return the envelope to dispatch
+	 */
+	@Nonnull
+	private EntityIndexMutation attachPreMutationConditionState(
+		@Nonnull EntityIndexMutation entityIndexMutation
+	) {
+		if (this.preMutationConditionState == null) {
+			return entityIndexMutation;
+		}
+		final String entityType = entityIndexMutation.entityType();
+		final IndexMutation[] mutations = entityIndexMutation.mutations();
+		IndexMutation[] enriched = null;
+		for (int i = 0; i < mutations.length; i++) {
+			if (!(mutations[i] instanceof ReevaluateExpressionMutation reevaluation)) {
+				continue;
+			}
+			final Map<String, ContributionVerdicts> conditionState = this.preMutationConditionState.get(
+				new ConditionStateKey(entityType, reevaluation)
+			);
+			if (conditionState == null) {
+				continue;
+			}
+			if (enriched == null) {
+				enriched = mutations.clone();
+			}
+			enriched[i] = reevaluation.withPreviouslyIndexedOwnerPKs(conditionState);
+		}
+		return enriched == null
+			? entityIndexMutation
+			: new EntityIndexMutation(entityIndexMutation.entityType(), enriched);
+	}
 
 	/**
 	 * Method fetches the full contents of the entity by its primary key from the I/O storage (taking advantage of
@@ -184,13 +343,29 @@ class LocalMutationExecutorCollector {
 				Entity.class,
 				null
 			);
-			this.fullEntityBody = this.persistenceService.toEntity(
-				this.catalog.getVersion(),
-				entityPrimaryKey,
-				evitaRequest,
-				changeCollector.getEntitySchema(),
-				this.dataStoreReader,
-				changeCollector.getAllEntityStorageParts()
+			// this entity drives destructive work - entity removal decomposes into one RemoveReferenceMutation per
+			// reference it reports, and a scope change reindexes off it - so it must be the entity's whole truth.
+			// An `Entity` carries no marker saying how much of it was decoded, which is why the demand is stated
+			// against the request here instead of being caught downstream: a silently under-read entity would leave
+			// the reflected counterparts of the references nobody decoded dangling, with no guard firing anywhere.
+			Assert.isPremiseValid(
+				ReferenceDecodeCoverage.isComplete(new ReferenceContractSerializablePredicate(evitaRequest).getDecodeCoverage()),
+				() -> new GenericEvitaInternalError(
+					"Write path read of entity " + entityType + " with primary key " + entityPrimaryKey +
+						" must not narrow its references!"
+				)
+			);
+			// and bound explicitly, so a coverage left on the thread by an enclosing read cannot narrow this one
+			this.fullEntityBody = ReferenceDecodeCoverageContext.executeWithCoverage(
+				null,
+				() -> this.persistenceService.toEntity(
+					this.catalog.getVersion(),
+					entityPrimaryKey,
+					evitaRequest,
+					changeCollector.getEntitySchema(),
+					this.dataStoreReader,
+					changeCollector.getAllEntityStorageParts()
+				)
 			);
 			Assert.notNull(
 				this.fullEntityBody,
@@ -213,10 +388,11 @@ class LocalMutationExecutorCollector {
 	 * @param entitySchema              the schema of the entity to which the mutation applies
 	 * @param entityMutation            the mutation to be applied to the entity
 	 * @param checkConsistency          indicates whether consistency checks should be performed
-	 * @param atomicRollback            when {@code true} and a transaction is active, the root entity mutation is
-	 *                                  bracketed by a savepoint so that a partial failure is surgically reverted
-	 *                                  while the transaction continues; when {@code false} (WAL replay) or when no
-	 *                                  transaction is active (warmup) no savepoint is opened
+	 * @param atomicRollback            when {@code true}, the root entity mutation is bracketed by a savepoint so that
+	 *                                  a partial failure is surgically reverted while everything written before it
+	 *                                  stays — the transactional diff-layer savepoint while a transaction is active,
+	 *                                  the {@link WarmUpSavepoint} on the warm-up path otherwise; when {@code false}
+	 *                                  (WAL replay) no savepoint is opened
 	 * @param generateImplicitMutations flags indicating which implicit mutations should be generated
 	 * @param changeCollector           executor to collect and apply local mutations
 	 * @param entityIndexUpdater        executor to update the entity index with the mutations
@@ -249,20 +425,14 @@ class LocalMutationExecutorCollector {
 		final MutationApplicationRecord record;
 		final boolean addToWAL;
 		if (this.level == 0) {
+			// A catalog that can no longer publish its state has nothing to gain from more writes, and after a failed
+			// warm-up rollback its indexes cannot be trusted to receive them. Refusing here stops a bulk load at the
+			// first entity after the failure instead of letting it pour in hours of work that can never be saved -
+			// which is what happened while the refusal lived at the flush entry points alone
+			this.catalog.assertPublishable();
 			addToWAL = true;
 			// root level changes are applied immediately
 			changeCollector.setTrapChanges(false);
-			// bracket the whole (possibly nested) root mutation with a savepoint so that a partial failure
-			// reverts exactly this entity's diff-layer changes while the surrounding transaction keeps running.
-			// Only meaningful when atomic rollback is requested (not WAL replay) AND a transaction is active
-			// (warmup writes go in place to the index delegate, not to diff layers — there is nothing to snapshot).
-			if (atomicRollback) {
-				final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
-				if (maintainer != null) {
-					this.savepointMaintainer = maintainer;
-					this.savepoint = maintainer.openSavepoint();
-				}
-			}
 			// record mutation to the traffic recorder
 			record = session == null ?
 				null :
@@ -271,6 +441,28 @@ class LocalMutationExecutorCollector {
 					this.created,
 					entityMutation
 			);
+			// bracket the whole (possibly nested) root mutation with a savepoint so that a partial failure
+			// reverts exactly this entity's changes while everything written before it stays. Only meaningful when
+			// atomic rollback is requested (not WAL replay); which kind of savepoint applies depends on the write
+			// path: a transaction snapshots the diff layers through its maintainer, while warm-up writes go in place
+			// to the index delegates and are reverted from the journal the structures record into.
+			//
+			// INVARIANT: nothing that can throw may sit between opening a savepoint and the try/finally below, which
+			// is the only thing that closes it. This block therefore comes LAST in this branch - traffic recording
+			// activates a tracing block and a tracing implementation is free to fail, and an exception thrown after
+			// the open would escape without any finally to detach the savepoint. On the warm-up path that leaks the
+			// thread-bound savepoint, and the next entity on this thread then fails its own open() as a nested one.
+			// Ordering is safe because traffic recording touches no index, executor or storage state, so nothing
+			// revertable happens before the bracket begins.
+			if (atomicRollback) {
+				final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+				if (maintainer != null) {
+					this.savepointMaintainer = maintainer;
+					this.savepoint = maintainer.openSavepoint();
+				} else {
+					this.warmUpSavepoint = WarmUpSavepoint.open();
+				}
+			}
 		} else {
 			addToWAL = false;
 			// while implicit mutations are trapped in memory and stored on next flush
@@ -285,6 +477,7 @@ class LocalMutationExecutorCollector {
 			this.level++;
 
 			final List<? extends LocalMutation<?, ?>> localMutations;
+			final boolean entityRemoval;
 			if (entityMutation instanceof EntityRemoveMutation) {
 				// fetch the full entity body so the removal can be decomposed into the local mutations
 				// that actually apply it — this is required to execute the removal, not to derive conflict
@@ -293,13 +486,22 @@ class LocalMutationExecutorCollector {
 				// finer-grained write to the same entity
 				result = getFullEntityContents(changeCollector);
 				localMutations = computeLocalMutationsForEntityRemoval(result.entity());
+				entityRemoval = true;
 			} else if (entityMutation instanceof EntityUpsertMutation) {
 				localMutations = entityMutation.getLocalMutations();
-				entityIndexUpdater.prepare(localMutations);
+				entityRemoval = false;
 			} else {
 				throw new GenericEvitaInternalError(
 					"Unsupported entity mutation type: " + entityMutation.getClass().getName()
 				);
+			}
+			// Condition pre-pass: read the cross-entity histogram conditions while they still answer for the
+			// PRE-mutation state. Must precede both `prepare()` (which inserts the entity into the global index,
+			// and so can already flip a condition for a freshly created entity) and the apply loop below. See
+			// #preMutationConditionState for why the dispatched executor cannot derive this for itself.
+			capturePreMutationConditionState(session, entityIndexUpdater, localMutations, entityRemoval);
+			if (!entityRemoval) {
+				entityIndexUpdater.prepare(localMutations);
 			}
 			if (addToWAL) {
 				this.entityMutations.add(entityMutation);
@@ -314,12 +516,23 @@ class LocalMutationExecutorCollector {
 				executor.finishLocalMutationExecutionPhase();
 			}
 
+			LocalMutation<?, ?>[] implicitLocalMutations = null;
 			if (!generateImplicitMutations.isEmpty()) {
 				final ImplicitMutations implicitMutations = changeCollector.popImplicitMutations(
 					localMutations, generateImplicitMutations
 				);
+				implicitLocalMutations = implicitMutations.localMutations();
+				// Implicit local mutations fire cross-entity triggers of their own, and those need the same
+				// pre-pass guarantee the root batch gets. They cannot be captured alongside it: they are derived
+				// from the containers *after* the root batch has been applied, so at that point they do not exist
+				// yet. Here — after they are known, before any of them is applied — is the pre-state that matters
+				// for them, and put-if-absent keeps the root batch's earlier, genuinely pre-batch answer wherever
+				// the two fire the same trigger.
+				capturePreMutationConditionState(
+					session, entityIndexUpdater, Arrays.asList(implicitLocalMutations), entityRemoval
+				);
 				// immediately apply all local mutations
-				for (final LocalMutation<?, ?> localMutation : implicitMutations.localMutations()) {
+				for (final LocalMutation<?, ?> localMutation : implicitLocalMutations) {
 					for (final LocalMutationExecutor executor : orderedExecutors) {
 						executor.applyMutation(localMutation);
 					}
@@ -360,12 +573,21 @@ class LocalMutationExecutorCollector {
 			// so that storage state is fully consistent before cross-entity triggers read it. Index
 			// mutations are never written to WAL — they are regenerated deterministically on replay.
 			// The dispatch is synchronous and bounded by the number of affected entities.
-			final IndexImplicitMutations indexImplicit = entityIndexUpdater.popIndexImplicitMutations(localMutations);
+			//
+			// Trigger discovery runs over the root batch *and* the implicit local mutations derived from it: an
+			// attribute written by `GENERATE_ATTRIBUTES` / `GENERATE_REFERENCE_ATTRIBUTES` is as capable of
+			// invalidating another collection's histogram as one the caller wrote by hand. Both halves are
+			// covered by a `capturePreMutationConditionState` call, so every dispatched envelope still has a
+			// captured counterpart and none falls back on unrestricted histogram removal — the invariant this
+			// pairing exists to hold. Widening either half alone would break it.
+			final IndexImplicitMutations indexImplicit = entityIndexUpdater.popIndexImplicitMutations(
+				localMutations, implicitLocalMutations
+			);
 			for (final EntityIndexMutation indexMutation : indexImplicit.indexMutations()) {
 				// route each envelope to the target collection's thin dispatcher — bypasses
 				// the full ServerEntityMutation pipeline (no storage, no WAL, no schema evolution)
 				this.catalog.getCollectionForEntityOrThrowException(indexMutation.entityType())
-					.applyIndexMutations(indexMutation, session);
+					.applyIndexMutations(attachPreMutationConditionState(indexMutation), session);
 			}
 
 			// finish the record
@@ -473,15 +695,17 @@ class LocalMutationExecutorCollector {
 	 * and index-trigger cross-collection writes that went through the same maintainer. This is the single,
 	 * authoritative rollback mechanism; the legacy hand-written per-executor undo actions have been removed.
 	 *
-	 * When no savepoint is open — the non-transactional warm-up path, or WAL replay (which opts out via
-	 * {@code atomicRollback == false}) — there is nothing to revert: warm-up writes go in place to the index
-	 * delegate (no diff layer to snapshot) and replay discards the whole in-memory transaction on failure rather
-	 * than recovering per-entity. In those contexts a failed entity is intentionally left partially applied and must
-	 * be retried by rebuilding.
+	 * On the warm-up path the same happens through the {@link WarmUpSavepoint}: the structures wrote in place, so the
+	 * inverses they journalled while it was open are replayed instead of diff layers being restored.
+	 *
+	 * When neither savepoint is open — WAL replay (which opts out via {@code atomicRollback == false}), or warm-up
+	 * with the mechanism switched off — there is nothing to revert: replay discards the whole in-memory transaction on
+	 * failure rather than recovering per-entity, and an unbracketed warm-up entity is intentionally left partially
+	 * applied and must be retried by rebuilding.
 	 */
 	private void rollback() {
-		// atomic, transaction-bound path: revert this root mutation's diff-layer changes via the savepoint while the
-		// surrounding transaction keeps running. Outside it (warm-up / WAL replay) there is no per-entity rollback.
+		// revert this root mutation's changes via whichever savepoint brackets it, while everything written before it
+		// stays. With neither open (WAL replay / unbracketed warm-up) there is no per-entity rollback.
 		rollbackOpenSavepoint();
 	}
 
@@ -505,6 +729,37 @@ class LocalMutationExecutorCollector {
 				this.savepointMaintainer = null;
 			}
 		}
+		rollbackOpenWarmUpSavepoint();
+	}
+
+	/**
+	 * Rolls back the currently open warm-up savepoint (if any), replaying the inverses the structures journalled while
+	 * it was open, and clears the field in a {@code finally} block so it cannot dangle into later finalization.
+	 *
+	 * A failure of this rollback is treated far more seriously than its transactional counterpart, because warm-up
+	 * writes went IN PLACE: there is no diff layer to throw away, so a rewind that fails leaves the live indexes
+	 * half-mutated with no second chance. Worse, inverse replay stops at the first inverse that throws, so a shared
+	 * structure can be left inconsistent for entities other than the one that failed.
+	 *
+	 * The catalog is therefore marked unpublishable before the rollback failure is attached to {@link #exception} as
+	 * a suppressed cause — the original mutation failure stays the one thrown to the caller, while every later
+	 * publication route and every later mutation refuses, and the catalog is handed over for deactivation. Nothing
+	 * on disk is harmed: it still holds the last published state, and reloading recovers it completely.
+	 *
+	 * The caller must have already set {@link #exception} to a non-null value, because a rollback failure is recorded
+	 * against it.
+	 */
+	private void rollbackOpenWarmUpSavepoint() {
+		if (this.warmUpSavepoint != null) {
+			try {
+				this.warmUpSavepoint.rollback();
+			} catch (RuntimeException rollbackEx) {
+				this.catalog.markUnpublishable(rollbackEx);
+				this.exception.addSuppressed(rollbackEx);
+			} finally {
+				this.warmUpSavepoint = null;
+			}
+		}
 	}
 
 	/**
@@ -517,6 +772,28 @@ class LocalMutationExecutorCollector {
 	 * In case any {@code RuntimeException} occurs during the commit process, the exception
 	 * is caught and wrapped in a {@code TransactionException}, and the transaction is
 	 * expected to be rolled back.
+	 *
+	 * **The storage parts written here are inside the bracket, not after it.** Both savepoints are still open while
+	 * the executors commit, so the entity storage parts {@code ContainerizedLocalMutationExecutor#commit} pushes into
+	 * the data store buffer are revertable like any other change made under the bracket — which matters because this
+	 * loop can fail PART-WAY through an entity that writes several parts, having already written the earlier ones.
+	 * The two write modes are rewound by different means and both are needed:
+	 *
+	 * - A TRAPPED write (implicit, nested mutations) only changes `DataStoreChanges`' in-memory cache, which its
+	 *   memento rewinds — that memento is a journal POSITION rather than a copy, so the mark taken when the index
+	 *   phase first touched the layer still covers everything written afterwards.
+	 * - A DIRECT write — what a root mutation does, since it runs with `trapChanges == false` — reaches the
+	 *   persistence service, and no in-memory memento can undo that. `DataStoreChanges#putStoragePart` /
+	 *   `removeStoragePart` therefore read the record's pre-image and push its absolute restore straight into the open
+	 *   warm-up savepoint, at the point of each write.
+	 *
+	 * An executor failing part-way through this loop therefore leaves no storage part behind — which is what closes
+	 * the orphan-primary-key gap this whole mechanism exists for, since that gap was precisely a body written (or not)
+	 * out of step with the indexes.
+	 *
+	 * The one change that is deliberately NOT reverted is a failure of the savepoint acceptance itself: by then every
+	 * executor has committed and the mutation has succeeded, so there is nothing to undo — see the comment on the
+	 * warm-up acceptance below for why its reference is dropped unconditionally.
 	 */
 	private void commit() {
 		// we do not address the situation where only one applicator fails on commit and the others succeed
@@ -538,6 +815,17 @@ class LocalMutationExecutorCollector {
 				this.savepointMaintainer.commitSavepoint(this.savepoint);
 				this.savepoint = null;
 				this.savepointMaintainer = null;
+			}
+			// same acceptance on the warm-up path: the journalled inverses are discarded without being replayed
+			if (this.warmUpSavepoint != null) {
+				try {
+					this.warmUpSavepoint.commit();
+				} finally {
+					// the savepoint unbinds itself from the thread before it does any work, so drop the reference
+					// unconditionally - otherwise a failure of the acceptance would send an already-closed savepoint
+					// through the rollback below and mistake that for an unrewindable state
+					this.warmUpSavepoint = null;
+				}
 			}
 		} catch (RuntimeException ex) {
 			this.exception = new TransactionException("Failed to commit local mutations!", ex);

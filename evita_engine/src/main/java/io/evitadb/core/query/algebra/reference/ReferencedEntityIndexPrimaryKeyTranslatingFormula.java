@@ -109,9 +109,15 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 	 */
 	private final ReferencedTypeEntityIndex referencedEntityTypeIndex;
 	/**
-	 * Worst-case estimate of the result cardinality that must be available before evaluation.
-	 * If a superset is present, it is {@code min(superset.size, index.size)}; otherwise it equals
-	 * {@code index.size}.
+	 * Worst-case estimate of the result cardinality that must be available before evaluation. The result
+	 * is a set of reduced-index primary keys drawn from {@link #referencedEntityTypeIndex}, so the most it
+	 * can ever hold is every key that index advertises.
+	 *
+	 * The superset does not tighten this. It is counted in *referenced entity* primary keys while the result
+	 * is counted in *reduced-index* primary keys, and one referenced entity may own several reduced indexes -
+	 * they are keyed by {@link io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey}, which
+	 * carries representative attribute values alongside the reference key - so taking the smaller of the two
+	 * counts can land below the true worst case.
 	 */
 	private final int worstCardinality;
 	/**
@@ -219,9 +225,9 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 
 		this.expansionFunction = expansionFunction != null ? expansionFunction : UnaryOperator.identity();
 		this.referencedEntityTypeIndex = referencedTypeEntityIndex;
-		this.worstCardinality = this.referencedEntitySuperSet == null ?
-			referencedTypeEntityIndex.getSize() :
-			Math.min(this.referencedEntitySuperSet.size(), referencedTypeEntityIndex.getSize());
+		// the records this index accommodates - reduced index primary keys, which is what a filter evaluated
+		// against it yields and therefore the right ceiling for this formula
+		this.worstCardinality = referencedTypeEntityIndex.size();
 		this.initFields(innerFormula);
 	}
 

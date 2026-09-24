@@ -496,7 +496,7 @@ Hromadné odstraňování entit je lepší provádět v několika transakčních
 
 <LS to="j,c">
 
-Pokud odstraňujete hierarchickou entitu a potřebujete odstranit nejen samotnou entitu, ale i celou její podstrom, můžete využít metodu <LS to="j">`deleteEntityAndItsHierarchy`</LS><LS to="c">`DeleteEntityAndItsHierarchy`</LS>. Ve výchozím nastavení metoda vrací počet odstraněných entit, ale alternativně může vrátit tělo odstraněné kořenové entity ve velikosti a formě, kterou určíte v jejím argumentu <LS to="j">`require`</LS><LS to="c">`Require`</LS>. Pokud odstraníte pouze kořenový uzel bez jeho potomků, potomci se stanou [sirotky](../schema.md#sirotčí-uzly-v-hierarchii) a budete je muset znovu připojit k jinému existujícímu rodiči.
+Pokud odstraňujete hierarchickou entitu a potřebujete odstranit nejen samotnou entitu, ale i celou její podstrom, můžete využít metodu <LS to="j">`deleteEntityAndItsHierarchy`</LS><LS to="c">`DeleteEntityAndItsHierarchy`</LS>. Ve výchozím nastavení metoda vrací počet odstraněných entit, ale alternativně může vrátit tělo odstraněné kořenové entity ve velikosti a formě, kterou určíte v jejím argumentu <LS to="j">`require`</LS><LS to="c">`Require`</LS>. Pokud odstraníte pouze kořenový uzel bez jeho potomků, potomci se stanou [sirotky](../schema.md#sirotčí-uzly-hierarchie) a budete je muset znovu připojit k jinému existujícímu rodiči.
 
 </LS>
 

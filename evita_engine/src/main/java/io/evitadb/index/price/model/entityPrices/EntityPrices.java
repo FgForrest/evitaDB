@@ -31,6 +31,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.function.Consumer;
 
 /**
  * This internal data structure aggregates prices for single entity. We need to answer the question of which prices
@@ -43,6 +44,28 @@ import java.util.Comparator;
  *
  * These implementations are divided into three variants to optimize memory - i.e. to keep data structures
  * with a minimal set of fields to reduce heap memory consumption.
+ *
+ * # Nothing here is ever persisted
+ *
+ * An entity-prices holder is a derived, in-memory-only view. The persisted form of a
+ * {@link io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex} is its array of
+ * {@link PriceRecordContract} (see its `createStoragePart`), and the entity-keyed map of holders is rebuilt from
+ * those records on load. Adding, removing or reshaping a field of any implementation therefore has no storage
+ * format consequence and needs no serializer or backward-compatibility work.
+ *
+ * # Array-returning accessors allocate, indexed accessors do not
+ *
+ * {@link #getLowestPriceRecords()}, {@link #getInternalPriceIds()} and {@link #getAllPrices()} are free for the
+ * multi-price shapes, which store the arrays anyway, but the single-price shape - by far the most numerous one -
+ * has to build them. Callers that only iterate or probe must therefore use {@link #getLowestPriceRecordCount()},
+ * {@link #forEachLowestPriceRecord(Consumer)}, {@link #getSize()} and {@link #getInternalPriceIdAt(int)}, which are
+ * allocation-free in every implementation. The array forms are for cold callers - assertions, diagnostics, tests.
+ *
+ * All three array forms are read-only to their caller. The multi-price shapes return the very array they hold, so
+ * writing into one rewrites the holder's own state - and the entity would then report ids it does not own to
+ * {@link io.evitadb.index.price.PriceListAndCurrencyPriceRefIndex}, which walks them to decide whether the entity
+ * still belongs in its index. Whether a particular call hands back a live array or a freshly built one is not part
+ * of the contract and differs between the shapes; a caller that needs to keep or modify the result copies it.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -110,9 +133,44 @@ public abstract class EntityPrices {
 
 	/**
 	 * Returns the array of the lowest prices for each inner record id group.
+	 *
+	 * The single-price implementation builds this array on demand, so a caller that merely iterates the result must
+	 * use {@link #forEachLowestPriceRecord(Consumer)} instead.
+	 *
+	 * The result is read-only: the multi-price implementations hand out the array they hold, so writing into it
+	 * rewrites this holder.
 	 */
 	@Nullable
 	public abstract PriceRecordContract[] getLowestPriceRecords();
+
+	/**
+	 * Returns how many prices {@link #getLowestPriceRecords()} would report - one per inner record id group - without
+	 * building the array.
+	 *
+	 * The default delegates to {@link #getLowestPriceRecords()}, which is free for the multi-price shapes since they
+	 * already hold that array. {@link SinglePriceEntityPrices} overrides it to avoid building a one-element array.
+	 *
+	 * @return number of the lowest price records of this entity, zero when the entity has no price here
+	 */
+	public int getLowestPriceRecordCount() {
+		return getLowestPriceRecords().length;
+	}
+
+	/**
+	 * Hands every price {@link #getLowestPriceRecords()} would report to `priceConsumer`, in the very same order, and
+	 * allocates nothing in any implementation. This is the accessor the query path uses: it runs once per entity of
+	 * a result set, where materializing a one-element array per entity is the whole cost.
+	 *
+	 * The default delegates to {@link #getLowestPriceRecords()}, which is free for the multi-price shapes since they
+	 * already hold that array. {@link SinglePriceEntityPrices} overrides it to avoid building a one-element array.
+	 *
+	 * @param priceConsumer receives each of this entity's lowest price records, ordered by internal price id
+	 */
+	public void forEachLowestPriceRecord(@Nonnull Consumer<PriceRecordContract> priceConsumer) {
+		for (final PriceRecordContract priceRecord : getLowestPriceRecords()) {
+			priceConsumer.accept(priceRecord);
+		}
+	}
 
 	/**
 	 * Returns true if there is no single price for the entity.
@@ -139,6 +197,13 @@ public abstract class EntityPrices {
 	/**
 	 * Returns true if this entity contains at least single price that can also be found in passed array of price
 	 * triples.
+	 *
+	 * The lookup binary-searches this entity's id array within a window that advances with the probed ids, so both
+	 * sides have to be ascending by {@link PriceRecordContract#internalPriceId()}: an out-of-order `priceTriples`
+	 * collapses the window and {@link Arrays#binarySearch} rejects it outright.
+	 *
+	 * @param priceTriples price records to test, ordered by {@link PriceRecordContract#internalPriceId()}
+	 * @return true when at least one triple is a price of this entity
 	 */
 	public boolean containsAnyOf(@Nonnull PriceRecordContract[] priceTriples) {
 		final int[] internalPriceIds = getInternalPriceIds();
@@ -161,15 +226,40 @@ public abstract class EntityPrices {
 
 	/**
 	 * Returns all prices of the entity.
+	 *
+	 * The single-price implementation builds this array on demand.
 	 */
 	@Nonnull
 	protected abstract PriceRecordContract[] getAllPrices();
 
 	/**
-	 * Returns array of all {@link PriceRecord#internalPriceId()}.
+	 * Returns array of all {@link PriceRecord#internalPriceId()}, ascending.
+	 *
+	 * The single-price implementation builds this array on demand, so a caller that merely walks the ids must use
+	 * {@link #getSize()} together with {@link #getInternalPriceIdAt(int)} instead.
+	 *
+	 * The result is read-only: the multi-price implementations hand out the array they hold, so writing into it
+	 * rewrites this holder.
 	 */
 	@Nonnull
 	public abstract int[] getInternalPriceIds();
+
+	/**
+	 * Returns the {@link PriceRecord#internalPriceId()} that {@link #getInternalPriceIds()} would report at `index`,
+	 * without building the array. The ids are ordered ascending and there are exactly {@link #getSize()} of them.
+	 *
+	 * The default delegates to {@link #getInternalPriceIds()}, which is free for the multi-price shapes since they
+	 * already hold that array; its own indexing throws {@link IndexOutOfBoundsException} for an out-of-range index.
+	 * {@link SinglePriceEntityPrices} overrides it to avoid building a one-element array and throws the same
+	 * exception explicitly, with a clearer message.
+	 *
+	 * @param index position of the wanted id, in `[0, getSize())`
+	 * @return the internal price id at that position
+	 * @throws IndexOutOfBoundsException when `index` addresses no price of this entity
+	 */
+	public int getInternalPriceIdAt(int index) {
+		return getInternalPriceIds()[index];
+	}
 
 	/**
 	 * Returns true if any prices in this EntityPrices returns true for {@link PriceRecord#isInnerRecordSpecific()}.

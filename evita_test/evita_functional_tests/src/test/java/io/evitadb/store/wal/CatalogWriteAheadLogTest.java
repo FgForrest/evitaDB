@@ -30,8 +30,10 @@ import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.checksum.Crc32CChecksumFactory;
@@ -59,7 +61,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
@@ -656,16 +657,146 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 			this.observableOutputKeeper.close();
 		}
 
+		/**
+		 * A named version whose trailing cumulative checksum is missing must be refused, and refused **loudly**.
+		 *
+		 * This test used to assert the opposite - that such a record was delivered - on the theory that a caller
+		 * naming a version had promised it was durable, so only the reader's file-length view could be lagging
+		 * behind the trailing checksum. That theory does not survive reading the writer:
+		 * `AbstractMutationLog#doAppend` writes the trailing checksum *before* the force that makes the
+		 * transaction durable, and `appendDeferringSync` defers only the force, never the bytes. The interval in
+		 * which content is on disk and checksum is not therefore belongs to an append that has not returned, so
+		 * the version it carries has not been handed to anybody and nobody is in a position to name it. The file
+		 * shape this test builds is reachable only by a crash mid-append or by deliberate truncation - in both
+		 * cases genuine damage, not a visibility lag.
+		 *
+		 * Going **dry** is the one answer that is not acceptable, whichever way the delivery question is settled:
+		 * a caller holding a version it believes is written cannot tell an empty stream apart from "nothing left
+		 * to process", which is how the trunk-incorporation stage came to spin forever. That is what the
+		 * assertion below actually pins.
+		 */
 		@Test
-		@DisplayName("getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(N,N) must not go dry for a " +
-			"version whose content is on disk but whose trailing checksum has not landed yet")
-		void shouldNotReturnDryStreamForLastAppendedVersionMissingOnlyTrailingChecksum() throws IOException {
+		@DisplayName("getCommittedLiveMutationStream(N,N) must refuse a version whose trailing checksum is " +
+			"missing, and say so rather than going dry")
+		void shouldRaiseRatherThanGoDryForLastAppendedVersionMissingOnlyTrailingChecksum() throws IOException {
 			// version = 1 + transactionIndex in setUp(), so the last transaction appended is at this version
 			final long lastAppendedVersion = CatalogWriteAheadLogTest.this.txSizes.length;
 
-			// strip only the trailing 8-byte cumulative checksum of the last transaction - its header
-			// and content are fully durable on disk, exactly mirroring the moment append() has written
-			// everything except the final checksum write
+			// strip only the trailing 8-byte cumulative checksum of the last transaction - its header and
+			// content remain wholly on disk, which is what a crash between the content write and the checksum
+			// write leaves behind
+			modifyWalFile(raf -> {
+				raf.setLength(raf.length() - AbstractMutationLog.CUMULATIVE_CRC32_SIZE);
+				return null;
+			});
+
+			final WriteAheadLogCorruptedException corrupted = assertThrows(
+				WriteAheadLogCorruptedException.class,
+				() -> {
+					try (
+						final Stream<CatalogBoundMutation> stream = CatalogWriteAheadLogTest.this.tested
+							.getCommittedLiveMutationStream(
+								lastAppendedVersion, lastAppendedVersion, VersionSource.INTERNAL
+							)
+					) {
+						stream.toList();
+					}
+				},
+				"A read bounded by version " + lastAppendedVersion + " - a bound the ENGINE chose, so one it " +
+					"had already observed to be durable - found that version's record short of its trailing " +
+					"cumulative checksum. That is damage, and it has to be reported as damage. Returning an " +
+					"empty stream instead leaves the caller unable to distinguish \"your version is gone\" from " +
+					"\"nothing left to process\", which is exactly how trunk incorporation came to spin forever."
+			);
+			assertTrue(
+				corrupted.getMessage().contains(String.valueOf(lastAppendedVersion)),
+				"The exception must name the version that could not be read, otherwise an operator cannot tell " +
+					"which transaction is missing. Message was: " + corrupted.getMessage()
+			);
+		}
+
+		/**
+		 * The same on-disk damage, reached through a bound the **client** supplied, must not be reported as
+		 * damage at all.
+		 *
+		 * Nobody promised a client-supplied version exists, so its absence is a bad argument rather than a fault:
+		 * it is an {@link EvitaInvalidUsageException}, which - unlike
+		 * {@link io.evitadb.exception.EvitaInternalError} - the observability layer does not count. That
+		 * distinction is the whole point of {@link VersionSource}, and it has to be made before the exception is
+		 * constructed, because constructing an `EvitaInternalError` is itself what moves the error counter.
+		 *
+		 * Pairing this with the test above is what makes either of them meaningful: the on-disk state is
+		 * identical and only the declared source differs, so a change that collapsed the two arms would fail one
+		 * of them.
+		 */
+		@Test
+		@DisplayName("the same missing checksum reported to a CLIENT-supplied bound is invalid usage, " +
+			"never an internal error")
+		void shouldReportAClientSuppliedBoundAsInvalidUsageRatherThanCorruption() throws IOException {
+			final long lastAppendedVersion = CatalogWriteAheadLogTest.this.txSizes.length;
+
+			modifyWalFile(raf -> {
+				raf.setLength(raf.length() - AbstractMutationLog.CUMULATIVE_CRC32_SIZE);
+				return null;
+			});
+
+			final EvitaInvalidUsageException invalidUsage = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> {
+					try (
+						final Stream<CatalogBoundMutation> stream = CatalogWriteAheadLogTest.this.tested
+							.getCommittedLiveMutationStream(
+								lastAppendedVersion, lastAppendedVersion, VersionSource.CLIENT
+							)
+					) {
+						stream.toList();
+					}
+				},
+				"A bound that arrived from a client must not be able to raise an internal error, however the " +
+					"log looks. A subscriber asking for a version that has been rotated out of retention is " +
+					"not a fault an operator can clear, and counting it in io_evitadb_errors_total is what " +
+					"made a recoverable condition set the health probe in production."
+			);
+			// that this cannot be an EvitaInternalError is settled by the type system - EvitaInvalidUsageException
+			// extends IllegalArgumentException, and a compiler rejects the instanceof outright - so asserting it
+			// here would prove nothing the signature does not already guarantee. What is NOT guaranteed is that
+			// the message a client ends up seeing stays free of internal detail, so pin that instead.
+			assertFalse(
+				invalidUsage.getPublicMessage().contains(CatalogWriteAheadLogTest.this.walDirectory.toString()),
+				"The client-facing message leaks the server's WAL directory. Private diagnostics belong in " +
+					"getMessage(); getPublicMessage() is what crosses the API boundary. Was: " +
+					invalidUsage.getPublicMessage()
+			);
+		}
+
+		/**
+		 * The greedy counterpart of the two tests above, on exactly the same on-disk state.
+		 *
+		 * A record whose trailing cumulative checksum is not on disk is not there yet, and that is now true of
+		 * **every** read - naming a version buys a louder failure, never a lower bar. So this test no longer
+		 * documents a difference in what is delivered; it pins the other half of the contract, that a greedy
+		 * read stays *silent* about it. Recovery, replay and change-data-capture promise nothing about where the
+		 * log ends, so for them a torn tail is simply the end of the data and must not raise.
+		 *
+		 * The two reads below take two different entry points into that silence:
+		 *
+		 * - **from version 1** the reader walks into the torn transaction through {@link MutationSupplier#get()},
+		 *   where `readAndRecordTransactionMutation`'s full-record length check declines it and `get()`'s
+		 *   `mayEndGracefully` arm - true because no version was named - turns that into a clean end of stream;
+		 * - **from the torn version itself** the reader never reaches `get()` at all: the supplier's constructor
+		 *   scans forward, `AbstractMutationSupplier#requiredEndPosition` declines the record, and the
+		 *   constructor's `requestedVersion != null` guard does **not** fire, so it ends empty instead of
+		 *   throwing. That guard's greedy arm is pinned by this read and by nothing else in the repository -
+		 *   break it and a greedy CDC tail starts raising on every torn tail it meets, which is precisely the
+		 *   production symptom this line of work removed.
+		 */
+		@Test
+		@DisplayName("getCommittedMutationStream(N) must NOT deliver a version whose trailing checksum is missing")
+		void shouldNotDeliverTheLastAppendedVersionToAGreedyReadWhenItsTrailingChecksumIsMissing() throws IOException {
+			final long lastAppendedVersion = CatalogWriteAheadLogTest.this.txSizes.length;
+
+			// same surgery as the sibling test: only the last transaction's trailing cumulative checksum is
+			// removed, so its header and content are wholly present
 			modifyWalFile(raf -> {
 				raf.setLength(raf.length() - AbstractMutationLog.CUMULATIVE_CRC32_SIZE);
 				return null;
@@ -674,21 +805,59 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 			final List<CatalogBoundMutation> mutations;
 			try (
 				final Stream<CatalogBoundMutation> stream = CatalogWriteAheadLogTest.this.tested
-					.getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(lastAppendedVersion, lastAppendedVersion)
+					.getCommittedMutationStream(1L)
 			) {
 				mutations = stream.toList();
 			}
 
+			final List<Long> delivered = deliveredVersions(mutations);
 			assertFalse(
-				mutations.isEmpty(),
-				"getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(" + lastAppendedVersion + ", " +
-					lastAppendedVersion + ") returned a DRY stream even though transaction " +
-					lastAppendedVersion + "'s header and content are durably on disk (only its trailing " +
-					"checksum is momentarily missing). A caller that already believes this version is " +
-					"written (as a production catalog-version tracker would) has no way to distinguish " +
-					"this from \"nothing left to process\" and will silently drop the transaction instead " +
-					"of retrying."
+				delivered.contains(lastAppendedVersion),
+				"A greedy read delivered transaction " + lastAppendedVersion + " even though its trailing " +
+					"cumulative checksum is not on disk. Nobody promised this greedy reader that the " +
+					"transaction was written, so a record whose tail is still missing must be treated as not " +
+					"there yet - delivering it hands a recovery a transaction it cannot verify. Delivered: " +
+					delivered
 			);
+			assertFalse(
+				delivered.isEmpty(),
+				"A greedy read delivered nothing at all - the earlier transactions are intact and must still " +
+					"come through. Delivered: " + delivered
+			);
+
+			// Starting AT the torn version takes the other entry point: the supplier's constructor scans forward
+			// to it and never reaches get(), so this is the only read that exercises the greedy required-end
+			// position and required-record-length arms.
+			final List<CatalogBoundMutation> mutationsFromTornVersion;
+			try (
+				final Stream<CatalogBoundMutation> stream = CatalogWriteAheadLogTest.this.tested
+					.getCommittedMutationStream(lastAppendedVersion)
+			) {
+				mutationsFromTornVersion = stream.toList();
+			}
+
+			assertTrue(
+				mutationsFromTornVersion.isEmpty(),
+				"A greedy read positioned directly at transaction " + lastAppendedVersion + " delivered it even " +
+					"though its trailing cumulative checksum is not on disk. The supplier's forward scan is the " +
+					"only thing that can decline it here, and declining a record whose tail has not landed is " +
+					"exactly what separates a greedy read from one whose caller has promised the version is " +
+					"durable. Delivered: " + deliveredVersions(mutationsFromTornVersion)
+			);
+		}
+
+		/**
+		 * Extracts the catalog versions of the transaction headers in a delivered mutation list.
+		 *
+		 * @param mutations the mutations the stream delivered
+		 * @return the versions of the transactions among them, in delivery order
+		 */
+		@Nonnull
+		private List<Long> deliveredVersions(@Nonnull List<CatalogBoundMutation> mutations) {
+			return mutations.stream()
+				.filter(TransactionMutation.class::isInstance)
+				.map(it -> ((TransactionMutation) it).getVersion())
+				.toList();
 		}
 	}
 

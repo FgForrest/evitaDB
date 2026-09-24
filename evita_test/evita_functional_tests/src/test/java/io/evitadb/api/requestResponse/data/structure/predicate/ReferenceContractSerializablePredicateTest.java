@@ -28,15 +28,21 @@ import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.AttributeRequest;
+import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.chunk.NoTransformer;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -46,10 +52,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import org.junit.jupiter.api.Tag;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -58,6 +66,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.REFERENCE;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link ReferenceContractSerializablePredicate} verifying
@@ -121,6 +130,79 @@ class ReferenceContractSerializablePredicateTest {
 		);
 	}
 
+	/**
+	 * Builds the named reference content requirements a query carrying reference content instance names produces -
+	 * a GraphQL field alias or a REST projection name becomes the instance name, and the requirement lands in
+	 * a map of its own rather than in the plain reference set.
+	 *
+	 * @param referenceNames reference names the named requirements point at
+	 * @return named requirement map keyed by the instance name and the reference name
+	 */
+	@Nonnull
+	private static Map<ReferenceContentKey, RequirementContext> namedRequirementContext(
+		@Nonnull String... referenceNames
+	) {
+		return Arrays.stream(referenceNames)
+			.collect(
+				Collectors.toMap(
+					it -> new ReferenceContentKey(it + "Alias", it),
+					it -> createRequirementContext()
+				)
+			);
+	}
+
+	/**
+	 * Builds a predicate whose reference content was requested entirely through named requirements, which is what
+	 * every externally issued query produces.
+	 *
+	 * @param referenceNames reference names the named requirements point at
+	 * @return predicate with an empty reference set and the passed named reference names
+	 */
+	@Nonnull
+	private static ReferenceContractSerializablePredicate namedOnlyPredicate(
+		@Nonnull String... referenceNames
+	) {
+		return new ReferenceContractSerializablePredicate(
+			Collections.emptyMap(),
+			new HashSet<>(Arrays.asList(referenceNames)),
+			null, true, null, Collections.emptySet()
+		);
+	}
+
+	/**
+	 * Builds an existing reference of the passed name, the only two things
+	 * {@link ReferenceContractSerializablePredicate#test(ReferenceContract)} looks at.
+	 *
+	 * @param referenceName name the reference carries
+	 * @return reference stub that exists and carries the passed name
+	 */
+	@Nonnull
+	private static ReferenceContract existingReference(@Nonnull String referenceName) {
+		final ReferenceContract reference = Mockito.mock(ReferenceContract.class);
+		Mockito.when(reference.exists()).thenReturn(true);
+		Mockito.when(reference.getReferenceName()).thenReturn(referenceName);
+		return reference;
+	}
+
+	/**
+	 * Builds a request that requires references and carries the passed named reference requirements and nothing else.
+	 *
+	 * @param referenceNames reference names the named requirements point at
+	 * @return request stub with the named requirements only
+	 */
+	@Nonnull
+	private static EvitaRequest namedOnlyRequest(@Nonnull String... referenceNames) {
+		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
+		Mockito.when(evitaRequest.isRequiresEntityReferences()).thenReturn(true);
+		Mockito.when(evitaRequest.getReferenceEntityFetch()).thenReturn(Collections.emptyMap());
+		Mockito.when(evitaRequest.getNamedReferenceEntityFetch())
+			.thenReturn(namedRequirementContext(referenceNames));
+		Mockito.when(evitaRequest.getImplicitLocale()).thenReturn(null);
+		Mockito.when(evitaRequest.getRequiredLocales()).thenReturn(Collections.emptySet());
+		Mockito.when(evitaRequest.getDefaultReferenceRequirement()).thenReturn(null);
+		return evitaRequest;
+	}
+
 	@Nested
 	@DisplayName("Fetch status checks")
 	class FetchStatusTest {
@@ -130,7 +212,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldReturnTrueWhenRequired() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, Collections.emptySet()
 				);
 
@@ -144,7 +226,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldReturnFalseWhenNotRequired() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, false,
+					Collections.emptyMap(), Collections.emptySet(), null, false,
 					null, Collections.emptySet()
 				);
 
@@ -159,7 +241,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldReturnTrueForAnyNameWhenSetEmpty() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, Collections.emptySet()
 				);
 
@@ -176,6 +258,7 @@ class ReferenceContractSerializablePredicateTest {
 					toAttributeRequestIndex(
 						getDefaultRequirementContext()
 					),
+					Collections.emptySet(),
 					null, true, null, Collections.emptySet()
 				);
 
@@ -190,7 +273,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldReturnFalseForNameWhenNotRequired() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, false,
+					Collections.emptyMap(), Collections.emptySet(), null, false,
 					null, Collections.emptySet()
 				);
 
@@ -209,7 +292,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldThrowWhenNotRequired() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, false,
+					Collections.emptyMap(), Collections.emptySet(), null, false,
 					null, Collections.emptySet()
 				);
 
@@ -224,7 +307,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldNotThrowWhenRequired() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, Collections.emptySet()
 				);
 
@@ -241,6 +324,7 @@ class ReferenceContractSerializablePredicateTest {
 					toAttributeRequestIndex(
 						getDefaultRequirementContext()
 					),
+					Collections.emptySet(),
 					null, true, null, Collections.emptySet()
 				);
 
@@ -260,6 +344,7 @@ class ReferenceContractSerializablePredicateTest {
 					toAttributeRequestIndex(
 						getDefaultRequirementContext()
 					),
+					Collections.emptySet(),
 					null, true, null, Collections.emptySet()
 				);
 
@@ -276,7 +361,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldReturnFalseWhenNotRequired() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, false,
+					Collections.emptyMap(), Collections.emptySet(), null, false,
 					null, Collections.emptySet()
 				);
 
@@ -296,7 +381,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldReturnTrueWhenSetEmpty() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, Collections.emptySet()
 				);
 
@@ -314,7 +399,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldReturnFalseForDropped() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, Collections.emptySet()
 				);
 
@@ -337,6 +422,7 @@ class ReferenceContractSerializablePredicateTest {
 					toAttributeRequestIndex(
 						getDefaultRequirementContext()
 					),
+					Collections.emptySet(),
 					null, true, null, Collections.emptySet()
 				);
 
@@ -361,7 +447,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldReturnTrueForAnyNameWhenEmpty() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, Collections.emptySet()
 				);
 
@@ -373,7 +459,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldReturnFalseWhenNotRequired() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, false,
+					Collections.emptyMap(), Collections.emptySet(), null, false,
 					null, Collections.emptySet()
 				);
 
@@ -390,6 +476,7 @@ class ReferenceContractSerializablePredicateTest {
 					toAttributeRequestIndex(
 						getDefaultRequirementContext()
 					),
+					Collections.emptySet(),
 					null, true, null, Collections.emptySet()
 				);
 
@@ -415,6 +502,7 @@ class ReferenceContractSerializablePredicateTest {
 						createRequirementContext("x", "y")
 							.attributeRequest()
 					),
+					Collections.emptySet(),
 					null, true, null, Collections.emptySet()
 				);
 
@@ -440,6 +528,7 @@ class ReferenceContractSerializablePredicateTest {
 						createRequirementContext("x")
 							.attributeRequest()
 					),
+					Collections.emptySet(),
 					null, true, null, Collections.emptySet()
 				);
 
@@ -457,7 +546,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldReturnAllAttributePredicate() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, Collections.emptySet()
 				);
 
@@ -487,7 +576,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldReturnNullWhenNoLocales() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, null
 				);
 
@@ -502,7 +591,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldReturnImplicitLocaleWhenLocalesNull() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					Locale.ENGLISH, null
 				);
 
@@ -519,7 +608,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldMergeImplicitLocaleWithLocales() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					Locale.ENGLISH, Set.of(Locale.FRENCH)
 				);
 
@@ -541,7 +630,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldCreateRicherCopyForNoReferences() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, false,
+					Collections.emptyMap(), Collections.emptySet(), null, false,
 					null, Collections.emptySet()
 				);
 
@@ -571,7 +660,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldNotCreateRicherCopyForNoReferences() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, Collections.emptySet()
 				);
 
@@ -602,7 +691,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldNotCreateRicherCopyWhenAlreadyPresent() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, Collections.emptySet()
 				);
 
@@ -630,7 +719,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldCreateRicherCopyForReferences() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, Collections.emptySet()
 				);
 
@@ -663,6 +752,7 @@ class ReferenceContractSerializablePredicateTest {
 					toAttributeRequestIndex(
 						getDefaultRequirementContext()
 					),
+					Collections.emptySet(),
 					null, true, null, Collections.emptySet()
 				);
 
@@ -697,6 +787,7 @@ class ReferenceContractSerializablePredicateTest {
 							Arrays.asList("A", "B")
 						)
 					),
+					Collections.emptySet(),
 					null, true, null, Collections.emptySet()
 				);
 
@@ -730,7 +821,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldCreateRicherCopyForLocales() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, Collections.emptySet()
 				);
 
@@ -763,7 +854,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldCreateRicherCopyForAdditionalLocales() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null,
 					new HashSet<>(
 						Collections.singletonList(Locale.ENGLISH)
@@ -802,7 +893,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldNotCreateRicherCopyWhenLocalesMatch() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null,
 					new HashSet<>(
 						Arrays.asList(Locale.ENGLISH, Locale.CANADA)
@@ -837,7 +928,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldNotCreateRicherCopyWhenLocaleSubset() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null,
 					new HashSet<>(
 						Arrays.asList(Locale.ENGLISH, Locale.CANADA)
@@ -870,7 +961,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldCreateRicherCopyForAttributesByName() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, false,
+					Collections.emptyMap(), Collections.emptySet(), null, false,
 					null,
 					new HashSet<>(
 						Collections.singletonList(Locale.ENGLISH)
@@ -918,6 +1009,7 @@ class ReferenceContractSerializablePredicateTest {
 						createRequirementContext("D", "E")
 							.attributeRequest()
 					),
+					Collections.emptySet(),
 					null, true, null,
 					new HashSet<>(
 						Collections.singletonList(Locale.ENGLISH)
@@ -965,6 +1057,7 @@ class ReferenceContractSerializablePredicateTest {
 						createRequirementContext("D", "E")
 							.attributeRequest()
 					),
+					Collections.emptySet(),
 					null, true, null,
 					new HashSet<>(
 						Collections.singletonList(Locale.ENGLISH)
@@ -1013,6 +1106,7 @@ class ReferenceContractSerializablePredicateTest {
 						"A",
 						createRequirementContext().attributeRequest()
 					),
+					Collections.emptySet(),
 					null, true, null,
 					new HashSet<>(
 						Collections.singletonList(Locale.ENGLISH)
@@ -1051,7 +1145,7 @@ class ReferenceContractSerializablePredicateTest {
 		void shouldMergeImplicitLocaleFromRequest() {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
-					Collections.emptyMap(), null, true,
+					Collections.emptyMap(), Collections.emptySet(), null, true,
 					null, Collections.emptySet()
 				);
 
@@ -1079,5 +1173,912 @@ class ReferenceContractSerializablePredicateTest {
 				richerCopy.getImplicitLocale()
 			);
 		}
+
+		@Test
+		@DisplayName("merges named reference names of both sides")
+		void shouldCombineNamedReferenceNamesOnEnrichment() {
+			final ReferenceContractSerializablePredicate predicate = namedOnlyPredicate("A");
+
+			final ReferenceContractSerializablePredicate richerCopy =
+				predicate.createRicherCopyWith(namedOnlyRequest("B"));
+
+			assertNotSame(predicate, richerCopy);
+			assertEquals(
+				Set.of("A", "B"),
+				richerCopy.getVisibleReferenceNames()
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"returns same when the named reference names do not widen"
+		)
+		void shouldReturnSameInstanceWhenNamedReferenceNamesUnchanged() {
+			// the identity is load bearing - it is what tells the enrichment that the previous read already brought
+			// everything the new request asks for, so an equal-but-distinct copy would reinstate a storage round trip
+			final ReferenceContractSerializablePredicate predicate = namedOnlyPredicate("A");
+
+			assertSame(
+				predicate,
+				predicate.createRicherCopyWith(namedOnlyRequest("A"))
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"never narrows the named reference names below what was fetched"
+		)
+		void shouldNotNarrowNamedReferenceNamesOnEnrichment() {
+			final ReferenceContractSerializablePredicate predicate = namedOnlyPredicate("A", "B");
+
+			final ReferenceContractSerializablePredicate richerCopy =
+				predicate.createRicherCopyWith(namedOnlyRequest("A"));
+
+			assertSame(predicate, richerCopy);
+			assertEquals(
+				Set.of("A", "B"),
+				richerCopy.getVisibleReferenceNames()
+			);
+		}
 	}
+
+	@Nested
+	@DisplayName("Visible reference names")
+	class VisibleReferenceNamesTest {
+
+		@Test
+		@DisplayName(
+			"returns null when every reference is allowed"
+		)
+		void shouldReturnNullWhenAllReferencesAreAllowed() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					Collections.emptyMap(), Collections.emptySet(), null, true,
+					null, Collections.emptySet()
+				);
+
+			assertNull(predicate.getVisibleReferenceNames());
+		}
+
+		@Test
+		@DisplayName(
+			"returns null when a default requirement is present"
+		)
+		void shouldReturnNullWhenDefaultRequirementIsPresent() {
+			// a plain referenceContent() asks for every reference there is and must never produce a narrowed read,
+			// whatever else the request happens to name
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					toAttributeRequestIndex(getDefaultRequirementContext()),
+					Set.of("B"),
+					AttributeRequest.EMPTY, true, null, Collections.emptySet()
+				);
+
+			assertNull(predicate.getVisibleReferenceNames());
+		}
+
+		@Test
+		@DisplayName(
+			"returns null when references are not required at all"
+		)
+		void shouldReturnNullWhenReferencesAreNotRequired() {
+			// null here does not mean "read everything" - the storage layer checks isRequiresEntityReferences()
+			// first and never reaches this method for such a predicate
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					toAttributeRequestIndex(getDefaultRequirementContext()),
+					Collections.emptySet(), null, false,
+					null, Collections.emptySet()
+				);
+
+			assertNull(predicate.getVisibleReferenceNames());
+		}
+
+		@Test
+		@DisplayName(
+			"returns the keys of an unnamed reference set"
+		)
+		void shouldReturnUnnamedReferenceSetKeys() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					toAttributeRequestIndex(getDefaultRequirementContext()),
+					Collections.emptySet(), null, true,
+					null, Collections.emptySet()
+				);
+
+			assertEquals(Set.of("A"), predicate.getVisibleReferenceNames());
+		}
+
+		@Test
+		@DisplayName(
+			"returns the names of a named-only requirement"
+		)
+		void shouldReturnNamedReferenceNames() {
+			assertEquals(
+				Set.of("A"),
+				namedOnlyPredicate("A").getVisibleReferenceNames()
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"unions named and unnamed reference names"
+		)
+		void shouldUnionNamedAndUnnamedReferenceNames() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					toAttributeRequestIndex(getDefaultRequirementContext()),
+					Set.of("B"), null, true,
+					null, Collections.emptySet()
+				);
+
+			assertEquals(
+				Set.of("A", "B"),
+				predicate.getVisibleReferenceNames()
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"an unnamed reference set hides every name outside it"
+		)
+		void shouldHideReferenceNameOutsideUnnamedReferenceSet() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					toAttributeRequestIndex(getDefaultRequirementContext()),
+					Collections.emptySet(), null, true,
+					null, Collections.emptySet()
+				);
+
+			assertEquals(Set.of("A"), predicate.getVisibleReferenceNames());
+			assertFalse(predicate.isReferenceRequested("B"));
+			assertFalse(predicate.wasFetched("B"));
+			assertThrows(
+				ContextMissingException.class,
+				() -> predicate.checkFetched("B")
+			);
+			assertFalse(predicate.test(existingReference("B")));
+		}
+
+		@Test
+		@DisplayName(
+			"the named reference itself stays visible"
+		)
+		void shouldAdmitTheNamedReferenceItself() {
+			final ReferenceContractSerializablePredicate predicate = namedOnlyPredicate("A");
+
+			assertTrue(predicate.isReferenceRequested("A"));
+			assertTrue(predicate.wasFetched("A"));
+			assertDoesNotThrow(() -> predicate.checkFetched("A"));
+			assertTrue(predicate.test(existingReference("A")));
+		}
+
+		@Test
+		@DisplayName(
+			"a named-only requirement hides every name its narrowed read skipped"
+		)
+		void shouldHideReferenceNameOutsideTheNarrowedRead() {
+			// the read this predicate narrows brings in `A` alone, so `B` is absent from the composed entity even
+			// when the entity has such references - reporting it as fetched would answer an empty result for data
+			// that was never read
+			final ReferenceContractSerializablePredicate predicate = namedOnlyPredicate("A");
+
+			assertEquals(Set.of("A"), predicate.getVisibleReferenceNames());
+			assertFalse(predicate.isReferenceRequested("B"));
+			assertFalse(predicate.wasFetched("B"));
+			assertThrows(
+				ContextMissingException.class,
+				() -> predicate.checkFetched("B")
+			);
+			assertFalse(predicate.test(existingReference("B")));
+		}
+	}
+
+	/**
+	 * A query may name some references specifically and cover the rest with a catch-all `referenceContent`
+	 * requirement. The fetcher loads both kinds, so the predicate has to admit both: a reference the specific
+	 * entries do not name is covered by the default attribute request, and that request is what shapes its
+	 * attributes. The reference-specific entries stay an override for the references they name, and a query with no
+	 * catch-all requirement keeps hiding everything it did not name.
+	 */
+	@Nested
+	@DisplayName("Default requirement beside reference specific ones")
+	class DefaultBesideSpecificTest {
+
+		private static final String COVERED_BY_DEFAULT = "B";
+
+		/**
+		 * Builds a predicate for the shape "one reference named specifically, everything else covered by the
+		 * catch-all requirement".
+		 *
+		 * @param defaultAttributes attributes the catch-all requirement asks for
+		 * @return the predicate to assert on
+		 */
+		@Nonnull
+		private static ReferenceContractSerializablePredicate createDefaultBesideSpecificPredicate(
+			@Nonnull String... defaultAttributes
+		) {
+			return new ReferenceContractSerializablePredicate(
+				Map.of("A", createRequirementContext("D", "E").attributeRequest()),
+				Collections.emptySet(),
+				createRequirementContext(defaultAttributes).attributeRequest(),
+				true, null, Collections.emptySet()
+			);
+		}
+
+		/**
+		 * Builds an entity schema declaring references of the passed names.
+		 *
+		 * @param referenceNames names of the references the schema declares
+		 * @return the mocked schema
+		 */
+		@Nonnull
+		private static EntitySchemaContract createSchemaWithReferences(@Nonnull String... referenceNames) {
+			final Map<String, ReferenceSchemaContract> references =
+				CollectionUtils.createLinkedHashMap(referenceNames.length);
+			for (final String referenceName : referenceNames) {
+				references.put(referenceName, Mockito.mock(ReferenceSchemaContract.class));
+			}
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getReferences()).thenReturn(references);
+			return entitySchema;
+		}
+
+		/**
+		 * Builds an existing reference of the passed name.
+		 *
+		 * @param referenceName name the mocked reference carries
+		 * @return the mocked reference
+		 */
+		@Nonnull
+		private static ReferenceContract createReference(@Nonnull String referenceName) {
+			final ReferenceContract reference = Mockito.mock(ReferenceContract.class);
+			Mockito.when(reference.exists()).thenReturn(true);
+			Mockito.when(reference.getReferenceName()).thenReturn(referenceName);
+			return reference;
+		}
+
+		@Test
+		@DisplayName("reference covered by the default is fetched and visible")
+		void shouldTreatReferenceCoveredByDefaultAsFetched() {
+			final ReferenceContractSerializablePredicate predicate =
+				createDefaultBesideSpecificPredicate("F");
+
+			assertTrue(predicate.wasFetched(COVERED_BY_DEFAULT));
+			assertTrue(predicate.isReferenceRequested(COVERED_BY_DEFAULT));
+			assertTrue(predicate.test(createReference(COVERED_BY_DEFAULT)));
+			predicate.checkFetched(COVERED_BY_DEFAULT);
+		}
+
+		@Test
+		@DisplayName("reference covered by the default gets the default attributes")
+		void shouldGiveDefaultAttributesToReferenceCoveredByDefault() {
+			final ReferenceContractSerializablePredicate predicate =
+				createDefaultBesideSpecificPredicate("F");
+
+			assertEquals(
+				Set.of("F"),
+				predicate.getAttributePredicate(COVERED_BY_DEFAULT)
+					.getReferenceAttributes().attributeSet()
+			);
+		}
+
+		@Test
+		@DisplayName("reference named specifically keeps its own attributes")
+		void shouldKeepSpecificAttributesOfNamedReference() {
+			final ReferenceContractSerializablePredicate predicate =
+				createDefaultBesideSpecificPredicate("F");
+
+			assertTrue(predicate.wasFetched("A"));
+			assertEquals(
+				Set.of("D", "E"),
+				predicate.getAttributePredicate("A")
+					.getReferenceAttributes().attributeSet()
+			);
+		}
+
+		@Test
+		@DisplayName("reference not named is hidden when there is no default")
+		void shouldHideUnnamedReferenceWhenNoDefaultExists() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					Map.of("A", createRequirementContext("D", "E").attributeRequest()),
+					Collections.emptySet(),
+					null, true, null, Collections.emptySet()
+				);
+
+			assertFalse(predicate.wasFetched(COVERED_BY_DEFAULT));
+			assertFalse(predicate.isReferenceRequested(COVERED_BY_DEFAULT));
+			assertFalse(predicate.test(createReference(COVERED_BY_DEFAULT)));
+			assertThrows(
+				ContextMissingException.class,
+				() -> predicate.checkFetched(COVERED_BY_DEFAULT)
+			);
+			assertEquals(
+				Set.of(),
+				predicate.getAttributePredicate(COVERED_BY_DEFAULT)
+					.getReferenceAttributes().attributeSet()
+			);
+		}
+
+		@Test
+		@DisplayName("every reference stays visible when only the default is present")
+		void shouldKeepEveryReferenceVisibleWithDefaultOnly() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					Collections.emptyMap(),
+					Collections.emptySet(),
+					createRequirementContext("F").attributeRequest(),
+					true, null, Collections.emptySet()
+				);
+
+			assertTrue(predicate.wasFetched(COVERED_BY_DEFAULT));
+			assertTrue(predicate.test(createReference(COVERED_BY_DEFAULT)));
+			assertEquals(
+				Set.of("F"),
+				predicate.getAttributePredicate(COVERED_BY_DEFAULT)
+					.getReferenceAttributes().attributeSet()
+			);
+		}
+
+		@Test
+		@DisplayName("no reference is visible when references were not requested")
+		void shouldHideEveryReferenceWhenReferencesAreNotRequested() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					Map.of("A", createRequirementContext("D", "E").attributeRequest()),
+					Collections.emptySet(),
+					createRequirementContext("F").attributeRequest(),
+					false, null, Collections.emptySet()
+				);
+
+			assertFalse(predicate.wasFetched());
+			assertFalse(predicate.wasFetched(COVERED_BY_DEFAULT));
+			assertFalse(predicate.isReferenceRequested(COVERED_BY_DEFAULT));
+			assertFalse(predicate.test(createReference(COVERED_BY_DEFAULT)));
+			assertThrows(
+				ContextMissingException.class,
+				() -> predicate.checkFetched(COVERED_BY_DEFAULT)
+			);
+		}
+
+		@Test
+		@DisplayName("every schema reference is requested when a default is present")
+		void shouldRequestEverySchemaReferenceWhenDefaultIsPresent() {
+			final ReferenceContractSerializablePredicate predicate =
+				createDefaultBesideSpecificPredicate("F");
+
+			assertEquals(
+				Set.of("A", COVERED_BY_DEFAULT),
+				predicate.getRequestedReferenceNames(
+					createSchemaWithReferences("A", COVERED_BY_DEFAULT)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("only the named references are requested without a default")
+		void shouldRequestOnlyNamedReferencesWithoutDefault() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					Map.of("A", createRequirementContext("D", "E").attributeRequest()),
+					Collections.emptySet(),
+					null, true, null, Collections.emptySet()
+				);
+
+			assertEquals(
+				Set.of("A"),
+				predicate.getRequestedReferenceNames(
+					createSchemaWithReferences("A", COVERED_BY_DEFAULT)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("every schema reference is requested when nothing was named")
+		void shouldRequestEverySchemaReferenceWhenNothingWasNamed() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					Collections.emptyMap(), Collections.emptySet(), null, true, null, Collections.emptySet()
+				);
+
+			assertEquals(
+				Set.of("A", COVERED_BY_DEFAULT),
+				predicate.getRequestedReferenceNames(
+					createSchemaWithReferences("A", COVERED_BY_DEFAULT)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("only the named references are requested by a named-only query")
+		void shouldRequestOnlyNamedReferencesForNamedOnlyQuery() {
+			// a named requirement never reaches the reference set, so reading emptiness of that set as "nothing was
+			// asked for" names every reference in the schema for the query shape every external API produces
+			final ReferenceContractSerializablePredicate predicate = namedOnlyPredicate("A");
+
+			assertEquals(
+				Set.of("A"),
+				predicate.getRequestedReferenceNames(
+					createSchemaWithReferences("A", COVERED_BY_DEFAULT)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("the named and the specifically requested references are requested together")
+		void shouldRequestNamedAndSpecificReferencesTogether() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					Map.of(COVERED_BY_DEFAULT, createRequirementContext("D").attributeRequest()),
+					Set.of("A"),
+					null, true, null, Collections.emptySet()
+				);
+
+			assertEquals(
+				Set.of("A", COVERED_BY_DEFAULT),
+				predicate.getRequestedReferenceNames(
+					createSchemaWithReferences("A", COVERED_BY_DEFAULT, "C")
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("no requested reference name is one the predicate would refuse to hand back")
+		void shouldRequestNoReferenceNameThePredicateRefuses() {
+			// the entity indexes its references under exactly these names and answers `getReferenceChunk` for each
+			// of them - a name in here that `checkFetched` refuses is a ContextMissingException raised for
+			// a reference the query did ask for, which is what naming them from the reference set alone caused
+			final ReferenceContractSerializablePredicate predicate = namedOnlyPredicate("A");
+
+			final Set<String> requested = predicate.getRequestedReferenceNames(
+				createSchemaWithReferences("A", COVERED_BY_DEFAULT)
+			);
+			assertFalse(requested.isEmpty(), "The query named a reference, so something has to be requested.");
+			for (final String referenceName : requested) {
+				assertTrue(
+					predicate.wasFetched(referenceName),
+					"Reference `" + referenceName + "` is requested but reported as not fetched."
+				);
+				assertDoesNotThrow(
+					() -> predicate.checkFetched(referenceName),
+					"Reference `" + referenceName + "` is requested but refused by the predicate."
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("richer copy keeps the default beside the specific entries")
+		void shouldKeepDefaultBesideSpecificEntriesInRicherCopy() {
+			final ReferenceContractSerializablePredicate predicate =
+				createDefaultBesideSpecificPredicate("F");
+
+			final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
+			Mockito.when(evitaRequest.isRequiresEntityReferences())
+				.thenReturn(true);
+			Mockito.when(evitaRequest.getReferenceEntityFetch())
+				.thenReturn(Map.of("A", createRequirementContext("X")));
+			Mockito.when(evitaRequest.getImplicitLocale())
+				.thenReturn(null);
+			Mockito.when(evitaRequest.getRequiredLocales())
+				.thenReturn(Collections.emptySet());
+			Mockito.when(evitaRequest.getDefaultReferenceRequirement())
+				.thenReturn(null);
+
+			final ReferenceContractSerializablePredicate richerCopy =
+				predicate.createRicherCopyWith(evitaRequest);
+
+			assertNotSame(predicate, richerCopy);
+			assertEquals(
+				Set.of("D", "E", "X"),
+				richerCopy.getAttributePredicate("A")
+					.getReferenceAttributes().attributeSet()
+			);
+			assertTrue(richerCopy.wasFetched(COVERED_BY_DEFAULT));
+			assertEquals(
+				Set.of("F"),
+				richerCopy.getAttributePredicate(COVERED_BY_DEFAULT)
+					.getReferenceAttributes().attributeSet()
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Richer copy keeps what an earlier fetch made visible")
+	class EnrichmentMonotonicityTest {
+
+		private static final String NAMED_REFERENCE = "A";
+		private static final String OTHER_REFERENCE = "C";
+
+		/**
+		 * Builds the request an enrichment is driven by.
+		 *
+		 * @param defaultRequirement   requirement covering every reference the per-name map does not name, NULL when
+		 *                             the request carries no catch-all `referenceContent`
+		 * @param referenceEntityFetch requirements the request names specifically
+		 * @return the mocked request
+		 */
+		@Nonnull
+		private static EvitaRequest createEnrichingRequest(
+			@Nullable RequirementContext defaultRequirement,
+			@Nonnull Map<String, RequirementContext> referenceEntityFetch
+		) {
+			final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
+			Mockito.when(evitaRequest.isRequiresEntityReferences())
+				.thenReturn(true);
+			Mockito.when(evitaRequest.getReferenceEntityFetch())
+				.thenReturn(referenceEntityFetch);
+			Mockito.when(evitaRequest.getImplicitLocale())
+				.thenReturn(null);
+			Mockito.when(evitaRequest.getRequiredLocales())
+				.thenReturn(Collections.emptySet());
+			Mockito.when(evitaRequest.getDefaultReferenceRequirement())
+				.thenReturn(defaultRequirement);
+			return evitaRequest;
+		}
+
+		/**
+		 * Returns the requirement a bare `referenceContent(<name>)` produces - the reference is fetched, none of its
+		 * attributes are.
+		 *
+		 * @return the requirement asking for no reference attribute
+		 */
+		@Nonnull
+		private static RequirementContext createBareRequirementContext() {
+			return new RequirementContext(
+				ManagedReferencesBehaviour.ANY,
+				null, null, null, null, null,
+				NoTransformer.INSTANCE
+			);
+		}
+
+		@Test
+		@DisplayName("bare named reference does not hide the attributes of a catch-all with all of them")
+		void shouldKeepAllAttributesOfCatchAllWhenEnrichedWithBareNamedReference() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					Collections.emptyMap(),
+					Collections.emptySet(),
+					createRequirementContext().attributeRequest(),
+					true, null, Collections.emptySet()
+				);
+
+			final ReferenceContractSerializablePredicate richerCopy =
+				predicate.createRicherCopyWith(
+					createEnrichingRequest(
+						null,
+						Map.of(NAMED_REFERENCE, createBareRequirementContext())
+					)
+				);
+
+			assertTrue(
+				richerCopy.getAttributePredicate(NAMED_REFERENCE)
+					.getReferenceAttributes().isRequiresEntityAttributes()
+			);
+		}
+
+		@Test
+		@DisplayName("bare named reference does not hide the attributes of a catch-all")
+		void shouldKeepCatchAllAttributesWhenEnrichedWithBareNamedReference() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					Collections.emptyMap(),
+					Collections.emptySet(),
+					createRequirementContext("F").attributeRequest(),
+					true, null, Collections.emptySet()
+				);
+
+			final ReferenceContractSerializablePredicate richerCopy =
+				predicate.createRicherCopyWith(
+					createEnrichingRequest(
+						null,
+						Map.of(NAMED_REFERENCE, createBareRequirementContext())
+					)
+				);
+
+			assertEquals(
+				Set.of("F"),
+				richerCopy.getAttributePredicate(NAMED_REFERENCE)
+					.getReferenceAttributes().attributeSet()
+			);
+		}
+
+		@Test
+		@DisplayName("catch-all of the enriching request reaches the reference named earlier")
+		void shouldGiveNewCatchAllAttributesToPreviouslyNamedReference() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					Map.of(NAMED_REFERENCE, createRequirementContext("D", "E").attributeRequest()),
+					Collections.emptySet(),
+					null, true, null, Collections.emptySet()
+				);
+
+			final ReferenceContractSerializablePredicate richerCopy =
+				predicate.createRicherCopyWith(
+					createEnrichingRequest(
+						createRequirementContext("F"),
+						Collections.emptyMap()
+					)
+				);
+
+			assertEquals(
+				Set.of("D", "E", "F"),
+				richerCopy.getAttributePredicate(NAMED_REFERENCE)
+					.getReferenceAttributes().attributeSet()
+			);
+		}
+
+		@Test
+		@DisplayName("catch-all without attributes takes none away from the reference named earlier")
+		void shouldKeepNamedAttributesWhenCatchAllWithoutAttributesArrives() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					Map.of(NAMED_REFERENCE, createRequirementContext("D", "E").attributeRequest()),
+					Collections.emptySet(),
+					null, true, null, Collections.emptySet()
+				);
+
+			final ReferenceContractSerializablePredicate richerCopy =
+				predicate.createRicherCopyWith(
+					createEnrichingRequest(
+						createBareRequirementContext(),
+						Collections.emptyMap()
+					)
+				);
+
+			assertEquals(
+				Set.of("D", "E"),
+				richerCopy.getAttributePredicate(NAMED_REFERENCE)
+					.getReferenceAttributes().attributeSet()
+			);
+		}
+
+		@Test
+		@DisplayName("enrichment naming references only keeps behaving as it did")
+		void shouldLeaveSpecificOnlyEnrichmentUnchanged() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					Map.of(NAMED_REFERENCE, createRequirementContext("D", "E").attributeRequest()),
+					Collections.emptySet(),
+					null, true, null, Collections.emptySet()
+				);
+
+			final ReferenceContractSerializablePredicate richerCopy =
+				predicate.createRicherCopyWith(
+					createEnrichingRequest(
+						null,
+						Map.of(
+							NAMED_REFERENCE, createRequirementContext("X"),
+							OTHER_REFERENCE, createRequirementContext("Y")
+						)
+					)
+				);
+
+			assertEquals(
+				Set.of("D", "E", "X"),
+				richerCopy.getAttributePredicate(NAMED_REFERENCE)
+					.getReferenceAttributes().attributeSet()
+			);
+			assertEquals(
+				Set.of("Y"),
+				richerCopy.getAttributePredicate(OTHER_REFERENCE)
+					.getReferenceAttributes().attributeSet()
+			);
+			assertFalse(richerCopy.wasFetched("Z"));
+		}
+	}
+
+	/**
+	 * Covers the storage facing half of the predicate - the coverage it hands the decoder, and the rules by which
+	 * an enrichment combines one predicate's key narrowing with another request's.
+	 *
+	 * The coverage is what the enrichment gate compares and what the deserializer decides admission on, so a
+	 * mistake here is never a failure: it is a reference set that is silently shorter than the caller asked for.
+	 */
+	@Nested
+	@DisplayName("Decode coverage")
+	class DecodeCoverageTest {
+		private static final String NARROWED = "narrowed";
+		private static final String WHOLE = "whole";
+
+		@Test
+		@DisplayName("splits the visible names into the ones read whole and the ones bound to keys")
+		void shouldSplitVisibleNamesIntoWholeAndKeyNarrowed() {
+			final ReferenceContractSerializablePredicate predicate = narrowingPredicate(
+				Map.of(NARROWED, new int[]{10, 20}), NARROWED, WHOLE
+			);
+
+			final ReferenceDecodeCoverage coverage = predicate.getDecodeCoverage();
+
+			assertNotNull(coverage);
+			assertEquals(Set.of(WHOLE), coverage.getNamesDecodedWhole());
+			assertEquals(Set.of(NARROWED), coverage.getNamesDecodedByKey().keySet());
+			assertArrayEquals(new int[]{10, 20}, coverage.getAdmittedKeys(NARROWED).toArray());
+		}
+
+		@Test
+		@DisplayName("hands out one and the same coverage instance on every call")
+		void shouldReturnTheSameCoverageInstanceOnEveryCall() {
+			final ReferenceContractSerializablePredicate predicate = narrowingPredicate(
+				Map.of(NARROWED, new int[]{10}), NARROWED, WHOLE
+			);
+
+			// the deserializer compares the bound coverage by identity to resolve a per-name admission once per run
+			// of same-named references - a fresh equal object per read would re-resolve it for every reference
+			assertSame(predicate.getDecodeCoverage(), predicate.getDecodeCoverage());
+		}
+
+		@Test
+		@DisplayName("reports no coverage at all when the predicate narrows nothing away")
+		void shouldReturnNullCoverageWhenNoNameIsNarrowed() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate();
+
+			// unrestricted is the absence of an object, never an object claiming to admit everything
+			assertNull(predicate.getDecodeCoverage());
+			assertTrue(ReferenceDecodeCoverage.isComplete(predicate.getDecodeCoverage()));
+		}
+
+		@Test
+		@DisplayName("keeps a name bound when both sides bind it, to the union of their key sets")
+		void shouldKeepANameNarrowedOnlyWhenBothSidesNarrowIt() {
+			final ReferenceContractSerializablePredicate predicate = narrowingPredicate(
+				Map.of(NARROWED, new int[]{10, 30}), NARROWED
+			);
+
+			final ReferenceContractSerializablePredicate richer = predicate.createRicherCopyWith(
+				narrowingRequest(Map.of(NARROWED, new int[]{20, 30}), NARROWED)
+			);
+
+			final ReferenceDecodeCoverage coverage = richer.getDecodeCoverage();
+			assertNotNull(coverage);
+			// the enriched entity has to satisfy both requirements, so the decode has to cover both key sets
+			assertArrayEquals(new int[]{10, 20, 30}, coverage.getAdmittedKeys(NARROWED).toArray());
+			assertTrue(coverage.getNamesDecodedWhole().isEmpty());
+		}
+
+		@Test
+		@DisplayName("un-binds a name the new request wants in full")
+		void shouldUnNarrowANameTheNewRequestWantsWhole() {
+			final ReferenceContractSerializablePredicate predicate = narrowingPredicate(
+				Map.of(NARROWED, new int[]{10}), NARROWED
+			);
+
+			final ReferenceContractSerializablePredicate richer = predicate.createRicherCopyWith(
+				narrowingRequest(Collections.emptyMap(), NARROWED)
+			);
+
+			assertNameDecodedWhole(richer, NARROWED);
+		}
+
+		@Test
+		@DisplayName("un-binds a name the new request does not mention at all")
+		void shouldUnNarrowANameTheNewRequestDoesNotMention() {
+			final ReferenceContractSerializablePredicate predicate = narrowingPredicate(
+				Map.of(NARROWED, new int[]{10}), NARROWED
+			);
+
+			final ReferenceContractSerializablePredicate richer = predicate.createRicherCopyWith(
+				narrowingRequest(Map.of(WHOLE, new int[]{99}), WHOLE)
+			);
+
+			// deliberately conservative in this direction: widening costs a decode, keeping a narrowing the other
+			// side never agreed to would drop references
+			assertNameDecodedWhole(richer, NARROWED);
+		}
+
+		@Test
+		@DisplayName("stays un-bound when this predicate binds nothing to begin with")
+		void shouldStayUnNarrowedWhenThisPredicateNarrowsNothing() {
+			final ReferenceContractSerializablePredicate predicate = narrowingPredicate(
+				Collections.emptyMap(), NARROWED
+			);
+
+			final ReferenceContractSerializablePredicate richer = predicate.createRicherCopyWith(
+				narrowingRequest(Map.of(NARROWED, new int[]{10}), NARROWED)
+			);
+
+			assertNameDecodedWhole(richer, NARROWED);
+		}
+
+		@Test
+		@DisplayName("hands back itself when the binding did not change")
+		void shouldReturnItselfWhenTheNarrowingDidNotChange() {
+			final ReferenceContractSerializablePredicate predicate = narrowingPredicate(
+				Map.of(NARROWED, new int[]{10, 20}), NARROWED
+			);
+
+			// identity, not equality: the enrichment compares predicates by reference and skips a storage round
+			// trip on it, so a copy allocated when nothing widened turns every enrichment into a re-read
+			assertSame(
+				predicate,
+				predicate.createRicherCopyWith(narrowingRequest(Map.of(NARROWED, new int[]{10, 20}), NARROWED))
+			);
+		}
+
+		@Test
+		@DisplayName("a limited view keeps the binding the read behind it was performed under")
+		void shouldInheritANarrowingIntoALimitedView() {
+			final ReferenceContractSerializablePredicate underlying = narrowingPredicate(
+				Map.of(NARROWED, new int[]{10}), NARROWED
+			);
+
+			final ReferenceContractSerializablePredicate limited =
+				new ReferenceContractSerializablePredicate(
+					narrowingRequest(Map.of(NARROWED, new int[]{10}), NARROWED), underlying
+				);
+
+			final ReferenceDecodeCoverage coverage = limited.getDecodeCoverage();
+			assertNotNull(coverage);
+			// a limited view shows LESS of an entity that has already been read, so it cannot have decoded more
+			// than that read did - claiming the name whole here would let the gate answer "already fetched"
+			assertArrayEquals(new int[]{10}, coverage.getAdmittedKeys(NARROWED).toArray());
+			assertFalse(coverage.isNameDecodedWhole(NARROWED));
+		}
+
+		/**
+		 * Asserts a predicate's coverage reports the passed reference name as materialized in full.
+		 *
+		 * @param predicate     predicate whose coverage is examined
+		 * @param referenceName reference name that must be reported whole
+		 */
+		private void assertNameDecodedWhole(
+			@Nonnull ReferenceContractSerializablePredicate predicate,
+			@Nonnull String referenceName
+		) {
+			final ReferenceDecodeCoverage coverage = predicate.getDecodeCoverage();
+			if (coverage != null) {
+				assertTrue(
+					coverage.isNameDecodedWhole(referenceName),
+					"`" + referenceName + "` must be read whole, not bound to a key set."
+				);
+				assertNull(coverage.getAdmittedKeys(referenceName));
+			}
+		}
+
+		/**
+		 * Builds a predicate asking for the passed reference names, with the passed per-name key binding.
+		 *
+		 * @param referenceKeyNarrowing referenced primary keys each name is bound to
+		 * @param referenceNames        reference names the predicate lets through
+		 * @return the predicate
+		 */
+		@Nonnull
+		private ReferenceContractSerializablePredicate narrowingPredicate(
+			@Nonnull Map<String, int[]> referenceKeyNarrowing,
+			@Nonnull String... referenceNames
+		) {
+			return new ReferenceContractSerializablePredicate(
+				Arrays.stream(referenceNames)
+					.collect(Collectors.toMap(Function.identity(), it -> AttributeRequest.EMPTY)),
+				Collections.emptySet(), null, true, null, Collections.emptySet(),
+				referenceKeyNarrowing
+			);
+		}
+
+		/**
+		 * Builds a request asking for the passed reference names, with the passed per-name key binding.
+		 *
+		 * @param referenceKeyNarrowing referenced primary keys each name is bound to
+		 * @param referenceNames        reference names the request asks for
+		 * @return the request stub
+		 */
+		@Nonnull
+		private EvitaRequest narrowingRequest(
+			@Nonnull Map<String, int[]> referenceKeyNarrowing,
+			@Nonnull String... referenceNames
+		) {
+			final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
+			Mockito.when(evitaRequest.isRequiresEntityReferences()).thenReturn(true);
+			Mockito.when(evitaRequest.getReferenceEntityFetch())
+				.thenReturn(getDefaultRequirementContext(Arrays.asList(referenceNames)));
+			Mockito.when(evitaRequest.getNamedReferenceEntityFetch()).thenReturn(Collections.emptyMap());
+			Mockito.when(evitaRequest.getImplicitLocale()).thenReturn(null);
+			Mockito.when(evitaRequest.getRequiredLocales()).thenReturn(Collections.emptySet());
+			Mockito.when(evitaRequest.getDefaultReferenceRequirement()).thenReturn(null);
+			Mockito.when(evitaRequest.getReferenceKeyNarrowing()).thenReturn(referenceKeyNarrowing);
+			return evitaRequest;
+		}
+	}
+
 }

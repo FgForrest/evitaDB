@@ -43,15 +43,13 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.EntityO
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.attribute.AttributeFieldBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.reference.*;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.*;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityDtoTypeResolver;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.*;
 import io.evitadb.externalApi.graphql.api.catalog.resolver.dataFetcher.MappingTypeResolver.RegistryKey;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInterfaceTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLObjectTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLArgumentTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLFieldTransformer;
-import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.HelperInterfaceTypeResolver;
+import io.evitadb.externalApi.graphql.api.model.UnionDescriptorToGraphQLUnionTransformer;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 
 import javax.annotation.Nonnull;
@@ -81,7 +79,8 @@ public class EntityObjectBuilder {
 		@Nonnull PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer,
 		@Nonnull ObjectDescriptorToGraphQLInterfaceTransformer interfaceBuilderTransformer,
 		@Nonnull ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer,
-		@Nonnull PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer
+		@Nonnull PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer,
+		@Nonnull UnionDescriptorToGraphQLUnionTransformer unionBuilderTransformer
 	) {
 		this.buildingContext = buildingContext;
 		this.interfaceBuilderTransformer = interfaceBuilderTransformer;
@@ -202,7 +201,9 @@ public class EntityObjectBuilder {
 				constraintSchemaBuildingContext,
 				filterConstraintSchemaBuilder,
 				argumentBuilderTransformer,
-				fieldBuilderTransformer
+				objectBuilderTransformer,
+				fieldBuilderTransformer,
+				unionBuilderTransformer
 			),
 			new EntityObjectAttributeDecorator(
 				buildingContext,

@@ -29,6 +29,7 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.range.TransactionalRangePoint;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AbstractLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexLeafPagePart;
@@ -164,7 +165,7 @@ class RangeIndexLeafPagePartSerializerTest {
 				42, "validity", 5, new TransactionalRangePoint(1L, new BaseBitmap(1), new BaseBitmap())
 			);
 			final int resolvedStreamId = page.getStreamId();
-			final long expected = RangeIndexLeafPagePart.computeUniquePartId(resolvedStreamId, 5);
+			final long expected = AbstractLeafPagePart.computeUniquePartId(resolvedStreamId, 5);
 			assertEquals(Long.valueOf(expected), page.getStoragePartPK(), "Computed key must join (streamId, pageSequence).");
 			assertEquals(expected, page.computeUniquePartIdAndSet(this.keyCompressor()), "Re-resolution must be idempotent.");
 			assertEquals(resolvedStreamId, page.getStreamId(), "Re-resolution must yield the same stream id.");
@@ -187,7 +188,8 @@ class RangeIndexLeafPagePartSerializerTest {
 				1, new AttributeKeyWithIndexType(null, "validity", null, AttributeIndexType.FILTER), 0,
 				new io.evitadb.index.invertedIndex.ValueToRecordBitmap[]{
 					new io.evitadb.index.invertedIndex.ValueToRecordBitmap(1, 1)
-				}
+				},
+				null
 			);
 			bucketPage.computeUniquePartIdAndSet(this.keyCompressor());
 			assertNotEquals(

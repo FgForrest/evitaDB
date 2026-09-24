@@ -40,13 +40,14 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.InlineReferenceDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
-import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionPageDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionStripDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferencePageDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceStripDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.WithNamedReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.PaginatedListFieldHeaderDescriptor;
@@ -59,22 +60,14 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForS
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferenceFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferencesFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
+import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidResponseUsageException;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -203,6 +196,7 @@ public class EntityFetchRequireResolver {
 			needsScope(selectionSetAggregator) ||
 			needsParent(selectionSetAggregator) ||
 			needsParents(selectionSetAggregator) ||
+			needsParentsComplete(selectionSetAggregator) ||
 			needsLocales(selectionSetAggregator) ||
 			needsAttributes(selectionSetAggregator) ||
 			needsAssociatedData(selectionSetAggregator) ||
@@ -224,6 +218,10 @@ public class EntityFetchRequireResolver {
 
 	private static boolean needsParents(@Nonnull SelectionSetAggregator selectionSetAggregator) {
 		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.PARENTS.name());
+	}
+
+	private static boolean needsParentsComplete(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.PARENTS_COMPLETE.name());
 	}
 
 	private static boolean needsLocales(@Nonnull SelectionSetAggregator selectionSetAggregator) {
@@ -253,11 +251,43 @@ public class EntityFetchRequireResolver {
 			.anyMatch(selectionSetAggregator::containsImmediate);
 	}
 
+	/**
+	 * Resolves the single `hierarchyContent` requirement serving every parent-related field of one entity object.
+	 *
+	 * There is exactly one requirement even when both parent fields are selected, because two `hierarchyContent`
+	 * requirements carrying different parents behaviours are refused by
+	 * {@link HierarchyContent#combineWith(EntityContentRequire)}. The behaviour it carries follows the selection:
+	 * {@link HierarchyParentsBehaviour#COMPLETE} - the superset of the two - whenever
+	 * {@link GraphQLEntityDescriptor#PARENTS_COMPLETE} is selected, and
+	 * {@link HierarchyContent#DEFAULT_PARENTS_BEHAVIOUR} otherwise; the selection sets of both fields are united into
+	 * it either way, and
+	 * {@link GraphQLEntityDescriptor#PARENTS} is derived back from the resolved chain by cutting it below the first
+	 * ancestor whose body could not be materialized. `parentsComplete` additionally always carries an inner
+	 * `entityFetch` - an empty one when its own selection derives none - so that an ancestor arriving as a mere
+	 * reference really does mean "the requested body could not be materialized" rather than "no body was requested".
+	 * Since only one requirement is emitted, only one bound can be
+	 * carried, so the two `stopAt` arguments have to agree - either both omitted or both carrying the same bound.
+	 * A bound written on one field alone is refused rather than merged: {@link HierarchyContent#combineWith} would
+	 * let the absent bound win as the superset, which would silently hand the bounded field more ancestors than it
+	 * asked for.
+	 *
+	 * A third outcome serves no parent chain at all: when neither parent field is selected but `parentPrimaryKey` or
+	 * `parent` is, the emitted requirement is the minimal `hierarchyContent(stopAt(distance(1)))` that resolves the
+	 * immediate parent alone. The empty result is therefore reachable only when no parent data whatsoever was asked
+	 * for.
+	 *
+	 * @param selectionSetAggregator the selection set of the entity object being resolved
+	 * @param desiredLocale          the locale the entity is fetched in, may be NULL
+	 * @param currentEntitySchema    the schema of the collection being fetched
+	 * @return the requirement to add to the entity fetch, or an empty result when no parent data was asked for
+	 */
 	@Nonnull
 	private Optional<HierarchyContent> resolveHierarchyContent(@Nonnull SelectionSetAggregator selectionSetAggregator,
 															   @Nullable Locale desiredLocale,
 	                                                           @Nonnull EntitySchemaContract currentEntitySchema) {
-		if (!needsParents(selectionSetAggregator) && !needsParent(selectionSetAggregator)) {
+		if (!needsParents(selectionSetAggregator) &&
+			!needsParentsComplete(selectionSetAggregator) &&
+			!needsParent(selectionSetAggregator)) {
 			return Optional.empty();
 		}
 
@@ -266,34 +296,84 @@ public class EntityFetchRequireResolver {
 			parentsFields.size() <= 1,
 			() -> new GraphQLInvalidResponseUsageException("Only one `" + GraphQLEntityDescriptor.PARENTS.name() + "` field is supported.")
 		);
-		return parentsFields.stream()
-			.findFirst()
-			.map(parentsField -> {
-				final DataLocator hierarchyDataLocator = new HierarchyDataLocator(new ManagedEntityTypePointer(currentEntitySchema.getName()));
-				final HierarchyStopAt stopAt = Optional.ofNullable(parentsField.getArguments().get(ParentsFieldHeaderDescriptor.STOP_AT.name()))
-					.map(it -> (HierarchyStopAt) this.requireConstraintResolver.resolve(
-						hierarchyDataLocator,
-						hierarchyDataLocator,
-						ParentsFieldHeaderDescriptor.STOP_AT.name(),
-						it
-					))
-					.orElse(null);
+		final List<SelectedField> parentsCompleteFields = selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.PARENTS_COMPLETE.name());
+		Assert.isTrue(
+			parentsCompleteFields.size() <= 1,
+			() -> new GraphQLInvalidResponseUsageException("Only one `" + GraphQLEntityDescriptor.PARENTS_COMPLETE.name() + "` field is supported.")
+		);
 
-				final EntityFetch entityFetch = resolveEntityFetch(
-					SelectionSetAggregator.from(parentsField.getSelectionSet()),
-					desiredLocale,
-					currentEntitySchema
-				).orElse(null);
+		if (parentsFields.isEmpty() && parentsCompleteFields.isEmpty()) {
+			// we need only direct parent to be able to return parentPrimaryKey
+			return Optional.of(hierarchyContent(stopAt(distance(1))));
+		}
 
-				return hierarchyContent(stopAt, entityFetch);
-			}).or(() -> {
-				if (!selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name()).isEmpty()) {
-					// we need only direct parent to be able to return parentPrimaryKey
-					return Optional.of(hierarchyContent(stopAt(distance(1))));
-				} else {
-					return Optional.empty();
-				}
-			});
+		final DataLocator hierarchyDataLocator = new HierarchyDataLocator(new ManagedEntityTypePointer(currentEntitySchema.getName()));
+		final HierarchyStopAt parentsStopAt = resolveParentsStopAt(hierarchyDataLocator, parentsFields);
+		final HierarchyStopAt parentsCompleteStopAt = resolveParentsStopAt(hierarchyDataLocator, parentsCompleteFields);
+		Assert.isTrue(
+			parentsFields.isEmpty() ||
+				parentsCompleteFields.isEmpty() ||
+				Objects.equals(parentsStopAt, parentsCompleteStopAt),
+			() -> new GraphQLInvalidResponseUsageException(
+				"Fields `" + GraphQLEntityDescriptor.PARENTS.name() + "` and `" +
+					GraphQLEntityDescriptor.PARENTS_COMPLETE.name() + "` are served by a single parent chain fetch, " +
+					"so their `" + ParentsFieldHeaderDescriptor.STOP_AT.name() + "` arguments must either both be " +
+					"omitted or both carry the same bound."
+			)
+		);
+
+		// the requirement covers both fields at once, so it has to satisfy the richer of the two selections
+		final List<SelectedField> parentFields = new ArrayList<>(parentsFields.size() + parentsCompleteFields.size());
+		parentFields.addAll(parentsFields);
+		parentFields.addAll(parentsCompleteFields);
+		// `parentsComplete` reports an ancestor that arrived as a mere reference as a bodyless pointer, so the
+		// requirement has to have asked for a body in the first place - otherwise "the body could not be
+		// materialized" would degenerate into "no body was requested" and every ancestor would be labelled a pointer.
+		// A selection limited to the classifier fields derives no fetch of its own, and an empty `entityFetch()` is
+		// what makes the distinction real: the locale existence gate is applied by the derived request rather than
+		// by the content requirements, so an ancestor holding no data in the queried locale still stays a pointer.
+		final EntityFetch entityFetch = resolveEntityFetch(
+			SelectionSetAggregator.fromFields(parentFields),
+			desiredLocale,
+			currentEntitySchema
+		).orElseGet(() -> parentsCompleteFields.isEmpty() ? null : entityFetch());
+
+		return Optional.of(
+			hierarchyContent(
+				parentsCompleteFields.isEmpty()
+					? HierarchyContent.DEFAULT_PARENTS_BEHAVIOUR
+					: HierarchyParentsBehaviour.COMPLETE,
+				parentsFields.isEmpty() ? parentsCompleteStopAt : parentsStopAt,
+				entityFetch
+			)
+		);
+	}
+
+	/**
+	 * Resolves the `stopAt` argument of a parent field, if the field is selected at all and carries one.
+	 *
+	 * @param hierarchyDataLocator the locator the bound is resolved against
+	 * @param parentFields         the selected parent field, or an empty list when the field is not selected
+	 * @return the resolved bound, or NULL when there is none
+	 */
+	@Nullable
+	private HierarchyStopAt resolveParentsStopAt(
+		@Nonnull DataLocator hierarchyDataLocator,
+		@Nonnull List<SelectedField> parentFields
+	) {
+		if (parentFields.isEmpty()) {
+			return null;
+		}
+		final Object stopAtArgument = parentFields.get(0).getArguments().get(ParentsFieldHeaderDescriptor.STOP_AT.name());
+		if (stopAtArgument == null) {
+			return null;
+		}
+		return (HierarchyStopAt) this.requireConstraintResolver.resolve(
+			hierarchyDataLocator,
+			hierarchyDataLocator,
+			ParentsFieldHeaderDescriptor.STOP_AT.name(),
+			stopAtArgument
+		);
 	}
 
 	@Nonnull
@@ -372,6 +452,12 @@ public class EntityFetchRequireResolver {
 	 * `priceForSaleMin` / `priceForSaleMax` are now flat siblings of `priceForSale`, so their `accompanyingPrice`
 	 * selection sits directly under each — same shape as `priceForSale`. Selections are deduplicated by name so
 	 * the engine does not compute the same accompanying price multiple times.
+	 *
+	 * The deduplication is only sound while the selections sharing a name agree, because the engine registers one
+	 * recipe per name and applies it to every price for sale in the query. Two sibling fields naming one accompanying
+	 * price with different `priceLists` are therefore refused rather than silently collapsed onto the first of them —
+	 * the collapse would have answered the later field with a price computed from the earlier field's price lists. A
+	 * GraphQL alias is what turns them into two independent accompanying prices.
 	 */
 	@Nonnull
 	private static List<AccompanyingPriceContent> resolveAccompanyingPriceContents(@Nonnull SelectionSetAggregator selectionSetAggregator) {
@@ -392,8 +478,20 @@ public class EntityFetchRequireResolver {
 					final String[] priceLists = ((List<String>) apf.getArguments().get(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS.name())).toArray(String[]::new);
 					content = accompanyingPriceContent(priceName, priceLists);
 				}
-				// same `priceName` across sibling price-for-sale fields ⇒ same accompanying price; engine only needs to compute it once
-				deduplicated.putIfAbsent(priceName, content);
+				// same `priceName` across sibling price-for-sale fields ⇒ same accompanying price; engine only needs to
+				// compute it once. The recipe is registered once for the whole query and then applied to every price for
+				// sale, so two selections sharing a name must agree on the price lists - keeping the first one and
+				// dropping the second would answer the second field with a price it never asked for
+				final AccompanyingPriceContent alreadySelected = deduplicated.putIfAbsent(priceName, content);
+				if (alreadySelected != null && !content.isFullyContainedWithin(alreadySelected)) {
+					throw new GraphQLInvalidArgumentException(
+						"Accompanying price `" + priceName + "` is selected with two different price list sequences (" +
+							Arrays.toString(alreadySelected.getPriceLists()) + " and " +
+							Arrays.toString(content.getPriceLists()) + "). One accompanying price name is calculated " +
+							"once for the whole query, so selections sharing a name have to agree - give one of them " +
+							"a GraphQL alias to request it as a separate accompanying price."
+					);
+				}
 			}
 		}
 		return List.copyOf(deduplicated.values());
@@ -416,7 +514,7 @@ public class EntityFetchRequireResolver {
 				final ReferenceContentsBuilder contentsBuilder = new ReferenceContentsBuilder(referenceSchema.getName());
 
 				// basic reference fields
-				selectionSetAggregator.getImmediateFields(EntityDescriptor.REFERENCE.name(referenceSchema))
+				selectionSetAggregator.getImmediateFields(WithNamedReferenceDescriptor.REFERENCE.name(referenceSchema))
 					.forEach(basicReferenceField -> resolveReferenceContentFromBasicField(
 						contentsBuilder,
 						basicReferenceField,
@@ -425,7 +523,9 @@ public class EntityFetchRequireResolver {
 						referenceSchema
 					));
 				// reference page fields
-				selectionSetAggregator.getImmediateFields(EntityDescriptor.REFERENCE_PAGE.name(referenceSchema))
+				selectionSetAggregator.getImmediateFields(
+						WithNamedReferenceDescriptor.REFERENCE_PAGE.name(referenceSchema)
+					)
 					.forEach(referencePageField -> resolveReferenceContentFromPageField(
 						contentsBuilder,
 						referencePageField,
@@ -434,7 +534,9 @@ public class EntityFetchRequireResolver {
 						referenceSchema
 					));
 				// reference strip fields
-				selectionSetAggregator.getImmediateFields(EntityDescriptor.REFERENCE_STRIP.name(referenceSchema))
+				selectionSetAggregator.getImmediateFields(
+						WithNamedReferenceDescriptor.REFERENCE_STRIP.name(referenceSchema)
+					)
 					.forEach(referenceStripField -> resolveReferenceContentFromStripField(
 						contentsBuilder,
 						referenceStripField,
@@ -493,7 +595,7 @@ public class EntityFetchRequireResolver {
 
 		final SelectionSetAggregator nestedFields = SelectionSetAggregator.from(referencePageField.getSelectionSet());
 		final SelectionSetAggregator referenceBodyFields = SelectionSetAggregator.fromFields(nestedFields.getImmediateFields(
-			ReferenceDefinitionPageDescriptor.DATA.name()));
+			ReferencePageDescriptor.DATA.name()));
 		final Set<String> attributes = resolveReferenceContentAttributes(referenceBodyFields, referenceSchema);
 		final EntityFetch entityFetch = resolveReferenceContentEntityFetch(referenceBodyFields, desiredLocale, referenceSchema);
 		final EntityGroupFetch entityGroupFetch = resolveReferenceContentEntityGroupFetch(referenceBodyFields, desiredLocale, referenceSchema);
@@ -526,7 +628,7 @@ public class EntityFetchRequireResolver {
 
 		final SelectionSetAggregator nestedFields = SelectionSetAggregator.from(referenceStripField.getSelectionSet());
 		final SelectionSetAggregator referenceBodyFields = SelectionSetAggregator.fromFields(nestedFields.getImmediateFields(
-			ReferenceDefinitionStripDescriptor.DATA.name()));
+			ReferenceStripDescriptor.DATA.name()));
 		final Set<String> attributes = resolveReferenceContentAttributes(referenceBodyFields, referenceSchema);
 		final EntityFetch entityFetch = resolveReferenceContentEntityFetch(referenceBodyFields, desiredLocale, referenceSchema);
 		final EntityGroupFetch entityGroupFetch = resolveReferenceContentEntityGroupFetch(referenceBodyFields, desiredLocale, referenceSchema);

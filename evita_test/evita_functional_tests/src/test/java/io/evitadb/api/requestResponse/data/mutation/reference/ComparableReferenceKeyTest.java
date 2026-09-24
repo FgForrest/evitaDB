@@ -31,7 +31,9 @@ import org.junit.jupiter.api.Tag;
 import java.util.Collections;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.REFERENCE;
@@ -210,8 +212,8 @@ class ComparableReferenceKeyTest {
 			final ComparableReferenceKey unknown = new ComparableReferenceKey(new ReferenceKey("brand", 10));
 			final ComparableReferenceKey known = new ComparableReferenceKey(new ReferenceKey("brand", 10, 100));
 
-			assertTrue(unknown.equals(known));
-			assertTrue(known.equals(unknown));
+			assertEquals(unknown, known);
+			assertEquals(known, unknown);
 		}
 
 		@Test
@@ -219,7 +221,7 @@ class ComparableReferenceKeyTest {
 		void shouldReturnFalseWhenComparedToNull() {
 			final ComparableReferenceKey key = new ComparableReferenceKey(new ReferenceKey("brand", 10));
 
-			assertFalse(key.equals(null));
+			assertNotEquals(null, key);
 		}
 
 		@Test
@@ -228,7 +230,7 @@ class ComparableReferenceKeyTest {
 			final ComparableReferenceKey key = new ComparableReferenceKey(new ReferenceKey("brand", 10));
 
 			//noinspection AssertBetweenInconvertibleTypes
-			assertFalse(key.equals("brand: 10"));
+			assertNotEquals("brand: 10", key);
 		}
 	}
 }

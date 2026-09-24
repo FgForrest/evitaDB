@@ -139,11 +139,19 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 		return 1;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * The divisor is floored at `1`: the guard above only establishes that the result has been computed, not that it
+	 * is non-empty, and a subtree listing legitimately comes back empty (a leaf parent, or one whose every child is
+	 * excluded). `cost / 0` would throw there, where the metric has a perfectly good reading — everything was paid
+	 * and nothing came back, the extreme of the "large input reduced to a small output" case this ratio rewards.
+	 */
 	@Override
 	public long getCostToPerformanceRatio() {
 		if (this.costToPerformance == null) {
 			if (this.memoizedResult != null) {
-				this.costToPerformance = getCost() / (get().size() * getOperationCost());
+				this.costToPerformance = getCost() / Math.max(1L, (long) get().size() * getOperationCost());
 			} else {
 				return Long.MAX_VALUE;
 			}

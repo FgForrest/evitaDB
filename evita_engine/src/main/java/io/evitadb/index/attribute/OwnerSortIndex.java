@@ -204,7 +204,9 @@ public final class OwnerSortIndex extends SortIndex {
 			: createCombinedComparatorFor(attributeIndexKey.locale(), comparatorBase);
 		final Class<?> plainType = comparatorBase.length == 1 ? comparatorBase[0].type() : Comparable.class;
 		final InvertedIndex ownedTree = InvertedIndex.fromPersistedPages(
-			plainType, orderedPageSequences, perPageBuckets, highWaterPageSequence,
+			// a sort-only owner tree is private to this index and no subsystem can register as a consumer of its
+			// ids, so it never carries a value id column
+			plainType, orderedPageSequences, perPageBuckets, null, highWaterPageSequence,
 			Serializable.class::cast, comparator, indexedDecimalPlaces
 		);
 		// the positional sortedRecords façade is not persisted for a PAGED owner; reconstruct it from the reloaded tree

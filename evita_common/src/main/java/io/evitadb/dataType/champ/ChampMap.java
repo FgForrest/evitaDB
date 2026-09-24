@@ -24,6 +24,7 @@
 package io.evitadb.dataType.champ;
 
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
@@ -672,23 +673,6 @@ public final class ChampMap<K, V> implements Map<K, V> {
 		return bitmap == -1 ? mask : indexFrom(bitmap, bitpos);
 	}
 
-	/** Returns a copy of `array` with `value` inserted at `index`. */
-	private static int[] insertInt(@Nonnull int[] array, int index, int value) {
-		final int[] result = new int[array.length + 1];
-		System.arraycopy(array, 0, result, 0, index);
-		result[index] = value;
-		System.arraycopy(array, index, result, index + 1, array.length - index);
-		return result;
-	}
-
-	/** Returns a copy of `array` with the element at `index` removed. */
-	private static int[] removeInt(@Nonnull int[] array, int index) {
-		final int[] result = new int[array.length - 1];
-		System.arraycopy(array, 0, result, 0, index);
-		System.arraycopy(array, index + 1, result, index, array.length - index - 1);
-		return result;
-	}
-
 	/* ===========================================================================================
 	 * Merge resolver functional interface.
 	 * =========================================================================================== */
@@ -1135,7 +1119,7 @@ public final class ChampMap<K, V> implements Map<K, V> {
 			int bitpos, @Nonnull K key, int originalHash, int keyHash, @Nonnull V value) {
 			final int dataIx = dataIndex(bitpos);
 			final Object[] dst = contentWithValueInserted(bitpos, key, value);
-			final int[] dstHashes = insertInt(this.originalHashes, dataIx, originalHash);
+			final int[] dstHashes = ArrayUtils.insertIntIntoArrayOnIndex(originalHash, this.originalHashes, dataIx);
 			return new BitmapIndexedMapNode<>(
 				this.dataMap | bitpos, this.nodeMap, dst, dstHashes,
 				this.size + 1, this.cachedJavaKeySetHashCode + keyHash);
@@ -1149,7 +1133,7 @@ public final class ChampMap<K, V> implements Map<K, V> {
 			final Object[] dst = new Object[src.length - TUPLE_LENGTH];
 			System.arraycopy(src, 0, dst, 0, idx);
 			System.arraycopy(src, idx + TUPLE_LENGTH, dst, idx, src.length - idx - TUPLE_LENGTH);
-			final int[] dstHashes = removeInt(this.originalHashes, dataIx);
+			final int[] dstHashes = ArrayUtils.removeIntFromArrayOnIndex(this.originalHashes, dataIx);
 			return new BitmapIndexedMapNode<>(
 				this.dataMap ^ bitpos, this.nodeMap, dst, dstHashes,
 				this.size - 1, this.cachedJavaKeySetHashCode - keyHash);
@@ -1185,7 +1169,7 @@ public final class ChampMap<K, V> implements Map<K, V> {
 			int bitpos, int keyHash, @Nonnull MapNode<K, V> node) {
 			final int dataIx = dataIndex(bitpos);
 			final Object[] dst = contentWithInlineMigratedToNode(bitpos, node);
-			final int[] dstHashes = removeInt(this.originalHashes, dataIx);
+			final int[] dstHashes = ArrayUtils.removeIntFromArrayOnIndex(this.originalHashes, dataIx);
 			return new BitmapIndexedMapNode<>(
 				this.dataMap ^ bitpos, this.nodeMap | bitpos, dst, dstHashes,
 				this.size - 1 + node.size(),
@@ -1213,7 +1197,9 @@ public final class ChampMap<K, V> implements Map<K, V> {
 			dst[idxNew + 1] = value;
 			System.arraycopy(src, idxNew, dst, idxNew + TUPLE_LENGTH, idxOld - idxNew);
 			System.arraycopy(src, idxOld + 1, dst, idxOld + TUPLE_LENGTH, src.length - idxOld - 1);
-			final int[] dstHashes = insertInt(this.originalHashes, dataIxNew, node.getHash(0));
+			final int[] dstHashes = ArrayUtils.insertIntIntoArrayOnIndex(
+				node.getHash(0), this.originalHashes, dataIxNew
+			);
 			return new BitmapIndexedMapNode<>(
 				this.dataMap | bitpos, this.nodeMap ^ bitpos, dst, dstHashes,
 				this.size - oldNode.size() + 1,
@@ -1390,7 +1376,7 @@ public final class ChampMap<K, V> implements Map<K, V> {
 		void insertValueInPlace(int bitpos, @Nonnull K key, int originalHash, int keyHash, @Nonnull V value) {
 			final int dataIx = dataIndex(bitpos);
 			final Object[] dst = contentWithValueInserted(bitpos, key, value);
-			this.originalHashes = insertInt(this.originalHashes, dataIx, originalHash);
+			this.originalHashes = ArrayUtils.insertIntIntoArrayOnIndex(originalHash, this.originalHashes, dataIx);
 			this.dataMap |= bitpos;
 			this.content = dst;
 			this.size += 1;
@@ -1406,7 +1392,7 @@ public final class ChampMap<K, V> implements Map<K, V> {
 		void migrateFromInlineToNodeInPlace(int bitpos, int keyHash, @Nonnull MapNode<K, V> node) {
 			final int dataIx = dataIndex(bitpos);
 			final Object[] dst = contentWithInlineMigratedToNode(bitpos, node);
-			this.originalHashes = removeInt(this.originalHashes, dataIx);
+			this.originalHashes = ArrayUtils.removeIntFromArrayOnIndex(this.originalHashes, dataIx);
 			this.dataMap ^= bitpos;
 			this.nodeMap |= bitpos;
 			this.content = dst;

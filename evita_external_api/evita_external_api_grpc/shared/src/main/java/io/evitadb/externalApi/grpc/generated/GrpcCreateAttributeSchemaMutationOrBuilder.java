@@ -451,4 +451,58 @@ public interface GrpcCreateAttributeSchemaMutationOrBuilder extends
    * @return The conflictResolutionOverride.
    */
   io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride getConflictResolutionOverride();
+
+  /**
+   * <pre>
+   * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+   * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+   * which is what an older client sends - means no acceleration anywhere.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 17;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators> 
+      getAcceleratorsInScopesList();
+  /**
+   * <pre>
+   * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+   * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+   * which is what an older client sends - means no acceleration anywhere.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 17;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators getAcceleratorsInScopes(int index);
+  /**
+   * <pre>
+   * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+   * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+   * which is what an older client sends - means no acceleration anywhere.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 17;</code>
+   */
+  int getAcceleratorsInScopesCount();
+  /**
+   * <pre>
+   * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+   * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+   * which is what an older client sends - means no acceleration anywhere.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 17;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder> 
+      getAcceleratorsInScopesOrBuilderList();
+  /**
+   * <pre>
+   * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+   * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+   * which is what an older client sends - means no acceleration anywhere.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 17;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder getAcceleratorsInScopesOrBuilder(
+      int index);
 }

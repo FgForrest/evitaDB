@@ -163,7 +163,7 @@ public enum GrpcFacetRelationType
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(33);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(34);
   }
 
   private static final GrpcFacetRelationType[] VALUES = values();

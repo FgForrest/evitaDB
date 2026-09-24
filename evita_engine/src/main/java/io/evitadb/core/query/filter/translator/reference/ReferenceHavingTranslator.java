@@ -26,20 +26,19 @@ package io.evitadb.core.query.filter.translator.reference;
 import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.And;
-import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.Index;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.utils.Assert;
@@ -55,12 +54,12 @@ import static java.util.Optional.empty;
 import static java.util.Optional.of;
 
 /**
- * This implementation of {@link FilteringConstraintTranslator} converts {@link EntityPrimaryKeyInSet} to {@link AbstractFormula}.
+ * This implementation of {@link FilteringConstraintTranslator} converts {@link ReferenceHaving} to
+ * {@link AbstractFormula}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class ReferenceHavingTranslator implements FilteringConstraintTranslator<ReferenceHaving>, SelfTraversingTranslator {
-
 	/**
 	 * Applies a search operation on specified indexes based on the given filter constraints, context, and schema
 	 * configurations. The method builds and executes the necessary formulas for filtering and efficiently retrieves
@@ -90,7 +89,7 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 			ReferenceContent.ALL_REFERENCES,
 			entitySchema,
 			referenceSchema,
-			processingScope.getNestedQueryFormulaEnricher(),
+			processingScope.getNestedQueryRestriction(),
 			processingScope.getEntityNestedQueryComparator(),
 			processingScope.withReferenceSchemaAccessor(referenceName),
 			(entityContract, attributeName, locale) -> {
@@ -102,15 +101,26 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 			() -> {
 				getFilterByFormula(filterConstraint).ifPresent(it -> it.accept(filterByVisitor));
 				final Formula[] collectedFormulas = filterByVisitor.getCollectedFormulasOnCurrentLevel();
-				return switch (collectedFormulas.length) {
-					// when there was no filter constraint or entityPrimaryKeyInSet, we can safely use super set formula
-					// e.g. all primary keys in reduced entity indexes
-					case 0 -> filterByVisitor.getSuperSetFormula();
-					case 1 -> collectedFormulas[0];
-					default -> new OrFormula(collectedFormulas);
-				};
-			},
-			EntityPrimaryKeyInSet.class
+				// leaves inside this body carry the index that produced them, so the body can be rebuilt one
+				// reference row at a time; the tags are consumed there and never reach the enclosing tree.
+				// The index stream is passed as a supplier because only a negated body needs it - see the
+				// transposer for why a negation cannot settle for the indexes that tagged something.
+				return ReferenceBodyTransposer.transpose(
+					switch (collectedFormulas.length) {
+						// when there was no filter constraint at all, we can safely use super set formula
+						// e.g. all primary keys in reduced entity indexes
+						case 0 -> filterByVisitor.getSuperSetFormula();
+						case 1 -> collectedFormulas[0];
+						// `getFilterByFormula` folds several children into a single `And`, and translating one
+						// non-suppressed constraint contributes exactly one formula - so this level holds 0 or 1
+						default -> throw new GenericEvitaInternalError(
+							"Expected at most one formula on the isolated `referenceHaving` level, got " +
+								collectedFormulas.length + " for: `" + filterConstraint + "`."
+						);
+					},
+					() -> filterByVisitor.getEntityIndexStream().toList()
+				);
+			}
 		);
 	}
 
@@ -166,10 +176,19 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 		// i.e. access the reference attributes
 		filterByVisitor.addRequirementToPrefetch(referenceContent(referenceName));
 
-		return applySearchOnIndexes(
-			referenceHaving, filterByVisitor, entitySchema, referenceSchema,
-			processingScope, referencedEntityIndexesSupplier
+		// when the reference is one end of a bidirectional pair, the very same question can be answered by visiting one
+		// index per candidate owner instead of one per matching referenced entity - the rewriter returns an empty
+		// optional for every shape it cannot faithfully reproduce
+		final Optional<Formula> rewritten = BidirectionalReferenceRewriter.tryRewrite(
+			referenceHaving, filterByVisitor, entitySchema, referenceSchema, processingScope
 		);
+		return rewritten
+			.orElseGet(
+				() -> applySearchOnIndexes(
+					referenceHaving, filterByVisitor, entitySchema, referenceSchema,
+					processingScope, referencedEntityIndexesSupplier
+				)
+			);
 	}
 
 }

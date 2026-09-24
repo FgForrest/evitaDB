@@ -35,15 +35,11 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
-import java.util.regex.MatchResult;
-import java.util.regex.Matcher;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
@@ -214,7 +210,7 @@ public record ObjectDescriptor(@Nonnull String name,
 		if (this.description == null) {
 			return null;
 		}
-		return String.format(this.description, args);
+		return DescriptionFormatter.format(this.description, args);
 	}
 
 	/**

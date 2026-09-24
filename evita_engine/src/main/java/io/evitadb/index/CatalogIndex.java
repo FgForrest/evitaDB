@@ -355,6 +355,19 @@ public class CatalogIndex implements
 		return isTransactionAvailable() ? new CatalogIndexChanges() : null;
 	}
 
+	/**
+	 * {@link CatalogIndexChanges} is pure in-transaction bookkeeping — it records which contained items a commit-merge
+	 * has to visit — so outside a transaction there is no layer to create and the delegate branch writes nothing of
+	 * its own (every call site is `ofNullable(layer).ifPresent(...)`). The real state a mutation touches lives in the
+	 * contained transactional structures, which journal their own warm-up writes.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
+	}
+
 	@Nonnull
 	@Override
 	public CatalogIndex createCopyWithMergedTransactionalMemory(@Nullable CatalogIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {

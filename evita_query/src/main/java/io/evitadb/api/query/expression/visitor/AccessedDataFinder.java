@@ -167,6 +167,7 @@ public class AccessedDataFinder implements ExpressionNodeVisitor {
 					argumentOperand.accept(this);
 				}
 			} else if (step instanceof NullSafeAccessStep) {
+				// a null-safe marker contributes nothing to the path - move on to the next step
 				continue;
 			} else {
 				throw new GenericEvitaInternalError("Unsupported step `" + step.getClass().getName() + "`.");

@@ -41,7 +41,7 @@ JAR=$2
 FORKS=$3
 LOG=$4
 
-JAVA=${JAVA_BIN:-${JAVA_HOME:-/usr/lib/jvm/java-17-openjdk-amd64}/bin/java}
+JAVA=${JAVA_BIN:-${JAVA_HOME:-/usr/lib/jvm/java-21-openjdk-amd64}/bin/java}
 MAIN=/www/oss/evita/evitaDB-dev
 PRISTINE=$MAIN/backups/extracted/pristine
 WALSRC=$MAIN/backups/walsrc-$LABEL

@@ -60,8 +60,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
-import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.comparatorFor;
+import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.foldOntoDistinctValues;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.plainTypeOf;
 import static io.evitadb.utils.Assert.isTrue;
 
@@ -87,7 +87,6 @@ import static io.evitadb.utils.Assert.isTrue;
 @SuppressWarnings({"rawtypes", "unchecked"})
 public final class OwnerUniqueIndex extends UniqueIndex {
 	@Serial private static final long serialVersionUID = 2639205026498958517L;
-
 	/**
 	 * Single page stream per owner unique index — its value bucket tree (mirrors {@code InvertedIndex.BUCKET_PAGE_STREAM}).
 	 */
@@ -121,12 +120,6 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * Keeps information about all record ids present in this index.
 	 */
 	@Nonnull private final TransactionalBitmap recordIds;
-	/**
-	 * This field speeds up all requests for all data in this index (which happens quite often). This formula can be
-	 * computed anytime by calling `new ConstantFormula(getRecordIds())`. Original operation
-	 * needs to perform costly creation of new internal bitmap that's why we memoize the result.
-	 */
-	@Nullable private transient Formula memoizedAllRecordsFormula;
 
 	/**
 	 * Creates a fresh, empty value tree (int payload column holding the owning record id) ordered by the given
@@ -296,17 +289,29 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		return records.isEmpty() ? null : records.getFirst();
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * A **fresh** formula is returned on every call, wrapping the {@link #recordIds} bitmap this index already
+	 * holds — there is nothing left to memoize, because the expensive part was always the bitmap and never the
+	 * few scalars of scaffolding around it.
+	 *
+	 * Building one per call is `O(1)` here for a reason worth knowing: {@link #recordIds} is a
+	 * {@link TransactionalBitmap} and therefore a
+	 * {@link io.evitadb.core.transaction.memory.TransactionalLayerProducer}, so `ConstantFormula` keys its cache
+	 * entry on the transactional id and never looks at the contents. A filter index's multi-bucket memo is a plain
+	 * `BaseBitmap` with no such id and has to hash the records instead, which is why that bitmap memoizes the hash
+	 * — see `FilterIndex#memoizedAllRecords`. Do not "harmonise" the two; they are not the same case.
+	 *
+	 * The formula must not be cached here. A {@link Formula} node carries per-query state:
+	 * {@link io.evitadb.core.query.algebra.AbstractFormula#initialize(io.evitadb.core.query.QueryExecutionContext)}
+	 * writes the executing query's context onto every node of the plan it joins, and that context transitively
+	 * reaches the session and the whole catalog generation the query ran against. An index-lifetime formula would
+	 * pin the first session that ever used it until the index is next written to.
+	 */
 	@Override
 	public Formula getRecordIdsFormula() {
-		// if there is transaction open, there might be changes in the bitmap, and we can't easily use cache
-		if (isTransactionAvailable() && this.dirty.isTrue()) {
-			return new ConstantFormula(this.recordIds);
-		} else {
-			if (this.memoizedAllRecordsFormula == null) {
-				this.memoizedAllRecordsFormula = new ConstantFormula(this.recordIds);
-			}
-			return this.memoizedAllRecordsFormula;
-		}
+		return new ConstantFormula(this.recordIds);
 	}
 
 	/**
@@ -318,11 +323,10 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * {@link IndexHeapSize#OWNED_KEY_SIZER}. {@link #recordIds} is likewise charged in full: every construction
 	 * site builds it fresh rather than adopting a caller's set.
 	 *
-	 * {@link #memoizedAllRecordsFormula} is charged as its **own object plus its memoized scalars, never its
-	 * bitmap**, through {@link IndexHeapSize#memoizedFormulaSizeInBytes} — the one place a memoized formula is
-	 * priced, so every index answers identically for one. The formula is `new ConstantFormula(this.recordIds)`: it
-	 * wraps the very set already charged above, and its own `memoizedResult` resolves to that same instance, so
-	 * following either would count one bitmap twice for an index that has answered a single query.
+	 * **No formula is charged, because none is retained.** {@link #getRecordIdsFormula()} builds
+	 * `new ConstantFormula(this.recordIds)` fresh per call and that wrapper dies with the query it served, so there
+	 * is nothing of index lifetime to price. It wrapped the very set already charged above in any case, so charging
+	 * it would have risked counting one bitmap twice.
 	 *
 	 * {@link #plainType} is a `Class` and {@link #comparator} is fixed scaffolding chosen by the attribute type, so
 	 * both contribute their slot alone — the same call {@code SortIndex} makes, for the same reason.
@@ -331,12 +335,11 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	@Override
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// the dirty / plainType / comparator / tree / pageStreamRegistry / recordIds / memoizedAllRecordsFormula slots
-		return getSharedHeapSizeInBytes(7L * layout.referenceSize())
+		// the dirty / plainType / comparator / tree / pageStreamRegistry / recordIds slots
+		return getSharedHeapSizeInBytes(6L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.tree.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER)
-			+ this.recordIds.getHeapSizeInBytes()
-			+ IndexHeapSize.memoizedFormulaSizeInBytes(this.memoizedAllRecordsFormula);
+			+ this.recordIds.getHeapSizeInBytes();
 	}
 
 	@Nonnull
@@ -540,7 +543,7 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * written anything (the baseline-capture pass re-enters the collect path), so it cannot rest on the previous
 	 * flush's bytes having landed — and it does not need to. A flush that fails during trunk incorporation SUSPENDS the
 	 * catalog's transaction processing ({@code TransactionManager.suspend}); a flush that fails during warm-up POISONS
-	 * the collection's buffer ({@code WarmUpDataStoreMemoryBuffer.poison}), so every later collect of it refuses
+	 * the catalog unpublishable ({@code Catalog.markUnpublishable}), so every later flush of it refuses
 	 * deterministically. The two are the same invariant in different dresses: after a failed flush nothing ever diffs
 	 * against the baseline it left behind, because no later flush of that data runs at all. Whatever a SUCCEEDING flush
 	 * leaves staged is exactly the page set it wrote, regardless of whether a commit-merge ever ran for it. (If the
@@ -588,8 +591,9 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	/**
 	 * Array-dispatching entry point for registration. When `key` is an array (an array-typed attribute), every
 	 * element is first checked for a conflicting owner and only then registered, so a violation on any element
-	 * aborts the whole operation before mutating the index. Scalar keys are delegated straight to the single-value
-	 * overload. Finally invalidates the memoized records formula (outside transactions) and marks the index dirty.
+	 * aborts the whole operation before mutating the index. The array is folded onto its distinct values first, so
+	 * a value the array repeats occupies its single tree entry once. Scalar keys are delegated straight to the
+	 * single-value overload. Finally marks the index dirty.
 	 *
 	 * @param key      single unique value or an array of unique values to register
 	 * @param recordId record id that should own the value(s)
@@ -598,14 +602,16 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	private <T extends Serializable & Comparable<T>> void registerUniqueKeyValue(@Nonnull Object key, int recordId) {
 		if (key instanceof @Nonnull final Object[] valueArray) {
 			verifyValueArray(key);
+			// one value is one tree entry however many times the array repeats it - see #foldOntoDistinctValues
+			final Object[] distinctValues = foldOntoDistinctValues(valueArray, this.comparator);
 			// first verify removed data without modifications
-			for (Object valueItem : valueArray) {
+			for (Object valueItem : distinctValues) {
 				final T theValueItem = (T) valueItem;
 				final Integer existingRecordId = getRecordIdByUniqueValue(theValueItem);
 				assertUniqueKeyIsFree(theValueItem, recordId, existingRecordId);
 			}
 			// now perform alteration
-			for (Object valueItem : valueArray) {
+			for (Object valueItem : distinctValues) {
 				//noinspection unchecked
 				registerUniqueKeyValue((T) valueItem, recordId);
 			}
@@ -613,10 +619,6 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 			verifyValue(key);
 			//noinspection unchecked
 			registerUniqueKeyValue((T) key, recordId);
-		}
-
-		if (!isTransactionAvailable()) {
-			this.memoizedAllRecordsFormula = null;
 		}
 
 		this.dirty.setToTrue();
@@ -641,8 +643,10 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * Array-dispatching entry point for de-registration. When `key` is an array, every element's ownership is
 	 * first verified and only then removed, so a mismatch on any element aborts the operation before mutating the
 	 * index; the array branch returns {@link Integer#MIN_VALUE} as a sentinel since no single record id applies.
-	 * Scalar keys are delegated to the single-value overload and return the removed record id. Finally invalidates
-	 * the memoized records formula (outside transactions) and marks the index dirty.
+	 * The array is folded onto its distinct values first, so a value the array repeats is retired once rather than
+	 * being sought a second time after its only entry is gone.
+	 * Scalar keys are delegated to the single-value overload and return the removed record id. Finally marks the
+	 * index dirty.
 	 *
 	 * @param key              single unique value or an array of unique values to unregister
 	 * @param expectedRecordId record id expected to currently own the value(s)
@@ -653,14 +657,16 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		final int returnValue;
 		if (key instanceof @Nonnull final Object[] valueArray) {
 			verifyValueArray(key);
+			// one value is one tree entry however many times the array repeats it - see #foldOntoDistinctValues
+			final Object[] distinctValues = foldOntoDistinctValues(valueArray, this.comparator);
 			// first verify removed data without modifications
-			for (Object valueItem : valueArray) {
+			for (Object valueItem : distinctValues) {
 				final T theValueItem = (T) valueItem;
 				final Integer existingRecordId = getRecordIdByUniqueValue(theValueItem);
 				assertUniqueKeyOwnership(theValueItem, expectedRecordId, existingRecordId);
 			}
 			// now perform alteration
-			for (Object valueItem : valueArray) {
+			for (Object valueItem : distinctValues) {
 				unregisterUniqueKeyValue((T) valueItem, expectedRecordId);
 			}
 
@@ -668,10 +674,6 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		} else {
 			verifyValue(key);
 			returnValue = unregisterUniqueKeyValue((T) key, expectedRecordId);
-		}
-
-		if (!isTransactionAvailable()) {
-			this.memoizedAllRecordsFormula = null;
 		}
 
 		this.dirty.setToTrue();

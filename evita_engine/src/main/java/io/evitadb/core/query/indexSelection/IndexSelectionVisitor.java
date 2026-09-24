@@ -45,6 +45,8 @@ import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.filter.FilterByVisitor.ReducedIndexCandidates;
+import io.evitadb.core.query.filter.translator.reference.BidirectionalReferenceRewriter;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes.EligibilityObstacle;
@@ -70,7 +72,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -208,17 +210,20 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					final Bitmap requestedHierarchyNodes = requestedHierarchyNodesFormula.compute();
 					final List<ReducedEntityIndex> theTargetIndexes =
 						new ArrayList<>(requestedHierarchyNodes.size() * scopes.size());
-					final AtomicInteger cardinalityCounter = new AtomicInteger(0);
+					final AtomicLong cardinalityCounter = new AtomicLong(0L);
 					for (Integer hierarchyEntityId : requestedHierarchyNodes) {
 						for (Scope scope : scopes) {
 							this.queryContext.getReducedEntityIndexes(
 								scope, hierarchyEntityId, entitySchema, referenceSchema, Functions.noOpBiFunction()
 							).forEach(ix -> {
 								theTargetIndexes.add(ix);
-								cardinalityCounter.addAndGet(ix.getAllPrimaryKeys().size());
+								cardinalityCounter.addAndGet(ix.size());
 							});
 						}
 					}
+					final long cardinalityLimit = (long) this.mainIndexCardinality / 2;
+					final boolean partitioned = allIndexesArePartitioned(scopes, referenceSchema);
+					final boolean withinCardinalityLimit = cardinalityCounter.get() <= cardinalityLimit;
 					// add indexes as potential target indexes
 					this.targetIndexes.add(
 						new TargetIndexes<>(
@@ -228,8 +233,8 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 							ReducedEntityIndex.class,
 							theTargetIndexes,
 							Stream.of(
-									allIndexesArePartitioned(scopes, referenceSchema) ? null : EligibilityObstacle.NOT_PARTITIONED_INDEX,
-									cardinalityCounter.get() <= this.mainIndexCardinality / 2 ? null : EligibilityObstacle.HIGH_CARDINALITY
+									partitioned ? null : EligibilityObstacle.NOT_PARTITIONED_INDEX,
+									withinCardinalityLimit ? null : EligibilityObstacle.HIGH_CARDINALITY
 								)
 								.filter(Objects::nonNull)
 								.toArray(EligibilityObstacle[]::new)
@@ -250,29 +255,88 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(constraint.getReferenceName());
 		final FilterByVisitor theFilterByVisitor = getFilterByVisitor();
 		final Set<Scope> scopes = theFilterByVisitor.getProcessingScope().getScopes();
-		final List<ReducedEntityIndex> theTargetIndexes = theFilterByVisitor
-			.getReferencedRecordEntityIndexes(constraint, scopes);
 
-		if (theTargetIndexes.isEmpty() && !scopes.equals(theFilterByVisitor.getScopes())) {
+		// when the constraint will be answered from the counterpart end of a bidirectional reference, the
+		// owner-side index set is never consulted - and merely discovering it (one reduced index per matching
+		// referenced entity, plus a pass over all their bitmaps for the cardinality check below) is the dominant cost
+		// this rewrite exists to avoid. The decision uses schemas and O(1) bitmap cardinalities only, so it can be
+		// taken here, before anything is materialised.
+		if (
+			BidirectionalReferenceRewriter.isApplicable(
+				this.queryContext, entitySchema, referenceSchema, constraint, scopes
+			)
+		) {
+			return;
+		}
+
+		// discovery only - which partitions qualify, not the partition objects themselves. Resolving them is the
+		// expensive half (one index object per partition the reference advertises, six figures on a production
+		// catalog) and most candidates are rejected without ever needing them.
+		final ReducedIndexCandidates candidates = theFilterByVisitor
+			.getReferencedRecordEntityIndexCandidates(constraint, scopes);
+		final int candidateCount = candidates.size();
+
+		if (candidateCount == 0 && !scopes.equals(theFilterByVisitor.getScopes())) {
 			// if the scopes were redefined in processing scope (differ from globally allowed scopes)
 			// skip this indexing option
 		} else {
-			// add indexes as potential target indexes
-			this.targetIndexes.add(
-				new TargetIndexes<>(
-					EntityIndexType.REFERENCED_ENTITY.name() +
-						" composed of " + theTargetIndexes.size() + " indexes",
-					constraint,
-					ReducedEntityIndex.class,
-					theTargetIndexes,
-					Stream.of(
-							allIndexesArePartitioned(scopes, referenceSchema) ? null : EligibilityObstacle.NOT_PARTITIONED_INDEX,
-							theTargetIndexes.stream().map(ReducedEntityIndex::getAllPrimaryKeys).mapToInt(Bitmap::size).sum() <= this.mainIndexCardinality / 2 ? null : EligibilityObstacle.HIGH_CARDINALITY
-						)
-						.filter(Objects::nonNull)
-						.toArray(EligibilityObstacle[]::new)
-				)
-			);
+			final String indexDescription = EntityIndexType.REFERENCED_ENTITY.name() +
+				" composed of " + candidateCount + " indexes";
+			// `long`, because the sum below counts reference ROWS - an owner occurs in as many partitions as it
+			// has rows - and that is not bounded by the owner collection's cardinality. An int sum can overflow
+			// to a negative value, which would satisfy the limit and mark the alternative ELIGIBLE: exactly the
+			// catastrophic plan this check exists to prevent.
+			final long cardinalityLimit = (long) this.mainIndexCardinality / 2;
+			final boolean partitioned = allIndexesArePartitioned(scopes, referenceSchema);
+			// the candidate count is a sound lower bound on that sum in every state the mutator produces: it
+			// un-advertises a partition in the same synchronous step in which its last owner leaves
+			// (`ReferenceIndexMutator#referenceRemovalPerComponent`), so an advertised partition has an owner.
+			// The load path is the only caller that could present one holding nobody, which
+			// `ReducedIndexMembership#registerIndex` accounts for rather than refuses; were such a partition to
+			// reach here the count would overstate the sum and raise HIGH_CARDINALITY where the exact sum would
+			// not - dropping the alternative plan, which costs a slower query and never a different answer.
+			// So a count already over the limit settles HIGH_CARDINALITY without resolving anything - which is
+			// what keeps the obstacle reported for a reference that is rejected on its schema before the sum is
+			// ever computed.
+			final boolean countSettlesCardinality = candidateCount > cardinalityLimit;
+			if (!partitioned || countSettlesCardinality) {
+				// every obstacle is decided from the schema and the candidate count alone, so the partitions stay
+				// unresolved unless something downstream genuinely needs the objects
+				this.targetIndexes.add(
+					new TargetIndexes<>(
+						indexDescription,
+						constraint,
+						ReducedEntityIndex.class,
+						candidateCount,
+						candidates::resolve,
+						Stream.of(
+								partitioned ? null : EligibilityObstacle.NOT_PARTITIONED_INDEX,
+								countSettlesCardinality ? EligibilityObstacle.HIGH_CARDINALITY : null
+							)
+							.filter(Objects::nonNull)
+							.toArray(EligibilityObstacle[]::new)
+					)
+				);
+			} else {
+				// the reference is partitioned and the count alone leaves the limit undecided, so the exact sum
+				// has to be taken - and taking it needs the partitions anyway
+				final List<ReducedEntityIndex> theTargetIndexes = candidates.resolve();
+				final long ownerRows = theTargetIndexes.stream()
+					.map(ReducedEntityIndex::getAllPrimaryKeys)
+					.mapToLong(Bitmap::size)
+					.sum();
+				this.targetIndexes.add(
+					new TargetIndexes<>(
+						indexDescription,
+						constraint,
+						ReducedEntityIndex.class,
+						theTargetIndexes,
+						ownerRows <= cardinalityLimit
+							? new EligibilityObstacle[0]
+							: new EligibilityObstacle[]{EligibilityObstacle.HIGH_CARDINALITY}
+					)
+				);
+			}
 		}
 	}
 

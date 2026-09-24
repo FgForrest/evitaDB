@@ -70,6 +70,258 @@ modifications were applied. When replaying upstream changes, **keep** these:
   in the exported package. Hiding them needs either relocation into a non-exported `internal` pkg
   (with member promotion) or confirmation they're unused by evita; deferred to the Part 2 migration.
 
+## Local API additions (evita divergence — preserve on re-sync)
+
+Two **additive** methods that exist only in this fork. Both were introduced for `RangeCountKernel`
+(`evita_engine`, issue #1546), whose shape is thousands of tiny operands scanned together; both are
+widenings of an existing contract rather than new exposure of container internals, so neither moves
+the `Container`/`RoaringArray` encapsulation boundary the module is built around. On a re-sync,
+**re-apply them** — upstream has no counterpart and will never conflict semantically, only textually.
+
+### `BatchIterator.nextBatch(int[] buffer, int offset, int length)`
+
+Upstream `BatchIterator` fills a whole caller-owned array from index `0`. The bounded form lets many
+iterators share one arena array, each owning a fixed slice, instead of each allocating a buffer of
+its own — at k = 7,602 operands averaging 3.8 values each, per-iterator buffers are ~240 KB of
+short-lived 32-byte arrays per query, and scattering them defeats the locality of every pass over
+the cursors.
+
+- `BatchIterator.nextBatch(int[])` became a `default` delegating to the bounded form; every existing
+  call site is unchanged.
+- `RoaringBatchIterator` implements the bounded form and no longer declares the one-argument one.
+- `ContainerBatchIterator.next(int key, int[] buffer, int offset)` gained a `limit` parameter the
+  same way — `next(key, buffer, offset, limit)` is now the abstract method, the two shorter forms are
+  defaults. `ArrayBatchIterator`, `BitmapBatchIterator` and `RunBatchIterator` read `limit` where
+  they read `buffer.length` before. **That substitution is the whole change in those three classes**;
+  an upstream diff touching their fill loops maps onto it directly.
+
+### `RoaringBitmapWriter.addChunk(char key, long[] words, int fromWord, int toWord)`
+
+Hands one whole 65,536-value chunk to the writer as the caller's own word bitmap. A caller that
+already holds a chunk as `long[1024]` would otherwise decompose it into ints only for
+`ConstantMemoryContainerAppender.add(int)` to set the very same bits again in its own word buffer of
+exactly that layout — a round trip of one `numberOfTrailingZeros` plus one masked OR per set id.
+
+- Declared as a `default` on `RoaringBitmapWriter` that loops `add(int)`, so `ContainerAppender` and
+  any future implementation inherit correct behaviour with no work.
+- Overridden in `ConstantMemoryContainerAppender` as a word-wise OR into its buffer. Its out-of-order
+  key branch calls `RoaringBitmapWriter.super.addChunk(...)` rather than repeating the decompose loop,
+  so the two are one implementation and cannot drift apart across a re-sync. It ORs rather than copies
+  so a chunk handed over this way may be mixed with `add(int)` calls carrying the same key.
+
+**Not applicable upstream.** Both are shaped by evitaDB's own call site; neither is a fix to anything
+upstream does wrong, so there is nothing to report or contribute.
+
+### Where a botched re-apply gets caught
+
+Both additions are pinned by tests in this module, so a re-sync that reapplies them slightly wrong
+fails here rather than somewhere downstream in `evita_engine`:
+
+- `TestRoaringBitmapWriter#addChunkHonoursItsWordRange`, `#addChunkBelowTheCurrentKeyStillLands`,
+  `#addChunkMergesWithSingleValueAddsOnTheSameKey` — run against every writer configuration, so they
+  cover the interface default and the constant-memory override together.
+- `RoaringBitmapBatchIteratorTest#testBoundedNextBatchHonoursOffsetAndLength`,
+  `#testBoundedNextBatchTruncatesInsideARunContainer` — the bound holding across a container crossing
+  and inside a single run, which is where `limit` replaced `buffer.length`.
+
+## Computation kernels (evita-only files — preserve on re-sync)
+
+Upstream has no counterpart to any of the following; they are evitaDB's own and must survive every sync.
+
+- **`io/evitadb/roaringbitmap/kernel/`** (package deliberately **not** exported) — the word- and value-level
+  loops the container operators run on, behind an interface with two implementations. `BitmapKernels` /
+  `ScalarBitmapKernels` / `VectorBitmapKernels` are the 1024-word kernels (population counts, the four
+  boolean operations, fused variants that store and count in one pass, and the five `extract*` kernels that
+  decode set bits into a value list); `ArrayKernels` / `ScalarArrayKernels` are the sorted-`char[]` merge,
+  scalar only so far; `VectorKernels` is the holder that picks an implementation once per JVM and records
+  why.
+- **`io/evitadb/roaringbitmap/RoaringKernels.java`** (exported) — one method, `vectorKernelsSummary()`,
+  through which evitaDB's engine reads that decision and logs it at startup. It exists because the kernel
+  package is not exported and this module has (and must keep) no logging dependency.
+- **`module-info.java`** gains `requires static jdk.incubator.vector` (optional at run time — the incubating
+  Vector API is never in the default root set, so a launcher without `--add-modules jdk.incubator.vector`
+  runs the scalar kernels) and `requires java.management` (the provider reads the JVM's own command line to
+  see whether an optimizing JIT is available).
+- **`ScalarArrayKernels` delegates to the public `Util.unsignedIntersect2by2` dispatcher** (galloping or merge by
+  the operands' sizes) rather than to the package-private merge, so no visibility of `Util` had to change for the
+  sparse-container seam.
+
+**What this means when replaying an upstream change.** `BitmapContainer`'s `and` / `andCardinality` / `andNot`
+/ `iand` / `iandNot` / `or` / `ior` / `xor` / `ixor` / `rank` / `validate` / `computeCardinality` /
+`fillLeastSignificant16bits`, and `Util`'s `cardinalityInBitmapRange` / `fillArray` / `fillArrayAND` /
+`fillArrayANDNOT` / `fillArrayXOR`, no longer hold their loops inline — they call `VectorKernels.BITMAP`. An
+upstream edit to one of those loops therefore lands in `ScalarBitmapKernels` (the reference implementation,
+whose loops are those loops) **and** in `VectorBitmapKernels`, not in the container or in `Util`. An upstream
+edit to the surrounding logic — a demotion threshold, a `RunContainer.full()` promotion, a lazy-cardinality
+branch, the length check `fillArrayAND` throws on — still lands where it always did.
+
+**The extraction kernels are density-gated, and every kernel signature carrying a trailing `cardinality` is
+evita's.** `extract` (both forms), `extractAndNot` and `extractXor` have a second overload taking the
+population count the caller already knows; `VectorBitmapKernels` skips empty blocks only up to
+`SPARSE_EXTRACTION_BOUND` (512) and runs the scalar walk above it, because the skip was measured at 1.2x the
+scalar walk with 256 values set and 0.50x with 1024. `Util.fillArray` / `fillArrayANDNOT` / `fillArrayXOR`
+mirror the overload, `BitmapContainer`'s demotion sites and `fillLeastSignificant16bits` and
+`ArrayContainer.loadData` pass the count they hold, and the hint-less forms keep the unconditional skip for
+the caller that cannot count (a lazy container). An upstream edit to any of those call sites lands on
+whichever overload the site already uses; the hint never changes the values written.
+
+**Four vector kernels are deliberately delegated to the scalar ones.** `VectorBitmapKernels`'
+`andCardinality` / `orCardinality` / `xorCardinality` / `andNotCardinality` call `ScalarBitmapKernels`,
+because JMH measured the lane version at 0.83-0.90x of the auto-vectorized scalar reduction. They are
+delegations rather than deletions so the measurement stays next to the code it condemns; re-vectorizing one
+needs a new measurement, not a revert. `BitmapContainer.or` is one behavioural divergence
+to keep in mind while diffing: upstream clones and unions in place, the vendored copy unions straight into a
+fresh container in a single pass, with the same `RunContainer.full()` promotion at the end.
+
+Correctness of the vector implementations is pinned two ways: `VectorKernels` self-tests every kernel against
+its scalar twin at class-init and falls back on any mismatch, and `VectorKernelsDifferentialTest` /
+`VectorArrayKernelsDifferentialTest` compare the two directly across densities, seeds, word-boundary and
+lane-boundary bit placements, randomly drawn ranges, and value-list lengths either side of a vector block. The
+module's surefire runs the whole suite twice — once as the JVM offers it, once with
+`-Devita.roaring.vector=false` — so both implementations are exercised by every vendored test, not only by the
+kernel tests.
+
+`LazyArrayUnionTest` sits outside that pairing on purpose, because what it protects is the container
+behaviour described in the next section rather than either kernel implementation; it runs on whichever one
+the provider selected, in both surefire executions.
+
+## Container hash codes (evita-specific divergence — preserve on re-sync)
+
+All three containers hash the chunk's **canonical 1,024-word form** rather than their own storage, through the
+package-private `ContainerHash`:
+
+```
+hash = SEED + Σ  mixWord(word) * 31^wordIndex      over the container's non-empty words
+```
+
+`BitmapContainer` folds its own words; `ArrayContainer` groups its ascending values into words as it reads
+them; `RunContainer` paints the words each run spans. None materializes an array, and the sum is
+order-independent — but **each occupied word must be folded exactly once**, which is why `RunContainer` defers
+a fold until the word index changes (two runs can share one word).
+
+**This replaces three upstream defects, and a re-sync must keep this side of all three.** They are present in
+the released upstream artifacts — the `+=` is visible in `RoaringBitmap-0.9.15` bytecode — and **none has been
+reported upstream**; this fork diverges rather than waiting.
+
+| upstream | what is wrong with it |
+|---|---|
+| `ArrayContainer.hashCode`, `RunContainer.hashCode`: `hash += 31 * hash + entry` | the `+=` makes it `hash = 32 * hash + entry`, base `2^5`. The entry `j` places from the end carries `2^(5 * j)`, and `2^35` is `0` in a 32-bit `int`, so **only the last seven entries contribute at all** — and inside that window only the low `32 - 5j` bits of each. A 4,096-value container was hashed from seven values. |
+| `RunContainer` folds `value, length` run pairs; `ArrayContainer` folds values | one set, two hashes. `RunContainer.equals(ArrayContainer)` reports the two **equal**, so this is a live `equals`/`hashCode` break — reachable with nothing but `runOptimize()`. |
+| `BitmapContainer.hashCode` is `Arrays.hashCode(bitmap)` | that folds each word as `(int) (e ^ (e >>> 32))`, which is `0` for `-1L` exactly as it is for `0L`, so **an all-ones word is invisible**. Two disjoint 4,160-value chunks, built with nothing but `add(int)`, hashed identically. |
+
+`ContainerHash.mixWord` exists because of the third row: it is a 64-to-32 finalizer rather than `Long#hashCode`,
+and it maps `0L` to `0` — which is load-bearing, since skipping an empty word and folding it must be the same
+act. The `31^i` weights are what let a sparse container skip the words it does not occupy at all; a sequential
+`hash = 31 * hash + word` would cost every container 1,024 steps.
+
+Cost: `BitmapContainer` walks 1,024 words and `ArrayContainer` its values (≤ 4,096). `RunContainer` takes one
+step per word each run touches, i.e. `nbrruns + 1023` at worst — neither term bounds it alone, since one run
+covering the chunk costs 1,024 steps at `nbrruns == 1` while 32,768 single-value runs cost 32,768 over 1,024
+distinct words. **Folds** stay ≤ 1,024 in every case, a fold happening only when the word index changes.
+
+`SEED` is a constant offset and nothing more: `hash == SEED` is **not** an emptiness test, because `mixWord` is
+a 64-to-32 map and a word mixing to `0` (or to `-SEED`) puts a non-empty container back on the seed (or on
+`0`). `ContainerHashCodeTest.SeedCarriesNoMeaning` constructs both witnesses.
+
+`ContainerHashCodeTest` pins all of it — each encoding against a reference that materializes the words the slow
+way, the three against each other, and the three defects above as regressions that fail on upstream's code.
+
+**What was deliberately NOT changed: `Container.equals` is still not transitive.** `RunContainer.equals`
+answers against any `Container`, while `ArrayContainer` and `BitmapContainer` know only their own type and
+`RunContainer` — so `Array == Run` and `Run == Bitmap` while `Array != Bitmap`. No public API path reaches it
+(a chunk's encoding is decided by its cardinality, so an array and a bitmap never hold the same set; `remove`,
+`and`, `andNot`, `xor` and `FastAggregation.naive_or` were all checked and demote correctly), and the hash
+agrees across all three encodings regardless. `ContainerHashCodeTest.KnownEqualsAsymmetry` records the state so
+that the fixed hash is not read as evidence that container equality is sound.
+
+## Sparse lazy union (evita-specific divergence — preserve on re-sync)
+
+`PersistentRoaringBitmap.naivelazyor` promoted the accumulator's chunk to a `BitmapContainer` on the **first**
+shared key, whatever the two cardinalities were; upstream still does. The vendored copy keeps two sparse chunks
+sparse while their combined cardinality fits `PersistentRoaringBitmap.LAZY_ARRAY_UNION_BOUND`, merging them as
+value lists through `ArrayContainer.ior(ArrayContainer)` and leaving the cardinality **known** rather than
+lazy. This is CRoaring's `ARRAY_LAZY_LOWERBOUND` branch (`src/containers/mixed_union.c`), which the Java port
+never reached from a multi-way union (the container-level `ArrayContainer.lazyor` carries the same branch with
+`ARRAY_LAZY_LOWERBOUND = 1024`, but `naivelazyor` promoted the accumulator before merging, so it was bypassed); the
+bound on the multi-way path is lower because the Java `ior` copies the accumulator on every fold, which makes the
+array fold quadratic in the number of inputs — the input-count guard in `FastAggregation.naive_or` is the other half.
+
+The shape of the divergence, for a diff:
+
+- `naivelazyor` gained a `(PersistentRoaringBitmap, boolean)` overload; the one-argument form delegates with
+  the policy on and is what upstream's signature maps to.
+- `lazyUnionInto` is the single place the policy lives, and it is reached from both `naivelazyor`'s own
+  shared-key branch **and** `mergeBulk`'s `MERGE_LAZY_OR` branch, which finishes the same fold once the
+  receiver runs out of keys. `MERGE_LAZY_OR_PROMOTE` is the same merge with the policy declined.
+- `FastAggregation.naive_or(PersistentRoaringBitmap...)` declines the policy above
+  `LAZY_ARRAY_UNION_MAX_INPUTS` inputs; the `Iterator` form cannot count its inputs and keeps it.
+- `lazyor` (the non-promoting lazy union) is untouched — it never promoted in the first place.
+
+`LazyArrayUnionTest` pins all of it, including that the policy does not change the answer and that a co-owned
+accumulator is cloned before it is merged into.
+
+## Array-to-bitmap scatter helpers (structural divergence only — the loops are upstream's)
+
+`BitmapContainer`'s four array-operand write paths — `ilazyor(ArrayContainer)`, `ior(ArrayContainer)`,
+`or(ArrayContainer)` and `loadData(ArrayContainer)` — set one bit per value with `bitmap[v >>> 6] |= 1L << v`
+inside the value loop, exactly as upstream does. The vendored copy merely hoists that loop into two private
+statics, `scatterInto` (no cardinality bookkeeping, used by `ilazyor` and `loadData`) and `scatterIntoCounting`
+(returns the number of bits the writes newly set via upstream's `(before - after) >>> 63`, used by `ior` and
+`or`), so the four sites share one loop. `loadData` merges its words with `|=` rather than assigning them, as
+upstream's loop does. An upstream diff of the four methods therefore shows only the extracted call.
+
+**A word-batched variant was measured and reverted; do not reintroduce it without a per-operation
+measurement.** Accumulating the bits of the current word in a register and writing once per distinct word
+measured 1.42x on a JMH *batch* replay of 300 operand pairs recorded from a production e-commerce catalog
+(21.8 vs 31.0 ns per pair), and then cost 7.3 % on the catalog-wide facet summaries of the same catalog end to
+end (19,178 → 20,577 ms on a quiet box; back to 19,372 ms with the per-value loop, with the fuse-first
+intersection change from the same commit kept). The batch weights by value and its time is dominated by the
+few long operands (mean 42 values, 81 % of values sharing a word with their predecessor, 5.35x fewer writes
+overall); the engine weights by operation — `ilazyor(ArrayContainer)` is 92.7 % of all container operations —
+and the median operation scatters four values that each sit in their own word, where the batched loop performs
+the same writes plus a data-dependent branch per value. The decision record
+`documentation/adr/2026-09-19-roaring-simd-kernels-and-lazy-union/` carries both measurements.
+
+`ScatterAndFuseFirstIntersectionTest` pins the four methods differentially against inline per-value reference
+loops, so the helpers cannot drift from upstream's semantics unnoticed.
+
+## Fuse-first bitmap intersection (evita-specific divergence — preserve on re-sync)
+
+Upstream decides the result container type *before* it writes anything: `and(BitmapContainer)`,
+`iand(BitmapContainer)` and `iandNot(BitmapContainer)` run a cardinality-only pass over both operands, then
+either write the words or extract the values. The vendored copy inverts that for three of the four
+bitmap-by-bitmap paths — it runs the fused kernel first (which stores the words *and* returns their population
+count in a single pass) and demotes afterwards, extracting out of the already-computed words with
+`Util.fillArray` instead of the two-operand `fillArrayAND` / `fillArrayANDNOT`.
+
+| method | policy here | why |
+|---|---|---|
+| `and(BitmapContainer)` | **fuse first** into a fresh container, demote after | 99.94 % of real intersections stay dense, so the count pass almost never saves the 8 KiB it is there to save |
+| `iand(BitmapContainer)`, non-lazy branch | **fuse first** in place, demote after | same, and the words are overwritten either way |
+| `iandNot(BitmapContainer)` | **fuse first** in place, demote after | the difference is written into the receiver either way, so an early count avoids no allocation at all |
+| `andNot(BitmapContainer)` | **count first** (upstream's shape, unchanged) | 47.8 % of real differences demote, so here the count pass does save the allocation |
+
+Measured on a replay of 300 bitmap-pair intersections recorded from a production e-commerce catalog: 246 ns
+per pair for the two-pass form, 257 ns for count-then-fused, 152 ns scalar / 157 ns vector for the single
+fused pass (1.6x). The census behind the density figures counted 85,050 of 85,100 real bitmap-by-bitmap
+intersections staying dense.
+
+Two consequences worth keeping in view on a re-sync:
+
+- **`iand` and `iandNot` now overwrite the receiver even when they demote.** Upstream's sparse branch left the
+  receiver's words intact because it read both operands to fill the array. Every call site replaces the
+  receiver with the returned container (`PersistentRoaringBitmap#and` / `#andNot` call `copyIfShared` first,
+  `PersistentLongRoaringBitmap` owns its containers outright), so this is within the in-place contract — but
+  a future caller that reads the receiver after a demoting `iand` would now see the intersection, not the
+  original.
+- **`and(BitmapContainer)`'s inclusion-exclusion shortcut is gone.** It existed to skip the count pass for a
+  pair whose sizes already proved the result dense (`|a ∩ b| >= |a| + |b| - 65536`); with no count pass left
+  there is nothing for it to skip.
+
+`ScatterAndFuseFirstIntersectionTest.BitmapIntersectionPolicy` pins the container type and the values on both sides of the
+demotion threshold for all three; `TestBitmapContainer`'s intersection tests cover the same ground from the
+upstream side.
+
 ## Sync log
 
 ### Review 1 — base v1.6.12 (`952f8ce7`) → `2863e96d`

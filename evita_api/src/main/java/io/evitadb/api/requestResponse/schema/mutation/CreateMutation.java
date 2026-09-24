@@ -100,9 +100,8 @@ public interface CreateMutation {
 	) {
 		final T newValue = propertyRetriever.apply(createdVersion);
 		final T existingValue = propertyRetriever.apply(existingVersion);
-		if (newValue instanceof Object[] && existingValue instanceof Object[]) {
-			return Arrays.equals((Object[]) newValue, (Object[]) existingValue) ? null : mutationCreator.apply(
-				newValue);
+		if (newValue instanceof Object[] newArray && existingValue instanceof Object[] existingArray) {
+			return Arrays.equals(newArray, existingArray) ? null : mutationCreator.apply(newValue);
 		} else {
 			return Objects.equals(existingValue, newValue) ? null : mutationCreator.apply(newValue);
 		}

@@ -46,6 +46,8 @@ private static final long serialVersionUID = 0L;
   }
   private GrpcStoragePartUsage() {
     storagePartType_ = "";
+    group_ = 0;
+    kind_ = 0;
   }
 
   @java.lang.Override
@@ -74,7 +76,8 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Simple class name of the storage part, e.g. `EntityBodyStoragePart`, `AttributesStoragePart`,
-   * `AssociatedDataStoragePart`.
+   * `AssociatedDataStoragePart`. An OPEN set - it grows whenever the engine gains an index structure - so it is an
+   * identity to show, never one to classify by. Group by `group` instead.
    * </pre>
    *
    * <code>string storagePartType = 1;</code>
@@ -96,7 +99,8 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Simple class name of the storage part, e.g. `EntityBodyStoragePart`, `AttributesStoragePart`,
-   * `AssociatedDataStoragePart`.
+   * `AssociatedDataStoragePart`. An OPEN set - it grows whenever the engine gains an index structure - so it is an
+   * identity to show, never one to classify by. Group by `group` instead.
    * </pre>
    *
    * <code>string storagePartType = 1;</code>
@@ -147,6 +151,66 @@ private static final long serialVersionUID = 0L;
     return totalBytes_;
   }
 
+  public static final int GROUP_FIELD_NUMBER = 4;
+  private int group_ = 0;
+  /**
+   * <pre>
+   * Which kind of data this storage-part type holds - what a composition table groups by. A CLOSED set: a new part
+   * type lands in an existing group, so a client that knows these values keeps rendering a correct table across
+   * engine versions.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStoragePartGroup group = 4;</code>
+   * @return The enum numeric value on the wire for group.
+   */
+  @java.lang.Override public int getGroupValue() {
+    return group_;
+  }
+  /**
+   * <pre>
+   * Which kind of data this storage-part type holds - what a composition table groups by. A CLOSED set: a new part
+   * type lands in an existing group, so a client that knows these values keeps rendering a correct table across
+   * engine versions.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStoragePartGroup group = 4;</code>
+   * @return The group.
+   */
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcStoragePartGroup getGroup() {
+    io.evitadb.externalApi.grpc.generated.GrpcStoragePartGroup result = io.evitadb.externalApi.grpc.generated.GrpcStoragePartGroup.forNumber(group_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcStoragePartGroup.UNRECOGNIZED : result;
+  }
+
+  public static final int KIND_FIELD_NUMBER = 5;
+  private int kind_ = 0;
+  /**
+   * <pre>
+   * The coarse fold of `group` - entity data, an index derived from it, or the store's own metadata. Sent rather
+   * than derived from `group` because a generated client enum carries no behaviour to derive it with; it is always
+   * the kind that `group` belongs to and can never contradict it.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStoragePartKind kind = 5;</code>
+   * @return The enum numeric value on the wire for kind.
+   */
+  @java.lang.Override public int getKindValue() {
+    return kind_;
+  }
+  /**
+   * <pre>
+   * The coarse fold of `group` - entity data, an index derived from it, or the store's own metadata. Sent rather
+   * than derived from `group` because a generated client enum carries no behaviour to derive it with; it is always
+   * the kind that `group` belongs to and can never contradict it.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStoragePartKind kind = 5;</code>
+   * @return The kind.
+   */
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcStoragePartKind getKind() {
+    io.evitadb.externalApi.grpc.generated.GrpcStoragePartKind result = io.evitadb.externalApi.grpc.generated.GrpcStoragePartKind.forNumber(kind_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcStoragePartKind.UNRECOGNIZED : result;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -170,6 +234,12 @@ private static final long serialVersionUID = 0L;
     if (totalBytes_ != 0L) {
       output.writeInt64(3, totalBytes_);
     }
+    if (group_ != io.evitadb.externalApi.grpc.generated.GrpcStoragePartGroup.STORAGE_PART_GROUP_UNSPECIFIED.getNumber()) {
+      output.writeEnum(4, group_);
+    }
+    if (kind_ != io.evitadb.externalApi.grpc.generated.GrpcStoragePartKind.STORAGE_PART_KIND_UNSPECIFIED.getNumber()) {
+      output.writeEnum(5, kind_);
+    }
     getUnknownFields().writeTo(output);
   }
 
@@ -189,6 +259,14 @@ private static final long serialVersionUID = 0L;
     if (totalBytes_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
         .computeInt64Size(3, totalBytes_);
+    }
+    if (group_ != io.evitadb.externalApi.grpc.generated.GrpcStoragePartGroup.STORAGE_PART_GROUP_UNSPECIFIED.getNumber()) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeEnumSize(4, group_);
+    }
+    if (kind_ != io.evitadb.externalApi.grpc.generated.GrpcStoragePartKind.STORAGE_PART_KIND_UNSPECIFIED.getNumber()) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeEnumSize(5, kind_);
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -211,6 +289,8 @@ private static final long serialVersionUID = 0L;
         != other.getCount()) return false;
     if (getTotalBytes()
         != other.getTotalBytes()) return false;
+    if (group_ != other.group_) return false;
+    if (kind_ != other.kind_) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -229,6 +309,10 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + TOTALBYTES_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
         getTotalBytes());
+    hash = (37 * hash) + GROUP_FIELD_NUMBER;
+    hash = (53 * hash) + group_;
+    hash = (37 * hash) + KIND_FIELD_NUMBER;
+    hash = (53 * hash) + kind_;
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -368,6 +452,8 @@ private static final long serialVersionUID = 0L;
       storagePartType_ = "";
       count_ = 0;
       totalBytes_ = 0L;
+      group_ = 0;
+      kind_ = 0;
       return this;
     }
 
@@ -409,6 +495,12 @@ private static final long serialVersionUID = 0L;
       }
       if (((from_bitField0_ & 0x00000004) != 0)) {
         result.totalBytes_ = totalBytes_;
+      }
+      if (((from_bitField0_ & 0x00000008) != 0)) {
+        result.group_ = group_;
+      }
+      if (((from_bitField0_ & 0x00000010) != 0)) {
+        result.kind_ = kind_;
       }
     }
 
@@ -467,6 +559,12 @@ private static final long serialVersionUID = 0L;
       if (other.getTotalBytes() != 0L) {
         setTotalBytes(other.getTotalBytes());
       }
+      if (other.group_ != 0) {
+        setGroupValue(other.getGroupValue());
+      }
+      if (other.kind_ != 0) {
+        setKindValue(other.getKindValue());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -508,6 +606,16 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000004;
               break;
             } // case 24
+            case 32: {
+              group_ = input.readEnum();
+              bitField0_ |= 0x00000008;
+              break;
+            } // case 32
+            case 40: {
+              kind_ = input.readEnum();
+              bitField0_ |= 0x00000010;
+              break;
+            } // case 40
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -529,7 +637,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Simple class name of the storage part, e.g. `EntityBodyStoragePart`, `AttributesStoragePart`,
-     * `AssociatedDataStoragePart`.
+     * `AssociatedDataStoragePart`. An OPEN set - it grows whenever the engine gains an index structure - so it is an
+     * identity to show, never one to classify by. Group by `group` instead.
      * </pre>
      *
      * <code>string storagePartType = 1;</code>
@@ -550,7 +659,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Simple class name of the storage part, e.g. `EntityBodyStoragePart`, `AttributesStoragePart`,
-     * `AssociatedDataStoragePart`.
+     * `AssociatedDataStoragePart`. An OPEN set - it grows whenever the engine gains an index structure - so it is an
+     * identity to show, never one to classify by. Group by `group` instead.
      * </pre>
      *
      * <code>string storagePartType = 1;</code>
@@ -572,7 +682,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Simple class name of the storage part, e.g. `EntityBodyStoragePart`, `AttributesStoragePart`,
-     * `AssociatedDataStoragePart`.
+     * `AssociatedDataStoragePart`. An OPEN set - it grows whenever the engine gains an index structure - so it is an
+     * identity to show, never one to classify by. Group by `group` instead.
      * </pre>
      *
      * <code>string storagePartType = 1;</code>
@@ -590,7 +701,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Simple class name of the storage part, e.g. `EntityBodyStoragePart`, `AttributesStoragePart`,
-     * `AssociatedDataStoragePart`.
+     * `AssociatedDataStoragePart`. An OPEN set - it grows whenever the engine gains an index structure - so it is an
+     * identity to show, never one to classify by. Group by `group` instead.
      * </pre>
      *
      * <code>string storagePartType = 1;</code>
@@ -605,7 +717,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Simple class name of the storage part, e.g. `EntityBodyStoragePart`, `AttributesStoragePart`,
-     * `AssociatedDataStoragePart`.
+     * `AssociatedDataStoragePart`. An OPEN set - it grows whenever the engine gains an index structure - so it is an
+     * identity to show, never one to classify by. Group by `group` instead.
      * </pre>
      *
      * <code>string storagePartType = 1;</code>
@@ -706,6 +819,172 @@ private static final long serialVersionUID = 0L;
     public Builder clearTotalBytes() {
       bitField0_ = (bitField0_ & ~0x00000004);
       totalBytes_ = 0L;
+      onChanged();
+      return this;
+    }
+
+    private int group_ = 0;
+    /**
+     * <pre>
+     * Which kind of data this storage-part type holds - what a composition table groups by. A CLOSED set: a new part
+     * type lands in an existing group, so a client that knows these values keeps rendering a correct table across
+     * engine versions.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStoragePartGroup group = 4;</code>
+     * @return The enum numeric value on the wire for group.
+     */
+    @java.lang.Override public int getGroupValue() {
+      return group_;
+    }
+    /**
+     * <pre>
+     * Which kind of data this storage-part type holds - what a composition table groups by. A CLOSED set: a new part
+     * type lands in an existing group, so a client that knows these values keeps rendering a correct table across
+     * engine versions.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStoragePartGroup group = 4;</code>
+     * @param value The enum numeric value on the wire for group to set.
+     * @return This builder for chaining.
+     */
+    public Builder setGroupValue(int value) {
+      group_ = value;
+      bitField0_ |= 0x00000008;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Which kind of data this storage-part type holds - what a composition table groups by. A CLOSED set: a new part
+     * type lands in an existing group, so a client that knows these values keeps rendering a correct table across
+     * engine versions.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStoragePartGroup group = 4;</code>
+     * @return The group.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcStoragePartGroup getGroup() {
+      io.evitadb.externalApi.grpc.generated.GrpcStoragePartGroup result = io.evitadb.externalApi.grpc.generated.GrpcStoragePartGroup.forNumber(group_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcStoragePartGroup.UNRECOGNIZED : result;
+    }
+    /**
+     * <pre>
+     * Which kind of data this storage-part type holds - what a composition table groups by. A CLOSED set: a new part
+     * type lands in an existing group, so a client that knows these values keeps rendering a correct table across
+     * engine versions.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStoragePartGroup group = 4;</code>
+     * @param value The group to set.
+     * @return This builder for chaining.
+     */
+    public Builder setGroup(io.evitadb.externalApi.grpc.generated.GrpcStoragePartGroup value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      bitField0_ |= 0x00000008;
+      group_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Which kind of data this storage-part type holds - what a composition table groups by. A CLOSED set: a new part
+     * type lands in an existing group, so a client that knows these values keeps rendering a correct table across
+     * engine versions.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStoragePartGroup group = 4;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearGroup() {
+      bitField0_ = (bitField0_ & ~0x00000008);
+      group_ = 0;
+      onChanged();
+      return this;
+    }
+
+    private int kind_ = 0;
+    /**
+     * <pre>
+     * The coarse fold of `group` - entity data, an index derived from it, or the store's own metadata. Sent rather
+     * than derived from `group` because a generated client enum carries no behaviour to derive it with; it is always
+     * the kind that `group` belongs to and can never contradict it.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStoragePartKind kind = 5;</code>
+     * @return The enum numeric value on the wire for kind.
+     */
+    @java.lang.Override public int getKindValue() {
+      return kind_;
+    }
+    /**
+     * <pre>
+     * The coarse fold of `group` - entity data, an index derived from it, or the store's own metadata. Sent rather
+     * than derived from `group` because a generated client enum carries no behaviour to derive it with; it is always
+     * the kind that `group` belongs to and can never contradict it.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStoragePartKind kind = 5;</code>
+     * @param value The enum numeric value on the wire for kind to set.
+     * @return This builder for chaining.
+     */
+    public Builder setKindValue(int value) {
+      kind_ = value;
+      bitField0_ |= 0x00000010;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The coarse fold of `group` - entity data, an index derived from it, or the store's own metadata. Sent rather
+     * than derived from `group` because a generated client enum carries no behaviour to derive it with; it is always
+     * the kind that `group` belongs to and can never contradict it.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStoragePartKind kind = 5;</code>
+     * @return The kind.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcStoragePartKind getKind() {
+      io.evitadb.externalApi.grpc.generated.GrpcStoragePartKind result = io.evitadb.externalApi.grpc.generated.GrpcStoragePartKind.forNumber(kind_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcStoragePartKind.UNRECOGNIZED : result;
+    }
+    /**
+     * <pre>
+     * The coarse fold of `group` - entity data, an index derived from it, or the store's own metadata. Sent rather
+     * than derived from `group` because a generated client enum carries no behaviour to derive it with; it is always
+     * the kind that `group` belongs to and can never contradict it.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStoragePartKind kind = 5;</code>
+     * @param value The kind to set.
+     * @return This builder for chaining.
+     */
+    public Builder setKind(io.evitadb.externalApi.grpc.generated.GrpcStoragePartKind value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      bitField0_ |= 0x00000010;
+      kind_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The coarse fold of `group` - entity data, an index derived from it, or the store's own metadata. Sent rather
+     * than derived from `group` because a generated client enum carries no behaviour to derive it with; it is always
+     * the kind that `group` belongs to and can never contradict it.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStoragePartKind kind = 5;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearKind() {
+      bitField0_ = (bitField0_ & ~0x00000010);
+      kind_ = 0;
       onChanged();
       return this;
     }

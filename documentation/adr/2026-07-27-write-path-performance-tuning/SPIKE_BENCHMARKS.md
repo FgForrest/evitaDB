@@ -34,7 +34,7 @@ a sibling `dev`-branch mirror can be lined up cell-for-cell with no query-engine
   parts). Run with `-prof gc` to get the normalized allocation rate alongside timing.
 
 **Dependency to know before running:** the `anchor` scenario reads
-`/var/tmp/decodoma-bench/sort-anchor.txt`, produced by `SortAnchorExtractor` — that file does not
+`/var/tmp/catalog-bench/sort-anchor.txt`, produced by `SortAnchorExtractor` — that file does not
 exist by default and must be regenerated. The `synth_10k`/`synth_100k`/`synth_1m` scenarios generate
 their distributions programmatically and run standalone with no external file.
 
@@ -48,14 +48,14 @@ layer (`CatalogOffsetIndexStoragePartPersistenceService` for the header, then
 `DefaultEntityCollectionPersistenceService` to enumerate every `SortIndexStoragePart`).
 
 **Safety property, load-bearing:** it only ever touches a **disposable copy** (by convention,
-`/var/tmp/decodoma-bench/decodoma_cz`) — the original source data is never opened. Any future use of
+`/var/tmp/catalog-bench/production_catalog`) — the original source data is never opened. Any future use of
 this extractor against a different dataset must preserve that property; do not point it at a live or
 canonical data directory.
 
 ### `WarmupCopyCatalogBenchmark`
 
 Single-threaded WARM_UP bulk-copy benchmark: connects to a locally running evitaDB server over gRPC,
-reads every collection of a source catalog (default `senesi`), faithfully reconstructs the schema on
+reads every collection of a source catalog (default `production-catalog`), faithfully reconstructs the schema on
 a fresh `<source>_XXXX` catalog, re-upserts every entity on a single thread in WARM_UP mode, then
 switches the target to ALIVE via `goLiveAndClose()`. Reports the copy-loop wall time and the goLive
 transition separately.
@@ -64,7 +64,7 @@ This was the reproducer behind the WARM_UP bulk-upsert bottleneck line
 (`reports/2026-07-22-warmup-upsert-and-collation.md`): it measured the 2 020 s baseline copy (90.3 %
 in `Product`), the round-2 allocation fix's ~10 % speedup, and the P2 collation-cache result.
 
-**Fully generic — the deleted senesi dataset does not strand this spike.** `[sourceCatalog] [host]
+**Fully generic — the deleted production dataset does not strand this spike.** `[sourceCatalog] [host]
 [port] [maxPerCollection]` all default but are overridable; it works against any catalog on any
 running server. A non-zero `maxPerCollection` caps entities per collection for a fast smoke test;
 `0` (default) runs the real, full-dataset measurement. Schema reconstruction happens before the

@@ -29,8 +29,6 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.entity.EntityPrimaryKeyRangeFormula;
-import io.evitadb.core.query.algebra.base.DisentangleFormula;
-import io.evitadb.core.query.algebra.base.JoinFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.price.innerRecordHandling.PriceHandlingContainerFormula;
@@ -160,35 +158,6 @@ public class FormulaCostMeasurement {
 	public void notFormulaInteger(IntegerBitmapState bitmapDataSet, Blackhole blackhole) {
 		blackhole.consume(
 			new NotFormula(
-				bitmapDataSet.getBitmapA(),
-				bitmapDataSet.getBitmapB()
-			).compute()
-		);
-	}
-
-	/**
-	 * Measures throughput of {@link JoinFormula} — concatenation (multiset union) of two 100K-element
-	 * RoaringBitmap-backed bitmaps.
-	 */
-	@Benchmark
-	public void joinFormula(IntegerBitmapState bitmapDataSet, Blackhole blackhole) {
-		blackhole.consume(
-			new JoinFormula(
-				1L,
-				bitmapDataSet.getBitmapA(),
-				bitmapDataSet.getBitmapB()
-			).compute()
-		);
-	}
-
-	/**
-	 * Measures throughput of {@link DisentangleFormula} — separates records unique to A from records
-	 * shared with B, operating on two 100K-element RoaringBitmap-backed bitmaps.
-	 */
-	@Benchmark
-	public void disentangleFormula(IntegerBitmapState bitmapDataSet, Blackhole blackhole) {
-		blackhole.consume(
-			new DisentangleFormula(
 				bitmapDataSet.getBitmapA(),
 				bitmapDataSet.getBitmapB()
 			).compute()
@@ -345,7 +314,7 @@ public class FormulaCostMeasurement {
 		final AttributeHistogramComputer testedFormula = new AttributeHistogramComputer(
 			"test histogram",
 			bucketDataSet.getFormula(),
-			40, HistogramBehavior.STANDARD,
+			BucketsRecordState.REQUESTED_BUCKET_COUNT, HistogramBehavior.STANDARD,
 			bucketDataSet.getRequest()
 		);
 		blackhole.consume(testedFormula.compute());

@@ -230,7 +230,7 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 	}
 
 	@Override
-	public int getSize() {
+	public int getAssociationCount() {
 		return this.facetingEntities.values()
 			.stream()
 			.mapToInt(FacetReferenceIndex::size)
@@ -351,6 +351,19 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 	@Override
 	public FacetIndexChanges createLayer() {
 		return new FacetIndexChanges();
+	}
+
+	/**
+	 * {@link FacetIndexChanges} is pure in-transaction bookkeeping — it records which contained reference indexes a
+	 * commit-merge has to visit — and the delegate branch is an explicit `if (txLayer != null)` that writes nothing.
+	 * The facet data a mutation touches lives in the contained {@link FacetReferenceIndex} instances and the
+	 * transactional map holding them, which journal their own warm-up writes.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
 	}
 
 	@Nonnull

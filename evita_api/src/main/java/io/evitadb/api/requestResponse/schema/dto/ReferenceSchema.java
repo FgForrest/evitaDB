@@ -292,6 +292,53 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	}
 
 	/**
+	 * Fills in the default component set for every indexed scope the given map does not already cover.
+	 *
+	 * An indexed scope with no components is not a half-configured reference but a **silent** one: the indexed
+	 * components are what decide whether reduced indexes are built at all, while
+	 * {@link ReferenceIndexType} only governs how much is mirrored into them. Such a scope therefore reports
+	 * itself indexed, resolves queries against whatever indexes already existed, and quietly indexes nothing
+	 * written afterwards.
+	 *
+	 * That state used to be reachable through ordinary schema evolution, because an explicit component array is
+	 * taken verbatim: a reference already carrying components in one scope and then indexed in a second handed
+	 * the second scope an index type and no components. Defaulting per scope rather than only when the whole
+	 * array is absent closes that, and cannot overwrite anything a caller asked for — it only fills scopes the
+	 * caller left empty.
+	 *
+	 * Returns the same map instance when every indexed scope is already covered (allocation-free happy path).
+	 *
+	 * @param indexedComponentsInScopes the components map to complete
+	 * @param indexedScopes             the index type per scope
+	 * @return a completed copy, or the original map when nothing had to be filled in
+	 */
+	@Nonnull
+	public static Map<Scope, Set<ReferenceIndexedComponents>> withDefaultsForUncoveredScopes(
+		@Nonnull Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes,
+		@Nonnull Map<Scope, ReferenceIndexType> indexedScopes
+	) {
+		EnumMap<Scope, Set<ReferenceIndexedComponents>> completed = null;
+		for (final Map.Entry<Scope, ReferenceIndexType> entry : indexedScopes.entrySet()) {
+			if (entry.getValue() == ReferenceIndexType.NONE) {
+				continue;
+			}
+			final Set<ReferenceIndexedComponents> declared = indexedComponentsInScopes.get(entry.getKey());
+			if (declared != null && !declared.isEmpty()) {
+				continue;
+			}
+			if (completed == null) {
+				completed = new EnumMap<>(Scope.class);
+				completed.putAll(indexedComponentsInScopes);
+			}
+			completed.put(
+				entry.getKey(),
+				Collections.unmodifiableSet(EnumSet.of(ReferenceIndexedComponents.REFERENCED_ENTITY))
+			);
+		}
+		return completed == null ? indexedComponentsInScopes : completed;
+	}
+
+	/**
 	 * Resolves the indexed components map from an optional
 	 * array of scoped indexed components. When the array
 	 * is non-null, it is converted; otherwise, the default
@@ -309,7 +356,9 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nonnull Map<Scope, ReferenceIndexType> indexedScopesMap
 	) {
 		return indexedComponentsInScopes != null
-			? toIndexedComponentsEnumMap(indexedComponentsInScopes)
+			? withDefaultsForUncoveredScopes(
+				toIndexedComponentsEnumMap(indexedComponentsInScopes), indexedScopesMap
+			)
 			: defaultIndexedComponents(indexedScopesMap);
 	}
 

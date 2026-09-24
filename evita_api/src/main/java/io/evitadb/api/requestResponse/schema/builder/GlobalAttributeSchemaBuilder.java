@@ -120,7 +120,7 @@ public final class GlobalAttributeSchemaBuilder
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaGloballyUniqueMutation(
-					toInstance().getName(),
+					this.baseSchema.getName(),
 					Arrays.stream(scope)
 						.map(it -> new ScopedGlobalAttributeUniquenessType(it, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG))
 						.toArray(ScopedGlobalAttributeUniquenessType[]::new)
@@ -156,7 +156,7 @@ public final class GlobalAttributeSchemaBuilder
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaGloballyUniqueMutation(
-					toInstance().getName(),
+					this.baseSchema.getName(),
 					Arrays.stream(scope)
 						.map(it -> new ScopedGlobalAttributeUniquenessType(it, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE))
 						.toArray(ScopedGlobalAttributeUniquenessType[]::new)
@@ -192,7 +192,7 @@ public final class GlobalAttributeSchemaBuilder
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaGloballyUniqueMutation(
-					toInstance().getName(),
+					this.baseSchema.getName(),
 					new ScopedGlobalAttributeUniquenessType[] {
 						new ScopedGlobalAttributeUniquenessType(
 							Scope.DEFAULT_SCOPE,
@@ -213,7 +213,7 @@ public final class GlobalAttributeSchemaBuilder
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaGloballyUniqueMutation(
-					toInstance().getName(),
+					this.baseSchema.getName(),
 					decider.getAsBoolean() ?
 						GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE : GlobalAttributeUniquenessType.NOT_UNIQUE
 				)
@@ -257,11 +257,23 @@ public final class GlobalAttributeSchemaBuilder
 		return this.mutations;
 	}
 
-	@Delegate(types = GlobalAttributeSchemaContract.class)
 	@Nonnull
 	@Override
 	public GlobalAttributeSchemaContract toInstance() {
 		return super.toInstance();
+	}
+
+	/**
+	 * Hosts the {@link Delegate} that routes this builder's {@link GlobalAttributeSchemaContract} getters at the schema
+	 * as it is currently declared. It deliberately delegates to the UNVALIDATED assembly rather than to
+	 * {@link #toInstance()}: a getter answers what has been declared so far, and validating on every read
+	 * would refuse a chain that is merely unfinished - see {@link AbstractAttributeSchemaBuilder#assembleInstance()}.
+	 */
+	@Delegate(types = GlobalAttributeSchemaContract.class)
+	@Nonnull
+	@Override
+	protected GlobalAttributeSchemaContract assembleInstance() {
+		return super.assembleInstance();
 	}
 
 	@Nonnull

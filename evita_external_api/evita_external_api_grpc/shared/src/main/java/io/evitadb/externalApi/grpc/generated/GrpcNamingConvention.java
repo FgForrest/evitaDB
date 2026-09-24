@@ -180,7 +180,7 @@ public enum GrpcNamingConvention
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(25);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(26);
   }
 
   private static final GrpcNamingConvention[] VALUES = values();

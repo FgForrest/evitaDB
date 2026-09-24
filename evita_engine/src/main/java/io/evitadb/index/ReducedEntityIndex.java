@@ -54,8 +54,18 @@ import java.util.function.Function;
 
 /**
  * Reduced entity index is a "helper" index that maintains primarily bitmaps of primary keys that are connected to
- * a limited scope view of the data. All memory expensive objects are referred and maintained in {@link GlobalEntityIndex}
- * so that it's ensured they exist solely on the heap.
+ * a limited scope view of the data.
+ *
+ * **Sharing with {@link GlobalEntityIndex} is limited to prices.** A reduced index's price sub-index
+ * ({@link io.evitadb.index.price.PriceListAndCurrencyPriceRefIndex}) refers to the immutable
+ * {@link io.evitadb.index.price.model.priceRecord.PriceRecordContract} instances owned by the global super index and
+ * persists ids only, re-attaching them on load. Nothing else is shared: every reduced index owns its own
+ * {@link io.evitadb.index.attribute.AttributeIndex}, hence its own value trees, so the attribute values fanned out
+ * into it (every filterable and sortable entity-level attribute, for a reference marked
+ * `FOR_FILTERING_AND_PARTITIONING`) are replicated per index, on heap and on disk alike. On a catalog with many
+ * distinct referenced entities that replication is the single largest known value duplication in the engine —
+ * deduplicating it is its own line of work, whose prerequisite is the stable value id introduced on the global shared
+ * value tree (see `documentation/adr/2026-08-24-fulltext-search-lucene-vs-inhouse`).
  *
  * Reduced indexes are used for handling queries that target {@link ReferenceContract}
  * of the entities. In such case we may prefer using data from reduced entity index because it may substantially limit

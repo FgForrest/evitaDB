@@ -26,25 +26,28 @@ package io.evitadb.core.query.algebra.utils.visitor;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.query.algebra.base.DisentangleFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
+import io.evitadb.core.query.algebra.base.RangeCountFormula;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.bitmap.ArrayBitmap;
+import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.Bitmap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.util.function.UnaryOperator;
-import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link FormulaCloner} verifying deep cloning, mutation, and structural
@@ -402,111 +405,6 @@ class FormulaClonerTest {
 	}
 
 	@Nested
-	@DisplayName("DisentangleFormula special handling")
-	class DisentangleFormulaHandlingTest {
-
-		@Test
-		@DisplayName("should return main when control child is stripped from DisentangleFormula")
-		void shouldReturnMainWhenControlChildStripped() {
-			// disentangle(main, ∅) = main per RangeIndex.createDisentangleFormulaIfNecessary
-			final ConstantFormula main = new ConstantFormula(new ArrayBitmap(5, 8, 10));
-			final ConstantFormula control = new ConstantFormula(new ArrayBitmap(8));
-			final Formula disentangleFormula = new DisentangleFormula(main, control);
-
-			final Formula cloneResult = FormulaCloner.clone(
-				disentangleFormula,
-				f -> f == control ? null : f
-			);
-
-			assertSame(main, cloneResult);
-		}
-
-		@Test
-		@DisplayName("should drop DisentangleFormula when main child is stripped")
-		void shouldDropDisentangleFormulaWhenMainChildStripped() {
-			// No main → nothing to disentangle → drop the wrapper
-			final ConstantFormula main = new ConstantFormula(new ArrayBitmap(5, 8, 10));
-			final ConstantFormula control = new ConstantFormula(new ArrayBitmap(8));
-			final Formula disentangleFormula = new DisentangleFormula(main, control);
-
-			final Formula cloneResult = FormulaCloner.clone(
-				disentangleFormula,
-				f -> f == main ? null : f
-			);
-
-			assertNull(cloneResult);
-		}
-
-		@Test
-		@DisplayName("should drop DisentangleFormula when both children are stripped")
-		void shouldDropDisentangleFormulaWhenBothChildrenStripped() {
-			final ConstantFormula main = new ConstantFormula(new ArrayBitmap(5, 8, 10));
-			final ConstantFormula control = new ConstantFormula(new ArrayBitmap(8));
-			final ConstantFormula keep = new ConstantFormula(new ArrayBitmap(1));
-			final Formula tree = new OrFormula(
-				keep,
-				new DisentangleFormula(main, control)
-			);
-
-			final Formula cloneResult = FormulaCloner.clone(
-				tree,
-				f -> f == main || f == control ? null : f
-			);
-
-			assertNotNull(cloneResult);
-			assertFalse(FormulaLocator.contains(cloneResult, DisentangleFormula.class));
-			// OR with one surviving child collapses to that child
-			assertSame(keep, cloneResult);
-		}
-
-		@Test
-		@DisplayName("should collapse DisentangleFormula to EmptyFormula when both siblings dedup to same instance")
-		void shouldCollapseDisentangleFormulaWhenSiblingsDedupToSameInstance() {
-			// Mirrors the NotFormula dedup-collapse case for DisentangleFormula:
-			// disentangle(X, X) = ∅, so when both positional siblings post-process to the same
-			// instance the wrapper must collapse to EmptyFormula — *not* return the survivor as
-			// if `disentangle(main, ∅) = main` had triggered.
-			final ConstantFormula original = new ConstantFormula(new ArrayBitmap(5, 8, 10));
-			final ConstantFormula clone = new ConstantFormula(new ArrayBitmap(5, 8, 10));
-			final ConstantFormula shared = new ConstantFormula(new ArrayBitmap(5, 8, 10));
-			final Formula disentangleFormula = new DisentangleFormula(original, clone);
-
-			final Formula cloneResult = FormulaCloner.clone(
-				disentangleFormula,
-				f -> f == original || f == clone ? shared : f
-			);
-
-			assertSame(EmptyFormula.INSTANCE, cloneResult);
-		}
-
-		@Test
-		@DisplayName("should preserve main in nested tree when control is stripped")
-		void shouldPreserveMainInNestedTreeWhenControlStripped() {
-			final ConstantFormula main = new ConstantFormula(new ArrayBitmap(5, 8, 10));
-			final ConstantFormula control = new ConstantFormula(new ArrayBitmap(8));
-			final ConstantFormula keep = new ConstantFormula(new ArrayBitmap(1));
-			final Formula tree = new OrFormula(
-				keep,
-				new DisentangleFormula(main, control)
-			);
-
-			final Formula cloneResult = FormulaCloner.clone(
-				tree,
-				f -> f == control ? null : f
-			);
-
-			assertNotNull(cloneResult);
-			assertInstanceOf(OrFormula.class, cloneResult);
-			assertFalse(FormulaLocator.contains(cloneResult, DisentangleFormula.class));
-			// OrFormula(keep, main) — main replaced the DisentangleFormula
-			final Formula[] children = cloneResult.getInnerFormulas();
-			assertEquals(2, children.length);
-			assertSame(keep, children[0]);
-			assertSame(main, children[1]);
-		}
-	}
-
-	@Nested
 	@DisplayName("BiFunction mutator and parent context")
 	class ParentContextTest {
 
@@ -687,6 +585,89 @@ class FormulaClonerTest {
 			);
 
 			assertSame(leaf, result);
+		}
+	}
+
+	@Nested
+	@DisplayName("RangeCountFormula handling")
+	class RangeCountFormulaHandlingTest {
+		/**
+		 * Arbitrary non-zero index id - the staleness token a range count formula is required to carry.
+		 */
+		private static final long INDEX_ID = 77L;
+
+		/**
+		 * Builds a range count formula over three small operands, computing a non-empty result.
+		 *
+		 * @return the formula under test
+		 */
+		@Nonnull
+		private static RangeCountFormula rangeCountFormula() {
+			return new RangeCountFormula(
+				INDEX_ID,
+				new Bitmap[]{new BaseBitmap(1, 2, 3), new BaseBitmap(2, 3)},
+				new Bitmap[]{new BaseBitmap(3)}
+			);
+		}
+
+		@Test
+		@DisplayName("should pass a range count formula through untouched when a sibling is stripped")
+		void shouldPassRangeCountFormulaThroughUntouched() {
+			// A range count formula carries its operands as bitmap ARRAYS and reports no inner formulas at all, so
+			// the cloner's `childrenHaveNotChanged` short-circuit keeps the instance and never reaches the
+			// fall-through that would call `getCloneWithInnerFormulas` - which this type refuses outright. That
+			// chain is what replaced the DisentangleFormula guard the cloner used to need.
+			final RangeCountFormula rangeCount = rangeCountFormula();
+			final ConstantFormula strip = new ConstantFormula(new ArrayBitmap(101));
+			final ConstantFormula keep = new ConstantFormula(new ArrayBitmap(2, 3, 4));
+			final Formula tree = new AndFormula(rangeCount, strip, keep);
+
+			final Formula cloneResult = FormulaCloner.clone(tree, f -> f == strip ? null : f);
+
+			assertNotSame(tree, cloneResult);
+			assertNotNull(cloneResult);
+			assertEquals(2, cloneResult.getInnerFormulas().length);
+			assertSame(rangeCount, cloneResult.getInnerFormulas()[0]);
+			assertSame(keep, cloneResult.getInnerFormulas()[1]);
+		}
+
+		@Test
+		@DisplayName("should not attempt to rebuild a range count formula from children")
+		void shouldNotAttemptToRebuildARangeCountFormulaFromChildren() {
+			// the negative twin: strip everything else, so the range count formula is the only survivor and the
+			// surrounding AND collapses onto it. Were the cloner ever to route it through
+			// `getCloneWithInnerFormulas`, this would surface as an UnsupportedOperationException thrown from
+			// query planning rather than as a wrong answer.
+			final RangeCountFormula rangeCount = rangeCountFormula();
+			final ConstantFormula stripA = new ConstantFormula(new ArrayBitmap(101));
+			final ConstantFormula stripB = new ConstantFormula(new ArrayBitmap(102));
+			final Formula tree = new AndFormula(rangeCount, stripA, stripB);
+
+			final Formula cloneResult = FormulaCloner.clone(
+				tree, f -> f == stripA || f == stripB ? null : f
+			);
+
+			assertSame(rangeCount, cloneResult);
+		}
+
+		@Test
+		@DisplayName("should leave identical operand families to the kernel arithmetic")
+		void shouldLeaveIdenticalFamiliesToTheKernel() {
+			// The predecessor of this type held two POSITIONAL INNER FORMULAS, so a mutator (or FormulaDeduplicator)
+			// unifying them collapsed the node to a single child and the cloner needed an explicit
+			// `subtract(X, X) = empty` guard. Here the two families are plain bitmap arrays that no visitor can
+			// unify, and the cancellation is arithmetic: the formula survives the clone by identity and computes
+			// empty on its own.
+			final Bitmap[] family = {new BaseBitmap(1, 2, 3), new BaseBitmap(2, 5), new BaseBitmap(9)};
+			final RangeCountFormula rangeCount = new RangeCountFormula(INDEX_ID, family, family);
+			final ConstantFormula keep = new ConstantFormula(new ArrayBitmap(2, 3, 4));
+			final Formula tree = new AndFormula(rangeCount, keep);
+
+			final Formula cloneResult = FormulaCloner.clone(tree, UnaryOperator.identity());
+
+			assertSame(tree, cloneResult);
+			assertTrue(rangeCount.compute().isEmpty());
+			assertEquals(0, cloneResult.compute().size());
 		}
 	}
 }

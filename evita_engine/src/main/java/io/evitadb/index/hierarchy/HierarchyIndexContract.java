@@ -48,6 +48,17 @@ import java.util.function.UnaryOperator;
 public interface HierarchyIndexContract {
 
 	/**
+	 * The level reported for a node whose depth in the tree cannot be determined - a node that is not reachable from
+	 * any root, because an ancestor above it was deleted, was never created, or the chain closes into a ring. Levels
+	 * of real nodes start at 1 for a root, so this value can never collide with one.
+	 *
+	 * Every consumer of a level has to treat it as "unknown" rather than as "shallower than everything": a bound
+	 * expressed as a level cannot cut a chain whose depth is unknown, which is why
+	 * {@link io.evitadb.api.query.require.HierarchyDistance} exists for bounds that must hold on a broken chain.
+	 */
+	int UNKNOWN_LEVEL = -1;
+
+	/**
 	 * Method initializes all existing nodes as root nodes. This method should be called at the moment the index is
 	 * created for the first time and all existing entities which are already present but have no parent relation set
 	 * should become as initial root nodes, so that all that are added after that could use them as their parents.
@@ -68,10 +79,31 @@ public interface HierarchyIndexContract {
 	 * Method removes information about `entityPrimaryKey` placement from the index. It doesn't matter whether the key
 	 * is inside {@link #getOrphanHierarchyNodes()} or places in the living tree {@link #getRootHierarchyNodes()}.
 	 *
+	 * @param entityPrimaryKey the primary key of the entity whose placement should be removed
 	 * @return primary key of the parent node of the removed node (if any)
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when no placement was ever made for the entity
 	 */
 	 @Nullable
 	Integer removeNode(int entityPrimaryKey);
+
+	/**
+	 * Tolerant sibling of {@link #removeNode(int)}: removes the placement of `entityPrimaryKey` if the index holds
+	 * one, and does nothing at all if it does not.
+	 *
+	 * This is the tear-down entry point for the paths where a missing placement is a legitimate state rather than a
+	 * programming error - an entity leaving the index, or leaving a scope. Not every entity of a hierarchical
+	 * collection has a placement: a collection that becomes hierarchical, or widens the scopes it indexes hierarchy
+	 * in, only has the entities of its live global index re-placed, so anything sitting in another scope at that
+	 * moment carries no placement and can still be deleted or moved afterwards. {@link #removeNode(int)} keeps its
+	 * assertion for the paths where an absent placement really would be a bug - a `removeParent` on an entity the
+	 * index is supposed to hold.
+	 *
+	 * @param entityPrimaryKey the primary key of the entity whose placement should be removed if there is one
+	 * @return primary key of the parent node of the removed node, or `null` when the node was a root or was not
+	 *         present in the index at all
+	 */
+	@Nullable
+	Integer removeNodeIfPresent(int entityPrimaryKey);
 
 	/**
 	 * Method returns all nodes that are reachable from all root nodes traversed in particular mode and sorted on each
@@ -293,7 +325,33 @@ public interface HierarchyIndexContract {
 	void traverseHierarchyFromNode(@Nonnull HierarchyVisitor visitor, int rootNode, boolean excludingRoot, @Nonnull HierarchyFilteringPredicate excludedNodeTrees);
 
 	/**
-	 * Method traverses entire hierarchy of (non-orphan) nodes from the node up to the root node.
+	 * Method traverses the hierarchy from the passed node up to the root node, visiting the node itself and every
+	 * ancestor above it the index still holds. Unlike the downward traversals this one passes through orphan nodes,
+	 * and it stops silently at the first ancestor the index does not hold - which is what a deleted ancestor and an
+	 * entity upserted with a parent primary key that was never created both look like. Nothing is visited at all when
+	 * the passed node itself is not present in the index.
+	 *
+	 * The `level` handed to the visitor is the node's absolute depth in the whole tree - 1 for a root - but only when
+	 * the walk actually reached a root. When it ended at a break or at a ring instead, the depth of the fragment is
+	 * not knowable and **every** node the walk visited is reported at {@link #UNKNOWN_LEVEL}, which is the same answer
+	 * the downward traversals give for a node outside the reachable tree. `distance` always counts from the passed
+	 * node (0) upwards and is therefore unaffected by a break.
+	 *
+	 * Both callers - the `hierarchyContent` parents fetch and the parent hierarchy statistics computer - turn `level`
+	 * into a `stopAt(level(N))` decision, and a level bound never cuts a chain of unknown depth: inventing a
+	 * fragment-relative depth instead would silently drop reachable ancestors, because
+	 * {@link io.evitadb.api.query.require.HierarchyLevel} is defined as an absolute depth and the offset between the
+	 * fragment and the real tree is exactly what a break makes unknowable. A caller that needs a bound which still
+	 * holds on a broken chain expresses it as a {@link io.evitadb.api.query.require.HierarchyDistance}.
+	 *
+	 * A ring of nodes pointing at one another is treated exactly like a break, placed at the node the walk would
+	 * otherwise have to visit a second time, so every node of the fragment is visited once and the traversal always
+	 * terminates. Such a ring is a legal state of the index and not a corrupted one: re-pointing a node at one of its
+	 * own descendants detaches that node together with its whole subtree - all of them become orphans - and leaves the
+	 * detached fragment closing on itself. A ring has no top, so nothing above the revisited node can be reported.
+	 *
+	 * @param visitor the visitor to invoke for the passed node and for each ancestor above it the index still holds
+	 * @param node    the primary key of the node the upward walk starts from
 	 */
 	void traverseHierarchyToRoot(@Nonnull HierarchyVisitor visitor, int node);
 

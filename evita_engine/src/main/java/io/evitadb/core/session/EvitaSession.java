@@ -103,6 +103,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.UUIDUtil;
@@ -451,18 +452,55 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				!theCatalog.supportsTransaction(),
 				"Catalog went live already and is currently in transactional mode!"
 			);
+			// This session closes ITSELF before the operator's drain runs, and it must: the drain defers a forced
+			// close until the running method returns, and the running method is this one, waiting on the drain -
+			// a five-second stall ending in a failed go-live
+			// (see MakeCatalogAliveMutationOperator, and EvitaSessionProxy's `executeWhenMethodIsNotRunning`).
+			// The suspension taken below is otherwise redundant with the one the operator takes - the operator's
+			// call finds this one standing, drains nothing and returns. It stays so that this session is recorded
+			// as forcefully closed by the go-live (the id is added by hand, because the drain no longer sees the
+			// session it would have recorded), which `Evita#wasSessionForcefullyClosedForCatalog` reports to a
+			// client whose session vanished. The operator lifts this suspension on success and on failure alike.
 			if (isActive()) {
 				executeTerminationSteps(null, theCatalog);
 				this.closedFuture = CompletableFuture.completedFuture(
 					new CommitVersions(this.catalog.getVersion() + 1, this.catalog.getSchema().version())
 				);
 			}
-			this.evita.closeAllSessionsAndSuspend(this.catalog.getName(), SuspendOperation.REJECT)
-			          .ifPresent(it -> it.addForcefullyClosedSession(this.id));
-			return this.evita.applyMutation(
-				new MakeCatalogAliveMutation(this.catalog.getName()),
-				progressObserver == null ? Functions.noOpIntConsumer() : progressObserver
-			);
+			// Read before the suspension is published, and used only by the catch below. The operator's undo resumes
+			// the registry it OWNS rather than whatever answers to the name later, and this path owes the same: a
+			// rename or replace that hands this registry to another name shares one suspension by reference, so
+			// resuming the instance always lifts it while a name-keyed lookup can miss it entirely.
+			final Optional<SessionRegistry> quiescedRegistry =
+				this.evita.getCatalogSessionRegistry(this.catalog.getName());
+			try {
+				// **Inside the `try`, and that is not tidiness.** This call publishes the suspension and only then
+				// drains, so it can throw with the suspension standing - and the drain's own budget makes that
+				// reachable rather than theoretical. Closing this session above frees the warm-up admission slot
+				// (the rule is "no session in `activeSessions`", not "no session ever"), and until the operator
+				// installs its placeholder there is nothing refusing a new one: a second warm-up session opened in
+				// that window, with a method still running when the drain arrives, has its close deferred, outlasts
+				// the budget and fails the drain's premise. Published outside this `try`, that throw would leak the
+				// suspension for the life of the process - which is the very leak the catch below exists to close.
+				this.evita.closeAllSessionsAndSuspend(this.catalog.getName(), SuspendOperation.REJECT)
+				          .ifPresent(it -> it.addForcefullyClosedSession(this.id));
+				return this.evita.applyMutation(
+					new MakeCatalogAliveMutation(this.catalog.getName()),
+					progressObserver == null ? Functions.noOpIntConsumer() : progressObserver
+				);
+			} catch (Throwable ex) {
+				// The suspension above is published before the operator exists, so a SYNCHRONOUS rejection - the
+				// drain failing its premise, the engine state lock timing out, a conflicting mutation, a wedged
+				// engine - never reaches the operator's undo, and nothing else would ever lift it: the catalog is
+				// still warming up and would refuse every session for the life of the process. Resume is
+				// idempotent, so this also covers a failure inside the operator's own setup, whose undo has
+				// already resumed.
+				//
+				// Synchronous escapes only, deliberately. An asynchronous failure of the returned `Progress` is the
+				// operator's undo's business and must stay there - this method has already returned by then.
+				quiescedRegistry.ifPresent(SessionRegistry::resumeOperations);
+				throw ex;
+			}
 		}
 	}
 
@@ -695,8 +733,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 			// emit the event
 			enrichEvent.finish(
-				enrichedEntity.getIoFetchCount(),
-				enrichedEntity.getIoFetchedBytes()
+				enrichedEntity::getIoFetchCount,
+				enrichedEntity::getIoFetchedBytes
 			).commit();
 
 			//noinspection unchecked
@@ -715,8 +753,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			);
 			// emit the event
 			enrichEvent.finish(
-				enrichedEntity.getIoFetchCount(),
-				enrichedEntity.getIoFetchedBytes()
+				enrichedEntity::getIoFetchCount,
+				enrichedEntity::getIoFetchedBytes
 			).commit();
 
 			//noinspection unchecked
@@ -755,8 +793,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 			// emit the event
 			enrichEvent.finish(
-				enrichedEntity.getIoFetchCount(),
-				enrichedEntity.getIoFetchedBytes()
+				enrichedEntity::getIoFetchCount,
+				enrichedEntity::getIoFetchedBytes
 			).commit();
 
 			//noinspection unchecked
@@ -776,8 +814,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 			// emit the event
 			enrichEvent.finish(
-				enrichedEntity.getIoFetchCount(),
-				enrichedEntity.getIoFetchedBytes()
+				enrichedEntity::getIoFetchCount,
+				enrichedEntity::getIoFetchedBytes
 			).commit();
 
 			//noinspection unchecked
@@ -1419,7 +1457,15 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			criteria.sinceVersion() : this.catalog.getFirstCatalogVersionAfter(null).startVersion();
 		return registerStreamAndReturnCloseableStream(
 			this.catalog
-				.getCommittedLiveMutationStream(sinceVersion, this.catalog.getVersion())
+				// `sinceVersion` came straight off the client's request, so a version that is not in the log
+				// (rotated out of retention, never existed, not reached yet) is the caller's mistake and must
+				// not be reported as catalog damage or counted against the engine's internal-error metric.
+				// CLIENT deliberately covers the WHOLE read, not just the start bound, even though the ceiling
+				// below is the engine's own version: splitting the two so that damage found on the way to the
+				// ceiling reports as corruption was considered and declined, because it re-opens the door this
+				// line of work exists to shut - a client-initiated request that can raise an operator alarm.
+				// The cost is accepted and known: genuine damage met on this path is under-counted.
+				.getCommittedLiveMutationStream(sinceVersion, this.catalog.getVersion(), VersionSource.CLIENT)
 				.flatMap(it -> it.toChangeCatalogCapture(mutationPredicate, criteria.content()))
 		);
 	}
@@ -1869,6 +1915,42 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					);
 					final ProgressingFuture<Void> flushFuture;
 					try {
+						try {
+							// the schema is validated BEFORE anything is written, unlike in the transactional branch
+							// below where the enclosing transaction can still be marked rollback-only after the fact.
+							// A warm-up flush has no such undo: it persists the schema exactly as it stands, and
+							// a reopened catalog is past the version gate in validateCatalogSchema and so never
+							// revalidates - so validating after the flush would report a refusal about a schema that
+							// is already on disk and from then on permanent
+							validateCatalogSchema(this.catalog);
+						} catch (EvitaInvalidUsageException ex) {
+							// keeping THIS session from writing is not enough. The exchange stays in the
+							// running catalog - EntityCollection#updateSchema has already swapped it into
+							// every collection the change reached - so every later publisher would write
+							// it: the shutdown flush in Catalog#terminateInternally, and any subsequent
+							// session close, a read-only one included, since this branch is taken for
+							// every session regardless of its traits. Warm-up has no undo spanning those
+							// collections, so the barrier is raised instead: it refuses every publication
+							// route at once and hands the catalog over for deactivation, after which
+							// activating it again loads the last published state - whose schema validates,
+							// because it was published by a session that closed successfully.
+							//
+							// Caught as the whole EvitaInvalidUsageException family rather than as
+							// SchemaAlteringException. validate() refuses in two vocabularies: a rule it evaluates
+							// throws the schema-altering kind, while a getter it reaches on a schema it cannot
+							// resolve simply refuses to answer - ReflectedReferenceSchema#isIndexedInScope throwing
+							// "the reflected reference is not available" is the demonstrated case, and it is what
+							// Catalog#isSchemaValid had to widen its own catch for. Whether a schema can still be
+							// in that shape HERE, at the close, was not demonstrated: every attempt to build one
+							// met a schema-altering refusal first. The wide catch is kept anyway, because the two
+							// outcomes are not symmetric - a bare refusal that slipped past a narrow catch would
+							// publish exactly the state this guard exists to stop, while the cost of catching one
+							// that did not need catching is a deactivation of a catalog whose schema was already
+							// exchanged and whose operation already failed, which is the answer this design gives
+							// everywhere else
+							this.catalog.markUnpublishableDueToInvalidSchema(ex);
+							throw ex;
+						}
 						// building the warm-up flush future pops the trapped changes SYNCHRONOUSLY
 						// (Catalog.flush -> EntityCollection.createFlushFuture -> popTrappedChanges); a throw
 						// here (e.g. a corrupted index serialized at close) must complete the close future
@@ -1889,7 +1971,6 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 							(__, throwable) -> {
 								if (throwable == null) {
 									try {
-										validateCatalogSchema(this.catalog);
 										this.commitProgress.complete(
 											new CommitVersions(
 												this.catalog.getVersion(),
@@ -2146,12 +2227,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			.map(serverEntityDecoratorExtractor);
 
 		fetchEvent.finish(
-			serverEntityDecorator
-				.map(ServerEntityDecorator::getIoFetchCount)
-				.orElse(0),
-			serverEntityDecorator
-				.map(ServerEntityDecorator::getIoFetchedBytes)
-				.orElse(0)
+			() -> serverEntityDecorator.map(ServerEntityDecorator::getIoFetchCount).orElse(0),
+			() -> serverEntityDecorator.map(ServerEntityDecorator::getIoFetchedBytes).orElse(0)
 		).commit();
 
 		return resultEntity;

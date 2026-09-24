@@ -5,7 +5,7 @@ date: '14.7.2024'
 author: Ing. Jan Novotný
 proofreading: done
 translated: 'true'
-commit: fd07cee44cf344113bd19e9c9ef7d17f27a13fe2
+commit: '8515a2d0a9ec0cab0442cedf79ffaeed469148f2'
 ---
 evitaDB server je konfigurován ve formátu YAML a jeho výchozí nastavení je nejlépe popsáno následujícím
 kódem:
@@ -35,6 +35,7 @@ server:                                           # [viz konfigurace Server](#ko
   dropCollationKeysAfterSecondsOfInactivity: 300
   readOnly: false
   quiet: false
+  usageStatisticsTracking: true
   trafficRecording:
     enabled: false
     sourceQueryTracking: false
@@ -57,6 +58,7 @@ storage:                                          # [viz konfigurace Storage](#k
   minimalActiveRecordShare: 0.5
   fileSizeCompactionThresholdBytes: 100MB
   timeTravelEnabled: false
+  timeTravelSizeLimitBytes: 1GB
   minCompactionIntervalMilliseconds: 1m
   maxWasteActiveShare: 0.1
 
@@ -161,6 +163,7 @@ api:                                              # [viz konfigurace API](#konfi
       tlsMode: null
       keepAlive: null
       exposeDocsService: false
+      streamingRequestTimeoutInMillis: 300K
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
@@ -188,6 +191,7 @@ api:                                              # [viz konfigurace API](#konfi
         protocol: grpc
       allowedEvents: null
       exportedQueryLabels: null
+      errorOriginLogging: INTERNAL
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
@@ -481,6 +485,22 @@ Tato sekce obsahuje obecná nastavení pro server evitaDB. Umožňuje konfigurov
             není thread-safe.            
         </Note>
     </dd>
+    <dt>usageStatisticsTracking</dt>
+    <dd>
+        <p>**Výchozí:** `true`</p>
+        <p>Určuje, zda engine počítá, jak často je každý index a každý příznak schopnosti schématu *dotazován* oproti
+           tomu, jak často je *udržován*. Jde o hodnoty, na kterých stojí management volání `BrowseIndexes` a
+           `ListSchemaCapabilityUsage`, a právě ony vám prozradí, že se za příznak `filterable()` platí při každém
+           zápisu, aniž by jej využil jediný dotaz.</p>
+        <p>Vypnutím se této diagnostiky vzdáte a získáte zpět její cenu, která spočívá spíše v paměťové stopě než
+           v propustnosti: pro každý index se nealokuje držák aktivity (pět longů na každý, a velký katalog má statisíce
+           indexů), dotazovací cesta přestane pro každý kandidátní plán dohledávat držák schopností a zápisová cesta
+           přestane dohledávat jeden pro každý dotčený prvek.</p>
+        <p>Obě management volání fungují i s vypnutým sledováním a nadále vypisují každý index a každou deklarovanou
+           schopnost – mění se jen to, že se každý řádek označí jako **neměřený** místo toho, aby vykazoval nuly. Tento
+           rozdíl berte jako podstatný: nulový počet dotazů proti živému pozorovacímu oknu se čte jako *„tento příznak
+           nikdo nepoužívá, zahoďte ho“*, což je destruktivní závěr v situaci, kdy je pravda taková, že nikdo nepočítal.</p>
+    </dd>
 </dl>
 
 ### Konfigurace thread poolu
@@ -676,6 +696,34 @@ Tato sekce obsahuje možnosti konfigurace pro úložnou vrstvu databáze.
         dokud je k dispozici historie ve WAL logu. To umožňuje vytvořit snapshot databáze v libovolném bodě
         historie pokryté WAL logem. Ze snapshotu lze databázi obnovit do přesného bodu v čase se všemi daty,
         která byla v té době k dispozici.</p>
+        <p>Kolik místa na disku smí tato historie zabrat, omezuje `timeTravelSizeLimitBytes`.</p>
+    </dd>
+    <dt>timeTravelSizeLimitBytes</dt>
+    <dd>
+        <p>**Výchozí:** `1GB`</p>
+        <p>Horní mez diskového prostoru, který smí udržovaná historie zabrat **nad rámec aktivní datové sady**, a to
+            pro každý katalog zvlášť. Nastavení je neúčinné, dokud není `timeTravelEnabled` nastaveno na `true`,
+            protože jinak se žádný historický datový soubor neuchovává.</p>
+        <p>Cena time travelu se neodvíjí od počtu transakcí – je to jedna plná kopie datového souboru na každou
+            komprimaci, protože se zapnutým time travelem se zkomprimovaný soubor místo smazání ponechá. Komprimace se
+            spouští podle množství odpadu a velikosti jednoho souboru, kdežto rotace write-ahead logu podle počtu
+            připsaných bytů, takže nastavení retence write-ahead logu (`walFileSizeBytes` × `walFileCountKept`)
+            omezuje byty WAL, ale o bytech na disku neříká nic. Právě tento limit je omezuje: kdykoli udržovaná
+            historie limit překročí, jsou nejstarší generace opouštěny, dokud se historie znovu nevejde.</p>
+        <p>Z toho, jak komprimace pracuje, plynou dvě vlastnosti, které nelze konfigurací odstranit:</p>
+        <p>- Limit **nedokáže omezit špičkovou spotřebu pod jednu generaci**. Komprimace zapíše celou novou kopii dříve,
+            než smí být starý soubor zahozen, takže přechodná špička odpovídá zhruba *aktivní data + starý soubor*
+            bez ohledu na zde nastavenou hodnotu.</p>
+        <p>- Pokud limit **neuveze ani jedinou generaci**, je udržovaná historie fakticky nulová a time travel přestává
+            fungovat. To je správné čtení zadané instrukce, nikoli chyba, a proto se hlásí varováním v logu místo toho,
+            aby byl limit přebit – spodní mez retence, která by směla překročit bytový limit, by porušila kontrakt,
+            který toto nastavení vyslovuje.</p>
+        <p>Záporná hodnota znamená *bez limitu* a obnovuje chování před verzí 2026.2, kdy byla retence omezena pouze
+            write-ahead logem – tedy tu charakteristiku neomezeného růstu, kvůli které tento limit vznikl. Hodnota `0`
+            neuchová žádnou historii.</p>
+        <p>Vypnutí limitu **nevypíná** úklid: datové soubory, na které už nedosáhne žádný udržovaný bod v čase, jsou
+            uvolněny bez ohledu na zde nastavenou hodnotu. Takové soubory nejsou historie – nelze k nim odcestovat –
+            takže žádný rozpočet, jakkoli velkorysý, není důvodem k jejich ponechání.</p>
     </dd>
     <dt>minCompactionIntervalMilliseconds</dt>
     <dd>
@@ -1091,7 +1139,10 @@ Tato sekce konfigurace vám umožňuje selektivně povolit, zakázat a upravit s
     <dt>requestTimeoutInMillis</dt>
     <dd>
         <p>**Výchozí:** `2K`</p>
-        <p>Čas, po který může být spojení nečinné bez zpracování požadavku, než je serverem uzavřeno.</p>
+        <p>Rozpočet na zpracování **celého požadavku**, měřený od jeho začátku až do okamžiku, kdy je odpověď kompletně
+            odeslána. To je správný tvar pro unární volání, kde je prací jedna ohraničená obrátka. Je to špatný tvar pro
+            dlouho žijící streamovanou odpověď, a proto má gRPC API samostatný
+            [streamingRequestTimeoutInMillis](#konfigurace-grpc-api).</p>
     </dd> 
     <dt>maxEntitySizeInBytes</dt>
     <dd>
@@ -1373,6 +1424,22 @@ To vám umožňuje nastavit společná nastavení pro všechny endpointy na jedn
         <p>Povoluje / zakazuje gRPC službu, která poskytuje dokumentaci pro gRPC API a umožňuje
         experimentálně volat libovolné služby z webového UI a zkoumat jejich výstup.</p>
     </dd>
+    <dt>streamingRequestTimeoutInMillis</dt>
+    <dd>
+        <p>**Výchozí:** `300K`</p>
+        <p>Jak dlouho smí **streamovací** RPC nevykazovat žádný postup, než jej server opustí. Na rozdíl od sdíleného
+            [requestTimeoutInMillis](#konfigurace-api) omezuje *mlčení*, nikoli celkovou dobu trvání: znovu se natahuje
+            pokaždé, když je zpráva předána transportní vrstvě, takže pomalý, ale plynule postupující přenos jej nikdy
+            nedosáhne, ať běží jakkoli dlouho.</p>
+        <p>Rozpočet na celý požadavek streamu sloužit nemůže, protože doba trvání stahování je funkcí velikosti souboru
+            a rychlosti linky – a ani jedno server nezná. Nastavte hodnotu podle nejpomalejšího klienta, kterého hodláte
+            obsloužit: musí pohodlně převyšovat čas, za který se k takovému klientovi dostane **jediná zpráva**. Snižování
+            k hodnotě `requestTimeoutInMillis` znovu zavádí minimální únosnou rychlost linky pro velká stahování – RPC pro
+            stahování souborů posílá bloky po 1 MB, takže rozpočet 2 s by vyžadoval trvale zhruba 4 Mbit/s.</p>
+        <p>Tatáž hodnota omezuje, jak dlouho zůstane pracovní vlákno serveru zaparkované čekáním na klienta, který
+            přestal číst, takže je to zároveň okamžik, kdy je takový stream opuštěn s `DEADLINE_EXCEEDED`. Nekladná
+            hodnota se vrací k výchozímu nastavení.</p>
+    </dd>
     <dt>mTls.enabled</dt>
     <dd>
         <p>**Výchozí:** `false`</p>
@@ -1544,6 +1611,22 @@ pro scraping Prometheus metrik, OTEL trace exporter a záznamové funkce Java Fl
         prázdný seznam, že se *nic* neexportuje, nikoliv vše – viz [poznámky k bezpečnosti kardinality štítků](../query/header/label.md#kardinalita-štítků-a-export-do-prometheus)
         pro vysvětlení, proč je toto výchozí nastavení opačné. Štítky s inherentně vysokou kardinalitou (`trace-id`, `client-id`, `ip-address`,
         `uri`) jsou rezervovány a při startu odmítnuty.</p>
+    </dd>
+    <dt>errorOriginLogging</dt>
+    <dd>
+        <p>**Výchozí:** `INTERNAL`</p>
+        <p>Vybírá, které hierarchie chyb mají při prvním výskytu daného místa zapsat do logu místo, kde chyba vznikla.
+        Na samotné metriky chyb to nemá vliv – `io_evitadb_errors_total` a `io_evitadb_client_errors_total` se sbírají
+        vždy, pod naprosto stejnými názvy a se stejnými štítky, ať je v platnosti kterýkoli režim.</p>
+        <p>Tyto metriky počítají *vytvoření* výjimky a nenesou nic než název třídy, takže chyba, která je spolknuta –
+        nebo vyhozena vůči klientovi, který se už odpojil – posune čítač, aniž by po sobě zanechala neúspěšnou odpověď,
+        chybový span nebo řádek v logu. Právě toto nastavení mění takový posun čítače v místo, které lze otevřít.</p>
+        <p>Možné hodnoty jsou `NONE` (místo vzniku nikdy nedohledávat ani nelogovat), `INTERNAL` (pouze interní chyby –
+        ty jsou z definice poruchy a jsou vzácné) a `ALL` (navíc i klientské chyby, které vznikají na běžných cestách
+        odmítnutí, a jsou proto mnohem častější). První výskyt každého místa se loguje na úrovni `WARN` s plným stack
+        trace; poté se už jen počítá a znovu se zaloguje, když počet dosáhne mocniny deseti. Java errory se nezahrnují
+        nikdy: JVM vyhazuje předalokované instance `OutOfMemoryError` bez spuštění konstruktoru a alokovat uvnitř takové
+        situace logovací zprávu je dobrý způsob, jak přežitelné selhání změnit ve fatální.</p>
     </dd>
     <dt>mTls.enabled</dt>
     <dd>

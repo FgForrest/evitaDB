@@ -243,6 +243,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 						.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), createAttributeUniquenessTypeDto(AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION))
 						.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), createGlobalAttributeUniquenessTypeDto(GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG))
 						.e(AttributeSchemaDescriptor.FILTERABLE.name(), list().i(Scope.LIVE.name()))
+						.e(AttributeSchemaDescriptor.ACCELERATORS_IN_SCOPES.name(), list())
 						.e(AttributeSchemaDescriptor.SORTABLE.name(), list().i(Scope.LIVE.name()))
 						.e(AttributeSchemaDescriptor.LOCALIZED.name(), false)
 						.e(AttributeSchemaDescriptor.NULLABLE.name(), false)

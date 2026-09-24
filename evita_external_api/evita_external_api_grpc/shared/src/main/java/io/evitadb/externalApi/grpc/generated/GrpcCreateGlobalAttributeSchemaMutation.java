@@ -54,6 +54,7 @@ private static final long serialVersionUID = 0L;
     filterableInScopes_ = java.util.Collections.emptyList();
     sortableInScopes_ = java.util.Collections.emptyList();
     conflictResolutionOverride_ = 0;
+    acceleratorsInScopes_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -217,7 +218,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=86
+   *     See GrpcAttributeSchemaMutations.proto;l=90
    * @return The enum numeric value on the wire for unique.
    */
   @java.lang.Override @java.lang.Deprecated public int getUniqueValue() {
@@ -232,7 +233,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=86
+   *     See GrpcAttributeSchemaMutations.proto;l=90
    * @return The unique.
    */
   @java.lang.Override @java.lang.Deprecated public io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique() {
@@ -251,7 +252,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=90
+   *     See GrpcAttributeSchemaMutations.proto;l=94
    * @return The enum numeric value on the wire for uniqueGlobally.
    */
   @java.lang.Override @java.lang.Deprecated public int getUniqueGloballyValue() {
@@ -266,7 +267,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=90
+   *     See GrpcAttributeSchemaMutations.proto;l=94
    * @return The uniqueGlobally.
    */
   @java.lang.Override @java.lang.Deprecated public io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType getUniqueGlobally() {
@@ -286,7 +287,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>bool filterable = 6 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.filterable is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=95
+   *     See GrpcAttributeSchemaMutations.proto;l=99
    * @return The filterable.
    */
   @java.lang.Override
@@ -306,7 +307,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>bool sortable = 7 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.sortable is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=100
+   *     See GrpcAttributeSchemaMutations.proto;l=104
    * @return The sortable.
    */
   @java.lang.Override
@@ -784,6 +785,77 @@ private static final long serialVersionUID = 0L;
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.UNRECOGNIZED : result;
   }
 
+  public static final int ACCELERATORSINSCOPES_FIELD_NUMBER = 19;
+  @SuppressWarnings("serial")
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators> acceleratorsInScopes_;
+  /**
+   * <pre>
+   * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+   * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+   * which is what an older client sends - means no acceleration anywhere.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators> getAcceleratorsInScopesList() {
+    return acceleratorsInScopes_;
+  }
+  /**
+   * <pre>
+   * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+   * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+   * which is what an older client sends - means no acceleration anywhere.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+   */
+  @java.lang.Override
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder> 
+      getAcceleratorsInScopesOrBuilderList() {
+    return acceleratorsInScopes_;
+  }
+  /**
+   * <pre>
+   * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+   * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+   * which is what an older client sends - means no acceleration anywhere.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+   */
+  @java.lang.Override
+  public int getAcceleratorsInScopesCount() {
+    return acceleratorsInScopes_.size();
+  }
+  /**
+   * <pre>
+   * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+   * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+   * which is what an older client sends - means no acceleration anywhere.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators getAcceleratorsInScopes(int index) {
+    return acceleratorsInScopes_.get(index);
+  }
+  /**
+   * <pre>
+   * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+   * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+   * which is what an older client sends - means no acceleration anywhere.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder getAcceleratorsInScopesOrBuilder(
+      int index) {
+    return acceleratorsInScopes_.get(index);
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -860,6 +932,9 @@ private static final long serialVersionUID = 0L;
     }
     if (conflictResolutionOverride_ != io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.CONFLICT_RESOLUTION_OVERRIDE_INHERITED.getNumber()) {
       output.writeEnum(18, conflictResolutionOverride_);
+    }
+    for (int i = 0; i < acceleratorsInScopes_.size(); i++) {
+      output.writeMessage(19, acceleratorsInScopes_.get(i));
     }
     getUnknownFields().writeTo(output);
   }
@@ -957,6 +1032,10 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(18, conflictResolutionOverride_);
     }
+    for (int i = 0; i < acceleratorsInScopes_.size(); i++) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(19, acceleratorsInScopes_.get(i));
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -1011,6 +1090,8 @@ private static final long serialVersionUID = 0L;
     if (!filterableInScopes_.equals(other.filterableInScopes_)) return false;
     if (!sortableInScopes_.equals(other.sortableInScopes_)) return false;
     if (conflictResolutionOverride_ != other.conflictResolutionOverride_) return false;
+    if (!getAcceleratorsInScopesList()
+        .equals(other.getAcceleratorsInScopesList())) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -1077,6 +1158,10 @@ private static final long serialVersionUID = 0L;
     }
     hash = (37 * hash) + CONFLICTRESOLUTIONOVERRIDE_FIELD_NUMBER;
     hash = (53 * hash) + conflictResolutionOverride_;
+    if (getAcceleratorsInScopesCount() > 0) {
+      hash = (37 * hash) + ACCELERATORSINSCOPES_FIELD_NUMBER;
+      hash = (53 * hash) + getAcceleratorsInScopesList().hashCode();
+    }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -1217,6 +1302,7 @@ private static final long serialVersionUID = 0L;
         getDefaultValueFieldBuilder();
         getUniqueInScopesFieldBuilder();
         getUniqueGloballyInScopesFieldBuilder();
+        getAcceleratorsInScopesFieldBuilder();
       }
     }
     @java.lang.Override
@@ -1267,6 +1353,13 @@ private static final long serialVersionUID = 0L;
       sortableInScopes_ = java.util.Collections.emptyList();
       bitField0_ = (bitField0_ & ~0x00010000);
       conflictResolutionOverride_ = 0;
+      if (acceleratorsInScopesBuilder_ == null) {
+        acceleratorsInScopes_ = java.util.Collections.emptyList();
+      } else {
+        acceleratorsInScopes_ = null;
+        acceleratorsInScopesBuilder_.clear();
+      }
+      bitField0_ = (bitField0_ & ~0x00040000);
       return this;
     }
 
@@ -1328,6 +1421,15 @@ private static final long serialVersionUID = 0L;
         bitField0_ = (bitField0_ & ~0x00010000);
       }
       result.sortableInScopes_ = sortableInScopes_;
+      if (acceleratorsInScopesBuilder_ == null) {
+        if (((bitField0_ & 0x00040000) != 0)) {
+          acceleratorsInScopes_ = java.util.Collections.unmodifiableList(acceleratorsInScopes_);
+          bitField0_ = (bitField0_ & ~0x00040000);
+        }
+        result.acceleratorsInScopes_ = acceleratorsInScopes_;
+      } else {
+        result.acceleratorsInScopes_ = acceleratorsInScopesBuilder_.build();
+      }
     }
 
     private void buildPartial0(io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation result) {
@@ -1547,6 +1649,32 @@ private static final long serialVersionUID = 0L;
       if (other.conflictResolutionOverride_ != 0) {
         setConflictResolutionOverrideValue(other.getConflictResolutionOverrideValue());
       }
+      if (acceleratorsInScopesBuilder_ == null) {
+        if (!other.acceleratorsInScopes_.isEmpty()) {
+          if (acceleratorsInScopes_.isEmpty()) {
+            acceleratorsInScopes_ = other.acceleratorsInScopes_;
+            bitField0_ = (bitField0_ & ~0x00040000);
+          } else {
+            ensureAcceleratorsInScopesIsMutable();
+            acceleratorsInScopes_.addAll(other.acceleratorsInScopes_);
+          }
+          onChanged();
+        }
+      } else {
+        if (!other.acceleratorsInScopes_.isEmpty()) {
+          if (acceleratorsInScopesBuilder_.isEmpty()) {
+            acceleratorsInScopesBuilder_.dispose();
+            acceleratorsInScopesBuilder_ = null;
+            acceleratorsInScopes_ = other.acceleratorsInScopes_;
+            bitField0_ = (bitField0_ & ~0x00040000);
+            acceleratorsInScopesBuilder_ = 
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getAcceleratorsInScopesFieldBuilder() : null;
+          } else {
+            acceleratorsInScopesBuilder_.addAllMessages(other.acceleratorsInScopes_);
+          }
+        }
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -1709,6 +1837,19 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00020000;
               break;
             } // case 144
+            case 154: {
+              io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators m =
+                  input.readMessage(
+                      io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.parser(),
+                      extensionRegistry);
+              if (acceleratorsInScopesBuilder_ == null) {
+                ensureAcceleratorsInScopesIsMutable();
+                acceleratorsInScopes_.add(m);
+              } else {
+                acceleratorsInScopesBuilder_.addMessage(m);
+              }
+              break;
+            } // case 154
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -2160,7 +2301,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=86
+     *     See GrpcAttributeSchemaMutations.proto;l=90
      * @return The enum numeric value on the wire for unique.
      */
     @java.lang.Override @java.lang.Deprecated public int getUniqueValue() {
@@ -2175,7 +2316,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=86
+     *     See GrpcAttributeSchemaMutations.proto;l=90
      * @param value The enum numeric value on the wire for unique to set.
      * @return This builder for chaining.
      */
@@ -2194,7 +2335,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=86
+     *     See GrpcAttributeSchemaMutations.proto;l=90
      * @return The unique.
      */
     @java.lang.Override
@@ -2211,7 +2352,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=86
+     *     See GrpcAttributeSchemaMutations.proto;l=90
      * @param value The unique to set.
      * @return This builder for chaining.
      */
@@ -2233,7 +2374,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.unique is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=86
+     *     See GrpcAttributeSchemaMutations.proto;l=90
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearUnique() {
@@ -2253,7 +2394,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=90
+     *     See GrpcAttributeSchemaMutations.proto;l=94
      * @return The enum numeric value on the wire for uniqueGlobally.
      */
     @java.lang.Override @java.lang.Deprecated public int getUniqueGloballyValue() {
@@ -2268,7 +2409,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=90
+     *     See GrpcAttributeSchemaMutations.proto;l=94
      * @param value The enum numeric value on the wire for uniqueGlobally to set.
      * @return This builder for chaining.
      */
@@ -2287,7 +2428,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=90
+     *     See GrpcAttributeSchemaMutations.proto;l=94
      * @return The uniqueGlobally.
      */
     @java.lang.Override
@@ -2304,7 +2445,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=90
+     *     See GrpcAttributeSchemaMutations.proto;l=94
      * @param value The uniqueGlobally to set.
      * @return This builder for chaining.
      */
@@ -2326,7 +2467,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.uniqueGlobally is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=90
+     *     See GrpcAttributeSchemaMutations.proto;l=94
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearUniqueGlobally() {
@@ -2347,7 +2488,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool filterable = 6 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.filterable is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=95
+     *     See GrpcAttributeSchemaMutations.proto;l=99
      * @return The filterable.
      */
     @java.lang.Override
@@ -2364,7 +2505,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool filterable = 6 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.filterable is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=95
+     *     See GrpcAttributeSchemaMutations.proto;l=99
      * @param value The filterable to set.
      * @return This builder for chaining.
      */
@@ -2385,7 +2526,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool filterable = 6 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.filterable is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=95
+     *     See GrpcAttributeSchemaMutations.proto;l=99
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearFilterable() {
@@ -2406,7 +2547,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool sortable = 7 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.sortable is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=100
+     *     See GrpcAttributeSchemaMutations.proto;l=104
      * @return The sortable.
      */
     @java.lang.Override
@@ -2423,7 +2564,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool sortable = 7 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.sortable is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=100
+     *     See GrpcAttributeSchemaMutations.proto;l=104
      * @param value The sortable to set.
      * @return This builder for chaining.
      */
@@ -2444,7 +2585,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool sortable = 7 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation.sortable is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=100
+     *     See GrpcAttributeSchemaMutations.proto;l=104
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearSortable() {
@@ -4051,6 +4192,354 @@ private static final long serialVersionUID = 0L;
       conflictResolutionOverride_ = 0;
       onChanged();
       return this;
+    }
+
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators> acceleratorsInScopes_ =
+      java.util.Collections.emptyList();
+    private void ensureAcceleratorsInScopesIsMutable() {
+      if (!((bitField0_ & 0x00040000) != 0)) {
+        acceleratorsInScopes_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators>(acceleratorsInScopes_);
+        bitField0_ |= 0x00040000;
+       }
+    }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder> acceleratorsInScopesBuilder_;
+
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+     * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+     * which is what an older client sends - means no acceleration anywhere.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators> getAcceleratorsInScopesList() {
+      if (acceleratorsInScopesBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(acceleratorsInScopes_);
+      } else {
+        return acceleratorsInScopesBuilder_.getMessageList();
+      }
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+     * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+     * which is what an older client sends - means no acceleration anywhere.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+     */
+    public int getAcceleratorsInScopesCount() {
+      if (acceleratorsInScopesBuilder_ == null) {
+        return acceleratorsInScopes_.size();
+      } else {
+        return acceleratorsInScopesBuilder_.getCount();
+      }
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+     * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+     * which is what an older client sends - means no acceleration anywhere.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators getAcceleratorsInScopes(int index) {
+      if (acceleratorsInScopesBuilder_ == null) {
+        return acceleratorsInScopes_.get(index);
+      } else {
+        return acceleratorsInScopesBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+     * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+     * which is what an older client sends - means no acceleration anywhere.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+     */
+    public Builder setAcceleratorsInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators value) {
+      if (acceleratorsInScopesBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureAcceleratorsInScopesIsMutable();
+        acceleratorsInScopes_.set(index, value);
+        onChanged();
+      } else {
+        acceleratorsInScopesBuilder_.setMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+     * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+     * which is what an older client sends - means no acceleration anywhere.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+     */
+    public Builder setAcceleratorsInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.Builder builderForValue) {
+      if (acceleratorsInScopesBuilder_ == null) {
+        ensureAcceleratorsInScopesIsMutable();
+        acceleratorsInScopes_.set(index, builderForValue.build());
+        onChanged();
+      } else {
+        acceleratorsInScopesBuilder_.setMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+     * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+     * which is what an older client sends - means no acceleration anywhere.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+     */
+    public Builder addAcceleratorsInScopes(io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators value) {
+      if (acceleratorsInScopesBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureAcceleratorsInScopesIsMutable();
+        acceleratorsInScopes_.add(value);
+        onChanged();
+      } else {
+        acceleratorsInScopesBuilder_.addMessage(value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+     * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+     * which is what an older client sends - means no acceleration anywhere.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+     */
+    public Builder addAcceleratorsInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators value) {
+      if (acceleratorsInScopesBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureAcceleratorsInScopesIsMutable();
+        acceleratorsInScopes_.add(index, value);
+        onChanged();
+      } else {
+        acceleratorsInScopesBuilder_.addMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+     * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+     * which is what an older client sends - means no acceleration anywhere.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+     */
+    public Builder addAcceleratorsInScopes(
+        io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.Builder builderForValue) {
+      if (acceleratorsInScopesBuilder_ == null) {
+        ensureAcceleratorsInScopesIsMutable();
+        acceleratorsInScopes_.add(builderForValue.build());
+        onChanged();
+      } else {
+        acceleratorsInScopesBuilder_.addMessage(builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+     * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+     * which is what an older client sends - means no acceleration anywhere.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+     */
+    public Builder addAcceleratorsInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.Builder builderForValue) {
+      if (acceleratorsInScopesBuilder_ == null) {
+        ensureAcceleratorsInScopesIsMutable();
+        acceleratorsInScopes_.add(index, builderForValue.build());
+        onChanged();
+      } else {
+        acceleratorsInScopesBuilder_.addMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+     * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+     * which is what an older client sends - means no acceleration anywhere.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+     */
+    public Builder addAllAcceleratorsInScopes(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators> values) {
+      if (acceleratorsInScopesBuilder_ == null) {
+        ensureAcceleratorsInScopesIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, acceleratorsInScopes_);
+        onChanged();
+      } else {
+        acceleratorsInScopesBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+     * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+     * which is what an older client sends - means no acceleration anywhere.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+     */
+    public Builder clearAcceleratorsInScopes() {
+      if (acceleratorsInScopesBuilder_ == null) {
+        acceleratorsInScopes_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00040000);
+        onChanged();
+      } else {
+        acceleratorsInScopesBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+     * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+     * which is what an older client sends - means no acceleration anywhere.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+     */
+    public Builder removeAcceleratorsInScopes(int index) {
+      if (acceleratorsInScopesBuilder_ == null) {
+        ensureAcceleratorsInScopesIsMutable();
+        acceleratorsInScopes_.remove(index);
+        onChanged();
+      } else {
+        acceleratorsInScopesBuilder_.remove(index);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+     * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+     * which is what an older client sends - means no acceleration anywhere.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.Builder getAcceleratorsInScopesBuilder(
+        int index) {
+      return getAcceleratorsInScopesFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+     * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+     * which is what an older client sends - means no acceleration anywhere.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder getAcceleratorsInScopesOrBuilder(
+        int index) {
+      if (acceleratorsInScopesBuilder_ == null) {
+        return acceleratorsInScopes_.get(index);  } else {
+        return acceleratorsInScopesBuilder_.getMessageOrBuilder(index);
+      }
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+     * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+     * which is what an older client sends - means no acceleration anywhere.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+     */
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder> 
+         getAcceleratorsInScopesOrBuilderList() {
+      if (acceleratorsInScopesBuilder_ != null) {
+        return acceleratorsInScopesBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(acceleratorsInScopes_);
+      }
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+     * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+     * which is what an older client sends - means no acceleration anywhere.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.Builder addAcceleratorsInScopesBuilder() {
+      return getAcceleratorsInScopesFieldBuilder().addBuilder(
+          io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+     * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+     * which is what an older client sends - means no acceleration anywhere.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.Builder addAcceleratorsInScopesBuilder(
+        int index) {
+      return getAcceleratorsInScopesFieldBuilder().addBuilder(
+          index, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+     * gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+     * which is what an older client sends - means no acceleration anywhere.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.Builder> 
+         getAcceleratorsInScopesBuilderList() {
+      return getAcceleratorsInScopesFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder> 
+        getAcceleratorsInScopesFieldBuilder() {
+      if (acceleratorsInScopesBuilder_ == null) {
+        acceleratorsInScopesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder>(
+                acceleratorsInScopes_,
+                ((bitField0_ & 0x00040000) != 0),
+                getParentForChildren(),
+                isClean());
+        acceleratorsInScopes_ = null;
+      }
+      return acceleratorsInScopesBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

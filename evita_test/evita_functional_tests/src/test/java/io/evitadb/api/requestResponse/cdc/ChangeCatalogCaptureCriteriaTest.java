@@ -30,13 +30,9 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.CDC;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link ChangeCatalogCaptureCriteria} covering compareTo, constructor validation,
@@ -299,7 +295,7 @@ class ChangeCatalogCaptureCriteriaTest implements EvitaTestSupport {
 
 			assertEquals(CaptureArea.DATA, criteria.area());
 			assertNotNull(criteria.site());
-			assertTrue(criteria.site() instanceof DataSite);
+			assertInstanceOf(DataSite.class, criteria.site());
 		}
 
 		@Test
@@ -323,7 +319,7 @@ class ChangeCatalogCaptureCriteriaTest implements EvitaTestSupport {
 
 			assertEquals(CaptureArea.SCHEMA, criteria.area());
 			assertNotNull(criteria.site());
-			assertTrue(criteria.site() instanceof SchemaSite);
+			assertInstanceOf(SchemaSite.class, criteria.site());
 		}
 
 		@Test

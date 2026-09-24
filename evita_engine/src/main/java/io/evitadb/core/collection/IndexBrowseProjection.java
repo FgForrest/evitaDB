@@ -176,7 +176,7 @@ final class IndexBrowseProjection {
 				final IndexActivity activity = index.getActivity();
 				page.add(
 					describe(
-						entityType, key, index.getPrimaryKey(), index.getAllPrimaryKeys().size(),
+						entityType, key, index.getPrimaryKey(), index.size(),
 						activity == null ? 0L : activity.getQueryCount(),
 						activity == null ? 0L : activity.getUpdateCount(),
 						activity
@@ -233,7 +233,7 @@ final class IndexBrowseProjection {
 			// so retaining it costs a comparison-free int rather than a second lookup
 			final EntityIndex index = indexOf(indexes, key);
 			final IndexActivity activity = index.getActivity();
-			final int entityCount = index.getAllPrimaryKeys().size();
+			final int entityCount = index.size();
 			// a server that does not track usage statistics ranks every index at zero on the two activity keys, which
 			// leaves the key tiebreaker to order the page - a stable, meaningless-but-not-wrong order for a reading
 			// every row of the page declares itself not to have

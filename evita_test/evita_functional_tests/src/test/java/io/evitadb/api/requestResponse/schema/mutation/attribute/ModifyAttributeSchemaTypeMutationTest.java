@@ -24,21 +24,33 @@
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
+import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+
+import javax.annotation.Nonnull;
 import org.mockito.Mockito;
 import org.junit.jupiter.api.Tag;
+
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.Set;
 
 import static io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutationTest.*;
 import static java.util.Optional.of;
@@ -222,6 +234,125 @@ class ModifyAttributeSchemaTypeMutationTest {
 				mutation.mutate(Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class));
 			}
 		);
+	}
+
+	@Nested
+	@DisplayName("filter accelerators")
+	class Accelerators {
+
+		/**
+		 * A filterable `String` entity attribute carrying the substring accelerator in the live scope - the two
+		 * declarations are applied by their own mutations now that the accelerator sits on its own axis.
+		 *
+		 * @return the accelerated entity attribute schema
+		 */
+		@Nonnull
+		private EntityAttributeSchemaContract acceleratedEntityAttribute() {
+			final EntityAttributeSchemaContract filterable = new SetAttributeSchemaFilterableMutation(
+				ATTRIBUTE_NAME, new Scope[]{Scope.LIVE}
+			).mutate(null, createStringEntityAttributeSchema(), EntityAttributeSchemaContract.class);
+			return new SetAttributeSchemaAcceleratedMutation(
+				ATTRIBUTE_NAME,
+				new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+			).mutate(null, filterable, EntityAttributeSchemaContract.class);
+		}
+
+		/**
+		 * The catalog-level counterpart of {@link #acceleratedEntityAttribute()}.
+		 *
+		 * @return the accelerated global attribute schema
+		 */
+		@Nonnull
+		private GlobalAttributeSchemaContract acceleratedGlobalAttribute() {
+			final GlobalAttributeSchemaContract filterable = new SetAttributeSchemaFilterableMutation(
+				ATTRIBUTE_NAME, new Scope[]{Scope.LIVE}
+			).mutate(null, createStringGlobalAttributeSchema(), GlobalAttributeSchemaContract.class);
+			return new SetAttributeSchemaAcceleratedMutation(
+				ATTRIBUTE_NAME,
+				new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+			).mutate(null, filterable, GlobalAttributeSchemaContract.class);
+		}
+
+		@Test
+		@DisplayName("Should refuse changing a SUBSTRING-accelerated entity attribute to a non-String type")
+		void shouldRefuseChangingSubstringEntityAttributeToNonStringType() {
+			// the rebuild carries the existing capabilities over verbatim, so without this check the mutation would
+			// quietly produce `Integer + SUBSTRING` - a state the capability's own contract forbids
+			final EntityAttributeSchemaContract accelerated = acceleratedEntityAttribute();
+
+			final ModifyAttributeSchemaTypeMutation mutation =
+				new ModifyAttributeSchemaTypeMutation(ATTRIBUTE_NAME, Integer.class, 0);
+			final InvalidSchemaMutationException exception = assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> mutation.mutate(null, accelerated, EntityAttributeSchemaContract.class)
+			);
+			assertTrue(exception.getMessage().contains(AttributeFilterAccelerator.SUBSTRING_SEARCH.name()));
+			assertTrue(exception.getMessage().contains("String"));
+		}
+
+		@Test
+		@DisplayName("Should refuse changing a SUBSTRING-accelerated global attribute to a non-String type")
+		void shouldRefuseChangingSubstringGlobalAttributeToNonStringType() {
+			final GlobalAttributeSchemaContract accelerated = acceleratedGlobalAttribute();
+
+			assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> new ModifyAttributeSchemaTypeMutation(ATTRIBUTE_NAME, Integer.class, 0)
+					.mutate(null, accelerated, GlobalAttributeSchemaContract.class)
+			);
+		}
+
+		@Test
+		@DisplayName("Should allow changing a SUBSTRING-accelerated attribute between String and String array")
+		void shouldAllowChangingSubstringAttributeBetweenStringAndStringArray() {
+			final EntityAttributeSchemaContract accelerated = acceleratedEntityAttribute();
+
+			final EntityAttributeSchemaContract mutated = new ModifyAttributeSchemaTypeMutation(
+				ATTRIBUTE_NAME, String[].class, 0
+			).mutate(null, accelerated, EntityAttributeSchemaContract.class);
+
+			assertEquals(String[].class, mutated.getType());
+			assertEquals(
+				Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH), mutated.getAcceleratorsInScope(Scope.LIVE)
+			);
+		}
+
+		@Test
+		@DisplayName("Should return the very same schema when the accelerated attribute keeps its type")
+		void shouldReturnTheSameSchemaWhenTheAcceleratedAttributeKeepsItsType() {
+			// the capability check runs *before* the unchanged-type short circuit, so re-applying `String` to a
+			// SUBSTRING-accelerated attribute has to pass that check and then return the identical instance. Moving
+			// the check below the short circuit would leave this passing; moving the short circuit above a check
+			// that then rejected `String` would not - which is the ordering this pins.
+			final EntityAttributeSchemaContract accelerated = acceleratedEntityAttribute();
+
+			assertSame(
+				accelerated,
+				new ModifyAttributeSchemaTypeMutation(ATTRIBUTE_NAME, String.class, 0)
+					.mutate(null, accelerated, EntityAttributeSchemaContract.class)
+			);
+		}
+
+		@Test
+		@DisplayName("Should refuse building a schema whose type cannot support its declared capability")
+		void shouldRefuseBuildingSchemaWhoseTypeCannotSupportCapability() {
+			// the DTO-level backstop: no construction path, mutation or otherwise, may mint the invalid state
+			final EnumMap<Scope, Set<AttributeFilterAccelerator>> capabilities = new EnumMap<>(Scope.class);
+			capabilities.put(Scope.LIVE, Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH));
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> AttributeSchema._internalBuild(
+					ATTRIBUTE_NAME, null, null,
+					null,
+					EnumSet.of(Scope.LIVE),
+					capabilities,
+					null,
+					false, false, false,
+					Integer.class, null, 0,
+					ConflictResolutionOverride.INHERITED
+				)
+			);
+		}
 	}
 
 }

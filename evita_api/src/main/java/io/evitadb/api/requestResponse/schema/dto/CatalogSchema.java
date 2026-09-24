@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema.dto;
 
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.exception.CatalogAlreadyPresentException;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -50,6 +51,7 @@ import java.io.Serial;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -235,10 +237,38 @@ public final class CatalogSchema implements CatalogSchemaContract {
 	 * @throws CatalogAlreadyPresentException if a catalog with a conflicting name is already present
 	 */
 	public static void checkCatalogNameIsAvailable(@Nonnull EvitaContract evita, @Nonnull String catalogName) {
+		checkCatalogNameIsAvailable(evita, catalogName, null);
+	}
+
+	/**
+	 * Checks if the given catalog name is available for use by verifying its uniqueness against the existing
+	 * catalog names in the system, disregarding one catalog that the same operation removes.
+	 *
+	 * The exclusion exists for operations that *move* a catalog rather than add one. A rename and a replace both
+	 * take a name away in the very act of introducing one, so measuring the new name against a set that still
+	 * holds the departing name asks whether the catalog collides with itself - and answers yes for every pair of
+	 * names that differ only in naming convention. Renaming `myCatalog` to `my_catalog` is the shortest example:
+	 * legitimate, since the set that results is unique, and refused by a check that cannot see the departure.
+	 *
+	 * Passing `null` compares against every existing catalog, which is what a creation, a duplication or a
+	 * restore into a fresh name needs - there the source stays exactly where it is.
+	 *
+	 * @param evita the Evita contract instance containing information about the existing catalogs
+	 * @param catalogName the name of the catalog to check for availability
+	 * @param departingCatalogName catalog the same operation removes, excluded from the comparison, or `null`
+	 *                             when the operation removes nothing
+	 * @throws CatalogAlreadyPresentException if a catalog with a conflicting name is already present
+	 */
+	public static void checkCatalogNameIsAvailable(
+		@Nonnull EvitaContract evita,
+		@Nonnull String catalogName,
+		@Nullable String departingCatalogName
+	) {
 		final Map<NamingConvention, String> newCatalogNameVariants = NamingConvention.generate(catalogName);
 
 		evita.getCatalogNames()
 		     .stream()
+		     .filter(it -> !it.equals(departingCatalogName))
 		     .flatMap(
 			     it -> {
 				     final Stream<Entry<NamingConvention, String>> nameStream =
@@ -304,6 +334,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isFilterableInScope)
 					.toArray(Scope[]::new),
+				AttributeSchema.toAcceleratorsArray(attributeSchemaContract.getAcceleratorsInScopes()),
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isSortableInScope)
 					.toArray(Scope[]::new),
@@ -414,6 +445,19 @@ public final class CatalogSchema implements CatalogSchemaContract {
 
 	@Override
 	public void validate() throws SchemaAlteringException {
+		// the catalog's own global attributes are validated here rather than by the collections that adopt them - a
+		// global attribute exists even while no collection uses it, and a collection-side check would report the same
+		// problem once per adopting collection
+		final List<String> errors = this.attributes.values()
+			.stream()
+			.flatMap(GlobalAttributeSchemaContract::validate)
+			.map(it -> "\t" + it)
+			.toList();
+		if (!errors.isEmpty()) {
+			throw new InvalidSchemaMutationException(
+				"Catalog schema `" + getName() + "` contains validation errors:\n" + String.join("\n", errors)
+			);
+		}
 		final Collection<EntitySchemaContract> entitySchemas = this.entitySchemaAccessor.getEntitySchemas();
 		for (EntitySchemaContract entitySchema : entitySchemas) {
 			entitySchema.validate(this);

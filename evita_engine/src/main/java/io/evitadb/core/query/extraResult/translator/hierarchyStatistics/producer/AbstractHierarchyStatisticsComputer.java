@@ -118,6 +118,19 @@ abstract class AbstractHierarchyStatisticsComputer {
 	 * Fabricates single collection of {@link LevelInfo} for requested hierarchical entity type. It respects
 	 * the {@link EntityLocaleEquals} and {@link HierarchyWithin} constraints used in the query. It also uses
 	 * `filteringFormula` to limit the reported cardinalities in level info objects.
+	 *
+	 * When no {@link #hierarchyFilterPredicateProducer} was given, the query locale gates tree membership
+	 * identically whether or not a {@link HierarchyHaving} / {@link HierarchyExcluding} predicate was given:
+	 * without one the locale predicate *is* the gate, with one it is conjoined with it. When
+	 * {@link #hierarchyFilterPredicateProducer} is present and yields a predicate, the locale needs no separate
+	 * conjunction here, because the predicate it produces is derived from the query's own filtering formula, which
+	 * already carries the {@link EntityLocaleEquals} constraint. A producer that yields NULL falls back to
+	 * {@link HierarchyFilteringPredicate#ACCEPT_ALL_NODES_PREDICATE}, and that is the one path where no locale gate
+	 * applies at all.
+	 *
+	 * @param executionContext the context of the query being executed, used to initialize the predicates lazily
+	 * @param language         the locale the query filters by, or NULL when it filters by none
+	 * @return the level info objects of the requested hierarchy tree, in the order the traversal produced them
 	 */
 	@Nonnull
 	public final List<LevelInfo> createStatistics(
@@ -133,7 +146,11 @@ abstract class AbstractHierarchyStatisticsComputer {
 				if (filteringPredicate == HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE) {
 					filteringPredicate = new LocaleHierarchyEntityPredicate(this.context.entityIndex(), language);
 				} else {
-					filteringPredicate.and(new LocaleHierarchyEntityPredicate(this.context.entityIndex(), language));
+					// `and` is pure - the conjunction has to be assigned back, otherwise the having/excluding
+					// predicate would gate the tree alone and the query locale would be dropped from it
+					filteringPredicate = filteringPredicate.and(
+						new LocaleHierarchyEntityPredicate(this.context.entityIndex(), language)
+					);
 				}
 			}
 		} else {

@@ -219,7 +219,9 @@ public class PrettyPrintingVisitor implements ConstraintVisitor {
 	public void traverse(@Nonnull Query query) {
 		this.result.append("query" + ARG_OPENING).append(newLine());
 		this.level = 1;
-		ofNullable(query.getCollection()).ifPresent(it -> {
+		// the header is the whole HeadConstraint subtree, not the Collection extracted from it - printing
+		// `getCollection()` would silently drop every `label` the caller attached to the query
+		ofNullable(query.getHead()).ifPresent(it -> {
 			it.accept(this);
 			this.result.append(",");
 		});

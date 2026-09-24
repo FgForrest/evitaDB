@@ -475,4 +475,117 @@ class PrettyPrintingVisitorTest {
 			);
 		}
 	}
+
+	/**
+	 * The query header is not the `collection` constraint — it is a whole {@link io.evitadb.api.query.HeadConstraint}
+	 * subtree that may carry {@link io.evitadb.api.query.head.Label labels} alongside (or instead of) the collection.
+	 * Everything the driver puts on the wire goes through this visitor, so a head constraint the visitor does not
+	 * print never reaches the server at all.
+	 *
+	 * See issue #1507.
+	 */
+	@Nested
+	@DisplayName("Head printing")
+	class HeadPrintingTest {
+
+		@Test
+		@DisplayName("Should print the whole head container, not only its collection")
+		void shouldPrintHeadContainerWithCollectionAndLabel() {
+			assertEquals(
+				"""
+				query(
+					head(
+						collection('PRODUCT'),
+						label('rest_method', 'CartController.updateCartByOperation')
+					),
+					filterBy(
+						entityPrimaryKeyInSet(1)
+					)
+				)""",
+				PrettyPrintingVisitor.toString(
+					query(
+						head(
+							collection("PRODUCT"),
+							label("rest_method", "CartController.updateCartByOperation")
+						),
+						filterBy(entityPrimaryKeyInSet(1))
+					),
+					"\t"
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("Should print a label-only head that carries no collection")
+		void shouldPrintLabelOnlyHead() {
+			assertEquals(
+				"query(label('rest_method', 'CartController.updateCartByOperation'),filterBy(entityPrimaryKeyInSet(1)))",
+				PrettyPrintingVisitor.toString(
+					query(
+						label("rest_method", "CartController.updateCartByOperation"),
+						filterBy(entityPrimaryKeyInSet(1))
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("Should print every label when the head carries several")
+		void shouldPrintEveryLabelOfTheHead() {
+			assertEquals(
+				"query(head(collection('PRODUCT'),label('a', 'b'),label('c', 'd')),filterBy(entityPrimaryKeyInSet(1)))",
+				PrettyPrintingVisitor.toString(
+					query(
+						head(
+							collection("PRODUCT"),
+							label("a", "b"),
+							label("c", "d")
+						),
+						filterBy(entityPrimaryKeyInSet(1))
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("Should extract head label arguments as query parameters")
+		void shouldExtractHeadLabelArgumentsAsParameters() {
+			final StringWithParameters result = PrettyPrintingVisitor.toStringWithParameterExtraction(
+				query(
+					head(
+						collection("PRODUCT"),
+						label("rest_method", "CartController.updateCartByOperation")
+					),
+					filterBy(entityPrimaryKeyInSet(1))
+				)
+			);
+
+			assertEquals(
+				"query(head(collection(?),label(?, ?)),filterBy(entityPrimaryKeyInSet(?)))",
+				result.query()
+			);
+			assertArrayEquals(
+				new Serializable[]{"PRODUCT", "rest_method", "CartController.updateCartByOperation", 1},
+				result.parameters().toArray(new Serializable[0])
+			);
+		}
+
+		/**
+		 * Guards the opposite mistake: a head that is nothing but a bare `collection` must stay unwrapped, because
+		 * that is the shape every existing query and every existing test on the wire already uses.
+		 */
+		@Test
+		@DisplayName("Should keep a bare collection head unwrapped")
+		void shouldKeepBareCollectionHeadUnwrapped() {
+			assertEquals(
+				"query(collection('PRODUCT'),filterBy(entityPrimaryKeyInSet(1)))",
+				PrettyPrintingVisitor.toString(
+					query(
+						collection("PRODUCT"),
+						filterBy(entityPrimaryKeyInSet(1))
+					)
+				)
+			);
+		}
+	}
 }

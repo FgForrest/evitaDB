@@ -1,15 +1,15 @@
 ---
 title: An index's usage counters live in a holder passed by reference through every merge copy, not in the index itself
 date: 2026-08-16
-updated: 2026-08-23 09:55
+updated: 2026-09-04 23:35
 status: accepted
 kind: feature
 issues: []
-prs: []
+prs: [1423]
 areas: [evita_api/api/statistics, evita_engine/index, evita_engine/core/query, evita_engine/core/catalog, evita_engine/core/collection, evita_external_api/evita_external_api_grpc]
 supersedes: []
 superseded-by: []
-relates: [2026-08-10-catalog-and-collection-statistics, 2026-08-19-per-schema-capability-usage-statistics, 2026-08-23-usage-statistics-tracking-switch]
+relates: [2026-08-10-catalog-and-collection-statistics, 2026-08-19-per-schema-capability-usage-statistics, 2026-08-23-usage-statistics-tracking-switch, 2026-09-04-long-keyed-tree-content-sizing]
 ---
 
 # An index's usage counters live in a holder passed by reference through every merge copy, not in the index itself
@@ -259,7 +259,7 @@ them; a site that calls a *fresh-creation* constructor compiles and quietly star
 **The numbers are not documented for users, because the surface they sit on is not.**
 `browseIndexes` / `getIndexDetail` have no page under `documentation/user/en/` — the 2026-08-10 feature
 shipped without one — so there was nothing to extend and inventing a management-API chapter here would
-have been a larger and separate piece of work. Whoever writes that page should document all four
+have been a larger and separate piece of work. Whoever writes that page should document all five
 readings together with the cost figures beside them; the prose to lift is on `BrowsedIndex`.
 
 **Index maintenance done by a cross-entity trigger is not counted.** `EntityCollection#applyIndexMutations`

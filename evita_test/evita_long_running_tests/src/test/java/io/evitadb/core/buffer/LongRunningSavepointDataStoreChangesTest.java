@@ -23,6 +23,8 @@
 
 package io.evitadb.core.buffer;
 
+import io.evitadb.core.transaction.memory.AbstractSavepointFuzzTest;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import com.carrotsearch.hppc.LongObjectMap;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
@@ -35,13 +37,8 @@ import io.evitadb.index.IndexKey;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
@@ -51,15 +48,13 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 import java.util.function.Supplier;
 
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.TRANSACTION;
-import static io.evitadb.utils.AssertionUtils.assertSavepointCommitKeeps;
-import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
 
 /**
  * Generational randomized backfill proof that {@link DataStoreChanges} — the storage diff layer produced by
@@ -79,62 +74,33 @@ import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
  * verification proves the restore left no dangling layer. The run is time-bounded; the random seed is echoed on failure
  * for deterministic reproduction.
  *
+ * The scenario is declared once and run by {@link AbstractSavepointFuzzTest} in BOTH phases: the transactional
+ * savepoint described above, and the WARM_UP savepoint where the same writes land straight on the delegate
+ * structures and are rewound from the inverses they journal themselves. See that class for the shape of one
+ * generation, for the mid-savepoint read every case is asserted through, and for why the warm-up half runs
+ * exclusively.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("DataStoreChanges savepoint rollback/commit backfill (generational fuzz)")
 @Tag(STORAGE)
 @Tag(INDEXING)
 @Tag(TRANSACTION)
-class LongRunningSavepointDataStoreChangesTest implements TimeBoundedTestSupport {
+class LongRunningSavepointDataStoreChangesTest extends AbstractSavepointFuzzTest<DataStoreState> {
 	private static final int KEY_SPACE = 32;
 	private static final int MARKER = 100_000;
 	private static final int MAX_OPS = 8;
 
-	@ParameterizedTest(name = "Savepoint rollback restores dirty-index tracking and trapped storage parts")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Savepoint rollback restores dirty-index tracking and trapped storage parts")
-	void shouldRollBackDataStoreChanges(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final LayerHolder holder = new LayerHolder();
-			assertSavepointRollbackRestores(
-				holder,
-				tested -> applyRandomOps(tested, random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningSavepointDataStoreChangesTest::readState,
-				tested -> {
-					// a marker dirty index + trapped part guarantees a non-vacuous in-savepoint batch
-					final DataStoreChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(tested);
-					markIndexDirty(layer, MARKER);
-					trapPart(layer, MARKER);
-					applyRandomOps(tested, random, 1 + random.nextInt(MAX_OPS));
-				}
-			);
-			return iteration + 1;
-		});
-	}
-
-	@ParameterizedTest(name = "Savepoint commit keeps dirty-index tracking and trapped storage parts")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Savepoint commit keeps dirty-index tracking and trapped storage parts")
-	void shouldCommitDataStoreChanges(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final LayerHolder holder = new LayerHolder();
-			assertSavepointCommitKeeps(
-				holder,
-				tested -> applyRandomOps(tested, random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningSavepointDataStoreChangesTest::readState,
-				tested -> applyRandomOps(tested, random, 1 + random.nextInt(MAX_OPS))
-			);
-			return iteration + 1;
-		});
+	@Nonnull
+	@Override
+	protected FuzzGeneration<DataStoreState> newGeneration(@Nonnull Random random) {
+		return new ChangesState();
 	}
 
 	/**
 	 * Applies `count` random operations: mark a random index dirty, or trap a random storage part.
 	 */
-	private static void applyRandomOps(@Nonnull LayerHolder holder, @Nonnull Random random, int count) {
-		final DataStoreChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(holder);
+	private static void applyRandomOps(@Nonnull DataStoreChanges layer, @Nonnull Random random, int count) {
 		for (int i = 0; i < count; i++) {
 			final int id = random.nextInt(KEY_SPACE);
 			if (random.nextBoolean()) {
@@ -156,14 +122,10 @@ class LongRunningSavepointDataStoreChangesTest implements TimeBoundedTestSupport
 
 	/**
 	 * Reads the layer's revertable state — the dirty-index keys and the trapped-part keys — into an `.equals`-comparable
-	 * value (empty when the layer was never created).
+	 * value.
 	 */
 	@Nonnull
-	private static DataStoreState readState(@Nonnull LayerHolder holder) {
-		final DataStoreChanges layer = Transaction.getTransactionalMemoryLayerIfExists(holder);
-		if (layer == null) {
-			return new DataStoreState(List.of(), List.of());
-		}
+	private static DataStoreState readState(@Nonnull DataStoreChanges layer) {
 		return new DataStoreState(dirtyIndexKeys(layer), trappedPartKeys(layer));
 	}
 
@@ -210,21 +172,12 @@ class LongRunningSavepointDataStoreChangesTest implements TimeBoundedTestSupport
 	}
 
 	/**
-	 * `.equals`-comparable snapshot of the two revertable fields.
-	 *
-	 * @param dirtyIndexKeys the sorted dirty-index key ids
-	 * @param trappedKeys    the sorted trapped storage-part keys
-	 */
-	private record DataStoreState(@Nonnull List<Integer> dirtyIndexKeys, @Nonnull List<Long> trappedKeys) {
-	}
-
-	/**
 	 * Minimal {@link TransactionalLayerProducer} whose diff layer is a real {@link DataStoreChanges} (its persistence
 	 * service is a mock, never touched by the dirty-index / trapped-part paths under test).
 	 */
 	private static final class LayerHolder implements TransactionalLayerProducer<DataStoreChanges, LayerHolder> {
 		@SuppressWarnings("unchecked")
-		private static final Supplier<DataStoreChanges> FACTORY = () -> new DataStoreChanges(
+		static final Supplier<DataStoreChanges> FACTORY = () -> new DataStoreChanges(
 			Mockito.mock(StoragePartPersistenceService.class)
 		);
 		private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
@@ -314,4 +267,71 @@ class LongRunningSavepointDataStoreChangesTest implements TimeBoundedTestSupport
 		}
 	}
 
+	/**
+	 * One generation's fixture, resolving the {@link DataStoreChanges} to drive from the phase it is running in.
+	 *
+	 * In a transaction that is the holder's diff layer, exactly as production produces it. In WARM_UP there is no diff
+	 * layer at all: `WarmUpDataStoreMemoryBuffer` holds a plain instance, and the savepoint rewinds it through the
+	 * layer's own `Snapshotable` implementation, which its mutators arm themselves. Keeping both behind one accessor is
+	 * what lets a single scenario drive both phases.
+	 */
+	private static final class ChangesState implements FuzzGeneration<DataStoreState> {
+		private final LayerHolder holder = new LayerHolder();
+		private final DataStoreChanges warmUpChanges = LayerHolder.FACTORY.get();
+
+		@Nonnull
+		@Override
+		public TransactionalStateProducer<?> subject() {
+			return this.holder;
+		}
+
+		@Nonnull
+		@Override
+		public DataStoreState contents() {
+			return readState(changes());
+		}
+
+		@Override
+		public void applyBaselineOperations(@Nonnull Random random) {
+			applyRandomOps(changes(), random, 1 + random.nextInt(MAX_OPS));
+		}
+
+		@Override
+		public void applySavepointOperations(@Nonnull Random random) {
+			final DataStoreChanges layer = changes();
+			applyRandomOps(layer, random, 1 + random.nextInt(MAX_OPS));
+			// applied LAST: the marker id is outside the random range, so nothing after it can undo it
+			markIndexDirty(layer, MARKER);
+			trapPart(layer, MARKER);
+		}
+
+		/**
+		 * The layer this generation mutates: the holder's diff layer inside a transaction, the plain warm-up instance
+		 * outside one.
+		 */
+		@Nonnull
+		private DataStoreChanges changes() {
+			if (!Transaction.isTransactionAvailable()) {
+				return this.warmUpChanges;
+			}
+			return Objects.requireNonNull(
+				Transaction.getOrCreateTransactionalMemoryLayer(this.holder),
+				"a transaction is available, so the holder must have produced a layer"
+			);
+		}
+	}
+
+}
+
+/**
+ * `.equals`-comparable snapshot of the two revertable fields of a {@link DataStoreChanges}.
+ *
+ * Declared at file scope rather than nested in the test class because it is that class's
+ * {@link io.evitadb.core.transaction.memory.AbstractSavepointFuzzTest} type argument, and a class may not name its own
+ * member type in its own `extends` clause.
+ *
+ * @param dirtyIndexKeys the sorted dirty-index key ids
+ * @param trappedKeys    the sorted trapped storage-part keys
+ */
+record DataStoreState(@Nonnull List<Integer> dirtyIndexKeys, @Nonnull List<Long> trappedKeys) {
 }

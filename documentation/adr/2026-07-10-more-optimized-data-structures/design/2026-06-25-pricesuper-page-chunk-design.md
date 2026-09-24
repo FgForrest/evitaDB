@@ -61,7 +61,7 @@ persisted) → those leaf pages serialize byte-identical → the dirty check ski
   `createCopyWithMergedTransactionalMemory`).
 - **SINGLE ↔ PAGED threshold** — small price lists stay monolithic inline (current byte-26 with `priceRecords`),
   only lists past the threshold (≈ the §3 threshold, ~1-2 leaf pages' worth) flip to PAGED. Avoids per-page
-  overhead swamping the 99% of `(priceList,currency)` combos that are small (decodoma: 120 super parts, p50 ~tiny).
+  overhead swamping the 99% of `(priceList,currency)` combos that are small (gate catalog: 120 super parts, p50 ~tiny).
 
 ## The ONE genuine difference from §3 → the de-risk focus
 

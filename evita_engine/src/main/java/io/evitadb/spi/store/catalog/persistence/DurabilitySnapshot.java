@@ -42,13 +42,19 @@ import java.time.OffsetDateTime;
  *
  * @param checkpointIntervalMillis  the configured interval a checkpoint is deferred by, in milliseconds
  * @param lastCadenceMillis         time between the last two completed checkpoints, in milliseconds; `0` before the
- *                                  first one completes. Sustained values above the configured interval mean
- *                                  checkpointing is not keeping up with the write rate
+ *                                  first one completes, and measured from this coordinator's construction for the
+ *                                  first one. A value above the configured interval is **not** a problem signal on its
+ *                                  own - it is the normal reading for a catalog that is written to rarely, where every
+ *                                  round checkpoints inline and the fence depth stays `0`. Only alongside a fence
+ *                                  depth that also exceeds the interval does it mean checkpointing is not keeping up
+ *                                  with the write rate
  * @param lastFenceDepthMillis      how long the oldest change covered by the last checkpoint waited to become durable,
  *                                  in milliseconds; `0` when that round checkpointed without deferring anything. This
  *                                  is the time-domain answer to "how much replay would a crash cost me right now" -
  *                                  distinct from `CommitPipelineStatistics#durabilityLag()`, which answers the same
- *                                  question in catalog versions
+ *                                  question in catalog versions. Measured from the end of the first round that
+ *                                  deferred, so it is a lower bound on the age of the oldest change a crash at that
+ *                                  moment would have replayed. Never greater than `lastCadenceMillis`
  * @param lastFilesForced           number of files the last checkpoint forced to the device
  * @param lastForceDurationMillis   wall-clock time those forces took, in milliseconds - the cost the interval exists
  *                                  to amortise, paid once per checkpoint rather than once per round

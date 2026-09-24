@@ -23,6 +23,12 @@
 
 package io.evitadb.externalApi.trace;
 
+import com.linecorp.armeria.client.ClientRequestContext;
+import com.linecorp.armeria.common.HttpMethod;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.util.SafeCloseable;
+import com.linecorp.armeria.server.ServiceRequestContext;
+import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -33,6 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
@@ -159,6 +166,72 @@ class DefaultExternalApiTracingContextTest {
 				assertSame(cause, ex.getCause(), "Should propagate original cause");
 			} catch (InterruptedException ex) {
 				Thread.currentThread().interrupt();
+			}
+		}
+	}
+
+	@Nested
+	@DisplayName("currentRequestStart")
+	class CurrentRequestStart {
+
+		@Test
+		@DisplayName("returns null when this thread is serving no request")
+		void shouldReturnNullWhenNoRequestIsCurrent() {
+			assertNull(ExternalApiTracingContext.currentRequestStart());
+		}
+
+		@Test
+		@DisplayName("returns the start of the served request as epoch milliseconds")
+		void shouldReturnTheStartOfTheServedRequest() {
+			final ServiceRequestContext ctx = ServiceRequestContext.builder(
+				HttpRequest.of(HttpMethod.GET, "/served")
+			).build();
+
+			try (SafeCloseable ignored = ctx.push()) {
+				assertEquals(
+					Long.toString(ctx.log().partial().requestStartTimeMillis()),
+					ExternalApiTracingContext.currentRequestStart()
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("returns null under an outbound call with no served request behind it")
+		void shouldReturnNullUnderARootlessOutboundCall() {
+			final ClientRequestContext clientContext = ClientRequestContext.builder(
+				HttpRequest.of(HttpMethod.GET, "/outbound")
+			).build();
+			assertNull(clientContext.root(), "the outbound call unexpectedly has a served request behind it");
+
+			try (SafeCloseable ignored = clientContext.push()) {
+				// it must not fall back to the current time: a thread that cannot see a served request is one the
+				// request was handed to later, so "now" would under-report every duration derived from it
+				assertNull(ExternalApiTracingContext.currentRequestStart());
+			}
+		}
+
+		@Test
+		@DisplayName("resolves an outbound call made inside a served request to that request")
+		void shouldResolveANestedOutboundCallToTheServedRequest() {
+			final ServiceRequestContext serviceContext = ServiceRequestContext.builder(
+				HttpRequest.of(HttpMethod.GET, "/served")
+			).build();
+
+			try (SafeCloseable ignoredService = serviceContext.push()) {
+				// Armeria resolves a client context's root at construction time, so a call made from inside a
+				// served request keeps that request as its root - `ServiceRequestContext.currentOrNull()` does not
+				// reject a client context, it resolves one to the request behind it
+				final ClientRequestContext clientContext = ClientRequestContext.builder(
+					HttpRequest.of(HttpMethod.GET, "/outbound")
+				).build();
+				assertSame(serviceContext, clientContext.root());
+
+				try (SafeCloseable ignoredClient = clientContext.push()) {
+					assertEquals(
+						Long.toString(serviceContext.log().partial().requestStartTimeMillis()),
+						ExternalApiTracingContext.currentRequestStart()
+					);
+				}
 			}
 		}
 	}

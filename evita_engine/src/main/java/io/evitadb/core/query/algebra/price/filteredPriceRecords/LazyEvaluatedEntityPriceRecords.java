@@ -25,7 +25,6 @@ package io.evitadb.core.query.algebra.price.filteredPriceRecords;
 
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
-import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -59,7 +58,7 @@ public class LazyEvaluatedEntityPriceRecords implements FilteredPriceRecords {
 
 	/**
 	 * Method returns {@link PriceRecordLookup} implementation that provides
-	 * {@link PriceListAndCurrencyPriceIndex#getLowestPriceRecordsForEntity(int)} for each entity asked.
+	 * {@link PriceListAndCurrencyPriceIndex#forEachLowestPriceRecordOfEntity(int, Consumer)} for each entity asked.
 	 */
 	@Nonnull
 	@Override
@@ -69,21 +68,31 @@ public class LazyEvaluatedEntityPriceRecords implements FilteredPriceRecords {
 
 	/**
 	 * Implementation of {@link PriceRecordLookup} that provides
-	 * {@link PriceListAndCurrencyPriceIndex#getLowestPriceRecordsForEntity(int)} for each entity asked.
+	 * {@link PriceListAndCurrencyPriceIndex#forEachLowestPriceRecordOfEntity(int, Consumer)} for each entity asked.
 	 */
 	@ThreadSafe
 	@RequiredArgsConstructor
 	public static class PriceRecordIterator implements PriceRecordLookup {
 		private final PriceListAndCurrencyPriceIndex[] priceIndexes;
 
+		/**
+		 * Feeds the first index that knows the entity to `priceConsumer` and stops there.
+		 *
+		 * The lookup is streamed through
+		 * {@link PriceListAndCurrencyPriceIndex#forEachLowestPriceRecordOfEntity(int, Consumer)} rather than through
+		 * the array-returning form: this runs once per entity of a result set, and the entity-prices holder behind it
+		 * keeps a lone price as a plain field, so the array form would allocate a one-element array per entity for
+		 * nothing.
+		 *
+		 * @param entityPk           primary key of the entity whose prices are wanted
+		 * @param lastExpectedEntity primary key of the last entity this lookup will be asked about
+		 * @param priceConsumer      receives the entity's lowest price records from the first index holding any
+		 * @return true when some index held a price of the entity
+		 */
 		@Override
 		public boolean forEachPriceOfEntity(int entityPk, int lastExpectedEntity, @Nonnull Consumer<PriceRecordContract> priceConsumer) {
 			for (PriceListAndCurrencyPriceIndex priceIndex : this.priceIndexes) {
-				final PriceRecordContract[] lowestPriceRecordsForEntity = priceIndex.getLowestPriceRecordsForEntity(entityPk);
-				if (!ArrayUtils.isEmpty(lowestPriceRecordsForEntity)) {
-					for (PriceRecordContract thePrice : lowestPriceRecordsForEntity) {
-						priceConsumer.accept(thePrice);
-					}
+				if (priceIndex.forEachLowestPriceRecordOfEntity(entityPk, priceConsumer)) {
 					return true;
 				}
 			}

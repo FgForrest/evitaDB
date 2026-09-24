@@ -25,6 +25,7 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -37,6 +38,7 @@ import org.junit.jupiter.api.Tag;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.REQUIRE;
 
 /**
@@ -249,6 +251,115 @@ class EntityFetchTest {
 			final EntityFetch combined = entityFetch1.combineWith(entityFetch2);
 
 			assertEquals(entityFetch(attributeContent("code", "name"), associatedDataContentAll()), combined);
+		}
+	}
+
+	@Nested
+	@DisplayName("Combining reference content")
+	@Tag(REFERENCE)
+	class ReferenceContentCombiningTest {
+
+		@Test
+		@DisplayName("should merge two reference contents of the same reference into one")
+		void shouldMergeReferenceContentsOfSameReference() {
+			final EntityFetch entityFetch1 = entityFetch(
+				referenceContent("category", entityFetch(attributeContent("code")))
+			);
+			final EntityFetch entityFetch2 = entityFetch(
+				referenceContent("category", entityFetch(attributeContent("name")))
+			);
+			final EntityFetch combined = entityFetch1.combineWith(entityFetch2);
+
+			assertEquals(
+				entityFetch(referenceContent("category", entityFetch(attributeContent("code", "name")))),
+				combined
+			);
+			assertEquals(1, combined.getRequirements().length);
+		}
+
+		@Test
+		@DisplayName("should merge two reference contents for all references into one")
+		void shouldMergeReferenceContentsForAllReferences() {
+			final EntityFetch combined = entityFetch(referenceContentAll(entityFetch(attributeContent("code"))))
+				.combineWith(entityFetch(referenceContentAll(entityFetch(attributeContent("name")))));
+
+			assertEquals(
+				entityFetch(referenceContentAll(entityFetch(attributeContent("code", "name")))),
+				combined
+			);
+		}
+
+		@Test
+		@DisplayName("should keep reference contents of different references apart")
+		void shouldKeepReferenceContentsOfDifferentReferencesApart() {
+			final EntityFetch combined = entityFetch(referenceContent("category"))
+				.combineWith(entityFetch(referenceContent("brand")));
+
+			assertEquals(entityFetch(referenceContent("category"), referenceContent("brand")), combined);
+			assertEquals(2, combined.getRequirements().length);
+		}
+
+		@Test
+		@DisplayName("should throw exception when the merged reference contents carry different filters")
+		void shouldThrowExceptionWhenReferenceContentsCarryDifferentFilters() {
+			final EntityFetch entityFetch1 = entityFetch(
+				referenceContent("category", filterBy(attributeEquals("code", "x")))
+			);
+			final EntityFetch entityFetch2 = entityFetch(
+				referenceContent("category", filterBy(attributeEquals("code", "y")))
+			);
+
+			assertThrows(EvitaInvalidUsageException.class, () -> entityFetch1.combineWith(entityFetch2));
+		}
+
+		@Test
+		@DisplayName("should keep a name specific reference content beside the one for all references")
+		void shouldKeepNameSpecificReferenceContentBesideAllReferencesRequirement() {
+			final EntityFetch combined = entityFetch(referenceContentAllWithAttributes())
+				.combineWith(entityFetch(referenceContent("brand")));
+
+			assertEquals(2, combined.getRequirements().length);
+			assertEquals(
+				entityFetch(referenceContentAllWithAttributes(), referenceContent("brand")),
+				combined
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Duplicate requirement reduction")
+	class DuplicateRequirementReductionTest {
+
+		@Test
+		@DisplayName("a fetch without duplicates reduces to itself")
+		void shouldReturnSelfWhenNoDuplicates() {
+			final EntityFetch entityFetch = entityFetch(attributeContent("code"), priceContentAll());
+
+			assertSame(entityFetch, entityFetch.combineDuplicateRequirements());
+		}
+
+		@Test
+		@DisplayName("two requirements of one kind fold into a single fetch requirement")
+		void shouldReduceDuplicateRequirementsIntoOne() {
+			final EntityFetch entityFetch = entityFetch(attributeContent("code"), attributeContent("name"));
+
+			final EntityFetch reduced = entityFetch.combineDuplicateRequirements();
+
+			assertNotSame(entityFetch, reduced);
+			assertInstanceOf(EntityFetch.class, reduced);
+			assertEquals(entityFetch(attributeContent("code", "name")), reduced);
+		}
+
+		@Test
+		@DisplayName("two contradicting siblings are refused")
+		@Tag(REFERENCE)
+		void shouldPropagateConflictWhenSiblingsContradict() {
+			final EntityFetch entityFetch = entityFetch(
+				referenceContent("a", filterBy(attributeEquals("code", "x"))),
+				referenceContent("a", filterBy(attributeEquals("code", "y")))
+			);
+
+			assertThrows(EvitaInvalidUsageException.class, entityFetch::combineDuplicateRequirements);
 		}
 	}
 

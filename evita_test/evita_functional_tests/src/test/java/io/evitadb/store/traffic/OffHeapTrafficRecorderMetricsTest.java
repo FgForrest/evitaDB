@@ -139,7 +139,8 @@ public class OffHeapTrafficRecorderMetricsTest implements EvitaTestSupport {
 			MemoryNotAvailableException.class.isAnnotationPresent(NotMonitored.class),
 			"MemoryNotAvailableException must carry @NotMonitored so the error-monitoring agent skips it"
 		);
-		// the marker must be readable by the byte-buddy agent at premain and applicable to types
+		// RUNTIME retention is load-bearing, not incidental: the agent instruments only the roots of the evitaDB
+		// error hierarchies, so this marker is read reflectively at runtime rather than while instrumenting
 		assertEquals(RetentionPolicy.RUNTIME, NotMonitored.class.getAnnotation(Retention.class).value());
 		assertArrayEquals(new ElementType[]{ElementType.TYPE}, NotMonitored.class.getAnnotation(Target.class).value());
 	}

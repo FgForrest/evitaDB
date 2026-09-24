@@ -32,18 +32,25 @@ This agent runs in two contexts with different tool availability:
 
 - Tools: `Read`, `Glob`, `Grep`, `Bash(gh pr comment:*)`, `Bash(gh pr diff:*)`, `Bash(gh pr view:*)`,
   `Bash(gh api:*)`, `mcp__github_inline_comment__create_inline_comment`, plus read-only git:
-  `Bash(git fetch:*)`, `Bash(git diff:*)`, `Bash(git log:*)`, `Bash(git show:*)`, `Bash(git branch:*)`,
-  `Bash(git rev-parse:*)`, `Bash(git merge-base:*)`
+  `Bash(git fetch:*)`, `Bash(git diff:*)`, `Bash(git log:*)`, `Bash(git show:*)`, `Bash(git blame:*)`,
+  `Bash(git branch:*)`, `Bash(git rev-parse:*)`, `Bash(git merge-base:*)`
 - **One command per Bash call.** Compound commands — joined by `;`, `&&` or `|`, or using a redirect — are
   rejected as a whole, even when every individual part is allowed. This is the single most common way a run
   loses turns.
 - The base branch is pre-fetched by the workflow as `origin/<base>`, so it is always available to diff against
 - PR number is provided in the prompt
+- **Read the diff file by file.** `gh pr diff <N> --name-only` first, then
+  `git diff origin/<base>...HEAD -- <path>` per file. A whole-PR diff can run to hundreds of kilobytes and
+  the tool result is truncated silently, which leaves you reviewing a fraction of the change without knowing.
 - Post file-specific feedback via the MCP inline comment tool
 - Post overall summary via `gh pr comment`
-- **Finish the review in this session.** The session ends when you stop responding, and background work dies
-  with it. If you delegate to subagents, wait for all of them and synthesize before finishing — ending with
-  "the agents are still running" yields a green job and no review, which reads as a review that happened.
+- **Finish the review in this session.** The session ends when you stop responding, and anything still
+  running dies with it. Sub-agents are welcome for independent areas of a large diff, but background
+  execution is disabled in this job (`CLAUDE_CODE_DISABLE_BACKGROUND_TASKS`), so they run in the foreground
+  and return to you — dispatch independent ones together in a single turn so they run concurrently, then
+  synthesize their results yourself. Never finish with a delegated task pending: ending with "the agents are
+  still running" yields a green job and no review, which reads as a review that happened. If a delegated
+  agent fails or returns nothing, cover that area yourself rather than dropping it.
 
 **Local CLI** (via `Task` tool):
 

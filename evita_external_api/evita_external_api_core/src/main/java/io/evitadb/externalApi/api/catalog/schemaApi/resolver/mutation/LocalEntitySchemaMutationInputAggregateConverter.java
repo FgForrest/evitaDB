@@ -107,6 +107,10 @@ public class LocalEntitySchemaMutationInputAggregateConverter extends
 		registerConverter(MODIFY_ATTRIBUTE_SCHEMA_TYPE_MUTATION.name(), new ModifyAttributeSchemaTypeMutationConverter(objectParser, exceptionFactory));
 		registerConverter(REMOVE_ATTRIBUTE_SCHEMA_MUTATION.name(), new RemoveAttributeSchemaMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SET_ATTRIBUTE_SCHEMA_FILTERABLE_MUTATION.name(), new SetAttributeSchemaFilterableMutationConverter(objectParser, exceptionFactory));
+		registerConverter(
+			SET_ATTRIBUTE_SCHEMA_ACCELERATED_MUTATION.name(),
+			new SetAttributeSchemaAcceleratedMutationConverter(objectParser, exceptionFactory)
+		);
 		registerConverter(SET_ATTRIBUTE_SCHEMA_LOCALIZED_MUTATION.name(), new SetAttributeSchemaLocalizedMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SET_ATTRIBUTE_SCHEMA_NULLABLE_MUTATION.name(), new SetAttributeSchemaNullableMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SET_ATTRIBUTE_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION.name(), new SetAttributeSchemaConflictResolutionOverrideMutationConverter(objectParser, exceptionFactory));

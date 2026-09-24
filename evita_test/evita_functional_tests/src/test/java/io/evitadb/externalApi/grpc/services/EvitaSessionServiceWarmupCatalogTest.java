@@ -197,7 +197,7 @@ class EvitaSessionServiceWarmupCatalogTest {
 			assertEquals(i, entityResponse.getEntity().getPrimaryKey());
 
 			final GrpcEvitaValue attributeValue = entityResponse.getEntity().getGlobalAttributesMap().get(attributeName);
-			assertTrue(attributeValue.getLongValue() == attributePriorityValue);
+			assertEquals(attributePriorityValue, attributeValue.getLongValue());
 		}
 
 		GrpcGoLiveAndCloseResponse grpcGoLiveAndCloseResponse = evitaBlockingStub.goLiveAndClose(Empty.getDefaultInstance());

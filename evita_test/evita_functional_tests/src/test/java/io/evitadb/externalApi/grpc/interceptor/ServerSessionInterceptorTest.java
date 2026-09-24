@@ -42,6 +42,7 @@ import java.io.InputStream;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.SESSION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -153,7 +154,7 @@ class ServerSessionInterceptorTest {
 			serverCall.closedStatus == null ? null : serverCall.closedStatus.getCode(),
 			"Call to `" + fullMethodName + "` was not refused!"
 		);
-		assertTrue(!handler.invoked, "Call to `" + fullMethodName + "` reached the handler!");
+		assertFalse(handler.invoked, "Call to `" + fullMethodName + "` reached the handler!");
 	}
 
 	/**

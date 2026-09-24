@@ -67,7 +67,7 @@ public record ComparableReferenceKey(
 	 *
 	 * - **It allocates nothing.** `contains` can only be handed an object, so probing even an *empty* set cost
 	 *   one wrapper per probe. On the entity write path that made this 19.2% of all write-path allocation in the
-	 *   senesi WARM_UP profile.
+	 *   production-catalog WARM_UP profile.
 	 * - **It is strictly more correct.** {@link #hashCode()} always folds in the internal primary key, while
 	 *   {@link #equals(Object)} ignores it when either side {@link ReferenceKey#isUnknownReference()} - so two
 	 *   keys that are `equals` can land in different hash buckets, and a `HashSet` probe can miss a member it

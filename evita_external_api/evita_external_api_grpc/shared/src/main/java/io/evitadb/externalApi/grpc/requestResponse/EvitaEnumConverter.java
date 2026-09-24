@@ -45,12 +45,14 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
@@ -63,6 +65,8 @@ import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.statistics.IndexBrowseOrdering;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
+import io.evitadb.api.statistics.StoragePartGroup;
+import io.evitadb.api.statistics.StoragePartKind;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.dataType.ClassifierType;
@@ -78,6 +82,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -428,6 +433,37 @@ public class EvitaEnumConverter {
 		return switch (managedReferencesBehaviour) {
 			case ANY -> GrpcManagedReferencesBehaviour.ANY;
 			case EXISTING -> GrpcManagedReferencesBehaviour.EXISTING;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcHierarchyParentsBehaviour} to {@link HierarchyParentsBehaviour}.
+	 *
+	 * @param grpcHierarchyParentsBehaviour the {@link GrpcHierarchyParentsBehaviour} to be converted
+	 * @return the converted {@link HierarchyParentsBehaviour}
+	 * @throws EvitaInvalidUsageException if the given grpcHierarchyParentsBehaviour is unrecognized
+	 */
+	@Nonnull
+	public static HierarchyParentsBehaviour toHierarchyParentsBehaviour(@Nonnull GrpcHierarchyParentsBehaviour grpcHierarchyParentsBehaviour) {
+		return switch (grpcHierarchyParentsBehaviour) {
+			case MATCHING -> HierarchyParentsBehaviour.MATCHING;
+			case COMPLETE -> HierarchyParentsBehaviour.COMPLETE;
+			case UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized remote hierarchy parents behaviour: " + grpcHierarchyParentsBehaviour);
+		};
+	}
+
+	/**
+	 * Converts {@link HierarchyParentsBehaviour} to {@link GrpcHierarchyParentsBehaviour}.
+	 *
+	 * @param hierarchyParentsBehaviour the {@link HierarchyParentsBehaviour} to be converted
+	 * @return the converted {@link GrpcHierarchyParentsBehaviour}
+	 */
+	@Nonnull
+	public static GrpcHierarchyParentsBehaviour toGrpcHierarchyParentsBehaviour(@Nonnull HierarchyParentsBehaviour hierarchyParentsBehaviour) {
+		return switch (hierarchyParentsBehaviour) {
+			case MATCHING -> GrpcHierarchyParentsBehaviour.MATCHING;
+			case COMPLETE -> GrpcHierarchyParentsBehaviour.COMPLETE;
 		};
 	}
 
@@ -969,6 +1005,101 @@ public class EvitaEnumConverter {
 				.stream()
 				.map(it -> new ScopedGlobalAttributeUniquenessType(toScope(it.getScope()), toGlobalAttributeUniquenessType(it.getUniquenessType())))
 				.toArray(ScopedGlobalAttributeUniquenessType[]::new);
+	}
+
+	/**
+	 * Converts {@link GrpcAttributeFilterAccelerator} to {@link AttributeFilterAccelerator}.
+	 *
+	 * @param accelerator the {@link GrpcAttributeFilterAccelerator} to convert
+	 * @return the converted {@link AttributeFilterAccelerator}
+	 * @throws EvitaInvalidUsageException when the accelerator is unknown to this side of the wire, or when the
+	 *                                    unspecified default leaked into an `accelerators` list
+	 */
+	@Nonnull
+	public static AttributeFilterAccelerator toAttributeFilterAccelerator(
+		@Nonnull GrpcAttributeFilterAccelerator accelerator
+	) {
+		return switch (accelerator) {
+			case ATTRIBUTE_FILTER_ACCELERATOR_SUBSTRING_SEARCH -> AttributeFilterAccelerator.SUBSTRING_SEARCH;
+			case ATTRIBUTE_FILTER_ACCELERATOR_UNSPECIFIED, UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized remote filter accelerator: " + accelerator);
+		};
+	}
+
+	/**
+	 * Converts {@link AttributeFilterAccelerator} to {@link GrpcAttributeFilterAccelerator}.
+	 *
+	 * @param accelerator the {@link AttributeFilterAccelerator} to convert
+	 * @return the converted {@link GrpcAttributeFilterAccelerator}
+	 */
+	@Nonnull
+	public static GrpcAttributeFilterAccelerator toGrpcAttributeFilterAccelerator(
+		@Nonnull AttributeFilterAccelerator accelerator
+	) {
+		return switch (accelerator) {
+			case SUBSTRING_SEARCH -> GrpcAttributeFilterAccelerator.ATTRIBUTE_FILTER_ACCELERATOR_SUBSTRING_SEARCH;
+		};
+	}
+
+	/**
+	 * Converts a gRPC scoped accelerator list to the domain model carriers. The field is optional on the wire - an
+	 * older client or server simply never sends it - and proto3 renders that absence as an empty list, which is
+	 * indistinguishable from "no acceleration anywhere". Both therefore map to `null`, the value every consumer
+	 * already reads as "not provided".
+	 *
+	 * @param scopedList the gRPC scoped list, empty when the peer did not send the field
+	 * @return array of scoped accelerators, or `null` when nothing was declared
+	 */
+	@Nullable
+	public static ScopedAttributeFilterAccelerators[] toScopedAttributeFilterAccelerators(
+		@Nonnull List<GrpcScopedAttributeFilterAccelerators> scopedList
+	) {
+		if (scopedList.isEmpty()) {
+			return null;
+		}
+		final ScopedAttributeFilterAccelerators[] result = new ScopedAttributeFilterAccelerators[scopedList.size()];
+		for (int i = 0; i < result.length; i++) {
+			final GrpcScopedAttributeFilterAccelerators scopedAccelerators = scopedList.get(i);
+			final List<GrpcAttributeFilterAccelerator> accelerators = scopedAccelerators.getAcceleratorsList();
+			final AttributeFilterAccelerator[] converted = accelerators.isEmpty() ?
+				ScopedAttributeFilterAccelerators.NO_ACCELERATORS :
+				new AttributeFilterAccelerator[accelerators.size()];
+			for (int j = 0; j < accelerators.size(); j++) {
+				converted[j] = toAttributeFilterAccelerator(accelerators.get(j));
+			}
+			result[i] = new ScopedAttributeFilterAccelerators(toScope(scopedAccelerators.getScope()), converted);
+		}
+		return result;
+	}
+
+	/**
+	 * Converts the domain model carriers to their gRPC form, one message per carrier. A carrier listing no accelerator
+	 * at all is kept rather than dropped, so that a mutation carrying one round-trips through the wire unchanged. The
+	 * *schema* direction never produces them - {@link
+	 * io.evitadb.api.requestResponse.schema.dto.AttributeSchema#toAcceleratorsArray} omits scopes declaring nothing -
+	 * so an attribute with no acceleration still serializes identically everywhere.
+	 *
+	 * @param acceleratorsInScopes the carriers to convert, may be null
+	 * @return the gRPC form, empty when nothing is declared
+	 */
+	@Nonnull
+	public static List<GrpcScopedAttributeFilterAccelerators> toGrpcScopedAttributeFilterAccelerators(
+		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes
+	) {
+		if (acceleratorsInScopes == null || acceleratorsInScopes.length == 0) {
+			return List.of();
+		}
+		final List<GrpcScopedAttributeFilterAccelerators> result = new ArrayList<>(acceleratorsInScopes.length);
+		for (final ScopedAttributeFilterAccelerators scopedAccelerators : acceleratorsInScopes) {
+			final GrpcScopedAttributeFilterAccelerators.Builder builder =
+				GrpcScopedAttributeFilterAccelerators.newBuilder()
+					.setScope(toGrpcScope(scopedAccelerators.scope()));
+			for (final AttributeFilterAccelerator accelerator : scopedAccelerators.accelerators()) {
+				builder.addAccelerators(toGrpcAttributeFilterAccelerator(accelerator));
+			}
+			result.add(builder.build());
+		}
+		return result;
 	}
 
 	/**
@@ -1840,6 +1971,82 @@ public class EvitaEnumConverter {
 	}
 
 	/**
+	 * Converts {@link GrpcStoragePartGroup} to {@link StoragePartGroup}.
+	 *
+	 * @param grpcGroup the received storage-part group
+	 * @return its Java form
+	 * @throws EvitaInvalidUsageException when the group is unknown to this client - a server newer than this client
+	 *                                    has classified a storage part into a group that did not exist when this
+	 *                                    client was built
+	 */
+	@Nonnull
+	public static StoragePartGroup toStoragePartGroup(@Nonnull GrpcStoragePartGroup grpcGroup) {
+		return switch (grpcGroup) {
+			case STORAGE_PART_GROUP_ENTITY_BODY -> StoragePartGroup.ENTITY_BODY;
+			case STORAGE_PART_GROUP_ATTRIBUTE_DATA -> StoragePartGroup.ATTRIBUTE_DATA;
+			case STORAGE_PART_GROUP_ASSOCIATED_DATA -> StoragePartGroup.ASSOCIATED_DATA;
+			case STORAGE_PART_GROUP_PRICE_DATA -> StoragePartGroup.PRICE_DATA;
+			case STORAGE_PART_GROUP_REFERENCE_DATA -> StoragePartGroup.REFERENCE_DATA;
+			case STORAGE_PART_GROUP_INDEX_MANIFEST -> StoragePartGroup.INDEX_MANIFEST;
+			case STORAGE_PART_GROUP_ATTRIBUTE_INDEX -> StoragePartGroup.ATTRIBUTE_INDEX;
+			case STORAGE_PART_GROUP_PRICE_INDEX -> StoragePartGroup.PRICE_INDEX;
+			case STORAGE_PART_GROUP_REFERENCE_INDEX -> StoragePartGroup.REFERENCE_INDEX;
+			case STORAGE_PART_GROUP_FACET_INDEX -> StoragePartGroup.FACET_INDEX;
+			case STORAGE_PART_GROUP_HIERARCHY_INDEX -> StoragePartGroup.HIERARCHY_INDEX;
+			case STORAGE_PART_GROUP_REFERENCE_HISTOGRAM_INDEX -> StoragePartGroup.REFERENCE_HISTOGRAM_INDEX;
+			case STORAGE_PART_GROUP_SCHEMA -> StoragePartGroup.SCHEMA;
+			case STORAGE_PART_GROUP_HEADER -> StoragePartGroup.HEADER;
+			case STORAGE_PART_GROUP_UNSPECIFIED, UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized storage part group: " + grpcGroup);
+		};
+	}
+
+	/**
+	 * Converts {@link StoragePartGroup} to {@link GrpcStoragePartGroup}.
+	 *
+	 * @param group the storage-part group to convert
+	 * @return its gRPC form
+	 */
+	@Nonnull
+	public static GrpcStoragePartGroup toGrpcStoragePartGroup(@Nonnull StoragePartGroup group) {
+		return switch (group) {
+			case ENTITY_BODY -> GrpcStoragePartGroup.STORAGE_PART_GROUP_ENTITY_BODY;
+			case ATTRIBUTE_DATA -> GrpcStoragePartGroup.STORAGE_PART_GROUP_ATTRIBUTE_DATA;
+			case ASSOCIATED_DATA -> GrpcStoragePartGroup.STORAGE_PART_GROUP_ASSOCIATED_DATA;
+			case PRICE_DATA -> GrpcStoragePartGroup.STORAGE_PART_GROUP_PRICE_DATA;
+			case REFERENCE_DATA -> GrpcStoragePartGroup.STORAGE_PART_GROUP_REFERENCE_DATA;
+			case INDEX_MANIFEST -> GrpcStoragePartGroup.STORAGE_PART_GROUP_INDEX_MANIFEST;
+			case ATTRIBUTE_INDEX -> GrpcStoragePartGroup.STORAGE_PART_GROUP_ATTRIBUTE_INDEX;
+			case PRICE_INDEX -> GrpcStoragePartGroup.STORAGE_PART_GROUP_PRICE_INDEX;
+			case REFERENCE_INDEX -> GrpcStoragePartGroup.STORAGE_PART_GROUP_REFERENCE_INDEX;
+			case FACET_INDEX -> GrpcStoragePartGroup.STORAGE_PART_GROUP_FACET_INDEX;
+			case HIERARCHY_INDEX -> GrpcStoragePartGroup.STORAGE_PART_GROUP_HIERARCHY_INDEX;
+			case REFERENCE_HISTOGRAM_INDEX -> GrpcStoragePartGroup.STORAGE_PART_GROUP_REFERENCE_HISTOGRAM_INDEX;
+			case SCHEMA -> GrpcStoragePartGroup.STORAGE_PART_GROUP_SCHEMA;
+			case HEADER -> GrpcStoragePartGroup.STORAGE_PART_GROUP_HEADER;
+		};
+	}
+
+	/**
+	 * Converts {@link StoragePartKind} to {@link GrpcStoragePartKind}.
+	 *
+	 * There is deliberately no inverse. The kind is a property of {@link StoragePartGroup}, so the Java side derives
+	 * it from the decoded group and a peer cannot make the two contradict each other; the wire carries it only because
+	 * a generated client enum has no behaviour to derive it with.
+	 *
+	 * @param kind the storage-part kind to convert
+	 * @return its gRPC form
+	 */
+	@Nonnull
+	public static GrpcStoragePartKind toGrpcStoragePartKind(@Nonnull StoragePartKind kind) {
+		return switch (kind) {
+			case ENTITY_DATA -> GrpcStoragePartKind.STORAGE_PART_KIND_ENTITY_DATA;
+			case INDEX -> GrpcStoragePartKind.STORAGE_PART_KIND_INDEX;
+			case METADATA -> GrpcStoragePartKind.STORAGE_PART_KIND_METADATA;
+		};
+	}
+
+	/**
 	 * Converts {@link GrpcSchemaElementKind} to {@link ElementKind}.
 	 *
 	 * @param grpcElementKind the kind of schema element to convert
@@ -1888,6 +2095,7 @@ public class EvitaEnumConverter {
 	public static Capability toSchemaCapability(@Nonnull GrpcSchemaCapability grpcCapability) {
 		return switch (grpcCapability) {
 			case SCHEMA_CAPABILITY_FILTERABLE -> Capability.FILTERABLE;
+			case SCHEMA_CAPABILITY_SUBSTRING_ACCELERATED -> Capability.SUBSTRING_ACCELERATED;
 			case SCHEMA_CAPABILITY_SORTABLE -> Capability.SORTABLE;
 			case SCHEMA_CAPABILITY_UNIQUE -> Capability.UNIQUE;
 			case SCHEMA_CAPABILITY_FACETED -> Capability.FACETED;
@@ -1910,6 +2118,7 @@ public class EvitaEnumConverter {
 	public static GrpcSchemaCapability toGrpcSchemaCapability(@Nonnull Capability capability) {
 		return switch (capability) {
 			case FILTERABLE -> GrpcSchemaCapability.SCHEMA_CAPABILITY_FILTERABLE;
+			case SUBSTRING_ACCELERATED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_SUBSTRING_ACCELERATED;
 			case SORTABLE -> GrpcSchemaCapability.SCHEMA_CAPABILITY_SORTABLE;
 			case UNIQUE -> GrpcSchemaCapability.SCHEMA_CAPABILITY_UNIQUE;
 			case FACETED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_FACETED;

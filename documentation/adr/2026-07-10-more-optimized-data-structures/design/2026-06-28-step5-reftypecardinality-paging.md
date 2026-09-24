@@ -2,7 +2,7 @@
 
 **Status:** APPROVED 2026-06-29 (Option A, LongPayload bucket-tree backing, GlobalUnique paging template) — implementation underway.
 **Author drafted:** overnight 2026-06-28, after all correctness gates passed at HEAD `8baa4e572`.
-**Priority:** #2 churn wall per the decodoma re-measure gate (~144 MB single part @10M products,
+**Priority:** #2 churn wall per the re-measure gate (~144 MB single part @10M products,
 fully rewritten on every reference change). #1 (GlobalUnique) shipped in #14/#15.
 
 ---
@@ -113,7 +113,7 @@ Tests (clone GlobalUniqueIndexPagingRoundTripTest / OwnerUniqueIndexPagingRoundT
   suites 0F/0E.
 - `EvitaBackwardCompatibilityTest` 4/4 (the SINGLE shape must still read old catalogs — format unchanged for
   small indexes).
-- A decodoma re-measure (needs the lost `DecodomaSizeProbe` rebuilt) to confirm byte-32 max-part collapses
+- A gate-catalog re-measure (needs the lost `GateCatalogSizeProbe` rebuilt) to confirm byte-32 max-part collapses
   from ~270 KB to single-leaf size — do this to quantify, not as a blocker.
 
 ## 5. Why I did not start coding this overnight

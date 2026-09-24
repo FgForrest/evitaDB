@@ -186,7 +186,7 @@ at the same time the seam by which the two paths can be told apart
 Two things follow:
 
 **First, all index work is done twice.** The census of 2026-07-27 (in the ADR
-`2026-07-27-write-path-performance-tuning`, the file `reports/2026-07-27-senesi-wal-replay-rounds.md`)
+`2026-07-27-write-path-performance-tuning`, its WAL-replay rounds report of that date)
 quantifies it: the trunk re-apply is ~38 % of all application CPU and the trunk phase costs 6–7× as much
 as the session apply over the same mutations. Fulltext maintenance therefore pays twice "from the
 factory".
@@ -301,7 +301,7 @@ work (the delta is a plain map), but it is work that gets forgotten.
 
 Changed chunks have to be registered as dirty, otherwise a flush will not write them. The signal is the
 dirty set snapshotted by `DataStoreChanges.popTrappedUpdates` (the same set is used by the pruned merge
-from round 4 in the senesi ADR). This is a repeatedly failing place — a forgotten registration manifests
+from round 4 in the write-path performance ADR). This is a repeatedly failing place — a forgotten registration manifests
 only as data loss after a restart, not as a test failure.
 
 ---
@@ -482,7 +482,7 @@ The inputs are available (§3.4). A procedure in three steps, ordered by how muc
 The cost of the tokenization itself: for a CMS document of the order of 10 kB of text a pass through the
 analyzer is of the order of hundreds of microseconds to single-digit milliseconds, and it is done twice
 (the old and the new value). Against the marginal cost of ~7 ms per mutation measured in the trunk phase on
-senesi data it is noticeable but not fatal — and step 1 erases it entirely for most mutations. This is an
+production e-commerce data it is noticeable but not fatal — and step 1 erases it entirely for most mutations. This is an
 estimate, not a measurement; K3 verifies it.
 
 ### 7.2 An estimate of the risky case's cost
@@ -698,7 +698,7 @@ exists before the thing measured.
 ### 10.1 Definition of the baseline
 
 The baseline is **the same build and the same WAL** with the fulltext schema flag switched off. Not an
-earlier commit, not a different branch. The reason is recorded in the senesi ADR: between two commits drift
+earlier commit, not a different branch. The reason is recorded in the write-path performance ADR: between two commits drift
 gets into the measurement that has nothing to do with the change being measured, and a 10 % difference does
 not survive it.
 
@@ -743,7 +743,7 @@ visible_ms ≈ intercept + slope × mutations
 ```
 
 and compare `intercept` and `slope` **separately**. The precedent for the shape and for why it makes sense
-is in the senesi ADR: the measured `visible_ms ≈ 2771 + 6.98 × mutations` revealed that the problem was
+is in the write-path performance ADR: the measured `visible_ms ≈ 2771 + 6.98 × mutations` revealed that the problem was
 fixed per-pass overhead, not the marginal cost of a mutation. For fulltext the opposite is expected —
 maintenance is proportional to the number of affected terms, so it should move the **slope**, not the
 intercept. If the intercept moves, something else is wrong.
@@ -757,7 +757,7 @@ total allocation drops, the share of every surviving site grows and reads as a r
 
 ### 10.5 Datasets
 
-- **The e-commerce profile:** the senesi export used as standard in this repo for WAL replay. It exists.
+- **The e-commerce profile:** the production e-commerce export used as standard in this repo for WAL replay. It exists.
 - **The CMS profile:** **it does not exist and it is a blocker for half the gate.** Two paths: either
   extend the schema of the existing export with a long localized text attribute and generate a WAL against
   it with a realistic edit frequency, or obtain an export from a real CMS deployment. The first path is

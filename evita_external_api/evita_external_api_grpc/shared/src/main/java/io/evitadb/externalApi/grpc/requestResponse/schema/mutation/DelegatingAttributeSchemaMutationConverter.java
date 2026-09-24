@@ -65,6 +65,10 @@ public class DelegatingAttributeSchemaMutationConverter implements SchemaMutatio
 		TO_GRPC_CONVERTERS.put(ModifyAttributeSchemaTypeMutation.class, new ToGrpc((b, m) -> b.setModifyAttributeSchemaTypeMutation((GrpcModifyAttributeSchemaTypeMutation) m), ModifyAttributeSchemaTypeMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(RemoveAttributeSchemaMutation.class, new ToGrpc((b, m) -> b.setRemoveAttributeSchemaMutation((GrpcRemoveAttributeSchemaMutation) m), RemoveAttributeSchemaMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(SetAttributeSchemaFilterableMutation.class, new ToGrpc((b, m) -> b.setSetAttributeSchemaFilterableMutation((GrpcSetAttributeSchemaFilterableMutation) m), SetAttributeSchemaFilterableMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(
+			SetAttributeSchemaAcceleratedMutation.class,
+			new ToGrpc((b, m) -> b.setSetAttributeSchemaAcceleratedMutation((GrpcSetAttributeSchemaAcceleratedMutation) m), SetAttributeSchemaAcceleratedMutationConverter.INSTANCE)
+		);
 		TO_GRPC_CONVERTERS.put(SetAttributeSchemaLocalizedMutation.class, new ToGrpc((b, m) -> b.setSetAttributeSchemaLocalizedMutation((GrpcSetAttributeSchemaLocalizedMutation) m), SetAttributeSchemaLocalizedMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(SetAttributeSchemaNullableMutation.class, new ToGrpc((b, m) -> b.setSetAttributeSchemaNullableMutation((GrpcSetAttributeSchemaNullableMutation) m), SetAttributeSchemaNullableMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(SetAttributeSchemaConflictResolutionOverrideMutation.class, new ToGrpc((b, m) -> b.setSetAttributeSchemaConflictResolutionOverrideMutation((GrpcSetAttributeSchemaConflictResolutionOverrideMutation) m), SetAttributeSchemaConflictResolutionOverrideMutationConverter.INSTANCE));
@@ -82,6 +86,10 @@ public class DelegatingAttributeSchemaMutationConverter implements SchemaMutatio
 		TO_JAVA_CONVERTERS.put(MODIFYATTRIBUTESCHEMATYPEMUTATION, new ToJava(GrpcAttributeSchemaMutation::getModifyAttributeSchemaTypeMutation, ModifyAttributeSchemaTypeMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(REMOVEATTRIBUTESCHEMAMUTATION, new ToJava(GrpcAttributeSchemaMutation::getRemoveAttributeSchemaMutation, RemoveAttributeSchemaMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(SETATTRIBUTESCHEMAFILTERABLEMUTATION, new ToJava(GrpcAttributeSchemaMutation::getSetAttributeSchemaFilterableMutation, SetAttributeSchemaFilterableMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(
+			SETATTRIBUTESCHEMAACCELERATEDMUTATION,
+			new ToJava(GrpcAttributeSchemaMutation::getSetAttributeSchemaAcceleratedMutation, SetAttributeSchemaAcceleratedMutationConverter.INSTANCE)
+		);
 		TO_JAVA_CONVERTERS.put(SETATTRIBUTESCHEMALOCALIZEDMUTATION, new ToJava(GrpcAttributeSchemaMutation::getSetAttributeSchemaLocalizedMutation, SetAttributeSchemaLocalizedMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(SETATTRIBUTESCHEMANULLABLEMUTATION, new ToJava(GrpcAttributeSchemaMutation::getSetAttributeSchemaNullableMutation, SetAttributeSchemaNullableMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(SETATTRIBUTESCHEMACONFLICTRESOLUTIONOVERRIDEMUTATION, new ToJava(GrpcAttributeSchemaMutation::getSetAttributeSchemaConflictResolutionOverrideMutation, SetAttributeSchemaConflictResolutionOverrideMutationConverter.INSTANCE));

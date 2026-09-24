@@ -71,6 +71,13 @@ public class OpenApiObject implements OpenApiComplexType {
 	private final List<OpenApiProperty> properties;
 	@Nullable
 	private final OpenApiTypeReference implementedInterface;
+	/**
+	 * Whether the object refuses every property it does not declare, i.e. whether it translates into
+	 * `additionalProperties: false`. Objects are open by default, which is the OpenAPI default as well; only
+	 * an object whose exclusivity somebody depends on - a branch of a `oneOf` that has to reject the values of its
+	 * sibling branch - opts into being closed.
+	 */
+	private final boolean additionalPropertiesForbidden;
 
 	/**
 	 * Create new empty builder of object.
@@ -111,6 +118,10 @@ public class OpenApiObject implements OpenApiComplexType {
 			schema.addAllOfItem(this.implementedInterface.toSchema());
 		}
 
+		if (this.additionalPropertiesForbidden) {
+			schema.setAdditionalProperties(Boolean.FALSE);
+		}
+
 		return schema;
 	}
 
@@ -127,6 +138,7 @@ public class OpenApiObject implements OpenApiComplexType {
 		private final Map<String, OpenApiProperty> properties;
 		@Nullable
 		private OpenApiTypeReference implementedInterface;
+		private boolean additionalPropertiesForbidden;
 
 		private Builder() {
 			this.properties = createHashMap(20);
@@ -138,7 +150,8 @@ public class OpenApiObject implements OpenApiComplexType {
 				existingObject.description,
 				existingObject.deprecationNotice,
 				new HashMap<>(existingObject.properties.stream().collect(Collectors.toMap(OpenApiProperty::getName, Function.identity()))),
-				existingObject.implementedInterface
+				existingObject.implementedInterface,
+				existingObject.additionalPropertiesForbidden
 			);
 		}
 
@@ -213,13 +226,33 @@ public class OpenApiObject implements OpenApiComplexType {
 			return this;
 		}
 
+		/**
+		 * Closes the object to properties it does not declare, emitting `additionalProperties: false` into its
+		 * schema. Reach for it only where the exclusivity is load-bearing - a value validating against an open
+		 * object it merely resembles is what breaks a `oneOf`, since JSON Schema requires exactly one branch to
+		 * match. Every other object stays open, so that adding a property to a response is not a breaking change
+		 * for a client validating against an older document.
+		 */
+		@Nonnull
+		public Builder forbidAdditionalProperties() {
+			this.additionalPropertiesForbidden = true;
+			return this;
+		}
+
 		@Nonnull
 		public OpenApiObject build() {
 			Assert.isPremiseValid(
 				this.name != null && !this.name.isEmpty(),
 				() -> new OpenApiBuildingError("Missing object name.")
 			);
-			return new OpenApiObject(this.name, this.description, this.deprecationNotice, new ArrayList<>(this.properties.values()), this.implementedInterface);
+			return new OpenApiObject(
+				this.name,
+				this.description,
+				this.deprecationNotice,
+				new ArrayList<>(this.properties.values()),
+				this.implementedInterface,
+				this.additionalPropertiesForbidden
+			);
 		}
 	}
 }

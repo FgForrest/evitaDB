@@ -50,13 +50,9 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.EXPRESSION;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for object access operators, access steps, null coalescing, and
@@ -459,7 +455,7 @@ class ObjectAccessTest {
 			final Serializable result = op.compute(ctx);
 
 			assertNotNull(result);
-			assertTrue(result instanceof List<?>);
+			assertInstanceOf(List.class, result);
 			final List<?> resultList = (List<?>) result;
 			assertEquals(3, resultList.size());
 			assertEquals(1, resultList.get(0));

@@ -78,6 +78,7 @@ public class GlobalAttributeSchemaSerializer_2024_11 extends Serializer<GlobalAt
 				new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, uniqueGlobally)
 			},
 			(filterable ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE),
+			null,
 			(sortable ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE),
 			localized,
 			nullable, representative,

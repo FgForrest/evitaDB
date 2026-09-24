@@ -46,16 +46,10 @@ import java.math.BigDecimal;
 import java.util.Locale;
 import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link ExistingEntityAttributesBuilder} verifying
@@ -885,9 +879,7 @@ class ExistingEntityAttributesBuilderTest
 					.setAttribute("int", 99)
 					.build();
 
-			assertTrue(
-				initialAttributes != newAttributes
-			);
+			assertNotSame(initialAttributes, newAttributes);
 			assertEquals(
 				Integer.valueOf(99),
 				newAttributes.getAttribute("int")

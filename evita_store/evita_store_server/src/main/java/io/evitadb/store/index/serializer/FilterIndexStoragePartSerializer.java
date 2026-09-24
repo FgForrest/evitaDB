@@ -64,6 +64,20 @@ public class FilterIndexStoragePartSerializer extends Serializer<FilterIndexStor
 			filterIndex.isRangePaged(), filterIndex.getRangeHighWaterPageSequence(),
 			filterIndex.getRangeLeafPageSequences()
 		);
+
+		// the value id section is APPENDED after the shared payload, so the pre-2026.3 record stays a byte-exact
+		// prefix of this one and FilterIndexStoragePartSerializer_2026_2 can read it by stopping short of the tail.
+		// It is written here rather than inside FilterIndexPayloadSerializer because that payload is shared verbatim
+		// with HistogramIndexStoragePartSerializer, whose index never carries value ids.
+		output.writeVarInt(filterIndex.getNextValueId(), true);
+		final int[] inlineValueIds = filterIndex.getInlineValueIds();
+		output.writeBoolean(inlineValueIds != null);
+		if (inlineValueIds != null) {
+			// one id per inline bucket - the bucket count already rode the shared payload, so no length is needed
+			for (final int valueId : inlineValueIds) {
+				output.writeVarInt(valueId, true);
+			}
+		}
 	}
 
 	@Override
@@ -79,11 +93,23 @@ public class FilterIndexStoragePartSerializer extends Serializer<FilterIndexStor
 		final PagedStreamMetadata bucketMetadata = payload.bucketMetadata();
 		final PagedStreamMetadata rangeMetadata = payload.rangeMetadata();
 
+		final int nextValueId = input.readVarInt(true);
+		final int[] inlineValueIds;
+		if (input.readBoolean()) {
+			inlineValueIds = new int[payload.points().length];
+			for (int i = 0; i < inlineValueIds.length; i++) {
+				inlineValueIds[i] = input.readVarInt(true);
+			}
+		} else {
+			inlineValueIds = null;
+		}
+
 		return new FilterIndexStoragePart(
 			entityIndexPrimaryKey, attributeKey, attributeType, payload.points(), payload.rangeIndex(),
 			payload.indexedDecimalPlaces(),
 			bucketMetadata.paged(), bucketMetadata.highWaterPageSequence(), bucketMetadata.leafPageSequences(),
-			rangeMetadata.paged(), rangeMetadata.highWaterPageSequence(), rangeMetadata.leafPageSequences(), uniquePartId
+			rangeMetadata.paged(), rangeMetadata.highWaterPageSequence(), rangeMetadata.leafPageSequences(),
+			nextValueId, inlineValueIds, uniquePartId
 		);
 	}
 

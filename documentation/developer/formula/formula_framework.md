@@ -127,7 +127,7 @@ Additionally, implement marker interfaces as needed:
 
 ## Writing a new formula: step by step
 
-### 1. Choose a unique class ID
+### 1. Generate a unique class ID
 
 Every concrete formula class must return a unique `long` constant from `getClassId()`. This constant:
 
@@ -135,7 +135,20 @@ Every concrete formula class must return a unique `long` constant from `getClass
 - **must not be inherited** from a superclass,
 - **must be different** for every leaf class.
 
-It is a critical component of the structural hash.
+It is a critical component of the structural hash, which keys the result cache — so two classes sharing
+a value can answer each other's queries out of that cache.
+
+Generate it, never invent it and never copy a sibling's:
+
+```shell
+tools/generate-class-id.sh io.evitadb.core.query.algebra.base.AndFormula
+```
+
+The script derives the value the way a `serialVersionUID` is derived, but seeds it on the fully qualified
+class name alone, so it is reproducible and stays stable across every later edit to the class. Do not use
+the IDE's `serialVersionUID` action instead: that value is derived from the class signature and changes
+whenever a member is added, which the first rule above forbids. `FormulaClassIdUniquenessTest` fails the
+build if two classes ever end up with the same constant.
 
 ```java
 private static final long CLASS_ID = -7493244674442362190L;
@@ -245,13 +258,17 @@ Return a constant reflecting the relative expense of this operation. Benchmark a
 | `AndFormula`    | `9`            | Efficient bitmap intersection.      |
 | `NotFormula`    | `9`            | Bitmap subtraction.                 |
 | `OrFormula`     | `13`           | More expensive union.               |
-| `DisentangleFormula` | `2130`    | Element-level deduplication.        |
-| `JoinFormula`   | `2560`         | Expensive merge with duplicates.    |
+| `RangeCountFormula` | `1462`     | Per-element signed-count scatter over a range index's endpoint families. |
 
-These values were derived from the JMH benchmark in
+The `AndFormula`/`NotFormula`/`OrFormula` values were derived from the JMH benchmark in
 `evita_test/evita_performance_tests/src/main/java/io/evitadb/spike/FormulaCostMeasurement.java`.
 When introducing a new formula, add a corresponding benchmark method to that class, run the suite,
 and calibrate `getOperationCost()` relative to the existing results (COST 1 ≈ 1 mil. ops/s).
+`RangeCountFormula` has no benchmark method in that class; its `1462` is instead derived directly
+against the pair of formulas it replaced, on a measured production shape — see the derivation in
+`RangeCountFormula#getOperationCost()`'s own javadoc, mirrored in
+`documentation/adr/2026-09-18-range-index-counting-kernel.md`. The algorithm it prices is explained in
+[Range counting kernel](../algorithms/range-counting-kernel.md).
 
 #### `getEstimatedCardinality()`
 
@@ -274,8 +291,8 @@ Conventions (each returning the worst-case upper bound):
 
 #### Overriding `getEstimatedBaseCost()`
 
-If the formula has internal data beyond inner formulas (e.g., a control bitmap in `DisentangleFormula`), override
-this to include its cost. Default is `0L`.
+If the formula has internal data beyond inner formulas (e.g., the bitmap array `FacetGroupAndFormula` scans
+directly), override this to include its cost. Default is `0L`.
 
 ### 6. Implement hashing
 

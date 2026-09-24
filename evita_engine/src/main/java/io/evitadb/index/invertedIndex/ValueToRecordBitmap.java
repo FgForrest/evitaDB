@@ -183,23 +183,6 @@ public class ValueToRecordBitmap implements ValueToRecord,
 		return true;
 	}
 
-	@Override
-	public int recordSetHashCode() {
-		// getRoaringBitmap() returns the transaction-aware (merged) bitmap, matching the view recordSetEquals compares
-		final PersistentRoaringBitmap roaringBitmap = this.recordIds.getRoaringBitmap();
-		if (roaringBitmap.getCardinality() == 1) {
-			// single-record case - the only cardinality at which a primitive can ever be equal, so it must hash
-			// identically to ValueToRecordPrimitive: result = 31 * 1 + id (the canonical single-record hash). A
-			// primitive has no PersistentRoaringBitmap to delegate to, so this exact value, not PersistentRoaringBitmap#hashCode, is shared.
-			return 31 + roaringBitmap.first();
-		}
-		// fast path for every other cardinality - delegate to PersistentRoaringBitmap's bulk hashCode, which folds the packed
-		// containers far cheaper than walking each id through the tx-aware iterator. No primitive is ever multi-record,
-		// so cross-representation consistency is irrelevant here; only bitmap-vs-bitmap equality matters and both sides
-		// hash via this same path.
-		return roaringBitmap.hashCode();
-	}
-
 	/**
 	 * Compares {@link #value} of this and passed bucket.
 	 */

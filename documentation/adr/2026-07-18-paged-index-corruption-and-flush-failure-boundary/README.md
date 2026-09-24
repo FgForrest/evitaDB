@@ -1,7 +1,7 @@
 ---
 title: Publish the previous flush's page baseline before collecting; fail fast on stale twins and suspend the catalog rather than retrying a failed flush
 date: 2026-07-18
-updated: 2026-07-31 22:05
+updated: 2026-09-08 13:10
 status: accepted
 kind: fix
 issues: []
@@ -9,12 +9,12 @@ prs: [1293, 1284]
 areas: [evita_engine/index, evita_engine/store, evita_engine/core/transaction, evita_engine/core/session]
 supersedes: []
 superseded-by: []
-relates: [2026-07-10-more-optimized-data-structures, 2026-07-27-write-path-performance-tuning]
+relates: [2026-07-10-more-optimized-data-structures, 2026-07-27-write-path-performance-tuning, 2026-09-03-content-sized-value-tree-columns, 2026-09-04-millisecond-temporal-precision, 2026-09-08-warm-up-invalid-schema-refuses-to-publish, 2026-09-13-off-record-reads-must-not-restore-an-invalidated-buffer-limit]
 ---
 
 # Paged-index corruption on warm-up flush, and the failure boundary for a failed flush
 
-A production catalog ("senesi") failed to reload after a bulk re-index: a cold load reassembled a
+A production catalog failed to reload after a bulk re-index: a cold load reassembled a
 survivor leaf followed by its stale sibling. The root cause was a page baseline that stayed empty for
 the whole warm-up, so every freed-page reclaim and root-rewrite decision was taken against a baseline
 that did not describe what disk actually held. The fix publishes the previous flush's staged baseline
@@ -145,6 +145,10 @@ server-side.
   approached from performance. Its B+ tree dirty-scope rework (`dd193f25d`, "fail fast on corrupt
   transactional data structures via dirty-scope validation") is the same fail-fast doctrine applied one
   layer down.
+- **`2026-09-04-millisecond-temporal-precision`** — the one argued exception to the fail-fast rule above.
+  It repairs a loaded index rather than refusing it, because two buckets that encode to the same key must
+  become one bucket and nothing about that is ambiguous — unlike two overlapping leaf pages, where nothing
+  persisted says which superseded the other.
 
 ## Supporting material
 
@@ -165,7 +169,7 @@ Not carried over: the investigation's mid-flight state (`STATE.md`, `PLAN.md`, `
 
 ## Timeline
 
-- **2026-07-12 → 07-16** — five failure signatures reproduced and root-caused on the senesi dataset;
+- **2026-07-12 → 07-16** — five failure signatures reproduced and root-caused on the production dataset;
   the client library investigated and exonerated
 - **2026-07-16** — the four fix-session items merge as PR #1284, together with B+ tree dirty-scope
   validation

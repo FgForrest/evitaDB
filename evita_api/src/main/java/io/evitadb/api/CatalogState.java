@@ -71,9 +71,32 @@ public enum CatalogState {
 	 * This state has several limitations but also advantages.
 	 *
 	 * This state requires single threaded access - this means only single thread can read/write data to the catalog
-	 * in this state. No transaction are allowed in this state and there are no guarantees on consistency of the catalog
-	 * if any of the WRITE operations fails. If any error is encountered while writing to the catalog in this state it is
-	 * strongly recommended discarding entire catalog contents and starts filling it from the scratch.
+	 * in this state. No transactions are allowed: a group of writes cannot be committed or discarded as a unit, and
+	 * index changes reach the disk only when the session closes.
+	 *
+	 * A single entity write is nevertheless atomic on its own. A call that fails part-way through is reverted
+	 * completely and the session stays usable, so a rejected entity can be skipped or retried and the import simply
+	 * continues.
+	 *
+	 * A failure the phase cannot revert - a schema change refused by validation, a flush that fails or is cancelled
+	 * after collecting its changes, a per-entity rollback that itself throws - is answered by returning the catalog to
+	 * the last state it published - the newest one that reached the disk, which a session close writes and a
+	 * collection-level schema operation may write again mid-session. The catalog
+	 * refuses every further write and every further publication from that moment on, so nothing untrustworthy can
+	 * reach the disk. It is then moved to {@link #INACTIVE} and has to be activated again through
+	 * {@link EvitaContract#activateCatalog(String)}, which loads that published state from disk; everything written
+	 * since then has to be replayed. Where the engine cannot complete that move - it is a lifecycle operation of its
+	 * own, and one is refused while another is in flight for the same catalog - the refusal is what remains, and the
+	 * catalog is reloaded by restarting the engine instead. The state that comes back is the same either way.
+	 *
+	 * The recovery is deliberately this coarse, because the phase buys its speed by not keeping the machinery a
+	 * narrower one would need. There is no transaction to roll back, and a schema change is applied to every entity
+	 * collection it touches - together with the structural work that goes with it - before the catalog as a whole is
+	 * validated, so a corrective change would repeat that work rather than reverse it. Reloading the last published
+	 * state is therefore the only recovery that is consistent by construction, and it discards nothing that was
+	 * durable: the phase publishes when a session closes, so what is lost is exactly the work the client had not yet
+	 * checkpointed. How much that is, is the client's own trade-off between import throughput and the cost of
+	 * repeating a block.
 	 *
 	 * Writing to the catalog in this phase is much faster than with transactional access. Operations are executed in bulk,
 	 * transactional logic is disabled and doesn't slow down the writing process.

@@ -25,15 +25,13 @@ package io.evitadb.index.price;
 
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.core.transaction.memory.AbstractSavepointFuzzTest;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.price.LongRunningPriceRefIndexTest.RefIndexSnapshot;
 import io.evitadb.index.price.model.PriceIndexKey;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -47,10 +45,7 @@ import java.util.Set;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.PRICE;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
-import static io.evitadb.utils.AssertionUtils.assertSavepointCommitKeeps;
-import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
 
 /**
  * Generational randomized backfill proof that the aggregate {@link PriceRefIndex} — the price index driven by
@@ -70,13 +65,19 @@ import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
  * which is populated outside the transaction and only ever READ inside it, so the transaction enrolls the ref index
  * alone. The run is time-bounded; the random seed is echoed on failure for deterministic reproduction.
  *
+ * The scenario is declared once and run by {@link AbstractSavepointFuzzTest} in BOTH phases: the transactional
+ * savepoint described above, and the WARM_UP savepoint where the same writes land straight on the delegate
+ * structures and are rewound from the inverses they journal themselves. See that class for the shape of one
+ * generation, for the mid-savepoint read every case is asserted through, and for why the warm-up half runs
+ * exclusively.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("PriceRefIndex savepoint rollback/commit backfill (generational fuzz)")
 @Tag(INDEXING)
 @Tag(PRICE)
 @Tag(TRANSACTION)
-class LongRunningSavepointPriceRefIndexTest implements TimeBoundedTestSupport {
+class LongRunningSavepointPriceRefIndexTest extends AbstractSavepointFuzzTest<RefIndexSnapshot> {
 	private static final int MAX_OPS = 10;
 	private static final String ENTITY_TYPE = "product";
 	private static final Scope SCOPE = Scope.LIVE;
@@ -94,45 +95,10 @@ class LongRunningSavepointPriceRefIndexTest implements TimeBoundedTestSupport {
 		PRICE_LIST_BASIC, CURRENCY_EUR, PriceInnerRecordHandling.NONE
 	);
 
-	@ParameterizedTest(name = "Savepoint rollback restores the exact pre-savepoint price contents")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Savepoint rollback restores the exact pre-savepoint price contents")
-	void shouldRollBackPriceRefIndex(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final RefIndexState state = new RefIndexState(random);
-			assertSavepointRollbackRestores(
-				state.index,
-				tested -> state.applyRandomMutations(random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningPriceRefIndexTest::snapshot,
-				tested -> {
-					// a guaranteed-visible mutation makes the in-savepoint batch non-vacuous
-					state.forceMutation();
-					state.applyRandomMutations(random, random.nextInt(MAX_OPS));
-				}
-			);
-			return iteration + 1;
-		});
-	}
-
-	@ParameterizedTest(name = "Savepoint commit keeps the in-savepoint price contents")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Savepoint commit keeps the in-savepoint price contents")
-	void shouldCommitPriceRefIndex(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final RefIndexState state = new RefIndexState(random);
-			assertSavepointCommitKeeps(
-				state.index,
-				tested -> state.applyRandomMutations(random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningPriceRefIndexTest::snapshot,
-				tested -> {
-					state.forceMutation();
-					state.applyRandomMutations(random, random.nextInt(MAX_OPS));
-				}
-			);
-			return iteration + 1;
-		});
+	@Nonnull
+	@Override
+	protected FuzzGeneration<RefIndexSnapshot> newGeneration(@Nonnull Random random) {
+		return new RefIndexState(random);
 	}
 
 	/**
@@ -144,7 +110,7 @@ class LongRunningSavepointPriceRefIndexTest implements TimeBoundedTestSupport {
 	 * super index outside any transaction; the ref index is seeded outside any transaction too, and its mutations happen
 	 * within the framework's transaction — the super index is only READ there, so the transaction enrolls the ref alone.
 	 */
-	private static final class RefIndexState {
+	private static final class RefIndexState implements FuzzGeneration<RefIndexSnapshot> {
 		private static final int POOL_PER_KEY = 40;
 		private static final int FORCED_COUNT = 16;
 		private static final int FORCED_BASE = 1_000_000;
@@ -179,6 +145,30 @@ class LongRunningSavepointPriceRefIndexTest implements TimeBoundedTestSupport {
 			for (int i = 0; i < seedOperations; i++) {
 				addRandomPrice(random);
 			}
+		}
+
+		@Nonnull
+		@Override
+		public TransactionalStateProducer<?> subject() {
+			return this.index;
+		}
+
+		@Nonnull
+		@Override
+		public RefIndexSnapshot contents() {
+			return LongRunningPriceRefIndexTest.snapshot(this.index);
+		}
+
+		@Override
+		public void applyBaselineOperations(@Nonnull Random random) {
+			applyRandomMutations(random, 1 + random.nextInt(MAX_OPS));
+		}
+
+		@Override
+		public void applySavepointOperations(@Nonnull Random random) {
+			applyRandomMutations(random, random.nextInt(MAX_OPS));
+			// applied LAST: a marker applied first enters the model and a later random operation can undo it
+			forceMutation();
 		}
 
 		/**

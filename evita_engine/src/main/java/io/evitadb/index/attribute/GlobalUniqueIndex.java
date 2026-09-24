@@ -84,6 +84,7 @@ import java.util.stream.Collectors;
 import static io.evitadb.index.attribute.UniqueIndex.verifyValue;
 import static io.evitadb.index.attribute.UniqueIndex.verifyValueArray;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.comparatorFor;
+import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.foldOntoDistinctValues;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.plainTypeOf;
 import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.ofNullable;
@@ -822,7 +823,7 @@ public class GlobalUniqueIndex implements
 	 * written anything (the baseline-capture pass re-enters the collect path), so it cannot rest on the previous
 	 * flush's bytes having landed — and it does not need to. A flush that fails during trunk incorporation SUSPENDS the
 	 * catalog's transaction processing ({@code TransactionManager.suspend}); a flush that fails during warm-up POISONS
-	 * the collection's buffer ({@code WarmUpDataStoreMemoryBuffer.poison}), so every later collect of it refuses
+	 * the catalog unpublishable ({@code Catalog.markUnpublishable}), so every later flush of it refuses
 	 * deterministically. The two are the same invariant in different dresses: after a failed flush nothing ever diffs
 	 * against the baseline it left behind, because no later flush of that data runs at all. Whatever a SUCCEEDING flush
 	 * leaves staged is exactly the page set it wrote, regardless of whether a commit-merge ever ran for it. (If the
@@ -869,7 +870,8 @@ public class GlobalUniqueIndex implements
 	/**
 	 * Registers a record under a unique key that may be either a single value or an array of values (array-typed
 	 * attributes occupy every contained value). For arrays, uniqueness of all elements is verified up front before
-	 * any element is inserted, so a violation leaves the index unchanged (all-or-nothing).
+	 * any element is inserted, so a violation leaves the index unchanged (all-or-nothing); the array is folded onto
+	 * its distinct values first, so a value the array repeats occupies its single tree entry once.
 	 *
 	 * @param key    the unique value, or array of unique values, to claim
 	 * @param record the entity tuple claiming the value(s)
@@ -880,14 +882,16 @@ public class GlobalUniqueIndex implements
 	private <T extends Serializable & Comparable<T>> void registerUniqueKeyValue(@Nonnull Object key, @Nonnull EntityWithTypeTuple record, @Nonnull EntityTypeClassifierResolver resolver) {
 		if (key instanceof @Nonnull final Object[] valueArray) {
 			verifyValueArray(key);
+			// one value is one tree entry however many times the array repeats it - see #foldOntoDistinctValues
+			final Object[] distinctValues = foldOntoDistinctValues(valueArray, this.comparator);
 			// first verify removed data without modifications
-			for (Object valueItem : valueArray) {
+			for (Object valueItem : distinctValues) {
 				final T theValueItem = (T) valueItem;
 				final EntityWithTypeTuple existingRecordId = lookupTuple(theValueItem);
 				assertUniqueKeyIsFree(theValueItem, record, existingRecordId, resolver);
 			}
 			// now perform alteration
-			for (Object valueItem : valueArray) {
+			for (Object valueItem : distinctValues) {
 				registerUniqueKeyValue(valueItem, record, resolver);
 			}
 		} else {
@@ -934,7 +938,9 @@ public class GlobalUniqueIndex implements
 	/**
 	 * Releases a unique key that may be either a single value or an array of values, the inverse of
 	 * {@link #registerUniqueKeyValue(Object, EntityWithTypeTuple, EntityTypeClassifierResolver)}.
-	 * Ownership of every element is verified up front so a mismatch leaves the index unchanged (all-or-nothing).
+	 * Ownership of every element is verified up front so a mismatch leaves the index unchanged (all-or-nothing), and
+	 * the array is folded onto its distinct values first, so a value the array repeats is retired once rather than
+	 * being sought a second time after its only entry is gone.
 	 *
 	 * @param key            the unique value, or array of unique values, to release
 	 * @param expectedRecord the record expected to currently own the value(s)
@@ -945,14 +951,16 @@ public class GlobalUniqueIndex implements
 	private <T extends Serializable & Comparable<T>> EntityWithTypeTuple unregisterUniqueKeyValue(@Nonnull Object key, @Nonnull EntityWithTypeTuple expectedRecord) {
 		if (key instanceof @Nonnull final Object[] valueArray) {
 			verifyValueArray(key);
+			// one value is one tree entry however many times the array repeats it - see #foldOntoDistinctValues
+			final Object[] distinctValues = foldOntoDistinctValues(valueArray, this.comparator);
 			// first verify removed data without modifications
-			for (Object valueItem : valueArray) {
+			for (Object valueItem : distinctValues) {
 				final T theValueItem = (T) valueItem;
 				final EntityWithTypeTuple existingRecord = lookupTuple(theValueItem);
 				assertUniqueKeyOwnership(theValueItem, expectedRecord, existingRecord);
 			}
 			// now perform alteration
-			for (Object valueItem : valueArray) {
+			for (Object valueItem : distinctValues) {
 				unregisterUniqueKeyValue((T) valueItem, expectedRecord);
 			}
 			this.dirty.setToTrue();

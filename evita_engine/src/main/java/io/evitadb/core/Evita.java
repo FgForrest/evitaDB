@@ -101,10 +101,12 @@ import io.evitadb.core.session.SessionRegistry;
 import io.evitadb.core.session.SuspendOperation;
 import io.evitadb.core.session.SuspensionInformation;
 import io.evitadb.core.session.task.SessionKiller;
+import io.evitadb.core.transaction.engine.EngineMutationPrecondition;
 import io.evitadb.core.transaction.engine.EngineTransactionManager;
 import io.evitadb.core.transaction.engine.operators.DefaultUpgradeExecutor;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
+import io.evitadb.roaringbitmap.RoaringKernels;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
 import io.evitadb.spi.store.engine.EnginePersistenceServiceFactory;
@@ -119,6 +121,7 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ExceptionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.StringUtils;
+import jdk.jfr.Event;
 import jdk.jfr.FlightRecorder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -142,6 +145,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -155,7 +159,6 @@ import java.util.stream.Stream;
 
 import static io.evitadb.utils.Assert.isTrue;
 import static io.evitadb.utils.Assert.notNull;
-import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
@@ -175,6 +178,12 @@ import static java.util.Optional.ofNullable;
 @ThreadSafe
 @Slf4j
 public final class Evita implements EvitaContract {
+	/**
+	 * Guards the one-time report of which computation kernels the roaring bitmap containers run on. The
+	 * selection is a per-JVM fact, not a per-instance one, and a test run stands up hundreds of instances -
+	 * so the line is written by whichever instance is built first and by none of the rest.
+	 */
+	private static final AtomicBoolean ROARING_KERNELS_REPORTED = new AtomicBoolean(false);
 	/**
 	 * Data store shared among all instances of {@link SessionRegistry} that holds information about active sessions.
 	 */
@@ -266,8 +275,34 @@ public final class Evita implements EvitaContract {
 	 * object that occupied it, because a folder left behind by a failed operation is exactly what the next
 	 * allocation must not collide with. Its counters burn a number per attempt rather than per success, and are
 	 * seeded at boot from the peaks the engine state carries.
+	 *
+	 * **A counter is never retired while the process runs**, so a generation this instance has handed out for
+	 * a name is never handed out for that name again. That is what lets a {@link CatalogFolderId} serve as the
+	 * identity of one *incarnation* of a catalog rather than merely of its name: the token embeds the generation,
+	 * so a catalog dropped and recreated under the same name is necessarily bound to a different token, and an
+	 * expectation recorded against the old one can no longer be satisfied by the new catalog. Retiring the
+	 * counters of names nothing refers to any more would cost exactly that guarantee - a recreated catalog would
+	 * restart at the first generation and reproduce a token a caller may still be holding an expectation against.
+	 *
+	 * **The retention this gives up is bounded by the set of catalog names, not by how often they churn.** Only
+	 * {@link SequenceType#CATALOG_GENERATION} is recorded here, so the map holds one `SequenceKey` and one
+	 * counter per *distinct* name the process has ever materialised - creating and dropping the same catalog a
+	 * million times adds one entry, not a million. The number of distinct catalog names a database uses is small
+	 * and does not grow with traffic, which is what makes keeping them the cheap side of this trade.
+	 *
+	 * **A name that is minted rather than chosen escapes that bound, and is given back explicitly.** A restore
+	 * unpacks into a scratch catalog whose name carries random hex and is fresh per invocation, so the set of
+	 * names the process has materialised grows by one on every restore and never stops - the reasoning above
+	 * holds for names a client chooses and for nothing else. Such a name is retired through
+	 * {@link #retireCatalogGenerationSequence(String)} when the operation that minted it ends; see that method
+	 * for why giving it back cannot cost the guarantee above.
+	 *
+	 * The guarantee is bounded by the process because it is the *counter* that carries it and the counter is
+	 * in-memory: across a restart the seeding above is all that keeps generations from repeating, and no
+	 * production path records a peak (see `seedCatalogGenerationSequences`). Everything that compares a folder
+	 * token to one captured earlier is therefore required to be work that cannot outlive the process.
 	 */
-	@Getter private final SequenceService catalogGenerationSequences = new SequenceService();
+	private final SequenceService catalogGenerationSequences = new SequenceService();
 	/**
 	 * List of futures that are used to load all catalogs in parallel during startup and when all are completed
 	 * the list is cleared.
@@ -303,6 +338,28 @@ public final class Evita implements EvitaContract {
 	 * Callback that will be called when an old session is closed.
 	 */
 	private final Consumer<EvitaSessionContract> onSessionTerminationCallback;
+	/**
+	 * Engine-wide JFR periodic hooks this instance registered through {@link #emitStartObservabilityEvents()},
+	 * kept so that {@link #retireStatisticsHooks()} can hand them back.
+	 *
+	 * {@link FlightRecorder#addPeriodicEvent(Class, Runnable)} appends to a registry that lives as long as the JVM
+	 * (`jdk.jfr.internal.RequestEngine#entries`), and the only way out of it is
+	 * {@link FlightRecorder#removePeriodicEvent(Runnable)}, which matches on object identity. Every hook here
+	 * captures this instance or one of its executors, so a hook left behind pins the whole engine graph - its
+	 * catalogs, their persistence services and the output buffers those hold - until the process ends. The hooks
+	 * have to be stored rather than re-derived on close: a method reference yields a fresh object on every
+	 * evaluation, so `removePeriodicEvent(this::emitEvitaStatistics)` would remove nothing and report no error.
+	 */
+	private final List<Runnable> engineStatisticsHooks = new CopyOnWriteArrayList<>();
+	/**
+	 * Per-catalog JFR periodic hooks, keyed by catalog name. At most one hook exists per name; see
+	 * {@link #engineStatisticsHooks} for why one that is never handed back costs the whole engine graph.
+	 *
+	 * The keying is what bounds the registry: {@link #emitCatalogStatistics(String)} runs on every catalog schema
+	 * modification, not only on creation, so registering unconditionally would add a hook per schema change - each
+	 * one emitting the same catalog's statistics again on every JFR period, and none of them ever released.
+	 */
+	private final Map<String, Runnable> catalogStatisticsHooks = CollectionUtils.createConcurrentHashMap(16);
 
 	/**
 	 * Shuts down passed executor service in a safe manner.
@@ -446,6 +503,12 @@ public final class Evita implements EvitaContract {
 		@Nullable Consumer<EvitaSessionContract> onSessionTerminationCallback,
 		boolean directExecutor
 	) {
+		// reading the summary is what resolves the kernel selection, so it happens here rather than inside the
+		// first query; an operator who forgot `--add-modules jdk.incubator.vector` sees it in this line
+		if (ROARING_KERNELS_REPORTED.compareAndSet(false, true)) {
+			log.info(RoaringKernels.vectorKernelsSummary());
+		}
+
 		this.configuration = configuration;
 		this.onSessionCreationCallback = onSessionCreationCallback == null ?
 			Functions.noOpConsumer() : onSessionCreationCallback;
@@ -625,7 +688,8 @@ public final class Evita implements EvitaContract {
 		).subscribe(
 			new EngineStatisticsPublisher(
 				this::emitEvitaStatistics,
-				this::emitCatalogStatistics
+				this::emitCatalogStatistics,
+				this::retireCatalogStatistics
 			)
 		);
 
@@ -712,22 +776,10 @@ public final class Evita implements EvitaContract {
 	 */
 	public void emitStartObservabilityEvents() {
 		// emit the statistics event
-		FlightRecorder.addPeriodicEvent(
-			EvitaStatisticsEvent.class,
-			this::emitEvitaStatistics
-		);
-		FlightRecorder.addPeriodicEvent(
-			RequestThreadPoolStatisticsEvent.class,
-			this.requestExecutor::emitStatistics
-		);
-		FlightRecorder.addPeriodicEvent(
-			TransactionThreadPoolStatisticsEvent.class,
-			this.transactionExecutor::emitStatistics
-		);
-		FlightRecorder.addPeriodicEvent(
-			ScheduledExecutorStatisticsEvent.class,
-			this.serviceExecutor::emitStatistics
-		);
+		registerEngineStatisticsHook(EvitaStatisticsEvent.class, this::emitEvitaStatistics);
+		registerEngineStatisticsHook(RequestThreadPoolStatisticsEvent.class, this.requestExecutor::emitStatistics);
+		registerEngineStatisticsHook(TransactionThreadPoolStatisticsEvent.class, this.transactionExecutor::emitStatistics);
+		registerEngineStatisticsHook(ScheduledExecutorStatisticsEvent.class, this.serviceExecutor::emitStatistics);
 	}
 
 	/**
@@ -859,6 +911,41 @@ public final class Evita implements EvitaContract {
 		assertActive();
 		return applyMutation(
 			new ModifyCatalogSchemaNameMutation(catalogNameToBeReplacedWith, catalogNameToBeReplaced, true));
+	}
+
+	/**
+	 * Replaces one catalog with another, but only while both names still hold the catalogs the caller issued the
+	 * operation against.
+	 *
+	 * This is the engine-internal form of {@link #replaceCatalogWithProgress(String, String)}, for work that
+	 * chooses its catalogs long before it swaps them - a restore names its target when it is requested and acts on
+	 * it once the data has been loaded, which can be minutes later. A name is not an identity over such an
+	 * interval: the target may be dropped, replaced, or - if it was free - taken. Replacing on the name alone
+	 * would then discard a catalog nobody asked to be discarded, and report success.
+	 *
+	 * Deliberately absent from {@link io.evitadb.api.EvitaContract}: an expectation is stated in terms of
+	 * {@link io.evitadb.spi.store.engine.model.CatalogFolderId}, which is the engine's private way of telling one
+	 * incarnation of a name from another, and it is only meaningful within the process that captured it. See
+	 * {@link EngineMutationPrecondition} for why the token is the identity used and what bounds that carries.
+	 *
+	 * @param catalogNameToBeReplacedWith name of the catalog that will take the other one's place
+	 * @param catalogNameToBeReplaced     name of the catalog that will be replaced
+	 * @param preconditions               what each name must still be bound to for the swap to go ahead
+	 * @return progress of the replacement
+	 * @throws io.evitadb.api.exception.UnexpectedCatalogIncarnationException when either name was substituted
+	 */
+	@Nonnull
+	public Progress<CommitVersions> replaceCatalogWithProgress(
+		@Nonnull String catalogNameToBeReplacedWith,
+		@Nonnull String catalogNameToBeReplaced,
+		@Nonnull EngineMutationPrecondition... preconditions
+	) {
+		assertActiveAndWritable();
+		return this.engineTransactionManager.applyMutation(
+			new ModifyCatalogSchemaNameMutation(catalogNameToBeReplacedWith, catalogNameToBeReplaced, true),
+			null,
+			preconditions
+		);
 	}
 
 	@Nonnull
@@ -1448,6 +1535,33 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
+	 * Gives back the folder generation counter of a catalog name, so the name stops occupying an entry for the
+	 * rest of the process.
+	 *
+	 * **Only for a name nothing can still hold an expectation against.** Discarding a counter restarts it, so the
+	 * generations it already handed out become drawable again, and an `EngineMutationPrecondition` still carrying
+	 * one would then be satisfied by a catalog it was never issued against - the exact substitution these counters
+	 * exist to make impossible. The filesystem covers part of that on its own, because allocation burns a
+	 * generation whose directory it cannot create and draws the next, so a number is only genuinely redrawable
+	 * once its folder is gone. That is not something to lean on, and it is the wrong question anyway: what
+	 * licenses this call is that **no expectation against the name can be outstanding**, never what the storage
+	 * directory happens to look like.
+	 *
+	 * The restore's scratch name satisfies that by construction. It is minted per invocation and published to
+	 * nobody; the only expectation ever recorded against it is the restore's own, which the swap has consumed by
+	 * the time this is called, or which was never created because the restore failed earlier; and a second
+	 * restore that drew the same name would be refused by `CatalogFolderContext#allocateFolderFor`'s reservation
+	 * before it could record one. A name a *client* chose satisfies none of this - an operation may hold an
+	 * expectation against it for as long as a backup, an unpack and a load take, and nothing tracks that it
+	 * does - so **this must not be called for one**.
+	 *
+	 * @param catalogName name whose folder generation counter is to be discarded
+	 */
+	public void retireCatalogGenerationSequence(@Nonnull String catalogName) {
+		this.catalogGenerationSequences.removeSequences(catalogName);
+	}
+
+	/**
 	 * Fast-forwards the engine-scoped folder generation counters to the peaks the persisted state carries.
 	 *
 	 * Two terms are applied and they are complementary rather than redundant:
@@ -1906,17 +2020,48 @@ public final class Evita implements EvitaContract {
 
 	/**
 	 * Creates {@link EvitaSession} instance and registers all appropriate termination callbacks along.
+	 *
+	 * **A transitional placeholder answers before the session registry gets a say.** A catalog that is going live,
+	 * being deactivated or being dropped is represented in the engine state by an {@link UnusableCatalog}, and this
+	 * method throws that placeholder's representative exception ahead of consulting the registry - left to the
+	 * registry, a REJECT suspension would answer {@link InstanceTerminatedException} and tell the client the catalog
+	 * is gone. Only the placeholder answer is decided here: a name that names **no** catalog is deliberately still
+	 * left to the registry, so a request arriving inside a rename's POSTPONE window waits the suspension out and
+	 * then succeeds rather than being refused {@link CatalogNotFoundException} ahead of it.
+	 *
+	 * @param sessionTraits the catalog to open the session on, and the flags the session is created with
+	 * @return the created session together with its commit progress record
+	 * @throws CatalogGoingLiveException     when the catalog is going live right now
+	 * @throws CatalogTransitioningException when the catalog is being deactivated or dropped
+	 * @throws CatalogNotFoundException      when the name names no catalog
+	 * @throws InstanceTerminatedException   when the registry is suspended because the catalog is being terminated
+	 * @throws io.evitadb.core.exception.SessionBusyException when a postponing suspension did not finish in time
+	 * @throws ReadOnlyException             when a read-write session is requested on a read-only engine or catalog
 	 */
 	@Nonnull
 	private CreatedSession createSessionInternal(@Nonnull SessionTraits sessionTraits) {
+		// a transitional placeholder must answer BEFORE the registry gets a say: the operators that quiesce
+		// a catalog - go-live, deactivation, drop - install the placeholder first and suspend the registry
+		// with REJECT second, and the registry's answer to a rejected request is InstanceTerminatedException,
+		// which tells the client the catalog is gone. For a catalog that is merely going live the contract is
+		// CatalogGoingLiveException (its own javadoc, and the "Catalog States" section of EvitaSessionContract),
+		// and CatalogTransitioningException for a catalog being deactivated or dropped.
+		//
+		// Only the PLACEHOLDER answer is decided here, never the not-found one: a rename publishes the target
+		// name's POSTPONE-suspended registry before its commit lands, and a session request arriving in that
+		// window has to wait the suspension out and then succeed, not be refused CatalogNotFoundException ahead
+		// of the registry
+		final CatalogContract catalogContract = getCatalogInstance(sessionTraits.catalogName()).orElse(null);
+		if (catalogContract instanceof UnusableCatalog unusableCatalog) {
+			throw unusableCatalog.getRepresentativeException();
+		}
+		// the registry's own catalog supplier keeps the same check too - a placeholder may be installed between
+		// this line and the supplier running
 		final SessionRegistry catalogSessionRegistry = this.catalogSessionRegistries.computeIfAbsent(
 			sessionTraits.catalogName(),
 			__ -> {
-				// we need first to verify whether the catalog exists and is not corrupted
-				final CatalogContract catalogContract = getCatalogInstanceOrThrowException(sessionTraits.catalogName());
-				if (catalogContract instanceof UnusableCatalog unusableCatalog) {
-					throw unusableCatalog.getRepresentativeException();
-				}
+				// a name that names no catalog must get no registry - see `Evita#suspendCatalogSessions`
+				getCatalogInstanceOrThrowException(sessionTraits.catalogName());
 				return createSessionNewRegistry(sessionTraits);
 			}
 		);
@@ -2016,48 +2161,91 @@ public final class Evita implements EvitaContract {
 	 * @param catalogName name of the catalog
 	 */
 	private void emitCatalogStatistics(@Nonnull String catalogName) {
-		// register regular metrics extraction of the catalog
-		FlightRecorder.addPeriodicEvent(
-			CatalogStatisticsEvent.class,
-			new Runnable() {
-				@Override
-				public void run() {
-					try {
-						if (Evita.this.isActive()) {
-							final ExpandedEngineState theEngineState = Evita.this.getEngineState();
-							// in very rare race conditions the engine state may be null here
-							// (if evita is closed already)
-							// noinspection ConstantValue
-							if (theEngineState != null) {
-								theEngineState
-									.getCatalog(catalogName)
-									.ifPresentOrElse(
-										catalogContract -> {
-											if (catalogContract instanceof Catalog monitoredCatalog) {
-												monitoredCatalog.emitObservabilityEvents();
-											} else {
-												FlightRecorder.removePeriodicEvent(this);
-											}
-										},
-										() -> {
-											log.warn("Catalog {} does not exist, cannot emit statistics!", catalogName);
-											FlightRecorder.removePeriodicEvent(this);
-										}
-									);
-							}
-						}
-					} catch (Throwable t) {
-						log.error("Emitting observability events failed!", t);
-					}
-				}
-			}
-		);
+		// a closing engine has already drained its hooks; one registered after that drain would never be handed
+		// back, because nothing walks the registry again and periodic hooks run only while a recording is active
+		if (!isActive()) {
+			return;
+		}
+		// register regular metrics extraction of the catalog - at most once per catalog name, because this method
+		// also runs on every schema modification and a JFR hook is never released unless we hand it back
+		final CatalogStatisticsHook hook = new CatalogStatisticsHook(catalogName);
+		// register first and record second: a hook that reaches the JFR registry without reaching the map would be
+		// invisible to #retireStatisticsHooks, whereas a map entry whose hook is not yet registered is inert
+		FlightRecorder.addPeriodicEvent(CatalogStatisticsEvent.class, hook);
+		if (this.catalogStatisticsHooks.putIfAbsent(catalogName, hook) != null) {
+			// another registration for this catalog won the race - only one hook per name may survive
+			FlightRecorder.removePeriodicEvent(hook);
+		} else if (!isActive()) {
+			// `close()` ran between the check at the top of this method and the write above, so its drain has
+			// already passed this entry and nothing will walk the map again. Retire the hook here instead.
+			hook.retire();
+		}
+	}
+
+	/**
+	 * Registers an engine-wide JFR periodic hook and remembers it for {@link #retireStatisticsHooks()}.
+	 *
+	 * @param eventType type of the event the hook emits
+	 * @param hook      the hook itself - the very instance that will have to be handed back on close
+	 */
+	private void registerEngineStatisticsHook(@Nonnull Class<? extends Event> eventType, @Nonnull Runnable hook) {
+		// see #emitCatalogStatistics for why a closed engine must not register anything further
+		if (!isActive()) {
+			return;
+		}
+		// register first and record second, for the same reason as #emitCatalogStatistics: the reverse order lets
+		// a concurrent `retireStatisticsHooks()` read this hook out of the list and call `removePeriodicEvent` on
+		// it before it is registered - a no-op - and then clear the list, stranding the registration that follows
+		FlightRecorder.addPeriodicEvent(eventType, hook);
+		this.engineStatisticsHooks.add(hook);
+		if (!isActive()) {
+			// `close()` ran between the check above and the write, so the drain has already passed this list.
+			// The two orders interlock: this thread writes the list then reads `active`, while `close()` writes
+			// `active` then reads the list, so at least one of the two always observes the other.
+			this.engineStatisticsHooks.remove(hook);
+			FlightRecorder.removePeriodicEvent(hook);
+		}
+	}
+
+	/**
+	 * Hands the statistics hook of a single catalog back to {@link FlightRecorder}. Called when the catalog stops
+	 * existing under this name - it is dropped, or renamed away - so that neither the hook nor the engine it
+	 * captures waits for a JFR period that may never come to notice.
+	 *
+	 * @param catalogName name of the catalog whose hook is no longer wanted
+	 */
+	private void retireCatalogStatistics(@Nonnull String catalogName) {
+		final Runnable hook = this.catalogStatisticsHooks.remove(catalogName);
+		if (hook != null) {
+			FlightRecorder.removePeriodicEvent(hook);
+		}
+	}
+
+	/**
+	 * Hands every JFR periodic hook this instance has registered back to {@link FlightRecorder}.
+	 *
+	 * This is the counterpart of the registrations described on {@link #engineStatisticsHooks}, and the only thing
+	 * that keeps a closed engine collectable: the JFR registry is a static of the JDK and therefore a GC root, so
+	 * a hook that stays in it holds this instance - and everything it owns - for the life of the process.
+	 */
+	private void retireStatisticsHooks() {
+		for (Runnable hook : this.engineStatisticsHooks) {
+			FlightRecorder.removePeriodicEvent(hook);
+		}
+		this.engineStatisticsHooks.clear();
+		for (String catalogName : this.catalogStatisticsHooks.keySet()) {
+			retireCatalogStatistics(catalogName);
+		}
 	}
 
 	/**
 	 * Attempts to close all resources of evitaDB.
 	 */
 	private void closeInternal() {
+		// hand the JFR hooks back first - they are held by a static of the JDK, so one left behind outlives every
+		// other resource released below and pins this instance along with it
+		retireStatisticsHooks();
+
 		RuntimeException exception = null;
 		try {
 			// first close all sessions
@@ -2193,6 +2381,72 @@ public final class Evita implements EvitaContract {
 		@Override
 		public void close() {
 			this.session.close();
+		}
+
+	}
+
+	/**
+	 * JFR periodic hook that emits {@link CatalogStatisticsEvent} for one catalog of this engine.
+	 *
+	 * It is an inner class on purpose - it needs the engine to reach the catalog - and that is exactly what makes
+	 * it dangerous to leave registered: the JFR registry is a JVM-lifetime static, so a live hook is a GC root for
+	 * the whole engine. {@link Evita#catalogStatisticsHooks} tracks every instance so that
+	 * {@link Evita#retireStatisticsHooks()} can release them all; {@link #retire()} is the second line of defence,
+	 * for a catalog that disappeared through a path that did not announce itself.
+	 */
+	private final class CatalogStatisticsHook implements Runnable {
+		/**
+		 * Name of the catalog whose statistics this hook emits, and the key it is filed under.
+		 */
+		private final String catalogName;
+
+		CatalogStatisticsHook(@Nonnull String catalogName) {
+			this.catalogName = catalogName;
+		}
+
+		@Override
+		public void run() {
+			try {
+				if (!Evita.this.isActive()) {
+					// the engine is gone; retire rather than return, because nothing else will come back for this
+					// hook - and while it stays registered, the closed engine it captures cannot be collected
+					retire();
+					return;
+				}
+				final ExpandedEngineState theEngineState = Evita.this.getEngineState();
+				// in very rare race conditions the engine state may be null here
+				// (if evita is closed already)
+				// noinspection ConstantValue
+				if (theEngineState == null) {
+					return;
+				}
+				theEngineState
+					.getCatalog(this.catalogName)
+					.ifPresentOrElse(
+						catalogContract -> {
+							if (catalogContract instanceof Catalog monitoredCatalog) {
+								monitoredCatalog.emitObservabilityEvents();
+							} else {
+								retire();
+							}
+						},
+						() -> {
+							log.warn("Catalog {} does not exist, cannot emit statistics!", this.catalogName);
+							retire();
+						}
+					);
+			} catch (Throwable t) {
+				log.error("Emitting observability events failed!", t);
+			}
+		}
+
+		/**
+		 * Unregisters this hook, and drops the map entry only if it still points at this instance - a catalog
+		 * dropped and recreated under the same name is served by a different hook, which must not be retired here.
+		 */
+		private void retire() {
+			Evita.this.catalogStatisticsHooks.remove(this.catalogName, this);
+			FlightRecorder.removePeriodicEvent(this);
 		}
 
 	}

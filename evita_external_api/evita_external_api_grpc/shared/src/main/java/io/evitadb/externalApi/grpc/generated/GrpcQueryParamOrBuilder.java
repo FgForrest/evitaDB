@@ -842,6 +842,49 @@ public interface GrpcQueryParamOrBuilder extends
 
   /**
    * <pre>
+   * Binds a `GrpcHierarchyParentsBehaviour` enum parameter into the query, used by the `hierarchyContent`
+   * requirement to select what happens to an ancestor whose requested body cannot be materialized - whether the
+   * parent chain is cut below it, or continues above it with that ancestor reported as a bodyless pointer.
+   *
+   * A query that leaves the argument out simply carries no placeholder for it, so no entry of this arm is sent at
+   * all and the requirement keeps its own default, `MATCHING`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour hierarchyParentsBehaviour = 28;</code>
+   * @return Whether the hierarchyParentsBehaviour field is set.
+   */
+  boolean hasHierarchyParentsBehaviour();
+  /**
+   * <pre>
+   * Binds a `GrpcHierarchyParentsBehaviour` enum parameter into the query, used by the `hierarchyContent`
+   * requirement to select what happens to an ancestor whose requested body cannot be materialized - whether the
+   * parent chain is cut below it, or continues above it with that ancestor reported as a bodyless pointer.
+   *
+   * A query that leaves the argument out simply carries no placeholder for it, so no entry of this arm is sent at
+   * all and the requirement keeps its own default, `MATCHING`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour hierarchyParentsBehaviour = 28;</code>
+   * @return The enum numeric value on the wire for hierarchyParentsBehaviour.
+   */
+  int getHierarchyParentsBehaviourValue();
+  /**
+   * <pre>
+   * Binds a `GrpcHierarchyParentsBehaviour` enum parameter into the query, used by the `hierarchyContent`
+   * requirement to select what happens to an ancestor whose requested body cannot be materialized - whether the
+   * parent chain is cut below it, or continues above it with that ancestor reported as a bodyless pointer.
+   *
+   * A query that leaves the argument out simply carries no placeholder for it, so no entry of this arm is sent at
+   * all and the requirement keeps its own default, `MATCHING`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour hierarchyParentsBehaviour = 28;</code>
+   * @return The hierarchyParentsBehaviour.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour getHierarchyParentsBehaviour();
+
+  /**
+   * <pre>
    * Binds a list of string parameters into the query, e.g. used with `inSet`-style constraints such
    * as `attributeInSet` over string-typed attributes.
    * </pre>

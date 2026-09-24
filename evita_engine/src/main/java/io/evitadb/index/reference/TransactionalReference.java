@@ -27,8 +27,11 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -54,8 +57,16 @@ import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLaye
  */
 @ThreadSafe
 public class TransactionalReference<T>
-	implements TransactionalLayerProducer<ReferenceChanges<T>, Optional<T>>, Serializable {
+	implements TransactionalLayerProducer<ReferenceChanges<T>, Optional<T>>, WarmUpTouchStamped,
+	Serializable {
 	@Serial private static final long serialVersionUID = 1524821425865368156L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	private final AtomicReference<T> value;
 
@@ -86,8 +97,9 @@ public class TransactionalReference<T>
 	public long getHeapSizeInBytes(@Nonnull ToLongFunction<? super T> valueSizer) {
 		final VMLayout layout = VMLayout.current();
 		final T committedValue = this.value.get();
-		// id + the AtomicReference slot, then the AtomicReference's own object holding a single reference
-		return layout.sizeOfObject(Long.BYTES + layout.referenceSize())
+		// id + warmUpTouchStamp + the AtomicReference slot, then the AtomicReference's own object holding a single
+		// reference
+		return layout.sizeOfObject(2L * Long.BYTES + layout.referenceSize())
 			+ layout.sizeOfObject(layout.referenceSize())
 			+ (committedValue == null ? 0L : valueSizer.applyAsLong(committedValue));
 	}
@@ -98,6 +110,7 @@ public class TransactionalReference<T>
 	public void set(@Nullable T value) {
 		final ReferenceChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			recordWarmUpSavepointTouch();
 			this.value.set(value);
 		} else {
 			layer.set(value);
@@ -114,9 +127,35 @@ public class TransactionalReference<T>
 	public T compareAndExchange(@Nullable T currentValue, @Nullable T newValue) {
 		final ReferenceChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			// recorded unconditionally rather than only on a successful exchange: the capture is the pre-image of the
+			// whole holder, so it is correct either way, and testing the outcome first would cost more than it saves
+			recordWarmUpSavepointTouch();
 			return this.value.compareAndExchange(currentValue, newValue);
 		} else {
 			return layer.compareAndExchange(currentValue, newValue);
+		}
+	}
+
+	/**
+	 * Captures the referenced value for the warm-up savepoint bracketing the current root entity mutation, if one is
+	 * open, so that a failed mutation rewinds this holder to what it pointed at before the mutation began (see
+	 * {@link WarmUpSavepoint}).
+	 *
+	 * The capture is made on the FIRST write-touch only: the holder's entire mutable state is the one reference it
+	 * carries, so a single captured pre-image is an absolute restore of all of it, and re-capturing on a later write
+	 * would only overwrite it with a mid-savepoint value.
+	 *
+	 * The value itself is captured BY REFERENCE, exactly as a {@link io.evitadb.core.transaction.memory.Snapshotable}
+	 * memento captures a nested producer: when the referenced object is itself a transactional structure, its internal
+	 * state is rewound by its own journaling, never from here.
+	 *
+	 * Must be called BEFORE the write. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			final T preImage = this.value.get();
+			savepoint.push(() -> this.value.set(preImage));
 		}
 	}
 
@@ -170,6 +209,18 @@ public class TransactionalReference<T>
 	@Override
 	public ReferenceChanges<T> createLayer() {
 		return new ReferenceChanges<>(this.value.get());
+	}
+
+	/**
+	 * The whole mutable state of this wrapper is one reference, so its pre-image is captured in full on the first
+	 * write-touch of the delegate branch and restored by a single field assignment. The referent is captured by
+	 * reference: one carrying mutable state of its own is rewound by that object's own journalling.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
 	}
 
 	@Nonnull

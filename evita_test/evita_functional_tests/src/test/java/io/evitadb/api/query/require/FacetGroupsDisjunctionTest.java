@@ -67,7 +67,9 @@ class FacetGroupsDisjunctionTest {
 			);
 
 			assertEquals("brand", constraint.getReferenceName());
-			assertEquals(WITH_DIFFERENT_FACETS_IN_GROUP, constraint.getFacetGroupRelationLevel());
+			// disjunction defaults to the level it actually changes something at - between groups, where the
+			// system default is conjunction. Within a group disjunction is already the system default
+			assertEquals(WITH_DIFFERENT_GROUPS, constraint.getFacetGroupRelationLevel());
 			assertEquals(filterBy(entityPrimaryKeyInSet(1, 5, 7)), constraint.getFacetGroups().orElseThrow());
 		}
 
@@ -80,6 +82,18 @@ class FacetGroupsDisjunctionTest {
 
 			assertEquals("brand", constraint.getReferenceName());
 			assertEquals(WITH_DIFFERENT_GROUPS, constraint.getFacetGroupRelationLevel());
+			assertEquals(filterBy(entityPrimaryKeyInSet(1, 5, 7)), constraint.getFacetGroups().orElseThrow());
+		}
+
+		@Test
+		@DisplayName("should create with the within group relation level")
+		void shouldCreateWithWithinGroupRelationLevel() {
+			final FacetGroupsDisjunction constraint = facetGroupsDisjunction(
+				"brand", WITH_DIFFERENT_FACETS_IN_GROUP, filterBy(entityPrimaryKeyInSet(1, 5, 7))
+			);
+
+			assertEquals("brand", constraint.getReferenceName());
+			assertEquals(WITH_DIFFERENT_FACETS_IN_GROUP, constraint.getFacetGroupRelationLevel());
 			assertEquals(filterBy(entityPrimaryKeyInSet(1, 5, 7)), constraint.getFacetGroups().orElseThrow());
 		}
 	}
@@ -187,10 +201,11 @@ class FacetGroupsDisjunctionTest {
 		@Test
 		@DisplayName("should produce expected toString with non-default relation level")
 		void shouldProduceToStringWithNonDefaultLevel() {
+			// the default level is omitted from the serialised form, so the non-default one is the within group level
 			assertEquals(
-				"facetGroupsDisjunction('brand',WITH_DIFFERENT_GROUPS,filterBy(entityPrimaryKeyInSet(1,5,7)))",
+				"facetGroupsDisjunction('brand',WITH_DIFFERENT_FACETS_IN_GROUP,filterBy(entityPrimaryKeyInSet(1,5,7)))",
 				facetGroupsDisjunction(
-					"brand", WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(1, 5, 7))
+					"brand", WITH_DIFFERENT_FACETS_IN_GROUP, filterBy(entityPrimaryKeyInSet(1, 5, 7))
 				).toString()
 			);
 		}

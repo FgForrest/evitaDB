@@ -79,6 +79,7 @@ class EntityAttributeSchemaTest {
 					new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
 				},
 				new Scope[]{Scope.LIVE},
+				null,
 				new Scope[]{Scope.LIVE},
 				false, true, true,
 				Integer.class, 10,
@@ -104,7 +105,7 @@ class EntityAttributeSchemaTest {
 				"myAttribute", variants,
 				null, null,
 				(Map<Scope, AttributeUniquenessType>) null,
-				null, null,
+				null, null, null,
 				false, false, false,
 				String.class, null, 0,
 				ConflictResolutionOverride.INHERITED
@@ -170,6 +171,7 @@ class EntityAttributeSchemaTest {
 					new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
 				},
 				new Scope[]{Scope.LIVE},
+				null,
 				null,
 				false, false, false,
 				String.class, null,

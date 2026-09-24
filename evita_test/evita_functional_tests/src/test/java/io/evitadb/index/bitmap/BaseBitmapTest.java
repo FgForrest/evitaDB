@@ -25,6 +25,8 @@ package io.evitadb.index.bitmap;
 
 import com.carrotsearch.hppc.predicates.IntPredicate;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import net.openhft.hashing.Access;
+import net.openhft.hashing.LongHashFunction;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -32,6 +34,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import javax.annotation.Nonnull;
+import java.io.Serial;
 import java.util.Arrays;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.Random;
@@ -1474,6 +1478,267 @@ class BaseBitmapTest {
 
 			assertEquals(3, bitmap.size());
 			assertArrayEquals(new int[]{1, 2, 3}, bitmap.getArray());
+		}
+	}
+
+	/**
+	 * Pins the memoized content hash. Two properties matter and they pull in opposite directions:
+	 *
+	 * - it must be memoized, because a `ConstantFormula` over a non-transactional bitmap keys its cache entry on
+	 * this value and index memos build one such formula per query — without the memo that is an `O(size)` walk per
+	 * call (issue #1458);
+	 * - it must never outlive the contents it describes, because the same value is the *sole* cache discriminator
+	 * for those formulas — a stale hash serves one bitmap's cached result for another's contents.
+	 *
+	 * Every mutator therefore gets its own invalidation test. The counting hash function is what distinguishes
+	 * "answered correctly" from "answered correctly *and* recomputed".
+	 */
+	@Nested
+	@DisplayName("Memoized content hash")
+	class ContentHashTest {
+
+		@Test
+		@DisplayName("should hash the contents only once across repeated calls")
+		void shouldHashContentsOnlyOnceAcrossRepeatedCalls() {
+			final BaseBitmap bitmap = new BaseBitmap(1, 2, 3, 4, 5);
+			final CountingHashFunction hashFunction = new CountingHashFunction();
+
+			final long first = bitmap.getContentHash(hashFunction);
+			final long second = bitmap.getContentHash(hashFunction);
+			final long third = bitmap.getContentHash(hashFunction);
+
+			assertEquals(hashFunction.hashIntsUncounted(new int[]{1, 2, 3, 4, 5}), first);
+			assertEquals(first, second);
+			assertEquals(first, third);
+			assertEquals(1, hashFunction.getHashIntsCallCount(), "the contents must be walked exactly once");
+		}
+
+		@Test
+		@DisplayName("should answer correctly for a hash function it has not memoized")
+		void shouldAnswerCorrectlyForForeignHashFunction() {
+			final BaseBitmap bitmap = new BaseBitmap(7, 9, 11);
+			final CountingHashFunction functionA = new CountingHashFunction(LongHashFunction.xx3(1L));
+			final CountingHashFunction functionB = new CountingHashFunction(LongHashFunction.xx3(2L));
+
+			final long hashA = bitmap.getContentHash(functionA);
+			final long hashB = bitmap.getContentHash(functionB);
+
+			assertNotEquals(hashA, hashB, "differently seeded functions must not answer alike");
+			assertEquals(functionA.hashIntsUncounted(bitmap.getArray()), hashA);
+			assertEquals(functionB.hashIntsUncounted(bitmap.getArray()), hashB);
+			// re-asking the first function must still be correct, even though the memo now holds the second's
+			assertEquals(hashA, bitmap.getContentHash(functionA));
+		}
+
+		@Test
+		@DisplayName("should invalidate the hash when add inserts a record")
+		void shouldInvalidateHashWhenAddInsertsRecord() {
+			final CountingHashFunction hashFunction = new CountingHashFunction();
+			final BaseBitmap bitmap = seedAndHash(hashFunction);
+			bitmap.add(4);
+			assertHashRecomputedAndCorrect(bitmap, hashFunction);
+		}
+
+		@Test
+		@DisplayName("should keep the memoized hash when add changes nothing")
+		void shouldKeepMemoizedHashWhenAddChangesNothing() {
+			final BaseBitmap bitmap = new BaseBitmap(1, 2, 3);
+			final CountingHashFunction hashFunction = new CountingHashFunction();
+			final long before = bitmap.getContentHash(hashFunction);
+
+			assertFalse(bitmap.add(2), "the record is already present");
+
+			assertEquals(before, bitmap.getContentHash(hashFunction));
+			assertEquals(1, hashFunction.getHashIntsCallCount(), "a no-op add must not discard the memo");
+		}
+
+		@Test
+		@DisplayName("should invalidate the hash when addAll receives an array")
+		void shouldInvalidateHashWhenAddAllReceivesArray() {
+			final CountingHashFunction hashFunction = new CountingHashFunction();
+			final BaseBitmap bitmap = seedAndHash(hashFunction);
+			bitmap.addAll(4, 5);
+			assertHashRecomputedAndCorrect(bitmap, hashFunction);
+		}
+
+		@Test
+		@DisplayName("should invalidate the hash when addAll receives a bitmap")
+		void shouldInvalidateHashWhenAddAllReceivesBitmap() {
+			final CountingHashFunction hashFunction = new CountingHashFunction();
+			final BaseBitmap bitmap = seedAndHash(hashFunction);
+			bitmap.addAll(new BaseBitmap(8, 9));
+			assertHashRecomputedAndCorrect(bitmap, hashFunction);
+		}
+
+		@Test
+		@DisplayName("should invalidate the hash when remove deletes a record")
+		void shouldInvalidateHashWhenRemoveDeletesRecord() {
+			final CountingHashFunction hashFunction = new CountingHashFunction();
+			final BaseBitmap bitmap = seedAndHash(hashFunction);
+			bitmap.remove(2);
+			assertHashRecomputedAndCorrect(bitmap, hashFunction);
+		}
+
+		@Test
+		@DisplayName("should keep the memoized hash when remove changes nothing")
+		void shouldKeepMemoizedHashWhenRemoveChangesNothing() {
+			final BaseBitmap bitmap = new BaseBitmap(1, 2, 3);
+			final CountingHashFunction hashFunction = new CountingHashFunction();
+			final long before = bitmap.getContentHash(hashFunction);
+
+			assertFalse(bitmap.remove(42), "the record was never present");
+
+			assertEquals(before, bitmap.getContentHash(hashFunction));
+			assertEquals(1, hashFunction.getHashIntsCallCount(), "a no-op remove must not discard the memo");
+		}
+
+		@Test
+		@DisplayName("should invalidate the hash when removeAll receives an array")
+		void shouldInvalidateHashWhenRemoveAllReceivesArray() {
+			final CountingHashFunction hashFunction = new CountingHashFunction();
+			final BaseBitmap bitmap = seedAndHash(hashFunction);
+			bitmap.removeAll(1, 3);
+			assertHashRecomputedAndCorrect(bitmap, hashFunction);
+		}
+
+		@Test
+		@DisplayName("should invalidate the hash when removeAll receives a bitmap")
+		void shouldInvalidateHashWhenRemoveAllReceivesBitmap() {
+			final CountingHashFunction hashFunction = new CountingHashFunction();
+			final BaseBitmap bitmap = seedAndHash(hashFunction);
+			bitmap.removeAll(new BaseBitmap(1, 2));
+			assertHashRecomputedAndCorrect(bitmap, hashFunction);
+		}
+
+		@Test
+		@DisplayName("should invalidate the hash when removeAll applies a predicate")
+		void shouldInvalidateHashWhenRemoveAllAppliesPredicate() {
+			final CountingHashFunction hashFunction = new CountingHashFunction();
+			final BaseBitmap bitmap = seedAndHash(hashFunction);
+			bitmap.removeAll((IntPredicate) value -> value % 2 == 0);
+			assertHashRecomputedAndCorrect(bitmap, hashFunction);
+		}
+
+		@Test
+		@DisplayName("should invalidate the hash when retainAll applies a predicate")
+		void shouldInvalidateHashWhenRetainAllAppliesPredicate() {
+			final CountingHashFunction hashFunction = new CountingHashFunction();
+			final BaseBitmap bitmap = seedAndHash(hashFunction);
+			bitmap.retainAll((IntPredicate) value -> value > 1);
+			assertHashRecomputedAndCorrect(bitmap, hashFunction);
+		}
+
+		@Test
+		@DisplayName("should invalidate the hash when the bitmap is cleared")
+		void shouldInvalidateHashWhenBitmapIsCleared() {
+			final CountingHashFunction hashFunction = new CountingHashFunction();
+			final BaseBitmap bitmap = seedAndHash(hashFunction);
+			bitmap.clear();
+			assertHashRecomputedAndCorrect(bitmap, hashFunction);
+		}
+
+		/**
+		 * Builds a three-record bitmap and warms its content-hash memo **with the caller's own function**, so the
+		 * mutation the caller then performs is the only thing that can decide whether the next
+		 * {@link BaseBitmap#getContentHash} recomputes.
+		 *
+		 * Warming with any other instance would defeat the whole check: the memo is keyed by function identity, so a
+		 * later call carrying a different one misses it whether or not the mutator cleared anything, and the
+		 * assertion would hold even against a `BaseBitmap` that never invalidates.
+		 */
+		@Nonnull
+		private BaseBitmap seedAndHash(@Nonnull CountingHashFunction hashFunction) {
+			final BaseBitmap bitmap = new BaseBitmap(1, 2, 3);
+			bitmap.getContentHash(hashFunction);
+			return bitmap;
+		}
+
+		/**
+		 * Asserts a mutated bitmap answers for its **current** contents and got there by walking them again rather
+		 * than replaying the memo {@link #seedAndHash(CountingHashFunction)} warmed with this same function — one
+		 * walk for the seeding, a second forced by the mutation.
+		 */
+		private void assertHashRecomputedAndCorrect(
+			@Nonnull BaseBitmap bitmap,
+			@Nonnull CountingHashFunction hashFunction
+		) {
+			assertEquals(
+				hashFunction.hashIntsUncounted(bitmap.getArray()), bitmap.getContentHash(hashFunction),
+				"the content hash must describe the bitmap's current contents"
+			);
+			assertEquals(2, hashFunction.getHashIntsCallCount(), "the mutation must have forced a recomputation");
+		}
+	}
+
+	/**
+	 * {@link LongHashFunction} that records how many times {@link #hashInts(int[])} — the single entry point
+	 * {@link Bitmap#getContentHash(LongHashFunction)} uses — was actually invoked, so a test can tell a memo hit
+	 * from a recomputation. Everything else is plain delegation.
+	 */
+	private static final class CountingHashFunction extends LongHashFunction {
+		@Serial private static final long serialVersionUID = 6002348816451219923L;
+		private final LongHashFunction delegate;
+		private int hashIntsCallCount;
+
+		CountingHashFunction() {
+			this(LongHashFunction.xx3());
+		}
+
+		CountingHashFunction(@Nonnull LongHashFunction delegate) {
+			this.delegate = delegate;
+		}
+
+		int getHashIntsCallCount() {
+			return this.hashIntsCallCount;
+		}
+
+		/**
+		 * Computes the same value as {@link #hashInts(int[])} without disturbing the call count, so a test can
+		 * state its expectation without paying for it.
+		 */
+		long hashIntsUncounted(@Nonnull int[] input) {
+			return this.delegate.hashInts(input);
+		}
+
+		@Override
+		public long hashInts(int[] input) {
+			this.hashIntsCallCount++;
+			return this.delegate.hashInts(input);
+		}
+
+		@Override
+		public long hashLong(long input) {
+			return this.delegate.hashLong(input);
+		}
+
+		@Override
+		public long hashInt(int input) {
+			return this.delegate.hashInt(input);
+		}
+
+		@Override
+		public long hashShort(short input) {
+			return this.delegate.hashShort(input);
+		}
+
+		@Override
+		public long hashChar(char input) {
+			return this.delegate.hashChar(input);
+		}
+
+		@Override
+		public long hashByte(byte input) {
+			return this.delegate.hashByte(input);
+		}
+
+		@Override
+		public long hashVoid() {
+			return this.delegate.hashVoid();
+		}
+
+		@Override
+		public <T> long hash(T input, Access<T> access, long off, long len) {
+			return this.delegate.hash(input, access, off, len);
 		}
 	}
 }

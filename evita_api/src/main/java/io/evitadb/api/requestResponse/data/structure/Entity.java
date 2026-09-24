@@ -86,6 +86,7 @@ import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
@@ -384,6 +385,11 @@ public class Entity implements SealedEntity {
 	 * Method allows mutation of the existing entity by the set of local mutations. If the mutations don't change any
 	 * data (it may happen that the requested change was already applied by someone else) the very same entity is
 	 * returned in the response.
+	 *
+	 * The dispatch below covers the entire {@link LocalMutation} closure: the interface is sealed, and the seven
+	 * branches exhaust its permitted subtypes. The trailing `else` is therefore unreachable for any type that can
+	 * exist - it is kept because an unrecognized mutation must fail loudly rather than be dropped from the rebuilt
+	 * entity, which is what this method used to do.
 	 */
 	@Nonnull
 	public static Entity mutateEntity(
@@ -431,6 +437,9 @@ public class Entity implements SealedEntity {
 				newPriceInnerRecordHandling = mutateInnerPriceRecordHandling(entitySchema, possibleEntity, innerRecordHandlingMutation);
 			} else if (localMutation instanceof SetEntityScopeMutation scopeMutation) {
 				newScope = scopeMutation.mutateLocal(entitySchema, newScope);
+			} else {
+				// SHOULD NOT EVER HAPPEN - `LocalMutation` is sealed and the branches above exhaust it
+				throw new GenericEvitaInternalError("Unknown mutation: " + localMutation.getClass());
 			}
 		}
 

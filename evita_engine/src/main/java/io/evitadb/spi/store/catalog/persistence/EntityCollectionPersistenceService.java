@@ -47,6 +47,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityStorag
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.OptionalInt;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
@@ -358,12 +359,47 @@ public non-sealed interface EntityCollectionPersistenceService<S extends Storage
 	 * @param entity         fetched entity
 	 * @param ioFetchCount   number of I/O operations necessary to fetch the entity
 	 * @param ioFetchedBytes number of bytes fetched from underlying storage to load the entity
+	 * @param readRecords    the records those operations read, so that two compositions of one entity can be
+	 *                       combined into what that entity really cost - see {@link ReadRecord}
 	 */
 	record EntityWithFetchCount(
 		@Nonnull Entity entity,
 		int ioFetchCount,
-		int ioFetchedBytes
+		int ioFetchedBytes,
+		@Nonnull ReadRecord[] readRecords
 	) {
+	}
+
+	/**
+	 * Identity of a single storage record that was read to compose an entity, together with what reading it cost.
+	 *
+	 * The two numbers beside it in {@link EntityWithFetchCount} say *how much* was read; this says *what*. That
+	 * distinction is what lets one entity composed twice under different requirements - once for its attributes,
+	 * once for its prices - be reported as the union of the two reads rather than as the larger of them or as
+	 * their sum. Neither of those is the answer: the union is.
+	 *
+	 * It deliberately names the record rather than holding it. A storage part is the bulk of what an entity is
+	 * made of, and a decorator lives as long as the response that carries it - or longer, in the cache - so
+	 * keeping the part itself here would pin every byte the query ever read for exactly as long. The container
+	 * type and the part's key identify it just as well, and within one pinned catalog version a record under a
+	 * given key cannot change.
+	 *
+	 * @param containerType  type of the storage part that was read
+	 * @param storagePartPk  key the part was read under, or a negative sequence number for a read that carries no
+	 *                       key of its own and therefore de-duplicates against nothing
+	 * @param sizeInBytes    size the record occupied, including its framing overhead
+	 */
+	record ReadRecord(
+		@Nonnull Class<?> containerType,
+		long storagePartPk,
+		int sizeInBytes
+	) implements Serializable {
+
+		/**
+		 * Empty set of records, for a composition that read nothing at all.
+		 */
+		public static final ReadRecord[] NONE = new ReadRecord[0];
+
 	}
 
 	/**

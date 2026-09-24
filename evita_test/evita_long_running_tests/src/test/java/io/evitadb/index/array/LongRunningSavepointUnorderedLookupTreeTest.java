@@ -23,13 +23,10 @@
 
 package io.evitadb.index.array;
 
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
+import io.evitadb.core.transaction.memory.AbstractSavepointFuzzTest;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -40,10 +37,7 @@ import java.util.Random;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
-import static io.evitadb.utils.AssertionUtils.assertSavepointCommitKeeps;
-import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
 
 /**
  * Generational randomized proof that {@link UnorderedLookupTree}'s node layers ({@code LeafNode} container /
@@ -61,53 +55,27 @@ import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
  * dangling or stale layer. A marker record guarantees the in-savepoint batch is never a no-op. The run is time-bounded;
  * the random seed is echoed on failure for deterministic reproduction.
  *
+ * The scenario is declared once and run by {@link AbstractSavepointFuzzTest} in BOTH phases: the transactional
+ * savepoint described above, and the WARM_UP savepoint where the same writes land straight on the delegate
+ * structures and are rewound from the inverses they journal themselves. See that class for the shape of one
+ * generation, for the mid-savepoint read every case is asserted through, and for why the warm-up half runs
+ * exclusively.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("Unordered lookup tree savepoint rollback/commit (generational fuzz)")
 @Tag(INDEXING)
 @Tag(DATA_TYPE)
 @Tag(TRANSACTION)
-class LongRunningSavepointUnorderedLookupTreeTest implements TimeBoundedTestSupport {
+class LongRunningSavepointUnorderedLookupTreeTest extends AbstractSavepointFuzzTest<List<Integer>> {
 	private static final int RECORD_SPACE = 48;
 	private static final int BLOCK_SIZE = 4;
 	private static final long ORDER_KEY_GAP = 1L << 40;
 
-	@ParameterizedTest(name = "Savepoint rollback restores the exact pre-savepoint tree contents")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Savepoint rollback restores the exact pre-savepoint tree contents")
-	void shouldRollBackLookupTreeToSavepoint(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final Driver driver = newSeededDriver(random);
-			assertSavepointRollbackRestores(
-				driver.tree,
-				tested -> driver.applyRandomOps(random, 1 + random.nextInt(10)),
-				tested -> driver.readContents(),
-				tested -> {
-					// a marker record guarantees a non-vacuous in-savepoint batch
-					driver.insertAt(0, driver.nextRecordId());
-					driver.applyRandomOps(random, 1 + random.nextInt(10));
-				}
-			);
-			return iteration + 1;
-		});
-	}
-
-	@ParameterizedTest(name = "Savepoint commit keeps the in-savepoint tree contents")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Savepoint commit keeps the in-savepoint tree contents")
-	void shouldCommitLookupTreeSavepoint(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final Driver driver = newSeededDriver(random);
-			assertSavepointCommitKeeps(
-				driver.tree,
-				tested -> driver.applyRandomOps(random, 1 + random.nextInt(10)),
-				tested -> driver.readContents(),
-				tested -> driver.applyRandomOps(random, 1 + random.nextInt(10))
-			);
-			return iteration + 1;
-		});
+	@Nonnull
+	@Override
+	protected FuzzGeneration<List<Integer>> newGeneration(@Nonnull Random random) {
+		return newSeededDriver(random);
 	}
 
 	/**
@@ -128,7 +96,7 @@ class LongRunningSavepointUnorderedLookupTreeTest implements TimeBoundedTestSupp
 	 * in production) and mints unique record ids. The value index is plain (non-transactional) — it only needs to be
 	 * coherent while ops are being driven; the framework reads the tree (not the index) after rollback / commit.
 	 */
-	private static final class Driver implements OrderKeyConsumer {
+	private static final class Driver implements OrderKeyConsumer, FuzzGeneration<List<Integer>> {
 		private final UnorderedLookupTree tree = new UnorderedLookupTree(BLOCK_SIZE, ORDER_KEY_GAP);
 		private final Map<Integer, Long> valueIndex = new HashMap<>();
 		private int recordIdSequence = 1;
@@ -136,6 +104,30 @@ class LongRunningSavepointUnorderedLookupTreeTest implements TimeBoundedTestSupp
 		@Override
 		public void accept(int recordId, long orderKey) {
 			this.valueIndex.put(recordId, orderKey);
+		}
+
+		@Nonnull
+		@Override
+		public TransactionalStateProducer<?> subject() {
+			return this.tree;
+		}
+
+		@Nonnull
+		@Override
+		public List<Integer> contents() {
+			return readContents();
+		}
+
+		@Override
+		public void applyBaselineOperations(@Nonnull Random random) {
+			applyRandomOps(random, 1 + random.nextInt(10));
+		}
+
+		@Override
+		public void applySavepointOperations(@Nonnull Random random) {
+			applyRandomOps(random, 1 + random.nextInt(10));
+			// applied LAST: a marker record inserted first can be removed again by a later random operation
+			insertAt(0, nextRecordId());
 		}
 
 		int nextRecordId() {

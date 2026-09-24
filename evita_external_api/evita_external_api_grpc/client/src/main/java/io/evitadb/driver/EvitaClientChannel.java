@@ -24,6 +24,7 @@
 package io.evitadb.driver;
 
 import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
+import io.evitadb.driver.config.ClientTimeoutOptions;
 
 import javax.annotation.Nonnull;
 
@@ -64,6 +65,14 @@ public sealed interface EvitaClientChannel {
 	GrpcClientBuilder builder();
 
 	/**
+	 * Which of the two configured budgets a call on this channel is deadlined from.
+	 *
+	 * @return the tier every stub built from this channel must be budgeted with
+	 */
+	@Nonnull
+	TimeoutTier timeoutTier();
+
+	/**
 	 * Builds a stub bound to this channel.
 	 *
 	 * @param stubType the generated gRPC stub class to instantiate
@@ -82,6 +91,12 @@ public sealed interface EvitaClientChannel {
 	 * @param builder the retry-decorated builder bound to the main client factory
 	 */
 	record Unary(@Nonnull GrpcClientBuilder builder) implements EvitaClientChannel {
+
+		@Nonnull
+		@Override
+		public TimeoutTier timeoutTier() {
+			return TimeoutTier.WHOLE_CALL;
+		}
 	}
 
 	/**
@@ -91,6 +106,12 @@ public sealed interface EvitaClientChannel {
 	 * @param builder the undecorated builder bound to the main client factory
 	 */
 	record Streaming(@Nonnull GrpcClientBuilder builder) implements EvitaClientChannel {
+
+		@Nonnull
+		@Override
+		public TimeoutTier timeoutTier() {
+			return TimeoutTier.PER_MESSAGE;
+		}
 	}
 
 	/**
@@ -101,6 +122,52 @@ public sealed interface EvitaClientChannel {
 	 * @param builder the undecorated builder bound to the dedicated CDC client factory
 	 */
 	record Cdc(@Nonnull GrpcClientBuilder builder) implements EvitaClientChannel {
+
+		@Nonnull
+		@Override
+		public TimeoutTier timeoutTier() {
+			return TimeoutTier.PER_MESSAGE;
+		}
+	}
+
+	/**
+	 * Which of {@link ClientTimeoutOptions}' two budgets deadlines a call, and - just as importantly -
+	 * *what the number means*. The two are not interchangeable, and pairing a call with the wrong one is
+	 * the mistake this enum exists to make un-makeable: the tier travels with the channel, so a stub
+	 * cannot be budgeted from a tier its channel does not carry.
+	 *
+	 * The management facade is what motivated it. It had no notion of tiers at all and took the
+	 * whole-call budget for everything, including `fetchFile` - so a default-configured client could not
+	 * download a backup that took longer than {@link ClientTimeoutOptions#timeout()} (5 s), whatever the
+	 * server did. No test caught it, because every harness client raises that value.
+	 */
+	enum TimeoutTier {
+
+		/**
+		 * {@link ClientTimeoutOptions#timeout()} - a budget for the **entire call**, appropriate where the
+		 * work is one bounded round trip. Nothing re-arms it, and nothing should.
+		 */
+		WHOLE_CALL,
+		/**
+		 * {@link ClientTimeoutOptions#streamingTimeout()} - the wait for the **next message**, not the
+		 * length of the exchange. A call budgeted from this tier must re-arm its response timeout on
+		 * every message received, or the rolling deadline silently degenerates into a whole-call one that
+		 * merely happens to be larger.
+		 */
+		PER_MESSAGE;
+
+		/**
+		 * Resolves this tier against the client's configured timeouts.
+		 *
+		 * @param timeouts the client's timeout configuration
+		 * @return the budget calls of this tier are deadlined from
+		 */
+		@Nonnull
+		public Timeout resolve(@Nonnull ClientTimeoutOptions timeouts) {
+			return this == WHOLE_CALL ?
+				new Timeout(timeouts.timeout(), timeouts.timeoutUnit()) :
+				new Timeout(timeouts.streamingTimeout(), timeouts.streamingTimeoutUnit());
+		}
 	}
 
 }

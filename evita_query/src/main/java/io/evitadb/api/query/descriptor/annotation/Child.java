@@ -24,7 +24,6 @@
 package io.evitadb.api.query.descriptor.annotation;
 
 import io.evitadb.api.query.Constraint;
-import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 
 import javax.annotation.Nonnull;

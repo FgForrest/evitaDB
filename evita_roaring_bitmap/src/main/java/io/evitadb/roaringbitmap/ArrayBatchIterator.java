@@ -33,17 +33,17 @@ final class ArrayBatchIterator implements ContainerBatchIterator {
 	}
 
 	/**
-	 * Copies values into `buffer` until it is full or the container is drained, adding `key` (the
-	 * chunk's high 16 bits) to each 16-bit entry — the halves are disjoint, so the addition rebuilds
-	 * the full value.
+	 * Copies values into `buffer` until `limit` is reached or the container is drained, adding `key`
+	 * (the chunk's high 16 bits) to each 16-bit entry — the halves are disjoint, so the addition
+	 * rebuilds the full value.
 	 */
 	@Override
-	public int next(final int key, @Nonnull final int[] buffer, final int offset) {
+	public int next(final int key, @Nonnull final int[] buffer, final int offset, final int limit) {
 		int consumed = 0;
 		final ArrayContainer container = Objects.requireNonNull(
 			this.array, "ArrayBatchIterator: container released or never wrapped");
 		final char[] data = container.content;
-		while ((offset + consumed) < buffer.length && this.index < container.getCardinality()) {
+		while ((offset + consumed) < limit && this.index < container.getCardinality()) {
 			buffer[offset + consumed++] = key + (data[this.index++]);
 		}
 		return consumed;

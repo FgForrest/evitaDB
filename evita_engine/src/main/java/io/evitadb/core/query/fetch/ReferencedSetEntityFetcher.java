@@ -121,6 +121,12 @@ public record ReferencedSetEntityFetcher(
 		}
 	}
 
+	@Override
+	public boolean mayCarryGroupBodies(@Nonnull ReferenceSchemaContract referenceSchema) {
+		final PrefetchedEntities prefetchedEntities = this.fetchedEntities.get(referenceSchema.getName());
+		return prefetchedEntities != null && prefetchedEntities.hasGroupBodies();
+	}
+
 	@Nullable
 	@Override
 	public ReferenceComparator getEntityComparator(@Nonnull ReferenceSchemaContract referenceSchema) {
@@ -134,7 +140,7 @@ public record ReferencedSetEntityFetcher(
 
 	@Nullable
 	@Override
-	public BiPredicate<Integer, ReferenceDecorator> getEntityFilter(@Nonnull ReferenceSchemaContract referenceSchema) {
+	public BiPredicate<Integer, ReferenceContract> getEntityFilter(@Nonnull ReferenceSchemaContract referenceSchema) {
 		final PrefetchedEntities prefetchedEntities = this.fetchedEntities.get(referenceSchema.getName());
 		if (prefetchedEntities == null) {
 			return null;
@@ -142,10 +148,9 @@ public record ReferencedSetEntityFetcher(
 			final ValidEntityToReferenceMapping vm = prefetchedEntities.validityMapping();
 			return vm == null ?
 				null :
-				(entityPrimaryKey, referenceDecorator) ->
-					ofNullable(referenceDecorator)
-						.map(refDec -> vm.isReferenceSelected(entityPrimaryKey, refDec))
-						.orElse(false);
+				// deliberately not `ofNullable(...).map(...).orElse(false)`: this runs once per reference contract of
+				// every fetched entity, and the Optional plus its capturing lambda are allocated on that path
+				(entityPrimaryKey, reference) -> reference != null && vm.isReferenceSelected(entityPrimaryKey, reference);
 		}
 	}
 

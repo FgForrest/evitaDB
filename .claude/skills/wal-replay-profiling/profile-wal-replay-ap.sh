@@ -33,7 +33,7 @@
 set -euo pipefail
 
 ROOT=/www/oss/evita/evitaDB-dev
-JAVA=${JAVA_BIN:-${JAVA_HOME:-/usr/lib/jvm/java-17-openjdk-amd64}/bin/java}
+JAVA=${JAVA_BIN:-${JAVA_HOME:-/usr/lib/jvm/java-21-openjdk-amd64}/bin/java}
 JAR=$ROOT/evita_test/evita_performance_tests/target/benchmarks.jar
 AP=$HOME/.m2/repository/me/bechberger/ap-loader-all/4.0-10/ap-loader-all-4.0-10.jar
 OUT=$ROOT/evita_test/evita_performance_tests/target/profiling/wal-replay

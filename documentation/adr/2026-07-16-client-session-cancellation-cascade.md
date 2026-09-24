@@ -203,7 +203,7 @@ exists to prevent.
   test clients that were previously protected by the old inert-ping bug got a real 30 s ping by
   default once the bug was fixed; those were given explicit `pingIntervalMillis(0)`:
   `WalReplayAgainstLocalServerTest`, `LongRunningEvitaClientReadWriteTest`,
-  `LongRunningCdcHeartbeatTest`. `SenesiUpsertFuzzer` (performance tests) kept its ping armed on
+  `LongRunningCdcHeartbeatTest`. `ProductionCatalogUpsertFuzzer` (performance tests) kept its ping armed on
   purpose, as production-faithful.
 - The `-Devita.test.disableRealPools` scaffolding toggle used to compare A2-on vs. A2-off was
   removed once the decision landed — confirmed absent from the tree.

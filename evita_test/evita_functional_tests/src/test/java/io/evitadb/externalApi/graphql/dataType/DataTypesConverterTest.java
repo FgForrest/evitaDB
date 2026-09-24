@@ -44,6 +44,9 @@ import java.util.List;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.GRAPHQL;
@@ -138,34 +141,63 @@ class DataTypesConverterTest {
 	}
 
 	private void assertRequiredScalarType(@Nonnull GraphQLScalarType expectedScalarType, @Nonnull GraphQLType actualResultType) {
-		assertTrue(actualResultType instanceof GraphQLNonNull);
+		assertInstanceOf(GraphQLNonNull.class, actualResultType);
 		final GraphQLNonNull actualRequiredScalarType = (GraphQLNonNull) actualResultType;
 		assertEquals(expectedScalarType, actualRequiredScalarType.getOriginalWrappedType());
 	}
 
 	private void assertListTypeOfScalarTypes(@Nonnull GraphQLScalarType expectedScalarType, @Nonnull GraphQLType actualResultType) {
-		assertTrue(actualResultType instanceof GraphQLList);
+		assertInstanceOf(GraphQLList.class, actualResultType);
 
 		final GraphQLList actualListResultType = (GraphQLList) actualResultType;
-		assertTrue(actualListResultType.getOriginalWrappedType() instanceof GraphQLNonNull);
+		assertInstanceOf(GraphQLNonNull.class, actualListResultType.getOriginalWrappedType());
 
 		final GraphQLNonNull actualRequiredScalarType = (GraphQLNonNull) actualListResultType.getOriginalWrappedType();
 		assertEquals(expectedScalarType, actualRequiredScalarType.getOriginalWrappedType());
 	}
 
 	private void assertRequiredListTypeOfScalarTypes(@Nonnull GraphQLScalarType expectedScalarType, @Nonnull GraphQLType actualResultType) {
-		assertTrue(actualResultType instanceof GraphQLNonNull);
+		assertInstanceOf(GraphQLNonNull.class, actualResultType);
 
 		final GraphQLNonNull actualRequiredListType = (GraphQLNonNull) actualResultType;
-		assertTrue(actualRequiredListType.getOriginalWrappedType() instanceof GraphQLList);
+		assertInstanceOf(GraphQLList.class, actualRequiredListType.getOriginalWrappedType());
 
 		final GraphQLList actualListResultType = (GraphQLList) actualRequiredListType.getOriginalWrappedType();
-		assertTrue(actualListResultType.getOriginalWrappedType() instanceof GraphQLNonNull);
+		assertInstanceOf(GraphQLNonNull.class, actualListResultType.getOriginalWrappedType());
 
 		final GraphQLNonNull actualRequiredScalarType = (GraphQLNonNull) actualListResultType.getOriginalWrappedType();
 		assertEquals(expectedScalarType, actualRequiredScalarType.getOriginalWrappedType());
 	}
 
+
+	@Test
+	void shouldCarryEnumConstantDeprecationIntoGraphQLEnum() {
+		final List<GraphQLEnumValueDefinition> values = DataTypesConverter
+			.getGraphQLEnumType(DummyDeprecatedEnum.class)
+			.enumType()
+			.getValues();
+
+		assertEquals(4, values.size());
+		assertFalse(values.get(0).isDeprecated(), "A constant without @Deprecated must not be flagged");
+		assertNull(values.get(0).getDeprecationReason());
+
+		assertTrue(values.get(1).isDeprecated());
+		assertEquals("Deprecated since 2026.2.", values.get(1).getDeprecationReason());
+
+		assertTrue(values.get(2).isDeprecated());
+		assertEquals(
+			"Deprecated since 2026.2 and scheduled for removal.",
+			values.get(2).getDeprecationReason(),
+			"forRemoval must reach the client, it is the difference between \"avoid\" and \"migrate now\""
+		);
+
+		assertTrue(values.get(3).isDeprecated());
+		assertEquals(
+			"Deprecated.",
+			values.get(3).getDeprecationReason(),
+			"A bare @Deprecated carries no version, and must still mark the value rather than read as undeprecated"
+		);
+	}
 
 	private void assertGraphQLEnumType(GraphQLEnumType graphQLEnumType) {
 		assertEquals("DummyEnum", graphQLEnumType.getName());
@@ -181,7 +213,7 @@ class DataTypesConverterTest {
 	}
 
 	private void assertConvertedEnumType(@Nonnull ConvertedEnum<?> actualConvertedEnum) {
-		assertTrue(actualConvertedEnum.resultType() instanceof GraphQLTypeReference);
+		assertInstanceOf(GraphQLTypeReference.class, actualConvertedEnum.resultType());
 		assertEquals("DummyEnum", ((GraphQLTypeReference) actualConvertedEnum.resultType()).getName());
 
 		assertGraphQLEnumType(actualConvertedEnum.enumType());
@@ -190,10 +222,10 @@ class DataTypesConverterTest {
 	private void assertRequiredConvertedEnumType(@Nonnull ConvertedEnum<?> actualConvertedEnum) {
 		final GraphQLInputType actualResultType = actualConvertedEnum.resultType();
 
-		assertTrue(actualResultType instanceof GraphQLNonNull);
+		assertInstanceOf(GraphQLNonNull.class, actualResultType);
 
 		final GraphQLNonNull actualRequiredScalarType = (GraphQLNonNull) actualResultType;
-		assertTrue(actualRequiredScalarType.getOriginalWrappedType() instanceof GraphQLTypeReference);
+		assertInstanceOf(GraphQLTypeReference.class, actualRequiredScalarType.getOriginalWrappedType());
 
 		final GraphQLTypeReference actualTypeReference = (GraphQLTypeReference) actualRequiredScalarType.getOriginalWrappedType();
 		assertEquals("DummyEnum", actualTypeReference.getName());
@@ -204,13 +236,13 @@ class DataTypesConverterTest {
 	private void assertListTypeOfConvertedEnumTypes(@Nonnull ConvertedEnum<?> actualConvertedEnum) {
 		final GraphQLInputType actualResultType = actualConvertedEnum.resultType();
 
-		assertTrue(actualResultType instanceof GraphQLList);
+		assertInstanceOf(GraphQLList.class, actualResultType);
 
 		final GraphQLList actualListResultType = (GraphQLList) actualResultType;
-		assertTrue(actualListResultType.getOriginalWrappedType() instanceof GraphQLNonNull);
+		assertInstanceOf(GraphQLNonNull.class, actualListResultType.getOriginalWrappedType());
 
 		final GraphQLNonNull actualRequiredType = (GraphQLNonNull) actualListResultType.getOriginalWrappedType();
-		assertTrue(actualRequiredType.getOriginalWrappedType() instanceof GraphQLTypeReference);
+		assertInstanceOf(GraphQLTypeReference.class, actualRequiredType.getOriginalWrappedType());
 
 		final GraphQLTypeReference actualTypeReference = (GraphQLTypeReference) actualRequiredType.getOriginalWrappedType();
 		assertEquals("DummyEnum", actualTypeReference.getName());
@@ -221,16 +253,16 @@ class DataTypesConverterTest {
 	private void assertRequiredListTypeOfConvertedEnumTypes(@Nonnull ConvertedEnum<?> actualConvertedEnum) {
 		final GraphQLInputType actualResultType = actualConvertedEnum.resultType();
 
-		assertTrue(actualResultType instanceof GraphQLNonNull);
+		assertInstanceOf(GraphQLNonNull.class, actualResultType);
 
 		final GraphQLNonNull actualRequiredListType = (GraphQLNonNull) actualResultType;
-		assertTrue(actualRequiredListType.getOriginalWrappedType() instanceof GraphQLList);
+		assertInstanceOf(GraphQLList.class, actualRequiredListType.getOriginalWrappedType());
 
 		final GraphQLList actualListResultType = (GraphQLList) actualRequiredListType.getOriginalWrappedType();
-		assertTrue(actualListResultType.getOriginalWrappedType() instanceof GraphQLNonNull);
+		assertInstanceOf(GraphQLNonNull.class, actualListResultType.getOriginalWrappedType());
 
 		final GraphQLNonNull actualRequiredType = (GraphQLNonNull) actualListResultType.getOriginalWrappedType();
-		assertTrue(actualRequiredType.getOriginalWrappedType() instanceof GraphQLTypeReference);
+		assertInstanceOf(GraphQLTypeReference.class, actualRequiredType.getOriginalWrappedType());
 
 		final GraphQLTypeReference actualTypeReference = (GraphQLTypeReference) actualRequiredType.getOriginalWrappedType();
 		assertEquals("DummyEnum", actualTypeReference.getName());
@@ -240,5 +272,15 @@ class DataTypesConverterTest {
 
 	enum DummyEnum {
 		ONE, TWO
+	}
+
+	enum DummyDeprecatedEnum {
+		LIVE,
+		@Deprecated(since = "2026.2")
+		RETIRED,
+		@Deprecated(since = "2026.2", forRemoval = true)
+		DOOMED,
+		@Deprecated
+		UNDATED
 	}
 }

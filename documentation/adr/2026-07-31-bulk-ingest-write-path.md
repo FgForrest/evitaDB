@@ -1,7 +1,7 @@
 ---
 title: Take the four contained bulk-ingest wins, reject the two that trade an invariant or add complexity, and defer the one worth more than all of them
 date: 2026-07-31
-updated: 2026-08-01 10:45
+updated: 2026-08-26 20:20
 status: accepted
 kind: optimization
 issues: [1342]
@@ -9,7 +9,7 @@ prs: [1348]
 areas: [evita_engine/index/bPlusTree, evita_engine/index/invertedIndex, evita_store/evita_store_key_value/store/compression]
 supersedes: []
 superseded-by: []
-relates: [2026-07-10-more-optimized-data-structures, 2026-07-27-write-path-performance-tuning, 2026-08-01-bplustree-cursor-free-insert-path]
+relates: [2026-07-10-more-optimized-data-structures, 2026-07-27-write-path-performance-tuning, 2026-08-01-bplustree-cursor-free-insert-path, 2026-08-26-warm-up-per-entity-mutation-atomicity]
 ---
 
 # Bulk-ingest write path — four wins taken, two refused, one deferred
@@ -147,6 +147,10 @@ only where it also breaches the size budget. The direction was right, the magnit
 - **`2026-08-01-bplustree-cursor-free-insert-path`** — the immediate follow-on in
   `TransactionalBucketBPlusTree`. The boundary-index work here (`8b6c2a2e8`) removed the per-insert
   front-coded key decode, which is precisely what made one of that record's alternatives unaffordable.
+- **`2026-08-26-warm-up-per-entity-mutation-atomicity`** — the first work to deliberately *add* cost
+  to this saturated ingest thread. The 94 % saturation measured here is the constraint its whole
+  optimization campaign was run against, and the reason it ships at +2.17 % rather than the +14.4 %
+  its first implementation cost.
 
 ## Timeline
 
