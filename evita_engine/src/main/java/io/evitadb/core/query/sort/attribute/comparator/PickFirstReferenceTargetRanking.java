@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.sort.attribute.comparator;
 
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.query.sort.EntityComparator;
@@ -94,6 +95,18 @@ public final class PickFirstReferenceTargetRanking {
 	 */
 	public void prepareForSelection(@Nonnull Bitmap entityPrimaryKeys) {
 		this.targetRank = this.indexResolver.getTargetRank(entityPrimaryKeys);
+	}
+
+	/**
+	 * Returns true when the entity lives in a scope the ordering processes. An entity from another scope (possible
+	 * when `inScope` narrows the ordering below the scopes of the filter) is never claimed by the index route and
+	 * must fall through to the next sorter on the prefetch route as well.
+	 *
+	 * @param entity the entity being sorted
+	 * @return true if the entity may be sorted by the owning comparator
+	 */
+	public boolean admits(@Nonnull EntityContract entity) {
+		return this.indexResolver.isProcessedScope(entity.getScope());
 	}
 
 	/**

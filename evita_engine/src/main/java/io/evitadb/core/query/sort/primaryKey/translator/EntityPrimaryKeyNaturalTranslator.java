@@ -419,11 +419,13 @@ public class EntityPrimaryKeyNaturalTranslator
 			if (this.pickedValues.indexExists(index)) {
 				return this.pickedValues.indexGet(index);
 			}
-			final int value = entity.getReferences(this.referenceSchema.getName())
-				.stream()
-				.min(this.targetRanking.referenceOrder())
-				.map(ReferenceContract::getReferencedPrimaryKey)
-				.orElse(MISSING);
+			final int value = this.targetRanking.admits(entity) ?
+				entity.getReferences(this.referenceSchema.getName())
+					.stream()
+					.min(this.targetRanking.referenceOrder())
+					.map(ReferenceContract::getReferencedPrimaryKey)
+					.orElse(MISSING) :
+				MISSING;
 			this.pickedValues.indexInsert(index, entityPrimaryKey, value);
 			if (value == MISSING) {
 				if (this.nonSortedEntities == null) {

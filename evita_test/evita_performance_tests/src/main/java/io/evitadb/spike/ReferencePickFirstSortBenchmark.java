@@ -35,6 +35,7 @@ import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -169,6 +170,12 @@ public class ReferencePickFirstSortBenchmark {
 		 */
 		@Param("mediaOrder")
 		public String sortAttribute;
+		/**
+		 * Whether the ordering names `pickFirstByEntityProperty` explicitly - needed for a hierarchical target, whose
+		 * default is `traverseByEntityProperty`.
+		 */
+		@Param("false")
+		public boolean explicitPickFirst;
 
 		Evita evita;
 		EvitaSessionContract session;
@@ -358,8 +365,20 @@ public class ReferencePickFirstSortBenchmark {
 					corpus.referenceName, entityPrimaryKeyInSet(boxed(selection.seeds))
 				);
 			};
-			final OrderBy ordering = this.ordered ?
-				orderBy(referenceProperty(corpus.referenceName, attributeNatural(corpus.sortAttribute))) : null;
+			final OrderBy ordering;
+			if (!this.ordered) {
+				ordering = null;
+			} else if (corpus.explicitPickFirst) {
+				ordering = orderBy(
+					referenceProperty(
+						corpus.referenceName,
+						pickFirstByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
+						attributeNatural(corpus.sortAttribute)
+					)
+				);
+			} else {
+				ordering = orderBy(referenceProperty(corpus.referenceName, attributeNatural(corpus.sortAttribute)));
+			}
 			this.query = Query.query(
 				collection(corpus.entityType),
 				filterBy(and(entityPrimaryKeyInSet(boxed(selection.owners)), narrowing)),

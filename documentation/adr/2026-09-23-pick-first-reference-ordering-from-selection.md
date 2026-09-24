@@ -1,7 +1,7 @@
 ---
 title: A pick-first reference ordering sorts on the first row of every selected owner, resolved from the selection rather than from the filter
 date: 2026-09-23
-updated: 2026-09-24 05:50
+updated: 2026-09-24 13:30
 status: accepted
 kind: fix
 issues: [1614]
@@ -106,9 +106,12 @@ had shown what each alternative meant on concrete owners.
 
 Per scope, `ReducedIndexMembership` names the covered partitions of each owner plus a residual set; the union over the
 selected owners is a superset of the partitions holding a row of the selection. `PickFirstReducedIndexResolver`
-resolves it leniently, drops group-family and vanished indexes, probes each against the selection, and falls back to
-the whole family when the scope has no membership or when the selection holds more covered owners than the reference
-has partitions.
+resolves it leniently, drops group-family and vanished indexes, and falls back to the whole family when the scope has
+no membership or when the selection holds more covered owners than the reference has partitions. It does **not**
+probe each resolved index against the selection: the sorter intersects every index with the owners still unclaimed
+anyway, and repeating that intersection in the resolver measured at half the sort time for 80,187 owners over 4,022
+partitions. The resolved set is therefore a superset; both routes derive it from the same selection and membership,
+and a target order is total, so the targets of indexes holding no selected owner never reorder the others.
 
 - **Pros:** cost follows the selection (`O(|S| + rows(S) + residual)`) instead of the family; the rule "all rows"
   comes for free because the set is defined by the owners, not by the filter.
@@ -119,35 +122,59 @@ has partitions.
 
 - **Rejected because:** it honours "all rows" at the price of today's worst case on every query - 158 ms for one owner.
 
-### Claiming the owners — one query-local projection (chosen) vs. the k-way merge of one provider per partition (declined)
+### Claiming the owners — per-partition claims by bitmap and a lazy merge of their runs (chosen)
 
-The projection walks the resolved partitions in target order; each intersects its owners with the still-unclaimed
-rest of the selection, resolves the positions of just those owners in its sort index, records `(owner, value)` for
-the ones it holds a value for and removes them from the unclaimed set in place; the pairs are sorted once at the end.
+The sorter walks the resolved partitions in target order and lets each claim the still-unclaimed owners it holds a
+value for. A claim reads no value: it is the positions of the claimed owners in the partition's sorted provider, and
+their removal from the unclaimed rest. Each partition is asked in the cheaper of two ways - a rest at least 16×
+smaller than the partition is resolved against it directly (dev's own per-provider step: the not-found result is the
+new rest), anything else is intersected with the partition first - and a partition without a sort index of the value
+is skipped before any bitmap is touched. The positions one partition claimed, walked in ascending order, are already
+in value-then-owner order in the ordering direction, so each partition yields a sorted run; the runs are merged
+lazily by their head values and the merge stops at the end of the requested page.
 
-- **Pros:** per-partition work is proportional to the partition's own claimed rows; one sort instead of a merge.
-- **Cons:** reads the value of every claimed owner and sorts all of them, where a merge reads page-bounded.
-- **Rejected because (the merge):** measured, not modelled. The first build kept the merge over the gathered
-  partitions and made narrowed queries **4-5× slower** than before (0.07 → 0.28 ms at 10 seeds, 11.7 → 59 ms at
-  1,000, 0.34 → 1.5 s at 10,000): every provider reports the whole unclaimed rest back as a new bitmap, so the merge
-  costs `partitions × |S|`, and "all rows" multiplies the partitions by the rows per owner. The projection removed it
-  (table below). Revisit the merge only for shapes with few, very large partitions and huge selections, where
-  reading and sorting every claimed value would outweigh the per-partition copies.
+- **Pros:** per-partition work follows the partition's own unclaimed owners, never the size of the selection times
+  the number of partitions; values are read for the returned page only; the walk ends once every owner is claimed.
+- **Cons:** owners that carry the value on no row force a visit of every partition that holds them - the same as on
+  `dev`, and the reason the cheap per-partition checks exist.
 
+The shape was reached by measuring five alternatives on the production catalog (tables under Verification):
+
+- **Rejected: the k-way merge of one provider per partition.** The first build kept it over the gathered partitions
+  and made narrowed queries on `Product.media` **4-5× slower** than before (0.07 → 0.28 ms at 10 seeds, 11.7 → 59 ms
+  at 1,000, 0.34 → 1.5 s at 10,000): every provider reports the whole unclaimed rest back as a new bitmap, so the merge
+  costs `partitions × |S|`, and "all rows" multiplies the partitions by the rows per owner.
+- **Rejected: an eager projection** that read `(owner, value)` for every claimed owner and sorted all of them once. It
+  fixed the merge's cost but is not bounded by the page - page 1 of 20 read and sorted every claimed value, which an
+  adversarial review flagged for high-fan-in references. The lazy merge of runs replaced it; on the measured shapes
+  the two did not differ within noise, so the change is kept for the bound, not for a measured gain.
+- **Rejected: intersecting every partition with the unclaimed rest.** On `Product.groups` (4,022 partitions, 129,963
+  owners) it was 1.4-2.7× slower than `dev` for 8,508-80,187 owners; async-profiler put 67 % of the sort in array
+  container intersections, most of them against partitions that could claim nothing.
+- **Rejected: looking every owner of a small partition up in the rest** instead of intersecting. 2.8× slower still
+  (4,658 vs 1,657 µs at 8,508 owners): summed over the partitions it touches every row of every owner of the
+  reference, where an intersection touches the rows of the selection.
+- **Rejected: resolving the rest directly whenever it is no larger than the partition** (dev's step at comparable
+  sizes). A narrowed query over 3,336 owners on `Product.categories` looked the whole rest up in each of the 342
+  large residual partitions: 1,650 µs against 574 µs with the 16× threshold.
 ### A persistent owner projection maintained on the write path — deferred
 
 The issue's "default ordering, full family" design: one owner-keyed sort index per reference, attribute and locale,
 kept current per touched owner. It is the only design whose cost does not grow with `rows(S)`. Deferred: after the
-query-local projection, a 9,762-owner selection sorts in 84 ms against 4.9 s before, and the write-path maintenance
+query-local claims, a 9,762-owner selection sorts in about 0.1 s against 4.9 s before, and the write-path maintenance
 (recomputing the winner when the winning row is removed or loses its value) plus its heap and persistence were not
 worth taking on without a production shape that needs it.
 
 ## Decision
 
 **Chosen: all rows, owner-pk ties in the ordering direction, representative order for duplicates, the membership
-gather resolved at execution time, and a query-local winner-per-owner projection instead of the merge.** Both routes
-now share one source of truth for the target order - `PickFirstReducedIndexResolver` - so they can no longer drift
-apart, and the measured cost of honouring "all rows" on a narrowed query turned out negative rather than positive.
+gather resolved at execution time, and per-partition claims merged lazily instead of the provider merge.** Both
+routes now share one source of truth for the target order - `PickFirstReducedIndexResolver` - so they can no longer
+drift apart. Unnarrowed orderings and narrowed ones over large selections are 2-10,000× faster than before. The one
+shape that got slower is a narrowed query over a small or moderate selection on a reference with many residual
+partitions (1.9-2.8×, sub-millisecond to a few milliseconds): "all rows" obliges it to check every partition that may
+hold a row of a selected owner, residual ones included, where it used to look at the filter's partitions only. The
+maintainer accepted that cost on 2026-09-24 because it falls on queries that are fast in absolute terms.
 Revisit the deferred persistent projection when selections of tens of thousands of owners ordered this way become
 a measured production shape: that is where the per-query cost still follows `rows(S)`.
 
@@ -157,11 +184,19 @@ a measured production shape: that is where the per-query cost still follows `row
   route), the target rank (prefetch route, `getTargetRank`) and, lazily, the planning-time array for the consumers
   that still need one (`getPlanningIndexes`). One instance per query plan; memoizes the last selection by identity.
 - `core/query/sort/reference/sorter/PickFirstReferenceSorter` - the index route; resolves at `sortAndSlice`, then
-  claims owners partition by partition (the projection) and sorts the claimed pairs once.
+  claims owners partition by partition (the projection). The owners one partition claims come out in its provider's
+  order, which is already value then owner primary key, both in the ordering direction (the descending supplier is
+  the exact mirror of the ascending one), so each partition yields a sorted run; the runs are merged lazily and the
+  merge stops at the end of the requested page. A provider whose ties did not follow the owner primary key in the
+  ordering direction would break that merge - the unit test fixture builds its providers exactly as `SortIndex` does
+  for that reason.
 - `core/query/sort/attribute/comparator/PickFirstReferenceOrder` - the prefetch route's reference order (target rank,
   then `RepresentativeReferenceKey.GENERIC_COMPARATOR`, which puts a `null` representative value first);
   `EntityComparator#prepareForSelection` hands the comparators
-  the selection, which a rank over a nested target order needs.
+  the selection, which a rank over a nested target order needs. The comparators sort only owners living in a scope
+  the ordering processes (`PickFirstReferenceTargetRanking#admits`): under `inScope(LIVE, ...)` over a two-scope
+  filter the index route never sees the archived owners, so the prefetch route must hand them to the next sorter
+  too.
 - `MergedComparableSortedRecordsSupplierSorter` / `PreSortedRecordsSorter` take the ordering direction and break
   ties by primary key in it. This also changes multi-scope plain attribute sorts, which had the same mixed rule.
 - **Not changed, deliberately:** `traverseByEntityProperty`, and chain attributes (`Predecessor`,
@@ -195,9 +230,14 @@ a measured production shape: that is where the per-query cost still follows `row
   × 2 directions × 2 routes × 2 indexing levels, plus compound cross-route agreement. Counterfactual: dropping the
   membership's residual set from the gather turns 17 cases red - exactly the small selections, the only ones that
   take the gather rather than the family walk - so the test reaches the residual path it claims to. It also covers
-  targets missing from a nested target order and two-value chains (51 cases in total).
-- Unit level: `PickFirstReducedIndexResolverTest` (15) and `PickFirstReferenceSorterTest` (9) over a hand-built index
-  fixture; `PreSortedRecordsSorterTest` pins the tie direction of the multi-provider merge in both directions.
+  targets missing from a nested target order and two-value chains (69 cases in total, with the scope cases below).
+- `shouldOrderOwnersOfOrderingScopeOnlyIdenticallyOnBothRoutes` (18 cases in the oracle test) - `inScope(LIVE, ...)`
+  over both scopes on both routes against the oracle. Counterfactual: admitting every scope in the prefetch
+  comparators turns exactly these 18 red, each on the prefetch route only.
+- Unit level: `PickFirstReducedIndexResolverTest` (15) and `PickFirstReferenceSorterTest` (10, including every page
+  window of the full order in both directions) over a hand-built index fixture. Counterfactual: concatenating the
+  runs instead of merging them turns 80 of 147 ordering cases red across the unit, witness, oracle and existing
+  reference-ordering suites; `PreSortedRecordsSorterTest` pins the tie direction of the multi-provider merge in both directions.
 - Existing ordering suites whose oracles encoded the old tie rule (`entityPrimaryKeyNatural(DESC)` inside
   `referenceProperty`: products of one brand followed in ascending primary key order) were updated to the decided
   rule; nothing else in the ordering, chain, duplicate-reference and bidirectional-rewrite suites changed.
@@ -220,6 +260,33 @@ a measured production shape: that is where the per-query cost still follows `row
   The same queries without `orderBy` (the rig's control, which the change does not touch) moved by at most 3 µs and
   in no consistent direction (5.2 → 5.2, 8.6 → 11.4, 15.0 → 13.6, 20.0 → 22.7, 63 → 60 µs unnarrowed).
 
+  The table above is the build measured on 2026-09-23. The final build (per-partition claims, lazy merge) measured
+  on 2026-09-24, one round: unnarrowed 0.012 / 0.050 / 0.31 / 7.6 / 104 ms and narrowed 0.016 / 0.059 / 0.40 / 9.8 /
+  119 ms for the same five selections, against `dev` 158-172 ms / 686-698 / 1,027-1,072 / 1,697-1,726 /
+  4,765-5,175 ms and 0.015-0.017 / 0.069-0.071 / 0.68-0.78 / 11.7-12.0 / 323-344 ms. The 999-owner points spread by
+  ±40 % between runs (5.6-9.8 ms narrowed across the intermediate builds; a profiled pair of the first and the final
+  build measured 8.4 and 8.6 ms), so the final build is read as equal to the table, not slower.
+- Performance at high fan-in - `Product.categories` ordered by `orderInCategory` under an explicit
+  `pickFirstByEntityProperty` (the target is hierarchical, so the default would be traverse): 591 partitions over
+  228,126 rows, 342 of them residual, every selected owner carrying the value on some row. Same rig, `dev` against
+  the final build, two interleaved rounds each, µs/op:
+
+  | `k` → `|S|` | unnarrowed dev | unnarrowed after | narrowed dev | narrowed after |
+  |---|---|---|---|---|
+  | 10 → 3,336 | 5,198 / 4,230 | 487 / 498 | 206 / 199 | 574 / 574 |
+  | 100 → 22,301 | 13,463 / 12,987 | 2,448 / 2,438 | 5,701 / 6,589 | 2,823 / 2,684 |
+  | 500 → 80,924 | 49,717 / 49,790 | 4,247 / 4,347 | 53,367 / 54,198 | 5,245 / 4,868 |
+
+  The 3,336-owner narrowed point was re-measured on request with three builds interleaved (`dev` 198 / 336,
+  a build resolving the rest directly at comparable sizes 1,685 / 1,645, final 550 / 573): the loss is real and is
+  the cost of rule 2 described under Decision.
+- Performance with no value at all - `Product.groups` ordered by `assignmentPriority` (4,022 partitions, 576
+  residual). **No row of the corpus carries that attribute** (0 of 427,163; the only populated one, `orderInGroup`,
+  is a `Predecessor` chain and takes the unchanged chain path), so every selected owner stays unclaimed and every
+  partition holding one is visited: the worst case for the walk, not a high-fan-in ordering. `dev` (mean of two
+  rounds) → final, one round, µs/op: unnarrowed 894 → 129 (477 owners), 939 → 440 (8,508), 1,768 → 1,982 (80,187);
+  narrowed 49 → 137, 334 → 814, 1,967 → 3,705.
+
 ## Consequences & open follow-ups
 
 - **Traverse narrowing** (`traverseByEntityProperty`, and chains under implicit pick-first) still depends on the
@@ -232,12 +299,18 @@ a measured production shape: that is where the per-query cost still follows `row
 - **The chain-ordering gate issue #1614 hands to #1615 still stands.** Chains keep their per-partition blocks, so a
   virtual singleton partition must still resolve as chain position `0` with the record id the write path would have
   indexed before virtual partitions are activated for a chain path; nothing here implements that.
-- **Found, not fixed: the prefetch route ignores `inScope`.** Under `orderBy(inScope(LIVE, referenceProperty(...)))`
-  with a two-scope filter, the index route claims live owners only, while the prefetch comparators still rank the
-  archived owners' rows. The entity-level `AttributeComparator` ignores `inScope` the same way, so this is a general
-  prefetch gap rather than a pick-first one; fixing it needs a scope-aware admission check for every entity
-  comparator.
-- `SortedRecordsProvider`s are still built per query for every partition holding a row of the selection.
+- **Found, fixed for pick-first only: the prefetch route ignores `inScope`.** The pick-first comparators now admit
+  owners of the ordering's scopes only. The entity-level `AttributeComparator` (and the other entity comparators)
+  still sort owners of every scope on the prefetch route under `inScope`, while their index route sorts the named
+  scope only; that general gap needs the same admission check in each of them and is left for its own fix.
+- `SortedRecordsProvider`s are still built per query for every partition the walk asks. Building one creates its
+  value seeker eagerly (`SortIndex#createSortedComparableForwardSeeker`), which async-profiler put at ~13 % of a
+  999-owner `media` sort; a check for the sort index that does not build the provider would skip that for partitions
+  holding no unclaimed owner. Not done: the gain is inside that point's run-to-run noise.
+- **The narrowed small-selection cost of rule 2** (see Decision) comes from the residual partitions - those above the
+  membership's per-owner coverage threshold - being checked on every narrowed query. Tracking, per owner, the large
+  partitions it belongs to as well would remove most of it at a memory cost in `ReducedIndexMembership`; that belongs
+  with the membership rework of #1615, not here.
 - **Found, not fixed: a localized sortable compound on a reference indexed for filtering alone cannot be ordered by
   on the index route.** `EntityIndexLocalMutationExecutor#insertInitialSuiteOfSortableAttributeCompounds` (and its
   removal twin) skip the reduced index unless the reference is `FOR_FILTERING_AND_PARTITIONING`, although
@@ -258,3 +331,6 @@ a measured production shape: that is where the per-query cost still follows `row
 
 - **2026-09-23** - witnesses written against `dev`, semantics decided by the maintainer, reviewed by two independent
   reviewers, implemented and measured.
+- **2026-09-24** - quality pass and adversarial review (scope admission on the prefetch route, page-bounded merge);
+  high-fan-in and no-value fixtures measured, the claim loop reshaped by profiling, the narrowed small-selection cost
+  accepted by the maintainer.

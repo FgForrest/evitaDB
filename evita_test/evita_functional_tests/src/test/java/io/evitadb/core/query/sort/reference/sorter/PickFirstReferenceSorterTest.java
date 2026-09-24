@@ -43,7 +43,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -117,16 +119,22 @@ class PickFirstReferenceSorterTest {
 	}
 
 	/**
-	 * Creates a provider holding the passed owners with their values, in ascending order of the values - the
-	 * construction `EntityPrimaryKeyNaturalTranslator` uses for its own per-index providers. Owners marked with
-	 * {@link #NO_VALUE} are held by the index but not by the provider, exactly like a row lacking the attribute.
+	 * Creates a provider holding the passed owners with their values in the ordering direction: ascending by value
+	 * and then by owner, or the exact mirror of that for a descending ordering - the construction of
+	 * `SortIndex#getAscendingOrderRecordsSupplier` and `SortIndex#getDescendingOrderRecordsSupplier`. Owners marked
+	 * with {@link #NO_VALUE} are held by the index but not by the provider, exactly like a row lacking the attribute.
 	 *
-	 * @param index        the index the provider belongs to
-	 * @param ownerValues  pairs of owner primary key and value
+	 * @param index       the index the provider belongs to
+	 * @param direction   the ordering direction the provider serves
+	 * @param ownerValues pairs of owner primary key and value
 	 * @return the provider, or `null` when no owner has a value
 	 */
 	@Nullable
-	private static SortedRecordsSupplier createProvider(@Nonnull ReducedEntityIndex index, @Nonnull int... ownerValues) {
+	private static SortedRecordsSupplier createProvider(
+		@Nonnull ReducedEntityIndex index,
+		@Nonnull OrderDirection direction,
+		@Nonnull int... ownerValues
+	) {
 		final List<int[]> pairs = new ArrayList<>(ownerValues.length / 2);
 		for (int i = 0; i < ownerValues.length; i += 2) {
 			if (ownerValues[i + 1] != NO_VALUE) {
@@ -137,6 +145,9 @@ class PickFirstReferenceSorterTest {
 			return null;
 		}
 		pairs.sort(Comparator.<int[]>comparingInt(it -> it[1]).thenComparingInt(it -> it[0]));
+		if (direction == OrderDirection.DESC) {
+			Collections.reverse(pairs);
+		}
 		final int[] sortedOwners = pairs.stream().mapToInt(it -> it[0]).toArray();
 		final Integer[] values = pairs.stream().map(it -> it[1]).toArray(Integer[]::new);
 		final int[] ownersAscending = Arrays.stream(sortedOwners).sorted().toArray();
@@ -289,7 +300,7 @@ class PickFirstReferenceSorterTest {
 		final WitnessFixture fixture = new WitnessFixture();
 		final PickFirstReferenceSorter sorter = new PickFirstReferenceSorter(
 			fixture.resolver,
-			index -> index.getPrimaryKey() == 101 ? null : fixture.providerFactory.apply(index),
+			index -> index.getPrimaryKey() == 101 ? null : fixture.provider(OrderDirection.ASC, index),
 			Comparator.naturalOrder(),
 			OrderDirection.ASC
 		);
@@ -331,6 +342,86 @@ class PickFirstReferenceSorterTest {
 	}
 
 	@Test
+	@DisplayName("should return every page window as the matching slice of the full order in both directions")
+	void shouldReturnEveryPageWindowAsSliceOfFullOrder() {
+		final WitnessFixture fixture = new WitnessFixture();
+		final int[] descending = {10, 8, 3, 1, 9, 6, 2, 7};
+		for (OrderDirection direction : OrderDirection.values()) {
+			final int[] fullOrder = direction == OrderDirection.ASC ? CLAIMED_ASCENDING : descending;
+			for (int start = 0; start <= fullOrder.length; start++) {
+				for (int end = start + 1; end <= fullOrder.length + 1; end++) {
+					final SortResult sorted = sort(
+						fixture.sorter(direction),
+						new SortingContext(createExecutionContext(false), fixture.allOwners(), start, end, 0, 0),
+						10
+					);
+					final int[] expected = Arrays.copyOfRange(fullOrder, start, Math.min(end, fullOrder.length));
+					final int[] expectedSkipped = Arrays.copyOfRange(fullOrder, 0, start);
+					final String window = direction + " [" + start + ", " + end + ")";
+					assertArrayEquals(expected, sorted.written(), window);
+					assertArrayEquals(expectedSkipped, sorted.skipped(), window + " skipped");
+				}
+			}
+		}
+	}
+
+	@Test
+	@DisplayName("should claim nothing from resolved indexes that hold no selected owner")
+	void shouldClaimNothingFromIndexesHoldingNoSelectedOwner() {
+		final WitnessFixture fixture = new WitnessFixture();
+
+		// the resolver hands over every index of the fixture, yet only 102 (no value) and 104 hold owner 1, and only
+		// 101 and 104 hold owner 7 - the rest must be rejected by the intersection with the unclaimed owners
+		final SortResult sorted = sort(
+			fixture.sorter(OrderDirection.ASC),
+			new SortingContext(createExecutionContext(false), new BaseBitmap(1, 7), 0, 10, 0, 0),
+			10
+		);
+
+		assertAll(
+			() -> assertArrayEquals(new int[]{7, 1}, sorted.written()),
+			() -> assertArrayEquals(new int[0], content(sorted.output().nonSortedKeys()))
+		);
+	}
+
+	@Test
+	@DisplayName("should resolve a small unclaimed rest directly against a much larger index")
+	void shouldResolveSmallUnclaimedRestDirectlyAgainstLargeIndex() {
+		// index 201 of target 1 holds 60 owners, at least 16 times the 3 selected ones, so the rest is resolved
+		// against it directly; owner 75 is held by index 202 of target 2 only and must still be claimed afterwards
+		final PickFirstReducedIndexFixture indexFixture = new PickFirstReducedIndexFixture();
+		final int[] largeIndexOwnerValues = new int[120];
+		for (int i = 0; i < 60; i++) {
+			largeIndexOwnerValues[i * 2] = i + 1;
+			largeIndexOwnerValues[i * 2 + 1] = 200 - i;
+		}
+		final ReducedEntityIndex largeIndex = indexFixture.addIndex(
+			Scope.LIVE, 201, 1, IntStream.rangeClosed(1, 60).toArray()
+		);
+		final ReducedEntityIndex smallIndex = indexFixture.addIndex(Scope.LIVE, 202, 2, 75);
+		final SortedRecordsSupplier largeProvider = createProvider(largeIndex, OrderDirection.ASC, largeIndexOwnerValues);
+		final SortedRecordsSupplier smallProvider = createProvider(smallIndex, OrderDirection.ASC, 75, 80);
+		final PickFirstReferenceSorter sorter = new PickFirstReferenceSorter(
+			indexFixture.resolver(false, Scope.LIVE),
+			index -> index.getPrimaryKey() == 201 ? largeProvider : smallProvider,
+			Comparator.naturalOrder(),
+			OrderDirection.ASC
+		);
+
+		// owner 3 has value 198, owner 7 value 194, owner 75 value 80
+		final SortResult sorted = sort(
+			sorter,
+			new SortingContext(createExecutionContext(false), new BaseBitmap(3, 7, 75), 0, 10, 0, 0),
+			10
+		);
+
+		assertAll(
+			() -> assertArrayEquals(new int[]{75, 7, 3}, sorted.written()),
+			() -> assertArrayEquals(new int[0], content(sorted.output().nonSortedKeys()))
+		);
+	}
+
+	@Test
 	@DisplayName("should leave the selection it sorts untouched")
 	void shouldNotMutateSelection() {
 		final WitnessFixture fixture = new WitnessFixture();
@@ -359,7 +450,7 @@ class PickFirstReferenceSorterTest {
 			// the higher the owner, the lower its value
 			ownerValues[i * 2 + 1] = ownerCount - owners[i];
 		}
-		final SortedRecordsSupplier provider = createProvider(index, ownerValues);
+		final SortedRecordsSupplier provider = createProvider(index, OrderDirection.ASC, ownerValues);
 		final PickFirstReferenceSorter sorter = new PickFirstReferenceSorter(
 			indexFixture.resolver(false, Scope.LIVE), theIndex -> provider, Comparator.naturalOrder(), OrderDirection.ASC
 		);
@@ -401,38 +492,38 @@ class PickFirstReferenceSorterTest {
 		 */
 		@Nonnull final PickFirstReducedIndexResolver resolver;
 		/**
-		 * Returns the provider of an index of the fixture.
+		 * The providers of the fixture's indexes per ordering direction, keyed by index primary key.
 		 */
-		@Nonnull final Function<ReducedEntityIndex, SortedRecordsProvider> providerFactory;
+		@Nonnull final Map<OrderDirection, Map<Integer, SortedRecordsProvider>> providers =
+			new EnumMap<>(OrderDirection.class);
 
 		WitnessFixture() {
 			final PickFirstReducedIndexFixture indexFixture = new PickFirstReducedIndexFixture();
-			final Map<Integer, SortedRecordsProvider> providers = new HashMap<>(8);
-			addIndex(indexFixture, providers, 101, 1, 7, 1, 8, 60);
-			addIndex(indexFixture, providers, 102, 2, 1, NO_VALUE, 3, 50);
-			addIndex(indexFixture, providers, 103, 3, 2, 20, 3, 10, 9, 20, 10, 70);
-			addIndex(indexFixture, providers, 104, 4, 1, 30, 7, 40);
-			addIndex(indexFixture, providers, 105, 5, 4, NO_VALUE);
-			addIndex(indexFixture, providers, 106, 6, 6, 20);
+			addIndex(indexFixture, 101, 1, 7, 1, 8, 60);
+			addIndex(indexFixture, 102, 2, 1, NO_VALUE, 3, 50);
+			addIndex(indexFixture, 103, 3, 2, 20, 3, 10, 9, 20, 10, 70);
+			addIndex(indexFixture, 104, 4, 1, 30, 7, 40);
+			addIndex(indexFixture, 105, 5, 4, NO_VALUE);
+			addIndex(indexFixture, 106, 6, 6, 20);
 			this.resolver = indexFixture.resolver(false, Scope.LIVE);
-			this.providerFactory = index -> providers.get(index.getPrimaryKey());
 		}
 
 		/**
-		 * Adds one index holding the owners of the pairs, and its provider when any owner has a value.
+		 * Adds one index holding the owners of the pairs, and its providers when any owner has a value.
 		 */
-		private static void addIndex(
+		private void addIndex(
 			@Nonnull PickFirstReducedIndexFixture indexFixture,
-			@Nonnull Map<Integer, SortedRecordsProvider> providers,
 			int primaryKey,
 			int target,
 			@Nonnull int... ownerValues
 		) {
 			final int[] owners = IntStream.range(0, ownerValues.length / 2).map(i -> ownerValues[i * 2]).toArray();
 			final ReducedEntityIndex index = indexFixture.addIndex(Scope.LIVE, primaryKey, target, owners);
-			final SortedRecordsSupplier provider = createProvider(index, ownerValues);
-			if (provider != null) {
-				providers.put(primaryKey, provider);
+			for (OrderDirection direction : OrderDirection.values()) {
+				final SortedRecordsSupplier provider = createProvider(index, direction, ownerValues);
+				if (provider != null) {
+					this.providers.computeIfAbsent(direction, it -> new HashMap<>(8)).put(primaryKey, provider);
+				}
 			}
 		}
 
@@ -445,13 +536,21 @@ class PickFirstReferenceSorterTest {
 		}
 
 		/**
+		 * Returns the provider of an index of the fixture for the ordering direction, or `null` when it has none.
+		 */
+		@Nullable
+		SortedRecordsProvider provider(@Nonnull OrderDirection direction, @Nonnull ReducedEntityIndex index) {
+			return this.providers.getOrDefault(direction, Map.of()).get(index.getPrimaryKey());
+		}
+
+		/**
 		 * Creates the sorter in the ordering direction.
 		 */
 		@Nonnull
 		PickFirstReferenceSorter sorter(@Nonnull OrderDirection direction) {
 			return new PickFirstReferenceSorter(
 				this.resolver,
-				this.providerFactory,
+				index -> provider(direction, index),
 				direction == OrderDirection.ASC ? Comparator.naturalOrder() : Comparator.reverseOrder(),
 				direction
 			);

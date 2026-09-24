@@ -48,6 +48,8 @@ import io.evitadb.utils.ArrayUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.function.IntUnaryOperator;
@@ -76,8 +78,12 @@ import java.util.function.Supplier;
  *   reference, exactly as before;
  * - an index that no longer resolves is skipped, and so is an index of the group family, which the membership covers
  *   too;
- * - every resolved index is probed against the selection, and only indexes actually holding a selected owner are
- *   kept - which also makes the resulting set independent of how it was found.
+ * - the resolved indexes are a superset of the indexes holding a selected owner and are deliberately not probed
+ *   against the selection here: {@link PickFirstReferenceSorter} intersects every index with the owners still
+ *   unclaimed anyway, which rejects an index holding no selected owner at no extra cost, while a probe here would
+ *   repeat that intersection for every index of a dense selection (measured at half the sort time for 80,187 owners
+ *   over 4,022 partitions). Both routes derive the set from the same selection and membership, and a target order
+ *   is a total order, so the targets of the extra indexes never change the relative order of the others.
  *
  * When the selection holds more covered owners than the reference has reduced indexes, the whole family is walked
  * instead: the gather would not visit fewer indexes and would cost more lookups.
@@ -175,7 +181,24 @@ public final class PickFirstReducedIndexResolver {
 	}
 
 	/**
-	 * Resolves the reduced indexes holding at least one row of the selected owners, in target order.
+	 * Returns true when the ordering processes the given scope. Owners living in another scope are never claimed by
+	 * the index route, so the prefetch route must leave them unsorted as well.
+	 *
+	 * @param scope the scope of an owner entity
+	 * @return true if the scope is one of the scopes the query processes for this ordering
+	 */
+	public boolean isProcessedScope(@Nonnull Scope scope) {
+		for (Scope processedScope : this.scopes) {
+			if (processedScope == scope) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Resolves the reduced indexes that may hold a row of the selected owners - a superset of those that do - in
+	 * target order.
 	 *
 	 * @param selection primary keys of the owners being sorted
 	 * @return the indexes and the rank function of their targets
@@ -195,12 +218,7 @@ public final class PickFirstReducedIndexResolver {
 					final OfInt it = candidates.iterator();
 					while (it.hasNext()) {
 						final ReducedEntityIndex index = resolveReducedIndex(it.nextInt(), scope);
-						if (
-							index != null &&
-								PersistentRoaringBitmap.intersects(
-									RoaringBitmapBackedBitmap.getRoaringBitmap(index.getAllPrimaryKeys()), selected
-								)
-						) {
+						if (index != null) {
 							found.add(index);
 						}
 					}
@@ -216,8 +234,8 @@ public final class PickFirstReducedIndexResolver {
 	/**
 	 * Returns the rank of the targets referenced by the selected owners - the order the prefetch route considers the
 	 * references of an owner in. The plain primary key order is answered without touching any index; any other order
-	 * is computed over the targets of the selection, exactly as {@link #resolve(Bitmap)} computes it for the index
-	 * route, so both routes rank the targets alike even for orders that depend on the ranked set as a whole.
+	 * is computed over the targets of the resolved indexes, exactly as {@link #resolve(Bitmap)} computes it for the
+	 * index route, so both routes rank the targets alike even for orders that depend on the ranked set as a whole.
 	 *
 	 * @param selection primary keys of the owners being sorted
 	 * @return function returning a lower number for a target that comes first
@@ -334,6 +352,20 @@ public final class PickFirstReducedIndexResolver {
 	 */
 	@Nonnull
 	private ResolvedReducedIndexes order(@Nonnull List<ReducedEntityIndex> found) {
+		if (this.targetSorter == null) {
+			// the plain primary key order needs no grouping: one sort by target, then by representative values
+			final ReducedEntityIndex[] ordered = found.toArray(ReducedEntityIndex[]::new);
+			final Comparator<ReducedEntityIndex> byTarget = Comparator.comparingInt(it -> it.getReferenceKey().primaryKey());
+			Arrays.sort(
+				ordered,
+				(this.targetsDescending ? byTarget.reversed() : byTarget)
+					.thenComparing(
+						ReducedEntityIndex::getRepresentativeReferenceKey,
+						RepresentativeReferenceKey.GENERIC_COMPARATOR
+					)
+			);
+			return new ResolvedReducedIndexes(ordered, createTargetRank(ArrayUtils.EMPTY_INT_ARRAY));
+		}
 		final IntObjectHashMap<List<ReducedEntityIndex>> indexesByTarget = new IntObjectHashMap<>(found.size());
 		final RoaringBitmapWriter<PersistentRoaringBitmap> targetWriter = RoaringBitmapBackedBitmap.buildWriter();
 		for (ReducedEntityIndex index : found) {
@@ -405,7 +437,7 @@ public final class PickFirstReducedIndexResolver {
 	/**
 	 * The reduced indexes resolved for one selection.
 	 *
-	 * @param indexes    reduced indexes holding a row of the selection, in target order
+	 * @param indexes    reduced indexes that may hold a row of the selection, in target order
 	 * @param targetRank function returning a lower number for a target that comes first in target order
 	 */
 	public record ResolvedReducedIndexes(

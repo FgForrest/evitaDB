@@ -101,6 +101,9 @@ public class PickFirstReferenceCompoundAttributeComparator extends AbstractRefer
 	@Override
 	@Nonnull
 	protected Optional<ReferenceContract> pickReference(@Nonnull EntityContract entity) {
+		if (!this.targetRanking.admits(entity)) {
+			return Optional.empty();
+		}
 		// find the first reference in target order that carries any element of the compound
 		return entity.getReferences(this.referenceSchema.getName())
 			.stream()

@@ -237,6 +237,22 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 	}
 
 	/**
+	 * Both references crossed with every target order and every sorted value - the routes are compared within one
+	 * invocation.
+	 */
+	@Nonnull
+	static Stream<Arguments> scopeCombinations() {
+		return Stream.of(REFERENCE_ITEMS_PARTITIONING, REFERENCE_ITEMS_FILTERING)
+			.flatMap(
+				reference -> Arrays.stream(TargetOrder.values())
+					.flatMap(
+						targetOrder -> Arrays.stream(SortedValue.values())
+							.map(value -> Arguments.of(reference, targetOrder, value))
+					)
+			);
+	}
+
+	/**
 	 * Both references crossed with both routes and every target order.
 	 */
 	@Nonnull
@@ -470,6 +486,41 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 		assertAll(assertions);
 	}
 
+	@DisplayName("Should order owners of the ordering scope only, identically on both routes")
+	@UseDataSet(PICK_FIRST_ORACLE)
+	@ParameterizedTest(name = "{0}, targets {1}, value {2}")
+	@MethodSource("scopeCombinations")
+	void shouldOrderOwnersOfOrderingScopeOnlyIdenticallyOnBothRoutes(
+		String referenceName,
+		TargetOrder targetOrder,
+		SortedValue sortedValue,
+		EvitaSessionContract session,
+		OracleFixture oracleFixture
+	) {
+		final List<Executable> assertions = new ArrayList<>(OrderDirection.values().length * SortRoute.values().length);
+		for (OrderDirection direction : OrderDirection.values()) {
+			// the filter selects both scopes, the ordering applies to the live owners only - the archived owners must
+			// fall through to the next sorter on both routes, never be sorted among the live ones on one of them
+			final OrderConstraint ordering = inScope(
+				Scope.LIVE, createOrdering(referenceName, targetOrder, valueOrdering(sortedValue, direction))
+			);
+			final int[] expected = oracle(
+				oracleFixture, Selection.BOTH_SCOPES, targetOrder, List.of(sortedValue), direction, false
+			);
+			for (SortRoute measuredRoute : SortRoute.values()) {
+				final int[] actual = queryOrder(session, measuredRoute, Selection.BOTH_SCOPES, referenceName, ordering);
+				assertions.add(
+					() -> assertArrayEquals(
+						expected, actual,
+						() -> direction + " via " + measuredRoute + ": expected " + Arrays.toString(expected) +
+							" but was " + Arrays.toString(actual)
+					)
+				);
+			}
+		}
+		assertAll(assertions);
+	}
+
 	@DisplayName("Should order owners by two values of one reference as the oracle does")
 	@UseDataSet(PICK_FIRST_ORACLE)
 	@ParameterizedTest(name = "{0} via {1}, targets {2}")
@@ -603,6 +654,23 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 		@Nonnull List<SortedValue> sortedValues,
 		@Nonnull OrderDirection direction
 	) {
+		return oracle(fixture, selection, targetOrder, sortedValues, direction, true);
+	}
+
+	/**
+	 * Computes the expected order like {@link #oracle(OracleFixture, Selection, TargetOrder, List, OrderDirection)},
+	 * optionally ordering the live owners only - as `inScope(LIVE, ...)` does - so that selected archived owners
+	 * join the unsorted ones.
+	 */
+	@Nonnull
+	private static int[] oracle(
+		@Nonnull OracleFixture fixture,
+		@Nonnull Selection selection,
+		@Nonnull TargetOrder targetOrder,
+		@Nonnull List<SortedValue> sortedValues,
+		@Nonnull OrderDirection direction,
+		boolean orderArchived
+	) {
 		final IntUnaryOperator rank = switch (targetOrder) {
 			case DEFAULT -> target -> target;
 			case PRIMARY_KEY_DESCENDING -> target -> -target;
@@ -624,7 +692,8 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 				(selection != Selection.NARROWED || rows.stream().anyMatch(it -> "x".equals(it.kind())));
 			if (selected) {
 				boolean placed = false;
-				for (int i = 0; i < sortedValues.size() && !placed; i++) {
+				final boolean ordered = orderArchived || !fixture.archived()[owner];
+				for (int i = 0; i < sortedValues.size() && ordered && !placed; i++) {
 					final Function<Row, Comparable<?>> valueOf = valueExtractor(sortedValues.get(i));
 					final Comparable<?> value = rows.stream()
 						.filter(it -> valueOf.apply(it) != null)

@@ -191,8 +191,9 @@ class PickFirstReducedIndexResolverTest {
 
 		final ResolvedReducedIndexes resolved = fixture.resolver(false, Scope.LIVE).resolve(new BaseBitmap(1, 3));
 
-		// 101 and 102 through the owners' entries, 104 through the residual set; 105 is residual but holds no one
-		assertIndexes(new int[]{101, 102, 104}, resolved);
+		// 101 and 102 through the owners' entries, 104 and 105 through the residual set - 105 holds no selected owner
+		// and is left for the sorter's intersection with the unclaimed owners to reject
+		assertIndexes(new int[]{101, 102, 104, 105}, resolved);
 		verify(fixture.queryContext, times(1)).getEntityIndexByPrimaryKeyIfExists(105);
 		// the covered indexes of unselected owners are never looked up - the gather ran, not the family walk
 		verify(fixture.queryContext, never()).getEntityIndexByPrimaryKeyIfExists(103);
@@ -207,7 +208,7 @@ class PickFirstReducedIndexResolverTest {
 
 		final ResolvedReducedIndexes resolved = fixture.resolver(false, Scope.LIVE).resolve(new BaseBitmap(1, 3));
 
-		assertIndexes(new int[]{101, 102, 104}, resolved);
+		assertIndexes(new int[]{101, 102, 103, 104, 105, 106}, resolved);
 		for (int indexPrimaryKey = 101; indexPrimaryKey <= 106; indexPrimaryKey++) {
 			verify(fixture.queryContext, times(1)).getEntityIndexByPrimaryKeyIfExists(indexPrimaryKey);
 		}
@@ -221,7 +222,7 @@ class PickFirstReducedIndexResolverTest {
 		final ResolvedReducedIndexes resolved = fixture.resolver(false, Scope.LIVE)
 			.resolve(new BaseBitmap(WIDE_SELECTION));
 
-		assertIndexes(new int[]{101, 102, 103, 104, 106}, resolved);
+		assertIndexes(new int[]{101, 102, 103, 104, 105, 106}, resolved);
 		for (int indexPrimaryKey = 101; indexPrimaryKey <= 106; indexPrimaryKey++) {
 			verify(fixture.queryContext, times(1)).getEntityIndexByPrimaryKeyIfExists(indexPrimaryKey);
 		}
@@ -229,8 +230,8 @@ class PickFirstReducedIndexResolverTest {
 
 	@ParameterizedTest(name = "{0}")
 	@EnumSource(CandidatePath.class)
-	@DisplayName("should resolve the same indexes whichever way the candidates are found")
-	void shouldResolveSameIndexesWhateverPathFindsThem(CandidatePath path) {
+	@DisplayName("should resolve every index holding a selected owner whichever way the candidates are found")
+	void shouldResolveEveryIndexHoldingSelectedOwnerWhateverPathFindsThem(CandidatePath path) {
 		final PickFirstReducedIndexFixture fixture = new PickFirstReducedIndexFixture();
 		addStandardIndexes(fixture);
 		switch (path) {
@@ -246,7 +247,15 @@ class PickFirstReducedIndexResolverTest {
 		final ResolvedReducedIndexes resolved = fixture.resolver(false, Scope.LIVE)
 			.resolve(new BaseBitmap(WIDE_SELECTION));
 
-		assertIndexes(new int[]{101, 102, 103, 104, 106}, resolved);
+		// every path finds all indexes holding a selected owner, in target order; the family paths add 105, which
+		// holds none of them, and the gather adds it too because its only owner is not covered
+		final int[] holdingSelectedOwner = {101, 102, 103, 104, 106};
+		final int[] actual = primaryKeys(resolved);
+		assertArrayEquals(
+			holdingSelectedOwner,
+			Arrays.stream(actual).filter(it -> it != 105).toArray(),
+			() -> path + ": " + Arrays.toString(actual)
+		);
 	}
 
 	@Test
@@ -269,23 +278,24 @@ class PickFirstReducedIndexResolverTest {
 
 		final ResolvedReducedIndexes resolved = fixture.resolver(false, Scope.LIVE).resolve(new BaseBitmap(1));
 
-		assertIndexes(new int[]{101, 104}, resolved);
+		assertIndexes(new int[]{101, 104, 105}, resolved);
 		for (int stale : new int[]{200, 201, 202, 203}) {
 			verify(fixture.queryContext, times(1)).getEntityIndexByPrimaryKeyIfExists(stale);
 		}
 	}
 
 	@Test
-	@DisplayName("should skip an index a stale membership entry names but that no longer holds the owner")
-	void shouldSkipIndexWhoseMembershipEntryIsStale() {
+	@DisplayName("should resolve an index a stale membership entry names, leaving its rejection to the sorter")
+	void shouldResolveIndexWhoseMembershipEntryIsStale() {
 		final PickFirstReducedIndexFixture fixture = createStandardFixture();
 		// owner 4 leaves index 103 behind the membership's back, so its entry still names the index
 		fixture.getIndex(103).removePrimaryKey(4);
 
 		final ResolvedReducedIndexes resolved = fixture.resolver(false, Scope.LIVE).resolve(new BaseBitmap(4));
 
-		assertIndexes(new int[0], resolved);
-		// the stale entry did lead to the index - the probe against the selection is what rejected it
+		// the stale entry leads to the index, which holds no selected owner; the sorter's intersection with the
+		// unclaimed owners is what rejects it, so no probe is repeated here for every index
+		assertIndexes(new int[]{103, 104, 105}, resolved);
 		verify(fixture.queryContext, times(1)).getEntityIndexByPrimaryKeyIfExists(103);
 	}
 
@@ -317,13 +327,15 @@ class PickFirstReducedIndexResolverTest {
 		final ResolvedReducedIndexes resolved = resolver.resolve(selection);
 		final IntUnaryOperator rank = resolver.getTargetRank(selection);
 
-		assertIndexes(new int[]{104, 101, 102, 103, 106}, resolved);
+		assertIndexes(new int[]{104, 101, 102, 103, 105, 106}, resolved);
+		// target 5 is referenced only by owner 6, which is not selected, yet ranks among the others - an extra target
+		// never changes the relative order of the targets the selection does reference
 		assertArrayEquals(
-			new int[]{0, 1, 2, 3, 4},
-			Arrays.stream(new int[]{4, 1, 2, 3, 6}).map(rank).toArray()
+			new int[]{0, 1, 2, 3, 4, 5},
+			Arrays.stream(new int[]{4, 1, 2, 3, 5, 6}).map(rank).toArray()
 		);
-		// target 5 is referenced only by owner 6, which is not selected
-		assertEquals(Integer.MAX_VALUE, rank.applyAsInt(5));
+		// target 99 is referenced by no index of the reference at all
+		assertEquals(Integer.MAX_VALUE, rank.applyAsInt(99));
 	}
 
 	@Test
@@ -382,9 +394,9 @@ class PickFirstReducedIndexResolverTest {
 		final PickFirstReducedIndexFixture fixture = createStandardFixture();
 		final Bitmap selection = new BaseBitmap(1, 20);
 
-		// the archived scope has no reduced index of the reference yet
+		// the archived scope has no reduced index of the reference yet; 105 is residual and comes along unprobed
 		assertIndexes(
-			new int[]{101, 104},
+			new int[]{101, 104, 105},
 			fixture.resolver(false, Scope.LIVE, Scope.ARCHIVED).resolve(selection)
 		);
 
@@ -392,7 +404,7 @@ class PickFirstReducedIndexResolverTest {
 		fixture.registerFamily(Scope.ARCHIVED, 401);
 
 		assertIndexes(
-			new int[]{101, 104, 401},
+			new int[]{101, 104, 105, 401},
 			fixture.resolver(false, Scope.LIVE, Scope.ARCHIVED).resolve(selection)
 		);
 		// a scope the query does not process is not looked into

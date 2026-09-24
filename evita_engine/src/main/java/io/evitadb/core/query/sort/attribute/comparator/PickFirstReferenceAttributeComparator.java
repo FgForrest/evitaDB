@@ -95,6 +95,9 @@ public class PickFirstReferenceAttributeComparator extends AbstractReferenceAttr
 	@Nonnull
 	@Override
 	protected Optional<ReferenceContract> pickReference(@Nonnull EntityContract entity) {
+		if (!this.targetRanking.admits(entity)) {
+			return Optional.empty();
+		}
 		// find the first reference in target order that has the attribute we are looking for
 		return entity.getReferences(this.referenceName)
 			.stream()

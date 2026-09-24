@@ -37,9 +37,8 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.roaringbitmap.PeekableIntIterator;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
-import io.evitadb.roaringbitmap.RoaringBatchIterator;
-import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -62,8 +61,18 @@ import java.util.function.IntConsumer;
  * its own unclaimed owners (the intersection of its owner set with the unclaimed rest of the selection), so the walk
  * costs what the claimed rows cost rather than the size of the selection times the number of indexes, which is what
  * merging one provider per index cost: each provider had to report the whole unclaimed rest back as a new bitmap.
- * The claimed `(owner, value)` pairs are finally sorted once, by value in the ordering direction and then by owner
- * primary key in the same direction - one sorted provider for the whole reference, built per query.
+ * A claim is pure bitmap work - the positions of the claimed owners in the index's sorted provider, and their removal
+ * from the unclaimed rest - no value is read while claiming. Each index is asked in the cheaper of two ways: an
+ * unclaimed rest far smaller than the index is resolved against it directly (the not-found result becomes the new
+ * rest), otherwise the index is first intersected with the rest. An index without a sort index of the value is
+ * skipped before any bitmap is touched.
+ *
+ * The positions one index claimed, walked in ascending order, are already in the order of value in the ordering
+ * direction and then of owner primary key in the same direction (the descending provider is the exact mirror of the
+ * ascending one), so each index yields one sorted run. The runs are merged lazily by their head values into one
+ * sorted provider for the whole reference, built per query; the merge reads values only for the owners it passes
+ * and stops at the end of the requested page, so ordering a large selection costs its claims plus the page, never
+ * a value read for every selected owner.
  *
  * Owners with no row carrying the value stay unsorted and fall through to the next sorter.
  *
@@ -71,7 +80,15 @@ import java.util.function.IntConsumer;
  */
 public final class PickFirstReferenceSorter implements Sorter {
 	/**
-	 * Resolves the reduced indexes holding a row of the selection, in target order.
+	 * How many times larger than the unclaimed rest an index must be for the rest to be resolved against it directly.
+	 * A direct resolution looks each unclaimed owner up in the index (a binary search, about `log2(index size)`
+	 * comparisons), a linear intersection touches every owner of both sides once, so the direct path only pays off
+	 * when the rest is a small fraction of the index - taken at comparable sizes, it looked a moderate selection up
+	 * in every large residual index of a narrowed query and cost several times the intersection.
+	 */
+	private static final int DIRECT_RESOLUTION_RATIO = 16;
+	/**
+	 * Resolves the reduced indexes that may hold a row of the selection, in target order.
 	 */
 	@Nonnull private final PickFirstReducedIndexResolver indexResolver;
 	/**
@@ -91,7 +108,7 @@ public final class PickFirstReferenceSorter implements Sorter {
 	/**
 	 * Creates the sorter.
 	 *
-	 * @param indexResolver   resolves the reduced indexes holding a row of the selection
+	 * @param indexResolver   resolves the reduced indexes that may hold a row of the selection
 	 * @param providerFactory returns the provider of sorted values of one reduced index or `null`
 	 * @param comparator      comparator of the provided values in the ordering direction
 	 * @param primaryKeyOrder direction of the ordering, applied to the primary keys of owners with equal values
@@ -121,11 +138,10 @@ public final class PickFirstReferenceSorter implements Sorter {
 			return sortingContext;
 		}
 		final ReducedEntityIndex[] indexes = this.indexResolver.resolve(selection).indexes();
-		final ClaimedValues claimed = claim(queryContext, selection, indexes);
-		if (claimed.count == 0) {
+		final Claims claims = claim(queryContext, selection, indexes);
+		if (claims.runCount == 0) {
 			return sortingContext;
 		}
-		final int[] order = claimed.sortedOrder(this.comparator, this.primaryKeyOrder == OrderDirection.DESC);
 
 		final int startIndex = sortingContext.recomputedStartIndex();
 		final int endIndex = sortingContext.recomputedEndIndex();
@@ -133,8 +149,11 @@ public final class PickFirstReferenceSorter implements Sorter {
 		final int toRead = Math.min(endIndex - startIndex, result.length - peak);
 		int alreadyRead = 0;
 		int toSkip = startIndex;
-		for (int i = 0; i < order.length && (toRead > alreadyRead || toSkip > 0); i++) {
-			final int recordId = claimed.owners[order[i]];
+		final RunMerge merge = new RunMerge(
+			claims, this.comparator, this.primaryKeyOrder == OrderDirection.DESC
+		);
+		while ((toRead > alreadyRead || toSkip > 0) && merge.hasNext()) {
+			final int recordId = merge.next();
 			if (toSkip > 0) {
 				toSkip--;
 				if (skippedRecordsConsumer != null) {
@@ -145,29 +164,32 @@ public final class PickFirstReferenceSorter implements Sorter {
 			}
 		}
 		return sortingContext.createResultContext(
-			claimed.unclaimed.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(claimed.unclaimed),
+			claims.unclaimed.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(claims.unclaimed),
 			alreadyRead,
 			startIndex - toSkip
 		);
 	}
 
 	/**
-	 * Walks the indexes in target order and lets each claim the unclaimed owners it holds a value for.
+	 * Walks the indexes in target order and lets each claim the unclaimed owners it holds a value for. Claiming reads
+	 * no value: an index contributes the positions of its claimed owners in its sorted provider, and the owners leave
+	 * the unclaimed rest in one bitmap operation.
 	 *
 	 * @param queryContext the context of the executed query
 	 * @param selection    the owners being sorted
-	 * @param indexes      the reduced indexes holding a row of the selection, in target order
-	 * @return the claimed owners with their values, and the owners no index claimed
+	 * @param indexes      the reduced indexes that may hold a row of the selection, in target order
+	 * @return one sorted run per index that claimed an owner, and the owners no index claimed
 	 */
 	@Nonnull
-	private ClaimedValues claim(
+	private Claims claim(
 		@Nonnull QueryExecutionContext queryContext,
 		@Nonnull Bitmap selection,
 		@Nonnull ReducedEntityIndex[] indexes
 	) {
 		// the working copy is copy-on-write, so removing claimed owners never touches the selection itself
-		final PersistentRoaringBitmap unclaimed = RoaringBitmapBackedBitmap.getRoaringBitmap(selection).clone();
-		final ClaimedValues claimed = new ClaimedValues(Math.min(selection.size(), 1024), unclaimed);
+		PersistentRoaringBitmap unclaimed = RoaringBitmapBackedBitmap.getRoaringBitmap(selection).clone();
+		int unclaimedCount = unclaimed.getCardinality();
+		final Claims claims = new Claims();
 		final int[] bufferA = queryContext.borrowBuffer();
 		final int[] bufferB = queryContext.borrowBuffer();
 		// debug override (or null for cost-based) + per-strategy telemetry tally (null when telemetry is off)
@@ -175,40 +197,61 @@ public final class PickFirstReferenceSorter implements Sorter {
 		final int[] strategyTally = SortResolutionStrategies.newStrategyTally(queryContext);
 		try {
 			for (ReducedEntityIndex index : indexes) {
-				if (unclaimed.isEmpty()) {
+				if (unclaimedCount == 0) {
 					break;
 				}
-				final PersistentRoaringBitmap candidates = PersistentRoaringBitmap.and(
-					RoaringBitmapBackedBitmap.getRoaringBitmap(index.getAllPrimaryKeys()), unclaimed
-				);
-				if (candidates.isEmpty()) {
-					continue;
-				}
-				final SortedRecordsProvider provider = this.providerFactory.apply(index);
-				if (provider == null) {
-					continue;
-				}
-				final PositionResolution resolution = provider.resolvePositions(
-					candidates, candidates.getCardinality(), bufferA, bufferB, forcedResolution
-				);
-				SortResolutionStrategies.tally(strategyTally, resolution);
-				final SortedComparableForwardSeeker seeker = provider.getSortedComparableForwardSeeker();
-				seeker.reset();
-				final RoaringBatchIterator maskIterator = resolution.mask().getBatchIterator();
-				while (maskIterator.hasNext()) {
-					final int batchPeak = maskIterator.nextBatch(bufferB);
-					if (batchPeak == 0) {
-						break;
+				final Bitmap indexOwners = index.getAllPrimaryKeys();
+				if ((long) unclaimedCount * DIRECT_RESOLUTION_RATIO <= indexOwners.size()) {
+					// the unclaimed rest is far smaller than the index: resolve it directly - a lookup per unclaimed
+					// owner - and what the provider does not hold is exactly the new unclaimed rest, with no
+					// intersection and no removal
+					final SortedRecordsProvider provider = this.providerFactory.apply(index);
+					if (provider == null) {
+						continue;
 					}
-					for (int i = 0; i < batchPeak; i++) {
-						final int position = bufferB[i];
-						final int owner = provider.recordAt(position);
-						claimed.add(owner, seeker.getValueToCompareOn(position));
-						unclaimed.remove(owner);
+					final PositionResolution resolution = provider.resolvePositions(
+						unclaimed, unclaimedCount, bufferA, bufferB, forcedResolution
+					);
+					SortResolutionStrategies.tally(strategyTally, resolution);
+					if (!resolution.mask().isEmpty()) {
+						claims.addRun(provider, resolution.mask());
+						unclaimed = resolution.notFoundRecords();
+						unclaimedCount = resolution.notFoundRecordsCount();
+					}
+				} else {
+					// comparable sizes, or the index is the smaller side: resolving the whole rest would look every
+					// unclaimed owner up in the index and copy the rest into the not-found result once per index, so
+					// the two are intersected linearly and only the owners the index holds are resolved and removed
+
+					// an index without a sort index of the value holds nothing to claim - ask for it before touching
+					// any bitmap, it is the whole cost of an ordering by a value few rows carry
+					final SortedRecordsProvider provider = this.providerFactory.apply(index);
+					if (provider == null) {
+						continue;
+					}
+					final PersistentRoaringBitmap indexOwnerBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(indexOwners);
+					// most indexes a gather hands over (the residual ones above all) hold no unclaimed owner, and this
+					// check tells so without allocating the intersection
+					if (!PersistentRoaringBitmap.intersects(indexOwnerBitmap, unclaimed)) {
+						continue;
+					}
+					final PersistentRoaringBitmap candidates = PersistentRoaringBitmap.and(indexOwnerBitmap, unclaimed);
+					final PositionResolution resolution = provider.resolvePositions(
+						candidates, candidates.getCardinality(), bufferA, bufferB, forcedResolution
+					);
+					SortResolutionStrategies.tally(strategyTally, resolution);
+					if (!resolution.mask().isEmpty()) {
+						claims.addRun(provider, resolution.mask());
+						final PersistentRoaringBitmap claimed = resolution.notFoundRecordsCount() == 0 ?
+							candidates :
+							PersistentRoaringBitmap.andNot(candidates, resolution.notFoundRecords());
+						unclaimed.andNot(claimed);
+						unclaimedCount -= claimed.getCardinality();
 					}
 				}
 			}
-			return claimed;
+			claims.unclaimed = unclaimed;
+			return claims;
 		} finally {
 			SortResolutionStrategies.report(queryContext, strategyTally);
 			queryContext.returnBuffer(bufferA);
@@ -217,75 +260,206 @@ public final class PickFirstReferenceSorter implements Sorter {
 	}
 
 	/**
-	 * The owners claimed by the walk, with the value each was claimed with, and the owners left unclaimed.
+	 * The sorted runs the walk produced - per claiming index its provider and the positions of the owners it claimed
+	 * in that provider - and the owners left unclaimed.
 	 */
-	private static final class ClaimedValues {
+	private static final class Claims {
 		/**
-		 * The owners left unclaimed, updated in place by the walk.
+		 * The owners left unclaimed, set when the walk ends.
 		 */
-		@Nonnull final PersistentRoaringBitmap unclaimed;
+		@Nonnull PersistentRoaringBitmap unclaimed = new PersistentRoaringBitmap();
 		/**
-		 * Primary keys of the claimed owners, in the order they were claimed.
+		 * The provider of each run.
 		 */
-		@Nonnull int[] owners;
+		@Nonnull SortedRecordsProvider[] providers = new SortedRecordsProvider[16];
 		/**
-		 * The value each owner of {@link #owners} was claimed with.
+		 * The positions of the claimed owners of each run in its provider.
 		 */
-		@Nonnull Serializable[] values;
+		@Nonnull PersistentRoaringBitmap[] masks = new PersistentRoaringBitmap[16];
 		/**
-		 * The number of claimed owners.
+		 * The number of runs.
 		 */
-		int count;
-
-		ClaimedValues(int initialCapacity, @Nonnull PersistentRoaringBitmap unclaimed) {
-			this.owners = new int[Math.max(initialCapacity, 16)];
-			this.values = new Serializable[this.owners.length];
-			this.unclaimed = unclaimed;
-		}
+		int runCount;
 
 		/**
-		 * Records a claimed owner.
+		 * Records the run of one index.
 		 *
-		 * @param owner the owner primary key
-		 * @param value the value it was claimed with
+		 * @param provider the sorted provider of the index
+		 * @param mask     the positions of the owners the index claimed, never empty
 		 */
-		void add(int owner, @Nonnull Serializable value) {
-			if (this.count == this.owners.length) {
-				this.owners = Arrays.copyOf(this.owners, this.count * 2);
-				this.values = Arrays.copyOf(this.values, this.count * 2);
+		void addRun(@Nonnull SortedRecordsProvider provider, @Nonnull PersistentRoaringBitmap mask) {
+			if (this.runCount == this.providers.length) {
+				this.providers = Arrays.copyOf(this.providers, this.runCount * 2);
+				this.masks = Arrays.copyOf(this.masks, this.runCount * 2);
 			}
-			this.owners[this.count] = owner;
-			this.values[this.count] = value;
-			this.count++;
+			this.providers[this.runCount] = provider;
+			this.masks[this.runCount] = mask;
+			this.runCount++;
 		}
+	}
+
+	/**
+	 * Lazy k-way merge of the runs: a binary min-heap of runs keyed by their head claim, by value in the ordering
+	 * direction and then by owner primary key in the same direction. Only the head of each run has its value read, so
+	 * the work done is proportional to the owners actually returned (plus one head per run).
+	 */
+	private static final class RunMerge {
+		/**
+		 * The provider of each run.
+		 */
+		@Nonnull private final SortedRecordsProvider[] providers;
+		/**
+		 * Iterator over the remaining positions of each run, ascending.
+		 */
+		@Nonnull private final PeekableIntIterator[] positions;
+		/**
+		 * Value seeker of each run, fed ascending positions.
+		 */
+		@Nonnull private final SortedComparableForwardSeeker[] seekers;
+		/**
+		 * Owner primary key at the head of each run.
+		 */
+		@Nonnull private final int[] headOwners;
+		/**
+		 * Value of the owner at the head of each run.
+		 */
+		@Nonnull private final Serializable[] headValues;
+		/**
+		 * Run identifiers organized as a binary min-heap over their heads.
+		 */
+		@Nonnull private final int[] heap;
+		/**
+		 * Comparator of the values in the ordering direction.
+		 */
+		@SuppressWarnings("rawtypes")
+		@Nonnull private final Comparator comparator;
+		/**
+		 * Whether owners with equal values follow in descending primary key order.
+		 */
+		private final boolean primaryKeysDescending;
+		/**
+		 * The number of live runs in {@link #heap}.
+		 */
+		private int heapSize;
 
 		/**
-		 * Returns the positions of the claimed owners sorted by value and then by owner primary key.
+		 * Positions every run at its first claim and builds the heap.
 		 *
+		 * @param claims                the runs to merge
 		 * @param comparator            comparator of the values in the ordering direction
 		 * @param primaryKeysDescending whether owners with equal values follow in descending primary key order
-		 * @return positions into {@link #owners}, in the order the owners are returned
 		 */
-		@Nonnull
-		int[] sortedOrder(@SuppressWarnings("rawtypes") @Nonnull Comparator comparator, boolean primaryKeysDescending) {
-			final int[] order = new int[this.count];
-			for (int i = 0; i < this.count; i++) {
-				order[i] = i;
+		RunMerge(
+			@Nonnull Claims claims,
+			@SuppressWarnings("rawtypes") @Nonnull Comparator comparator,
+			boolean primaryKeysDescending
+		) {
+			final int runCount = claims.runCount;
+			this.providers = claims.providers;
+			this.positions = new PeekableIntIterator[runCount];
+			this.seekers = new SortedComparableForwardSeeker[runCount];
+			this.headOwners = new int[runCount];
+			this.headValues = new Serializable[runCount];
+			this.heap = new int[runCount];
+			this.comparator = comparator;
+			this.primaryKeysDescending = primaryKeysDescending;
+			for (int run = 0; run < runCount; run++) {
+				this.positions[run] = claims.masks[run].getIntIterator();
+				final SortedComparableForwardSeeker seeker = this.providers[run].getSortedComparableForwardSeeker();
+				seeker.reset();
+				this.seekers[run] = seeker;
+				// every run is non-empty, so each has a head
+				advance(run);
+				this.heap[run] = run;
 			}
-			ArrayUtils.sortArray(
-				(a, b) -> {
-					//noinspection unchecked
-					final int result = comparator.compare(this.values[a], this.values[b]);
-					if (result != 0) {
-						return result;
-					}
-					return primaryKeysDescending ?
-						Integer.compare(this.owners[b], this.owners[a]) :
-						Integer.compare(this.owners[a], this.owners[b]);
-				},
-				order
-			);
-			return order;
+			this.heapSize = runCount;
+			for (int slot = this.heapSize / 2 - 1; slot >= 0; slot--) {
+				siftDown(slot);
+			}
+		}
+
+		/**
+		 * Returns true when an owner remains to be returned.
+		 *
+		 * @return true if any run still has a head
+		 */
+		boolean hasNext() {
+			return this.heapSize > 0;
+		}
+
+		/**
+		 * Returns the next owner in the merged order and advances its run.
+		 *
+		 * @return the owner primary key
+		 */
+		int next() {
+			final int run = this.heap[0];
+			final int owner = this.headOwners[run];
+			if (this.positions[run].hasNext()) {
+				advance(run);
+			} else {
+				this.heap[0] = this.heap[--this.heapSize];
+			}
+			if (this.heapSize > 0) {
+				siftDown(0);
+			}
+			return owner;
+		}
+
+		/**
+		 * Moves the head of the run to its next claimed position, which must exist.
+		 *
+		 * @param run the run to advance
+		 */
+		private void advance(int run) {
+			final int position = this.positions[run].next();
+			this.headOwners[run] = this.providers[run].recordAt(position);
+			this.headValues[run] = this.seekers[run].getValueToCompareOn(position);
+		}
+
+		/**
+		 * Compares the heads of two runs.
+		 *
+		 * @param runA the first run
+		 * @param runB the second run
+		 * @return negative when the head of `runA` goes first
+		 */
+		private int compareHeads(int runA, int runB) {
+			//noinspection unchecked
+			final int result = this.comparator.compare(this.headValues[runA], this.headValues[runB]);
+			if (result != 0) {
+				return result;
+			}
+			return this.primaryKeysDescending ?
+				Integer.compare(this.headOwners[runB], this.headOwners[runA]) :
+				Integer.compare(this.headOwners[runA], this.headOwners[runB]);
+		}
+
+		/**
+		 * Restores the heap property below the given slot.
+		 *
+		 * @param slot the slot whose run may be greater than its children
+		 */
+		private void siftDown(int slot) {
+			int current = slot;
+			while (true) {
+				final int left = 2 * current + 1;
+				if (left >= this.heapSize) {
+					return;
+				}
+				final int right = left + 1;
+				int smallest = left;
+				if (right < this.heapSize && compareHeads(this.heap[right], this.heap[left]) < 0) {
+					smallest = right;
+				}
+				if (compareHeads(this.heap[smallest], this.heap[current]) >= 0) {
+					return;
+				}
+				final int swap = this.heap[current];
+				this.heap[current] = this.heap[smallest];
+				this.heap[smallest] = swap;
+				current = smallest;
+			}
 		}
 	}
 
