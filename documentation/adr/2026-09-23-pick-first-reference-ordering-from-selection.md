@@ -5,7 +5,7 @@ updated: 2026-09-24 13:30
 status: accepted
 kind: fix
 issues: [1614]
-prs: []
+prs: [1643]
 areas:
   - evita_engine/src/main/java/io/evitadb/core/query/sort/reference
   - evita_engine/src/main/java/io/evitadb/core/query/sort/attribute
