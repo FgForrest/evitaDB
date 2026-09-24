@@ -78,8 +78,8 @@ import static io.evitadb.api.query.QueryConstraints.*;
 
 /**
  * Prices `orderBy(referenceProperty(R, attributeNatural(A)))` on a production catalog, so the `pickFirst` semantics of
- * issue #1614 - "every row of a selected owner takes part in ordering, whatever the filter says about the same
- * reference" - is shipped on a measured cost rather than on a model. It is an A/B harness: the same jar layout is
+ * "every row of a selected owner takes part in ordering, whatever the filter says about the same reference" - is
+ * shipped on a measured cost rather than on a model. It is an A/B harness: the same jar layout is
  * built from the baseline and from the change, and both are run against the same restored catalog.
  *
  * # The selection

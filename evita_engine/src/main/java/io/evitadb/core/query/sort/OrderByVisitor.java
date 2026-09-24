@@ -53,11 +53,11 @@ import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyExactTra
 import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyInFilterTranslator;
 import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyNaturalTranslator;
 import io.evitadb.core.query.sort.random.translator.RandomTranslator;
+import io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver;
 import io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator;
 import io.evitadb.core.query.sort.segment.translator.SegmentsTranslator;
 import io.evitadb.core.query.sort.translator.OrderByTranslator;
 import io.evitadb.core.query.sort.translator.OrderInScopeTranslator;
-import io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;

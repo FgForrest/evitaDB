@@ -29,27 +29,33 @@ import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.utils.Functions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.ORDER;
@@ -90,6 +96,10 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
  * Targets 1 and 7 carry only rows of kind `y`, so a `referenceHaving` on kind `x` leaves their reduced indexes out
  * of the candidate set. Owners 11-14 use the duplicate-allowing reference only.
  *
+ * Owners 10 and 3 carry the entity attribute `pin` with values 1 and 2, no other owner does. Reference
+ * `unusedTargets` has no row at all. Reference `groupOnly` is indexed for its group family only, with rows
+ * (target, group) (5, 1) on owner 2, (1, 1) on owner 3 and (3, 2) on owner 6.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Ordering by a reference attribute picks the first row in target order that carries the value")
@@ -106,10 +116,13 @@ public class EntityByReferenceAttributePickFirstFunctionalTest {
 	private static final String REFERENCE_TARGETS_PARTITIONING = "targetsPartitioning";
 	private static final String REFERENCE_VARIANTS_FILTERING = "variantsFiltering";
 	private static final String REFERENCE_VARIANTS_PARTITIONING = "variantsPartitioning";
+	private static final String REFERENCE_UNUSED_TARGETS = "unusedTargets";
+	private static final String REFERENCE_GROUP_ONLY = "groupOnly";
 	private static final String ATTRIBUTE_ORDER = "order";
 	private static final String ATTRIBUTE_KIND = "kind";
 	private static final String ATTRIBUTE_VARIANT = "variant";
 	private static final String ATTRIBUTE_SCORE = "score";
+	private static final String ATTRIBUTE_PIN = "pin";
 	private static final int TARGET_COUNT = 7;
 	private static final Integer[] PLAIN_OWNERS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 	private static final Integer[] DUPLICATE_OWNERS = {11, 12, 13, 14};
@@ -148,6 +161,14 @@ public class EntityByReferenceAttributePickFirstFunctionalTest {
 	}
 
 	/**
+	 * Both sort routes.
+	 */
+	@Nonnull
+	static Stream<Arguments> sortRoutes() {
+		return Arrays.stream(SortRoute.values()).map(Arguments::of);
+	}
+
+	/**
 	 * Both duplicate-allowing references, each at a different indexing level.
 	 */
 	@Nonnull
@@ -164,7 +185,7 @@ public class EntityByReferenceAttributePickFirstFunctionalTest {
 		@Nullable Integer score,
 		@Nonnull Row... rows
 	) {
-		final var builder = session.createNewEntity(ENTITY_OWNER, primaryKey);
+		final EntityBuilder builder = session.createNewEntity(ENTITY_OWNER, primaryKey);
 		if (score != null) {
 			builder.setAttribute(ATTRIBUTE_SCORE, score);
 		}
@@ -192,7 +213,7 @@ public class EntityByReferenceAttributePickFirstFunctionalTest {
 		int primaryKey,
 		@Nonnull Object[]... variants
 	) {
-		final var builder = session.createNewEntity(ENTITY_OWNER, primaryKey);
+		final EntityBuilder builder = session.createNewEntity(ENTITY_OWNER, primaryKey);
 		for (String referenceName : new String[]{REFERENCE_VARIANTS_FILTERING, REFERENCE_VARIANTS_PARTITIONING}) {
 			for (Object[] variant : variants) {
 				builder.setOrUpdateReference(
@@ -236,15 +257,32 @@ public class EntityByReferenceAttributePickFirstFunctionalTest {
 		@Nullable FilterConstraint narrowing,
 		@Nonnull OrderConstraint ordering
 	) {
+		return queryPage(session, route, owners, narrowing, 1, 100, ordering);
+	}
+
+	/**
+	 * Runs a query with the passed orderings on the requested route and returns the owner primary keys of one page
+	 * in result order.
+	 */
+	@Nonnull
+	private static int[] queryPage(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull SortRoute route,
+		@Nonnull Integer[] owners,
+		@Nullable FilterConstraint narrowing,
+		int pageNumber,
+		int pageSize,
+		@Nonnull OrderConstraint... orderings
+	) {
 		// each route is forced, so that a small dataset cannot answer an index-route assertion from prefetched bodies
 		final RequireConstraint[] require = route == SortRoute.PREFETCH ?
-			new RequireConstraint[]{page(1, 100), debug(DebugMode.PREFER_PREFETCHING)} :
-			new RequireConstraint[]{page(1, 100), debug(DebugMode.PREFER_INDEX_SCAN)};
+			new RequireConstraint[]{page(pageNumber, pageSize), debug(DebugMode.PREFER_PREFETCHING)} :
+			new RequireConstraint[]{page(pageNumber, pageSize), debug(DebugMode.PREFER_INDEX_SCAN)};
 		return session.query(
 				query(
 					collection(ENTITY_OWNER),
 					filterBy(and(entityPrimaryKeyInSet(owners), narrowing)),
-					orderBy(ordering),
+					orderBy(orderings),
 					require(require)
 				),
 				EntityReference.class
@@ -255,6 +293,48 @@ public class EntityByReferenceAttributePickFirstFunctionalTest {
 			.toArray();
 	}
 
+	/**
+	 * Reads every page of the passed size on the requested route and returns the concatenated owner primary keys.
+	 */
+	@Nonnull
+	private static int[] queryAllPages(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull SortRoute route,
+		@Nonnull Integer[] owners,
+		int pageSize,
+		@Nonnull OrderConstraint... orderings
+	) {
+		final List<Integer> result = new ArrayList<>(owners.length);
+		for (int pageNumber = 1; (pageNumber - 1) * pageSize < owners.length; pageNumber++) {
+			for (int owner : queryPage(session, route, owners, null, pageNumber, pageSize, orderings)) {
+				result.add(owner);
+			}
+		}
+		return result.stream().mapToInt(Integer::intValue).toArray();
+	}
+
+	/**
+	 * Adds a row of the group-only reference to an existing owner.
+	 */
+	private static void addGroupOnlyRow(@Nonnull EvitaSessionContract session, int owner, int target, int group) {
+		session.getEntity(ENTITY_OWNER, owner, entityFetchAllContent())
+			.orElseThrow()
+			.openForWrite()
+			.setReference(REFERENCE_GROUP_ONLY, target, whichIs -> whichIs.setGroup(group))
+			.upsertVia(session);
+	}
+
+	/**
+	 * Sets the entity attribute `pin` of an existing owner.
+	 */
+	private static void pinOwner(@Nonnull EvitaSessionContract session, int owner, int pin) {
+		session.getEntity(ENTITY_OWNER, owner, entityFetchAllContent())
+			.orElseThrow()
+			.openForWrite()
+			.setAttribute(ATTRIBUTE_PIN, pin)
+			.upsertVia(session);
+	}
+
 	@DataSet(value = PICK_FIRST_REFERENCES, destroyAfterClass = true)
 	void setUp(EvitaSessionContract session) {
 		session.defineEntitySchema(ENTITY_TARGET)
@@ -263,6 +343,7 @@ public class EntityByReferenceAttributePickFirstFunctionalTest {
 		session.defineEntitySchema(ENTITY_OWNER)
 			.withoutGeneratedPrimaryKey()
 			.withAttribute(ATTRIBUTE_SCORE, Integer.class, thatIs -> thatIs.sortable().nullable())
+			.withAttribute(ATTRIBUTE_PIN, Integer.class, thatIs -> thatIs.sortable().nullable())
 			.withReferenceToEntity(
 				REFERENCE_TARGETS_FILTERING, ENTITY_TARGET, Cardinality.ZERO_OR_MORE,
 				whichIs -> whichIs.indexedForFiltering()
@@ -287,6 +368,20 @@ public class EntityByReferenceAttributePickFirstFunctionalTest {
 					.withAttribute(ATTRIBUTE_VARIANT, String.class, thatIs -> thatIs.filterable().representative())
 					.withAttribute(ATTRIBUTE_ORDER, Integer.class, thatIs -> thatIs.sortable())
 			)
+			// no owner ever sets this reference, so it has no reduced index at all
+			.withReferenceToEntity(
+				REFERENCE_UNUSED_TARGETS, ENTITY_TARGET, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs.indexedForFiltering()
+					.withAttribute(ATTRIBUTE_ORDER, Integer.class, thatIs -> thatIs.sortable().nullable())
+					.withAttribute(ATTRIBUTE_KIND, String.class, thatIs -> thatIs.filterable().sortable().nullable())
+			)
+			// indexed for its group family only, so it has no reduced index of the referenced entity family
+			.withReferenceToEntity(
+				REFERENCE_GROUP_ONLY, ENTITY_TARGET, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs.withGroupTypeRelatedToEntity(ENTITY_TARGET)
+					.indexedForFiltering()
+					.indexedWithComponents(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY)
+			)
 			.updateVia(session);
 
 		for (int i = 1; i <= TARGET_COUNT; i++) {
@@ -303,6 +398,11 @@ public class EntityByReferenceAttributePickFirstFunctionalTest {
 		upsertOwner(session, 8, 60, new Row(1, 60, "y"));
 		upsertOwner(session, 9, 20, new Row(3, 20, "x"));
 		upsertOwner(session, 10, 70, new Row(3, 70, "x"), new Row(7, 2, "y"));
+		addGroupOnlyRow(session, 2, 5, 1);
+		addGroupOnlyRow(session, 3, 1, 1);
+		addGroupOnlyRow(session, 6, 3, 2);
+		pinOwner(session, 10, 1);
+		pinOwner(session, 3, 2);
 
 		// owner 11 is upserted first, so the reduced index of the (2, "b") row exists before the one of (2, "a")
 		upsertDuplicateOwner(session, 11, new Object[]{2, "b", 70});
@@ -411,6 +511,133 @@ public class EntityByReferenceAttributePickFirstFunctionalTest {
 		assertAll(
 			() -> assertOrder(expected, index, "index route"),
 			() -> assertOrder(expected, prefetch, "prefetch route")
+		);
+	}
+
+	@DisplayName("Should return consistent pages whatever the page size")
+	@UseDataSet(PICK_FIRST_REFERENCES)
+	@ParameterizedTest(name = "{0} via {1}")
+	@MethodSource("plainReferenceRoutes")
+	void shouldReturnConsistentPagesOnBothRoutes(
+		String referenceName, SortRoute route, EvitaSessionContract session
+	) {
+		// size 3 yields a page straddling the claimed and unclaimed owners (8, 10, 4) and a page of the unclaimed
+		// owner 5 alone; the other sizes move the page boundaries across the whole claimed block
+		final List<Executable> assertions = new ArrayList<>(10);
+		for (int pageSize : new int[]{1, 2, 3, 4, 7}) {
+			for (OrderDirection direction : OrderDirection.values()) {
+				final int[] expected = direction == OrderDirection.ASC ?
+					new int[]{7, 2, 6, 9, 1, 3, 8, 10, 4, 5} : new int[]{10, 8, 3, 1, 9, 6, 2, 7, 4, 5};
+				final int[] actual = queryAllPages(
+					session, route, PLAIN_OWNERS, pageSize,
+					referenceProperty(referenceName, attributeNatural(ATTRIBUTE_ORDER, direction))
+				);
+				assertions.add(() -> assertOrder(expected, actual, direction + " by pages of " + pageSize));
+			}
+		}
+		assertAll(assertions);
+	}
+
+	@DisplayName("Should hand the owners without a value to the next sorter")
+	@UseDataSet(PICK_FIRST_REFERENCES)
+	@ParameterizedTest(name = "{0} via {1}")
+	@MethodSource("plainReferenceRoutes")
+	void shouldHandOwnersWithoutValueToNextSorter(
+		String referenceName, SortRoute route, EvitaSessionContract session
+	) {
+		// owners 4 and 5 carry no value, so the descending primary key order of the next sorter places them
+		assertOrder(
+			new int[]{7, 2, 6, 9, 1, 3, 8, 10, 5, 4},
+			queryPage(
+				session, route, PLAIN_OWNERS, null, 1, 100,
+				referenceProperty(referenceName, attributeNatural(ATTRIBUTE_ORDER)),
+				entityPrimaryKeyNatural(OrderDirection.DESC)
+			),
+			"followed by descending primary key"
+		);
+	}
+
+	@DisplayName("Should sort the remainder a preceding sorter left over")
+	@UseDataSet(PICK_FIRST_REFERENCES)
+	@ParameterizedTest(name = "{0} via {1}")
+	@MethodSource("plainReferenceRoutes")
+	void shouldSortRemainderLeftByPrecedingSorter(
+		String referenceName, SortRoute route, EvitaSessionContract session
+	) {
+		// owners 10 and 3 are placed by the preceding sorter, the rest is sorted on a selection without them
+		final int[] expected = {10, 3, 7, 2, 6, 9, 1, 8, 4, 5};
+		final OrderConstraint pickFirst = referenceProperty(referenceName, attributeNatural(ATTRIBUTE_ORDER));
+		final OrderConstraint[] byPin = {attributeNatural(ATTRIBUTE_PIN), pickFirst};
+		assertAll(
+			() -> assertOrder(
+				expected, queryPage(session, route, PLAIN_OWNERS, null, 1, 100, byPin), "after pin"
+			),
+			() -> assertOrder(
+				expected, queryAllPages(session, route, PLAIN_OWNERS, 3, byPin), "after pin, pages of 3"
+			),
+			() -> assertOrder(
+				expected,
+				queryPage(session, route, PLAIN_OWNERS, null, 1, 100, entityPrimaryKeyExact(10, 3), pickFirst),
+				"after exact primary keys"
+			)
+		);
+	}
+
+	@DisplayName("Should order by the referenced primary key over rows sharing one target on both routes")
+	@UseDataSet(PICK_FIRST_REFERENCES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("duplicateReferences")
+	void shouldOrderByReferencedPrimaryKeyOnDuplicateReference(String referenceName, EvitaSessionContract session) {
+		// owners 11, 12 and 14 reference target 2 (12 and 14 twice), owner 13 references target 3; the owners of
+		// target 2 tie and follow their own primary key in the direction of the ordering
+		final List<Executable> assertions = new ArrayList<>(4);
+		for (OrderDirection direction : OrderDirection.values()) {
+			final int[] expected = direction == OrderDirection.ASC ?
+				new int[]{11, 12, 14, 13} : new int[]{13, 14, 12, 11};
+			for (SortRoute route : SortRoute.values()) {
+				final int[] actual = queryOrder(
+					session, route, DUPLICATE_OWNERS, null,
+					referenceProperty(referenceName, entityPrimaryKeyNatural(direction))
+				);
+				assertions.add(() -> assertOrder(expected, actual, direction + " via " + route));
+			}
+		}
+		assertAll(assertions);
+	}
+
+	@DisplayName("Should not fail a single-index ordering by a reference no owner has")
+	@UseDataSet(PICK_FIRST_REFERENCES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("sortRoutes")
+	void shouldNotFailSingleIndexOrderingWhenReferenceHasNoRow(SortRoute route, EvitaSessionContract session) {
+		final Integer[] owners = IntStream.rangeClosed(1, 14).boxed().toArray(Integer[]::new);
+		assertOrder(
+			IntStream.rangeClosed(1, 14).toArray(),
+			queryOrder(
+				session, route, owners, null,
+				referenceProperty(REFERENCE_UNUSED_TARGETS, attributeSetExact(ATTRIBUTE_KIND, "x"))
+			),
+			"unused reference"
+		);
+	}
+
+	@DisplayName("Should order by a reference indexed for its group family only identically on both routes")
+	@UseDataSet(PICK_FIRST_REFERENCES)
+	@Test
+	void shouldOrderGroupOnlyReferenceIdenticallyOnBothRoutes(EvitaSessionContract session) {
+		final OrderConstraint ordering = referenceProperty(
+			REFERENCE_GROUP_ONLY, entityPrimaryKeyNatural(OrderDirection.ASC)
+		);
+		// the reference has no reduced index of the referenced entity family, so neither route sorts by it and both
+		// leave the owners in primary key order
+		final int[] expected = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+		assertAll(
+			() -> assertOrder(
+				expected, queryOrder(session, SortRoute.INDEX, PLAIN_OWNERS, null, ordering), "index route"
+			),
+			() -> assertOrder(
+				expected, queryOrder(session, SortRoute.PREFETCH, PLAIN_OWNERS, null, ordering), "prefetch route"
+			)
 		);
 	}
 

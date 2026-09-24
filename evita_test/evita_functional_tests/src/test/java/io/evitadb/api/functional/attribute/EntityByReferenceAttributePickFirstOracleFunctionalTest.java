@@ -29,6 +29,7 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
@@ -87,7 +88,8 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
  *   selections hold more covered owners than the reference has reduced indexes and walk the whole family;
  * - every seventh owner is archived, and one selection spans both scopes, each with its own membership;
  * - targets are ordered three ways: primary key ascending (the default), primary key descending, and by an attribute
- *   of the target entity through a nested sorter;
+ *   of the target entity through a nested sorter, which appends the targets lacking the attribute (every ninth one)
+ *   after the others in ascending primary key order;
  * - the sorted value is a plain attribute, a localized attribute, the referenced primary key, and a compound.
  *
  * Every combination runs on the index route and on the prefetch route, forced by `PREFER_INDEX_SCAN` and
@@ -115,6 +117,10 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 	private static final String COMPOUND_ORDER_LABEL = "orderLabel";
 	private static final String COMPOUND_ORDER_KIND = "orderKind";
 	private static final int TARGET_COUNT = 40;
+	/**
+	 * Targets whose primary key is a multiple of this value have no `rank`.
+	 */
+	private static final int UNRANKED_TARGET_MODULO = 9;
 	private static final int OWNER_COUNT = 300;
 	private static final long SEED = 42;
 	private static final Locale LOCALE = Locale.ENGLISH;
@@ -139,12 +145,13 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 	 * What the test wrote, the oracle's only input.
 	 *
 	 * @param rowsByOwner rows of every owner, including owners with none
-	 * @param targetRank  value of the target attribute `rank`, indexed by the target primary key
+	 * @param targetRank  value of the target attribute `rank`, indexed by the target primary key, `null` for a target
+	 *                    without one
 	 * @param archived    whether the owner, indexed by its primary key, was archived
 	 */
 	private record OracleFixture(
 		@Nonnull Map<Integer, List<Row>> rowsByOwner,
-		@Nonnull int[] targetRank,
+		@Nonnull Integer[] targetRank,
 		@Nonnull boolean[] archived
 	) {
 	}
@@ -230,6 +237,21 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 	}
 
 	/**
+	 * Both references crossed with both routes and every target order.
+	 */
+	@Nonnull
+	static Stream<Arguments> chainCombinations() {
+		return Stream.of(REFERENCE_ITEMS_PARTITIONING, REFERENCE_ITEMS_FILTERING)
+			.flatMap(
+				reference -> Arrays.stream(SortRoute.values())
+					.flatMap(
+						route -> Arrays.stream(TargetOrder.values())
+							.map(targetOrder -> Arguments.of(reference, route, targetOrder))
+					)
+			);
+	}
+
+	/**
 	 * Compounds each reference can be ordered by on the index route. A compound with a localized element is declared
 	 * on the partitioning reference only: a reduced index of a reference indexed for filtering alone receives no
 	 * per-locale compound entries (`EntityIndexLocalMutationExecutor#insertInitialSuiteOfSortableAttributeCompounds`
@@ -252,7 +274,9 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 			session -> {
 				session.defineEntitySchema(ENTITY_TARGET)
 					.withoutGeneratedPrimaryKey()
-					.withAttribute(ATTRIBUTE_RANK, Integer.class, thatIs -> thatIs.sortableInScope(BOTH_SCOPES))
+					.withAttribute(
+						ATTRIBUTE_RANK, Integer.class, thatIs -> thatIs.sortableInScope(BOTH_SCOPES).nullable()
+					)
 					.updateVia(session);
 				final AttributeElement[] localizedCompoundElements = {
 					new AttributeElement(ATTRIBUTE_ORDER, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
@@ -311,14 +335,17 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 					.updateVia(session);
 
 				final Random random = new Random(SEED);
-				final int[] targetRank = new int[TARGET_COUNT + 1];
+				final Integer[] targetRank = new Integer[TARGET_COUNT + 1];
 				final List<Integer> ranks = new ArrayList<>(IntStream.rangeClosed(1, TARGET_COUNT).boxed().toList());
 				java.util.Collections.shuffle(ranks, random);
 				for (int target = 1; target <= TARGET_COUNT; target++) {
-					targetRank[target] = ranks.get(target - 1);
-					session.createNewEntity(ENTITY_TARGET, target)
-						.setAttribute(ATTRIBUTE_RANK, targetRank[target])
-						.upsertVia(session);
+					final EntityBuilder builder = session.createNewEntity(ENTITY_TARGET, target);
+					// every ninth target has no rank, so the nested sorter appends it after the ranked ones
+					if (target % UNRANKED_TARGET_MODULO != 0) {
+						targetRank[target] = ranks.get(target - 1);
+						builder.setAttribute(ATTRIBUTE_RANK, targetRank[target]);
+					}
+					builder.upsertVia(session);
 				}
 
 				final Map<Integer, List<Row>> rowsByOwner = new HashMap<>(OWNER_COUNT);
@@ -342,7 +369,7 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 						}
 					}
 					rowsByOwner.put(owner, rows);
-					final var builder = session.createNewEntity(ENTITY_OWNER, owner)
+					final EntityBuilder builder = session.createNewEntity(ENTITY_OWNER, owner)
 						.setAttribute(ATTRIBUTE_NAME, LOCALE, "owner " + owner);
 					for (String referenceName : new String[]{REFERENCE_ITEMS_PARTITIONING, REFERENCE_ITEMS_FILTERING}) {
 						for (Row row : rows) {
@@ -443,6 +470,43 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 		assertAll(assertions);
 	}
 
+	@DisplayName("Should order owners by two values of one reference as the oracle does")
+	@UseDataSet(PICK_FIRST_ORACLE)
+	@ParameterizedTest(name = "{0} via {1}, targets {2}")
+	@MethodSource("chainCombinations")
+	void shouldOrderByTwoValuesOfOneReferenceAsTheOracleDoes(
+		String referenceName,
+		SortRoute route,
+		TargetOrder targetOrder,
+		EvitaSessionContract session,
+		OracleFixture oracleFixture
+	) {
+		// the second value sorts only the owners the first one leaves unsorted, on a selection without the others
+		final List<Executable> assertions = new ArrayList<>(Selection.values().length * 2);
+		for (Selection selection : Selection.values()) {
+			for (OrderDirection direction : OrderDirection.values()) {
+				final int[] expected = oracle(
+					oracleFixture, selection, targetOrder, List.of(SortedValue.ORDER, SortedValue.LABEL), direction
+				);
+				final int[] actual = queryOrder(
+					session, route, selection, referenceName,
+					createOrdering(
+						referenceName, targetOrder,
+						valueOrdering(SortedValue.ORDER, direction), valueOrdering(SortedValue.LABEL, direction)
+					)
+				);
+				assertions.add(
+					() -> assertArrayEquals(
+						expected, actual,
+						() -> selection + " " + direction + ": expected " + Arrays.toString(expected) +
+							" but was " + Arrays.toString(actual)
+					)
+				);
+			}
+		}
+		assertAll(assertions);
+	}
+
 	/**
 	 * Creates the constraint ordering by the value.
 	 */
@@ -456,23 +520,24 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 	}
 
 	/**
-	 * Wraps the value ordering in `referenceProperty` with the target order.
+	 * Wraps the value orderings in `referenceProperty` with the target order.
 	 */
 	@Nonnull
 	private static OrderConstraint createOrdering(
 		@Nonnull String referenceName,
 		@Nonnull TargetOrder targetOrder,
-		@Nonnull OrderConstraint valueOrdering
+		@Nonnull OrderConstraint... valueOrderings
 	) {
-		return switch (targetOrder) {
-			case DEFAULT -> referenceProperty(referenceName, valueOrdering);
-			case PRIMARY_KEY_DESCENDING -> referenceProperty(
-				referenceName, pickFirstByEntityProperty(entityPrimaryKeyNatural(OrderDirection.DESC)), valueOrdering
-			);
-			case TARGET_ATTRIBUTE -> referenceProperty(
-				referenceName, pickFirstByEntityProperty(attributeNatural(ATTRIBUTE_RANK)), valueOrdering
-			);
+		final OrderConstraint targetOrdering = switch (targetOrder) {
+			case DEFAULT -> null;
+			case PRIMARY_KEY_DESCENDING -> pickFirstByEntityProperty(entityPrimaryKeyNatural(OrderDirection.DESC));
+			case TARGET_ATTRIBUTE -> pickFirstByEntityProperty(attributeNatural(ATTRIBUTE_RANK));
 		};
+		return referenceProperty(
+			referenceName,
+			Stream.concat(Stream.ofNullable(targetOrdering), Arrays.stream(valueOrderings))
+				.toArray(OrderConstraint[]::new)
+		);
 	}
 
 	/**
@@ -522,19 +587,35 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 		@Nonnull SortedValue sortedValue,
 		@Nonnull OrderDirection direction
 	) {
+		return oracle(fixture, selection, targetOrder, List.of(sortedValue), direction);
+	}
+
+	/**
+	 * Computes the expected order of a chain of values of one reference from the rows the test wrote: the owners
+	 * the first value sorts come first, the owners without it but with the second value follow sorted by the second
+	 * one, and so on; each value is picked from the owner's first row in target order that carries it.
+	 */
+	@Nonnull
+	private static int[] oracle(
+		@Nonnull OracleFixture fixture,
+		@Nonnull Selection selection,
+		@Nonnull TargetOrder targetOrder,
+		@Nonnull List<SortedValue> sortedValues,
+		@Nonnull OrderDirection direction
+	) {
 		final IntUnaryOperator rank = switch (targetOrder) {
 			case DEFAULT -> target -> target;
 			case PRIMARY_KEY_DESCENDING -> target -> -target;
-			case TARGET_ATTRIBUTE -> target -> fixture.targetRank()[target];
-		};
-		final Function<Row, Comparable<?>> valueOf = switch (sortedValue) {
-			case ORDER -> Row::order;
-			case LABEL -> Row::label;
-			case REFERENCED_PRIMARY_KEY -> Row::target;
+			// the nested sorter appends the targets without a rank in ascending primary key order
+			case TARGET_ATTRIBUTE -> target -> fixture.targetRank()[target] == null ?
+				TARGET_COUNT + target : fixture.targetRank()[target];
 		};
 		final int[] candidates = selection == Selection.SMALL ?
 			SMALL_SELECTION : IntStream.rangeClosed(1, OWNER_COUNT).toArray();
-		final List<int[]> sorted = new ArrayList<>(candidates.length);
+		final List<List<int[]>> sorted = new ArrayList<>(sortedValues.size());
+		for (int i = 0; i < sortedValues.size(); i++) {
+			sorted.add(new ArrayList<>(candidates.length));
+		}
 		final List<Integer> unsorted = new ArrayList<>();
 		final Map<Integer, Comparable<?>> values = new HashMap<>(candidates.length);
 		for (int owner : candidates) {
@@ -542,31 +623,51 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 			final boolean selected = (selection == Selection.BOTH_SCOPES || !fixture.archived()[owner]) &&
 				(selection != Selection.NARROWED || rows.stream().anyMatch(it -> "x".equals(it.kind())));
 			if (selected) {
-				final Comparable<?> value = rows.stream()
-					.filter(it -> valueOf.apply(it) != null)
-					.min(Comparator.comparingInt(it -> rank.applyAsInt(it.target())))
-					.map(valueOf)
-					.orElse(null);
-				if (value == null) {
+				boolean placed = false;
+				for (int i = 0; i < sortedValues.size() && !placed; i++) {
+					final Function<Row, Comparable<?>> valueOf = valueExtractor(sortedValues.get(i));
+					final Comparable<?> value = rows.stream()
+						.filter(it -> valueOf.apply(it) != null)
+						.min(Comparator.comparingInt(it -> rank.applyAsInt(it.target())))
+						.map(valueOf)
+						.orElse(null);
+					if (value != null) {
+						values.put(owner, value);
+						sorted.get(i).add(new int[]{owner});
+						placed = true;
+					}
+				}
+				if (!placed) {
 					unsorted.add(owner);
-				} else {
-					values.put(owner, value);
-					sorted.add(new int[]{owner});
 				}
 			}
 		}
 		@SuppressWarnings({"unchecked", "rawtypes"})
 		final Comparator<int[]> byValue = (a, b) -> ((Comparable) values.get(a[0])).compareTo(values.get(b[0]));
 		final Comparator<int[]> byPrimaryKey = Comparator.comparingInt(a -> a[0]);
-		sorted.sort(
-			direction == OrderDirection.ASC ?
-				byValue.thenComparing(byPrimaryKey) :
-				byValue.reversed().thenComparing(byPrimaryKey.reversed())
-		);
-		return IntStream.concat(
-			sorted.stream().mapToInt(it -> it[0]),
-			unsorted.stream().mapToInt(Integer::intValue).sorted()
-		).toArray();
+		final IntStream.Builder result = IntStream.builder();
+		for (List<int[]> group : sorted) {
+			group.sort(
+				direction == OrderDirection.ASC ?
+					byValue.thenComparing(byPrimaryKey) :
+					byValue.reversed().thenComparing(byPrimaryKey.reversed())
+			);
+			group.forEach(it -> result.add(it[0]));
+		}
+		unsorted.stream().mapToInt(Integer::intValue).sorted().forEach(result::add);
+		return result.build().toArray();
+	}
+
+	/**
+	 * Returns the function reading the value from a row.
+	 */
+	@Nonnull
+	private static Function<Row, Comparable<?>> valueExtractor(@Nonnull SortedValue sortedValue) {
+		return switch (sortedValue) {
+			case ORDER -> Row::order;
+			case LABEL -> Row::label;
+			case REFERENCED_PRIMARY_KEY -> Row::target;
+		};
 	}
 
 }

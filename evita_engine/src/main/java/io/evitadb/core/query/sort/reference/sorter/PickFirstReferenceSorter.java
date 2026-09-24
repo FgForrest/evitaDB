@@ -63,7 +63,7 @@ import java.util.function.IntConsumer;
  * costs what the claimed rows cost rather than the size of the selection times the number of indexes, which is what
  * merging one provider per index cost: each provider had to report the whole unclaimed rest back as a new bitmap.
  * The claimed `(owner, value)` pairs are finally sorted once, by value in the ordering direction and then by owner
- * primary key in the same direction - the single provider issue #1614 asked for, built per query.
+ * primary key in the same direction - one sorted provider for the whole reference, built per query.
  *
  * Owners with no row carrying the value stay unsorted and fall through to the next sorter.
  *

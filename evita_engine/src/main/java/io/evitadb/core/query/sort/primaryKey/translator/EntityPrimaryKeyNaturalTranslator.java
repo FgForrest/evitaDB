@@ -41,9 +41,9 @@ import io.evitadb.core.query.sort.OrderByVisitor.MergeModeDefinition;
 import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.query.sort.attribute.comparator.PickFirstReferenceTargetRanking;
 import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter;
 import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeMode;
-import io.evitadb.core.query.sort.attribute.comparator.PickFirstReferenceOrder;
 import io.evitadb.core.query.sort.generic.PrefetchedRecordsSorter;
 import io.evitadb.core.query.sort.primaryKey.comparator.ReferencePrimaryKeyComparator;
 import io.evitadb.core.query.sort.primaryKey.sorter.ReversedPrimaryKeySorter;
@@ -71,7 +71,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.IntUnaryOperator;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.referenceContent;
@@ -339,9 +338,9 @@ public class EntityPrimaryKeyNaturalTranslator
 		 */
 		@Nonnull private final ReferenceSchema referenceSchema;
 		/**
-		 * Resolver providing the target order the index route walks.
+		 * Resolver and derived reference order providing the target order the index route walks.
 		 */
-		@Nonnull private final PickFirstReducedIndexResolver indexResolver;
+		@Nonnull private final PickFirstReferenceTargetRanking targetRanking;
 		/**
 		 * Compares the picked referenced primary keys in the direction of the ordering.
 		 */
@@ -351,17 +350,9 @@ public class EntityPrimaryKeyNaturalTranslator
 		 */
 		@Nonnull private final IntComparator primaryKeyComparator;
 		/**
-		 * Picks the first reference in target order.
-		 */
-		@Nonnull private final Comparator<ReferenceContract> referenceOrder;
-		/**
 		 * Memoized picked referenced primary key of each compared entity, {@link #MISSING} for an entity with none.
 		 */
 		@Nonnull private final IntIntHashMap pickedValues = new IntIntHashMap(64);
-		/**
-		 * Rank of the targets of the entities being sorted, set by {@link #prepareForSelection(Bitmap)}.
-		 */
-		@Nullable private IntUnaryOperator targetRank;
 		/**
 		 * The array that collects non-sorted entities.
 		 */
@@ -373,20 +364,10 @@ public class EntityPrimaryKeyNaturalTranslator
 			@Nonnull PickFirstReducedIndexResolver indexResolver
 		) {
 			this.referenceSchema = referenceSchema;
-			this.indexResolver = indexResolver;
+			this.targetRanking = new PickFirstReferenceTargetRanking(referenceSchema, indexResolver);
 			this.valueComparator = orderDirection == OrderDirection.DESC ?
 				IntDescendingComparator.INSTANCE : IntAscendingComparator.INSTANCE;
 			this.primaryKeyComparator = this.valueComparator;
-			this.referenceOrder = PickFirstReferenceOrder.create(
-				referenceSchema,
-				referencedPrimaryKey -> {
-					Assert.isPremiseValid(
-						this.targetRank != null,
-						"The comparator must be prepared for the selection before it compares entities!"
-					);
-					return this.targetRank.applyAsInt(referencedPrimaryKey);
-				}
-			);
 		}
 
 		@Override
@@ -397,7 +378,7 @@ public class EntityPrimaryKeyNaturalTranslator
 
 		@Override
 		public void prepareForSelection(@Nonnull Bitmap entityPrimaryKeys) {
-			this.targetRank = this.indexResolver.getTargetRank(entityPrimaryKeys);
+			this.targetRanking.prepareForSelection(entityPrimaryKeys);
 		}
 
 		@Nonnull
@@ -440,7 +421,7 @@ public class EntityPrimaryKeyNaturalTranslator
 			}
 			final int value = entity.getReferences(this.referenceSchema.getName())
 				.stream()
-				.min(this.referenceOrder)
+				.min(this.targetRanking.referenceOrder())
 				.map(ReferenceContract::getReferencedPrimaryKey)
 				.orElse(MISSING);
 			this.pickedValues.indexInsert(index, entityPrimaryKey, value);

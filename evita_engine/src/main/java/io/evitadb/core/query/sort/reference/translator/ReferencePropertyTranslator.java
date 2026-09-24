@@ -168,6 +168,33 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	}
 
 	/**
+	 * Returns true when at least one of the processed scopes holds a non-empty {@link ReferencedTypeEntityIndex} of
+	 * the given reference, i.e. when at least one owner has a row of the reference that ordering could use.
+	 *
+	 * @param orderByVisitor the visitor providing the processing scope and the index access
+	 * @param referenceName  the name of the reference
+	 * @return true if any processed scope contains a reduced index of the referenced entity family
+	 */
+	private static boolean hasAnyReducedIndex(
+		@Nonnull OrderByVisitor orderByVisitor,
+		@Nonnull String referenceName
+	) {
+		for (Scope scope : orderByVisitor.getProcessingScope().getScopes()) {
+			final boolean nonEmpty = orderByVisitor
+				.getIndexIfExists(
+					new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName),
+					ReferencedTypeEntityIndex.class
+				)
+				.map(it -> !it.getAllPrimaryKeys().isEmpty())
+				.orElse(false);
+			if (nonEmpty) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
 	 * Method locates all {@link EntityIndex} instances that are related to the given reference name. The list is
 	 * resolved from {@link ReferencedTypeEntityIndex}.
 	 */
@@ -486,6 +513,11 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 			);
 
 		if (orderingSpecification instanceof PickFirstByEntityProperty pfbep) {
+			if (!hasAnyReducedIndex(orderByVisitor, referenceName)) {
+				// no owner has a row of this reference in the processed scopes - there is nothing to sort by, and the
+				// nested constraints must not be planned (single-index translators require an index to exist)
+				return Stream.empty();
+			}
 			// the reduced indexes a pick-first ordering walks depend on the selected owners only - every row of a
 			// selected owner takes part, whatever the filter says about the same reference - so they are resolved
 			// at execution time and the candidates of a `referenceHaving` in the filter are deliberately ignored

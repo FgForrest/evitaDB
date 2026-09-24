@@ -1,7 +1,7 @@
 ---
 title: A pick-first reference ordering sorts on the first row of every selected owner, resolved from the selection rather than from the filter
 date: 2026-09-23
-updated: 2026-09-23 23:30
+updated: 2026-09-24 05:50
 status: accepted
 kind: fix
 issues: [1614]
@@ -168,6 +168,11 @@ a measured production shape: that is where the per-query cost still follows `row
   `ReferencedEntityPredecessor`) under an implicit `pickFirst`, which are sorted block by block. Both keep the
   planning-time, filter-narrowed index set (`ReferencePropertyTranslator#selectPlanningReducedIndexes`); changing
   which blocks exist changes their semantics, which needs its own decision.
+- A reference with no reduced index of the referenced-entity family in any processed scope produces no sorter and
+  its nested constraints are not planned at all (`ReferencePropertyTranslator#hasAnyReducedIndex`). Planning them
+  anyway fails the single-index translators (`attributeSetExact` expects exactly one index), requires the referenced
+  collection to exist, and - for a reference indexed for its group family only - lets the prefetch route sort owners
+  the index route cannot claim.
 - The membership is an accelerator, never an authority: a scope without one walks the whole family, and every
   resolved index is probed against the selection before it is kept. `ReducedIndexMembershipCompletenessTest` guards
   the `covered ∪ residual == advertised` invariant the gather relies on.
@@ -179,16 +184,20 @@ a measured production shape: that is where the per-query cost still follows `row
 
 ## Verification
 
-- `EntityByReferenceAttributePickFirstFunctionalTest` - 18 cases, red on `edc8601d5` except index-route ascending,
-  green now: first row with a value, descending ties, ties equal to a plain attribute sort, narrowing-independence,
-  duplicates by representative values; both routes, both indexing levels. Counterfactual: reversing the target order
+- `EntityByReferenceAttributePickFirstFunctionalTest` - 35 cases; the original 18 are red on `edc8601d5` except
+  index-route ascending, and all are green now: first row with a value, descending ties, ties equal to a plain attribute sort, narrowing-independence,
+  duplicates by representative values, paging across the claimed/unclaimed boundary, references no owner has and a
+  group-only reference (identical on both routes); both routes, both indexing levels. Counterfactual: reversing the target order
   in `PickFirstReducedIndexResolver` turns all 8 index-route cases red (and 21 of the oracle's 39).
 - `EntityByReferenceAttributePickFirstOracleFunctionalTest` - a randomized dataset (300 owners, 40 targets, two
   partitions above the membership threshold, every seventh owner archived) checked against an oracle computed from
   the written rows: 3 target orders × 3 value kinds × 4 selections (small gather, full walk, narrowed, both scopes)
   × 2 directions × 2 routes × 2 indexing levels, plus compound cross-route agreement. Counterfactual: dropping the
   membership's residual set from the gather turns 17 cases red - exactly the small selections, the only ones that
-  take the gather rather than the family walk - so the test reaches the residual path it claims to.
+  take the gather rather than the family walk - so the test reaches the residual path it claims to. It also covers
+  targets missing from a nested target order and two-value chains (51 cases in total).
+- Unit level: `PickFirstReducedIndexResolverTest` (15) and `PickFirstReferenceSorterTest` (9) over a hand-built index
+  fixture; `PreSortedRecordsSorterTest` pins the tie direction of the multi-provider merge in both directions.
 - Existing ordering suites whose oracles encoded the old tie rule (`entityPrimaryKeyNatural(DESC)` inside
   `referenceProperty`: products of one brand followed in ascending primary key order) were updated to the decided
   rule; nothing else in the ordering, chain, duplicate-reference and bidirectional-rewrite suites changed.
@@ -223,6 +232,11 @@ a measured production shape: that is where the per-query cost still follows `row
 - **The chain-ordering gate issue #1614 hands to #1615 still stands.** Chains keep their per-partition blocks, so a
   virtual singleton partition must still resolve as chain position `0` with the record id the write path would have
   indexed before virtual partitions are activated for a chain path; nothing here implements that.
+- **Found, not fixed: the prefetch route ignores `inScope`.** Under `orderBy(inScope(LIVE, referenceProperty(...)))`
+  with a two-scope filter, the index route claims live owners only, while the prefetch comparators still rank the
+  archived owners' rows. The entity-level `AttributeComparator` ignores `inScope` the same way, so this is a general
+  prefetch gap rather than a pick-first one; fixing it needs a scope-aware admission check for every entity
+  comparator.
 - `SortedRecordsProvider`s are still built per query for every partition holding a row of the selection.
 - **Found, not fixed: a localized sortable compound on a reference indexed for filtering alone cannot be ordered by
   on the index route.** `EntityIndexLocalMutationExecutor#insertInitialSuiteOfSortableAttributeCompounds` (and its

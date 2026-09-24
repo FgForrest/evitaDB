@@ -34,7 +34,6 @@ import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;

@@ -31,15 +31,12 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeMode;
 import io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
-import java.util.Comparator;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.function.IntUnaryOperator;
 
 /**
  * Attribute comparator sorts entities according to a specified attribute value. It needs to provide a function for
@@ -56,18 +53,22 @@ import java.util.function.IntUnaryOperator;
 public class PickFirstReferenceAttributeComparator extends AbstractReferenceAttributeComparator {
 	@Serial private static final long serialVersionUID = 2969632214608241409L;
 	/**
-	 * Resolver providing the target order the index route walks.
+	 * Resolver and derived reference order providing the target order the index route walks.
 	 */
-	@Nonnull private final transient PickFirstReducedIndexResolver indexResolver;
-	/**
-	 * Picks the first reference in target order among the references carrying the attribute.
-	 */
-	@Nonnull private final transient Comparator<ReferenceContract> referenceOrder;
-	/**
-	 * Rank of the targets of the entities being sorted, set by {@link #prepareForSelection(Bitmap)}.
-	 */
-	@Nullable private transient IntUnaryOperator targetRank;
+	@Nonnull private final transient PickFirstReferenceTargetRanking targetRanking;
 
+	/**
+	 * Creates the comparator for the given attribute and wires it to the resolver that provides the target order
+	 * its index-route twin ({@link PickFirstReducedIndexResolver}) walks.
+	 *
+	 * @param attributeName   the name of the sortable attribute
+	 * @param type            the type of the attribute value
+	 * @param referenceSchema the schema of the reference the attribute belongs to
+	 * @param locale          the locale to use when reading localized attribute values, or `null` when the attribute
+	 *                        is not localized
+	 * @param orderDirection  the direction to sort in
+	 * @param indexResolver   resolver providing the target order the index route walks
+	 */
 	public PickFirstReferenceAttributeComparator(
 		@Nonnull String attributeName,
 		@Nonnull Class<?> type,
@@ -83,22 +84,12 @@ public class PickFirstReferenceAttributeComparator extends AbstractReferenceAttr
 			locale,
 			orderDirection
 		);
-		this.indexResolver = indexResolver;
-		this.referenceOrder = PickFirstReferenceOrder.create(
-			referenceSchema,
-			referencedPrimaryKey -> {
-				Assert.isPremiseValid(
-					this.targetRank != null,
-					"The comparator must be prepared for the selection before it compares entities!"
-				);
-				return this.targetRank.applyAsInt(referencedPrimaryKey);
-			}
-		);
+		this.targetRanking = new PickFirstReferenceTargetRanking(referenceSchema, indexResolver);
 	}
 
 	@Override
 	public void prepareForSelection(@Nonnull Bitmap entityPrimaryKeys) {
-		this.targetRank = this.indexResolver.getTargetRank(entityPrimaryKeys);
+		this.targetRanking.prepareForSelection(entityPrimaryKeys);
 	}
 
 	@Nonnull
@@ -108,7 +99,7 @@ public class PickFirstReferenceAttributeComparator extends AbstractReferenceAttr
 		return entity.getReferences(this.referenceName)
 			.stream()
 			.filter(it -> this.attributeExtractor.apply(it) != null)
-			.min(this.referenceOrder);
+			.min(this.targetRanking.referenceOrder());
 	}
 
 	@Override
