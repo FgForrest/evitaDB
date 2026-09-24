@@ -531,6 +531,12 @@ touch. Who informs the operator and when is a product decision — carried as P5
 > of work supports, so the difference list has no consumer. The rejection of the component above stands on
 > its own technical grounds; §10.4 and P5-6 fall with the commitment.
 
+**4. A character filter for markup — added to the catalog on 2026-09-24.** The three points above are token
+filters; the chain has **no character filter at all**, and a production corpus showed what that costs when the
+indexed value is HTML. The measurements, the behaviour pinned by `HtmlMarkupStrippingAnalysisTest` and the
+design space of the opt-in switch are in §13. Verdict: take up `HTMLStripCharFilter` as an **opt-in, off by
+default** step; never as a default, because on prose it can eat a term (§13.3).
+
 ---
 
 ## 5. Language coverage
@@ -1061,6 +1067,12 @@ The numbered ones follow on from the research; the new ones carry the P5 designa
   the first existing website is switched over. Not according to complaints, because at that moment the way
   back is a reindex. *Discarded (2026-08-25) — see §4.6 point 3: migration from the legacy stack is not a
   supported path, and the parity list of §10.4 falls with it.*
+- **P5-7 — the shape of the markup-stripping opt-in (§13).** Measured and behaviourally pinned on
+  2026-09-24, not decided. Open: which schema surface carries the switch (§13.5 recommends a content-type
+  declaration on the searchable value, realized as a reader-level wrapper in the registry), the policy for a
+  surface form that carries trailing markup (§13.3), and where NFC runs once a character filter precedes the
+  tokenizer (§13.4 — it must run *after* the filter). Lands with the analyzer parameters of `schema-design.md`
+  §6.5; the P1 index must not freeze its fingerprint without it.
 
 ---
 
@@ -1118,3 +1130,293 @@ amends two of the points above:
   like. **The "settle the second lane before the layout freezes" constraint above is therefore
   lifted** — if a surface lane is wanted later it must be argued from exact-phrase or highlighting,
   not from accent recall. `AnalyzedTerm.surfaceForm()` stays regardless.
+
+---
+
+## 13. Markup in indexed text — the missing character filter, its measured cost, and the opt-in's design space
+
+> Added 2026-09-24. Source of the measurements: the PR #1453 review comment
+> [`#issuecomment-5711798689`](https://github.com/FgForrest/evitaDB/pull/1453#issuecomment-5711798689), taken
+> over a production CMS catalog of **972,611 Czech articles**. Source of the behaviour: the JUnit harness
+> `HtmlMarkupStrippingAnalysisTest` (`evita_test/evita_functional_tests`, package
+> `io.evitadb.index.fulltext.analysis`), whose every assertion was first observed and then pinned. Nothing in
+> this section is a decision; it is the material the decision (P5-7, §11) is to be made from **without**
+> re-running the corpus or re-deriving the filter's behaviour.
+
+### 13.1 What the corpus showed
+
+The article body is associated data of type `String`, **HTML carrying a JSON payload in `data-` attributes**.
+The shipped chain (`StandardTokenizer → LowerCase → Stop → CzechStem → ASCIIFolding`, §4.4) has no
+`CharFilter`, so all of it is indexed as terms. The body is **64.8 % markup by code point**. Both arms over
+the whole corpus, building P1's term dictionary (K3), as shipped versus with Lucene's `HTMLStripCharFilter` in
+front of the analyzer:
+
+| | as shipped | HTML stripped | Δ |
+|---|---|---|---|
+| distinct terms | 5,549,814 | **1,143,244** | **−79.4 %** |
+| postings | 284,165,619 | 176,999,724 | −37.7 % |
+| body tokens | 665,396,803 | 191,981,382 | −71.1 % |
+| dictionary + postings heap (JOL) | 1.01 GiB | **515 MiB** | **−49.1 %** |
+| bulk build | 14.2 min | 6.4 min | −54.9 % |
+
+Four in five distinct terms are markup and half the structure's heap goes on them. That lands on two design
+points — phase-1 cost is the sum of the posting lengths of the expanded terms (`p1-index-core.md` §5.2), and the
+impact sidecar spends one byte per (field, term, document) — and both pay per document for terms that can never
+usefully match, while both are reachable by ordinary prefix and typo expansion.
+
+**The widest posting lists**, as document frequency over 972,611 articles, resolved back to the surface forms
+that produced them over a 9,859-body sample:
+
+```
+as shipped                                    HTML stripped
+p                955,974   98.3 %   <p>         ze    703,538          rok   416,851   mel   387,763 (měl)
+dat              607,186   62.4 %   data/date   lt    370,229 (let)    jedn  360,392   rekl  298,330 (řekl)
+dynamik          591,067   60.8 %   dynamic     lid   286,771 (lidé)   cesk  274,573   cl    268,071 (celý)
+quot             590,316   60.7 %   &quot;
+fals/class/valu  ~590,150  60.7 %   false / class / value
+```
+
+The stripped arm is ordinary Czech prose. A note the review itself corrected: `lt` on the right is the **stem**
+of *let/letech/letos*, not an `&lt;` residue — the literal token `lt` survives stripping in 0.00 % of sampled
+bodies, while `&lt;` occurs in 41.6 % of them, entirely inside attribute values, and is removed in full.
+**Stripping is sufficient on this corpus; there is no entity residue.**
+
+Two gaps the review named, if markup handling is to be configurable:
+
+1. **No character filter exists in `io.evitadb.index.fulltext.analysis`.** `HTMLStripCharFilter` is in
+   `lucene-analysis-common`, already pinned (§3), so the markup half is a small addition. Nothing exists for
+   extracting selected paths out of a structured (JSON) payload.
+2. **`AnalyzerAssignmentResolver#resolveAnalyzers(entityType, locale)` is per (entity type, locale), not per
+   attribute.** Sufficient for a markup stripper, which is a no-op on plain text and can run over every field.
+   Not sufficient for a payload-path extractor: title, lead paragraph and body share one collection and one
+   locale, and only the body is structured.
+
+### 13.2 What the harness pinned
+
+`HtmlMarkupStrippingAnalysisTest` runs the built-in Czech index and search chains against the same chains with
+`HTMLStripCharFilter` in front of the tokenizer, through `FulltextAnalyzer` — i.e. through the production code
+path, NFC normalization on the boundary included. On a synthetic body of the corpus's shape
+(`<p class="dynamic" data-value='{"value": false, "date": "2026"}'>Černá pánská obuv</p>`):
+
+| Behaviour | As shipped | Stripped | Test |
+|---|---|---|---|
+| Tag/attribute/payload words | `p class dynamik dat valu valu fals dat 2026 … p` — the review's vocabulary, reproduced | `cern pansk obuv` | `BuiltInChainsToday`, `StrippedChain` |
+| Distinct terms of that body | 10 | 3 | `shouldShrinkDistinctTermSetToProse` |
+| Named entities `&quot; &lt; &gt; &amp; &nbsp;` | indexed as `quot lt gt amp nbsp`; `&nbsp;` glues to the next word | decoded; `&nbsp;` is a space again | `shouldDecodeEntities` |
+| Numeric entity `&#268;ern&#225;` | `268 ern 225` — the word torn apart | `cern` | `shouldDecodeEntities` |
+| Inline tag inside a word `Čer<b>ná</b>` | `cr b na b` — two garbage stems | `cern` — halves joined, no separator | `shouldJoinWordSplitByInlineTag` |
+| Block tag between words `<p>Černá</p><p>obuv</p>`, `Černá<br>obuv` | tag terms in between | `cern obuv` — block tags become whitespace | `shouldSeparateWordsSplitByBlockTag` |
+| `<script>`, `<style>`, `<!-- -->` bodies; JSON in a `data-` attribute | indexed | dropped entirely | `shouldDropScriptStyleAndCommentBodies` |
+| `<![CDATA[ ]]>`, `<title>`, `<textarea>` content | indexed with the markers | content kept, markers dropped | same |
+| `<img alt="…">` | `alt` text indexed with the tag words | **dropped with the tag** — an attribute is an attribute | `shouldDropAltTextWithTheTag` |
+| Position increments across removed markup | gaps only where tags were tokens | all `+1` — a phrase spans a tag boundary | `shouldLeaveNoPositionGapForRemovedMarkup` |
+| Plain text, incl. `5 < 10`, `5<10`, `<3 boty`, `<tagem a dál`, e-mails, bare JSON text | — | **identical `AnalyzedTerm` lists**, offsets and positions included | `shouldBeNoOpOnPlainText` |
+| Query text with markup `<b>cerna</b>` (search chain) | tag terms | same variants as `cerna`; meets the stripped index term | `BothSides` |
+
+The **no-op on plain text** row is what makes the review's gap 2 a non-issue for this step: a stripper keyed
+per (collection, locale) is harmless on the title and the lead of the same article. The **both sides** rows are
+why the step can be declared `AnalysisMode.ALL` — it carries no dictionary and no state, so the query side may
+run it too (a pasted query keeps working), and Lucene's own mode fold treats character filters as mode-less
+anyway (see the `AnalysisMode` javadoc).
+
+### 13.3 Sharp edges, pinned as observed — each is a decision the wiring has to make
+
+1. **End offsets swallow a directly following tag, and so does the surface form.** Lucene's `BaseCharFilter`
+   maps an output offset sitting at the boundary of a removed run onto the *end* of that run. In
+   `<p>Černá <b>pánská</b> obuv</p>` the term `pansk` reports offsets 12–22, not 12–18, and
+   `AnalyzedTerm#surfaceForm()` — a slice of the stored value between the corrected offsets — is `pánská</b>`.
+   A word joined across an inline tag reports the whole span: `Čer<b>ná</b>`, `&#268;ern&#225;`. Start offsets
+   are correct throughout, and a term separated from its tag by whitespace is unaffected. **The term is right;
+   the surface form is raw.** Consumers of the surface form — the P3 suggester (which must never show a raw term
+   anyway, §6), highlighting — either tolerate trailing markup or the wiring trims it when the step is on.
+   Tests: `OffsetsAndSurfaceForms`.
+2. **An entity that decodes to a combining mark bypasses NFC.** `FulltextAnalyzer#analyze` normalizes to NFC
+   *before* the chain, and a character filter runs *inside* the chain. `c&#780;erna&#769;` therefore decodes to
+   `c` + U+030C … — NFD text the Czech stemmer cannot read and `ASCIIFoldingFilter` does not fold — and comes out
+   as the single term `c̆erná`, neither stemmed nor folded, while `&#269;ern&#225;` (precomposed) comes out as
+   `cern`. This is exactly the silent degradation the NFC guard in `FulltextAnalyzer` exists to prevent, reached
+   by a side door. **A production wiring must run NFC after the character filter.** Test:
+   `shouldNotNormalizeEntityDecodedCombiningMarks`.
+3. **A letter-led `<X` at the very end of a value is eaten as an unclosed tag.** `Velikost S<M<L` yields
+   `velikost m` stripped against `velikost m l` as shipped — the last size is gone. And a letter between angle
+   brackets in prose *is* a tag to a grammar: `a<b>c` joins into `ac`. `<` followed by a space, a digit, or an
+   unclosed run that meets more prose (`<tagem a dál`) is left alone. **This is the concrete reason the step is
+   opt-in and off by default**: a product description is prose that may contain `<`, and no grammar can tell a
+   field is prose. Test: `shouldSwallowTrailingUnclosedTagLikeText`.
+4. **`alt` text goes with its tag.** If image descriptions are to be searchable, they have to be extracted before
+   the stripper — the filter has no hook for keeping an attribute. Not pursued here.
+
+### 13.4 Placement and mechanism
+
+**Reachable by wrapping — the opposite of §4.6 point 2.** A character filter is a `Reader` decorator; the only
+place it can go is in front of the tokenizer, and `AnalyzerWrapper#wrapReader` (or `Analyzer#initReader` on a
+composed chain) exposes exactly that seam. The built-in chains therefore need **no recomposition** for this step:
+the harness wraps `DiacriticsFoldingAnalyzerWrapper(new CzechAnalyzer())` and the Czech search chain unchanged.
+The single-term normalization path (`Analyzer#normalize`, prefix and fuzzy probes — §4.4, §6) is deliberately
+left **without** the filter (`wrapReaderForNormalization` not overridden): a typed prefix is never markup, and a
+`<` typed there is a character the user means.
+
+**Where NFC goes (13.3 point 2) — the rule and the proposed implementation.** The rule is one sentence:
+*whenever a character filter that can introduce new characters sits in a chain, NFC has to run after it as
+well.* The boundary normalization in `FulltextAnalyzer#analyze` **stays** — it protects every chain that has no
+character filter, and its offset contract (offsets index into the NFC form, pinned by
+`FulltextAnalyzerTest#shouldReportOffsetsIntoNormalizedText`) is not touched. Only the stripping wrapper gains
+a second normalization, and it has to take a specific form.
+
+*The obvious fix is wrong.* Reading the stripped text, normalizing it and handing back a `StringReader` —
+
+```java
+@Override
+protected Reader wrapReader(String fieldName, Reader reader) {
+	final String stripped = readFully(new HTMLStripCharFilter(reader));
+	return new StringReader(Normalizer.normalize(stripped, Normalizer.Form.NFC)); // breaks offsets
+}
+```
+
+— destroys offset correction. Lucene's tokenizer maps offsets back through the chain of `CharFilter`
+instances it can see; a plain `StringReader` on top hides the `HTMLStripCharFilter` beneath it, so every
+offset points into the *stripped* text and `AnalyzedTerm#surfaceForm()` slices the wrong string. The
+normalization must therefore be a `CharFilter` itself, with its own offset map.
+
+*Proposed shape* — a small `BaseCharFilter` that normalizes per base-character run and records where a run got
+shorter. Sketch (supplementary characters need surrogate-aware iteration, omitted here):
+
+```java
+/** NFC after a decoding character filter; records offset shifts where a combining sequence composed. */
+final class NfcCharFilter extends BaseCharFilter {
+	private Reader normalized;
+
+	NfcCharFilter(Reader in) { super(in); }
+
+	@Override
+	public int read(char[] cbuf, int off, int len) throws IOException {
+		if (this.normalized == null) {
+			prepare();
+		}
+		return this.normalized.read(cbuf, off, len);
+	}
+
+	private void prepare() throws IOException {
+		final String raw = readFully(this.input); // the value is an in-memory string already
+		if (Normalizer.isNormalized(raw, Normalizer.Form.NFC)) {
+			this.normalized = new StringReader(raw); // fast path: no copy, no offset map
+			return;
+		}
+		final StringBuilder out = new StringBuilder(raw.length());
+		int runStart = 0;
+		int cumulativeDiff = 0;
+		for (int i = 1; i <= raw.length(); i++) {
+			// a run is one base character plus the combining marks that follow it
+			if (i == raw.length() || !isCombiningMark(raw.charAt(i))) {
+				final String run = Normalizer.normalize(raw.substring(runStart, i), Normalizer.Form.NFC);
+				out.append(run);
+				final int diff = (i - runStart) - run.length();
+				if (diff != 0) {
+					cumulativeDiff += diff;
+					addOffCorrectMap(out.length(), cumulativeDiff);
+				}
+				runStart = i;
+			}
+		}
+		this.normalized = new StringReader(out.toString());
+	}
+}
+```
+
+`isCombiningMark` tests `Character.getType()` for `NON_SPACING_MARK`, `ENCLOSING_MARK` and
+`COMBINING_SPACING_MARK`. The wrapper then composes the two filters:
+
+```java
+@Override
+protected Reader wrapReader(String fieldName, Reader reader) {
+	return new NfcCharFilter(new HTMLStripCharFilter(reader));
+}
+```
+
+*What it does to the chain.* With the switch on, the Czech index chain reads
+
+```
+boundary NFC → HTMLStripCharFilter → NfcCharFilter → StandardTokenizer → LowerCase → Stop → CzechStem → ASCIIFolding
+```
+
+- **Terms:** `c&#780;erna&#769;` yields `cern`, the same as `černá`; today's harness pins the un-stemmed
+  `c̆erná` for the wrapper *without* this filter (`shouldNotNormalizeEntityDecodedCombiningMarks`), and that
+  assertion flips when the wiring lands.
+- **Offsets:** the tokenizer asks `NfcCharFilter#correctOffset`, which asks `HTMLStripCharFilter#correctOffset`,
+  so offsets still index into the boundary-normalized string exactly as today. The surface form of the token
+  stays the full entity text `c&#780;erna&#769;` — the raw-slice behaviour of 13.3 point 1.
+- **Cost:** on text without decomposed sequences `Normalizer.isNormalized` is a single scan and the stripped
+  text passes through untouched; the copying pass runs only when an entity actually produced a combining mark.
+- **Scope:** chains without the switch are untouched; the step is stateless, so `AnalysisMode.ALL` is unaffected.
+- **Test:** a sibling of `FulltextAnalyzerTest.UnicodeNormalization#shouldProduceSameTermsForNfdAndNfcInput` in
+  the wiring's test, asserting `cern` and offsets `0–17` for the entity-encoded word.
+
+*Alternatives, with reasons:*
+
+- **NFC as an always-present character filter, last in the filter list, replacing the boundary
+  normalization.** One mechanism instead of two, and offsets would then refer to the caller's *original*
+  string rather than its NFC form. **Rejected for now because** that is a change of a documented contract
+  (`shouldReportOffsetsIntoNormalizedText` pins the opposite) with no consumer asking for it; worth
+  reconsidering only if highlighting later wants offsets into the stored value, at which point the change is a
+  reindex-free swap of where the map is kept.
+- **Lucene's `ICUNormalizer2CharFilter`**, which is exactly the class above done properly. **Rejected because**
+  it lives in `lucene-analysis-icu` and drags ICU4J in for one call `java.text.Normalizer` already makes.
+  Revisit only if a second ICU need appears (e.g. ICU tokenization for scripts `StandardTokenizer` handles
+  poorly).
+- **Leaving it and documenting.** **Rejected because** the guard in `FulltextAnalyzer#analyze` is described
+  there as a correctness requirement that must not be removed; a step that reopens it from the side
+  contradicts the file it would be wired into, and the failure is silent (unstemmed, unfolded term), which the
+  defensive-design rule forbids.
+
+**Mode.** `AnalysisMode.ALL` — stateless, same terms both sides (13.2). `INDEX_TIME` only was considered and
+**rejected because** it buys nothing (the filter is a no-op on the query text a user types) and loses the one
+case it does affect — a query pasted with markup would produce tag terms no document holds.
+
+### 13.5 The opt-in — options for the surface, and the mechanism beneath them
+
+The switch changes what the index holds, so under §8 and `schema-design.md` §6.5 point 5 it is part of the
+analyzer's **fingerprint** and flipping it is a **reindex** (`schema-design.md` §7.2 classification). Whatever
+surface is chosen, that must hold. Three surfaces were weighed:
+
+- **(a) Named built-in variants** — `czech-html`, `czech-html-search`, … selectable through today's
+  `AnalyzerAssignment` names; zero new schema concepts. **Rejected because** the table multiplies: languages ×
+  sides × every optional step (this one, the word/number split of §4.6 point 2, a future stop-list switch), and
+  the combinations have to be pre-declared rather than composed. Acceptable only as a stopgap that the next step
+  would have to undo.
+- **(b) An analyzer parameter** — `stripMarkup` among the "switches for the optional pipeline steps" that
+  `schema-design.md` §6.5 already defers to the schema work; the registry applies it as the wrapper of 13.4
+  around whatever chain the name resolves to. Fits the existing deferred item exactly and needs no change to
+  the resolver's granularity (13.2 — no-op on plain text). Weakness: it says what to *do*, per (collection,
+  locale), so a product collection that has one HTML description attribute and many prose attributes has to
+  accept 13.3 point 3 on all of them, or not strip at all.
+- **(c) A content-type declaration on the searchable value** — the attribute or associated-data schema says
+  what the value *is* (`PLAIN` default, `HTML`), and the registry maps `HTML` onto the wrapper of 13.4. It is
+  per attribute without touching `AnalyzerAssignmentResolver`: the value's own schema is known to whoever
+  analyses it, so the registry keys its lazily built instances by (analyzer name, content type) and hands out
+  the stripped twin of the same chain. It is also the only surface that can later carry the review's gap 2 — a
+  `JSON` content type with a path list belongs to "what the value is", not to "which language it is in".
+  Cost: a new schema field with the full recipe of the `evita-schema-change` skill (contracts, mutations, three
+  external APIs, Kryo, WAL) and its reindex classification. **Recommended target shape**, with (b)'s mechanism
+  beneath it; if the schema round is not ready when P1 needs the fingerprint, (b) is the interim that does not
+  need undoing, because the wrapper is the same object either way.
+
+Rejected outright, with reasons:
+
+| Option | Rejected because |
+|---|---|
+| Strip always, no switch | 13.3 point 3: prose loses a term at `S<M<L` and joins `a<b>c`; no grammar can know a field is prose. Nothing would change this. |
+| Do nothing; markup stays indexed | 13.1: −49 % heap and −55 % build time on a real corpus are on the table for one class of field. It stays the default for every other field. |
+| Own regex/character stripper | The hard part is offset correction back into the stored value, and entities, `<script>`/`<style>` bodies, CDATA and comments — Lucene's JFlex grammar does all of it and is tested upstream. Same argument as §4.6 point 3 against a home-grown table. |
+| Require clients to store plain text (a second attribute) | The HTML *is* the value in a CMS — rendering needs it; a plain-text twin doubles the stored text and moves pipeline configuration into data, the argument §4.6 point 1 already rejected a marker on. |
+| Per-attribute resolver signature (gap 2) for this step | Not needed: the filter is a no-op on plain text (13.2). Needed only for a path extractor, which (c) can carry without it. |
+
+### 13.6 What must be true before the switch ships
+
+1. `NfcCharFilter` (13.4) sits behind `HTMLStripCharFilter` inside the wrapper, and the entity-encoded
+   combining-mark word comes out as `cern` with offsets into the boundary-normalized string; the harness assertion
+   pinning today's un-normalized term flips at the same time.
+2. A surface-form policy is chosen for 13.3 point 1 and written where `AnalyzedTerm#surfaceForm()` is documented.
+3. The fingerprint of §6.5 point 5 includes the switch; flipping it is classified as a reindex.
+4. Default is **off**; the user documentation states 13.3 point 3 as the reason, next to the switch.
+5. `HtmlMarkupStrippingAnalysisTest` is the contract the wiring is written against; the wiring adds a registry
+   test that the stripped twin is built lazily, closed with its registry, and never handed out for `PLAIN`.

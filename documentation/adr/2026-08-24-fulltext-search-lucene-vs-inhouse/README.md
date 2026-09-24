@@ -1,7 +1,7 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-09-15 14:00
+updated: 2026-09-24 14:05
 status: proposed
 kind: feature
 issues: [258]
@@ -301,7 +301,10 @@ Open items, each actionable:
 - [`prototypes/p4-proximity-rerank.md`](prototypes/p4-proximity-rerank.md) — how multi-word queries
   are handled without indexed positions, by re-ranking the top-K.
 - [`prototypes/p5-analyzers.md`](prototypes/p5-analyzers.md) — the analyser registry, the Czech chain,
-  and the coexistence of the analysis chain with today's NFD normalisation.
+  and the coexistence of the analysis chain with today's NFD normalisation. Its §13 (2026-09-24) records
+  what the missing character filter costs on a production HTML corpus (−79 % distinct terms, −49 % heap
+  with `HTMLStripCharFilter`), the behaviour `HtmlMarkupStrippingAnalysisTest` pins, and the design space
+  of the opt-in switch (P5-7) — including why it must never be the default.
 - [`prototypes/p5-prior-art-accent-vs-stemming.md`](prototypes/p5-prior-art-accent-vs-stemming.md) —
   the 2026-08-27 prior-art survey behind P5 §12: how seven engines (plus the in-house EdeeCMS
   analyzers) reconcile diacritics folding with stemming, with `path:line` evidence; establishes that
