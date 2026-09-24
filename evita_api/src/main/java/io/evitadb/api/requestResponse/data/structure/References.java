@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 
+import io.evitadb.annotation.Internal;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.ReferenceAllowsDuplicatesException;
 import io.evitadb.api.exception.ReferenceAllowsDuplicatesException.Operation;
@@ -463,8 +464,9 @@ public class References implements ReferencesContract {
 	}
 
 	/**
-	 * This method is part of the internal API and is not meant to be used by the client code.
+	 * Returns the accessor that wraps a reference list into the chunk shape the query asked for.
 	 */
+	@Internal("read getReferenceChunk(String) - it applies this transformer for you")
 	@Nonnull
 	public ChunkTransformerAccessor getReferenceChunkTransformer() {
 		return this.referenceChunkTransformer;

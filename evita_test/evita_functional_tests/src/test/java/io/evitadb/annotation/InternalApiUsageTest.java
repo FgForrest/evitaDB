@@ -118,7 +118,11 @@ class InternalApiUsageTest implements EvitaTestSupport {
 		"evita_external_api/evita_external_api_graphql",
 		"named reference content exists for the GraphQL field alias; this is the layer that puts one there",
 		"evita_external_api/evita_external_api_grpc/server",
-		"decides the session flags a remote session opens with, which is what makes them server-set, not client-set"
+		"decides the session flags a remote session opens with, which is what makes them server-set, not client-set",
+		"evita_external_api/evita_external_api_grpc/shared",
+		"the client-side chunker rebuilds a paginated reference list from the slice the server sent",
+		"evita_store/evita_store_entity",
+		"rebuilds an enriched entity and has to carry the transformer the entity was originally read with"
 	);
 	/**
 	 * Directories that hold no module output and would only make the walk slower - or, in the case of
@@ -130,7 +134,7 @@ class InternalApiUsageTest implements EvitaTestSupport {
 	/**
 	 * Floor on the number of `@Internal` members the scan must find. Without it a run against an unbuilt or
 	 * mis-resolved tree would find nothing, report no violation and pass - proving the opposite of what it claims.
-	 * Nine members carried the annotation when this was written; the floor sits below that with room for members
+	 * Eleven members carried the annotation when this was written; the floor sits below that with room for members
 	 * to come and go, and only has to be high enough that an empty scan fails.
 	 */
 	private static final int MINIMAL_EXPECTED_INTERNAL_MEMBERS = 4;
@@ -139,7 +143,7 @@ class InternalApiUsageTest implements EvitaTestSupport {
 	 * A clean result means nothing unless the scan can be shown to see references at all, and the two kinds are
 	 * counted apart because they are read by two different branches of the constant pool walk - a scan that had
 	 * lost the member branch would still find plenty of type references and look healthy. The build held five
-	 * allowed type references and twelve member ones when this was written.
+	 * allowed type references and fifteen member ones when this was written.
 	 */
 	private static final int MINIMAL_EXPECTED_ALLOWED_TYPE_REFERENCES = 1;
 	private static final int MINIMAL_EXPECTED_ALLOWED_MEMBER_REFERENCES = 3;

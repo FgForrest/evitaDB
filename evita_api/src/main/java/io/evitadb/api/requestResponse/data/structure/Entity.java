@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
+import io.evitadb.annotation.Internal;
 import io.evitadb.api.exception.EntityIsNotHierarchicalException;
 import io.evitadb.api.exception.ReferenceAllowsDuplicatesException;
 import io.evitadb.api.exception.ReferenceAllowsDuplicatesException.Operation;
@@ -1125,6 +1126,7 @@ public class Entity implements SealedEntity {
 	 *
 	 * @return a {@link ChunkTransformerAccessor} object representing the reference chunk transformer.
 	 */
+	@Internal("read getReferenceChunk(String) - it applies this transformer for you")
 	@Nonnull
 	public ChunkTransformerAccessor getReferenceChunkTransformer() {
 		return this.references.getReferenceChunkTransformer();

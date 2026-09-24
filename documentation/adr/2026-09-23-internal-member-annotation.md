@@ -1,7 +1,7 @@
 ---
 title: Mark members that are public only for cross-module reach with @Internal, and enforce it from bytecode
 date: 2026-09-23
-updated: 2026-09-23 20:40
+updated: 2026-09-24 09:45
 status: accepted
 kind: infrastructure
 issues: [1640]
@@ -22,9 +22,10 @@ relates: [2026-09-23-reference-decode-narrowing-by-referenced-key]
 
 `io.evitadb.annotation.Internal` is a new annotation in `evita_common`. It marks a member whose
 contract may change without notice and without a deprecation cycle, and it carries a **required**
-string naming the supported alternative. Nine members carry it today — the named reference content
-feature and two session flags. `InternalApiUsageTest` reads the compiled class files of every module
-and fails the build when a module outside a five-entry allowlist references one.
+string naming the supported alternative. Eleven members carry it today — the named reference content
+feature, two session flags and both `getReferenceChunkTransformer()` accessors.
+`InternalApiUsageTest` reads the compiled class files of every module and fails the build when a
+module outside a seven-entry allowlist references one.
 
 ## Why
 
@@ -207,19 +208,21 @@ move it, and write no annotation".
 ## Verification
 
 `InternalApiUsageTest#shouldNotReachInternalMembersFromDisallowedModules` passes on a full reactor
-build (24 module output directories, 9 annotated members, 5 allowed type references and 12 allowed
+build (24 module output directories, 11 annotated members, 5 allowed type references and 15 allowed
 member references, 0 violations). Four counterfactuals prove it is not passing vacuously:
 
 - **The rule fires.** Emptying `MODULES_ALLOWED_TO_REACH_INTERNAL_MEMBERS` fails the test with all
-  17 cross-module references listed by module, class, member and alternative. That run is also what
-  established the allowlist: it is exactly the modules that reach one, no more.
+  20 cross-module references listed by module, class, member and alternative, from exactly the seven
+  allowlisted modules. That run is also what established the allowlist: it is exactly the modules
+  that reach one, no more — and re-run after the chunk transformer was marked, it is what showed
+  each of the two entries added for it to be load-bearing.
 - **It is descriptor-precise.** `ReferenceContentSerializer` (`evita_store_server`) calls three
   `ReferenceContent` constructors at lines 111, 115 and 126; only the marked five-argument one at
   126 is reported. An overload-blind check would have reported all three.
 - **The positive control detects a blind scan.** Removing `CONSTANT_METHODREF` from the constant
-  pool walk drops allowed member references from 12 to 0 while type references stay at 5, and the
-  test fails on the member-reference floor — which is why the two kinds are counted apart rather
-  than summed.
+  pool walk dropped allowed member references from 12 to 0 while type references stayed at 5
+  (measured with nine members marked), and the test fails on the member-reference floor — which
+  is why the two kinds are counted apart rather than summed.
 - **A broken class file is not swallowed by the torn-file retry.** Truncating
   `evita_roaring_bitmap`'s `AppendableStorage.class` to 120 bytes fails the test with that file's
   path, so the retry that absorbs a concurrent compilation does not also absorb real damage. This
@@ -241,7 +244,7 @@ non-vacuous by breaking what it guards:
 |---|---|
 | `stripArrayDescriptor` returns its argument unchanged | the array test, **and** the reference test |
 | the `i++` compensating the second pool slot of a `long`/`double` | the declaration test, and the reactor scan (`evita_api`'s `CatalogVersionPin.class` "cannot be read on a second attempt either") |
-| members indexed by name, descriptor dropped | the declaration test, and the reactor scan's member-reference floor (12 to 0) |
+| members indexed by name, descriptor dropped | the declaration test, and the reactor scan's member-reference floor (12 to 0, nine members marked) |
 
 The array-element fixture is a **top-level** class on purpose, and the reason is the kind of thing
 that only shows up under `javap`: as a nested class it was also listed in the referencing class's
@@ -257,38 +260,49 @@ types.
 
 ## Consequences & open follow-ups
 
-The first application is deliberately narrow — the seven named reference content members from the
-issue plus two session flags. A `evita_api` survey (every javadoc block carrying an internal-use
-marker, paired with the declaration that follows it: 80 raw hits, most of them prose about "client
-code" in unrelated exception classes) found four families that were examined and **not** marked:
+The application covers the seven named reference content members from the issue, two session flags,
+and both `getReferenceChunkTransformer()` accessors. A `evita_api` survey (every javadoc block
+carrying an internal-use marker, paired with the declaration that follows it: 80 raw hits, most of
+them prose about "client code" in unrelated exception classes) found four families worth examining.
+One was marked; three are deferred.
 
-1. **`getReferenceChunkTransformer()` — the warning is on the wrong overload.**
-   `References#getReferenceChunkTransformer()` carries the clearest statement in the survey ("part
-   of the internal API and is not meant to be used by the client code"), but every cross-module
-   caller reaches it through `Entity#getReferenceChunkTransformer()`, whose javadoc carries no
-   warning at all. Marking only `References#` would produce a green check over the surface nobody
-   calls; marking `Entity#` is a decision about the API rather than a transfer of an existing
-   warning. Needs `.../grpc/shared` and `evita_store/evita_store_entity` allowlisted.
-2. **The `_internalBuild` family — about 100 members across 26 classes**, uniformly documented "Do
+**Marked — `getReferenceChunkTransformer()`, where the warning sat on the overload nobody calls.**
+`References#getReferenceChunkTransformer()` carried the clearest statement in the survey ("part of
+the internal API and is not meant to be used by the client code"), but every cross-module caller
+reaches it through `Entity#getReferenceChunkTransformer()`, whose javadoc carried no warning at
+all. Marking only `References#` would have produced a green check over the surface nobody calls, so
+both are marked and the prose on `References#` gives way to the annotation — a warning nothing
+checks is the shape this record exists to retire. `.../grpc/shared` and
+`evita_store/evita_store_entity` join the allowlist: the client-side chunker rebuilds a paginated
+reference list from the slice the server sent, and `EntityFactory` has to carry the transformer into
+an enriched entity. Marking `Entity#` is a statement about the API rather than a transfer of an
+existing warning, which is why it was held for an explicit decision rather than folded into the
+first commit.
+
+**Deferred**, three families:
+
+1. **The `_internalBuild` family — about 100 members across 26 classes**, uniformly documented "Do
    not use this method from in the client code!". Deferred because the allowlist would have to take
    the published Java driver and `evita_common`; once the driver is in, every later `@Internal`
    member is reachable from it without review, which is the one property the allowlist buys. A
    per-member allowlist is the honest way to sweep this family. The `_` prefix already signals the
    same thing locally, which makes it the least urgent despite being the largest.
-3. **`CommitProgressRecord`** — its javadoc already draws the line ("**Public API**
+2. **`CommitProgressRecord`** — its javadoc already draws the line ("**Public API**
    (`CommitProgress`) … **Internal API** (this class)") and the type never appears in a public
    signature, but `EvitaClientSession` constructs it in three places. Same driver-in-the-allowlist
-   objection as (2).
-4. **`DevelopmentConstants`** — "meant only for internal development purposes", reached by five
+   objection as (1).
+3. **`DevelopmentConstants`** — "meant only for internal development purposes", reached by five
    modules. Same objection, and it arguably belongs in a test-support module rather than
    `evita_api`.
 
-Three candidates were examined and rejected *against the scoping rule*, which is worth recording so
+Four candidates were examined and rejected *against the scoping rule*, which is worth recording so
 they are not re-proposed: `Reference#isAttributeValuePresentAndExists` (its javadoc explains why the
 method is declared rather than that it is unsupported), the `ReferenceAttributes` constructors (no
 cross-module caller at all — they are public for the tests, which an annotation does not describe),
-and `InvalidMutationException(String, String)` (its "internal" refers to the log message, not the
-API).
+`InvalidMutationException(String, String)` (its "internal" refers to the log message, not the API),
+and `ExistingAssociatedDataBuilder#getAssociatedDataLocales()` (its "should not be called" is about
+an unsupported override, not about cross-module reach). The survey's remaining hits — around twenty
+exception and proxy types — matched only because their prose happens to mention "client code".
 
 ## Related work
 
@@ -299,3 +313,6 @@ API).
 ## Timeline
 
 - **2026-09-23** — issue #1640 filed, annotation, check and first application implemented
+- **2026-09-24** — the class-file reader pinned against fixed fixture class files, and
+  `getReferenceChunkTransformer()` marked on both `References#` and `Entity#` after review, taking
+  the allowlist from five modules to seven
