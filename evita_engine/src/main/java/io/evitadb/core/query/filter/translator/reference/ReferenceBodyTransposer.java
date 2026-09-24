@@ -26,6 +26,7 @@ package io.evitadb.core.query.filter.translator.reference;
 import io.evitadb.core.query.QueryPlanner.EnclosingContainerRelation;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
@@ -312,6 +313,11 @@ public class ReferenceBodyTransposer {
 	 * An index-independent subtree passes: it is kept whole for every index anyway, and a union of one thing with
 	 * itself is that thing.
 	 *
+	 * An {@link AttributeFormula} is looked through. Every attribute translator wraps its per-index contributions in
+	 * one, so without this no attribute leaf would ever take the fast path. The wrapper is a unary pass-through - it
+	 * computes exactly its child - so the union distributes over it: `Attr(Or(lᵢ))` and `Or(Attr(lᵢ))` are the same
+	 * set, and the body is returned with the wrapper still at its root, where the consumers matching on it expect it.
+	 *
 	 * @param node                subtree root
 	 * @param projectableSubtrees memo shared with {@link #isProjectable(Formula, Map)}
 	 * @return true when the subtree would survive the rebuild unchanged
@@ -322,6 +328,9 @@ public class ReferenceBodyTransposer {
 	) {
 		if (node instanceof IndexTaggedFormula || !isProjectable(node, projectableSubtrees)) {
 			return true;
+		}
+		if (node instanceof AttributeFormula) {
+			return combinedOnlyByUnion(node.getInnerFormulas()[0], projectableSubtrees);
 		}
 		if (!(node instanceof OrFormula)) {
 			return false;
