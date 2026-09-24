@@ -1,7 +1,7 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-09-17 07:45
+updated: 2026-09-24 14:05
 status: partially-implemented
 kind: feature
 issues: [258, 1454]
@@ -1035,6 +1035,20 @@ rather than a tuning one. Both are open items below.
   as *surviving* the bump; P5's Lucene 10.x rejection is re-opened, half of it having expired with the
   baseline; the driver's new release-17 floor is recorded as a hard placement constraint for both plans;
   and the mmap table in `bitmap-memory-optimizations.md` is re-headed with the finding that no cell moved
+- **2026-08-27 → 2026-09-04** — the accent-vs-stemming prior-art survey and its measurement campaign
+  for Czech (mechanism matrix A0–A22, verdict: the asymmetric M7), then the same survey and
+  per-language measurements for Slovak, Polish and Romanian — recorded as
+  `prototypes/p5-prior-art-accent-vs-stemming.md`,
+  `prototypes/p5-approach-measurements-accent-vs-stemming.md` and
+  `prototypes/p5-prior-art-sk-pl-ro.md`
+- **2026-09-07** — the M7 hypothesis sets of all four languages verified against their whole
+  Hunspell lexicons (980,763 headwords, zero uncovered; every fixture-validated fork set proved
+  incomplete on first sweep — SK/PL/RO record §9.8); the flat-union query chain's runtime cost
+  JMH-measured (§9.9) and the Czech **branching stemmer** built, proven set-equivalent over the
+  lexicon and measured within 2× of the production chain (§9.10)
+- **2026-09-15** — branching stemmers for Slovak, Polish and Romanian built — each language needed
+  its own walk design — proven set-equivalent to their flat unions over their whole lexicons and
+  JMH-measured at 0.23–1.84 µs per 3-token query (SK/PL/RO record §9.11)
 
 ## Supporting material
 
@@ -1056,7 +1070,46 @@ rather than a tuning one. Both are open items below.
 - [`prototypes/p4-proximity-rerank.md`](prototypes/p4-proximity-rerank.md) — how multi-word queries
   are handled without indexed positions, by re-ranking the top-K.
 - [`prototypes/p5-analyzers.md`](prototypes/p5-analyzers.md) — the analyser registry, the Czech chain,
-  and the coexistence of the analysis chain with today's NFD normalisation.
+  and the coexistence of the analysis chain with today's NFD normalisation. Its §13 (2026-09-24) records
+  what the missing character filter costs on a production HTML corpus (−79 % distinct terms, −49 % heap
+  with `HTMLStripCharFilter`), the behaviour `HtmlMarkupStrippingAnalysisTest` pins, and the design space
+  of the opt-in switch (P5-7) — including why it must never be the default.
+- [`prototypes/p5-prior-art-accent-vs-stemming.md`](prototypes/p5-prior-art-accent-vs-stemming.md) —
+  the 2026-08-27 prior-art survey behind P5 §12: how seven engines (plus the in-house EdeeCMS
+  analyzers) reconcile diacritics folding with stemming, with `path:line` evidence; establishes that
+  the co-designed folded-space stemmer is the only known fix and that the second-lane-per-term
+  question must be settled before the term dictionary layout freezes.
+- [`prototypes/p5-approach-measurements-accent-vs-stemming.md`](prototypes/p5-approach-measurements-accent-vs-stemming.md)
+  — the empirical half of the survey: all six proposed mechanisms built and measured over one Czech
+  vocabulary on five metrics. Settles that the folded-space stemmer reaches 296/298 on the real
+  bare-typed cross-form query at one term per token, that the second-lane mechanism buys 3 pairs of
+  72 for a 1.95x term inflation and therefore has **no** claim on the term dictionary layout, and
+  that the remaining open questions are whether we own a Czech stemmer and whether the `ů→o` rule is
+  worth its false merges. Its run ledger later converged on **mechanism M7** — the index side keeps
+  today's chain (accented stem, then fold) unchanged, the query side emits every stem the folded
+  ambiguities allow as OR'd terms at one position — with the hypothesis set verified against the
+  whole cs_CZ Hunspell lexicon and implemented twice: a flat union of all 1,025 switch
+  configurations serving as the executable specification, and a **branching stemmer** computing the
+  identical set in one walk (~0.32 µs and 352 B per 3-token query, within 2× of the production
+  chain, against the flat union's ~90 µs and 149 KB), the two pinned to each other by a
+  lexicon-scale equivalence test.
+- [`prototypes/p5-prior-art-sk-pl-ro.md`](prototypes/p5-prior-art-sk-pl-ro.md) — the same two
+  questions answered for Slovak, Polish and Romanian: what the surveyed engines ship per language,
+  and what it took to bring each to the Czech M7 quality bar (a folded Slovak stemmer pair, a folded
+  port of the Snowball Polish and Romanian stemmers, per-language fixtures and matrices). Its §9.8
+  verifies all four languages' M7 hypothesis sets against their whole Hunspell lexicons — 980,763
+  headwords, zero uncovered after per-language correction rounds that each falsified fixture-scale
+  results. Its §9.9–§9.11 carry the runtime story: the flat configuration unions are priced by
+  *stemmer complexity × configuration count* (Romanian's 513-configuration union costs 234 µs and
+  897 KB retained per analyzer), while the four branching walks — each demanding its own structural
+  analysis, from Czech's tail-triple trick to Romanian's staged worklist with constraint cells —
+  deliver the same, equivalence-tested term sets at 0.23–1.84 µs per query with ~500 B retained.
+- [`prototypes/p5-word-number-split-comparison.md`](prototypes/p5-word-number-split-comparison.md) —
+  the old client's word/number splitter (`UHD7800` found by `7800`) ported and measured against Lucene's
+  `WordDelimiterGraphFilter` in two placements. Settles that the step must sit between the tokenizer and
+  the stemmer — appended after the chain, as the old client did, the word half never meets its stemmed
+  query — which in turn means the built-in chains have to be composed from components before the step
+  can be switched on.
 - [`prototypes/p6-vector-spike.md`](prototypes/p6-vector-spike.md) — the vector branch as a separate
   decision with its own mini-gate. Revised 2026-09-07 against the jVector and hnsw-sb checkouts: the
   gate now asks for the shape of a retrieval subsystem — a planner over four filtered-search strategies,

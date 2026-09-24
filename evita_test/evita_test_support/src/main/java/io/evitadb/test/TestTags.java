@@ -202,6 +202,9 @@ public interface TestTags {
 	/** Catalog & instance management — backups, restore, migration, lifecycle. */
 	String MANAGEMENT = "management";
 
+	/** Full-text search — analysis chain, term dictionary, full-text index & queries. */
+	String FULLTEXT = "fulltext";
+
 	// ---------------------------------------------------------------------
 	// Tag dictionaries consumed by TestTagPolicyFilter
 	// ---------------------------------------------------------------------
@@ -233,7 +236,7 @@ public interface TestTags {
 		SCHEMA, TRANSACTION, WAL, CDC, CACHE, SESSION, PROXY,
 		EXPORT, STREAM, SERIALIZATION, EXPRESSION, COMPARATOR,
 		OBSERVABILITY, TASK, SECURITY, DATA_TYPE, TRAFFIC_ENGINE, MANAGEMENT,
-		INDEXING, TEST_HARNESS
+		FULLTEXT, INDEXING, TEST_HARNESS
 	);
 
 	/**

@@ -83,6 +83,14 @@
 			<groupId>com.esotericsoftware</groupId>
 			<artifactId>kryo</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>org.apache.lucene</groupId>
+			<artifactId>lucene-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.lucene</groupId>
+			<artifactId>lucene-analysis-common</artifactId>
+		</dependency>
 	</dependencies>
 	<build>
 		<plugins>

@@ -201,20 +201,27 @@ Here the news is exclusively good. All three jars carry a **native `module-info.
 |---|---|
 | `lucene-core` | `org.apache.lucene.core` |
 | `lucene-analysis-common` | `org.apache.lucene.analysis.common` |
-| `lucene-analysis-stempel` | `org.apache.lucene.analysis.stempel` |
+| `lucene-analysis-stempel` | `org.apache.lucene.analysis.stempel` (surveyed, **not shipped** — see §5.2) |
 
 The packages we need are exported: `org.apache.lucene.analysis`, `org.apache.lucene.analysis.standard`,
 `org.apache.lucene.analysis.tokenattributes` and `org.apache.lucene.util.automaton` from the core;
 `org.apache.lucene.analysis.cz`, `.de`, `.en`, `.custom`, `.core`, `.miscellaneous` and `.hunspell` from
-analysis-common; and `analysis.pl` from stempel. The module `org.apache.lucene.analysis.common` declares
-`requires org.apache.lucene.core`, so a single `requires` in our module-info suffices and the core comes
-with it:
+analysis-common; `analysis.pl` came from stempel while that artifact was still under consideration. The
+module `org.apache.lucene.analysis.common` declares
+`requires org.apache.lucene.core` **without `transitive`** (verified with `jar --describe-module` on
+9.12.3, and confirmed by the P5 implementation in PR #1453), so our module-info must require the core
+explicitly — code compiling against `Analyzer` or the token attributes reads types from the core module:
 
 ```java
+requires org.apache.lucene.core;
 requires org.apache.lucene.analysis.common;
-// only if the decision falls to support Polish via stempel:
-requires org.apache.lucene.analysis.stempel;
 ```
+
+*(This section originally listed a third `requires org.apache.lucene.analysis.stempel;`, conditional on
+supporting Polish through Stempel. Polish shipped without Stempel and the dependency was removed — §5.2.)*
+
+*(An earlier revision of this section claimed the single `requires` on analysis-common would bring the
+core along; that was wrong — the requires is not transitive.)*
 
 One place deserves attention. Lucene has a service layer: `lucene-core` declares
 `uses org.apache.lucene.analysis.TokenizerFactory` (and the same for `CharFilterFactory` and
@@ -449,6 +456,12 @@ This shape keeps the schema independent of Lucene: a Lucene type never appears i
 time it leaves the door open for `"custom:…"`, where the parameters describe the pipeline as a list of steps
 — `CustomAnalyzer` then applies (§3.3).
 
+> **Resolution (2026-08-25, PR #1453 review):** P5 shipped the identifier half of this contract only —
+> `AnalyzerAssignment` carries names, no parameters. That is deliberate, not an omission: the parameters
+> travel with the schema work and are recorded as a deferred item in `schema-design.md` §6.5. With §4.6
+> point 1 discarded, "expressions exempted from stemming" drops out of the parameter set entirely; the
+> custom stop-word list remains its primary content.
+
 ### 4.6 A catalog of filters the pipeline has to offer or deliberately reject
 
 The analysis of the existing client (internal, §2.5, §6.5 and §6.6)
@@ -478,6 +491,17 @@ their pipeline (§5.1) and `CzechAnalyzer` accepts the corresponding set in its 
 is written. The difference against the old client is that the protected expressions are given in the schema
 once, not in every value separately — which besides data cleanliness is better operability too.
 
+> **Discarded (2026-08-25).** Token-level protection is not adopted in any form. Values that must be found
+> exactly — catalog numbers, EANs, model designations — are to be modelled as **separate attributes that
+> are not fulltext-indexed** and searched via `attributeContains`, prospectively via the trigram
+> `SUBSTRING` capability (#1454, `p8-trigram-substring-index.md`), which is precisely the code-lookup lane.
+> A code still embedded in a sentence does pass through the stemmer, but analysis is symmetric — the query
+> side is mangled identically — so it keeps matching itself; the residual risk is rare false merges and
+> stem-mangled dictionary entries surfacing in the P3 suggester. *What would have to change for this to be
+> revisited:* the §10.3 real-value review showing actual collisions on production data. Discarding this
+> also retires the `KeywordAttribute` concern in point 3's parenthesis — with no protected tokens there is
+> nothing for diacritics folding to honour.
+
 **2. `WordWithNumberSplitFilter` — splitting a token into a word and a numeric part. Take up.** A token
 beginning or ending with a digit is split into a numeric and a textual part and **both are added at the same
 position**: from `123xyz` arises, besides the original token, also `123` and `xyz`. It is switched on by the
@@ -486,6 +510,44 @@ production-proven filter for e-commerce catalog numbers, which §6.6 of the anal
 belongs in the catalog as an optional pipeline step **switched off by default**: adding tokens at the same
 position enlarges both the dictionary and the postings and it has no business in the CMS profile, whereas
 for a field with an EAN or a catalog number it is exactly what the user expects.
+
+> **Confirmed and pulled forward (2026-08-25):** to be implemented within **PR #1453** as a composable,
+> off-by-default token filter with its own tests, so the analysis package closes with the filter catalog
+> complete rather than being reopened later. The per-field switch that turns it on arrives with the
+> analyzer parameters (`schema-design.md` §6.5).
+
+> **Revised (2026-09-02).** The filter did **not** ship in PR #1453 — the note above and the wording in
+> `schema-design.md` §6.5 ran ahead of the code; the plan's "deliberately not done" list was the accurate one.
+> Analysing the placement before implementing it changed the shape of the step; the side-by-side measurement,
+> the old client's wiring and the query-side shapes are in
+> [`p5-word-number-split-comparison.md`](p5-word-number-split-comparison.md). The old client's documentation
+> motivates the step with a code found by its bare number — the data holds `UHD7800`, users type `7800`. Both
+> placements below serve that, because a digit run has nothing for a stemmer to change; the placement decides
+> the fate of the word half only.
+>
+> - **Appending the filter to the finished analyzer — the old client's route, and the one this point
+>   described — is rejected for stemming chains.** The word part comes out unstemmed and never meets the term
+>   the same word produces on its own: `boty42` yields `boty` while the query `boty` yields `bot`; `iPhone15`
+>   yields `iphone` while `iPhone` yields `iphon`. And once the stemmer has shortened the token (`GTX1080Ti` →
+>   `gtx1080t`) the parts' offsets can no longer be adjusted, so every part reports the whole token as its
+>   surface form and the word part is a fragment (`t`). The placement is harmless only on chains without a
+>   stemmer (generic, Slovak), where it coincides with the accepted one.
+> - **Accepted: Lucene's `WordDelimiterGraphFilter` directly after the tokenizer**, ahead of the stop filter
+>   and the stemmer, with `GENERATE_WORD_PARTS | GENERATE_NUMBER_PARTS | SPLIT_ON_NUMERICS | PRESERVE_ORIGINAL`,
+>   `adjustInternalOffsets = true` and a `FlattenGraphFilter` behind it (the term contract carries a position
+>   increment, no position length). Parts are then stemmed and folded exactly like standalone words, each
+>   part's surface form is the part, and positions follow Lucene's graph convention — the original at one
+>   position, its parts at consecutive ones — so `boty42 kožené` and `boty 42 kožené` align position for position,
+>   which the old client's "every part at one position" did not. No filter of our own is written, for the
+>   reason point 3 gives. Accepted differences from the old client: every letter/digit transition splits
+>   (`GTX1080Ti` → `gtx`, `1080`, `ti`, not `gtx` + `1080ti`); punctuation the tokenizer kept inside a token
+>   splits too (`3.5mm` → `3`, `5`, `mm`), symmetric and therefore harmless; a digits-only code such as an EAN is
+>   never touched — the motivating case is a mixed code like `XC90`, not a barcode.
+> - **Consequence for the built-in chains.** The accepted placement cannot be reached by wrapping
+>   `CzechAnalyzer` and its siblings; enabling the step for a language means composing that language's chain
+>   from its components in `BuiltInAnalyzers`. That work travels with the per-attribute switch of
+>   `schema-design.md` §6.5. Until then the step has no production caller; its contract is pinned by
+>   `WordNumberSplitAnalysisTest`, which is what the wiring is written against.
 
 **3. `DiacriticFilter` — and why it is *not* NFD. Reject as a component, adopt as a test criterion.** The
 existing filter is a manual, fully written-out conversion table of European characters with diacritics onto
@@ -508,6 +570,16 @@ most cases, but not in all, and migrating an existing website from one to the ot
 search results**. That is not a hypothesis dismissable with a footnote: it is a parity §10.4 measures, and
 its list of differences is the only material from which it can be said in advance what the change will
 touch. Who informs the operator and when is a product decision — carried as P5-6 (§11).
+
+> **Commitment cancelled (2026-08-25).** Migration from the legacy client's stack is not a path this line
+> of work supports, so the difference list has no consumer. The rejection of the component above stands on
+> its own technical grounds; §10.4 and P5-6 fall with the commitment.
+
+**4. A character filter for markup — added to the catalog on 2026-09-24.** The three points above are token
+filters; the chain has **no character filter at all**, and a production corpus showed what that costs when the
+indexed value is HTML. The measurements, the behaviour pinned by `HtmlMarkupStrippingAnalysisTest` and the
+design space of the opt-in switch are in §13. Verdict: take up `HTMLStripCharFilter` as an **opt-in, off by
+default** step; never as a default, because on prose it can eat a term (§13.3).
 
 ---
 
@@ -563,6 +635,24 @@ lazy instance creation in §4.1.
 is finished and tested upstream and deferring it would mean the registry would later have to be extended
 because of one language.
 
+> **Superseded (2026-09-23):** Polish shipped, but **Stempel was never adopted as its stemmer and the
+> `lucene-analysis-stempel` dependency is gone.** Stempel is a statistical trie with no rule table, and the
+> query-side variant fan-out the four folding languages depend on is constructed *over* a stemmer's rules —
+> there is nothing to walk in a trie, so the asymmetric pair could not have been built on it at all (see
+> `p5-prior-art-sk-pl-ro.md` §6). The index chain therefore stems with the vendored `PolishSnowballStemmer`,
+> and the query chain with `PolishVariantStemmer` walked over the same rules.
+>
+> That left `PolishAnalyzer` referenced for one thing only, its 182-word stop list — and reaching it through
+> `PolishAnalyzer.getDefaultStopSet()` is not free: the `DefaultsHolder` behind that call loads
+> `stemmer_20000.tbl` (2.2 MB) in the same static block, for a stemmer nothing uses. The list is 1.2 kB, so
+> it was copied verbatim into `evita_engine/src/main/resources/io/evitadb/index/fulltext/analysis/polish-stopwords.txt`
+> and the whole 519 kB jar dropped from the root `<dependencyManagement>`, from `evita_engine/pom.xml` and
+> from `module-info.java`. Note for attribution: that list is **not** Apache-2.0 from Lucene — its own header
+> says it comes from the carrot2 project under the **BSD** licence, and `evita_engine/NOTICE` records it that
+> way.
+>
+> Consequently the stempel rows of §3.3 and step 1 of §9 below describe a dependency that no longer exists.
+
 ### 5.3 Slovak
 
 Here there is no ready-made path. A `SlovakAnalyzer` in Lucene **does not exist** — verified by searching
@@ -600,6 +690,33 @@ behaviour is predictable and needs no foreign data file. If the smoke test shows
 sensible results on Slovak, switching the default to B is a one-line change in the table. Variant A is the
 right target, but it belongs beyond the gate — it requires resolving both the origin and the licence of the
 dictionary, and that is work P5 should not be delayed by.
+
+> **Resolution (2026-08-25, PR #1453 review):** variant C shipped, with one deviation worth recording —
+> Lucene bundles **no Slovak stop-word list**, so the shipped chain is tokenize + lowercase + diacritics
+> folding only, without the stop words this section assumed. The **variant B measurement is discarded**:
+> the safe lower bound is in place, the false-merge risk of the Czech stemmer has no demonstrated upside
+> to buy, and the folded surface-form lane being weighed for P1 (accent-typing gap, see PR #1453 review)
+> would benefit Slovak recall without borrowing a foreign stemmer. Variant A remains the long-term target
+> under P5-2.
+
+> **Superseded (2026-09-15):** variant C is gone. None of A/B/C shipped in the end — the survey of
+> `p5-prior-art-sk-pl-ro.md` §6 found nothing adoptable, so an in-house Slovak light stemmer was written
+> on the `CzechStemmer` architecture with tables authored against Slovak paradigms, and it is variant B's
+> "borrow Czech" idea done properly: the structure is borrowed, the tables are not, so the false-merge
+> risk variant B carried does not arrive with it. It ships as the `slovak` index chain (lowercase →
+> `SlovakStemmer` → fold) paired with a `slovak-search` query chain that folds first and then emits every
+> stem the word could have had (`SlovakVariantStemmer`). Measured: bare-typed cross-form recall **351/355
+> at 0 false merges**, against the **0/323** of the fold-only variant C this replaces — the "safe lower
+> bound" turned out to be a floor nobody was standing on. The invariant is verified over the whole
+> 264,838-headword sk_SK lexicon. Variant A (Hunspell) remains the long-term target and still carries its
+> unresolved licence question; the in-house stemmer does not, which is the other reason it won.
+
+> **Resolved (2026-09-23):** the licence question this section raised ("have to be verified for the specific
+> dictionary, not estimated") is answered, for all four dictionaries rather than only the Slovak one, in
+> `evita_test/evita_functional_tests/src/test/resources/fulltext/hunspell/README.md` — upstream project,
+> exact revision, retrieval path, licence and sha256 per file. None of them is loaded by engine code; they
+> are test fixtures for the coverage sweeps. See P5-2 in §11 for the summary and for why the
+> configured-path fallback proposed there was not needed.
 
 ---
 
@@ -815,7 +932,8 @@ The steps are ordered so that each can be verified independently and so that the
 of production code to the engine that could be broken.
 
 1. **Introduce the dependency.** Add `lucene.version` into the root `pom.xml`'s `<properties>`,
-   `lucene-analysis-common` and `lucene-analysis-stempel` into `<dependencyManagement>`, both as a
+   `lucene-analysis-common` into `<dependencyManagement>` (this step originally added
+   `lucene-analysis-stempel` alongside it; that artifact is not shipped — §5.2), as a
    `<dependency>` into `evita_engine/pom.xml` and the corresponding `requires` into
    `evita_engine/src/main/java/module-info.java`. Verification: `mvn -pl evita_engine compile` passes and
    `mvn dependency:tree` on `evita_java_driver` does not contain `org.apache.lucene`.
@@ -911,7 +1029,16 @@ decision then arises about whether it belongs in the pipeline's own rules — an
 delivers to P1. The last two cases named are at the same time exactly the ones the existing client answers
 with the filters of §4.6, so it is immediately visible with them whether the filter catalog is sufficient.
 
+> **Status (2026-08-25):** not executed in PR #1453; carried forward as an explicit **P1 gate input** —
+> see `p1-index-core.md` §2. It must run before the dictionary layout freezes, because its findings plus
+> the measured accent-typing gap (PR #1453 review) decide the folded surface-form lane. It is also the
+> designated tripwire for revisiting the discarded keyword-marker protection (§4.6 point 1).
+
 ### 10.4 Parity of diacritics folding against the existing `DiacriticFilter`
+
+> **Discarded (2026-08-25)** together with the migration commitment of §4.6 point 3 and P5-6: no supported
+> migration path from the legacy stack means no consumer for the difference list. Kept below for the
+> record of what the test would have been.
 
 §4.6 rejects adopting the old client's manual conversion table as a component, but does not reject the
 commitment to know where exactly the two paths diverge. This test is therefore **decisional, not
@@ -947,9 +1074,20 @@ The numbered ones follow on from the research; the new ones carry the P5 designa
   memory and different behaviour of the prefix, the typo and the suggester. P1 will decide by the
   dictionary's size and P3 by the suggester's quality. The leaning: variant 3 for e-commerce, variant 1 for
   CMS.
-- **P5-2 — the origin and licence of the Slovak Hunspell dictionary (§5.3).** The licence of the specific
-  dictionary has to be verified, not estimated. Should it turn out incompatible with the distribution, the
-  solution is loading from a configured path instead of packaging into the jar. Until then variant C holds.
+- **P5-2 — the origin and licence of the Slovak Hunspell dictionary (§5.3).** *Resolved (2026-09-23).* The
+  question changed shape on the way: no Hunspell dictionary ships inside evitaDB at all, because the Slovak
+  stemmer that shipped is in-house (§5.3's 2026-09-15 block). The four dictionaries in the repository —
+  `cs_CZ`, `pl_PL`, `sk_SK`, `ro_RO` — are **test fixtures**, read by the lexicon-coverage sweeps and never
+  loaded by engine code or packaged into a distributed artifact.
+  Provenance was **verified byte-for-byte, not estimated**, and is recorded per dictionary in
+  `evita_test/evita_functional_tests/src/test/resources/fulltext/hunspell/README.md`, with attribution in
+  `evita_test/evita_functional_tests/NOTICE`. `sk_SK` (sk-spell 2.03-1, via wooorm/dictionaries
+  `8cfea406b5`), `pl_PL` (Polish Native Lang Project 2008-12-06) and `ro_RO` (Rospell 3.3.10) each offer
+  **MPL** among their licences and are relied on under it. `cs_CZ` (LibreOffice `8cd38fb513`, extension
+  2021.07) is **GPL-2.0 only** and was kept deliberately: it is a separate unmodified work that nothing
+  links against, which is GPL-2.0 §2 mere aggregation — the same reasoning under which FG's `lib_fulltext`
+  has redistributed this exact file since 2021. The configured-path fallback this entry proposed was
+  therefore not needed and is **not** implemented.
 - **P5-3 — when to move to the Lucene 10.x line (§3.1).** Tied to `<java.version>` in the root pom really
   being 21. The transition is mechanical, but it should be done consciously, because it is at the same time
   an opportunity to reconsider the frozen version. The material still missing: how long the 9.x line will
@@ -961,7 +1099,9 @@ The numbered ones follow on from the research; the new ones carry the P5 designa
   the schema addresses it.
 - **P5-5 — the registry's behaviour on an unknown language (§4.1).** The recommendation is a generic
   analyzer plus a log message, but it is a product decision: the alternative is to reject the query. Name it
-  in the documentation before somebody discovers it in production.
+  in the documentation before somebody discovers it in production. *Resolution (2026-08-25): the
+  generic-plus-warning behaviour shipped in PR #1453; the user-facing documentation of the fallback lands
+  with the schema step (`schema-design.md` §6.5), where analyzer selection first becomes user-visible.*
 - **P5-6 — who informs about the change of results on migrating from the existing `DiacriticFilter`, and
   when (§4.6, §10.4).** The old client's manual conversion table is equivalent neither to NFD decomposition
   nor to `ASCIIFoldingFilter`; the differences are small but they exist, and they manifest as **different
@@ -969,4 +1109,358 @@ The numbered ones follow on from the research; the new ones carry the P5 designa
   to do with it — whether the differences are levelled with a targeted pipeline step, or merely announced as
   a behaviour change on migration — is a product decision, not a technical one, and it has to fall before
   the first existing website is switched over. Not according to complaints, because at that moment the way
-  back is a reindex.
+  back is a reindex. *Discarded (2026-08-25) — see §4.6 point 3: migration from the legacy stack is not a
+  supported path, and the parity list of §10.4 falls with it.*
+- **P5-7 — the shape of the markup-stripping opt-in (§13).** Measured and behaviourally pinned on
+  2026-09-24, not decided. Open: which schema surface carries the switch (§13.5 recommends a content-type
+  declaration on the searchable value, realized as a reader-level wrapper in the registry), the policy for a
+  surface form that carries trailing markup (§13.3), and where NFC runs once a character filter precedes the
+  tokenizer (§13.4 — it must run *after* the filter). Lands with the analyzer parameters of `schema-design.md`
+  §6.5; the P1 index must not freeze its fingerprint without it.
+
+---
+
+## 12. Implementation reference — prior-art research on folding vs. stemming
+
+The ordering dilemma this plan inherits (fold after the stemmer, §4.6/§7, and the accent-typed
+recall it costs — measured by `CzechAccentTypingTest` at 83/108 for `CzechStemFilter` and 27/108
+for Hunspell `cs_CZ`) was surveyed against seven engines — Lucene, Solr, Elasticsearch,
+OpenSearch, Vespa, Meilisearch, Typesense — plus the in-house EdeeCMS analyzers. The full record,
+assignment and findings with `path:line` evidence, is
+[`p5-prior-art-accent-vs-stemming.md`](p5-prior-art-accent-vs-stemming.md) (2026-08-27). What it
+settles for the implementation:
+
+- **No engine reconciles folding with a native-orthography stemmer.** Lucene/Solr/ES ship Czech
+  with no folding at all; Vespa and Typesense fold first by default and let Czech go unstemmed.
+  Typesense even ships both orders at once — fold→stem for Latin scripts, stem→fold for
+  Cyrillic — because the order is dictated by the alphabet the stemmer's tables are written in,
+  not by principle.
+- **The established fix is co-design (findings §3, mechanism M1):** a language-specific
+  normalization step plus a stemmer written in folded space — Lucene's German/Spanish/French/
+  Italian/Portuguese/Greek pattern. For Czech it exists as a pattern only; a folded-space port of
+  `CzechStemmer`'s tables is mostly mechanical, with two rules needing language judgment
+  (`št→sk`, `ů→o`) — validate against the fixture vocabulary.
+- **The only shipped both-axes mechanism is a second lane per term (mechanism M2):** Vespa's
+  `stemming: multiple` (original + stems, queried as 1.0/0.7-weighted alternatives, intended
+  future default); Lucene/Solr document the same `KeywordRepeatFilter` idiom without enabling it.
+  **M2 is the mechanism with a claim on the term dictionary layout** — whether a token may ever
+  carry a folded-surface lane next to its stem lane, distinguishable at scoring time, must be
+  decided before the dictionary layout freezes (ties into P5-1 in §11 and the P5 → P1 gate).
+- **Dead ends verified:** no engine wires a spell-suggester into the query path; the fuzzy
+  ceiling is 2 edits everywhere (so 3+-edit accent gaps stay unreachable, refining O3); ICU
+  collation keys are whole-value sort lanes only; ES `unicode_aware` is code-point counting, not
+  accent-blind fuzzy.
+
+**All six mechanisms were then built and measured** —
+[`p5-approach-measurements-accent-vs-stemming.md`](p5-approach-measurements-accent-vs-stemming.md)
+(run of 2026-09-01), 23 matrix rows over one 32-lemma/119-form vocabulary on five metrics. It
+amends two of the points above:
+
+- **M1 is confirmed and quantified:** up to a **perfect 348/348** on the bare-typed cross-form
+  query (the production chain scores 253/348), at one term per token. The port needed a **third**
+  rule the survey did not predict — the neuter `-at-` paradigm entries
+  (`atech`/`atům`/`ata`/`aty`/`at`), which folding makes ambiguous with the far commoner `-át`
+  masculines. That rule is a three-way switch, all positions measured: kept single-pass splits
+  `kabát` (8 pairs) *and* merges `formát`≡`forma` (12 merges); dropped splits `rajče`/`rajčata`
+  (4 pairs); kept with the stemmer applied **twice** converges everything and keeps the
+  `formát`≡`forma` merges — two-step is what makes the perfect score reachable. The two rules the
+  survey *did* flag are both genuine trades: `št→sk` buys 32 pairs (the largest lever in the
+  matrix) for 50 false merges, `ů→o` buys 2 for 30+ and is dominated by two-step on the fixture.
+  Note that the folded `st`/`št` ambiguity produces 8 false merges even with both rewrites
+  disabled, so declining them is not a precision-free option either. Where to sit on that curve
+  (A16 342/348 @ 58 merges, A19 346/348 @ 76, A18 348/348 @ 112) is the one open decision.
+- **M2 is refuted, which releases the term dictionary layout:** the second lane buys 3 pairs of 95
+  for a 1.95x term inflation, because a folded surface lane and a stem lane only ever meet like for
+  like. **The "settle the second lane before the layout freezes" constraint above is therefore
+  lifted** — if a surface lane is wanted later it must be argued from exact-phrase or highlighting,
+  not from accent recall. `AnalyzedTerm.surfaceForm()` stays regardless.
+
+---
+
+## 13. Markup in indexed text — the missing character filter, its measured cost, and the opt-in's design space
+
+> Added 2026-09-24. Source of the measurements: the PR #1453 review comment
+> [`#issuecomment-5711798689`](https://github.com/FgForrest/evitaDB/pull/1453#issuecomment-5711798689), taken
+> over a production CMS catalog of **972,611 Czech articles**. Source of the behaviour: the JUnit harness
+> `HtmlMarkupStrippingAnalysisTest` (`evita_test/evita_functional_tests`, package
+> `io.evitadb.index.fulltext.analysis`), whose every assertion was first observed and then pinned. Nothing in
+> this section is a decision; it is the material the decision (P5-7, §11) is to be made from **without**
+> re-running the corpus or re-deriving the filter's behaviour.
+
+### 13.1 What the corpus showed
+
+The article body is associated data of type `String`, **HTML carrying a JSON payload in `data-` attributes**.
+The shipped chain (`StandardTokenizer → LowerCase → Stop → CzechStem → ASCIIFolding`, §4.4) has no
+`CharFilter`, so all of it is indexed as terms. The body is **64.8 % markup by code point**. Both arms over
+the whole corpus, building P1's term dictionary (K3), as shipped versus with Lucene's `HTMLStripCharFilter` in
+front of the analyzer:
+
+| | as shipped | HTML stripped | Δ |
+|---|---|---|---|
+| distinct terms | 5,549,814 | **1,143,244** | **−79.4 %** |
+| postings | 284,165,619 | 176,999,724 | −37.7 % |
+| body tokens | 665,396,803 | 191,981,382 | −71.1 % |
+| dictionary + postings heap (JOL) | 1.01 GiB | **515 MiB** | **−49.1 %** |
+| bulk build | 14.2 min | 6.4 min | −54.9 % |
+
+Four in five distinct terms are markup and half the structure's heap goes on them. That lands on two design
+points — phase-1 cost is the sum of the posting lengths of the expanded terms (`p1-index-core.md` §5.2), and the
+impact sidecar spends one byte per (field, term, document) — and both pay per document for terms that can never
+usefully match, while both are reachable by ordinary prefix and typo expansion.
+
+**The widest posting lists**, as document frequency over 972,611 articles, resolved back to the surface forms
+that produced them over a 9,859-body sample:
+
+```
+as shipped                                    HTML stripped
+p                955,974   98.3 %   <p>         ze    703,538          rok   416,851   mel   387,763 (měl)
+dat              607,186   62.4 %   data/date   lt    370,229 (let)    jedn  360,392   rekl  298,330 (řekl)
+dynamik          591,067   60.8 %   dynamic     lid   286,771 (lidé)   cesk  274,573   cl    268,071 (celý)
+quot             590,316   60.7 %   &quot;
+fals/class/valu  ~590,150  60.7 %   false / class / value
+```
+
+The stripped arm is ordinary Czech prose. A note the review itself corrected: `lt` on the right is the **stem**
+of *let/letech/letos*, not an `&lt;` residue — the literal token `lt` survives stripping in 0.00 % of sampled
+bodies, while `&lt;` occurs in 41.6 % of them, entirely inside attribute values, and is removed in full.
+**Stripping is sufficient on this corpus; there is no entity residue.**
+
+Two gaps the review named, if markup handling is to be configurable:
+
+1. **No character filter exists in `io.evitadb.index.fulltext.analysis`.** `HTMLStripCharFilter` is in
+   `lucene-analysis-common`, already pinned (§3), so the markup half is a small addition. Nothing exists for
+   extracting selected paths out of a structured (JSON) payload.
+2. **`AnalyzerAssignmentResolver#resolveAnalyzers(entityType, locale)` is per (entity type, locale), not per
+   attribute.** Sufficient for a markup stripper, which is a no-op on plain text and can run over every field.
+   Not sufficient for a payload-path extractor: title, lead paragraph and body share one collection and one
+   locale, and only the body is structured.
+
+### 13.2 What the harness pinned
+
+`HtmlMarkupStrippingAnalysisTest` runs the built-in Czech index and search chains against the same chains with
+`HTMLStripCharFilter` in front of the tokenizer, through `FulltextAnalyzer` — i.e. through the production code
+path, NFC normalization on the boundary included. On a synthetic body of the corpus's shape
+(`<p class="dynamic" data-value='{"value": false, "date": "2026"}'>Černá pánská obuv</p>`):
+
+| Behaviour | As shipped | Stripped | Test |
+|---|---|---|---|
+| Tag/attribute/payload words | `p class dynamik dat valu valu fals dat 2026 … p` — the review's vocabulary, reproduced | `cern pansk obuv` | `BuiltInChainsToday`, `StrippedChain` |
+| Distinct terms of that body | 10 | 3 | `shouldShrinkDistinctTermSetToProse` |
+| Named entities `&quot; &lt; &gt; &amp; &nbsp;` | indexed as `quot lt gt amp nbsp`; `&nbsp;` glues to the next word | decoded; `&nbsp;` is a space again | `shouldDecodeEntities` |
+| Numeric entity `&#268;ern&#225;` | `268 ern 225` — the word torn apart | `cern` | `shouldDecodeEntities` |
+| Inline tag inside a word `Čer<b>ná</b>` | `cr b na b` — two garbage stems | `cern` — halves joined, no separator | `shouldJoinWordSplitByInlineTag` |
+| Block tag between words `<p>Černá</p><p>obuv</p>`, `Černá<br>obuv` | tag terms in between | `cern obuv` — block tags become whitespace | `shouldSeparateWordsSplitByBlockTag` |
+| `<script>`, `<style>`, `<!-- -->` bodies; JSON in a `data-` attribute | indexed | dropped entirely | `shouldDropScriptStyleAndCommentBodies` |
+| `<![CDATA[ ]]>`, `<title>`, `<textarea>` content | indexed with the markers | content kept, markers dropped | same |
+| `<img alt="…">` | `alt` text indexed with the tag words | **dropped with the tag** — an attribute is an attribute | `shouldDropAltTextWithTheTag` |
+| Position increments across removed markup | gaps only where tags were tokens | all `+1` — a phrase spans a tag boundary | `shouldLeaveNoPositionGapForRemovedMarkup` |
+| Plain text, incl. `5 < 10`, `5<10`, `<3 boty`, `<tagem a dál`, e-mails, bare JSON text | — | **identical `AnalyzedTerm` lists**, offsets and positions included | `shouldBeNoOpOnPlainText` |
+| Query text with markup `<b>cerna</b>` (search chain) | tag terms | same variants as `cerna`; meets the stripped index term | `BothSides` |
+
+The **no-op on plain text** row is what makes the review's gap 2 a non-issue for this step: a stripper keyed
+per (collection, locale) is harmless on the title and the lead of the same article. The **both sides** rows are
+why the step can be declared `AnalysisMode.ALL` — it carries no dictionary and no state, so the query side may
+run it too (a pasted query keeps working), and Lucene's own mode fold treats character filters as mode-less
+anyway (see the `AnalysisMode` javadoc).
+
+### 13.3 Sharp edges, pinned as observed — each is a decision the wiring has to make
+
+1. **End offsets swallow a directly following tag, and so does the surface form.** Lucene's `BaseCharFilter`
+   maps an output offset sitting at the boundary of a removed run onto the *end* of that run. In
+   `<p>Černá <b>pánská</b> obuv</p>` the term `pansk` reports offsets 12–22, not 12–18, and
+   `AnalyzedTerm#surfaceForm()` — a slice of the stored value between the corrected offsets — is `pánská</b>`.
+   A word joined across an inline tag reports the whole span: `Čer<b>ná</b>`, `&#268;ern&#225;`. Start offsets
+   are correct throughout, and a term separated from its tag by whitespace is unaffected. **The term is right;
+   the surface form is raw.** Consumers of the surface form — the P3 suggester (which must never show a raw term
+   anyway, §6), highlighting — either tolerate trailing markup or the wiring trims it when the step is on.
+   Tests: `OffsetsAndSurfaceForms`.
+2. **An entity that decodes to a combining mark bypasses NFC.** `FulltextAnalyzer#analyze` normalizes to NFC
+   *before* the chain, and a character filter runs *inside* the chain. `c&#780;erna&#769;` therefore decodes to
+   `c` + U+030C … — NFD text the Czech stemmer cannot read and `ASCIIFoldingFilter` does not fold — and comes out
+   as the single term `c̆erná`, neither stemmed nor folded, while `&#269;ern&#225;` (precomposed) comes out as
+   `cern`. This is exactly the silent degradation the NFC guard in `FulltextAnalyzer` exists to prevent, reached
+   by a side door. **A production wiring must run NFC after the character filter.** Test:
+   `shouldNotNormalizeEntityDecodedCombiningMarks`.
+3. **A letter-led `<X` at the very end of a value is eaten as an unclosed tag.** `Velikost S<M<L` yields
+   `velikost m` stripped against `velikost m l` as shipped — the last size is gone. And a letter between angle
+   brackets in prose *is* a tag to a grammar: `a<b>c` joins into `ac`. `<` followed by a space, a digit, or an
+   unclosed run that meets more prose (`<tagem a dál`) is left alone. **This is the concrete reason the step is
+   opt-in and off by default**: a product description is prose that may contain `<`, and no grammar can tell a
+   field is prose. Test: `shouldSwallowTrailingUnclosedTagLikeText`.
+4. **`alt` text goes with its tag.** If image descriptions are to be searchable, they have to be extracted before
+   the stripper — the filter has no hook for keeping an attribute. Not pursued here.
+
+### 13.4 Placement and mechanism
+
+**Reachable by wrapping — the opposite of §4.6 point 2.** A character filter is a `Reader` decorator; the only
+place it can go is in front of the tokenizer, and `AnalyzerWrapper#wrapReader` (or `Analyzer#initReader` on a
+composed chain) exposes exactly that seam. The built-in chains therefore need **no recomposition** for this step:
+the harness wraps `DiacriticsFoldingAnalyzerWrapper(new CzechAnalyzer())` and the Czech search chain unchanged.
+The single-term normalization path (`Analyzer#normalize`, prefix and fuzzy probes — §4.4, §6) is deliberately
+left **without** the filter (`wrapReaderForNormalization` not overridden): a typed prefix is never markup, and a
+`<` typed there is a character the user means.
+
+**Where NFC goes (13.3 point 2) — the rule and the proposed implementation.** The rule is one sentence:
+*whenever a character filter that can introduce new characters sits in a chain, NFC has to run after it as
+well.* The boundary normalization in `FulltextAnalyzer#analyze` **stays** — it protects every chain that has no
+character filter, and its offset contract (offsets index into the NFC form, pinned by
+`FulltextAnalyzerTest#shouldReportOffsetsIntoNormalizedText`) is not touched. Only the stripping wrapper gains
+a second normalization, and it has to take a specific form.
+
+*The obvious fix is wrong.* Reading the stripped text, normalizing it and handing back a `StringReader` —
+
+```java
+@Override
+protected Reader wrapReader(String fieldName, Reader reader) {
+	final String stripped = readFully(new HTMLStripCharFilter(reader));
+	return new StringReader(Normalizer.normalize(stripped, Normalizer.Form.NFC)); // breaks offsets
+}
+```
+
+— destroys offset correction. Lucene's tokenizer maps offsets back through the chain of `CharFilter`
+instances it can see; a plain `StringReader` on top hides the `HTMLStripCharFilter` beneath it, so every
+offset points into the *stripped* text and `AnalyzedTerm#surfaceForm()` slices the wrong string. The
+normalization must therefore be a `CharFilter` itself, with its own offset map.
+
+*Proposed shape* — a small `BaseCharFilter` that normalizes per base-character run and records where a run got
+shorter. Sketch (supplementary characters need surrogate-aware iteration, omitted here):
+
+```java
+/** NFC after a decoding character filter; records offset shifts where a combining sequence composed. */
+final class NfcCharFilter extends BaseCharFilter {
+	private Reader normalized;
+
+	NfcCharFilter(Reader in) { super(in); }
+
+	@Override
+	public int read(char[] cbuf, int off, int len) throws IOException {
+		if (this.normalized == null) {
+			prepare();
+		}
+		return this.normalized.read(cbuf, off, len);
+	}
+
+	private void prepare() throws IOException {
+		final String raw = readFully(this.input); // the value is an in-memory string already
+		if (Normalizer.isNormalized(raw, Normalizer.Form.NFC)) {
+			this.normalized = new StringReader(raw); // fast path: no copy, no offset map
+			return;
+		}
+		final StringBuilder out = new StringBuilder(raw.length());
+		int runStart = 0;
+		int cumulativeDiff = 0;
+		for (int i = 1; i <= raw.length(); i++) {
+			// a run is one base character plus the combining marks that follow it
+			if (i == raw.length() || !isCombiningMark(raw.charAt(i))) {
+				final String run = Normalizer.normalize(raw.substring(runStart, i), Normalizer.Form.NFC);
+				out.append(run);
+				final int diff = (i - runStart) - run.length();
+				if (diff != 0) {
+					cumulativeDiff += diff;
+					addOffCorrectMap(out.length(), cumulativeDiff);
+				}
+				runStart = i;
+			}
+		}
+		this.normalized = new StringReader(out.toString());
+	}
+}
+```
+
+`isCombiningMark` tests `Character.getType()` for `NON_SPACING_MARK`, `ENCLOSING_MARK` and
+`COMBINING_SPACING_MARK`. The wrapper then composes the two filters:
+
+```java
+@Override
+protected Reader wrapReader(String fieldName, Reader reader) {
+	return new NfcCharFilter(new HTMLStripCharFilter(reader));
+}
+```
+
+*What it does to the chain.* With the switch on, the Czech index chain reads
+
+```
+boundary NFC → HTMLStripCharFilter → NfcCharFilter → StandardTokenizer → LowerCase → Stop → CzechStem → ASCIIFolding
+```
+
+- **Terms:** `c&#780;erna&#769;` yields `cern`, the same as `černá`; today's harness pins the un-stemmed
+  `c̆erná` for the wrapper *without* this filter (`shouldNotNormalizeEntityDecodedCombiningMarks`), and that
+  assertion flips when the wiring lands.
+- **Offsets:** the tokenizer asks `NfcCharFilter#correctOffset`, which asks `HTMLStripCharFilter#correctOffset`,
+  so offsets still index into the boundary-normalized string exactly as today. The surface form of the token
+  stays the full entity text `c&#780;erna&#769;` — the raw-slice behaviour of 13.3 point 1.
+- **Cost:** on text without decomposed sequences `Normalizer.isNormalized` is a single scan and the stripped
+  text passes through untouched; the copying pass runs only when an entity actually produced a combining mark.
+- **Scope:** chains without the switch are untouched; the step is stateless, so `AnalysisMode.ALL` is unaffected.
+- **Test:** a sibling of `FulltextAnalyzerTest.UnicodeNormalization#shouldProduceSameTermsForNfdAndNfcInput` in
+  the wiring's test, asserting `cern` and offsets `0–17` for the entity-encoded word.
+
+*Alternatives, with reasons:*
+
+- **NFC as an always-present character filter, last in the filter list, replacing the boundary
+  normalization.** One mechanism instead of two, and offsets would then refer to the caller's *original*
+  string rather than its NFC form. **Rejected for now because** that is a change of a documented contract
+  (`shouldReportOffsetsIntoNormalizedText` pins the opposite) with no consumer asking for it; worth
+  reconsidering only if highlighting later wants offsets into the stored value, at which point the change is a
+  reindex-free swap of where the map is kept.
+- **Lucene's `ICUNormalizer2CharFilter`**, which is exactly the class above done properly. **Rejected because**
+  it lives in `lucene-analysis-icu` and drags ICU4J in for one call `java.text.Normalizer` already makes.
+  Revisit only if a second ICU need appears (e.g. ICU tokenization for scripts `StandardTokenizer` handles
+  poorly).
+- **Leaving it and documenting.** **Rejected because** the guard in `FulltextAnalyzer#analyze` is described
+  there as a correctness requirement that must not be removed; a step that reopens it from the side
+  contradicts the file it would be wired into, and the failure is silent (unstemmed, unfolded term), which the
+  defensive-design rule forbids.
+
+**Mode.** `AnalysisMode.ALL` — stateless, same terms both sides (13.2). `INDEX_TIME` only was considered and
+**rejected because** it buys nothing (the filter is a no-op on the query text a user types) and loses the one
+case it does affect — a query pasted with markup would produce tag terms no document holds.
+
+### 13.5 The opt-in — options for the surface, and the mechanism beneath them
+
+The switch changes what the index holds, so under §8 and `schema-design.md` §6.5 point 5 it is part of the
+analyzer's **fingerprint** and flipping it is a **reindex** (`schema-design.md` §7.2 classification). Whatever
+surface is chosen, that must hold. Three surfaces were weighed:
+
+- **(a) Named built-in variants** — `czech-html`, `czech-html-search`, … selectable through today's
+  `AnalyzerAssignment` names; zero new schema concepts. **Rejected because** the table multiplies: languages ×
+  sides × every optional step (this one, the word/number split of §4.6 point 2, a future stop-list switch), and
+  the combinations have to be pre-declared rather than composed. Acceptable only as a stopgap that the next step
+  would have to undo.
+- **(b) An analyzer parameter** — `stripMarkup` among the "switches for the optional pipeline steps" that
+  `schema-design.md` §6.5 already defers to the schema work; the registry applies it as the wrapper of 13.4
+  around whatever chain the name resolves to. Fits the existing deferred item exactly and needs no change to
+  the resolver's granularity (13.2 — no-op on plain text). Weakness: it says what to *do*, per (collection,
+  locale), so a product collection that has one HTML description attribute and many prose attributes has to
+  accept 13.3 point 3 on all of them, or not strip at all.
+- **(c) A content-type declaration on the searchable value** — the attribute or associated-data schema says
+  what the value *is* (`PLAIN` default, `HTML`), and the registry maps `HTML` onto the wrapper of 13.4. It is
+  per attribute without touching `AnalyzerAssignmentResolver`: the value's own schema is known to whoever
+  analyses it, so the registry keys its lazily built instances by (analyzer name, content type) and hands out
+  the stripped twin of the same chain. It is also the only surface that can later carry the review's gap 2 — a
+  `JSON` content type with a path list belongs to "what the value is", not to "which language it is in".
+  Cost: a new schema field with the full recipe of the `evita-schema-change` skill (contracts, mutations, three
+  external APIs, Kryo, WAL) and its reindex classification. **Recommended target shape**, with (b)'s mechanism
+  beneath it; if the schema round is not ready when P1 needs the fingerprint, (b) is the interim that does not
+  need undoing, because the wrapper is the same object either way.
+
+Rejected outright, with reasons:
+
+| Option | Rejected because |
+|---|---|
+| Strip always, no switch | 13.3 point 3: prose loses a term at `S<M<L` and joins `a<b>c`; no grammar can know a field is prose. Nothing would change this. |
+| Do nothing; markup stays indexed | 13.1: −49 % heap and −55 % build time on a real corpus are on the table for one class of field. It stays the default for every other field. |
+| Own regex/character stripper | The hard part is offset correction back into the stored value, and entities, `<script>`/`<style>` bodies, CDATA and comments — Lucene's JFlex grammar does all of it and is tested upstream. Same argument as §4.6 point 3 against a home-grown table. |
+| Require clients to store plain text (a second attribute) | The HTML *is* the value in a CMS — rendering needs it; a plain-text twin doubles the stored text and moves pipeline configuration into data, the argument §4.6 point 1 already rejected a marker on. |
+| Per-attribute resolver signature (gap 2) for this step | Not needed: the filter is a no-op on plain text (13.2). Needed only for a path extractor, which (c) can carry without it. |
+
+### 13.6 What must be true before the switch ships
+
+1. `NfcCharFilter` (13.4) sits behind `HTMLStripCharFilter` inside the wrapper, and the entity-encoded
+   combining-mark word comes out as `cern` with offsets into the boundary-normalized string; the harness assertion
+   pinning today's un-normalized term flips at the same time.
+2. A surface-form policy is chosen for 13.3 point 1 and written where `AnalyzedTerm#surfaceForm()` is documented.
+3. The fingerprint of §6.5 point 5 includes the switch; flipping it is classified as a reindex.
+4. Default is **off**; the user documentation states 13.3 point 3 as the reason, next to the switch.
+5. `HtmlMarkupStrippingAnalysisTest` is the contract the wiring is written against; the wiring adds a registry
+   test that the stripped twin is built lazily, closed with its registry, and never handed out for `PLAIN`.
