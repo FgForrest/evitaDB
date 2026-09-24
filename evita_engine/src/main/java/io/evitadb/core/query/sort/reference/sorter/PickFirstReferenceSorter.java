@@ -47,6 +47,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
+import java.util.function.Supplier;
 
 /**
  * Index route of a {@link PickFirstByEntityProperty} ordering: sorts owner entities by the value of their first row,
@@ -65,7 +66,8 @@ import java.util.function.IntConsumer;
  * from the unclaimed rest - no value is read while claiming. Each index is asked in the cheaper of two ways: an
  * unclaimed rest far smaller than the index is resolved against it directly (the not-found result becomes the new
  * rest), otherwise the index is first intersected with the rest. An index without a sort index of the value is
- * skipped before any bitmap is touched.
+ * skipped before any bitmap is touched, and the provider of an index is built only once the index has shown it holds
+ * an unclaimed owner.
  *
  * The positions one index claimed, walked in ascending order, are already in the order of value in the ordering
  * direction and then of owner primary key in the same direction (the descending provider is the exact mirror of the
@@ -92,9 +94,11 @@ public final class PickFirstReferenceSorter implements Sorter {
 	 */
 	@Nonnull private final PickFirstReducedIndexResolver indexResolver;
 	/**
-	 * Returns the provider of sorted values of one reduced index, or `null` when the index holds none.
+	 * Returns the source of the provider of sorted values of one reduced index, or `null` when the index holds none.
+	 * Finding out whether an index holds values is cheap; building its provider is not (it creates the value seeker
+	 * eagerly), so the provider is built only once the index has shown it holds an unclaimed owner.
 	 */
-	@Nonnull private final Function<ReducedEntityIndex, SortedRecordsProvider> providerFactory;
+	@Nonnull private final Function<ReducedEntityIndex, Supplier<SortedRecordsProvider>> providerFactory;
 	/**
 	 * Comparator of the provided values, already in the ordering direction.
 	 */
@@ -109,13 +113,14 @@ public final class PickFirstReferenceSorter implements Sorter {
 	 * Creates the sorter.
 	 *
 	 * @param indexResolver   resolves the reduced indexes that may hold a row of the selection
-	 * @param providerFactory returns the provider of sorted values of one reduced index or `null`
+	 * @param providerFactory returns the source of the provider of sorted values of one reduced index, or `null` when
+	 *                        the index holds no value
 	 * @param comparator      comparator of the provided values in the ordering direction
 	 * @param primaryKeyOrder direction of the ordering, applied to the primary keys of owners with equal values
 	 */
 	public PickFirstReferenceSorter(
 		@Nonnull PickFirstReducedIndexResolver indexResolver,
-		@Nonnull Function<ReducedEntityIndex, SortedRecordsProvider> providerFactory,
+		@Nonnull Function<ReducedEntityIndex, Supplier<SortedRecordsProvider>> providerFactory,
 		@SuppressWarnings("rawtypes") @Nonnull Comparator comparator,
 		@Nonnull OrderDirection primaryKeyOrder
 	) {
@@ -205,10 +210,11 @@ public final class PickFirstReferenceSorter implements Sorter {
 					// the unclaimed rest is far smaller than the index: resolve it directly - a lookup per unclaimed
 					// owner - and what the provider does not hold is exactly the new unclaimed rest, with no
 					// intersection and no removal
-					final SortedRecordsProvider provider = this.providerFactory.apply(index);
-					if (provider == null) {
+					final Supplier<SortedRecordsProvider> providerSource = this.providerFactory.apply(index);
+					if (providerSource == null) {
 						continue;
 					}
+					final SortedRecordsProvider provider = providerSource.get();
 					final PositionResolution resolution = provider.resolvePositions(
 						unclaimed, unclaimedCount, bufferA, bufferB, forcedResolution
 					);
@@ -225,8 +231,8 @@ public final class PickFirstReferenceSorter implements Sorter {
 
 					// an index without a sort index of the value holds nothing to claim - ask for it before touching
 					// any bitmap, it is the whole cost of an ordering by a value few rows carry
-					final SortedRecordsProvider provider = this.providerFactory.apply(index);
-					if (provider == null) {
+					final Supplier<SortedRecordsProvider> providerSource = this.providerFactory.apply(index);
+					if (providerSource == null) {
 						continue;
 					}
 					final PersistentRoaringBitmap indexOwnerBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(indexOwners);
@@ -236,6 +242,7 @@ public final class PickFirstReferenceSorter implements Sorter {
 						continue;
 					}
 					final PersistentRoaringBitmap candidates = PersistentRoaringBitmap.and(indexOwnerBitmap, unclaimed);
+					final SortedRecordsProvider provider = providerSource.get();
 					final PositionResolution resolution = provider.resolvePositions(
 						candidates, candidates.getCardinality(), bufferA, bufferB, forcedResolution
 					);

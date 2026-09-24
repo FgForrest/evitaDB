@@ -119,7 +119,7 @@ public class EntityPrimaryKeyNaturalTranslator
 				),
 				new PickFirstReferenceSorter(
 					pickFirstIndexResolver,
-					index -> createReferencedPrimaryKeyProvider(index, orderDirection),
+					index -> () -> createReferencedPrimaryKeyProvider(index, orderDirection),
 					orderDirection == OrderDirection.DESC ? Comparator.naturalOrder().reversed() : Comparator.naturalOrder(),
 					orderDirection
 				)

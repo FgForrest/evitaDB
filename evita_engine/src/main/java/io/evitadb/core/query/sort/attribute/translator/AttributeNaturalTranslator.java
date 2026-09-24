@@ -399,7 +399,9 @@ public class AttributeNaturalTranslator
 			SortIndex::getAscendingOrderRecordsSupplier : SortIndex::getDescendingOrderRecordsSupplier;
 		//noinspection rawtypes
 		final Comparator valueComparator;
-		final Function<ReducedEntityIndex, SortedRecordsProvider> providerFactory;
+		// the sort index lookup decides whether an index holds any value; the provider itself - which creates its value
+		// seeker eagerly - is built only when the sorter finds an unclaimed owner in the index
+		final Function<ReducedEntityIndex, Supplier<SortedRecordsProvider>> providerFactory;
 		final EntityComparator entityComparator;
 		if (attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract compoundSchema) {
 			final Comparator<ComparableArray> naturalComparator = createCombinedComparatorFor(
@@ -418,7 +420,7 @@ public class AttributeNaturalTranslator
 			final EntitySchemaContract theEntitySchema = Objects.requireNonNull(entitySchema);
 			providerFactory = index -> {
 				final SortIndex sortIndex = index.getSortIndex(theEntitySchema, referenceSchema, compoundSchema, locale);
-				return sortIndex == null ? null : providerExtractor.apply(sortIndex);
+				return sortIndex == null ? null : () -> providerExtractor.apply(sortIndex);
 			};
 			entityComparator = new PickFirstReferenceCompoundAttributeComparator(
 				compoundSchema,
@@ -435,7 +437,7 @@ public class AttributeNaturalTranslator
 			);
 			providerFactory = index -> {
 				final SortIndex sortIndex = index.getSortIndex(referenceSchema, attributeSchema, locale);
-				return sortIndex == null ? null : providerExtractor.apply(sortIndex);
+				return sortIndex == null ? null : () -> providerExtractor.apply(sortIndex);
 			};
 			entityComparator = new PickFirstReferenceAttributeComparator(
 				attributeSchema.getName(),

@@ -49,7 +49,9 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static io.evitadb.test.TestTags.ENGINE;
@@ -163,6 +165,14 @@ class PickFirstReferenceSorterTest {
 			index.getPrimaryKey(), sortedOwners, positions, new BaseBitmap(ownersAscending),
 			position -> values[position]
 		);
+	}
+
+	/**
+	 * Wraps a provider into the lazy source the sorter asks for, keeping `null` for an index without values.
+	 */
+	@Nullable
+	private static Supplier<SortedRecordsProvider> lazy(@Nullable SortedRecordsProvider provider) {
+		return provider == null ? null : () -> provider;
 	}
 
 	/**
@@ -300,7 +310,7 @@ class PickFirstReferenceSorterTest {
 		final WitnessFixture fixture = new WitnessFixture();
 		final PickFirstReferenceSorter sorter = new PickFirstReferenceSorter(
 			fixture.resolver,
-			index -> index.getPrimaryKey() == 101 ? null : fixture.provider(OrderDirection.ASC, index),
+			index -> index.getPrimaryKey() == 101 ? null : lazy(fixture.provider(OrderDirection.ASC, index)),
 			Comparator.naturalOrder(),
 			OrderDirection.ASC
 		);
@@ -370,17 +380,32 @@ class PickFirstReferenceSorterTest {
 	void shouldClaimNothingFromIndexesHoldingNoSelectedOwner() {
 		final WitnessFixture fixture = new WitnessFixture();
 
-		// the resolver hands over every index of the fixture, yet only 102 (no value) and 104 hold owner 1, and only
-		// 101 and 104 hold owner 7 - the rest must be rejected by the intersection with the unclaimed owners
+		// the resolver hands over every index of the fixture, yet only 102 (no value for it) and 104 hold owner 1, and
+		// only 101 and 104 hold owner 7 - 103 and 106 must be rejected by the intersection with the unclaimed owners
+		// before their providers are ever built, 105 has no provider at all
+		final Set<Integer> builtProviders = new TreeSet<>();
+		final PickFirstReferenceSorter sorter = new PickFirstReferenceSorter(
+			fixture.resolver,
+			index -> {
+				final SortedRecordsProvider provider = fixture.provider(OrderDirection.ASC, index);
+				return provider == null ? null : () -> {
+					builtProviders.add(index.getPrimaryKey());
+					return provider;
+				};
+			},
+			Comparator.naturalOrder(),
+			OrderDirection.ASC
+		);
 		final SortResult sorted = sort(
-			fixture.sorter(OrderDirection.ASC),
+			sorter,
 			new SortingContext(createExecutionContext(false), new BaseBitmap(1, 7), 0, 10, 0, 0),
 			10
 		);
 
 		assertAll(
 			() -> assertArrayEquals(new int[]{7, 1}, sorted.written()),
-			() -> assertArrayEquals(new int[0], content(sorted.output().nonSortedKeys()))
+			() -> assertArrayEquals(new int[0], content(sorted.output().nonSortedKeys())),
+			() -> assertEquals(Set.of(101, 102, 104), builtProviders)
 		);
 	}
 
@@ -403,7 +428,7 @@ class PickFirstReferenceSorterTest {
 		final SortedRecordsSupplier smallProvider = createProvider(smallIndex, OrderDirection.ASC, 75, 80);
 		final PickFirstReferenceSorter sorter = new PickFirstReferenceSorter(
 			indexFixture.resolver(false, Scope.LIVE),
-			index -> index.getPrimaryKey() == 201 ? largeProvider : smallProvider,
+			index -> lazy(index.getPrimaryKey() == 201 ? largeProvider : smallProvider),
 			Comparator.naturalOrder(),
 			OrderDirection.ASC
 		);
@@ -452,7 +477,7 @@ class PickFirstReferenceSorterTest {
 		}
 		final SortedRecordsSupplier provider = createProvider(index, OrderDirection.ASC, ownerValues);
 		final PickFirstReferenceSorter sorter = new PickFirstReferenceSorter(
-			indexFixture.resolver(false, Scope.LIVE), theIndex -> provider, Comparator.naturalOrder(), OrderDirection.ASC
+			indexFixture.resolver(false, Scope.LIVE), theIndex -> lazy(provider), Comparator.naturalOrder(), OrderDirection.ASC
 		);
 
 		final SortResult sorted = sort(
@@ -550,7 +575,7 @@ class PickFirstReferenceSorterTest {
 		PickFirstReferenceSorter sorter(@Nonnull OrderDirection direction) {
 			return new PickFirstReferenceSorter(
 				this.resolver,
-				index -> provider(direction, index),
+				index -> lazy(provider(direction, index)),
 				direction == OrderDirection.ASC ? Comparator.naturalOrder() : Comparator.reverseOrder(),
 				direction
 			);

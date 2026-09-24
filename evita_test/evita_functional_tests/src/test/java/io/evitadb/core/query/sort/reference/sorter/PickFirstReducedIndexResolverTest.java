@@ -258,6 +258,27 @@ class PickFirstReducedIndexResolverTest {
 		);
 	}
 
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(CandidatePath.class)
+	@DisplayName("should resolve exactly the indexes holding a selected owner under a target sorter whichever path")
+	void shouldResolveExactlyIndexesHoldingSelectedOwnerUnderTargetSorter(CandidatePath path) {
+		final PickFirstReducedIndexFixture fixture = new PickFirstReducedIndexFixture();
+		addStandardIndexes(fixture);
+		switch (path) {
+			case GATHER -> fixture.registerFamily(Scope.LIVE, 101, 102);
+			case NO_MEMBERSHIP -> {
+				// no membership is registered at all
+			}
+			case COVERED_NOT_SMALLER -> fixture.registerFamily(Scope.LIVE, COVERED);
+		}
+		final PickFirstReducedIndexResolver resolver = fixture.resolver(
+			createTargetSorter(), () -> new ReducedEntityIndex[0], Scope.LIVE
+		);
+
+		// 105 holds no selected owner; a set-dependent target order must never see its target, on any path
+		assertIndexes(new int[]{101, 102, 103, 104, 106}, resolver.resolve(new BaseBitmap(WIDE_SELECTION)));
+	}
+
 	@Test
 	@DisplayName("should skip candidates that do not resolve to a reduced index of this reference in this scope")
 	void shouldSkipCandidatesThatDoNotResolveToThisReference() {
@@ -315,7 +336,7 @@ class PickFirstReducedIndexResolverTest {
 	}
 
 	@Test
-	@DisplayName("should order targets by the target sorter and rank a target outside the ordered set last")
+	@DisplayName("should rank only targets of selected owners under a target sorter and rank any other target last")
 	void shouldOrderTargetsByTargetSorterAndRankUnknownTargetLast() {
 		final PickFirstReducedIndexFixture fixture = createStandardFixture();
 		// targets 4, 1 and 2 lead in this order, the sorter appends the remaining ones ascending
@@ -327,15 +348,14 @@ class PickFirstReducedIndexResolverTest {
 		final ResolvedReducedIndexes resolved = resolver.resolve(selection);
 		final IntUnaryOperator rank = resolver.getTargetRank(selection);
 
-		assertIndexes(new int[]{104, 101, 102, 103, 105, 106}, resolved);
-		// target 5 is referenced only by owner 6, which is not selected, yet ranks among the others - an extra target
-		// never changes the relative order of the targets the selection does reference
+		// index 105 holds only the unselected owner 6: a nested target order may depend on the whole set it orders
+		// (a seeded random order does), so its target must not take part in ranking at all
+		assertIndexes(new int[]{104, 101, 102, 103, 106}, resolved);
 		assertArrayEquals(
-			new int[]{0, 1, 2, 3, 4, 5},
-			Arrays.stream(new int[]{4, 1, 2, 3, 5, 6}).map(rank).toArray()
+			new int[]{0, 1, 2, 3, 4},
+			Arrays.stream(new int[]{4, 1, 2, 3, 6}).map(rank).toArray()
 		);
-		// target 99 is referenced by no index of the reference at all
-		assertEquals(Integer.MAX_VALUE, rank.applyAsInt(99));
+		assertEquals(Integer.MAX_VALUE, rank.applyAsInt(5));
 	}
 
 	@Test

@@ -78,12 +78,17 @@ import java.util.function.Supplier;
  *   reference, exactly as before;
  * - an index that no longer resolves is skipped, and so is an index of the group family, which the membership covers
  *   too;
- * - the resolved indexes are a superset of the indexes holding a selected owner and are deliberately not probed
- *   against the selection here: {@link PickFirstReferenceSorter} intersects every index with the owners still
- *   unclaimed anyway, which rejects an index holding no selected owner at no extra cost, while a probe here would
- *   repeat that intersection for every index of a dense selection (measured at half the sort time for 80,187 owners
- *   over 4,022 partitions). Both routes derive the set from the same selection and membership, and a target order
- *   is a total order, so the targets of the extra indexes never change the relative order of the others.
+ * - under the plain primary key order the resolved indexes are a superset of the indexes holding a selected owner and
+ *   are deliberately not probed against the selection: {@link PickFirstReferenceSorter} intersects every index with
+ *   the owners still unclaimed anyway, which rejects an index holding no selected owner at no extra cost, while a
+ *   probe here would repeat that intersection for every index of a dense selection (measured at half the sort time
+ *   for 80,187 owners over 4,022 partitions). A target's rank is its own primary key there, so extra targets cannot
+ *   move the others;
+ * - under any other target order every resolved index is probed against the selection and only indexes holding a
+ *   selected owner are kept, because a nested target order may depend on the whole set it orders - a seeded random
+ *   order is a permutation of the whole set, so one more target changes the relative order of the others - and a
+ *   target referenced only by unselected owners must not take part in ranking, or its mere existence would change
+ *   which row of a selected owner is picked.
  *
  * When the selection holds more covered owners than the reference has reduced indexes, the whole family is walked
  * instead: the gather would not visit fewer indexes and would cost more lookups.
@@ -197,8 +202,8 @@ public final class PickFirstReducedIndexResolver {
 	}
 
 	/**
-	 * Resolves the reduced indexes that may hold a row of the selected owners - a superset of those that do - in
-	 * target order.
+	 * Resolves the reduced indexes that may hold a row of the selected owners, in target order: a superset of those
+	 * that do under the plain primary key order, exactly those that do under any other target order.
 	 *
 	 * @param selection primary keys of the owners being sorted
 	 * @return the indexes and the rank function of their targets
@@ -218,7 +223,12 @@ public final class PickFirstReducedIndexResolver {
 					final OfInt it = candidates.iterator();
 					while (it.hasNext()) {
 						final ReducedEntityIndex index = resolveReducedIndex(it.nextInt(), scope);
-						if (index != null) {
+						if (
+							index != null &&
+								(this.targetSorter == null || PersistentRoaringBitmap.intersects(
+									RoaringBitmapBackedBitmap.getRoaringBitmap(index.getAllPrimaryKeys()), selected
+								))
+						) {
 							found.add(index);
 						}
 					}
