@@ -23,6 +23,7 @@
 
 package io.evitadb.api;
 
+import io.evitadb.annotation.Internal;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.exception.UniqueValueViolationException;
@@ -243,6 +244,7 @@ public record SessionTraits(
 		 *
 		 * This flag is for evitaDB internal use only. Client applications should not use binary mode.
 		 */
+		@Internal("evitaDB's own transport between server and driver; open a session without this flag")
 		BINARY,
 
 		/**
@@ -268,6 +270,7 @@ public record SessionTraits(
 		 * This flag is for evitaDB internal use only (set by the server for client-driven sessions). Client
 		 * applications should not use it.
 		 */
+		@Internal("set by the server for a client-driven session; embedded callers use updateCatalog(...)")
 		TRANSACTION_CONTROLLED_EXTERNALLY
 
 	}
