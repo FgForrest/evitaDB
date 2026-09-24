@@ -47,7 +47,6 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -394,21 +393,10 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 	 * index with zero records, so the `getAllPrimaryKeysFormula() instanceof EmptyFormula` guard is unreachable from
 	 * a functional test against it.
 	 *
-	 * **Measured, not inferred.** This row fails identically on the pre-optimisation `AttributeIsTranslator`
-	 * (A/B swap of the committed translator, this session), so the `attributeIs(NULL)` planning-time skip is not
-	 * its cause — the defect predates it. Keep the row red and keep the expectation derived from the entity
-	 * bodies; do not weaken it to the observed empty answer.
-	 *
-	 * **Classification: ENGINE DEFECT, pre-existing** — the archived-scope face of the same defect. The diagnosis,
-	 * the probe cardinalities and the one observation that contradicts them are recorded on
-	 * {@link #shouldReturnNullBearingReferenceRowsWhenSomeRowsLackTheAttribute}; this row adds only that the defect
-	 * is not scope-specific, since the live sibling fails identically.
+	 * It is also the archived-scope face of issue #1584 - see
+	 * {@link #shouldReturnNullBearingReferenceRowsWhenSomeRowsLackTheAttribute} - and proves the fix is not
+	 * scope-specific.
 	 */
-	@Disabled(
-		"Pins the correct behaviour of a pre-existing engine defect: `attributeIsNull` on a reference attribute " +
-		"resolved through reduced indexes returns empty. Measured red with the planning-time skip reverted too. " +
-		"Re-enable when issue #1584 is fixed."
-	)
 	@DisplayName("Should resolve the null filter against the indexes of the requested scope only")
 	@UseDataSet(BIDI_REWRITE)
 	@Test
@@ -466,11 +454,6 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 	 * over-fires and drops every subtraction, the `NULL` side collapses to nothing, the union shrinks to just the
 	 * `NOT_NULL` side, and this row goes red without anyone having to know what the right answer was.
 	 */
-	@Disabled(
-		"Pins the correct behaviour of a pre-existing engine defect: `attributeIsNull` on a reference attribute " +
-		"resolved through reduced indexes returns empty, so the NULL side of the partition collapses. Measured red with " +
-		"the planning-time skip reverted too. Re-enable when issue #1584 is fixed."
-	)
 	@DisplayName("Should partition the owners between the null and not-null reference filters")
 	@UseDataSet(BIDI_REWRITE)
 	@Test
@@ -548,42 +531,12 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 	 * The inversion guard for the reference-attribute path. `refSometimesSet` is written on every row of a product or
 	 * on none of them, so "the product has a row without the attribute" is a clean partition of the live collection.
 	 *
-	 * **Measured, not inferred.** This row fails identically on the pre-optimisation `AttributeIsTranslator`
-	 * (A/B swap of the committed translator, this session), so the `attributeIs(NULL)` planning-time skip is not
-	 * its cause — the defect predates it. Keep the row red and keep the expectation derived from the entity
-	 * bodies; do not weaken it to the observed empty answer.
-	 *
-	 * **Classification: ENGINE DEFECT, pre-existing.** Not caused by either optimisation under test, out of scope for
-	 * the work that wrote this class, and needing its own issue. What follows is where the investigation stopped, so
-	 * whoever picks it up starts here rather than from scratch.
-	 *
-	 * Probed against this fixture and these reduced indexes:
-	 *
-	 * - `referenceHaving(categories)` bare -> 230 owners
-	 * - `attributeIsNotNull(refAlwaysSet)` -> 230 and `attributeIsNotNull(refSometimesSet)` -> 76, both correct
-	 * - `attributeIsNull(refSometimesSet)` -> **0**, where the correct answer is 154
-	 * - the same `attributeIsNull` against the **global** entity index -> 3, correct
-	 *
-	 * So `NOT_NULL` resolves correctly through the very indexes from which `NULL` answers zero, and 76 + 0 does not
-	 * close the 230 partition. The asymmetry points at the superset: `NOT_NULL` needs only
-	 * `FilterIndex#getAllRecordsFormula`, while `NULL` also needs `EntityIndex#getAllPrimaryKeysFormula`, which
-	 * returns `EmptyFormula` when its `entityIds` are empty (`EntityIndex.java:364-366`). With an empty superset the
-	 * pre-optimisation translator built `NotFormula(rowsCarryingTheAttribute, EMPTY)` and computed nothing, while the
-	 * current one proves the subtraction empty at its first branch and emits nothing — the same answer by two routes,
-	 * which is why the A/B found no difference.
-	 *
-	 * **That reading is unconfirmed, and one observation contradicts it.**
-	 * `EntityByDuplicateReferencesFunctionalTest:1411` asserts `attributeIsNull` returns one owner through a reduced
-	 * index, and it is green on both translator versions — so the superset is not universally empty there. That query
-	 * differs in three ways and one of them matters: it narrows to a single reduced index with
-	 * `entityPrimaryKeyInSet`, its attribute is `representative`, and its reference is `ZERO_OR_MORE_WITH_DUPLICATES`.
-	 * Start by finding which.
+	 * It is also the reported shape of issue #1584 (0 owners returned where 154 are right). Every reduced index of
+	 * `categories` holds rows of products that carry the attribute next to rows of products that do not, and
+	 * candidate discovery used to answer `attributeIsNull` on the type-level index with an exact subtraction - which
+	 * keeps only the partitions in which *no* row carries the attribute, here none at all. It now widens to every
+	 * partition, like a `not` does, and leaves the null test to the per-row evaluation.
 	 */
-	@Disabled(
-		"Pins the correct behaviour of a pre-existing engine defect: `attributeIsNull` on a reference attribute " +
-		"resolved through reduced indexes returns empty. Measured red with the planning-time skip reverted too. " +
-		"Re-enable when issue #1584 is fixed."
-	)
 	@DisplayName("Should return the null-bearing reference rows when some rows lack the attribute")
 	@UseDataSet(BIDI_REWRITE)
 	@Test

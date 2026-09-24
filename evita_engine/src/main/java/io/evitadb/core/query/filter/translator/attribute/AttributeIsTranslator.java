@@ -42,6 +42,7 @@ import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
+import io.evitadb.core.query.filter.NegationResolution;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
 import io.evitadb.dataType.Scope;
@@ -73,6 +74,10 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	/**
 	 * Translates an "IS NULL" attribute condition into a corresponding Formula.
 	 *
+	 * During the candidate discovery of a `referenceHaving` ({@link NegationResolution#PER_ROW}) the constraint
+	 * widens to the super set, exactly as a `not` does: the attribute is still resolved first, so an undeclared one
+	 * is refused just the same.
+	 *
 	 * @param attributeName   the name of the attribute to be checked for null values
 	 * @param filterByVisitor the visitor responsible for filtering operations
 	 * @return a Formula representing the translated "IS NULL" condition for the specified attribute
@@ -90,6 +95,13 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
 			final ReferenceSchemaContract referenceSchema = processingScope.getReferenceSchema();
 			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeSchema);
+			if (processingScope.getNegationResolution() == NegationResolution.PER_ROW) {
+				// a type-level index can only say that SOME row of a partition carries the attribute, so an exact
+				// subtraction here drops every partition holding a null row next to a non-null one; the caller
+				// re-examines every candidate row by row, so widening keeps each one a candidate and leaves the null
+				// test to be settled inside the index it belongs to - see NegationResolution
+				return filterByVisitor.getSuperSetFormula();
+			}
 
 			// if attribute is unique prefer O(1) hash map lookup over inverted index
 			if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
