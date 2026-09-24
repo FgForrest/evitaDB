@@ -61,6 +61,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -94,7 +95,6 @@ import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -192,6 +192,7 @@ import io.evitadb.spi.store.catalog.trafficRecorder.TrafficRecorder;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.dataType.DataChunk;
 import io.evitadb.utils.IOUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -716,7 +717,13 @@ public final class EntityCollection implements
 	@Nonnull
 	public ServerEntityDecorator enrichEntity(@Nonnull EntityContract entity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
-		final Map<ReferenceContentKey, RequirementContext> namedReferenceEntityFetch = evitaRequest.getNamedReferenceEntityFetch();
+		// enrichment adds and never subtracts, so the named sets this entity already carries have to survive a
+		// request that does not mention them. They are fetched again rather than carried over: this read may land on
+		// a newer body, and a chunk built against the older one would answer out of it. What this request asks for
+		// wins wherever the two name the same instance.
+		final Map<ReferenceContentKey, RequirementContext> namedReferenceEntityFetch = mergeNamedReferenceRequirements(
+			entity, evitaRequest.getNamedReferenceEntityFetch()
+		);
 		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
 		final ReferenceFetcher referenceFetcher = referenceEntityFetch.isEmpty() &&
 			namedReferenceEntityFetch.isEmpty() &&
@@ -1256,7 +1263,7 @@ public final class EntityCollection implements
 		for (final Scope scope : Scope.values()) {
 			final EntityIndex globalIndex = getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope));
 			if (globalIndex != null) {
-				final int scopeRecords = globalIndex.getAllPrimaryKeys().size();
+				final int scopeRecords = globalIndex.size();
 				switch (scope) {
 					case LIVE -> liveRecords = scopeRecords;
 					case ARCHIVED -> archivedRecords = scopeRecords;
@@ -1855,9 +1862,9 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Rebuilds the reduced-index membership lookup the cross-entity conditional-facet trigger consults instead
-	 * of walking every reduced index of this collection. Called once, after a load has put every index in
-	 * place and every schema has been resolved.
+	 * Rebuilds the reduced-index membership lookup that the cross-entity conditional-facet trigger and reference
+	 * index selection consult instead of walking every reduced index of this collection. Called once, after a
+	 * load has put every index in place and every schema has been resolved.
 	 *
 	 * # Why this runs at load and never inside a transaction
 	 *
@@ -1868,30 +1875,25 @@ public final class EntityCollection implements
 	 * entry-level ones. At load there is no transaction and no concurrency, which is what makes this the
 	 * single safe moment.
 	 *
-	 * # Why references that are not partitioned get no slice at all
+	 * # Which references get a slice
 	 *
-	 * The trigger's sibling walk visits only references indexed at
-	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}, and the maintenance hooks that keep a slice
-	 * current are gated on the same level. A slice built here for a merely filterable reference would
-	 * therefore freeze at its load-time contents while its reduced indexes kept changing — and the moment
-	 * such a reference is raised to partitioning without a reindex (issue #409), the trigger would consult
-	 * that frozen slice instead of walking, and silently skip every index created since the load. Leaving
-	 * the slice absent keeps the reference on the full walk until the first write raises it, at which point
-	 * `ReferenceIndexMutator#seedFromAdvertisedIndexes` records everything already advertised.
+	 * Every reference that advertises reduced indexes in the scope, decided by
+	 * {@link ReducedIndexMembership#isMaintainedFor} — the same gate
+	 * `ReferenceIndexMutator#recordOwnerEnteredReducedIndex` applies on the write path. The two must agree: a
+	 * reference skipped here but maintained on write would carry a lookup whose contents begin at an arbitrary
+	 * moment in its life, and one built here but not maintained on write would freeze at its load-time contents
+	 * while its reduced indexes kept changing. Either way the reader consults a slice that omits indexes the
+	 * reference advertises, which is a **wrong answer**, not a slow one — so the decision is stated once, in
+	 * that method, and never restated at either site.
 	 *
-	 * The trigger cannot fire in a scope where no reference declares a conditional facet, so such a scope is
-	 * skipped before any index is even resolved — which means a collection that declares one nowhere pays a
-	 * single bit test per scope and nothing else. That gate is the same one
-	 * `ReferenceIndexMutator#recordOwnerEnteredReducedIndex` applies on the write path, and the two must agree:
-	 * a collection skipped here but maintained on write would carry a lookup whose contents begin at an
-	 * arbitrary moment in its life.
+	 * A reference whose components are raised without a reindex (issue #409) is the case that makes the
+	 * agreement load-bearing: it acquires reduced indexes with no slice to record them in, and
+	 * `ReferenceIndexMutator#seedFromAdvertisedIndexes` is what records everything already advertised on the
+	 * first write after the change.
 	 */
 	public void rebuildReducedIndexMembership() {
 		final EntitySchema schema = getInternalSchema();
 		for (final Scope scope : Scope.values()) {
-			if (!schema.declaresConditionalFacetInScope(scope)) {
-				continue;
-			}
 			final GlobalEntityIndex typedGlobalIndex = asGlobalEntityIndexIfExists(
 				getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope)), scope
 			);
@@ -1899,8 +1901,7 @@ public final class EntityCollection implements
 				continue;
 			}
 			for (final ReferenceSchemaContract referenceSchema : schema.getReferences().values()) {
-				if (referenceSchema.getReferenceIndexType(scope)
-					!= ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING) {
+				if (!ReducedIndexMembership.isMaintainedFor(referenceSchema, scope)) {
 					continue;
 				}
 				final ReducedIndexMembership membership =
@@ -1963,17 +1964,17 @@ public final class EntityCollection implements
 	/**
 	 * Drops every reduced-index membership lookup this schema change stops maintaining.
 	 *
-	 * The lookup is maintained only while the collection declares a conditional facet in the scope **and** the
-	 * reference is indexed at {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}. Both are pure functions of
-	 * the schema, so a schema change is the only event that can end maintenance — and a lookup kept past it freezes
-	 * while its reduced indexes go on changing. Trusted again when the flag comes back, it makes the trigger skip
-	 * every partition created in between: a **wrong facet**, not a slow one.
+	 * The lookup is maintained only while the reference advertises reduced indexes in the scope — see
+	 * {@link ReducedIndexMembership#isMaintainedFor}, a pure function of the schema, so a schema change is the only
+	 * event that can end maintenance. A lookup kept past it freezes while its reduced indexes go on changing.
+	 * Trusted again when the components come back, it makes the reader skip every partition created in between:
+	 * a **wrong answer**, not a slow one.
 	 *
 	 * Doing it here rather than on the write path is what makes it free. The condition is rare and discrete, so it
 	 * is evaluated once per schema change instead of once per reference write, and the write path keeps the bit test
 	 * it already does. What replaces the dropped lookup is nothing at all: an absent lookup puts the reference back
 	 * on the full walk, and `ReferenceIndexMutator#seedFromAdvertisedIndexes` rebuilds it from the reference's own
-	 * advertisement on the first write after the flag returns.
+	 * advertisement on the first write after the components return.
 	 *
 	 * It hangs off {@link #exchangeSchema} rather than off {@link #updateSchema} because that is where every schema
 	 * change converges: a **reflected** reference inherits its index type from another collection's reference and is
@@ -1996,12 +1997,10 @@ public final class EntityCollection implements
 			if (maintainedReferences.isEmpty()) {
 				continue;
 			}
-			final boolean conditionalFacetDeclared = updatedSchema.declaresConditionalFacetInScope(scope);
 			GlobalEntityIndex writableGlobalIndex = null;
 			for (final String referenceName : maintainedReferences) {
 				final ReferenceSchemaContract referenceSchema = updatedSchema.getReferences().get(referenceName);
-				if (conditionalFacetDeclared && referenceSchema != null &&
-					referenceSchema.getReferenceIndexType(scope) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING) {
+				if (referenceSchema != null && ReducedIndexMembership.isMaintainedFor(referenceSchema, scope)) {
 					continue;
 				}
 				if (writableGlobalIndex == null) {
@@ -3126,6 +3125,99 @@ public final class EntityCollection implements
 	}
 
 	/**
+	 * Merges the named reference requirements an entity already carries with the ones an enriching request states.
+	 *
+	 * Enrichment is additive: whatever an earlier request asked for by instance name stays on the entity, so its
+	 * requirement is fetched again here alongside the new ones.
+	 *
+	 * Naming the same instance twice is a REDEFINITION, not a union, and the enriching request wins. An instance
+	 * name identifies one field of one response, so two filters for it are contradictory rather than cumulative -
+	 * there is no wider set to add to, only a more recent statement of what that name means. Additivity holds
+	 * across instance names, never within one. A review read the additive contract as reaching inside a single
+	 * name; it does not, and `shouldRedefineTheNamedSetWhenEnrichingThroughTheSameAlias` pins that.
+	 *
+	 * @param entity       entity being enriched, which may carry requirements from the requests that built it
+	 * @param requirements named requirements the enriching request states
+	 * @return the merged requirements, or `requirements` itself when the entity carries none
+	 */
+	@Nonnull
+	private static Map<ReferenceContentKey, RequirementContext> mergeNamedReferenceRequirements(
+		@Nonnull EntityContract entity,
+		@Nonnull Map<ReferenceContentKey, RequirementContext> requirements
+	) {
+		if (!(entity instanceof ServerEntityDecorator decorator)) {
+			return requirements;
+		}
+		final Map<ReferenceContentKey, RequirementContext> carried = decorator.getNamedReferenceRequirements();
+		if (carried.isEmpty()) {
+			return requirements;
+		} else if (requirements.isEmpty()) {
+			return carried;
+		}
+		final Map<ReferenceContentKey, RequirementContext> result = CollectionUtils.createHashMap(
+			carried.size() + requirements.size()
+		);
+		result.putAll(carried);
+		result.putAll(requirements);
+		return result;
+	}
+
+	/**
+	 * Keeps the named reference sets the limiting request still asks for and drops the rest.
+	 *
+	 * @param namedReferenceSets sets the entity being narrowed carries
+	 * @param evitaRequest       request stating what the narrowed entity may expose
+	 * @return the retained sets, or NULL when nothing is retained
+	 */
+	@Nullable
+	private static Map<ReferenceContentKey, DataChunk<ReferenceContract>> retainNamedReferenceSets(
+		@Nullable Map<ReferenceContentKey, DataChunk<ReferenceContract>> namedReferenceSets,
+		@Nonnull EvitaRequest evitaRequest
+	) {
+		if (namedReferenceSets == null || namedReferenceSets.isEmpty()) {
+			return null;
+		}
+		final Set<ReferenceContentKey> retained = evitaRequest.getNamedReferenceEntityFetch().keySet();
+		final Map<ReferenceContentKey, DataChunk<ReferenceContract>> result = CollectionUtils.createHashMap(
+			Math.min(namedReferenceSets.size(), retained.size())
+		);
+		for (Map.Entry<ReferenceContentKey, DataChunk<ReferenceContract>> entry : namedReferenceSets.entrySet()) {
+			if (retained.contains(entry.getKey())) {
+				result.put(entry.getKey(), entry.getValue());
+			}
+		}
+		return result.isEmpty() ? null : result;
+	}
+
+	/**
+	 * Keeps the named requirements matching the sets {@link #retainNamedReferenceSets} kept, so a later enrichment
+	 * re-fetches exactly what the narrowed entity still carries and nothing the narrowing removed.
+	 *
+	 * @param namedReferenceRequirements requirements the entity being narrowed carries
+	 * @param evitaRequest               request stating what the narrowed entity may expose
+	 * @return the retained requirements, or NULL when nothing is retained
+	 */
+	@Nullable
+	private static Map<ReferenceContentKey, RequirementContext> retainNamedReferenceRequirements(
+		@Nonnull Map<ReferenceContentKey, RequirementContext> namedReferenceRequirements,
+		@Nonnull EvitaRequest evitaRequest
+	) {
+		if (namedReferenceRequirements.isEmpty()) {
+			return null;
+		}
+		final Set<ReferenceContentKey> retained = evitaRequest.getNamedReferenceEntityFetch().keySet();
+		final Map<ReferenceContentKey, RequirementContext> result = CollectionUtils.createHashMap(
+			Math.min(namedReferenceRequirements.size(), retained.size())
+		);
+		for (Map.Entry<ReferenceContentKey, RequirementContext> entry : namedReferenceRequirements.entrySet()) {
+			if (retained.contains(entry.getKey())) {
+				result.put(entry.getKey(), entry.getValue());
+			}
+		}
+		return result.isEmpty() ? null : result;
+	}
+
+	/**
 	 * Limits the server entity based on the specified request requirements. This method applies or extends various
 	 * predicates to the server entity to ensure that only the required information is included in the response.
 	 * The data present in the internal entity are not modified in any way.
@@ -3171,7 +3263,12 @@ public final class EntityCollection implements
 			entity.getCatalogVersion(),
 			// this decorator performs no I/O of its own - it only narrows the predicates of an entity that is
 			// already in memory, so the whole statistic is owed by the entity it wraps and is resolved lazily
-			0, 0, entity, null
+			0, 0, entity, null,
+			// limiting is the subtractive half of the pair enrichment forms: a named set the limiting request does
+			// not ask for is dropped, while the ones it still asks for are kept as they are. Nothing is re-read, so
+			// the surviving sets stay exactly the chunks the request that built them produced.
+			retainNamedReferenceSets(entity.getNamedReferenceSets(), evitaRequest),
+			retainNamedReferenceRequirements(entity.getNamedReferenceRequirements(), evitaRequest)
 		);
 	}
 

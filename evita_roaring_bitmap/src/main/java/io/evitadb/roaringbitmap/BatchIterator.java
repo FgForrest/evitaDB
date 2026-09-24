@@ -13,14 +13,31 @@ import javax.annotation.Nonnull;
 public interface BatchIterator extends Cloneable {
 
 	/**
-	 * Writes the next batch of values into `buffer`, filling it as far as possible, and returns how
-	 * many entries were written. A return of `0` signals exhaustion; callers keep invoking this
-	 * method (or consult {@link #hasNext}) until then.
+	 * Writes the next batch of values into `buffer` between `offset` (inclusive) and `offset +
+	 * length` (exclusive), and returns how many entries were written. A return of `0` signals
+	 * exhaustion; callers keep invoking this method (or consult {@link #hasNext}) until then.
+	 *
+	 * The bounded form exists so many independent iterators can share one arena array, each owning
+	 * a fixed slice of it, instead of each allocating a buffer of its own — the shape a scan over
+	 * thousands of tiny bitmaps has (see `RangeCountKernel`). `length` bounds THIS iterator's
+	 * slice; it is unrelated to `buffer.length`.
+	 *
+	 * @param buffer the array to write values into
+	 * @param offset the first index in `buffer` to write to
+	 * @param length how many entries may be written starting at `offset`
+	 * @return the number of values written, `0` once no values remain
+	 */
+	int nextBatch(@Nonnull int[] buffer, int offset, int length);
+
+	/**
+	 * Convenience overload of {@link #nextBatch(int[], int, int)} that fills the whole of `buffer`.
 	 *
 	 * @param buffer the array to write values into
 	 * @return the number of values written, `0` once no values remain
 	 */
-	int nextBatch(@Nonnull int[] buffer);
+	default int nextBatch(@Nonnull int[] buffer) {
+		return nextBatch(buffer, 0, buffer.length);
+	}
 
 	/**
 	 * Tells whether any values remain to be read.

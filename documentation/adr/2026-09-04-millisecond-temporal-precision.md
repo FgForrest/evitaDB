@@ -1,7 +1,7 @@
 ---
 title: Cut every temporal value to whole milliseconds as it enters, and carry every temporal index key in one long column
 date: 2026-09-04
-updated: 2026-09-05 21:05
+updated: 2026-09-21 16:15
 status: accepted
 kind: feature
 issues: [1486]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_common/src/main/java/io/evitadb/dataType, evita_api/src/main/java/io/evitadb/api/query, evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure, evita_engine/src/main/java/io/evitadb/index/bPlusTree, evita_engine/src/main/java/io/evitadb/index/attribute, evita_engine/src/main/java/io/evitadb/index/range, evita_engine/src/main/java/io/evitadb/index/invertedIndex, evita_store/evita_store_server/src/main/java/io/evitadb/store/index, evita_external_api/evita_external_api_grpc, documentation/user]
 supersedes: []
 superseded-by: []
-relates: [2026-09-03-content-sized-value-tree-columns, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-05-schema-handling-write-path-optimizations]
+relates: [2026-09-03-content-sized-value-tree-columns, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-05-schema-handling-write-path-optimizations, 2026-09-21-cardinality-counter-normalized-keys]
 ---
 
 # Temporal precision is millisecond, stated once and enforced at the boundary
@@ -319,6 +319,12 @@ catalog a test reads was written by the current writer.
   exception, and the argument is in *Key technical details*.
 - [2026-08-05-schema-handling-write-path-optimizations](2026-08-05-schema-handling-write-path-optimizations.md)
   — the same write path through attribute mutations that the boundary truncation sits on.
+- [2026-09-21-cardinality-counter-normalized-keys](2026-09-21-cardinality-counter-normalized-keys.md) — the
+  load-time repair chosen here means a migration reading storage parts directly sees the untruncated keys the
+  repair would have fixed. An earlier revision of this line concluded that temporal cardinality counters are
+  therefore unauditable from parts; that is no longer true. The audit normalizes the STORED bucket as well as the
+  counter key, so both sides land in one key space whatever wrote them, and `OffsetDateTime` is audited like
+  every other collision-prone type.
 
 ## Timeline
 

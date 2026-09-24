@@ -25,6 +25,7 @@ package io.evitadb.core.query.fetch;
 
 
 import com.carrotsearch.hppc.predicates.IntPredicate;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.query.algebra.Formula;
@@ -54,7 +55,7 @@ class RepresentativeMapping {
 	/**
 	 * Function that produces representative keys from references.
 	 */
-	private final Function<ReferenceDecorator, RepresentativeReferenceKey> representativeKeyProducer;
+	private final Function<ReferenceContract, RepresentativeReferenceKey> representativeKeyProducer;
 	/**
 	 * Set of all valid referenced entity primary keys for a particular entity.
 	 */
@@ -79,11 +80,11 @@ class RepresentativeMapping {
 	 * Creates a new representative mapping with the given key producer function.
 	 *
 	 * @param representativeKeyProducer function that extracts a {@link RepresentativeReferenceKey} from
-	 *                                  a {@link ReferenceDecorator}, used during {@link #contains} checks
+	 *                                  a {@link ReferenceContract}, used during {@link #contains} checks
 	 *                                  to produce the lookup key for a given reference
 	 */
 	public RepresentativeMapping(
-		@Nonnull Function<ReferenceDecorator, RepresentativeReferenceKey> representativeKeyProducer
+		@Nonnull Function<ReferenceContract, RepresentativeReferenceKey> representativeKeyProducer
 	) {
 		this.representativeKeyProducer = representativeKeyProducer;
 		this.referencedEntityIds = new BaseBitmap();
@@ -186,7 +187,7 @@ class RepresentativeMapping {
 	 * @param reference        the reference decorator to check visibility for
 	 * @return `true` if the reference is visible for the given source entity, `false` otherwise
 	 */
-	public boolean contains(int entityPrimaryKey, @Nonnull ReferenceDecorator reference) {
+	public boolean contains(int entityPrimaryKey, @Nonnull ReferenceContract reference) {
 		final RepresentativeReferenceKey referenceKey = this.representativeKeyProducer.apply(reference);
 		if (referenceKey.representativeAttributeValues().length == 0) {
 			return this.referencedEntityIds.contains(referenceKey.primaryKey());

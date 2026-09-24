@@ -99,7 +99,7 @@ public interface ReferenceFetcher extends ReferenceSetFetcher {
 
 		@Nullable
 		@Override
-		public BiPredicate<Integer, ReferenceDecorator> getEntityFilter(@Nonnull ReferenceSchemaContract referenceSchema) {
+		public BiPredicate<Integer, ReferenceContract> getEntityFilter(@Nonnull ReferenceSchemaContract referenceSchema) {
 			return null;
 		}
 

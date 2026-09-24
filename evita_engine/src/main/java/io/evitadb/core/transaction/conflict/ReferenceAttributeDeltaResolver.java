@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.mutation.conflict.ReferenceAttributeDeltaConflictKey;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 
 import javax.annotation.Nonnull;
@@ -80,10 +81,16 @@ public class ReferenceAttributeDeltaResolver extends AbstractAttributeDeltaResol
             final EntityCollection entityCollection = this.catalog.getCollectionForEntityOrThrowException(entityType);
             // this might be somewhat expensive, but we don't have any other option how to obtain the existing value
             // of the attribute, if this when it is found that this method is slow, we'd need to introduce some caching layer
-            final ReferencesStoragePart referencesStoragePart = entityCollection.fetch(
-                this.catalog.getVersion(),
-                entityPrimaryKey,
-                ReferencesStoragePart.class
+            // the unrestricted coverage is bound explicitly - conflict resolution reads one reference's attribute
+            // to compute a delta, and a part narrowed by a read further up the stack would report that reference
+            // absent rather than skipped, yielding a wrong initial value instead of a failure
+            final ReferencesStoragePart referencesStoragePart = ReferenceDecodeCoverageContext.executeWithCoverage(
+                null,
+                () -> entityCollection.fetch(
+                    this.catalog.getVersion(),
+                    entityPrimaryKey,
+                    ReferencesStoragePart.class
+                )
             );
             if (referencesStoragePart != null) {
                 final Optional<ReferenceContract> reference = referencesStoragePart.findReference(this.conflictKey.referenceKey());

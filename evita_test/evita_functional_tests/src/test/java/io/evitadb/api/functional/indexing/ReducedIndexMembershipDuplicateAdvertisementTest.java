@@ -31,15 +31,15 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.expression.ExpressionFactory;
-import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.core.Evita;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.dataType.expression.Expression;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
@@ -50,7 +50,6 @@ import io.evitadb.index.facet.FacetIdIndex;
 import io.evitadb.index.facet.FacetReferenceIndex;
 import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -77,11 +76,7 @@ import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.FACET;
 import static io.evitadb.test.TestTags.INDEXING;
 import static org.awaitility.Awaitility.await;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Attacks the premise the reduced-index membership lookup is built on: that a reference advertises each of
@@ -341,10 +336,10 @@ class ReducedIndexMembershipDuplicateAdvertisementTest implements EvitaTestSuppo
 	}
 
 	@Test
-	@DisplayName("lowering and raising a grouped reference re-seeds its lookup from both families")
-	void loweringAndRaisingAGroupedReferenceReSeedsFromBothFamilies() {
-		// Lowering the reference below FOR_FILTERING_AND_PARTITIONING discards its lookup
-		// (`EntityCollection#discardUnmaintainedReducedIndexMemberships`); raising it back leaves the next write
+	@DisplayName("de-indexing and re-indexing a grouped reference re-seeds its lookup from both families")
+	void deIndexingAndReIndexingAGroupedReferenceReSeedsFromBothFamilies() {
+		// De-indexing the reference discards its lookup
+		// (`EntityCollection#discardUnmaintainedReducedIndexMemberships`); indexing it back leaves the next write
 		// to rebuild one through `ReferenceIndexMutator#seedFromAdvertisedIndexes`, which registers EVERY
 		// advertised key of BOTH families as residual, unguarded. That is the only production route into
 		// `registerIndexAsResidual` on the write path, and it runs against an advertisement that is already
@@ -353,22 +348,21 @@ class ReducedIndexMembershipDuplicateAdvertisementTest implements EvitaTestSuppo
 		writeTheRichFixture();
 		assertNotNull(
 			membershipOf(REF_PARAMETER_VALUES, Scope.LIVE),
-			"the grouped, partitioned reference must hold a lookup before it is lowered, or the discard below "
+			"the grouped, indexed reference must hold a lookup before it is de-indexed, or the discard below "
 				+ "has nothing to discard"
 		);
 
-		setParameterValuesPartitioned(false);
-		assertTrue(
-			membershipOf(REF_PARAMETER_VALUES, Scope.LIVE) == null,
-			"lowering the reference must discard its lookup - a frozen lookup trusted again after the raise "
-				+ "would make the trigger skip every partition created in between"
+		setParameterValuesIndexed(false);
+		assertNull(
+			membershipOf(REF_PARAMETER_VALUES, Scope.LIVE),
+			"de-indexing the reference must discard its lookup - a frozen lookup trusted again after it is "
+				+ "indexed back would make the trigger skip every partition created in between"
 		);
 
-		// partitions created while nothing is watching, in both families: a new value under a new group
+		setParameterValuesIndexed(true);
+		// the first write after the re-indexing is what re-seeds the lookup, and it lands in both families: a
+		// new value under a new group
 		upsertProduct(PRODUCT_COUNT + 1, 3, VALUE_THREE_PK, GROUP_B_PK);
-
-		setParameterValuesPartitioned(true);
-		// the first write after the raise is what re-seeds the lookup
 		upsertProduct(PRODUCT_COUNT + 2, 3, VALUE_THREE_PK, GROUP_B_PK);
 
 		assertAdvertisementNeverRepeats();
@@ -527,8 +521,8 @@ class ReducedIndexMembershipDuplicateAdvertisementTest implements EvitaTestSuppo
 			final EntityIndex typeIndex = collection.getIndexByKeyIfExists(
 				new EntityIndexKey(family, Scope.LIVE, REF_PARAMETER_VALUES)
 			);
-			assertTrue(
-				typeIndex instanceof ReferencedTypeEntityIndex,
+			assertInstanceOf(
+				ReferencedTypeEntityIndex.class, typeIndex,
 				"reference `" + REF_PARAMETER_VALUES + "` must own a " + family + " index - it is declared "
 					+ "with both indexed components, and a missing family makes the whole premise untested"
 			);
@@ -655,21 +649,29 @@ class ReducedIndexMembershipDuplicateAdvertisementTest implements EvitaTestSuppo
 	}
 
 	/**
-	 * Switches the grouped reference between partitioned and merely filterable. Lowering it discards its
-	 * lookup; raising it back leaves the next write to re-seed one from the advertisement.
+	 * Indexes the grouped reference or stops indexing it altogether. De-indexing discards its lookup; indexing it
+	 * back leaves the next write to re-seed one from the advertisement.
 	 *
-	 * @param partitioned `true` to index the reference for filtering and partitioning
+	 * The facet has to travel with the indexing, in that order: a scope marked faceted must also be marked
+	 * indexed (`ReferenceSchema#validateScopeSettings`), so the facet is dropped before the indexing goes and
+	 * restored after it returns. Lowering the reference to filtering would not do instead - the lookup follows
+	 * the reference's indexed **components**, which a lowering leaves untouched along with every partition.
+	 *
+	 * @param indexed `true` to index the reference for filtering and partitioning, `false` to stop indexing it
 	 */
-	private void setParameterValuesPartitioned(boolean partitioned) {
+	private void setParameterValuesIndexed(boolean indexed) {
 		tx(session -> session.getEntitySchemaOrThrowException(ENTITY_PRODUCT)
 			.openForWrite()
 			.withReferenceToEntity(
 				REF_PARAMETER_VALUES, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
 				whichIs -> {
-					if (partitioned) {
-						whichIs.indexedForFilteringAndPartitioningInScope(Scope.LIVE, Scope.ARCHIVED);
+					if (indexed) {
+						whichIs
+							.indexedForFilteringAndPartitioningInScope(Scope.LIVE, Scope.ARCHIVED)
+							.facetedPartiallyInScope(Scope.LIVE, conditionalFacetExpression())
+							.facetedPartiallyInScope(Scope.ARCHIVED, conditionalFacetExpression());
 					} else {
-						whichIs.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED);
+						whichIs.nonFaceted().nonIndexed();
 					}
 				}
 			)
@@ -688,7 +690,7 @@ class ReducedIndexMembershipDuplicateAdvertisementTest implements EvitaTestSuppo
 	private void prepare(@Nonnull CatalogState state, @Nonnull String widgetType) {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				session.defineEntitySchema(ENTITY_CATEGORY).updateVia(session);
 				session.defineEntitySchema(ENTITY_PARAMETER_VALUE).updateVia(session);
 				session.defineEntitySchema(ENTITY_PARAMETER)
@@ -902,8 +904,8 @@ class ReducedIndexMembershipDuplicateAdvertisementTest implements EvitaTestSuppo
 		if (globalIndex == null) {
 			return null;
 		}
-		assertTrue(
-			globalIndex instanceof GlobalEntityIndex,
+		assertInstanceOf(
+			GlobalEntityIndex.class, globalIndex,
 			"scope " + scope + ": the GLOBAL index key resolved to " + globalIndex.getClass().getName()
 		);
 		return (GlobalEntityIndex) globalIndex;

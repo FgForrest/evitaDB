@@ -27,11 +27,9 @@ import io.evitadb.api.query.filter.AttributeInRange;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.query.algebra.base.DisentangleFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
-import io.evitadb.core.query.algebra.base.JoinFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
-import io.evitadb.core.query.algebra.utils.FormulaFactory;
+import io.evitadb.core.query.algebra.base.RangeCountFormula;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -39,7 +37,6 @@ import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.DateTimeRange;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.TransactionalLongBPlusTree;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -49,7 +46,6 @@ import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.page.PageStreamRegistry;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
-import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.NoArgsConstructor;
@@ -129,6 +125,13 @@ public class RangeIndex
 		TransactionalRangePoint.class::cast;
 
 	/**
+	 * Initial capacity for the two operand families a range query collects. A family holds one bitmap per threshold
+	 * point that contributed, which for the queries this index serves is a handful in the common case and grows by
+	 * doubling when it is not - the value only avoids the first few array copies, it caps nothing.
+	 */
+	private static final int DEFAULT_OPERAND_FAMILY_SIZE = 16;
+
+	/**
 	 * Leaf block size of the threshold → range-point tree. Unlike the comparator-keyed inverted index, this tree is
 	 * `long`-keyed with a single-reference value, so an in-leaf insert is a cheap primitive/reference arraycopy and there
 	 * is no read-vs-write block-size conflict. Benchmarking (`RangeIndexBlockSizeBenchmark`; results and analysis under
@@ -160,7 +163,7 @@ public class RangeIndex
 	/**
 	 * Unique transactional id for this index instance. Overrides the {@link VoidTransactionMemoryProducer} default
 	 * (the constant `1L`) so that a formula-cache token seeded from this id — the `indexTransactionId` of the
-	 * {@link JoinFormula}/{@link DisentangleFormula} built by this index's range queries — is UNIQUE per index yet
+	 * {@link RangeCountFormula} built by this index's range queries — is UNIQUE per index yet
 	 * STABLE across commits that did not touch it: an untouched index is carried forward by reference from
 	 * {@link #createCopyWithMergedTransactionalMemory} (preserving its id), while a mutated index becomes a fresh
 	 * instance with a fresh id (correctly invalidating dependent cached formulas). With the constant `1L` default the
@@ -219,37 +222,6 @@ public class RangeIndex
 			result.addEnd(rangePoint.getEnds());
 		}
 		return result;
-	}
-
-	/**
-	 * Collects all starts and ends from the range points between `fromIndex` and `toIndex` (inclusive) of the passed
-	 * materialized snapshot array and returns them collected in a simple DTO.
-	 */
-	@Nonnull
-	static StartsEndsDTO collectsStartsAndEnds(int fromIndex, int toIndex, @Nonnull TransactionalRangePoint[] ranges) {
-		final StartsEndsDTO result = new StartsEndsDTO();
-		for (int i = fromIndex; i <= toIndex; i++) {
-			final RangePoint<?> rangePoint = ranges[i];
-			result.addStart(rangePoint.getStarts());
-			result.addEnd(rangePoint.getEnds());
-		}
-		return result;
-	}
-
-	/**
-	 * Materializes the transactional view of all range points into a positionally addressable array, ordered ascending
-	 * by threshold. Used by the {@link RangeLookup}-based queries which reproduce the original positional index math; the
-	 * border sentinels guarantee at least two entries. This is the same O(N) scan the array-backed implementation
-	 * performed for these full-range queries.
-	 */
-	@Nonnull
-	private TransactionalRangePoint[] materializeRanges() {
-		final List<TransactionalRangePoint> result = new ArrayList<>(this.ranges.size());
-		final Iterator<TransactionalRangePoint> it = this.ranges.valueIterator();
-		while (it.hasNext()) {
-			result.add(it.next());
-		}
-		return result.toArray(new TransactionalRangePoint[0]);
 	}
 
 	/**
@@ -517,10 +489,18 @@ public class RangeIndex
 	 * The computation is based on starts and end of their validity ranges. Record is valid when there is single
 	 * end threshold and not even single start for the same record.
 	 *
-	 * We also need to avoid situation when there is another full range after the actual one. This situation is solved
-	 * by combining {@link JoinFormula} - which is something like OR join that leaves duplicate record ids in place.
-	 * After that {@link DisentangleFormula} excludes all record ids that are in both bitmaps on the same place. This
-	 * operation will exclude all ranges that both start and ends after examined range.
+	 * A record can hold several validity spans, so "valid" is not a set membership question but a counting one:
+	 * over the scanned suffix the record must END more often than it STARTS, which is what excludes a range that
+	 * both starts and ends after the examined point. {@link RangeCountFormula} computes exactly that signed count.
+	 *
+	 * This is the one range query that counts over a SUFFIX rather than a prefix, and it stays that way on purpose.
+	 * The two directions are arithmetically identical - per record `E(>=t) - S(>=t)` equals `S(<t) - E(<t)`, since
+	 * flipping the walk subtracts that record's whole span count from both families - so this could be routed
+	 * through {@link #createPrefixCountFormula(long, boolean, long, boolean)} as `(t, false, t, false)`. Two reasons
+	 * not to: at `Long.MIN_VALUE` the prefix form collects nothing and short-circuits to {@link EmptyFormula},
+	 * where this returns a zero-valued {@link RangeCountFormula} carrying the index id - the same records, but a
+	 * different formula identity, and that identity is read as the index's staleness token. And no caller would
+	 * gain: the suffix walk is already a single counting pass.
 	 */
 	@Nonnull
 	public Formula getRecordsFrom(long threshold) {
@@ -533,7 +513,7 @@ public class RangeIndex
 			startsEndsDTO.addStart(point.getStarts());
 			startsEndsDTO.addEnd(point.getEnds());
 		}
-		return createDisentangleFormulaIfNecessary(
+		return createRangeCountFormulaIfNecessary(
 			getId(), startsEndsDTO.getRangeEndsAsBitmapArray(),
 			startsEndsDTO.getRangeStartsAsBitmapArray()
 		);
@@ -545,28 +525,13 @@ public class RangeIndex
 	 * The computation is based on starts and end of their validity ranges. Record is valid when there is single
 	 * start threshold and not even single end for the same record.
 	 *
-	 * We also need to avoid situation when there is another full range before the actual one. This situation is solved
-	 * by combining {@link JoinFormula} - which is something like OR join that leaves duplicate record ids in place.
-	 * After that {@link DisentangleFormula} excludes all record ids that are in both bitmaps on the same place. This
-	 * operation will exclude all ranges that both start and ends after examined range.
+	 * A record can hold several validity spans, so "valid" is not a set membership question but a counting one:
+	 * over the scanned prefix the record must START more often than it ENDS, which is what excludes a range that
+	 * both starts and ends before the examined point. {@link RangeCountFormula} computes exactly that signed count.
 	 */
 	@Nonnull
 	public Formula getRecordsTo(long threshold) {
-		// the array implementation collected all points from the start up to (and including when present) the threshold;
-		// this is exactly the forward stream of points whose key is lesser than or equal to the threshold
-		final StartsEndsDTO startsEndsDTO = new StartsEndsDTO();
-		final Iterator<TransactionalLongBPlusTree.Entry<TransactionalRangePoint>> it = this.ranges.entryIterator();
-		while (it.hasNext()) {
-			final TransactionalLongBPlusTree.Entry<TransactionalRangePoint> entry = it.next();
-			if (entry.key() > threshold) {
-				// keys are ascending - everything that follows is past the threshold
-				break;
-			}
-			final TransactionalRangePoint point = entry.value();
-			startsEndsDTO.addStart(point.getStarts());
-			startsEndsDTO.addEnd(point.getEnds());
-		}
-		return createDisentangleFormulaIfNecessary(getId(), startsEndsDTO.getRangeStartsAsBitmapArray(), startsEndsDTO.getRangeEndsAsBitmapArray());
+		return createPrefixCountFormula(threshold, true, threshold, true);
 	}
 
 	/**
@@ -576,46 +541,13 @@ public class RangeIndex
 	 *
 	 * Method finds all records which start range is before `threshold` and end range is after `threshold` argument.
 	 * Records starting or ending exactly with `threshold` are part of the result.
+	 *
+	 * Implemented as the `(threshold, true, threshold, false)` instance of the signed-count prefix in
+	 * {@link #createPrefixCountFormula(long, boolean, long, boolean)}; see that method for the counting rationale.
 	 */
 	@Nonnull
 	public Formula getRecordsEnvelopingInclusive(long threshold) {
-		final TransactionalRangePoint[] points = materializeRanges();
-		final RangeLookup rangeLookup = new RangeLookup(points, threshold, threshold);
-
-		final int startIndex = rangeLookup.isStartThresholdFound() ? rangeLookup.getStartIndex() : rangeLookup.getStartIndex() - 1;
-		final int endIndex = rangeLookup.isEndThresholdFound() ? rangeLookup.getEndIndex() + 1 : rangeLookup.getEndIndex();
-
-		final StartsEndsDTO before = startIndex >= 0 ?
-			collectsStartsAndEnds(0, startIndex, points) : new StartsEndsDTO();
-		final StartsEndsDTO after = endIndex < points.length ?
-			collectsStartsAndEnds(endIndex, points.length - 1, points) : new StartsEndsDTO();
-
-		final AndFormula envelopeFormula = new AndFormula(
-			createDisentangleFormulaIfNecessary(getId(), before.getRangeStartsAsBitmapArray(), before.getRangeEndsAsBitmapArray()),
-			createDisentangleFormulaIfNecessary(getId(), after.getRangeEndsAsBitmapArray(), after.getRangeStartsAsBitmapArray())
-		);
-
-		// both should be true or false since we have same threshold
-		if (rangeLookup.isStartThresholdFound() && rangeLookup.isEndThresholdFound()) {
-			Assert.isPremiseValid(
-				rangeLookup.getStartIndex() == rangeLookup.getEndIndex(),
-				"Premise is invalid!"
-			);
-			final Bitmap starts = points[rangeLookup.getStartIndex()].getStarts();
-			final Bitmap ends = points[rangeLookup.getEndIndex()].getEnds();
-
-			if (starts.isEmpty() && ends.isEmpty()) {
-				return envelopeFormula;
-			} else {
-				return FormulaFactory.or(
-					envelopeFormula,
-					starts.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(starts),
-					ends.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(ends)
-				);
-			}
-		} else {
-			return envelopeFormula;
-		}
+		return createPrefixCountFormula(threshold, true, threshold, false);
 	}
 
 	/**
@@ -658,56 +590,133 @@ public class RangeIndex
 	}
 
 	/**
-	 * Creates a DisentangleFormula if necessary based on the given id and bitmap arrays.
-	 * If the left or right bitmap array produces effectively empty bitmap, DisentangleFormula is not created and
-	 * more optimized result is returned.
+	 * Computes the records whose ranges satisfy a two-bound signed count taken over a single ascending prefix of the
+	 * threshold tree: `#{ranges whose start satisfies the starts bound} - #{ranges whose end satisfies the ends bound}`.
 	 *
-	 * @param id     the id for the DisentangleFormula
-	 * @param left   the left bitmap array to be used for the DisentangleFormula
-	 * @param right  the right bitmap array to be used for the DisentangleFormula
-	 * @return a Formula object representing the DisentangleFormula if necessary
+	 * Every range query this index answers is an instance of that one count. Because a range's start never exceeds its
+	 * end and BOTH endpoints are indexed here, a range whose end satisfies the (never wider) ends bound necessarily has
+	 * a start satisfying the starts bound - so the subtraction cancels exactly the ranges that are already over, and
+	 * leaves each still-matching range counted once:
+	 *
+	 * - {@link #getRecordsTo(long)}                            starts `<= t`, ends `<= t`  -> ranges with `a <= t < b`
+	 * - {@link #getRecordsEnvelopingInclusive(long)}           starts `<= t`, ends `< t`   -> ranges with `a <= t <= b`
+	 * - {@link #getRecordsWithRangesOverlapping(long, long)}   starts `<= to`, ends `< from` -> meets `[from, to]`
+	 *
+	 * That cancellation is what removes the second counting family, the intersection of the two, and the boundary
+	 * fix-up the positional implementation needed: a range ending exactly ON the queried threshold is admitted by the
+	 * ends bound being STRICT, not by being OR-ed back in afterwards.
+	 *
+	 * A record may hold several ranges, so membership is a counting question rather than a set question - the strictly
+	 * positive signed multiplicity {@link RangeCountFormula} computes means at least one of the record's ranges matches.
+	 *
+	 * @param startsBound     highest threshold whose STARTS still contribute `+1`
+	 * @param startsInclusive whether a point sitting exactly on `startsBound` contributes its starts
+	 * @param endsBound       highest threshold whose ENDS still contribute `-1`; never admits a threshold the starts
+	 *                        bound rejects, which is the premise the cancellation argument above rests on
+	 * @param endsInclusive   whether a point sitting exactly on `endsBound` contributes its ends
+	 * @return the formula computing the records whose signed count is strictly positive
 	 */
 	@Nonnull
-	private static Formula createDisentangleFormulaIfNecessary(long id, @Nonnull Bitmap[] left, @Nonnull Bitmap[] right) {
-		final Formula leftFormula = createJoinFormulaIfNecessary(id, left);
-		final Formula rightFormula = createJoinFormulaIfNecessary(id, right);
-		if (leftFormula instanceof EmptyFormula) {
-			return EmptyFormula.INSTANCE;
-		} else if (rightFormula instanceof EmptyFormula) {
-			if (leftFormula instanceof ConstantFormula) {
-				return leftFormula;
-			} else if (leftFormula instanceof JoinFormula joinFormula) {
-				return joinFormula.getAsOrFormula();
-			} else {
-				throw new GenericEvitaInternalError("Unexpected formula type: " + leftFormula.getClass().getSimpleName() + "!");
+	private Formula createPrefixCountFormula(
+		long startsBound, boolean startsInclusive,
+		long endsBound, boolean endsInclusive
+	) {
+		Assert.isPremiseValid(
+			endsBound < startsBound || (endsBound == startsBound && (startsInclusive || !endsInclusive)),
+			"The ends bound must never admit a threshold the starts bound rejects!"
+		);
+		final List<Bitmap> starts = new ArrayList<>(DEFAULT_OPERAND_FAMILY_SIZE);
+		final List<Bitmap> ends = new ArrayList<>(DEFAULT_OPERAND_FAMILY_SIZE);
+		final Iterator<TransactionalLongBPlusTree.Entry<TransactionalRangePoint>> it = this.ranges.entryIterator();
+		while (it.hasNext()) {
+			final TransactionalLongBPlusTree.Entry<TransactionalRangePoint> entry = it.next();
+			final long threshold = entry.key();
+			if (startsInclusive ? threshold > startsBound : threshold >= startsBound) {
+				// keys ascend and the ends bound never reaches past the starts bound, so nothing that follows can
+				// contribute to either family - this is the whole reason the query stops at the queried point instead
+				// of scanning the index end to end
+				break;
 			}
-		} else {
-			return new DisentangleFormula(leftFormula, rightFormula);
+			final TransactionalRangePoint point = entry.value();
+			final Bitmap pointStarts = point.getStarts();
+			if (!pointStarts.isEmpty()) {
+				starts.add(pointStarts);
+			}
+			if (endsInclusive ? threshold <= endsBound : threshold < endsBound) {
+				final Bitmap pointEnds = point.getEnds();
+				if (!pointEnds.isEmpty()) {
+					ends.add(pointEnds);
+				}
+			}
 		}
+		return createRangeCountFormulaIfNecessary(
+			getId(), starts.toArray(Bitmap[]::new), ends.toArray(Bitmap[]::new)
+		);
 	}
 
 	/**
-	 * Creates a join formula if necessary based on the given id and bitmap array.
-	 * If the bitmap array contains only one bitmap, a ConstantFormula is created with that bitmap.
-	 * If the bitmap array is empty, an EmptyFormula is returned.
-	 * Otherwise, a JoinFormula is created with the given id and filtered bitmaps.
+	 * Creates the formula computing which records have a strictly higher membership count in `plus` than in
+	 * `minus` - the signed multiplicity that decides range validity.
 	 *
-	 * @param id     the id for the JoinFormula
-	 * @param bitmaps the bitmap array to be filtered and used for the JoinFormula
-	 * @return a Formula object representing the join formula if necessary
+	 * Degenerate families short-circuit: an empty plus family can never reach a positive count, and an empty minus
+	 * family leaves nothing to cancel against, so the answer is just the union.
+	 *
+	 * @param id    transactional id of this index - the staleness token for a high-cardinality operand set
+	 * @param plus  bitmaps each membership of which contributes `+1` to a record's count
+	 * @param minus bitmaps each membership of which contributes `-1`
+	 * @return the formula computing the records whose signed count is strictly positive
 	 */
 	@Nonnull
-	private static Formula createJoinFormulaIfNecessary(long id, @Nonnull Bitmap[] bitmaps) {
-		final Bitmap[] filteredBitmaps = Arrays.stream(bitmaps)
-			.filter(it -> !(it instanceof EmptyBitmap))
-			.toArray(Bitmap[]::new);
-		if (filteredBitmaps.length == 0) {
+	private static Formula createRangeCountFormulaIfNecessary(
+		long id, @Nonnull Bitmap[] plus, @Nonnull Bitmap[] minus
+	) {
+		final Bitmap[] filteredPlus = withoutEmpty(plus);
+		if (filteredPlus.length == 0) {
 			return EmptyFormula.INSTANCE;
-		} else if (filteredBitmaps.length == 1) {
-			return new ConstantFormula(filteredBitmaps[0]);
-		} else {
-			return new JoinFormula(id, filteredBitmaps);
 		}
+		final Bitmap[] filteredMinus = withoutEmpty(minus);
+		if (filteredMinus.length == 0) {
+			// with nothing to cancel against, "counted at least once" is exactly the union
+			return filteredPlus.length == 1 ?
+				new ConstantFormula(filteredPlus[0]) : new OrFormula(new long[]{id}, filteredPlus);
+		}
+		return new RangeCountFormula(id, filteredPlus, filteredMinus);
+	}
+
+	/**
+	 * Drops empty bitmaps from an operand family.
+	 *
+	 * Tests {@link Bitmap#isEmpty()} rather than `instanceof EmptyBitmap` as the previous implementation did: a
+	 * threshold point legitimately carries an EMPTY `TransactionalBitmap` on one side (the obsolete-point check
+	 * only removes a point whose starts AND ends are both empty), and such an operand contributes nothing to the
+	 * count while still inflating the family. The computed result is unchanged either way; this simply stops an
+	 * operand that cannot affect the answer from being carried through the formula.
+	 *
+	 * It also replaces a `Arrays.stream(...).filter(...).toArray(...)` pipeline that ran in the planning phase on
+	 * every range query, for every matching index.
+	 *
+	 * @param bitmaps the family to filter
+	 * @return the same array when nothing was empty, otherwise a compacted copy
+	 */
+	@Nonnull
+	private static Bitmap[] withoutEmpty(@Nonnull Bitmap[] bitmaps) {
+		int nonEmpty = 0;
+		for (final Bitmap bitmap : bitmaps) {
+			if (!bitmap.isEmpty()) {
+				nonEmpty++;
+			}
+		}
+		if (nonEmpty == bitmaps.length) {
+			return bitmaps;
+		}
+		final Bitmap[] result = new Bitmap[nonEmpty];
+		int index = 0;
+		for (final Bitmap bitmap : bitmaps) {
+			if (!bitmap.isEmpty()) {
+				result[index++] = bitmap;
+			}
+		}
+		return result;
 	}
 
 	/**
@@ -716,23 +725,23 @@ public class RangeIndex
 	 *
 	 * Method finds all records which start range is before `from` and ends after or equal to `from` or
 	 * which ends after `from` but before or equal to `to`.
+	 *
+	 * An inverted window - one whose lower bound exceeds its upper bound - describes an empty set of points, so no
+	 * range can have a point in common with it and the answer is {@link EmptyFormula}. The bound order is not
+	 * validated anywhere upstream: neither `AttributeBetween#isApplicable()` nor `DateTimeRange#between` orders the
+	 * pair, and `AttributeBetweenTranslator` hands both bounds straight to this method. Its own scalar branch builds
+	 * `value >= from && value <= to`, which is unsatisfiable for an inverted pair and therefore already answers such
+	 * a query with an empty result - the indexed range path agrees with it rather than failing the query.
+	 *
+	 * A correctly-ordered pair is implemented as the `(to, true, from, false)` instance of the signed-count prefix
+	 * in {@link #createPrefixCountFormula(long, boolean, long, boolean)}; see that method for the counting rationale.
 	 */
 	@Nonnull
 	public Formula getRecordsWithRangesOverlapping(long from, long to) {
-		final TransactionalRangePoint[] points = materializeRanges();
-		final RangeLookup rangeLookup = new RangeLookup(points, from, to);
-		final StartsEndsDTO between = collectsStartsAndEnds(rangeLookup.getStartIndex(), rangeLookup.getEndIndex(), points);
-		final StartsEndsDTO before = collectsStartsAndEnds(0, Math.min(rangeLookup.getStartIndex(), rangeLookup.getEndIndex()), points);
-		final StartsEndsDTO after = collectsStartsAndEnds(Math.max(rangeLookup.getStartIndex(), rangeLookup.getEndIndex()), points.length - 1, points);
-
-		return new OrFormula(
-			between.getRangeStarts(),
-			between.getRangeEnds(),
-			new AndFormula(
-				createDisentangleFormulaIfNecessary(getId(), before.getRangeStartsAsBitmapArray(), before.getRangeEndsAsBitmapArray()),
-				createDisentangleFormulaIfNecessary(getId(), after.getRangeEndsAsBitmapArray(), after.getRangeStartsAsBitmapArray())
-			)
-		);
+		if (from > to) {
+			return EmptyFormula.INSTANCE;
+		}
+		return createPrefixCountFormula(to, true, from, false);
 	}
 
 	/*
@@ -1276,7 +1285,7 @@ public class RangeIndex
 			if (this.rangeStarts.isEmpty()) {
 				return EmptyFormula.INSTANCE;
 			} else if (this.rangeStarts.size() == 1) {
-				return this.rangeStarts.get(0);
+				return this.rangeStarts.getFirst();
 			} else {
 				return new OrFormula(
 					this.rangeStarts.toArray(EMPTY_ARRAY)
@@ -1292,7 +1301,7 @@ public class RangeIndex
 			if (this.rangeEnds.isEmpty()) {
 				return EmptyFormula.INSTANCE;
 			} else if (this.rangeEnds.size() == 1) {
-				return this.rangeEnds.get(0);
+				return this.rangeEnds.getFirst();
 			} else {
 				return new OrFormula(
 					this.rangeEnds.toArray(EMPTY_ARRAY)
@@ -1416,84 +1425,6 @@ public class RangeIndex
 	 * @param result             materialized bitmap of record ids valid at any {@code now} in the interval
 	 */
 	record EnvelopingNowCache(long validFromInclusive, long validToInclusive, @Nonnull Bitmap result) {
-	}
-
-	/**
-	 * Range lookup will find and return positions of the `from` / `to` ranges in the `ranges` array. It computes their
-	 * indexes and will provide access to the set of records in form of {@link TransactionalRangePoint} at those indexes
-	 * for access to directly assigned records at these bounds.
-	 */
-	@Data
-	static class RangeLookup {
-		private final int startIndex;
-		private final TransactionalRangePoint startPoint;
-		private final int endIndex;
-		private final TransactionalRangePoint endPoint;
-
-		RangeLookup(@Nonnull TransactionalRangePoint[] ranges, long from, long to) {
-			final int indexFrom = binarySearchThreshold(ranges, from);
-			if (indexFrom >= 0) {
-				this.startIndex = indexFrom;
-				this.startPoint = ranges[indexFrom];
-			} else {
-				this.startIndex = -1 * (indexFrom) - 1;
-				this.startPoint = null;
-			}
-
-			if (from == to) {
-				this.endIndex = this.startIndex;
-				this.endPoint = this.startPoint;
-			} else {
-				final int indexTo = binarySearchThreshold(ranges, to);
-				if (indexTo >= 0) {
-					this.endIndex = indexTo;
-					this.endPoint = ranges[indexTo];
-				} else {
-					this.endIndex = -1 * (indexTo) - 2;
-					this.endPoint = null;
-				}
-			}
-		}
-
-		/**
-		 * Binary search over the ascending-by-threshold `ranges` array reproducing the {@link java.util.Arrays#binarySearch}
-		 * contract: returns the index of the matching threshold or `-(insertionPoint) - 1` when not found.
-		 *
-		 * @param ranges    the range points ordered ascending by threshold
-		 * @param threshold the threshold to search for
-		 * @return the found index or the negative insertion-point encoding
-		 */
-		private static int binarySearchThreshold(@Nonnull TransactionalRangePoint[] ranges, long threshold) {
-			int low = 0;
-			int high = ranges.length - 1;
-			while (low <= high) {
-				final int mid = (low + high) >>> 1;
-				final long midThreshold = ranges[mid].getThreshold();
-				if (midThreshold < threshold) {
-					low = mid + 1;
-				} else if (midThreshold > threshold) {
-					high = mid - 1;
-				} else {
-					return mid;
-				}
-			}
-			return -(low + 1);
-		}
-
-		/**
-		 * Returns true if start point was found in the index.
-		 */
-		boolean isStartThresholdFound() {
-			return this.startPoint != null;
-		}
-
-		/**
-		 * Returns true if end point was found in the index.
-		 */
-		boolean isEndThresholdFound() {
-			return this.endPoint != null;
-		}
-
 	}
 
 }

@@ -1,7 +1,7 @@
 ---
 title: Size the value tree's leaf columns to their live content instead of adding a second array-backed representation
 date: 2026-09-03
-updated: 2026-09-06 13:10
+updated: 2026-09-21 08:35
 status: accepted
 kind: optimization
 issues: [1486]
@@ -443,6 +443,60 @@ proportionally larger against a smaller total, and the census charged the tempor
 
 ## Consequences & open follow-ups
 
+- **The bound reached the descents before it reached everything they hand off to, and only the nightly noticed.**
+  `observableLiveRun()` and its two wrappers were applied to the seven cursor and point descents, which covered
+  every walk — and left two readers those walks *call* outside it. `CursorWithLevel#getCursorForPreviousNode`
+  rebuilt each level below a sibling from a separately-read `getChildren()` and a raw `getPeek()`, and
+  `BPlusLeafTreeNode#lastRecord()` handed a raw `peek` straight to the record column. Both are reached from
+  `computePreviousRecord`, in consecutive statements: it climbs to the preceding leaf through the first, then
+  reads that leaf through the second. A sweep of the rest of the family then found a third: a slot resolved by
+  `ValueColumn#findKeyPosition`, which clamps to the key array it indexes, was handed to the *record* column,
+  whose live run is independent — so `getRecords`, `previousRecord` and `getValueIndex` needed the
+  cross-column minimum too. All fixed in PR #1617, each with a test proven in both arms.
+- **Worse than an under-report: that third one fabricated data.** The record column does not answer for itself —
+  `intAt` returns the unmaterialized slot, `0`, which is a well-formed primary key. So `getRecordsEqualTo`
+  answered `[0]` where the truth was empty, and `getLongRecordEqualTo` answered `OptionalLong[0]`: a phantom
+  entity in a filter result, and a phantom `(entityType, pk)` join for the global-unique index. **A missing
+  bound in this family does not merely lose data, it can invent it**, because two of the sentinels these
+  columns return for an unmaterialized slot — `0` as a record id and `0` as `RESERVED_PRIMARY_KEY` — are
+  indistinguishable from legitimate answers.
+- **`peek == -1` is the opposite state and needed its own answer, not a clamp.** `observableInternalPeek`
+  guards a `peek` that has run *ahead* of its array; an **emptied** node clamps to `-1`, which the descents
+  then used as a direct index. Both merge directions, on leaves as well as internal nodes, end with
+  `setPeek(-1)` on the donor one statement before `consolidate` unlinks it, so a parent transiently references
+  a node holding nothing. It surfaced four ways through `recordCount()` — two exceptions, one premise failure,
+  and a silent `0` instead of `3`. The walks now step **over** such a subtree and under-report by it, matching
+  the staleness already accepted on the grow side. Truncating the cursor path was tried first and does not
+  work: the cursor's level arrays are sized from that list and a short one cannot re-descend. `addCursorLevels`
+  needed no change, because `searchIndex` refuses `fromIndex(0) > toIndex(-1)` before any child is indexed —
+  which is why the keyed descent, and with it the write path, is untouched by any of this.
+- **The two failures are worth telling apart, because only one of them announces itself.** The cursor rebuild
+  throws — `Index N out of bounds for length N`, caught by the long-running sweep on 2026-09-14 (round 153) and
+  2026-09-21 (round 4416), and reproducible locally at round 257 under suite load. `lastRecord()` does not: a
+  peek past the record column's live run makes `intAt` answer the unmaterialized slot, `0`, which is also
+  `EvitaDataTypes#RESERVED_PRIMARY_KEY` — the *sorts first* sentinel. `computePreviousRecord` then reports no
+  predecessor and `SortIndex#addRecordInternal` anchors the record at the head of the index. A wrong order, with
+  nothing thrown. **When a bound is dropped in this family, assume the silent variant exists too and go looking
+  for it;** a sentinel that collides with a legitimate return value is what turns a missing clamp into a
+  correctness bug rather than a crash.
+- **This content-sizing hazard belongs to the bucket tree alone, and the identical code shape elsewhere is not a
+  defect.** Only `TransactionalBucketBPlusTree` content-sizes its *internal-node* arrays (`children` starts at
+  `ColumnSizing.MIN_PHYSICAL_LENGTH` and grows). `TransactionalObjectBPlusTree`, `TransactionalLongBPlusTree` and
+  the int-keyed family via `AbstractIntKeyedInternalNode` each allocate `blockSize + 1` children once and never
+  resize, so `peek < children.length` holds unconditionally there. `AbstractTransactionalBPlusTree` carries the
+  two sibling-cursor methods in the *same unclamped shape* that was just fixed here — **do not copy the fix into
+  it.** The three sibling trees do content-size their leaf arrays, and each already applies its own
+  `observableLeafPeek` at every point-lookup site; the bucket tree was the outlier that did not.
+- **`IntRecordColumn#intAt` / `longAt` remain bounded by `size` rather than by the array they index, and that is
+  a deliberate hold rather than an oversight.** `OverflowColumn#recordsAt` next door already reads its array into
+  a local and clamps to `Math.min(size, array.length)`; these four accessors do not, so the inconsistency is real.
+  It was not fixed because it cannot be pinned: no single-threaded path produces `size > records.length` — every
+  mutator grows the array before raising the count, and the one historical producer is refused outright by
+  `assertSelfCopySourceIsAligned` — and a targeted concurrent harness (~760 billion reader probes over 100M+
+  reallocations, C2 confirmed engaged) did not reproduce it on x86, where total store order reconciles the pair
+  and only a compiler load-load reorder is left. Every comparable hardening commit in this family shipped with a
+  test; this is the only member that cannot have one. **Revisit on AArch64 hardware or under jcstress**, which are
+  the two levers this box does not have.
 - **Option A's residual is priced and the fork is closed, but not empty.** The census puts it at
   **225.3 MB, 7.7 % of the reduced attribute heap, about 260 B per tree** against the post-Stage-1
   state. Of that, the 56 B per tree behind the boxed bucket count has since been taken without a second

@@ -5428,6 +5428,13 @@ public class DefaultCatalogPersistenceService
 						this::createEntityCollectionPersistenceService,
 						newCatalogHeader -> updateStorageProtocolInCatalogHeader(newCatalogHeader, currentService, 6)
 					);
+				} else if (catalogStorageProtocolVersion == 6) {
+					Migration_2026_3.upgradeFromStorageProtocolVersion_6_to_7(
+						catalogHeader,
+						currentService,
+						this::createEntityCollectionPersistenceService,
+						newCatalogHeader -> updateStorageProtocolInCatalogHeader(newCatalogHeader, currentService, 7)
+					);
 				}
 				// try to initialize the persistence service again - it should now have the correct storage protocol version
 				storagePartPersistenceService = storagePartPersistenceFactory.get();

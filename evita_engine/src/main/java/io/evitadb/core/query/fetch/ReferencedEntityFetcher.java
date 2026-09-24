@@ -205,8 +205,14 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	@Nonnull private final Map<String, RequirementContext> referenceFetch;
 	/**
 	 * Requirement aggregation exported from {@link EvitaRequest#getNamedReferenceEntityFetch()}.
+	 *
+	 * This is NOT always the same map as the request's own. An enrichment is additive, so it fetches the named
+	 * requirements of every request that contributed to the entity - the ones this request states, plus the ones
+	 * earlier requests stated and this one did not repeat. The decorator therefore reads what to build from HERE
+	 * rather than from the request: the request describes what the caller asked for now, this describes everything
+	 * the entity must end up carrying.
 	 */
-	@Nonnull private final Map<ReferenceContentKey, RequirementContext> namedReferenceFetch;
+	@Nonnull @Getter private final Map<ReferenceContentKey, RequirementContext> namedReferenceFetch;
 	/**
 	 * Default requirement context for the case when the requirement context is not specified for the reference.
 	 */
@@ -830,6 +836,12 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				final FilterConstraint[] entityLevelChildren = groupFilter.entityLevelChildren();
 				final FilterBy entityLevelFilterBy = groupFilter.entityLevelFilterBy();
 				final Bitmap allowedByGroupFilter = groupFilter.allowedByGroupFilter();
+				// an `entityPrimaryKeyInSet` in the filter's conjunctive root names the referenced entities the
+				// caller asked for, and every other conjunct is intersected with it - so it bounds the key set this
+				// whole pass has to work over, including the restriction below
+				final Bitmap boundedReferencedEntityPks = narrowByExactReferencedPrimaryKeys(
+					allReferencedEntityPks, entityLevelChildren
+				);
 
 				referencedPrimaryKeys = theFilterByVisitor
 					.getProcessingScope()
@@ -837,7 +849,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						examinedScopes,
 						() -> {
 							// build the ReferenceHaving constraint, avoiding mergeArrays when no entity-level children
-							final FilterConstraint pkConstraint = entityPrimaryKeyInSet(allReferencedEntityPks.getArray());
+							// the bounded set - not `allReferencedEntityPks` - because translating a referenced primary key
+							// into the reduced indexes that hold it costs one map lookup and one bitmap merge per key, and
+							// the keys outside the caller's `entityPrimaryKeyInSet` are dropped by a sibling conjunct anyway
+							final FilterConstraint pkConstraint = entityPrimaryKeyInSet(boundedReferencedEntityPks.getArray());
 							// The nested query behind an `entityHaving` is planned against the
 							// referenced collection's GLOBAL index, so it evaluates the predicate
 							// over every entity there even though the owners between them reference
@@ -1017,6 +1032,58 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			}
 		}
 
+		return result;
+	}
+
+	/**
+	 * Narrows the set of referenced entity primary keys a reference filter has to be evaluated over by every
+	 * {@link EntityPrimaryKeyInSet} sitting in the filter's conjunctive root.
+	 *
+	 * Such a constraint names the referenced entities the caller is interested in, and the reference filter is
+	 * a conjunction - so `A AND pkInSet(X)` and `(A INTERSECT X) AND pkInSet(X)` select the same references.
+	 * The narrowed set is what the pass hands to the reduced-index lookup and to the nested-query restriction,
+	 * and that is where it pays: turning a referenced entity primary key into the reduced indexes that hold it
+	 * costs a map lookup and a bitmap merge per key, so a reference whose owners between them point at the whole
+	 * referenced collection pays that per key of the collection - three times over, once for the restriction
+	 * itself and once for each scope the nested `entityHaving` query is planned in - only for a sibling conjunct
+	 * to throw all but the handful of requested keys away afterwards.
+	 *
+	 * The result is identical, not merely smaller, because a reduced entity index belongs to exactly one referenced
+	 * entity - its {@link RepresentativeReferenceKey} discriminator carries that key - so the
+	 * partitions the type index unions are pairwise disjoint, and `T(A) INTERSECT T(X) = T(A INTERSECT X)` for the
+	 * translation `T`. Were two referenced entities to share a reduced index, narrowing would drop it whenever only
+	 * one of them survived, so this invariant is what the optimization stands on.
+	 *
+	 * Only the root children are examined. A key set nested inside an `or` or a `not` constrains nothing on its
+	 * own, and reading it as a bound would drop references the filter actually matches.
+	 *
+	 * @param allReferencedEntityPks all referenced entity primary keys reachable from the processed owner entities
+	 * @param entityLevelChildren    the conjunctive root children of the reference filter
+	 * @return the narrowed key set, or {@code allReferencedEntityPks} itself when the root names no exact keys
+	 */
+	@Nonnull
+	private static Bitmap narrowByExactReferencedPrimaryKeys(
+		@Nonnull Bitmap allReferencedEntityPks,
+		@Nonnull FilterConstraint[] entityLevelChildren
+	) {
+		Bitmap result = allReferencedEntityPks;
+		for (final FilterConstraint child : entityLevelChildren) {
+			if (child instanceof EntityPrimaryKeyInSet requestedPks) {
+				final int[] primaryKeys = requestedPks.getPrimaryKeys();
+				if (ArrayUtils.isEmpty(primaryKeys)) {
+					// an empty key set matches nothing, and the conjunction cannot recover from it
+					return EmptyBitmap.INSTANCE;
+				}
+				final PersistentRoaringBitmap narrowed = PersistentRoaringBitmap.and(
+					RoaringBitmapBackedBitmap.getRoaringBitmap(result),
+					RoaringBitmapBackedBitmap.fromArray(primaryKeys)
+				);
+				if (narrowed.isEmpty()) {
+					return EmptyBitmap.INSTANCE;
+				}
+				result = new BaseBitmap(narrowed);
+			}
+		}
 		return result;
 	}
 
@@ -1343,6 +1410,14 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		// compute the result formula in the initialized context
 		final String referenceName = referenceSchema.getName();
 		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
+		// `EntityPrimaryKeyInSet` is NOT suppressed here, although the index set handed over was already narrowed
+		// by the very same constraint during discovery. Suppressing it drops the constraint from the tree, and
+		// `not(entityPrimaryKeyInSet(...))` then hands `NotTranslator` nothing to negate - a premise failure on
+		// a plain public query. It cannot be answered by discovery either: a negated leaf widens the candidate set
+		// rather than narrowing it, so the complement has to be taken inside each index. Translated here the
+		// constraint is a constant per index - this index's target either is in the set or is not - which is what
+		// `EntityPrimaryKeyInSetTranslator` emits for a reduced-index scope, so the positive case stays correct
+		// and merely repeats what discovery already decided.
 		return filterByVisitor.executeInContextAndIsolatedFormulaStack(
 			AbstractReducedEntityIndex.class,
 			() -> Collections.singletonList(index),
@@ -1359,8 +1434,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				filterBy.accept(filterByVisitor);
 				// get the result and clear the visitor internal structures
 				return filterByVisitor.getFormulaAndClear();
-			},
-			EntityPrimaryKeyInSet.class
+			}
 		);
 	}
 
@@ -2559,7 +2633,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 */
 	@Nullable
 	@Override
-	public BiPredicate<Integer, ReferenceDecorator> getEntityFilter(
+	public BiPredicate<Integer, ReferenceContract> getEntityFilter(
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
 		return requireFetchedEntities().getEntityFilter(referenceSchema);

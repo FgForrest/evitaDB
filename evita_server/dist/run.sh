@@ -27,6 +27,7 @@ set -e
 if [ "$1" = "" ]; then
     set -x
     exec java \
+        --add-modules jdk.incubator.vector \
         $EVITA_JAVA_OPTS \
         -jar "evita-server.jar" \
         "storage.storageDirectory=data" \

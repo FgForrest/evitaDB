@@ -90,9 +90,18 @@ import static java.util.Optional.ofNullable;
 
 /**
  * Referenced type entity index exists once per {@link EntitySchemaContract#getReference(String)} and indexes not
- * the owner entity primary key, but the referenced entity primary key with attributes that lay on the reference
- * relation. We need this index to be able to navigate to {@link AbstractReducedEntityIndex} that were specially created to
- * speed up queries that involve the references.
+ * the owner entity primary key, but the primary key of the {@link AbstractReducedEntityIndex} holding the rows of
+ * one referenced entity, together with attributes that lay on the reference relation. We need this index to be
+ * able to navigate to those reduced indexes, which were specially created to speed up queries that involve the
+ * references.
+ *
+ * **It stores reduced index primary keys, not referenced entity primary keys**, and the two are easy to confuse
+ * because the reference relation connects them. {@link #insertPrimaryKeyIfMissing(int, int)} is handed both and
+ * stores only the first; the second is tracked for cardinality alone. A filter evaluated against this index
+ * therefore yields reduced index primary keys, which is why
+ * {@link io.evitadb.core.query.filter.FilterByVisitor#getReferencedRecordIdFormula} translates them through
+ * {@link AbstractReducedEntityIndex#getReferenceKey()} before handing them to a caller that wants referenced
+ * entity primary keys.
  *
  * This index doesn't maintain the prices of entities — only the attributes present on relations.
  *
@@ -173,13 +182,22 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	@Delegate(types = PriceIndexContract.class)
 	private final PriceIndexContract priceIndex = VoidPriceIndex.INSTANCE;
 	/**
-	 * This index keeps information about cardinality of index primary keys for each owner entity primary key.
-	 * The referenced primary keys are indexed into {@link #entityIds} but they may be added to this index multiple times.
-	 * In order to know when they could be removed from {@link #entityIds} we need to know how many times they were added
-	 * and this is being tracked in this data structure.
+	 * Keeps the cardinality of each {@link AbstractReducedEntityIndex} primary key this index tracks. **No owner
+	 * entity primary key is involved anywhere in it** - {@link #insertPrimaryKeyIfMissing(int, int)} is handed the
+	 * reduced index primary key and the primary key that index is keyed by (the referenced entity, or the group for
+	 * a group index), and those are the two numbers this structure pairs.
+	 *
+	 * It keeps two tallies for that pair: the overall count for the reduced index primary key, and a
+	 * per-referenced-entity one that backs the reverse lookup from a referenced entity to the reduced index primary
+	 * keys reaching it.
+	 *
+	 * What is indexed into {@link #entityIds} is the reduced index primary key, and one of them is registered once
+	 * per owner row that lands in it, so the same key arrives here many times over. Knowing how many times is what
+	 * tells us when it may leave {@link #entityIds}: the superclass is touched only on the 0 -> 1 crossing, and
+	 * {@link #removePrimaryKey(int, int)} only on the 1 -> 0 one.
 	 *
 	 * In order to optimize storage we keep only cardinalities that are greater than 1. The cardinality = 1 can be
-	 * determined by the presence of the referenced primary key in {@link #entityIds}.
+	 * determined by the presence of the reduced index primary key in {@link #entityIds}.
 	 */
 	@Nonnull
 	private final ReferenceTypeCardinalityIndex indexPrimaryKeyCardinality;
@@ -588,12 +606,13 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			createAttributeKey(referenceSchema, attributeSchema, allowedLocales, locale, value),
 			lookupKey -> new AttributeCardinalityIndex(attributeSchema.getPlainType())
 		);
+		final int indexedDecimalPlaces = attributeSchema.getIndexedDecimalPlaces();
 		if (value instanceof Serializable[] valueArray) {
 			// for array values we need to add only new items to the index (their former cardinality was zero)
 			final Serializable[] onlyNewItemsValueArray = (Serializable[]) Array.newInstance(valueArray.getClass().getComponentType(), valueArray.length);
 			int onlyNewItemsValueArrayIndex = 0;
 			for (Serializable valueItem : valueArray) {
-				if (theCardinalityIndex.addRecord(valueItem, recordId) == CardinalityChange.BOUNDARY_CROSSED) {
+				if (theCardinalityIndex.addRecord(theCardinalityIndex.normalizeKey(valueItem, indexedDecimalPlaces), recordId) == CardinalityChange.BOUNDARY_CROSSED) {
 					onlyNewItemsValueArray[onlyNewItemsValueArrayIndex++] = valueItem;
 				}
 			}
@@ -606,7 +625,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			}
 		} else {
 			// for non-array values we need to call super method only if cardinality was zero
-			if (theCardinalityIndex.addRecord(value, recordId) == CardinalityChange.BOUNDARY_CROSSED) {
+			if (theCardinalityIndex.addRecord(theCardinalityIndex.normalizeKey(value, indexedDecimalPlaces), recordId) == CardinalityChange.BOUNDARY_CROSSED) {
 				super.insertFilterAttribute(
 					referenceSchema, attributeSchema, allowedLocales, locale,
 					value, recordId, foldedUnique
@@ -632,12 +651,13 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			theCardinalityIndex != null,
 			() -> "Cardinality index for attribute " + attributeSchema.getName() + " not found."
 		);
+		final int indexedDecimalPlaces = attributeSchema.getIndexedDecimalPlaces();
 		if (value instanceof Serializable[] valueArray) {
 			// for array values we need to remove only items which cardinality reaches zero
 			final Serializable[] onlyRemovedItemsValueArray = (Serializable[]) Array.newInstance(valueArray.getClass().getComponentType(), valueArray.length);
 			int onlyRemovedItemsValueArrayIndex = 0;
 			for (Serializable valueItem : valueArray) {
-				if (theCardinalityIndex.removeRecord(valueItem, recordId) == CardinalityChange.BOUNDARY_CROSSED) {
+				if (theCardinalityIndex.removeRecord(theCardinalityIndex.normalizeKey(valueItem, indexedDecimalPlaces), recordId) == CardinalityChange.BOUNDARY_CROSSED) {
 					onlyRemovedItemsValueArray[onlyRemovedItemsValueArrayIndex++] = valueItem;
 				}
 			}
@@ -650,7 +670,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			}
 		} else {
 			// for non-array values we need to call super method only if cardinality reaches zero
-			if (theCardinalityIndex.removeRecord(value, recordId) == CardinalityChange.BOUNDARY_CROSSED) {
+			if (theCardinalityIndex.removeRecord(theCardinalityIndex.normalizeKey(value, indexedDecimalPlaces), recordId) == CardinalityChange.BOUNDARY_CROSSED) {
 				super.removeFilterAttribute(
 					referenceSchema, attributeSchema, allowedLocales, locale,
 					value, recordId

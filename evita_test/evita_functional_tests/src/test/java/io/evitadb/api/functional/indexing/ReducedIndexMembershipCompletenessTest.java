@@ -36,10 +36,11 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
-import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.core.Evita;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
@@ -51,10 +52,9 @@ import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.membership.ReducedIndexMembership;
+import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ExceptionUtils;
-import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -77,25 +77,12 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static io.evitadb.api.query.Query.query;
-import static io.evitadb.api.query.QueryConstraints.collection;
-import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
-import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
-import static io.evitadb.api.query.QueryConstraints.facetHaving;
-import static io.evitadb.api.query.QueryConstraints.filterBy;
-import static io.evitadb.api.query.QueryConstraints.page;
-import static io.evitadb.api.query.QueryConstraints.referenceHaving;
-import static io.evitadb.api.query.QueryConstraints.require;
-import static io.evitadb.api.query.QueryConstraints.userFilter;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.FACET;
 import static io.evitadb.test.TestTags.INDEXING;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.awaitility.Awaitility.await;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Attacks the **quantifier** behind {@link ReducedIndexMembership}, not the mechanism.
@@ -143,7 +130,7 @@ import static org.awaitility.Awaitility.await;
  *
  * The gates are pure functions of the schema, so a schema change is the only event that can end maintenance —
  * which is why the discard hangs off `EntityCollection#exchangeSchema`. That placement is itself asserted
- * rather than argued: {@link #reflectedReferenceLoweredFromTheSourceCollectionDiscardsItsLookup} lowers a
+ * rather than argued: {@link #reflectedReferenceDeIndexedFromTheSourceCollectionDiscardsItsLookup} de-indexes a
  * reference in the collection a **reflected** one reflects, an adoption path that never passes through
  * `updateSchema`, and requires the reflected reference's lookup to be gone.
  *
@@ -191,10 +178,14 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 	private static final int REVERTED_CATEGORY_PK = 24;
 
 	/**
-	 * Comfortably more than `ReducedIndexMembership.DEFAULT_COVERAGE_THRESHOLD`, so a category can be pushed
-	 * over the coverage boundary and pulled back under it within one test.
+	 * Comfortably more than {@link ReducedIndexMembership#DEFAULT_COVERAGE_THRESHOLD}, so a category can be
+	 * pushed over the coverage boundary and pulled back under it within one test.
+	 *
+	 * Derived from the constant rather than written out: a literal here silently stops crossing the boundary
+	 * the moment the threshold is raised, and the tests that depend on the crossing then assert nothing while
+	 * still passing under their own names.
 	 */
-	private static final int OVER_THRESHOLD = 25;
+	private static final int OVER_THRESHOLD = ReducedIndexMembership.DEFAULT_COVERAGE_THRESHOLD + 9;
 
 	/**
 	 * A storage primary key no index of the test catalog can ever hold — index primary keys are handed out
@@ -382,65 +373,66 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 
 	@ParameterizedTest(name = "{0}")
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
-	@DisplayName("a collection declaring no conditional facet grows no lookup on write either")
-	void collectionWithoutConditionalFacetGrowsNoLookupOnWrite(CatalogState state) {
-		// The load-time build skips such a collection outright, and maintenance has to agree: the cross-entity
-		// trigger can never fire here, so every entry written on the write path would be maintained for a reader
-		// that never comes - and `categories` IS partitioned, so without the gate the writes below would build a
-		// full lookup for it.
+	@DisplayName("a collection declaring no conditional facet still grows the lookup on write")
+	void collectionWithoutConditionalFacetStillGrowsTheLookupOnWrite(CatalogState state) {
+		// The conditional-facet trigger is no longer the only reader. `IndexSelectionVisitor` consults the lookup
+		// for any reference a query filters on, and it reaches collections the trigger can never fire in - so
+		// gating maintenance on the facet would leave index selection walking exactly the collections the lookup
+		// exists to spare it. The load-time build has to agree, and does: both sites read
+		// `ReducedIndexMembership#isMaintainedFor` and nothing else.
 		prepare(state, "CHECKBOX", EnumSet.noneOf(Scope.class));
 		upsertProducts(1, 5, 1);
 
 		assertMembershipMatchesIndexes();
-		final EntityCollection collection = (EntityCollection) getProductCollection();
-		for (final Scope scope : Scope.values()) {
-			for (final ReferenceSchemaContract reference : collection.getSchema().getReferences().values()) {
-				assertNull(
-					membershipOf(reference.getName(), scope),
-					"scope " + scope + ", reference `" + reference.getName() + "`: no reference of this "
-						+ "collection declares a conditional facet, so the trigger never fires and a lookup here "
-						+ "is maintained on every write for nobody"
-				);
-			}
-		}
+		assertNotNull(
+			membershipOf(REF_CATEGORIES, Scope.LIVE),
+			"`categories` advertises reduced indexes, so its lookup is maintained even though no reference of "
+				+ "this collection declares a conditional facet"
+		);
+		// existence alone would be satisfied by an empty slice, which is the one shape that is worse than absence
+		assertFalse(
+			coveredOf(REF_CATEGORIES).isEmpty(),
+			"the lookup must hold the partition the writes above created, not merely exist"
+		);
 	}
 
 	@Test
-	@DisplayName("a reflected reference lowered by the OTHER collection's schema change loses its lookup")
-	void reflectedReferenceLoweredFromTheSourceCollectionDiscardsItsLookup() {
-		// The placement of the discard is what this test exists for. A reflected reference inherits its index type
+	@DisplayName("a reflected reference de-indexed by the OTHER collection's schema change loses its lookup")
+	void reflectedReferenceDeIndexedFromTheSourceCollectionDiscardsItsLookup() {
+		// The placement of the discard is what this test exists for. A reflected reference inherits its indexing
 		// from the reference it reflects, which lives in ANOTHER collection - and when that one changes, this
 		// collection adopts the new schema through `notifyAboutExternalReferenceUpdate` -> `exchangeSchema`,
 		// never through its own `updateSchema`. A discard hooked on `updateSchema` would therefore never fire for
-		// a reflected reference, and the lookup would be trusted again the moment the source raises it back.
+		// a reflected reference, and the lookup would be trusted again the moment the source indexes it back.
 		prepareReflected();
 		assertNotNull(
 			membershipOf(REF_REFLECTED_CATEGORIES, Scope.LIVE),
-			"the reflected reference inherits FOR_FILTERING_AND_PARTITIONING, so its lookup must have been built"
+			"the reflected reference inherits the source's indexing, so its lookup must have been built"
 		);
 		assertMembershipMatchesIndexes();
 
 		// the schema change happens on the CATEGORY collection, not on this one
-		setCategoryProductsIndexing(false);
+		setCategoryProductsIndexed(false);
 
 		assertNull(
 			membershipOf(REF_REFLECTED_CATEGORIES, Scope.LIVE),
-			"the reflected reference is no longer partitioned, so nothing maintains its lookup and it must have "
-				+ "been discarded - a lookup kept here is trusted again the moment the source reference is raised"
+			"the reflected reference is no longer indexed, so nothing maintains its lookup and it must have "
+				+ "been discarded - a lookup kept here is trusted again the moment the source indexes it back"
 		);
 		assertMembershipMatchesIndexes();
 
-		// a partition created while nothing was watching the reflected reference ...
-		upsertCategoryWithProducts(2, 1, 5);
-		// ... and the source raises it again
-		setCategoryProductsIndexing(true);
+		// The source indexes it again. What is deliberately NOT asserted here is a partition created while the
+		// reference was unwatched: de-indexing removes the indexing outright, so no partition is created in that
+		// window at all, and the stale-lookup hazard the lowering variant of this test used to drive is
+		// unreachable from the source side. The discard above is the whole claim.
+		setCategoryProductsIndexed(true);
 		fireCrossEntityTrigger();
 
 		assertMembershipMatchesIndexes();
 		assertEquals(
-			5, countInPartitionWithFacetSelected(REF_REFLECTED_CATEGORIES, 2),
-			"the partition that appeared while the reflected reference was merely filterable must receive the "
-				+ "facet too - the lookup could not have recorded it, so it must not have been trusted"
+			5, countInPartitionWithFacetSelected(REF_REFLECTED_CATEGORIES, 1),
+			"the partition that existed throughout must still receive the facet - the discard must have cost "
+				+ "the reflected reference its lookup, not its correctness"
 		);
 	}
 
@@ -485,20 +477,22 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 		upsertProducts(1, 5, 1);
 		assertFalse(coveredOf(REF_CATEGORIES).isEmpty(), "the lookup must hold coverage before it is discarded");
 
-		setCategoriesIndexing(false);
+		setCategoriesIndexed(false);
 		// the write that fires the discard, and commits
 		upsertProducts(6, 6, 2);
 
 		assertNull(
 			membershipOf(REF_CATEGORIES, Scope.LIVE),
-			"the lookup of a reference that is no longer partitioned must have been discarded"
+			"the lookup of a reference that is no longer indexed must have been discarded"
 		);
 		assertMembershipMatchesIndexes();
 		// a suspended catalog refuses the next write, and a failed commit would have suspended it
 		upsertProducts(7, 7, 2);
+		// asserted through the still-indexed faceted reference rather than through `categories`, which this test
+		// has just de-indexed and can therefore no longer filter by
 		assertEquals(
-			2, countInCategoryWithFacetSelected(2),
-			"the catalog must still answer queries over the partition written after the discard"
+			7, countInPartitionWithFacetSelected(REF_PARAMETER_VALUES, PARAM_VALUE_PK),
+			"the catalog must still answer queries over the products written after the discard"
 		);
 	}
 
@@ -525,12 +519,12 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 					whichIs -> whichIs.setGroup(ENTITY_PARAMETER, PARAMETER_PK)
 				)
 				.upsertVia(session);
-			// (2) lowers the reference, so the next write cannot keep the lookup current any more
+			// (2) stops indexing the reference, so the next write cannot keep the lookup current any more
 			session.getEntitySchemaOrThrowException(ENTITY_PRODUCT)
 				.openForWrite()
 				.withReferenceToEntity(
 					REF_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
-					whichIs -> whichIs.indexedForFiltering()
+					ReferenceSchemaEditor::nonIndexed
 				)
 				.updateVia(session);
 			// (3) discards the lookup created in step (1), in the same transaction
@@ -579,7 +573,7 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 					.openForWrite()
 					.withReferenceToEntity(
 						REF_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.indexedForFiltering()
+						ReferenceSchemaEditor::indexedForFiltering
 					)
 					.updateVia(session);
 				session.createNewEntity(ENTITY_PRODUCT, REVERTED_PRODUCT_PK)
@@ -609,10 +603,12 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 	}
 
 	@Test
-	@DisplayName("a scope declaring no conditional facet grows no lookup when the catalog is loaded")
-	void archivedScopeWithoutConditionalFacetGrowsNoSlice() {
-		// the conditional facet is declared in LIVE only, so the ARCHIVED trigger never fires and the ARCHIVED
-		// half of the load-time build must do nothing at all
+	@DisplayName("a scope declaring no conditional facet still rebuilds its lookup when the catalog is loaded")
+	void archivedScopeWithoutConditionalFacetStillRebuildsItsSlice() {
+		// The conditional facet is declared in LIVE only, so under the trigger alone the ARCHIVED half of the
+		// load-time build would do nothing. Index selection reads the lookup in whichever scope a query targets,
+		// so the ARCHIVED half has to run too - and running it is what keeps the load-time build in step with a
+		// write path that would record an archived owner regardless.
 		prepare(CatalogState.ALIVE, "CHECKBOX", EnumSet.of(Scope.LIVE));
 		upsertProducts(1, 5, 1);
 		tx(session -> session.archiveEntity(ENTITY_PRODUCT, 3));
@@ -624,16 +620,17 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 		assertMembershipMatchesIndexes();
 		assertNotNull(
 			membershipOf(REF_CATEGORIES, Scope.LIVE),
-			"the LIVE scope declares the conditional facet, so its lookup must have been rebuilt"
+			"the LIVE scope holds partitions of `categories`, so its lookup must have been rebuilt"
 		);
-		final EntityCollection collection = (EntityCollection) getProductCollection();
-		for (final ReferenceSchemaContract reference : collection.getSchema().getReferences().values()) {
-			assertNull(
-				membershipOf(reference.getName(), Scope.ARCHIVED),
-				"reference `" + reference.getName() + "`: the ARCHIVED scope declares no conditional facet, so "
-					+ "building a lookup for it costs memory the trigger will never read"
-			);
-		}
+		assertNotNull(
+			membershipOf(REF_CATEGORIES, Scope.ARCHIVED),
+			"the archived product carries `categories` into the ARCHIVED scope, so that scope advertises a "
+				+ "partition too and its lookup must have been rebuilt alongside the LIVE one"
+		);
+		assertTrue(
+			coveredOwnersOf(REF_CATEGORIES, Scope.ARCHIVED).contains(3),
+			"the archived owner must be recorded in the ARCHIVED lookup the load rebuilt"
+		);
 	}
 
 	@ParameterizedTest(name = "{0}")
@@ -1229,8 +1226,8 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 		if (globalIndex == null) {
 			return null;
 		}
-		assertTrue(
-			globalIndex instanceof GlobalEntityIndex,
+		assertInstanceOf(
+			GlobalEntityIndex.class, globalIndex,
 			"scope " + scope + ": the GLOBAL index key resolved to " + globalIndex.getClass().getName()
 		);
 		return (GlobalEntityIndex) globalIndex;
@@ -1434,7 +1431,7 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 			.openForWrite()
 			.withReferenceToEntity(
 				REF_BRAND, ENTITY_BRAND, Cardinality.ZERO_OR_ONE,
-				whichIs -> whichIs.indexedForFilteringAndPartitioning()
+				ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 			)
 			.updateVia(session));
 	}
@@ -1479,7 +1476,11 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 				session.defineEntitySchema(ENTITY_CATEGORY)
 					.withReferenceToEntity(
 						REF_PRODUCTS, ENTITY_PRODUCT, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.indexedForFilteringAndPartitioningInScope(Scope.LIVE)
+						// indexed in ARCHIVED as well as LIVE purely so LIVE can be de-indexed later:
+						// `ReflectedReferenceSchema#withReferencedSchema` refuses a source indexed in no scope
+						// at all, so a single-scope source could never have its indexing withdrawn
+						whichIs -> whichIs
+							.indexedForFilteringAndPartitioningInScope(Scope.LIVE, Scope.ARCHIVED)
 					)
 					.updateVia(session);
 
@@ -1521,24 +1522,25 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Switches the CATEGORY collection's `products` reference between partitioned and merely filterable. The
-	 * product collection's reflected counterpart inherits whichever it is, so this is a schema change on one
-	 * collection that changes the indexing of another.
+	 * Indexes the CATEGORY collection's `products` reference or stops indexing it altogether. The product
+	 * collection's reflected counterpart inherits whichever it is, so this is the schema change on one collection
+	 * that ends the membership maintenance of another - merely lowering it to filtering leaves every partition
+	 * in place and therefore leaves the lookup maintained.
 	 *
-	 * @param partitioned `true` to index the source reference for filtering and partitioning
+	 * Withdrawing the indexing means withdrawing it **from `LIVE`**, not everywhere: a reflected reference
+	 * requires its source to stay indexed in at least one scope (`ReflectedReferenceSchema#withReferencedSchema`),
+	 * so ARCHIVED is what keeps the reflection legal while LIVE - the scope every assertion reads - loses it.
+	 *
+	 * @param indexed `true` to index the source reference in LIVE, `false` to stop indexing it there
 	 */
-	private void setCategoryProductsIndexing(boolean partitioned) {
+	private void setCategoryProductsIndexed(boolean indexed) {
 		tx(session -> session.getEntitySchemaOrThrowException(ENTITY_CATEGORY)
 			.openForWrite()
 			.withReferenceToEntity(
 				REF_PRODUCTS, ENTITY_PRODUCT, Cardinality.ZERO_OR_MORE,
-				whichIs -> {
-					if (partitioned) {
-						whichIs.indexedForFilteringAndPartitioning();
-					} else {
-						whichIs.indexedForFiltering();
-					}
-				}
+				whichIs -> whichIs.indexedForFilteringAndPartitioningInScope(
+					indexed ? new Scope[]{Scope.LIVE, Scope.ARCHIVED} : new Scope[]{Scope.ARCHIVED}
+				)
 			)
 			.updateVia(session));
 	}
@@ -1559,6 +1561,30 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 						whichIs.facetedPartiallyInScope(Scope.LIVE, conditionalFacetExpression());
 					} else {
 						whichIs.nonFaceted();
+					}
+				}
+			)
+			.updateVia(session));
+	}
+
+	/**
+	 * Indexes `categories` or stops indexing it altogether. De-indexing is what ends the membership maintenance:
+	 * the lookup follows the reference's indexed **components**, and a reference with none advertises no reduced
+	 * index for the lookup to account for. Merely lowering it to filtering does not - see
+	 * {@link #setCategoriesIndexing}, which keeps every partition and therefore keeps the lookup.
+	 *
+	 * @param indexed `true` to index the reference for filtering and partitioning, `false` to stop indexing it
+	 */
+	private void setCategoriesIndexed(boolean indexed) {
+		tx(session -> session.getEntitySchemaOrThrowException(ENTITY_PRODUCT)
+			.openForWrite()
+			.withReferenceToEntity(
+				REF_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
+				whichIs -> {
+					if (indexed) {
+						whichIs.indexedForFilteringAndPartitioning();
+					} else {
+						whichIs.nonIndexed();
 					}
 				}
 			)

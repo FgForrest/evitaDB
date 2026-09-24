@@ -28,6 +28,7 @@ import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.filter.NegationResolution;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.utils.Assert;
 
@@ -35,6 +36,9 @@ import javax.annotation.Nonnull;
 
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link Not} to {@link AbstractFormula}.
+ *
+ * The negation is emitted as a {@link FutureNotFormula} placeholder rather than a finished formula, because the set
+ * it has to be subtracted from is decided by the enclosing container, not here.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -54,6 +58,19 @@ public class NotTranslator implements FilteringConstraintTranslator<Not> {
 			() -> "Expected exactly one formula from `not` inner constraint dispatch, got " +
 				collectedFormulas.length + " for: `" + notConstraint + "`."
 		);
+		if (collectedFormulas[0] instanceof final FutureNotFormula nestedNegation) {
+			// `not(not(x))` is `x`. Both negations are placeholders, and nothing above ever unwraps a pair of them:
+			// the placeholder this method would produce carries another placeholder as its subtrahend, and whoever
+			// resolves the outer one hands the inner one to `Formula#compute`, which throws. This level is the only
+			// one at which the pair is still visible, so it is where the two cancel. The same collapse settles
+			// `not(or(a, not(b)))`, whose disjunction hands up a placeholder for the very same reason.
+			return nestedNegation.getInnerFormula();
+		}
+		if (filterByVisitor.getProcessingScope().getNegationResolution() == NegationResolution.PER_ROW) {
+			// the caller re-examines every candidate row by row, so widening keeps each one a candidate and leaves
+			// the negation to be settled inside the index it belongs to - see NegationResolution
+			return filterByVisitor.getSuperSetFormula();
+		}
 		return new FutureNotFormula(collectedFormulas[0]);
 	}
 

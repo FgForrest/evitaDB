@@ -139,7 +139,7 @@
 		<kryo.version>5.6.2</kryo.version>
 		<jackson.version>2.22.2</jackson.version>
 		<jackson.annotations.version>2.22</jackson.annotations.version>
-		<snakeyaml.version>2.6</snakeyaml.version>
+		<snakeyaml.version>2.7</snakeyaml.version>
 		<roaringbitmap.version>1.6.18</roaringbitmap.version>
 		<junit.jupiter.version>6.1.3</junit.jupiter.version>
 		<mockito.junit.version>5.23.0</mockito.junit.version>
@@ -148,7 +148,7 @@
 		<maven.toolchains.version>3.3.0</maven.toolchains.version>
 		<lombok.version>1.18.46</lombok.version>
 		<grpc.version>1.84.0</grpc.version>
-		<bouncyCastle.version>1.85</bouncyCastle.version>
+		<bouncyCastle.version>1.86</bouncyCastle.version>
 		<swagger.version>2.2.55</swagger.version>
 		<armeria.version>1.41.1</armeria.version>
 		<prometheus.version>1.8.0</prometheus.version>
@@ -406,7 +406,7 @@
 			<dependency>
 				<groupId>org.apache.httpcomponents.client5</groupId>
 				<artifactId>httpclient5</artifactId>
-				<version>5.6.3</version>
+				<version>5.6.4</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
@@ -751,6 +751,13 @@
 					<release>${java.release}</release>
 					<source>${java.release}</source>
 					<target>${java.release}</target>
+					<!--
+						The `add-modules jdk.incubator.vector` javac argument is deliberately NOT here. Only
+						`evita_roaring_bitmap` compiles against the incubating Vector API, and it adds the
+						argument in its own POM; the modules reachable from the Java driver compile at
+						`${java.driver.release}` and must not be handed an incubating module they neither use
+						nor could resolve at that API level.
+					-->
 					<compilerArgs>
 						<arg>-parameters</arg>
 					</compilerArgs>
@@ -829,6 +836,7 @@
 					-->
 					<argLine>${surefireArgLine} -Xmx${surefire.maxHeapSize} -Duser.country=US -Duser.language=en
 						-Dfile.encoding=${project.build.sourceEncoding} -Djol.magicFieldOffset=true
+						--add-modules jdk.incubator.vector
 						--add-opens java.base/java.lang.invoke=ALL-UNNAMED
 						--add-opens java.base/java.lang.invoke=ALL-UNNAMED
 						--add-opens java.base/java.lang=ALL-UNNAMED

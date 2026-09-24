@@ -556,8 +556,18 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		final BPlusTreeNode<M, ?>[] children = currentNode.getChildren();
 		// the captured `peek` is what the cursor later indexes `children` by, so it is bounded by that same array -
 		// this descent backs `recordCount()`, the one walk reachable with no session at all
-		path.add(new CursorLevel<>(children, 0, observableInternalPeek(currentNode.getPeek(), children)));
-		if (children[0] instanceof BPlusInternalTreeNode<?> childInternalNode) {
+		final int nodePeek = observableInternalPeek(currentNode.getPeek(), children);
+		// step over any LEADING child that is being unlinked - see `isEmptiedSubtree`. Skipping here rather than
+		// truncating the descent is what keeps the path at full depth: the cursor's level arrays are sized from this
+		// list and a short one cannot re-descend afterwards. A single merge empties a single node, so the loop stops
+		// on a live child; a node whose every child were emptied would leave the descent parked on the last one,
+		// which `ForwardBucketCursor#loadCurrentLeaf` then answers as an empty level
+		int index = 0;
+		while (index < nodePeek && isEmptiedSubtree(children[index])) {
+			index++;
+		}
+		path.add(new CursorLevel<>(children, index, nodePeek));
+		if (nodePeek >= 0 && children[index] instanceof BPlusInternalTreeNode<?> childInternalNode) {
 			//noinspection unchecked
 			addLeftmostCursorLevels((BPlusInternalTreeNode<M>) childInternalNode, path);
 		}
@@ -575,10 +585,16 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	) {
 		final BPlusTreeNode<M, ?>[] children = currentNode.getChildren();
 		// `peek` doubles as the index of the rightmost child here, so it MUST be bounded by the array this level
-		// captured rather than trusted on its own - the two are read independently
+		// captured rather than trusted on its own - the two are read independently - and an emptied node's -1 must
+		// never reach the array at all. The mirror of `addLeftmostCursorLevels`: park on the last live child and
+		// step over any TRAILING one being unlinked
 		final int currentNodePeek = observableInternalPeek(currentNode.getPeek(), children);
-		path.add(new CursorLevel<>(children, currentNodePeek, currentNodePeek));
-		if (children[currentNodePeek] instanceof BPlusInternalTreeNode<?> childInternalNode) {
+		int index = Math.max(0, currentNodePeek);
+		while (index > 0 && isEmptiedSubtree(children[index])) {
+			index--;
+		}
+		path.add(new CursorLevel<>(children, index, currentNodePeek));
+		if (currentNodePeek >= 0 && children[index] instanceof BPlusInternalTreeNode<?> childInternalNode) {
 			//noinspection unchecked
 			addRightmostCursorLevels((BPlusInternalTreeNode<M>) childInternalNode, path);
 		}
@@ -2547,6 +2563,30 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Nonnull BPlusTreeNode<M, ?>[] children
 	) {
 		return Math.min(peek, children.length - 1);
+	}
+
+	/**
+	 * Whether a child holds nothing a reader may descend into — it is `null`, or its `peek` says it has no live
+	 * content at all.
+	 *
+	 * **A `peek` of `-1` is not a torn count but an EMPTIED node**, and that is a different thing from everything
+	 * {@link #observableInternalPeek} guards. Both merge directions end by emptying the donor —
+	 * {@link BPlusInternalTreeNode#mergeWithLeft}, {@link BPlusLeafTreeNode#mergeWithLeft} and their `Right` twins
+	 * all finish with `setPeek(-1)`, which for an internal donor also nulls its whole child array — and only the
+	 * **next** statement in `consolidate` calls `removeChildOnIndex` to unlink it. Between those two the parent still
+	 * references a node with no children, and reaching it needs no reordering at all: a session-free reader that read
+	 * the parent's array before the unlink and the donor's `peek` after the emptying is a plain interleaving.
+	 *
+	 * Every walk that meets one steps **over** it. The subtree contributes nothing, so the count under-reports by
+	 * whatever the delete had not finished unlinking — the same staleness {@link #recordCount()} is documented to
+	 * accept on the grow side, where descending into the node instead fails outright with an
+	 * {@link ArrayIndexOutOfBoundsException} or a nulled slot.
+	 *
+	 * @param node the child about to be descended into
+	 * @return true when nothing beneath this child can be reached
+	 */
+	private static <M extends Comparable<M>> boolean isEmptiedSubtree(@Nullable BPlusTreeNode<M, ?> node) {
+		return node == null || node.getPeek() < 0;
 	}
 
 	/**
@@ -6143,6 +6183,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final ValueColumn<M> theKeys;
 			final RecordColumn theRecords;
 			final OverflowColumn theOverflow;
+			final RecordColumn theValueIds;
 			final int thePeek;
 
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
@@ -6152,16 +6193,29 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				theKeys = this.keys;
 				theRecords = this.records;
 				theOverflow = this.overflow;
+				theValueIds = this.valueIds;
 				thePeek = this.peek;
 			} else {
 				theKeys = layer.keys;
 				theRecords = layer.records;
 				theOverflow = layer.overflow;
+				theValueIds = layer.valueIds;
 				thePeek = layer.peek;
 			}
 
+			// the search is bounded by the CROSS-column live run rather than by `peek`, because the index it yields
+			// is used on a column the search never looked at. `findKeyPosition` clips itself to the key array it
+			// indexes, so a key column a warm-up grow has already extended answers "present" for a slot the record
+			// column has not materialized yet - and `RecordColumn#intAt` answers such a slot with `0`, a perfectly
+			// well-formed primary key. Unbounded, the lookup therefore FABRICATES a record the tree has never held,
+			// silently. Bounding under-reports the bucket to absent instead, which is precisely what this reader
+			// would have seen a moment earlier in the same grow - the staleness a session-free reader is documented
+			// to accept. On any consistent observer the bound returns `peek` unchanged
 			final InsertionPosition insertionPosition =
-				theKeys.findKeyPosition(value, 0, thePeek + 1, this.comparator);
+				theKeys.findKeyPosition(
+					value, 0, observableLeafPeek(thePeek, theKeys, theRecords, theOverflow, theValueIds) + 1,
+					this.comparator
+				);
 			if (!insertionPosition.alreadyPresent()) {
 				return EmptyBitmap.INSTANCE;
 			}
@@ -6330,6 +6384,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final ValueColumn<M> theKeys;
 			final RecordColumn theRecords;
 			final OverflowColumn theOverflow;
+			final RecordColumn theValueIds;
 			final int thePeek;
 
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
@@ -6339,16 +6394,23 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				theKeys = this.keys;
 				theRecords = this.records;
 				theOverflow = this.overflow;
+				theValueIds = this.valueIds;
 				thePeek = this.peek;
 			} else {
 				theKeys = layer.keys;
 				theRecords = layer.records;
 				theOverflow = layer.overflow;
+				theValueIds = layer.valueIds;
 				thePeek = layer.peek;
 			}
 
+			// bounded by the cross-column live run, not by `peek` - see `getRecords(M)` for why an index resolved on
+			// the key column alone must never address the record column
 			final InsertionPosition insertionPosition =
-				theKeys.findKeyPosition(value, 0, thePeek + 1, this.comparator);
+				theKeys.findKeyPosition(
+					value, 0, observableLeafPeek(thePeek, theKeys, theRecords, theOverflow, theValueIds) + 1,
+					this.comparator
+				);
 			final int index = insertionPosition.position();
 			if (insertionPosition.alreadyPresent() && recordId != Integer.MIN_VALUE) {
 				// records sharing a value ascend by (signed) id - the anchor is the greatest id strictly below the
@@ -6381,24 +6443,43 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @return the last record id stored in this leaf
 		 */
 		public int lastRecord() {
+			final ValueColumn<M> theKeys;
 			final RecordColumn theRecords;
 			final OverflowColumn theOverflow;
+			final RecordColumn theValueIds;
 			final int thePeek;
 
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
 				? Transaction.getTransactionalMemoryLayerIfExists(this)
 				: null;
 			if (layer == null) {
+				theKeys = this.keys;
 				theRecords = this.records;
 				theOverflow = this.overflow;
+				theValueIds = this.valueIds;
 				thePeek = this.peek;
 			} else {
+				theKeys = layer.keys;
 				theRecords = layer.records;
 				theOverflow = layer.overflow;
+				theValueIds = layer.valueIds;
 				thePeek = layer.peek;
 			}
 			Assert.isPremiseValid(thePeek >= 0, "Cannot read the last record of an empty leaf!");
-			return lastRecordOfBucket(thePeek, theRecords, theOverflow);
+			// the raw `peek` must NOT reach the columns: `computePreviousRecord` climbs to the preceding leaf through
+			// here with no session and no catalog-state guard, so a reader can hold a `peek` a warm-up grow has
+			// already raised while the columns it indexes are still the ones it read a moment earlier. Unbounded,
+			// `records.intAt(peek)` then answers the unmaterialized slot - `0`, which IS
+			// `EvitaDataTypes#RESERVED_PRIMARY_KEY`, the "this record sorts first" sentinel - and the sort index
+			// anchors the record at the head instead of after its true predecessor. A wrong order, silently, rather
+			// than a failure. Bounding by the columns' own live run under-reports to the last bucket the reader can
+			// actually see, which is the staleness this walk is documented to accept
+			final int bound = observableLeafPeek(thePeek, theKeys, theRecords, theOverflow, theValueIds);
+			if (bound < 0) {
+				// a torn reader that can observe no live bucket at all has no predecessor to offer
+				return EvitaDataTypes.RESERVED_PRIMARY_KEY;
+			}
+			return lastRecordOfBucket(bound, theRecords, theOverflow);
 		}
 
 		/**
@@ -6431,11 +6512,19 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		/**
 		 * Returns the index of the bucket for the given value, or -1 if absent.
 		 *
+		 * The index is safe to address ANY of the leaf's columns with, not merely the key column the search ran over:
+		 * the search is bounded by {@link TransactionalBucketBPlusTree#observableLeafPeek} across all four of them,
+		 * so a slot a torn reader's key column can still see but its record column cannot is reported absent rather
+		 * than handed out for {@link #longRecordAt} to answer with an unmaterialized `0`.
+		 *
 		 * @param value the value to search for
 		 * @return the index of the bucket if found; -1 otherwise
 		 */
 		public int getValueIndex(@Nonnull M value) {
 			final ValueColumn<M> theKeys;
+			final RecordColumn theRecords;
+			final OverflowColumn theOverflow;
+			final RecordColumn theValueIds;
 			final int thePeek;
 
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
@@ -6443,14 +6532,25 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				: null;
 			if (layer == null) {
 				theKeys = this.keys;
+				theRecords = this.records;
+				theOverflow = this.overflow;
+				theValueIds = this.valueIds;
 				thePeek = this.peek;
 			} else {
 				theKeys = layer.keys;
+				theRecords = layer.records;
+				theOverflow = layer.overflow;
+				theValueIds = layer.valueIds;
 				thePeek = layer.peek;
 			}
 
+			// bounded by the cross-column live run, not by `peek` - see `getRecords(M)` for why an index resolved on
+			// the key column alone must never address the record column
 			final InsertionPosition insertionPosition =
-				theKeys.findKeyPosition(value, 0, thePeek + 1, this.comparator);
+				theKeys.findKeyPosition(
+					value, 0, observableLeafPeek(thePeek, theKeys, theRecords, theOverflow, theValueIds) + 1,
+					this.comparator
+				);
 			return insertionPosition.alreadyPresent() ? insertionPosition.position() : -1;
 		}
 
@@ -7641,8 +7741,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				this.pathPeeks[i] = cursorLevel.peek();
 			}
 			loadCurrentLeaf();
+			// the leftmost descent can end inside a node being unlinked from its parent, which leaves no leaf at the
+			// bottom of the path. Stepping over that subtree keeps the under-report proportional to it, instead of
+			// reporting the WHOLE tree empty because its first subtree happened to be mid-merge
+			this.exhausted = this.leafPeek < 0 && !moveToNextLeaf();
+			// set AFTER the recovery step too: that step parks on the first bucket, and the first `next()` is the
+			// call that is supposed to land on it
 			this.currentIndex = -1;
-			this.exhausted = this.leafPeek < 0;
 		}
 
 		ForwardBucketCursor(@Nonnull Cursor<M> cursor, @Nonnull M key) {
@@ -7750,9 +7855,17 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		private void loadCurrentLeaf() {
+			final BPlusTreeNode<M, ?> bottom =
+				this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]];
+			// a descent that stopped inside an EMPTIED node parks on a slot that node has already nulled, so the
+			// bottom of the path holds no leaf at all. An empty `leafPeek` is this level's own way of saying so, and
+			// every value accessor on the cursor is gated on `positioned`, which such a level never becomes
+			if (!(bottom instanceof BPlusLeafTreeNode)) {
+				this.leafPeek = -1;
+				return;
+			}
 			//noinspection unchecked
-			final BPlusLeafTreeNode<M> leaf =
-				(BPlusLeafTreeNode<M>) this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]];
+			final BPlusLeafTreeNode<M> leaf = (BPlusLeafTreeNode<M>) bottom;
 			this.leafKeys = leaf.getKeyColumn();
 			this.leafRecords = leaf.getRecords();
 			this.leafOverflow = leaf.getOverflow();
@@ -7770,22 +7883,40 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (this.pathIndex[level] < this.pathPeeks[level]) {
 					this.pathIndex[level] = this.pathIndex[level] + 1;
 					BPlusTreeNode<?, ?> currentNode = this.path[level][this.pathIndex[level]];
+					boolean emptySubtree = false;
 					for (int i = level + 1; i <= this.path.length - 1; i++) {
 						Assert.isPremiseValid(
 							currentNode instanceof BPlusInternalTreeNode, "Internal node expected!");
 						//noinspection unchecked
 						final BPlusTreeNode<M, ?>[] levelChildren =
 							((BPlusInternalTreeNode<M>) currentNode).getChildren();
-						this.path[i] = levelChildren;
-						this.pathIndex[i] = 0;
 						// the pair (array, peek) is stored here and consumed by a LATER call, so a stale peek would
 						// surface far from this line - bound it against the array it is stored beside
-						this.pathPeeks[i] = observableInternalPeek(currentNode.getPeek(), levelChildren);
+						final int levelPeek = observableInternalPeek(currentNode.getPeek(), levelChildren);
+						if (levelPeek < 0) {
+							// an EMPTIED node: `mergeWithLeft` set the donor's peek to -1 and nulled its children,
+							// and the statement that unlinks it from its parent has not run yet. Its subtree holds
+							// nothing this reader may address, so the walk abandons this sibling and takes the next
+							// one - the same under-report the column bounds produce, never a failure
+							emptySubtree = true;
+							break;
+						}
+						this.path[i] = levelChildren;
+						this.pathIndex[i] = 0;
+						this.pathPeeks[i] = levelPeek;
 						currentNode = levelChildren[0];
 					}
-					this.currentIndex = 0;
-					loadCurrentLeaf();
-					return this.leafPeek >= 0;
+					if (!emptySubtree) {
+						this.currentIndex = 0;
+						loadCurrentLeaf();
+						if (this.leafPeek >= 0) {
+							return true;
+						}
+					}
+					// the sibling is being unlinked - an emptied internal node broke the descent above, or the leaf
+					// it led to is itself an emptied merge donor. Take the NEXT sibling rather than ending the walk
+					// here, so the under-report stays proportional to the subtree instead of losing the whole tail
+					continue;
 				} else {
 					level--;
 					parentLevel = level > 0 ? this.path[level] : null;
@@ -7823,7 +7954,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				this.pathIndex[i] = cursorLevel.index();
 			}
 			loadCurrentLeaf();
-			this.exhausted = this.leafPeek < 0;
+			// the rightmost descent can end inside a node being unlinked from its parent - see the forward cursor's
+			// constructor for the whole argument; here the recovery steps to the PREVIOUS subtree
+			this.exhausted = this.leafPeek < 0 && !moveToPrevLeaf();
 		}
 
 		@Override
@@ -7909,9 +8042,17 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		private void loadCurrentLeaf() {
+			final BPlusTreeNode<M, ?> bottom =
+				this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]];
+			// a descent that stopped inside an EMPTIED node parks on a slot that node has already nulled, so the
+			// bottom of the path holds no leaf at all. An empty `leafPeek` is this level's own way of saying so, and
+			// every value accessor on the cursor is gated on `positioned`, which such a level never becomes
+			if (!(bottom instanceof BPlusLeafTreeNode)) {
+				this.leafPeek = -1;
+				return;
+			}
 			//noinspection unchecked
-			final BPlusLeafTreeNode<M> leaf =
-				(BPlusLeafTreeNode<M>) this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]];
+			final BPlusLeafTreeNode<M> leaf = (BPlusLeafTreeNode<M>) bottom;
 			this.leafKeys = leaf.getKeyColumn();
 			this.leafRecords = leaf.getRecords();
 			this.leafOverflow = leaf.getOverflow();
@@ -7929,20 +8070,34 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (this.pathIndex[level] > 0) {
 					this.pathIndex[level] = this.pathIndex[level] - 1;
 					BPlusTreeNode<M, ?> currentNode = this.path[level][this.pathIndex[level]];
+					boolean emptySubtree = false;
 					for (int i = level + 1; i <= this.pathIndex.length - 1; i++) {
 						Assert.isPremiseValid(currentNode instanceof BPlusInternalTreeNode, "Internal node expected!");
 						//noinspection unchecked
 						final BPlusTreeNode<M, ?>[] levelChildren =
 							((BPlusInternalTreeNode<M>) currentNode).getChildren();
-						this.path[i] = levelChildren;
 						// `peek` is the rightmost child's index and is dereferenced on the very next line, against an
 						// array read a moment earlier - bound it by that array
-						this.pathIndex[i] = observableInternalPeek(currentNode.getPeek(), levelChildren);
-						currentNode = levelChildren[this.pathIndex[i]];
+						final int levelPeek = observableInternalPeek(currentNode.getPeek(), levelChildren);
+						if (levelPeek < 0) {
+							// an EMPTIED node, exactly as in `ForwardBucketCursor#moveToNextLeaf`: abandon this
+							// sibling and take the previous one rather than indexing `children[-1]`
+							emptySubtree = true;
+							break;
+						}
+						this.path[i] = levelChildren;
+						this.pathIndex[i] = levelPeek;
+						currentNode = levelChildren[levelPeek];
 					}
-					loadCurrentLeaf();
-					this.currentIndex = this.leafPeek;
-					return this.leafPeek >= 0;
+					if (!emptySubtree) {
+						loadCurrentLeaf();
+						this.currentIndex = this.leafPeek;
+						if (this.leafPeek >= 0) {
+							return true;
+						}
+					}
+					// see `ForwardBucketCursor#moveToNextLeaf`: take the PREVIOUS sibling rather than ending the walk
+					continue;
 				} else {
 					level--;
 					parentLevel = level > 0 ? this.path[level] : null;
@@ -8041,11 +8196,15 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				replacedPath.set(this.level, newCursorLevel);
 				for (int i = this.level + 1; i < this.path().size(); i++) {
 					final BPlusInternalTreeNode<M> currentNode = newCursorLevel.currentNode();
-					newCursorLevel = new CursorLevel<>(
-						currentNode.getChildren(),
-						currentNode.getPeek(),
-						currentNode.getPeek()
-					);
+					// the children array is read into a local FIRST and `peek` - which doubles as the rightmost child's
+					// index here and is dereferenced by `Cursor#leafNode()` a call later - is bounded by THAT array.
+					// This rebuild is NOT write-path only: `computePreviousRecord` climbs to the preceding leaf through
+					// it with no session and no catalog-state guard, so the two independent reads can pair a `peek`
+					// raised by a warm-up grow with the children array as it stood before that grow. Loading the array
+					// before the count needs no reordering at all, so this escapes on x86 just as readily as on AArch64
+					final BPlusTreeNode<M, ?>[] children = currentNode.getChildren();
+					final int nodePeek = observableInternalPeek(currentNode.getPeek(), children);
+					newCursorLevel = new CursorLevel<>(children, nodePeek, nodePeek);
 					replacedPath.set(i, newCursorLevel);
 				}
 				return new CursorWithLevel<>(
@@ -8076,7 +8235,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				replacedPath.set(this.level, newCursorLevel);
 				for (int i = this.level + 1; i < this.path.size(); i++) {
 					final BPlusInternalTreeNode<M> currentNode = newCursorLevel.currentNode();
-					newCursorLevel = new CursorLevel<>(currentNode.getChildren(), 0, currentNode.getPeek());
+					// bounded by the array this level captures, exactly as `getCursorForPreviousNode` is - the stored
+					// `peek` is consumed by a LATER call, so an unbounded one would surface far from this line
+					final BPlusTreeNode<M, ?>[] children = currentNode.getChildren();
+					newCursorLevel = new CursorLevel<>(
+						children, 0, observableInternalPeek(currentNode.getPeek(), children)
+					);
 					replacedPath.set(i, newCursorLevel);
 				}
 				return new CursorWithLevel<>(

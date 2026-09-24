@@ -40,6 +40,7 @@ import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex;
+import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.EntityTypeClassifierResolver;
@@ -77,6 +78,12 @@ abstract class AbstractMutatorTestBase {
 	@Nonnull protected final DataGenerator dataGenerator = new DataGenerator();
 	@Nonnull protected final EntityIndexLocalMutationExecutor executor;
 	@Nonnull protected final GlobalEntityIndex productIndex;
+	/**
+	 * The index maintainer handed to the executor. Exposed so a subclass can {@link MockEntityIndexCreator#register}
+	 * the indexes it builds itself under their real keys - production code that resolves an index by key and asserts
+	 * its type cannot be satisfied by the blanket answer the mock gives otherwise.
+	 */
+	@Nonnull protected final MockEntityIndexCreator<EntityIndexKey, EntityIndex> entityIndexCreator;
 	@Nonnull protected final EntitySchema productSchema;
 	@Nonnull protected final SealedCatalogSchema sealedCatalogSchema;
 	/**
@@ -143,10 +150,11 @@ abstract class AbstractMutatorTestBase {
 			)
 		);
 		this.productIndex = new GlobalEntityIndex(1, this.productSchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL));
+		this.entityIndexCreator = new MockEntityIndexCreator<>(this.productIndex);
 		final AtomicInteger sequencer = new AtomicInteger(1);
 		this.executor = new EntityIndexLocalMutationExecutor(
 			this.containerAccessor, 1,
-			new MockEntityIndexCreator<>(this.productIndex),
+			this.entityIndexCreator,
 			new MockEntityIndexCreator<>(this.catalogIndex),
 			() -> this.productSchema,
 			sequencer::getAndIncrement,

@@ -61,6 +61,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.comparatorFor;
+import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.foldOntoDistinctValues;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.plainTypeOf;
 import static io.evitadb.utils.Assert.isTrue;
 
@@ -590,8 +591,9 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	/**
 	 * Array-dispatching entry point for registration. When `key` is an array (an array-typed attribute), every
 	 * element is first checked for a conflicting owner and only then registered, so a violation on any element
-	 * aborts the whole operation before mutating the index. Scalar keys are delegated straight to the single-value
-	 * overload. Finally marks the index dirty.
+	 * aborts the whole operation before mutating the index. The array is folded onto its distinct values first, so
+	 * a value the array repeats occupies its single tree entry once. Scalar keys are delegated straight to the
+	 * single-value overload. Finally marks the index dirty.
 	 *
 	 * @param key      single unique value or an array of unique values to register
 	 * @param recordId record id that should own the value(s)
@@ -600,14 +602,16 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	private <T extends Serializable & Comparable<T>> void registerUniqueKeyValue(@Nonnull Object key, int recordId) {
 		if (key instanceof @Nonnull final Object[] valueArray) {
 			verifyValueArray(key);
+			// one value is one tree entry however many times the array repeats it - see #foldOntoDistinctValues
+			final Object[] distinctValues = foldOntoDistinctValues(valueArray, this.comparator);
 			// first verify removed data without modifications
-			for (Object valueItem : valueArray) {
+			for (Object valueItem : distinctValues) {
 				final T theValueItem = (T) valueItem;
 				final Integer existingRecordId = getRecordIdByUniqueValue(theValueItem);
 				assertUniqueKeyIsFree(theValueItem, recordId, existingRecordId);
 			}
 			// now perform alteration
-			for (Object valueItem : valueArray) {
+			for (Object valueItem : distinctValues) {
 				//noinspection unchecked
 				registerUniqueKeyValue((T) valueItem, recordId);
 			}
@@ -639,6 +643,8 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * Array-dispatching entry point for de-registration. When `key` is an array, every element's ownership is
 	 * first verified and only then removed, so a mismatch on any element aborts the operation before mutating the
 	 * index; the array branch returns {@link Integer#MIN_VALUE} as a sentinel since no single record id applies.
+	 * The array is folded onto its distinct values first, so a value the array repeats is retired once rather than
+	 * being sought a second time after its only entry is gone.
 	 * Scalar keys are delegated to the single-value overload and return the removed record id. Finally marks the
 	 * index dirty.
 	 *
@@ -651,14 +657,16 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		final int returnValue;
 		if (key instanceof @Nonnull final Object[] valueArray) {
 			verifyValueArray(key);
+			// one value is one tree entry however many times the array repeats it - see #foldOntoDistinctValues
+			final Object[] distinctValues = foldOntoDistinctValues(valueArray, this.comparator);
 			// first verify removed data without modifications
-			for (Object valueItem : valueArray) {
+			for (Object valueItem : distinctValues) {
 				final T theValueItem = (T) valueItem;
 				final Integer existingRecordId = getRecordIdByUniqueValue(theValueItem);
 				assertUniqueKeyOwnership(theValueItem, expectedRecordId, existingRecordId);
 			}
 			// now perform alteration
-			for (Object valueItem : valueArray) {
+			for (Object valueItem : distinctValues) {
 				unregisterUniqueKeyValue((T) valueItem, expectedRecordId);
 			}
 

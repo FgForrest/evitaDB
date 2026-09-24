@@ -34,6 +34,8 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.core.Evita;
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
+import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.EvitaTestSupport.TestPaths;
@@ -45,7 +47,9 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
@@ -955,6 +959,44 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 
 					// then delete entity
 					session.deleteEntity(Entities.PRODUCT, 10, entityFetchAllContent());
+
+					assertEntitiesAreNotEntangled(session);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("Remove reflected reference even when a narrowing decode coverage is bound on the thread")
+		void shouldRemoveReflectedReferenceUnderABoundDecodeCoverage() {
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					createEntangledSchema(session);
+
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 10)
+					);
+
+					session.upsertEntity(
+						session.createNewEntity(Entities.CATEGORY, 1)
+							.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+					);
+
+					// A read that narrowed its decode leaves its coverage bound on this thread. Entity removal
+					// decomposes into one RemoveReferenceMutation per reference the entity reports, so a write path
+					// that INHERITED this coverage would read an entity with no references at all, emit no removals,
+					// and leave the reflected counterparts dangling - silently, because an `Entity` carries no
+					// marker saying how much of it was decoded. The write path must therefore bind its own
+					// unrestricted coverage rather than trust whatever the thread happens to hold.
+					ReferenceDecodeCoverageContext.executeWithCoverage(
+						ReferenceDecodeCoverage.of(
+							Set.of(), Map.of(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, new int[]{Integer.MAX_VALUE})
+						),
+						() -> {
+							session.deleteEntity(Entities.PRODUCT, 10, entityFetchAllContent());
+							return null;
+						}
+					);
 
 					assertEntitiesAreNotEntangled(session);
 				}

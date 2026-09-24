@@ -23,7 +23,8 @@
 
 package io.evitadb.core.buffer;
 
-import io.evitadb.spi.store.catalog.persistence.ReferenceNameFilterContext;
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
+import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import org.junit.jupiter.api.AfterEach;
@@ -256,8 +257,8 @@ class StorageAccessScopeTest {
 			final AtomicInteger loads = new AtomicInteger();
 
 			try (final StorageAccessScope scope = StorageAccessScope.install()) {
-				final TestStoragePart narrowed = ReferenceNameFilterContext.executeWithReferenceNameFilter(
-					Set.of(BRAND),
+				final TestStoragePart narrowed = ReferenceDecodeCoverageContext.executeWithCoverage(
+					ReferenceDecodeCoverage.ofNames(Set.of(BRAND)),
 					() -> scope.fetch(
 						owner, CATALOG_VERSION, TestStoragePart.class, 1L, null, countingLoader(loads, 1L)
 					)
@@ -278,14 +279,14 @@ class StorageAccessScopeTest {
 			final AtomicInteger loads = new AtomicInteger();
 
 			try (final StorageAccessScope scope = StorageAccessScope.install()) {
-				ReferenceNameFilterContext.executeWithReferenceNameFilter(
-					Set.of(BRAND),
+				ReferenceDecodeCoverageContext.executeWithCoverage(
+					ReferenceDecodeCoverage.ofNames(Set.of(BRAND)),
 					() -> scope.fetch(
 						owner, CATALOG_VERSION, TestStoragePart.class, 1L, null, countingLoader(loads, 1L)
 					)
 				);
-				ReferenceNameFilterContext.executeWithReferenceNameFilter(
-					Set.of(CATEGORY),
+				ReferenceDecodeCoverageContext.executeWithCoverage(
+					ReferenceDecodeCoverage.ofNames(Set.of(CATEGORY)),
 					() -> scope.fetch(
 						owner, CATALOG_VERSION, TestStoragePart.class, 1L, null, countingLoader(loads, 1L)
 					)
@@ -302,16 +303,16 @@ class StorageAccessScopeTest {
 			// no matter which collection implementation or iteration order it arrived in
 			final Object owner = new Object();
 			final AtomicInteger loads = new AtomicInteger();
-			final Set<String> reordered = new LinkedHashSet<>(List.of(CATEGORY, BRAND));
+			final ReferenceDecodeCoverage reordered = ReferenceDecodeCoverage.ofNames(new LinkedHashSet<>(List.of(CATEGORY, BRAND)));
 
 			try (final StorageAccessScope scope = StorageAccessScope.install()) {
-				final TestStoragePart first = ReferenceNameFilterContext.executeWithReferenceNameFilter(
-					Set.of(BRAND, CATEGORY),
+				final TestStoragePart first = ReferenceDecodeCoverageContext.executeWithCoverage(
+					ReferenceDecodeCoverage.ofNames(Set.of(BRAND, CATEGORY)),
 					() -> scope.fetch(
 						owner, CATALOG_VERSION, TestStoragePart.class, 1L, null, countingLoader(loads, 1L)
 					)
 				);
-				final TestStoragePart second = ReferenceNameFilterContext.executeWithReferenceNameFilter(
+				final TestStoragePart second = ReferenceDecodeCoverageContext.executeWithCoverage(
 					reordered,
 					() -> scope.fetch(owner, CATALOG_VERSION, TestStoragePart.class, 1L, null, failingLoader())
 				);

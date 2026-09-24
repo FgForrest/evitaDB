@@ -164,6 +164,17 @@
 						present only on the regular classpath is then ignored - so Lombok has to be repeated alongside
 						the JMH generator. Dropping it silently removes every @Getter-generated accessor in this module.
 					-->
+					<!--
+						compilerArgs replaces the parent's list wholesale the same way annotationProcessorPaths does,
+						so the parent's -parameters has to be repeated here. The incubator module is needed because
+						io.evitadb.spike.roaring benchmarks candidate SIMD kernels against the scalar ones that run
+						today; javac warns once per module that uses it, which is expected and not an error.
+					-->
+					<compilerArgs>
+						<arg>-parameters</arg>
+						<arg>--add-modules</arg>
+						<arg>jdk.incubator.vector</arg>
+					</compilerArgs>
 					<annotationProcessorPaths>
 						<annotationProcessorPath>
 							<groupId>org.projectlombok</groupId>

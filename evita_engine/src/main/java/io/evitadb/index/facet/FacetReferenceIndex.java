@@ -33,6 +33,7 @@ import io.evitadb.core.transaction.memory.TransactionalContainerChanges.Containe
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import com.carrotsearch.hppc.IntArrayList;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -48,20 +49,20 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Objects;
 import java.util.Optional;
+import java.util.PrimitiveIterator.OfInt;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -347,41 +348,98 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	/**
 	 * Method returns formula that allows computation of all entity primary keys that have at least one
 	 * of `facetId` as its faceted reference.
+	 *
+	 * **The facets are bucketed by group *id*, never by the {@link FacetGroupIndex} object.** That is the
+	 * whole reason this method is a loop rather than a `Collectors.groupingBy`. {@link FacetGroupIndex} is a
+	 * Lombok `@Data` class, so using one as a map key hashes it structurally: the hash walks its
+	 * {@link TransactionalMap} of {@link FacetIdIndex}, each of those walks its bitmap, and each bitmap
+	 * walks every roaring container it holds. On a production e-commerce catalog that put container hashing
+	 * at roughly 5% of facet-query CPU, paid once per facet on every facet summary, to distinguish buckets
+	 * that an `int` already distinguishes.
+	 *
+	 * A group id identifies its index exactly — {@link #groupedFacets} maps one to the other — and the
+	 * ungrouped index is keyed by `null`, which a {@link java.util.LinkedHashMap} accepts and
+	 * `Collectors.groupingBy` would have rejected. The map keeps encounter order, so the formulas come back
+	 * in ascending facet-id order of first appearance rather than in the hash order this method used to
+	 * return them in.
+	 *
+	 * @param formulaFactory builds one formula per group from its id, its facets and their entity-id indexes
+	 * @param facetId        the facets to compute for
+	 * @return one formula per distinct group the given facets belong to; empty when none of them is indexed
 	 */
 	@Nonnull
 	public List<FacetGroupFormula> getFacetReferencingEntityIdsFormula(
 		@Nonnull TriFunction<Integer, Bitmap, Bitmap[], FacetGroupFormula> formulaFactory,
 		@Nonnull Bitmap facetId
 	) {
-		final Map<FacetGroupIndex, List<Integer>> facetsByGroup = StreamSupport.stream(facetId.spliterator(), false)
-			.flatMap(fId -> ofNullable(this.facetToGroupIndex.get(fId))
-				.map(groupIds -> Arrays.stream(groupIds).mapToObj(groupId -> new GroupFacetIdDTO(this.groupedFacets.get(groupId), fId)))
-				.orElseGet(() -> Stream.of(new GroupFacetIdDTO(this.notGroupedFacets.get(), fId)))
-			)
-			.filter(it -> it.groupIndex() != null)
-			.collect(
-				Collectors.groupingBy(
-					GroupFacetIdDTO::groupIndex,
-					Collectors.mapping(GroupFacetIdDTO::facetId, Collectors.toList())
+		// sized by the number of buckets it can end up holding, never by the width of the request: `facetId` is
+		// the computed result of the `facetHaving` inner filter and is unbounded by construction, while the
+		// accumulator holds one entry per group plus one for the ungrouped index. Sizing it by the request made
+		// a 10,000-facet `facetHaving` allocate a 16,384-slot table - measured at 133 KB - to hold a handful of
+		// buckets, on the very path this method exists to make cheap.
+		final Map<Integer, GroupBucket> facetsByGroup = createLinkedHashMap(
+			Math.min(facetId.size(), this.groupedFacets.size() + 1)
+		);
+		final OfInt facetIdIterator = facetId.iterator();
+		while (facetIdIterator.hasNext()) {
+			final int facetPrimaryKey = facetIdIterator.nextInt();
+			final int[] groupIds = this.facetToGroupIndex.get(facetPrimaryKey);
+			if (groupIds == null) {
+				// the facet belongs to no group - it is indexed in the single ungrouped index, under the
+				// `null` key
+				collect(facetsByGroup, null, this.notGroupedFacets.get(), facetPrimaryKey);
+			} else {
+				for (int i = 0; i < groupIds.length; i++) {
+					final int groupId = groupIds[i];
+					collect(facetsByGroup, groupId, this.groupedFacets.get(groupId), facetPrimaryKey);
+				}
+			}
+		}
+
+		final List<FacetGroupFormula> result = new ArrayList<>(facetsByGroup.size());
+		for (final GroupBucket bucket : facetsByGroup.values()) {
+			final FacetGroupIndex groupIndex = bucket.groupIndex();
+			final BaseBitmap groupFacets = new BaseBitmap(bucket.facetIds().toArray());
+			result.add(
+				formulaFactory.apply(
+					groupIndex.getGroupId(), groupFacets, groupIndex.getFacetIdIndexesAsArray(groupFacets)
 				)
 			);
-		return facetsByGroup
-			.entrySet()
-			.stream()
-			.map(entry -> {
-				final FacetGroupIndex groupIndex = entry.getKey();
-				if (groupIndex == null) {
-					return null;
-				} else {
-					final BaseBitmap groupFacets = new BaseBitmap(entry.getValue().stream().mapToInt(it -> it).toArray());
-					//noinspection DataFlowIssue
-					return formulaFactory.apply(
-						groupIndex.getGroupId(), groupFacets, groupIndex.getFacetIdIndexesAsArray(groupFacets)
-					);
-				}
-			})
-			.filter(Objects::nonNull)
-			.collect(Collectors.toList());
+		}
+		return result;
+	}
+
+	/**
+	 * Adds one facet id to its group's bucket, creating the bucket on first sight and skipping the facet
+	 * altogether when the group it names has no index — which is what the `groupIndex() != null` filter did
+	 * before this method was a loop.
+	 *
+	 * The `get` / `put` pair is deliberate: `computeIfAbsent` would have to capture `groupIndex` in its
+	 * mapping function, and this runs once per requested facet, so that closure would be allocated for every
+	 * facet of the request merely to be discarded on all but the first of each group.
+	 *
+	 * @param facetsByGroup   the accumulator, keyed by group id (`null` for the ungrouped index)
+	 * @param groupId         the group the facet belongs to, `null` when it belongs to none
+	 * @param groupIndex      the index that group is stored in, `null` when the group is not indexed
+	 * @param facetPrimaryKey the facet to record
+	 */
+	private static void collect(
+		@Nonnull Map<Integer, GroupBucket> facetsByGroup,
+		@Nullable Integer groupId,
+		@Nullable FacetGroupIndex groupIndex,
+		int facetPrimaryKey
+	) {
+		if (groupIndex == null) {
+			return;
+		}
+		final GroupBucket bucket = facetsByGroup.get(groupId);
+		if (bucket == null) {
+			final GroupBucket newBucket = new GroupBucket(groupIndex, new IntArrayList());
+			newBucket.facetIds().add(facetPrimaryKey);
+			facetsByGroup.put(groupId, newBucket);
+		} else {
+			bucket.facetIds().add(facetPrimaryKey);
+		}
 	}
 
 	/**
@@ -544,7 +602,18 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 		}
 	}
 
-	private record GroupFacetIdDTO(@Nullable FacetGroupIndex groupIndex, int facetId) {
+	/**
+	 * One group's accumulated facets while {@link #getFacetReferencingEntityIdsFormula} walks the requested
+	 * facet ids: the index the group is stored in, and the facet ids seen for it so far, in encounter order.
+	 *
+	 * The facet ids are held in a primitive list rather than a `List<Integer>` because this runs once per
+	 * facet per facet summary, and boxing them only to unbox them into a {@link BaseBitmap} is the kind of
+	 * allocation this method exists to avoid.
+	 *
+	 * @param groupIndex the index the group's facets live in
+	 * @param facetIds   the facets seen for this group, in encounter order
+	 */
+	private record GroupBucket(@Nonnull FacetGroupIndex groupIndex, @Nonnull IntArrayList facetIds) {
 	}
 
 }

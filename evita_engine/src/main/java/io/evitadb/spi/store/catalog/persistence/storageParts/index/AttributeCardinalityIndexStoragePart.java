@@ -53,7 +53,7 @@ import java.io.Serial;
 @ToString(of = {"attributeIndexKey", "entityIndexPrimaryKey"})
 public class AttributeCardinalityIndexStoragePart implements AttributeIndexStoragePart,
 	RecordWithCompressedId<AttributeIndexKey> {
-	@Serial private static final long serialVersionUID = -929865952179187357L;
+	@Serial private static final long serialVersionUID = 4821637490215863427L;
 
 	/**
 	 * Unique id that identifies {@link io.evitadb.index.EntityIndex}.

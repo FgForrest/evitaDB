@@ -23,6 +23,7 @@
 
 package io.evitadb.spi.store.catalog.persistence;
 
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -44,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies the save/restore discipline of {@link ReferenceNameFilterContext} - the thread bound binding that tells
+ * Verifies the save/restore discipline of {@link ReferenceDecodeCoverageContext} - the thread bound binding that tells
  * the Kryo deserializer which reference names a read may materialize.
  *
  * The binding is what decides whether a decoded {@link
@@ -60,11 +61,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(SERIALIZATION)
 @Tag(REFERENCE)
 @DisplayName("Reference name filter context")
-class ReferenceNameFilterContextTest {
+class ReferenceDecodeCoverageContextTest {
 	private static final String BRAND = "brand";
 	private static final String CATEGORY = "category";
-	private static final Set<String> OUTER_FILTER = Set.of(BRAND);
-	private static final Set<String> INNER_FILTER = Set.of(CATEGORY);
+	private static final ReferenceDecodeCoverage OUTER_FILTER = ReferenceDecodeCoverage.ofNames(Set.of(BRAND));
+	private static final ReferenceDecodeCoverage INNER_FILTER = ReferenceDecodeCoverage.ofNames(Set.of(CATEGORY));
 
 	/**
 	 * No test may leave a binding behind - the surefire fork reuses the thread for the next test class, and a leaked
@@ -73,7 +74,7 @@ class ReferenceNameFilterContextTest {
 	@AfterEach
 	void assertNothingLeaked() {
 		assertNull(
-			ReferenceNameFilterContext.getReferenceNameFilter(),
+			ReferenceDecodeCoverageContext.getDecodeCoverage(),
 			"Reference name filter leaked out of the test that bound it!"
 		);
 	}
@@ -85,27 +86,27 @@ class ReferenceNameFilterContextTest {
 		@Test
 		@DisplayName("no filter is bound outside any read")
 		void shouldReturnNullWhenNoFilterIsBound() {
-			assertNull(ReferenceNameFilterContext.getReferenceNameFilter());
+			assertNull(ReferenceDecodeCoverageContext.getDecodeCoverage());
 		}
 
 		@Test
 		@DisplayName("filter is visible inside the read and gone afterwards")
 		void shouldBindAndUnbindFilter() {
-			final Set<String> observed = ReferenceNameFilterContext.executeWithReferenceNameFilter(
+			final ReferenceDecodeCoverage observed = ReferenceDecodeCoverageContext.executeWithCoverage(
 				OUTER_FILTER,
-				ReferenceNameFilterContext::getReferenceNameFilter
+				ReferenceDecodeCoverageContext::getDecodeCoverage
 			);
 
 			assertSame(OUTER_FILTER, observed);
-			assertNull(ReferenceNameFilterContext.getReferenceNameFilter());
+			assertNull(ReferenceDecodeCoverageContext.getDecodeCoverage());
 		}
 
 		@Test
 		@DisplayName("binding NULL expresses an unrestricted read")
 		void shouldBindNullAsUnrestrictedRead() {
-			final Set<String> observed = ReferenceNameFilterContext.executeWithReferenceNameFilter(
+			final ReferenceDecodeCoverage observed = ReferenceDecodeCoverageContext.executeWithCoverage(
 				null,
-				ReferenceNameFilterContext::getReferenceNameFilter
+				ReferenceDecodeCoverageContext::getDecodeCoverage
 			);
 
 			assertNull(observed);
@@ -116,7 +117,7 @@ class ReferenceNameFilterContextTest {
 		void shouldReturnLambdaResult() {
 			assertEquals(
 				"decoded",
-				ReferenceNameFilterContext.executeWithReferenceNameFilter(OUTER_FILTER, () -> "decoded")
+				ReferenceDecodeCoverageContext.executeWithCoverage(OUTER_FILTER, () -> "decoded")
 			);
 		}
 	}
@@ -128,20 +129,20 @@ class ReferenceNameFilterContextTest {
 		@Test
 		@DisplayName("a nested narrowing puts the outer filter back")
 		void shouldRestorePreviousFilterAfterNestedBinding() {
-			final Set<String> outerAfterNesting = ReferenceNameFilterContext.executeWithReferenceNameFilter(
+			final ReferenceDecodeCoverage outerAfterNesting = ReferenceDecodeCoverageContext.executeWithCoverage(
 				OUTER_FILTER,
 				() -> {
-					final Set<String> inner = ReferenceNameFilterContext.executeWithReferenceNameFilter(
+					final ReferenceDecodeCoverage inner = ReferenceDecodeCoverageContext.executeWithCoverage(
 						INNER_FILTER,
-						ReferenceNameFilterContext::getReferenceNameFilter
+						ReferenceDecodeCoverageContext::getDecodeCoverage
 					);
 					assertSame(INNER_FILTER, inner);
-					return ReferenceNameFilterContext.getReferenceNameFilter();
+					return ReferenceDecodeCoverageContext.getDecodeCoverage();
 				}
 			);
 
 			assertSame(OUTER_FILTER, outerAfterNesting);
-			assertNull(ReferenceNameFilterContext.getReferenceNameFilter());
+			assertNull(ReferenceDecodeCoverageContext.getDecodeCoverage());
 		}
 
 		@Test
@@ -150,30 +151,30 @@ class ReferenceNameFilterContextTest {
 			// the asymmetric branch: binding NULL removes the thread local rather than setting it, so the restore
 			// has to notice that the previous value was a set and put it back explicitly - a regression here hands
 			// the following read an unrestricted view (or, in the mirror case, a stale narrow one)
-			final Set<String> outerAfterNesting = ReferenceNameFilterContext.executeWithReferenceNameFilter(
+			final ReferenceDecodeCoverage outerAfterNesting = ReferenceDecodeCoverageContext.executeWithCoverage(
 				OUTER_FILTER,
 				() -> {
-					final Set<String> inner = ReferenceNameFilterContext.executeWithReferenceNameFilter(
+					final ReferenceDecodeCoverage inner = ReferenceDecodeCoverageContext.executeWithCoverage(
 						null,
-						ReferenceNameFilterContext::getReferenceNameFilter
+						ReferenceDecodeCoverageContext::getDecodeCoverage
 					);
 					assertNull(inner);
-					return ReferenceNameFilterContext.getReferenceNameFilter();
+					return ReferenceDecodeCoverageContext.getDecodeCoverage();
 				}
 			);
 
 			assertSame(OUTER_FILTER, outerAfterNesting);
-			assertNull(ReferenceNameFilterContext.getReferenceNameFilter());
+			assertNull(ReferenceDecodeCoverageContext.getDecodeCoverage());
 		}
 
 		@Test
 		@DisplayName("an unrestricted read nesting a narrowing stays unrestricted")
 		void shouldRestoreUnrestrictedReadAfterNestedNarrowing() {
-			final Set<String> outerAfterNesting = ReferenceNameFilterContext.executeWithReferenceNameFilter(
+			final ReferenceDecodeCoverage outerAfterNesting = ReferenceDecodeCoverageContext.executeWithCoverage(
 				null,
 				() -> {
-					ReferenceNameFilterContext.executeWithReferenceNameFilter(INNER_FILTER, () -> null);
-					return ReferenceNameFilterContext.getReferenceNameFilter();
+					ReferenceDecodeCoverageContext.executeWithCoverage(INNER_FILTER, () -> null);
+					return ReferenceDecodeCoverageContext.getDecodeCoverage();
 				}
 			);
 
@@ -183,19 +184,19 @@ class ReferenceNameFilterContextTest {
 		@Test
 		@DisplayName("a failing read still puts the outer filter back")
 		void shouldRestoreFilterWhenLambdaThrows() {
-			final Set<String> outerAfterFailure = ReferenceNameFilterContext.executeWithReferenceNameFilter(
+			final ReferenceDecodeCoverage outerAfterFailure = ReferenceDecodeCoverageContext.executeWithCoverage(
 				OUTER_FILTER,
 				() -> {
 					assertThrows(
 						IllegalStateException.class,
-						() -> ReferenceNameFilterContext.executeWithReferenceNameFilter(
+						() -> ReferenceDecodeCoverageContext.executeWithCoverage(
 							INNER_FILTER,
 							() -> {
 								throw new IllegalStateException("decoding failed");
 							}
 						)
 					);
-					return ReferenceNameFilterContext.getReferenceNameFilter();
+					return ReferenceDecodeCoverageContext.getDecodeCoverage();
 				}
 			);
 
@@ -207,7 +208,7 @@ class ReferenceNameFilterContextTest {
 		void shouldLeaveNoBindingWhenTopLevelLambdaThrows() {
 			assertThrows(
 				IllegalStateException.class,
-				() -> ReferenceNameFilterContext.executeWithReferenceNameFilter(
+				() -> ReferenceDecodeCoverageContext.executeWithCoverage(
 					OUTER_FILTER,
 					() -> {
 						throw new IllegalStateException("decoding failed");
@@ -215,7 +216,7 @@ class ReferenceNameFilterContextTest {
 				)
 			);
 
-			assertNull(ReferenceNameFilterContext.getReferenceNameFilter());
+			assertNull(ReferenceDecodeCoverageContext.getDecodeCoverage());
 		}
 	}
 
@@ -227,14 +228,14 @@ class ReferenceNameFilterContextTest {
 		@DisplayName("a filter bound on one thread is invisible on another")
 		void shouldNotLeakFilterAcrossThreads() {
 			final CountDownLatch observed = new CountDownLatch(1);
-			final AtomicReference<Set<String>> seenByOtherThread = new AtomicReference<>(INNER_FILTER);
+			final AtomicReference<ReferenceDecodeCoverage> seenByOtherThread = new AtomicReference<>(INNER_FILTER);
 
-			ReferenceNameFilterContext.executeWithReferenceNameFilter(
+			ReferenceDecodeCoverageContext.executeWithCoverage(
 				OUTER_FILTER,
 				() -> {
 					final Thread other = new Thread(
 						() -> {
-							seenByOtherThread.set(ReferenceNameFilterContext.getReferenceNameFilter());
+							seenByOtherThread.set(ReferenceDecodeCoverageContext.getDecodeCoverage());
 							observed.countDown();
 						},
 						"reference-name-filter-confinement-probe"

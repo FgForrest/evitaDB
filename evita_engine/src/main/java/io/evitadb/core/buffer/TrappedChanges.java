@@ -101,6 +101,7 @@ public class TrappedChanges {
 	 * @param change the {@link StoragePart} instance representing the change to be added to the store; must not be null
 	 */
 	public void addChangeToStore(@Nonnull StoragePart change) {
+		StoragePart.assertPersistable(change, "trapped change store");
 		if (this.trappedChanges == null) {
 			this.trappedChanges = new CompositeObjectArray<>(StoragePart.class, change);
 		} else {
