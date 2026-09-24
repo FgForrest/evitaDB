@@ -205,16 +205,24 @@ public final class PickFirstReferenceSorter implements Sorter {
 				if (unclaimedCount == 0) {
 					break;
 				}
+				// an index without a sort index of the value holds nothing to claim - ask for it before touching any
+				// bitmap, it is the whole cost of an ordering by a value few rows carry
+				final Supplier<SortedRecordsProvider> providerSource = this.providerFactory.apply(index);
+				if (providerSource == null) {
+					continue;
+				}
 				final Bitmap indexOwners = index.getAllPrimaryKeys();
+				final PersistentRoaringBitmap indexOwnerBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(indexOwners);
+				// most indexes a gather hands over (the residual ones above all) hold no unclaimed owner, and this check
+				// tells so without allocating the intersection or building the provider
+				if (!PersistentRoaringBitmap.intersects(indexOwnerBitmap, unclaimed)) {
+					continue;
+				}
+				final SortedRecordsProvider provider = providerSource.get();
 				if ((long) unclaimedCount * DIRECT_RESOLUTION_RATIO <= indexOwners.size()) {
 					// the unclaimed rest is far smaller than the index: resolve it directly - a lookup per unclaimed
 					// owner - and what the provider does not hold is exactly the new unclaimed rest, with no
 					// intersection and no removal
-					final Supplier<SortedRecordsProvider> providerSource = this.providerFactory.apply(index);
-					if (providerSource == null) {
-						continue;
-					}
-					final SortedRecordsProvider provider = providerSource.get();
 					final PositionResolution resolution = provider.resolvePositions(
 						unclaimed, unclaimedCount, bufferA, bufferB, forcedResolution
 					);
@@ -228,21 +236,7 @@ public final class PickFirstReferenceSorter implements Sorter {
 					// comparable sizes, or the index is the smaller side: resolving the whole rest would look every
 					// unclaimed owner up in the index and copy the rest into the not-found result once per index, so
 					// the two are intersected linearly and only the owners the index holds are resolved and removed
-
-					// an index without a sort index of the value holds nothing to claim - ask for it before touching
-					// any bitmap, it is the whole cost of an ordering by a value few rows carry
-					final Supplier<SortedRecordsProvider> providerSource = this.providerFactory.apply(index);
-					if (providerSource == null) {
-						continue;
-					}
-					final PersistentRoaringBitmap indexOwnerBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(indexOwners);
-					// most indexes a gather hands over (the residual ones above all) hold no unclaimed owner, and this
-					// check tells so without allocating the intersection
-					if (!PersistentRoaringBitmap.intersects(indexOwnerBitmap, unclaimed)) {
-						continue;
-					}
 					final PersistentRoaringBitmap candidates = PersistentRoaringBitmap.and(indexOwnerBitmap, unclaimed);
-					final SortedRecordsProvider provider = providerSource.get();
 					final PositionResolution resolution = provider.resolvePositions(
 						candidates, candidates.getCardinality(), bufferA, bufferB, forcedResolution
 					);

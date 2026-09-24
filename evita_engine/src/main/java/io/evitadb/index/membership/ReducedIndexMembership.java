@@ -254,8 +254,8 @@ public class ReducedIndexMembership implements VoidTransactionMemoryProducer<Red
 	 * - a small index registered either way stays here until it is written again — only {@link #ownerAdded} and
 	 *   {@link #ownerRemoved} demote, so a slice whose indexes are never written again never converges.
 	 *
-	 * Iterated directly by the trigger, which is why it is materialised rather than derived by filtering the
-	 * reference's full advertisement — deriving it would pay exactly the `O(total indexes)` traversal this
+	 * Iterated directly by the trigger and by `PickFirstReducedIndexResolver`, which is why it is materialised rather
+	 * than derived by filtering the reference's full advertisement — deriving it would pay exactly the `O(total indexes)` traversal this
 	 * structure exists to remove.
 	 */
 	@Nonnull private final TransactionalBitmap residualIndexPrimaryKeys;

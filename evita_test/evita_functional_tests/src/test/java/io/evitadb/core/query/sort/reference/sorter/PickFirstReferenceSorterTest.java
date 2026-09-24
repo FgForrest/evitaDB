@@ -447,6 +447,47 @@ class PickFirstReferenceSorterTest {
 	}
 
 	@Test
+	@DisplayName("should not build the provider of a much larger index holding no unclaimed owner")
+	void shouldNotBuildProviderOfLargeIndexHoldingNoUnclaimedOwner() {
+		// index 201 of target 1 holds 60 owners, at least 16 times the one selected owner, so it would be asked directly
+		// - but owner 75 is held by index 202 of target 2 only, so 201 must be passed over before its provider is built
+		final PickFirstReducedIndexFixture indexFixture = new PickFirstReducedIndexFixture();
+		final int[] largeIndexOwnerValues = new int[120];
+		for (int i = 0; i < 60; i++) {
+			largeIndexOwnerValues[i * 2] = i + 1;
+			largeIndexOwnerValues[i * 2 + 1] = 200 - i;
+		}
+		final ReducedEntityIndex largeIndex = indexFixture.addIndex(
+			Scope.LIVE, 201, 1, IntStream.rangeClosed(1, 60).toArray()
+		);
+		final ReducedEntityIndex smallIndex = indexFixture.addIndex(Scope.LIVE, 202, 2, 75);
+		final SortedRecordsSupplier largeProvider = createProvider(largeIndex, OrderDirection.ASC, largeIndexOwnerValues);
+		final SortedRecordsSupplier smallProvider = createProvider(smallIndex, OrderDirection.ASC, 75, 80);
+		final Set<Integer> builtProviders = new TreeSet<>();
+		final PickFirstReferenceSorter sorter = new PickFirstReferenceSorter(
+			indexFixture.resolver(false, Scope.LIVE),
+			index -> () -> {
+				builtProviders.add(index.getPrimaryKey());
+				return index.getPrimaryKey() == 201 ? largeProvider : smallProvider;
+			},
+			Comparator.naturalOrder(),
+			OrderDirection.ASC
+		);
+
+		final SortResult sorted = sort(
+			sorter,
+			new SortingContext(createExecutionContext(false), new BaseBitmap(75), 0, 10, 0, 0),
+			10
+		);
+
+		assertAll(
+			() -> assertArrayEquals(new int[]{75}, sorted.written()),
+			() -> assertArrayEquals(new int[0], content(sorted.output().nonSortedKeys())),
+			() -> assertEquals(Set.of(202), builtProviders)
+		);
+	}
+
+	@Test
 	@DisplayName("should leave the selection it sorts untouched")
 	void shouldNotMutateSelection() {
 		final WitnessFixture fixture = new WitnessFixture();
@@ -464,7 +505,7 @@ class PickFirstReferenceSorterTest {
 	@Test
 	@DisplayName("should claim more owners than the initial capacity of its buffers")
 	void shouldClaimMoreOwnersThanInitialCapacity() {
-		// the claim buffers start at the selection size capped at 1024
+		// the scratch buffers the claim borrows hold 512 records, so 1500 owners are resolved over several batches
 		final int ownerCount = 1500;
 		final int[] owners = IntStream.rangeClosed(1, ownerCount).toArray();
 		final PickFirstReducedIndexFixture indexFixture = new PickFirstReducedIndexFixture();

@@ -133,8 +133,8 @@ The sorter walks the resolved partitions in target order and lets each claim the
 value for. A claim reads no value: it is the positions of the claimed owners in the partition's sorted provider, and
 their removal from the unclaimed rest. Each partition is asked in the cheaper of two ways - a rest at least 16×
 smaller than the partition is resolved against it directly (dev's own per-provider step: the not-found result is the
-new rest), anything else is intersected with the partition first - and a partition without a sort index of the value
-is skipped before any bitmap is touched. The positions one partition claimed, walked in ascending order, are already
+new rest), anything else is intersected with the partition first - a partition without a sort index of the value is
+skipped before any bitmap is touched, and one holding no unclaimed owner before its provider is built. The positions one partition claimed, walked in ascending order, are already
 in value-then-owner order in the ordering direction, so each partition yields a sorted run; the runs are merged
 lazily by their head values and the merge stops at the end of the requested page.
 

@@ -175,12 +175,13 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 				// next we need to fetch comparable values for head values from each mask and compare them
 				final SortedRecordsProviderBuffer[] sortedRecordsProviderBuffers = new SortedRecordsProviderBuffer[maskPeak + 1];
 				int sortedRecordsProviderBufferPeak = 0;
+				final boolean primaryKeysDescending = this.primaryKeyOrder == OrderDirection.DESC;
 				// init first values
 				for (int i = 0; i <= maskPeak; i++) {
 					final PositionResolution resolution = maskResults[i];
 					final SortedRecordsProvider sortedRecordsProvider = this.sortedRecordsProviders[i];
 					final SortedRecordsProviderBuffer sortedRecordsProviderBuffer = new SortedRecordsProviderBuffer(
-						this.comparator, this.primaryKeyOrder == OrderDirection.DESC,
+						this.comparator, primaryKeysDescending,
 						sortedRecordsProvider, resolution.mask(), queryContext
 					);
 					if (sortedRecordsProviderBuffer.fetchNext()) {

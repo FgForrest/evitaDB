@@ -116,7 +116,8 @@ public class PreSortedRecordsSorter implements Sorter {
 	 * Retrieves the memoized result of the merged sorted records supplier. If the result is not memoized yet,
 	 * it initializes the memoized result based on the specified merge mode. When {@code MergeMode.APPEND_ALL}
 	 * is used, it creates a {@link MergedSortedRecordsSupplierSorter}. Otherwise, it initializes a
-	 * {@link MergedComparableSortedRecordsSupplierSorter} with the provided comparator and sorted records providers.
+	 * {@link MergedComparableSortedRecordsSupplierSorter} with the provided comparator, the ordering direction that
+	 * breaks ties by primary key, and the sorted records providers.
 	 *
 	 * @return a {@link MergedSortedRecordsSupplierContract} representing the memoized merged sorted records supplier.
 	 */
