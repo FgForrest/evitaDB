@@ -35,7 +35,14 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.annotation.DataSet;
@@ -74,8 +81,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pins `attributeIsNull` inside a `referenceHaving` body (issue #1584) against a small fixture whose partitions are
- * shaped so that every way of getting it wrong changes the answer.
+ * Pins `attributeIsNull` inside a `referenceHaving` body against a small fixture whose partitions are shaped so that
+ * every way of getting it wrong changes the answer.
  *
  * A `referenceHaving(R, body)` matches an owner when **one** row of `R` satisfies the whole body. The engine answers
  * it in two stages: candidate discovery asks the type-level index which partitions (reduced indexes, one per
@@ -113,7 +120,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * null row with a non-null one, and T2 carries it on every row. For `u`, T1 has no index at all and T2 and T3 are
  * mixed. `links` repeats the pattern for `x`, and adds an array attribute and two localized ones - see
  * {@link #setUpRowScopedNullDataSet(Evita)}. The multi-scope rows use a fixture of their own, so that no archived
- * entity can change which route the single-scope rows take - see {@link #setUpMultiScopeNullDataSet(Evita)}.
+ * entity can change which route the single-scope rows take - see {@link #setUpMultiScopeNullDataSet(Evita)} - and so
+ * do the rows of a localized attribute whose uniqueness differs per scope - see
+ * {@link #setUpMixedUniquenessNullDataSet(Evita)}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -126,6 +135,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class ReferenceHavingAttributeIsNullFunctionalTest {
 	private static final String ROW_SCOPED_NULL = "rowScopedNull";
 	private static final String MULTI_SCOPE_NULL = "rowScopedNullMultiScope";
+	private static final String MIXED_UNIQUENESS_NULL = "rowScopedNullMixedUniqueness";
+	private static final String ENTITY_MIXED_OWNER = "mixedOwner";
+	private static final String ENTITY_MIXED_TARGET = "mixedTarget";
+	private static final String REF_TAGS = "tags";
+	/**
+	 * `mixedOwner`: `String`, localized, nullable, unique across locales in LIVE and within a locale in ARCHIVED.
+	 */
+	private static final String LABEL = "label";
+	/**
+	 * `tags`: `String`, localized, nullable, unique across locales in LIVE and within a locale in ARCHIVED.
+	 */
+	private static final String TAG = "tag";
+	/**
+	 * Every locale `mixedOwner` declares.
+	 */
+	private static final List<Locale> MIXED_LOCALES = List.of(Locale.ENGLISH, Locale.GERMAN);
 	private static final String ENTITY_OWNER = "rowOwner";
 	private static final String ENTITY_TARGET = "rowTarget";
 	private static final String ENTITY_SCOPED_OWNER = "scopedRowOwner";
@@ -348,6 +373,109 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 					"Fixture guard: three owners must be archived!"
 				);
 				return new DataCarrier("originalScopedOwners", owners);
+			}
+		);
+	}
+
+	/**
+	 * Builds the fixture of a localized attribute whose uniqueness differs per scope: `mixedOwner` (locales EN, DE)
+	 * with the entity attribute `label` and the `tags` reference attribute `tag`, both unique across locales in LIVE
+	 * and unique within a locale in ARCHIVED. The schema builder cannot express that mix - a per-scope uniqueness call
+	 * replaces the whole per-scope map - so it is set by a raw {@link SetAttributeSchemaUniqueMutation}, the shape
+	 * the external schema APIs accept. Values as `label`, then `tags` rows as `target (tag)`:
+	 *
+	 * | owner | scope | `label` | `tags` |
+	 * |---|---|---|---|
+	 * | 1 | LIVE | en | T1 `(en)` |
+	 * | 2 | LIVE | ⊥ | T1 `(⊥)` |
+	 * | 3 | ARCHIVED | de | T1 `(de)` |
+	 * | 4 | ARCHIVED | ⊥ | T1 `(⊥)` |
+	 * | 5 | ARCHIVED | en | T2 `(en)` |
+	 * | 6 | ARCHIVED | en + de | T1 `(en)`, T2 `(⊥)` |
+	 *
+	 * The archived owners 3 and 5 carry a value in one locale only, and in different ones, so a null test that
+	 * consults a single locale - or none - misreads at least one of them.
+	 *
+	 * @param evita the engine instance provided by the test extension
+	 * @return the owners as stored, in both scopes and every locale
+	 */
+	@DataSet(value = MIXED_UNIQUENESS_NULL, destroyAfterClass = true)
+	DataCarrier setUpMixedUniquenessNullDataSet(@Nonnull Evita evita) {
+		return evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(ENTITY_MIXED_TARGET).withoutGeneratedPrimaryKey().updateVia(session);
+				session.defineEntitySchema(ENTITY_MIXED_OWNER)
+					.withoutGeneratedPrimaryKey()
+					.withLocale(Locale.ENGLISH, Locale.GERMAN)
+					.withAttribute(
+						LABEL, String.class, thatIs -> thatIs.uniqueInScope(Scope.values()).localized().nullable()
+					)
+					.withReferenceToEntity(
+						REF_TAGS, ENTITY_MIXED_TARGET, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs
+							.indexedForFilteringAndPartitioningInScope(Scope.values())
+							.withAttribute(
+								TAG, String.class, thatIs -> thatIs.uniqueInScope(Scope.values()).localized().nullable()
+							)
+					)
+					.updateVia(session);
+				final ScopedAttributeUniquenessType[] mixedUniqueness = {
+					new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION),
+					new ScopedAttributeUniquenessType(
+						Scope.ARCHIVED, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE
+					)
+				};
+				session.updateEntitySchema(
+					new ModifyEntitySchemaMutation(
+						ENTITY_MIXED_OWNER,
+						new SetAttributeSchemaUniqueMutation(LABEL, mixedUniqueness),
+						new ModifyReferenceAttributeSchemaMutation(
+							REF_TAGS, new SetAttributeSchemaUniqueMutation(TAG, mixedUniqueness)
+						)
+					)
+				);
+				for (int targetPk = 1; targetPk <= 2; targetPk++) {
+					session.upsertEntity(session.createNewEntity(ENTITY_MIXED_TARGET, targetPk));
+				}
+
+				upsertMixedOwner(session, 1, Map.of(Locale.ENGLISH, "label-1"), tagRow(1, Locale.ENGLISH, "tag-1"));
+				upsertMixedOwner(session, 2, Map.of(), tagRow(1, null, null));
+				upsertMixedOwner(session, 3, Map.of(Locale.GERMAN, "label-3"), tagRow(1, Locale.GERMAN, "tag-3"));
+				upsertMixedOwner(session, 4, Map.of(), tagRow(1, null, null));
+				upsertMixedOwner(session, 5, Map.of(Locale.ENGLISH, "label-5"), tagRow(2, Locale.ENGLISH, "tag-5"));
+				upsertMixedOwner(
+					session, 6, Map.of(Locale.ENGLISH, "label-6en", Locale.GERMAN, "label-6de"),
+					tagRow(1, Locale.ENGLISH, "tag-6"), tagRow(2, null, null)
+				);
+				for (int archivedPk = 3; archivedPk <= 6; archivedPk++) {
+					session.archiveEntity(ENTITY_MIXED_OWNER, archivedPk);
+				}
+
+				final List<SealedEntity> owners = session.queryListOfSealedEntities(
+					Query.query(
+						collection(ENTITY_MIXED_OWNER),
+						filterBy(scope(Scope.LIVE, Scope.ARCHIVED)),
+						require(entityFetch(entityFetchAllContent()), dataInLocalesAll(), page(1, Integer.MAX_VALUE))
+					)
+				);
+				assertEquals(6, owners.size(), "Fixture guard: unexpected owner count!");
+				final EntitySchemaContract schema = session.getEntitySchemaOrThrowException(ENTITY_MIXED_OWNER);
+				for (AttributeSchemaContract attributeSchema : List.of(
+					schema.getAttribute(LABEL).orElseThrow(),
+					schema.getReferenceOrThrowException(REF_TAGS).getAttribute(TAG).orElseThrow()
+				)) {
+					assertEquals(
+						AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION, attributeSchema.getUniquenessType(Scope.LIVE),
+						"Fixture guard: `" + attributeSchema.getName() + "` must be unique across locales in LIVE!"
+					);
+					assertEquals(
+						AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE,
+						attributeSchema.getUniquenessType(Scope.ARCHIVED),
+						"Fixture guard: `" + attributeSchema.getName() + "` must be unique within a locale in ARCHIVED!"
+					);
+				}
+				return new DataCarrier("originalMixedOwners", owners);
 			}
 		);
 	}
@@ -896,11 +1024,103 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 	}
 
 	/**
+	 * A localized attribute unique across locales in one requested scope and only within a locale in another. The
+	 * first scope lets the query through without a locale, so in the second the null test must read "no value in
+	 * any locale" too - the reading the first scope gives it - rather than "no value in the missing locale", which
+	 * would report every record of that scope as null.
+	 */
+	@DisplayName("Localized attribute with a scope-dependent uniqueness")
+	@Nested
+	class LocalizedAttributeWithScopeDependentUniqueness {
+
+		@DisplayName("Should read a localized entity attribute in every locale when no locale is requested")
+		@UseDataSet(MIXED_UNIQUENESS_NULL)
+		@Test
+		void shouldReadALocalizedEntityAttributeInEveryLocaleWhenNoLocaleIsRequested(
+			Evita evita,
+			List<SealedEntity> originalMixedOwners
+		) {
+			final Predicate<SealedEntity> lacksLabel =
+				owner -> MIXED_LOCALES.stream().allMatch(locale -> owner.getAttribute(LABEL, locale) == null);
+			assertArchivedOwnersSplit(originalMixedOwners, lacksLabel, "label");
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					for (Scope[] order : new Scope[][]{{Scope.LIVE, Scope.ARCHIVED}, {Scope.ARCHIVED, Scope.LIVE}}) {
+						assertMatches(
+							session, ENTITY_MIXED_OWNER, originalMixedOwners, lacksLabel, null,
+							scope(order), attributeIsNull(LABEL)
+						);
+					}
+					return null;
+				}
+			);
+		}
+
+		@DisplayName("Should read a localized reference attribute in every locale when no locale is requested")
+		@UseDataSet(MIXED_UNIQUENESS_NULL)
+		@Test
+		void shouldReadALocalizedReferenceAttributeInEveryLocaleWhenNoLocaleIsRequested(
+			Evita evita,
+			List<SealedEntity> originalMixedOwners
+		) {
+			final Predicate<ReferenceContract> lacksTag =
+				row -> MIXED_LOCALES.stream().allMatch(locale -> row.getAttribute(TAG, locale) == null);
+			assertArchivedOwnersSplit(originalMixedOwners, anyRow(REF_TAGS, lacksTag), "a `tags` row without `tag`");
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					for (Scope[] order : new Scope[][]{{Scope.LIVE, Scope.ARCHIVED}, {Scope.ARCHIVED, Scope.LIVE}}) {
+						assertMatches(
+							session, ENTITY_MIXED_OWNER, originalMixedOwners, anyRow(REF_TAGS, lacksTag), null,
+							scope(order), referenceHaving(REF_TAGS, attributeIsNull(TAG))
+						);
+					}
+					return null;
+				}
+			);
+		}
+
+		/**
+		 * Guards the oracle against passing vacuously: among the archived owners, some must match it and some must
+		 * not, and among those that do not, one must carry its value in German only - so that neither a null test
+		 * reading no locale nor one reading English alone can meet the expectation.
+		 *
+		 * @param originalMixedOwners owners as stored
+		 * @param oracle              the null test, evaluated on an owner's body
+		 * @param description         what the oracle selects, for the failure message
+		 */
+		private static void assertArchivedOwnersSplit(
+			@Nonnull List<SealedEntity> originalMixedOwners,
+			@Nonnull Predicate<SealedEntity> oracle,
+			@Nonnull String description
+		) {
+			final List<SealedEntity> archived = originalMixedOwners.stream()
+				.filter(it -> it.getScope() == Scope.ARCHIVED)
+				.toList();
+			assertTrue(
+				archived.stream().anyMatch(oracle),
+				"Fixture guard: some archived owner must hold " + description + "!"
+			);
+			assertTrue(
+				archived.stream().anyMatch(oracle.negate()),
+				"Fixture guard: some archived owner must not hold " + description + "!"
+			);
+			assertTrue(
+				archived.stream()
+					.filter(oracle.negate())
+					.anyMatch(it -> it.getLocales().equals(Set.of(Locale.GERMAN))),
+				"Fixture guard: an archived owner outside " + description + " must carry German values only!"
+			);
+		}
+	}
+
+	/**
 	 * `facetHaving` is the one caller that evaluates its body on the type-level index **in place**: nothing
 	 * re-examines the rows behind the answer, so a null test there reads "a facet none of whose rows carries the
 	 * attribute", while its positive leaves read "a facet some of whose rows do". That asymmetry is consistent with
 	 * how a negation is resolved in place, and whether it is what `facetHaving` should mean is an open specification
-	 * question, not part of #1584 - these rows pin the answer as it stands so that a change to it is deliberate.
+	 * question - these rows pin the answer as it stands so that a change to it is deliberate.
 	 */
 	@DisplayName("facetHaving")
 	@Nested
@@ -1408,6 +1628,35 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 	}
 
 	/**
+	 * Writes one owner of the mixed-uniqueness fixture with its `label` values and `tags` rows.
+	 *
+	 * @param session session to write through
+	 * @param pk      primary key of the owner
+	 * @param labels  values of `label` per locale
+	 * @param rows    rows of `tags`
+	 */
+	private static void upsertMixedOwner(
+		@Nonnull EvitaSessionContract session,
+		int pk,
+		@Nonnull Map<Locale, String> labels,
+		@Nonnull TagRow... rows
+	) {
+		final EntityBuilder builder = session.createNewEntity(ENTITY_MIXED_OWNER, pk);
+		labels.forEach((locale, label) -> builder.setAttribute(LABEL, locale, label));
+		for (TagRow row : rows) {
+			builder.setReference(
+				REF_TAGS, row.target(),
+				whichIs -> {
+					if (row.locale() != null) {
+						whichIs.setAttribute(TAG, row.locale(), row.tag());
+					}
+				}
+			);
+		}
+		session.upsertEntity(builder);
+	}
+
+	/**
 	 * Sets the `rows` references on the builder.
 	 *
 	 * @param builder builder of the owner
@@ -1447,6 +1696,24 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 		@Nullable String locEn, @Nullable String locDe, @Nullable String luEn, @Nullable String luDe
 	) {
 		return new Link(target, x, arr, locEn, locDe, luEn, luDe);
+	}
+
+	/**
+	 * Shorthand for a {@link TagRow}.
+	 */
+	@Nonnull
+	private static TagRow tagRow(int target, @Nullable Locale locale, @Nullable String tag) {
+		return new TagRow(target, locale, tag);
+	}
+
+	/**
+	 * One row of `tags`, carrying `tag` in a single locale or - when the locale is NULL - in none.
+	 *
+	 * @param target referenced target primary key
+	 * @param locale locale of `tag`
+	 * @param tag    value of `tag`
+	 */
+	private record TagRow(int target, @Nullable Locale locale, @Nullable String tag) {
 	}
 
 	/**

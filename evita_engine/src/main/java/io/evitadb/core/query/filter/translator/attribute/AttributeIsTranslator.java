@@ -26,6 +26,7 @@ package io.evitadb.core.query.filter.translator.attribute;
 import io.evitadb.api.query.filter.AttributeIs;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
@@ -56,6 +57,7 @@ import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
@@ -158,6 +160,8 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
 		final Locale locale = filterByVisitor.getLocale();
+		final Set<Locale> everyLocale = attributeSchema.isLocalized() && locale == null ?
+			getLocalesTheValueMayBeStoredIn(filterByVisitor) : Set.of();
 		// `applyOnIndexes`, never `applyOnFilterIndexes` / `applyOnUniqueIndexes`: those turn an index without the
 		// attribute into EMPTY before the lambda runs, and for a null test that is the index where EVERY record matches
 		return filterByVisitor.applyOnIndexes(
@@ -167,7 +171,9 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 					// nothing is tracked here, so nothing can be null here
 					return EmptyFormula.INSTANCE;
 				}
-				final Formula carriers = getCarriersFormula(entityIndex, referenceSchema, attributeSchema, locale);
+				final Formula carriers = getCarriersFormula(
+					entityIndex, referenceSchema, attributeSchema, locale, everyLocale
+				);
 				if (carriers == null) {
 					// nothing in this index carries the attribute, so every record in it is null
 					return superSet;
@@ -183,17 +189,25 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	 * structure for it at all - which means none of its records carries a value.
 	 *
 	 * The filter index answers for unique attributes too: {@link EntityIndex#upsertAttribute} writes it for every
-	 * attribute that is unique **or** filterable, so it is present wherever the unique index is - and also in the
-	 * indexes that keep no unique index at all, such as an index of a scope where the attribute is merely
-	 * filterable. The one exception is a localized attribute unique across locales rather than within one: its unique
-	 * index holds the record once whatever locale carries the value, while its filter index is split per locale. That
-	 * one keeps reading the unique index, so its null test still means "no value in any locale" - the reading its
-	 * `attributeIs(NOT_NULL)` has - and still works without a query locale, which such an attribute allows.
+	 * attribute that is unique **or** filterable, so it is present wherever the unique index is - and also in an
+	 * index that keeps no unique index for the attribute at all, such as
+	 * {@link io.evitadb.index.ReducedGroupEntityIndex}, whose {@code insertUniqueAttribute} is a no-op (multiple
+	 * entities can share one group, so per-group uniqueness is meaningless) yet still receives the filter write
+	 * because the attribute schema itself is unique. The one exception is a localized attribute unique across
+	 * locales rather than within one: its unique index holds the record once whatever locale carries the value,
+	 * while its filter index is split per locale. That one keeps reading the unique index, so its null test still
+	 * means "no value in any locale" - the reading its `attributeIs(NOT_NULL)` has - and still works without a
+	 * query locale, which such an attribute allows.
+	 *
+	 * A localized attribute reached without a query locale in any other index is read in every locale for the same
+	 * reason - see the comment at the site.
 	 *
 	 * @param entityIndex     the index to read
 	 * @param referenceSchema the reference schema the attribute belongs to, or NULL for an entity attribute
 	 * @param attributeSchema the schema definition of the attribute being processed
 	 * @param locale          the query locale, or NULL when none was requested
+	 * @param everyLocale     the locales a value may be stored in, read when the attribute is localized and no query
+	 *                        locale was requested
 	 * @return the carrying records, or NULL when the index keeps no structure for the attribute
 	 */
 	@Nullable
@@ -201,7 +215,8 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		@Nonnull EntityIndex entityIndex,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeSchema,
-		@Nullable Locale locale
+		@Nullable Locale locale,
+		@Nonnull Set<Locale> everyLocale
 	) {
 		final Scope scope = entityIndex.getIndexKey().scope();
 		if (attributeSchema.isLocalized() &&
@@ -210,12 +225,44 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		) {
 			final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(referenceSchema, attributeSchema, locale);
 			return uniqueIndex == null ? null : uniqueIndex.getRecordIdsFormula();
+		} else if (attributeSchema.isLocalized() && locale == null) {
+			// a missing query locale is admitted only because another requested scope keeps the attribute unique
+			// across locales (see `createAttributeKey`), where the null test reads "no value in any locale"; this
+			// index splits the attribute per locale and has no locale-less key, so it must be read in every locale
+			// for the null test to mean the same - the missing key alone would report every record here as null
+			final Formula[] carriers = everyLocale.stream()
+				.map(it -> entityIndex.getFilterIndex(referenceSchema, attributeSchema, it))
+				.filter(Objects::nonNull)
+				.map(FilterIndex::getAllRecordsFormula)
+				.toArray(Formula[]::new);
+			return carriers.length == 0 ? null : FormulaFactory.or(carriers);
 		} else {
 			final FilterIndex filterIndex = entityIndex.getFilterIndex(
 				referenceSchema, attributeSchema, attributeSchema.isLocalized() ? locale : null
 			);
 			return filterIndex == null ? null : filterIndex.getAllRecordsFormula();
 		}
+	}
+
+	/**
+	 * Returns every locale a value of a localized attribute may be stored in: the locales of the queried collection,
+	 * which owns the value, together with those of the entity whose indexes the processing scope reads - the two
+	 * differ when a bidirectional `referenceHaving` rewrite reads the owner's reference attributes from the indexes
+	 * of the referenced collection. A locale in which nothing is stored costs a single missed lookup per index.
+	 *
+	 * @param filterByVisitor the visitor responsible for filtering operations
+	 * @return the locales to read the attribute in
+	 */
+	@Nonnull
+	private static Set<Locale> getLocalesTheValueMayBeStoredIn(@Nonnull FilterByVisitor filterByVisitor) {
+		final Set<Locale> queriedLocales = filterByVisitor.getSchema().getLocales();
+		final EntitySchemaContract indexedSchema = filterByVisitor.getProcessingScope().getEntitySchema();
+		if (indexedSchema == null || queriedLocales.containsAll(indexedSchema.getLocales())) {
+			return queriedLocales;
+		}
+		final Set<Locale> locales = new LinkedHashSet<>(queriedLocales);
+		locales.addAll(indexedSchema.getLocales());
+		return locales;
 	}
 
 	/**
