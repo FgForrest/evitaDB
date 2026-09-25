@@ -1,7 +1,7 @@
 ---
 title: A pick-first reference ordering sorts on the first row of every selected owner, resolved from the selection rather than from the filter
 date: 2026-09-23
-updated: 2026-09-24 13:30
+updated: 2026-09-25 13:40
 status: accepted
 kind: fix
 issues: [1614]
@@ -239,12 +239,13 @@ a measured production shape: that is where the per-query cost still follows `row
 - `shouldOrderOwnersOfOrderingScopeOnlyIdenticallyOnBothRoutes` (18 cases in the oracle test) - `inScope(LIVE, ...)`
   over both scopes on both routes against the oracle. Counterfactual: admitting every scope in the prefetch
   comparators turns exactly these 18 red, each on the prefetch route only.
-- Unit level: `PickFirstReducedIndexResolverTest` (18) and `PickFirstReferenceSorterTest` (12, including every page
-  window of the full order in both directions, the direct-resolution path and lazy provider creation) over a
+- Unit level: `PickFirstReducedIndexResolverTest` (18) and `PickFirstReferenceSorterTest` (13, including every page
+  window of the full order in both directions, the direct-resolution path, lazy provider creation and no provider
+  for a partition holding no unclaimed owner) over a
   hand-built index fixture. Counterfactuals: concatenating the runs instead of merging them turns 80 of 147 ordering
   cases red across the unit, witness, oracle and existing reference-ordering suites; dropping the probe under a nested
   target order turns the 4 set-dependence cases red; building providers before the intersection turns the laziness
-  case red; `PreSortedRecordsSorterTest` pins the tie direction of the multi-provider merge in both directions.
+  case red, and building one on the direct path before it turns the no-unclaimed-owner case red; `PreSortedRecordsSorterTest` pins the tie direction of the multi-provider merge in both directions.
 - Existing ordering suites whose oracles encoded the old tie rule (`entityPrimaryKeyNatural(DESC)` inside
   `referenceProperty`: products of one brand followed in ascending primary key order) were updated to the decided
   rule; nothing else in the ordering, chain, duplicate-reference and bidirectional-rewrite suites changed.
@@ -286,6 +287,16 @@ a measured production shape: that is where the per-query cost still follows `row
   The 3,336-owner narrowed point was re-measured on request with three builds interleaved (`dev` 198 / 336,
   a build resolving the rest directly at comparable sizes 1,685 / 1,645, the 16× threshold 550 / 573): the loss is
   real and is the cost of rule 2 described under Decision.
+
+  Review of the PR found that the direct branch of the claim built a partition's provider before checking that the
+  partition held an unclaimed owner. Under a primary-key target order the resolver hands over partitions without
+  probing them, so disjoint partitions reached the sorter and each paid for a provider sized to its index. Gating
+  both branches on the intersection, measured on 2026-09-25 against the build before it (same fixture, two
+  interleaved rounds each, median of the iterations, µs/op): unnarrowed 464 → 306, 2,158 → 1,915, 3,535 → 3,637;
+  narrowed 523 → 369, 2,743 → 2,111, 4,388 → 4,390 for the three selections above. The 80,924-owner points are
+  inside the noise of single slow iterations (up to 6,500 µs in both builds). `Product.media` and `Product.groups`
+  (one round each) moved by -9 % to +5 % with no consistent direction, except `groups` unnarrowed at 80,187
+  owners: 1,550 → 1,719 µs, a single round containing one outlier iteration.
 - Performance with no value at all - `Product.groups` ordered by `assignmentPriority` (4,022 partitions, 576
   residual). **No row of the corpus carries that attribute** (0 of 427,163; the only populated one, `orderInGroup`,
   is a `Predecessor` chain and takes the unchanged chain path), so every selected owner stays unclaimed and every
@@ -341,3 +352,5 @@ a measured production shape: that is where the per-query cost still follows `row
 - **2026-09-24** - quality pass and adversarial review (scope admission on the prefetch route, page-bounded merge);
   high-fan-in and no-value fixtures measured, the claim loop reshaped by profiling, the narrowed small-selection cost
   accepted by the maintainer; a second adversarial review restored the index probe for set-dependent target orders.
+- **2026-09-25** - PR review: no provider is built for a partition holding no unclaimed owner on the direct claim
+  path either; re-measured on all three fixtures.
