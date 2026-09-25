@@ -721,10 +721,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	/**
 	 * Constructor to initialize the tree from a single block size and an optional comparator.
 	 *
-	 * The remaining block sizes are derived from `valueBlockSize`: the minimum leaf size is
-	 * `ceil(valueBlockSize / 2) - 1`, internal nodes take the largest odd size not exceeding `valueBlockSize` (internal
-	 * node sizes must be odd) and their minimum is derived the same way as the leaf one. Any `valueBlockSize` of at
-	 * least 3 is accepted, even or odd.
+	 * The remaining block sizes are derived from `valueBlockSize` by
+	 * `AbstractTransactionalBPlusTree#deriveMinBlockSize` and `#deriveInternalNodeBlockSize`, so any size of at least 3
+	 * is accepted.
 	 *
 	 * @param valueBlockSize maximum number of buckets in a leaf node
 	 * @param keyType        the type of the keys (bucket values) stored in the tree

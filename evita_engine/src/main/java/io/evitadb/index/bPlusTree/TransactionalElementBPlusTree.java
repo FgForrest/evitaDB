@@ -190,10 +190,9 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	/**
 	 * Constructor to initialize the B+ tree.
 	 *
-	 * The remaining block sizes are derived from `valueBlockSize`: the minimum leaf size is
-	 * `ceil(valueBlockSize / 2) - 1`, internal nodes take the largest odd size not exceeding `valueBlockSize` (internal
-	 * node sizes must be odd) and their minimum is derived the same way as the leaf one. Any `valueBlockSize` of at
-	 * least 3 is accepted, even or odd.
+	 * The remaining block sizes are derived from `valueBlockSize` by
+	 * `AbstractTransactionalBPlusTree#deriveMinBlockSize` and `#deriveInternalNodeBlockSize`, so any size of at least 3
+	 * is accepted.
 	 *
 	 * @param valueBlockSize maximum number of values in a leaf node
 	 * @param elementType    the class of the elements stored in this tree
