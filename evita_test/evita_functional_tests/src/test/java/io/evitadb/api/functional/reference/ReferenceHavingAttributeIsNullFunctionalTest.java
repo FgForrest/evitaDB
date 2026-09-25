@@ -1082,6 +1082,128 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 		}
 
 		/**
+		 * The not-null side reads the same carriers as the null side, so the two partition every owner: in the scope
+		 * where the attribute is unique within a locale it must be read in every locale as well, not from a unique
+		 * index keyed by the missing locale.
+		 */
+		@DisplayName("Should split the owners between the null and not-null tests of a localized entity attribute")
+		@UseDataSet(MIXED_UNIQUENESS_NULL)
+		@Test
+		void shouldSplitTheOwnersBetweenTheNullAndNotNullTestsOfALocalizedEntityAttribute(
+			Evita evita,
+			List<SealedEntity> originalMixedOwners
+		) {
+			final Predicate<SealedEntity> lacksLabel =
+				owner -> MIXED_LOCALES.stream().allMatch(locale -> owner.getAttribute(LABEL, locale) == null);
+			assertArchivedOwnersSplit(originalMixedOwners, lacksLabel, "label");
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					// the live scope alone keeps the attribute unique across locales and needs no locale either
+					assertMatches(
+						session, ENTITY_MIXED_OWNER, originalMixedOwners,
+						owner -> owner.getScope() == Scope.LIVE && lacksLabel.negate().test(owner), null,
+						scope(Scope.LIVE), attributeIsNotNull(LABEL)
+					);
+					for (Scope[] order : new Scope[][]{{Scope.LIVE, Scope.ARCHIVED}, {Scope.ARCHIVED, Scope.LIVE}}) {
+						assertMatches(
+							session, ENTITY_MIXED_OWNER, originalMixedOwners, lacksLabel.negate(), null,
+							scope(order), attributeIsNotNull(LABEL)
+						);
+						for (boolean preferIndexScan : new boolean[]{true, false}) {
+							final Set<Integer> nullSide = pks(
+								query(
+									session, ENTITY_MIXED_OWNER, preferIndexScan, scope(order), attributeIsNull(LABEL)
+								)
+							);
+							final Set<Integer> notNullSide = pks(
+								query(
+									session, ENTITY_MIXED_OWNER, preferIndexScan,
+									scope(order), attributeIsNotNull(LABEL)
+								)
+							);
+							final Set<Integer> union = new TreeSet<>(nullSide);
+							union.addAll(notNullSide);
+							final Set<Integer> intersection = new TreeSet<>(nullSide);
+							intersection.retainAll(notNullSide);
+							final String context =
+								Arrays.toString(order) + " (preferIndexScan=" + preferIndexScan + ")";
+							assertEquals(
+								selectPks(originalMixedOwners, it -> true), union,
+								"Every owner is either null or not null in " + context
+							);
+							assertTrue(intersection.isEmpty(), "No owner is both null and not null in " + context);
+						}
+					}
+					return null;
+				}
+			);
+		}
+
+		/**
+		 * The same partition row by row: identity I1 (`RH(null) ∪ RH(not null) = RH()`) and I2 (`RH(null) ∩
+		 * RH(not null)` are exactly the owners holding a row of each kind).
+		 */
+		@DisplayName("Should split the rows between the null and not-null tests of a localized reference attribute")
+		@UseDataSet(MIXED_UNIQUENESS_NULL)
+		@Test
+		void shouldSplitTheRowsBetweenTheNullAndNotNullTestsOfALocalizedReferenceAttribute(
+			Evita evita,
+			List<SealedEntity> originalMixedOwners
+		) {
+			final Predicate<ReferenceContract> lacksTag =
+				row -> MIXED_LOCALES.stream().allMatch(locale -> row.getAttribute(TAG, locale) == null);
+			assertArchivedOwnersSplit(originalMixedOwners, anyRow(REF_TAGS, lacksTag), "a `tags` row without `tag`");
+			final Set<Integer> mixed = selectPks(
+				originalMixedOwners, anyRow(REF_TAGS, lacksTag).and(anyRow(REF_TAGS, lacksTag.negate()))
+			);
+			assertFalse(mixed.isEmpty(), "Fixture guard: some owner must hold a `tags` row of each kind!");
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					// candidate discovery reads the type-level index of `tags`, which keeps no usable unique index
+					assertMatches(
+						session, ENTITY_MIXED_OWNER, originalMixedOwners,
+						owner -> owner.getScope() == Scope.LIVE && anyRow(REF_TAGS, lacksTag.negate()).test(owner),
+						null, scope(Scope.LIVE), referenceHaving(REF_TAGS, attributeIsNotNull(TAG))
+					);
+					for (Scope[] order : new Scope[][]{{Scope.LIVE, Scope.ARCHIVED}, {Scope.ARCHIVED, Scope.LIVE}}) {
+						assertMatches(
+							session, ENTITY_MIXED_OWNER, originalMixedOwners, anyRow(REF_TAGS, lacksTag.negate()),
+							null, scope(order), referenceHaving(REF_TAGS, attributeIsNotNull(TAG))
+						);
+						for (boolean preferIndexScan : new boolean[]{true, false}) {
+							final Set<Integer> nullSide = pks(
+								query(
+									session, ENTITY_MIXED_OWNER, preferIndexScan,
+									scope(order), referenceHaving(REF_TAGS, attributeIsNull(TAG))
+								)
+							);
+							final Set<Integer> notNullSide = pks(
+								query(
+									session, ENTITY_MIXED_OWNER, preferIndexScan,
+									scope(order), referenceHaving(REF_TAGS, attributeIsNotNull(TAG))
+								)
+							);
+							final Set<Integer> union = new TreeSet<>(nullSide);
+							union.addAll(notNullSide);
+							final Set<Integer> intersection = new TreeSet<>(nullSide);
+							intersection.retainAll(notNullSide);
+							final String context =
+								Arrays.toString(order) + " (preferIndexScan=" + preferIndexScan + ")";
+							assertEquals(
+								selectPks(originalMixedOwners, it -> !it.getReferences(REF_TAGS).isEmpty()), union,
+								"I1 in " + context
+							);
+							assertEquals(mixed, intersection, "I2 in " + context);
+						}
+					}
+					return null;
+				}
+			);
+		}
+
+		/**
 		 * Guards the oracle against passing vacuously: among the archived owners, some must match it and some must
 		 * not, and among those that do not, one must carry its value in German only - so that neither a null test
 		 * reading no locale nor one reading English alone can meet the expectation.
