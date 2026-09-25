@@ -161,8 +161,8 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		final Locale locale = filterByVisitor.getLocale();
 		final Set<Locale> everyLocale = attributeSchema.isLocalized() ?
 			getLocalesTheValueMayBeStoredIn(filterByVisitor) : Set.of();
-		// `applyOnIndexes`, never `applyOnFilterIndexes` / `applyOnUniqueIndexes`: those turn an index without the
-		// attribute into EMPTY before the lambda runs, and for a null test that is the index where EVERY record matches
+		// `applyOnIndexes`, never `applyOnFilterIndexes`: it turns an index without the attribute into EMPTY before
+		// the lambda runs, and for a null test that is the index where EVERY record matches
 		return filterByVisitor.applyOnIndexes(
 			entityIndex -> {
 				final Formula superSet = entityIndex.getAllPrimaryKeysFormula();

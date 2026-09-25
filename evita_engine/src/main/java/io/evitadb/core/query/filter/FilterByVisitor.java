@@ -1606,28 +1606,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
-	 * Method executes the logic on unique index of certain attribute.
-	 */
-	@Nonnull
-	public Formula applyOnUniqueIndexes(
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull AttributeSchemaContract attributeDefinition,
-		@Nonnull Function<UniqueIndex, Formula> formulaFunction
-	) {
-		return joinFormulas(
-			getEntityIndexStream()
-				.map(
-					entityIndex -> {
-						final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(referenceSchema, attributeDefinition, getLocale());
-						return uniqueIndex == null ?
-							EmptyFormula.INSTANCE :
-							tagWithProducingIndex(entityIndex, formulaFunction.apply(uniqueIndex));
-					}
-				)
-		);
-	}
-
-	/**
 	 * Method executes the logic on first unique index of certain attribute returning non-empty result.
 	 *
 	 * "First" follows {@link #getEntityIndexStream()}, i.e. the order `scope(...)` requested the scopes in: a value
