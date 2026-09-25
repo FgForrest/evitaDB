@@ -1623,6 +1623,11 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 
 	/**
 	 * Method executes the logic on first unique index of certain attribute returning non-empty result.
+	 *
+	 * The result is tagged with the index that produced it, like every formula {@link #applyOnIndexes(Function)}
+	 * builds: inside a `referenceHaving` body an untagged leaf reads as index-independent, so the row-scoping rebuild
+	 * would apply the match to every row of the owner - `not(attributeEquals(u, x1))` then drops an owner whose other
+	 * row carries a different value. Outside a reference body no tag is attached.
 	 */
 	@Nonnull
 	public Formula applyOnFirstUniqueIndex(
@@ -1634,7 +1639,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			.map(
 				entityIndex -> {
 					final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(referenceSchema, attributeDefinition, getLocale());
-					return uniqueIndex == null ? EmptyFormula.INSTANCE : formulaFunction.apply(uniqueIndex);
+					return uniqueIndex == null ?
+						EmptyFormula.INSTANCE : tagWithProducingIndex(entityIndex, formulaFunction.apply(uniqueIndex));
 				}
 			)
 			.filter(it -> !(it instanceof EmptyFormula))
