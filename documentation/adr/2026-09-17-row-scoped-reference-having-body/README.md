@@ -1,7 +1,7 @@
 ---
 title: A referenceHaving body is a predicate about one reference row, evaluated by transposing the planned formula per reduced index
 date: 2026-09-17
-updated: 2026-09-17 20:38
+updated: 2026-09-25 18:15
 status: partially-implemented
 kind: fix
 issues: [1585]
@@ -10,7 +10,7 @@ areas: [evita_engine/src/main/java/io/evitadb/core/query/filter/translator/refer
 supersedes: []
 superseded-by: []
 relates: [2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-09-08-conditional-histogram-per-contribution-verdicts, 2026-09-15-non-collapsible-formula-marker,
-  2026-09-18-reference-planning-from-owner-membership]
+  2026-09-18-reference-planning-from-owner-membership, 2026-09-25-attribute-is-null-in-reference-having]
 ---
 
 # A `referenceHaving` body binds one reference row, and is evaluated by transposing the planned formula per reduced index
@@ -248,7 +248,10 @@ meet only under `or` answers the same question before and after the transpose, b
 distributes over disjunction - so it is returned as the visitor built it. That is a single leaf or a flat `or`
 of leaves: the overwhelmingly common reference body, and the only shape `BidirectionalReferenceRewriter`
 accepts. Measured at the same sizes: 0.27 ms, 0.87 ms, 4.45 ms - linear, and 257x faster at 8,000 indexes.
-See `ReferenceBodyTransposer#combinedOnlyByUnion`.
+See `ReferenceBodyTransposer#combinedOnlyByUnion`. **Correction (2026-09-25):** in the engine this held for no
+attribute leaf until `2026-09-25-attribute-is-null-in-reference-having` taught the check to look through
+`AttributeFormula` - before that a plain `referenceHaving(Product.media, attributeIsNotNull(a))` took the
+quadratic rebuild and measured 281 s per query.
 
 What the fast path does **not** remove is the rebuild for a conjunctive or negated body, which still walks the
 family once per index. Removing that needs a **compositional candidate set plus the residue term**, so the
@@ -302,10 +305,12 @@ collection rather than against one owner's rows: `∃r : target(r) ∉ S` is `al
 instead of the per-owner one. The scope question is the awkward part - the bare branch deliberately spans
 every scope a counterpart row can live in, and a complement has to be taken against exactly that set.
 
-**#1584 is not fixed by this work.** `attributeIsNull` on a reference attribute still returns empty. Its
-repair is to treat it as `not(attributeIsNotNull(a))` rather than as a plain leaf: evaluated at type level it
-means "no row in this index carries `a`", which is a strict *subset* of the indexes that can contribute. It
-belongs with the compositional candidate set.
+**#1584 was not fixed by this work; `2026-09-25-attribute-is-null-in-reference-having` fixed it.** At type level
+`attributeIsNull(a)` means "no row in this index carries `a`", a strict *subset* of the indexes that can
+contribute. It now widens during discovery the way `not` does, without waiting for the compositional candidate
+set, and its per-index leaves are tagged. That record also found that the fast path below never applied to an
+attribute leaf, because every attribute translator wraps its contributions in an `AttributeFormula`; it now
+looks through the wrapper.
 
 **Three planning levers, adjacent to this issue rather than part of it.** The measurement found that the
 dominant cost is index *selection*, not execution — every probed query walked the whole family only to reject

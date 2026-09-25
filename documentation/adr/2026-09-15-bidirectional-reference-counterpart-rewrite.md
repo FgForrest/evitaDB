@@ -1,7 +1,7 @@
 ---
 title: Answer a referenceHaving from whichever end of a bidirectional reference is cheaper, and stop emitting provably-empty null subtractions
 date: 2026-09-15
-updated: 2026-09-17 11:40
+updated: 2026-09-25 18:15
 status: accepted
 kind: optimization
 issues: [1547, 1583, 1584, 1585]
@@ -9,7 +9,7 @@ prs: [1548, 1568]
 areas: [evita_engine/src/main/java/io/evitadb/core/query/filter/translator/reference, evita_engine/src/main/java/io/evitadb/core/query/algebra/reference, evita_engine/src/main/java/io/evitadb/core/query/indexSelection, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/attribute, evita_engine/src/main/java/io/evitadb/core/query/QueryPlanningContext.java]
 supersedes: []
 superseded-by: []
-relates: [2026-09-11-reference-name-narrowing, 2026-09-12-committed-snapshot-provenance-for-enrichment, 2026-09-13-per-entity-io-statistics-attribution, 2026-09-15-non-collapsible-formula-marker, 2026-09-17-row-scoped-reference-having-body]
+relates: [2026-09-11-reference-name-narrowing, 2026-09-12-committed-snapshot-provenance-for-enrichment, 2026-09-13-per-entity-io-statistics-attribution, 2026-09-15-non-collapsible-formula-marker, 2026-09-17-row-scoped-reference-having-body, 2026-09-25-attribute-is-null-in-reference-having]
 ---
 
 # Answer a `referenceHaving` from whichever end of a bidirectional reference is cheaper
