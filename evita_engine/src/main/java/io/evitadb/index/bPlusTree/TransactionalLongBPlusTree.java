@@ -308,13 +308,20 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	/**
 	 * Constructor to initialize the B+ Tree.
 	 *
+	 * The remaining block sizes are derived from `valueBlockSize`: the minimum leaf size is
+	 * `ceil(valueBlockSize / 2) - 1`, internal nodes take the largest odd size not exceeding `valueBlockSize` (internal
+	 * node sizes must be odd) and their minimum is derived the same way as the leaf one. Any `valueBlockSize` of at
+	 * least 3 is accepted, even or odd.
+	 *
 	 * @param valueBlockSize maximum number of values in a leaf node
 	 * @param valueType      the type of the values stored in the tree
 	 */
 	public TransactionalLongBPlusTree(int valueBlockSize, @Nonnull Class<V> valueType) {
 		this(
-			valueBlockSize, valueBlockSize / 2,
-			valueBlockSize, valueBlockSize / 2,
+			valueBlockSize,
+			deriveMinBlockSize(valueBlockSize),
+			deriveInternalNodeBlockSize(valueBlockSize),
+			deriveMinBlockSize(deriveInternalNodeBlockSize(valueBlockSize)),
 			valueType
 		);
 	}

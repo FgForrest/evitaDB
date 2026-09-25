@@ -74,6 +74,8 @@ import java.util.function.ToLongFunction;
 
 import static io.evitadb.core.transaction.memory.WarmUpSavepoint.perOperationWriteLayer;
 import static io.evitadb.core.transaction.memory.WarmUpSavepoint.writeLayer;
+import static io.evitadb.index.bPlusTree.AbstractTransactionalBPlusTree.deriveInternalNodeBlockSize;
+import static io.evitadb.index.bPlusTree.AbstractTransactionalBPlusTree.deriveMinBlockSize;
 import static io.evitadb.utils.ArrayUtils.*;
 
 /**
@@ -707,7 +709,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	}
 
 	/**
-	 * Constructor to initialize the tree with a single block size used for both leaf and internal nodes.
+	 * Constructor to initialize the tree from a single block size, deriving the remaining block sizes from it.
 	 *
 	 * @param valueBlockSize maximum number of buckets in a leaf node
 	 * @param keyType        the type of the keys (bucket values) stored in the tree
@@ -717,7 +719,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	}
 
 	/**
-	 * Constructor to initialize the tree with a single block size and an optional comparator.
+	 * Constructor to initialize the tree from a single block size and an optional comparator.
+	 *
+	 * The remaining block sizes are derived from `valueBlockSize`: the minimum leaf size is
+	 * `ceil(valueBlockSize / 2) - 1`, internal nodes take the largest odd size not exceeding `valueBlockSize` (internal
+	 * node sizes must be odd) and their minimum is derived the same way as the leaf one. Any `valueBlockSize` of at
+	 * least 3 is accepted, even or odd.
 	 *
 	 * @param valueBlockSize maximum number of buckets in a leaf node
 	 * @param keyType        the type of the keys (bucket values) stored in the tree
@@ -729,8 +736,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Nullable Comparator<K> comparator
 	) {
 		this(
-			valueBlockSize, valueBlockSize / 2,
-			valueBlockSize, valueBlockSize / 2,
+			valueBlockSize,
+			deriveMinBlockSize(valueBlockSize),
+			deriveInternalNodeBlockSize(valueBlockSize),
+			deriveMinBlockSize(deriveInternalNodeBlockSize(valueBlockSize)),
 			keyType,
 			comparator
 		);
