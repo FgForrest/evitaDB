@@ -173,6 +173,26 @@ It makes sense only in case the cardinality of the reference is 1:N (although th
 engine). This constraint lets you specify the order of the references to pick the first one from the list of references 
 to the same entity to be used for ordering by `referenceProperty`.
 
+The reference used for ordering an entity is picked by the following rules:
+
+1. The references of the entity are considered in the order given by the `pickFirstByEntityProperty` constraints
+   (by the primary key of the referenced entity in ascending order when the constraint is omitted). References to
+   the same entity, which a reference with a cardinality allowing duplicates can hold, follow in the order of their
+   representative attribute values.
+2. The first reference that has a value of the ordering property is picked. References without the value are skipped,
+   and an entity with no such reference is placed after all the ordered ones, where the next ordering constraint of
+   the query decides its position.
+3. All references of the entity are considered, regardless of the filter. A `referenceHaving` constraint targeting
+   the same reference decides which entities are returned, but not which of their references are used for ordering,
+   so the entities are always ordered the same way whether or not the filter mentions the reference.
+4. Entities whose picked references have the same value are ordered by their primary key in the direction of
+   the ordering (ascending for an ascending order, descending for a descending one), as with any other attribute.
+
+These rules apply to attributes whose values can be compared with one another. Attributes of type
+[`Predecessor`](../../use/data-types.md#predecessor) and `ReferencedEntityPredecessor` form chains within each
+referenced entity and can only be ordered referenced entity by referenced entity, as the
+[`traverseByEntityProperty`](#traverse-by-entity-property) constraint does.
+
 Let's expand our previous example to include products that refer to both the "sale" and "new" groups:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>

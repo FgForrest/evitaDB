@@ -57,6 +57,7 @@ import io.evitadb.core.query.sort.OrderByVisitor.MergeModeDefinition;
 import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeMode;
+import io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver;
 import io.evitadb.core.query.sort.reference.sorter.SequentialSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.dataType.Scope;
@@ -71,12 +72,12 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.Assert;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -84,6 +85,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -99,6 +101,10 @@ import static io.evitadb.api.query.QueryConstraints.traverseByEntityProperty;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class ReferencePropertyTranslator implements OrderingConstraintTranslator<ReferenceProperty>, SelfTraversingTranslator {
+	/**
+	 * Planning-time index array of a `pickFirst` ordering, whose indexes are resolved at execution time instead.
+	 */
+	private static final ReducedEntityIndex[] EMPTY_REDUCED_INDEXES = new ReducedEntityIndex[0];
 
 	/**
 	 * Method locates all {@link EntityIndex} from the resolved list of {@link TargetIndexes} which were identified
@@ -159,6 +165,33 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		} else {
 			return false;
 		}
+	}
+
+	/**
+	 * Returns true when at least one of the processed scopes holds a non-empty {@link ReferencedTypeEntityIndex} of
+	 * the given reference, i.e. when at least one owner has a row of the reference that ordering could use.
+	 *
+	 * @param orderByVisitor the visitor providing the processing scope and the index access
+	 * @param referenceName  the name of the reference
+	 * @return true if any processed scope contains a reduced index of the referenced entity family
+	 */
+	private static boolean hasAnyReducedIndex(
+		@Nonnull OrderByVisitor orderByVisitor,
+		@Nonnull String referenceName
+	) {
+		for (Scope scope : orderByVisitor.getProcessingScope().getScopes()) {
+			final boolean nonEmpty = orderByVisitor
+				.getIndexIfExists(
+					new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName),
+					ReferencedTypeEntityIndex.class
+				)
+				.map(it -> !it.getAllPrimaryKeys().isEmpty())
+				.orElse(false);
+			if (nonEmpty) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -365,6 +398,92 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		}
 	}
 
+	/**
+	 * Selects the reduced indexes of the reference at planning time and orders them by their referenced entities.
+	 * The set is the candidate set of a `referenceHaving` / `hierarchyWithin` on the same reference when the index
+	 * selection built one, the whole family of the reference otherwise. Indexes sharing one referenced entity keep
+	 * the order they were selected in.
+	 *
+	 * This is the index set of the block-by-block orderings - `traverseByEntityProperty` and chain attributes, whose
+	 * blocks follow the narrowed set. A `pickFirst` ordering of comparable values resolves its indexes at execution
+	 * time instead (see {@link PickFirstReducedIndexResolver}).
+	 *
+	 * @param orderByVisitor the visitor of the planned query
+	 * @param referenceName  the reference being ordered by
+	 * @param targetOrder    orders the primary keys of the referenced entities
+	 * @return the ordered reduced indexes, empty when the reference has none
+	 */
+	@Nonnull
+	private static ReducedEntityIndex[] selectPlanningReducedIndexes(
+		@Nonnull OrderByVisitor orderByVisitor,
+		@Nonnull String referenceName,
+		@Nonnull Function<Formula, IntStream> targetOrder
+	) {
+		final List<ReducedEntityIndex> reducedEntityIndexSet = selectReducedEntityIndexSet(orderByVisitor, referenceName);
+		final List<ReducedEntityIndex> referenceIndexes = reducedEntityIndexSet.isEmpty() ?
+			selectFullEntityIndexSet(orderByVisitor, referenceName) :
+			reducedEntityIndexSet;
+		if (referenceIndexes.isEmpty()) {
+			return EMPTY_REDUCED_INDEXES;
+		}
+		final IntObjectMap<Stream<ReducedEntityIndex>> reducedIndexesMap = new IntObjectHashMap<>(referenceIndexes.size());
+		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		for (ReducedEntityIndex referenceIndex : referenceIndexes) {
+			final ReferenceKey discriminator = Objects.requireNonNull((RepresentativeReferenceKey) referenceIndex.getIndexKey().discriminator()).referenceKey();
+			final int referencedPk = discriminator.primaryKey();
+			writer.add(referencedPk);
+			final Stream<ReducedEntityIndex> existingValue = reducedIndexesMap.get(referencedPk);
+			if (existingValue == null) {
+				reducedIndexesMap.put(referencedPk, Stream.of(referenceIndex));
+			} else {
+				reducedIndexesMap.put(referencedPk, Stream.concat(existingValue, Stream.of(referenceIndex)));
+			}
+		}
+		return targetOrder.apply(new ConstantFormula(new BaseBitmap(writer.get())))
+			.mapToObj(reducedIndexesMap::get)
+			.filter(Objects::nonNull)
+			.flatMap(Function.identity())
+			.toArray(ReducedEntityIndex[]::new);
+	}
+
+	/**
+	 * Creates the resolver of the reduced indexes a `pickFirst` ordering walks. The ordering of the targets is
+	 * prepared here, at planning time: the plain `entityPrimaryKeyNatural` needs no sorter at all, any other
+	 * specification gets a {@link NestedContextSorter} over the referenced collection that the resolver applies to the
+	 * targets of each selection.
+	 *
+	 * @param orderByVisitor            the visitor of the planned query
+	 * @param referenceSchema           the reference being ordered by
+	 * @param pickFirstByEntityProperty the ordering of the targets
+	 * @param planningIndexes           supplier of the ordered reduced indexes for consumers that need them at
+	 *                                  planning time
+	 * @return the resolver
+	 */
+	@Nonnull
+	private static PickFirstReducedIndexResolver createPickFirstIndexResolver(
+		@Nonnull OrderByVisitor orderByVisitor,
+		@Nonnull ReferenceSchema referenceSchema,
+		@Nonnull OrderConstraint[] pickFirstByEntityProperty,
+		@Nonnull Supplier<ReducedEntityIndex[]> planningIndexes
+	) {
+		final Set<Scope> allowedScopes = orderByVisitor.getProcessingScope().getScopes();
+		final Scope[] scopes = Arrays.stream(Scope.values())
+			.filter(allowedScopes::contains)
+			.toArray(Scope[]::new);
+		if (pickFirstByEntityProperty.length == 1 && pickFirstByEntityProperty[0] instanceof EntityPrimaryKeyNatural epkn) {
+			return new PickFirstReducedIndexResolver(
+				orderByVisitor.getQueryContext(), referenceSchema, scopes, null,
+				epkn.getOrderDirection() == OrderDirection.DESC, planningIndexes
+			);
+		} else {
+			return new PickFirstReducedIndexResolver(
+				orderByVisitor.getQueryContext(), referenceSchema, scopes,
+				createNestedContextSorter(orderByVisitor, referenceSchema, pickFirstByEntityProperty),
+				false, planningIndexes
+			);
+		}
+	}
+
 	@Nonnull
 	@Override
 	public Stream<Sorter> createSorter(@Nonnull ReferenceProperty referenceProperty, @Nonnull OrderByVisitor orderByVisitor) {
@@ -393,103 +512,86 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 					pickFirstByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC))
 			);
 
-		final List<ReducedEntityIndex> reducedEntityIndexSet = selectReducedEntityIndexSet(orderByVisitor, referenceName);
-		final List<ReducedEntityIndex> referenceIndexes = reducedEntityIndexSet.isEmpty() ?
-			selectFullEntityIndexSet(orderByVisitor, referenceName) :
-			reducedEntityIndexSet;
-
-		if (!referenceIndexes.isEmpty()) {
-			final IntObjectMap<Stream<ReducedEntityIndex>> reducedIndexesMap = new IntObjectHashMap<>(referenceIndexes.size());
-			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-			for (ReducedEntityIndex referenceIndex : referenceIndexes) {
-				final ReferenceKey discriminator = Objects.requireNonNull((RepresentativeReferenceKey) referenceIndex.getIndexKey().discriminator()).referenceKey();
-				final int referencedPk = discriminator.primaryKey();
-				writer.add(referencedPk);
-				final Stream<ReducedEntityIndex> existingValue = reducedIndexesMap.get(referencedPk);
-				if (existingValue == null) {
-					reducedIndexesMap.put(referencedPk, Stream.of(referenceIndex));
-				} else {
-					// there should be at most 2 such indexes
-					reducedIndexesMap.put(referencedPk, Stream.concat(existingValue, Stream.of(referenceIndex)));
-				}
-			}
-			final Formula referenceIndexIds = new ConstantFormula(new BaseBitmap(writer.get()));
-
-			final MergeMode mergeMode;
-			final IntStream sortedReferencePks;
-			if (orderingSpecification instanceof TraverseByEntityProperty tbep) {
-				mergeMode = MergeMode.APPEND_ALL;
-				sortedReferencePks = referencedEntityHierarchical ?
-					getTraversedAndSortedReducedIndexPrimaryKeys(
-						orderByVisitor, referenceSchema, tbep.getChildren(), tbep.getTraversalMode(), referenceIndexIds
-					) :
-					getSortedReducedIndexPrimaryKeys(
-						orderByVisitor, referenceSchema, tbep.getChildren(), referenceIndexIds
-					);
-			} else if (orderingSpecification instanceof PickFirstByEntityProperty pfbep) {
-				mergeMode = MergeMode.APPEND_FIRST;
-				sortedReferencePks = getSortedReducedIndexPrimaryKeys(
-					orderByVisitor, referenceSchema, pfbep.getChildren(), referenceIndexIds
-				);
-			} else {
-				throw new GenericEvitaInternalError("Expected initialized ordering specification at least by defaults!");
-			}
-
-			// create sorted reduced index array
-			final ReducedEntityIndex[] sortedReducedIndexes = sortedReferencePks
-				.mapToObj(reducedIndexesMap::get)
-				.filter(Objects::nonNull)
-				.flatMap(Function.identity())
-				.toArray(ReducedEntityIndex[]::new);
-
-			if (mergeMode == MergeMode.APPEND_ALL) {
-				int start = 0;
-				ReferenceKey referenceKey = null;
-				int index = 0;
-				final ReducedEntityIndex[][] atomicBlocks = new ReducedEntityIndex[reducedIndexesMap.size()][];
-				for (int i = 0; i < sortedReducedIndexes.length; i++) {
-					final ReducedEntityIndex sortedReducedIndex = sortedReducedIndexes[i];
-					final ReferenceKey srpReferenceKey = sortedReducedIndex.getReferenceKey();
-					if (referenceKey != null && !referenceKey.equalsInGeneral(srpReferenceKey)) {
-						atomicBlocks[index++] = Arrays.copyOfRange(sortedReducedIndexes, start, i);
-						start = i;
-					}
-					referenceKey = srpReferenceKey;
-				}
-				atomicBlocks[index] = Arrays.copyOfRange(sortedReducedIndexes, start, sortedReducedIndexes.length);
-				Assert.isPremiseValid(index == atomicBlocks.length - 1, "Unexpected number of atomic blocks: " + index);
-
-				final List<Sorter> sorters = orderByVisitor.executeInContext(
-					sortedReducedIndexes,
-					referenceSchema,
-					null,
-					processingScope.withReferenceSchemaAccessor(referenceName),
-					new MergeModeDefinition(mergeMode, orderingSpecificationRef.isEmpty()),
-					() -> orderByVisitor.collectIsolatedSorters(
-						() -> traverseChildConstraints(referenceProperty, orderByVisitor)
-					)
-				);
-
-				return Stream.of(
-					new SequentialSorter(atomicBlocks, sorters)
-				);
-			} else {
-				orderByVisitor.executeInContext(
-					sortedReducedIndexes,
-					referenceSchema,
-					null,
-					processingScope.withReferenceSchemaAccessor(referenceName),
-					new MergeModeDefinition(mergeMode, orderingSpecificationRef.isEmpty()),
-					() -> {
-						traverseChildConstraints(referenceProperty, orderByVisitor);
-						return null;
-					}
-				);
+		if (orderingSpecification instanceof PickFirstByEntityProperty pfbep) {
+			if (!hasAnyReducedIndex(orderByVisitor, referenceName)) {
+				// no owner has a row of this reference in the processed scopes - there is nothing to sort by, and the
+				// nested constraints must not be planned (single-index translators require an index to exist)
 				return Stream.empty();
 			}
-		} else {
+			// the reduced indexes a pick-first ordering walks depend on the selected owners only - every row of a
+			// selected owner takes part, whatever the filter says about the same reference - so they are resolved
+			// at execution time and the candidates of a `referenceHaving` in the filter are deliberately ignored
+			orderByVisitor.executeInContext(
+				EMPTY_REDUCED_INDEXES,
+				referenceSchema,
+				null,
+				processingScope.withReferenceSchemaAccessor(referenceName),
+				new MergeModeDefinition(MergeMode.APPEND_FIRST, orderingSpecificationRef.isEmpty()),
+				createPickFirstIndexResolver(
+					orderByVisitor, referenceSchema, pfbep.getChildren(),
+					() -> selectPlanningReducedIndexes(
+						orderByVisitor,
+						referenceName,
+						referenceIndexIds -> getSortedReducedIndexPrimaryKeys(
+							orderByVisitor, referenceSchema, pfbep.getChildren(), referenceIndexIds
+						)
+					)
+				),
+				() -> {
+					traverseChildConstraints(referenceProperty, orderByVisitor);
+					return null;
+				}
+			);
+			return Stream.empty();
+		} else if (!(orderingSpecification instanceof TraverseByEntityProperty)) {
+			throw new GenericEvitaInternalError("Expected initialized ordering specification at least by defaults!");
+		}
+
+		final TraverseByEntityProperty tbep = (TraverseByEntityProperty) orderingSpecification;
+		final ReducedEntityIndex[] sortedReducedIndexes = selectPlanningReducedIndexes(
+			orderByVisitor,
+			referenceName,
+			referenceIndexIds -> referencedEntityHierarchical ?
+				getTraversedAndSortedReducedIndexPrimaryKeys(
+					orderByVisitor, referenceSchema, tbep.getChildren(), tbep.getTraversalMode(), referenceIndexIds
+				) :
+				getSortedReducedIndexPrimaryKeys(
+					orderByVisitor, referenceSchema, tbep.getChildren(), referenceIndexIds
+				)
+		);
+		if (sortedReducedIndexes.length == 0) {
 			return Stream.empty();
 		}
+
+		// split the indexes into blocks of one referenced entity each
+		final List<ReducedEntityIndex[]> atomicBlocks = new ArrayList<>(sortedReducedIndexes.length);
+		int start = 0;
+		ReferenceKey referenceKey = null;
+		for (int i = 0; i < sortedReducedIndexes.length; i++) {
+			final ReferenceKey srpReferenceKey = sortedReducedIndexes[i].getReferenceKey();
+			if (referenceKey != null && !referenceKey.equalsInGeneral(srpReferenceKey)) {
+				atomicBlocks.add(Arrays.copyOfRange(sortedReducedIndexes, start, i));
+				start = i;
+			}
+			referenceKey = srpReferenceKey;
+		}
+		atomicBlocks.add(Arrays.copyOfRange(sortedReducedIndexes, start, sortedReducedIndexes.length));
+
+		final List<Sorter> sorters = orderByVisitor.executeInContext(
+			sortedReducedIndexes,
+			referenceSchema,
+			null,
+			processingScope.withReferenceSchemaAccessor(referenceName),
+			new MergeModeDefinition(MergeMode.APPEND_ALL, orderingSpecificationRef.isEmpty()),
+			null,
+			() -> orderByVisitor.collectIsolatedSorters(
+				() -> traverseChildConstraints(referenceProperty, orderByVisitor)
+			)
+		);
+
+		return Stream.of(
+			new SequentialSorter(atomicBlocks.toArray(ReducedEntityIndex[][]::new), sorters)
+		);
 	}
 
 }

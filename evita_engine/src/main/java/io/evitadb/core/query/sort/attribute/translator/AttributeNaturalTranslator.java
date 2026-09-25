@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.sort.attribute.translator;
 
-import com.carrotsearch.hppc.IntIntHashMap;
 import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
@@ -48,14 +47,16 @@ import io.evitadb.core.query.sort.attribute.comparator.*;
 import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter;
 import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeMode;
 import io.evitadb.core.query.sort.generic.PrefetchedRecordsSorter;
+import io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver;
+import io.evitadb.core.query.sort.reference.sorter.PickFirstReferenceSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.attribute.ChainIndex;
-import io.evitadb.index.attribute.ReferenceSortedRecordsProvider;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
@@ -150,8 +151,6 @@ public class AttributeNaturalTranslator
 		final Locale locale = orderByVisitor.getLocale();
 		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
 
-		final Supplier<SortedRecordsProvider[]> sortedRecordsSupplier;
-		final EntityIndex[] indexesForSort = orderByVisitor.getIndexesForSort();
 		final NamedSchemaContract attributeOrCompoundSchema = processingScope.getAttributeSchemaOrSortableAttributeCompound(attributeOrCompoundName);
 
 		if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema && attributeSchema.isLocalized()) {
@@ -175,6 +174,16 @@ public class AttributeNaturalTranslator
 		final EntitySchemaContract entitySchema = attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract ?
 			orderByVisitor.getSchema() : null;
 		final ReferenceSchema referenceSchema = processingScope.referenceSchema();
+		final PickFirstReducedIndexResolver pickFirstIndexResolver = processingScope.pickFirstIndexResolver();
+		if (pickFirstIndexResolver != null && !isChainAttribute(attributeOrCompoundSchema)) {
+			return createPickFirstSorters(
+				attributeOrCompoundSchema, orderDirection, locale, entitySchema,
+				Objects.requireNonNull(referenceSchema), pickFirstIndexResolver, orderByVisitor
+			);
+		}
+
+		final Supplier<SortedRecordsProvider[]> sortedRecordsSupplier;
+		final EntityIndex[] indexesForSort = orderByVisitor.getIndexesForSort();
 		if (orderDirection == ASC) {
 			sortedRecordsSupplier = new AttributeSortedRecordsProviderSupplier(
 				SortIndex::getAscendingOrderRecordsSupplier,
@@ -248,16 +257,8 @@ public class AttributeNaturalTranslator
 					attributeName -> processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE),
 					orderDirection
 				);
-			} else if (mergeMode == MergeMode.APPEND_FIRST) {
-				entityComparator = new PickFirstReferenceCompoundAttributeComparator(
-					compoundSchemaContract,
-					referenceSchema,
-					locale,
-					attributeName -> processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE),
-					orderDirection,
-					() -> createReferenceSortedRecordsProviderPositionIndex(sortedRecordsSupplier)
-				);
 			} else {
+				assertTraversing(mergeMode);
 				entityComparator = new TraverseReferenceCompoundAttributeComparator(
 					compoundSchemaContract,
 					referenceSchema,
@@ -283,16 +284,8 @@ public class AttributeNaturalTranslator
 					locale,
 					orderDirection
 				);
-			} else if (mergeMode == MergeMode.APPEND_FIRST) {
-				entityComparator = new PickFirstReferenceAttributeComparator(
-					attributeOrCompoundName,
-					attributeSchema.getPlainType(),
-					referenceSchema,
-					locale,
-					orderDirection,
-					() -> createReferenceSortedRecordsProviderPositionIndex(sortedRecordsSupplier)
-				);
 			} else {
+				assertTraversing(mergeMode);
 				entityComparator = new TraverseReferenceAttributeComparator(
 					attributeOrCompoundName,
 					attributeSchema.getPlainType(),
@@ -306,6 +299,54 @@ public class AttributeNaturalTranslator
 		}
 
 		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work
+		addRequirementToPrefetch(orderByVisitor, attributeOrCompoundSchema, referenceSchema);
+
+		return Stream.of(
+			new PrefetchedRecordsSorter(entityComparator),
+			new PreSortedRecordsSorter(mergeMode, valueComparator, orderDirection, sortedRecordsSupplier)
+		);
+	}
+
+	/**
+	 * Tells whether the attribute is a chain ({@link Predecessor} or {@link ReferencedEntityPredecessor}), whose
+	 * values are not comparable one with another and which is therefore always sorted block by block.
+	 *
+	 * @param attributeOrCompoundSchema the sorted attribute or compound
+	 * @return `true` for a chain attribute
+	 */
+	private static boolean isChainAttribute(@Nonnull NamedSchemaContract attributeOrCompoundSchema) {
+		return attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema &&
+			(Predecessor.class.equals(attributeSchema.getPlainType()) ||
+				ReferencedEntityPredecessor.class.equals(attributeSchema.getPlainType()));
+	}
+
+	/**
+	 * Verifies that an ordering by a reference attribute outside a `pickFirst` ordering traverses the reduced indexes
+	 * block by block - the pick-first ordering is always planned with a {@link PickFirstReducedIndexResolver} and never
+	 * reaches the block-by-block sorters.
+	 *
+	 * @param mergeMode the merge mode of the reference ordering
+	 */
+	private static void assertTraversing(@Nonnull MergeMode mergeMode) {
+		Assert.isPremiseValid(
+			mergeMode == MergeMode.APPEND_ALL,
+			"A pick-first reference ordering must be planned with a reduced index resolver!"
+		);
+	}
+
+	/**
+	 * Registers the attributes the entity comparator reads, so that the prefetch route fetches them.
+	 *
+	 * @param orderByVisitor            the visitor of the planned query
+	 * @param attributeOrCompoundSchema the sorted attribute or compound
+	 * @param referenceSchema           the reference the attribute belongs to, `null` for an entity attribute
+	 */
+	private static void addRequirementToPrefetch(
+		@Nonnull OrderByVisitor orderByVisitor,
+		@Nonnull NamedSchemaContract attributeOrCompoundSchema,
+		@Nullable ReferenceSchema referenceSchema
+	) {
+		final String attributeOrCompoundName = attributeOrCompoundSchema.getName();
 		if (referenceSchema == null) {
 			orderByVisitor.addRequirementToPrefetch(
 				attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract sacsc ?
@@ -318,8 +359,9 @@ public class AttributeNaturalTranslator
 				combineCompoundWithReferencedAttributes(attributeOrCompoundName, sacsc) :
 				new String[]{attributeOrCompoundName};
 			// when the reference allows duplicates, the comparator disambiguates the duplicate references by their
-			// representative attributes (see the picker predicate in TraverseReference*Comparator); those attributes
-			// must be prefetched as well, otherwise reading them on the fetched reference throws ContextMissingException
+			// representative attributes (see PickFirstReferenceOrder and the picker predicate in
+			// TraverseReference*Comparator); those attributes must be prefetched as well, otherwise reading them on
+			// the fetched reference throws ContextMissingException
 			final String[] attributesToPrefetch = referenceSchema.getCardinality().allowsDuplicates() ?
 				combineWithRepresentativeAttributes(sortAttributes, referenceSchema) :
 				sortAttributes;
@@ -327,42 +369,95 @@ public class AttributeNaturalTranslator
 				referenceContentWithAttributes(referenceSchema.getName(), attributesToPrefetch)
 			);
 		}
-
-		return Stream.of(
-			new PrefetchedRecordsSorter(entityComparator),
-			new PreSortedRecordsSorter(mergeMode, valueComparator, sortedRecordsSupplier)
-		);
 	}
 
 	/**
-	 * Creates a mapping between the primary keys of reference-sorted records and their indices
-	 * in the order they are sorted. This method processes the sorted records provided by the
-	 * {@link SortedRecordsProvider} suppliers, filtering out those that are implementations of
-	 * {@link ReferenceSortedRecordsProvider}. For each instance, the primary key of its reference key
-	 * is associated with its zero-based position in the sorted array. The mapping is returned as an
-	 * {@link IntIntHashMap}.
+	 * Creates the sorters of a `pickFirst` ordering by a comparable reference attribute or compound: the index route
+	 * resolving its reduced indexes at execution time and the prefetch route picking the same row of each entity.
 	 *
-	 * @param sortedRecordsSupplier a supplier that provides an array of {@link SortedRecordsProvider}
-	 *                               instances, which may include {@link ReferenceSortedRecordsProvider}
-	 *                               implementations containing reference-based sorting information.
-	 * @return an {@link IntIntHashMap} that maps each reference primary key to its position in the
-	 *         sorted array.
+	 * @param attributeOrCompoundSchema the sorted attribute or compound
+	 * @param orderDirection            the direction of the ordering
+	 * @param locale                    the locale of the ordering
+	 * @param entitySchema              the schema of the sorted entities, required for a compound
+	 * @param referenceSchema           the reference the attribute belongs to
+	 * @param indexResolver             resolver of the reduced indexes of the reference
+	 * @param orderByVisitor            the visitor of the planned query
+	 * @return the prefetch route sorter followed by the index route sorter
 	 */
 	@Nonnull
-	private static IntIntHashMap createReferenceSortedRecordsProviderPositionIndex(
-		@Nonnull Supplier<SortedRecordsProvider[]> sortedRecordsSupplier
+	private static Stream<Sorter> createPickFirstSorters(
+		@Nonnull NamedSchemaContract attributeOrCompoundSchema,
+		@Nonnull OrderDirection orderDirection,
+		@Nullable Locale locale,
+		@Nullable EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchema referenceSchema,
+		@Nonnull PickFirstReducedIndexResolver indexResolver,
+		@Nonnull OrderByVisitor orderByVisitor
 	) {
-		final int[] sortedReferencePks = Arrays.stream(sortedRecordsSupplier.get())
-			.filter(ReferenceSortedRecordsProvider.class::isInstance)
-			.map(ReferenceSortedRecordsProvider.class::cast)
-			.mapToInt(it -> it.getReferenceKey().primaryKey())
-			.toArray();
-		final IntIntHashMap result = new IntIntHashMap();
-		for (int i = 0; i < sortedReferencePks.length; i++) {
-			int sortedReferencePk = sortedReferencePks[i];
-			result.put(sortedReferencePk, i);
+		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
+		final Function<SortIndex, SortedRecordsProvider> providerExtractor = orderDirection == ASC ?
+			SortIndex::getAscendingOrderRecordsSupplier : SortIndex::getDescendingOrderRecordsSupplier;
+		//noinspection rawtypes
+		final Comparator valueComparator;
+		// the sort index lookup decides whether an index holds any value; the provider itself - which creates its value
+		// seeker eagerly - is built only when the sorter finds an unclaimed owner in the index
+		final Function<ReducedEntityIndex, Supplier<SortedRecordsProvider>> providerFactory;
+		final EntityComparator entityComparator;
+		if (attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract compoundSchema) {
+			final Comparator<ComparableArray> naturalComparator = createCombinedComparatorFor(
+				locale,
+				compoundSchema.getAttributeElements()
+					.stream()
+					.map(attributeElement -> new ComparatorSource(
+						processingScope.getAttributeSchema(attributeElement.attributeName()).getPlainType(),
+						attributeElement.direction(),
+						attributeElement.behaviour()
+					))
+					.toArray(ComparatorSource[]::new)
+			);
+			// the order direction is not resolved within createCombinedComparatorFor() method
+			valueComparator = orderDirection == ASC ? naturalComparator : naturalComparator.reversed();
+			final EntitySchemaContract theEntitySchema = Objects.requireNonNull(entitySchema);
+			providerFactory = index -> {
+				final SortIndex sortIndex = index.getSortIndex(theEntitySchema, referenceSchema, compoundSchema, locale);
+				return sortIndex == null ? null : () -> providerExtractor.apply(sortIndex);
+			};
+			entityComparator = new PickFirstReferenceCompoundAttributeComparator(
+				compoundSchema,
+				referenceSchema,
+				locale,
+				attributeName -> processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE),
+				orderDirection,
+				indexResolver
+			);
+		} else if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema) {
+			valueComparator = createComparatorFor(
+				locale,
+				new ComparatorSource(attributeSchema.getPlainType(), orderDirection, OrderBehaviour.NULLS_LAST)
+			);
+			providerFactory = index -> {
+				final SortIndex sortIndex = index.getSortIndex(referenceSchema, attributeSchema, locale);
+				return sortIndex == null ? null : () -> providerExtractor.apply(sortIndex);
+			};
+			entityComparator = new PickFirstReferenceAttributeComparator(
+				attributeSchema.getName(),
+				attributeSchema.getPlainType(),
+				referenceSchema,
+				locale,
+				orderDirection,
+				indexResolver
+			);
+		} else {
+			throw new GenericEvitaInternalError("Unsupported attribute schema type: " + attributeOrCompoundSchema);
 		}
-		return result;
+
+		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work
+		addRequirementToPrefetch(orderByVisitor, attributeOrCompoundSchema, referenceSchema);
+
+		return Stream.of(
+			new PrefetchedRecordsSorter(entityComparator),
+			new PickFirstReferenceSorter(indexResolver, providerFactory, valueComparator, orderDirection)
+		);
 	}
 
 	@Override

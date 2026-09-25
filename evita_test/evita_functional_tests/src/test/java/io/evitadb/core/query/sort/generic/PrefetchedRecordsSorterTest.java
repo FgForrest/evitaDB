@@ -47,6 +47,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +60,7 @@ import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.core.query.sort.utils.SortUtilsTest.asResult;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.ORDER;
@@ -271,6 +273,54 @@ class PrefetchedRecordsSorterTest {
 			new int[]{2, 4, 1, 3, 13, 0, 12},
 			actual
 		);
+	}
+
+	@Test
+	void shouldPrepareComparatorForUnsortedSelectionBeforeComparing() {
+		final List<String> calls = new ArrayList<>();
+		final EntityComparator delegate = this.TEST_COMPARATOR_FIRST;
+		final EntityComparator recordingComparator = new EntityComparator() {
+			@Override
+			public void prepareFor(int entityCount) {
+				calls.add("prepareFor");
+				delegate.prepareFor(entityCount);
+			}
+
+			@Override
+			public void prepareForSelection(@Nonnull Bitmap entityPrimaryKeys) {
+				calls.add("prepareForSelection " + Arrays.toString(entityPrimaryKeys.getArray()));
+				delegate.prepareForSelection(entityPrimaryKeys);
+			}
+
+			@Nonnull
+			@Override
+			public Iterable<EntityContract> getNonSortedEntities() {
+				return delegate.getNonSortedEntities();
+			}
+
+			@Override
+			public int compare(EntityContract o1, EntityContract o2) {
+				calls.add("compare");
+				return delegate.compare(o1, o2);
+			}
+		};
+		final QueryExecutionContext executionContext = this.entitySorter.context().createExecutionContext();
+
+		final int[] sorted = asResult(
+			theArray -> new PrefetchedRecordsSorter(recordingComparator).sortAndSlice(
+				new SortingContext(executionContext, makeBitmap(1, 2, 3, 4), 0, 100, 0, 0),
+				theArray,
+				null
+			)
+		);
+
+		assertArrayEquals(new int[]{2, 4, 1, 3}, sorted);
+		// the comparator learns the whole selection once, after it is sized and before its first comparison
+		assertEquals(
+			List.of("prepareFor", "prepareForSelection [1, 2, 3, 4]", "compare"),
+			calls.subList(0, 3)
+		);
+		assertEquals(1, calls.stream().filter(it -> it.startsWith("prepareForSelection")).count());
 	}
 
 	private record PrefetchedRecordsSorterWithContext(

@@ -1,7 +1,7 @@
 ---
 title: Answer reference-planning cardinality from the owner→partition map, widened and retuned to 64
 date: 2026-09-18
-updated: 2026-09-21 12:55
+updated: 2026-09-23 23:30
 status: partially-implemented
 kind: optimization
 issues: [1585, 1603]
@@ -14,7 +14,7 @@ areas:
   - evita_test/evita_performance_tests/src/main/java/io/evitadb/spike
 supersedes: []
 superseded-by: []
-relates: [2026-09-09-sibling-resolver-partition-cardinality, 2026-09-17-row-scoped-reference-having-body]
+relates: [2026-09-09-sibling-resolver-partition-cardinality, 2026-09-17-row-scoped-reference-having-body, 2026-09-23-pick-first-reference-ordering-from-selection]
 ---
 
 # Answer reference-planning cardinality from the owner→partition map, widened and retuned to 64
@@ -319,3 +319,6 @@ its own issue rather than to this line of work.
   consumer and retunes the value; the structural decision it took stands unchanged.
 - `2026-09-17-row-scoped-reference-having-body` — identified the `⊤` residue and priced the persisted counter
   this decision declines in favour of the derived map, and named the planning levers this subsumes.
+- `2026-09-23-pick-first-reference-ordering-from-selection` — a third consumer: a pick-first reference ordering
+  finds the partitions of its selected owners through this map, which the widening to every indexed reference is
+  what makes available on the references such orderings use.
