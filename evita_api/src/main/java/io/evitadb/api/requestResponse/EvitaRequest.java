@@ -509,7 +509,7 @@ public class EvitaRequest {
 			this.scopesAsArray = evitaRequest.scopesAsArray;
 		} else {
 			this.scopes = overriddenScopes.getScope();
-			this.scopesAsArray = this.scopes.toArray(Scope[]::new);
+			this.scopesAsArray = overriddenScopes.getScopesInRequestedOrder();
 		}
 	}
 
@@ -525,7 +525,7 @@ public class EvitaRequest {
 	 * @param filterBy     optional filter constraints override
 	 * @param orderBy      optional order constraints override
 	 * @param locale       optional locale override
-	 * @param scopes       optional scopes override
+	 * @param scopes       optional scopes override, iterated in the order a unique lookup prefers them
 	 */
 	public EvitaRequest(
 		@Nonnull EvitaRequest evitaRequest,
@@ -1940,6 +1940,9 @@ public class EvitaRequest {
 	 * and `filterConstraint`. The copy will share already resolved
 	 * and memoized values of this request except those that relate
 	 * to the changed entity type and the filtering constraints.
+	 *
+	 * The iteration order of `scopes` becomes the requested order of the copy, which a unique lookup
+	 * prefers the earlier scopes by - pass an ordered set when the order matters.
 	 */
 	@Nonnull
 	public EvitaRequest deriveCopyWith(
@@ -1974,7 +1977,7 @@ public class EvitaRequest {
 	public Set<Scope> getScopes() {
 		if (this.scopes == null || this.scopesAsArray == null) {
 			this.scopesAsArray = ofNullable(QueryUtils.findFilter(this.query, EntityScope.class))
-				.map(it -> it.getScope().toArray(Scope[]::new))
+				.map(EntityScope::getScopesInRequestedOrder)
 				.orElse(Scope.DEFAULT_SCOPES);
 			final EnumSet<Scope> theScopes = EnumSet.noneOf(Scope.class);
 			Collections.addAll(theScopes, this.scopesAsArray);
@@ -1984,10 +1987,13 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Retrieves an array representation of the scopes.
+	 * Retrieves the scopes in the order the query requested them in `scope(...)`, each once.
 	 * Internally, it initializes the scopes by calling the getScopes() method.
 	 *
-	 * @return an array of Scope objects representing the initialized scopes.
+	 * The order is meaningful, unlike the order of {@link #getScopes()}: a lookup by a unique value that lives in
+	 * several requested scopes walks this array and prefers the scope listed first.
+	 *
+	 * @return the requested scopes in the requested order
 	 */
 	@Nonnull
 	public Scope[] getScopesAsArray() {

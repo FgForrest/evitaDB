@@ -1215,6 +1215,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 
 	/**
 	 * Returns stream of indexes that should be all considered for record lookup.
+	 *
+	 * With several scopes in play the indexes come in the order `scope(...)` requested the scopes in, which is what
+	 * lets the first-match lookups ({@link #applyOnFirstUniqueIndex}) prefer the scope listed first.
 	 */
 	@Nonnull
 	public Stream<EntityIndex> getEntityIndexStream() {
@@ -1569,6 +1572,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 
 	/**
 	 * Method executes the logic on first unique index of certain attribute that produces non empty result.
+	 *
+	 * "First" follows the order `scope(...)` requested the scopes in: a value that several requested scopes hold
+	 * resolves to the scope listed first, and a negation of the lookup complements that answer.
 	 */
 	@Nonnull
 	public Formula applyOnFirstGlobalUniqueIndex(
@@ -1623,6 +1629,10 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 
 	/**
 	 * Method executes the logic on first unique index of certain attribute returning non-empty result.
+	 *
+	 * "First" follows {@link #getEntityIndexStream()}, i.e. the order `scope(...)` requested the scopes in: a value
+	 * that several requested scopes hold resolves to the scope listed first, and a negation of the lookup complements
+	 * that answer - so it may return the entity in the other scope that carries the very value.
 	 *
 	 * The result is tagged with the index that produced it, like every formula {@link #applyOnIndexes(Function)}
 	 * builds: inside a `referenceHaving` body an untagged leaf reads as index-independent, so the row-scoping rebuild

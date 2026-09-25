@@ -405,7 +405,10 @@ public class QuerySerializationTest {
 					arguments("inScope wrapping attribute",
 						inScope(Scope.LIVE, attributeEquals("a", "b"))),
 					arguments("scope (LIVE, ARCHIVED)",
-						scope(Scope.LIVE, Scope.ARCHIVED))
+						scope(Scope.LIVE, Scope.ARCHIVED)),
+					// the order decides which scope a unique lookup prefers, so it has to survive the round trip
+					arguments("scope (ARCHIVED, LIVE)",
+						scope(Scope.ARCHIVED, Scope.LIVE))
 				);
 			}
 		}

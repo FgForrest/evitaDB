@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.AttributeContent;
@@ -52,8 +53,11 @@ import java.time.ZoneOffset;
 import java.util.Currency;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static io.evitadb.api.query.Query.query;
@@ -1748,6 +1752,47 @@ class EvitaRequestTest {
 
 			final Set<Scope> scopes = request.getScopes();
 			assertTrue(scopes.contains(Scope.ARCHIVED));
+		}
+
+		/**
+		 * Verifies that the array keeps the order `scope(...)` listed the scopes in - first-match lookups walk it and
+		 * prefer the earlier scope - while the set only answers membership.
+		 */
+		@Test
+		@DisplayName("keeps the requested scope order in the array")
+		void shouldKeepTheRequestedScopeOrderInTheArray() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					filterBy(
+						scope(Scope.ARCHIVED, Scope.LIVE)
+					)
+				)
+			);
+
+			assertArrayEquals(new Scope[]{Scope.ARCHIVED, Scope.LIVE}, request.getScopesAsArray());
+			assertEquals(EnumSet.of(Scope.LIVE, Scope.ARCHIVED), request.getScopes());
+		}
+
+		/**
+		 * Verifies that a derived request keeps the order of the scopes it was handed.
+		 */
+		@Test
+		@DisplayName("keeps the scope order in a derived request")
+		void shouldKeepTheScopeOrderInADerivedRequest() {
+			final EvitaRequest request = createRequest(
+				query(collection("a"))
+			);
+			final Set<Scope> archivedFirst = new LinkedHashSet<>(List.of(Scope.ARCHIVED, Scope.LIVE));
+
+			final EvitaRequest copy = request.deriveCopyWith("b", null, null, null, archivedFirst);
+
+			assertArrayEquals(new Scope[]{Scope.ARCHIVED, Scope.LIVE}, copy.getScopesAsArray());
+			assertArrayEquals(
+				new Scope[]{Scope.ARCHIVED, Scope.LIVE},
+				Objects.requireNonNull(QueryUtils.findFilter(copy.getQuery(), EntityScope.class))
+					.getScopesInRequestedOrder()
+			);
 		}
 
 		/**
