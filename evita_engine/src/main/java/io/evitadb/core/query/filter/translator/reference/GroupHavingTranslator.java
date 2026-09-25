@@ -75,6 +75,15 @@ public class GroupHavingTranslator implements FilteringConstraintTranslator<Grou
 			() -> "Filtering constraint `" + groupHaving + "` targets group entity " +
 				"`" + referencedGroupType + "` that is not managed by evitaDB."
 		);
+		// a declared group TYPE does not make the engine maintain group indexes - the indexed COMPONENT does, and
+		// it is absent by default. Without it this constraint would silently match nothing (and match everything
+		// under a `not`), so the misconfiguration is refused here rather than answered.
+		HavingTranslatorHelper.assertGroupComponentIndexed(
+			groupHaving,
+			entitySchema,
+			referenceSchema,
+			filterByVisitor.getProcessingScope().getScopes()
+		);
 		final FilterConstraint filterConstraint = groupHaving.getChild();
 		if (filterConstraint != null) {
 			final Supplier<String> nestedQueryDescription = () ->
