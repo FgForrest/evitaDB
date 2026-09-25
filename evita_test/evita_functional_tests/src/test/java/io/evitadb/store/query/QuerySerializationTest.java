@@ -199,7 +199,7 @@ public class QuerySerializationTest {
 					Query.query(collection("a"),
 						require(debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS), entityFetchAll()))),
 				// the head is a whole HeadConstraint subtree, not just the Collection extracted from it —
-				// a serializer that persists only the collection silently drops query labels (issue #1507)
+				// a serializer that persists only the collection silently drops query labels
 				arguments("head(collection + label)",
 					Query.query(head(collection("a"), label("x", "y")))),
 				arguments("head(collection + label) + filter",

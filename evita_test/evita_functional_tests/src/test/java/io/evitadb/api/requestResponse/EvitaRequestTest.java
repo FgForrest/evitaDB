@@ -25,8 +25,8 @@ package io.evitadb.api.requestResponse;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.QueryUtils;
-import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityContentRequire;
@@ -1793,6 +1793,67 @@ class EvitaRequestTest {
 				Objects.requireNonNull(QueryUtils.findFilter(copy.getQuery(), EntityScope.class))
 					.getScopesInRequestedOrder()
 			);
+		}
+
+		/**
+		 * Verifies that a derived request given a filter with its own `scope(...)` keeps the order that constraint
+		 * lists the scopes in - the copy takes its scopes from the passed filter rather than from the source request,
+		 * and a unique lookup in the derived query prefers the scope listed first.
+		 */
+		@Test
+		@DisplayName("keeps the requested scope order of a scope in the filter a derived request is given")
+		void shouldKeepTheRequestedScopeOrderOfAScopeInTheDerivedFilter() {
+			final EvitaRequest request = createRequest(
+				query(collection("a"))
+			);
+
+			final EvitaRequest copy = request.deriveCopyWith(
+				"b", filterBy(scope(Scope.ARCHIVED, Scope.LIVE)), null, entityFetch()
+			);
+
+			assertArrayEquals(new Scope[]{Scope.ARCHIVED, Scope.LIVE}, copy.getScopesAsArray());
+			assertEquals(EnumSet.of(Scope.LIVE, Scope.ARCHIVED), copy.getScopes());
+		}
+
+		/**
+		 * Verifies that a `scope(...)` nested in `referenceHaving` targets the referenced entities only - with no
+		 * `scope(...)` of its own the query keeps the default scopes.
+		 */
+		@Test
+		@DisplayName("ignores a scope nested in referenceHaving when the query has none of its own")
+		void shouldIgnoreAScopeNestedInASeparateContainerWhenNoOuterScopeExists() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					filterBy(
+						referenceHaving("brand", entityHaving(scope(Scope.ARCHIVED)))
+					)
+				)
+			);
+
+			assertArrayEquals(Scope.DEFAULT_SCOPES, request.getScopesAsArray());
+			assertEquals(EnumSet.of(Scope.LIVE), request.getScopes());
+		}
+
+		/**
+		 * Verifies that the query's own `scope(...)` is taken, in its requested order, when another `scope(...)` is
+		 * nested in `referenceHaving` - the nested one neither replaces it nor collides with it.
+		 */
+		@Test
+		@DisplayName("takes the outer scope when another one is nested in referenceHaving")
+		void shouldTakeTheOuterScopeWhenAnotherIsNestedInASeparateContainer() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					filterBy(
+						scope(Scope.ARCHIVED, Scope.LIVE),
+						referenceHaving("brand", entityHaving(scope(Scope.LIVE)))
+					)
+				)
+			);
+
+			assertArrayEquals(new Scope[]{Scope.ARCHIVED, Scope.LIVE}, request.getScopesAsArray());
+			assertEquals(EnumSet.of(Scope.LIVE, Scope.ARCHIVED), request.getScopes());
 		}
 
 		/**

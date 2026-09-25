@@ -97,6 +97,12 @@ class EntityScopeTest {
 				scope(Scope.ARCHIVED, Scope.LIVE, Scope.ARCHIVED).getScopesInRequestedOrder()
 			);
 		}
+
+		@Test
+		@DisplayName("should return no scopes when none was requested")
+		void shouldReturnNoScopesWhenNoneWasRequested() {
+			assertEquals(0, new EntityScope().getScopesInRequestedOrder().length);
+		}
 	}
 
 	@Nested
@@ -136,6 +142,21 @@ class EntityScopeTest {
 			// the cloned constraint name should be "scope", not "entityScope"
 			assertTrue(cloned.toString().startsWith("scope("),
 				"Expected toString to start with 'scope(' but was: " + cloned.toString());
+		}
+
+		@Test
+		@DisplayName("should keep the requested scope order when cloned")
+		void shouldKeepTheRequestedOrderWhenCloned() {
+			final FilterConstraint cloned = scope(Scope.LIVE).cloneWithArguments(
+				new Serializable[]{Scope.ARCHIVED, Scope.LIVE}
+			);
+
+			assertArrayEquals(
+				new Scope[]{Scope.ARCHIVED, Scope.LIVE},
+				((EntityScope) cloned).getScopesInRequestedOrder()
+			);
+			assertEquals(scope(Scope.ARCHIVED, Scope.LIVE), cloned);
+			assertNotEquals(scope(Scope.LIVE, Scope.ARCHIVED), cloned);
 		}
 	}
 

@@ -24,10 +24,10 @@
 package io.evitadb.api.query.parser.visitor;
 
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.parser.ParseContext;
 import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
-import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.dataType.Scope;

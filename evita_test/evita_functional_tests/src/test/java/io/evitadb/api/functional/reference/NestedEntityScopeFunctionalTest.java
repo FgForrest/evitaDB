@@ -64,7 +64,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * Pins a `scope(...)` nested inside a container that switches to another entity - `entityHaving`, `groupHaving`,
- * `hierarchyWithin` - to the entities that container reaches (issue #1584).
+ * `hierarchyWithin` - to the entities that container reaches.
  *
  * The queried entities keep their own scope: the one `scope(...)` outside every such container, or `LIVE` when there
  * is none. A nested `scope(...)` must neither become the query's scope nor collide with it, and inside `entityHaving`

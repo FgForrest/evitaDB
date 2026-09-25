@@ -67,8 +67,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pins `attributeEquals` and `attributeInSet` on a **unique** reference attribute inside a `referenceHaving` body
- * (issue #1584).
+ * Pins `attributeEquals` and `attributeInSet` on a **unique** reference attribute inside a `referenceHaving` body.
  *
  * A unique value is looked up in the unique index of each reduced index (one per referenced entity) rather than in
  * a filter index. The body must still be answered one reference row at a time: an owner matches

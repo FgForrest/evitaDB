@@ -32,7 +32,6 @@ import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.dataType.Scope;
 import lombok.RequiredArgsConstructor;
 
-
 /**
  * This {@link Serializer} implementation reads/writes {@link EntityScope} from/to binary format.
  *

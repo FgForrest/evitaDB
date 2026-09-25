@@ -1967,11 +1967,12 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Retrieves the set of scopes associated with the current query.
+	 * Retrieves the scopes associated with the current query, answering membership only - see
+	 * {@link #getScopesAsArray()} for the order a unique lookup prefers them in.
 	 * If the scopes have not been initialized, it attempts to find the required
 	 * scopes from the query, falling back to the default scopes if none are found.
 	 *
-	 * @return an EnumSet of Scope objects representing the scopes for the current query
+	 * @return the {@link Scope}s the current query searches; the iteration order is not meaningful
 	 */
 	@Nonnull
 	public Set<Scope> getScopes() {

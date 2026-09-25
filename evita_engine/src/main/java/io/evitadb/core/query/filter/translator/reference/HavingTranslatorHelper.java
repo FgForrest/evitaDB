@@ -66,6 +66,7 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NumberUtils;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
@@ -75,7 +76,6 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -206,7 +206,7 @@ public class HavingTranslatorHelper {
 							combinedFilterBy,
 							() -> {
 								// ordered - a unique lookup in the nested query prefers the scope its `scope(...)` lists first
-								final Set<Scope> targetedScopes = new LinkedHashSet<>(4);
+								final Set<Scope> targetedScopes = CollectionUtils.createLinkedHashSet(4);
 								Collections.addAll(
 									targetedScopes,
 									ofNullable(

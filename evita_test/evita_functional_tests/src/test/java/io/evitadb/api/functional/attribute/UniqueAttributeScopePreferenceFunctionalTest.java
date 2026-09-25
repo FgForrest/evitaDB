@@ -62,8 +62,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
- * Pins which entity a unique lookup returns when the same unique value lives in several requested scopes (issue
- * #1584).
+ * Pins which entity a unique lookup returns when the same unique value lives in several requested scopes.
  *
  * Uniqueness is enforced per scope, so an archived entity may keep a unique value a live one carries as well. A
  * lookup by that value then has two candidates, and it answers with the one in the scope `scope(...)` lists

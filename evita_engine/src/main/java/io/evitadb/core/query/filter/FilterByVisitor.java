@@ -1650,7 +1650,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				entityIndex -> {
 					final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(referenceSchema, attributeDefinition, getLocale());
 					return uniqueIndex == null ?
-						EmptyFormula.INSTANCE : tagWithProducingIndex(entityIndex, formulaFunction.apply(uniqueIndex));
+						EmptyFormula.INSTANCE :
+						tagWithProducingIndex(entityIndex, formulaFunction.apply(uniqueIndex));
 				}
 			)
 			.filter(it -> !(it instanceof EmptyFormula))

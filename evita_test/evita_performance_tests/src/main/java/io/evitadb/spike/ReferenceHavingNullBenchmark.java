@@ -88,8 +88,8 @@ import java.util.function.Predicate;
 import static io.evitadb.api.query.QueryConstraints.*;
 
 /**
- * Prices `referenceHaving(R, attributeIsNull(a))` on a production catalog. Since issue #1584 a `NULL` body is
- * widened to the whole candidate set at type-level discovery and settled per reduced-index row - the type-level
+ * Prices `referenceHaving(R, attributeIsNull(a))` on a production catalog. A `NULL` body is widened to the whole
+ * candidate set at type-level discovery and settled per reduced-index row - the type-level
  * index can only tell that some row of a partition carries `a` - so every partition of `R` becomes a candidate and
  * every one of them is visited. This harness measures what that costs, next to controls answered by the same
  * per-row machinery. It is an A/B harness: the same jar layout is built from a baseline and from a change, and both
@@ -118,7 +118,7 @@ import static io.evitadb.api.query.QueryConstraints.*;
  * Setup walks every owner body of the collection, independently of any filter, and records each owner's rows of
  * `R` with the values of `a`, `b` and `n`. The expected owner count of every shape is computed from those bodies
  * with the row-scoped semantics of `referenceHaving` (an owner qualifies when **one** of its rows satisfies the
- * whole body), and printed next to the engine's count on a `CHECK` line. A build older than the #1584 fix answers
+ * whole body), and printed next to the engine's count on a `CHECK` line. A build that predates this fix answers
  * `IS_NULL` with a smaller count wherever a partition mixes carrying and lacking rows - that mismatch is printed,
  * never hidden. With `-p expectCorrect=true` a mismatch throws instead, which is how a run proves it measured a
  * correct query.
@@ -230,15 +230,15 @@ public class ReferenceHavingNullBenchmark {
 		public String narrowingAttribute;
 		/**
 		 * Whether an engine answer that differs from the one computed from the bodies fails the setup. Leave it
-		 * `false` on a build older than the #1584 fix, whose `IS_NULL` answer is wrong on mixed partitions.
+		 * `false` on a build that predates this fix, whose `IS_NULL` answer is wrong on mixed partitions.
 		 */
 		@Param("false")
 		public boolean expectCorrect;
 		/**
-		 * Declares a fixture whose every row carries `a`. There `IS_NULL` is empty by construction and a build older
-		 * than the #1584 fix answers it correctly too, so what it prices is the cost of *proving* the empty answer:
-		 * the older build settles it during candidate discovery, the fixed one walks every partition. Setup then requires zero lacking rows
-		 * instead of refusing them, and only `IS_NULL` may expect no owner.
+		 * Declares a fixture whose every row carries `a`. There `IS_NULL` is empty by construction and a build that
+		 * predates this fix answers it correctly too, so what it prices is the cost of *proving* the empty answer: the
+		 * older build settles it during candidate discovery, the fixed one walks every partition. Setup then requires
+		 * zero lacking rows instead of refusing them, and only `IS_NULL` may expect no owner.
 		 */
 		@Param("false")
 		public boolean denseFixture;
