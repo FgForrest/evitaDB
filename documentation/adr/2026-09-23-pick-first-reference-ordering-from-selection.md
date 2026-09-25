@@ -1,7 +1,7 @@
 ---
 title: A pick-first reference ordering sorts on the first row of every selected owner, resolved from the selection rather than from the filter
 date: 2026-09-23
-updated: 2026-09-25 13:40
+updated: 2026-09-25 16:25
 status: accepted
 kind: fix
 issues: [1614]
@@ -294,9 +294,11 @@ a measured production shape: that is where the per-query cost still follows `row
   both branches on the intersection, measured on 2026-09-25 against the build before it (same fixture, two
   interleaved rounds each, median of the iterations, µs/op): unnarrowed 464 → 306, 2,158 → 1,915, 3,535 → 3,637;
   narrowed 523 → 369, 2,743 → 2,111, 4,388 → 4,390 for the three selections above. The 80,924-owner points are
-  inside the noise of single slow iterations (up to 6,500 µs in both builds). `Product.media` and `Product.groups`
-  (one round each) moved by -9 % to +5 % with no consistent direction, except `groups` unnarrowed at 80,187
-  owners: 1,550 → 1,719 µs, a single round containing one outlier iteration.
+  inside the noise of single slow iterations (up to 6,500 µs in both builds). `Product.media` (one round) moved by
+  -9 % to +5 % with no consistent direction. `Product.groups` at 80,187 owners, over three interleaved rounds:
+  unnarrowed 1,608 → 1,536, narrowed 2,815 → 2,942 µs. The narrowed +4.5 % is within the 8 % spread between the
+  pre-fix build's own rounds; if it is real, it is the intersection test finding an overlap in nearly every
+  partition (3,150 of 4,022) and saving nothing. The smaller `groups` selections moved by -4 % to +0.3 %.
 - Performance with no value at all - `Product.groups` ordered by `assignmentPriority` (4,022 partitions, 576
   residual). **No row of the corpus carries that attribute** (0 of 427,163; the only populated one, `orderInGroup`,
   is a `Predecessor` chain and takes the unchanged chain path), so every selected owner stays unclaimed and every
