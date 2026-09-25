@@ -93,12 +93,18 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 	/**
 	 * Constructor to initialize the B+ Tree.
 	 *
+	 * The remaining block sizes are derived from `valueBlockSize` by
+	 * `AbstractTransactionalBPlusTree#deriveMinBlockSize` and `#deriveInternalNodeBlockSize`, so any size of at least 3
+	 * is accepted.
+	 *
 	 * @param valueBlockSize maximum number of values in a leaf node
 	 */
 	public TransactionalIntToLongBPlusTree(int valueBlockSize) {
 		this(
-			valueBlockSize, valueBlockSize / 2,
-			valueBlockSize, valueBlockSize / 2
+			valueBlockSize,
+			deriveMinBlockSize(valueBlockSize),
+			deriveInternalNodeBlockSize(valueBlockSize),
+			deriveMinBlockSize(deriveInternalNodeBlockSize(valueBlockSize))
 		);
 	}
 
