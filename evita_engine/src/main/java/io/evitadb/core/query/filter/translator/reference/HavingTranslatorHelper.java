@@ -75,7 +75,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -205,7 +205,8 @@ public class HavingTranslatorHelper {
 							Collections.singletonList(globalIndex),
 							combinedFilterBy,
 							() -> {
-								final Set<Scope> targetedScopes = EnumSet.noneOf(Scope.class);
+								// ordered - a unique lookup in the nested query prefers the scope its `scope(...)` lists first
+								final Set<Scope> targetedScopes = new LinkedHashSet<>(4);
 								Collections.addAll(
 									targetedScopes,
 									ofNullable(
@@ -213,7 +214,7 @@ public class HavingTranslatorHelper {
 											combinedFilterBy, EntityScope.class,
 											SeparateEntityScopeContainer.class
 										)
-									).map(it -> it.getScope().toArray(Scope[]::new))
+									).map(EntityScope::getScopesInRequestedOrder)
 										.orElseGet(() -> new Scope[]{
 											globalIndex.getIndexKey().scope()
 										})

@@ -1976,7 +1976,11 @@ public class EvitaRequest {
 	@Nonnull
 	public Set<Scope> getScopes() {
 		if (this.scopes == null || this.scopesAsArray == null) {
-			this.scopesAsArray = ofNullable(QueryUtils.findFilter(this.query, EntityScope.class))
+			// a `scope(...)` nested in `referenceHaving`, `entityHaving` or another separate container targets the entities
+			// that container reaches, never the queried ones - the lookup stops at its boundary
+			this.scopesAsArray = ofNullable(
+					QueryUtils.findFilter(this.query, EntityScope.class, SeparateEntityScopeContainer.class)
+				)
 				.map(EntityScope::getScopesInRequestedOrder)
 				.orElse(Scope.DEFAULT_SCOPES);
 			final EnumSet<Scope> theScopes = EnumSet.noneOf(Scope.class);
