@@ -1,7 +1,7 @@
 ---
 title: attributeIsNull inside referenceHaving widens candidate discovery and is answered one reference row at a time
 date: 2026-09-25
-updated: 2026-09-25 21:40
+updated: 2026-09-25 23:10
 status: accepted
 kind: fix
 issues: [1584]
@@ -109,16 +109,20 @@ partitions can contribute. `ReferenceTypeCardinalityIndex` already stores the ro
   `FilterByVisitor#applyOnIndexes`, which tags it with its producing index inside a reference body. Per index:
   no records → nothing; no structure for `a` → every record (the index where everything is null, not one with
   nothing to say); otherwise `superSet \ carriers`, dropped when provably empty.
-  **Not** `applyOnFilterIndexes` / `applyOnUniqueIndexes`: they turn an index without the attribute into `∅`
+  **Not** `applyOnFilterIndexes` (nor the unique-index twin, removed once nothing called it): they turn an index without the attribute into `∅`
   before the lambda runs — for a null test, the index where every record matches. A counterfactual with that
   helper turns 12 of 37 tests red.
-- **Unique attributes read the filter index.** `EntityIndex#upsertAttribute` writes the filter index for every
-  attribute that is unique **or** filterable, so it exists wherever the unique index does, and also in indexes
-  that never get a unique one. **Exception:** a localized attribute unique *across* locales keeps the unique
-  index as carrier source — its unique index is keyed without a locale while its filter index is split per
-  locale, so reading the filter index would change the meaning from "no value in any locale" to "no value in
-  the query locale", break the complement with `attributeIsNotNull`, and return everything when no locale is
-  given (which such an attribute allows).
+- **Null and not-null read the same carriers, from filter indexes only.** `getCarriersFormula` is the one source
+  both `attributeIsNull` (subtracts it) and `attributeIsNotNull` (returns it) use per index, so the two always
+  split an index's records between them. `EntityIndex#upsertAttribute` writes the filter index for every attribute
+  that is unique **or** filterable, on every index type; the unique index is not kept everywhere - the group
+  indexes (`ReducedGroupEntityIndex`) never get one, and the type-level index of a reference keeps an empty one
+  for a localized reference attribute unique across locales, so a unique-index read there found nothing. A
+  localized attribute is read in the query locale, except in two cases where it is read as the union of its
+  per-locale filter indexes: when it is unique *across* locales in that index's scope (carrying a value means
+  carrying it in any locale, which is what its unique index meant), and when the query has no locale at all -
+  admitted only because another requested scope is unique across locales, and a locale-less lookup of a
+  per-locale filter index would read every record as null.
 - **The fast path sees through `AttributeFormula`.** `ReferenceBodyTransposer#combinedOnlyByUnion` returned
   false for any node that was not an `Or`, and every attribute translator wraps its per-index contributions in
   an `AttributeFormula` — so no attribute leaf ever took the fast path the row-scoped record describes. With B,
@@ -167,8 +171,6 @@ Consequences a later change must keep:
   `#getCarriersFormula` — the per-index builder and the carrier source.
 - The globally-unique branch of `translateIsNull` is kept as it was: `getOptionalGlobalAttributeSchema` is empty
   inside a reference body (`AbstractAttributeTranslator`), so it is unreachable there.
-- `ReducedGroupEntityIndex` keeps a filter index for a unique attribute and never a unique index; a null test is
-  never evaluated in a group-index scope, and if it ever is, the filter index is the more correct source.
 - `facetHaving(attributeIsNull(a))` is untouched. It is the only `IN_PLACE` consumer and reads "facet none of
   whose rows carries `a`", consistent with how `IN_PLACE` resolves every negation; pinned by tests, not changed.
 
@@ -188,10 +190,16 @@ re-enabled), `ReferenceBodyTransposerTest` (fast path through the wrapper).
 | D — unique tagging | 2 of 4 | 6 / 0 | revert: 3 of 6 red |
 | scope order | 7 of 576 | 641 / 0 | revert array derivation / serializer: 6 red |
 | nested scope boundary | 4 of 4 (3 threw, 1 leaked) | 4 / 0 | stop class removed: 4 red; `EnumSet` restored: 2 red |
+| localized null test without a locale | 2 of 2 | 18 / 0 | revert: the same 2 red |
+| not-null from the null side's carriers | 2 of 20 (`EntityLocaleMissingException`; `[]` for `[1]`) | 20 / 0 | revert: 2 of 20 red |
 
 D is proven by `ReferenceHavingUniqueAttributeFunctionalTest`, the scope order by
-`UniqueAttributeScopePreferenceFunctionalTest` and `NestedEntityScopeFunctionalTest`. Regression after D: 2,516 tests across the reference, attribute, facet, query and fetch functional packages
-and `core/query/**`, 0 failures.
+`UniqueAttributeScopePreferenceFunctionalTest` and `NestedEntityScopeFunctionalTest`, the locale and not-null
+rows by the nested `LocalizedAttributeWithScopeDependentUniqueness` of `ReferenceHavingAttributeIsNullFunctionalTest`
+(a schema only a raw `SetAttributeSchemaUniqueMutation` can declare: unique across locales in LIVE, within a
+locale in ARCHIVED), including `isNull ∪ isNotNull = all` at entity level and I1 inside `referenceHaving`. Last
+regression: 5,773 tests across the reference, attribute, facet, query, fetch, archiving, parser, gRPC and
+serialization packages and `core/query/**`, 0 failures.
 
 Performance, production retail corpus (130,033 products), interleaved A/B, 2 rounds × 5 × 2 s, ms/op.
 Dense fixtures — every row carries the attribute, so `IS_NULL` is empty on both builds and the old build answers
@@ -228,8 +236,17 @@ Harness: `evita_test/evita_performance_tests/src/main/java/io/evitadb/spike/Refe
   `referenceHaving(R, attributeEquals(a, v))` took the quadratic rebuild on `dev`. Anything else that wraps
   per-index leaves in a unary container must either be looked through the same way or it silently loses the
   fast path — there is no error, only minutes of planning.
+- Traffic recorded before this change stored `scope(...)` in enum order, because the serializer wrote the set.
+  The wire shape is unchanged, so old recordings still read, but a recorded `scope(ARCHIVED, LIVE)` replays as
+  `scope(LIVE, ARCHIVED)` - the order was never captured and cannot be recovered.
 - `hierarchyWithin` accepts a nested `scope(...)` but resolves its parent within the queried scope, ignoring it.
   Pinned as it stands in `NestedEntityScopeFunctionalTest`; whether it should be honoured or refused is open.
+- **`OwnerUniqueIndex#recordIds` loses records that still own values.** `unregisterUniqueKeyValue` drops the
+  record id eagerly, which its comment calls transient - but in a type-level index one partition owns the values
+  of all its rows, so archiving one owner dropped a partition whose other rows still carry values. Only the
+  standalone (localized, unique across locales) index is affected; the value tree stays correct, so lookups by
+  value are right. No query reads that bitmap any more, but `IndexCardinalityProjection` reports it and the
+  storage part persists it.
 - Found on the way, not part of #1584:
   - reflected references with an archived owner answer bare `referenceHaving(R)` wrong in `ARCHIVED` (0 vs 1),
     the #1583 family;
