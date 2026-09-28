@@ -1,15 +1,15 @@
 ---
 title: Size the value tree's leaf columns to their live content instead of adding a second array-backed representation
 date: 2026-09-03
-updated: 2026-09-28 18:09
+updated: 2026-09-28 20:40
 status: accepted
 kind: optimization
 issues: [1486]
 prs: []
-areas: [evita_engine/index/bPlusTree, evita_engine/index/array, evita_engine/index/invertedIndex, evita_engine/core/session, evita_common/dataType, evita_test/evita_performance_tests/spike/trigram]
+areas: [evita_engine/index/bPlusTree, evita_engine/index/array, evita_engine/index/map, evita_roaring_bitmap, evita_engine/index/invertedIndex, evita_engine/core/session, evita_common/dataType, evita_test/evita_performance_tests/spike/trigram]
 supersedes: []
 superseded-by: []
-relates: [2026-09-06-go-live-session-drain, 2026-09-04-long-keyed-tree-content-sizing, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-10-more-optimized-data-structures, 2026-08-31-front-coded-column-stores-wtf8, 2026-08-31-trigram-query-path-optimization, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-09-04-millisecond-temporal-precision]
+relates: [2026-09-06-go-live-session-drain, 2026-08-10-catalog-and-collection-statistics, 2026-09-04-long-keyed-tree-content-sizing, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-10-more-optimized-data-structures, 2026-08-31-front-coded-column-stores-wtf8, 2026-08-31-trigram-query-path-optimization, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-09-04-millisecond-temporal-precision]
 ---
 
 # Size the value tree's leaf columns to their live content instead of adding a second representation
@@ -638,7 +638,10 @@ proportionally larger against a smaller total, and the census charged the tempor
   The heap walk loads the count once and then recurses through the whole subtree, so a removal that nulls the
   last slot in the meantime reaches it with no reordering at all. The grow side needs the stores to become
   visible out of program order, and that has been observed only on the AArch64 leg, for the bucket tree. Each of
-  the three internal-node walks now skips a `null` slot. That is an identity on a consistent observer: the
+  the three internal-node walks now skips a `null` slot. While a load runs, that makes the figure advisory rather
+  than exact. After a removal the skipped slot really is empty. On a grow, though, the child exists and only
+  this reader cannot see it yet, so its subtree is missing from the figure. This is the contract the leaf walks
+  above already carry. On a consistent observer the skip changes nothing: the
   `UnpublishedChildSlot` tests churn each tree in place and through committed transactions, assert that no live
   slot is `null`, and match the walk against a JOL measurement. The torn-state tests fail on the unguarded
   code with the NPE quoted above.
@@ -658,6 +661,22 @@ proportionally larger against a smaller total, and the census charged the tempor
   rejected for the same reason: its only production owner, `TrafficRecordingIndex`, is built unpublished and
   then updated copy-on-write inside a `Transaction` and republished through an `AtomicReference`, and nothing in
   production calls its heap walk.
+- **The same heap walk crosses two more structures with the same hazard, and both are fixed.**
+  `PersistentRoaringBitmap#getHeapSizeInBytes` sits under every `TransactionalBitmap` the walk reaches.
+  `RoaringArray#removeAtIndex` nulls the vacated last container slot before lowering `size`, which is the
+  tree nodes' shrink order, so a plain interleaving meets a `null` on x86 too. `extendArray` reallocates `values`
+  before `size` rises, so a torn reader can also index past the array it holds. The walk now reads `values`
+  once, bounds the count by its length and skips a `null` slot. `MapHeapSize#sizeOf` walks the `HashMap` that
+  `TransactionalMap` writes into directly outside a transaction. Any warm-up put or remove during the walk,
+  such as the price super index gaining an entity, made it throw `ConcurrentModificationException`.
+  `HashMap#forEach` checks `modCount` only after the whole table (verified in the JDK 21 bytecode), so the
+  helper keeps the sum it reached, and the tests pin that figure between the consistent before and after
+  figures. Two further sites read a nullable field twice where a warm-up writer can null it in between:
+  `ChainIndexChanges`' memos, which every warm-up chain write `reset()`s, and the bucket leaf's `overflow`
+  column, which a savepoint rollback nulls. Both now read the field once. **No deterministic test exists for
+  those two**, because the gap is two adjacent loads with no callback between them. The management readers'
+  own map walks are the other half of this problem, and are recorded with the statistics surface in
+  [2026-08-10](2026-08-10-catalog-and-collection-statistics/README.md).
 - **Two `getChildren()[getPeek()]` pairs are deliberately left unguarded.** `predecessorLeaf` and
   `predecessorLeafOf` carry the same array-first shape, but both are reached only from the insert path's
   boundary asserts, which run with a happens-before edge to the writer. The clamp would be a provable
@@ -758,4 +777,5 @@ proportionally larger against a smaller total, and the census charged the tempor
 - **2026-09-28** — the weekly sweep's AArch64-only `null` leaf out of `findLeafNode`; every session-free descent
   now steps over a child slot a grow has not published yet; the fixed-array siblings' internal-node heap
   walks (long, int-keyed, `UnorderedLookupTree`) skip such a slot too, their other readers rejected for want
-  of a session-free caller
+  of a session-free caller; the same heap walk's roaring backbone and `HashMap` sizing made tolerant of an
+  in-place warm-up writer
