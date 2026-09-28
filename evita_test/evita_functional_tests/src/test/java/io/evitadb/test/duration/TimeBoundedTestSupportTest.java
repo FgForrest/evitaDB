@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -46,9 +46,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies the driving contract of {@link TimeBoundedTestSupport#runFor}: a zero-minute interval
- * must execute the test body exactly once (so tests can be exercised without waiting a whole
- * minute), the accumulated state must be threaded back to the caller, the supplied {@link Random}
+ * Verifies the driving contract of {@link TimeBoundedTestSupport#runFor}: a zero-second interval
+ * must execute the test body exactly once (so tests can be exercised without waiting out a real
+ * budget), the accumulated state must be threaded back to the caller, the supplied {@link Random}
  * must be seeded deterministically from the input seed, and any failure must be re-thrown
  * enriched with a reproduce-with-seed hint while preserving the original cause and the
  * expected/actual diff values.
@@ -68,7 +68,7 @@ class TimeBoundedTestSupportTest {
 	};
 
 	/**
-	 * Builds an input that drives the do-while body exactly once: a zero-minute interval makes the
+	 * Builds an input that drives the do-while body exactly once: a zero-second interval makes the
 	 * loop condition false immediately after the first iteration, avoiding any real wall-clock wait.
 	 *
 	 * @param seed random seed forwarded to the {@link Random} handed to the test body
@@ -85,7 +85,7 @@ class TimeBoundedTestSupportTest {
 	class SingleIterationExecution {
 
 		@Test
-		@DisplayName("runs the test body exactly once when the interval is zero minutes")
+		@DisplayName("runs the test body exactly once when the interval is zero seconds")
 		void shouldRunSingleIterationWhenIntervalIsZero() {
 			final AtomicInteger iterations = new AtomicInteger();
 
