@@ -342,6 +342,10 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 	/**
 	 * Constructor to initialize the B+ Tree with an optional comparator.
 	 *
+	 * The remaining block sizes are derived from `valueBlockSize` by
+	 * `AbstractTransactionalBPlusTree#deriveMinBlockSize` and `#deriveInternalNodeBlockSize`, so any size of at least 3
+	 * is accepted.
+	 *
 	 * @param valueBlockSize maximum number of values in a leaf node
 	 * @param keyType        the type of the keys stored in the tree
 	 * @param valueType      the type of the values stored in the tree
@@ -354,8 +358,10 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		@Nullable Comparator<K> comparator
 	) {
 		this(
-			valueBlockSize, valueBlockSize / 2,
-			valueBlockSize, valueBlockSize / 2,
+			valueBlockSize,
+			deriveMinBlockSize(valueBlockSize),
+			deriveInternalNodeBlockSize(valueBlockSize),
+			deriveMinBlockSize(deriveInternalNodeBlockSize(valueBlockSize)),
 			keyType,
 			valueType,
 			comparator

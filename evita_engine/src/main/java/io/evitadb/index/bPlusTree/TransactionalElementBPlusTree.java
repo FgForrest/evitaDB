@@ -190,6 +190,10 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	/**
 	 * Constructor to initialize the B+ tree.
 	 *
+	 * The remaining block sizes are derived from `valueBlockSize` by
+	 * `AbstractTransactionalBPlusTree#deriveMinBlockSize` and `#deriveInternalNodeBlockSize`, so any size of at least 3
+	 * is accepted.
+	 *
 	 * @param valueBlockSize maximum number of values in a leaf node
 	 * @param elementType    the class of the elements stored in this tree
 	 * @param keyExtractor   the function deriving the ordering / identity key from an element
@@ -200,8 +204,10 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		@Nonnull ToIntFunction<E> keyExtractor
 	) {
 		this(
-			valueBlockSize, valueBlockSize / 2,
-			valueBlockSize, valueBlockSize / 2,
+			valueBlockSize,
+			deriveMinBlockSize(valueBlockSize),
+			deriveInternalNodeBlockSize(valueBlockSize),
+			deriveMinBlockSize(deriveInternalNodeBlockSize(valueBlockSize)),
 			elementType,
 			keyExtractor
 		);
