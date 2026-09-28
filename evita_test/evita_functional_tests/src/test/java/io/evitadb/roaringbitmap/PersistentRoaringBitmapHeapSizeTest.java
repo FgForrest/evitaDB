@@ -31,10 +31,13 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.util.Random;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.ENGINE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -61,7 +64,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * leaving the survivor sole owner. Reporting the pre-collection split would describe a state that lasts
  * milliseconds. The last nested class pins that decision so it cannot be quietly reversed.
  *
- * @author Claude (roaring heap-size verification), FG Forrest a.s. (c) 2026
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Tag(ENGINE)
 @Tag(DATA_TYPE)
@@ -231,6 +234,87 @@ class PersistentRoaringBitmapHeapSizeTest {
 				JolHeapSize.ownedSize(merged, previous) * 10 < merged.getHeapSizeInBytes(HEAP_LAYOUT),
 				"excluding the superseded version must lose the overwhelming majority of the footprint"
 			);
+		}
+	}
+
+	/**
+	 * A `TransactionalBitmap` outside a transaction - every bitmap of an index a warm-up load builds - mutates its
+	 * roaring backbone in place with plain stores: a removal that empties a chunk shifts the tail left, nulls the
+	 * vacated last slot and only then lowers `size`, and an insertion that fills the backbone reallocates `keys` and
+	 * `values` before raising `size`. The heap walk `EntityCollection#describeIndex` runs is a reader with no
+	 * happens-before edge to that writer: it takes no snapshot, holds no transaction and runs on a management thread.
+	 * It can therefore hold a `size` whose last slot reads `null` - it loaded the count before a concurrent removal
+	 * nulled the slot, a plain interleaving - or a `size` past the `values` array it reads - it saw the raised count
+	 * before the reallocated array behind it, which needs the stores to become visible out of program order.
+	 *
+	 * Both states are built by setting the package-visible `size` of the backbone directly, which moves the count
+	 * without touching either array - exactly what such a reader observes. Each test asserts the figure the walk
+	 * reports rather than merely that nothing was thrown.
+	 */
+	@Nested
+	@DisplayName("steps over a container slot a concurrent in-place writer has not published")
+	class UnpublishedContainerSlot {
+
+		@Test
+		void shouldStepOverASlotAConcurrentRemovalHasNulled() {
+			// three chunks; emptying the first one shifts the other two left and nulls the third slot
+			final PersistentRoaringBitmap bitmap = bitmapOf(1, CHUNK + 1, 2 * CHUNK + 1);
+			final int sizeTheReaderLoaded = bitmap.highLowContainer.size();
+			bitmap.remove(1);
+			// the consistent post-removal figure: the arrays keep their length, the emptied container is gone
+			final long expected = bitmap.getHeapSizeInBytes(HEAP_LAYOUT);
+			assertEquals(JolHeapSize.ownedSize(bitmap), expected);
+
+			bitmap.highLowContainer.size = sizeTheReaderLoaded;
+			assertNull(
+				bitmap.highLowContainer.values[sizeTheReaderLoaded - 1],
+				"the admitted slot must read null - that nulled slot IS the defect"
+			);
+
+			assertEquals(
+				expected, bitmap.getHeapSizeInBytes(HEAP_LAYOUT),
+				"the heap walk must step over the nulled slot - it holds no container to charge"
+			);
+		}
+
+		@Test
+		void shouldStopAtTheValuesArrayWhenTheCountRunsAheadOfIt() {
+			// fill the backbone to its exact capacity, so the next chunk has to reallocate `values`
+			final PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
+			int chunk = 0;
+			do {
+				bitmap.add(chunk++ * CHUNK + 1);
+			} while (bitmap.highLowContainer.size() < bitmap.highLowContainer.values.length);
+			final long expected = bitmap.getHeapSizeInBytes(HEAP_LAYOUT);
+			assertEquals(JolHeapSize.ownedSize(bitmap), expected);
+
+			// the raised count of the insertion that reallocates, seen before the reallocated array
+			bitmap.highLowContainer.size = bitmap.highLowContainer.values.length + 1;
+
+			assertEquals(
+				expected, bitmap.getHeapSizeInBytes(HEAP_LAYOUT),
+				"the heap walk must stop at the array it read - a count past it admits nothing that array holds"
+			);
+		}
+
+		@Test
+		void shouldLeaveTheHeapWalkUnchangedOnAConsistentBitmap() {
+			// churn chunks in and out in place - the warm-up writer's own view, where removals empty containers and
+			// insertions reallocate the backbone - and require the walk to keep matching the measured heap exactly
+			final PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
+			final Random random = new Random(42);
+			for (int round = 0; round < 500; round++) {
+				final int id = random.nextInt(40) * CHUNK + random.nextInt(3);
+				if (bitmap.contains(id)) {
+					bitmap.remove(id);
+				} else {
+					bitmap.add(id);
+				}
+				for (int slot = 0; slot < bitmap.highLowContainer.size(); slot++) {
+					assertNotNull(bitmap.highLowContainer.values[slot], "a consistent backbone has no null live slot");
+				}
+				assertMatchesMeasuredHeap(bitmap);
+			}
 		}
 	}
 }

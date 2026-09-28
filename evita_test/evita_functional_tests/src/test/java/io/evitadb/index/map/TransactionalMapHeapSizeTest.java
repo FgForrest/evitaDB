@@ -69,7 +69,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * at, so they are equally the canary for it moving again — and a map created pre-sized above its content reads low
  * by its unused slots until it outgrows the capacity it was built with.
  *
- * @author Claude (heap-size verification), FG Forrest a.s. (c) 2026
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Tag(INDEXING)
 @Tag(DATA_TYPE)
@@ -311,6 +311,82 @@ class TransactionalMapHeapSizeTest {
 			assertEquals(
 				JolHeapSize.ownedSize(delegate),
 				map.getDelegateHeapSizeInBytes(BOXED, TransactionalBitmap::getHeapSizeInBytes)
+			);
+		}
+	}
+
+	/**
+	 * Outside a transaction - every map of an index a warm-up load builds - {@link TransactionalMap} writes straight
+	 * into its `HashMap` delegate. The heap walk `EntityCollection#describeIndex` runs over a live index takes no
+	 * snapshot, holds no transaction and runs on a management thread, so a warm-up write can land while it is
+	 * iterating that delegate - the price super index alone adds an entry per newly indexed entity. `HashMap#forEach`
+	 * then throws `ConcurrentModificationException` once it has finished the walk.
+	 *
+	 * The write is placed deterministically by performing it from inside the value sizer, which the walk calls between
+	 * two entries - the same point a concurrent writer's store can land at. A monitoring call must not fail on it, and
+	 * the figure it reports must lie between the consistent figures before and after the write.
+	 */
+	@Nested
+	@DisplayName("survives a warm-up write landing in the middle of the walk")
+	class ConcurrentWarmUpWrite {
+
+		/**
+		 * Entries of the fixture - well below the `HashMap` resize threshold of its sixteen-slot table, so the one
+		 * write below changes the entry count without reallocating the table under the walk.
+		 */
+		private static final int ENTRIES = 8;
+
+		/**
+		 * Returns a value sizer that performs `write` on its first call and prices every value as {@link #BOXED}.
+		 *
+		 * @param write the warm-up write to land in the middle of the walk
+		 * @return the sizer
+		 */
+		@Nonnull
+		private static ToLongFunction<Integer> writingOnFirstCall(@Nonnull Runnable write) {
+			final boolean[] written = {false};
+			return value -> {
+				if (!written[0]) {
+					written[0] = true;
+					write.run();
+				}
+				return BOXED.applyAsLong(value);
+			};
+		}
+
+		@Test
+		void shouldNotFailWhenAnInsertionLandsMidWalk() {
+			final TransactionalMap<Integer, Integer> map =
+				new TransactionalMap<>(fill(new HashMap<>(), ENTRIES));
+			final long before = map.getHeapSizeInBytes(BOXED, BOXED);
+
+			final long torn = map.getHeapSizeInBytes(
+				BOXED, writingOnFirstCall(() -> map.put(FIRST_KEY + ENTRIES, FIRST_VALUE + ENTRIES))
+			);
+
+			final long after = map.getHeapSizeInBytes(BOXED, BOXED);
+			assertTrue(before < after, "the insertion must have landed in the delegate");
+			assertTrue(
+				before <= torn && torn <= after,
+				"the torn figure " + torn + " must lie between " + before + " and " + after
+			);
+		}
+
+		@Test
+		void shouldNotFailWhenARemovalLandsMidWalk() {
+			final TransactionalMap<Integer, Integer> map =
+				new TransactionalMap<>(fill(new HashMap<>(), ENTRIES));
+			final long before = map.getHeapSizeInBytes(BOXED, BOXED);
+
+			final long torn = map.getHeapSizeInBytes(
+				BOXED, writingOnFirstCall(() -> map.remove(FIRST_KEY + ENTRIES - 1))
+			);
+
+			final long after = map.getHeapSizeInBytes(BOXED, BOXED);
+			assertTrue(after < before, "the removal must have landed in the delegate");
+			assertTrue(
+				after <= torn && torn <= before,
+				"the torn figure " + torn + " must lie between " + after + " and " + before
 			);
 		}
 	}

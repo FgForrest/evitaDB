@@ -67,7 +67,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Bounded, fixed-seed randomized churn tests guard the rebalancing and commit machinery against regressions; the
  * open-ended generational soak test lives in the long-running test module.
  *
- * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @SuppressWarnings("StringConcatenationMissingWhitespace")
 @DisplayName("Transactional long B+ tree")

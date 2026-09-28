@@ -281,9 +281,11 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 	 * vacated slot next to lowering `peek`, all as plain stores. A reader can therefore hold a `peek` whose last slot
 	 * reads `null`: it loaded `peek` before a concurrent removal nulled the slot, which is a plain interleaving, or it
 	 * sees the raised `peek` before the child store behind it, which needs the stores to become visible out of program
-	 * order. The bucket tree's weekly sweep met the latter on the macOS/AArch64 leg only. Such a slot holds nothing to
-	 * charge, and a monitoring call must not fail on it. The array itself is allocated once at `blockSize + 1` and
-	 * never resized, so a raised `peek` cannot run off it - only the slot contents can lag.
+	 * order. The bucket tree's weekly sweep met the latter on the macOS/AArch64 leg only. This reader cannot charge
+	 * such a slot, and a monitoring call must not fail on it, so the figure is advisory while a writer is at work:
+	 * after a removal the slot really is empty, but on a grow the child exists and only this reader cannot see it yet,
+	 * so its subtree is missing from the figure. The array itself is allocated once at `blockSize + 1` and never
+	 * resized, so a raised `peek` cannot run off it - only the slot contents can lag.
 	 *
 	 * On a consistent observer every slot in `[0, peek]` is populated, so the check never skips anything and the
 	 * figure is unchanged. `UnpublishedChildSlot` in both `TransactionalElementBPlusTreeTest` and

@@ -4554,7 +4554,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					);
 				}
 				// a `null` is a slot the bounded count admits but whose child store this reader cannot see yet (see
-				// `observableChildIndex`) - it holds nothing to charge, and a monitoring call must not fail on it
+				// `observableChildIndex`) - this reader cannot charge it, and a monitoring call must not fail on it, so
+				// a subtree a concurrent grow is still publishing is missing from the figure
 			}
 			return size;
 		}
@@ -5752,18 +5753,23 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			long size = layout.sizeOfObject(3L * Long.BYTES + 2L + 5L * layout.referenceSize() + 2L * Integer.BYTES);
 			size += this.keys.getHeapSizeInBytes(elementSizer);
 			size += this.records.getHeapSizeInBytes();
-			if (this.valueIds != null) {
-				size += this.valueIds.getHeapSizeInBytes();
+			// both optional columns are read ONCE: a warm-up savepoint rollback resets `overflow` to `null` in place
+			// (see `journalBucketInsertionIfOpen`), and this walk runs with no happens-before edge to that writer, so
+			// a second read could find `null` where the check found a column
+			final RecordColumn theValueIds = this.valueIds;
+			if (theValueIds != null) {
+				size += theValueIds.getHeapSizeInBytes();
 			}
-			if (this.overflow != null) {
-				size += this.overflow.getHeapSizeInBytes();
+			final OverflowColumn theOverflow = this.overflow;
+			if (theOverflow != null) {
+				size += theOverflow.getHeapSizeInBytes();
 				// bounded by the column's OBSERVABLE live run, exactly as the cursors bound themselves: every slot
 				// past the live run is `null` by contract, so there is nothing there for a walk to reach and nothing
 				// for the arithmetic to charge - and this walk reaches a request thread holding no session, so it
 				// must not trust a size the column's backing array may not yet be long enough to serve
-				final int overflowSize = this.overflow.observableLiveRun();
+				final int overflowSize = theOverflow.observableLiveRun();
 				for (int i = 0; i < overflowSize; i++) {
-					final Object bucketRecords = this.overflow.recordsAt(i);
+					final Object bucketRecords = theOverflow.recordsAt(i);
 					if (bucketRecords != null) {
 						// the tier decides the arithmetic: a sorted `int[]` is priced as an array, a bitmap answers
 						// for itself
