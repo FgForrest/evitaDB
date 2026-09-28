@@ -39,6 +39,7 @@ import io.evitadb.api.query.order.TraversalMode;
 import io.evitadb.api.query.order.TraverseByEntityProperty;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
@@ -49,6 +50,7 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
+import io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper;
 import io.evitadb.core.query.indexSelection.IndexSelectionVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.NestedContextSorter;
@@ -103,7 +105,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	/**
 	 * Method locates all {@link EntityIndex} from the resolved list of {@link TargetIndexes} which were identified
 	 * by the {@link IndexSelectionVisitor}. The list is expected to be much smaller than the full list computed
-	 * in {@link #selectFullEntityIndexSet(OrderByVisitor, String)}.
+	 * in {@link #selectFullEntityIndexSet(OrderByVisitor, EntitySchemaContract, ReferenceSchemaContract)}.
 	 */
 	@Nonnull
 	private static List<ReducedEntityIndex> selectReducedEntityIndexSet(
@@ -164,16 +166,28 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	/**
 	 * Method locates all {@link EntityIndex} instances that are related to the given reference name. The list is
 	 * resolved from {@link ReferencedTypeEntityIndex}.
+	 *
+	 * @param orderByVisitor  the visitor providing the processing scopes and index access
+	 * @param entitySchema    schema of the entity owning the reference, quoted when the lookup is refused
+	 * @param referenceSchema the reference being ordered by
+	 * @return every reduced entity index of the reference in the processed scopes
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the reference is indexed in a processed scope
+	 *         without the `REFERENCED_ENTITY` component - see {@link HavingTranslatorHelper#assertEntityComponentIndexed}
 	 */
 	@Nonnull
 	private static List<ReducedEntityIndex> selectFullEntityIndexSet(
 		@Nonnull OrderByVisitor orderByVisitor,
-		@Nonnull String referenceName
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
+		final String referenceName = referenceSchema.getName();
 		final Set<Scope> allowedScopes = orderByVisitor.getProcessingScope().getScopes();
 		Stream<ReducedEntityIndex> indexes = Stream.empty();
 		for (Scope scope : Scope.values()) {
 			if (allowedScopes.contains(scope)) {
+				// a scope indexed without the entity component has no type index, so the lookup below would find
+				// nothing and every owner would sort as if it had no reference at all
+				HavingTranslatorHelper.assertEntityComponentIndexed(entitySchema, referenceSchema, scope);
 				final EntityIndexKey entityIndexKey = new EntityIndexKey(
 					EntityIndexType.REFERENCED_ENTITY_TYPE,
 					scope,
@@ -395,7 +409,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 
 		final List<ReducedEntityIndex> reducedEntityIndexSet = selectReducedEntityIndexSet(orderByVisitor, referenceName);
 		final List<ReducedEntityIndex> referenceIndexes = reducedEntityIndexSet.isEmpty() ?
-			selectFullEntityIndexSet(orderByVisitor, referenceName) :
+			selectFullEntityIndexSet(orderByVisitor, entitySchema, referenceSchema) :
 			reducedEntityIndexSet;
 
 		if (!referenceIndexes.isEmpty()) {

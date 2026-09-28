@@ -1156,6 +1156,11 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			scopesToLookUp
 				.stream()
 				.map(scope -> {
+					if (indexType == EntityIndexType.REFERENCED_ENTITY_TYPE) {
+						// a scope indexed without the entity component has no type index, and the branch below would
+						// answer it with an empty formula - indistinguishable from a scope that simply holds no rows
+						HavingTranslatorHelper.assertEntityComponentIndexed(entitySchema, referenceSchema, scope);
+					}
 					final EntityIndexKey entityIndexKey = new EntityIndexKey(indexType, scope, referenceName);
 					final Optional<ReferencedTypeEntityIndex> entityIndex = getEntityIndex(
 						entitySchema.getName(),

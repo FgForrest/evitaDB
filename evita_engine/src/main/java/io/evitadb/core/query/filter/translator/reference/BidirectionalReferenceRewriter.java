@@ -393,10 +393,10 @@ public class BidirectionalReferenceRewriter {
 	 * nothing else. Adding a {@link ReferenceIndexedComponents#REFERENCED_ENTITY} check here would be inert rather than
 	 * safer: the scopes it would remove are exactly the ones {@link #collectCandidateOwners} already skips on a missing
 	 * type index, so the candidate union, the cross-scope flag and the gate arithmetic all come out the same. The two
-	 * other consumers agree for their own reasons - {@link #createPerOwnerFormulas} reaches those scopes through
-	 * indexes gated by the very same component flag, and the bare-`entityHaving` branch of
-	 * {@link #createReferencedEntityFormula} only ever *intersects* its wider union against per-owner results that can
-	 * never originate in such a scope.
+	 * other consumers agree for their own reasons - {@link #createPerOwnerFormulas} skips those scopes explicitly,
+	 * because they hold no reduced entity index and the lookup it would make refuses them, and the bare-`entityHaving`
+	 * branch of {@link #createReferencedEntityFormula} only ever *intersects* its wider union against per-owner results
+	 * that can never originate in such a scope.
 	 *
 	 * The one caller that is **not** literally indifferent is {@link #counterpartTypeIndexId}: it folds a rolling hash
 	 * over the scope set, so skipping a scope inside the loop still performs a round that removing it would not, and
@@ -700,19 +700,25 @@ public class BidirectionalReferenceRewriter {
 					return null;
 				}
 				// a scope the query did not ask for, scanned only because a relation *could* span into it. Skip it
-				// rather than abandoning the rewrite: a reflected reference whose owner is archived gets no type index
-				// at all, so insisting on one here declines every rewrite whose counterpart is the reflected end -
-				// the case this rewrite exists for.
+				// rather than abandoning the rewrite: a scope in which the counterpart holds no rows legitimately has
+				// no type index, and insisting on one here would decline every rewrite whose relation merely could
+				// span scopes.
 				//
-				// Note what this does NOT assume. "No index, therefore no rows" is false, and knowingly so: #1583 is
-				// exactly a schema declaring the reference indexed in a scope whose rows are present in the entity
-				// body with no type index built for them, and a reference declaring only REFERENCED_GROUP_ENTITY in
-				// a scope is a second route to it, since `isRelationMaintained` keeps the relation on
-				// `isIndexedInScope` alone. Owners whose only qualifying row lives behind such a missing index are
-				// under-reported here. That is the missing index, not this loop - narrowing `counterpartScopes` to
-				// scopes carrying REFERENCED_ENTITY would remove exactly the scopes this branch already skips and
-				// change no answer (it would shift the cache key, nothing more), which
-				// `BidirectionalReferenceRewriterTest.WidenedScopeWithoutCounterpartIndex` pins.
+				// Note what this does NOT assume. "No index, therefore no rows" is false for one shape: a reference
+				// indexed in a scope without REFERENCED_ENTITY builds no type index there although its rows are
+				// present in the entity bodies, since `isRelationMaintained` keeps the relation on `isIndexedInScope`
+				// alone. Reflected references used to acquire that shape for every scope their explicit components
+				// did not name, which is why they appeared unindexed on archived owners. Schema changes now complete
+				// such a scope with the default component
+				// (`ReflectedReferenceSchema#withReferencedSchemaAfterSchemaChange`) and `ReferenceSchema#validate`
+				// refuses the rest, but a catalog stored before either still carries it. A query that *asks* for such a scope is refused outright
+				// (`HavingTranslatorHelper#assertEntityComponentIndexed`, reached through `referenceUsableInScopes`
+				// declining and the owner-side path taking over); a widened scope is only probed here, so owners
+				// whose only qualifying row lives behind such a missing index are under-reported. That is the missing
+				// index, not this loop - narrowing `counterpartScopes` to scopes carrying REFERENCED_ENTITY would
+				// remove exactly the scopes this branch already skips and change no answer (it would shift the cache
+				// key, nothing more), which `BidirectionalReferenceRewriterTest.WidenedScopeWithoutCounterpartIndex`
+				// pins.
 				continue;
 			}
 			// getAllPrimaryKeys() on a type-level index yields the *reduced index* primary keys - the owner entity
@@ -935,6 +941,14 @@ public class BidirectionalReferenceRewriter {
 			// the counterpart's reduced index for an owner lives in the scope of the *target* rows it holds, which is
 			// not necessarily one of the requested scopes - see `counterpartScopes`
 			for (final Scope scope : counterpartScopes) {
+				if (!counterpart.getIndexedComponents(scope).contains(ReferenceIndexedComponents.REFERENCED_ENTITY)) {
+					// only a widened scope can get here - `referenceUsableInScopes` has already demanded the component
+					// in every requested one. The lookup would refuse such a scope, which is right for a query that
+					// asks for it and wrong for this probe, which merely looks for cross-scope rows the query did not
+					// ask for. Nothing is lost by skipping: without the component the scope holds no reduced entity
+					// index, so the lookup could only have come back empty
+					continue;
+				}
 				queryContext.getReducedEntityIndexes(
 					scope, ownerPrimaryKey, targetEntitySchema, counterpart, (schema, indexKey) -> null
 				).forEach(reusableIndexes::add);

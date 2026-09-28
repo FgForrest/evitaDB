@@ -57,6 +57,7 @@ import static io.evitadb.api.query.QueryConstraints.entityHaving;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.groupHaving;
+import static io.evitadb.api.query.QueryConstraints.inScope;
 import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static io.evitadb.api.query.QueryConstraints.scope;
@@ -81,17 +82,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * what makes the silence dangerous rather than merely unhelpful: it produced a green-but-blind fixture in this very
  * package, see {@code ReferenceHavingRowSemanticsFunctionalTest}.
  *
- * The guard is deliberately narrow, and the nested classes below pin both halves of it:
+ * The nested classes below pin both halves of the guard:
  *
- * - {@link Refused} - the reference IS indexed in a queried scope, but not for the group component.
- * - {@link Allowed} - what the guard must leave alone: the component present in *some* queried scope, and a
- *   reference indexed in no queried scope at all, which the engine already refuses with a better message.
+ * - {@link Refused} - some queried scope indexes the reference, but not for the group component. One such scope is
+ *   enough: a union that silently drops the rows of one scope is as indistinguishable from a genuine answer as an
+ *   empty one.
+ * - {@link Allowed} - what the guard must leave alone: every queried scope that indexes the reference carries the
+ *   component - including a query narrowed to such a scope with `scope(...)`, or a constraint confined to one with
+ *   `inScope(...)` - and a reference indexed in no queried scope at all, which the engine already refuses with a
+ *   better message.
  *
- * There is deliberately no `entityHaving` counterpart. Such a guard could never fire: when no queried scope
- * carries {@link ReferenceIndexedComponents#REFERENCED_ENTITY} there is no reduced entity index in any of them,
- * and the query resolves to an empty result before the body is translated. That short-circuit is a defect in its
- * own right - a reference indexed for the group component alone answers even `groupHaving` with nothing - but it
- * lives elsewhere and is not patched over here.
+ * The `entityHaving` counterpart - a queried scope indexing the reference without
+ * {@link ReferenceIndexedComponents#REFERENCED_ENTITY} - is not tested here, because such a scope blinds every query
+ * over the reference, not just the ones nesting `entityHaving`. The schema rule that refuses the shape is pinned by
+ * {@code IndexedScopeRequiresEntityComponentTest}, and the refusal of queries over a catalog that already stores it
+ * by {@link ReferenceWithoutEntityComponentQueryGuardFunctionalTest}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -121,8 +126,9 @@ public class HavingWithoutIndexedComponentFunctionalTest {
 
 	/**
 	 * Carries both components in {@link Scope#LIVE} and only
-	 * {@link ReferenceIndexedComponents#REFERENCED_ENTITY} in {@link Scope#ARCHIVED}. Proves the guard looks at the
-	 * queried scopes as a set rather than demanding the component in every one of them.
+	 * {@link ReferenceIndexedComponents#REFERENCED_ENTITY} in {@link Scope#ARCHIVED}. Proves the guard demands the
+	 * component in every queried scope that indexes the reference, and that narrowing the query to
+	 * {@link Scope#LIVE} with `scope(...)` or `inScope(...)` is what makes it answerable.
 	 */
 	private static final String REF_LIVE_ONLY_GROUP = "liveOnlyGroupBrands";
 
@@ -141,7 +147,8 @@ public class HavingWithoutIndexedComponentFunctionalTest {
 	/**
 	 * Carries the premium group like product 1, but lives in {@link Scope#ARCHIVED}. Without it the archived scope
 	 * holds no reduced index for {@link #REF_LIVE_ONLY_GROUP} at all, the query short-circuits to an empty result
-	 * before the body is translated, and a test querying only that scope would pass for the wrong reason.
+	 * before the body is translated, and a test querying only that scope would pass for the wrong reason. It is also
+	 * the product an `inScope(LIVE, ...)` query over both scopes must return unconstrained.
 	 */
 	private static final int ARCHIVED_PRODUCT_PK = 3;
 
@@ -324,7 +331,7 @@ public class HavingWithoutIndexedComponentFunctionalTest {
 		/**
 		 * The component is present in {@link Scope#LIVE} only, so a query restricted to {@link Scope#ARCHIVED}
 		 * cannot be answered and must say so - the mirror of
-		 * {@link Allowed#shouldAnswerGroupHavingWhenOnlyOneQueriedScopeCarriesTheComponent(Evita)}.
+		 * {@link Allowed#shouldAnswerGroupHavingWhenNarrowedWithScopeToTheCarryingScope(Evita)}.
 		 */
 		@DisplayName("Should refuse groupHaving when the only queried scope lacks the component")
 		@UseDataSet(MISSING_INDEXED_COMPONENT)
@@ -347,6 +354,46 @@ public class HavingWithoutIndexedComponentFunctionalTest {
 				)
 			);
 			assertMessageNames(exception, REF_LIVE_ONLY_GROUP, "REFERENCED_GROUP_ENTITY");
+		}
+
+		/**
+		 * Two scopes are queried and only {@link Scope#LIVE} carries the group component. Answering would return
+		 * product 1 and silently drop product {@link #ARCHIVED_PRODUCT_PK}, which carries the very same group in
+		 * {@link Scope#ARCHIVED} - a partial answer that looks exactly like a complete one. The refusal must name the
+		 * scope that lacks the component and point at the two ways out: fixing the schema, or narrowing the query.
+		 */
+		@DisplayName("Should refuse groupHaving when any queried scope that indexes the reference lacks the component")
+		@UseDataSet(MISSING_INDEXED_COMPONENT)
+		@Test
+		void shouldThrowWhenAnyQueriedScopeLacksTheComponent(@Nonnull Evita evita) {
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> queryProductPks(
+					evita,
+					query(
+						collection(PRODUCT),
+						filterBy(
+							scope(Scope.LIVE, Scope.ARCHIVED),
+							referenceHaving(
+								REF_LIVE_ONLY_GROUP,
+								groupHaving(entityPrimaryKeyInSet(PREMIUM_GROUP_PK))
+							)
+						)
+					)
+				),
+				"ARCHIVED indexes the reference without REFERENCED_GROUP_ENTITY, so the union over LIVE and " +
+					"ARCHIVED cannot contain archived product " + ARCHIVED_PRODUCT_PK + " and must not be answered"
+			);
+			assertMessageNames(exception, REF_LIVE_ONLY_GROUP, "REFERENCED_GROUP_ENTITY");
+			final String message = exception.getMessage();
+			assertTrue(
+				message.contains(Scope.ARCHIVED.name()),
+				"The message must name the scope `ARCHIVED` that lacks the component, was: " + message
+			);
+			assertTrue(
+				message.contains("inScope"),
+				"The message must name the `scope(...)` / `inScope(...)` workaround, was: " + message
+			);
 		}
 
 	}
@@ -400,14 +447,12 @@ public class HavingWithoutIndexedComponentFunctionalTest {
 		}
 
 		/**
-		 * A schema may legitimately index groups in one scope and not in another. The scopes that cannot answer
-		 * contribute nothing to the union, which is a correct partial answer rather than a misconfiguration - so
-		 * one carrying scope among those queried is enough.
+		 * Narrowing the query to the one scope that carries the component is the first workaround the refusal names.
 		 */
-		@DisplayName("Should answer groupHaving when only one of the queried scopes carries the component")
+		@DisplayName("Should answer groupHaving when the query is narrowed with scope(...) to the carrying scope")
 		@UseDataSet(MISSING_INDEXED_COMPONENT)
 		@Test
-		void shouldAnswerGroupHavingWhenOnlyOneQueriedScopeCarriesTheComponent(@Nonnull Evita evita) {
+		void shouldAnswerGroupHavingWhenNarrowedWithScopeToTheCarryingScope(@Nonnull Evita evita) {
 			assertEquals(
 				List.of(1),
 				queryProductPks(
@@ -415,7 +460,7 @@ public class HavingWithoutIndexedComponentFunctionalTest {
 					query(
 						collection(PRODUCT),
 						filterBy(
-							scope(Scope.LIVE, Scope.ARCHIVED),
+							scope(Scope.LIVE),
 							referenceHaving(
 								REF_LIVE_ONLY_GROUP,
 								groupHaving(entityPrimaryKeyInSet(PREMIUM_GROUP_PK))
@@ -423,9 +468,41 @@ public class HavingWithoutIndexedComponentFunctionalTest {
 						)
 					)
 				),
-				"LIVE carries REFERENCED_GROUP_ENTITY, so the query is answerable across the queried scopes. Product " +
-					ARCHIVED_PRODUCT_PK + " carries the same group but lives in ARCHIVED, which indexes no group - it " +
-					"is absent from the union by the same rule that makes this query legal at all"
+				"LIVE is the only queried scope and it carries REFERENCED_GROUP_ENTITY, so the query is answerable " +
+					"and finds product 1"
+			);
+		}
+
+		/**
+		 * The second workaround: both scopes are queried, but the constraint is confined to the one that can answer
+		 * it. Archived product {@link #ARCHIVED_PRODUCT_PK} is not constrained by `inScope(LIVE, ...)` at all, so it
+		 * belongs to the answer - that is the documented meaning of `inScope`, not a leak - while live product 2,
+		 * whose group is the budget one, is filtered out.
+		 */
+		@DisplayName("Should answer groupHaving when it is wrapped in inScope(...) for the carrying scope")
+		@UseDataSet(MISSING_INDEXED_COMPONENT)
+		@Test
+		void shouldAnswerGroupHavingWhenWrappedInInScopeForTheCarryingScope(@Nonnull Evita evita) {
+			assertEquals(
+				List.of(1, ARCHIVED_PRODUCT_PK),
+				queryProductPks(
+					evita,
+					query(
+						collection(PRODUCT),
+						filterBy(
+							scope(Scope.LIVE, Scope.ARCHIVED),
+							inScope(
+								Scope.LIVE,
+								referenceHaving(
+									REF_LIVE_ONLY_GROUP,
+									groupHaving(entityPrimaryKeyInSet(PREMIUM_GROUP_PK))
+								)
+							)
+						)
+					)
+				).stream().sorted().toList(),
+				"The constraint applies to LIVE only, where product 1 matches and product 2 does not; archived " +
+					"product " + ARCHIVED_PRODUCT_PK + " is unconstrained"
 			);
 		}
 

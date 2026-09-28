@@ -1044,6 +1044,12 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 						);
 					}
 				}
+				// evaluated only here, with the reflected reference bound: inherited scopes and components resolve
+				// through it, and they are what the indexer reads - whether declared on this side or inherited
+				referenceErrors = Stream.concat(
+					referenceErrors,
+					ReferenceSchema.validateEntityComponentIndexed(this, entitySchema.getName())
+				);
 				if (this.reflectedReference.getCardinality().allowsDuplicates()) {
 					if (!this.getCardinality().allowsDuplicates()) {
 						referenceErrors = Stream.concat(

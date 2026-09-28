@@ -34,9 +34,11 @@ import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
@@ -69,9 +71,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockingDetails;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -943,10 +950,14 @@ class BidirectionalReferenceRewriterTest {
 		 * `REFERENCED_ENTITY` is missing from any of them.
 		 *
 		 * **What this row does not claim.** The `continue` rests on "no index there means no rows there", and that
-		 * premise is false — issue #1583 is a reflected reference on an archived owner whose rows exist with no type
-		 * index at all. A reference indexing only `REFERENCED_GROUP_ENTITY` in a scope is a second route to the same
-		 * false premise, since `isRelationMaintained` keeps the relation on `isIndexedInScope` alone. Both under-report
-		 * through the missing index itself, not through the scope set, so neither is addressed by changing this method.
+		 * premise is false for a reference indexed in a scope without `REFERENCED_ENTITY`: its rows exist in the
+		 * entity bodies with no type index, since `isRelationMaintained` keeps the relation on `isIndexedInScope`
+		 * alone. Reflected references used to acquire that shape for every scope their explicit components did not
+		 * name, which is why they appeared unindexed on archived owners. Schema changes now complete such a scope with
+		 * the default component and the schema rule refuses the rest at session close, and a query asking for such a
+		 * scope is refused outright - but a catalog stored before either still carries it, and a *widened* scope like
+		 * the one below is only probed, never asked for. The under-report runs through the missing index itself, not
+		 * through the scope set, so it is not addressed by changing this method.
 		 */
 		@Test
 		@DisplayName("should ignore a widened scope that indexes only the group component")
@@ -965,6 +976,57 @@ class BidirectionalReferenceRewriterTest {
 				"A widened scope whose counterpart type index is absent must be skipped, not treated as a reason to " +
 					"abandon the rewrite - only a *requested* scope missing its index does that. Declining here would " +
 					"disable the rewrite for every reflected counterpart, which is the case it exists for."
+			);
+		}
+
+		/**
+		 * The per-owner pass reads the counterpart's reduced indexes in every widened scope, and the lookup it goes
+		 * through - `QueryPlanningContext#getReducedEntityIndexes` - refuses a scope the reference is indexed in
+		 * without `REFERENCED_ENTITY`. That refusal is right for a query asking for the scope and wrong here: the
+		 * widened scope is only probed for rows the query did not ask for, and it holds no reduced entity index to
+		 * find. So `createPerOwnerFormulas` must skip such a scope rather than ask. The shape reaches the rewrite only
+		 * from a catalog stored before the schema rule existed, so the counterpart below carries it directly.
+		 *
+		 * The mocked lookup throws for that scope exactly as the real guard does, so the rewrite fails if the scope
+		 * is ever asked about. The LIVE lookup is verified too, so the row cannot pass by never reaching the per-owner
+		 * pass at all.
+		 */
+		@Test
+		@DisplayName("should not ask the refusing lookup about a widened scope indexed without the entity component")
+		void shouldSkipAWidenedScopeIndexedWithoutTheEntityComponentInThePerOwnerPass() {
+			final RewriteFixture fixture = RewriteFixture.baseline(EnumSet.of(Scope.LIVE));
+			when(fixture.ownerReference.isIndexedInScope(Scope.ARCHIVED)).thenReturn(true);
+			when(fixture.counterpart.isIndexedInScope(Scope.ARCHIVED)).thenReturn(true);
+			// the stored shape: indexed in ARCHIVED with no component, so no type index was ever built there
+			when(fixture.counterpart.getIndexedComponents(Scope.ARCHIVED)).thenReturn(Set.of());
+			fixture.stubCounterpartTypeIndex(Scope.ARCHIVED, null);
+			// the target collection must hold something, or the rewrite returns before the per-owner pass
+			final GlobalEntityIndex targetGlobalIndex = mock(GlobalEntityIndex.class);
+			when(targetGlobalIndex.getAllPrimaryKeysFormula())
+				.thenReturn(new ConstantFormula(ascendingBitmap(1, 5)));
+			when(fixture.queryContext.getGlobalEntityIndexIfExists(TARGET_ENTITY_TYPE, Scope.LIVE))
+				.thenReturn(Optional.of(targetGlobalIndex));
+			when(
+				fixture.queryContext.getReducedEntityIndexes(
+					eq(Scope.ARCHIVED), anyInt(), any(), eq(fixture.counterpart), any()
+				)
+			).thenThrow(new EvitaInvalidUsageException("mirrors the refusal of the real lookup"));
+
+			final FilterByVisitor filterByVisitor = mock(FilterByVisitor.class);
+			when(filterByVisitor.getQueryContext()).thenReturn(fixture.queryContext);
+			final ProcessingScope<?> processingScope = mock(ProcessingScope.class);
+			when(processingScope.getScopes()).thenReturn(fixture.scopes);
+			final Optional<Formula> rewritten = BidirectionalReferenceRewriter.tryRewrite(
+				referenceHaving(OWNER_REFERENCE_NAME), filterByVisitor,
+				fixture.ownerEntitySchema, fixture.ownerReference, processingScope
+			);
+
+			assertTrue(rewritten.isPresent(), "The baseline shape must still be rewritten");
+			verify(fixture.queryContext, times(BASELINE_CANDIDATE_OWNERS)).getReducedEntityIndexes(
+				eq(Scope.LIVE), anyInt(), any(), eq(fixture.counterpart), any()
+			);
+			verify(fixture.queryContext, never()).getReducedEntityIndexes(
+				eq(Scope.ARCHIVED), anyInt(), any(), any(), any()
 			);
 		}
 	}

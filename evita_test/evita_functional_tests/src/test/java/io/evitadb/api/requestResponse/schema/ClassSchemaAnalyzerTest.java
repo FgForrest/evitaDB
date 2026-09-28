@@ -83,10 +83,12 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Currency;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -2164,7 +2166,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				final SealedEntitySchema entitySchema = session.getEntitySchema(
 					"GetterBasedEntityWithIndexedComponents").orElseThrow();
 				final Map<String, ReferenceSchemaContract> references = entitySchema.getReferences();
-				assertEquals(5, references.size());
+				assertEquals(4, references.size());
 
 				// default annotation value `{REFERENCED_ENTITY}` resolves to the schema default
 				final ReferenceSchemaContract defaultComponents = references.get("defaultComponents");
@@ -2173,14 +2175,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					defaultComponents.getIndexedComponents(Scope.LIVE)
 				);
 
-				// explicit override to `{REFERENCED_GROUP_ENTITY}`
-				final ReferenceSchemaContract groupOnly = references.get("groupOnlyComponents");
-				assertEquals(
-					Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
-					groupOnly.getIndexedComponents(Scope.LIVE)
-				);
-
-				// both components selected
+				// both components selected - a non-default override wired through
 				final ReferenceSchemaContract bothComponents = references.get("bothComponents");
 				assertEquals(
 					Set.of(
@@ -2190,7 +2185,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					bothComponents.getIndexedComponents(Scope.LIVE)
 				);
 
-				// per-scope components: LIVE has both, ARCHIVED has only the group entity
+				// per-scope components: LIVE has both, ARCHIVED has only the referenced entity
 				final ReferenceSchemaContract perScope = references.get("perScopeComponents");
 				assertEquals(
 					Set.of(
@@ -2200,7 +2195,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					perScope.getIndexedComponents(Scope.LIVE)
 				);
 				assertEquals(
-					Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY),
 					perScope.getIndexedComponents(Scope.ARCHIVED)
 				);
 
@@ -2231,15 +2226,20 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				final Map<String, ReferenceSchemaContract> references = entitySchema.getReferences();
 				assertEquals(2, references.size());
 
-				// general `indexedComponents = {REFERENCED_GROUP_ENTITY}` on a reflected reference
+				// general `indexedComponents = {REFERENCED_ENTITY, REFERENCED_GROUP_ENTITY}` on a reflected
+				// reference - the source indexes `{REFERENCED_ENTITY}` only, so the group component proves the
+				// override was wired through rather than inherited
 				final ReferenceSchemaContract marketingBrand = references.get("marketingBrand");
 				assertInstanceOf(ReflectedReferenceSchemaContract.class, marketingBrand);
 				assertEquals(
-					Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					Set.of(
+						ReferenceIndexedComponents.REFERENCED_ENTITY,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					),
 					marketingBrand.getIndexedComponents(Scope.LIVE)
 				);
 
-				// per-scope reflected: LIVE indexes both sides; ARCHIVED indexes only the group
+				// per-scope reflected: LIVE indexes both sides; ARCHIVED indexes only the referenced entity
 				final ReferenceSchemaContract secondaryBrand = references.get("secondaryBrand");
 				assertInstanceOf(ReflectedReferenceSchemaContract.class, secondaryBrand);
 				assertEquals(
@@ -2250,7 +2250,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					secondaryBrand.getIndexedComponents(Scope.LIVE)
 				);
 				assertEquals(
-					Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY),
 					secondaryBrand.getIndexedComponents(Scope.ARCHIVED)
 				);
 			}
@@ -2273,10 +2273,6 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				final Map<String, ReferenceSchemaContract> references = entitySchema.getReferences();
 
 				assertEquals(
-					Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
-					references.get("groupOnlyComponents").getIndexedComponents(Scope.LIVE)
-				);
-				assertEquals(
 					Set.of(
 						ReferenceIndexedComponents.REFERENCED_ENTITY,
 						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
@@ -2284,11 +2280,68 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					references.get("bothComponents").getIndexedComponents(Scope.LIVE)
 				);
 				assertEquals(
-					Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					Set.of(
+						ReferenceIndexedComponents.REFERENCED_ENTITY,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					),
+					references.get("perScopeComponents").getIndexedComponents(Scope.LIVE)
+				);
+				assertEquals(
+					Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY),
 					references.get("perScopeComponents").getIndexedComponents(Scope.ARCHIVED)
 				);
 			}
 		);
+	}
+
+	/**
+	 * The analyzer wires `indexedComponents` through verbatim, including a declaration that leaves an indexed scope
+	 * without `REFERENCED_ENTITY` - once through the general attribute and once per scope. Such a scope builds no
+	 * reduced entity index, so the session that defines it must be refused when it closes (#1601). The wiring is
+	 * asserted inside the session and the refusal after it, so the test also proves the refusal comes from the close
+	 * and not from the analyzer.
+	 */
+	@DisplayName("Verify that indexedComponents without REFERENCED_ENTITY are wired through and refused at close")
+	@Test
+	void shouldWireGroupOnlyIndexedComponentsThroughAndRefuseThemAtClose() {
+		final AtomicBoolean wiringAsserted = new AtomicBoolean(false);
+		final InvalidSchemaMutationException exception = assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchemaFromModelClass(GetterBasedEntityWithGroupOnlyIndexedComponents.class);
+
+					final Map<String, ReferenceSchemaContract> references = session
+						.getEntitySchema("GetterBasedEntityWithGroupOnlyIndexedComponents")
+						.orElseThrow()
+						.getReferences();
+					assertEquals(
+						Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+						references.get("groupOnlyComponents").getIndexedComponents(Scope.LIVE),
+						"The general `indexedComponents` must be wired through verbatim"
+					);
+					assertEquals(
+						Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+						references.get("groupOnlyInArchiveComponents").getIndexedComponents(Scope.ARCHIVED),
+						"The per-scope `indexedComponents` must be wired through verbatim"
+					);
+					wiringAsserted.set(true);
+				}
+			),
+			"An indexed scope without REFERENCED_ENTITY must be refused when the session closes"
+		);
+		assertTrue(
+			wiringAsserted.get(),
+			"The refusal must come from the session close, not from the analyzer - was: " + exception.getMessage()
+		);
+		for (String expected : List.of("`groupOnlyComponents`", "`groupOnlyInArchiveComponents`", "ARCHIVED")) {
+			assertTrue(
+				exception.getMessage().contains(expected),
+				"The refusal must name `" + expected + "` - both references and the scope the second one lacks " +
+					"the component in - was: " + exception.getMessage()
+			);
+		}
 	}
 
 	@DisplayName("Debug simple ScopeAttributeSettings")

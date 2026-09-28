@@ -903,6 +903,63 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		}
 	}
 
+	/**
+	 * Reports every scope in which the reference is indexed without
+	 * {@link ReferenceIndexedComponents#REFERENCED_ENTITY} among its indexed components.
+	 *
+	 * The entity component builds the reduced entity indexes, and every query over a reference reads that index
+	 * family and nothing else - `referenceHaving`, `hierarchyWithin`, `hierarchyOfReference`, `referenceContent` with
+	 * a filter, `referenceProperty` ordering and `histogramHaving`. A scope indexed for
+	 * {@link ReferenceIndexedComponents#REFERENCED_GROUP_ENTITY} alone, or with no component at all, reports itself
+	 * indexed while every one of those queries answers it with nothing. Answering them from the group family instead
+	 * is not possible: rows without a group are indexed nowhere in it, and one group partition fuses the rows of an
+	 * owner, so row-local conditions cannot be told apart there.
+	 *
+	 * **Call this from `validate()` only, never from construction.** Construction-time validation also runs when a
+	 * stored catalog is loaded - on WAL replay of a `CreateReferenceSchemaMutation` and on rebinding a reflected
+	 * reference to the reference it reflects - and catalogs written before this rule existed store the refused
+	 * shapes. They must keep loading; the query engine refuses the queries it cannot answer over them instead.
+	 *
+	 * The effective (inheritance-resolved) getters are used, so a reflected reference must be bound to the reference
+	 * it reflects before it is passed here.
+	 *
+	 * @param referenceSchema the reference to check, with its indexed scopes and components resolved
+	 * @param entityType      name of the entity type owning the reference, quoted in the messages
+	 * @return one error message per offending scope, in {@link Scope} declaration order; empty when the reference is
+	 *         valid
+	 */
+	@Nonnull
+	static Stream<String> validateEntityComponentIndexed(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull String entityType
+	) {
+		Stream<String> errors = Stream.empty();
+		for (Scope scope : Scope.values()) {
+			if (!referenceSchema.isIndexedInScope(scope)) {
+				continue;
+			}
+			final Set<ReferenceIndexedComponents> components = referenceSchema.getIndexedComponents(scope);
+			if (!components.contains(ReferenceIndexedComponents.REFERENCED_ENTITY)) {
+				errors = Stream.concat(
+					errors,
+					Stream.of(
+						"Reference `" + referenceSchema.getName() + "` of entity `" + entityType +
+							"` is indexed in scope `" + scope + "` with indexed components " + components +
+							", which lack `REFERENCED_ENTITY`. Every scope a reference is indexed in must contain " +
+							"`REFERENCED_ENTITY` - it builds the reduced entity indexes every query over the " +
+							"reference reads, so without it those queries could never match anything. Add " +
+							"`REFERENCED_ENTITY` to `indexedComponentsInScopes` of reference `" +
+							referenceSchema.getName() + "` in scope `" + scope + "`. On a collection that already " +
+							"holds data the change does not index the entities already stored - they are indexed only " +
+							"as they are written - so data written before it stays invisible to queries over the " +
+							"reference until it is written again."
+					)
+				);
+			}
+		}
+		return errors;
+	}
+
 	protected ReferenceSchema(
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
@@ -1226,6 +1283,11 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 				}
 			}
 		}
+
+		referenceErrors = Stream.concat(
+			referenceErrors,
+			validateEntityComponentIndexed(this, entitySchema.getName())
+		);
 
 		referenceErrors = Stream.concat(
 			referenceErrors,
