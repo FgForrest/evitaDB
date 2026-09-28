@@ -37,8 +37,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
-import static io.evitadb.test.TestTags.CONTRACT;
-import static io.evitadb.test.TestTags.TASK;
+import static io.evitadb.test.TestTags.TEST_HARNESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
@@ -48,8 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@Tag(CONTRACT)
-@Tag(TASK)
+@Tag(TEST_HARNESS)
 @DisplayName("TimeArgumentProvider budget resolution")
 class TimeArgumentProviderTest {
 
