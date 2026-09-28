@@ -1,7 +1,7 @@
 ---
 title: Bound time travel with an absolute per-catalog byte budget, not a ratio or a generation count
 date: 2026-08-06
-updated: 2026-09-12 07:10
+updated: 2026-09-28 12:00
 status: accepted
 kind: feature
 issues: [761]
@@ -185,13 +185,15 @@ to "I cannot configure my fleet uniformly".
   long as anything was connected — and warm-up permits one session held across a whole bulk import,
   which is exactly when the leak the sweep exists to fix accumulates. Covered by
   `shouldReclaimWarmUpLeftoversWhileAVersionIsPinned`.
-- **Sessions are safe from that sweep without gating it, and the argument has two preconditions.** A
-  session resolves its reads through the bootstrap record serving its version; the trim that decides
-  which records are retained is clamped by that session's own pin; so every file it can reach stays
-  reachable from a retained record, and the sweep deletes only files that are not. This holds only
-  while (a) the clamp is mode-independent, and (b) **every** session takes a pin, read-only ones
-  included. Both are recorded at their sites, because either one silently disappearing breaks the
-  argument with no test failing.
+- **Sessions are safe from that sweep without gating it, and the argument has three preconditions.**
+  A session resolves its reads through the bootstrap record serving its version; the trim that
+  decides which records are retained is clamped by that session's own pin; so every file it can
+  reach stays reachable from a retained record, and the sweep deletes only files that are not. This
+  holds only while (a) the clamp is mode-independent, (b) **every** session takes a pin, read-only
+  ones included, and (c) the pin is in place **before** the catalog instance the session reads is
+  resolved — see *Closed — a session's version was captured before it was pinned* below for what
+  (c) missing cost. All three are recorded at their sites, because any one silently disappearing
+  breaks the argument with no test failing.
 - **Holds and pins are leases, not paired void calls.** `CatalogDirectoryReadHold` and
   `CatalogVersionPin` are both idempotent `AutoCloseable`s that capture the instance they were taken
   on — the maintainer and the `Catalog` respectively. Acquisition and release are separated by a whole
@@ -809,18 +811,40 @@ is false for the reason above (warm-up leaves one record, not many), and the wor
   a real cost: log removal would have to be held back behind a backup that may run for minutes.
   Closing it is natural once wanted — the deletions are already queued in `pendingRemovals`, so the
   drain simply must not run while a hold is up.
-- **Open — a session's version is captured before it is pinned** (`SessionRegistry`, around the
-  `registerSessionConsumingCatalogInVersion` call site). `newSession.getCatalogVersion()` is read,
-  and the pin lands a few statements later; a guard run in between can move the horizon past it.
-  **Declined for now**, on two counts: a session captures the *newest* version and the horizon can
-  never exceed the newest recorded version, so the window needs a budget tight enough to trim to the
-  current generation before it is reachable at all; and the failure is loud —
-  `getStoragePartPersistenceService` resolves to the closest service *at or below* the request and
-  throws when the request falls below every registered version, which is exactly what a prefix trim
-  leaves, so there is no silent-stale-read tier here. A real fix means capturing and pinning
-  atomically at session construction, which is a wider change than this line of work. Revisit if a
-  deployment ever runs a budget that tight; the symptom would be
-  `Catalog version N not found in the catalog persistence service versions!` at session open.
+- **Closed — a session's version was captured before it was pinned** (`SessionRegistry`,
+  `registerNewSession`). This was first recorded as open and **declined**, on the premise that the
+  window could only be hit by the size guard under a budget tight enough to trim the current
+  generation, and would then fail loudly. The premise considered one deleter and missed matrix
+  row 7. `catalogConsumersLeft` → `OffsetIndex.purge` needs no budget and no time travel at all: it
+  runs on every session close in the default configuration, and it is **silent** — the released
+  roots are dropped on the next flush and `Roots.floorIndex` answers the session's version from the
+  oldest root still retained, i.e. a *newer* state. The session was resolved in
+  `Evita.createSessionInternal` and constructed before the pin, and the whole construction was the
+  window: when the last other consumer of its version left in it, the session read entities
+  committed after its own version and counted a newer collection size. That is exactly the shape of
+  the CI failure `Entity with catalogVersion 559 is present in catalog version 558`
+  (`LongRunningEvitaTransactionalFunctionalTest`, on the loaded Windows runner, 2026-08-10 and
+  2026-09-28), which a busy four-core box widens enough to hit.
+  **Fixed by pinning first and resolving second**, not by pinning atomically at construction as the
+  declined entry expected: the registry pins the version current at that instant, and only then
+  resolves the catalog and hands it to the session factory (`addSession` takes a
+  `Function<Catalog, EvitaSession>`; the caller no longer chooses the instance). Any release is
+  either clamped by that pin or was computed from versions already published before it, which the
+  instance resolved afterwards is at least as new as — so the resolved version is never below
+  anything a release could have given up. A commit landing in between leaves the pin as a lower
+  bound; the census then pins the exact version and gives the lower one back only afterwards. The
+  common case still takes a single pin. `SessionRegistryVersionPinTest` holds a registration open
+  inside the factory while newer versions commit and every other consumer leaves. Against the
+  original ordering the held session, at version 2, saw the brands committed at versions 3 and 4 and
+  counted 4 brands instead of 2; with the fix in place and the pin then moved back below the factory
+  call, the test fails on brand 3 leaking in.
+  **Not done — failing loudly on a read below the oldest retained root.** `floorIndex` clamping is
+  what made this silent, and a read at a version the offset index has already released is by
+  definition an unprotected reader. Turning it into an exception was considered and left out: the
+  clamp also serves readers that are not snapshot promises (statistics and other engine-internal
+  reads resolve the current catalog without a pin), and no audit of them exists yet. Revisit with
+  that audit; the cheap form is a released-through watermark kept in `Roots` next to the versions it
+  dropped.
 - **Closed — version pins are leases now too.** They used to resolve the catalog by name on both
   sides, so a `replaceWith` between acquisition and release decremented the *replacement's* counter
   and left the granting catalog pinned forever. This was declined once as needing "two backups
