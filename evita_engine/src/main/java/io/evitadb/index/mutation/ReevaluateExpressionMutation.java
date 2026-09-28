@@ -41,7 +41,9 @@ import java.util.Map;
  * implicit-mutation phase (before the source entity's FilterIndex was updated). These enable deterministic histogram
  * removal by providing the exact old values for `remove(oldValue, ownerPK)` operations, eliminating the need for
  * histogram bucket scanning or fallback re-indexing. The map is keyed by attribute name, then by locale
- * (null for non-localized).
+ * (null for non-localized). A locale mapped to a `null` value means the attribute was unset before the mutation;
+ * a locale missing from the map means the attribute was not mutated in it. The two must not be conflated: an unset
+ * value source contributed nothing to remove, whereas an unmutated one still contributes its current value.
  *
  * The optional `previouslyIndexedOwnerPKs` field carries, per histogram name, the owner PKs whose histogram
  * condition held **before** any of this batch's local mutations were applied. It is captured by
