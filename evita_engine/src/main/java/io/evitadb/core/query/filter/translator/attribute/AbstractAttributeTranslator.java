@@ -40,6 +40,7 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * The AbstractAttributeTranslator class provides utility methods for handling attribute keys within
@@ -121,6 +122,103 @@ class AbstractAttributeTranslator {
 			);
 		}
 		return result;
+	}
+
+	/**
+	 * Tells whether a localized attribute is read in the query locale alone in the scope, i.e. whether a record
+	 * carrying its value there holds the query locale. That is not so where the uniqueness of the attribute ignores
+	 * the locale: unique across locales within the collection, or globally unique across the whole catalog - a value
+	 * in any locale is then carried.
+	 *
+	 * @param attributeSchema the schema definition of the attribute being processed
+	 * @param scope           the scope the attribute is read in
+	 * @return true when only the value in the query locale counts as carried in the scope
+	 */
+	protected static boolean isBoundToQueryLocale(
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Scope scope
+	) {
+		if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
+			globalAttributeSchema.isUniqueGloballyInScope(scope)
+		) {
+			return globalAttributeSchema.isUniqueGloballyWithinLocaleInScope(scope);
+		}
+		return !attributeSchema.isUniqueInScope(scope) || attributeSchema.isUniqueWithinLocaleInScope(scope);
+	}
+
+	/**
+	 * Tells whether every record a lookup of the localized attribute yields holds the query locale, which is what an
+	 * {@link io.evitadb.core.query.algebra.attribute.AttributeFormula} built over it may claim through
+	 * {@link io.evitadb.core.query.algebra.attribute.AttributeFormula#isLocaleImplied()}. It does so only when a query
+	 * locale is requested and every requested scope reads the attribute in that locale alone - in a scope where the
+	 * uniqueness ignores the locale, a lookup finds a record carrying the value in any locale, including a record that
+	 * lacks the query locale altogether.
+	 *
+	 * @param filterByVisitor the visitor that provides the query locale and the requested scopes
+	 * @param attributeSchema the schema definition of the attribute being processed
+	 * @return true when the records of a lookup of the attribute all hold the query locale
+	 */
+	protected static boolean isQueryLocaleImplied(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull AttributeSchemaContract attributeSchema
+	) {
+		return isQueryLocaleImpliedByEveryScope(filterByVisitor, scope -> isBoundToQueryLocale(attributeSchema, scope));
+	}
+
+	/**
+	 * Tells whether the attribute is unique in the scope, within the collection or - for a catalog attribute -
+	 * globally.
+	 *
+	 * @param attributeSchema the schema definition of the attribute being processed
+	 * @param scope           the scope to examine
+	 * @return true when the attribute is unique in the scope
+	 */
+	protected static boolean isUniqueInScope(@Nonnull AttributeSchemaContract attributeSchema, @Nonnull Scope scope) {
+		return attributeSchema.isUniqueInScope(scope) ||
+			attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
+				globalAttributeSchema.isUniqueGloballyInScope(scope);
+	}
+
+	/**
+	 * Tells whether every record a unique lookup of a value of the localized attribute yields holds the query locale -
+	 * see {@link io.evitadb.core.query.algebra.attribute.AttributeFormula#isLocaleImplied()}. The unique index of the
+	 * catalog records the locale of every value and matches it against the query locale, and so does the unique index
+	 * of a collection where the attribute is unique within a locale. The unique index of a collection where it is
+	 * unique across locales is shared by every locale: it finds the record whatever locale it carries the value in,
+	 * and that record may lack the query locale altogether.
+	 *
+	 * @param filterByVisitor the visitor that provides the query locale and the requested scopes
+	 * @param attributeSchema the schema definition of the attribute being processed
+	 * @return true when the records of a unique lookup of the attribute all hold the query locale
+	 */
+	protected static boolean isQueryLocaleImpliedByUniqueLookup(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull AttributeSchemaContract attributeSchema
+	) {
+		return isQueryLocaleImpliedByEveryScope(
+			filterByVisitor,
+			scope -> attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
+				globalAttributeSchema.isUniqueGloballyInScope(scope) ||
+				!attributeSchema.isUniqueInScope(scope) ||
+				attributeSchema.isUniqueWithinLocaleInScope(scope)
+		);
+	}
+
+	/**
+	 * Tells whether a query locale was requested and every requested scope satisfies the given per-scope condition -
+	 * the check {@link #isQueryLocaleImplied} and {@link #isQueryLocaleImpliedByUniqueLookup} both need before testing
+	 * their own, different condition.
+	 *
+	 * @param filterByVisitor    the visitor that provides the query locale and the requested scopes
+	 * @param scopeImpliesLocale the per-scope condition to test against every requested scope
+	 * @return true when a query locale was requested and every requested scope satisfies the condition
+	 */
+	private static boolean isQueryLocaleImpliedByEveryScope(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull Predicate<Scope> scopeImpliesLocale
+	) {
+		return filterByVisitor.getLocale() != null &&
+			filterByVisitor.getProcessingScope().getScopes().stream().allMatch(scopeImpliesLocale);
 	}
 
 }

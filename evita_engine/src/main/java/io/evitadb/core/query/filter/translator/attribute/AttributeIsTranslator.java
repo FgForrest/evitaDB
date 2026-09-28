@@ -30,8 +30,6 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
-import io.evitadb.core.query.QueryPlanner.EnclosingContainerRelation;
-import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
@@ -47,17 +45,23 @@ import io.evitadb.core.query.filter.NegationResolution;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.CatalogIndex;
+import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -88,7 +92,6 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	) {
 		if (filterByVisitor.isEntityTypeKnown()) {
 			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
-			final Set<Scope> scopes = processingScope.getScopes();
 			final AttributeSchemaContract attributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE)
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
@@ -102,25 +105,11 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 				return filterByVisitor.getSuperSetFormula();
 			}
 
-			// if attribute is unique prefer O(1) hash map lookup over inverted index
-			if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
-				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGloballyInScope)
-			) {
-				return wrapFormula(
-					attributeSchema,
-					attributeKey,
-					FutureNotFormula.postProcess(
-						createNullGloballyUniqueSubtractionFormula(globalAttributeSchema, filterByVisitor),
-						EnclosingContainerRelation.DISJUNCTION
-					)
-				);
-			} else {
-				return wrapFormula(
-					attributeSchema,
-					attributeKey,
-					createNullSubtractionFormula(referenceSchema, attributeSchema, filterByVisitor)
-				);
-			}
+			return wrapFormula(
+				attributeSchema,
+				attributeKey,
+				createNullSubtractionFormula(referenceSchema, attributeSchema, filterByVisitor)
+			);
 		} else {
 			return new EntityFilteringFormula(
 				"attribute is filter",
@@ -159,8 +148,8 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
 		final Locale locale = filterByVisitor.getLocale();
-		final Set<Locale> everyLocale = attributeSchema.isLocalized() ?
-			getLocalesTheValueMayBeStoredIn(filterByVisitor) : Set.of();
+		final Set<Locale> everyLocale = resolveEveryLocale(attributeSchema, filterByVisitor);
+		final Map<Scope, Bitmap> globallyUniqueCarriers = getGloballyUniqueCarriers(attributeSchema, filterByVisitor);
 		// `applyOnIndexes`, never `applyOnFilterIndexes`: it turns an index without the attribute into EMPTY before
 		// the lambda runs, and for a null test that is the index where EVERY record matches
 		return filterByVisitor.applyOnIndexes(
@@ -171,7 +160,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 					return EmptyFormula.INSTANCE;
 				}
 				final Formula carriers = getCarriersFormula(
-					entityIndex, referenceSchema, attributeSchema, locale, everyLocale
+					entityIndex, referenceSchema, attributeSchema, locale, everyLocale, globallyUniqueCarriers
 				);
 				if (carriers == null) {
 					// nothing in this index carries the attribute, so every record in it is null
@@ -195,7 +184,8 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	 * formulas are built through
 	 * {@link FilterByVisitor#applyOnIndexes(java.util.function.Function)} so they carry the tag the row-scoping
 	 * rebuild of a `referenceHaving` body relies on; an index keeping no structure for the attribute contributes
-	 * nothing.
+	 * nothing. The carriers of a scope where the attribute is globally unique are read from the catalog and cover the
+	 * whole scope, so they are contributed by the first index of that scope alone.
 	 *
 	 * @param referenceSchema the reference schema the attribute belongs to, or NULL for an entity attribute
 	 * @param attributeSchema the schema definition of the attribute being processed
@@ -209,12 +199,18 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
 		final Locale locale = filterByVisitor.getLocale();
-		final Set<Locale> everyLocale = attributeSchema.isLocalized() ?
-			getLocalesTheValueMayBeStoredIn(filterByVisitor) : Set.of();
+		final Set<Locale> everyLocale = resolveEveryLocale(attributeSchema, filterByVisitor);
+		final Map<Scope, Bitmap> globallyUniqueCarriers = getGloballyUniqueCarriers(attributeSchema, filterByVisitor);
+		final Set<Scope> scopesAnsweredByCatalog = EnumSet.noneOf(Scope.class);
 		return filterByVisitor.applyOnIndexes(
 			entityIndex -> {
+				final Scope scope = entityIndex.getIndexKey().scope();
+				if (globallyUniqueCarriers.containsKey(scope) && !scopesAnsweredByCatalog.add(scope)) {
+					// another index of this scope already contributed every carrier the catalog holds for it
+					return EmptyFormula.INSTANCE;
+				}
 				final Formula carriers = getCarriersFormula(
-					entityIndex, referenceSchema, attributeSchema, locale, everyLocale
+					entityIndex, referenceSchema, attributeSchema, locale, everyLocale, globallyUniqueCarriers
 				);
 				return carriers == null ? EmptyFormula.INSTANCE : carriers;
 			}
@@ -225,13 +221,18 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	 * Returns the records of the index that carry a value of the attribute, or NULL when the index keeps no
 	 * structure for it at all - which means none of its records carries a value.
 	 *
-	 * Only filter indexes are read, for unique attributes too: {@link EntityIndex#upsertAttribute} writes the filter
-	 * index for every attribute that is unique **or** filterable, on every index type, whereas the unique index is
-	 * not kept everywhere - {@link io.evitadb.index.ReducedGroupEntityIndex#insertUniqueAttribute} is a no-op
+	 * In a scope where a catalog attribute is globally unique the carriers are those the unique index of the catalog
+	 * of that scope holds for the queried collection - the collection keeps no filter index for such an attribute
+	 * unless it is also unique or filterable there. They cover the whole scope, not just this index, which the null
+	 * test's subtraction from the records of the index makes exact.
+	 *
+	 * Otherwise only filter indexes are read, for unique attributes too: {@link EntityIndex#upsertAttribute} writes
+	 * the filter index for every attribute that is unique **or** filterable, on every index type, whereas the unique
+	 * index is not kept everywhere - {@link io.evitadb.index.ReducedGroupEntityIndex#insertUniqueAttribute} is a no-op
 	 * (entities sharing a group make per-group uniqueness meaningless), and the type-level index of a reference holds
 	 * an empty unique index for a localized reference attribute unique across locales. A filter index is split per
 	 * locale for every localized attribute, so a localized attribute is read in every locale whenever the question
-	 * is not bound to the query locale:
+	 * is not bound to the query locale (see {@link #isBoundToQueryLocale}):
 	 *
 	 * - when it is unique across locales in the scope of the index, carrying a value means carrying it in **any**
 	 *   locale - the uniqueness itself ignores the locale, and this is also what lets such an attribute be queried
@@ -247,6 +248,8 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	 * @param locale          the query locale, or NULL when none was requested
 	 * @param everyLocale     the locales a value may be stored in, read for a localized attribute not bound to the
 	 *                        query locale
+	 * @param globallyUniqueCarriers the carriers of each requested scope where the attribute is globally unique,
+	 *                               see {@link #getGloballyUniqueCarriers}
 	 * @return the carrying records, or NULL when the index keeps no structure for the attribute
 	 */
 	@Nullable
@@ -255,16 +258,19 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nullable Locale locale,
-		@Nonnull Set<Locale> everyLocale
+		@Nonnull Set<Locale> everyLocale,
+		@Nonnull Map<Scope, Bitmap> globallyUniqueCarriers
 	) {
+		final Scope scope = entityIndex.getIndexKey().scope();
+		final Bitmap catalogCarriers = globallyUniqueCarriers.get(scope);
+		if (catalogCarriers != null) {
+			return catalogCarriers.isEmpty() ? null : new ConstantFormula(catalogCarriers);
+		}
 		if (!attributeSchema.isLocalized()) {
 			final FilterIndex filterIndex = entityIndex.getFilterIndex(referenceSchema, attributeSchema, null);
 			return filterIndex == null ? null : filterIndex.getAllRecordsFormula();
 		}
-		final Scope scope = entityIndex.getIndexKey().scope();
-		final boolean uniqueAcrossLocales = attributeSchema.isUniqueInScope(scope) &&
-			!attributeSchema.isUniqueWithinLocaleInScope(scope);
-		if (locale != null && !uniqueAcrossLocales) {
+		if (locale != null && isBoundToQueryLocale(attributeSchema, scope)) {
 			final FilterIndex filterIndex = entityIndex.getFilterIndex(referenceSchema, attributeSchema, locale);
 			return filterIndex == null ? null : filterIndex.getAllRecordsFormula();
 		}
@@ -274,6 +280,60 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 			.map(FilterIndex::getAllRecordsFormula)
 			.toArray(Formula[]::new);
 		return carriers.length == 0 ? null : FormulaFactory.or(carriers);
+	}
+
+	/**
+	 * Returns, for each requested scope where the catalog attribute is globally unique, the records of the queried
+	 * collection the unique index of the catalog of that scope holds - empty when it holds none. Each scope is paired
+	 * with its own catalog index, so that a scope's carriers are only ever set against the records of the same scope.
+	 * An attribute globally unique in no requested scope, or an attribute of the collection, yields an empty map.
+	 *
+	 * @param attributeSchema the schema definition of the attribute being processed
+	 * @param filterByVisitor the visitor responsible for filtering operations
+	 * @return the carriers per scope where the attribute is globally unique
+	 */
+	@Nonnull
+	private static Map<Scope, Bitmap> getGloballyUniqueCarriers(
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull FilterByVisitor filterByVisitor
+	) {
+		if (!(attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema)) {
+			return Map.of();
+		}
+		final Map<Scope, Bitmap> carriers = new EnumMap<>(Scope.class);
+		for (Scope scope : filterByVisitor.getProcessingScope().getScopes()) {
+			if (globalAttributeSchema.isUniqueGloballyInScope(scope)) {
+				carriers.put(
+					scope,
+					filterByVisitor.getIndexIfExists(new CatalogIndexKey(scope), CatalogIndex.class)
+						.map(it -> it.getGlobalUniqueIndex(globalAttributeSchema, filterByVisitor.getLocale()))
+						.map(
+							it -> it.getRecordIds(
+								filterByVisitor.getEntityType(), filterByVisitor.getEntityTypeClassifierResolver()
+							)
+						)
+						.orElse(EmptyBitmap.INSTANCE)
+				);
+			}
+		}
+		return carriers;
+	}
+
+	/**
+	 * Returns the locales {@link #getCarriersFormula} must read a localized attribute in when the query does not bind
+	 * it to a single one: {@link #getLocalesTheValueMayBeStoredIn}, or none at all for a non-localized attribute,
+	 * which never reaches that branch.
+	 *
+	 * @param attributeSchema the schema definition of the attribute being processed
+	 * @param filterByVisitor the visitor responsible for filtering operations
+	 * @return the locales to read the attribute in, or an empty set when it is not localized
+	 */
+	@Nonnull
+	private static Set<Locale> resolveEveryLocale(
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull FilterByVisitor filterByVisitor
+	) {
+		return attributeSchema.isLocalized() ? getLocalesTheValueMayBeStoredIn(filterByVisitor) : Set.of();
 	}
 
 	/**
@@ -339,40 +399,14 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	}
 
 	/**
-	 * Creates an array of Formulas for filtering entities where a specified attribute is null based on information
-	 * in unique indexes. The formulas apply a subtraction operation to filter out records with non-null attributes.
-	 *
-	 * @param attributeDefinition the schema definition of the attribute being processed
-	 * @param filterByVisitor     the visitor responsible for filtering operations
-	 * @return an array of Formulas representing the null filterable subtraction conditions
-	 */
-	@Nonnull
-	private static Formula[] createNullGloballyUniqueSubtractionFormula(
-		@Nonnull GlobalAttributeSchemaContract attributeDefinition,
-		@Nonnull FilterByVisitor filterByVisitor
-	) {
-		return new Formula[]{
-			filterByVisitor.applyOnGlobalUniqueIndexes(
-				attributeDefinition,
-				uniqueIndex -> new NotFormula(
-					uniqueIndex.getRecordIdsFormula(filterByVisitor.getEntityType(), filterByVisitor.getEntityTypeClassifierResolver()),
-					FormulaFactory.or(
-						filterByVisitor.getEntityIndexStream()
-							.map(EntityIndex::getAllPrimaryKeysFormula)
-							.toArray(Formula[]::new)
-					)
-				)
-			)
-		};
-	}
-
-	/**
-	 * Aggregates the provided formulas into a single Formula (either empty formula or disjunctive join).
+	 * Wraps the null formula into an {@link AttributeFormula}, unless it is empty. The wrapper never implies the
+	 * locale of the key (see {@link AttributeFormula#isLocaleImplied()}): the records lacking a value in the query
+	 * locale include those lacking the locale altogether, so a locale constraint beside the null test stays in force.
 	 *
 	 * @param attributeDefinition the schema definition of the attribute being processed
 	 * @param attributeKey        the key of the attribute being processed
-	 * @param formula            an array of formulas to be aggregated
-	 * @return an AbstractFormula that represents the aggregation of the input formulas
+	 * @param formula             the null formula
+	 * @return the wrapped formula, or the passed one when it is empty
 	 */
 	@Nonnull
 	private static Formula wrapFormula(
@@ -386,7 +420,9 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 			return new AttributeFormula(
 				attributeDefinition instanceof GlobalAttributeSchemaContract,
 				attributeKey,
-				formula
+				formula,
+				null,
+				false
 			);
 		}
 	}
@@ -410,38 +446,24 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
 			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeSchema);
-			// if attribute is unique prefer O(1) hash map lookup over histogram
-			if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
-				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGloballyInScope)
+			final AttributeFormula filteringFormula = new AttributeFormula(
+				attributeSchema instanceof GlobalAttributeSchemaContract,
+				attributeKey,
+				createNotNullFormula(processingScope.getReferenceSchema(), attributeSchema, filterByVisitor),
+				null,
+				isQueryLocaleImplied(filterByVisitor, attributeSchema)
+			);
+			// the prefetch alternative is offered only for an attribute unique - within the collection or globally -
+			// in none of the requested scopes
+			if (filterByVisitor.isPrefetchPossible() &&
+				scopes.stream().noneMatch(scope -> isUniqueInScope(attributeSchema, scope))
 			) {
-				return new AttributeFormula(
-					true,
-					attributeKey,
-					filterByVisitor.applyOnGlobalUniqueIndexes(
-						globalAttributeSchema,
-						index -> {
-							final Bitmap recordIds = index.getRecordIds(filterByVisitor.getEntityType(), filterByVisitor.getEntityTypeClassifierResolver());
-							return recordIds.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(recordIds);
-						}
-					)
+				return new SelectionFormula(
+					filteringFormula,
+					createAlternativeNotNullBitmapFilter(attributeKey.attributeName(), filterByVisitor)
 				);
 			} else {
-				final AttributeFormula filteringFormula = new AttributeFormula(
-					attributeSchema instanceof GlobalAttributeSchemaContract,
-					attributeKey,
-					createNotNullFormula(processingScope.getReferenceSchema(), attributeSchema, filterByVisitor)
-				);
-				// the prefetch alternative is offered only for an attribute unique in none of the requested scopes
-				if (filterByVisitor.isPrefetchPossible() &&
-					scopes.stream().noneMatch(attributeSchema::isUniqueInScope)
-				) {
-					return new SelectionFormula(
-						filteringFormula,
-						createAlternativeNotNullBitmapFilter(attributeKey.attributeName(), filterByVisitor)
-					);
-				} else {
-					return filteringFormula;
-				}
+				return filteringFormula;
 			}
 		} else {
 			return new EntityFilteringFormula(

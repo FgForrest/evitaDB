@@ -27,6 +27,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -57,6 +58,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -65,7 +67,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -77,6 +81,7 @@ import static io.evitadb.test.TestTags.FILTER;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -98,7 +103,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   exactly one in which every row is null.
  *
  * Every expectation is computed from the entity bodies, never from another query, and every owner-level query runs
- * with and without `PREFER_INDEX_SCAN` so both plans are held to the same answer.
+ * on two plans held to the same answer - one denied the prefetch, so that it resolves the indexes, and one preferring
+ * it (see {@link PlanPreference}). On the second plan the entity bodies are prefetched, and the constraints offering an
+ * alternative evaluated on them read the bodies; every other constraint still answers from the indexes there, under
+ * the default planning policy rather than the verifying one.
  *
  * ## The fixture
  *
@@ -148,9 +156,37 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 	 */
 	private static final String TAG = "tag";
 	/**
+	 * `mixedOwner`: `String`, nullable, unique in both scopes.
+	 */
+	private static final String CODE = "code";
+	/**
+	 * `mixedOwner`: `String`, nullable, filterable in both scopes.
+	 */
+	private static final String NOTE = "note";
+	/**
+	 * Catalog attribute declared by `mixedOwner`: `String`, nullable, globally unique in both scopes.
+	 */
+	private static final String GLOBAL_CODE = "globalCode";
+	/**
+	 * Catalog attribute declared by `mixedOwner`: `String`, nullable, globally unique in LIVE and unique within the
+	 * collection in ARCHIVED.
+	 */
+	private static final String LIVE_GLOBAL_CODE = "liveGlobalCode";
+	/**
+	 * The `liveGlobalCode` value held both by owner 8 in ARCHIVED and by owner 7 in LIVE.
+	 */
+	private static final String SHARED_LIVE_GLOBAL_CODE = "live-global-shared";
+	/**
 	 * Every locale `mixedOwner` declares.
 	 */
 	private static final List<Locale> MIXED_LOCALES = List.of(Locale.ENGLISH, Locale.GERMAN);
+	private static final int MIXED_OWNER_COUNT = 8;
+	/**
+	 * Each scope alone, and both scopes in either order.
+	 */
+	private static final Scope[][] ALL_SCOPE_ORDERS = {
+		{Scope.LIVE}, {Scope.ARCHIVED}, {Scope.LIVE, Scope.ARCHIVED}, {Scope.ARCHIVED, Scope.LIVE}
+	};
 	private static final String ENTITY_OWNER = "rowOwner";
 	private static final String ENTITY_TARGET = "rowTarget";
 	private static final String ENTITY_SCOPED_OWNER = "scopedRowOwner";
@@ -382,19 +418,36 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 	 * with the entity attribute `label` and the `tags` reference attribute `tag`, both unique across locales in LIVE
 	 * and unique within a locale in ARCHIVED. The schema builder cannot express that mix - a per-scope uniqueness call
 	 * replaces the whole per-scope map - so it is set by a raw {@link SetAttributeSchemaUniqueMutation}, the shape
-	 * the external schema APIs accept. Values as `label`, then `tags` rows as `target (tag)`:
+	 * the external schema APIs accept. The owners also carry the non-localized `code` (unique) and `note` (filterable),
+	 * and the catalog attributes `globalCode` and `liveGlobalCode` - all four set where `code` is, and `liveGlobalCode`
+	 * on owner 8 as well (see below). Values as
+	 * `label`, the German `name`, `code`, then `tags` rows as `target (tag)`:
 	 *
-	 * | owner | scope | `label` | `tags` |
-	 * |---|---|---|---|
-	 * | 1 | LIVE | en | T1 `(en)` |
-	 * | 2 | LIVE | ⊥ | T1 `(⊥)` |
-	 * | 3 | ARCHIVED | de | T1 `(de)` |
-	 * | 4 | ARCHIVED | ⊥ | T1 `(⊥)` |
-	 * | 5 | ARCHIVED | en | T2 `(en)` |
-	 * | 6 | ARCHIVED | en + de | T1 `(en)`, T2 `(⊥)` |
+	 * | owner | scope | `label` | `name` | `code` | `tags` |
+	 * |---|---|---|---|---|---|
+	 * | 1 | LIVE | en | ⊥ | set | T1 `(en)` |
+	 * | 2 | LIVE | ⊥ | ⊥ | ⊥ | T1 `(⊥)` |
+	 * | 3 | ARCHIVED | de | ⊥ | ⊥ | T1 `(de)` |
+	 * | 4 | ARCHIVED | ⊥ | ⊥ | ⊥ | T1 `(⊥)` |
+	 * | 5 | ARCHIVED | en | ⊥ | ⊥ | T2 `(en)` |
+	 * | 6 | ARCHIVED | en + de | ⊥ | set | T1 `(en)`, T2 `(⊥)` |
+	 * | 7 | LIVE | en | de | set | T2 `(en)` |
+	 * | 8 | ARCHIVED | en | de | ⊥ | T2 `(en)` |
 	 *
 	 * The archived owners 3 and 5 carry a value in one locale only, and in different ones, so a null test that
-	 * consults a single locale - or none - misreads at least one of them.
+	 * consults a single locale - or none - misreads at least one of them. Owners 7 and 8 hold the German locale through
+	 * `name` alone and carry `label` and `tag` in English only: they are the owners a query bound to the German locale
+	 * must read differently per scope - as carriers in LIVE, where the uniqueness ignores the locale, and as null in
+	 * ARCHIVED, where it does not. Each scope holds a carrier of `code` and an owner without it.
+	 *
+	 * Owner 8 also carries `liveGlobalCode`, and once it is archived, owner 7 takes over the very value
+	 * ({@link #SHARED_LIVE_GLOBAL_CODE}): LIVE keeps that value in the unique index of the catalog, ARCHIVED in the
+	 * unique index of the collection, so a lookup over both scopes finds it in each and has to prefer one. The value of
+	 * owner 6 stays held by ARCHIVED alone.
+	 *
+	 * The schema builder refuses an attribute unique in one scope and filterable in another ("unique attributes are
+	 * implicitly filterable"), and a query over several scopes needs the attribute filterable in all of them or unique
+	 * in all of them - so `code` is unique in both scopes, and `note` stands in for the attribute unique in none.
 	 *
 	 * @param evita the engine instance provided by the test extension
 	 * @return the owners as stored, in both scopes and every locale
@@ -404,10 +457,25 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 		return evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
+				session.getCatalogSchema()
+					.openForWrite()
+					.withAttribute(
+						GLOBAL_CODE, String.class, thatIs -> thatIs.uniqueGloballyInScope(Scope.values()).nullable()
+					)
+					.withAttribute(
+						LIVE_GLOBAL_CODE, String.class,
+						thatIs -> thatIs.uniqueGloballyInScope(Scope.LIVE).uniqueInScope(Scope.ARCHIVED).nullable()
+					)
+					.updateVia(session);
 				session.defineEntitySchema(ENTITY_MIXED_TARGET).withoutGeneratedPrimaryKey().updateVia(session);
 				session.defineEntitySchema(ENTITY_MIXED_OWNER)
 					.withoutGeneratedPrimaryKey()
 					.withLocale(Locale.ENGLISH, Locale.GERMAN)
+					.withGlobalAttribute(GLOBAL_CODE)
+					.withGlobalAttribute(LIVE_GLOBAL_CODE)
+					.withAttribute(ATTR_NAME, String.class, thatIs -> thatIs.localized().nullable())
+					.withAttribute(CODE, String.class, thatIs -> thatIs.uniqueInScope(Scope.values()).nullable())
+					.withAttribute(NOTE, String.class, thatIs -> thatIs.filterableInScope(Scope.values()).nullable())
 					.withAttribute(
 						LABEL, String.class, thatIs -> thatIs.uniqueInScope(Scope.values()).localized().nullable()
 					)
@@ -439,18 +507,38 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 					session.upsertEntity(session.createNewEntity(ENTITY_MIXED_TARGET, targetPk));
 				}
 
-				upsertMixedOwner(session, 1, Map.of(Locale.ENGLISH, "label-1"), tagRow(1, Locale.ENGLISH, "tag-1"));
-				upsertMixedOwner(session, 2, Map.of(), tagRow(1, null, null));
-				upsertMixedOwner(session, 3, Map.of(Locale.GERMAN, "label-3"), tagRow(1, Locale.GERMAN, "tag-3"));
-				upsertMixedOwner(session, 4, Map.of(), tagRow(1, null, null));
-				upsertMixedOwner(session, 5, Map.of(Locale.ENGLISH, "label-5"), tagRow(2, Locale.ENGLISH, "tag-5"));
 				upsertMixedOwner(
-					session, 6, Map.of(Locale.ENGLISH, "label-6en", Locale.GERMAN, "label-6de"),
+					session, 1, Map.of(Locale.ENGLISH, "label-1"), "code-1", null,
+					tagRow(1, Locale.ENGLISH, "tag-1")
+				);
+				upsertMixedOwner(session, 2, Map.of(), null, null, tagRow(1, null, null));
+				upsertMixedOwner(
+					session, 3, Map.of(Locale.GERMAN, "label-3"), null, null,
+					tagRow(1, Locale.GERMAN, "tag-3")
+				);
+				upsertMixedOwner(session, 4, Map.of(), null, null, tagRow(1, null, null));
+				upsertMixedOwner(
+					session, 5, Map.of(Locale.ENGLISH, "label-5"), null, null,
+					tagRow(2, Locale.ENGLISH, "tag-5")
+				);
+				upsertMixedOwner(
+					session, 6, Map.of(Locale.ENGLISH, "label-6en", Locale.GERMAN, "label-6de"), "code-6", null,
 					tagRow(1, Locale.ENGLISH, "tag-6"), tagRow(2, null, null)
 				);
-				for (int archivedPk = 3; archivedPk <= 6; archivedPk++) {
+				upsertMixedOwner(
+					session, 7, Map.of(Locale.ENGLISH, "label-7"), "code-7", "Besitzer7",
+					tagRow(2, Locale.ENGLISH, "tag-7")
+				);
+				upsertMixedOwner(
+					session, 8, Map.of(Locale.ENGLISH, "label-8"), null, "Besitzer8",
+					tagRow(2, Locale.ENGLISH, "tag-8")
+				);
+				setLiveGlobalCode(session, 8);
+				for (int archivedPk : new int[]{3, 4, 5, 6, 8}) {
 					session.archiveEntity(ENTITY_MIXED_OWNER, archivedPk);
 				}
+				// only now: while owner 8 was live, the global uniqueness of LIVE refused a second holder
+				setLiveGlobalCode(session, 7);
 
 				final List<SealedEntity> owners = session.queryListOfSealedEntities(
 					Query.query(
@@ -459,7 +547,17 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 						require(entityFetch(entityFetchAllContent()), dataInLocalesAll(), page(1, Integer.MAX_VALUE))
 					)
 				);
-				assertEquals(6, owners.size(), "Fixture guard: unexpected owner count!");
+				assertEquals(MIXED_OWNER_COUNT, owners.size(), "Fixture guard: unexpected owner count!");
+				for (SealedEntity owner : owners) {
+					if (owner.getPrimaryKeyOrThrowException() >= 7) {
+						assertTrue(
+							owner.getAllLocales().contains(Locale.GERMAN) &&
+								owner.getAttribute(LABEL, Locale.GERMAN) == null,
+							"Fixture guard: owner " + owner.getPrimaryKey() +
+								" must hold the German locale without a German `" + LABEL + "`!"
+						);
+					}
+				}
 				final EntitySchemaContract schema = session.getEntitySchemaOrThrowException(ENTITY_MIXED_OWNER);
 				for (AttributeSchemaContract attributeSchema : List.of(
 					schema.getAttribute(LABEL).orElseThrow(),
@@ -552,19 +650,18 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 		@DisplayName("Should still refuse an attribute the reference does not declare")
 		@UseDataSet(ROW_SCOPED_NULL)
 		@Test
-		void shouldStillRefuseAnAttributeTheReferenceDoesNotDeclare(Evita evita) {
+		void shouldStillRefuseAnAttributeTheReferenceDoesNotDeclare(Evita evita, List<SealedEntity> originalOwners) {
 			evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
-					for (boolean preferIndexScan : new boolean[]{true, false}) {
+					for (PlanPreference plan : PlanPreference.values()) {
 						assertThrows(
 							AttributeNotFoundException.class,
 							() -> query(
-								session, ENTITY_OWNER, preferIndexScan,
+								session, ENTITY_OWNER, originalOwners, plan,
 								referenceHaving(REF_ROWS, attributeIsNull(UNKNOWN))
 							),
-							"`" + UNKNOWN + "` is not declared on `" + REF_ROWS + "` and must be refused " +
-								"(preferIndexScan=" + preferIndexScan + ")"
+							"`" + UNKNOWN + "` is not declared on `" + REF_ROWS + "` and must be refused (" + plan + ")"
 						);
 					}
 					return null;
@@ -586,15 +683,15 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 			evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
-					for (boolean preferIndexScan : new boolean[]{true, false}) {
+					for (PlanPreference plan : PlanPreference.values()) {
 						assertTrue(
 							pks(
 								query(
-									session, ENTITY_OWNER, preferIndexScan,
+									session, ENTITY_OWNER, originalOwners, plan,
 									referenceHaving(REF_EMPTY, attributeIsNull(E))
 								)
 							).isEmpty(),
-							"A reference without rows matches no owner (preferIndexScan=" + preferIndexScan + ")"
+							"A reference without rows matches no owner (" + plan + ")"
 						);
 					}
 					return null;
@@ -760,6 +857,16 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 						session, ENTITY_TARGET, originalTargets, REF_OWNERS, Route.REWRITE,
 						not(attributeIsNull(A)), row -> row.getAttribute(A) != null
 					);
+					// the positive spelling reaches the not-null translator itself, which `not(attributeIsNull)`
+					// never does
+					assertRows(
+						session, ENTITY_TARGET, originalTargets, REF_OWNERS, Route.REWRITE,
+						attributeIsNotNull(U), row -> row.getAttribute(U) != null
+					);
+					assertRows(
+						session, ENTITY_TARGET, originalTargets, REF_OWNERS, Route.REWRITE,
+						attributeIsNotNull(A), row -> row.getAttribute(A) != null
+					);
 					return null;
 				}
 			);
@@ -777,6 +884,9 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 					);
 					assertFetchedRows(
 						session, originalOwners, REF_ROWS, not(attributeIsNull(U)), row -> row.getAttribute(U) != null
+					);
+					assertFetchedRows(
+						session, originalOwners, REF_ROWS, attributeIsNotNull(U), row -> row.getAttribute(U) != null
 					);
 					return null;
 				}
@@ -862,11 +972,12 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 		}
 
 		/**
-		 * A localized attribute that is unique across locales (not within one) keeps one unique index for all of its
-		 * locales, while its filter index is split per locale. Its null test therefore keeps meaning "carries no value
-		 * in any locale" - the reading its `attributeIsNotNull` has always had, so the two still partition the rows -
-		 * and still works without a query locale, which such an attribute allows. Owner 2's only row carries `lu` in
-		 * English alone, so it is the owner a per-locale reading would add in German.
+		 * A localized attribute that is unique across locales (not within one) is unique whatever the locale, so a row
+		 * carries it when it carries a value in any locale. Both the null and the not-null test therefore read the
+		 * union of its per-locale filter indexes: the null test means "carries no value in any locale", the not-null
+		 * test its exact complement, so the two partition the rows - with a query locale and without one, which such
+		 * an attribute allows. Owner 2's only row carries `lu` in English alone, so it is the owner a per-locale
+		 * reading would add in German.
 		 */
 		@DisplayName("Should read a localized unique attribute across all its locales")
 		@UseDataSet(ROW_SCOPED_NULL)
@@ -889,6 +1000,43 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 						session, originalOwners, anyRow(REF_LINKS, lacksLuEverywhere),
 						referenceHaving(REF_LINKS, attributeIsNull(LU))
 					);
+					assertOwners(
+						session, originalOwners, anyRow(REF_LINKS, lacksLuEverywhere.negate()),
+						referenceHaving(REF_LINKS, attributeIsNotNull(LU))
+					);
+					return null;
+				}
+			);
+		}
+
+		/**
+		 * Guards the prefetch plan of the owner-level assertions against falling back to the index scan unnoticed: the
+		 * plan preferring the prefetch must prefetch the owners here, so that `entityLocaleEquals` is evaluated on
+		 * their bodies while the `referenceHaving` beside it is still answered from the reduced indexes, and the plan
+		 * denied the prefetch must not. Both are held to the body oracle.
+		 */
+		@DisplayName("Should prefetch the owners on the plan preferring the prefetch")
+		@UseDataSet(ROW_SCOPED_NULL)
+		@Test
+		void shouldPrefetchTheOwnersOnThePlanPreferringThePrefetch(Evita evita, List<SealedEntity> originalOwners) {
+			final Set<Integer> expected = selectPks(
+				originalOwners, anyRow(REF_LINKS, row -> row.getAttribute(LOC, Locale.GERMAN) == null)
+			);
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					for (PlanPreference plan : PlanPreference.values()) {
+						final EvitaResponse<EntityReference> response = query(
+							session, ENTITY_OWNER, originalOwners, plan,
+							entityLocaleEquals(Locale.GERMAN), referenceHaving(REF_LINKS, attributeIsNull(LOC))
+						);
+						assertEquals(expected, pks(response), "Wrong owners (" + plan + ")");
+						assertEquals(
+							plan == PlanPreference.PREFETCH, prefetched(response),
+							() -> "Unexpected prefetch decision (" + plan + "):\n" +
+								response.getExtraResult(QueryTelemetry.class)
+						);
+					}
 					return null;
 				}
 			);
@@ -1110,30 +1258,12 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 							session, ENTITY_MIXED_OWNER, originalMixedOwners, lacksLabel.negate(), null,
 							scope(order), attributeIsNotNull(LABEL)
 						);
-						for (boolean preferIndexScan : new boolean[]{true, false}) {
-							final Set<Integer> nullSide = pks(
-								query(
-									session, ENTITY_MIXED_OWNER, preferIndexScan, scope(order), attributeIsNull(LABEL)
-								)
-							);
-							final Set<Integer> notNullSide = pks(
-								query(
-									session, ENTITY_MIXED_OWNER, preferIndexScan,
-									scope(order), attributeIsNotNull(LABEL)
-								)
-							);
-							final Set<Integer> union = new TreeSet<>(nullSide);
-							union.addAll(notNullSide);
-							final Set<Integer> intersection = new TreeSet<>(nullSide);
-							intersection.retainAll(notNullSide);
-							final String context =
-								Arrays.toString(order) + " (preferIndexScan=" + preferIndexScan + ")";
-							assertEquals(
-								selectPks(originalMixedOwners, it -> true), union,
-								"Every owner is either null or not null in " + context
-							);
-							assertTrue(intersection.isEmpty(), "No owner is both null and not null in " + context);
-						}
+						assertSplit(
+							session, ENTITY_MIXED_OWNER, originalMixedOwners,
+							attributeIsNull(LABEL), attributeIsNotNull(LABEL),
+							selectPks(originalMixedOwners, it -> true), Set.of(),
+							scope(order)
+						);
 					}
 					return null;
 				}
@@ -1172,35 +1302,249 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 							session, ENTITY_MIXED_OWNER, originalMixedOwners, anyRow(REF_TAGS, lacksTag.negate()),
 							null, scope(order), referenceHaving(REF_TAGS, attributeIsNotNull(TAG))
 						);
-						for (boolean preferIndexScan : new boolean[]{true, false}) {
-							final Set<Integer> nullSide = pks(
-								query(
-									session, ENTITY_MIXED_OWNER, preferIndexScan,
-									scope(order), referenceHaving(REF_TAGS, attributeIsNull(TAG))
-								)
+						assertSplit(
+							session, ENTITY_MIXED_OWNER, originalMixedOwners,
+							referenceHaving(REF_TAGS, attributeIsNull(TAG)),
+							referenceHaving(REF_TAGS, attributeIsNotNull(TAG)),
+							selectPks(originalMixedOwners, it -> !it.getReferences(REF_TAGS).isEmpty()), mixed,
+							scope(order)
+						);
+					}
+					return null;
+				}
+			);
+		}
+
+		/**
+		 * With a query locale the decision is taken per index: the uniqueness in the scope of the index decides whether
+		 * the query locale binds. In LIVE the attribute is unique across locales, so a value in any locale is carried;
+		 * in ARCHIVED it is unique within a locale, so only a value in the query locale is. Owners 7 (LIVE) and 8
+		 * (ARCHIVED) hold the German locale and carry `label` and `tag` in English only, so asked in German the first
+		 * is a carrier and the second is not - a reading fixed to either scope misreads one of them.
+		 *
+		 * The owners lacking the query locale must stay out on both plans. A null test yields owners lacking the
+		 * locale, and so does the not-null test of a scope reading every locale, so neither makes `entityLocaleEquals`
+		 * redundant - the plan preferring the prefetch, the one that may drop that constraint, must keep it.
+		 */
+		@DisplayName("Should read the query locale only in the scope where the attribute is unique within a locale")
+		@UseDataSet(MIXED_UNIQUENESS_NULL)
+		@Test
+		void shouldReadTheQueryLocaleOnlyInTheScopeWhereTheAttributeIsUniqueWithinALocale(
+			Evita evita,
+			List<SealedEntity> originalMixedOwners
+		) {
+			for (Scope scope : Scope.values()) {
+				assertTrue(
+					originalMixedOwners.stream().anyMatch(
+						owner -> owner.getScope() == scope && owner.getAllLocales().contains(Locale.GERMAN) &&
+							owner.getAttribute(LABEL, Locale.GERMAN) == null &&
+							owner.getAttribute(LABEL, Locale.ENGLISH) != null
+					),
+					"Fixture guard: some " + scope + " owner with the German locale must carry `" + LABEL +
+						"` outside German only!"
+				);
+				assertTrue(
+					originalMixedOwners.stream().anyMatch(
+						owner -> owner.getScope() == scope && owner.getAllLocales().contains(Locale.GERMAN) &&
+							owner.getReferences(REF_TAGS).stream().anyMatch(
+								row -> row.getAttribute(TAG, Locale.GERMAN) == null &&
+									row.getAttribute(TAG, Locale.ENGLISH) != null
+							)
+					),
+					"Fixture guard: some " + scope + " owner with the German locale must hold a `" + REF_TAGS +
+						"` row carrying `" + TAG + "` outside German only!"
+				);
+			}
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					for (Locale locale : MIXED_LOCALES) {
+						for (Scope[] order : ALL_SCOPE_ORDERS) {
+							final Set<Scope> requestedScopes = Set.of(order);
+							final Predicate<SealedEntity> requested = owner ->
+								requestedScopes.contains(owner.getScope()) && owner.getAllLocales().contains(locale);
+							final Predicate<SealedEntity> carriesLabel =
+								owner -> carries(owner.getScope(), locale, it -> owner.getAttribute(LABEL, it));
+							final Predicate<SealedEntity> holdsNullTag = owner -> owner.getReferences(REF_TAGS)
+								.stream()
+								.anyMatch(row -> !carries(owner.getScope(), locale, it -> row.getAttribute(TAG, it)));
+							final Predicate<SealedEntity> holdsCarriedTag = owner -> owner.getReferences(REF_TAGS)
+								.stream()
+								.anyMatch(row -> carries(owner.getScope(), locale, it -> row.getAttribute(TAG, it)));
+							final FilterConstraint[] context = {scope(order), entityLocaleEquals(locale)};
+
+							assertMatches(
+								session, ENTITY_MIXED_OWNER, originalMixedOwners,
+								requested.and(carriesLabel.negate()), null,
+								scope(order), entityLocaleEquals(locale), attributeIsNull(LABEL)
 							);
-							final Set<Integer> notNullSide = pks(
-								query(
-									session, ENTITY_MIXED_OWNER, preferIndexScan,
-									scope(order), referenceHaving(REF_TAGS, attributeIsNotNull(TAG))
-								)
+							assertMatches(
+								session, ENTITY_MIXED_OWNER, originalMixedOwners, requested.and(carriesLabel), null,
+								scope(order), entityLocaleEquals(locale), attributeIsNotNull(LABEL)
 							);
-							final Set<Integer> union = new TreeSet<>(nullSide);
-							union.addAll(notNullSide);
-							final Set<Integer> intersection = new TreeSet<>(nullSide);
-							intersection.retainAll(notNullSide);
-							final String context =
-								Arrays.toString(order) + " (preferIndexScan=" + preferIndexScan + ")";
-							assertEquals(
-								selectPks(originalMixedOwners, it -> !it.getReferences(REF_TAGS).isEmpty()), union,
-								"I1 in " + context
+							assertSplit(
+								session, ENTITY_MIXED_OWNER, originalMixedOwners,
+								attributeIsNull(LABEL), attributeIsNotNull(LABEL),
+								selectPks(originalMixedOwners, requested), Set.of(),
+								context
 							);
-							assertEquals(mixed, intersection, "I2 in " + context);
+
+							assertMatches(
+								session, ENTITY_MIXED_OWNER, originalMixedOwners, requested.and(holdsNullTag), null,
+								scope(order), entityLocaleEquals(locale),
+								referenceHaving(REF_TAGS, attributeIsNull(TAG))
+							);
+							assertMatches(
+								session, ENTITY_MIXED_OWNER, originalMixedOwners, requested.and(holdsCarriedTag), null,
+								scope(order), entityLocaleEquals(locale),
+								referenceHaving(REF_TAGS, attributeIsNotNull(TAG))
+							);
+							assertSplit(
+								session, ENTITY_MIXED_OWNER, originalMixedOwners,
+								referenceHaving(REF_TAGS, attributeIsNull(TAG)),
+								referenceHaving(REF_TAGS, attributeIsNotNull(TAG)),
+								selectPks(
+									originalMixedOwners, requested.and(it -> !it.getReferences(REF_TAGS).isEmpty())
+								),
+								selectPks(originalMixedOwners, requested.and(holdsNullTag).and(holdsCarriedTag)),
+								context
+							);
 						}
 					}
 					return null;
 				}
 			);
+		}
+
+		/**
+		 * A value comparison answered from the unique index keeps `entityLocaleEquals` in force wherever the uniqueness
+		 * ignores the locale. In LIVE `label` and `tag` are unique across locales, so their unique index is shared by
+		 * every locale and a lookup in it finds an owner carrying the value in any locale - owners 1 and 7 carry theirs
+		 * in English only, and owner 1 does not hold German at all. Asked in German, such an owner matches the value
+		 * but not the locale, so it must stay out on both plans. In ARCHIVED the unique index is kept per locale, so
+		 * only a value in the query locale matches.
+		 */
+		@DisplayName("Should keep the query locale beside a value comparison of an attribute unique across locales")
+		@UseDataSet(MIXED_UNIQUENESS_NULL)
+		@Test
+		void shouldKeepTheQueryLocaleBesideAValueComparisonOfAnAttributeUniqueAcrossLocales(
+			Evita evita,
+			List<SealedEntity> originalMixedOwners
+		) {
+			final List<String> labels = originalMixedOwners.stream()
+				.flatMap(owner -> MIXED_LOCALES.stream().map(it -> owner.<String>getAttribute(LABEL, it)))
+				.filter(Objects::nonNull)
+				.distinct()
+				.sorted()
+				.toList();
+			final List<String> tags = originalMixedOwners.stream()
+				.flatMap(owner -> owner.getReferences(REF_TAGS).stream())
+				.flatMap(row -> MIXED_LOCALES.stream().map(it -> row.<String>getAttribute(TAG, it)))
+				.filter(Objects::nonNull)
+				.distinct()
+				.sorted()
+				.toList();
+			assertTrue(
+				originalMixedOwners.stream().anyMatch(
+					owner -> owner.getScope() == Scope.LIVE && !owner.getAllLocales().contains(Locale.GERMAN) &&
+						owner.getAttribute(LABEL, Locale.ENGLISH) != null &&
+						owner.getReferences(REF_TAGS)
+							.stream()
+							.anyMatch(row -> row.getAttribute(TAG, Locale.ENGLISH) != null)
+				),
+				"Fixture guard: some LIVE owner lacking the German locale must carry `" + LABEL + "` and `" + TAG +
+					"` in English!"
+			);
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					for (Locale locale : MIXED_LOCALES) {
+						for (Scope[] order : ALL_SCOPE_ORDERS) {
+							final Set<Scope> requestedScopes = Set.of(order);
+							final Predicate<SealedEntity> requested = owner ->
+								requestedScopes.contains(owner.getScope()) && owner.getAllLocales().contains(locale);
+							final Function<String, Predicate<SealedEntity>> carriesLabel = label -> owner ->
+								carriesValue(owner.getScope(), locale, label, it -> owner.getAttribute(LABEL, it));
+							final Function<String, Predicate<SealedEntity>> carriesTag = tag -> owner ->
+								owner.getReferences(REF_TAGS).stream().anyMatch(
+									row -> carriesValue(owner.getScope(), locale, tag, it -> row.getAttribute(TAG, it))
+								);
+							final FilterConstraint[] context = {scope(order), entityLocaleEquals(locale)};
+
+							for (String label : labels) {
+								assertMatches(
+									session, ENTITY_MIXED_OWNER, originalMixedOwners,
+									requested.and(carriesLabel.apply(label)), null,
+									append(context, attributeEquals(LABEL, label))
+								);
+							}
+							assertMatches(
+								session, ENTITY_MIXED_OWNER, originalMixedOwners,
+								requested.and(
+									owner -> labels.stream().anyMatch(it -> carriesLabel.apply(it).test(owner))
+								),
+								null,
+								append(context, attributeInSet(LABEL, labels.toArray(String[]::new)))
+							);
+							for (String tag : tags) {
+								assertMatches(
+									session, ENTITY_MIXED_OWNER, originalMixedOwners,
+									requested.and(carriesTag.apply(tag)), null,
+									append(context, referenceHaving(REF_TAGS, attributeEquals(TAG, tag)))
+								);
+							}
+							assertMatches(
+								session, ENTITY_MIXED_OWNER, originalMixedOwners,
+								requested.and(owner -> tags.stream().anyMatch(it -> carriesTag.apply(it).test(owner))),
+								null,
+								append(
+									context, referenceHaving(REF_TAGS, attributeInSet(TAG, tags.toArray(String[]::new)))
+								)
+							);
+						}
+					}
+					return null;
+				}
+			);
+		}
+
+		/**
+		 * Tells whether the value is carried by a query bound to the locale, as {@link #carries} reads it: in any
+		 * locale in LIVE, in the query locale in ARCHIVED.
+		 *
+		 * @param scope         scope of the owner holding the value
+		 * @param locale        the query locale
+		 * @param value         the compared value
+		 * @param valueInLocale reads the value in the passed locale, NULL when there is none
+		 * @return true when the value counts as carried
+		 */
+		private static boolean carriesValue(
+			@Nonnull Scope scope,
+			@Nonnull Locale locale,
+			@Nonnull String value,
+			@Nonnull Function<Locale, Serializable> valueInLocale
+		) {
+			return carries(scope, locale, it -> value.equals(valueInLocale.apply(it)) ? value : null);
+		}
+
+		/**
+		 * Tells whether a value of `label` or `tag` counts as carried by a query bound to the locale: in LIVE, where
+		 * the attribute is unique across locales, a value in any locale does; in ARCHIVED, where it is unique within a
+		 * locale, only a value in the query locale does.
+		 *
+		 * @param scope         scope of the owner holding the value
+		 * @param locale        the query locale
+		 * @param valueInLocale reads the value in the passed locale, NULL when there is none
+		 * @return true when the value counts as carried
+		 */
+		private static boolean carries(
+			@Nonnull Scope scope,
+			@Nonnull Locale locale,
+			@Nonnull Function<Locale, Serializable> valueInLocale
+		) {
+			return scope == Scope.LIVE ?
+				MIXED_LOCALES.stream().anyMatch(it -> valueInLocale.apply(it) != null) :
+				valueInLocale.apply(locale) != null;
 		}
 
 		/**
@@ -1234,6 +1578,317 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 					.anyMatch(it -> it.getLocales().equals(Set.of(Locale.GERMAN))),
 				"Fixture guard: an archived owner outside " + description + " must carry German values only!"
 			);
+		}
+	}
+
+	/**
+	 * Non-localized entity attributes: the unique `code` and the filterable `note`. The null and not-null tests of
+	 * both read the filter index, which every unique attribute also maintains, in every requested scope. Whether the
+	 * not-null test also offers the alternative evaluated on the prefetched entity bodies - only for an attribute
+	 * unique in none of the requested scopes - cannot be told from the answer, because the alternative must agree
+	 * with the indexes; what is held on both plans is the answer itself.
+	 */
+	@DisplayName("Non-localized entity attributes")
+	@Nested
+	class NonLocalizedEntityAttributes {
+
+		@DisplayName("Should split the owners between the null and not-null tests of unique and filterable attributes")
+		@UseDataSet(MIXED_UNIQUENESS_NULL)
+		@Test
+		void shouldSplitTheOwnersBetweenTheNullAndNotNullTestsOfUniqueAndFilterableAttributes(
+			Evita evita,
+			List<SealedEntity> originalMixedOwners
+		) {
+			final List<String> attributeNames = List.of(CODE, NOTE);
+			assertEachScopeHoldsACarrierAndANonCarrierOf(originalMixedOwners, attributeNames);
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertOwnersSplitByAttribute(session, originalMixedOwners, attributeNames);
+					return null;
+				}
+			);
+		}
+
+		/**
+		 * Guards the plans the owner-level assertions of this fixture run on against collapsing into one: the plan
+		 * preferring the prefetch must prefetch the owner bodies for a not-null test, and the plan denied the prefetch
+		 * must not - otherwise every row asserted on both plans would hold one plan against itself.
+		 */
+		@DisplayName("Should prefetch the owners on the plan preferring the prefetch only")
+		@UseDataSet(MIXED_UNIQUENESS_NULL)
+		@Test
+		void shouldPrefetchTheOwnersOnThePlanPreferringThePrefetchOnly(
+			Evita evita,
+			List<SealedEntity> originalMixedOwners
+		) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					for (String attributeName : List.of(CODE, NOTE)) {
+						for (PlanPreference plan : PlanPreference.values()) {
+							final EvitaResponse<EntityReference> response = query(
+								session, ENTITY_MIXED_OWNER, originalMixedOwners, plan,
+								scope(Scope.LIVE, Scope.ARCHIVED), attributeIsNotNull(attributeName)
+							);
+							assertEquals(
+								plan == PlanPreference.PREFETCH, prefetched(response),
+								() -> "Unexpected prefetch decision for `" + attributeName + "` (" + plan + "):\n" +
+									response.getExtraResult(QueryTelemetry.class)
+							);
+						}
+					}
+					return null;
+				}
+			);
+		}
+	}
+
+	/**
+	 * A catalog attribute is read per scope: in a scope where it is globally unique, from the unique index of the
+	 * catalog of that scope, paired with the entity indexes of the same scope only; in any other scope, from the filter
+	 * indexes of the collection. `globalCode` is globally unique in both scopes and neither unique nor filterable in
+	 * the collection; `liveGlobalCode` is globally unique in LIVE and unique within the collection in ARCHIVED.
+	 */
+	@DisplayName("Globally unique attribute")
+	@Nested
+	class GloballyUniqueAttribute {
+		/**
+		 * The tag whose reduced indexes answer the sibling `referenceHaving`: owners 5, 6 and 8 in ARCHIVED and 7 in
+		 * LIVE reference it, some of them carrying the globally unique attributes and some not.
+		 */
+		private static final int SIBLING_TAG = 2;
+		/**
+		 * The scope combinations in which the reduced indexes of {@link #SIBLING_TAG} hold at most half the records of
+		 * the global index, and so are eligible to answer the query.
+		 */
+		private static final Scope[][] SIBLING_SCOPE_ORDERS = {
+			{Scope.LIVE}, {Scope.LIVE, Scope.ARCHIVED}, {Scope.ARCHIVED, Scope.LIVE}
+		};
+		/**
+		 * Matches the `PLANNING_FILTER_ALTERNATIVE` argument of reduced indexes eligible for a query plan of their own
+		 * - an ineligible set names its obstacle right after the index count, and gets no estimated costs.
+		 */
+		private static final Pattern ELIGIBLE_REFERENCE_INDEX_OPTION = Pattern.compile(
+			Pattern.quote(REFERENCE_INDEX_OPTION_PREFIX) + "\\d+ indexes, estimated costs \\d+"
+		);
+
+		@DisplayName("Should split the owners between the null and not-null tests of a globally unique attribute")
+		@UseDataSet(MIXED_UNIQUENESS_NULL)
+		@Test
+		void shouldSplitTheOwnersBetweenTheNullAndNotNullTestsOfAGloballyUniqueAttribute(
+			Evita evita,
+			List<SealedEntity> originalMixedOwners
+		) {
+			final List<String> attributeNames = List.of(GLOBAL_CODE, LIVE_GLOBAL_CODE);
+			assertEachScopeHoldsACarrierAndANonCarrierOf(originalMixedOwners, attributeNames);
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertOwnersSplitByAttribute(session, originalMixedOwners, attributeNames);
+					return null;
+				}
+			);
+		}
+
+		/**
+		 * A value comparison of a catalog attribute resolves every value in the first requested scope - in the order
+		 * `scope(...)` lists them - that holds it, looking it up the way that scope declares the uniqueness: in the
+		 * unique index of the catalog where the attribute is globally unique, in the unique index of the collection
+		 * where it is unique within the collection. `liveGlobalCode` is the first kind in LIVE and the second in
+		 * ARCHIVED, and the value owner 7 (LIVE) shares with owner 8 (ARCHIVED) resolves to either depending on the
+		 * order, while the value of owner 6 is found in ARCHIVED whatever the order. A negation complements the
+		 * preferred answer, and `attributeInSet` resolves each of its values on its own.
+		 */
+		@DisplayName("Should resolve a value in the first scope holding it, whichever uniqueness that scope declares")
+		@UseDataSet(MIXED_UNIQUENESS_NULL)
+		@Test
+		void shouldResolveAValueInTheFirstScopeHoldingItWhicheverUniquenessThatScopeDeclares(
+			Evita evita,
+			List<SealedEntity> originalMixedOwners
+		) {
+			final Scope[] liveFirst = {Scope.LIVE, Scope.ARCHIVED};
+			final Scope[] archivedFirst = {Scope.ARCHIVED, Scope.LIVE};
+			assertNotEquals(
+				firstScopeHolders(originalMixedOwners, LIVE_GLOBAL_CODE, liveFirst, SHARED_LIVE_GLOBAL_CODE),
+				firstScopeHolders(originalMixedOwners, LIVE_GLOBAL_CODE, archivedFirst, SHARED_LIVE_GLOBAL_CODE),
+				"Fixture guard: both scopes must hold `" + SHARED_LIVE_GLOBAL_CODE + "`, in different owners!"
+			);
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					for (String attributeName : List.of(GLOBAL_CODE, LIVE_GLOBAL_CODE)) {
+						final List<String> values = originalMixedOwners.stream()
+							.map(owner -> owner.<String>getAttribute(attributeName))
+							.filter(Objects::nonNull)
+							.distinct()
+							.sorted()
+							.toList();
+						for (Scope[] order : ALL_SCOPE_ORDERS) {
+							final Set<Scope> requestedScopes = Set.of(order);
+							final Set<Integer> everyValueHolder = new TreeSet<>();
+							for (String value : values) {
+								final Set<Integer> holders =
+									firstScopeHolders(originalMixedOwners, attributeName, order, value);
+								everyValueHolder.addAll(holders);
+								assertMatches(
+									session, ENTITY_MIXED_OWNER, originalMixedOwners,
+									owner -> holders.contains(owner.getPrimaryKeyOrThrowException()), null,
+									scope(order), attributeEquals(attributeName, value)
+								);
+								assertMatches(
+									session, ENTITY_MIXED_OWNER, originalMixedOwners,
+									owner -> requestedScopes.contains(owner.getScope()) &&
+										!holders.contains(owner.getPrimaryKeyOrThrowException()),
+									null,
+									scope(order), not(attributeEquals(attributeName, value))
+								);
+							}
+							assertMatches(
+								session, ENTITY_MIXED_OWNER, originalMixedOwners,
+								owner -> everyValueHolder.contains(owner.getPrimaryKeyOrThrowException()), null,
+								scope(order), attributeInSet(attributeName, values.toArray(String[]::new))
+							);
+						}
+					}
+					return null;
+				}
+			);
+		}
+
+		/**
+		 * A sibling `referenceHaving` can win index selection, so that the query is answered from the reduced indexes
+		 * of the referenced entities instead of the global one. The null and not-null tests of a globally unique
+		 * attribute then read the carriers of the whole scope from the catalog for every reduced index: the null side
+		 * subtracts them from the records of each index, the not-null side contributes them unrestricted and relies on
+		 * the conjunction with the sibling to narrow them. Both must return exactly the owners the bodies say.
+		 *
+		 * On a fixture this small the global index costs no more than the reduced ones, so the cheaper-plan choice
+		 * alone may never take them. Each row therefore also runs with `VERIFY_ALTERNATIVE_INDEX_RESULTS`, which
+		 * computes every eligible index set and fails on any disagreement, and asserts that the reduced indexes were
+		 * among the eligible ones - otherwise the rows would pin only the global-index shape the other tests cover.
+		 * They are eligible only while they hold at most half the records of the global index, which this fixture
+		 * meets for tag {@link #SIBLING_TAG} in the scope combinations of {@link #SIBLING_SCOPE_ORDERS}.
+		 */
+		@DisplayName("Should answer the null tests of a globally unique attribute from a sibling's reduced indexes")
+		@UseDataSet(MIXED_UNIQUENESS_NULL)
+		@Test
+		void shouldAnswerTheNullTestsOfAGloballyUniqueAttributeFromTheReducedIndexesOfASibling(
+			Evita evita,
+			List<SealedEntity> originalMixedOwners
+		) {
+			for (String attributeName : List.of(GLOBAL_CODE, LIVE_GLOBAL_CODE)) {
+				assertTrue(
+					originalMixedOwners.stream()
+						.filter(referencesTag(SIBLING_TAG))
+						.anyMatch(it -> it.getAttribute(attributeName) != null) &&
+						originalMixedOwners.stream()
+							.filter(referencesTag(SIBLING_TAG))
+							.anyMatch(it -> it.getAttribute(attributeName) == null),
+					"Fixture guard: the owners referencing tag " + SIBLING_TAG + " must include one with `" +
+						attributeName + "` and one without it!"
+				);
+			}
+			final FilterConstraint sibling = referenceHaving(REF_TAGS, entityPrimaryKeyInSet(SIBLING_TAG));
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					for (String attributeName : List.of(GLOBAL_CODE, LIVE_GLOBAL_CODE)) {
+						final Predicate<SealedEntity> carries = owner -> owner.getAttribute(attributeName) != null;
+						for (Scope[] order : SIBLING_SCOPE_ORDERS) {
+							final Set<Scope> requestedScopes = Set.of(order);
+							final Predicate<SealedEntity> requested = referencesTag(SIBLING_TAG)
+								.and(owner -> requestedScopes.contains(owner.getScope()));
+							for (FilterConstraint nullTest : List.of(
+								attributeIsNotNull(attributeName), attributeIsNull(attributeName)
+							)) {
+								final Predicate<SealedEntity> oracle =
+									nullTest.equals(attributeIsNull(attributeName)) ?
+										requested.and(carries.negate()) : requested.and(carries);
+								assertMatches(
+									session, ENTITY_MIXED_OWNER, originalMixedOwners, oracle, null,
+									scope(order), sibling, nullTest
+								);
+								// every eligible index set computes the answer and must agree with the preferred one,
+								// which the rows above already hold to the oracle
+								final EvitaResponse<EntityReference> response = session.query(
+									Query.query(
+										collection(ENTITY_MIXED_OWNER),
+										filterBy(scope(order), sibling, nullTest),
+										require(
+											debug(
+												DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.PREFER_INDEX_SCAN
+											),
+											page(1, Integer.MAX_VALUE),
+											queryTelemetry()
+										)
+									),
+									EntityReference.class
+								);
+								assertEquals(
+									selectPks(originalMixedOwners, oracle), pks(response),
+									"Wrong `" + ENTITY_MIXED_OWNER + "` for `" + nullTest + "` beside `" + sibling +
+										"` in " + Arrays.toString(order) + " with every index set verified"
+								);
+								final QueryTelemetry telemetry = Objects.requireNonNull(
+									response.getExtraResult(QueryTelemetry.class), "The query must collect telemetry!"
+								);
+								assertTrue(
+									hasStepArgument(
+										telemetry, QueryPhase.PLANNING_FILTER_ALTERNATIVE,
+										(Predicate<String>) it -> ELIGIBLE_REFERENCE_INDEX_OPTION.matcher(it).matches()
+									),
+									() -> "The reduced indexes of `" + sibling + "` must be an eligible index set " +
+										"for `" + nullTest + "` in " + Arrays.toString(order) + ":\n" + telemetry
+								);
+							}
+						}
+					}
+					return null;
+				}
+			);
+		}
+
+		/**
+		 * Returns an owner-level predicate matching the owners that reference the tag.
+		 *
+		 * @param target primary key of the referenced tag
+		 * @return the predicate
+		 */
+		@Nonnull
+		private static Predicate<SealedEntity> referencesTag(int target) {
+			return owner -> owner.getReferences(REF_TAGS)
+				.stream()
+				.anyMatch(row -> row.getReferencedPrimaryKey() == target);
+		}
+
+		/**
+		 * Returns the owners holding the value in the first of the scopes, in the passed order, where any owner holds
+		 * it - the answer of a unique lookup that prefers the scope listed first.
+		 *
+		 * @param originalMixedOwners owners as stored
+		 * @param attributeName       the attribute compared
+		 * @param order               the requested scopes, in the order `scope(...)` lists them
+		 * @param value               the compared value
+		 * @return primary keys of the holders in the first scope holding the value, empty when no scope holds it
+		 */
+		@Nonnull
+		private static Set<Integer> firstScopeHolders(
+			@Nonnull List<SealedEntity> originalMixedOwners,
+			@Nonnull String attributeName,
+			@Nonnull Scope[] order,
+			@Nonnull String value
+		) {
+			for (Scope scope : order) {
+				final Set<Integer> holders = selectPks(
+					originalMixedOwners,
+					owner -> owner.getScope() == scope && value.equals(owner.getAttribute(attributeName))
+				);
+				if (!holders.isEmpty()) {
+					return holders;
+				}
+			}
+			return Set.of();
 		}
 	}
 
@@ -1312,11 +1967,13 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 						);
 						ownerWithoutTheValueSeen |= originalOwners.stream()
 							.anyMatch(referencesSelectedFacet.and(ownRowCarriesTheValue.negate()));
-						assertOwners(
-							session, originalOwners,
-							referencesSelectedFacet,
-							facetHaving(REF_ROWS, attributeEquals(A, value))
-						);
+						// inside `userFilter` the translator builds a different formula tree for the same selection
+						for (FilterConstraint filter : List.of(
+							facetHaving(REF_ROWS, attributeEquals(A, value)),
+							userFilter(facetHaving(REF_ROWS, attributeEquals(A, value)))
+						)) {
+							assertOwners(session, originalOwners, referencesSelectedFacet, filter);
+						}
 					}
 					assertTrue(
 						ownerWithoutTheValueSeen,
@@ -1381,22 +2038,22 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 			final Set<Integer> both = new TreeSet<>(positive);
 			both.retainAll(negative);
 			assertFalse(both.isEmpty(), "Fixture guard: some owner must hold a row on each side of `" + phi + "`!");
-			for (boolean preferIndexScan : new boolean[]{true, false}) {
+			for (PlanPreference plan : PlanPreference.values()) {
 				final Set<Integer> phiSide = pks(
-					query(session, ENTITY_OWNER, preferIndexScan, referenceHaving(REF_ROWS, phi))
+					query(session, ENTITY_OWNER, originals, plan, referenceHaving(REF_ROWS, phi))
 				);
 				final Set<Integer> notPhiSide = pks(
-					query(session, ENTITY_OWNER, preferIndexScan, referenceHaving(REF_ROWS, not(phi)))
+					query(session, ENTITY_OWNER, originals, plan, referenceHaving(REF_ROWS, not(phi)))
 				);
-				final Set<Integer> bare = pks(query(session, ENTITY_OWNER, preferIndexScan, referenceHaving(REF_ROWS)));
-				assertEquals(positive, phiSide, "RH(" + phi + ") (preferIndexScan=" + preferIndexScan + ")");
-				assertEquals(negative, notPhiSide, "RH(not(" + phi + ")) (preferIndexScan=" + preferIndexScan + ")");
+				final Set<Integer> bare = pks(query(session, ENTITY_OWNER, originals, plan, referenceHaving(REF_ROWS)));
+				assertEquals(positive, phiSide, "RH(" + phi + ") (" + plan + ")");
+				assertEquals(negative, notPhiSide, "RH(not(" + phi + ")) (" + plan + ")");
 				final Set<Integer> union = new TreeSet<>(phiSide);
 				union.addAll(notPhiSide);
-				assertEquals(bare, union, "I1 for `" + phi + "` (preferIndexScan=" + preferIndexScan + ")");
+				assertEquals(bare, union, "I1 for `" + phi + "` (" + plan + ")");
 				assertEquals(
 					selectPks(originals, it -> !it.getReferences(REF_ROWS).isEmpty()), bare,
-					"RH() (preferIndexScan=" + preferIndexScan + ")"
+					"RH() (" + plan + ")"
 				);
 			}
 		}
@@ -1415,6 +2072,29 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 		 * option was never registered although the filter was planned.
 		 */
 		REWRITE
+	}
+
+	/**
+	 * The plan an owner-level query is steered towards, so that each expectation is held against both ways the engine
+	 * can answer it.
+	 */
+	private enum PlanPreference {
+		/**
+		 * `PREFER_INDEX_SCAN` together with `VERIFY_POSSIBLE_CACHING_TREES`: the prefetch is denied, so the query
+		 * resolves the indexes, and every cacheable variant of the formula tree is checked against the main plan.
+		 */
+		INDEX_SCAN,
+		/**
+		 * `PREFER_PREFETCHING` alone, with the filter conjoined with an `entityPrimaryKeyInSet` over every entity of
+		 * the queried scopes. Either debug mode of the other plan selects a planning policy that denies the prefetch,
+		 * and the prefetch needs resolved primary keys in conjunctive scope; the keys cover every candidate, so they
+		 * are neutral to the answer. The engine then prefetches whenever some formula registers the entity content it
+		 * reads - every attribute formula does - whatever the cost. The bodies are read only by the constraints that
+		 * offer an alternative evaluated on them, such as `entityLocaleEquals` or the `attributeIsNotNull` of an
+		 * attribute unique in no requested scope; every other constraint, `attributeIsNull` and a `referenceHaving`
+		 * body among them, is still answered from the indexes on this plan, under the default planning policy.
+		 */
+		PREFETCH
 	}
 
 	/**
@@ -1482,9 +2162,10 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 	}
 
 	/**
-	 * Runs the filter under both index-scan preferences and asserts the entities equal the ones the oracle selects
-	 * from the entity bodies. The route is asserted on the index-scan plan only: without `PREFER_INDEX_SCAN` a
-	 * collection this small may be answered from prefetched bodies, which records no route at all.
+	 * Runs the filter on both plans of {@link PlanPreference} and asserts the entities equal the ones the oracle
+	 * selects from the entity bodies. The route is asserted on the index-scan plan only - the plan the route-asserting
+	 * rows are written for; the prefetch plan conjoins a primary-key constraint and runs under another planning
+	 * policy, and neither is part of what those rows pin.
 	 *
 	 * @param session    session to query through
 	 * @param entityType collection to query
@@ -1503,19 +2184,148 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 	) {
 		final Set<Integer> expected = selectPks(originals, oracle);
 		final String description = String.join(", ", Arrays.stream(filter).map(Object::toString).toList());
-		for (boolean preferIndexScan : new boolean[]{true, false}) {
-			final EvitaResponse<EntityReference> response = query(session, entityType, preferIndexScan, filter);
+		for (PlanPreference plan : PlanPreference.values()) {
+			final EvitaResponse<EntityReference> response = query(session, entityType, originals, plan, filter);
 			assertEquals(
 				expected, pks(response),
-				"Wrong `" + entityType + "` for `" + description + "` (preferIndexScan=" + preferIndexScan + ")"
+				"Wrong `" + entityType + "` for `" + description + "` (" + plan + ")"
 			);
-			if (route != null && preferIndexScan) {
+			if (route != null && plan == PlanPreference.INDEX_SCAN) {
 				assertEquals(
 					route, routeOf(response),
 					() -> "Wrong route for `" + description + "`:\n" + response.getExtraResult(QueryTelemetry.class)
 				);
 			}
 		}
+	}
+
+	/**
+	 * Asserts on both plans of {@link PlanPreference} that the null and the not-null side of a test split the entities
+	 * between them: their union and their intersection must equal the expected sets.
+	 *
+	 * @param session              session to query through
+	 * @param entityType           collection to query
+	 * @param originals            entities of that collection as stored
+	 * @param nullSide             the filter selecting the null side
+	 * @param notNullSide          the filter selecting the not-null side
+	 * @param expectedUnion        the entities that must land on at least one side
+	 * @param expectedIntersection the entities that must land on both sides
+	 * @param context              the filter constraints both sides are queried with
+	 */
+	private static void assertSplit(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull String entityType,
+		@Nonnull List<SealedEntity> originals,
+		@Nonnull FilterConstraint nullSide,
+		@Nonnull FilterConstraint notNullSide,
+		@Nonnull Set<Integer> expectedUnion,
+		@Nonnull Set<Integer> expectedIntersection,
+		@Nonnull FilterConstraint... context
+	) {
+		for (PlanPreference plan : PlanPreference.values()) {
+			final Set<Integer> nullPks = pks(query(session, entityType, originals, plan, append(context, nullSide)));
+			final Set<Integer> notNullPks = pks(
+				query(session, entityType, originals, plan, append(context, notNullSide))
+			);
+			final Set<Integer> union = new TreeSet<>(nullPks);
+			union.addAll(notNullPks);
+			final Set<Integer> intersection = new TreeSet<>(nullPks);
+			intersection.retainAll(notNullPks);
+			final String description = "`" + nullSide + "` and `" + notNullSide + "` under " +
+				Arrays.toString(context) + " (" + plan + ")";
+			assertEquals(expectedUnion, union, "Wrong union of " + description);
+			assertEquals(expectedIntersection, intersection, "Wrong intersection of " + description);
+		}
+	}
+
+	/**
+	 * Fixture guard shared by the split tests of `NonLocalizedEntityAttributes` and `GloballyUniqueAttribute`: every
+	 * scope must hold an owner carrying the attribute and one without it, for every attribute in the list.
+	 *
+	 * @param originalMixedOwners owners as stored
+	 * @param attributeNames      the attributes to guard, each an entity attribute of `mixedOwner`
+	 */
+	private static void assertEachScopeHoldsACarrierAndANonCarrierOf(
+		@Nonnull List<SealedEntity> originalMixedOwners,
+		@Nonnull List<String> attributeNames
+	) {
+		for (String attributeName : attributeNames) {
+			for (Scope scope : Scope.values()) {
+				final List<SealedEntity> inScope = originalMixedOwners.stream()
+					.filter(it -> it.getScope() == scope)
+					.toList();
+				assertTrue(
+					inScope.stream().anyMatch(it -> it.getAttribute(attributeName) != null) &&
+						inScope.stream().anyMatch(it -> it.getAttribute(attributeName) == null),
+					"Fixture guard: " + scope + " must hold an owner with `" + attributeName +
+						"` and one without it!"
+				);
+			}
+		}
+	}
+
+	/**
+	 * Asserts, for every attribute in the list, that the null and not-null tests partition the requested owners in
+	 * every scope order (see {@link #assertMatches} and {@link #assertSplit}). Shared by the split tests of
+	 * `NonLocalizedEntityAttributes` and `GloballyUniqueAttribute`.
+	 *
+	 * @param session             session to query through
+	 * @param originalMixedOwners owners as stored
+	 * @param attributeNames      the attributes to assert, each an entity attribute of `mixedOwner`
+	 */
+	private static void assertOwnersSplitByAttribute(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull List<SealedEntity> originalMixedOwners,
+		@Nonnull List<String> attributeNames
+	) {
+		for (String attributeName : attributeNames) {
+			final Predicate<SealedEntity> carries = owner -> owner.getAttribute(attributeName) != null;
+			for (Scope[] order : ALL_SCOPE_ORDERS) {
+				final Set<Scope> requestedScopes = Set.of(order);
+				final Predicate<SealedEntity> requested = owner -> requestedScopes.contains(owner.getScope());
+				assertMatches(
+					session, ENTITY_MIXED_OWNER, originalMixedOwners, requested.and(carries.negate()), null,
+					scope(order), attributeIsNull(attributeName)
+				);
+				assertMatches(
+					session, ENTITY_MIXED_OWNER, originalMixedOwners, requested.and(carries), null,
+					scope(order), attributeIsNotNull(attributeName)
+				);
+				assertSplit(
+					session, ENTITY_MIXED_OWNER, originalMixedOwners,
+					attributeIsNull(attributeName), attributeIsNotNull(attributeName),
+					selectPks(originalMixedOwners, requested), Set.of(),
+					scope(order)
+				);
+			}
+		}
+	}
+
+	/**
+	 * Returns the filter constraints followed by one more.
+	 *
+	 * @param filter     the filter constraints
+	 * @param constraint the constraint to append
+	 * @return a new array
+	 */
+	@Nonnull
+	private static FilterConstraint[] append(@Nonnull FilterConstraint[] filter, @Nonnull FilterConstraint constraint) {
+		final FilterConstraint[] result = Arrays.copyOf(filter, filter.length + 1);
+		result[filter.length] = constraint;
+		return result;
+	}
+
+	/**
+	 * Answers whether the plan that answered the query prefetched the entity bodies.
+	 *
+	 * @param response the response carrying the telemetry
+	 * @return true when the {@link QueryPhase#EXECUTION_PREFETCH} step ran
+	 */
+	private static boolean prefetched(@Nonnull EvitaResponse<EntityReference> response) {
+		return hasStep(
+			Objects.requireNonNull(response.getExtraResult(QueryTelemetry.class), "The query must collect telemetry!"),
+			QueryPhase.EXECUTION_PREFETCH
+		);
 	}
 
 	/**
@@ -1574,15 +2384,31 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 		@Nonnull QueryPhase phase,
 		@Nonnull String prefix
 	) {
+		return hasStepArgument(telemetry, phase, (Predicate<String>) argument -> argument.startsWith(prefix));
+	}
+
+	/**
+	 * Answers whether some telemetry step of the phase carries an argument the predicate accepts.
+	 *
+	 * @param telemetry the telemetry subtree
+	 * @param phase     the phase of the step
+	 * @param argument  accepts the argument looked for
+	 * @return true when such a step exists
+	 */
+	private static boolean hasStepArgument(
+		@Nonnull QueryTelemetry telemetry,
+		@Nonnull QueryPhase phase,
+		@Nonnull Predicate<String> argument
+	) {
 		if (telemetry.getOperation() == phase && telemetry.getArguments() != null) {
-			for (String argument : telemetry.getArguments()) {
-				if (argument.startsWith(prefix)) {
+			for (String candidate : telemetry.getArguments()) {
+				if (argument.test(candidate)) {
 					return true;
 				}
 			}
 		}
 		for (QueryTelemetry step : telemetry.getSteps()) {
-			if (hasStepArgument(step, phase, prefix)) {
+			if (hasStepArgument(step, phase, argument)) {
 				return true;
 			}
 		}
@@ -1641,35 +2467,68 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 	}
 
 	/**
-	 * Queries the passed collection with the passed filter, collecting the telemetry the route assertions read.
+	 * Queries the passed collection with the passed filter on the chosen plan, collecting the telemetry the route and
+	 * prefetch assertions read.
 	 *
-	 * @param session         session to query through
-	 * @param entityType      collection to query
-	 * @param preferIndexScan whether to forbid answering from prefetched entity bodies
-	 * @param filter          the filter constraints
+	 * @param session    session to query through
+	 * @param entityType collection to query
+	 * @param originals  entities of that collection as stored, whose keys the prefetch plan conjoins with the filter
+	 * @param plan       the plan to steer the query towards
+	 * @param filter     the filter constraints
 	 * @return the response
 	 */
 	@Nonnull
 	private static EvitaResponse<EntityReference> query(
 		@Nonnull EvitaSessionContract session,
 		@Nonnull String entityType,
-		boolean preferIndexScan,
+		@Nonnull List<SealedEntity> originals,
+		@Nonnull PlanPreference plan,
 		@Nonnull FilterConstraint... filter
 	) {
 		return session.query(
 			Query.query(
 				collection(entityType),
-				filterBy(filter),
+				switch (plan) {
+					case INDEX_SCAN -> filterBy(filter);
+					case PREFETCH -> filterBy(
+						append(filter, entityPrimaryKeyInSet(primaryKeysInQueriedScopes(originals, filter)))
+					);
+				},
 				require(
-					preferIndexScan ?
-						debug(DebugMode.VERIFY_POSSIBLE_CACHING_TREES, DebugMode.PREFER_INDEX_SCAN) :
-						debug(DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+					switch (plan) {
+						case INDEX_SCAN -> debug(DebugMode.VERIFY_POSSIBLE_CACHING_TREES, DebugMode.PREFER_INDEX_SCAN);
+						case PREFETCH -> debug(DebugMode.PREFER_PREFETCHING);
+					},
 					page(1, Integer.MAX_VALUE),
 					queryTelemetry()
 				)
 			),
 			EntityReference.class
 		);
+	}
+
+	/**
+	 * Returns the primary keys of the passed entities that live in a scope the filter requests - those of
+	 * {@link Scope#DEFAULT_SCOPE} when it requests none.
+	 *
+	 * @param originals entities as stored
+	 * @param filter    the filter constraints, whose top-level `scope` is read
+	 * @return the primary keys
+	 */
+	@Nonnull
+	private static int[] primaryKeysInQueriedScopes(
+		@Nonnull List<SealedEntity> originals,
+		@Nonnull FilterConstraint... filter
+	) {
+		final Set<Scope> scopes = Arrays.stream(filter)
+			.filter(EntityScope.class::isInstance)
+			.map(it -> ((EntityScope) it).getScope())
+			.findFirst()
+			.orElse(Set.of(Scope.DEFAULT_SCOPE));
+		return originals.stream()
+			.filter(it -> scopes.contains(it.getScope()))
+			.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
+			.toArray();
 	}
 
 	/**
@@ -1796,21 +2655,49 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 	}
 
 	/**
-	 * Writes one owner of the mixed-uniqueness fixture with its `label` values and `tags` rows.
+	 * Sets {@link #SHARED_LIVE_GLOBAL_CODE} as the `liveGlobalCode` of a live owner of the mixed-uniqueness fixture.
 	 *
 	 * @param session session to write through
 	 * @param pk      primary key of the owner
-	 * @param labels  values of `label` per locale
-	 * @param rows    rows of `tags`
+	 */
+	private static void setLiveGlobalCode(@Nonnull EvitaSessionContract session, int pk) {
+		session.getEntity(ENTITY_MIXED_OWNER, pk, attributeContentAll())
+			.orElseThrow()
+			.openForWrite()
+			.setAttribute(LIVE_GLOBAL_CODE, SHARED_LIVE_GLOBAL_CODE)
+			.upsertVia(session);
+	}
+
+	/**
+	 * Writes one owner of the mixed-uniqueness fixture with its `label` values, `code`, German `name` and `tags` rows.
+	 * `note`, `globalCode` and `liveGlobalCode` are set together with `code`, from its value.
+	 *
+	 * @param session    session to write through
+	 * @param pk         primary key of the owner
+	 * @param labels     values of `label` per locale
+	 * @param code       value of `code`, or NULL to leave it and the three attributes set with it unset
+	 * @param germanName German value of `name`, or NULL to leave it unset
+	 * @param rows       rows of `tags`
 	 */
 	private static void upsertMixedOwner(
 		@Nonnull EvitaSessionContract session,
 		int pk,
 		@Nonnull Map<Locale, String> labels,
+		@Nullable String code,
+		@Nullable String germanName,
 		@Nonnull TagRow... rows
 	) {
 		final EntityBuilder builder = session.createNewEntity(ENTITY_MIXED_OWNER, pk);
 		labels.forEach((locale, label) -> builder.setAttribute(LABEL, locale, label));
+		if (code != null) {
+			builder.setAttribute(CODE, code);
+			builder.setAttribute(NOTE, "note-" + code);
+			builder.setAttribute(GLOBAL_CODE, "global-" + code);
+			builder.setAttribute(LIVE_GLOBAL_CODE, "live-global-" + code);
+		}
+		if (germanName != null) {
+			builder.setAttribute(ATTR_NAME, Locale.GERMAN, germanName);
+		}
 		for (TagRow row : rows) {
 			builder.setReference(
 				REF_TAGS, row.target(),

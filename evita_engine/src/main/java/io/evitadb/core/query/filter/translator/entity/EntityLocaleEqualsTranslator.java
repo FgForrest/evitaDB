@@ -97,6 +97,10 @@ public class EntityLocaleEqualsTranslator implements FilteringConstraintTranslat
 	 * an {@link AttributeFormula} that uses the localized attribute index is indexed in the filtering conjunction tree.
 	 * This will remove necessity to process AND conjunction with rather large index with all localized entity primary
 	 * keys.
+	 *
+	 * Only an attribute formula whose records all hold the locale ({@link AttributeFormula#isLocaleImplied()}) makes the
+	 * locale formula redundant - a null test of a localized attribute yields the records lacking the value, and those
+	 * lacking the locale are among them.
 	 */
 	private static class LocaleOptimizingPostProcessor extends FormulaCloner implements FormulaPostProcessor {
 		/**
@@ -108,7 +112,7 @@ public class EntityLocaleEqualsTranslator implements FilteringConstraintTranslat
 		 */
 		private Formula originalFormula;
 		/**
-		 * Flag that signalizes that localized {@link AttributeFormula} was found in conjunctive scope.
+		 * Flag that signalizes that an {@link AttributeFormula} implying the locale was found in conjunctive scope.
 		 */
 		private boolean localizedAttributeFormulaFound;
 
@@ -121,7 +125,7 @@ public class EntityLocaleEqualsTranslator implements FilteringConstraintTranslat
 					}
 					if (formula instanceof final AttributeFormula attributeFormula) {
 						clonerInstance.localizedAttributeFormulaFound = clonerInstance.localizedAttributeFormulaFound ||
-							(attributeFormula.isLocalized() && clonerInstance.conjunctiveScope);
+							(attributeFormula.isLocaleImplied() && clonerInstance.conjunctiveScope);
 					} else if (formula instanceof SelectionFormula selectionFormula &&
 						(selectionFormula.getDelegate() instanceof LocaleFormula ||
 							selectionFormula.getDelegate() instanceof OrFormula orFormula &&
