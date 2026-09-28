@@ -166,6 +166,29 @@ class ConflictRingBufferTest {
 			// ... and versions 11 and 12 remain scannable
 			assertEquals(List.of(key11, key12), collectSince(buffer, 11L));
 		}
+
+		@Test
+		@DisplayName("clearAllUntil with a lower version never moves the start boundary back over released keys")
+		void shouldKeepStartBoundaryWhenEmptiedBufferIsClearedUntilLowerVersion() {
+			// given the keys of versions 10 and 11, both released - the buffer is empty and covers version 12 onwards
+			final ConflictRingBuffer buffer = newSpaciousBuffer();
+			buffer.offer(key(10L, 0, 100));
+			buffer.offer(key(11L, 0, 110));
+			buffer.clearAllUntil(12L);
+			assertEquals(new CatalogVersionIndex(12L, 0), buffer.getEffectiveStart());
+
+			// when a later release reports a lower version - a reader the earlier release did not see
+			buffer.clearAllUntil(10L);
+
+			// then the buffer still refuses to answer for version 11, whose keys it no longer holds: covering it again
+			// would report "no conflict" for a range it has nothing for, where the caller must fall back to the WAL
+			assertEquals(new CatalogVersionIndex(12L, 0), buffer.getEffectiveStart());
+			final OutsideScopeException exception = assertThrows(
+				OutsideScopeException.class,
+				() -> buffer.forEachSince(11L, ignored -> { })
+			);
+			assertEquals(new CatalogVersionIndex(12L, 0), exception.getEffectiveStart());
+		}
 	}
 
 	@Nested

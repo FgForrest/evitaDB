@@ -1,7 +1,7 @@
 ---
 title: Bound time travel with an absolute per-catalog byte budget, not a ratio or a generation count
 date: 2026-08-06
-updated: 2026-09-28 12:00
+updated: 2026-09-28 13:40
 status: accepted
 kind: feature
 issues: [761]
@@ -12,6 +12,7 @@ areas:
   - evita_api/src/main/java/io/evitadb/api/configuration
   - evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog/task
   - evita_engine/src/main/java/io/evitadb/core/session
+  - evita_engine/src/main/java/io/evitadb/core/buffer
 supersedes: []
 superseded-by: []
 relates: [2026-09-12-restore-catalog-to-earlier-version]
@@ -845,6 +846,24 @@ is false for the reason above (warm-up leaves one record, not many), and the wor
   reads resolve the current catalog without a pin), and no audit of them exists yet. Revisit with
   that audit; the cheap form is a released-through watermark kept in `Roots` next to the versions it
   dropped.
+  **The same window released conflict keys too, and the pin does not cover that.**
+  `Catalog.catalogConsumersLeft` releases conflict keys down to the raw census minimum, with no clamp,
+  so a departure inside the window can drop the keys of versions the session being built must check
+  its commit against. That alone is safe: the ring buffer reports the range as out of scope and
+  `TransactionManager.identifyConflicts` re-derives the keys from the WAL, just as it does after the
+  buffer overflows. It became a silent lost update only because `RingBuffer.clearAllUntil`, on an
+  empty buffer, set the effective start to whatever boundary it was given. A later departure that
+  reported the session's own, lower version then made the buffer claim a range it held nothing
+  for. **Fixed by making the effective start monotonic**, so every early release falls back to the
+  WAL. `SessionRegistryConflictKeyReleaseTest` reproduces the lost update with the fix reverted.
+  **Declined — clamping the release by the pin floor.** The floor includes backup pins, which sit
+  on the *oldest* retained version: the phantom-consumer entry above records holding back
+  conflict-key release for a whole backup as the defect, not the goal. It would also need an SPI
+  route from the store's floor into `TransactionManager`, and it would still leave the buffer free
+  to claim a range it had given up, for any other early release. **Declined — registering in the
+  census before capture.** The departure computes its minimum over a weakly consistent
+  `ConcurrentHashMap` iteration with no lock shared with registration, so an entry being inserted
+  can still be missed.
 - **Closed — version pins are leases now too.** They used to resolve the catalog by name on both
   sides, so a `replaceWith` between acquisition and release decremented the *replacement's* counter
   and left the granting catalog pinned forever. This was declined once as needing "two backups
