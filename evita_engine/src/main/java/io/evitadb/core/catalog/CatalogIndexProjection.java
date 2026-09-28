@@ -32,6 +32,7 @@ import io.evitadb.api.statistics.IndexBrowseOrdering;
 import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.core.management.ManagementReads;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.IndexActivity;
@@ -258,20 +259,26 @@ final class CatalogIndexProjection {
 	static IndexDetail describe(@Nonnull CatalogIndex catalogIndex) {
 		final Scope scope = catalogIndex.getIndexKey().scope();
 		final IndexActivity activity = catalogIndex.getActivity();
-		final List<AttributeCardinality> attributes = new ArrayList<>(16);
 		// `forEach`, never `entrySet()`: asking a map for a view parks it on the map for the lifetime of the index -
-		// see `documentation/developer/heap-size-testing.md`, trap 6
-		catalogIndex.getGlobalUniqueIndexes().forEach((attributeKey, globalUniqueIndex) ->
-			attributes.add(
-				new AttributeCardinality(
-					attributeKey.attributeName(),
-					// a globally unique attribute is declared on the catalog schema and carried by the entity itself,
-					// so it is never a reference attribute
-					null,
-					attributeKey.locale(),
-					AttributeIndexType.UNIQUE,
-					globalUniqueIndex.size(),
-					globalUniqueIndex.getRecordCount()
+		// see `documentation/developer/heap-size-testing.md`, trap 6. Walked through `ManagementReads#walkTolerantly`:
+		// outside a transaction a warm-up writer files a new unique index straight into this map, and this call runs
+		// on a management thread with no happens-before edge to it, so a disturbed walk is started over rather than
+		// failing the call. `getRecordCount` is tolerant of its own map in the same way, so it cannot abort this walk
+		// part-way
+		final List<AttributeCardinality> attributes = ManagementReads.<List<AttributeCardinality>>walkTolerantly(
+			() -> new ArrayList<>(16),
+			readings -> catalogIndex.getGlobalUniqueIndexes().forEach((attributeKey, globalUniqueIndex) ->
+				readings.add(
+					new AttributeCardinality(
+						attributeKey.attributeName(),
+						// a globally unique attribute is declared on the catalog schema and carried by the entity
+						// itself, so it is never a reference attribute
+						null,
+						attributeKey.locale(),
+						AttributeIndexType.UNIQUE,
+						globalUniqueIndex.size(),
+						globalUniqueIndex.getRecordCount()
+					)
 				)
 			)
 		);

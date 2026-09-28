@@ -27,6 +27,7 @@ import io.evitadb.api.statistics.AttributeIndexType;
 import io.evitadb.api.statistics.CollectionIndexCardinality;
 import io.evitadb.api.statistics.CollectionIndexCardinality.AttributeCardinality;
 import io.evitadb.api.statistics.CollectionIndexCardinality.IndexCardinality;
+import io.evitadb.core.management.ManagementReads;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
@@ -47,6 +48,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 /**
  * Projects an entity collection's live indexes into the {@link CollectionIndexCardinality} component. Contains no
@@ -176,42 +178,53 @@ final class IndexCardinalityProjection {
 	) {
 		final List<AttributeCardinality> attributes = new ArrayList<>(16);
 		// `forEachAttributeIndexKey` rather than the set-returning accessors: those hand out a map view the backing
-		// map then keeps, and this call would leave one on every index it describes - see `TransactionalMap#forEach`
-		entityIndex.forEachAttributeIndexKey(AttributeIndexStoragePart.AttributeIndexType.UNIQUE, key -> {
-			final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(key);
-			if (uniqueIndex != null) {
-				// `size()` is the membership bitmap, which under-counts a record owning several values in one index -
-				// a localized attribute that is also unique globally has one locale-less key, and the bitmap drops the
-				// record on the first of its values removed. Reported anyway, and documented on `AttributeCardinality`:
-				// this bitmap is what the engine queries the index through, so substituting a separately-computed
-				// count here would describe an index the engine does not have
-				attributes.add(
-					toAttributeCardinality(
-						key, AttributeIndexType.UNIQUE, uniqueIndex.getDistinctValueCount(), uniqueIndex.size()
-					)
-				);
-			}
-		});
-		entityIndex.forEachAttributeIndexKey(AttributeIndexStoragePart.AttributeIndexType.FILTER, key -> {
-			final FilterIndex filterIndex = entityIndex.getFilterIndex(key);
-			if (filterIndex != null) {
-				attributes.add(
-					toAttributeCardinality(
-						key, AttributeIndexType.FILTER, filterIndex.getDistinctValueCount(), filterIndex.size()
-					)
-				);
-			}
-		});
-		entityIndex.forEachAttributeIndexKey(AttributeIndexStoragePart.AttributeIndexType.SORT, key -> {
-			final SortIndex sortIndex = entityIndex.getSortIndex(key);
-			if (sortIndex != null) {
-				attributes.add(
-					toAttributeCardinality(
-						key, AttributeIndexType.SORT, sortIndex.getDistinctValueCount(), sortIndex.size()
-					)
-				);
-			}
-		});
+		// map then keeps, and this call would leave one on every index it describes - see `TransactionalMap#forEach`.
+		// Each family is walked through `ManagementReads#walkTolerantly`, because outside a transaction a family is a
+		// `HashMap` a warm-up writer adds a new attribute key to in place, and this call runs on a management thread
+		// with no happens-before edge to it: the walk then ends in `ConcurrentModificationException`, and a disturbed
+		// family is described again from scratch rather than half-reported
+		attributes.addAll(
+			describeFamily(entityIndex, AttributeIndexStoragePart.AttributeIndexType.UNIQUE, (key, readings) -> {
+				final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(key);
+				if (uniqueIndex != null) {
+					// `size()` is the membership bitmap, which under-counts a record owning several values in one
+					// index - a localized attribute that is also unique globally has one locale-less key, and the
+					// bitmap drops the record on the first of its values removed. Reported anyway, and documented
+					// on `AttributeCardinality`: this bitmap is what the engine queries the index through, so
+					// substituting a separately-computed count here would describe an index the engine does not
+					// have
+					readings.add(
+						toAttributeCardinality(
+							key, AttributeIndexType.UNIQUE, uniqueIndex.getDistinctValueCount(), uniqueIndex.size()
+						)
+					);
+				}
+			})
+		);
+		attributes.addAll(
+			describeFamily(entityIndex, AttributeIndexStoragePart.AttributeIndexType.FILTER, (key, readings) -> {
+				final FilterIndex filterIndex = entityIndex.getFilterIndex(key);
+				if (filterIndex != null) {
+					readings.add(
+						toAttributeCardinality(
+							key, AttributeIndexType.FILTER, filterIndex.getDistinctValueCount(), filterIndex.size()
+						)
+					);
+				}
+			})
+		);
+		attributes.addAll(
+			describeFamily(entityIndex, AttributeIndexStoragePart.AttributeIndexType.SORT, (key, readings) -> {
+				final SortIndex sortIndex = entityIndex.getSortIndex(key);
+				if (sortIndex != null) {
+					readings.add(
+						toAttributeCardinality(
+							key, AttributeIndexType.SORT, sortIndex.getDistinctValueCount(), sortIndex.size()
+						)
+					);
+				}
+			})
+		);
 		return new IndexCardinality(
 			indexKey.type(),
 			indexKey.scope(),
@@ -220,6 +233,28 @@ final class IndexCardinalityProjection {
 			entityIndex instanceof ReferencedTypeEntityIndex referencedTypeIndex ?
 				referencedTypeIndex.getAllTrackedReferencedEntityPrimaryKeys().size() : null,
 			attributes.toArray(AttributeCardinality[]::new)
+		);
+	}
+
+	/**
+	 * Describes every attribute index of one family, walking the family's keys through
+	 * {@link ManagementReads#walkTolerantly} so that a warm-up write landing in the walk starts the family over rather
+	 * than failing the call or reporting it half-described.
+	 *
+	 * @param entityIndex the index whose family is described
+	 * @param family      the family to walk
+	 * @param describer   resolves one key and appends its reading, when the key still resolves
+	 * @return the readings of every attribute index of the family
+	 */
+	@Nonnull
+	private static List<AttributeCardinality> describeFamily(
+		@Nonnull EntityIndex entityIndex,
+		@Nonnull AttributeIndexStoragePart.AttributeIndexType family,
+		@Nonnull BiConsumer<AttributeIndexKey, List<AttributeCardinality>> describer
+	) {
+		return ManagementReads.<List<AttributeCardinality>>walkTolerantly(
+			ArrayList::new,
+			readings -> entityIndex.forEachAttributeIndexKey(family, key -> describer.accept(key, readings))
 		);
 	}
 
