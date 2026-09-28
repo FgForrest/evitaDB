@@ -180,6 +180,61 @@ class CatalogIndexConcurrentWriteTest {
 	}
 
 	/**
+	 * Builds a catalog index holding `code` (two values) and `url` (three values), plus a third key, `torn`, whose
+	 * value reads `null` - the state a management reader observes when a warm-up writer has linked a new node into the
+	 * table but the node's value store has not become visible to the reader yet. `HashMap.Node#value` is not final, so
+	 * with no happens-before edge between the two threads nothing orders that store before the link. Putting a `null`
+	 * straight into the delegate the catalog index adopted builds that state deterministically, the way the tree tests
+	 * raise `peek` without publishing the child.
+	 *
+	 * @return the catalog index
+	 */
+	@Nonnull
+	private static CatalogIndex catalogIndexWithAnUnpublishedValue() {
+		// held by reference: the catalog index adopts it as the delegate of its `TransactionalMap`
+		final Map<AttributeKey, GlobalUniqueIndex> uniqueIndexes = new HashMap<>();
+		uniqueIndexes.put(
+			new AttributeKey("code"),
+			filled(new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("code"), String.class), "code", 2)
+		);
+		uniqueIndexes.put(
+			new AttributeKey("url"),
+			filled(new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("url"), String.class), "url", 3)
+		);
+		final CatalogIndex catalogIndex =
+			new CatalogIndex(1, new CatalogIndexKey(Scope.LIVE), uniqueIndexes, new IndexActivity());
+		uniqueIndexes.put(new AttributeKey("torn"), null);
+		return catalogIndex;
+	}
+
+	@Test
+	@DisplayName("the detail steps over a unique index whose value a racing writer has not published yet")
+	void shouldDescribeTheCatalogIndexPastAnUnpublishedValue() {
+		final IndexDetail detail = CatalogIndexProjection.describe(catalogIndexWithAnUnpublishedValue());
+
+		final Map<String, AttributeCardinality> byName = Arrays.stream(detail.cardinality().attributes())
+			.collect(Collectors.toMap(AttributeCardinality::attributeName, it -> it));
+		assertEquals(List.of("code", "url"), byName.keySet().stream().sorted().toList());
+		assertReading(byName.get("code"), 2);
+		assertReading(byName.get("url"), 3);
+	}
+
+	@Test
+	@DisplayName("the cardinality steps over a unique index whose value a racing writer has not published yet")
+	void shouldCountTheCatalogIndexPastAnUnpublishedValue() {
+		final CatalogIndexCardinality cardinality =
+			CatalogIndexCardinalityProjection.describe(List.of(catalogIndexWithAnUnpublishedValue()));
+
+		final Map<String, Integer> byName = Arrays.stream(cardinality.globalUniqueIndexes())
+			.collect(
+				Collectors.toMap(
+					GlobalUniqueIndexCardinality::attributeName, GlobalUniqueIndexCardinality::distinctValueCount
+				)
+			);
+		assertEquals(Map.of("code", 2, "url", 3), byName);
+	}
+
+	/**
 	 * Asserts one attribute reading of a unique index whose every value belongs to its own record.
 	 *
 	 * @param reading the reading, or null when the index was not described

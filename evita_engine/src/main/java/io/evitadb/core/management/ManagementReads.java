@@ -117,8 +117,11 @@ public final class ManagementReads {
 	 * catalog between two flushes, whose index map gains an entry for every newly referenced entity - is copied, and the
 	 * copy iterates `entrySet()`, which fails **mid-copy** on a concurrent write. A copy abandoned half-way cannot be
 	 * used at all, so it is retried; should every attempt meet a write, the last one copies with an end-checked
-	 * `forEach` instead, whose result holds every entry it reached. Either way the snapshot is one immutable map, so
-	 * the readings taken from it cannot contradict each other - the property the callers took a snapshot for.
+	 * `forEach` instead, whose result holds every entry it reached. The same copy answers when a node shows no value
+	 * yet: `HashMap.Node#value` is not final, so this reader can see a node a writer linked before the value behind it,
+	 * and the trie the snapshot builds refuses a `null` - so that copy steps over the node instead. Either way the
+	 * snapshot is one immutable map, so the readings taken from it cannot contradict each other - the property the
+	 * callers took a snapshot for.
 	 *
 	 * @param map the live map to snapshot
 	 * @param <K> key type
@@ -132,6 +135,11 @@ public final class ManagementReads {
 				return map.snapshot();
 			} catch (ConcurrentModificationException ex) {
 				// a warm-up write landed in the copy - start over, see the method javadoc
+			} catch (NullPointerException ex) {
+				// the trie refuses a `null` value, and the map refuses one on every write path, so a `null` met by the
+				// copy is a node a racing writer linked before its value became visible here - the copy below steps
+				// over it, where another `snapshot()` could meet the same node again
+				break;
 			}
 		}
 		final ChampMap.Builder<K, V> builder = ChampMap.builder();

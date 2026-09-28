@@ -84,21 +84,24 @@ final class CatalogIndexCardinalityProjection {
 			described.addAll(
 				ManagementReads.<List<GlobalUniqueIndexCardinality>>walkTolerantly(
 					ArrayList::new,
-					readings -> catalogIndex.getGlobalUniqueIndexes().forEach((attributeKey, globalUniqueIndex) ->
-						readings.add(
-							new GlobalUniqueIndexCardinality(
-								attributeKey.attributeName(),
-								attributeKey.locale(),
-								scope,
-								// distinct values, which is not always the covered-record count - a localized
-								// globally-unique attribute has one locale-less key covering every locale, so one
-								// record can own several values in it. The covered-record count comes from
-								// `GlobalUniqueIndex#getRecordCount` and is reported by the per-index detail call,
-								// which reaches one catalog index rather than all of them
-								globalUniqueIndex.size()
-							)
-						)
-					)
+					readings -> catalogIndex.getGlobalUniqueIndexes().forEach((attributeKey, globalUniqueIndex) -> {
+						// a node published by a racing writer may not show its value yet - it holds no index to count
+						if (globalUniqueIndex != null) {
+							readings.add(
+								new GlobalUniqueIndexCardinality(
+									attributeKey.attributeName(),
+									attributeKey.locale(),
+									scope,
+									// distinct values, which is not always the covered-record count - a localized
+									// globally-unique attribute has one locale-less key covering every locale, so one
+									// record can own several values in it. The covered-record count comes from
+									// `GlobalUniqueIndex#getRecordCount` and is reported by the per-index detail
+									// call, which reaches one catalog index rather than all of them
+									globalUniqueIndex.size()
+								)
+							);
+						}
+					})
 				)
 			);
 		}

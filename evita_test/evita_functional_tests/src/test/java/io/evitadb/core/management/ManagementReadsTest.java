@@ -164,6 +164,28 @@ class ManagementReadsTest {
 		}
 
 		@Test
+		@DisplayName("steps over an entry whose value a racing writer has not published yet")
+		void shouldSnapshotPastAnUnpublishedValue() {
+			// `HashMap.Node#value` is not final, so a reader with no happens-before edge to the warm-up writer can see
+			// a node linked into the table before its value. The map itself refuses a `null` on every write path, but
+			// its constructor copies the seed into the thawed `HashMap` as is - which builds that torn state without a
+			// seam, the way the tree tests raise `peek` without publishing the child
+			final Map<Integer, Integer> seed = new HashMap<>();
+			for (int i = 0; i < ENTRIES; i++) {
+				seed.put(i, i);
+			}
+			seed.put(WRITTEN_KEY, null);
+			final PersistentTransactionalMap<Integer, Integer> map = new PersistentTransactionalMap<>(seed);
+
+			final ChampMap<Integer, Integer> snapshot = ManagementReads.snapshotOf(map);
+
+			assertEquals(ENTRIES, snapshot.size(), "the unpublished entry holds nothing to copy");
+			for (int i = 0; i < ENTRIES; i++) {
+				assertEquals(i, snapshot.get(i));
+			}
+		}
+
+		@Test
 		@DisplayName("hands back the sealed trie itself, without copying it")
 		void shouldReturnTheSealedTrieWithoutCopying() {
 			final PersistentTransactionalMap<CallbackKey, Integer> map = thawedMapWith(new CallbackKey(0, null));

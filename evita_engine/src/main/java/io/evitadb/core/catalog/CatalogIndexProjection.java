@@ -267,20 +267,23 @@ final class CatalogIndexProjection {
 		// part-way
 		final List<AttributeCardinality> attributes = ManagementReads.<List<AttributeCardinality>>walkTolerantly(
 			() -> new ArrayList<>(16),
-			readings -> catalogIndex.getGlobalUniqueIndexes().forEach((attributeKey, globalUniqueIndex) ->
-				readings.add(
-					new AttributeCardinality(
-						attributeKey.attributeName(),
-						// a globally unique attribute is declared on the catalog schema and carried by the entity
-						// itself, so it is never a reference attribute
-						null,
-						attributeKey.locale(),
-						AttributeIndexType.UNIQUE,
-						globalUniqueIndex.size(),
-						globalUniqueIndex.getRecordCount()
-					)
-				)
-			)
+			readings -> catalogIndex.getGlobalUniqueIndexes().forEach((attributeKey, globalUniqueIndex) -> {
+				// a node published by a racing writer may not show its value yet - it holds no index to describe
+				if (globalUniqueIndex != null) {
+					readings.add(
+						new AttributeCardinality(
+							attributeKey.attributeName(),
+							// a globally unique attribute is declared on the catalog schema and carried by the entity
+							// itself, so it is never a reference attribute
+							null,
+							attributeKey.locale(),
+							AttributeIndexType.UNIQUE,
+							globalUniqueIndex.size(),
+							globalUniqueIndex.getRecordCount()
+						)
+					);
+				}
+			})
 		);
 		return new IndexDetail(
 			null,
