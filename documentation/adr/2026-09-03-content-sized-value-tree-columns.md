@@ -1,7 +1,7 @@
 ---
 title: Size the value tree's leaf columns to their live content instead of adding a second array-backed representation
 date: 2026-09-03
-updated: 2026-09-21 08:35
+updated: 2026-09-28 10:55
 status: accepted
 kind: optimization
 issues: [1486]
@@ -575,6 +575,46 @@ proportionally larger against a smaller total, and the census charged the tempor
   proves nothing about an entry point it does not call, and "the tree is covered" is not the same claim
   as "every way into the tree is covered". The sweep now probes `contains`, `cardinalityOf`, `valueIdOf`,
   `getRecordsEqualTo` and `computePreviousRecord` on every pass.
+- **Bounding an index by its array is not enough: a slot inside the bound can still read `null`, and AArch64
+  showed it.** The weekly sweep failed on 2026-09-28 on the macOS/AArch64 leg only, at round 3857:
+  `findLeafNode` returned `null` into `contains`. The x86 Linux, x86 Windows and Linux/AArch64 legs of the same
+  commit passed the same test. An internal node grows in place by storing the new separator, then the new
+  child pointers, then raising `peek`. `observableInternalPeek` keeps a raised `peek` inside the array, but not
+  off a slot whose store the reader cannot see yet. In the insert-only sweep no plain interleaving reaches that
+  slot, because it needs the stores to become visible out of program order, which x86's total store order
+  forbids in hardware. So the evidence is one weak-memory leg, and the claim is no stronger than that. Every
+  session-free descent that dereferences a child slot now steps **left** to the nearest populated slot
+  (`observableChildIndex`), which is the child the pre-growth node would have chosen. For a split of the last
+  child that child still holds every key the unpublished half is about to take, so the answer is exact rather
+  than stale. The descents that step are:
+  - `findLeafNode`, whose levels are now `BPlusInternalTreeNode#pointLookupChild`. It resolves the
+    transactional layer once per level instead of twice, a hot-path change as well as a fix.
+  - The keyed cursor descent `addCursorLevels`.
+  - The reverse walk's rightmost re-descent.
+  - The previous-node rebuild.
+
+  The forward walk's re-descent and the heap walk skip the `null` slot instead of failing on the
+  `Internal node expected!` premise or the `Unexpected B+ tree node kind` check. The separator search is pulled
+  in past a trailing `null` separator (`childIndexIn`). That is the same reordering one store earlier, and it
+  would fail inside `Arrays.binarySearch`; it is inferred, not observed. The point descent also answers an
+  emptied merge donor as absent (`findLeafNode` returns `null`) where it used to fail the binary search's range
+  check. Every guard is an identity on a consistent observer. `UnpublishedChildSlot` pins that half with a
+  transactional and an in-place churn, which land on the very leaf instance an unguarded descent reaches, and
+  pins the torn half with one counterfactual per site.
+- **The release/acquire trigger in the options table fired here, and the reader-side guard was extended
+  instead.** A release store of `peek` does not order the publication of a freshly reallocated array against
+  its copied content. The array-first readers also load the array before `peek`, so closing the window at the
+  writer would take release/acquire on `keys`, `children` and `peek` alike, on every descent of the hottest read
+  path. The reader-side step reuses the slot load the descent makes anyway. Revisit only if an escape turns up
+  that stepping cannot absorb.
+- **Two neighbours of that fix remain open.** (1) A reallocated array whose copied content the reader cannot see
+  yet could show a `null` in the middle of the live run rather than at its end. Only the trailing case is
+  guarded, and whether the middle case occurs at all depends on how the JVM publishes a freshly copied array,
+  which the Java memory model leaves open. (2) The emptied-donor answer reached the point descent but not the
+  structures around it. `computePreviousRecord` for the first key after an emptied subtree climbs into the
+  donor through `getCursorForPreviousNode`, and `cursor(key)` routed into one still fails `searchIndex`'s range
+  check. Both need a merge window and a session-free reader, and neither has a production caller that meets
+  both.
 - **Two `getChildren()[getPeek()]` pairs are deliberately left unguarded.** `predecessorLeaf` and
   `predecessorLeafOf` carry the same array-first shape, but both are reached only from the insert path's
   boundary asserts, which run with a happens-before edge to the writer. The clamp would be a provable
@@ -672,3 +712,5 @@ proportionally larger against a smaller total, and the census charged the tempor
   re-calibration; the dictionary lever refused on numbers; range keys moved to primitive bound columns
   and gated; the opt-in `largeMachine` test profile added; Option A declined and the bucket count moved
   onto the tree's own diff layer
+- **2026-09-28** — the weekly sweep's AArch64-only `null` leaf out of `findLeafNode`; every session-free descent
+  now steps over a child slot a grow has not published yet
