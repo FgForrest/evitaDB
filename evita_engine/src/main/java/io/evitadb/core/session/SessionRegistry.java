@@ -711,6 +711,8 @@ public final class SessionRegistry {
 		final CatalogVersionPin capturePin = pinCurrentCatalogVersion();
 		final EvitaSession newSession;
 		try {
+			// deliberately resolved again rather than reusing the catalog the pin sampled: it may be newer than the
+			// pinned version, and `registerSessionConsumingCatalogInVersion` swaps the pin for the exact one below
 			newSession = sessionFactory.apply(this.catalogSupplier.get());
 		} catch (Throwable ex) {
 			capturePin.close();
