@@ -64,7 +64,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * refusal, the re-admission after a close, the guarantee that a registration failing on its way in leaves nothing
  * behind to refuse the next one, and the guarantee that the ALIVE path is not serialised by the admission lock at
  * all. The *racing* half - two threads entering
- * {@link SessionRegistry#addSession(boolean, java.util.function.Supplier)} at once - has no seam to hook, because the
+ * {@link SessionRegistry#addSession(boolean, java.util.function.Function)} at once - has no seam to hook, because the
  * window sits between the emptiness check and the map write inside one private method. It is swept instead by
  * `LongRunningSessionRegistryWarmUpAdmissionTest` in `evita_test/evita_long_running_tests`, which carries the
  * calibration of that sweep.
@@ -127,7 +127,7 @@ class SessionRegistryWarmUpAdmissionTest {
 	/**
 	 * Registers a session the way the engine does - through
 	 * {@link SessionRegistry#createSession(java.util.function.Function)}, whose factory ends in
-	 * {@link SessionRegistry#addSession(boolean, java.util.function.Supplier)}.
+	 * {@link SessionRegistry#addSession(boolean, java.util.function.Function)}.
 	 *
 	 * @param registry      the registry to register into
 	 * @param transactional TRUE when the catalog is to be treated as ALIVE
@@ -140,7 +140,7 @@ class SessionRegistryWarmUpAdmissionTest {
 		boolean transactional,
 		@Nonnull EvitaSession session
 	) {
-		return registry.createSession(theRegistry -> theRegistry.addSession(transactional, () -> session));
+		return registry.createSession(theRegistry -> theRegistry.addSession(transactional, resolvedCatalog -> session));
 	}
 
 	@Test
@@ -190,7 +190,7 @@ class SessionRegistryWarmUpAdmissionTest {
 	void shouldLeaveNothingBehindWhenTheVersionPinCannotBeTaken() {
 		// the registry's real catalog supplier - `Evita.createSessionNewRegistry`'s lambda - throws rather than
 		// answering NULL once the catalog is gone, and the census only absorbs `CatalogTransitioningException`
-		final AtomicBoolean catalogGone = new AtomicBoolean(true);
+		final AtomicBoolean catalogGone = new AtomicBoolean(false);
 		final Catalog catalog = Mockito.mock(Catalog.class);
 		final SessionRegistry registry = new SessionRegistry(
 			Mockito.mock(TracingContext.class),
@@ -203,11 +203,27 @@ class SessionRegistryWarmUpAdmissionTest {
 			SessionRegistry.createDataStore()
 		);
 
+		// the catalog disappears while the session is being built - after the registry pinned the version current
+		// before the build (the mocked catalog reports version 0) and before the census pins the session's own version
+		// (1), which is the step whose failure has a census increment and a capture pin to give back
+		final EvitaSession abandoned = mockSession();
 		assertThrows(
 			CatalogNotFoundException.class,
-			() -> register(registry, false, mockSession()),
+			() -> registry.createSession(
+				theRegistry -> theRegistry.addSession(
+					false,
+					resolvedCatalog -> {
+						catalogGone.set(true);
+						return abandoned;
+					}
+				)
+			),
 			"A catalog that has gone must fail the registration rather than half-complete it!"
 		);
+		// the pin taken before the build must not outlive the registration it protected - left standing it would
+		// hold version 0 against every reclamation for the life of the process
+		Mockito.verify(catalog, Mockito.times(1)).catalogVersionPinned(0L);
+		Mockito.verify(catalog, Mockito.times(1)).catalogVersionReleased(0L);
 		// the registry admits again and the session count is back to zero - but that is only half of "nothing
 		// behind", and the other half is invisible from here: the per-version reader census is raised BEFORE the
 		// pin is attempted, so a failure between the two used to leave a phantom consumer on this version. The
@@ -292,7 +308,7 @@ class SessionRegistryWarmUpAdmissionTest {
 				try {
 					origin.addSession(
 						false,
-						() -> {
+						resolvedCatalog -> {
 							admissionEntered.countDown();
 							awaitOrFail(releaseAdmission, "The origin admission was never released!");
 							throw new RegistrationAbandoned();
@@ -350,20 +366,37 @@ class SessionRegistryWarmUpAdmissionTest {
 	@Test
 	@DisplayName("A session whose version pin fails is closed rather than abandoned")
 	void shouldCloseTheSessionWhenTheVersionPinCannotBeTaken() {
-		// the pin is taken after the supplier has already built the session, and the caller never receives the
-		// session, so nothing else will ever close it - it holds an open traffic-recording session and, on an ALIVE
-		// catalog, an open transaction. The registry's own state is covered by the case above; this covers the
-		// session's
+		// the session's own version is pinned after the factory has already built the session, and the caller never
+		// receives the session, so nothing else will ever close it - it holds an open traffic-recording session and,
+		// on an ALIVE catalog, an open transaction. The registry's own state is covered by the case above; this covers
+		// the session's. The catalog goes away while the session is being built: gone before the build, the
+		// registration fails before there is any session to close
+		final AtomicBoolean catalogGone = new AtomicBoolean(false);
+		final Catalog catalog = Mockito.mock(Catalog.class);
 		final SessionRegistry registry = new SessionRegistry(
 			Mockito.mock(TracingContext.class),
 			() -> {
-				throw new CatalogNotFoundException(TEST_CATALOG);
+				if (catalogGone.get()) {
+					throw new CatalogNotFoundException(TEST_CATALOG);
+				}
+				return catalog;
 			},
 			SessionRegistry.createDataStore()
 		);
 		final EvitaSession session = mockSession();
 
-		assertThrows(CatalogNotFoundException.class, () -> register(registry, false, session));
+		assertThrows(
+			CatalogNotFoundException.class,
+			() -> registry.createSession(
+				theRegistry -> theRegistry.addSession(
+					false,
+					resolvedCatalog -> {
+						catalogGone.set(true);
+						return session;
+					}
+				)
+			)
+		);
 		Mockito.verify(session).closeNow(Mockito.any());
 	}
 
@@ -382,7 +415,7 @@ class SessionRegistryWarmUpAdmissionTest {
 				try {
 					registry.addSession(
 						false,
-						() -> {
+						resolvedCatalog -> {
 							admissionEntered.countDown();
 							awaitOrFail(releaseAdmission, "The warm-up admission was never released!");
 							throw new RegistrationAbandoned();
