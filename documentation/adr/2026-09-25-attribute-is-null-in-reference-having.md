@@ -1,7 +1,7 @@
 ---
 title: attributeIsNull inside referenceHaving widens candidate discovery and is answered one reference row at a time
 date: 2026-09-25
-updated: 2026-09-28 13:27
+updated: 2026-09-28 17:03
 status: accepted
 kind: fix
 issues: [1584]
@@ -156,21 +156,43 @@ Consequences a later change must keep:
   the unchanged wire shape.
 - A **negated** unique lookup complements the preferred answer, so over both scopes
   `not(attributeEquals(code, v))` returns the entity in the later scope that carries `v`. Documented, pinned.
-- The same rule applies to globally unique attributes (`applyOnFirstGlobalUniqueIndex`) and inside the nested
-  query of `entityHaving` / `groupHaving`.
+- The same rule applies to globally unique attributes and inside the nested query of `entityHaving` /
+  `groupHaving`. `FilterByVisitor#applyOnFirstUniqueIndex` is the one helper for both kinds: it walks the scopes in
+  the requested order and looks each up the way that scope declares the uniqueness - the unique index of the
+  catalog where the attribute is globally unique, the unique indexes of the collection where it is unique within
+  the collection. Two helpers used to split this by attribute rather than by scope: as soon as any requested scope
+  was globally unique, only catalogs were read, so a catalog attribute globally unique in LIVE and unique within
+  the collection in ARCHIVED lost every archived match over both scopes. `attributeInSet` resolves each value on
+  its own, so two values of one set may resolve to different scopes.
 - `EvitaRequest#getScopes()` stops at `SeparateEntityScopeContainer`. Before, a `scope(...)` nested in
   `referenceHaving` either failed the query with `MoreThanSingleResultException` (when an outer scope existed) or
   silently became the scope of the whole query (when none did).
 
 ## Key technical details
 
-- `FilterByVisitor#applyOnFirstUniqueIndex` tags its result like `applyOnIndexes` does. Every per-index leaf
+- `FilterByVisitor#applyOnFirstUniqueIndex` tags a collection result like `applyOnIndexes` does (a catalog result
+  is never reached inside a reference body). Every per-index leaf
   that can appear inside a `referenceHaving` body must carry `IndexTaggedFormula` - an untagged one is read as
   index-independent and applied to every row of the owner, with no error.
 - `AttributeIsTranslator#translateIsNull` — the `PER_ROW` widening; `#createNullSubtractionFormula`,
   `#getCarriersFormula` — the per-index builder and the carrier source.
-- The globally-unique branch of `translateIsNull` is kept as it was: `getOptionalGlobalAttributeSchema` is empty
-  inside a reference body (`AbstractAttributeTranslator`), so it is unreachable there.
+- A catalog attribute globally unique in a requested scope is read per scope: `getGloballyUniqueCarriers` takes
+  that scope's catalog unique index, and `getCarriersFormula` pairs it with that scope's entity indexes only;
+  a scope where the attribute is not globally unique falls through to the filter indexes. The catalog read cannot
+  be replaced by filter indexes - a globally unique attribute that is neither unique nor filterable in the
+  collection has none. The single catalog lookup it replaced subtracted each scope's carriers from the records of
+  *every* scope, so over two scopes `attributeIsNull` returned the carriers too. `getOptionalGlobalAttributeSchema`
+  is empty inside a reference body (`AbstractAttributeTranslator`), so none of this is reachable there.
+- `AttributeFormula#isLocaleImplied` tells `EntityLocaleEqualsTranslator`'s `LocaleOptimizingPostProcessor` whether
+  the records of a localized attribute formula all hold its locale - the premise on which it drops the locale
+  formula beside it. A null test never implies it (its records lack the value, and those lacking the locale are
+  among them), and neither does a not-null test in which some requested scope reads every locale, nor a unique
+  lookup of `attributeEquals` / `attributeInSet` in a scope where the attribute is unique across locales - the
+  unique index is shared by every locale there. `AbstractAttributeTranslator#isQueryLocaleImplied` decides it for
+  all three. The drop fires only on a prefetch-capable plan (its `SelectionFormula` branch), so the index-scan plan
+  was never affected. Every other localized attribute formula reads the query locale's own structure and keeps the
+  default: the filter-index comparisons, ranges and string searches, and the global unique lookups, whose index
+  records the locale of each value and matches it against the query locale.
 - `facetHaving(attributeIsNull(a))` is untouched. It is the only `IN_PLACE` consumer and reads "facet none of
   whose rows carries `a`", consistent with how `IN_PLACE` resolves every negation. That reading is **kept on
   purpose**: `facetHaving`'s nested constraints select facets, not rows, and every owner of a selected facet is
@@ -198,6 +220,10 @@ re-enabled), `ReferenceBodyTransposerTest` (fast path through the wrapper).
 | nested scope boundary | 4 of 4 (3 threw, 1 leaked) | 4 / 0 | stop class removed: 4 red; `EnumSet` restored: 2 red |
 | localized null test without a locale | 2 of 2 | 18 / 0 | revert: the same 2 red |
 | not-null from the null side's carriers | 2 of 20 (`EntityLocaleMissingException`; `[]` for `[1]`) | 20 / 0 | revert: 2 of 20 red |
+| globally unique, per-scope catalog read | 1 of 6 (`[1..8]` for `[2, 3, 4, 5, 8]`) | 6 / 0 | — |
+| locale kept beside a null test (prefetch) | 1 of 6 (`[2]` for `[]`) | 6 / 0 | null side implying the locale: 1 of 6 red; not-null flag ignoring the scope: 1 of 6 red |
+| locale kept beside a unique value comparison (prefetch) | 1 of 7 (`[1]` for `[]`) | 9 / 0 | `attributeEquals` flag reverted: 1 of 8 red; `attributeInSet` flag reverted: 1 of 8 red |
+| unique lookup per scope (catalog or collection) | 1 of 28 (`[]` for `[6]`) | 28 / 0 | collection lookup skipped for a catalog attribute: 1 of 2 red; scopes walked in enum order: 1 of 2 red, and 4 failures in `UniqueAttributeScopePreferenceFunctionalTest` |
 
 D is proven by `ReferenceHavingUniqueAttributeFunctionalTest`, the scope order by
 `UniqueAttributeScopePreferenceFunctionalTest` and `NestedEntityScopeFunctionalTest`, the locale and not-null
@@ -253,6 +279,10 @@ Harness: `evita_test/evita_performance_tests/src/main/java/io/evitadb/spike/Refe
   standalone (localized, unique across locales) index is affected; the value tree stays correct, so lookups by
   value are right. No query reads that bitmap any more, but `IndexCardinalityProjection` reports it and the
   storage part persists it.
+- **An `AttributeFormula` over a read that ignores the query locale must say so.** The constructors default
+  `localeImplied` to true, and a wrong true is silent: it drops `entityLocaleEquals` on prefetch-capable plans
+  only, so the index-scan plan keeps answering correctly. Every translator building a localized formula over the
+  shared unique index or a union over every locale passes `AbstractAttributeTranslator#isQueryLocaleImplied`.
 - Found on the way, not part of #1584:
   - reflected references with an archived owner answer bare `referenceHaving(R)` wrong in `ARCHIVED` (0 vs 1):
     #1583, which already describes it;

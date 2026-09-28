@@ -1,7 +1,7 @@
 ---
 title: A referenceHaving body is a predicate about one reference row, evaluated by transposing the planned formula per reduced index
 date: 2026-09-17
-updated: 2026-09-25 18:15
+updated: 2026-09-28 16:08
 status: partially-implemented
 kind: fix
 issues: [1585]
@@ -154,8 +154,9 @@ structure rather than two, because the counter's key set **is** the owner bitmap
 **The transpose.** `ReferenceHavingTranslator` hands the planned body to `ReferenceBodyTransposer#transpose`,
 which rebuilds it once per reduced index. Leaves that are index-specific are wrapped in `IndexTaggedFormula`
 at the moment they are produced — `FilterByVisitor#tagWithProducingIndex`, attached in `applyOnIndexes`,
-`applyStreamOnIndexes` and `applyOnUniqueIndexes`, which are the complete set because the filter-index
-variants delegate to them. `project` keeps each index's own tagged leaf and drops its siblings.
+`applyStreamOnIndexes` and `applyOnFirstUniqueIndex`, which are the complete set of per-entity-index helpers
+because the filter-index variants delegate to the first two. The catalog-level global unique lookups are not
+among them: a global attribute is never resolved inside a reference body. `project` keeps each index's own tagged leaf and drops its siblings.
 
 **Tagging is mandatory, and its absence is silent.** `project` returns any untagged node whole, for every
 index — the deliberate conservatism above. An index-local formula that forgets its tag is therefore not
