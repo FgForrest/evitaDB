@@ -548,6 +548,20 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 	}
 
 	/**
+	 * Returns the primary keys of the passed entities - the candidates a query on
+	 * {@link io.evitadb.utils.PlanPreference#PREFETCH} is narrowed to.
+	 *
+	 * @param entities entities whose primary keys to return
+	 * @return the primary keys, in the order of the entities
+	 */
+	@Nonnull
+	protected static int[] primaryKeysOf(@Nonnull List<SealedEntity> entities) {
+		return entities.stream()
+			.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
+			.toArray();
+	}
+
+	/**
 	 * Declares every collection, attribute and reference of the fixture.
 	 *
 	 * `CATEGORY` and `PRODUCT` are created empty first so that both collections exist before any managed reference

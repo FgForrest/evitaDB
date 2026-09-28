@@ -26,7 +26,7 @@ package io.evitadb.api.functional.reference;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
-import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -38,6 +38,7 @@ import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
+import io.evitadb.utils.PlanPreference;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -325,7 +326,8 @@ public class NestedEntityScopeFunctionalTest {
 	}
 
 	/**
-	 * Runs the query with and without `PREFER_INDEX_SCAN` and asserts the owner primary keys.
+	 * Runs the query on both plans of {@link PlanPreference} and asserts the owner primary keys, and that each plan was
+	 * the one taken. The prefetch plan is narrowed to every owner of both scopes, which is neutral to the answer.
 	 *
 	 * @param session    session to query through
 	 * @param outerScope the scope of the query itself, or NULL to leave the default
@@ -339,27 +341,36 @@ public class NestedEntityScopeFunctionalTest {
 		@Nonnull Set<Integer> expected
 	) {
 		assertFalse(expected.isEmpty(), "Fixture guard: the oracle for `" + filter + "` must not be empty!");
-		for (boolean preferIndexScan : new boolean[]{true, false}) {
-			final Set<Integer> actual = session.queryList(
-					Query.query(
-						collection(ENTITY_OWNER),
-						outerScope == null ? filterBy(filter) : filterBy(scope(outerScope), filter),
-						require(
-							preferIndexScan ?
-								debug(DebugMode.VERIFY_POSSIBLE_CACHING_TREES, DebugMode.PREFER_INDEX_SCAN) :
-								debug(DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
-							page(1, Integer.MAX_VALUE)
-						)
+		final int[] candidates = session.queryList(
+				Query.query(
+					collection(ENTITY_OWNER),
+					filterBy(scope(Scope.LIVE, Scope.ARCHIVED)),
+					require(page(1, Integer.MAX_VALUE))
+				),
+				EntityReference.class
+			).stream()
+			.mapToInt(EntityReference::getPrimaryKey)
+			.toArray();
+		for (PlanPreference plan : PlanPreference.values()) {
+			final EvitaResponse<EntityReference> response = session.query(
+				Query.query(
+					collection(ENTITY_OWNER),
+					filterBy(
+						outerScope == null ?
+							plan.filter(candidates, filter) : plan.filter(candidates, scope(outerScope), filter)
 					),
-					EntityReference.class
-				).stream()
+					require(plan.debug(), page(1, Integer.MAX_VALUE), queryTelemetry())
+				),
+				EntityReference.class
+			);
+			final Set<Integer> actual = response.getRecordData().stream()
 				.map(EntityReference::getPrimaryKey)
 				.collect(Collectors.toCollection(TreeSet::new));
 			assertEquals(
 				expected, actual,
-				"Wrong owners for `" + filter + "` under outer scope " + outerScope +
-					" (preferIndexScan=" + preferIndexScan + ")"
+				"Wrong owners for `" + filter + "` under outer scope " + outerScope + " (" + plan + ")"
 			);
+			plan.assertTaken(response);
 		}
 	}
 

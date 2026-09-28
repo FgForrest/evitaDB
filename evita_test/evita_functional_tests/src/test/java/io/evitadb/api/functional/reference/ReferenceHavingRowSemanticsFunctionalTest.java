@@ -34,6 +34,8 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
+import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.PlanPreference;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -323,11 +325,7 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 	}
 
 	/**
-	 * Runs a `referenceHaving` over the `crossRowCategories` reference on the index-scan path.
-	 *
-	 * The debug mode is not decoration: on a fixture this small the planner answers from prefetched entity bodies
-	 * unless it is told not to, and the prefetch path answers a different question about the body - see
-	 * {@link #shouldNotSatisfyConjunctionOfNonRepresentativeAttributesAcrossTwoRows} for which one this row pins.
+	 * Runs a `referenceHaving` over the `crossRowCategories` reference on {@link PlanPreference#INDEX_SCAN}.
 	 *
 	 * @param evita the engine
 	 * @param body  the body of the reference constraint
@@ -338,22 +336,26 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 		@Nonnull Evita evita,
 		@Nonnull FilterConstraint body
 	) {
-		return matchingProductsByCrossRowCategories(evita, body, DebugMode.PREFER_INDEX_SCAN);
+		return matchingProductsByCrossRowCategories(evita, PlanPreference.INDEX_SCAN, ArrayUtils.EMPTY_INT_ARRAY, body);
 	}
 
 	/**
-	 * Runs a `referenceHaving` over the `crossRowCategories` reference on the requested plan.
+	 * Runs a `referenceHaving` over the `crossRowCategories` reference on the requested plan, and asserts from the
+	 * telemetry that the plan was the one taken.
 	 *
-	 * @param evita     the engine
-	 * @param body      the body of the reference constraint
-	 * @param debugMode the plan the query is forced onto
+	 * @param evita      the engine
+	 * @param plan       the plan the query is steered towards
+	 * @param candidates primary keys of every product that may match, which {@link PlanPreference#PREFETCH} narrows
+	 *                   the query to
+	 * @param body       the body of the reference constraint
 	 * @return primary keys of matching products
 	 */
 	@Nonnull
 	private static Set<Integer> matchingProductsByCrossRowCategories(
 		@Nonnull Evita evita,
-		@Nonnull FilterConstraint body,
-		@Nonnull DebugMode debugMode
+		@Nonnull PlanPreference plan,
+		@Nonnull int[] candidates,
+		@Nonnull FilterConstraint body
 	) {
 		return evita.queryCatalog(
 			TEST_CATALOG,
@@ -361,11 +363,12 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
 						collection(Entities.PRODUCT),
-						filterBy(referenceHaving(REF_PRODUCT_CROSS_ROW_CATEGORIES, body)),
-						require(debug(debugMode), page(1, Integer.MAX_VALUE))
+						filterBy(plan.filter(candidates, referenceHaving(REF_PRODUCT_CROSS_ROW_CATEGORIES, body))),
+						require(plan.debug(), page(1, Integer.MAX_VALUE), queryTelemetry())
 					),
 					EntityReference.class
 				);
+				plan.assertTaken(result);
 				return result.getRecordData()
 					.stream()
 					.map(EntityReference::getPrimaryKey)
@@ -454,21 +457,20 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 	}
 
 	/**
-	 * The same negation with the index-scan preference removed, so the planner picks the plan it would pick on
-	 * its own.
+	 * The same negation answered on {@link PlanPreference#PREFETCH}.
 	 *
-	 * Two plans answer a `referenceHaving` body - one from the reduced index family, one from prefetched entity
-	 * bodies - and a row-scoped reading has to come out of both. This row asserts they agree; it deliberately does
-	 * **not** assert which plan ran, because that is the planner's decision and not the contract. Its twin
-	 * {@link #shouldComplementNotAgainstTheReferenceRowRatherThanTheCollection} pins the index side by forcing it.
+	 * Two plans answer a query carrying a `referenceHaving` body - one resolving the indexes, one prefetching the owner
+	 * bodies - and a row-scoped reading has to come out of both. The body itself is answered from the reduced index
+	 * family on either plan; what the prefetch plan changes is the enclosing query. Its twin
+	 * {@link #shouldComplementNotAgainstTheReferenceRowRatherThanTheCollection} pins the index-scan plan.
 	 *
 	 * @param evita            the engine
 	 * @param originalProducts all products, fully fetched, as the dataset built them
 	 */
-	@DisplayName("`not` gives the same row-scoped answer when the planner chooses the plan")
+	@DisplayName("`not` gives the same row-scoped answer on the prefetch plan")
 	@UseDataSet(BIDI_REWRITE)
 	@Test
-	void shouldComplementNotAgainstTheReferenceRowWhicheverPlanIsChosen(
+	void shouldComplementNotAgainstTheReferenceRowOnThePrefetchPlan(
 		Evita evita,
 		List<SealedEntity> originalProducts
 	) {
@@ -480,33 +482,14 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 			.collect(Collectors.toCollection(TreeSet::new));
 		assertFalse(expected.isEmpty(), "Fixture must contain an owner holding a row the negation is true of.");
 
-		final Set<Integer> actual = evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				final EvitaResponse<EntityReference> result = session.query(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							referenceHaving(
-								REF_PRODUCT_CROSS_ROW_CATEGORIES,
-								not(attributeEquals(REF_ATTR_MARK, CROSS_ROW_MATCHED_MARK))
-							)
-						),
-						require(page(1, Integer.MAX_VALUE))
-					),
-					EntityReference.class
-				);
-				return result.getRecordData()
-					.stream()
-					.map(EntityReference::getPrimaryKey)
-					.collect(Collectors.toCollection(TreeSet::new));
-			}
-		);
-
 		assertEquals(
-			expected, actual,
-			"Both plans must answer the negation per reference row - a plan that complements against the whole " +
-				"collection would additionally return every owner holding no row of the reference at all."
+			expected,
+			matchingProductsByCrossRowCategories(
+				evita, PlanPreference.PREFETCH, primaryKeysOf(originalProducts),
+				not(attributeEquals(REF_ATTR_MARK, CROSS_ROW_MATCHED_MARK))
+			),
+			"The prefetch plan must answer the negation per reference row - a plan that complements against the " +
+				"whole collection would additionally return every owner holding no row of the reference at all."
 		);
 	}
 
@@ -903,7 +886,8 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 		assertEquals(
 			expected,
 			matchingProductsByCrossRowCategories(
-				evita, entityPrimaryKeyInSet(CROSS_ROW_CATEGORY_A_PK), DebugMode.PREFER_PREFETCHING
+				evita, PlanPreference.PREFETCH, primaryKeysOf(originalProducts),
+				entityPrimaryKeyInSet(CROSS_ROW_CATEGORY_A_PK)
 			),
 			"The prefetch plan must select exactly the owners holding a row on the target category."
 		);
@@ -948,7 +932,8 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 		assertEquals(
 			expected,
 			matchingProductsByCrossRowCategories(
-				evita, not(entityPrimaryKeyInSet(CROSS_ROW_CATEGORY_A_PK)), DebugMode.PREFER_PREFETCHING
+				evita, PlanPreference.PREFETCH, primaryKeysOf(originalProducts),
+				not(entityPrimaryKeyInSet(CROSS_ROW_CATEGORY_A_PK))
 			),
 			"The prefetch plan must take the negation inside each reference row. Complementing across the whole " +
 				"family would return " + perOwnerReading + " instead."

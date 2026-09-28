@@ -24,7 +24,6 @@
 package io.evitadb.api.functional.reference;
 
 import io.evitadb.api.query.order.OrderDirection;
-import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -40,6 +39,7 @@ import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.utils.AssertionUtils;
+import io.evitadb.utils.PlanPreference;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -258,10 +258,10 @@ public class BidirectionalReferenceRewriteFunctionalTest
 	}
 
 	/**
-	 * The same question as {@link #shouldRewriteWhenOwnerReferenceIsTheReflectedEnd}, minus
-	 * `DebugMode#PREFER_INDEX_SCAN`. On a 258-entity fixture the planner answers from prefetched entity bodies, so
-	 * this is the only variant in which the prefetch path runs **with a rewritten formula present**. The channel
-	 * assertion still holds: index selection - and therefore the rewrite's early return - happens either way.
+	 * The same question as {@link #shouldRewriteWhenOwnerReferenceIsTheReflectedEnd}, asked on the prefetch plan of
+	 * {@link PlanPreference}, so the owner bodies are prefetched **with a rewritten formula present** - the row
+	 * asserts from the telemetry that they were. The channel assertion still holds: index selection - and therefore
+	 * the rewrite's early return - happens on either plan.
 	 *
 	 * **Declines today, and by design rather than by defect.** `FilterByVisitor#getEntityIndexStream` narrows the
 	 * indexes a nested constraint may see to the processing scope's own scopes. A per-owner reduced index living in
@@ -276,10 +276,10 @@ public class BidirectionalReferenceRewriteFunctionalTest
 	 * both scopes. Do not read this row as "the rewrite stopped working on attribute filters" and do not delete the
 	 * guard that produces it.
 	 */
-	@DisplayName("Should rewrite the reflected end and agree with itself when the prefetch is allowed")
+	@DisplayName("Should rewrite the reflected end and agree with itself on the prefetch plan")
 	@UseDataSet(BIDI_REWRITE)
 	@Test
-	void shouldRewriteWhenOwnerReferenceIsTheReflectedEndWithoutIndexScanPreference(
+	void shouldRewriteWhenOwnerReferenceIsTheReflectedEndOnThePrefetchPlan(
 		Evita evita,
 		List<SealedEntity> originalCategories
 	) {
@@ -290,15 +290,19 @@ public class BidirectionalReferenceRewriteFunctionalTest
 					query(
 						collection(Entities.CATEGORY),
 						filterBy(
-							referenceHaving(
-								REF_CATEGORY_PRODUCTS,
-								attributeEquals(REF_ATTR_RELEVANCE, MATCHED_RELEVANCE)
+							PlanPreference.PREFETCH.filter(
+								primaryKeysOf(originalCategories),
+								referenceHaving(
+									REF_CATEGORY_PRODUCTS,
+									attributeEquals(REF_ATTR_RELEVANCE, MATCHED_RELEVANCE)
+								)
 							)
 						),
-						observingRequirements(DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						prefetchRequirements()
 					),
 					EntityReference.class
 				);
+				PlanPreference.PREFETCH.assertTaken(response);
 
 				AssertionUtils.assertResultIs(
 					originalCategories,
@@ -347,13 +351,13 @@ public class BidirectionalReferenceRewriteFunctionalTest
 	}
 
 	/**
-	 * The prefetch-allowed twin of {@link #shouldRewriteWhenOwnerReferenceIsTheOriginalEnd} - see that method's twin
+	 * The prefetch-plan twin of {@link #shouldRewriteWhenOwnerReferenceIsTheOriginalEnd} - see that method's twin
 	 * for why the pair exists.
 	 */
-	@DisplayName("Should rewrite the original end and agree with itself when the prefetch is allowed")
+	@DisplayName("Should rewrite the original end and agree with itself on the prefetch plan")
 	@UseDataSet(BIDI_REWRITE)
 	@Test
-	void shouldRewriteWhenOwnerReferenceIsTheOriginalEndWithoutIndexScanPreference(
+	void shouldRewriteWhenOwnerReferenceIsTheOriginalEndOnThePrefetchPlan(
 		Evita evita,
 		List<SealedEntity> originalCategories
 	) {
@@ -364,12 +368,16 @@ public class BidirectionalReferenceRewriteFunctionalTest
 					query(
 						collection(Entities.CATEGORY),
 						filterBy(
-							referenceHaving(REF_CATEGORY_CURATED, attributeEquals(REF_ATTR_RANK, MATCHED_RANK))
+							PlanPreference.PREFETCH.filter(
+								primaryKeysOf(originalCategories),
+								referenceHaving(REF_CATEGORY_CURATED, attributeEquals(REF_ATTR_RANK, MATCHED_RANK))
+							)
 						),
-						observingRequirements(DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						prefetchRequirements()
 					),
 					EntityReference.class
 				);
+				PlanPreference.PREFETCH.assertTaken(response);
 
 				AssertionUtils.assertResultIs(
 					originalCategories,
@@ -518,7 +526,7 @@ public class BidirectionalReferenceRewriteFunctionalTest
 	}
 
 	/**
-	 * The one row that runs the **owner prefetch** with a rewritten formula present.
+	 * The row that runs the **owner prefetch** with a rewritten formula present and a nested query in the body.
 	 *
 	 * `PrefetchFormulaVisitor` harvests `RequirementsDefiner#getEntityRequire` from every visited node regardless of
 	 * scope, so the nested `AttributeFormula` built for the *reference* attribute `relevance` - which lives on the
@@ -541,10 +549,10 @@ public class BidirectionalReferenceRewriteFunctionalTest
 	 * both scopes. Do not read this row as "the rewrite stopped working on attribute filters" and do not delete the
 	 * guard that produces it.
 	 */
-	@DisplayName("Should rewrite and still answer correctly when the prefetch is forced")
+	@DisplayName("Should rewrite and still answer correctly on the prefetch plan")
 	@UseDataSet(BIDI_REWRITE)
 	@Test
-	void shouldRewriteEntityHavingCombinedWithReferenceAttributeWhenPrefetchIsPreferred(
+	void shouldRewriteEntityHavingCombinedWithReferenceAttributeOnThePrefetchPlan(
 		Evita evita,
 		List<SealedEntity> originalCategories,
 		List<SealedEntity> originalProducts
@@ -556,18 +564,20 @@ public class BidirectionalReferenceRewriteFunctionalTest
 					query(
 						collection(Entities.CATEGORY),
 						filterBy(
-							referenceHaving(
-								REF_CATEGORY_PRODUCTS,
-								entityHaving(attributeEquals(ATTR_PRODUCT_ACTIVE, true)),
-								attributeEquals(REF_ATTR_RELEVANCE, MATCHED_RELEVANCE)
+							PlanPreference.PREFETCH.filter(
+								primaryKeysOf(originalCategories),
+								referenceHaving(
+									REF_CATEGORY_PRODUCTS,
+									entityHaving(attributeEquals(ATTR_PRODUCT_ACTIVE, true)),
+									attributeEquals(REF_ATTR_RELEVANCE, MATCHED_RELEVANCE)
+								)
 							)
 						),
-						observingRequirements(
-							DebugMode.VERIFY_POSSIBLE_CACHING_TREES, DebugMode.PREFER_PREFETCHING
-						)
+						prefetchRequirements()
 					),
 					EntityReference.class
 				);
+				PlanPreference.PREFETCH.assertTaken(response);
 
 				AssertionUtils.assertResultIs(
 					originalCategories,
@@ -2447,31 +2457,26 @@ public class BidirectionalReferenceRewriteFunctionalTest
 
 	/**
 	 * The requirement block of every row that claims to exercise an index path: telemetry so the channel can be
-	 * read, `VERIFY_POSSIBLE_CACHING_TREES` so the cacheable variants of the rewritten tree are executed and
-	 * compared, `PREFER_INDEX_SCAN` because a 258-entity fixture is otherwise answered from prefetched entity bodies
-	 * and neither the rewrite nor the owner-side translator runs, and an unbounded page so the result is the whole
-	 * answer rather than its first page.
+	 * read, the debug modes of {@link PlanPreference#INDEX_SCAN} - `VERIFY_POSSIBLE_CACHING_TREES` so the cacheable
+	 * variants of the rewritten tree are executed and compared, `PREFER_INDEX_SCAN` so the prefetch is denied and the
+	 * query resolves the indexes - and an unbounded page so the result is the whole answer rather than its first page.
 	 *
 	 * @return the shared requirement block
 	 */
 	@Nonnull
 	private static Require indexScanRequirements() {
-		return observingRequirements(DebugMode.VERIFY_POSSIBLE_CACHING_TREES, DebugMode.PREFER_INDEX_SCAN);
+		return require(queryTelemetry(), PlanPreference.INDEX_SCAN.debug(), page(1, Integer.MAX_VALUE));
 	}
 
 	/**
-	 * Variant of {@link #indexScanRequirements()} for the rows that deliberately choose their own debug modes.
+	 * Variant of {@link #indexScanRequirements()} for the rows on {@link PlanPreference#PREFETCH}, whose filter is
+	 * narrowed by {@link PlanPreference#filter}.
 	 *
-	 * @param debugModes debug modes to enable for the query
 	 * @return the requirement block
 	 */
 	@Nonnull
-	private static Require observingRequirements(@Nonnull DebugMode... debugModes) {
-		return require(
-			queryTelemetry(),
-			debug(debugModes),
-			page(1, Integer.MAX_VALUE)
-		);
+	private static Require prefetchRequirements() {
+		return require(queryTelemetry(), PlanPreference.PREFETCH.debug(), page(1, Integer.MAX_VALUE));
 	}
 
 	/* --------------------------------------------------------------------------------------------------------- */

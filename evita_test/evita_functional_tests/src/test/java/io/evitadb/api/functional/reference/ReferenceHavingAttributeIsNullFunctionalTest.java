@@ -50,6 +50,7 @@ import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
+import io.evitadb.utils.PlanPreference;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -1031,11 +1032,7 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 							entityLocaleEquals(Locale.GERMAN), referenceHaving(REF_LINKS, attributeIsNull(LOC))
 						);
 						assertEquals(expected, pks(response), "Wrong owners (" + plan + ")");
-						assertEquals(
-							plan == PlanPreference.PREFETCH, prefetched(response),
-							() -> "Unexpected prefetch decision (" + plan + "):\n" +
-								response.getExtraResult(QueryTelemetry.class)
-						);
+						plan.assertTaken(response);
 					}
 					return null;
 				}
@@ -1631,11 +1628,7 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 								session, ENTITY_MIXED_OWNER, originalMixedOwners, plan,
 								scope(Scope.LIVE, Scope.ARCHIVED), attributeIsNotNull(attributeName)
 							);
-							assertEquals(
-								plan == PlanPreference.PREFETCH, prefetched(response),
-								() -> "Unexpected prefetch decision for `" + attributeName + "` (" + plan + "):\n" +
-									response.getExtraResult(QueryTelemetry.class)
-							);
+							plan.assertTaken(response);
 						}
 					}
 					return null;
@@ -2075,29 +2068,6 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 	}
 
 	/**
-	 * The plan an owner-level query is steered towards, so that each expectation is held against both ways the engine
-	 * can answer it.
-	 */
-	private enum PlanPreference {
-		/**
-		 * `PREFER_INDEX_SCAN` together with `VERIFY_POSSIBLE_CACHING_TREES`: the prefetch is denied, so the query
-		 * resolves the indexes, and every cacheable variant of the formula tree is checked against the main plan.
-		 */
-		INDEX_SCAN,
-		/**
-		 * `PREFER_PREFETCHING` alone, with the filter conjoined with an `entityPrimaryKeyInSet` over every entity of
-		 * the queried scopes. Either debug mode of the other plan selects a planning policy that denies the prefetch,
-		 * and the prefetch needs resolved primary keys in conjunctive scope; the keys cover every candidate, so they
-		 * are neutral to the answer. The engine then prefetches whenever some formula registers the entity content it
-		 * reads - every attribute formula does - whatever the cost. The bodies are read only by the constraints that
-		 * offer an alternative evaluated on them, such as `entityLocaleEquals` or the `attributeIsNotNull` of an
-		 * attribute unique in no requested scope; every other constraint, `attributeIsNull` and a `referenceHaving`
-		 * body among them, is still answered from the indexes on this plan, under the default planning policy.
-		 */
-		PREFETCH
-	}
-
-	/**
 	 * Asserts on the owner collection that `referenceHaving(referenceName, body)` returns the owners holding a row
 	 * the row predicate selects.
 	 *
@@ -2316,19 +2286,6 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 	}
 
 	/**
-	 * Answers whether the plan that answered the query prefetched the entity bodies.
-	 *
-	 * @param response the response carrying the telemetry
-	 * @return true when the {@link QueryPhase#EXECUTION_PREFETCH} step ran
-	 */
-	private static boolean prefetched(@Nonnull EvitaResponse<EntityReference> response) {
-		return hasStep(
-			Objects.requireNonNull(response.getExtraResult(QueryTelemetry.class), "The query must collect telemetry!"),
-			QueryPhase.EXECUTION_PREFETCH
-		);
-	}
-
-	/**
 	 * Reads the route that answered the query off its telemetry, through the channel
 	 * `BidirectionalReferenceRewriteFunctionalTest` documents: the rewrite decides during index selection and, when
 	 * it fires, returns before the owner-side reference option is registered - so that option's
@@ -2488,17 +2445,9 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 		return session.query(
 			Query.query(
 				collection(entityType),
-				switch (plan) {
-					case INDEX_SCAN -> filterBy(filter);
-					case PREFETCH -> filterBy(
-						append(filter, entityPrimaryKeyInSet(primaryKeysInQueriedScopes(originals, filter)))
-					);
-				},
+				filterBy(plan.filter(primaryKeysInQueriedScopes(originals, filter), filter)),
 				require(
-					switch (plan) {
-						case INDEX_SCAN -> debug(DebugMode.VERIFY_POSSIBLE_CACHING_TREES, DebugMode.PREFER_INDEX_SCAN);
-						case PREFETCH -> debug(DebugMode.PREFER_PREFETCHING);
-					},
+					plan.debug(),
 					page(1, Integer.MAX_VALUE),
 					queryTelemetry()
 				)

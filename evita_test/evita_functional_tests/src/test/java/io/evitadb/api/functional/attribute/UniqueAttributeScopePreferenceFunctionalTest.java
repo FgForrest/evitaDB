@@ -26,8 +26,8 @@ package io.evitadb.api.functional.attribute;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
-import io.evitadb.api.query.require.Debug;
-import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.query.filter.Not;
+import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -37,6 +37,7 @@ import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
+import io.evitadb.utils.PlanPreference;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -324,7 +325,15 @@ public class UniqueAttributeScopePreferenceFunctionalTest {
 	}
 
 	/**
-	 * Runs the filter under the scope order, with and without `PREFER_INDEX_SCAN`, and asserts the primary keys.
+	 * Runs the filter under the scope order and asserts the primary keys. The owner collection is queried on both plans
+	 * of {@link PlanPreference}, and the prefetch plan is asserted to have prefetched; it is narrowed to every owner of
+	 * both scopes, which is neutral to the answer. The index-scan plan is not asserted the other way, because a lookup
+	 * answered from the catalog's global unique index fetches the bodies of the entities it located whatever the
+	 * planning policy. Two queries have no prefetch plan to steer onto, and run on the index-scan plan alone:
+	 *
+	 * - a query naming no collection, which is such a lookup;
+	 * - a top-level negation, because the planner folds `and(P, not(N))` into `NotFormula(N, P)` and the primary keys
+	 *   narrowing the query end up as the superset of that formula, where the prefetch visitor does not look for them.
 	 *
 	 * @param session        session to query through
 	 * @param order          the scopes, in the order `scope(...)` lists them
@@ -340,40 +349,43 @@ public class UniqueAttributeScopePreferenceFunctionalTest {
 		@Nonnull Set<Integer> expected
 	) {
 		assertFalse(expected.isEmpty(), "Fixture guard: the oracle for `" + filter + "` must not be empty!");
-		for (boolean preferIndexScan : new boolean[]{true, false}) {
+		final int[] candidates = session.queryList(
+				Query.query(
+					collection(ENTITY_OWNER),
+					filterBy(scope(Scope.LIVE, Scope.ARCHIVED)),
+					require(page(1, Integer.MAX_VALUE))
+				),
+				EntityReference.class
+			).stream()
+			.mapToInt(EntityReference::getPrimaryKey)
+			.toArray();
+		final PlanPreference[] plans = withCollection && !(filter instanceof Not) ?
+			PlanPreference.values() : new PlanPreference[]{PlanPreference.INDEX_SCAN};
+		for (PlanPreference plan : plans) {
 			final Query query = withCollection ?
 				Query.query(
 					collection(ENTITY_OWNER),
-					filterBy(scope(order), filter),
-					require(debugModes(preferIndexScan), page(1, Integer.MAX_VALUE))
+					filterBy(plan.filter(candidates, scope(order), filter)),
+					require(plan.debug(), page(1, Integer.MAX_VALUE), queryTelemetry())
 				) :
 				Query.query(
 					filterBy(scope(order), filter),
-					require(debugModes(preferIndexScan), page(1, Integer.MAX_VALUE))
+					require(plan.debug(), page(1, Integer.MAX_VALUE), queryTelemetry())
 				);
-			final Set<Integer> actual = session.queryList(query, EntityReference.class)
+			final EvitaResponse<EntityReference> response = session.query(query, EntityReference.class);
+			final Set<Integer> actual = response.getRecordData()
 				.stream()
 				.map(EntityReference::getPrimaryKey)
 				.collect(Collectors.toCollection(TreeSet::new));
 			assertEquals(
 				expected, actual,
 				"Wrong owners for `" + filter + "` in `" + Arrays.toString(order) + "` (collection=" +
-					withCollection + ", preferIndexScan=" + preferIndexScan + ")"
+					withCollection + ", " + plan + ")"
 			);
+			if (plan == PlanPreference.PREFETCH) {
+				plan.assertTaken(response);
+			}
 		}
-	}
-
-	/**
-	 * Returns the debug requirement for the index-scan preference.
-	 *
-	 * @param preferIndexScan whether to forbid answering from prefetched entity bodies
-	 * @return the debug requirement
-	 */
-	@Nonnull
-	private static Debug debugModes(boolean preferIndexScan) {
-		return preferIndexScan ?
-			debug(DebugMode.VERIFY_POSSIBLE_CACHING_TREES, DebugMode.PREFER_INDEX_SCAN) :
-			debug(DebugMode.VERIFY_POSSIBLE_CACHING_TREES);
 	}
 
 	/**

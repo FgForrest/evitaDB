@@ -26,7 +26,6 @@ package io.evitadb.api.functional.reference;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
-import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -40,6 +39,7 @@ import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
+import io.evitadb.utils.PlanPreference;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -365,9 +365,9 @@ public class ReferenceHavingUniqueAttributeFunctionalTest {
 	}
 
 	/**
-	 * Runs `referenceHaving(referenceName, body)` under both index-scan preferences and asserts the entities holding
-	 * a row the row predicate selects are returned, and that the index-scan plan took the route. Without
-	 * `PREFER_INDEX_SCAN` a collection this small may be answered from prefetched bodies, which records no route.
+	 * Runs `referenceHaving(referenceName, body)` on both plans of {@link PlanPreference} and asserts the entities
+	 * holding a row the row predicate selects are returned, that each plan was the one taken, and that the index-scan
+	 * plan took the route. The route is asserted on the index-scan plan only - the plan the rows are written for.
 	 *
 	 * @param session       session to query through
 	 * @param entityType    collection to query
@@ -391,15 +391,14 @@ public class ReferenceHavingUniqueAttributeFunctionalTest {
 			.map(SealedEntity::getPrimaryKeyOrThrowException)
 			.collect(Collectors.toCollection(TreeSet::new));
 		final FilterConstraint filter = referenceHaving(referenceName, body);
-		for (boolean preferIndexScan : new boolean[]{true, false}) {
+		final int[] candidates = originals.stream().mapToInt(SealedEntity::getPrimaryKeyOrThrowException).toArray();
+		for (PlanPreference plan : PlanPreference.values()) {
 			final EvitaResponse<EntityReference> response = session.query(
 				Query.query(
 					collection(entityType),
-					filterBy(filter),
+					filterBy(plan.filter(candidates, filter)),
 					require(
-						preferIndexScan ?
-							debug(DebugMode.VERIFY_POSSIBLE_CACHING_TREES, DebugMode.PREFER_INDEX_SCAN) :
-							debug(DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+						plan.debug(),
 						page(1, Integer.MAX_VALUE),
 						queryTelemetry()
 					)
@@ -409,11 +408,9 @@ public class ReferenceHavingUniqueAttributeFunctionalTest {
 			final Set<Integer> actual = response.getRecordData().stream()
 				.map(EntityReference::getPrimaryKey)
 				.collect(Collectors.toCollection(TreeSet::new));
-			assertEquals(
-				expected, actual,
-				"Wrong `" + entityType + "` for `" + filter + "` (preferIndexScan=" + preferIndexScan + ")"
-			);
-			if (preferIndexScan) {
+			assertEquals(expected, actual, "Wrong `" + entityType + "` for `" + filter + "` (" + plan + ")");
+			plan.assertTaken(response);
+			if (plan == PlanPreference.INDEX_SCAN) {
 				assertEquals(
 					route, routeOf(response),
 					() -> "Wrong route for `" + filter + "`:\n" + response.getExtraResult(QueryTelemetry.class)
