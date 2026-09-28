@@ -1,7 +1,7 @@
 ---
 title: attributeIsNull inside referenceHaving widens candidate discovery and is answered one reference row at a time
 date: 2026-09-25
-updated: 2026-09-28 17:03
+updated: 2026-09-28 20:18
 status: accepted
 kind: fix
 issues: [1584]
@@ -176,13 +176,20 @@ Consequences a later change must keep:
   index-independent and applied to every row of the owner, with no error.
 - `AttributeIsTranslator#translateIsNull` — the `PER_ROW` widening; `#createNullSubtractionFormula`,
   `#getCarriersFormula` — the per-index builder and the carrier source.
-- A catalog attribute globally unique in a requested scope is read per scope: `getGloballyUniqueCarriers` takes
-  that scope's catalog unique index, and `getCarriersFormula` pairs it with that scope's entity indexes only;
-  a scope where the attribute is not globally unique falls through to the filter indexes. The catalog read cannot
-  be replaced by filter indexes - a globally unique attribute that is neither unique nor filterable in the
-  collection has none. The single catalog lookup it replaced subtracted each scope's carriers from the records of
-  *every* scope, so over two scopes `attributeIsNull` returned the carriers too. `getOptionalGlobalAttributeSchema`
-  is empty inside a reference body (`AbstractAttributeTranslator`), so none of this is reachable there.
+- A catalog attribute is no exception to the filter-index read: its null and not-null tests read the collection's
+  filter indexes, per index, like any other unique attribute. The filter index is always there - where a catalog
+  attribute is globally unique, `GlobalAttributeSchema#verifyAndAlterUniquenessTypes` declares it unique in the
+  collection as well (`UNIQUE_WITHIN_CATALOG` → `UNIQUE_WITHIN_COLLECTION`, `UNIQUE_WITHIN_CATALOG_LOCALE` →
+  `UNIQUE_WITHIN_COLLECTION_LOCALE`), and every construction path goes through it. An earlier revision of this
+  record said the catalog read could not be replaced because such an attribute "has no filter index"; that was
+  wrong, and `globalCode` - globally unique, declared neither unique nor filterable by the collection - is the row
+  that proves it. The catalog's per-entity-type bitmap (`GlobalUniqueIndex#entitiesPerType`) is **not** a usable
+  source of carriers: like `OwnerUniqueIndex#recordIds` (see Consequences) it drops an entity as soon as the entity
+  releases any one value, so an entity that removed its English value of an attribute globally unique across
+  locales and kept the German one read as null. Two earlier shapes of the catalog read were wrong as well: a single
+  catalog lookup subtracted each scope's carriers from the records of *every* scope, and the per-scope pairing
+  that fixed it still read that bitmap. The value comparisons (`attributeEquals`, `attributeInSet`) keep the
+  catalog unique index, which resolves a value, not a record set.
 - `AttributeFormula#isLocaleImplied` tells `EntityLocaleEqualsTranslator`'s `LocaleOptimizingPostProcessor` whether
   the records of a localized attribute formula all hold its locale - the premise on which it drops the locale
   formula beside it. A null test never implies it (its records lack the value, and those lacking the locale are
@@ -220,7 +227,8 @@ re-enabled), `ReferenceBodyTransposerTest` (fast path through the wrapper).
 | nested scope boundary | 4 of 4 (3 threw, 1 leaked) | 4 / 0 | stop class removed: 4 red; `EnumSet` restored: 2 red |
 | localized null test without a locale | 2 of 2 | 18 / 0 | revert: the same 2 red |
 | not-null from the null side's carriers | 2 of 20 (`EntityLocaleMissingException`; `[]` for `[1]`) | 20 / 0 | revert: 2 of 20 red |
-| globally unique, per-scope catalog read | 1 of 6 (`[1..8]` for `[2, 3, 4, 5, 8]`) | 6 / 0 | — |
+| globally unique, per-scope catalog read (later replaced by the row below) | 1 of 6 (`[1..8]` for `[2, 3, 4, 5, 8]`) | 6 / 0 | — |
+| unique across locales, one locale removed | 1 of 4 (`[1, 2, 7]` for `[1, 2]` in LIVE, `[3, 4, 5, 6, 8]` for `[3, 4, 5, 6]` in ARCHIVED, catalog attribute only) | 30 / 0 | catalog read restored: the same row red |
 | locale kept beside a null test (prefetch) | 1 of 6 (`[2]` for `[]`) | 6 / 0 | null side implying the locale: 1 of 6 red; not-null flag ignoring the scope: 1 of 6 red |
 | locale kept beside a unique value comparison (prefetch) | 1 of 7 (`[1]` for `[]`) | 9 / 0 | `attributeEquals` flag reverted: 1 of 8 red; `attributeInSet` flag reverted: 1 of 8 red |
 | unique lookup per scope (catalog or collection) | 1 of 28 (`[]` for `[6]`) | 28 / 0 | collection lookup skipped for a catalog attribute: 1 of 2 red; scopes walked in enum order: 1 of 2 red, and 4 failures in `UniqueAttributeScopePreferenceFunctionalTest` |
@@ -229,7 +237,10 @@ D is proven by `ReferenceHavingUniqueAttributeFunctionalTest`, the scope order b
 `UniqueAttributeScopePreferenceFunctionalTest` and `NestedEntityScopeFunctionalTest`, the locale and not-null
 rows by the nested `LocalizedAttributeWithScopeDependentUniqueness` of `ReferenceHavingAttributeIsNullFunctionalTest`
 (a schema only a raw `SetAttributeSchemaUniqueMutation` can declare: unique across locales in LIVE, within a
-locale in ARCHIVED), including `isNull ∪ isNotNull = all` at entity level and I1 inside `referenceHaving`. Last
+locale in ARCHIVED), including `isNull ∪ isNotNull = all` at entity level and I1 inside `referenceHaving`. The
+locale-removal row is `GloballyUniqueAttribute#shouldKeepAnOwnerCarryingAnAttributeUniqueAcrossLocalesAfterItRemovedOneLocale`:
+the catalog attribute `globalLabel` failed in both scopes, while its control, the collection attribute `title`
+unique across locales, passed before the change as well (its null tests already read filter indexes). Last
 regression: 5,773 tests across the reference, attribute, facet, query, fetch, archiving, parser, gRPC and
 serialization packages and `core/query/**`, 0 failures.
 
@@ -275,10 +286,18 @@ Harness: `evita_test/evita_performance_tests/src/main/java/io/evitadb/spike/Refe
   Pinned as it stands in `NestedEntityScopeFunctionalTest`; whether it should be honoured or refused is open.
 - **`OwnerUniqueIndex#recordIds` loses records that still own values.** `unregisterUniqueKeyValue` drops the
   record id eagerly, which its comment calls transient - but in a type-level index one partition owns the values
-  of all its rows, so archiving one owner dropped a partition whose other rows still carry values. Only the
-  standalone (localized, unique across locales) index is affected; the value tree stays correct, so lookups by
-  value are right. No query reads that bitmap any more, but `IndexCardinalityProjection` reports it and the
-  storage part persists it.
+  of all its rows, so archiving one owner dropped a partition whose other rows still carry values, and at entity
+  level a record that removes one locale's value and keeps another drops out for good. Only the standalone
+  (localized, unique across locales) index is affected; the value tree stays correct, so lookups by value are
+  right. No query reads that bitmap any more; `IndexCardinalityProjection` still reports its size. It is never
+  persisted - the storage part carries (value, record id) pairs and both load paths rebuild the bitmap from them -
+  so a restart repairs it, and until then every commit carries it forward. #1658 proposes removing it together
+  with `UniqueIndex#getRecordIds` / `#getRecordIdsFormula`, which no production code calls.
+- **`GlobalUniqueIndex#entitiesPerType` has the same eager removal**, and unlike the bitmap above it was still
+  read - by the null and not-null tests of a catalog attribute, on `dev` too. That read is gone (see Key technical
+  details); `GlobalUniqueIndex#getRecordIds` / `#getRecordIdsFormula` now have no production caller, and the
+  bitmap feeds only `GlobalUniqueIndex#getRecordCount` in the catalog statistics, which it undercounts in the same
+  way. Whether it can go the way #1658 proposes for the collection's bitmap belongs to that issue.
 - **An `AttributeFormula` over a read that ignores the query locale must say so.** The constructors default
   `localeImplied` to true, and a wrong true is silent: it drops `entityLocaleEquals` on prefetch-capable plans
   only, so the index-scan plan keeps answering correctly. Every translator building a localized formula over the
@@ -304,3 +323,5 @@ Harness: `evita_test/evita_performance_tests/src/main/java/io/evitadb/spike/Refe
 - **2026-09-24** — A, fast path, B + C implemented; pilot measurements and profiles on the production corpus
 - **2026-09-25** — full interleaved A/B; Option C deferred to #1615; D reproduced and fixed; unique lookups made
   to follow the order of `scope(...)`, and a nested `scope(...)` kept from leaking into the outer query
+- **2026-09-28** — the null tests of a catalog attribute moved from the catalog's per-entity-type bitmap to the
+  collection's filter indexes after an entity that removed one locale's value read as null
