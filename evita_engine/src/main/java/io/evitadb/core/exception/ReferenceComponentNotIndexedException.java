@@ -46,6 +46,12 @@ import java.io.Serial;
 public class ReferenceComponentNotIndexedException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = -6840802897230402393L;
 
+	/**
+	 * Creates a new exception with a message naming the reference, entity, scope and missing indexed
+	 * component, along with the schema fix and any narrowing remedy available for the current query.
+	 *
+	 * @param message the complete, already-formatted error message
+	 */
 	public ReferenceComponentNotIndexedException(@Nonnull String message) {
 		super(message);
 	}

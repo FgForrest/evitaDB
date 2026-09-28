@@ -38,6 +38,10 @@ import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.At
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
+import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator.ConsistencyChecks;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
@@ -62,6 +66,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static io.evitadb.api.functional.reference.ReferenceIndexedComponentsTestSupport.describe;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.SCHEMA;
@@ -70,7 +75,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pins the schema rule of #1601: **every scope in which a reference is indexed must carry
+ * Pins the schema rule: **every scope in which a reference is indexed must carry
  * {@link ReferenceIndexedComponents#REFERENCED_ENTITY} among its indexed components.**
  *
  * The entity component is what builds the reduced entity indexes, and every query path over a reference -
@@ -295,6 +300,86 @@ class IndexedScopeRequiresEntityComponentTest implements EvitaTestSupport {
 				"A stored indexed scope without REFERENCED_ENTITY must be refused by validation"
 			);
 			assertMessageNames(exception, REF_REFLECTED_PRODUCTS, Entities.CATEGORY, Scope.LIVE);
+		}
+
+		/**
+		 * A stored reflected reference with explicit scopes, indexed in `ARCHIVED` with no component, switched to
+		 * inherited scopes by `indexedInScope((Scope[]) null)` - the mutation that switch emits, followed by the
+		 * re-binding the collection performs after every schema change. Neither may complete the stored empty scope:
+		 * it never indexed anything, so `REFERENCED_ENTITY` there would claim indexes that were never built and silence
+		 * both this rule and the query guard.
+		 */
+		@Test
+		@DisplayName("should keep refusing a stored empty scope after a switch to inherited scopes")
+		void shouldKeepRefusingAStoredEmptyScopeAfterSwitchingToInheritedScopes() {
+			final Map<Scope, ReferenceIndexType> bothScopes = new EnumMap<>(Scope.class);
+			bothScopes.put(Scope.LIVE, ReferenceIndexType.FOR_FILTERING);
+			bothScopes.put(Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING);
+			final ReferenceSchema original = ReferenceSchema._internalBuild(
+				REF_CATEGORIES, NamingConvention.generate(REF_CATEGORIES),
+				null, null,
+				Cardinality.ZERO_OR_MORE,
+				Entities.CATEGORY, Collections.emptyMap(), true,
+				null, Collections.emptyMap(), false,
+				bothScopes,
+				Map.of(
+					Scope.LIVE, Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY),
+					Scope.ARCHIVED, Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY)
+				),
+				Collections.emptySet(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
+			);
+			final ReflectedReferenceSchema stored = ReflectedReferenceSchema._internalBuild(
+				REF_REFLECTED_PRODUCTS, NamingConvention.generate(REF_REFLECTED_PRODUCTS),
+				null, null,
+				Entities.PRODUCT, REF_CATEGORIES,
+				null,
+				bothScopes, Map.of(Scope.LIVE, Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY)),
+				null, null, null, null,
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
+				null
+			).withReferencedSchema(original);
+			assertTrue(
+				stored.isIndexedInScope(Scope.ARCHIVED), "The premise is a reflected reference indexed in ARCHIVED"
+			);
+			assertEquals(
+				Set.of(), stored.getIndexedComponents(Scope.ARCHIVED),
+				"The premise is an indexed ARCHIVED scope with no component, kept exactly as stored"
+			);
+
+			final EntitySchema categorySchema = EntitySchema._internalBuild(Entities.CATEGORY);
+			final ReflectedReferenceSchema switched = ((ReflectedReferenceSchema) new SetReferenceSchemaIndexedMutation(
+				REF_REFLECTED_PRODUCTS, (ScopedReferenceIndexType[]) null, ScopedReferenceIndexedComponents.EMPTY
+			).mutate(categorySchema, stored, ConsistencyChecks.SKIP))
+				.withReferencedSchemaAfterSchemaChange(original);
+			assertTrue(
+				switched.isIndexedInherited(), "The premise is a reflected reference now inheriting its scopes"
+			);
+
+			// validation needs no more of the catalog than the reference the reflected one points at
+			final EntitySchemaContract productSchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(productSchema.getReference(REF_CATEGORIES)).thenReturn(Optional.of(original));
+			final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchemaContract.class);
+			Mockito.when(catalogSchema.getName()).thenReturn(TEST_CATALOG);
+			Mockito.when(catalogSchema.getEntitySchema(Entities.PRODUCT)).thenReturn(Optional.of(productSchema));
+
+			assertEquals(
+				Set.of(), switched.getIndexedComponents(Scope.ARCHIVED),
+				"The stored empty ARCHIVED scope must keep no component"
+			);
+			final InvalidSchemaMutationException exception = assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> switched.validate(catalogSchema, categorySchema),
+				"A stored indexed scope without REFERENCED_ENTITY must stay refused by validation"
+			);
+			assertMessageNames(exception, REF_REFLECTED_PRODUCTS, Entities.CATEGORY, Scope.ARCHIVED);
 		}
 
 	}
@@ -577,30 +662,6 @@ class IndexedScopeRequiresEntityComponentTest implements EvitaTestSupport {
 			result.put(reference.getName(), describe(reference));
 		}
 		return result;
-	}
-
-	/**
-	 * Renders the reference's indexed components per indexed scope, scopes and components both in a stable order so
-	 * the expectations can be written literally. Scopes the reference is not indexed in are omitted.
-	 *
-	 * @param reference the reference schema to describe
-	 * @return one `SCOPE=[COMPONENT, ...]` group per indexed scope, space separated
-	 */
-	@Nonnull
-	private static String describe(@Nonnull ReferenceSchemaContract reference) {
-		final StringBuilder result = new StringBuilder(64);
-		for (Scope scope : Scope.values()) {
-			if (!reference.isIndexedInScope(scope)) {
-				continue;
-			}
-			if (!result.isEmpty()) {
-				result.append(' ');
-			}
-			result.append(scope.name()).append('=').append(
-				reference.getIndexedComponents(scope).stream().map(Enum::name).sorted().toList()
-			);
-		}
-		return result.toString();
 	}
 
 }

@@ -75,6 +75,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static io.evitadb.test.Assertions.assertExactlyEquals;
@@ -617,7 +618,7 @@ class SchemaSerializationServiceTest {
 	}
 
 	/**
-	 * Pins load safety for the reference shapes the #1601 schema rule refuses: an indexed scope whose components
+	 * Pins load safety for the reference shapes the entity-component schema rule refuses: an indexed scope whose components
 	 * lack `REFERENCED_ENTITY` - either group-only, or empty. Catalogs written before the rule existed store these
 	 * shapes, and they must keep loading; the rule therefore lives in `validate()` and nowhere on the read path.
 	 * Each test drives the read path a catalog load drives: the Kryo reader and, for reflected references, the
@@ -797,11 +798,11 @@ class SchemaSerializationServiceTest {
 			final EntitySchema ownerSchema = EntitySchema._internalBuild(Entities.PRODUCT);
 			final EntitySchemaContract reflectedSchema = Mockito.mock(EntitySchemaContract.class);
 			Mockito.when(reflectedSchema.getReference(STORED_SHAPE_REFLECTED_NAME))
-				.thenReturn(java.util.Optional.of(originalReference));
+				.thenReturn(Optional.of(originalReference));
 			final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchemaContract.class);
 			Mockito.when(catalogSchema.getName()).thenReturn(TestConstants.TEST_CATALOG);
 			Mockito.when(catalogSchema.getEntitySchema(Entities.CATEGORY))
-				.thenReturn(java.util.Optional.of(reflectedSchema));
+				.thenReturn(Optional.of(reflectedSchema));
 			final InvalidSchemaMutationException refusal = assertThrows(
 				InvalidSchemaMutationException.class,
 				() -> loaded.validate(catalogSchema, ownerSchema),
@@ -961,11 +962,11 @@ class SchemaSerializationServiceTest {
 
 			final EntitySchemaContract reflectedSchema = Mockito.mock(EntitySchemaContract.class);
 			Mockito.when(reflectedSchema.getReference(STORED_SHAPE_REFLECTED_NAME))
-				.thenReturn(java.util.Optional.of(originalReference));
+				.thenReturn(Optional.of(originalReference));
 			final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchemaContract.class);
 			Mockito.when(catalogSchema.getName()).thenReturn(TestConstants.TEST_CATALOG);
 			Mockito.when(catalogSchema.getEntitySchema(Entities.CATEGORY))
-				.thenReturn(java.util.Optional.of(reflectedSchema));
+				.thenReturn(Optional.of(reflectedSchema));
 			final InvalidSchemaMutationException refusal = assertThrows(
 				InvalidSchemaMutationException.class,
 				() -> loaded.validate(catalogSchema, EntitySchema._internalBuild(Entities.PRODUCT)),

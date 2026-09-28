@@ -1546,11 +1546,18 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 * It means that the indexed property is inherited from the reflected reference. Empty array means that the reflected
 	 * reference is not indexed.
 	 *
+	 * When the scopes become inherited and the reflected reference is already bound, they are resolved from it right
+	 * away, exactly as {@link #withReferencedSchema(ReferenceSchemaContract)} would. Left unresolved, the copy would
+	 * report no indexed scope at all, and whatever judges the scopes it is indexed in against the scopes it was
+	 * indexed in before - {@link #withDefaultComponentsInUncoveredScopes} and
+	 * {@link #withReferencedSchemaAfterSchemaChange} - would miss every scope it keeps.
+	 *
 	 * @param indexedInScopes new value of indexed property
 	 * @return copy of the schema with applied changes
 	 */
 	@Nonnull
 	public ReflectedReferenceSchemaContract withIndexed(@Nullable ScopedReferenceIndexType[] indexedInScopes) {
+		final ReferenceSchemaContract theReflectedReference = this.reflectedReference;
 		return new ReflectedReferenceSchema(
 			this.name,
 			this.nameVariants,
@@ -1564,7 +1571,20 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.referencedGroupTypeManaged,
 			this.reflectedReferenceName,
 			indexedInScopes == null ?
-				null :
+				(
+					theReflectedReference == null ?
+						null :
+						Arrays.stream(Scope.values())
+							.filter(theReflectedReference::isIndexedInScope)
+							.collect(
+								Collectors.toMap(
+									Function.identity(),
+									theReflectedReference::getReferenceIndexType,
+									(existing, replacement) -> existing,
+									() -> new EnumMap<>(Scope.class)
+								)
+							)
+				) :
 				Arrays.stream(indexedInScopes)
 					.collect(
 						Collectors.toMap(

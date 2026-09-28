@@ -44,6 +44,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.core.exception.ReferenceComponentNotIndexedException;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -61,16 +62,17 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static io.evitadb.api.functional.reference.ReferenceIndexedComponentsTestSupport.describe;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.attributeNatural;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
+import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.api.query.QueryConstraints.entityHaving;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.facetHaving;
@@ -111,7 +113,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Pins what a catalog that already stores a reference indexed without
- * {@link ReferenceIndexedComponents#REFERENCED_ENTITY} does when it is queried (#1601).
+ * {@link ReferenceIndexedComponents#REFERENCED_ENTITY} does when it is queried.
  *
  * Such a catalog still loads - the schema rule that refuses the shape runs in `validate()`, never on load - but
  * nothing that needs the reduced entity indexes can be answered from it, because they were never built. Every query
@@ -155,7 +157,8 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 	private static final String CATEGORY_GROUP = "CategoryGroup";
 
 	/**
-	 * Indexed in {@link Scope#LIVE} with `[REFERENCED_GROUP_ENTITY]` only - the shape #1601 is about.
+	 * Indexed in {@link Scope#LIVE} with `[REFERENCED_GROUP_ENTITY]` only - the shape the entity-component rule
+	 * refuses.
 	 */
 	private static final String REF_GROUP_ONLY = "groupOnlyCategories";
 	/**
@@ -168,6 +171,11 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 	 * histogram - an ungrouped histogram is read from the `REFERENCED_ENTITY_TYPE` index.
 	 */
 	private static final String REF_UNGROUPED = "ungroupedGroupOnlyCategories";
+	/**
+	 * Reflected reference on the category collection mirroring {@link #REF_GROUP_ONLY} and inheriting its indexing and
+	 * its attributes. Declared only by the test that orders it.
+	 */
+	private static final String REF_REFLECTED_GROUP_ONLY = "productsInGroupOnlyCategory";
 
 	/**
 	 * Sortable reference attribute on {@link #REF_GROUP_ONLY}, used by `referenceProperty` ordering.
@@ -178,6 +186,11 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 	 * chain index kept in the reduced entity index. Set only by the test that orders by it.
 	 */
 	private static final String ATTR_CHAIN = "chain";
+	/**
+	 * Predecessor reference attribute added to {@link #REF_GROUP_ONLY} only by the test that orders
+	 * {@link #REF_REFLECTED_GROUP_ONLY}, whose rows carry it as a referenced-entity predecessor.
+	 */
+	private static final String ATTR_PREDECESSOR = "predecessor";
 	/**
 	 * Filterable decimal reference attribute on {@link #REF_GROUP_ONLY}, the value source of {@link #HISTOGRAM_SHARE}.
 	 * Never set - see {@link #upsertProduct}.
@@ -661,6 +674,80 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 		}
 
 		/**
+		 * Ordering the rows of a reflected reference by an attribute its rows carry as a
+		 * {@link ReferencedEntityPredecessor} - the reflection of a {@link Predecessor} on the reference it reflects -
+		 * reads the chain index kept in the reduced entity index of that reference, in the referenced collection. The
+		 * guard must therefore judge the reference it reflects, and the refusal must name it and its owner rather than
+		 * the reflected reference.
+		 */
+		@Test
+		@Tag(ORDER)
+		@Tag(REQUIRE)
+		@DisplayName("should refuse ordering referenceContent of a reflected reference by a predecessor attribute")
+		void shouldRefusePredecessorOrderedReferenceContentOfAReflectedReference() {
+			final String message = assertRefused(
+				() -> {
+					final EvitaSessionContract session = currentSession();
+					session.getEntitySchemaOrThrowException(PRODUCT)
+						.openForWrite()
+						.withReferenceToEntity(
+							REF_GROUP_ONLY, CATEGORY, Cardinality.ZERO_OR_MORE,
+							whichIs -> whichIs.withAttribute(
+								ATTR_PREDECESSOR, Predecessor.class, thatIs -> thatIs.sortable().nullable()
+							)
+						)
+						.updateVia(session);
+					session.getEntitySchemaOrThrowException(CATEGORY)
+						.openForWrite()
+						.withReflectedReferenceToEntity(
+							REF_REFLECTED_GROUP_ONLY, PRODUCT, REF_GROUP_ONLY,
+							whichIs -> whichIs.withAttributesInherited()
+						)
+						.updateVia(session);
+					// the reflected rows are written from the category side, where the attribute is a
+					// referenced-entity predecessor ordering the products of one category
+					session.getEntity(CATEGORY, CHILD_CATEGORY_PK, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setReference(
+							REF_REFLECTED_GROUP_ONLY, PRODUCT_B_PK,
+							whichIs -> whichIs.setAttribute(ATTR_PREDECESSOR, ReferencedEntityPredecessor.HEAD)
+						)
+						.setReference(
+							REF_REFLECTED_GROUP_ONLY, PRODUCT_A_PK,
+							whichIs -> whichIs.setAttribute(
+								ATTR_PREDECESSOR, new ReferencedEntityPredecessor(PRODUCT_B_PK)
+							)
+						)
+						.upsertVia(session);
+					return fetchReferencedPks(
+						session,
+						query(
+							collection(CATEGORY),
+							filterBy(entityPrimaryKeyInSet(CHILD_CATEGORY_PK)),
+							require(
+								entityFetch(
+									referenceContent(
+										REF_REFLECTED_GROUP_ONLY, orderBy(attributeNatural(ATTR_PREDECESSOR))
+									)
+								)
+							)
+						),
+						REF_REFLECTED_GROUP_ONLY
+					);
+				},
+				REF_GROUP_ONLY, Scope.LIVE,
+				"the chain orders product " + PRODUCT_B_PK + " before product " + PRODUCT_A_PK +
+					", the reverse of the primary-key order the blind lookup falls back to"
+			);
+			assertTrue(
+				message.startsWith("Reference `" + REF_GROUP_ONLY + "` of entity `" + PRODUCT + "` is indexed"),
+				"The refusal must judge the reference the chain index belongs to, not the reflected one, was: " +
+					message
+			);
+		}
+
+		/**
 		 * The histogram of an ungrouped reference in `referenceSummaryOfReference` is read from the entity component's
 		 * type index. Without it the histogram is simply missing from the summary - the same answer as a reference with
 		 * no values to bucket.
@@ -950,14 +1037,16 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 	 * @param referenceName      the reference the refusal must name
 	 * @param scope              the scope the refusal must name as lacking the entity component
 	 * @param whyAnAnswerIsWrong explains what the right answer would be and why the blind one is not it
+	 * @return the message of the refusal, for assertions specific to the caller
 	 */
-	private void assertRefused(
+	@Nonnull
+	private String assertRefused(
 		@Nonnull Supplier<Object> query,
 		@Nonnull String referenceName,
 		@Nonnull Scope scope,
 		@Nonnull String whyAnAnswerIsWrong
 	) {
-		assertRefused(query, referenceName, scope, null, whyAnAnswerIsWrong);
+		return assertRefused(query, referenceName, scope, null, whyAnAnswerIsWrong);
 	}
 
 	/**
@@ -970,8 +1059,10 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 	 * @param answerableScope    the queried scope the refusal must offer narrowing the query to, or NULL when the
 	 *                           query asks for no other scope and the refusal must offer no such workaround
 	 * @param whyAnAnswerIsWrong explains what the right answer would be and why the blind one is not it
+	 * @return the message of the refusal, for assertions specific to the caller
 	 */
-	private void assertRefused(
+	@Nonnull
+	private String assertRefused(
 		@Nonnull Supplier<Object> query,
 		@Nonnull String referenceName,
 		@Nonnull Scope scope,
@@ -988,11 +1079,10 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 			}
 		);
 		if (!(outcome instanceof EvitaInvalidUsageException refusal)) {
-			fail(
+			return fail(
 				"A query over `" + referenceName + "`, which lacks REFERENCED_ENTITY in scope " + scope +
 					", must be refused, but it answered `" + outcome + "` - " + whyAnAnswerIsWrong
 			);
-			return;
 		}
 		assertInstanceOf(
 			ReferenceComponentNotIndexedException.class, refusal,
@@ -1024,6 +1114,7 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 					"`inScope(...)`, was: " + message
 			);
 		}
+		return message;
 	}
 
 	/**
@@ -1202,29 +1293,6 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 			}
 		}
 		return result.append(']').toString();
-	}
-
-	/**
-	 * Renders the reference's indexed components per indexed scope, scopes and components both in a stable order so
-	 * the expectation can be written literally.
-	 *
-	 * @param reference the reference schema to describe
-	 * @return one `SCOPE=[COMPONENT, ...]` group per indexed scope, space separated
-	 */
-	@Nonnull
-	private static String describe(@Nonnull ReferenceSchemaContract reference) {
-		final StringBuilder result = new StringBuilder(64);
-		for (Scope scope : Scope.values()) {
-			if (!reference.isIndexedInScope(scope)) {
-				continue;
-			}
-			if (!result.isEmpty()) {
-				result.append(' ');
-			}
-			final Set<ReferenceIndexedComponents> components = reference.getIndexedComponents(scope);
-			result.append(scope.name()).append('=').append(components.stream().map(Enum::name).sorted().toList());
-		}
-		return result.toString();
 	}
 
 }

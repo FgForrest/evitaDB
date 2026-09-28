@@ -594,7 +594,7 @@ class CreateReferenceSchemaMutationTest {
 
 		/**
 		 * Replaying the write-ahead log re-applies stored mutations through `mutate()`, and a log written before the
-		 * #1601 schema rule existed can carry a reference indexed for the group component alone. The rule is enforced
+		 * entity-component schema rule existed can carry a reference indexed for the group component alone. The rule is enforced
 		 * by `validate()` at session close only, so the mutation itself must still build that shape verbatim -
 		 * refusing it here would make such a log impossible to replay.
 		 */

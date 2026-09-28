@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramI
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.core.Evita;
+import io.evitadb.core.exception.ReferenceComponentNotIndexedException;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.ArrayUtils;
@@ -55,6 +56,7 @@ import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static io.evitadb.api.functional.reference.ReferenceIndexedComponentsTestSupport.describe;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
@@ -304,6 +306,96 @@ class ReflectedReferenceDefaultComponentsFunctionalTest implements EvitaTestSupp
 	}
 
 	/**
+	 * A self-referencing pair whose original gains a scope later, in a schema change of its own that touches the
+	 * original alone. The change and the re-binding of the reflected reference it cascades to happen in the same
+	 * collection, so the completed reflected reference has to survive the schema that change itself stores - in the
+	 * session, and after a restart re-binds the reflected reference to the original without filling anything in.
+	 */
+	@Test
+	@DisplayName("should default the scope gained when the self-referenced original is indexed there later")
+	void shouldDefaultTheScopeGainedWhenTheSelfReferencedReferenceIsIndexedThereLater() {
+		final Map<String, String> inSession = this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(CATEGORY)
+					.withoutGeneratedPrimaryKey()
+					.withReferenceToEntity(
+						REF_RELATED, CATEGORY, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.indexedForFilteringInScope(Scope.LIVE)
+					)
+					.updateVia(session);
+				session.getEntitySchemaOrThrowException(CATEGORY)
+					.openForWrite()
+					.withReflectedReferenceToEntity(
+						REF_RELATED_BY, CATEGORY, REF_RELATED, whichIs -> whichIs.withAttributesInherited()
+					)
+					.updateVia(session);
+				// scopes stay inherited (NULL), components become explicit for LIVE alone
+				session.updateEntitySchema(
+					new ModifyEntitySchemaMutation(
+						CATEGORY,
+						new SetReferenceSchemaIndexedMutation(REF_RELATED_BY, null, liveOnlyEntityComponent())
+					)
+				);
+				final Map<String, String> result = new TreeMap<>();
+				result.put("premise", describeRelatedBy(session));
+				// the original alone gains ARCHIVED, and the reflected reference inherits the scope from it
+				session.getEntitySchemaOrThrowException(CATEGORY)
+					.openForWrite()
+					.withReferenceToEntity(
+						REF_RELATED, CATEGORY, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
+					)
+					.updateVia(session);
+				result.put("components", describeRelatedBy(session));
+				// category 1 relates to 2, which is then archived
+				session.upsertEntity(session.createNewEntity(CATEGORY, 2));
+				session.upsertEntity(session.createNewEntity(CATEGORY, 1).setReference(REF_RELATED, 2));
+				session.archiveEntity(CATEGORY, 2);
+				return result;
+			}
+		);
+		assertEquals(
+			Map.of("premise", "LIVE=[REFERENCED_ENTITY]", "components", BOTH_SCOPES_WITH_ENTITY_COMPONENT),
+			inSession,
+			"The reflected reference must inherit ARCHIVED from the original it reflects, with the default component"
+		);
+
+		this.evita.close();
+		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
+		this.evita.waitUntilFullyInitialized();
+		final Map<String, String> reloaded = this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Map<String, String> result = new TreeMap<>();
+				result.put("components", describeRelatedBy(session));
+				try {
+					result.put("archived", relatedByOwners(session, Scope.ARCHIVED, 1).toString());
+				} catch (ReferenceComponentNotIndexedException refusal) {
+					result.put("archived", refusal.getClass().getSimpleName());
+				}
+				return result;
+			}
+		);
+		assertEquals(
+			Map.of("components", BOTH_SCOPES_WITH_ENTITY_COMPONENT, "archived", List.of(2).toString()),
+			reloaded,
+			"The reloaded catalog must carry the default component in ARCHIVED and find the archived category"
+		);
+	}
+
+	/**
+	 * Describes the {@link #REF_RELATED_BY} reference of the category collection.
+	 *
+	 * @param session session to read the schema through
+	 * @return the rendered components, see {@link ReferenceIndexedComponentsTestSupport#describe(ReferenceSchemaContract)}
+	 */
+	@Nonnull
+	private static String describeRelatedBy(@Nonnull EvitaSessionContract session) {
+		return describe(session.getEntitySchemaOrThrowException(CATEGORY).getReferenceOrThrowException(REF_RELATED_BY));
+	}
+
+	/**
 	 * Finds the categories owning a {@link #REF_RELATED_BY} row that points at the given category, in one scope.
 	 *
 	 * @param session     session to query through
@@ -500,29 +592,6 @@ class ReflectedReferenceDefaultComponentsFunctionalTest implements EvitaTestSupp
 				Scope.LIVE, new ReferenceIndexedComponents[]{ReferenceIndexedComponents.REFERENCED_ENTITY}
 			)
 		};
-	}
-
-	/**
-	 * Renders the reference's indexed components per indexed scope in a stable order.
-	 *
-	 * @param reference the reference schema to describe
-	 * @return one `SCOPE=[COMPONENT, ...]` group per indexed scope, space separated
-	 */
-	@Nonnull
-	private static String describe(@Nonnull ReferenceSchemaContract reference) {
-		final StringBuilder result = new StringBuilder(64);
-		for (Scope scope : Scope.values()) {
-			if (!reference.isIndexedInScope(scope)) {
-				continue;
-			}
-			if (!result.isEmpty()) {
-				result.append(' ');
-			}
-			result.append(scope.name()).append('=').append(
-				reference.getIndexedComponents(scope).stream().map(Enum::name).sorted().toList()
-			);
-		}
-		return result.toString();
 	}
 
 }

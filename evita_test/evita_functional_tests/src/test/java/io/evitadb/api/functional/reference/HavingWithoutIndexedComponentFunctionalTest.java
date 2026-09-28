@@ -48,9 +48,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 
+import static io.evitadb.api.functional.reference.ReferenceIndexedComponentsTestSupport.describe;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityHaving;
@@ -247,31 +247,6 @@ public class HavingWithoutIndexedComponentFunctionalTest {
 				actual,
 				"The schema the fixture actually built is not the one the tests below assume"
 			);
-		}
-
-		/**
-		 * Renders the reference's indexed components per scope, scopes and components both in a stable order so the
-		 * expectation above can be written literally.
-		 *
-		 * @param reference the reference schema to describe
-		 * @return one `SCOPE=[COMPONENT, ...]` group per indexed scope, space separated
-		 */
-		@Nonnull
-		private static String describe(@Nonnull ReferenceSchemaContract reference) {
-			final StringBuilder result = new StringBuilder(64);
-			for (Scope scope : Scope.values()) {
-				final Set<ReferenceIndexedComponents> components = reference.getIndexedComponents(scope);
-				if (components.isEmpty()) {
-					continue;
-				}
-				if (!result.isEmpty()) {
-					result.append(' ');
-				}
-				result.append(scope.name()).append('=').append(
-					components.stream().map(Enum::name).sorted().toList()
-				);
-			}
-			return result.toString();
 		}
 
 	}

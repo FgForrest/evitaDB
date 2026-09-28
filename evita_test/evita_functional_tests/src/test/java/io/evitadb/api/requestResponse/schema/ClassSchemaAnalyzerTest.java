@@ -2297,7 +2297,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	/**
 	 * The analyzer wires `indexedComponents` through verbatim, including a declaration that leaves an indexed scope
 	 * without `REFERENCED_ENTITY` - once through the general attribute and once per scope. Such a scope builds no
-	 * reduced entity index, so the session that defines it must be refused when it closes (#1601). The wiring is
+	 * reduced entity index, so the session that defines it must be refused when it closes. The wiring is
 	 * asserted inside the session and the refusal after it, so the test also proves the refusal comes from the close
 	 * and not from the analyzer.
 	 */

@@ -1076,7 +1076,7 @@ class GroupEntityIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 		}
 
 		/**
-		 * A reference indexed for the group component alone is refused at session close (#1601), but a catalog that
+		 * A reference indexed for the group component alone is refused at session close, but a catalog that
 		 * already stores the shape still loads and keeps indexing through it. This pins what that write path builds -
 		 * the group indexes and no entity indexes - inside the session that holds the shape, and then that the close
 		 * refuses to publish it.

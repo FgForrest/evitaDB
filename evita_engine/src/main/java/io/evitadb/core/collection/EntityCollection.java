@@ -2973,10 +2973,17 @@ public final class EntityCollection implements
 					);
 				}
 			} else if (referenceInStake.isReferencedEntityTypeManaged() && updatedReference.isPresent()) {
-				// notify the target entity schema about the reference change in our schema
-				EntitySchema finalUpdatedSchema = updatedSchema;
-				this.catalog.getCollectionForEntity(referenceInStake.getReferencedEntityType())
-					.ifPresent(it -> ((EntityCollection) it).notifyAboutExternalReferenceUpdate(finalUpdatedSchema, updatedReference.get()));
+				if (referenceInStake.getReferencedEntityType().equals(updatedSchema.getName())) {
+					// a self-referencing reference re-binds the reflected references in the schema this change is
+					// about to exchange - notifying this very collection would re-bind them in the schema it holds
+					// now, and the exchange of this change would silently replace that result
+					updatedSchema = withReflectedReferencesReboundTo(updatedSchema, updatedSchema, updatedReference.get());
+				} else {
+					// notify the target entity schema about the reference change in our schema
+					EntitySchema finalUpdatedSchema = updatedSchema;
+					this.catalog.getCollectionForEntity(referenceInStake.getReferencedEntityType())
+						.ifPresent(it -> ((EntityCollection) it).notifyAboutExternalReferenceUpdate(finalUpdatedSchema, updatedReference.get()));
+				}
 			}
 		}
 		return updatedSchema;
@@ -2997,22 +3004,10 @@ public final class EntityCollection implements
 		@Nonnull ReferenceSchemaContract updatedReferenceSchema
 	) {
 		final EntitySchema originalSchema = getInternalSchema();
-		final List<ReflectedReferenceSchema> updatedReferenceSchemas = new LinkedList<>();
-		for (ReferenceSchemaContract referenceSchema : originalSchema.getReferences().values()) {
-			if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema &&
-				reflectedReferenceSchema.getReferencedEntityType().equals(updatedReferenceEntitySchema.getName()) &&
-				reflectedReferenceSchema.getReflectedReferenceName().equals(updatedReferenceSchema.getName())
-			) {
-				// a schema-change path: the reference it reflects was just mutated, possibly gaining a scope
-				updatedReferenceSchemas.add(
-					reflectedReferenceSchema.withReferencedSchemaAfterSchemaChange(updatedReferenceSchema)
-				);
-			}
-		}
-		if (!updatedReferenceSchemas.isEmpty()) {
-			final EntitySchema updatedSchema = originalSchema.withReplacedReferenceSchema(
-				updatedReferenceSchemas.toArray(new ReflectedReferenceSchema[0])
-			);
+		final EntitySchema updatedSchema = withReflectedReferencesReboundTo(
+			originalSchema, updatedReferenceEntitySchema, updatedReferenceSchema
+		);
+		if (updatedSchema != originalSchema) {
 			exchangeSchema(originalSchema, updatedSchema);
 			// the binding may have filled default components into a scope the reference it reflects has just gained,
 			// and catalog load re-binds with the plain `withReferencedSchema`, which deliberately fills nothing - so
@@ -3020,6 +3015,39 @@ public final class EntityCollection implements
 			// load the scope without them, over indexes that were built with them
 			this.dataStoreBuffer.update(this.catalog.getVersion(), new EntitySchemaStoragePart(updatedSchema));
 		}
+	}
+
+	/**
+	 * Re-binds every {@link ReflectedReferenceSchema} of `schema` that reflects `updatedReferenceSchema` of
+	 * `updatedReferenceEntitySchema` to that updated reference. It is a schema-change path: the reference they reflect
+	 * was just mutated, possibly gaining a scope, so the binding fills default components into newly indexed scopes
+	 * (see {@link ReflectedReferenceSchema#withReferencedSchemaAfterSchemaChange}).
+	 *
+	 * @param schema                       the schema whose reflected references are re-bound
+	 * @param updatedReferenceEntitySchema the schema owning the updated reference
+	 * @param updatedReferenceSchema       the updated reference the reflected references reflect
+	 * @return `schema` itself when no reflected reference reflects the updated one, otherwise a copy with them re-bound
+	 */
+	@Nonnull
+	private static EntitySchema withReflectedReferencesReboundTo(
+		@Nonnull EntitySchema schema,
+		@Nonnull EntitySchema updatedReferenceEntitySchema,
+		@Nonnull ReferenceSchemaContract updatedReferenceSchema
+	) {
+		final List<ReflectedReferenceSchema> reboundReferenceSchemas = new LinkedList<>();
+		for (ReferenceSchemaContract referenceSchema : schema.getReferences().values()) {
+			if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema &&
+				reflectedReferenceSchema.getReferencedEntityType().equals(updatedReferenceEntitySchema.getName()) &&
+				reflectedReferenceSchema.getReflectedReferenceName().equals(updatedReferenceSchema.getName())
+			) {
+				reboundReferenceSchemas.add(
+					reflectedReferenceSchema.withReferencedSchemaAfterSchemaChange(updatedReferenceSchema)
+				);
+			}
+		}
+		return reboundReferenceSchemas.isEmpty() ?
+			schema :
+			schema.withReplacedReferenceSchema(reboundReferenceSchemas.toArray(new ReflectedReferenceSchema[0]));
 	}
 
 	/**
