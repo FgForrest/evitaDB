@@ -759,7 +759,7 @@ If the reference contains an attribute that is not defined on the other side, an
 
 #### Reference indexing
 
-You need to select the indexing level for each of the references defined in the entity schema. There are three levels of <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/dto/ReferenceIndexType.java</SourceClass> available:
+You need to select the indexing level for each of the references defined in the entity schema. There are three levels of <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ReferenceIndexType.java</SourceClass> available:
 
 <dl>
     <dt>NONE</dt>
@@ -771,6 +771,61 @@ You need to select the indexing level for each of the references defined in the 
 </dl>
 
 Partitioning indexes are represented by <SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass> and such an index is created for each reference used in any entity in the schema, and will contain a subset of the attribute, price and other indexes reduced only to entities with the given reference. Let's describe it with an example - let's say we have entity type `Product` that has reference `categories` to entity type `Category`, which is indexed `FOR_FILTERING_AND_PARTITIONING`. Let's imagine that we need to find all products classified in a specific category that also meet ten other conditions (they are published, currently valid, have an available price in the user's price list and in EUR, etc.). We can evaluate such a query over one large index, where this information is available for all known products in the database, or (if we use partitioning) we can use a much smaller index, in which we can find all the necessary information only for products that have a valid link to the category for which we are evaluating this query. Logically, the response to the query will be significantly faster because the amount of data searched is significantly smaller. The downside of this approach is that it requires a relatively large amount of memory space.
+
+##### Indexed components
+
+The indexing level decides how much is indexed for a reference, the indexed components decide which index families
+are built at all. Each scope a reference is indexed in carries a set of
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ReferenceIndexedComponents.java</SourceClass>:
+
+<dl>
+    <dt>REFERENCED_ENTITY</dt>
+    <dd>Builds the indexes keyed by the referenced entity. Every query over the reference reads them:
+    [`referenceHaving`](../query/filtering/references.md#reference-having) with all its inner constraints,
+    [`hierarchyWithin`](../query/filtering/hierarchy.md) over the reference, [`facetHaving`](../query/filtering/references.md#facet-having),
+    ordering by [`referenceProperty`](../query/ordering/reference.md), filtering and ordering inside
+    [`referenceContent`](../query/requirements/fetching.md#reference-content), the hierarchy and histograms of the
+    reference in the extra results. It is the default, and **every scope a reference is indexed in must contain it** -
+    a schema that leaves it out of an indexed scope is refused when the session that changed the schema closes.</dd>
+    <dt>REFERENCED_GROUP_ENTITY</dt>
+    <dd>Additionally builds indexes keyed by the group entity of the reference, which
+    [`groupHaving`](../query/filtering/references.md#group-having) reads. It applies to references with a group type,
+    and a grouped reference with [histograms](#reference-histograms) needs it in every scope it is bucketed in.</dd>
+</dl>
+
+The group indexes cannot stand in for the entity ones: a reference without a group is present in no group index, and
+a group index merges all the references of one entity sharing the group, so conditions on a single reference cannot
+be told apart in it.
+
+A [reflected reference](#reference-directionality) inherits the indexed components of the reference it reflects,
+unless it declares its own. When it declares them, every scope it is indexed in that the declaration does not name
+gets `REFERENCED_ENTITY`.
+
+<Note type="warning">
+
+<NoteTitle toggles="true">
+
+##### A stored catalog with an indexed scope lacking REFERENCED_ENTITY
+</NoteTitle>
+
+A catalog created by an older version of evitaDB may carry a reference indexed in a scope without the
+`REFERENCED_ENTITY` component - declared with `REFERENCED_GROUP_ENTITY` only, or left with no component at all, which
+reflected references declaring their components explicitly could end up with in scopes the declaration did not name.
+No index keyed by the referenced entity was ever built in such a scope. evitaDB loads the catalog, but:
+
+- every query over the reference in that scope is refused with an error naming the reference and the scope - facet
+  summaries keep working, because the facet index does not depend on the components,
+- every session that changes the schema of the catalog - including an upsert that evolves the schema automatically -
+  is refused when it closes, until the reference is fixed.
+
+To repair it, add `REFERENCED_ENTITY` to the indexed components of the reference in that scope - all such references
+in a single session, because the schema is validated as a whole. A schema change does not index the entities already
+stored; they are indexed as they are written, so the entities of that scope written before the repair stay invisible to
+queries over the reference until they are written again. Until then, a query spanning several scopes can avoid the
+affected one by narrowing to the others with [`scope`](../query/filtering/constant.md#scope) or by wrapping the
+constraint in [`inScope`](../query/filtering/behavioral.md#in-scope).
+
+</Note>
 
 ##### Reference facets
 
