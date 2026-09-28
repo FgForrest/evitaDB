@@ -536,7 +536,11 @@ public class LongRunningGrpcRestoreCatalogUploadTest {
 		// into a real future, which is what keeps this off a sleep-poll loop
 		final ClientTask<?, ?> restorationTask = ((EvitaClientManagement) management)
 			.createTask(EvitaDataTypesConverter.toTaskStatus(response.getTask()));
-		restorationTask.getFutureResult().get(10, TimeUnit.MINUTES);
+		awaitTaskResult(
+			restorationTask.getFutureResult(),
+			TASK_TIMEOUT_MINUTES, TimeUnit.MINUTES,
+			evitaServer.getEvita().management(), management, RESTORE_TASK_TYPE, null
+		);
 
 		assertCatalogRestoredIntact(evitaClient, restoredCatalogName, SMALL_ENTITY_COUNT);
 	}
