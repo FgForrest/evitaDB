@@ -5,7 +5,7 @@ updated: 2026-09-28 19:20
 status: accepted
 kind: fix
 issues: [1601, 1583]
-prs: []
+prs: [1657]
 areas: [evita_api/src/main/java/io/evitadb/api/requestResponse/schema/dto/ReferenceSchema.java, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/dto/ReflectedReferenceSchema.java, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/reference, evita_engine/src/main/java/io/evitadb/core/query/filter/FilterByVisitor.java, evita_engine/src/main/java/io/evitadb/core/query/QueryPlanningContext.java, evita_engine/src/main/java/io/evitadb/core/query/sort, evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/reference/producer, evita_engine/src/main/java/io/evitadb/index/mutation/ReevaluateExpressionExecutor.java, evita_engine/src/main/java/io/evitadb/core/collection/EntityCollection.java, evita_engine/src/main/java/io/evitadb/core/exception/ReferenceComponentNotIndexedException.java]
 supersedes: []
 superseded-by: []
