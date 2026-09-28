@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
@@ -59,6 +60,7 @@ import java.io.Serial;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -317,9 +319,29 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nonnull Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes,
 		@Nonnull Map<Scope, ReferenceIndexType> indexedScopes
 	) {
+		return withDefaultsForUncoveredScopes(indexedComponentsInScopes, indexedScopes, scope -> true);
+	}
+
+	/**
+	 * Fills in the default component set for every indexed scope the given map does not already cover and `eligible`
+	 * accepts - see {@link #withDefaultsForUncoveredScopes(Map, Map)}. A mutation of an existing reference passes
+	 * {@link #mayDefaultComponentsInScope} here, so that it never completes a scope the reference was already stored
+	 * with and never indexed anything in.
+	 *
+	 * @param indexedComponentsInScopes the components map to complete
+	 * @param indexedScopes             the index type per scope
+	 * @param eligible                  decides which uncovered indexed scopes may be filled
+	 * @return a completed copy, or the original map when nothing had to be filled in
+	 */
+	@Nonnull
+	public static Map<Scope, Set<ReferenceIndexedComponents>> withDefaultsForUncoveredScopes(
+		@Nonnull Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes,
+		@Nonnull Map<Scope, ReferenceIndexType> indexedScopes,
+		@Nonnull Predicate<Scope> eligible
+	) {
 		EnumMap<Scope, Set<ReferenceIndexedComponents>> completed = null;
 		for (final Map.Entry<Scope, ReferenceIndexType> entry : indexedScopes.entrySet()) {
-			if (entry.getValue() == ReferenceIndexType.NONE) {
+			if (entry.getValue() == ReferenceIndexType.NONE || !eligible.test(entry.getKey())) {
 				continue;
 			}
 			final Set<ReferenceIndexedComponents> declared = indexedComponentsInScopes.get(entry.getKey());
@@ -336,6 +358,33 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			);
 		}
 		return completed == null ? indexedComponentsInScopes : completed;
+	}
+
+	/**
+	 * Tells whether a mutation of `previousSchema` may complete `scope` with the default component set when it leaves
+	 * the scope without components.
+	 *
+	 * It may not when `previousSchema` is already indexed in the scope with no component at all. Such a scope never
+	 * indexed anything - it is the shape catalogs stored before the default was filled in still carry - so completing
+	 * it would make it claim {@link ReferenceIndexedComponents#REFERENCED_ENTITY} over indexes that were never built,
+	 * and a change to some other scope of the reference would quietly silence both the schema rule in `validate()` and
+	 * the query guard that exist to refuse it. The scope keeps what it stored until the component is asked for
+	 * explicitly; every other scope - newly indexed, or indexed with components the mutation dropped - is eligible.
+	 *
+	 * @param previousSchema the reference as it was before the mutation
+	 * @param scope          the scope the mutation leaves without components
+	 * @return `true` when the default component set may be filled into the scope
+	 */
+	public static boolean mayDefaultComponentsInScope(
+		@Nonnull ReferenceSchemaContract previousSchema,
+		@Nonnull Scope scope
+	) {
+		if (previousSchema instanceof ReflectedReferenceSchemaContract reflected && !reflected.isReflectedReferenceAvailable()) {
+			// a reflected reference that was never bound resolves neither inherited scopes nor inherited components
+			// (asking throws) - and it cannot have indexed anything yet, so there is no stored shape to preserve
+			return true;
+		}
+		return !previousSchema.isIndexedInScope(scope) || !previousSchema.getIndexedComponents(scope).isEmpty();
 	}
 
 	/**
@@ -940,6 +989,15 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			}
 			final Set<ReferenceIndexedComponents> components = referenceSchema.getIndexedComponents(scope);
 			if (!components.contains(ReferenceIndexedComponents.REFERENCED_ENTITY)) {
+				final String fix = referenceSchema instanceof ReflectedReferenceSchemaContract reflected &&
+					reflected.isIndexedComponentsInherited() ?
+					"The components are inherited from reference `" + reflected.getReflectedReferenceName() +
+						"` of entity `" + reflected.getReferencedEntityType() + "`, which carries no " +
+						"`REFERENCED_ENTITY` in scope `" + scope + "` - declare the indexed components of reference `" +
+						referenceSchema.getName() + "` explicitly, with `REFERENCED_ENTITY` in scope `" + scope +
+						"`, or index reference `" + reflected.getReflectedReferenceName() + "` in that scope with it." :
+					"Add `REFERENCED_ENTITY` to `indexedComponentsInScopes` of reference `" +
+						referenceSchema.getName() + "` in scope `" + scope + "`.";
 				errors = Stream.concat(
 					errors,
 					Stream.of(
@@ -947,12 +1005,10 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 							"` is indexed in scope `" + scope + "` with indexed components " + components +
 							", which lack `REFERENCED_ENTITY`. Every scope a reference is indexed in must contain " +
 							"`REFERENCED_ENTITY` - it builds the reduced entity indexes every query over the " +
-							"reference reads, so without it those queries could never match anything. Add " +
-							"`REFERENCED_ENTITY` to `indexedComponentsInScopes` of reference `" +
-							referenceSchema.getName() + "` in scope `" + scope + "`. On a collection that already " +
-							"holds data the change does not index the entities already stored - they are indexed only " +
-							"as they are written - so data written before it stays invisible to queries over the " +
-							"reference until it is written again."
+							"reference reads, so without it those queries could never match anything. " + fix +
+							" On a collection that already holds data the change does not index the entities " +
+							"already stored - they are indexed only as they are written - so data written before it " +
+							"stays invisible to queries over the reference until it is written again."
 					)
 				);
 			}

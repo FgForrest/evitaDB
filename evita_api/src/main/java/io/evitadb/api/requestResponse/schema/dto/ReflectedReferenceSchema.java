@@ -1996,17 +1996,22 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 
 	/**
 	 * Fills the default component set into every indexed scope that the explicit components of this reference leave
-	 * uncovered or empty - the reflected counterpart of {@link ReferenceSchema#withDefaultsForUncoveredScopes}.
+	 * uncovered or empty - the reflected counterpart of {@link ReferenceSchema#withDefaultsForUncoveredScopes} - except
+	 * the scopes `previousSchema` was already indexed in with no component at all
+	 * (see {@link ReferenceSchema#mayDefaultComponentsInScope}).
 	 *
 	 * Meant for a mutation that changes the indexing of this very reference, where the caller has asked for the
 	 * scopes and components it gets. See {@link #withReferencedSchemaAfterSchemaChange} for why nothing that runs
 	 * on catalog load may call it.
 	 *
+	 * @param previousSchema this reference as it was before the mutation
 	 * @return the same instance when nothing had to be filled in, otherwise a completed copy
 	 */
 	@Nonnull
-	public ReflectedReferenceSchema withDefaultComponentsInUncoveredScopes() {
-		return withDefaultComponentsInScopes(scope -> true);
+	public ReflectedReferenceSchema withDefaultComponentsInUncoveredScopes(
+		@Nonnull ReferenceSchemaContract previousSchema
+	) {
+		return withDefaultComponentsInScopes(scope -> ReferenceSchema.mayDefaultComponentsInScope(previousSchema, scope));
 	}
 
 	/**

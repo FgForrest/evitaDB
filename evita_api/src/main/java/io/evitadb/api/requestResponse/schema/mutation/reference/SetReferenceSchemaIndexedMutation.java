@@ -53,6 +53,7 @@ import java.util.EnumMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -376,7 +377,7 @@ public class SetReferenceSchemaIndexedMutation
 			}
 			// an indexed scope the explicit components leave uncovered gets the default, exactly as a plain
 			// reference's does - otherwise it would be indexed with no component and build no index at all
-			return result.withDefaultComponentsInUncoveredScopes();
+			return result.withDefaultComponentsInUncoveredScopes(reflectedReferenceSchema);
 		} else {
 			// strip components for NONE-indexed scopes before building the schema
 			final ScopedReferenceIndexedComponents[] filteredComponentsArray =
@@ -385,13 +386,18 @@ public class SetReferenceSchemaIndexedMutation
 				);
 			// every indexed scope the array does not cover falls back to the default rather than staying empty:
 			// an indexed scope with no components builds no index at all, so leaving one empty here hands back a
-			// reference that reports itself indexed and silently stops indexing anything written to that scope
+			// reference that reports itself indexed and silently stops indexing anything written to that scope.
+			// The exception is a scope the reference is already stored with and no component - it never indexed
+			// anything, and completing it as a side effect of this change would make it look healthy
+			final Predicate<Scope> mayDefault = scope -> ReferenceSchema.mayDefaultComponentsInScope(referenceSchema, scope);
 			final Map<Scope, Set<ReferenceIndexedComponents>> indexedComponents =
-				filteredComponentsArray != null
-					? ReferenceSchema.withDefaultsForUncoveredScopes(
-						ReferenceSchema.toIndexedComponentsEnumMap(filteredComponentsArray), indexedScopes
-					)
-					: ReferenceSchema.defaultIndexedComponents(indexedScopes);
+				ReferenceSchema.withDefaultsForUncoveredScopes(
+					filteredComponentsArray != null
+						? ReferenceSchema.toIndexedComponentsEnumMap(filteredComponentsArray)
+						: new EnumMap<>(Scope.class),
+					indexedScopes,
+					mayDefault
+				);
 
 			if (indexedScopes.equals(referenceSchema.getReferenceIndexTypeInScopes()) &&
 				indexedComponents.equals(referenceSchema.getIndexedComponentsInScopes())) {

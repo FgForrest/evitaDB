@@ -329,8 +329,9 @@ class ReflectedReferenceDefaultComponentsFunctionalTest implements EvitaTestSupp
 	/**
 	 * Runs the schema definition, asserts the reflected reference ends up with explicit components and inherited
 	 * scopes, both scopes carrying `REFERENCED_ENTITY`, then writes the data, archives one category and asserts that
-	 * each category is found in its own scope through the reflected reference - both inside the session and after it
-	 * committed, which also proves the session close accepted the schema.
+	 * each category is found in its own scope through the reflected reference - inside the session, after it
+	 * committed, which also proves the session close accepted the schema, and after the engine restarts and loads the
+	 * catalog from disk.
 	 *
 	 * @param schemaDefinition defines the product and category collections and the reflected reference
 	 */
@@ -385,6 +386,33 @@ class ReflectedReferenceDefaultComponentsFunctionalTest implements EvitaTestSupp
 					ReflectedReferenceDefaultComponentsFunctionalTest::findOwners
 			),
 			"The committed catalog must answer the same"
+		);
+
+		// a restart loads the schema from disk and re-binds the reflected reference without filling anything in, so
+		// it proves the default components were stored rather than recomputed - and the indexes built from them too
+		this.evita.close();
+		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
+		this.evita.waitUntilFullyInitialized();
+		assertEquals(
+			Map.of(
+				"components", BOTH_SCOPES_WITH_ENTITY_COMPONENT,
+				"archived", List.of(ARCHIVED_CATEGORY_PK).toString(),
+				"live", List.of(LIVE_CATEGORY_PK).toString()
+			),
+			this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final Map<String, String> result = new TreeMap<>(findOwners(session));
+					result.put(
+						"components",
+						describe(
+							session.getEntitySchemaOrThrowException(CATEGORY).getReferenceOrThrowException(REF_PRODUCTS)
+						)
+					);
+					return result;
+				}
+			),
+			"The reloaded catalog must carry the default components it stored and answer the same"
 		);
 	}
 

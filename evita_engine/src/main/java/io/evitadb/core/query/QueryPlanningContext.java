@@ -933,8 +933,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @param missingIndexSupplier a supplier function to provide a fallback index when a requested index is missing;
 	 *                             it may return NULL, in which case an empty stream is produced
 	 * @return a stream of {@link ReducedEntityIndex} corresponding to the specified query criteria
-	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the reference is indexed in the scope without
-	 *         the `REFERENCED_ENTITY` component - see {@link HavingTranslatorHelper#assertEntityComponentIndexed}
+	 * @throws io.evitadb.core.exception.ReferenceComponentNotIndexedException when the reference is indexed in the
+	 *         scope without the `REFERENCED_ENTITY` component - see
+	 *         {@link HavingTranslatorHelper#assertEntityComponentIndexed}
 	 */
 	@Nonnull
 	public Stream<ReducedEntityIndex> getReducedEntityIndexes(
@@ -946,7 +947,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	) {
 		// both branches below read the entity index family, which a scope indexed without the entity component never
 		// builds - they would answer it with an empty stream, indistinguishable from a referenced entity with no owners
-		HavingTranslatorHelper.assertEntityComponentIndexed(entitySchema, referenceSchema, scope);
+		HavingTranslatorHelper.assertEntityComponentIndexed(entitySchema, referenceSchema, scope, getScopes());
 		final String referenceName = referenceSchema.getName();
 		if (referenceSchema.getCardinality().allowsDuplicates()) {
 			final EntityIndexKey entityIndexKey = new EntityIndexKey(

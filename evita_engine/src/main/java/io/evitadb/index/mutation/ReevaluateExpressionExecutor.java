@@ -39,6 +39,7 @@ import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.exception.ReferenceComponentNotIndexedException;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
 import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
@@ -1075,7 +1076,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			trigger.getFilterByConstraint(), mutation.referenceName(),
 			mutation.mutatedEntityPK(), mutation.dependencyType()
 		);
-		final Bitmap truePKs = target.evaluateFilter(parameterizedFilter, mutation.scope());
+		final Bitmap truePKs = evaluateConditionFilter(target, parameterizedFilter, mutation);
 		final Bitmap shouldBeIndexed = and(
 			new PersistentRoaringBitmap[]{
 				getRoaringBitmap(allAffectedOwnerPKs),
@@ -1130,7 +1131,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			final FilterBy parameterizedFilter = parameterizeForContribution(
 				trigger.getFilterByConstraint(), mutation.referenceName(), group
 			);
-			final Bitmap truePKs = target.evaluateFilter(parameterizedFilter, mutation.scope());
+			final Bitmap truePKs = evaluateConditionFilter(target, parameterizedFilter, mutation);
 			final PersistentRoaringBitmap groupOwnerPKs = getRoaringBitmap(group.ownerPKs());
 			final PersistentRoaringBitmap matched = and(groupOwnerPKs, getRoaringBitmap(truePKs));
 			final PersistentRoaringBitmap notMatched = andNot(groupOwnerPKs, getRoaringBitmap(truePKs));
@@ -1146,6 +1147,41 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			new ContributionVerdicts(new BaseBitmap(shouldBeWriter.get()), shouldBePerRef),
 			new ContributionVerdicts(new BaseBitmap(shouldNotBeWriter.get()), shouldNotBePerRef)
 		);
+	}
+
+	/**
+	 * Evaluates the parameterized condition of a trigger against the owner collection in the mutation's scope.
+	 *
+	 * The condition runs through the query engine, and the query engine refuses to read a reference indexed in the
+	 * queried scope without the component the condition needs - see
+	 * {@link ReferenceComponentNotIndexedException}. That refusal is meant for a query, whose caller can fix the schema
+	 * or narrow the query; here it would abort the write of an unrelated entity, or the replay of the write-ahead log
+	 * that recovers the catalog. A catalog stored before the schema rule existed can carry such a reference, so the
+	 * refusal is caught and the condition answered as matching no owner. The answer was meaningless before the refusal
+	 * existed too - the condition read an index that was never built - so nothing that used to be right is lost. The
+	 * broken schema is logged, and every query over the reference still refuses loudly.
+	 *
+	 * @param target   access to the entity collection's filter evaluator
+	 * @param filter   the parameterized condition
+	 * @param mutation the cross-entity re-evaluation signal, providing the scope and the reference
+	 * @return the owners satisfying the condition, empty when the condition cannot be answered
+	 */
+	@Nonnull
+	private static Bitmap evaluateConditionFilter(
+		@Nonnull IndexMutationTarget target,
+		@Nonnull FilterBy filter,
+		@Nonnull ReevaluateExpressionMutation mutation
+	) {
+		try {
+			return target.evaluateFilter(filter, mutation.scope());
+		} catch (ReferenceComponentNotIndexedException ex) {
+			log.warn(
+				"Condition of the expression on reference `{}` of entity `{}` in scope `{}` cannot be evaluated, " +
+					"the entities it covers are treated as not matching it: {}",
+				mutation.referenceName(), target.getEntitySchema().getName(), mutation.scope(), ex.getMessage()
+			);
+			return EmptyBitmap.INSTANCE;
+		}
 	}
 
 	/**

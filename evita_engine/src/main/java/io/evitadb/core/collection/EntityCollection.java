@@ -3010,12 +3010,15 @@ public final class EntityCollection implements
 			}
 		}
 		if (!updatedReferenceSchemas.isEmpty()) {
-			exchangeSchema(
-				originalSchema,
-				originalSchema.withReplacedReferenceSchema(
-					updatedReferenceSchemas.toArray(new ReflectedReferenceSchema[0])
-				)
+			final EntitySchema updatedSchema = originalSchema.withReplacedReferenceSchema(
+				updatedReferenceSchemas.toArray(new ReflectedReferenceSchema[0])
 			);
+			exchangeSchema(originalSchema, updatedSchema);
+			// the binding may have filled default components into a scope the reference it reflects has just gained,
+			// and catalog load re-binds with the plain `withReferencedSchema`, which deliberately fills nothing - so
+			// unless the schema is stored here, the filled components would exist in memory only and a restart would
+			// load the scope without them, over indexes that were built with them
+			this.dataStoreBuffer.update(this.catalog.getVersion(), new EntitySchemaStoragePart(updatedSchema));
 		}
 	}
 

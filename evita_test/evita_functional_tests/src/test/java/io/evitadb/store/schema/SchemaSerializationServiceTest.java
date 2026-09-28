@@ -43,6 +43,9 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
@@ -810,6 +813,169 @@ class SchemaSerializationServiceTest {
 					"The refusal must name `" + expected + "`, was: " + refusal.getMessage()
 				);
 			}
+		}
+
+		/**
+		 * An indexing mutation that changes another scope of a plain reference completes every indexed scope it leaves
+		 * without components with the default - except one the reference is already stored with and no component. That
+		 * scope never indexed anything, and filling it as a side effect would make it look healthy over indexes that
+		 * were never built. Asking for the component in that scope explicitly is still honoured - it is the repair.
+		 */
+		@Test
+		@DisplayName("should not fill a stored empty scope of a plain reference when a mutation changes another scope")
+		void shouldNotFillAStoredEmptyScopeOfAPlainReferenceWhenAMutationChangesAnotherScope() {
+			final ReferenceSchema stored = buildStoredReferenceSchema(
+				STORED_SHAPE_REFERENCE, Entities.BRAND,
+				Map.of(
+					Scope.LIVE, Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY),
+					Scope.ARCHIVED, Collections.emptySet()
+				),
+				Scope.LIVE, Scope.ARCHIVED
+			);
+			final ScopedReferenceIndexType[] bothScopes = {
+				new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING),
+				new ScopedReferenceIndexType(Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING)
+			};
+			final EntitySchemaContract ownerSchema = Mockito.mock(EntitySchemaContract.class);
+
+			final ReferenceSchemaContract liveComponentsChanged = new SetReferenceSchemaIndexedMutation(
+				STORED_SHAPE_REFERENCE, bothScopes,
+				new ScopedReferenceIndexedComponents[]{
+					new ScopedReferenceIndexedComponents(
+						Scope.LIVE,
+						new ReferenceIndexedComponents[]{
+							ReferenceIndexedComponents.REFERENCED_ENTITY,
+							ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+						}
+					)
+				}
+			).mutate(ownerSchema, stored);
+			assertEquals(
+				Set.of(), liveComponentsChanged.getIndexedComponents(Scope.ARCHIVED),
+				"Changing the LIVE components must leave the stored empty ARCHIVED scope empty"
+			);
+
+			final ReferenceSchemaContract componentsUnspecified =
+				new SetReferenceSchemaIndexedMutation(STORED_SHAPE_REFERENCE, bothScopes).mutate(ownerSchema, stored);
+			assertEquals(
+				Set.of(), componentsUnspecified.getIndexedComponents(Scope.ARCHIVED),
+				"A mutation that names no components must leave the stored empty ARCHIVED scope empty too"
+			);
+
+			final ReferenceSchemaContract repaired = new SetReferenceSchemaIndexedMutation(
+				STORED_SHAPE_REFERENCE, bothScopes,
+				new ScopedReferenceIndexedComponents[]{
+					new ScopedReferenceIndexedComponents(
+						Scope.ARCHIVED, new ReferenceIndexedComponents[]{ReferenceIndexedComponents.REFERENCED_ENTITY}
+					)
+				}
+			).mutate(ownerSchema, stored);
+			assertEquals(
+				Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY), repaired.getIndexedComponents(Scope.ARCHIVED),
+				"Asking for the component in the stored empty scope explicitly must repair it"
+			);
+			assertEquals(
+				Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY), repaired.getIndexedComponents(Scope.LIVE),
+				"The LIVE scope the repair leaves uncovered was indexed with components, so it gets the default"
+			);
+		}
+
+		/**
+		 * The reflected counterpart of the test above: the indexing mutation of a reflected reference completes the
+		 * scopes it leaves without components, and must skip one the reference is already stored with and no
+		 * component - the shape the reflected-reference builder used to leave behind in every scope its explicit
+		 * components did not name.
+		 */
+		@Test
+		@DisplayName("should not fill a stored empty scope of a reflected reference when a mutation changes another scope")
+		void shouldNotFillAStoredEmptyScopeOfAReflectedReferenceWhenAMutationChangesAnotherScope() {
+			final ReferenceSchema originalReference = buildStoredReferenceSchema(
+				STORED_SHAPE_REFLECTED_NAME, Entities.PRODUCT,
+				Map.of(
+					Scope.LIVE, Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY),
+					Scope.ARCHIVED, Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY)
+				),
+				Scope.LIVE, Scope.ARCHIVED
+			);
+			final Map<Scope, ReferenceIndexType> indexedInScopes = new EnumMap<>(Scope.class);
+			indexedInScopes.put(Scope.LIVE, ReferenceIndexType.FOR_FILTERING);
+			indexedInScopes.put(Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING);
+			final ReflectedReferenceSchema stored = buildStoredReflectedReferenceSchema(
+				indexedInScopes,
+				Map.of(
+					Scope.LIVE, Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY),
+					Scope.ARCHIVED, Collections.emptySet()
+				)
+			).withReferencedSchema(originalReference);
+			assertEquals(Set.of(), stored.getIndexedComponents(Scope.ARCHIVED), "The premise is a stored empty scope");
+
+			// explicit components naming LIVE alone, as the builder sends them - a mutation with no components at all
+			// would switch the reference to inherited components instead, which never reaches the default fill
+			final ReferenceSchemaContract mutated = new SetReferenceSchemaIndexedMutation(
+				STORED_SHAPE_REFERENCE,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING),
+					new ScopedReferenceIndexType(Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING)
+				},
+				new ScopedReferenceIndexedComponents[]{
+					new ScopedReferenceIndexedComponents(
+						Scope.LIVE,
+						new ReferenceIndexedComponents[]{
+							ReferenceIndexedComponents.REFERENCED_ENTITY,
+							ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+						}
+					)
+				}
+			).mutate(Mockito.mock(EntitySchemaContract.class), stored);
+
+			assertFalse(
+				((ReflectedReferenceSchemaContract) mutated).isIndexedComponentsInherited(),
+				"The premise is a reflected reference keeping its explicit components"
+			);
+			assertEquals(
+				Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+				mutated.getIndexedComponents(Scope.LIVE),
+				"The mutation must have been applied at all, or the assertion below proves nothing"
+			);
+			assertEquals(
+				Set.of(), mutated.getIndexedComponents(Scope.ARCHIVED),
+				"Changing the LIVE components must leave the stored empty ARCHIVED scope empty"
+			);
+		}
+
+		/**
+		 * A reflected reference inheriting its components has none of its own to add the missing one to, so the
+		 * refusal must point at the inheritance - the reference it reflects - rather than tell the user to add a
+		 * component to a reference that declares none.
+		 */
+		@Test
+		@DisplayName("should point a reflected reference inheriting its components at the reference it reflects")
+		void shouldPointAReflectedReferenceInheritingItsComponentsAtTheReferenceItReflects() {
+			final ReferenceSchema originalReference = buildStoredReferenceSchema(
+				STORED_SHAPE_REFLECTED_NAME, Entities.PRODUCT,
+				Map.of(Scope.LIVE, Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY))
+			);
+			final ReflectedReferenceSchema loaded = buildStoredReflectedReferenceSchema(null)
+				.withReferencedSchema(originalReference);
+			assertTrue(loaded.isIndexedComponentsInherited(), "The premise is inherited components");
+
+			final EntitySchemaContract reflectedSchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(reflectedSchema.getReference(STORED_SHAPE_REFLECTED_NAME))
+				.thenReturn(java.util.Optional.of(originalReference));
+			final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchemaContract.class);
+			Mockito.when(catalogSchema.getName()).thenReturn(TestConstants.TEST_CATALOG);
+			Mockito.when(catalogSchema.getEntitySchema(Entities.CATEGORY))
+				.thenReturn(java.util.Optional.of(reflectedSchema));
+			final InvalidSchemaMutationException refusal = assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> loaded.validate(catalogSchema, EntitySchema._internalBuild(Entities.PRODUCT)),
+				"The inherited group-only components must be refused"
+			);
+			assertTrue(
+				refusal.getMessage().contains("inherited from reference `" + STORED_SHAPE_REFLECTED_NAME + "`"),
+				"The refusal must point at the reference the components are inherited from, was: " +
+					refusal.getMessage()
+			);
 		}
 
 	}

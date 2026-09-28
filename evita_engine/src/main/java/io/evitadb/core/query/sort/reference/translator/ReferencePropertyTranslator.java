@@ -39,7 +39,6 @@ import io.evitadb.api.query.order.TraversalMode;
 import io.evitadb.api.query.order.TraverseByEntityProperty;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
@@ -105,7 +104,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	/**
 	 * Method locates all {@link EntityIndex} from the resolved list of {@link TargetIndexes} which were identified
 	 * by the {@link IndexSelectionVisitor}. The list is expected to be much smaller than the full list computed
-	 * in {@link #selectFullEntityIndexSet(OrderByVisitor, EntitySchemaContract, ReferenceSchemaContract)}.
+	 * in {@link #selectFullEntityIndexSet(OrderByVisitor, String)}.
 	 */
 	@Nonnull
 	private static List<ReducedEntityIndex> selectReducedEntityIndexSet(
@@ -166,28 +165,16 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	/**
 	 * Method locates all {@link EntityIndex} instances that are related to the given reference name. The list is
 	 * resolved from {@link ReferencedTypeEntityIndex}.
-	 *
-	 * @param orderByVisitor  the visitor providing the processing scopes and index access
-	 * @param entitySchema    schema of the entity owning the reference, quoted when the lookup is refused
-	 * @param referenceSchema the reference being ordered by
-	 * @return every reduced entity index of the reference in the processed scopes
-	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the reference is indexed in a processed scope
-	 *         without the `REFERENCED_ENTITY` component - see {@link HavingTranslatorHelper#assertEntityComponentIndexed}
 	 */
 	@Nonnull
 	private static List<ReducedEntityIndex> selectFullEntityIndexSet(
 		@Nonnull OrderByVisitor orderByVisitor,
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema
+		@Nonnull String referenceName
 	) {
-		final String referenceName = referenceSchema.getName();
 		final Set<Scope> allowedScopes = orderByVisitor.getProcessingScope().getScopes();
 		Stream<ReducedEntityIndex> indexes = Stream.empty();
 		for (Scope scope : Scope.values()) {
 			if (allowedScopes.contains(scope)) {
-				// a scope indexed without the entity component has no type index, so the lookup below would find
-				// nothing and every owner would sort as if it had no reference at all
-				HavingTranslatorHelper.assertEntityComponentIndexed(entitySchema, referenceSchema, scope);
 				final EntityIndexKey entityIndexKey = new EntityIndexKey(
 					EntityIndexType.REFERENCED_ENTITY_TYPE,
 					scope,
@@ -390,6 +377,13 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 			if (!referenceSchema.isIndexedInScope(scope)) {
 				throw new ReferenceNotIndexedException(referenceName, entitySchema, scope);
 			}
+			// a scope indexed without the entity component holds no reduced entity index, so every owner in it would
+			// sort as if it had no reference at all. Checked here for every ordered scope rather than at the lookup
+			// below, because the index set may come from index selection instead - narrowed by an `inScope(...)` to
+			// other scopes, while the rows of this one are still sorted
+			HavingTranslatorHelper.assertEntityComponentIndexed(
+				entitySchema, referenceSchema, scope, processingScope.getScopes()
+			);
 		}
 		// every scope passed the check above, so ordering by this reference genuinely depends on `indexed()` in all
 		// of them - the widest dependency the surface reports, since dropping it takes the reduced index family too
@@ -409,7 +403,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 
 		final List<ReducedEntityIndex> reducedEntityIndexSet = selectReducedEntityIndexSet(orderByVisitor, referenceName);
 		final List<ReducedEntityIndex> referenceIndexes = reducedEntityIndexSet.isEmpty() ?
-			selectFullEntityIndexSet(orderByVisitor, entitySchema, referenceSchema) :
+			selectFullEntityIndexSet(orderByVisitor, referenceName) :
 			reducedEntityIndexSet;
 
 		if (!referenceIndexes.isEmpty()) {

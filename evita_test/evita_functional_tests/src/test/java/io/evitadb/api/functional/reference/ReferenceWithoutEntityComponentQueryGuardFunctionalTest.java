@@ -43,6 +43,8 @@ import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
+import io.evitadb.core.exception.ReferenceComponentNotIndexedException;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.EvitaTestSupport;
@@ -79,12 +81,14 @@ import static io.evitadb.api.query.QueryConstraints.groupHaving;
 import static io.evitadb.api.query.QueryConstraints.hierarchyOfReference;
 import static io.evitadb.api.query.QueryConstraints.hierarchyWithin;
 import static io.evitadb.api.query.QueryConstraints.histogramHaving;
+import static io.evitadb.api.query.QueryConstraints.histogramStatistics;
 import static io.evitadb.api.query.QueryConstraints.inScope;
 import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.api.query.QueryConstraints.orderBy;
 import static io.evitadb.api.query.QueryConstraints.referenceContent;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static io.evitadb.api.query.QueryConstraints.referenceProperty;
+import static io.evitadb.api.query.QueryConstraints.referenceSummaryOfReferenceWithHistograms;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.scope;
 import static io.evitadb.api.query.QueryConstraints.userFilter;
@@ -98,6 +102,7 @@ import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.REQUIRE;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -126,14 +131,16 @@ import static org.junit.jupiter.api.Assertions.fail;
  * *committed* the shape - a shared catalog would then carry it into every later test and make their results
  * meaningless.
  *
- * The fixture carries two references:
+ * The fixture carries three references:
  *
  * - {@link #REF_GROUP_ONLY} - indexed in {@link Scope#LIVE} for the group component only. Its referenced entity is
- *   hierarchical, it has a group type, a sortable reference attribute and a bucketed histogram, so that every query
- *   path over a reference applies to it.
+ *   hierarchical, it has a group type, a sortable reference attribute, a predecessor reference attribute and a
+ *   bucketed histogram, so that every query path over a reference applies to it.
  * - {@link #REF_GROUP_ONLY_IN_ARCHIVE} - valid in {@link Scope#LIVE}, group-only in {@link Scope#ARCHIVED}. It pins
  *   that the refusal is per queried scope, and that narrowing the query to the valid scope - with `scope(...)` or with
  *   `inScope(...)` - is the workaround that answers.
+ * - {@link #REF_UNGROUPED} - like {@link #REF_GROUP_ONLY}, but without a group type, so that its bucketed histogram is
+ *   read from the entity component's type index rather than from the group indexes.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -156,11 +163,21 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 	 * {@link Scope#ARCHIVED}.
 	 */
 	private static final String REF_GROUP_ONLY_IN_ARCHIVE = "groupOnlyInArchiveCategories";
+	/**
+	 * Indexed in {@link Scope#LIVE} with `[REFERENCED_GROUP_ENTITY]` only and no group type, carrying a bucketed
+	 * histogram - an ungrouped histogram is read from the `REFERENCED_ENTITY_TYPE` index.
+	 */
+	private static final String REF_UNGROUPED = "ungroupedGroupOnlyCategories";
 
 	/**
 	 * Sortable reference attribute on {@link #REF_GROUP_ONLY}, used by `referenceProperty` ordering.
 	 */
 	private static final String ATTR_ORDER = "order";
+	/**
+	 * Referenced-entity predecessor attribute on {@link #REF_GROUP_ONLY}, ordering the rows of one product through the
+	 * chain index kept in the reduced entity index. Set only by the test that orders by it.
+	 */
+	private static final String ATTR_CHAIN = "chain";
 	/**
 	 * Filterable decimal reference attribute on {@link #REF_GROUP_ONLY}, the value source of {@link #HISTOGRAM_SHARE}.
 	 * Never set - see {@link #upsertProduct}.
@@ -191,6 +208,8 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 	private static final int PRODUCT_B_PK = 2;
 	/** Archived product referencing {@link #CHILD_CATEGORY_PK} in {@link #GROUP_A_PK}, exactly like product 1. */
 	private static final int ARCHIVED_PRODUCT_PK = 3;
+	/** Live product with two rows on {@link #REF_GROUP_ONLY}, written only by the test that orders them. */
+	private static final int TWO_ROW_PRODUCT_PK = 4;
 
 	private TestPaths paths;
 	private Evita evita;
@@ -259,6 +278,13 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 						REF_GROUP_ONLY_IN_ARCHIVE,
 						describe(productSchema.getReferenceOrThrowException(REF_GROUP_ONLY_IN_ARCHIVE))
 					);
+					final ReferenceSchemaContract ungrouped = productSchema.getReferenceOrThrowException(REF_UNGROUPED);
+					description.put(REF_UNGROUPED, describe(ungrouped));
+					description.put("ungroupedGroupType", String.valueOf(ungrouped.getReferencedGroupType()));
+					description.put(
+						"ungroupedHistogram",
+						String.valueOf(ungrouped.getHistogramIndexDefinition(Scope.LIVE, HISTOGRAM_SHARE) != null)
+					);
 					description.put("groupType", String.valueOf(groupOnly.getReferencedGroupType()));
 					description.put("faceted", String.valueOf(groupOnly.isFacetedInScope(Scope.LIVE)));
 					description.put(
@@ -279,14 +305,19 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 				}
 			);
 			assertEquals(
-				Map.of(
-					REF_GROUP_ONLY, "LIVE=[REFERENCED_GROUP_ENTITY]",
-					REF_GROUP_ONLY_IN_ARCHIVE, "LIVE=[REFERENCED_ENTITY] ARCHIVED=[REFERENCED_GROUP_ENTITY]",
-					"groupType", CATEGORY_GROUP,
-					"faceted", "true",
-					"sortable", "true",
-					"histogram", "true",
-					"hierarchical", "true"
+				Map.ofEntries(
+					Map.entry(REF_GROUP_ONLY, "LIVE=[REFERENCED_GROUP_ENTITY]"),
+					Map.entry(
+						REF_GROUP_ONLY_IN_ARCHIVE, "LIVE=[REFERENCED_ENTITY] ARCHIVED=[REFERENCED_GROUP_ENTITY]"
+					),
+					Map.entry(REF_UNGROUPED, "LIVE=[REFERENCED_GROUP_ENTITY]"),
+					Map.entry("groupType", CATEGORY_GROUP),
+					Map.entry("ungroupedGroupType", "null"),
+					Map.entry("faceted", "true"),
+					Map.entry("sortable", "true"),
+					Map.entry("histogram", "true"),
+					Map.entry("ungroupedHistogram", "true"),
+					Map.entry("hierarchical", "true")
 				),
 				actual,
 				"The schema the session actually holds is not the one the tests below assume"
@@ -307,7 +338,8 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 						collection(PRODUCT),
 						filterBy(entityPrimaryKeyInSet(PRODUCT_A_PK)),
 						require(entityFetch(referenceContent(REF_GROUP_ONLY)))
-					)
+					),
+					REF_GROUP_ONLY
 				)
 			);
 			assertEquals(
@@ -452,7 +484,8 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 								)
 							)
 						)
-					)
+					),
+					REF_GROUP_ONLY
 				),
 				REF_GROUP_ONLY, Scope.LIVE,
 				"the right answer is [" + CHILD_CATEGORY_PK + "], and the blind one hides the row"
@@ -538,9 +571,119 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 						)
 					)
 				),
-				REF_GROUP_ONLY_IN_ARCHIVE, Scope.ARCHIVED,
+				REF_GROUP_ONLY_IN_ARCHIVE, Scope.ARCHIVED, Scope.LIVE,
 				"archived product " + ARCHIVED_PRODUCT_PK + " references category " + CHILD_CATEGORY_PK +
 					" too, so the live-only answer [" + PRODUCT_A_PK + "] is incomplete"
+			);
+		}
+
+		/**
+		 * Index selection can hand `referenceProperty` a reduced index set of its own - here the one an
+		 * `inScope(LIVE, ...)` filter selected - and the sorter then never looks the entity index family up. The rows
+		 * of {@link Scope#ARCHIVED}, which `inScope` leaves unconstrained, are still sorted, and they would sort as if
+		 * they carried no reference at all. The refusal must therefore not depend on which index set the sorter uses.
+		 */
+		@Test
+		@Tag(ORDER)
+		@DisplayName("should refuse referenceProperty ordering over a scope an inScope-narrowed filter does not reach")
+		void shouldRefuseReferencePropertyOrderingWhenTheFilterIsNarrowedByInScope() {
+			assertRefused(
+				() -> productPks(
+					query(
+						collection(PRODUCT),
+						filterBy(
+							scope(Scope.LIVE, Scope.ARCHIVED),
+							inScope(
+								Scope.LIVE,
+								referenceHaving(
+									REF_GROUP_ONLY_IN_ARCHIVE,
+									entityHaving(entityPrimaryKeyInSet(CHILD_CATEGORY_PK, OTHER_ROOT_CATEGORY_PK))
+								)
+							)
+						),
+						orderBy(
+							referenceProperty(
+								REF_GROUP_ONLY_IN_ARCHIVE, attributeNatural(ATTR_ORDER, OrderDirection.DESC)
+							)
+						)
+					)
+				),
+				REF_GROUP_ONLY_IN_ARCHIVE, Scope.ARCHIVED, Scope.LIVE,
+				"archived product " + ARCHIVED_PRODUCT_PK + " carries the highest order, so it belongs first, which the " +
+					"blind lookup cannot know"
+			);
+		}
+
+		/**
+		 * `referenceContent` ordered by a predecessor attribute reads the chain index kept in the reduced entity index
+		 * of every row - a lookup of its own, outside the filter and `referenceProperty` paths. Without it every row
+		 * sorts as if it had no predecessor, and the rows come back in an order nobody asked for.
+		 */
+		@Test
+		@Tag(ORDER)
+		@Tag(REQUIRE)
+		@DisplayName("should refuse ordering referenceContent by a predecessor attribute")
+		void shouldRefusePredecessorOrderedReferenceContent() {
+			assertRefused(
+				() -> {
+					final EvitaSessionContract session = currentSession();
+					session.upsertEntity(
+						session.createNewEntity(PRODUCT, TWO_ROW_PRODUCT_PK)
+							.setReference(
+								REF_GROUP_ONLY, OTHER_ROOT_CATEGORY_PK,
+								whichIs -> whichIs
+									.setGroup(CATEGORY_GROUP, GROUP_B_PK)
+									.setAttribute(ATTR_CHAIN, ReferencedEntityPredecessor.HEAD)
+							)
+							.setReference(
+								REF_GROUP_ONLY, CHILD_CATEGORY_PK,
+								whichIs -> whichIs
+									.setGroup(CATEGORY_GROUP, GROUP_A_PK)
+									.setAttribute(ATTR_CHAIN, new ReferencedEntityPredecessor(OTHER_ROOT_CATEGORY_PK))
+							)
+					);
+					return fetchReferencedPks(
+						session,
+						query(
+							collection(PRODUCT),
+							filterBy(entityPrimaryKeyInSet(TWO_ROW_PRODUCT_PK)),
+							require(
+								entityFetch(referenceContent(REF_GROUP_ONLY, orderBy(attributeNatural(ATTR_CHAIN))))
+							)
+						),
+						REF_GROUP_ONLY
+					);
+				},
+				REF_GROUP_ONLY, Scope.LIVE,
+				"the chain orders category " + OTHER_ROOT_CATEGORY_PK + " before category " + CHILD_CATEGORY_PK +
+					", the reverse of the primary-key order the blind lookup falls back to"
+			);
+		}
+
+		/**
+		 * The histogram of an ungrouped reference in `referenceSummaryOfReference` is read from the entity component's
+		 * type index. Without it the histogram is simply missing from the summary - the same answer as a reference with
+		 * no values to bucket.
+		 */
+		@Test
+		@Tag(HISTOGRAM)
+		@Tag(REQUIRE)
+		@DisplayName("should refuse the histogram statistics of an ungrouped reference")
+		void shouldRefuseUngroupedReferenceHistogramStatistics() {
+			assertRefused(
+				() -> currentSession().queryEntityReference(
+					query(
+						collection(PRODUCT),
+						require(
+							referenceSummaryOfReferenceWithHistograms(
+								REF_UNGROUPED, null, null, null,
+								histogramStatistics(10, HISTOGRAM_SHARE)
+							)
+						)
+					)
+				).getExtraResults(),
+				REF_UNGROUPED, Scope.LIVE,
+				"the reference lacks REFERENCED_ENTITY, so a summary without its histogram cannot be trusted"
 			);
 		}
 
@@ -590,6 +733,45 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 				facetsByGroup,
 				"Each live product contributes one facet in its own group - the facet index was built regardless of " +
 					"the indexed components"
+			);
+		}
+
+		/**
+		 * A `scope(...)` inside the filter of `referenceContent` names the scopes of the *referenced* entities, yet it
+		 * also widens the scopes the owner side of the lookup visits (`ReferencedEntityFetcher#gatherSearchedScopes`).
+		 * The owners fetched here are live, so the {@link Scope#ARCHIVED} half of that lookup contributes none of them,
+		 * and the reference lacking the entity component there must not get the query refused.
+		 */
+		@Test
+		@Tag(REQUIRE)
+		@DisplayName("should answer referenceContent whose filter names a scope the owners are not queried in")
+		void shouldAnswerReferenceContentFilteredInAnotherScope() {
+			final List<Integer> referenced = queryInStoredShapeSession(
+				session -> fetchReferencedPks(
+					session,
+					query(
+						collection(PRODUCT),
+						filterBy(entityPrimaryKeyInSet(PRODUCT_A_PK)),
+						require(
+							entityFetch(
+								referenceContent(
+									REF_GROUP_ONLY_IN_ARCHIVE,
+									filterBy(
+										scope(Scope.LIVE, Scope.ARCHIVED),
+										entityHaving(entityPrimaryKeyInSet(CHILD_CATEGORY_PK))
+									)
+								)
+							)
+						)
+					),
+					REF_GROUP_ONLY_IN_ARCHIVE
+				)
+			);
+			assertEquals(
+				List.of(CHILD_CATEGORY_PK),
+				referenced,
+				"Live product " + PRODUCT_A_PK + " reaches category " + CHILD_CATEGORY_PK + " through a LIVE row, " +
+					"which carries REFERENCED_ENTITY"
 			);
 		}
 
@@ -761,18 +943,39 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 	}
 
 	/**
-	 * Runs the query inside the stored-shape session and asserts it is refused with an actionable message. When the
-	 * query answers instead, the failure quotes the answer, so a regression shows what the blind lookup returned.
+	 * Runs a query asking for one scope only inside the stored-shape session and asserts it is refused with an
+	 * actionable message - one that offers no narrowing workaround, because there is no other scope to narrow to.
 	 *
-	 * @param query         runs the query in {@link #currentSession()} and renders its answer
-	 * @param referenceName the reference the refusal must name
-	 * @param scope         the scope the refusal must name as lacking the entity component
+	 * @param query              runs the query in {@link #currentSession()} and renders its answer
+	 * @param referenceName      the reference the refusal must name
+	 * @param scope              the scope the refusal must name as lacking the entity component
 	 * @param whyAnAnswerIsWrong explains what the right answer would be and why the blind one is not it
 	 */
 	private void assertRefused(
 		@Nonnull Supplier<Object> query,
 		@Nonnull String referenceName,
 		@Nonnull Scope scope,
+		@Nonnull String whyAnAnswerIsWrong
+	) {
+		assertRefused(query, referenceName, scope, null, whyAnAnswerIsWrong);
+	}
+
+	/**
+	 * Runs the query inside the stored-shape session and asserts it is refused with an actionable message. When the
+	 * query answers instead, the failure quotes the answer, so a regression shows what the blind lookup returned.
+	 *
+	 * @param query              runs the query in {@link #currentSession()} and renders its answer
+	 * @param referenceName      the reference the refusal must name
+	 * @param scope              the scope the refusal must name as lacking the entity component
+	 * @param answerableScope    the queried scope the refusal must offer narrowing the query to, or NULL when the
+	 *                           query asks for no other scope and the refusal must offer no such workaround
+	 * @param whyAnAnswerIsWrong explains what the right answer would be and why the blind one is not it
+	 */
+	private void assertRefused(
+		@Nonnull Supplier<Object> query,
+		@Nonnull String referenceName,
+		@Nonnull Scope scope,
+		@Nullable Scope answerableScope,
 		@Nonnull String whyAnAnswerIsWrong
 	) {
 		final Object outcome = queryInStoredShapeSession(
@@ -791,6 +994,10 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 			);
 			return;
 		}
+		assertInstanceOf(
+			ReferenceComponentNotIndexedException.class, refusal,
+			"The refusal must be the dedicated exception the write path relies on to tell it apart, was: " + refusal
+		);
 		final String message = refusal.getMessage();
 		assertTrue(
 			message.contains("`" + referenceName + "`"),
@@ -804,10 +1011,19 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 			message.contains("REFERENCED_ENTITY"),
 			"The refusal must name the missing component `REFERENCED_ENTITY`, was: " + message
 		);
-		assertTrue(
-			message.contains("inScope"),
-			"The refusal must name the `scope(...)` / `inScope(...)` workaround, was: " + message
-		);
+		if (answerableScope == null) {
+			assertFalse(
+				message.contains("inScope"),
+				"A query asking for one scope has no other scope to narrow to, so the refusal must not offer the " +
+					"`scope(...)` / `inScope(...)` workaround, was: " + message
+			);
+		} else {
+			assertTrue(
+				message.contains("`scope(" + answerableScope.name() + ")`") && message.contains("inScope"),
+				"The refusal must offer narrowing the query to `" + answerableScope + "` with `scope(...)` or " +
+					"`inScope(...)`, was: " + message
+			);
+		}
 	}
 
 	/**
@@ -828,6 +1044,7 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 					.withGroupTypeRelatedToEntity(CATEGORY_GROUP)
 					.indexedWithComponents(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY)
 					.withAttribute(ATTR_ORDER, Integer.class, thatIs -> thatIs.sortable().nullable())
+					.withAttribute(ATTR_CHAIN, ReferencedEntityPredecessor.class, thatIs -> thatIs.sortable().nullable())
 					.withAttribute(
 						ATTR_SHARE, BigDecimal.class,
 						thatIs -> thatIs.filterable().indexDecimalPlaces(2).nullable()
@@ -844,6 +1061,27 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 					.withGroupTypeRelatedToEntity(CATEGORY_GROUP)
 					.indexedWithComponentsInScope(Scope.LIVE, ReferenceIndexedComponents.REFERENCED_ENTITY)
 					.indexedWithComponentsInScope(Scope.ARCHIVED, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY)
+					// sortable in both scopes, so that ordering the archived rows is refused for the missing component
+					// and not for an attribute that cannot be sorted there
+					.withAttribute(
+						ATTR_ORDER, Integer.class,
+						thatIs -> thatIs.sortableInScope(Scope.LIVE, Scope.ARCHIVED).nullable()
+					)
+			)
+			.withReferenceToEntity(
+				REF_UNGROUPED, CATEGORY, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs
+					.indexedForFilteringAndPartitioning()
+					.faceted()
+					.indexedWithComponents(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY)
+					.withAttribute(
+						ATTR_SHARE, BigDecimal.class,
+						thatIs -> thatIs.filterable().indexDecimalPlaces(2).nullable()
+					)
+					.bucketed(
+						HISTOGRAM_SHARE,
+						ExpressionFactory.parse("$reference.attributes['" + ATTR_SHARE + "']")
+					)
 			)
 			.updateVia(session);
 
@@ -854,8 +1092,9 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 	}
 
 	/**
-	 * Creates one product carrying the same category and group on both references, so that which reference a query
-	 * names is the only thing that varies between the assertions.
+	 * Creates one product carrying the same category - and, where the reference has a group type, the same group and
+	 * order - on every reference, so that which reference a query names is the only thing that varies between the
+	 * assertions.
 	 *
 	 * The histogram source attribute {@link #ATTR_SHARE} is deliberately left unset. On this shape the write path
 	 * refuses to store a histogram value at all - `ReferenceIndexMutator#insertSingleHistogramValue` reaches its
@@ -865,9 +1104,9 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 	 *
 	 * @param session    session to write through
 	 * @param productPk  primary key of the created product
-	 * @param categoryPk category referenced by both references
-	 * @param groupPk    group assigned on both references
-	 * @param order      value of the sortable reference attribute
+	 * @param categoryPk category referenced by every reference
+	 * @param groupPk    group assigned on the grouped references
+	 * @param order      value of the sortable reference attribute on the grouped references
 	 */
 	private static void upsertProduct(
 		@Nonnull EvitaSessionContract session,
@@ -886,8 +1125,11 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 				)
 				.setReference(
 					REF_GROUP_ONLY_IN_ARCHIVE, categoryPk,
-					whichIs -> whichIs.setGroup(CATEGORY_GROUP, groupPk)
+					whichIs -> whichIs
+						.setGroup(CATEGORY_GROUP, groupPk)
+						.setAttribute(ATTR_ORDER, order)
 				)
+				.setReference(REF_UNGROUPED, categoryPk)
 		);
 	}
 
@@ -919,17 +1161,22 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 	}
 
 	/**
-	 * Fetches the single product the query selects and returns the primary keys of the categories its
-	 * {@link #REF_GROUP_ONLY} rows point at.
+	 * Fetches the single product the query selects and returns the primary keys of the categories its rows of the
+	 * passed reference point at.
 	 *
-	 * @param session    session to query through
-	 * @param queryToRun a query selecting exactly one product and fetching its {@link #REF_GROUP_ONLY} rows
+	 * @param session       session to query through
+	 * @param queryToRun    a query selecting exactly one product and fetching its rows of `referenceName`
+	 * @param referenceName the reference whose rows are read
 	 * @return referenced category primary keys, in the order the entity returned them
 	 */
 	@Nonnull
-	private static List<Integer> fetchReferencedPks(@Nonnull EvitaSessionContract session, @Nonnull Query queryToRun) {
+	private static List<Integer> fetchReferencedPks(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Query queryToRun,
+		@Nonnull String referenceName
+	) {
 		final SealedEntity product = session.queryOneSealedEntity(queryToRun).orElseThrow();
-		return product.getReferences(REF_GROUP_ONLY)
+		return product.getReferences(referenceName)
 			.stream()
 			.map(ReferenceContract::getReferencedPrimaryKey)
 			.toList();

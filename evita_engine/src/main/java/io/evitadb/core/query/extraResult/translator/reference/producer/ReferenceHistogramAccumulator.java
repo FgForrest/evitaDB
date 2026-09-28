@@ -47,6 +47,7 @@ import io.evitadb.core.query.extraResult.translator.histogram.producer.Attribute
 import io.evitadb.core.query.extraResult.translator.histogram.producer.AttributeHistogramProducer.AttributeHistogramRequest;
 import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryProducer.HistogramRequest;
 import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryProducer.RequestedBucketRange;
+import io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper;
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -263,6 +264,14 @@ final class ReferenceHistogramAccumulator {
 				attributeSchema.getPlainType()
 			);
 			resolved.add(new ResolvedRequest(req, attributeSchema, comparator));
+		}
+		if (!grouped) {
+			// an ungrouped histogram is read from the type index of the entity component, which a scope indexed
+			// without that component never builds - the histogram would silently be missing from the result
+			final EntitySchemaContract entitySchema = context.getQueryContext().getSchema();
+			for (final Scope scope : scopes) {
+				HavingTranslatorHelper.assertEntityComponentIndexed(entitySchema, referenceSchema, scope, scopes);
+			}
 		}
 		for (final ResolvedRequest resolvedReq : resolved) {
 			for (final Scope scope : scopes) {

@@ -42,10 +42,12 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.core.exception.ReferenceComponentNotIndexedException;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
@@ -456,6 +458,90 @@ class ReevaluateExpressionExecutorTest {
 
 			// Since evaluateFilter returned empty → all PKs in shouldNotBeIndexed → no facets present
 			assertNoFacets(testTarget.globalIndex());
+		}
+
+		/**
+		 * The condition runs through the query engine, which refuses to read a reference indexed in the queried scope
+		 * without the component the condition needs - a shape a catalog stored before the schema rule existed can
+		 * carry. That refusal is meant for a query: here it would abort the write of an unrelated entity, or the
+		 * write-ahead log replay that recovers the catalog. The condition must instead be answered as matching nothing,
+		 * and the write must go through.
+		 */
+		@Test
+		@DisplayName("should treat a condition refused for a missing indexed component as matching nothing")
+		void shouldTreatAConditionRefusedForAMissingIndexedComponentAsMatchingNothing() {
+			final TestTarget testTarget = prepareRefusedConditionTarget(
+				new ReferenceComponentNotIndexedException("mirrors the refusal of the query guard")
+			);
+			seedFacet(testTarget.globalIndex(), testTarget.refSchema(), 3, 2, 100);
+
+			assertDoesNotThrow(
+				() -> ReevaluateExpressionExecutorTest.this.executor.execute(
+					ReevaluateExpressionMutation.withoutOldValues(
+						REFERENCE_NAME, 3, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE
+					),
+					testTarget.target()
+				),
+				"A refusal meant for a query must not abort the index maintenance of a write"
+			);
+			verify(testTarget.target()).evaluateFilter(any(FilterBy.class), eq(Scope.LIVE));
+			assertNoFacets(testTarget.globalIndex());
+		}
+
+		/**
+		 * The control for the test above: only the dedicated refusal is absorbed. Any other failure of the condition
+		 * is a genuine error and must still propagate.
+		 */
+		@Test
+		@DisplayName("should propagate any other failure of the condition")
+		void shouldPropagateAnyOtherFailureOfTheCondition() {
+			final TestTarget testTarget = prepareRefusedConditionTarget(
+				new EvitaInvalidUsageException("an unrelated refusal")
+			);
+
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> ReevaluateExpressionExecutorTest.this.executor.execute(
+					ReevaluateExpressionMutation.withoutOldValues(
+						REFERENCE_NAME, 3, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE
+					),
+					testTarget.target()
+				),
+				"Only the refusal for a missing indexed component may be absorbed by the write path"
+			);
+		}
+
+		/**
+		 * Prepares a target whose condition evaluation fails with the passed exception, for a facet trigger reading
+		 * the group of product 100's reference to referenced entity 3 in group 2.
+		 *
+		 * @param failure what the condition evaluation throws
+		 * @return the prepared target
+		 */
+		@Nonnull
+		private TestTarget prepareRefusedConditionTarget(@Nonnull RuntimeException failure) {
+			final FilterBy triggerFilter = new FilterBy(
+				new ReferenceHaving(
+					REFERENCE_NAME,
+					new GroupHaving(
+						new AttributeEquals("inputWidgetType", "INTERVAL")
+					)
+				)
+			);
+			final StubFacetTrigger facetTrigger = new StubFacetTrigger(
+				REFERENCE_NAME, triggerFilter, DependencyType.REFERENCED_ENTITY_ATTRIBUTE
+			);
+			final AffectedEntityResolution affected = new AffectedEntityResolution(
+				List.of(new AffectedReferenceGroup(3, 2, new BaseBitmap(100)))
+			);
+			final TestTarget testTarget = createTestTarget(affected, ReferenceIndexType.FOR_FILTERING);
+			final IndexMutationTarget target = testTarget.target();
+			when(target.evaluateFilter(any(FilterBy.class), eq(Scope.LIVE))).thenThrow(failure);
+			when(target.getFacetTrigger(REFERENCE_NAME, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE))
+				.thenReturn(facetTrigger);
+			when(target.getHistogramTriggers(REFERENCE_NAME, Scope.LIVE))
+				.thenReturn(Collections.emptyList());
+			return testTarget;
 		}
 
 		@Test

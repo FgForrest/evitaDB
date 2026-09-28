@@ -66,6 +66,7 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FILTER;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -354,6 +355,11 @@ public class HavingWithoutIndexedComponentFunctionalTest {
 				)
 			);
 			assertMessageNames(exception, REF_LIVE_ONLY_GROUP, "REFERENCED_GROUP_ENTITY");
+			assertFalse(
+				exception.getMessage().contains("inScope"),
+				"A query asking for ARCHIVED alone has no other scope to narrow to, so the message must not offer " +
+					"the `scope(...)` / `inScope(...)` workaround, was: " + exception.getMessage()
+			);
 		}
 
 		/**
@@ -391,8 +397,9 @@ public class HavingWithoutIndexedComponentFunctionalTest {
 				"The message must name the scope `ARCHIVED` that lacks the component, was: " + message
 			);
 			assertTrue(
-				message.contains("inScope"),
-				"The message must name the `scope(...)` / `inScope(...)` workaround, was: " + message
+				message.contains("`scope(LIVE)`") && message.contains("inScope"),
+				"The message must offer narrowing the query to `LIVE` with `scope(...)` or `inScope(...)`, was: " +
+					message
 			);
 		}
 
