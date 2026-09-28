@@ -303,6 +303,54 @@ class IndexedScopeRequiresEntityComponentTest implements EvitaTestSupport {
 		}
 
 		/**
+		 * The empty shape on a plain reference, which {@link ReferenceSchema#validate} checks on its own - the reflected
+		 * reference above goes through a validation of its own. Built the way a catalog load builds it, through the map
+		 * overload of `_internalBuild` the Kryo reader uses, and indexed in `LIVE` with the entity component and in
+		 * `ARCHIVED` with none, so the refusal has to name the one scope that lacks it.
+		 */
+		@Test
+		@DisplayName("should refuse a stored plain reference indexed with an empty component set")
+		void shouldRefusePlainReferenceIndexedWithEmptyComponents() {
+			final Map<Scope, ReferenceIndexType> bothScopes = new EnumMap<>(Scope.class);
+			bothScopes.put(Scope.LIVE, ReferenceIndexType.FOR_FILTERING);
+			bothScopes.put(Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING);
+			final Map<Scope, Set<ReferenceIndexedComponents>> components = new EnumMap<>(Scope.class);
+			components.put(Scope.LIVE, Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY));
+			components.put(Scope.ARCHIVED, Set.of());
+			final ReferenceSchema stored = ReferenceSchema._internalBuild(
+				REF_CATEGORIES, NamingConvention.generate(REF_CATEGORIES),
+				null, null,
+				Cardinality.ZERO_OR_MORE,
+				Entities.CATEGORY, Collections.emptyMap(), false,
+				null, Collections.emptyMap(), false,
+				bothScopes,
+				components,
+				Collections.emptySet(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
+			);
+			assertEquals(
+				"LIVE=[REFERENCED_ENTITY] ARCHIVED=[]",
+				describe(stored),
+				"The premise is an indexed ARCHIVED scope with no component, kept exactly as stored"
+			);
+
+			// the referenced type is not managed, so validation needs nothing of the catalog but its name
+			final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchemaContract.class);
+			Mockito.when(catalogSchema.getName()).thenReturn(TEST_CATALOG);
+			final InvalidSchemaMutationException exception = assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> stored.validate(catalogSchema, EntitySchema._internalBuild(Entities.PRODUCT)),
+				"A stored indexed scope without REFERENCED_ENTITY must be refused by validation"
+			);
+			assertMessageNames(exception, REF_CATEGORIES, Entities.PRODUCT, Scope.ARCHIVED);
+		}
+
+		/**
 		 * A stored reflected reference with explicit scopes, indexed in `ARCHIVED` with no component, switched to
 		 * inherited scopes by `indexedInScope((Scope[]) null)` - the mutation that switch emits, followed by the
 		 * re-binding the collection performs after every schema change. Neither may complete the stored empty scope:
