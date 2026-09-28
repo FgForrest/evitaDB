@@ -34,6 +34,7 @@ import io.evitadb.index.bPlusTree.TransactionalIntToLongBPlusTree.Entry;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
+import io.evitadb.utils.JolHeapSize;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -3324,6 +3325,175 @@ class TransactionalIntToLongBPlusTreeTest {
 			assertEquals(31L, entry.value());
 			assertFalse(it.hasNext(), "and must stop at the live run");
 		}
+	}
+
+	/**
+	 * An internal node grows in place by storing the new child pointers, then raising `peek`, and shrinks by nulling
+	 * the vacated slot next to lowering it - plain stores with no ordering edge to a session-free reader. Such a reader
+	 * can hold a `peek` whose last slot reads `null`, and the heap walk `EntityCollection#describeIndex` runs over a
+	 * live sort or chain index is exactly such a reader: it takes no snapshot, holds no transaction and runs on a
+	 * management thread while a warm-up load mutates the value index of a `TransactionalUnorderedIntArray`. The
+	 * internal node is the one {@link AbstractIntKeyedInternalNode} this tree shares with
+	 * {@link TransactionalElementBPlusTree}, and each tree pins it through its own fixture.
+	 *
+	 * The torn state is built through {@link UnpublishedChildSlotSupport#tear}, and each test asserts the figure the
+	 * walk reports rather than merely that nothing was thrown.
+	 */
+	@Nested
+	@DisplayName("Session-free heap walk over a child slot a grow has not published yet")
+	class UnpublishedChildSlot {
+		/**
+		 * The largest tree tried before a fixture gives up looking for the node shape it needs.
+		 */
+		private static final int MAX_FIXTURE_KEYS = 200;
+		/**
+		 * Rounds of the no-op run; each round churns in place and then inside a committed transaction.
+		 */
+		private static final int NO_OP_ROUNDS = 12;
+		/**
+		 * Mutations per churn phase of the no-op run.
+		 */
+		private static final int NO_OP_OPERATIONS = 60;
+		/**
+		 * Keys the no-op run draws from - enough for the tree to grow four levels deep and collapse again.
+		 */
+		private static final int NO_OP_KEY_RANGE = 150;
+
+		/**
+		 * Builds a tree with an internal block of three separators, so a few dozen keys already stack internal nodes
+		 * and most of them keep a free child slot.
+		 *
+		 * @param keyCount the number of keys to insert, `0 .. keyCount - 1` in ascending order
+		 * @return the tree, every node of it mutated in place
+		 */
+		@Nonnull
+		private static TransactionalIntToLongBPlusTree treeOf(int keyCount) {
+			final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree(8, 3, 3, 1);
+			for (int key = 0; key < keyCount; key++) {
+				tree.insert(key, key * 10L + 1);
+			}
+			return tree;
+		}
+
+		/**
+		 * Asserts that stepping over a `null` child cannot change the heap walk's figure on this tree: no live slot is
+		 * `null`, and the walk matches a JOL measurement of the same node graph.
+		 *
+		 * @param tree the consistent tree to check
+		 */
+		private static void assertHeapWalkIsAnIdentity(@Nonnull TransactionalIntToLongBPlusTree tree) {
+			UnpublishedChildSlotSupport.assertEveryLiveChildSlotPopulated(tree.getRoot());
+			assertEquals(
+				JolHeapSize.ownedSize(tree.getRoot()),
+				tree.getNodeGraphHeapSizeInBytes(),
+				"on a consistent tree the heap walk must report exactly the measured node graph"
+			);
+		}
+
+		/**
+		 * Inserts an absent key or deletes a present one, `operations` times, keeping `present` in step.
+		 *
+		 * @param tree       the tree to mutate
+		 * @param present    the keys the tree holds
+		 * @param random     the source of keys
+		 * @param operations the number of mutations
+		 */
+		private static void churn(
+			@Nonnull TransactionalIntToLongBPlusTree tree,
+			@Nonnull TreeMap<Integer, Long> present,
+			@Nonnull Random random,
+			int operations
+		) {
+			for (int i = 0; i < operations; i++) {
+				final int key = random.nextInt(NO_OP_KEY_RANGE);
+				if (present.remove(key) != null) {
+					tree.delete(key);
+				} else {
+					final long value = key * 10L + 1;
+					tree.insert(key, value);
+					present.put(key, value);
+				}
+			}
+		}
+
+		/**
+		 * Tears the fixture's node and asserts the heap walk reports exactly what it reported before the tear.
+		 *
+		 * @param fixture the tree and the node to tear
+		 */
+		private static void assertHeapWalkStepsOverTheUnpublishedSlot(
+			@Nonnull UnpublishedChildSlotSupport.TornSpine<TransactionalIntToLongBPlusTree> fixture
+		) {
+			final TransactionalIntToLongBPlusTree tree = fixture.tree();
+			final long heapBefore = tree.getHeapSizeInBytes();
+
+			UnpublishedChildSlotSupport.tear(fixture.node());
+
+			assertEquals(
+				heapBefore, tree.getHeapSizeInBytes(),
+				"the heap walk must step over the unpublished slot - the torn node owns no more heap than before"
+			);
+		}
+
+		@Test
+		@DisplayName("a root above the leaves whose peek admits an unpublished child")
+		void shouldStepOverAnUnpublishedSlotOfARootAboveTheLeaves() {
+			assertHeapWalkStepsOverTheUnpublishedSlot(
+				UnpublishedChildSlotSupport.fixture(
+					UnpublishedChildSlot::treeOf, MAX_FIXTURE_KEYS, UnpublishedChildSlotSupport::rootAboveLeaves
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("an inner node whose peek admits an unpublished child")
+		void shouldStepOverAnUnpublishedSlotOfAnInnerNode() {
+			// one recursion level down: the walk enters the torn node from its parent's loop
+			assertHeapWalkStepsOverTheUnpublishedSlot(
+				UnpublishedChildSlotSupport.fixture(
+					UnpublishedChildSlot::treeOf, MAX_FIXTURE_KEYS, UnpublishedChildSlotSupport::innerNodeAboveLeaves
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("the step is a no-op on every consistent tree, in place and after a commit")
+		void shouldLeaveTheHeapWalkUnchangedOnAConsistentTree() {
+			// in-place churn is the warm-up writer's own view; the committed copies are what a transaction publishes.
+			// Deletes drive steals and merges, whose donors null their vacated slots - none of it may leave a `null`
+			// inside a live run a consistent observer sees
+			final Random random = new Random(42);
+			final TreeMap<Integer, Long> present = new TreeMap<>();
+			final AtomicReference<TransactionalIntToLongBPlusTree> tree =
+				new AtomicReference<>(new TransactionalIntToLongBPlusTree(8, 3, 3, 1));
+			int deepest = 0;
+			for (int round = 0; round < NO_OP_ROUNDS; round++) {
+				churn(tree.get(), present, random, NO_OP_OPERATIONS);
+				assertHeapWalkIsAnIdentity(tree.get());
+				deepest = Math.max(deepest, depthOf(tree.get().getRoot()));
+
+				assertStateAfterCommit(
+					tree.get(),
+					tested -> churn(tested, present, random, NO_OP_OPERATIONS),
+					(original, committed) -> {
+						assertHeapWalkIsAnIdentity(committed);
+						tree.set(committed);
+					}
+				);
+			}
+			assertTrue(deepest >= 3, "the churn must stack internal nodes, the deepest tree had " + deepest + " levels");
+		}
+
+		/**
+		 * The number of levels of the subtree, leaves included.
+		 *
+		 * @param node the subtree root
+		 * @return its depth
+		 */
+		private static int depthOf(@Nonnull BPlusTreeNode<?> node) {
+			return node instanceof InternalBPlusTreeNode<?> internal ? 1 + depthOf(internal.getChildren()[0]) : 1;
+		}
+
 	}
 
 }

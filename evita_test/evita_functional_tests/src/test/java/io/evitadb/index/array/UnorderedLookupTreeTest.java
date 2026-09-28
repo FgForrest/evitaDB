@@ -31,6 +31,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.ColumnSizing;
 import io.evitadb.index.bPlusTree.PagedLeafHandle;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.JolHeapSize;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -46,6 +47,7 @@ import java.util.Set;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -1885,6 +1887,236 @@ class UnorderedLookupTreeTest {
 				"a mask bit past the record array must answer with the method's own not-found contract, not an "
 					+ "ArrayIndexOutOfBoundsException"
 			);
+		}
+	}
+
+	/**
+	 * An internal node grows in place by shifting its children, storing the new one and only then raising
+	 * `childCount`, and shrinks by nulling the vacated slot next to lowering it - plain stores with no ordering edge to
+	 * a session-free reader. Such a reader can hold a `childCount` whose last slot reads `null`, and the heap walk
+	 * `EntityCollection#describeIndex` runs over a live sort or chain index is exactly such a reader: it takes no
+	 * snapshot, holds no transaction and runs on a management thread while a warm-up load mutates the position tree of
+	 * a `TransactionalUnorderedIntArray`. The bucket tree's weekly sweep met the same unpublished slot on
+	 * macOS/AArch64.
+	 *
+	 * The torn state is built through {@link UnorderedLookupTree.InternalNode#setChildCount} raised outside a
+	 * transaction, which moves the count up without touching the arrays - exactly what such a reader observes. Each
+	 * test asserts the figure the walk reports rather than merely that nothing was thrown.
+	 */
+	@Nested
+	@DisplayName("Session-free heap walk over a child slot a grow has not published yet")
+	class UnpublishedChildSlot {
+		/**
+		 * Fan-out of the fixtures: small enough for a few dozen records to stack internal nodes, and far below the
+		 * `DEFAULT_BLOCK_SIZE + 1` slots every internal node allocates, so each one has room to be torn.
+		 */
+		private static final int FAN_OUT = 3;
+		/**
+		 * Records of the torn fixtures - enough for a root above internal nodes above containers.
+		 */
+		private static final int FIXTURE_RECORDS = 200;
+		/**
+		 * Rounds of the no-op run; each round churns in place and then inside a committed transaction.
+		 */
+		private static final int NO_OP_ROUNDS = 12;
+		/**
+		 * Mutations per churn phase of the no-op run.
+		 */
+		private static final int NO_OP_OPERATIONS = 60;
+
+		/**
+		 * Builds a tree of {@link #FIXTURE_RECORDS} records by appends, every node of it mutated in place as a warm-up
+		 * load mutates it.
+		 *
+		 * @return the tree and its value index
+		 */
+		@Nonnull
+		private static TreeWithIndex appendedTree() {
+			final TreeWithIndex tested = new TreeWithIndex(FAN_OUT, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP);
+			tested.addAtPosition(0, 1);
+			for (int recordId = 2; recordId <= FIXTURE_RECORDS; recordId++) {
+				tested.addAfter(recordId - 1, recordId);
+			}
+			return tested;
+		}
+
+		/**
+		 * Raises the node's `childCount` by one without publishing the child - the state a session-free reader
+		 * observes when the writer's count store overtakes its child store, or when it loaded the count before a
+		 * concurrent removal nulled the last slot.
+		 *
+		 * @param node the node to tear
+		 */
+		private static void tear(@Nonnull UnorderedLookupTree.InternalNode node) {
+			final int childCount = node.getChildCount();
+			assertTrue(childCount < node.getChildren().length, "the fixture needs a free child slot to tear");
+			node.setChildCount(childCount + 1);
+			assertEquals(childCount + 1, node.getChildCount(), "the fixture must raise the child count");
+			assertNull(
+				node.getChildren()[childCount], "the admitted slot must read null - that unpublished slot IS the defect"
+			);
+		}
+
+		/**
+		 * Tears the node and asserts the heap walk reports exactly what it reported before the tear.
+		 *
+		 * @param tree the tree holding the node
+		 * @param node the node to tear
+		 */
+		private static void assertHeapWalkStepsOverTheUnpublishedSlot(
+			@Nonnull UnorderedLookupTree tree,
+			@Nonnull UnorderedLookupTree.InternalNode node
+		) {
+			final long heapBefore = tree.getHeapSizeInBytes();
+
+			tear(node);
+
+			assertEquals(
+				heapBefore, tree.getHeapSizeInBytes(),
+				"the heap walk must step over the unpublished slot - the torn node owns no more heap than before"
+			);
+		}
+
+		/**
+		 * Asserts the structural precondition under which a heap walk that steps over a `null` child is an identity -
+		 * every slot below `childCount` of every internal node holds a child - and that the walk matches a JOL
+		 * measurement of the same tree.
+		 *
+		 * @param tree the consistent tree to check
+		 */
+		private static void assertHeapWalkIsAnIdentity(@Nonnull UnorderedLookupTree tree) {
+			assertEveryLiveChildSlotPopulated(tree.getRoot());
+			assertEquals(
+				JolHeapSize.ownedSize(tree), tree.getHeapSizeInBytes(),
+				"on a consistent tree the heap walk must report exactly the measured heap"
+			);
+		}
+
+		/**
+		 * Walks the subtree asserting that no slot below an internal node's `childCount` reads `null`. Read outside a
+		 * transaction, so it inspects the very fields the heap walk reads.
+		 *
+		 * @param node the subtree root, or `null` for an empty tree
+		 */
+		private static void assertEveryLiveChildSlotPopulated(@Nullable UnorderedLookupTree.Node<?> node) {
+			if (node instanceof final UnorderedLookupTree.InternalNode internal) {
+				final UnorderedLookupTree.Node<?>[] children = internal.getChildren();
+				for (int i = 0; i < internal.getChildCount(); i++) {
+					final int slot = i;
+					assertNotNull(
+						children[i], () -> "slot " + slot + " of a consistent internal node must be populated, count " +
+							internal.getChildCount()
+					);
+					assertEveryLiveChildSlotPopulated(children[i]);
+				}
+			}
+		}
+
+		/**
+		 * Removes a random present record or inserts a new one after a random present record, `operations` times,
+		 * keeping `oracle` in step.
+		 *
+		 * @param tested       the tree to mutate
+		 * @param oracle       the records in logical order
+		 * @param random       the source of choices
+		 * @param nextRecordId the next unused record id, advanced in place
+		 * @param operations   the number of mutations
+		 */
+		private static void churn(
+			@Nonnull TreeWithIndex tested,
+			@Nonnull List<Integer> oracle,
+			@Nonnull Random random,
+			@Nonnull int[] nextRecordId,
+			int operations
+		) {
+			for (int i = 0; i < operations; i++) {
+				if (!oracle.isEmpty() && random.nextInt(5) < 2) {
+					tested.remove(oracle.remove(random.nextInt(oracle.size())));
+				} else {
+					final int recordId = nextRecordId[0]++;
+					if (oracle.isEmpty()) {
+						tested.addAtPosition(0, recordId);
+						oracle.add(recordId);
+					} else {
+						final int after = random.nextInt(oracle.size());
+						tested.addAfter(oracle.get(after), recordId);
+						oracle.add(after + 1, recordId);
+					}
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("a root above internal nodes whose child count admits an unpublished child")
+		void shouldStepOverAnUnpublishedSlotOfTheRoot() {
+			final TreeWithIndex tested = appendedTree();
+			final UnorderedLookupTree.InternalNode root =
+				assertInstanceOf(UnorderedLookupTree.InternalNode.class, tested.tree.getRoot());
+			assertHeapWalkStepsOverTheUnpublishedSlot(tested.tree, root);
+		}
+
+		@Test
+		@DisplayName("an inner node above the containers whose child count admits an unpublished child")
+		void shouldStepOverAnUnpublishedSlotOfAnInnerNode() {
+			// one recursion level down, and directly above the containers: the walk enters the torn node from its
+			// parent's loop and meets the null where it expected a container
+			final TreeWithIndex tested = appendedTree();
+			UnorderedLookupTree.Node<?> node = tested.tree.getRoot();
+			UnorderedLookupTree.InternalNode aboveContainers = null;
+			while (node instanceof final UnorderedLookupTree.InternalNode internal) {
+				aboveContainers = internal;
+				node = internal.getChildren()[0];
+			}
+			assertNotNull(aboveContainers, "the fixture must have split");
+			assertNotSame(tested.tree.getRoot(), aboveContainers, "the fixture must stack internal nodes");
+			assertHeapWalkStepsOverTheUnpublishedSlot(tested.tree, aboveContainers);
+		}
+
+		@Test
+		@DisplayName("the step is a no-op on every consistent tree, in place and after a commit")
+		void shouldLeaveTheHeapWalkUnchangedOnAConsistentTree() {
+			// in-place churn is the warm-up writer's own view; the committed copies are what a transaction publishes.
+			// Removals drive steals and merges, whose donors null their vacated slots - none of it may leave a `null`
+			// inside a live run a consistent observer sees
+			final Random random = new Random(42);
+			final List<Integer> oracle = new ArrayList<>();
+			final int[] nextRecordId = {1};
+			TreeWithIndex tested = new TreeWithIndex(FAN_OUT, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP);
+			int deepest = 0;
+			for (int round = 0; round < NO_OP_ROUNDS; round++) {
+				churn(tested, oracle, random, nextRecordId, NO_OP_OPERATIONS);
+				assertHeapWalkIsAnIdentity(tested.tree);
+				deepest = Math.max(deepest, depthOf(tested.tree.getRoot()));
+
+				final TreeWithIndex current = tested;
+				final UnorderedLookupTree[] committedTree = new UnorderedLookupTree[1];
+				assertStateAfterCommit(
+					current.tree,
+					tree -> churn(current, oracle, random, nextRecordId, NO_OP_OPERATIONS),
+					(original, committed) -> {
+						assertHeapWalkIsAnIdentity(committed);
+						committedTree[0] = committed;
+					}
+				);
+				tested = new TreeWithIndex(committedTree[0]);
+				tested.valueIndex.putAll(current.valueIndex);
+				assertConsistentWithOracle(tested, oracle);
+			}
+			assertTrue(deepest >= 3, "the churn must stack internal nodes, the deepest tree had " + deepest + " levels");
+		}
+
+		/**
+		 * The number of levels of the subtree, containers included.
+		 *
+		 * @param node the subtree root, or `null` for an empty tree
+		 * @return its depth, `0` for an empty tree
+		 */
+		private static int depthOf(@Nullable UnorderedLookupTree.Node<?> node) {
+			if (node == null) {
+				return 0;
+			}
+			return node instanceof final UnorderedLookupTree.InternalNode internal ?
+				1 + depthOf(internal.getChildren()[0]) : 1;
 		}
 	}
 
