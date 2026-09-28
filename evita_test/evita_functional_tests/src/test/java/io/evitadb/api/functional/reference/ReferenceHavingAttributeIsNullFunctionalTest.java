@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
@@ -61,6 +62,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -177,6 +179,20 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 	 * The `liveGlobalCode` value held both by owner 8 in ARCHIVED and by owner 7 in LIVE.
 	 */
 	private static final String SHARED_LIVE_GLOBAL_CODE = "live-global-shared";
+	/**
+	 * Catalog attribute declared by `mixedOwner`: `String`, localized, nullable, globally unique across locales in
+	 * both scopes.
+	 */
+	private static final String GLOBAL_LABEL = "globalLabel";
+	/**
+	 * `mixedOwner`: `String`, localized, nullable, unique across locales in both scopes.
+	 */
+	private static final String TITLE = "title";
+	/**
+	 * The owners of the mixed-uniqueness fixture that set {@link #GLOBAL_LABEL} and {@link #TITLE} in both locales and
+	 * then removed the English values - one per scope.
+	 */
+	private static final int[] OWNERS_KEEPING_GERMAN_ONLY = {7, 8};
 	/**
 	 * Every locale `mixedOwner` declares.
 	 */
@@ -446,6 +462,11 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 	 * unique index of the collection, so a lookup over both scopes finds it in each and has to prefer one. The value of
 	 * owner 6 stays held by ARCHIVED alone.
 	 *
+	 * Owners 7 and 8 alone carry the localized catalog attribute `globalLabel` (globally unique across locales) and the
+	 * localized entity attribute `title` (unique across locales within the collection), both in both scopes: each sets
+	 * them in English and German, and once in its final scope removes the English values. Both keep the English locale
+	 * through `label`, and a unique index keyed without a locale then holds a single value of theirs out of two.
+	 *
 	 * The schema builder refuses an attribute unique in one scope and filterable in another ("unique attributes are
 	 * implicitly filterable"), and a query over several scopes needs the attribute filterable in all of them or unique
 	 * in all of them - so `code` is unique in both scopes, and `note` stands in for the attribute unique in none.
@@ -467,6 +488,10 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 						LIVE_GLOBAL_CODE, String.class,
 						thatIs -> thatIs.uniqueGloballyInScope(Scope.LIVE).uniqueInScope(Scope.ARCHIVED).nullable()
 					)
+					.withAttribute(
+						GLOBAL_LABEL, String.class,
+						thatIs -> thatIs.uniqueGloballyInScope(Scope.values()).localized().nullable()
+					)
 					.updateVia(session);
 				session.defineEntitySchema(ENTITY_MIXED_TARGET).withoutGeneratedPrimaryKey().updateVia(session);
 				session.defineEntitySchema(ENTITY_MIXED_OWNER)
@@ -474,7 +499,11 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 					.withLocale(Locale.ENGLISH, Locale.GERMAN)
 					.withGlobalAttribute(GLOBAL_CODE)
 					.withGlobalAttribute(LIVE_GLOBAL_CODE)
+					.withGlobalAttribute(GLOBAL_LABEL)
 					.withAttribute(ATTR_NAME, String.class, thatIs -> thatIs.localized().nullable())
+					.withAttribute(
+						TITLE, String.class, thatIs -> thatIs.uniqueInScope(Scope.values()).localized().nullable()
+					)
 					.withAttribute(CODE, String.class, thatIs -> thatIs.uniqueInScope(Scope.values()).nullable())
 					.withAttribute(NOTE, String.class, thatIs -> thatIs.filterableInScope(Scope.values()).nullable())
 					.withAttribute(
@@ -535,11 +564,19 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 					tagRow(2, Locale.ENGLISH, "tag-8")
 				);
 				setLiveGlobalCode(session, 8);
+				for (int pk : OWNERS_KEEPING_GERMAN_ONLY) {
+					setLocalizedUniqueLabels(session, pk);
+				}
 				for (int archivedPk : new int[]{3, 4, 5, 6, 8}) {
 					session.archiveEntity(ENTITY_MIXED_OWNER, archivedPk);
 				}
 				// only now: while owner 8 was live, the global uniqueness of LIVE refused a second holder
 				setLiveGlobalCode(session, 7);
+				// only now as well: the English values are removed in the scope each owner ends up in, so the removal
+				// reaches the unique index that scope keeps
+				for (int pk : OWNERS_KEEPING_GERMAN_ONLY) {
+					removeEnglishLocalizedUniqueLabels(session, pk);
+				}
 
 				final List<SealedEntity> owners = session.queryListOfSealedEntities(
 					Query.query(
@@ -1638,10 +1675,12 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 	}
 
 	/**
-	 * A catalog attribute is read per scope: in a scope where it is globally unique, from the unique index of the
-	 * catalog of that scope, paired with the entity indexes of the same scope only; in any other scope, from the filter
-	 * indexes of the collection. `globalCode` is globally unique in both scopes and neither unique nor filterable in
-	 * the collection; `liveGlobalCode` is globally unique in LIVE and unique within the collection in ARCHIVED.
+	 * A catalog attribute is compared per scope: in a scope where it is globally unique, a value is looked up in the
+	 * unique index of the catalog of that scope; in any other scope, in the indexes of the collection. Its null and
+	 * not-null tests read the filter indexes of the collection in every scope - a globally unique attribute is declared
+	 * unique by the collection as well, so they are kept in every index. `globalCode` is globally unique in both scopes
+	 * and declared neither unique nor filterable by the collection; `liveGlobalCode` is globally unique in LIVE and
+	 * unique within the collection in ARCHIVED.
 	 */
 	@DisplayName("Globally unique attribute")
 	@Nested
@@ -1679,6 +1718,102 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 				TEST_CATALOG,
 				session -> {
 					assertOwnersSplitByAttribute(session, originalMixedOwners, attributeNames);
+					return null;
+				}
+			);
+		}
+
+		/**
+		 * An owner that removes the English value of an attribute unique across locales keeps carrying the attribute
+		 * through its German value: the uniqueness ignores the locale, so carrying a value means carrying it in any
+		 * locale, whether the query requests a locale or not. Owners 7 (LIVE) and 8 (ARCHIVED) did so for the catalog
+		 * attribute `globalLabel`, globally unique across locales, and for the entity attribute `title`, unique across
+		 * locales within the collection. With every locale requested - none, English, German - they must land on the
+		 * not-null side of both attributes and never on the null side; an owner lacking the requested locale lands on
+		 * neither.
+		 */
+		@DisplayName("Should keep an owner carrying an attribute unique across locales after it removed one locale")
+		@UseDataSet(MIXED_UNIQUENESS_NULL)
+		@Test
+		void shouldKeepAnOwnerCarryingAnAttributeUniqueAcrossLocalesAfterItRemovedOneLocale(
+			Evita evita,
+			List<SealedEntity> originalMixedOwners
+		) {
+			final Set<Integer> germanOnlyOwners = Arrays.stream(OWNERS_KEEPING_GERMAN_ONLY)
+				.boxed()
+				.collect(Collectors.toCollection(TreeSet::new));
+			final List<String> attributeNames = List.of(GLOBAL_LABEL, TITLE);
+			for (String attributeName : attributeNames) {
+				final Set<Scope> scopesOfGermanOnlyCarriers = EnumSet.noneOf(Scope.class);
+				for (SealedEntity owner : originalMixedOwners) {
+					final boolean carriesEnglish = owner.getAttribute(attributeName, Locale.ENGLISH) != null;
+					final boolean carriesGerman = owner.getAttribute(attributeName, Locale.GERMAN) != null;
+					if (germanOnlyOwners.contains(owner.getPrimaryKeyOrThrowException())) {
+						assertTrue(
+							!carriesEnglish && carriesGerman && owner.getAllLocales().contains(Locale.ENGLISH),
+							"Fixture guard: owner " + owner.getPrimaryKey() + " must hold the English locale and `" +
+								attributeName + "` in German only!"
+						);
+						scopesOfGermanOnlyCarriers.add(owner.getScope());
+					} else {
+						assertTrue(
+							!carriesEnglish && !carriesGerman,
+							"Fixture guard: owner " + owner.getPrimaryKey() + " must not carry `" + attributeName + "`!"
+						);
+					}
+				}
+				assertEquals(
+					EnumSet.allOf(Scope.class), scopesOfGermanOnlyCarriers,
+					"Fixture guard: every scope must hold an owner carrying `" + attributeName + "` in German only!"
+				);
+			}
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EntitySchemaContract schema = session.getEntitySchemaOrThrowException(ENTITY_MIXED_OWNER);
+					for (Scope scope : Scope.values()) {
+						assertEquals(
+							GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG,
+							session.getCatalogSchema().getAttribute(GLOBAL_LABEL).orElseThrow()
+								.getGlobalUniquenessType(scope),
+							"Fixture guard: `" + GLOBAL_LABEL + "` must be globally unique across locales in " + scope
+						);
+						assertEquals(
+							AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION,
+							schema.getAttribute(TITLE).orElseThrow().getUniquenessType(scope),
+							"Fixture guard: `" + TITLE + "` must be unique across locales in " + scope
+						);
+					}
+					for (String attributeName : attributeNames) {
+						final Predicate<SealedEntity> carries = owner -> MIXED_LOCALES.stream()
+							.anyMatch(locale -> owner.getAttribute(attributeName, locale) != null);
+						for (Locale locale : new Locale[]{null, Locale.ENGLISH, Locale.GERMAN}) {
+							for (Scope[] order : ALL_SCOPE_ORDERS) {
+								final Set<Scope> requestedScopes = Set.of(order);
+								final Predicate<SealedEntity> requested = owner ->
+									requestedScopes.contains(owner.getScope()) &&
+										(locale == null || owner.getAllLocales().contains(locale));
+								final FilterConstraint[] context = locale == null ?
+									new FilterConstraint[]{scope(order)} :
+									new FilterConstraint[]{scope(order), entityLocaleEquals(locale)};
+								assertMatches(
+									session, ENTITY_MIXED_OWNER, originalMixedOwners,
+									requested.and(carries.negate()), null,
+									append(context, attributeIsNull(attributeName))
+								);
+								assertMatches(
+									session, ENTITY_MIXED_OWNER, originalMixedOwners, requested.and(carries), null,
+									append(context, attributeIsNotNull(attributeName))
+								);
+								assertSplit(
+									session, ENTITY_MIXED_OWNER, originalMixedOwners,
+									attributeIsNull(attributeName), attributeIsNotNull(attributeName),
+									selectPks(originalMixedOwners, requested), Set.of(),
+									context
+								);
+							}
+						}
+					}
 					return null;
 				}
 			);
@@ -1752,9 +1887,8 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 		/**
 		 * A sibling `referenceHaving` can win index selection, so that the query is answered from the reduced indexes
 		 * of the referenced entities instead of the global one. The null and not-null tests of a globally unique
-		 * attribute then read the carriers of the whole scope from the catalog for every reduced index: the null side
-		 * subtracts them from the records of each index, the not-null side contributes them unrestricted and relies on
-		 * the conjunction with the sibling to narrow them. Both must return exactly the owners the bodies say.
+		 * attribute then read the filter indexes of each reduced index: the null side subtracts the carriers from the
+		 * records of the index, the not-null side contributes them. Both must return exactly the owners the bodies say.
 		 *
 		 * On a fixture this small the global index costs no more than the reduced ones, so the cheaper-plan choice
 		 * alone may never take them. Each row therefore also runs with `VERIFY_ALTERNATIVE_INDEX_RESULTS`, which
@@ -2614,6 +2748,40 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 			.orElseThrow()
 			.openForWrite()
 			.setAttribute(LIVE_GLOBAL_CODE, SHARED_LIVE_GLOBAL_CODE)
+			.upsertVia(session);
+	}
+
+	/**
+	 * Sets {@link #GLOBAL_LABEL} and {@link #TITLE} of a live owner of the mixed-uniqueness fixture in both locales,
+	 * each value distinct.
+	 *
+	 * @param session session to write through
+	 * @param pk      primary key of the owner
+	 */
+	private static void setLocalizedUniqueLabels(@Nonnull EvitaSessionContract session, int pk) {
+		final EntityBuilder builder = session.getEntity(ENTITY_MIXED_OWNER, pk, attributeContentAll(), dataInLocalesAll())
+			.orElseThrow()
+			.openForWrite();
+		for (Locale locale : MIXED_LOCALES) {
+			builder.setAttribute(GLOBAL_LABEL, locale, "global-label-" + pk + "-" + locale.getLanguage());
+			builder.setAttribute(TITLE, locale, "title-" + pk + "-" + locale.getLanguage());
+		}
+		builder.upsertVia(session);
+	}
+
+	/**
+	 * Removes the English values of {@link #GLOBAL_LABEL} and {@link #TITLE} of an owner of the mixed-uniqueness
+	 * fixture, in whichever scope it lives, leaving the German ones in place.
+	 *
+	 * @param session session to write through
+	 * @param pk      primary key of the owner
+	 */
+	private static void removeEnglishLocalizedUniqueLabels(@Nonnull EvitaSessionContract session, int pk) {
+		session.getEntity(ENTITY_MIXED_OWNER, pk, Scope.values(), attributeContentAll(), dataInLocalesAll())
+			.orElseThrow()
+			.openForWrite()
+			.removeAttribute(GLOBAL_LABEL, Locale.ENGLISH)
+			.removeAttribute(TITLE, Locale.ENGLISH)
 			.upsertVia(session);
 	}
 

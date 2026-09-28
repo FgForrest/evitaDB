@@ -45,23 +45,16 @@ import io.evitadb.core.query.filter.NegationResolution;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.CatalogIndex;
-import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.attribute.FilterIndex;
-import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.EnumMap;
-import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -149,7 +142,6 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	) {
 		final Locale locale = filterByVisitor.getLocale();
 		final Set<Locale> everyLocale = resolveEveryLocale(attributeSchema, filterByVisitor);
-		final Map<Scope, Bitmap> globallyUniqueCarriers = getGloballyUniqueCarriers(attributeSchema, filterByVisitor);
 		// `applyOnIndexes`, never `applyOnFilterIndexes`: it turns an index without the attribute into EMPTY before
 		// the lambda runs, and for a null test that is the index where EVERY record matches
 		return filterByVisitor.applyOnIndexes(
@@ -160,7 +152,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 					return EmptyFormula.INSTANCE;
 				}
 				final Formula carriers = getCarriersFormula(
-					entityIndex, referenceSchema, attributeSchema, locale, everyLocale, globallyUniqueCarriers
+					entityIndex, referenceSchema, attributeSchema, locale, everyLocale
 				);
 				if (carriers == null) {
 					// nothing in this index carries the attribute, so every record in it is null
@@ -184,8 +176,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	 * formulas are built through
 	 * {@link FilterByVisitor#applyOnIndexes(java.util.function.Function)} so they carry the tag the row-scoping
 	 * rebuild of a `referenceHaving` body relies on; an index keeping no structure for the attribute contributes
-	 * nothing. The carriers of a scope where the attribute is globally unique are read from the catalog and cover the
-	 * whole scope, so they are contributed by the first index of that scope alone.
+	 * nothing.
 	 *
 	 * @param referenceSchema the reference schema the attribute belongs to, or NULL for an entity attribute
 	 * @param attributeSchema the schema definition of the attribute being processed
@@ -200,17 +191,10 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	) {
 		final Locale locale = filterByVisitor.getLocale();
 		final Set<Locale> everyLocale = resolveEveryLocale(attributeSchema, filterByVisitor);
-		final Map<Scope, Bitmap> globallyUniqueCarriers = getGloballyUniqueCarriers(attributeSchema, filterByVisitor);
-		final Set<Scope> scopesAnsweredByCatalog = EnumSet.noneOf(Scope.class);
 		return filterByVisitor.applyOnIndexes(
 			entityIndex -> {
-				final Scope scope = entityIndex.getIndexKey().scope();
-				if (globallyUniqueCarriers.containsKey(scope) && !scopesAnsweredByCatalog.add(scope)) {
-					// another index of this scope already contributed every carrier the catalog holds for it
-					return EmptyFormula.INSTANCE;
-				}
 				final Formula carriers = getCarriersFormula(
-					entityIndex, referenceSchema, attributeSchema, locale, everyLocale, globallyUniqueCarriers
+					entityIndex, referenceSchema, attributeSchema, locale, everyLocale
 				);
 				return carriers == null ? EmptyFormula.INSTANCE : carriers;
 			}
@@ -221,18 +205,23 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	 * Returns the records of the index that carry a value of the attribute, or NULL when the index keeps no
 	 * structure for it at all - which means none of its records carries a value.
 	 *
-	 * In a scope where a catalog attribute is globally unique the carriers are those the unique index of the catalog
-	 * of that scope holds for the queried collection - the collection keeps no filter index for such an attribute
-	 * unless it is also unique or filterable there. They cover the whole scope, not just this index, which the null
-	 * test's subtraction from the records of the index makes exact.
+	 * Only filter indexes are read, for unique attributes too: {@link EntityIndex#upsertAttribute} writes the filter
+	 * index for every attribute that is unique **or** filterable, on every index type, whereas no unique index can
+	 * stand in for it:
 	 *
-	 * Otherwise only filter indexes are read, for unique attributes too: {@link EntityIndex#upsertAttribute} writes
-	 * the filter index for every attribute that is unique **or** filterable, on every index type, whereas the unique
-	 * index is not kept everywhere - {@link io.evitadb.index.ReducedGroupEntityIndex#insertUniqueAttribute} is a no-op
-	 * (entities sharing a group make per-group uniqueness meaningless), and the type-level index of a reference holds
-	 * an empty unique index for a localized reference attribute unique across locales. A filter index is split per
-	 * locale for every localized attribute, so a localized attribute is read in every locale whenever the question
-	 * is not bound to the query locale (see {@link #isBoundToQueryLocale}):
+	 * - {@link io.evitadb.index.ReducedGroupEntityIndex#insertUniqueAttribute} is a no-op (entities sharing a group
+	 *   make per-group uniqueness meaningless), and the type-level index of a reference holds an empty unique index
+	 *   for a localized reference attribute unique across locales;
+	 * - a unique index keyed without a locale - the collection's for an attribute unique across locales, the
+	 *   catalog's for one globally unique across locales - holds one value of a record per locale, and forgets the
+	 *   record as soon as it releases any one of them, while it still carries the others.
+	 *
+	 * A catalog attribute is no exception: where it is globally unique, the collection declares it unique as well
+	 * (across locales or within one, as the global uniqueness does), so its filter indexes are kept in every index of
+	 * the collection.
+	 *
+	 * A filter index is split per locale for every localized attribute, so a localized attribute is read in every
+	 * locale whenever the question is not bound to the query locale (see {@link #isBoundToQueryLocale}):
 	 *
 	 * - when it is unique across locales in the scope of the index, carrying a value means carrying it in **any**
 	 *   locale - the uniqueness itself ignores the locale, and this is also what lets such an attribute be queried
@@ -248,8 +237,6 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	 * @param locale          the query locale, or NULL when none was requested
 	 * @param everyLocale     the locales a value may be stored in, read for a localized attribute not bound to the
 	 *                        query locale
-	 * @param globallyUniqueCarriers the carriers of each requested scope where the attribute is globally unique,
-	 *                               see {@link #getGloballyUniqueCarriers}
 	 * @return the carrying records, or NULL when the index keeps no structure for the attribute
 	 */
 	@Nullable
@@ -258,14 +245,9 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nullable Locale locale,
-		@Nonnull Set<Locale> everyLocale,
-		@Nonnull Map<Scope, Bitmap> globallyUniqueCarriers
+		@Nonnull Set<Locale> everyLocale
 	) {
 		final Scope scope = entityIndex.getIndexKey().scope();
-		final Bitmap catalogCarriers = globallyUniqueCarriers.get(scope);
-		if (catalogCarriers != null) {
-			return catalogCarriers.isEmpty() ? null : new ConstantFormula(catalogCarriers);
-		}
 		if (!attributeSchema.isLocalized()) {
 			final FilterIndex filterIndex = entityIndex.getFilterIndex(referenceSchema, attributeSchema, null);
 			return filterIndex == null ? null : filterIndex.getAllRecordsFormula();
@@ -280,43 +262,6 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 			.map(FilterIndex::getAllRecordsFormula)
 			.toArray(Formula[]::new);
 		return carriers.length == 0 ? null : FormulaFactory.or(carriers);
-	}
-
-	/**
-	 * Returns, for each requested scope where the catalog attribute is globally unique, the records of the queried
-	 * collection the unique index of the catalog of that scope holds - empty when it holds none. Each scope is paired
-	 * with its own catalog index, so that a scope's carriers are only ever set against the records of the same scope.
-	 * An attribute globally unique in no requested scope, or an attribute of the collection, yields an empty map.
-	 *
-	 * @param attributeSchema the schema definition of the attribute being processed
-	 * @param filterByVisitor the visitor responsible for filtering operations
-	 * @return the carriers per scope where the attribute is globally unique
-	 */
-	@Nonnull
-	private static Map<Scope, Bitmap> getGloballyUniqueCarriers(
-		@Nonnull AttributeSchemaContract attributeSchema,
-		@Nonnull FilterByVisitor filterByVisitor
-	) {
-		if (!(attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema)) {
-			return Map.of();
-		}
-		final Map<Scope, Bitmap> carriers = new EnumMap<>(Scope.class);
-		for (Scope scope : filterByVisitor.getProcessingScope().getScopes()) {
-			if (globalAttributeSchema.isUniqueGloballyInScope(scope)) {
-				carriers.put(
-					scope,
-					filterByVisitor.getIndexIfExists(new CatalogIndexKey(scope), CatalogIndex.class)
-						.map(it -> it.getGlobalUniqueIndex(globalAttributeSchema, filterByVisitor.getLocale()))
-						.map(
-							it -> it.getRecordIds(
-								filterByVisitor.getEntityType(), filterByVisitor.getEntityTypeClassifierResolver()
-							)
-						)
-						.orElse(EmptyBitmap.INSTANCE)
-				);
-			}
-		}
-		return carriers;
 	}
 
 	/**
