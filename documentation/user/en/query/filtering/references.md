@@ -350,11 +350,32 @@ facetHaving(
 
 The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/FacetHaving.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/FacetHaving.cs</SourceClass></LS> filtering
 constraint is typically placed inside the [`userFilter`](behavioral.md#user-filter) constraint container and represents
-the user's request to drill down the result set by a particular facet. The `facetHaving` constraint works exactly like
-the [`referenceHaving`](#reference-having) constraint, but works in conjunction with
-the [`referenceSummary`](../requirements/reference.md#reference-summary) requirement to correctly calculate the
-facet statistics and impact predictions. When used outside the [`userFilter`](behavioral.md#user-filter) constraint
-container, the `facetHaving` constraint behaves like the [`referenceHaving`](#reference-having) constraint.
+the user's request to drill down the result set by a particular facet. The `facetHaving` constraint selects facets —
+the referenced entities — and returns every entity that references at least one selected facet. It works in
+conjunction with the [`referenceSummary`](../requirements/reference.md#reference-summary) requirement to correctly
+calculate the facet statistics and impact predictions.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### How the nested constraints select a facet
+</NoteTitle>
+
+The nested constraints of `facetHaving` decide which facets are selected, not which references match. This is where
+`facetHaving` differs from [`referenceHaving`](#reference-having), whose nested constraints are
+[evaluated against each single reference](#how-the-nested-constraints-are-evaluated).
+
+A constraint on a reference attribute is evaluated over all references pointing to the facet together, pooled across
+the entities that hold them. `attributeEquals` selects a facet when at least one reference to it carries the value,
+and `attributeIsNull` selects a facet when none of the references to it carries the attribute (for a reference that
+allows duplicates, the references sharing the same representative attribute values are pooled instead). Every entity
+referencing a selected facet is returned, whether or not its own reference satisfies the constraint.
+
+Reading the constraints per facet keeps the result consistent with the facet statistics, which are counted per facet.
+Use [`referenceHaving`](#reference-having) when the constraint has to hold for the entity's own reference.
+
+</Note>
 
 To demonstrate the cooperation between the `facetHaving` constraint inside `userFilter` and the `referenceSummary`
 requirement, let's query for products in category *e-readers* and request the facet summary for reference `brand`.

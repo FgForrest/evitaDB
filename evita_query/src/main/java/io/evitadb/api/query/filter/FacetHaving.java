@@ -41,10 +41,16 @@ import java.io.Serializable;
 
 /**
  * The `facetHaving` constraint filters entities based on faceted references, enabling drill-down navigation with statistical impact
- * calculations. It works similarly to {@link ReferenceHaving}, but is specifically designed for faceted filtering scenarios and integrates
- * with the {@code facetSummary} requirement to compute facet statistics and selection impact predictions. When placed inside a
- * {@link UserFilter} container, `facetHaving` participates in facet statistics calculations; when used outside {@code userFilter}, it
- * behaves identically to {@code referenceHaving}.
+ * calculations. It selects facets - the referenced entities - and returns every entity that references at least one selected facet. It
+ * integrates with the {@code facetSummary} requirement to compute facet statistics and selection impact predictions. When placed inside a
+ * {@link UserFilter} container, `facetHaving` participates in facet statistics calculations.
+ *
+ * The nested constraints select facets rather than references, which is where `facetHaving` differs from {@link ReferenceHaving}:
+ * a constraint on a reference attribute is evaluated over all references pointing to the facet together, pooled across the entities
+ * that hold them. `attributeEquals` selects a facet when at least one reference to it carries the value, `attributeIsNull` when none
+ * of them carries the attribute, and every entity referencing a selected facet is returned whether or not its own reference satisfies
+ * the constraint. Reading the constraints per facet keeps the result consistent with the facet statistics, which are counted per
+ * facet; {@link ReferenceHaving} evaluates its constraints against each single reference instead.
  *
  * This constraint is a {@link FacetConstraint}, marking it as part of evitaDB's faceted filtering subsystem. Facets are a specialized type
  * of reference used for drill-down navigation in e-commerce applications (e.g., filtering products by brand, color, or category).

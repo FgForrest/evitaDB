@@ -1238,11 +1238,12 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 	}
 
 	/**
-	 * `facetHaving` is the one caller that evaluates its body on the type-level index **in place**: nothing
-	 * re-examines the rows behind the answer, so a null test there reads "a facet none of whose rows carries the
-	 * attribute", while its positive leaves read "a facet some of whose rows do". That asymmetry is consistent with
-	 * how a negation is resolved in place, and whether it is what `facetHaving` should mean is an open specification
-	 * question - these rows pin the answer as it stands so that a change to it is deliberate.
+	 * `facetHaving` is the one caller that evaluates its body on the type-level index **in place**: its nested
+	 * constraints select facets, not rows. A null test there reads "a facet none of whose rows carries the
+	 * attribute", a positive leaf "a facet some of whose rows do", and every owner referencing a selected facet is
+	 * returned whether or not its own row satisfies the leaf. That is the documented meaning of `facetHaving`
+	 * (`documentation/user/en/query/filtering/references.md`, "How the nested constraints select a facet"): it keeps
+	 * the result consistent with facet statistics, which are counted per facet.
 	 */
 	@DisplayName("facetHaving")
 	@Nested
@@ -1276,6 +1277,51 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 							facetHaving(REF_ROWS, attributeIsNull(attributeName))
 						);
 					}
+					return null;
+				}
+			);
+		}
+
+		@DisplayName("Should return every owner of a facet some reference to which carries the value")
+		@UseDataSet(ROW_SCOPED_NULL)
+		@Test
+		void shouldReturnEveryOwnerOfAFacetSomeReferenceToWhichCarriesTheValue(
+			Evita evita,
+			List<SealedEntity> originalOwners
+		) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final Set<Long> values = originalOwners.stream()
+						.flatMap(it -> it.getReferences(REF_ROWS).stream())
+						.map(row -> row.getAttribute(A, Long.class))
+						.filter(Objects::nonNull)
+						.collect(Collectors.toCollection(TreeSet::new));
+					boolean ownerWithoutTheValueSeen = false;
+					for (Long value : values) {
+						final Set<Integer> facetsWithTheValue = originalOwners.stream()
+							.flatMap(it -> it.getReferences(REF_ROWS).stream())
+							.filter(row -> value.equals(row.getAttribute(A, Long.class)))
+							.map(ReferenceContract::getReferencedPrimaryKey)
+							.collect(Collectors.toCollection(TreeSet::new));
+						final Predicate<SealedEntity> referencesSelectedFacet = anyRow(
+							REF_ROWS, row -> facetsWithTheValue.contains(row.getReferencedPrimaryKey())
+						);
+						final Predicate<SealedEntity> ownRowCarriesTheValue = anyRow(
+							REF_ROWS, row -> value.equals(row.getAttribute(A, Long.class))
+						);
+						ownerWithoutTheValueSeen |= originalOwners.stream()
+							.anyMatch(referencesSelectedFacet.and(ownRowCarriesTheValue.negate()));
+						assertOwners(
+							session, originalOwners,
+							referencesSelectedFacet,
+							facetHaving(REF_ROWS, attributeEquals(A, value))
+						);
+					}
+					assertTrue(
+						ownerWithoutTheValueSeen,
+						"Fixture guard: some owner must reference a selected facet without carrying the value itself!"
+					);
 					return null;
 				}
 			);

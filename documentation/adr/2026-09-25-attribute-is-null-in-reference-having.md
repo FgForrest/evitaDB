@@ -1,7 +1,7 @@
 ---
 title: attributeIsNull inside referenceHaving widens candidate discovery and is answered one reference row at a time
 date: 2026-09-25
-updated: 2026-09-25 23:10
+updated: 2026-09-28 13:27
 status: accepted
 kind: fix
 issues: [1584]
@@ -172,7 +172,13 @@ Consequences a later change must keep:
 - The globally-unique branch of `translateIsNull` is kept as it was: `getOptionalGlobalAttributeSchema` is empty
   inside a reference body (`AbstractAttributeTranslator`), so it is unreachable there.
 - `facetHaving(attributeIsNull(a))` is untouched. It is the only `IN_PLACE` consumer and reads "facet none of
-  whose rows carries `a`", consistent with how `IN_PLACE` resolves every negation; pinned by tests, not changed.
+  whose rows carries `a`", consistent with how `IN_PLACE` resolves every negation. That reading is **kept on
+  purpose**: `facetHaving`'s nested constraints select facets, not rows, and every owner of a selected facet is
+  returned, because facet statistics are counted per facet and a row-scoped `facetHaving` would disagree with
+  them. The user docs ("How the nested constraints select a facet" in `query/filtering/references.md`) and the
+  `FacetHaving` JavaDoc now state it; both used to claim `facetHaving` works exactly like `referenceHaving`.
+  Pinned by `FacetHavingNullTest` (the null test and a positive leaf returning an owner whose own row lacks
+  the value).
 
 ## Verification
 
@@ -248,12 +254,11 @@ Harness: `evita_test/evita_performance_tests/src/main/java/io/evitadb/spike/Refe
   value are right. No query reads that bitmap any more, but `IndexCardinalityProjection` reports it and the
   storage part persists it.
 - Found on the way, not part of #1584:
-  - reflected references with an archived owner answer bare `referenceHaving(R)` wrong in `ARCHIVED` (0 vs 1),
-    the #1583 family;
+  - reflected references with an archived owner answer bare `referenceHaving(R)` wrong in `ARCHIVED` (0 vs 1):
+    #1583, which already describes it;
   - a filtered `referenceContent(R, filterBy(…))` drops rows from the other scope that the unfiltered one
-    returns, even with a filter every row satisfies;
-  - whether `facetHaving(attributeIsNull(a))` should keep its "no row carries `a`" reading is a specification
-    question.
+    returns, even with a filter every row satisfies: one of several contradictory cross-scope visibility rules,
+    all recorded with a probe matrix in #1652.
 
 ## Related work
 

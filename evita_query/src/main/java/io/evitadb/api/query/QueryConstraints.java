@@ -1159,7 +1159,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Filters entities by faceted references (e.g., brand, color) for drill-down navigation and facet statistics. When used inside `userFilter`, it enables accurate "what-if" predictions in conjunction with `facetSummary`, excluding itself from impact calculations. Outside `userFilter`, it acts like `referenceHaving`.
+	 * Filters entities by faceted references (e.g., brand, color) for drill-down navigation and facet statistics. When used inside `userFilter`, it enables accurate "what-if" predictions in conjunction with `facetSummary`, excluding itself from impact calculations. Its nested constraints select facets rather than single references: a reference attribute condition is evaluated over all references to a facet together, and every entity referencing a selected facet is returned.
 	 *
 	 * ```evitaql
 	 * userFilter(
