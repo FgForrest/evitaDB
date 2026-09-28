@@ -132,6 +132,7 @@ import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
+import static io.evitadb.test.diagnostics.TaskHangDiagnostics.awaitTaskResult;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -933,9 +934,12 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 			assertTrue(backupFilePath.toFile().exists(), "Backup file does not exist!");
 
 			final String restoredCatalogName = TEST_CATALOG + "_restored";
-			evita.management().restoreCatalog(
-					restoredCatalogName, Files.size(backupFilePath), Files.newInputStream(backupFilePath))
-				.getFutureResult().get(5, TimeUnit.MINUTES);
+			awaitTaskResult(
+				evita.management().restoreCatalog(
+						restoredCatalogName, Files.size(backupFilePath), Files.newInputStream(backupFilePath))
+					.getFutureResult(),
+				5, TimeUnit.MINUTES, evita.management(), null, "RestoreTask", null
+			);
 			evita.activateCatalog(restoredCatalogName);
 
 			final long originalCatalogVersion = evita.queryCatalog(
@@ -1037,7 +1041,7 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 			final CompletableFuture<Void> restoreFuture = evita.management().restoreCatalog(
 					restoredCatalogName, Files.size(backupFilePath), Files.newInputStream(backupFilePath))
 				.getFutureResult();
-			restoreFuture.get(5, TimeUnit.MINUTES);
+			awaitTaskResult(restoreFuture, 5, TimeUnit.MINUTES, evita.management(), null, "RestoreTask", null);
 			evita.activateCatalog(restoredCatalogName);
 
 			final long originalCatalogVersion = evita.queryCatalog(
@@ -1321,17 +1325,22 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 								try {
 									log.info("Bootstrap record: " + record);
 									// create backup from each point in time
-									final Path backupPath = restartedEvita.management().backupCatalog(
-											TEST_CATALOG, null, record.catalogVersion(), false)
-										.get(2, TimeUnit.MINUTES).path(
+									final Path backupPath = awaitTaskResult(
+										restartedEvita.management().backupCatalog(
+											TEST_CATALOG, null, record.catalogVersion(), false),
+										2, TimeUnit.MINUTES, restartedEvita.management(), null, "BackupTask", TEST_CATALOG
+									).path(
 											((FileSystemExportOptions) evita.getConfiguration()
 												.export()).getDirectory());
 									// restore it to unique new catalog
 									final String restoredCatalogName = TEST_CATALOG + "_restored_" + record.catalogVersion();
 									try (final InputStream inputStream = Files.newInputStream(backupPath)) {
-										restartedEvita.management().restoreCatalog(
-												restoredCatalogName, Files.size(backupPath), inputStream)
-											.getFutureResult().get(2, TimeUnit.MINUTES);
+										awaitTaskResult(
+											restartedEvita.management().restoreCatalog(
+													restoredCatalogName, Files.size(backupPath), inputStream)
+												.getFutureResult(),
+											2, TimeUnit.MINUTES, restartedEvita.management(), null, "RestoreTask", null
+										);
 										restartedEvita.activateCatalog(restoredCatalogName);
 									}
 									// connect to it and check existence of the first record

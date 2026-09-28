@@ -36,6 +36,13 @@
 
 	<logger name="com.linecorp.armeria" level="ERROR"/>
 	<logger name="io.micrometer" level="OFF"/>
+	<!--
+		Evidence of a server task that did not complete in time (task statuses, thread dump) - emitted only when a
+		wait through `TaskHangDiagnostics` times out, so it lands in the failing test's `system-out` of the surefire
+		report. This logger alone is lowered to DEBUG: it has no child loggers and keeps the root's appender, so no
+		other output changes. The long-running tests inherit this file through the functional tests' test-jar.
+	-->
+	<logger name="io.evitadb.test.diagnostics.TaskHangDiagnostics" level="DEBUG"/>
 
 	<root level="INFO">
 		<appender-ref ref="STDOUT" />

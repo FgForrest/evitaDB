@@ -44,6 +44,7 @@ import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.diagnostics.TaskHangDiagnostics;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.VersionUtils.SemVer;
@@ -74,6 +75,7 @@ import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.STREAM;
+import static io.evitadb.test.diagnostics.TaskHangDiagnostics.awaitTaskResult;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -185,6 +187,20 @@ public class LongRunningGrpcRestoreCatalogUploadTest {
 	 * Fixed seed - the payloads must be reproducible across the two sessions that write and verify them.
 	 */
 	private static final long PAYLOAD_SEED = 0x5EEDL;
+	/**
+	 * How long a backup or a restore may take before the test fails. Both are small here, so reaching this is a hang,
+	 * not slowness - which is why the wait is made through {@link TaskHangDiagnostics}: on the Windows runner both
+	 * backups once timed out with nothing but a bare {@link java.util.concurrent.TimeoutException} to show for it.
+	 */
+	private static final long TASK_TIMEOUT_MINUTES = 10;
+	/**
+	 * Server task type of a catalog backup, as reported in its task status.
+	 */
+	private static final String BACKUP_TASK_TYPE = "BackupTask";
+	/**
+	 * Server task type of a catalog restore, as reported in its task status.
+	 */
+	private static final String RESTORE_TASK_TYPE = "RestoreTask";
 
 	/**
 	 * Builds the payload of the entity with the given primary key. Deterministic, so the verification
@@ -348,10 +364,13 @@ public class LongRunningGrpcRestoreCatalogUploadTest {
 	@Test
 	@UseDataSet(DATA_SET)
 	@DisplayName("Should restore a catalog uploaded across hundreds of messages, byte for byte")
-	void shouldRestoreCatalogUploadedInManyChunks(EvitaClient evitaClient) throws Exception {
+	void shouldRestoreCatalogUploadedInManyChunks(EvitaClient evitaClient, EvitaServer evitaServer) throws Exception {
 		final EvitaManagementContract management = evitaClient.management();
-		final FileForFetch backup = management.backupCatalog(TEST_CATALOG, null, null, true)
-			.get(10, TimeUnit.MINUTES);
+		final FileForFetch backup = awaitTaskResult(
+			management.backupCatalog(TEST_CATALOG, null, null, true),
+			TASK_TIMEOUT_MINUTES, TimeUnit.MINUTES,
+			evitaServer.getEvita().management(), management, BACKUP_TASK_TYPE, TEST_CATALOG
+		);
 
 		final long expectedChunks = backup.totalSizeInBytes() / CLIENT_CHUNK_SIZE;
 		log.info(
@@ -373,9 +392,12 @@ public class LongRunningGrpcRestoreCatalogUploadTest {
 
 		final String restoredCatalogName = TEST_CATALOG + "_restored";
 		try (final InputStream inputStream = management.fetchFile(backup.fileId())) {
-			management.restoreCatalog(restoredCatalogName, backup.totalSizeInBytes(), inputStream)
-				.getFutureResult()
-				.get(10, TimeUnit.MINUTES);
+			awaitTaskResult(
+				management.restoreCatalog(restoredCatalogName, backup.totalSizeInBytes(), inputStream)
+					.getFutureResult(),
+				TASK_TIMEOUT_MINUTES, TimeUnit.MINUTES,
+				evitaServer.getEvita().management(), management, RESTORE_TASK_TYPE, null
+			);
 		}
 
 		assertCatalogRestoredIntact(evitaClient, restoredCatalogName, ENTITY_COUNT);
@@ -416,8 +438,11 @@ public class LongRunningGrpcRestoreCatalogUploadTest {
 		EvitaServer evitaServer
 	) throws Exception {
 		final EvitaManagementContract management = evitaClient.management();
-		final FileForFetch backup = management.backupCatalog(TEST_CATALOG_SMALL, null, null, true)
-			.get(10, TimeUnit.MINUTES);
+		final FileForFetch backup = awaitTaskResult(
+			management.backupCatalog(TEST_CATALOG_SMALL, null, null, true),
+			TASK_TIMEOUT_MINUTES, TimeUnit.MINUTES,
+			evitaServer.getEvita().management(), management, BACKUP_TASK_TYPE, TEST_CATALOG_SMALL
+		);
 
 		final byte[] backupContents;
 		try (final InputStream inputStream = management.fetchFile(backup.fileId())) {
