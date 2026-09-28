@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -61,24 +61,24 @@ public interface TimeBoundedTestSupport {
 	default <T> T runFor(@Nonnull GenerationalTestInput input, int echoEachIterations, @Nonnull T initialState, @Nonnull BiFunction<Random, T, T> testLogic, @Nullable BiConsumer<T, Throwable> onException) {
 		return runBounded(
 			input,
-			input.intervalInMinutes() * 60_000L,
-			input.intervalInMinutes() + " minutes",
+			input.intervalInSeconds() * 1000L,
+			input.intervalInSeconds() + " seconds",
 			echoEachIterations, initialState, testLogic, onException
 		);
 	}
 
 	/**
-	 * Runs the test logic for a budget expressed in SECONDS rather than whole minutes, which is the smallest budget
-	 * {@link GenerationalTestInput#intervalInMinutes()} can express.
+	 * Runs the test logic for an explicit budget in seconds instead of the shared
+	 * {@link GenerationalTestInput#intervalInSeconds()}.
 	 *
-	 * It exists for generative cases that must not occupy a full minute each — the warm-up half of the savepoint fuzz
-	 * matrix being the one that motivated it, because that matrix doubles the method count of every scenario it covers
-	 * and a full minute apiece would price a full sweep out of reach. Everything else is
-	 * identical to {@link #runFor(GenerationalTestInput, int, Object, BiFunction, BiConsumer)}: the same seeded
+	 * It exists for generative cases that need a budget of their own, independent of the shared one — the warm-up
+	 * half of the savepoint fuzz matrix being the one that motivated it, because that matrix doubles the method count
+	 * of every scenario it covers and the shared budget apiece would price a full sweep out of reach. Everything else
+	 * is identical to {@link #runFor(GenerationalTestInput, int, Object, BiFunction, BiConsumer)}: the same seeded
 	 * {@link Random}, the same progress echo, and the same seed enrichment of a failure so the run can be reproduced
 	 * with `-Dtest.seed=...`.
 	 *
-	 * The seed still comes from `input`, so a failing warm-up generation reproduces exactly like a minute-bounded one.
+	 * The seed still comes from `input`, so a failing warm-up generation reproduces exactly like one bounded by the shared budget.
 	 *
 	 * @param input              the generational input carrying the random seed
 	 * @param durationInSeconds  how long to keep generating; at least one iteration always runs
@@ -106,7 +106,7 @@ public interface TimeBoundedTestSupport {
 	 *
 	 * @param input             the generational input carrying the random seed
 	 * @param budgetInMillis    the wall-clock budget for the whole run
-	 * @param budgetDescription how the budget is phrased in the progress echo (e.g. `2 minutes`)
+	 * @param budgetDescription how the budget is phrased in the progress echo (e.g. `30 seconds`)
 	 */
 	private static <T> T runBounded(
 		@Nonnull GenerationalTestInput input,

@@ -1,7 +1,7 @@
 ---
 title: Gate cross-entity histogram removal on a pre-mutation condition pre-pass, not bucket membership
 date: 2026-08-31
-updated: 2026-09-14 10:34
+updated: 2026-09-28 12:55
 status: accepted
 kind: fix
 issues: [1467]
@@ -207,8 +207,10 @@ contribution never existed, spending a sibling's cardinality unit.
    — it pins the local path's guard-before-remove ordering as a regression detector.
 - `EvitaConditionalBucketGenerationalTest#shouldSurviveGenerationalTestWithReferencedEntityAttributeExpression`
   with `-Dtest.seed=2095323828`: failed at generation 4 in ~2 s of test time before
-  (`expected: <{5=[1]}> but was: <{}>`), runs a full 61 s interval clean after. Pinned as
-  `shouldNotSurfaceHistogramDriftForSeed2095323828`.
+  (`expected: <{5=[1]}> but was: <{}>`), runs a full 61 s interval clean after. It was pinned as
+  `shouldNotSurfaceHistogramDriftForSeed2095323828` until 2026-09-28, when the pinned-seed long-running
+  tests were removed to fit the weekly CI budget; the `ConditionalBucketIndexingTest` cases above carry the
+  regression.
 - `ReevaluateExpressionExecutorTest` — new `PreMutationConditionStateTest` nested class pins the
   `null`-versus-empty contract and the mutation's identity-ignores-payload property directly. Worth
   knowing: the class's 28 pre-existing tests construct mutations without the captured state, so they

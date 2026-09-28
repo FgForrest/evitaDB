@@ -1217,7 +1217,7 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 						}
 					}
 
-				} while (Duration.between(initialStart, LocalDateTime.now()).toMinutes() < input.intervalInMinutes());
+				} while (Duration.between(initialStart, LocalDateTime.now()).toSeconds() < input.intervalInSeconds());
 
 				// check there is a first record
 				final TriConsumer<EvitaContract, Long, String> catalogChecker = (theEvita, expectedCatalogVersion, catalogName) -> theEvita.queryCatalog(
@@ -1475,7 +1475,7 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 						}
 					);
 
-				} while (Duration.between(initialStart, LocalDateTime.now()).toMinutes() < input.intervalInMinutes());
+				} while (Duration.between(initialStart, LocalDateTime.now()).toSeconds() < input.intervalInSeconds());
 
 				// check there is a first record
 				final TriConsumer<EvitaContract, Integer, String> catalogChecker = (theEvita, primaryKey, catalogName) -> theEvita.queryCatalog(
