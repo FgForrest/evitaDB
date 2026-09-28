@@ -74,12 +74,15 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import org.junit.jupiter.api.Tag;
 
@@ -2055,6 +2058,91 @@ class ReevaluateExpressionExecutorTest {
 			assertArrayEquals(
 				new int[]{100}, enriched.previouslyIndexedOwnerPKs().get(HISTOGRAM_NAME).allOwnerPKs().getArray()
 			);
+		}
+
+		/**
+		 * The histogram counterpart of the facet refusal test in {@link ConditionEvaluationTest}: a histogram condition
+		 * the query engine refuses for a missing indexed component must count as matching nothing - an inverted answer
+		 * would silently add every affected owner to the histogram buckets instead of failing. Covers both places the
+		 * condition is evaluated: a single run over all affected owners, and one run per contribution when the condition
+		 * reads the group. Each is checked against a control whose condition answers, so an always-empty result could
+		 * not pass.
+		 */
+		@Test
+		@DisplayName("treats a histogram condition refused for a missing indexed component as matching nothing")
+		void shouldTreatARefusedHistogramConditionAsMatchingNothing() {
+			final Map<String, FilterBy> conditions = Map.of(
+				"global", new FilterBy(new AttributeEquals("code", "x")),
+				"perContribution", new FilterBy(
+					new ReferenceHaving(REFERENCE_NAME, new GroupHaving(new AttributeEquals("inputWidgetType", "INTERVAL")))
+				)
+			);
+			final Map<String, String> actual = new TreeMap<>();
+			for (Map.Entry<String, FilterBy> condition : conditions.entrySet()) {
+				actual.put(
+					condition.getKey() + ".refused",
+					histogramConditionAnswer(
+						condition.getValue(),
+						target -> when(target.evaluateFilter(any(FilterBy.class), eq(Scope.LIVE)))
+							.thenThrow(new ReferenceComponentNotIndexedException("mirrors the refusal of the query guard"))
+					)
+				);
+				actual.put(
+					condition.getKey() + ".answered",
+					histogramConditionAnswer(
+						condition.getValue(),
+						target -> when(target.evaluateFilter(any(FilterBy.class), eq(Scope.LIVE)))
+							.thenReturn(new BaseBitmap(100, 200))
+					)
+				);
+			}
+			assertEquals(
+				Map.of(
+					"global.refused", "[]",
+					"global.answered", "[100, 200]",
+					"perContribution.refused", "[]",
+					"perContribution.answered", "[100, 200]"
+				),
+				actual,
+				"A refused histogram condition must qualify no owner, while an answered one qualifies the owners it names"
+			);
+		}
+
+		/**
+		 * Runs the read-only pre-pass for a histogram trigger with the given condition over products 100 and 200, both
+		 * referencing entity 3 in group 1, and renders the owners it reports as qualifying.
+		 *
+		 * @param condition        the condition of the histogram trigger
+		 * @param conditionAnswer  stubs how the target answers the condition
+		 * @return the qualifying owners, as an array rendering
+		 */
+		@Nonnull
+		private String histogramConditionAnswer(
+			@Nonnull FilterBy condition,
+			@Nonnull Consumer<IndexMutationTarget> conditionAnswer
+		) {
+			final AffectedReferenceGroup group = new AffectedReferenceGroup(3, 1, new BaseBitmap(100, 200));
+			final TestTarget testTarget = createTestTarget(
+				new AffectedEntityResolution(List.of(group)), ReferenceIndexType.FOR_FILTERING
+			);
+			final IndexMutationTarget target = testTarget.target();
+			// build the trigger first - Mockito rejects a mock() / when() nested inside another when()
+			final HistogramExpressionTrigger trigger = mock(HistogramExpressionTrigger.class);
+			when(trigger.getHistogramIndexName()).thenReturn(HISTOGRAM_NAME);
+			when(trigger.hasFilterByConstraint()).thenReturn(true);
+			when(trigger.getFilterByConstraint()).thenReturn(condition);
+			when(target.getHistogramTriggers(REFERENCE_NAME, Scope.LIVE)).thenReturn(List.of(trigger));
+			conditionAnswer.accept(target);
+
+			final Map<String, ContributionVerdicts> conditionState =
+				ReevaluateExpressionExecutor.evaluateHistogramConditionState(
+					ReevaluateExpressionMutation.withoutOldValues(
+						REFERENCE_NAME, 3, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE
+					),
+					target
+				);
+			assertNotNull(conditionState, "The premise is a reference declaring a histogram trigger");
+			return Arrays.toString(conditionState.get(HISTOGRAM_NAME).allOwnerPKs().getArray());
 		}
 
 		/**
