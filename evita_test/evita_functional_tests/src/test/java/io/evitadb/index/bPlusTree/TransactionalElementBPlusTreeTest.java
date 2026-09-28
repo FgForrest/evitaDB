@@ -1848,8 +1848,8 @@ class TransactionalElementBPlusTreeTest {
 	/**
 	 * An internal node grows in place by storing the new child pointers, then raising `peek`, and shrinks by nulling
 	 * the vacated slot next to lowering it - plain stores with no ordering edge to a session-free reader. Such a reader
-	 * can hold a `peek` whose last slot reads `null`, and the heap walk `EntityCollection#describeIndex` runs over a
-	 * live price index is exactly such a reader: it takes no snapshot, holds no transaction and runs on a management
+	 * can hold a `peek` whose last slot reads `null`, and the heap walk that `EntityCollection#describeIndex` runs over
+	 * a live price index is exactly such a reader: it takes no snapshot, holds no transaction and runs on a management
 	 * thread while a warm-up load mutates the `priceRecords` tree. The internal node is the one
 	 * {@link AbstractIntKeyedInternalNode} this tree shares with {@link TransactionalIntToLongBPlusTree}, and each tree
 	 * pins it through its own fixture.

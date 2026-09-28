@@ -241,7 +241,7 @@ class PersistentRoaringBitmapHeapSizeTest {
 	 * A `TransactionalBitmap` outside a transaction - every bitmap of an index a warm-up load builds - mutates its
 	 * roaring backbone in place with plain stores: a removal that empties a chunk shifts the tail left, nulls the
 	 * vacated last slot and only then lowers `size`, and an insertion that fills the backbone reallocates `keys` and
-	 * `values` before raising `size`. The heap walk `EntityCollection#describeIndex` runs is a reader with no
+	 * `values` before raising `size`. The heap walk that `EntityCollection#describeIndex` runs is a reader with no
 	 * happens-before edge to that writer: it takes no snapshot, holds no transaction and runs on a management thread.
 	 * It can therefore hold a `size` whose last slot reads `null` - it loaded the count before a concurrent removal
 	 * nulled the slot, a plain interleaving - or a `size` past the `values` array it reads - it saw the raised count

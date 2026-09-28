@@ -317,7 +317,7 @@ class TransactionalMapHeapSizeTest {
 
 	/**
 	 * Outside a transaction - every map of an index a warm-up load builds - {@link TransactionalMap} writes straight
-	 * into its `HashMap` delegate. The heap walk `EntityCollection#describeIndex` runs over a live index takes no
+	 * into its `HashMap` delegate. The heap walk that `EntityCollection#describeIndex` runs over a live index takes no
 	 * snapshot, holds no transaction and runs on a management thread, so a warm-up write can land while it is
 	 * iterating that delegate - the price super index alone adds an entry per newly indexed entity. `HashMap#forEach`
 	 * then throws `ConcurrentModificationException` once it has finished the walk.

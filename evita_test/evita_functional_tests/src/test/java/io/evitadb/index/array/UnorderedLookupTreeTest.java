@@ -1893,7 +1893,7 @@ class UnorderedLookupTreeTest {
 	/**
 	 * An internal node grows in place by shifting its children, storing the new one and only then raising
 	 * `childCount`, and shrinks by nulling the vacated slot next to lowering it - plain stores with no ordering edge to
-	 * a session-free reader. Such a reader can hold a `childCount` whose last slot reads `null`, and the heap walk
+	 * a session-free reader. Such a reader can hold a `childCount` whose last slot reads `null`, and the heap walk that
 	 * `EntityCollection#describeIndex` runs over a live sort or chain index is exactly such a reader: it takes no
 	 * snapshot, holds no transaction and runs on a management thread while a warm-up load mutates the position tree of
 	 * a `TransactionalUnorderedIntArray`. The bucket tree's weekly sweep met the same unpublished slot on

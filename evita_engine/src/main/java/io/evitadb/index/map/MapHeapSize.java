@@ -195,8 +195,10 @@ public final class MapHeapSize {
 			// a warm-up write landed in the map while it was being walked: outside a transaction the decorators write
 			// straight into this `HashMap`, and the heap walk behind `EntityCollection#describeIndex` runs on a
 			// management thread with no happens-before edge to that writer. `HashMap#forEach` checks `modCount` only
-			// after it has visited the whole table, so the payload summed above is complete for every entry the walk
-			// reached - a monitoring figure off by the entries written meanwhile, rather than a failed monitoring call
+			// after it has visited the whole table (verified in the JDK 21 `HashMap#forEach` bytecode; like the
+			// capacity arithmetic in `tableCapacityFor`, a JDK detail that could move), so the payload summed above is
+			// complete for every entry the walk reached - a monitoring figure off by the entries written meanwhile,
+			// rather than a failed monitoring call
 		}
 		return size + payload[0];
 	}
