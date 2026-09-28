@@ -50,6 +50,7 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
+import io.evitadb.store.schema.serializer.ReferenceSchemaSerializer;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import io.evitadb.store.shared.kryo.SharedClassesConfigurer;
 import io.evitadb.test.Entities;
@@ -105,6 +106,11 @@ class SchemaSerializationServiceTest {
 	 * Group entity type of every stored-shape reference - the group component is only declared on grouped references.
 	 */
 	private static final String STORED_SHAPE_GROUP_TYPE = "BrandGroup";
+	/**
+	 * Serial version UID under which the latest released format stores a {@link ReferenceSchema}, routed to
+	 * `ReferenceSchemaSerializer_2026_2` by the version-routing serializer.
+	 */
+	private static final long REFERENCE_SCHEMA_RELEASED_FORMAT_UID = 5443565766311111159L;
 
 	@Test
 	void shouldSerializeAndDeserializeSchema() {
@@ -618,13 +624,16 @@ class SchemaSerializationServiceTest {
 	}
 
 	/**
-	 * Pins load safety for the reference shapes the entity-component schema rule refuses: an indexed scope whose components
-	 * lack `REFERENCED_ENTITY` - either group-only, or empty. Catalogs written before the rule existed store these
-	 * shapes, and they must keep loading; the rule therefore lives in `validate()` and nowhere on the read path.
-	 * Each test drives the read path a catalog load drives: the Kryo reader and, for reflected references, the
-	 * rebinding to the reference they reflect ({@link ReflectedReferenceSchema#withReferencedSchema}), which runs
-	 * construction-time scope validation of its own. If either were ever to reject these shapes, a stored catalog
-	 * would become unloadable, and these tests fail with that exception.
+	 * Covers the read path for the reference shapes the entity-component schema rule refuses: an indexed scope whose
+	 * components lack `REFERENCED_ENTITY` - either group-only, or empty. Catalogs written before the rule existed store
+	 * these shapes, and they must keep loading; the rule therefore lives in `validate()` and nowhere on the read path.
+	 *
+	 * Most tests write the shape with the current serializer and read it back with the current reader, then, for
+	 * reflected references, re-bind them to the reference they reflect
+	 * ({@link ReflectedReferenceSchema#withReferencedSchema}), which runs construction-time scope validation of its own.
+	 * That proves the readers and the re-binding accept the shape, not that bytes written by a released version decode.
+	 * The released format of a plain reference is read by a backward-compatible reader of its own, so one test routes
+	 * the shape through it; a reflected reference stored by the latest release is read by the current reader.
 	 */
 	@Nested
 	@DisplayName("Loading reference shapes that lack REFERENCED_ENTITY in an indexed scope")
@@ -678,6 +687,41 @@ class SchemaSerializationServiceTest {
 			assertEquals(
 				Set.of(), deserialized.getIndexedComponents(Scope.LIVE),
 				"The stored empty component set must load exactly as stored - no default filled in, no refusal"
+			);
+		}
+
+		@Test
+		@DisplayName("should read group-only and empty scopes of a reference stored in the released format")
+		void shouldReadGroupOnlyAndEmptyScopesOfAReferenceStoredInTheReleasedFormat() {
+			final Map<Scope, Set<ReferenceIndexedComponents>> components = new EnumMap<>(Scope.class);
+			components.put(Scope.LIVE, EnumSet.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY));
+			components.put(Scope.ARCHIVED, EnumSet.noneOf(ReferenceIndexedComponents.class));
+			final ReferenceSchema created = buildStoredReferenceSchema(
+				STORED_SHAPE_REFERENCE, Entities.BRAND, components, Scope.LIVE, Scope.ARCHIVED
+			);
+			final Kryo kryo = createKryo();
+
+			// the released format is the current payload without the trailing conflict resolution override, stored
+			// under the serial version UID the version-routing serializer hands to ReferenceSchemaSerializer_2026_2
+			final ByteArrayOutputStream baos = new ByteArrayOutputStream(2048);
+			try (final Output output = new Output(baos)) {
+				output.writeLong(REFERENCE_SCHEMA_RELEASED_FORMAT_UID);
+				new ReferenceSchemaSerializer().write(kryo, output, created);
+			}
+			final ReferenceSchema deserialized;
+			try (final Input input = new Input(new ByteArrayInputStream(baos.toByteArray()))) {
+				deserialized = kryo.readObject(input, ReferenceSchema.class);
+			}
+
+			assertEquals(
+				"LIVE=[REFERENCED_GROUP_ENTITY] ARCHIVED=[]",
+				"LIVE=" + deserialized.getIndexedComponents(Scope.LIVE) +
+					" ARCHIVED=" + deserialized.getIndexedComponents(Scope.ARCHIVED),
+				"Both stored scopes must load exactly as stored - no default filled in, no refusal"
+			);
+			assertTrue(
+				deserialized.isIndexedInScope(Scope.LIVE) && deserialized.isIndexedInScope(Scope.ARCHIVED),
+				"Both stored scopes must stay indexed"
 			);
 		}
 
