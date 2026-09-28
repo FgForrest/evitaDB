@@ -277,12 +277,7 @@ class ReflectedReferenceDefaultComponentsFunctionalTest implements EvitaTestSupp
 					)
 				);
 				final Map<String, String> result = new TreeMap<>();
-				result.put(
-					"components",
-					describe(
-						session.getEntitySchemaOrThrowException(CATEGORY).getReferenceOrThrowException(REF_RELATED_BY)
-					)
-				);
+				result.put("components", describeRelatedBy(session));
 				// category 1 relates to 2, which is then archived; 3 relates to 4, both live
 				session.upsertEntity(session.createNewEntity(CATEGORY, 2));
 				session.upsertEntity(session.createNewEntity(CATEGORY, 4));
@@ -302,6 +297,28 @@ class ReflectedReferenceDefaultComponentsFunctionalTest implements EvitaTestSupp
 			),
 			inSession,
 			"The self-referencing reflection must carry REFERENCED_ENTITY in both scopes and find the archived category"
+		);
+
+		// the batch stores the schema the collection re-bound, and a restart re-binds without filling anything in
+		restart();
+		final Map<String, String> reloaded = this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Map<String, String> result = new TreeMap<>();
+				result.put("components", describeRelatedBy(session));
+				result.put("archived", relatedByOwnersOrRefusal(session, Scope.ARCHIVED, 1));
+				result.put("live", relatedByOwnersOrRefusal(session, Scope.LIVE, 3));
+				return result;
+			}
+		);
+		assertEquals(
+			Map.of(
+				"components", BOTH_SCOPES_WITH_ENTITY_COMPONENT,
+				"archived", List.of(2).toString(),
+				"live", List.of(4).toString()
+			),
+			reloaded,
+			"The reloaded catalog must carry the default component in ARCHIVED and find the archived category"
 		);
 	}
 
@@ -361,19 +378,13 @@ class ReflectedReferenceDefaultComponentsFunctionalTest implements EvitaTestSupp
 			"The reflected reference must inherit ARCHIVED from the original it reflects, with the default component"
 		);
 
-		this.evita.close();
-		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
-		this.evita.waitUntilFullyInitialized();
+		restart();
 		final Map<String, String> reloaded = this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final Map<String, String> result = new TreeMap<>();
 				result.put("components", describeRelatedBy(session));
-				try {
-					result.put("archived", relatedByOwners(session, Scope.ARCHIVED, 1).toString());
-				} catch (ReferenceComponentNotIndexedException refusal) {
-					result.put("archived", refusal.getClass().getSimpleName());
-				}
+				result.put("archived", relatedByOwnersOrRefusal(session, Scope.ARCHIVED, 1));
 				return result;
 			}
 		);
@@ -393,6 +404,37 @@ class ReflectedReferenceDefaultComponentsFunctionalTest implements EvitaTestSupp
 	@Nonnull
 	private static String describeRelatedBy(@Nonnull EvitaSessionContract session) {
 		return describe(session.getEntitySchemaOrThrowException(CATEGORY).getReferenceOrThrowException(REF_RELATED_BY));
+	}
+
+	/**
+	 * Closes the engine and opens a new one over the same storage, so that the catalog is loaded from disk.
+	 */
+	private void restart() {
+		this.evita.close();
+		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
+		this.evita.waitUntilFullyInitialized();
+	}
+
+	/**
+	 * Same as {@link #relatedByOwners(EvitaSessionContract, Scope, int)}, but renders a refusal of the query as the
+	 * simple name of the exception, so that an assertion over a reloaded catalog shows which scope lost its component.
+	 *
+	 * @param session     session to query through
+	 * @param scope       the scope to query
+	 * @param relatedToPk primary key the reflected row points at
+	 * @return primary keys of the owning categories, or the name of the refusal
+	 */
+	@Nonnull
+	private static String relatedByOwnersOrRefusal(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Scope scope,
+		int relatedToPk
+	) {
+		try {
+			return relatedByOwners(session, scope, relatedToPk).toString();
+		} catch (ReferenceComponentNotIndexedException refusal) {
+			return refusal.getClass().getSimpleName();
+		}
 	}
 
 	/**
@@ -482,9 +524,7 @@ class ReflectedReferenceDefaultComponentsFunctionalTest implements EvitaTestSupp
 
 		// a restart loads the schema from disk and re-binds the reflected reference without filling anything in, so
 		// it proves the default components were stored rather than recomputed - and the indexes built from them too
-		this.evita.close();
-		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
-		this.evita.waitUntilFullyInitialized();
+		restart();
 		assertEquals(
 			Map.of(
 				"components", BOTH_SCOPES_WITH_ENTITY_COMPONENT,
