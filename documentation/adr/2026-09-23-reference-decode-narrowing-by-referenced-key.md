@@ -1,7 +1,7 @@
 ---
 title: Bound the reference decode by the referenced keys a requirement names, and let named reference content own the names only it asked for
 date: 2026-09-23
-updated: 2026-09-23 18:50
+updated: 2026-09-23 19:35
 status: accepted
 kind: optimization
 issues: [1637, 1640]
@@ -9,7 +9,7 @@ prs: [1638, 1639]
 areas: [evita_api/src/main/java/io/evitadb/api/requestResponse, evita_engine/src/main/java/io/evitadb/core/query/response, evita_engine/src/main/java/io/evitadb/core/collection, evita_engine/src/main/java/io/evitadb/spi/store/catalog/persistence, evita_store/evita_store_entity, evita_store/evita_store_server]
 supersedes: []
 superseded-by: []
-relates: [2026-09-11-reference-name-narrowing]
+relates: [2026-09-11-reference-name-narrowing, 2026-09-23-internal-member-annotation]
 ---
 
 # Bound the reference decode by the referenced keys a requirement names
@@ -181,6 +181,10 @@ an API semantics decision rather than an optimization.
   "compare the encoded string length" follow-up does not exist as described — Kryo writes short ASCII
   as raw bytes with the last byte's high bit set, with no length prefix — and it has been corrected in
   place.
+- [`2026-09-23-internal-member-annotation`](2026-09-23-internal-member-annotation.md) — the review
+  round this record's named-reference work spent establishing whether those members are a public
+  contract is what that record's `@Internal` annotation exists to answer in a line; the members it
+  marks first are the ones this record changed.
 
 ## Timeline
 

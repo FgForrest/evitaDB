@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.structure.predicate;
 
+import io.evitadb.annotation.Internal;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.requestResponse.EvitaRequest;
@@ -606,6 +607,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * @param referenceName name of the reference to decide about
 	 * @return TRUE when only a named requirement asked for this reference name
 	 */
+	@Internal("ask isReferenceRequested(String)")
 	public boolean isReferenceRequestedOnlyAsNamed(@Nonnull String referenceName) {
 		return this.defaultAttributeRequest == null
 			&& this.namedReferenceNames.contains(referenceName)

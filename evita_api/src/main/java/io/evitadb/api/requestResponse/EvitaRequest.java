@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse;
 
+import io.evitadb.annotation.Internal;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Constraint;
@@ -1793,6 +1794,7 @@ public class EvitaRequest {
 	 *
 	 * @return map of the instance/reference key to the single requirement context that applies to it
 	 */
+	@Internal("use getReferenceEntityFetch() for the requirements a query states")
 	@Nonnull
 	public Map<ReferenceContentKey, RequirementContext> getNamedReferenceEntityFetch() {
 		if (this.entityFetchRequirements == null) {
@@ -2253,6 +2255,7 @@ public class EvitaRequest {
 	 * @param instanceName  optional name of the reference content instance
 	 * @param referenceName name of the reference
 	 */
+	@Internal("the key type of the named requirement map; not part of the request contract")
 	public record ReferenceContentKey(
 		@Nullable String instanceName,
 		@Nonnull String referenceName
