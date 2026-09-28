@@ -374,7 +374,9 @@ public class SetReferenceSchemaIndexedMutation
 					result = (ReflectedReferenceSchema) result.withIndexedComponents(filteredArray);
 				}
 			}
-			return result;
+			// an indexed scope the explicit components leave uncovered gets the default, exactly as a plain
+			// reference's does - otherwise it would be indexed with no component and build no index at all
+			return result.withDefaultComponentsInUncoveredScopes();
 		} else {
 			// strip components for NONE-indexed scopes before building the schema
 			final ScopedReferenceIndexedComponents[] filteredComponentsArray =

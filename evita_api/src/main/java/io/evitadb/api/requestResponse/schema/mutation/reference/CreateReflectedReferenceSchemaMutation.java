@@ -409,8 +409,10 @@ public class CreateReflectedReferenceSchemaMutation
 		final Optional<ReferenceSchemaContract> referencedReferenceSchema = catalogSchema
 			.getEntitySchema(newReferenceSchema.getReferencedEntityType())
 			.flatMap(it -> it.getReference(newReferenceSchema.getReflectedReferenceName()));
+		// creating the reference is a schema change, so a scope it inherits from the reference it reflects and its
+		// explicit components leave uncovered gets the default component rather than none at all
 		final ReferenceSchemaContract referenceToInsert = referencedReferenceSchema
-			.map(newReferenceSchema::withReferencedSchema)
+			.map(newReferenceSchema::withReferencedSchemaAfterSchemaChange)
 			.orElse(newReferenceSchema);
 		return insertNewReference(entitySchema, this.name, referenceToInsert, newReferenceSchema);
 	}

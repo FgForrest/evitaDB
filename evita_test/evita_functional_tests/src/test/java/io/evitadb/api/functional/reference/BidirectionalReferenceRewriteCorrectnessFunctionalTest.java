@@ -48,7 +48,6 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -262,19 +261,17 @@ public class BidirectionalReferenceRewriteCorrectnessFunctionalTest
 	 * An archived owner whose only reference rows point at targets living in the LIVE scope must still be returned
 	 * by a `scope(ARCHIVED)` query.
 	 *
-	 * **This row does not test the bidirectional rewrite, and no fix to the rewriter will turn it green.** It pins
-	 * a *pre-existing* reflected-reference indexing gap that predates this optimisation and is tracked separately.
-	 * It is kept here because it is the archived-scope half of the cross-scope question the row below answers, and
-	 * because the two rows have to move together when either bug is fixed.
+	 * **This row does not test the bidirectional rewrite.** It pins the indexing of a reflected reference on an
+	 * archived owner, and it is kept here because it is the archived-scope half of the cross-scope question the row
+	 * below answers.
 	 *
-	 * A census of the built catalog established that **a reflected reference gets no ARCHIVED type index at all**,
-	 * in either collection, even when an archived entity carries its rows in its body - confirmed on
-	 * `CATEGORY.products`, `PRODUCT.curatedBy` and `PRODUCT.crossScopeCuratedBy`, while every *original* reference
-	 * on the very same archived entities does have one. Every rewritable relation has a reflected end, so under
-	 * `scope(ARCHIVED)` the gate declines in both orientations: with the reflected end as counterpart
-	 * `worthRewriting` returns on `counterpartTypeIndex.isEmpty()`, and with it as owner `ownerSideBuckets` stays
-	 * NULL. The empty answer this row observes therefore comes out of the **ordinary owner-side path**, not out of
-	 * `tryRewrite`.
+	 * It used to fail. A census of the built catalog found **no ARCHIVED type index for any reflected reference**, in
+	 * either collection, although the archived entities carried the rows in their bodies - while every original
+	 * reference on the very same entities had one. The cause was the schema, not the indexer: the builder handed each
+	 * reflected reference explicit components naming `LIVE` alone, which left `ARCHIVED` declared indexed with no
+	 * component, and a scope without a component builds no index. Schema changes now complete such a scope with the
+	 * default component, so the archived owner is indexed and the owner-side path finds it. Under `scope(ARCHIVED)`
+	 * the rewrite still does not fire here - which path answers is irrelevant to what this row asserts.
 	 *
 	 * Expected result, derived from the fixture's data assignment rather than pinned:
 	 *
@@ -288,11 +285,6 @@ public class BidirectionalReferenceRewriteCorrectnessFunctionalTest
 	 * ARCHIVED category some product points at", so the row keeps working if further archived categories are added
 	 * to the fixture, and reports it as a fixture change rather than a failure if one of them gains rows.
 	 */
-	@Disabled(
-		"Pins the correct behaviour of a pre-existing engine defect: a reflected reference on an archived owner gets no " +
-		"ARCHIVED type index at all, so the rows this query needs were never built. Re-enable when issue #1583 is fixed " +
-		"- the expectation here is already the right one."
-	)
 	@DisplayName("Should not lose an archived owner whose referenced targets live in another scope")
 	@UseDataSet(BIDI_REWRITE)
 	@Test
@@ -345,8 +337,7 @@ public class BidirectionalReferenceRewriteCorrectnessFunctionalTest
 				assertEquals(
 					expectedPks, resultPrimaryKeys(result.getRecordData()),
 					"An archived owner whose reference rows all point at LIVE targets must still be returned - " +
-						"the reflected reference has no ARCHIVED type index, which is a pre-existing indexing gap " +
-						"and not something the counterpart rewrite can fix"
+						"if it is missing, the reflected reference was left without an index in ARCHIVED"
 				);
 				return null;
 			}
@@ -356,7 +347,7 @@ public class BidirectionalReferenceRewriteCorrectnessFunctionalTest
 	/**
 	 * **The confirmed cross-scope defect of the rewrite, and the row that validates its fix.**
 	 *
-	 * Unlike the archived-scope row above - which observes a pre-existing indexing gap the rewriter cannot reach -
+	 * Unlike the archived-scope row above - which pins the indexing of the reflected reference, not the rewrite -
 	 * this one runs where the rewrite genuinely fires, where the ordinary path is measurably *correct*, and where
 	 * the rewritten answer is measurably wrong.
 	 *

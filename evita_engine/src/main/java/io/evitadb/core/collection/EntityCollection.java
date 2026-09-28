@@ -1467,6 +1467,7 @@ public final class EntityCollection implements
 					final Optional<ReferenceSchemaContract> updatedReference = newSchema.getReference(referenceSchema.getReflectedReferenceName());
 					if (updatedReference.isPresent()) {
 						updatedSchema = updatedSchema.withReplacedReferenceSchema(
+							// a rename changes no indexed scope, so the plain binding is exact
 							referenceSchema.withReferencedSchema(updatedReference.get())
 								.withUpdatedReferencedEntityType(newSchemaName)
 						);
@@ -1517,6 +1518,10 @@ public final class EntityCollection implements
 					targetEntitySchema = this.catalog.getCollectionForEntity(reflectedReferenceSchema.getReferencedEntityType())
 						.map(EntityCollectionContract::getSchema);
 				}
+				// the plain binding, never `withReferencedSchemaAfterSchemaChange`: this runs on catalog load (and on the
+				// goLive / handover rebuilds), where the schema is the stored one and nothing about it has changed - a
+				// stored scope indexed without components never indexed anything, and filling it here would make it
+				// claim indexes that were never built and silence the checks that refuse it
 				targetEntitySchema
 					.flatMap(it -> it.getReference(reflectedReferenceSchema.getReflectedReferenceName()))
 					.ifPresent(originalReference -> updatedReferenceSchemas.add(reflectedReferenceSchema.withReferencedSchema(originalReference)));
@@ -2960,8 +2965,11 @@ public final class EntityCollection implements
 					.flatMap(it -> it.getReference(reflectedReferenceSchema.getReflectedReferenceName()))
 					.orElse(null);
 				if (originalReference != null) {
+					// a schema-change path: the reflected reference itself was just mutated - and a self-referencing one
+					// created in the same batch as the reference it reflects is bound here for the first time, because
+					// the create mutation looked its original up in the catalog schema, which does not hold it yet
 					updatedSchema = updatedSchema.withReplacedReferenceSchema(
-						reflectedReferenceSchema.withReferencedSchema(originalReference)
+						reflectedReferenceSchema.withReferencedSchemaAfterSchemaChange(originalReference)
 					);
 				}
 			} else if (referenceInStake.isReferencedEntityTypeManaged() && updatedReference.isPresent()) {
@@ -2995,8 +3003,9 @@ public final class EntityCollection implements
 				reflectedReferenceSchema.getReferencedEntityType().equals(updatedReferenceEntitySchema.getName()) &&
 				reflectedReferenceSchema.getReflectedReferenceName().equals(updatedReferenceSchema.getName())
 			) {
+				// a schema-change path: the reference it reflects was just mutated, possibly gaining a scope
 				updatedReferenceSchemas.add(
-					reflectedReferenceSchema.withReferencedSchema(updatedReferenceSchema)
+					reflectedReferenceSchema.withReferencedSchemaAfterSchemaChange(updatedReferenceSchema)
 				);
 			}
 		}
