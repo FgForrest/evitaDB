@@ -2640,10 +2640,15 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * passed. Seeing the stores out of order needs a reordering x86's total store order forbids in hardware, so a
 	 * green run on x86 shows nothing about this guard either way.
 	 *
-	 * Stepping left takes the child the **pre-growth** node would have chosen. In the common case, a split of the
-	 * last child, that child is the very node being split, and it still holds every key the unpublished half is
-	 * about to take over, so the answer is not even stale. Slot `0` is never stepped past: when it reads `null` too
-	 * the node shows the reader nothing, and the caller decides what that means.
+	 * Stepping left takes the slot the **pre-growth** node would have chosen. The guard turns a crash into an
+	 * answer, not into a correct one. For a split of the last child that slot reads either the node being split,
+	 * which still holds every key, or - once `adaptToLeafSplit` has stored `left` there - the left half, which
+	 * lacks every key the unpublished right half takes, so such a key reads as absent. The in-place growth has
+	 * such windows without any reordering too, and a split of an inner child shifts the separators before the
+	 * children, routing a key to the wrong sibling; neither produces a `null`, so no guard sees them. No
+	 * production reader meets them: the management projections never run a point lookup. The content-sized
+	 * columns ADR records this as an open neighbour. Slot `0` is never stepped past: when it reads `null` too the
+	 * node shows the reader nothing, and the caller decides what that means.
 	 *
 	 * On a consistent observer every slot in `[0, peek]` is populated, so the loop never runs and `index` comes back
 	 * unchanged. That covers the whole write path and every descent under a transaction. A negative `index` (an
@@ -3689,8 +3694,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * array bound keeps a raised `peek` from running off the end, but the slot it admits can still read `null`
 	 * until the writer's child store becomes visible. Descending into that `null` once ended the loop below with a
 	 * `null` leaf. Each level therefore steps back to the child the **pre-growth** node would have chosen - see
-	 * {@link #observableChildIndex}. For a split of the last child that child still holds every key the unpublished
-	 * half is about to take, so the answer is exact rather than stale.
+	 * {@link #observableChildIndex}. That keeps the descent from failing, but it does not make the answer exact:
+	 * mid-split, a key the unpublished half takes can read as absent - see that method for the windows.
 	 *
 	 * **The one state with no child to step to is an emptied merge donor**, reached between `setPeek(-1)` and its
 	 * unlink in `consolidate` (see {@link #isEmptiedSubtree}). There this method returns `null`, and every caller

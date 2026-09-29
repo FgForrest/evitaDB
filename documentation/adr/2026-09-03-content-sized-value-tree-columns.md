@@ -1,7 +1,7 @@
 ---
 title: Size the value tree's leaf columns to their live content instead of adding a second array-backed representation
 date: 2026-09-03
-updated: 2026-09-28 20:40
+updated: 2026-09-29 07:15
 status: accepted
 kind: optimization
 issues: [1486]
@@ -587,9 +587,9 @@ proportionally larger against a smaller total, and the census charged the tempor
   slot, because it needs the stores to become visible out of program order, which x86's total store order
   forbids in hardware. So the evidence is one weak-memory leg, and the claim is no stronger than that. Every
   session-free descent that dereferences a child slot now steps **left** to the nearest populated slot
-  (`observableChildIndex`), which is the child the pre-growth node would have chosen. For a split of the last
-  child that child still holds every key the unpublished half is about to take, so the answer is exact rather
-  than stale. The descents that step are:
+  (`observableChildIndex`), which is the slot the pre-growth node would have chosen. That turns the crash into
+  an answer, not into an exact one: the slot reads the node being split only until `adaptToLeafSplit` stores
+  `left` there (see the third open neighbour below). The descents that step are:
   - `findLeafNode`, whose levels are now `BPlusInternalTreeNode#pointLookupChild`. It resolves the
     transactional layer once per level instead of twice, a hot-path change as well as a fix.
   - The keyed cursor descent `addCursorLevels`.
@@ -610,14 +610,25 @@ proportionally larger against a smaller total, and the census charged the tempor
   writer would take release/acquire on `keys`, `children` and `peek` alike, on every descent of the hottest read
   path. The reader-side step reuses the slot load the descent makes anyway. Revisit only if an escape turns up
   that stepping cannot absorb.
-- **Two neighbours of that fix remain open.** (1) A reallocated array whose copied content the reader cannot see
+- **Three neighbours of that fix remain open.** (1) A reallocated array whose copied content the reader cannot see
   yet could show a `null` in the middle of the live run rather than at its end. Only the trailing case is
   guarded, and whether the middle case occurs at all depends on how the JVM publishes a freshly copied array,
   which the Java memory model leaves open. (2) The emptied-donor answer reached the point descent but not the
   structures around it. `computePreviousRecord` for the first key after an emptied subtree climbs into the
   donor through `getCursorForPreviousNode`, and `cursor(key)` routed into one still fails `searchIndex`'s range
   check. Both need a merge window and a session-free reader, and neither has a production caller that meets
-  both.
+  both. (3) A session-free point lookup can answer **absent** for a key that is present before and after an
+  in-place restructure, with no `null` anywhere and no reordering. `adaptToLeafSplit` shifts the separators,
+  stores `left` over the split child, shifts in `right`, and only then raises `peek`. Between those plain stores,
+  a split of the last child routes a key of the right half to `left`, which lacks it. A split of an inner child
+  pairs the shifted separators with the unshifted children, sending a key to the neighbouring sibling. The
+  steals, merges and `removeChildOnIndex` shift the same arrays in place. The answer is a miss rather than a
+  failure, so no guard can see it. Closing it would take a writer-side option the options table declined for the
+  hot path: release/acquire, or an immutable holder published whole, on every in-place restructure. No
+  production reader meets it: the session-free management projections call only `size()`,
+  `getDistinctValueCount()`, `recordCount()` and `getHeapSizeInBytes()`, none of which runs a point lookup. The long-running sweep drives the point lookups on
+  purpose, but deliberately asserts only that they do not fail. Revisit if a session-free caller of
+  `contains`, `cardinalityOf`, `getRecordsEqualTo`, `valueIdOf` or `computePreviousRecord` appears.
 - **The fixed-array sibling trees share the unpublished-slot hazard, and only their heap walk has a reader that
   can meet it.** `TransactionalLongBPlusTree`, `AbstractIntKeyedInternalNode` (the internal node of
   `TransactionalElementBPlusTree` and `TransactionalIntToLongBPlusTree`) and `UnorderedLookupTree` grow an
@@ -778,4 +789,5 @@ proportionally larger against a smaller total, and the census charged the tempor
   now steps over a child slot a grow has not published yet; the fixed-array siblings' internal-node heap
   walks (long, int-keyed, `UnorderedLookupTree`) skip such a slot too, their other readers rejected for want
   of a session-free caller; the same heap walk's roaring backbone and `HashMap` sizing made tolerant of an
-  in-place warm-up writer
+  in-place warm-up writer; a review found that stepping left does not make a mid-split point lookup exact, so the
+  claim was withdrawn and the silent miss recorded as the third open neighbour
