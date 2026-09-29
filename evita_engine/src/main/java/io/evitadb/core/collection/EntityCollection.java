@@ -124,6 +124,7 @@ import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
 import io.evitadb.core.buffer.StorageAccessScope;
+import io.evitadb.core.management.ManagementReads;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.QueryPlanningContext;
@@ -1153,8 +1154,10 @@ public final class EntityCollection implements
 				case FRAGMENTATION -> builder.withFragmentation(
 					describeFragmentation(Objects.requireNonNull(storageFootprint))
 				);
-				// `snapshot()` for the same reason `browseIndexes` takes one: the targeted lookups and the total they
-				// are subtracted from have to come from ONE state of the map. Read against the live map, a warm-up
+				// a snapshot for the same reason `browseIndexes` takes one: the targeted lookups and the total they
+				// are subtracted from have to come from ONE state of the map. Taken through
+				// `ManagementReads#snapshotOf`, which retries a copy a concurrent warm-up write disturbs rather than
+				// failing the statistic. Read against the live map, a warm-up
 				// writer removing an index between the lookups and the count yields a NEGATIVE `omittedIndexCount`.
 				// The cost is not uniform and is accepted deliberately: free once the map is sealed (transactional
 				// mode hands back the existing trie), an `O(N)` throw-away build while warm-up still holds a
@@ -1162,7 +1165,7 @@ public final class EntityCollection implements
 				// report a negative count, and this is a management call, not a query path
 				case INDEX_CARDINALITY -> builder.withIndexCardinality(
 					IndexCardinalityProjection.describe(
-						this.indexes.snapshot(), getInternalSchema().getReferences().keySet()
+						ManagementReads.snapshotOf(this.indexes), getInternalSchema().getReferences().keySet()
 					)
 				);
 				// unreachable - all of these are catalog-level only and the assertion above already rejected them
@@ -1200,9 +1203,11 @@ public final class EntityCollection implements
 		// map, which is correct on the commit path but not from a read. It would make the next warm-up write thaw the
 		// map again - an `O(N)` copy per browse - and, worse, publishing a view built by iterating a map another
 		// thread is still writing would drop whatever landed during the iteration. A statistics call must not be able
-		// to lose an index
+		// to lose an index. Taken through `ManagementReads#snapshotOf`, which retries a copy such a write disturbs
+		// rather than failing the browse
 		return IndexBrowseProjection.browse(
-			getEntityType(), this.indexes.snapshot(), criteria, this.catalog.getIdentity().catalogVersion()
+			getEntityType(), ManagementReads.snapshotOf(this.indexes), criteria,
+			this.catalog.getIdentity().catalogVersion()
 		);
 	}
 
@@ -1467,6 +1472,7 @@ public final class EntityCollection implements
 					final Optional<ReferenceSchemaContract> updatedReference = newSchema.getReference(referenceSchema.getReflectedReferenceName());
 					if (updatedReference.isPresent()) {
 						updatedSchema = updatedSchema.withReplacedReferenceSchema(
+							// a rename changes no indexed scope, so the plain binding is exact
 							referenceSchema.withReferencedSchema(updatedReference.get())
 								.withUpdatedReferencedEntityType(newSchemaName)
 						);
@@ -1517,6 +1523,10 @@ public final class EntityCollection implements
 					targetEntitySchema = this.catalog.getCollectionForEntity(reflectedReferenceSchema.getReferencedEntityType())
 						.map(EntityCollectionContract::getSchema);
 				}
+				// the plain binding, never `withReferencedSchemaAfterSchemaChange`: this runs on catalog load (and on the
+				// goLive / handover rebuilds), where the schema is the stored one and nothing about it has changed - a
+				// stored scope indexed without components never indexed anything, and filling it here would make it
+				// claim indexes that were never built and silence the checks that refuse it
 				targetEntitySchema
 					.flatMap(it -> it.getReference(reflectedReferenceSchema.getReflectedReferenceName()))
 					.ifPresent(originalReference -> updatedReferenceSchemas.add(reflectedReferenceSchema.withReferencedSchema(originalReference)));
@@ -2960,15 +2970,25 @@ public final class EntityCollection implements
 					.flatMap(it -> it.getReference(reflectedReferenceSchema.getReflectedReferenceName()))
 					.orElse(null);
 				if (originalReference != null) {
+					// a schema-change path: the reflected reference itself was just mutated - and a self-referencing one
+					// created in the same batch as the reference it reflects is bound here for the first time, because
+					// the create mutation looked its original up in the catalog schema, which does not hold it yet
 					updatedSchema = updatedSchema.withReplacedReferenceSchema(
-						reflectedReferenceSchema.withReferencedSchema(originalReference)
+						reflectedReferenceSchema.withReferencedSchemaAfterSchemaChange(originalReference)
 					);
 				}
 			} else if (referenceInStake.isReferencedEntityTypeManaged() && updatedReference.isPresent()) {
-				// notify the target entity schema about the reference change in our schema
-				EntitySchema finalUpdatedSchema = updatedSchema;
-				this.catalog.getCollectionForEntity(referenceInStake.getReferencedEntityType())
-					.ifPresent(it -> ((EntityCollection) it).notifyAboutExternalReferenceUpdate(finalUpdatedSchema, updatedReference.get()));
+				if (referenceInStake.getReferencedEntityType().equals(updatedSchema.getName())) {
+					// a self-referencing reference re-binds the reflected references in the schema this change is
+					// about to exchange - notifying this very collection would re-bind them in the schema it holds
+					// now, and the exchange of this change would silently replace that result
+					updatedSchema = withReflectedReferencesReboundTo(updatedSchema, updatedSchema, updatedReference.get());
+				} else {
+					// notify the target entity schema about the reference change in our schema
+					EntitySchema finalUpdatedSchema = updatedSchema;
+					this.catalog.getCollectionForEntity(referenceInStake.getReferencedEntityType())
+						.ifPresent(it -> ((EntityCollection) it).notifyAboutExternalReferenceUpdate(finalUpdatedSchema, updatedReference.get()));
+				}
 			}
 		}
 		return updatedSchema;
@@ -2989,25 +3009,50 @@ public final class EntityCollection implements
 		@Nonnull ReferenceSchemaContract updatedReferenceSchema
 	) {
 		final EntitySchema originalSchema = getInternalSchema();
-		final List<ReflectedReferenceSchema> updatedReferenceSchemas = new LinkedList<>();
-		for (ReferenceSchemaContract referenceSchema : originalSchema.getReferences().values()) {
+		final EntitySchema updatedSchema = withReflectedReferencesReboundTo(
+			originalSchema, updatedReferenceEntitySchema, updatedReferenceSchema
+		);
+		if (updatedSchema != originalSchema) {
+			exchangeSchema(originalSchema, updatedSchema);
+			// the binding may have filled default components into a scope the reference it reflects has just gained,
+			// and catalog load re-binds with the plain `withReferencedSchema`, which deliberately fills nothing - so
+			// unless the schema is stored here, the filled components would exist in memory only and a restart would
+			// load the scope without them, over indexes that were built with them
+			this.dataStoreBuffer.update(this.catalog.getVersion(), new EntitySchemaStoragePart(updatedSchema));
+		}
+	}
+
+	/**
+	 * Re-binds every {@link ReflectedReferenceSchema} of `schema` that reflects `updatedReferenceSchema` of
+	 * `updatedReferenceEntitySchema` to that updated reference. It is a schema-change path: the reference they reflect
+	 * was just mutated, possibly gaining a scope, so the binding fills default components into newly indexed scopes
+	 * (see {@link ReflectedReferenceSchema#withReferencedSchemaAfterSchemaChange}).
+	 *
+	 * @param schema                       the schema whose reflected references are re-bound
+	 * @param updatedReferenceEntitySchema the schema owning the updated reference
+	 * @param updatedReferenceSchema       the updated reference the reflected references reflect
+	 * @return `schema` itself when no reflected reference reflects the updated one, otherwise a copy with them re-bound
+	 */
+	@Nonnull
+	private static EntitySchema withReflectedReferencesReboundTo(
+		@Nonnull EntitySchema schema,
+		@Nonnull EntitySchema updatedReferenceEntitySchema,
+		@Nonnull ReferenceSchemaContract updatedReferenceSchema
+	) {
+		final List<ReflectedReferenceSchema> reboundReferenceSchemas = new LinkedList<>();
+		for (ReferenceSchemaContract referenceSchema : schema.getReferences().values()) {
 			if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema &&
 				reflectedReferenceSchema.getReferencedEntityType().equals(updatedReferenceEntitySchema.getName()) &&
 				reflectedReferenceSchema.getReflectedReferenceName().equals(updatedReferenceSchema.getName())
 			) {
-				updatedReferenceSchemas.add(
-					reflectedReferenceSchema.withReferencedSchema(updatedReferenceSchema)
+				reboundReferenceSchemas.add(
+					reflectedReferenceSchema.withReferencedSchemaAfterSchemaChange(updatedReferenceSchema)
 				);
 			}
 		}
-		if (!updatedReferenceSchemas.isEmpty()) {
-			exchangeSchema(
-				originalSchema,
-				originalSchema.withReplacedReferenceSchema(
-					updatedReferenceSchemas.toArray(new ReflectedReferenceSchema[0])
-				)
-			);
-		}
+		return reboundReferenceSchemas.isEmpty() ?
+			schema :
+			schema.withReplacedReferenceSchema(reboundReferenceSchemas.toArray(new ReflectedReferenceSchema[0]));
 	}
 
 	/**

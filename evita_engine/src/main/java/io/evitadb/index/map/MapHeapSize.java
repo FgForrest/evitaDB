@@ -28,6 +28,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
+import java.util.ConcurrentModificationException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.ToLongFunction;
@@ -91,7 +92,7 @@ import java.util.function.ToLongFunction;
  * the 523k-index catalog this was measured against — but a synthetic fixture reproduces it immediately, and reads
  * exactly like a per-entry defect in whatever arithmetic sits above the map.
  *
- * @author Claude (heap-size accounting), FG Forrest a.s. (c) 2026
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public final class MapHeapSize {
 	/**
@@ -181,14 +182,24 @@ public final class MapHeapSize {
 		// view object on first call - growing the very map being measured, and by an amount that depends on whether
 		// anyone had asked for it before
 		final long[] payload = new long[1];
-		map.forEach((key, value) -> {
-			if (key != null) {
-				payload[0] += keySizer.applyAsLong(key);
-			}
-			if (value != null) {
-				payload[0] += valueSizer.applyAsLong(value);
-			}
-		});
+		try {
+			map.forEach((key, value) -> {
+				if (key != null) {
+					payload[0] += keySizer.applyAsLong(key);
+				}
+				if (value != null) {
+					payload[0] += valueSizer.applyAsLong(value);
+				}
+			});
+		} catch (ConcurrentModificationException ignored) {
+			// a warm-up write landed in the map while it was being walked: outside a transaction the decorators write
+			// straight into this `HashMap`, and the heap walk behind `EntityCollection#describeIndex` runs on a
+			// management thread with no happens-before edge to that writer. `HashMap#forEach` checks `modCount` only
+			// after it has visited the whole table (verified in the JDK 21 `HashMap#forEach` bytecode; like the
+			// capacity arithmetic in `tableCapacityFor`, a JDK detail that could move), so the payload summed above is
+			// complete for every entry the walk reached - a monitoring figure off by the entries written meanwhile,
+			// rather than a failed monitoring call
+		}
 		return size + payload[0];
 	}
 

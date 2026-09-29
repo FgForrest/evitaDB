@@ -78,6 +78,11 @@ public class AttributeFormula extends AbstractFormula implements ChildrenDepende
 	 * Contains possible predicate that can mark histogram buckets as requested by user constraint.
 	 */
 	@Getter private final Predicate<BigDecimal> requestedPredicate;
+	/**
+	 * Contains TRUE when every record the formula yields holds a value of the attribute in the locale of
+	 * {@link #attributeKey} - and therefore holds that locale. See {@link #isLocaleImplied()}.
+	 */
+	private final boolean localeImplied;
 
 	public AttributeFormula(
 		boolean targetsGlobalAttribute,
@@ -93,9 +98,30 @@ public class AttributeFormula extends AbstractFormula implements ChildrenDepende
 		@Nonnull Formula innerFormula,
 		@Nullable Predicate<BigDecimal> requestedPredicate
 	) {
+		this(targetsGlobalAttribute, attributeKey, innerFormula, requestedPredicate, true);
+	}
+
+	/**
+	 * Creates the formula, stating whether the records it yields hold the locale of the attribute key.
+	 *
+	 * @param targetsGlobalAttribute whether the attribute targets the global attribute schema / index
+	 * @param attributeKey           the key of the attribute being filtered
+	 * @param innerFormula           the formula computing the records
+	 * @param requestedPredicate     optional predicate marking the histogram buckets the constraint requests
+	 * @param localeImplied          FALSE when the formula may yield a record that holds no value of the attribute
+	 *                               in the locale of the key - see {@link #isLocaleImplied()}
+	 */
+	public AttributeFormula(
+		boolean targetsGlobalAttribute,
+		@Nonnull AttributeKey attributeKey,
+		@Nonnull Formula innerFormula,
+		@Nullable Predicate<BigDecimal> requestedPredicate,
+		boolean localeImplied
+	) {
 		this.targetsGlobalAttribute = targetsGlobalAttribute;
 		this.attributeKey = attributeKey;
 		this.requestedPredicate = requestedPredicate;
+		this.localeImplied = localeImplied;
 		this.initFields(innerFormula);
 	}
 
@@ -119,7 +145,9 @@ public class AttributeFormula extends AbstractFormula implements ChildrenDepende
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isTrue(innerFormulas.length == 1, ERROR_SINGLE_FORMULA_EXPECTED);
-		return new AttributeFormula(this.targetsGlobalAttribute, this.attributeKey, innerFormulas[0], this.requestedPredicate);
+		return new AttributeFormula(
+			this.targetsGlobalAttribute, this.attributeKey, innerFormulas[0], this.requestedPredicate, this.localeImplied
+		);
 	}
 
 	/**
@@ -135,6 +163,23 @@ public class AttributeFormula extends AbstractFormula implements ChildrenDepende
 	 */
 	public boolean isLocalized() {
 		return this.attributeKey.localized();
+	}
+
+	/**
+	 * Returns true when the attribute is localized and every record the formula yields holds a value of it in the
+	 * locale of the key. Such a record holds that locale, so an `entityLocaleEquals` of the same locale in the same
+	 * conjunction adds nothing and may be dropped.
+	 *
+	 * A comparison reading the values stored in the locale of the key meets this by construction. A null test does not:
+	 * it yields exactly the records lacking such a value, including those lacking the locale altogether. Neither does
+	 * a lookup in a structure shared by every locale - the unique index of an attribute unique across locales, or a
+	 * not-null test reading the attribute in every locale - as a record carrying the value in another locale only is
+	 * among its answers.
+	 *
+	 * @return true when a locale constraint in the same conjunction is implied by this formula
+	 */
+	public boolean isLocaleImplied() {
+		return this.localeImplied && isLocalized();
 	}
 
 	@Override

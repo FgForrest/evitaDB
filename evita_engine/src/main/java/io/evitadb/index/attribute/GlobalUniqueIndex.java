@@ -69,6 +69,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.ConcurrentModificationException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -523,13 +524,30 @@ public class GlobalUniqueIndex implements
 	 * The cost is `O(entity types present)`, each summand an `O(1)` bitmap cardinality, so it is bounded by the
 	 * catalog's collection count rather than by its data.
 	 *
+	 * **A monitoring reading, tolerant of a concurrent warm-up write.** Its only caller is the catalog index detail
+	 * (`CatalogIndexProjection#describe`), reached from `EvitaManagement#getIndexDetail` with no session and no
+	 * snapshot, on a thread with no happens-before edge to a warm-up writer. That writer adds an entity type to
+	 * {@link #entitiesPerType} in place the first time one of its records registers a value here, and the walk below
+	 * would then end in `ConcurrentModificationException`. The count is read to the end instead, see the body.
+	 *
 	 * @return number of records covered by this index across every entity type
 	 */
 	public int getRecordCount() {
 		// `forEach`, never `values()`: asking a map for a view parks it on the map for good - see
 		// `documentation/developer/heap-size-testing.md`, trap 6
 		final int[] total = new int[1];
-		this.entitiesPerType.forEach((entityType, records) -> total[0] += records.size());
+		try {
+			this.entitiesPerType.forEach((entityType, records) -> {
+				// a node published by a racing writer may not show its value yet - it holds no records to count
+				if (records != null) {
+					total[0] += records.size();
+				}
+			});
+		} catch (ConcurrentModificationException ex) {
+			// outside a transaction this walks the `HashMap` itself, whose `forEach` checks `modCount` only after it has
+			// visited the whole table: the sum is complete for every entity type the walk reached, off only by the one
+			// a warm-up write added or dropped meanwhile - a monitoring figure, not a failed monitoring call
+		}
 		return total[0];
 	}
 

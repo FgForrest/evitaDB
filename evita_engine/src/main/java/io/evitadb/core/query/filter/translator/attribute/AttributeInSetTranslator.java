@@ -27,7 +27,6 @@ import io.evitadb.api.query.filter.AttributeInSet;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -67,53 +66,16 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 	implements FilteringConstraintTranslator<AttributeInSet> {
 
 	/**
-	 * Creates an AttributeFormula that targets globally unique attributes.
-	 * When the entity type is not known and the attribute is unique globally,
-	 * it accesses the catalog index instead.
+	 * Creates an AttributeFormula for a unique attribute by utilizing hash map lookups for efficient access. Each value
+	 * is resolved on its own, in the first requested scope holding it, and each scope is looked up in the unique index
+	 * it declares: the catalog's where the attribute is globally unique, the collection's where it is unique within
+	 * the collection (see {@link FilterByVisitor#applyOnFirstUniqueIndex}).
 	 *
-	 * @param filterByVisitor       The visitor used to apply filters to global unique indices.
-	 * @param globalAttributeSchema The schema of the global attribute.
-	 * @param attributeKey          The key of the attribute.
-	 * @param theComparedValues     A list of values to be compared against.
-	 * @return The created AttributeFormula for the globally unique attributes.
-	 */
-	@Nonnull
-	private static AttributeFormula createGloballyUniqueAttributeFormula(
-		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull GlobalAttributeSchema globalAttributeSchema,
-		@Nonnull AttributeKey attributeKey,
-		@Nonnull List<? extends Serializable> theComparedValues
-	) {
-		// when entity type is not known and attribute is unique globally - access catalog index instead
-		return new AttributeFormula(
-			true,
-			attributeKey,
-
-			FormulaFactory.or(
-				theComparedValues
-					.stream()
-					.map(
-						comparedValue -> filterByVisitor.applyOnFirstGlobalUniqueIndex(
-							globalAttributeSchema,
-							index -> index.getEntityReferenceByUniqueValue(comparedValue, attributeKey.locale(), filterByVisitor.getEntityTypeClassifierResolver())
-								.map(it -> (Formula) new MultipleEntityFormula(
-									new long[]{index.getId()},
-									new BaseBitmap(filterByVisitor.translateEntityReference(it))
-								))
-								.orElse(EmptyFormula.INSTANCE)
-						)
-					)
-					.filter(it -> it != EmptyFormula.INSTANCE)
-					.toArray(Formula[]::new)
-			)
-		);
-	}
-
-	/**
-	 * Creates an AttributeFormula for a unique attribute by utilizing hash map lookups for efficient access.
+	 * The formula claims the query locale ({@link AttributeFormula#isLocaleImplied()}) only where every requested scope
+	 * matches the value in the query locale alone - see {@link #isQueryLocaleImpliedByUniqueLookup}.
 	 *
 	 * @param filterByVisitor     The visitor used to apply filters to unique indexes.
-	 * @param attributeSchema The schema of the attribute.
+	 * @param attributeSchema     The schema of the attribute.
 	 * @param attributeKey        The key of the attribute.
 	 * @param theComparedValues   A list of values to be compared against.
 	 * @return The created AttributeFormula for the given attribute parameters.
@@ -125,7 +87,6 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull List<? extends Serializable> theComparedValues
 	) {
-		// if attribute is unique prefer O(1) hash map lookup over histogram
 		return new AttributeFormula(
 			attributeSchema instanceof GlobalAttributeSchemaContract,
 			attributeKey,
@@ -136,6 +97,14 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 						comparedValue -> filterByVisitor.applyOnFirstUniqueIndex(
 							filterByVisitor.getProcessingScope().getReferenceSchema(),
 							attributeSchema,
+							index -> index.getEntityReferenceByUniqueValue(
+									comparedValue, attributeKey.locale(), filterByVisitor.getEntityTypeClassifierResolver()
+								)
+								.map(it -> (Formula) new MultipleEntityFormula(
+									new long[]{index.getId()},
+									new BaseBitmap(filterByVisitor.translateEntityReference(it))
+								))
+								.orElse(EmptyFormula.INSTANCE),
 							index -> ofNullable(index.getRecordIdByUniqueValue(comparedValue))
 								.map(it -> (Formula) new ConstantFormula(new ArrayBitmap(it)))
 								.orElse(EmptyFormula.INSTANCE)
@@ -143,7 +112,9 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 					)
 					.filter(it -> it != EmptyFormula.INSTANCE)
 					.toArray(Formula[]::new)
-			)
+			),
+			null,
+			isQueryLocaleImpliedByUniqueLookup(filterByVisitor, attributeSchema)
 		);
 	}
 
@@ -214,12 +185,7 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 			final List<? extends Serializable> uniqueComparedValues =
 				plainType == BigDecimal.class ? targetValues : theComparedValues;
 
-			if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema &&
-				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGloballyInScope)) {
-				return createGloballyUniqueAttributeFormula(
-					filterByVisitor, globalAttributeSchema, attributeKey, uniqueComparedValues
-				);
-			} else if (scopes.stream().anyMatch(attributeSchema::isUniqueInScope)) {
+			if (scopes.stream().anyMatch(scope -> isUniqueInScope(attributeSchema, scope))) {
 				return createUniqueAttributeFormula(
 					filterByVisitor, attributeSchema, attributeKey, uniqueComparedValues
 				);

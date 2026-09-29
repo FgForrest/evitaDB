@@ -24,6 +24,7 @@
 package io.evitadb.api.query.parser.visitor;
 
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.parser.ParseContext;
 import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
@@ -50,7 +51,9 @@ import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.filter.AttributeSpecialValue.NULL;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
@@ -1981,6 +1984,15 @@ class EvitaQLFilterConstraintVisitorTest {
 
 			final FilterConstraint constraint6 = parseFilterConstraint("scope ( @a,    @b )", Map.of("a", Scope.ARCHIVED, "b", Scope.LIVE));
 			assertEquals(scope(Scope.ARCHIVED, Scope.LIVE), constraint6);
+
+			// the order is part of the constraint - it decides which scope a unique lookup prefers
+			for (FilterConstraint archivedFirst : List.of(constraint4, constraint5, constraint6)) {
+				assertArrayEquals(
+					new Scope[]{Scope.ARCHIVED, Scope.LIVE},
+					((EntityScope) archivedFirst).getScopesInRequestedOrder()
+				);
+			}
+			assertNotEquals(scope(Scope.LIVE, Scope.ARCHIVED), constraint4);
 		}
 
 		@Test

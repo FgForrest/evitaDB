@@ -65,6 +65,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.translator.reference.producer.FilteringFormulaPredicate;
+import io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper;
 import io.evitadb.core.query.policy.BitmapFavouringNoCachePolicy;
 import io.evitadb.core.query.policy.DefaultPolicy;
 import io.evitadb.core.query.policy.PlanningPolicy;
@@ -950,6 +951,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @param missingIndexSupplier a supplier function to provide a fallback index when a requested index is missing;
 	 *                             it may return NULL, in which case an empty stream is produced
 	 * @return a stream of {@link ReducedEntityIndex} corresponding to the specified query criteria
+	 * @throws io.evitadb.core.exception.ReferenceComponentNotIndexedException when the reference is indexed in the
+	 *         scope without the `REFERENCED_ENTITY` component - see
+	 *         {@link HavingTranslatorHelper#assertEntityComponentIndexed}
 	 */
 	@Nonnull
 	public Stream<ReducedEntityIndex> getReducedEntityIndexes(
@@ -959,6 +963,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReducedEntityIndex> missingIndexSupplier
 	) {
+		// both branches below read the entity index family, which a scope indexed without the entity component never
+		// builds - they would answer it with an empty stream, indistinguishable from a referenced entity with no owners
+		HavingTranslatorHelper.assertEntityComponentIndexed(entitySchema, referenceSchema, scope, getScopes());
 		final String referenceName = referenceSchema.getName();
 		if (referenceSchema.getCardinality().allowsDuplicates()) {
 			final EntityIndexKey entityIndexKey = new EntityIndexKey(

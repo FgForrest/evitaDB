@@ -47,6 +47,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.invocation.Invocation;
 
 import javax.annotation.Nonnull;
@@ -56,6 +58,7 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
 import static io.evitadb.api.query.QueryConstraints.entityHaving;
@@ -140,6 +143,15 @@ class BidirectionalReferenceRewriterTest {
 	 * baseline clears the cost gate with room to spare.
 	 */
 	private static final int BASELINE_OWNER_SIDE_BUCKETS = 100;
+
+	/**
+	 * The indexed-component sets that leave a scope without {@link ReferenceIndexedComponents#REFERENCED_ENTITY}: the
+	 * group-only declaration and the empty set the reflected-reference builder used to leave behind.
+	 */
+	@Nonnull
+	static Stream<Set<ReferenceIndexedComponents>> componentSetsWithoutTheEntityComponent() {
+		return Stream.of(Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY), Set.of());
+	}
 
 	/**
 	 * Builds an ascending bitmap of `count` consecutive primary keys starting at `firstId`.
@@ -926,45 +938,59 @@ class BidirectionalReferenceRewriterTest {
 	class WidenedScopeWithoutCounterpartIndex {
 
 		/**
-		 * Pins that adding a {@link ReferenceIndexedComponents#REFERENCED_ENTITY} check to `counterpartScopes` would
-		 * change nothing, so nobody adds one believing it closes a gap.
+		 * A widened scope whose counterpart type index is absent because the counterpart holds no rows there must be
+		 * skipped, not taken as a reason to abandon the rewrite - only a *requested* scope missing its index does that.
+		 * Declining here would disable the rewrite for every relation that merely could span scopes.
 		 *
-		 * `counterpartScopes` widens the scan beyond the requested scopes to every scope where **both** ends are
-		 * `isIndexedInScope` — deliberately mirroring `ContainerizedLocalMutationExecutor#isRelationMaintained`, which
-		 * tests exactly that and nothing more. It does *not* also require `REFERENCED_ENTITY` among the scope's indexed
-		 * components, while `referenceUsableInScopes` does. That asymmetry is real, and this row is what makes it safe
-		 * to leave: a scope is only ever *iterated* by `collectCandidateOwners`, and the first thing that loop does with
-		 * a scope whose `REFERENCED_ENTITY_TYPE` index is absent — which is precisely the scope a components check would
-		 * have excluded — is `continue`. Removing a scope from the set and skipping it inside the loop produce the
-		 * identical candidate union, the identical `crossScope` flag and the identical gate arithmetic.
-		 *
-		 * The requested scopes are not at risk either way: they are added to the set unconditionally, and
-		 * `referenceUsableInScopes` already rejects the whole rewrite at `BidirectionalReferenceRewriter:306` when
-		 * `REFERENCED_ENTITY` is missing from any of them.
-		 *
-		 * **What this row does not claim.** The `continue` rests on "no index there means no rows there", and that
-		 * premise is false — issue #1583 is a reflected reference on an archived owner whose rows exist with no type
-		 * index at all. A reference indexing only `REFERENCED_GROUP_ENTITY` in a scope is a second route to the same
-		 * false premise, since `isRelationMaintained` keeps the relation on `isIndexedInScope` alone. Both under-report
-		 * through the missing index itself, not through the scope set, so neither is addressed by changing this method.
+		 * This is the control for the two refusals below: the scope carries `REFERENCED_ENTITY`, so its missing index
+		 * genuinely means it holds no rows.
 		 */
 		@Test
-		@DisplayName("should ignore a widened scope that indexes only the group component")
-		void shouldIgnoreAWidenedScopeThatIndexesOnlyTheGroupComponent() {
+		@DisplayName("should skip a widened scope that indexes the entity component but holds no rows")
+		void shouldSkipAWidenedScopeThatHoldsNoRows() {
 			final RewriteFixture fixture = RewriteFixture.baseline(EnumSet.of(Scope.LIVE));
-			// both ends are indexed in ARCHIVED, so `counterpartScopes` widens into it ...
 			when(fixture.ownerReference.isIndexedInScope(Scope.ARCHIVED)).thenReturn(true);
 			when(fixture.counterpart.isIndexedInScope(Scope.ARCHIVED)).thenReturn(true);
-			// ... but the counterpart indexes only the group component there, so no REFERENCED_ENTITY_TYPE index exists
 			when(fixture.counterpart.getIndexedComponents(Scope.ARCHIVED))
-				.thenReturn(Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY));
+				.thenReturn(Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY));
 			fixture.stubCounterpartTypeIndex(Scope.ARCHIVED, null);
 
 			assertTrue(
 				fixture.isApplicable(),
-				"A widened scope whose counterpart type index is absent must be skipped, not treated as a reason to " +
-					"abandon the rewrite - only a *requested* scope missing its index does that. Declining here would " +
-					"disable the rewrite for every reflected counterpart, which is the case it exists for."
+				"A widened scope that holds no rows has no type index legitimately and must not abandon the rewrite"
+			);
+		}
+
+		/**
+		 * `counterpartScopes` widens the scan beyond the requested scopes to every scope where **both** ends are
+		 * `isIndexedInScope`, mirroring `ContainerizedLocalMutationExecutor#isRelationMaintained`, which keeps a
+		 * relation on that test alone. A counterpart indexed in such a scope without `REFERENCED_ENTITY` therefore holds
+		 * its rows there with no type index announcing them - the shape a catalog stored before the schema rule existed
+		 * can still carry. Skipping the scope like the one above would drop every owner reachable only through it, so
+		 * the rewrite must decline and leave the query to the owner-side path, which holds all of an owner's rows in the
+		 * owner's own scope.
+		 *
+		 * @param components the counterpart's indexed components in the widened scope
+		 */
+		@ParameterizedTest(name = "components {0}")
+		@MethodSource("io.evitadb.core.query.filter.translator.reference.BidirectionalReferenceRewriterTest#componentSetsWithoutTheEntityComponent")
+		@DisplayName("should decline when a widened scope is indexed without the entity component")
+		void shouldDeclineWhenAWidenedScopeIsIndexedWithoutTheEntityComponent(
+			@Nonnull Set<ReferenceIndexedComponents> components
+		) {
+			final RewriteFixture fixture = RewriteFixture.baseline(EnumSet.of(Scope.LIVE));
+			assertTrue(fixture.isApplicable(), "The baseline must be rewritable, or the refusal below proves nothing");
+
+			final RewriteFixture widened = RewriteFixture.baseline(EnumSet.of(Scope.LIVE));
+			when(widened.ownerReference.isIndexedInScope(Scope.ARCHIVED)).thenReturn(true);
+			when(widened.counterpart.isIndexedInScope(Scope.ARCHIVED)).thenReturn(true);
+			when(widened.counterpart.getIndexedComponents(Scope.ARCHIVED)).thenReturn(components);
+			widened.stubCounterpartTypeIndex(Scope.ARCHIVED, null);
+
+			assertFalse(
+				widened.isApplicable(),
+				"A widened scope indexed with " + components + " holds rows no index announces - reading around it " +
+					"under-reports the owners reachable only through it, so the rewrite must decline"
 			);
 		}
 	}

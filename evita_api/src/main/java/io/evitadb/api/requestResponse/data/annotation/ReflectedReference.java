@@ -112,8 +112,10 @@ public @interface ReflectedReference {
 	ReferenceIndexType indexed() default ReferenceIndexType.FOR_FILTERING;
 
 	/**
-	 * Configures which components of this reference are indexed (referenced entity, referenced
-	 * group entity, or both). Effective only when the reference is indexed in the given scope.
+	 * Configures which components of this reference are indexed (the referenced entity alone, or
+	 * together with the referenced group entity). Effective only when the reference is indexed in the
+	 * given scope. The array must contain {@link ReferenceIndexedComponents#REFERENCED_ENTITY} - a
+	 * reference indexed without it is refused when the session defining it closes.
 	 * Propagates to {@link ReferenceSchemaContract#getIndexedComponents(Scope)}.
 	 */
 	ReferenceIndexedComponents[] indexedComponents() default { ReferenceIndexedComponents.REFERENCED_ENTITY };

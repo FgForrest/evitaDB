@@ -46,6 +46,7 @@ import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
@@ -57,6 +58,7 @@ import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
+import io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper;
 import io.evitadb.core.query.sort.attribute.translator.AttributeNaturalTranslator;
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
 import io.evitadb.core.query.sort.entity.translator.EntityGroupPropertyTranslator;
@@ -84,6 +86,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -362,15 +365,24 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 						scopes.stream().map(Scope::name).collect(Collectors.joining(", ")) + ") simultaneously."
 				);
 				// resolve target schema
-				final ReferenceSchemaContract targetReferenceSchema = this.queryContext.getSchema(
-						this.referenceSchema.getReferencedEntityType()
-					).getReferenceOrThrowException(reflectedReferenceSchema.getReflectedReferenceName());
+				final EntitySchemaContract targetEntitySchema = this.queryContext.getSchema(
+					this.referenceSchema.getReferencedEntityType()
+				);
+				final ReferenceSchemaContract targetReferenceSchema = targetEntitySchema.getReferenceOrThrowException(
+					reflectedReferenceSchema.getReflectedReferenceName()
+				);
+				final Scope scope = scopes.isEmpty() ? Scope.DEFAULT_SCOPE : scopes.iterator().next();
+				// the chain index lives in the reduced entity index of the reflected reference, which a scope indexed
+				// without the entity component never builds - every reference would sort as if it had no predecessor
+				HavingTranslatorHelper.assertEntityComponentIndexed(
+					targetEntitySchema, targetReferenceSchema, scope, EnumSet.of(scope)
+				);
 				// get the index from the referenced entity collection using inverted key specification
 				final Optional<ChainIndex> chainIndex = this.queryContext.getEntityIndex(
 					this.referenceSchema.getReferencedEntityType(),
 					new EntityIndexKey(
 						EntityIndexType.REFERENCED_ENTITY,
-						scopes.isEmpty() ? Scope.DEFAULT_SCOPE : scopes.iterator().next(),
+						scope,
 						// this would fail if the entity primary key is null, but it should never happen, and if so, exception is thrown
 						theLookupReferenceKey
 					),
@@ -406,11 +418,17 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 						scopes.stream().map(Scope::name).collect(Collectors.joining(", ")) + ") simultaneously."
 				);
 				// else we have to retrieve the chain and cache it
+				final Scope scope = scopes.isEmpty() ? Scope.DEFAULT_SCOPE : scopes.iterator().next();
+				// the chain index lives in the reduced entity index of the reference, which a scope indexed without the
+				// entity component never builds - every reference would sort as if it had no predecessor
+				HavingTranslatorHelper.assertEntityComponentIndexed(
+					this.getSchema(), this.referenceSchema, scope, EnumSet.of(scope)
+				);
 				// get the index from this entity collection using the reference key
 				final Optional<ChainIndex> chainIndex = this.queryContext.getIndexIfExists(
 					new EntityIndexKey(
 						EntityIndexType.REFERENCED_ENTITY,
-						scopes.isEmpty() ? Scope.DEFAULT_SCOPE : scopes.iterator().next(),
+						scope,
 						referenceKey
 					),
 					ReducedEntityIndex.class

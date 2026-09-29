@@ -54,9 +54,11 @@ public @interface ScopeReferenceSettings {
 	ReferenceIndexType indexed() default ReferenceIndexType.NONE;
 
 	/**
-	 * Configures which components of this reference are indexed in this scope (referenced entity,
-	 * referenced group entity, or both). Effective only when {@link #indexed()} is not
-	 * {@link ReferenceIndexType#NONE}.
+	 * Configures which components of this reference are indexed in this scope (the referenced entity
+	 * alone, or together with the referenced group entity). Effective only when {@link #indexed()} is not
+	 * {@link ReferenceIndexType#NONE}. The array must contain
+	 * {@link ReferenceIndexedComponents#REFERENCED_ENTITY} - a scope indexed without it is refused when
+	 * the session defining it closes.
 	 * Propagates to {@link ReferenceSchemaContract#getIndexedComponents(Scope)}.
 	 */
 	ReferenceIndexedComponents[] indexedComponents() default { ReferenceIndexedComponents.REFERENCED_ENTITY };

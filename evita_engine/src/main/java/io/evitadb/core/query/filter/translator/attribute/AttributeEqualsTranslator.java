@@ -28,7 +28,6 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -67,47 +66,19 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 	implements FilteringConstraintTranslator<AttributeEquals> {
 
 	/**
-	 * Creates an {@link AttributeFormula} that targets a globally unique attribute schema.
+	 * Creates an {@link AttributeFormula} that looks the value up in a unique index - O(1) hash map lookup instead of
+	 * the histogram. The value is resolved in the first requested scope holding it, each scope looked up in the unique
+	 * index it declares: the catalog's where the attribute is globally unique, the collection's where it is unique
+	 * within the collection (see {@link FilterByVisitor#applyOnFirstUniqueIndex}).
 	 *
-	 * @param filterByVisitor       The filter visitor that applies filtering logic on global unique indexes.
-	 * @param globalAttributeSchema The schema defining global attributes.
-	 * @param attributeKey          The key representing the specific attribute.
-	 * @param comparedValue         The value to be compared against in the unique index.
-	 * @return An {@link AttributeFormula} targeting the globally unique attribute.
-	 */
-	@Nonnull
-	private static AttributeFormula createGloballyUniqueAttributeFormula(
-		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull GlobalAttributeSchema globalAttributeSchema,
-		@Nonnull AttributeKey attributeKey,
-		@Nonnull Serializable comparedValue
-	) {
-		// when entity type is not known and attribute is unique globally - access catalog index instead
-		return new AttributeFormula(
-			true,
-			attributeKey,
-			filterByVisitor.applyOnFirstGlobalUniqueIndex(
-				globalAttributeSchema,
-				index -> index.getEntityReferenceByUniqueValue(comparedValue, attributeKey.locale(), filterByVisitor.getEntityTypeClassifierResolver())
-					.map(
-						it -> (Formula) new MultipleEntityFormula(
-							new long[]{index.getId()},
-							filterByVisitor.translateEntityReference(it)
-						)
-					)
-					.orElse(EmptyFormula.INSTANCE)
-			)
-		);
-	}
-
-	/**
-	 * Creates an {@link AttributeFormula} that targets a unique attribute schema.
+	 * The formula claims the query locale ({@link AttributeFormula#isLocaleImplied()}) only where every requested scope
+	 * matches the value in the query locale alone - see {@link #isQueryLocaleImpliedByUniqueLookup}.
 	 *
-	 * @param filterByVisitor     The filter visitor that applies filtering logic on unique indexes.
-	 * @param referenceSchema     The reference schema that holds the attribute - might be null for entity level attributes
-	 * @param attributeSchema     The attribute schema to find the index for
-	 * @param attributeKey        The key representing the specific attribute.
-	 * @param comparedValue       The value to be compared against in the unique index.
+	 * @param filterByVisitor The filter visitor that applies filtering logic on unique indexes.
+	 * @param referenceSchema The reference schema that holds the attribute - might be null for entity level attributes
+	 * @param attributeSchema The attribute schema to find the index for
+	 * @param attributeKey    The key representing the specific attribute.
+	 * @param comparedValue   The value to be compared against in the unique index.
 	 * @return An {@link AttributeFormula} targeting the unique attribute.
 	 */
 	@Nonnull
@@ -118,20 +89,28 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull Serializable comparedValue
 	) {
-		// if attribute is unique prefer O(1) hash map lookup over histogram
 		return new AttributeFormula(
 			attributeSchema instanceof GlobalAttributeSchemaContract,
 			attributeKey,
 			filterByVisitor.applyOnFirstUniqueIndex(
 				referenceSchema,
 				attributeSchema,
-				index -> {
-					final Integer recordId = index.getRecordIdByUniqueValue(comparedValue);
-					return ofNullable(recordId)
-						.map(it -> (Formula) new ConstantFormula(new ArrayBitmap(recordId)))
-						.orElse(EmptyFormula.INSTANCE);
-				}
-			)
+				index -> index.getEntityReferenceByUniqueValue(
+						comparedValue, attributeKey.locale(), filterByVisitor.getEntityTypeClassifierResolver()
+					)
+					.map(
+						it -> (Formula) new MultipleEntityFormula(
+							new long[]{index.getId()},
+							filterByVisitor.translateEntityReference(it)
+						)
+					)
+					.orElse(EmptyFormula.INSTANCE),
+				index -> ofNullable(index.getRecordIdByUniqueValue(comparedValue))
+					.map(it -> (Formula) new ConstantFormula(new ArrayBitmap(it)))
+					.orElse(EmptyFormula.INSTANCE)
+			),
+			null,
+			isQueryLocaleImpliedByUniqueLookup(filterByVisitor, attributeSchema)
 		);
 	}
 
@@ -192,16 +171,9 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 			);
 			final Serializable comparedValue = normalizer.apply(targetValue);
 
-			if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema &&
-				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGloballyInScope)) {
+			if (scopes.stream().anyMatch(scope -> isUniqueInScope(attributeSchema, scope))) {
 				// uniqueness stays exact BigDecimal: the unique index never scales its keys, so a BigDecimal attribute is
 				// probed with the exact value; other types share the canonical (NFD/instant) form used by the unique index
-				return createGloballyUniqueAttributeFormula(
-					filterByVisitor, globalAttributeSchema, attributeKey,
-					plainType == BigDecimal.class ? targetValue : comparedValue
-				);
-			} else if (scopes.stream().anyMatch(attributeSchema::isUniqueInScope)) {
-				// uniqueness stays exact BigDecimal (see above)
 				return createUniqueAttributeFormula(
 					filterByVisitor, processingScope.getReferenceSchema(), attributeSchema, attributeKey,
 					plainType == BigDecimal.class ? targetValue : comparedValue

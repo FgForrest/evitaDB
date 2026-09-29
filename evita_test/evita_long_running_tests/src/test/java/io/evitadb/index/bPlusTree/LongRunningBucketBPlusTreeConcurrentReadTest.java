@@ -150,6 +150,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   with a `peek` loaded after the writer's increment is a plain interleaving that needs no reordering at all. So
  *   this one really is a regression detector on ordinary hardware, not only on AArch64.
  *
+ *   **It also caught the one escape the array bound cannot stop.** On 2026-09-28 the macOS/AArch64 leg failed at
+ *   round 3857 with a `null` leaf out of `findLeafNode`. A raised `peek` was observed before the child store it
+ *   follows, so a slot inside the bound still read `null`. The x86 and Linux/AArch64 legs of the same commit
+ *   passed. Every session-free descent now steps over such a slot (`observableChildIndex`), and
+ *   `TransactionalBucketBPlusTreeTest.UnpublishedChildSlot` builds the state deterministically and proves each
+ *   site by counterfactual - so a green run here, on any hardware, is again only half the evidence.
+ *
  * - **Sweep 3 is not calibrated and cannot be on this box.** Every read it exercises - the overflow column's
  *   `observableLiveRun()` and `bitmapAt` - loads the count first, so TSO forbids the escape here exactly as it does
  *   in sweep 1. It is a structural demonstration: it shows the heap walk survives a live promotion load, which

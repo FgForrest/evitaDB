@@ -149,7 +149,7 @@ class LongRunningSessionRegistryDrainTimeoutTest {
 				return new CompletableFuture<CommitVersions>();
 			}
 		);
-		registry.addSession(false, () -> session);
+		registry.addSession(false, resolvedCatalog -> session);
 
 		final long start = System.nanoTime();
 		final GenericEvitaInternalError failure = assertThrows(
@@ -198,7 +198,7 @@ class LongRunningSessionRegistryDrainTimeoutTest {
 				return new CompletableFuture<CommitVersions>();
 			}
 		);
-		registry.addSession(false, () -> session);
+		registry.addSession(false, resolvedCatalog -> session);
 
 		final AtomicReference<Throwable> outcome = new AtomicReference<>();
 		final AtomicBoolean interruptFlagOnUnwind = new AtomicBoolean();
@@ -282,7 +282,7 @@ class LongRunningSessionRegistryDrainTimeoutTest {
 				return 0;
 			}
 		);
-		final EvitaInternalSessionContract proxy = registry.addSession(false, () -> session);
+		final EvitaInternalSessionContract proxy = registry.addSession(false, resolvedCatalog -> session);
 
 		final Thread caller = new Thread(
 			() -> proxy.getEntityCollectionSize("brand"),

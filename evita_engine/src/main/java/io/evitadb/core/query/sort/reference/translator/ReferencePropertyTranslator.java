@@ -49,6 +49,7 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
+import io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper;
 import io.evitadb.core.query.indexSelection.IndexSelectionVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.NestedContextSorter;
@@ -495,6 +496,13 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 			if (!referenceSchema.isIndexedInScope(scope)) {
 				throw new ReferenceNotIndexedException(referenceName, entitySchema, scope);
 			}
+			// a scope indexed without the entity component holds no reduced entity index, so every owner in it would
+			// sort as if it had no reference at all. Checked here for every ordered scope rather than at the lookup
+			// below, because the index set may come from index selection instead - narrowed by an `inScope(...)` to
+			// other scopes, while the rows of this one are still sorted
+			HavingTranslatorHelper.assertEntityComponentIndexed(
+				entitySchema, referenceSchema, scope, processingScope.getScopes()
+			);
 		}
 		// every scope passed the check above, so ordering by this reference genuinely depends on `indexed()` in all
 		// of them - the widest dependency the surface reports, since dropping it takes the reduced index family too

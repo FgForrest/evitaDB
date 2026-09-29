@@ -1,7 +1,7 @@
 ---
 title: A referenceHaving body is a predicate about one reference row, evaluated by transposing the planned formula per reduced index
 date: 2026-09-17
-updated: 2026-09-17 20:38
+updated: 2026-09-28 17:30
 status: partially-implemented
 kind: fix
 issues: [1585]
@@ -10,7 +10,7 @@ areas: [evita_engine/src/main/java/io/evitadb/core/query/filter/translator/refer
 supersedes: []
 superseded-by: []
 relates: [2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-09-08-conditional-histogram-per-contribution-verdicts, 2026-09-15-non-collapsible-formula-marker,
-  2026-09-18-reference-planning-from-owner-membership]
+  2026-09-18-reference-planning-from-owner-membership, 2026-09-25-attribute-is-null-in-reference-having, 2026-09-28-indexed-reference-scope-requires-entity-component]
 ---
 
 # A `referenceHaving` body binds one reference row, and is evaluated by transposing the planned formula per reduced index
@@ -154,8 +154,9 @@ structure rather than two, because the counter's key set **is** the owner bitmap
 **The transpose.** `ReferenceHavingTranslator` hands the planned body to `ReferenceBodyTransposer#transpose`,
 which rebuilds it once per reduced index. Leaves that are index-specific are wrapped in `IndexTaggedFormula`
 at the moment they are produced — `FilterByVisitor#tagWithProducingIndex`, attached in `applyOnIndexes`,
-`applyStreamOnIndexes` and `applyOnUniqueIndexes`, which are the complete set because the filter-index
-variants delegate to them. `project` keeps each index's own tagged leaf and drops its siblings.
+`applyStreamOnIndexes` and `applyOnFirstUniqueIndex`, which are the complete set of per-entity-index helpers
+because the filter-index variants delegate to the first two. The catalog-level global unique lookups are not
+among them: a global attribute is never resolved inside a reference body. `project` keeps each index's own tagged leaf and drops its siblings.
 
 **Tagging is mandatory, and its absence is silent.** `project` returns any untagged node whole, for every
 index — the deliberate conservatism above. An index-local formula that forgets its tag is therefore not
@@ -248,7 +249,10 @@ meet only under `or` answers the same question before and after the transpose, b
 distributes over disjunction - so it is returned as the visitor built it. That is a single leaf or a flat `or`
 of leaves: the overwhelmingly common reference body, and the only shape `BidirectionalReferenceRewriter`
 accepts. Measured at the same sizes: 0.27 ms, 0.87 ms, 4.45 ms - linear, and 257x faster at 8,000 indexes.
-See `ReferenceBodyTransposer#combinedOnlyByUnion`.
+See `ReferenceBodyTransposer#combinedOnlyByUnion`. **Correction (2026-09-25):** in the engine this held for no
+attribute leaf until `2026-09-25-attribute-is-null-in-reference-having` taught the check to look through
+`AttributeFormula` - before that a plain `referenceHaving(Product.media, attributeIsNotNull(a))` took the
+quadratic rebuild and measured 281 s per query.
 
 What the fast path does **not** remove is the rebuild for a conjunctive or negated body, which still walks the
 family once per index. Removing that needs a **compositional candidate set plus the residue term**, so the
@@ -302,10 +306,12 @@ collection rather than against one owner's rows: `∃r : target(r) ∉ S` is `al
 instead of the per-owner one. The scope question is the awkward part - the bare branch deliberately spans
 every scope a counterpart row can live in, and a complement has to be taken against exactly that set.
 
-**#1584 is not fixed by this work.** `attributeIsNull` on a reference attribute still returns empty. Its
-repair is to treat it as `not(attributeIsNotNull(a))` rather than as a plain leaf: evaluated at type level it
-means "no row in this index carries `a`", which is a strict *subset* of the indexes that can contribute. It
-belongs with the compositional candidate set.
+**#1584 was not fixed by this work; `2026-09-25-attribute-is-null-in-reference-having` fixed it.** At type level
+`attributeIsNull(a)` means "no row in this index carries `a`", a strict *subset* of the indexes that can
+contribute. It now widens during discovery the way `not` does, without waiting for the compositional candidate
+set, and its per-index leaves are tagged. That record also found that the fast path below never applied to an
+attribute leaf, because every attribute translator wraps its contributions in an `AttributeFormula`; it now
+looks through the wrapper.
 
 **Three planning levers, adjacent to this issue rather than part of it.** The measurement found that the
 dominant cost is index *selection*, not execution — every probed query walked the whole family only to reject
@@ -332,8 +338,9 @@ convincingly its counterfactual moves.
 `REFERENCED_GROUP_ENTITY`, and raises `EvitaInvalidUsageException` naming the reference, the queried scopes and
 the schema setting when none does. Measured on a two-product fixture before the guard existed:
 `not(groupHaving(entityPrimaryKeyInSet(g)))` answered `[1, 2]` -- every live product -- where `[2]` is correct.
-The check passes as soon as **one** queried scope carries the component, because a schema may index groups in
-one scope and not another and the scopes that cannot answer contribute nothing to the union; and it stays
+The check passed as soon as **one** queried scope carried the component; `2026-09-28-indexed-reference-scope-requires-entity-component`
+tightened it to **every** queried scope that indexes the reference, because a union silently missing one scope's
+rows looks exactly like a complete answer. It stays
 silent when the reference is indexed in no queried scope, deferring to the `ReferenceNotIndexedException` the
 throwing stub from `ReferencedTypeEntityIndex#createThrowingStub` already raises with a better message.
 
@@ -348,7 +355,9 @@ rows -- true when nothing matches, false when the rows are indexed in a family i
 It lives in index selection rather than in translation, it is not a small fix, and it was left untouched
 rather than papered over by a guard that cannot be reached. Filed as **#1601**, which shares that shortcut
 with **#1583** from the opposite side: there the index is genuinely never built, here it exists and is not
-looked at.
+looked at. **Resolved** by `2026-09-28-indexed-reference-scope-requires-entity-component`: the group family was not
+made to answer - every indexed scope must carry `REFERENCED_ENTITY`, and a stored catalog lacking it refuses every
+query that needs it - and #1583 turned out to be the reflected-reference builder producing the same shape.
 
 **User documentation is not yet updated.** It must state the row-scoped rule and that `⊥` is an ordinary
 value for reference attributes — `not(attributeEquals(a, v))` matching a row that does not carry `a` is

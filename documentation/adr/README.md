@@ -33,6 +33,8 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-09-28 | [Every scope a reference is indexed in must carry REFERENCED_ENTITY; a stored catalog lacking it loads, and every query and schema change over it refuses loudly](2026-09-28-indexed-reference-scope-requires-entity-component.md) | fix | accepted | #1601, #1583, PR #1657 |
+| 2026-09-25 | [attributeIsNull inside referenceHaving widens candidate discovery and is answered one reference row at a time](2026-09-25-attribute-is-null-in-reference-having.md) | fix | accepted | #1584, PR #1664 |
 | 2026-09-23 | [Mark members that are public only for cross-module reach with @Internal, and enforce it from bytecode](2026-09-23-internal-member-annotation.md) | infrastructure | accepted | #1640 |
 | 2026-09-23 | [Bound the reference decode by the referenced keys a requirement names, and let named reference content own the names only it asked for](2026-09-23-reference-decode-narrowing-by-referenced-key.md) | optimization | accepted | #1637, #1640, PR #1638, PR #1639 |
 | 2026-09-23 | [A pick-first reference ordering sorts on the first row of every selected owner, resolved from the selection rather than from the filter](2026-09-23-pick-first-reference-ordering-from-selection.md) | fix | accepted | #1614, PR #1643 |
