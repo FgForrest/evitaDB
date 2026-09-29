@@ -56,7 +56,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * invalid-usage answer.
  *
  * The interleaving is reached deterministically through the seam
- * {@link SessionRegistry#addSession(boolean, java.util.function.Supplier)} already offers - the caller supplies the
+ * {@link SessionRegistry#addSession(boolean, java.util.function.Function)} already offers - the caller supplies the
  * session, so the supplier is a point inside the registration that a test can stop time at.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -99,7 +99,7 @@ class SessionRegistrySuspensionTest {
 				try {
 					registry.addSession(
 						true,
-						() -> {
+						resolvedCatalog -> {
 							registrationEntered.countDown();
 							try {
 								assertTrue(
@@ -164,7 +164,7 @@ class SessionRegistrySuspensionTest {
 
 		assertThrows(
 			InstanceTerminatedException.class,
-			() -> registry.addSession(true, () -> Mockito.mock(EvitaSession.class))
+			() -> registry.addSession(true, resolvedCatalog -> Mockito.mock(EvitaSession.class))
 		);
 		assertEquals(
 			0, registry.countActiveSessions().activeSessions(),
@@ -182,7 +182,7 @@ class SessionRegistrySuspensionTest {
 		// is busy rather than that the catalog is gone, because it is not
 		assertThrows(
 			SessionBusyException.class,
-			() -> registry.addSession(true, () -> Mockito.mock(EvitaSession.class))
+			() -> registry.addSession(true, resolvedCatalog -> Mockito.mock(EvitaSession.class))
 		);
 		assertEquals(
 			0, registry.countActiveSessions().activeSessions(),

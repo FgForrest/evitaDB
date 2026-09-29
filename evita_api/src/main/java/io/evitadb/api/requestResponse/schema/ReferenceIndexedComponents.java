@@ -28,11 +28,17 @@ import io.evitadb.api.query.filter.GroupHaving;
 
 /**
  * Enum specifying which components of a reference should be indexed for querying purposes.
- * A reference can index its referenced entity, its referenced group entity, or both independently.
+ * A reference indexes its referenced entity, and optionally its referenced group entity as well.
  *
- * This allows fine-grained control over what gets indexed per scope. For example, a reference
- * might only need to index the referenced entity for {@link EntityHaving} filtering but not the
- * group entity for {@link GroupHaving} filtering, or vice versa.
+ * This allows control over what gets indexed per scope. For example, a reference might only need
+ * to index the referenced entity for {@link EntityHaving} filtering but not the group entity for
+ * {@link GroupHaving} filtering. The opposite is not possible: every scope in which a reference is
+ * indexed must contain {@link #REFERENCED_ENTITY}, because the reduced entity indexes it builds are
+ * what every query over the reference reads - `referenceHaving` (including one nesting only
+ * `groupHaving`), `hierarchyWithin`, `hierarchyOfReference`, `referenceContent` with a filter and
+ * `referenceProperty` ordering. A scope indexed for {@link #REFERENCED_GROUP_ENTITY} alone, or with
+ * no component at all, is refused when the session defining it closes; a catalog stored with such a
+ * scope before the rule existed still loads, but queries over the reference in that scope are refused.
  *
  * **Default behavior:** when no explicit indexed components are configured,
  * the reference defaults to indexing `{REFERENCED_ENTITY}` only — preserving the current implicit behavior.
@@ -49,8 +55,9 @@ public enum ReferenceIndexedComponents {
 	REFERENCED_ENTITY,
 	/**
 	 * The reference has index for the referenced group entity allowing it to be queried by {@link GroupHaving} constraint.
-	 * This means that the reference can be used in query filtering and sorting by the existence of the reference and
-	 * by the attributes of the referenced group entity.
+	 * This means that the reference can be used in query filtering by the attributes of the referenced group entity.
+	 * It is an addition to {@link #REFERENCED_ENTITY}, never a replacement - it must be declared together with it in
+	 * every scope.
 	 */
 	REFERENCED_GROUP_ENTITY;
 

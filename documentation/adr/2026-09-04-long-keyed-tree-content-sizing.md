@@ -1,7 +1,7 @@
 ---
 title: Rank the index-footprint work on a production catalog, and take 4.2 GB out of its resident heap
 date: 2026-09-04
-updated: 2026-09-05 05:44
+updated: 2026-09-28 17:25
 status: accepted
 kind: optimization
 issues: [1486, 1455]
@@ -495,6 +495,16 @@ for its heap size from a request thread while a warm-up bulk load may be mutatin
 tree the exposed reader is different and worse — a query thread resolving prices, since the
 transactional layer is resolved through a `ThreadLocal` that a query thread does not share with a
 warm-up writer.
+
+> **Correction (2026-09-28).** No such query-thread reader was found. A warm-up catalog admits exactly one
+> session, a read-write session refuses a second thread, and every query context is built from a session, so
+> no query runs concurrently with a warm-up writer. In ALIVE a committed node is never mutated in place. The
+> only production reader of these trees that shares no happens-before edge with the in-place writer is the
+> heap walk behind `describeIndex`. The leaf bounds below stay: they cost one `Math.min` and are identities on
+> a consistent observer. But the iterator constructors and point lookups they cover are reached from
+> production paths only on the writer's own thread. The same reasoning, and the internal-node `null`-slot
+> guard the heap walk then needed in this tree and its siblings, is recorded in
+> `2026-09-03-content-sized-value-tree-columns` (the 2026-09-28 sibling-tree bullets).
 
 **The sweep missed one, and the adversarial gate found it.** Both keyed iterator constructors of the long
 tree searched `getKeys()` over a range taken from a separately resolved `size()`. Once leaf arrays are

@@ -3768,6 +3768,29 @@ public class UnorderedLookupTree implements
 			this.transactionalLayer = transactionalLayer;
 		}
 
+		/**
+		 * Returns the heap this node and everything below it occupies, in bytes - see {@link Node#getHeapSizeInBytes()}.
+		 *
+		 * **A child slot below `childCount` can read `null`, and the walk steps over it.** This walk is reached from
+		 * `EntityCollection#describeIndex`, which takes no snapshot and holds no transaction, on a management thread
+		 * that shares no happens-before edge with a warm-up writer mutating a sort or chain index's position tree in
+		 * place. That writer grows the node by shifting its children and storing the new one before raising
+		 * `childCount`, and shrinks it by nulling the vacated slot next to lowering the count, all as plain stores. A
+		 * reader can therefore hold a `childCount` whose last slot reads `null`: it loaded the count before a
+		 * concurrent removal nulled the slot, which is a plain interleaving, or it sees the raised count before the
+		 * child store behind it, which needs the stores to become visible out of program order. The bucket tree's
+		 * weekly sweep met the latter on the macOS/AArch64 leg only. This reader cannot charge such a slot, and a
+		 * monitoring call must not fail on it, so the figure is advisory while a writer is at work: after a removal the
+		 * slot really is empty, but on a grow the child exists and only this reader cannot see it yet, so its subtree is
+		 * missing from the figure. The count is read once for the whole walk, and the array itself is allocated once at
+		 * `DEFAULT_BLOCK_SIZE + 1` and never resized, so a raised count cannot run off it - only the slot contents can
+		 * lag.
+		 *
+		 * On a consistent observer every slot below `childCount` is populated, so the check never skips anything and
+		 * the figure is unchanged. `UnorderedLookupTreeTest.UnpublishedChildSlot` pins both halves.
+		 *
+		 * @return the owned heap footprint of this subtree in bytes, including alignment padding
+		 */
 		@Override
 		public long getHeapSizeInBytes() {
 			final VMLayout layout = VMLayout.current();
@@ -3785,8 +3808,14 @@ public class UnorderedLookupTree implements
 			// THIS instance's own count, deliberately not `getChildCount()`: that accessor resolves the calling
 			// thread's transactional layer, which is a separate node object owning a separate `children` array, and
 			// bounding the array measured above by its count would walk slots this one never filled
-			for (int i = 0; i < this.childCount; i++) {
-				size += this.children[i].getHeapSizeInBytes();
+			// read ONCE, like the sibling trees' `peek` - a count re-read per step could still meet the nulled slot
+			final int observedChildCount = this.childCount;
+			for (int i = 0; i < observedChildCount; i++) {
+				final Node<?> child = this.children[i];
+				// a slot the count admits but whose child this reader cannot see - see the javadoc
+				if (child != null) {
+					size += child.getHeapSizeInBytes();
+				}
 			}
 			return size;
 		}

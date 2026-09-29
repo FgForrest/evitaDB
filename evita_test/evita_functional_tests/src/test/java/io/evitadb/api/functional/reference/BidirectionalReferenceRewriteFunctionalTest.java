@@ -40,7 +40,6 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.utils.AssertionUtils;
 import io.evitadb.utils.PlanPreference;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -131,25 +130,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * ## Why the expectations are derived from entity bodies, and never from the other path
  *
- * A measured census of the built catalog established a pre-existing evitaDB behaviour that neither optimisation
- * touches: **a reflected reference on an *archived* entity gets no `REFERENCED_ENTITY_TYPE` index at all**, although
- * its schema declares it indexed in that scope and the entity body still carries the rows. Original references on the
- * very same archived entity do get one. A reflected row on a *live* entity pointing at an *archived* target is
- * indexed normally - `CATEGORY.products [LIVE]` is keyed by all 240 products, the archived ten included.
+ * The two evaluation paths read different index families - the owner's own reduced indexes, or the counterpart's -
+ * and a defect in either family makes them disagree on exactly the rows it hides. This fixture used to demonstrate
+ * that in both directions: reflected references declared indexed in `ARCHIVED` were handed explicit components naming
+ * `LIVE` alone, so their archived half was never built, and under `scope(LIVE)` the rewrite dropped category 11 while
+ * under `scope(LIVE, ARCHIVED)` the owner-side path dropped category 12. Schema changes now complete such a scope with
+ * the default component and both halves exist, but the lesson stands: a paired comparison between the paths can only
+ * ever tell that they disagree, never which one is right.
  *
- * That asymmetry makes the two evaluation paths disagree on archived data, in **both** directions:
- *
- * - under `scope(LIVE)`, the rewrite collects candidates from the counterpart's live type index, which never
- *   announces an owner whose only rows come from archived counterparts - so it silently drops category 11, while the
- *   ordinary path returns it correctly from the buckets keyed by the archived products;
- * - under `scope(LIVE, ARCHIVED)`, the ordinary path reads the owner's own reflected family, whose archived half does
- *   not exist - so it misses category 12, while the rewrite returns it correctly.
- *
- * So neither path may be used as the oracle for the other, and a paired comparison between them would fail for
- * reasons that have nothing to do with the rewrite. Every expectation here is therefore computed from the **entity
- * bodies** through {@link #ownerWithRow} - the one description of the relation both paths are supposed to answer
- * about. Rows whose answer straddles the first divergence are marked EXPECTED-FAIL in their own JavaDoc and assert
- * the correct set rather than the one today's rewrite produces; do not "fix" them by relaxing the expectation.
+ * Every expectation here is therefore computed from the **entity bodies** through {@link #ownerWithRow} - the one
+ * description of the relation both paths are supposed to answer about. Do not "simplify" a row into comparing the
+ * rewritten answer with the declined one.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -316,6 +307,19 @@ public class BidirectionalReferenceRewriteFunctionalTest
 		);
 	}
 
+	/**
+	 * The original end of the pair, which `findCounterpart` resolves by scanning the other side for a reflection
+	 * pointing back - `PRODUCT.curatedBy`.
+	 *
+	 * **Both scopes are queried on purpose.** `PRODUCT.curatedBy` is indexed in `ARCHIVED` as well, and the archived
+	 * products 231-240 hold `curatedBy` rows there, so a query asking for `LIVE` alone widens the counterpart scan into
+	 * `ARCHIVED`, finds owners announced there and - carrying a reference-attribute constraint - declines by the
+	 * cross-scope narrowing described on
+	 * {@link #shouldRewriteWhenOwnerReferenceIsTheReflectedEndWithoutIndexScanPreference}. Asking for both scopes
+	 * leaves nothing to widen into, which is the shape this row needs in order to exercise the rewrite at all. (This
+	 * row used to rewrite a `LIVE`-only query only because the archived half of the reflected `curatedBy` family was
+	 * never built, so the widened scan found nothing.)
+	 */
 	@DisplayName("Should rewrite when the queried reference is the original end of the pair")
 	@UseDataSet(BIDI_REWRITE)
 	@Test
@@ -330,6 +334,7 @@ public class BidirectionalReferenceRewriteFunctionalTest
 					query(
 						collection(Entities.CATEGORY),
 						filterBy(
+							scope(Scope.LIVE, Scope.ARCHIVED),
 							referenceHaving(REF_CATEGORY_CURATED, attributeEquals(REF_ATTR_RANK, MATCHED_RANK))
 						),
 						indexScanRequirements()
@@ -338,11 +343,12 @@ public class BidirectionalReferenceRewriteFunctionalTest
 				);
 
 				// `CATEGORY.curated` is the original end, so `findCounterpart` has to scan `PRODUCT`'s references for
-				// a reflection pointing back at it - `PRODUCT.curatedBy`. Every curated product of a live category is
-				// itself live, so the owner's own rows are a faithful oracle here.
+				// a reflection pointing back at it - `PRODUCT.curatedBy`.
 				AssertionUtils.assertResultIs(
 					originalCategories,
-					liveOwnerWithRow(REF_CATEGORY_CURATED, row -> longAttributeIs(row, REF_ATTR_RANK, MATCHED_RANK)),
+					ownerWithRow(
+						BOTH_SCOPES, REF_CATEGORY_CURATED, row -> longAttributeIs(row, REF_ATTR_RANK, MATCHED_RANK)
+					),
 					response.getRecordData()
 				);
 				assertReferenceIndexOptionRegistered(response, false);
@@ -352,7 +358,7 @@ public class BidirectionalReferenceRewriteFunctionalTest
 
 	/**
 	 * The prefetch-plan twin of {@link #shouldRewriteWhenOwnerReferenceIsTheOriginalEnd} - see that method's twin
-	 * for why the pair exists.
+	 * for why the pair exists, and that method for why both scopes are queried.
 	 */
 	@DisplayName("Should rewrite the original end and agree with itself on the prefetch plan")
 	@UseDataSet(BIDI_REWRITE)
@@ -370,6 +376,7 @@ public class BidirectionalReferenceRewriteFunctionalTest
 						filterBy(
 							PlanPreference.PREFETCH.filter(
 								primaryKeysOf(originalCategories),
+								scope(Scope.LIVE, Scope.ARCHIVED),
 								referenceHaving(REF_CATEGORY_CURATED, attributeEquals(REF_ATTR_RANK, MATCHED_RANK))
 							)
 						),
@@ -381,7 +388,9 @@ public class BidirectionalReferenceRewriteFunctionalTest
 
 				AssertionUtils.assertResultIs(
 					originalCategories,
-					liveOwnerWithRow(REF_CATEGORY_CURATED, row -> longAttributeIs(row, REF_ATTR_RANK, MATCHED_RANK)),
+					ownerWithRow(
+						BOTH_SCOPES, REF_CATEGORY_CURATED, row -> longAttributeIs(row, REF_ATTR_RANK, MATCHED_RANK)
+					),
 					response.getRecordData()
 				);
 				assertReferenceIndexOptionRegistered(response, false);
@@ -860,38 +869,23 @@ public class BidirectionalReferenceRewriteFunctionalTest
 	 * rows come only from archived products and category 12 is archived itself, so both appear in the answer only
 	 * when both scopes are genuinely unioned on both sides of the pair.
 	 *
-	 * **This is the row where the rewrite is right and the ordinary path is wrong**, and it is the clearest evidence
-	 * we have that the two are not interchangeable on archived data. The gate fires: the counterpart
-	 * `PRODUCT.categories` exists in both scopes, candidates union to `{1..12}`, owner buckets are 240, and
-	 * `12 * 4 <= 240`. The rewrite then answers `{1, 6, 11, 12}` - the set the entity bodies describe. The ordinary
-	 * path would answer `{1, 6, 11}`, because it reads the owner's own `CATEGORY.products` family and the archived
-	 * half of that family does not exist, so category 12's rows are invisible to it.
+	 * The gate fires: both ends are indexed with `REFERENCED_ENTITY` in both requested scopes, so
+	 * `referenceUsableInScopes` accepts them; the requested scopes already cover every scope the pair is indexed in,
+	 * so nothing is widened and the cross-scope narrowing has nothing to decline on; the counterpart
+	 * `PRODUCT.categories` announces candidates in both scopes, and the cost gate holds. The rewrite answers
+	 * `{1, 6, 11, 12}` - the set the entity bodies describe.
 	 *
-	 * The consequence for anyone maintaining this row: **never pair it against the declined variant.** A paired
-	 * oracle is the natural instinct here and it would fail - not because the rewrite is wrong, but because the path
-	 * it would be compared against is. The expectation is derived from `originalCategories` and `originalProducts`
-	 * and must stay that way. (Read the other way round, this also means the rewrite *hides* the pre-existing
-	 * indexing defect on this query by removing the alternative plan that `VERIFY_ALTERNATIVE_INDEX_RESULTS` would
-	 * have compared against - while on the live-scope query it *exposes* one. Same defect, opposite sign.)
+	 * **Why this row declined before, and why it red-failed.** The reflected `CATEGORY.products` was declared indexed
+	 * in both scopes, but the schema builder handed it explicit components naming `LIVE` alone, which left `ARCHIVED`
+	 * indexed with no component at all. That scope built no index, so `referenceUsableInScopes` rejected the owner
+	 * reference, the rewrite declined, and the owner-side path answered `{1, 6, 11}` - category 12's rows were
+	 * indexed nowhere. (The earlier explanation blamed the cross-scope narrowing; it cannot fire here, because a
+	 * query asking for both scopes widens into none.) Schema changes now complete such a scope with the default
+	 * component, the archived half of the family exists, and both paths agree - the owner side included.
 	 *
-	 * **EXPECTED-FAIL, and now attributable.** The answer is `{1, 6, 11}` - category 12 absent, which is the
-	 * *ordinary* answer rather than the rewrite's. The two mechanisms that could produce it are no longer
-	 * indistinguishable: this row carries a reference-attribute constraint and spans both scopes, which is exactly
-	 * the shape the cross-scope narrowing declines, so the rewrite does not fire and the owner-side path answers.
-	 * That path reads the owner's own `CATEGORY.products` family, whose archived half does not exist, so category
-	 * 12's rows are invisible to it and it under-reports by precisely that one category.
-	 *
-	 * So the red belongs to the **pre-existing missing archived reflected index**, not to the rewrite - the same
-	 * defect the class JavaDoc describes, reached from the other side. It is also the sharpest statement of why the
-	 * two paths are not interchangeable: on this query the rewrite would have been right and the path that replaced
-	 * it is wrong. Assert the derived expectation and never a paired comparison; pairing would compare a correct
-	 * answer against an incorrect one and call the correct one broken.
+	 * The expectation stays derived from the entity bodies rather than from the other path, as everywhere in this
+	 * class.
 	 */
-	@Disabled(
-		"Pins the correct behaviour of a pre-existing engine defect: a reflected reference on an archived owner gets no " +
-		"ARCHIVED type index at all, so the cross-scope half of this rewrite has nothing to read. Re-enable when issue " +
-		"#1583 is fixed."
-	)
 	@DisplayName("Should rewrite across both scopes when both ends are indexed there")
 	@UseDataSet(BIDI_REWRITE)
 	@Test
@@ -924,7 +918,7 @@ public class BidirectionalReferenceRewriteFunctionalTest
 					),
 					response.getRecordData()
 				);
-				assertReferenceIndexOptionRegistered(response, true);
+				assertReferenceIndexOptionRegistered(response, false);
 			}
 		);
 	}
@@ -1527,8 +1521,10 @@ public class BidirectionalReferenceRewriteFunctionalTest
 	 * The filter names `curated` and the order names `products`, rather than the other way round, for two reasons
 	 * the baseline run established. `rank` is declared filterable but **not** sortable, so ordering by it raises
 	 * `AttributeNotSortableException` before any of this is reached; `relevance` is the fixture's only sortable
-	 * reference attribute. And filtering on `curated` keeps the row clear of the archived-scope divergence the
-	 * class JavaDoc describes, so it pins the name check and nothing else.
+	 * reference attribute. Both scopes are queried for the reason given on
+	 * {@link #shouldRewriteWhenOwnerReferenceIsTheOriginalEnd}: with `LIVE` alone the counterpart scan would widen into
+	 * `ARCHIVED` and the rewrite would decline for a reason that has nothing to do with the order, so the row would no
+	 * longer pin the name check at all.
 	 *
 	 * **No ordering assertion, deliberately.** Category 11's `products` rows point at the archived products
 	 * 231-240, whose `relevance` values run 0..4, so "category 11's relevance" is not a single number and any
@@ -1551,6 +1547,7 @@ public class BidirectionalReferenceRewriteFunctionalTest
 					query(
 						collection(Entities.CATEGORY),
 						filterBy(
+							scope(Scope.LIVE, Scope.ARCHIVED),
 							referenceHaving(REF_CATEGORY_CURATED, attributeEquals(REF_ATTR_RANK, MATCHED_RANK))
 						),
 						orderBy(
@@ -1566,7 +1563,9 @@ public class BidirectionalReferenceRewriteFunctionalTest
 
 				AssertionUtils.assertResultIs(
 					originalCategories,
-					liveOwnerWithRow(REF_CATEGORY_CURATED, row -> longAttributeIs(row, REF_ATTR_RANK, MATCHED_RANK)),
+					ownerWithRow(
+						BOTH_SCOPES, REF_CATEGORY_CURATED, row -> longAttributeIs(row, REF_ATTR_RANK, MATCHED_RANK)
+					),
 					response.getRecordData()
 				);
 				assertReferenceIndexOptionRegistered(response, false);

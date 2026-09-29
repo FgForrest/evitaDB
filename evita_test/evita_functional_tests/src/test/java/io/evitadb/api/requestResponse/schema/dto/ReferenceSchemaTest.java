@@ -1870,4 +1870,133 @@ class ReferenceSchemaTest {
 			);
 		}
 	}
+
+	@Nested
+	@DisplayName("Default components in uncovered scopes")
+	class DefaultComponentsInUncoveredScopes {
+
+		@Test
+		@DisplayName("should allow defaulting a scope the previous schema is not indexed in")
+		void shouldAllowDefaultingAScopeThePreviousSchemaIsNotIndexedIn() {
+			final ReferenceSchema previous = brandIndexedIn(
+				Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING),
+				Map.of(Scope.LIVE, Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY))
+			);
+
+			assertTrue(ReferenceSchema.mayDefaultComponentsInScope(previous, Scope.ARCHIVED));
+		}
+
+		@Test
+		@DisplayName("should allow defaulting an indexed scope the previous schema stored with components")
+		void shouldAllowDefaultingAnIndexedScopeStoredWithComponents() {
+			final ReferenceSchema previous = brandIndexedIn(
+				Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING),
+				Map.of(Scope.LIVE, Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY))
+			);
+
+			assertTrue(ReferenceSchema.mayDefaultComponentsInScope(previous, Scope.LIVE));
+		}
+
+		/**
+		 * A scope stored indexed with no component never indexed anything; completing it as a side effect would make
+		 * it claim indexes that were never built.
+		 */
+		@Test
+		@DisplayName("should refuse defaulting an indexed scope the previous schema stored with no component")
+		void shouldRefuseDefaultingAnIndexedScopeStoredWithNoComponent() {
+			final ReferenceSchema previous = brandIndexedIn(
+				Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING),
+				Map.of(Scope.LIVE, Set.of())
+			);
+
+			assertFalse(ReferenceSchema.mayDefaultComponentsInScope(previous, Scope.LIVE));
+		}
+
+		/**
+		 * The previous schema decides scope by scope: the scope it stored with components is completed, the one it
+		 * stored with none is left alone.
+		 */
+		@Test
+		@DisplayName("should leave an uncovered indexed scope the previous schema stored with no component without components")
+		void shouldLeaveAnUncoveredScopeThePreviousSchemaStoredWithNoComponentWithoutComponents() {
+			final Map<Scope, ReferenceIndexType> indexedScopes = new EnumMap<>(Scope.class);
+			indexedScopes.put(Scope.LIVE, ReferenceIndexType.FOR_FILTERING);
+			indexedScopes.put(Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING);
+			final Map<Scope, Set<ReferenceIndexedComponents>> storedComponents = new EnumMap<>(Scope.class);
+			storedComponents.put(Scope.LIVE, Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY));
+			storedComponents.put(Scope.ARCHIVED, Set.of());
+			final ReferenceSchema previous = brandIndexedIn(indexedScopes, storedComponents);
+
+			final Map<Scope, Set<ReferenceIndexedComponents>> result = ReferenceSchema.withDefaultsForUncoveredScopes(
+				new EnumMap<>(Scope.class), indexedScopes, previous
+			);
+
+			assertEquals(Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY), result.get(Scope.LIVE));
+			assertFalse(result.containsKey(Scope.ARCHIVED), "A rejected scope must stay uncovered, was: " + result);
+		}
+
+		@Test
+		@DisplayName("should never fill a scope that is not indexed even for a newly created reference")
+		void shouldNeverFillANonIndexedScope() {
+			final Map<Scope, ReferenceIndexType> indexedScopes = new EnumMap<>(Scope.class);
+			indexedScopes.put(Scope.LIVE, ReferenceIndexType.FOR_FILTERING);
+			indexedScopes.put(Scope.ARCHIVED, ReferenceIndexType.NONE);
+
+			final Map<Scope, Set<ReferenceIndexedComponents>> result = ReferenceSchema.withDefaultsForUncoveredScopes(
+				new EnumMap<>(Scope.class), indexedScopes, null
+			);
+
+			assertEquals(Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY), result.get(Scope.LIVE));
+			assertFalse(result.containsKey(Scope.ARCHIVED), "A NONE-indexed scope must stay uncovered, was: " + result);
+		}
+
+		@Test
+		@DisplayName("should return the input map when every indexed scope is already covered")
+		void shouldReturnTheInputMapWhenEveryIndexedScopeIsCovered() {
+			final Map<Scope, ReferenceIndexType> indexedScopes = new EnumMap<>(Scope.class);
+			indexedScopes.put(Scope.LIVE, ReferenceIndexType.FOR_FILTERING);
+			final Map<Scope, Set<ReferenceIndexedComponents>> components = new EnumMap<>(Scope.class);
+			components.put(Scope.LIVE, Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY));
+
+			assertSame(
+				components,
+				ReferenceSchema.withDefaultsForUncoveredScopes(components, indexedScopes, null)
+			);
+		}
+
+		/**
+		 * Builds a `brand` reference exactly as the Kryo reader does - the components are taken verbatim, nothing is
+		 * defaulted.
+		 *
+		 * @param indexedInScopes           the index type per scope
+		 * @param indexedComponentsInScopes the components per scope
+		 * @return the reference schema
+		 */
+		@Nonnull
+		private static ReferenceSchema brandIndexedIn(
+			@Nonnull Map<Scope, ReferenceIndexType> indexedInScopes,
+			@Nonnull Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes
+		) {
+			return ReferenceSchema._internalBuild(
+				"brand",
+				NamingConvention.generate("brand"),
+				null, null, Cardinality.ZERO_OR_ONE,
+				"Brand",
+				Collections.emptyMap(),
+				true,
+				"BrandGroup",
+				Collections.emptyMap(),
+				true,
+				indexedInScopes,
+				indexedComponentsInScopes,
+				Collections.emptySet(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				ConflictResolutionOverride.INHERITED
+			);
+		}
+	}
 }

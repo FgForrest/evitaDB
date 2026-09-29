@@ -155,11 +155,16 @@ public class ChainIndexChanges
 		final VMLayout layout = VMLayout.current();
 		// warmUpTouchStamp + the chainIndex back-reference plus the two cache slots
 		long size = layout.sizeOfObject(Long.BYTES + 3L * layout.referenceSize());
-		if (this.unorderedLookup != null) {
-			size += this.unorderedLookup.getHeapSizeInBytes();
+		// each cache read ONCE: outside a transaction this is the index's own long-lived layer, which every warm-up
+		// chain write `reset()`s in place, while this walk runs on a management thread with no happens-before edge
+		// to that writer - a second read could find `null` where the check found a cache
+		final UnorderedLookup theUnorderedLookup = this.unorderedLookup;
+		if (theUnorderedLookup != null) {
+			size += theUnorderedLookup.getHeapSizeInBytes();
 		}
-		if (this.recordIds != null) {
-			size += this.recordIds.getHeapSizeInBytes();
+		final Bitmap theRecordIds = this.recordIds;
+		if (theRecordIds != null) {
+			size += theRecordIds.getHeapSizeInBytes();
 		}
 		return size;
 	}

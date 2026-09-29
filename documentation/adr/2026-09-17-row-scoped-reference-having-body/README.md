@@ -1,7 +1,7 @@
 ---
 title: A referenceHaving body is a predicate about one reference row, evaluated by transposing the planned formula per reduced index
 date: 2026-09-17
-updated: 2026-09-28 16:08
+updated: 2026-09-28 17:30
 status: partially-implemented
 kind: fix
 issues: [1585]
@@ -10,7 +10,7 @@ areas: [evita_engine/src/main/java/io/evitadb/core/query/filter/translator/refer
 supersedes: []
 superseded-by: []
 relates: [2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-09-08-conditional-histogram-per-contribution-verdicts, 2026-09-15-non-collapsible-formula-marker,
-  2026-09-18-reference-planning-from-owner-membership, 2026-09-25-attribute-is-null-in-reference-having]
+  2026-09-18-reference-planning-from-owner-membership, 2026-09-25-attribute-is-null-in-reference-having, 2026-09-28-indexed-reference-scope-requires-entity-component]
 ---
 
 # A `referenceHaving` body binds one reference row, and is evaluated by transposing the planned formula per reduced index
@@ -338,8 +338,9 @@ convincingly its counterfactual moves.
 `REFERENCED_GROUP_ENTITY`, and raises `EvitaInvalidUsageException` naming the reference, the queried scopes and
 the schema setting when none does. Measured on a two-product fixture before the guard existed:
 `not(groupHaving(entityPrimaryKeyInSet(g)))` answered `[1, 2]` -- every live product -- where `[2]` is correct.
-The check passes as soon as **one** queried scope carries the component, because a schema may index groups in
-one scope and not another and the scopes that cannot answer contribute nothing to the union; and it stays
+The check passed as soon as **one** queried scope carried the component; `2026-09-28-indexed-reference-scope-requires-entity-component`
+tightened it to **every** queried scope that indexes the reference, because a union silently missing one scope's
+rows looks exactly like a complete answer. It stays
 silent when the reference is indexed in no queried scope, deferring to the `ReferenceNotIndexedException` the
 throwing stub from `ReferencedTypeEntityIndex#createThrowingStub` already raises with a better message.
 
@@ -354,7 +355,9 @@ rows -- true when nothing matches, false when the rows are indexed in a family i
 It lives in index selection rather than in translation, it is not a small fix, and it was left untouched
 rather than papered over by a guard that cannot be reached. Filed as **#1601**, which shares that shortcut
 with **#1583** from the opposite side: there the index is genuinely never built, here it exists and is not
-looked at.
+looked at. **Resolved** by `2026-09-28-indexed-reference-scope-requires-entity-component`: the group family was not
+made to answer - every indexed scope must carry `REFERENCED_ENTITY`, and a stored catalog lacking it refuses every
+query that needs it - and #1583 turned out to be the reflected-reference builder producing the same shape.
 
 **User documentation is not yet updated.** It must state the row-scoped rule and that `⊥` is an ordinary
 value for reference attributes — `not(attributeEquals(a, v))` matching a row that does not carry `a` is

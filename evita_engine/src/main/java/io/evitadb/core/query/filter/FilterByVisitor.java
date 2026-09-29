@@ -1152,10 +1152,22 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	) {
 		final String referenceName = referenceSchema.getName();
 		final Set<Scope> scopesToLookUp = this.getProcessingScope().getScopes();
+		final Set<Scope> queriedScopes = this.queryContext.getScopes();
 		final Formula resultFormula = FormulaFactory.or(
 			scopesToLookUp
 				.stream()
 				.map(scope -> {
+					// a scope indexed without the entity component has no type index, and the branch below would answer
+					// it with an empty formula - indistinguishable from a scope that simply holds no rows. Only a scope
+					// the query returns rows from is refused: `referenceContent` also looks up the scopes its inner
+					// `scope(...)` names for the *referenced* entities (`ReferencedEntityFetcher#gatherSearchedScopes`),
+					// and the owners fetched there live in the queried scopes only, so an empty answer from any other
+					// scope loses none of them
+					if (indexType == EntityIndexType.REFERENCED_ENTITY_TYPE && queriedScopes.contains(scope)) {
+						HavingTranslatorHelper.assertEntityComponentIndexed(
+							entitySchema, referenceSchema, scope, queriedScopes
+						);
+					}
 					final EntityIndexKey entityIndexKey = new EntityIndexKey(indexType, scope, referenceName);
 					final Optional<ReferencedTypeEntityIndex> entityIndex = getEntityIndex(
 						entitySchema.getName(),

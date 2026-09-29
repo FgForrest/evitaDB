@@ -97,6 +97,32 @@ public abstract class AbstractTransactionalBPlusTree implements Serializable {
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 
 	/**
+	 * Derives the internal node block size from a single block size, for the convenience constructors that take one
+	 * size for both leaf and internal nodes. Internal node block sizes must be odd, so an even `valueBlockSize` is
+	 * rounded down to the nearest odd number; an odd one is returned unchanged. The result never exceeds
+	 * `valueBlockSize`, which the constructor premises also require.
+	 *
+	 * @param valueBlockSize maximum number of values in a leaf node
+	 * @return the largest odd number not greater than `valueBlockSize`
+	 */
+	static int deriveInternalNodeBlockSize(int valueBlockSize) {
+		return (valueBlockSize - 1) | 1;
+	}
+
+	/**
+	 * Derives the minimum block size for a node of `blockSize` capacity, for the convenience constructors that take a
+	 * single block size. The result is the largest minimum the constructor premises accept, i.e.
+	 * `ceil(blockSize / 2) - 1`, so that a node merged from two underfull siblings is never immediately full. For an
+	 * odd `blockSize` this equals `blockSize / 2`.
+	 *
+	 * @param blockSize maximum number of entries in the node
+	 * @return the minimum number of entries in the node
+	 */
+	static int deriveMinBlockSize(int blockSize) {
+		return (blockSize - 1) / 2;
+	}
+
+	/**
 	 * Updates the keys in the parent nodes of a B+ Tree based on changes in a specific path.
 	 * This method propagates changes up the tree as necessary.
 	 *

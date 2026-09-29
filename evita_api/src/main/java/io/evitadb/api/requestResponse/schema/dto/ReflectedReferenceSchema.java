@@ -557,7 +557,10 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 * that accept raw arrays. When indexed scopes are inherited
 	 * (null), components inherit too unless explicitly provided.
 	 * When indexed scopes are explicit, defaults apply when
-	 * components are not specified.
+	 * components are not specified. Explicit components are taken
+	 * verbatim - a scope they leave uncovered is completed once
+	 * the reference is bound, see
+	 * {@link #withReferencedSchemaAfterSchemaChange}.
 	 *
 	 * @param indexedComponentsInScopes explicit components array,
 	 *        or null
@@ -1041,6 +1044,12 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 						);
 					}
 				}
+				// evaluated only here, with the reflected reference bound: inherited scopes and components resolve
+				// through it, and they are what the indexer reads - whether declared on this side or inherited
+				referenceErrors = Stream.concat(
+					referenceErrors,
+					ReferenceSchema.validateEntityComponentIndexed(this, entitySchema.getName())
+				);
 				if (this.reflectedReference.getCardinality().allowsDuplicates()) {
 					if (!this.getCardinality().allowsDuplicates()) {
 						referenceErrors = Stream.concat(
@@ -1537,11 +1546,18 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 * It means that the indexed property is inherited from the reflected reference. Empty array means that the reflected
 	 * reference is not indexed.
 	 *
+	 * When the scopes become inherited and the reflected reference is already bound, they are resolved from it right
+	 * away, exactly as {@link #withReferencedSchema(ReferenceSchemaContract)} would. Left unresolved, the copy would
+	 * report no indexed scope at all, and whatever judges the scopes it is indexed in against the scopes it was
+	 * indexed in before - {@link #withDefaultComponentsInUncoveredScopes} and
+	 * {@link #withReferencedSchemaAfterSchemaChange} - would miss every scope it keeps.
+	 *
 	 * @param indexedInScopes new value of indexed property
 	 * @return copy of the schema with applied changes
 	 */
 	@Nonnull
 	public ReflectedReferenceSchemaContract withIndexed(@Nullable ScopedReferenceIndexType[] indexedInScopes) {
+		final ReferenceSchemaContract theReflectedReference = this.reflectedReference;
 		return new ReflectedReferenceSchema(
 			this.name,
 			this.nameVariants,
@@ -1555,7 +1571,20 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.referencedGroupTypeManaged,
 			this.reflectedReferenceName,
 			indexedInScopes == null ?
-				null :
+				(
+					theReflectedReference == null ?
+						null :
+						Arrays.stream(Scope.values())
+							.filter(theReflectedReference::isIndexedInScope)
+							.collect(
+								Collectors.toMap(
+									Function.identity(),
+									theReflectedReference::getReferenceIndexType,
+									(existing, replacement) -> existing,
+									() -> new EnumMap<>(Scope.class)
+								)
+							)
+				) :
 				Arrays.stream(indexedInScopes)
 					.collect(
 						Collectors.toMap(
@@ -1945,6 +1974,108 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.attributeInheritanceFilter,
 			this.reflectedReference
 		);
+	}
+
+	/**
+	 * Binds this reflected reference to the reference it reflects - exactly like
+	 * {@link #withReferencedSchema(ReferenceSchemaContract)} - and fills the default component set into every scope
+	 * that becomes indexed through this binding while the explicit components of this reference do not cover it.
+	 *
+	 * **Use it on schema-change paths only** - when this reference, or the reference it reflects, has just been
+	 * changed. A reflected reference with inherited scopes and explicit components otherwise picks up a newly indexed
+	 * scope from the reference it reflects with no component for it, and such a scope builds no index at all: it
+	 * reports itself indexed while nothing written to it is ever indexed.
+	 *
+	 * **Catalog load must keep calling {@link #withReferencedSchema(ReferenceSchemaContract)}.** A stored reference
+	 * that already carries such a scope never indexed anything there, so filling it would make the scope claim
+	 * {@link ReferenceIndexedComponents#REFERENCED_ENTITY} over indexes that were never built - silencing both the
+	 * schema rule in {@link #validate} and the query guard, which exist precisely to refuse that scope loudly. For the
+	 * same reason only scopes that were **not** indexed before this binding are eligible: a scope this reference was
+	 * already indexed in keeps whatever it stored, so an unrelated change to the reflected reference cannot quietly
+	 * turn a stored empty scope into one that looks healthy. A reference that was not bound yet has no previous scopes,
+	 * so every scope counts as newly indexed.
+	 *
+	 * @param originalReference the schema this schema reflects
+	 * @return copy of the schema bound to `originalReference`, with default components in the newly indexed scopes
+	 */
+	@Nonnull
+	public ReflectedReferenceSchema withReferencedSchemaAfterSchemaChange(
+		@Nonnull ReferenceSchemaContract originalReference
+	) {
+		final EnumSet<Scope> previouslyIndexed = EnumSet.noneOf(Scope.class);
+		if (this.reflectedReference != null) {
+			for (Entry<Scope, ReferenceIndexType> entry : this.indexedInScopes.entrySet()) {
+				if (entry.getValue() != ReferenceIndexType.NONE) {
+					previouslyIndexed.add(entry.getKey());
+				}
+			}
+		}
+		return withReferencedSchema(originalReference)
+			.withDefaultComponentsInScopes(scope -> !previouslyIndexed.contains(scope));
+	}
+
+	/**
+	 * Fills the default component set into every indexed scope that the explicit components of this reference leave
+	 * uncovered or empty - the reflected counterpart of {@link ReferenceSchema#withDefaultsForUncoveredScopes} - except
+	 * the scopes `previousSchema` was already indexed in with no component at all
+	 * (see {@link ReferenceSchema#mayDefaultComponentsInScope}).
+	 *
+	 * Meant for a mutation that changes the indexing of this very reference, where the caller has asked for the
+	 * scopes and components it gets. See {@link #withReferencedSchemaAfterSchemaChange} for why nothing that runs
+	 * on catalog load may call it.
+	 *
+	 * @param previousSchema this reference as it was before the mutation
+	 * @return the same instance when nothing had to be filled in, otherwise a completed copy
+	 */
+	@Nonnull
+	public ReflectedReferenceSchema withDefaultComponentsInUncoveredScopes(
+		@Nonnull ReferenceSchemaContract previousSchema
+	) {
+		return withDefaultComponentsInScopes(scope -> ReferenceSchema.mayDefaultComponentsInScope(previousSchema, scope));
+	}
+
+	/**
+	 * Fills the default component set into every indexed scope accepted by `eligible` that the explicit components
+	 * leave uncovered or empty. Inherited components are left alone - they resolve through the reflected reference -
+	 * and so are explicit components whose indexed scopes are inherited from a reflected reference that is not bound
+	 * yet, because those scopes are unknown until it is.
+	 *
+	 * @param eligible decides which indexed scopes may be filled
+	 * @return the same instance when nothing had to be filled in, otherwise a completed copy
+	 */
+	@Nonnull
+	private ReflectedReferenceSchema withDefaultComponentsInScopes(@Nonnull Predicate<Scope> eligible) {
+		if (this.indexedComponentsInherited || (this.indexedInherited && this.reflectedReference == null)) {
+			return this;
+		}
+		EnumMap<Scope, Set<ReferenceIndexedComponents>> completed = null;
+		for (Entry<Scope, ReferenceIndexType> entry : this.indexedInScopes.entrySet()) {
+			final Scope scope = entry.getKey();
+			if (entry.getValue() == ReferenceIndexType.NONE || !eligible.test(scope)) {
+				continue;
+			}
+			final Set<ReferenceIndexedComponents> declared = this.indexedComponentsInScopes.get(scope);
+			if (declared != null && !declared.isEmpty()) {
+				continue;
+			}
+			if (completed == null) {
+				completed = new EnumMap<>(Scope.class);
+				completed.putAll(this.indexedComponentsInScopes);
+			}
+			completed.put(scope, Collections.unmodifiableSet(EnumSet.of(ReferenceIndexedComponents.REFERENCED_ENTITY)));
+		}
+		if (completed == null) {
+			return this;
+		}
+		final ScopedReferenceIndexedComponents[] completedArray =
+			new ScopedReferenceIndexedComponents[completed.size()];
+		int i = 0;
+		for (Entry<Scope, Set<ReferenceIndexedComponents>> entry : completed.entrySet()) {
+			completedArray[i++] = new ScopedReferenceIndexedComponents(
+				entry.getKey(), entry.getValue().toArray(ReferenceIndexedComponents.EMPTY)
+			);
+		}
+		return (ReflectedReferenceSchema) withIndexedComponents(completedArray);
 	}
 
 	/**

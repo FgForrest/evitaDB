@@ -112,8 +112,11 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 
 	/**
 	 * Configures which components of this reference are indexed in the {@link Scope#DEFAULT_SCOPE}.
-	 * Components determine which parts of the reference relationship (entity, group entity, or both)
-	 * are maintained in the index for querying.
+	 * Components determine which parts of the reference relationship (the referenced entity alone, or
+	 * together with the group entity) are maintained in the index for querying.
+	 *
+	 * The components must contain {@link ReferenceIndexedComponents#REFERENCED_ENTITY} - see
+	 * {@link #indexedWithComponentsInScope(Scope, ReferenceIndexedComponents...)}.
 	 *
 	 * @param components one or more indexed components to configure
 	 * @return builder to continue with configuration
@@ -125,8 +128,13 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 
 	/**
 	 * Configures which components of this reference are indexed in the given scope.
-	 * Components determine which parts of the reference relationship (entity, group entity, or both)
-	 * are maintained in the index for querying in the specified scope.
+	 * Components determine which parts of the reference relationship (the referenced entity alone, or
+	 * together with the group entity) are maintained in the index for querying in the specified scope.
+	 *
+	 * The components must contain {@link ReferenceIndexedComponents#REFERENCED_ENTITY}: it builds the reduced
+	 * entity indexes that every query over the reference reads, including a `referenceHaving` nesting only
+	 * `groupHaving`. The builder accepts a declaration without it, but the session defining it is refused when it
+	 * closes - to index group entities, declare both components.
 	 *
 	 * If the reference is not yet indexed in the given scope, it is automatically promoted to
 	 * {@link ReferenceIndexType#FOR_FILTERING}. This mirrors the behavior of {@link #facetedInScope(Scope...)}
