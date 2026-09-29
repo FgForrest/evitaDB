@@ -1865,6 +1865,11 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		 * Where a negation emitted in this scope is settled - see {@link NegationResolution} for why the answer
 		 * belongs to whoever consumes the formula rather than to the index that produced it.
 		 *
+		 * The same distinction lets `groupHaving` narrow the candidate set by the matching groups' reduced group
+		 * indexes, which yields a superset of the accepted rows rather than the answer - so it narrows only under
+		 * {@link NegationResolution#PER_ROW}, and keeps the whole reference family where the set is the answer
+		 * (`facetHaving`).
+		 *
 		 * It is carried by the scope rather than derived from {@link #indexType} on purpose: the index type says what
 		 * is being read, never whether anyone re-evaluates the result, and several callers funnel into the single site
 		 * that establishes a type-level scope.

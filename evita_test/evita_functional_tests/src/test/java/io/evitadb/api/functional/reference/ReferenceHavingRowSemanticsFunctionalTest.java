@@ -1116,10 +1116,10 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 	 * not collapse into "this owner has some row in a matching group" AND "this owner has some row carrying the
 	 * grade", which two different rows of one owner can satisfy between them.
 	 *
-	 * What holds it row-exact is `HavingTranslatorHelper#createIndexLocalGroupFormula`, which asks each reduced
-	 * index about the row IT holds rather than asking the collection whether the owner is in the group anywhere -
-	 * and which has to wrap its contribution in an `IndexTaggedFormula` for that to survive the rebuild. It did
-	 * not, and this row is what caught it: an untagged subtree is one `ReferenceBodyTransposer#project` returns
+	 * What holds it row-exact is `HavingTranslatorHelper.GroupRowLookup#createIndexLocalGroupFormula`, which asks
+	 * each reduced index about the row IT holds rather than asking the collection whether the owner is in the group
+	 * anywhere - and which has to wrap its contribution in an `IndexTaggedFormula` for that to survive the rebuild. It
+	 * did not, and this row is what caught it: an untagged subtree is one `ReferenceBodyTransposer#project` returns
 	 * whole for every index, so the group conjunct stopped constraining the row it belongs to. Remove the tag
 	 * again and this row answers `[1]` where `[]` is correct.
 	 *
@@ -1177,7 +1177,8 @@ public class ReferenceHavingRowSemanticsFunctionalTest extends AbstractBidirecti
 	 * Row-scoped, an owner matches when it holds a row whose group is NOT the excluded one. The per-owner
 	 * reading instead asks whether the owner belongs to that group anywhere, and so drops an owner holding a
 	 * matching row alongside a non-matching one. Remove the `IndexTaggedFormula` from
-	 * `HavingTranslatorHelper#createIndexLocalGroupFormula` and this row answers `[3]` where `[1, 3]` is correct.
+	 * `HavingTranslatorHelper.GroupRowLookup#createIndexLocalGroupFormula` and this row answers `[3]` where `[1, 3]`
+	 * is correct.
 	 *
 	 * Both numbers depend on the fixture actually maintaining group indexes - see the indexed-components note
 	 * beside the `groupedCategories` declaration. Without them every `groupHaving` answers empty, `not` of empty
