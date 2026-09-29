@@ -801,32 +801,6 @@ A [reflected reference](#reference-directionality) inherits the indexed componen
 unless it declares its own. When it declares them, every scope it is indexed in that the declaration does not name
 gets `REFERENCED_ENTITY`.
 
-<Note type="warning">
-
-<NoteTitle toggles="true">
-
-##### A stored catalog with an indexed scope lacking REFERENCED_ENTITY
-</NoteTitle>
-
-A catalog created by an older version of evitaDB may carry a reference indexed in a scope without the
-`REFERENCED_ENTITY` component - declared with `REFERENCED_GROUP_ENTITY` only, or left with no component at all, which
-reflected references declaring their components explicitly could end up with in scopes the declaration did not name.
-No index keyed by the referenced entity was ever built in such a scope. evitaDB loads the catalog, but:
-
-- every query over the reference in that scope is refused with an error naming the reference and the scope - facet
-  summaries keep working, because the facet index does not depend on the components,
-- every session that changes the schema of the catalog - including an upsert that evolves the schema automatically -
-  is refused when it closes, until the reference is fixed.
-
-To repair it, add `REFERENCED_ENTITY` to the indexed components of the reference in that scope - all such references
-in a single session, because the schema is validated as a whole. A schema change does not index the entities already
-stored; they are indexed as they are written, so the entities of that scope written before the repair stay invisible to
-queries over the reference until they are written again. Until then, a query spanning several scopes can avoid the
-affected one by narrowing to the others with [`scope`](../query/filtering/constant.md#scope) or by wrapping the
-constraint in [`inScope`](../query/filtering/behavioral.md#in-scope).
-
-</Note>
-
 ##### Reference facets
 
 If the reference is marked as *faceted*, the special <SourceClass>evita_engine/src/main/java/io/evitadb/index/facet/FacetReferenceIndex.java</SourceClass> is created for the entity type. This index contains optimized data structures for [reference summary](../query/requirements/reference.md#reference-summary) computation — the counts and statistics that power checkbox-style filtering in e-commerce UIs (e.g., "Brand: Nike (42), Adidas (31), Puma (18)").

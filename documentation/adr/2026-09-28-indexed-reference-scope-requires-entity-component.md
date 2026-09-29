@@ -1,7 +1,7 @@
 ---
 title: Every scope a reference is indexed in must carry REFERENCED_ENTITY; a stored catalog lacking it loads, and every query and schema change over it refuses loudly
 date: 2026-09-28
-updated: 2026-09-28 19:20
+updated: 2026-09-29 10:25
 status: accepted
 kind: fix
 issues: [1601, 1583]
@@ -104,7 +104,7 @@ upsert that evolves an unrelated collection's schema fails too.
 - **Pros:** unrelated schema changes keep working; the loud part stays where the data is wrong (the queries).
 - **Rejected because:** a catalog whose schema cannot answer queries over one of its references should not keep
   evolving as if it were healthy - the first schema change surfaces the problem with the fix named, rather than
-  leaving it to a query that may run weeks later; the upgrade cost is carried by documentation instead. It needs
+  leaving it to a query that may run weeks later; the upgrade cost is carried by a release note instead. It needs
   `validate()` to know which references a session changed, which it does not today. Revisit if the upgrade proves too
   disruptive in practice: `EntityCollection#updateSchema` already collects `updatedReferenceSchemas`, the natural hook.
 
@@ -174,10 +174,12 @@ that silently drops one scope's rows looks exactly like a complete answer.
 
 - **Upgrading a catalog that carries the shape blocks its schema changes.** Every session that changes the schema -
   including an upsert evolving it automatically - is refused at close (`ALIVE`: rolled back; warm-up: the catalog is
-  deactivated) until every such reference gains `REFERENCED_ENTITY`, all in one session. Documented in
-  `documentation/user/en/use/schema.md#indexed-components`. Option F is the escape hatch if this proves too harsh.
+  deactivated) until every such reference gains `REFERENCED_ENTITY`, all in one session. Documented for the release
+  notes in an important-note block on #1601, not in the user documentation: it describes an error state of stored
+  data, not the schema model, so the documentation states only the rule. Option F is the escape hatch if this proves
+  too harsh.
 - **The repair does not index stored data (#409).** Entities written before the component was added stay invisible to
-  queries over the reference until they are written again; every message and the documentation say so.
+  queries over the reference until they are written again; every message and the release note say so.
 - **Some refusals depend on data.** When index selection finds no candidate (an empty collection, a hierarchy selector
   matching no node, an owner with no reference keys) the planner answers empty before any lookup runs, so no guard
   fires. The empty answer is correct in each of those cases; only consistency suffers. A per-constraint pre-check
