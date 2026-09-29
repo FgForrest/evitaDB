@@ -37,8 +37,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.evitadb.test.TestTags.CONTRACT;
-import static io.evitadb.test.TestTags.TASK;
+import static io.evitadb.test.TestTags.TEST_HARNESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -55,8 +54,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-@Tag(CONTRACT)
-@Tag(TASK)
+@Tag(TEST_HARNESS)
 @DisplayName("TimeBoundedTestSupport generational driver contract")
 class TimeBoundedTestSupportTest {
 
@@ -79,8 +77,7 @@ class TimeBoundedTestSupportTest {
 	}
 
 	@Nested
-	@Tag(CONTRACT)
-	@Tag(TASK)
+	@Tag(TEST_HARNESS)
 	@DisplayName("Single-iteration execution")
 	class SingleIterationExecution {
 
@@ -130,8 +127,7 @@ class TimeBoundedTestSupportTest {
 	}
 
 	@Nested
-	@Tag(CONTRACT)
-	@Tag(TASK)
+	@Tag(TEST_HARNESS)
 	@DisplayName("Failure enrichment")
 	class FailureEnrichment {
 
@@ -178,8 +174,7 @@ class TimeBoundedTestSupportTest {
 	}
 
 	@Nested
-	@Tag(CONTRACT)
-	@Tag(TASK)
+	@Tag(TEST_HARNESS)
 	@DisplayName("On-exception callback")
 	class OnExceptionCallback {
 
