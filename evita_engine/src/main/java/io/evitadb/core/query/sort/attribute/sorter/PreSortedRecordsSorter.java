@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.sort.attribute.sorter;
 
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.Sorter;
@@ -62,6 +63,11 @@ public class PreSortedRecordsSorter implements Sorter {
 	 */
 	@SuppressWarnings("rawtypes") private final Comparator comparator;
 	/**
+	 * Direction of the ordering, applied to the primary keys of records whose values compare equal when multiple
+	 * {@link SortedRecordsProvider} are merged with {@link MergeMode#APPEND_FIRST}.
+	 */
+	private final OrderDirection primaryKeyOrder;
+	/**
 	 * Field contains memoized value of {@link #getSortedRecordsProviders()} method.
 	 */
 	private SortedRecordsProvider[] memoizedSortedRecordsProviders;
@@ -70,13 +76,24 @@ public class PreSortedRecordsSorter implements Sorter {
 	 */
 	private MergedSortedRecordsSupplierContract memoizedResult;
 
+	/**
+	 * Creates the sorter.
+	 *
+	 * @param mergeMode             the mode of combining multiple providers
+	 * @param comparator            comparator of the provider values in the ordering direction, required for
+	 *                              {@link MergeMode#APPEND_FIRST}
+	 * @param primaryKeyOrder       direction of the ordering, applied to the primary keys of records with equal values
+	 * @param sortedRecordsSupplier supplier of the providers in the order in which they claim records
+	 */
 	public PreSortedRecordsSorter(
 		@Nonnull MergeMode mergeMode,
 		@SuppressWarnings("rawtypes") @Nullable Comparator comparator,
+		@Nonnull OrderDirection primaryKeyOrder,
 		@Nonnull Supplier<SortedRecordsProvider[]> sortedRecordsSupplier
 	) {
 		this.mergeMode = mergeMode;
 		this.comparator = comparator;
+		this.primaryKeyOrder = primaryKeyOrder;
 		this.sortedRecordsSupplier = sortedRecordsSupplier;
 	}
 
@@ -99,7 +116,8 @@ public class PreSortedRecordsSorter implements Sorter {
 	 * Retrieves the memoized result of the merged sorted records supplier. If the result is not memoized yet,
 	 * it initializes the memoized result based on the specified merge mode. When {@code MergeMode.APPEND_ALL}
 	 * is used, it creates a {@link MergedSortedRecordsSupplierSorter}. Otherwise, it initializes a
-	 * {@link MergedComparableSortedRecordsSupplierSorter} with the provided comparator and sorted records providers.
+	 * {@link MergedComparableSortedRecordsSupplierSorter} with the provided comparator, the ordering direction that
+	 * breaks ties by primary key, and the sorted records providers.
 	 *
 	 * @return a {@link MergedSortedRecordsSupplierContract} representing the memoized merged sorted records supplier.
 	 */
@@ -112,6 +130,7 @@ public class PreSortedRecordsSorter implements Sorter {
 				) :
 				new MergedComparableSortedRecordsSupplierSorter(
 					Objects.requireNonNull(this.comparator),
+					this.primaryKeyOrder,
 					getSortedRecordsProviders()
 				);
 		}

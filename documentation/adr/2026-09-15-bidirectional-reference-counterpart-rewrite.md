@@ -9,7 +9,7 @@ prs: [1548, 1568]
 areas: [evita_engine/src/main/java/io/evitadb/core/query/filter/translator/reference, evita_engine/src/main/java/io/evitadb/core/query/algebra/reference, evita_engine/src/main/java/io/evitadb/core/query/indexSelection, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/attribute, evita_engine/src/main/java/io/evitadb/core/query/QueryPlanningContext.java]
 supersedes: []
 superseded-by: []
-relates: [2026-09-11-reference-name-narrowing, 2026-09-12-committed-snapshot-provenance-for-enrichment, 2026-09-13-per-entity-io-statistics-attribution, 2026-09-15-non-collapsible-formula-marker, 2026-09-17-row-scoped-reference-having-body, 2026-09-25-attribute-is-null-in-reference-having, 2026-09-28-indexed-reference-scope-requires-entity-component]
+relates: [2026-09-11-reference-name-narrowing, 2026-09-12-committed-snapshot-provenance-for-enrichment, 2026-09-13-per-entity-io-statistics-attribution, 2026-09-15-non-collapsible-formula-marker, 2026-09-17-row-scoped-reference-having-body, 2026-09-23-pick-first-reference-ordering-from-selection, 2026-09-25-attribute-is-null-in-reference-having, 2026-09-28-indexed-reference-scope-requires-entity-component]
 ---
 
 # Answer a `referenceHaving` from whichever end of a bidirectional reference is cheaper
@@ -265,6 +265,10 @@ by `referenceProperty` on the same reference.
    entry is gone: `ReferencePropertyTranslator#selectReducedEntityIndexSet:104-122` falls back to
    every reduced index of `R`, ordering owners by their first reference row rather than their first
    *matching* one. Such queries are declined.
+   Since `2026-09-23-pick-first-reference-ordering-from-selection` a pick-first ordering by a comparable value
+   resolves its partitions from the selected owners and no longer reads the candidate set, so for that shape the
+   guard is conservative; traverse orderings and chain attributes still read it, which keeps the guard necessary for
+   them.
 
 **The per-owner formulas are internal state, not inner formulas.** They are positionally paired with
 the owner keys, and `FormulaCloner` is allowed to drop a child its mutator rejects — a dropped child

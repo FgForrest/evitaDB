@@ -90,6 +90,11 @@ public abstract class AbstractReferenceCompoundAttributeComparator implements En
 	 */
 	@Nonnull protected final ReferenceSchema referenceSchema;
 	/**
+	 * Comparator of entities by their primary key in the direction of the ordering, for entities whose compound values
+	 * compare equal.
+	 */
+	@Nonnull protected final Comparator<EntityContract> pkComparator;
+	/**
 	 * Memoized normalized value arrays for the entities. Memoization is used because the very same entity may occur
 	 * in compare method multiple times.
 	 */
@@ -107,6 +112,9 @@ public abstract class AbstractReferenceCompoundAttributeComparator implements En
 		@Nonnull OrderDirection orderDirection
 	) {
 		this.referenceSchema = referenceSchema;
+		this.pkComparator = orderDirection == OrderDirection.ASC ?
+			Comparator.comparingInt(EntityContract::getPrimaryKeyOrThrowException) :
+			Comparator.comparingInt(EntityContract::getPrimaryKeyOrThrowException).reversed();
 		final List<AttributeElement> attributeElements = compoundSchemaContract
 			.getAttributeElements();
 		this.comparatorSource = attributeElements

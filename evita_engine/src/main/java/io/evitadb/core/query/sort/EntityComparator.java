@@ -24,6 +24,7 @@
 package io.evitadb.core.query.sort;
 
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.index.bitmap.Bitmap;
 
 import javax.annotation.Nonnull;
 import java.util.Comparator;
@@ -44,6 +45,16 @@ public interface EntityComparator extends Comparator<EntityContract> {
 	 * @param entityCount expected entity count to be sorted
 	 */
 	default void prepareFor(int entityCount) {}
+
+	/**
+	 * Method is called just before the comparator is used, with the primary keys of all the entities it is about to
+	 * sort. A comparator whose order depends on the whole sorted set rather than on the two compared entities alone
+	 * computes that dependency here - the prefetch route of a `pickFirst` reference ordering, for instance, ranks
+	 * the referenced entities of the selection in the very order the index route walks them.
+	 *
+	 * @param entityPrimaryKeys primary keys of the entities to be sorted
+	 */
+	default void prepareForSelection(@Nonnull Bitmap entityPrimaryKeys) {}
 
 	/**
 	 * Returns references to all entities that were lacking the data we were sort along - in other words such values was

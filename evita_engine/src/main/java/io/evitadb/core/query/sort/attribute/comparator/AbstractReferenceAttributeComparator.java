@@ -91,6 +91,11 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 	 * The number of entities that are expected to be sorted.
 	 */
 	protected int estimatedCount;
+	/**
+	 * Function reading the sorted attribute from a reference, in the locale of the query when the attribute is
+	 * localized.
+	 */
+	@Nonnull protected final Function<ReferenceContract, Serializable> attributeExtractor;
 
 	public AbstractReferenceAttributeComparator(
 		@Nonnull String attributeName,
@@ -121,6 +126,11 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 		}
 		final boolean allowsDuplicates = referenceSchema.getCardinality().allowsDuplicates();
 		final RepresentativeAttributeDefinition rad = referenceSchema.getRepresentativeAttributeDefinition();
+		// a localized attribute is only reachable through its locale, and the locale-aware getter reads a
+		// non-localized attribute just as well, so the locale is used whenever the query carries one
+		this.attributeExtractor = locale == null ?
+			referenceContract -> referenceContract.getAttribute(attributeName) :
+			referenceContract -> referenceContract.getAttribute(attributeName, locale);
 		this.attributeValueFetcher = entityContract -> {
 			final ReferenceAttributeValue cachedValue = this.cache.get(entityContract.getPrimaryKeyOrThrowException());
 			if (cachedValue == null) {
@@ -128,7 +138,7 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 				final ReferenceAttributeValue calculatedValue = pickReference(entityContract)
 					.map(
 						it -> {
-							final Serializable storedAttributeValue = it.getAttribute(attributeName);
+							final Serializable storedAttributeValue = this.attributeExtractor.apply(it);
 							if (storedAttributeValue == null) {
 								return ReferenceAttributeValue.MISSING_VALUE;
 							} else if (allowsDuplicates) {
