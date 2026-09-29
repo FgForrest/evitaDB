@@ -1,7 +1,7 @@
 ---
 title: A pick-first reference ordering sorts on the first row of every selected owner, resolved from the selection rather than from the filter
 date: 2026-09-23
-updated: 2026-09-25 16:25
+updated: 2026-09-29 12:45
 status: accepted
 kind: fix
 issues: [1614]
@@ -224,10 +224,11 @@ a measured production shape: that is where the per-query cost still follows `row
 
 ## Verification
 
-- `EntityByReferenceAttributePickFirstFunctionalTest` - 35 cases; the original 18 are red on `edc8601d5` except
+- `EntityByReferenceAttributePickFirstFunctionalTest` - 34 cases; the original 18 are red on `edc8601d5` except
   index-route ascending, and all are green now: first row with a value, descending ties, ties equal to a plain attribute sort, narrowing-independence,
-  duplicates by representative values, paging across the claimed/unclaimed boundary, references no owner has and a
-  group-only reference (identical on both routes); both routes, both indexing levels. Counterfactual: reversing the target order
+  duplicates by representative values, paging across the claimed/unclaimed boundary and references no owner has;
+  both routes, both indexing levels. Ordering by a reference indexed without `REFERENCED_ENTITY` is refused before
+  the sorter is reached (`2026-09-28-indexed-reference-scope-requires-entity-component`). Counterfactual: reversing the target order
   in `PickFirstReducedIndexResolver` turns all 8 index-route cases red (and 21 of the oracle's 39).
 - `EntityByReferenceAttributePickFirstOracleFunctionalTest` - a randomized dataset (300 owners, 40 targets, two
   partitions above the membership threshold, every seventh owner archived) checked against an oracle computed from

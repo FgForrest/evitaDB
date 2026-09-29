@@ -32,7 +32,6 @@ import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
@@ -97,8 +96,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
  * of the candidate set. Owners 11-14 use the duplicate-allowing reference only.
  *
  * Owners 10 and 3 carry the entity attribute `pin` with values 1 and 2, no other owner does. Reference
- * `unusedTargets` has no row at all. Reference `groupOnly` is indexed for its group family only, with rows
- * (target, group) (5, 1) on owner 2, (1, 1) on owner 3 and (3, 2) on owner 6.
+ * `unusedTargets` has no row at all.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -117,7 +115,6 @@ public class EntityByReferenceAttributePickFirstFunctionalTest {
 	private static final String REFERENCE_VARIANTS_FILTERING = "variantsFiltering";
 	private static final String REFERENCE_VARIANTS_PARTITIONING = "variantsPartitioning";
 	private static final String REFERENCE_UNUSED_TARGETS = "unusedTargets";
-	private static final String REFERENCE_GROUP_ONLY = "groupOnly";
 	private static final String ATTRIBUTE_ORDER = "order";
 	private static final String ATTRIBUTE_KIND = "kind";
 	private static final String ATTRIBUTE_VARIANT = "variant";
@@ -314,17 +311,6 @@ public class EntityByReferenceAttributePickFirstFunctionalTest {
 	}
 
 	/**
-	 * Adds a row of the group-only reference to an existing owner.
-	 */
-	private static void addGroupOnlyRow(@Nonnull EvitaSessionContract session, int owner, int target, int group) {
-		session.getEntity(ENTITY_OWNER, owner, entityFetchAllContent())
-			.orElseThrow()
-			.openForWrite()
-			.setReference(REFERENCE_GROUP_ONLY, target, whichIs -> whichIs.setGroup(group))
-			.upsertVia(session);
-	}
-
-	/**
 	 * Sets the entity attribute `pin` of an existing owner.
 	 */
 	private static void pinOwner(@Nonnull EvitaSessionContract session, int owner, int pin) {
@@ -375,13 +361,6 @@ public class EntityByReferenceAttributePickFirstFunctionalTest {
 					.withAttribute(ATTRIBUTE_ORDER, Integer.class, thatIs -> thatIs.sortable().nullable())
 					.withAttribute(ATTRIBUTE_KIND, String.class, thatIs -> thatIs.filterable().sortable().nullable())
 			)
-			// indexed for its group family only, so it has no reduced index of the referenced entity family
-			.withReferenceToEntity(
-				REFERENCE_GROUP_ONLY, ENTITY_TARGET, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs.withGroupTypeRelatedToEntity(ENTITY_TARGET)
-					.indexedForFiltering()
-					.indexedWithComponents(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY)
-			)
 			.updateVia(session);
 
 		for (int i = 1; i <= TARGET_COUNT; i++) {
@@ -398,9 +377,6 @@ public class EntityByReferenceAttributePickFirstFunctionalTest {
 		upsertOwner(session, 8, 60, new Row(1, 60, "y"));
 		upsertOwner(session, 9, 20, new Row(3, 20, "x"));
 		upsertOwner(session, 10, 70, new Row(3, 70, "x"), new Row(7, 2, "y"));
-		addGroupOnlyRow(session, 2, 5, 1);
-		addGroupOnlyRow(session, 3, 1, 1);
-		addGroupOnlyRow(session, 6, 3, 2);
 		pinOwner(session, 10, 1);
 		pinOwner(session, 3, 2);
 
@@ -618,26 +594,6 @@ public class EntityByReferenceAttributePickFirstFunctionalTest {
 				referenceProperty(REFERENCE_UNUSED_TARGETS, attributeSetExact(ATTRIBUTE_KIND, "x"))
 			),
 			"unused reference"
-		);
-	}
-
-	@DisplayName("Should order by a reference indexed for its group family only identically on both routes")
-	@UseDataSet(PICK_FIRST_REFERENCES)
-	@Test
-	void shouldOrderGroupOnlyReferenceIdenticallyOnBothRoutes(EvitaSessionContract session) {
-		final OrderConstraint ordering = referenceProperty(
-			REFERENCE_GROUP_ONLY, entityPrimaryKeyNatural(OrderDirection.ASC)
-		);
-		// the reference has no reduced index of the referenced entity family, so neither route sorts by it and both
-		// leave the owners in primary key order
-		final int[] expected = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-		assertAll(
-			() -> assertOrder(
-				expected, queryOrder(session, SortRoute.INDEX, PLAIN_OWNERS, null, ordering), "index route"
-			),
-			() -> assertOrder(
-				expected, queryOrder(session, SortRoute.PREFETCH, PLAIN_OWNERS, null, ordering), "prefetch route"
-			)
 		);
 	}
 
