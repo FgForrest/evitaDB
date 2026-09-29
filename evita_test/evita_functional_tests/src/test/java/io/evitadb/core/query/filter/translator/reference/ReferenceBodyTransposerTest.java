@@ -69,6 +69,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -333,9 +334,9 @@ class ReferenceBodyTransposerTest {
 		@Test
 		@DisplayName("a conjunctive body over 32,000 indexes is rebuilt in linear time")
 		void shouldRebuildAConjunctiveBodyInLinearTime() {
-			// calibration: the previous algorithm needed 10.9 s for this shape at 32,000 indexes (25.6 s on a loaded
-			// box, where this test failed as intended) and quadrupled with every doubling; the linear rebuild takes
-			// about 0.2 s, so the bound cannot flake on a loaded machine and still fails for a quadratic regression
+			// calibration: the previous algorithm needed 10.9 s for this shape at 32,000 indexes and quadrupled with
+			// every doubling - this test failed it at 23.6 s of CPU; the linear rebuild takes about 0.2 s, so the
+			// bound cannot flake on a loaded machine and still fails for a quadratic regression
 			final int indexCount = 32_000;
 			final Formula[] firstConjunct = new Formula[indexCount];
 			final Formula[] secondConjunct = new Formula[indexCount];
@@ -350,13 +351,19 @@ class ReferenceBodyTransposerTest {
 			final Formula body = new AndFormula(new OrFormula(firstConjunct), new OrFormula(secondConjunct));
 
 			// CPU time of this thread, not wall-clock: parallel test forks and GC pauses inflate the latter on a busy
-			// machine, while the work the rebuild itself does is what the bound is about
+			// machine, while the work the rebuild itself does is what the bound is about. A JVM that cannot measure
+			// it skips the test rather than falling back to a clock that flakes; one that measures it disabled
+			// reports -1 at both ends - a zero that would pass a quadratic rebuild - so it is switched on first
 			final ThreadMXBean threads = ManagementFactory.getThreadMXBean();
-			final boolean cpuTime = threads.isCurrentThreadCpuTimeSupported();
-			final long start = cpuTime ? threads.getCurrentThreadCpuTime() : System.nanoTime();
+			assumeTrue(threads.isCurrentThreadCpuTimeSupported(), "The JVM does not measure thread CPU time.");
+			if (!threads.isThreadCpuTimeEnabled()) {
+				threads.setThreadCpuTimeEnabled(true);
+			}
+			final long start = threads.getCurrentThreadCpuTime();
 			final Formula transposed = ReferenceBodyTransposer.transpose(body, List::of);
-			final long elapsedMillis =
-				((cpuTime ? threads.getCurrentThreadCpuTime() : System.nanoTime()) - start) / 1_000_000L;
+			final long end = threads.getCurrentThreadCpuTime();
+			assertTrue(start >= 0 && end >= start, "Thread CPU time must be measured, got " + start + " -> " + end);
+			final long elapsedMillis = (end - start) / 1_000_000L;
 
 			assertEquals(indexCount / 2, owners(transposed).length);
 			assertTrue(
@@ -377,7 +384,7 @@ class ReferenceBodyTransposerTest {
 		if (node instanceof FutureNotFormula) {
 			return true;
 		}
-		for (Formula child : node.getInnerFormulas()) {
+		for (final Formula child : node.getInnerFormulas()) {
 			if (containsFutureNot(child)) {
 				return true;
 			}
@@ -481,7 +488,7 @@ class ReferenceBodyTransposerTest {
 			@Nonnull Map<Integer, Set<Integer>> ownersByIndex
 		) {
 			final List<Formula> contributions = new ArrayList<>();
-			for (Integer indexPk : indexPks) {
+			for (final Integer indexPk : indexPks) {
 				if (random.nextInt(3) == 0) {
 					continue;
 				}
@@ -559,13 +566,13 @@ class ReferenceBodyTransposerTest {
 			}
 			final List<Formula> perIndex = new ArrayList<>();
 			if (containsFutureNot(body)) {
-				for (EntityIndex index : indexes) {
+				for (final EntityIndex index : indexes) {
 					collect(body, index.getPrimaryKey(), index::getAllPrimaryKeysFormula, perIndex);
 				}
 			} else {
 				final Set<Integer> tagged = new LinkedHashSet<>();
 				collectTags(body, tagged);
-				for (Integer indexPk : tagged) {
+				for (final Integer indexPk : tagged) {
 					collect(
 						body, indexPk,
 						() -> {
@@ -635,7 +642,7 @@ class ReferenceBodyTransposerTest {
 					FutureNotFormula.postProcess(survivors, EnclosingContainerRelation.DISJUNCTION, superSet);
 			}
 			if (node instanceof AndFormula) {
-				for (Formula child : projected) {
+				for (final Formula child : projected) {
 					if (child instanceof EmptyFormula) {
 						return EmptyFormula.INSTANCE;
 					}
@@ -672,7 +679,7 @@ class ReferenceBodyTransposerTest {
 			if (node instanceof IndexTaggedFormula || node instanceof FutureNotFormula) {
 				return true;
 			}
-			for (Formula child : node.getInnerFormulas()) {
+			for (final Formula child : node.getInnerFormulas()) {
 				if (projectable(child)) {
 					return true;
 				}
@@ -691,7 +698,7 @@ class ReferenceBodyTransposerTest {
 				collected.add(tagged.getIndexPrimaryKey());
 				return;
 			}
-			for (Formula child : node.getInnerFormulas()) {
+			for (final Formula child : node.getInnerFormulas()) {
 				collectTags(child, collected);
 			}
 		}

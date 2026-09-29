@@ -300,7 +300,7 @@ public class HistogramHavingMultiGroupFunctionalTest implements EvitaTestSupport
 					parameterValuePk(naturalGroup, 1 + random.nextInt(MAX_VALUE_OF_GROUP.get(naturalGroup)))
 				);
 			}
-			for (Integer parameterValuePk : usedValues) {
+			for (final Integer parameterValuePk : usedValues) {
 				if (parameterValuePk == ARCHIVED_PARAMETER_VALUE_PK && productPk == PRODUCT_WITH_ARCHIVED_VALUE_PK) {
 					// its row was added above with a fixed group
 					continue;
@@ -458,14 +458,14 @@ public class HistogramHavingMultiGroupFunctionalTest implements EvitaTestSupport
 	 * @param session write session on the test catalog
 	 */
 	private static void seedData(@Nonnull EvitaSessionContract session) {
-		for (Map.Entry<Integer, String> group : new TreeMap<>(CODE_OF_GROUP).entrySet()) {
+		for (final Map.Entry<Integer, String> group : new TreeMap<>(CODE_OF_GROUP).entrySet()) {
 			session.createNewEntity(ENTITY_PARAMETER_TYPE, group.getKey())
 				.setAttribute(ATTR_CODE, group.getValue())
 				.setAttribute(ATTR_HAS_RANGE_BASIC_UNIT_VALUE, false)
 				.setAttribute(ATTR_INPUT_WIDGET_TYPE, INPUT_WIDGET_INTERVAL)
 				.upsertVia(session);
 		}
-		for (Map.Entry<Integer, Integer> group : new TreeMap<>(MAX_VALUE_OF_GROUP).entrySet()) {
+		for (final Map.Entry<Integer, Integer> group : new TreeMap<>(MAX_VALUE_OF_GROUP).entrySet()) {
 			for (int value = 1; value <= group.getValue(); value++) {
 				session.createNewEntity(ENTITY_PARAMETER_VALUE, parameterValuePk(group.getKey(), value))
 					.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal(value))
@@ -861,6 +861,39 @@ public class HistogramHavingMultiGroupFunctionalTest implements EvitaTestSupport
 				)
 			);
 		}
+
+		@Test
+		@UseDataSet(MULTI_GROUP_DATA_SET)
+		@DisplayName("a group alone - the group is the only condition narrowing the candidate rows")
+		void shouldMatchEveryOwnerWithARowOfTheGroup(@Nonnull Evita evita) {
+			final Set<Scope> live = EnumSet.of(Scope.LIVE);
+			final Set<Integer> expected = expectedOwners(live, REF_PARAMETER_VALUES, row -> row.groupIn(GROUP_WEIGHT_PK));
+			assertDiscriminating(expected, live);
+			assertEquals(expected, matchingLiveProducts(evita, referenceHaving(REF_PARAMETER_VALUES, groupCoded(CODE_WEIGHT))));
+		}
+
+		@Test
+		@UseDataSet(MULTI_GROUP_DATA_SET)
+		@DisplayName("a group selector matching every group, which holds the whole family")
+		void shouldBindValueToAnyGroupWhenTheSelectorMatchesEveryGroup(@Nonnull Evita evita) {
+			final Set<Scope> live = EnumSet.of(Scope.LIVE);
+			final Set<Integer> expected = expectedOwners(
+				live, REF_PARAMETER_VALUES,
+				row -> row.groupIn(GROUP_WIDTH_PK, GROUP_HEIGHT_PK, GROUP_WEIGHT_PK) && row.valueBetween(live, 35, 45)
+			);
+			assertDiscriminating(expected, live);
+			assertEquals(
+				expected,
+				matchingLiveProducts(
+					evita,
+					referenceHaving(
+						REF_PARAMETER_VALUES,
+						valueBetween(35, 45),
+						groupHaving(entityPrimaryKeyInSet(GROUP_WIDTH_PK, GROUP_HEIGHT_PK, GROUP_WEIGHT_PK))
+					)
+				)
+			);
+		}
 	}
 
 	/**
@@ -890,18 +923,23 @@ public class HistogramHavingMultiGroupFunctionalTest implements EvitaTestSupport
 
 		@Test
 		@UseDataSet(MULTI_GROUP_DATA_SET)
-		@DisplayName("archived owners alone, with a negated group")
+		@DisplayName("archived owners, with a negated group")
 		void shouldComplementTheGroupPerRowForArchivedOwners(@Nonnull Evita evita) {
-			final Set<Scope> archived = EnumSet.of(Scope.ARCHIVED);
+			// both scopes: an archived-only query sees only archived parameter values, and no archived owner points
+			// at one - the expectation would be empty whatever the engine does
+			final Set<Scope> both = EnumSet.allOf(Scope.class);
 			final Set<Integer> expected = expectedOwners(
-				archived, REF_PARAMETER_VALUES,
-				row -> !row.groupIn(GROUP_HEIGHT_PK) && row.valueBetween(archived, 1, 120)
+				both, REF_PARAMETER_VALUES, row -> !row.groupIn(GROUP_HEIGHT_PK) && row.valueBetween(both, 10, 20)
 			);
+			final Set<Integer> expectedArchived = expected.stream()
+				.filter(productPk -> scopeOfProduct(productPk) == Scope.ARCHIVED)
+				.collect(Collectors.toCollection(TreeSet::new));
+			assertDiscriminating(expectedArchived, EnumSet.of(Scope.ARCHIVED));
 			assertEquals(
 				expected,
 				matchingProducts(
-					evita, archived,
-					referenceHaving(REF_PARAMETER_VALUES, valueBetween(1, 120), not(groupCoded(CODE_HEIGHT)))
+					evita, both,
+					referenceHaving(REF_PARAMETER_VALUES, valueBetween(10, 20), not(groupCoded(CODE_HEIGHT)))
 				)
 			);
 		}
@@ -1011,7 +1049,7 @@ public class HistogramHavingMultiGroupFunctionalTest implements EvitaTestSupport
 				TEST_CATALOG,
 				session -> {
 					final Map<Integer, Set<Integer>> result = new TreeMap<>();
-					for (SealedEntity product : session.queryList(
+					for (final SealedEntity product : session.queryList(
 						query(
 							collection(ENTITY_PRODUCT),
 							require(
