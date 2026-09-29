@@ -87,8 +87,6 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-import static io.evitadb.api.query.QueryConstraints.groupHaving;
-import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -411,8 +409,7 @@ public class HavingTranslatorHelper {
 											groupNarrowedReducedIndexPksFormula(
 												it,
 												getGroupRowLookup(
-													filterByVisitor, entitySchema, referenceSchema,
-													filterConstraint, nestedResult
+													filterByVisitor, entitySchema, referenceSchema, nestedResult
 												)
 											) :
 											allReducedIndexPksFormula(it)
@@ -451,7 +448,7 @@ public class HavingTranslatorHelper {
 							return EmptyFormula.INSTANCE;
 						}
 						final GroupRowLookup groupRowLookup = getGroupRowLookup(
-							filterByVisitor, entitySchema, referenceSchema, filterConstraint, nestedResult
+							filterByVisitor, entitySchema, referenceSchema, nestedResult
 						);
 						// only a reduced ENTITY index holds rows keyed by a referenced entity; a group index in the
 						// scope would have its group PK misread as a target, so it is filtered out explicitly
@@ -595,39 +592,35 @@ public class HavingTranslatorHelper {
 	 * The memo matters more than it looks: `ReferencedEntityFetcher` evaluates a filtered `referenceContent` once per
 	 * reduced index, each time with a single-index scope, and the index-discovery pass and the per-index pass of
 	 * one `referenceHaving` both need the same lookup. Rebuilding it on every call would cost the matching groups'
-	 * index resolution once per index - worse than the per-group scan it replaces. The key is a value-equal
-	 * `referenceHaving(reference, groupHaving(filter))`, because the bare `groupHaving` would collide across
-	 * references, plus the processing scopes the group indexes are resolved in; inside it, the lookup is kept per
-	 * queried entity type and per group global index (one per scope of the group collection).
+	 * index resolution once per index - worse than the per-group scan it replaces.
+	 *
+	 * Neither caller can hand over the same constraint instance twice - the fetch path re-translates its filter per
+	 * index and `histogramHaving` rewrites itself anew on every translation - so the memo is keyed by value, see
+	 * {@link GroupRowLookupKey}.
 	 *
 	 * @param filterByVisitor visitor providing the planning context and the processing scope
 	 * @param entitySchema    schema of the entity owning the reference
 	 * @param referenceSchema schema of the reference carrying the group
-	 * @param groupFilter     the filter of the `groupHaving` container
 	 * @param nestedResult    the planned nested query over one group global index
 	 * @return the lookup, empty when the group collection has no global index in the scope
 	 */
 	@Nonnull
-	private static GroupRowLookup getGroupRowLookup(
+	static GroupRowLookup getGroupRowLookup(
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull FilterConstraint groupFilter,
 		@Nonnull GlobalIndexAndFormula nestedResult
 	) {
-		final GlobalEntityIndex groupGlobalIndex = nestedResult.globalIndex();
-		if (groupGlobalIndex == null) {
+		if (nestedResult.globalIndex() == null) {
 			return GroupRowLookup.EMPTY;
 		}
-		final GroupRowLookups lookups = Objects.requireNonNull(
-			filterByVisitor.getQueryContext().computeOncePerConstraint(
-				referenceHaving(referenceSchema.getName(), groupHaving(groupFilter)),
-				filterByVisitor.getProcessingScope().getScopes(),
-				GroupRowLookups::new
-			)
-		);
-		return lookups.computeIfAbsent(
-			new GroupRowLookupKey(entitySchema.getName(), groupGlobalIndex.getPrimaryKey()),
+		return filterByVisitor.getQueryContext().computeOncePerKey(
+			new GroupRowLookupKey(
+				entitySchema.getName(),
+				referenceSchema.getName(),
+				Set.copyOf(filterByVisitor.getProcessingScope().getScopes()),
+				nestedResult.filter()
+			),
 			() -> GroupRowLookup.build(
 				filterByVisitor, entitySchema, referenceSchema, nestedResult.filter().compute()
 			)
@@ -651,10 +644,12 @@ public class HavingTranslatorHelper {
 	 *
 	 * - the type index is read **first and unconditionally**: a reference not indexed in the scope is represented by
 	 *   a throwing stub, and that read is what raises its `ReferenceNotIndexedException`;
-	 * - when the matching groups hold at least as many targets as the whole family, the unrestricted set is returned -
-	 *   a broad group filter must never cost more than the set it would narrow;
 	 * - an empty set is {@link EmptyFormula#INSTANCE}, never a {@link ConstantFormula} over an empty bitmap, which that
 	 *   class refuses.
+	 *
+	 * A broad group filter does not need a fallback to the unrestricted set: the union of its targets is built once
+	 * per plan and scope ({@link GroupRowLookup#getTargetsInScope(Scope)}), so it costs one pass over the targets the
+	 * matching groups hold, and translating it costs what translating the whole family would.
 	 *
 	 * @param scopeIndex     the {@link ReferencedTypeEntityIndex} currently in the processing scope
 	 * @param groupRowLookup the matching groups' reduced group indexes
@@ -665,27 +660,10 @@ public class HavingTranslatorHelper {
 		@Nonnull ReferencedTypeEntityIndex scopeIndex,
 		@Nonnull GroupRowLookup groupRowLookup
 	) {
-		final Bitmap allReferenced = scopeIndex.getAllReferencedPrimaryKeys();
-		if (allReferenced.isEmpty()) {
+		if (scopeIndex.getAllReferencedPrimaryKeys().isEmpty()) {
 			return EmptyFormula.INSTANCE;
 		}
-		final List<ReducedGroupEntityIndex> groupIndexes = groupRowLookup.getIndexesInScope(
-			scopeIndex.getIndexKey().scope()
-		);
-		long estimatedTargets = 0;
-		for (final ReducedGroupEntityIndex groupIndex : groupIndexes) {
-			estimatedTargets += groupIndex.getReferencedEntityPrimaryKeys().size();
-		}
-		if (estimatedTargets >= allReferenced.size()) {
-			return reducedIndexPksFormula(scopeIndex, RoaringBitmapBackedBitmap.getRoaringBitmap(allReferenced));
-		}
-		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-		for (final ReducedGroupEntityIndex groupIndex : groupIndexes) {
-			for (final Integer target : groupIndex.getReferencedEntityPrimaryKeys()) {
-				writer.add(target);
-			}
-		}
-		final PersistentRoaringBitmap targets = writer.get();
+		final PersistentRoaringBitmap targets = groupRowLookup.getTargetsInScope(scopeIndex.getIndexKey().scope());
 		return targets.isEmpty() ? EmptyFormula.INSTANCE : reducedIndexPksFormula(scopeIndex, targets);
 	}
 
@@ -726,15 +704,43 @@ public class HavingTranslatorHelper {
 	}
 
 	/**
-	 * Key of one {@link GroupRowLookup} inside the per-plan {@link GroupRowLookups} memo.
+	 * Key of one {@link GroupRowLookup} in the planning context's value-keyed memo. It identifies everything the
+	 * lookup is derived from, so a key rebuilt by a later call hits:
 	 *
-	 * @param entityType              type of the entity owning the reference - the group indexes belong to it
-	 * @param groupGlobalIndexPrimaryKey primary key of the group global index the nested query was planned over
+	 * - the entity type and the reference whose reduced group indexes the lookup holds,
+	 * - the processing scopes the group indexes are resolved in,
+	 * - the matching groups, by the instance of the nested query's formula - compared by identity, because
+	 *   {@link FilterByVisitor#computeOnlyOnce} hands out one instance per group global index and value-equal nested
+	 *   filter. The same instance therefore means the same groups, while a nested filter changed by a
+	 *   {@link NestedQueryRestriction} is another instance and another lookup.
+	 *
+	 * @param entityType     type of the entity owning the reference - the group indexes belong to it
+	 * @param referenceName  name of the reference carrying the group
+	 * @param scopes         processing scopes the group indexes are resolved in
+	 * @param matchingGroups the nested group query planned over one group global index, compared by identity
 	 */
-	private record GroupRowLookupKey(
+	record GroupRowLookupKey(
 		@Nonnull String entityType,
-		int groupGlobalIndexPrimaryKey
+		@Nonnull String referenceName,
+		@Nonnull Set<Scope> scopes,
+		@Nonnull Formula matchingGroups
 	) {
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (!(o instanceof GroupRowLookupKey that)) return false;
+			return this.matchingGroups == that.matchingGroups &&
+				this.entityType.equals(that.entityType) &&
+				this.referenceName.equals(that.referenceName) &&
+				this.scopes.equals(that.scopes);
+		}
+
+		@Override
+		public int hashCode() {
+			return 31 * Objects.hash(this.entityType, this.referenceName, this.scopes) +
+				System.identityHashCode(this.matchingGroups);
+		}
 	}
 
 	/**
@@ -766,29 +772,6 @@ public class HavingTranslatorHelper {
 	}
 
 	/**
-	 * Per-plan memo of {@link GroupRowLookup}s for one `groupHaving`, keyed by the queried entity type and the group
-	 * global index the nested query was planned over.
-	 */
-	private static final class GroupRowLookups {
-		/**
-		 * Lookups built so far.
-		 */
-		private final Map<GroupRowLookupKey, GroupRowLookup> lookups = new HashMap<>(4);
-
-		/**
-		 * Returns the lookup for the key, building it with the supplier on the first request.
-		 *
-		 * @param key     the lookup key
-		 * @param factory builds the lookup when it is not memoized yet
-		 * @return the memoized lookup
-		 */
-		@Nonnull
-		GroupRowLookup computeIfAbsent(@Nonnull GroupRowLookupKey key, @Nonnull Supplier<GroupRowLookup> factory) {
-			return this.lookups.computeIfAbsent(key, k -> factory.get());
-		}
-	}
-
-	/**
 	 * The reduced group indexes of the groups a `groupHaving` matched, bucketed so that one reduced entity index can
 	 * find the group indexes describing its own rows with a single hash lookup.
 	 *
@@ -803,7 +786,7 @@ public class HavingTranslatorHelper {
 	 * scanned them at execution time: the cost per reduced entity index is now one lookup per group index in its
 	 * bucket - one for the single group a `histogramHaving` selects.
 	 */
-	private static final class GroupRowLookup {
+	static final class GroupRowLookup {
 		/**
 		 * Lookup of a `groupHaving` whose group collection has no global index in the scope - it matches no group.
 		 */
@@ -816,6 +799,10 @@ public class HavingTranslatorHelper {
 		 * The same reduced group indexes, keyed by their scope only.
 		 */
 		private final Map<Scope, List<ReducedGroupEntityIndex>> byScope;
+		/**
+		 * Union of the referenced entities the group indexes of one scope hold rows for, built on the first request.
+		 */
+		private final Map<Scope, PersistentRoaringBitmap> targetsByScope = new EnumMap<>(Scope.class);
 
 		/**
 		 * Resolves the reduced group indexes of every matching group in the processing scopes and buckets them.
@@ -854,6 +841,12 @@ public class HavingTranslatorHelper {
 			return new GroupRowLookup(buckets, byScope);
 		}
 
+		/**
+		 * Creates the lookup over already bucketed group indexes; use {@link #build} or {@link #EMPTY}.
+		 *
+		 * @param buckets group indexes keyed by the rows they describe
+		 * @param byScope the same group indexes keyed by the scope of their owners
+		 */
 		private GroupRowLookup(
 			@Nonnull Map<GroupBucketKey, List<ReducedGroupEntityIndex>> buckets,
 			@Nonnull Map<Scope, List<ReducedGroupEntityIndex>> byScope
@@ -863,14 +856,31 @@ public class HavingTranslatorHelper {
 		}
 
 		/**
-		 * Returns the reduced group indexes of the matching groups whose owners live in the passed scope.
+		 * Returns the referenced entities the matching groups hold rows for, among owners living in the passed scope.
+		 * The union is built on the first request and kept for the rest of the plan; a scope without group indexes
+		 * gets a fresh empty bitmap and nothing is stored, so {@link #EMPTY} is never modified.
 		 *
 		 * @param scope the scope of the owners
-		 * @return the group indexes, possibly empty
+		 * @return referenced entity primary keys, possibly empty
 		 */
 		@Nonnull
-		List<ReducedGroupEntityIndex> getIndexesInScope(@Nonnull Scope scope) {
-			return this.byScope.getOrDefault(scope, List.of());
+		PersistentRoaringBitmap getTargetsInScope(@Nonnull Scope scope) {
+			final List<ReducedGroupEntityIndex> groupIndexes = this.byScope.get(scope);
+			if (groupIndexes == null) {
+				return RoaringBitmapBackedBitmap.buildWriter().get();
+			}
+			return this.targetsByScope.computeIfAbsent(
+				scope,
+				s -> {
+					final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+					for (final ReducedGroupEntityIndex groupIndex : groupIndexes) {
+						for (final Integer target : groupIndex.getReferencedEntityPrimaryKeys()) {
+							writer.add(target);
+						}
+					}
+					return writer.get();
+				}
+			);
 		}
 
 		/**

@@ -1804,6 +1804,10 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		 * sound - widening a candidate set never loses a row, and the negation is settled afterwards. Where the
 		 * formula is consumed as the answer, it is not sound, and the negation has to stay a real subtraction.
 		 *
+		 * The same distinction lets `groupHaving` narrow the candidate set by the matching groups' reduced group
+		 * indexes, which yields a superset of the accepted rows rather than the answer - so it narrows only where
+		 * this flag is TRUE, and keeps the whole reference family where the set is the answer (`facetHaving`).
+		 *
 		 * The flag is carried by the scope rather than derived from {@link #indexType} on purpose: the index type
 		 * says what is being read, never whether anyone re-evaluates the result, and several callers funnel into the
 		 * single site that establishes a type-level scope.
