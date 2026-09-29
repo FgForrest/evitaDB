@@ -1912,15 +1912,23 @@ class ReferenceSchemaTest {
 			assertFalse(ReferenceSchema.mayDefaultComponentsInScope(previous, Scope.LIVE));
 		}
 
+		/**
+		 * The previous schema decides scope by scope: the scope it stored with components is completed, the one it
+		 * stored with none is left alone.
+		 */
 		@Test
-		@DisplayName("should leave an uncovered indexed scope the predicate rejects without components")
-		void shouldLeaveAnUncoveredScopeThePredicateRejectsWithoutComponents() {
+		@DisplayName("should leave an uncovered indexed scope the previous schema stored with no component without components")
+		void shouldLeaveAnUncoveredScopeThePreviousSchemaStoredWithNoComponentWithoutComponents() {
 			final Map<Scope, ReferenceIndexType> indexedScopes = new EnumMap<>(Scope.class);
 			indexedScopes.put(Scope.LIVE, ReferenceIndexType.FOR_FILTERING);
 			indexedScopes.put(Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING);
+			final Map<Scope, Set<ReferenceIndexedComponents>> storedComponents = new EnumMap<>(Scope.class);
+			storedComponents.put(Scope.LIVE, Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY));
+			storedComponents.put(Scope.ARCHIVED, Set.of());
+			final ReferenceSchema previous = brandIndexedIn(indexedScopes, storedComponents);
 
 			final Map<Scope, Set<ReferenceIndexedComponents>> result = ReferenceSchema.withDefaultsForUncoveredScopes(
-				new EnumMap<>(Scope.class), indexedScopes, scope -> scope != Scope.ARCHIVED
+				new EnumMap<>(Scope.class), indexedScopes, previous
 			);
 
 			assertEquals(Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY), result.get(Scope.LIVE));
@@ -1928,14 +1936,14 @@ class ReferenceSchemaTest {
 		}
 
 		@Test
-		@DisplayName("should never fill a scope that is not indexed even when the predicate accepts it")
+		@DisplayName("should never fill a scope that is not indexed even for a newly created reference")
 		void shouldNeverFillANonIndexedScope() {
 			final Map<Scope, ReferenceIndexType> indexedScopes = new EnumMap<>(Scope.class);
 			indexedScopes.put(Scope.LIVE, ReferenceIndexType.FOR_FILTERING);
 			indexedScopes.put(Scope.ARCHIVED, ReferenceIndexType.NONE);
 
 			final Map<Scope, Set<ReferenceIndexedComponents>> result = ReferenceSchema.withDefaultsForUncoveredScopes(
-				new EnumMap<>(Scope.class), indexedScopes, scope -> true
+				new EnumMap<>(Scope.class), indexedScopes, null
 			);
 
 			assertEquals(Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY), result.get(Scope.LIVE));
@@ -1952,7 +1960,7 @@ class ReferenceSchemaTest {
 
 			assertSame(
 				components,
-				ReferenceSchema.withDefaultsForUncoveredScopes(components, indexedScopes, scope -> true)
+				ReferenceSchema.withDefaultsForUncoveredScopes(components, indexedScopes, null)
 			);
 		}
 

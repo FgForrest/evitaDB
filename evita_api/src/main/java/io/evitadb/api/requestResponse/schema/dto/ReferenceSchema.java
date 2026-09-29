@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.dto;
 
+import io.evitadb.annotation.Internal;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
@@ -60,7 +61,6 @@ import java.io.Serial;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -298,53 +298,41 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	 *
 	 * An indexed scope with no components is not a half-configured reference but a **silent** one: the indexed
 	 * components are what decide whether reduced indexes are built at all, while
-	 * {@link ReferenceIndexType} only governs how much is mirrored into them. Such a scope therefore reports
-	 * itself indexed, resolves queries against whatever indexes already existed, and quietly indexes nothing
-	 * written afterwards.
+	 * {@link ReferenceIndexType} only governs how much is mirrored into them. Such a scope reports itself indexed,
+	 * resolves queries against whatever indexes already existed, and quietly indexes nothing written afterwards.
 	 *
-	 * That state used to be reachable through ordinary schema evolution, because an explicit component array is
-	 * taken verbatim: a reference already carrying components in one scope and then indexed in a second handed
-	 * the second scope an index type and no components. Defaulting per scope rather than only when the whole
-	 * array is absent closes that, and cannot overwrite anything a caller asked for — it only fills scopes the
-	 * caller left empty.
+	 * An explicit component array is taken verbatim, so a reference already carrying components in one scope and then
+	 * indexed in a second would hand the second scope an index type and no components. Defaulting per scope rather
+	 * than only when the whole array is absent closes that, and cannot overwrite anything a caller asked for - it only
+	 * fills scopes the caller left empty.
+	 *
+	 * When `previousSchema` is given, the scopes it was already stored with and indexed nothing in are left alone - see
+	 * {@link #mayDefaultComponentsInScope}. Defaulting is a completion of what a caller declares, never a repair of what
+	 * a catalog stored.
 	 *
 	 * Returns the same map instance when every indexed scope is already covered (allocation-free happy path).
 	 *
 	 * @param indexedComponentsInScopes the components map to complete
 	 * @param indexedScopes             the index type per scope
+	 * @param previousSchema            the reference as it was before the mutation being applied, or `null` when the
+	 *                                  reference is being created
 	 * @return a completed copy, or the original map when nothing had to be filled in
 	 */
-	@Nonnull
-	public static Map<Scope, Set<ReferenceIndexedComponents>> withDefaultsForUncoveredScopes(
-		@Nonnull Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes,
-		@Nonnull Map<Scope, ReferenceIndexType> indexedScopes
-	) {
-		return withDefaultsForUncoveredScopes(indexedComponentsInScopes, indexedScopes, scope -> true);
-	}
-
-	/**
-	 * Fills in the default component set for every indexed scope the given map does not already cover and `eligible`
-	 * accepts - see {@link #withDefaultsForUncoveredScopes(Map, Map)}. A mutation of an existing reference passes
-	 * {@link #mayDefaultComponentsInScope} here, so that it never completes a scope the reference was already stored
-	 * with and never indexed anything in.
-	 *
-	 * @param indexedComponentsInScopes the components map to complete
-	 * @param indexedScopes             the index type per scope
-	 * @param eligible                  decides which uncovered indexed scopes may be filled
-	 * @return a completed copy, or the original map when nothing had to be filled in
-	 */
+	@Internal("change the indexing of a reference through the entity schema builder - this backs SetReferenceSchemaIndexedMutation")
 	@Nonnull
 	public static Map<Scope, Set<ReferenceIndexedComponents>> withDefaultsForUncoveredScopes(
 		@Nonnull Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes,
 		@Nonnull Map<Scope, ReferenceIndexType> indexedScopes,
-		@Nonnull Predicate<Scope> eligible
+		@Nullable ReferenceSchemaContract previousSchema
 	) {
 		EnumMap<Scope, Set<ReferenceIndexedComponents>> completed = null;
 		for (final Map.Entry<Scope, ReferenceIndexType> entry : indexedScopes.entrySet()) {
-			if (entry.getValue() == ReferenceIndexType.NONE || !eligible.test(entry.getKey())) {
+			final Scope scope = entry.getKey();
+			if (entry.getValue() == ReferenceIndexType.NONE ||
+				(previousSchema != null && !mayDefaultComponentsInScope(previousSchema, scope))) {
 				continue;
 			}
-			final Set<ReferenceIndexedComponents> declared = indexedComponentsInScopes.get(entry.getKey());
+			final Set<ReferenceIndexedComponents> declared = indexedComponentsInScopes.get(scope);
 			if (declared != null && !declared.isEmpty()) {
 				continue;
 			}
@@ -353,7 +341,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 				completed.putAll(indexedComponentsInScopes);
 			}
 			completed.put(
-				entry.getKey(),
+				scope,
 				Collections.unmodifiableSet(EnumSet.of(ReferenceIndexedComponents.REFERENCED_ENTITY))
 			);
 		}
@@ -375,7 +363,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	 * @param scope          the scope the mutation leaves without components
 	 * @return `true` when the default component set may be filled into the scope
 	 */
-	public static boolean mayDefaultComponentsInScope(
+	static boolean mayDefaultComponentsInScope(
 		@Nonnull ReferenceSchemaContract previousSchema,
 		@Nonnull Scope scope
 	) {
@@ -406,7 +394,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	) {
 		return indexedComponentsInScopes != null
 			? withDefaultsForUncoveredScopes(
-				toIndexedComponentsEnumMap(indexedComponentsInScopes), indexedScopesMap
+				toIndexedComponentsEnumMap(indexedComponentsInScopes), indexedScopesMap, null
 			)
 			: defaultIndexedComponents(indexedScopesMap);
 	}

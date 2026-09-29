@@ -53,7 +53,6 @@ import java.util.EnumMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -389,14 +388,13 @@ public class SetReferenceSchemaIndexedMutation
 			// reference that reports itself indexed and silently stops indexing anything written to that scope.
 			// The exception is a scope the reference is already stored with and no component - it never indexed
 			// anything, and completing it as a side effect of this change would make it look healthy
-			final Predicate<Scope> mayDefault = scope -> ReferenceSchema.mayDefaultComponentsInScope(referenceSchema, scope);
 			final Map<Scope, Set<ReferenceIndexedComponents>> indexedComponents =
 				ReferenceSchema.withDefaultsForUncoveredScopes(
 					filteredComponentsArray != null
 						? ReferenceSchema.toIndexedComponentsEnumMap(filteredComponentsArray)
 						: new EnumMap<>(Scope.class),
 					indexedScopes,
-					mayDefault
+					referenceSchema
 				);
 
 			if (indexedScopes.equals(referenceSchema.getReferenceIndexTypeInScopes()) &&
