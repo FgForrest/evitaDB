@@ -1,7 +1,7 @@
 ---
 title: attributeIsNull inside referenceHaving widens candidate discovery and is answered one reference row at a time
 date: 2026-09-25
-updated: 2026-09-29 07:25
+updated: 2026-09-29 07:26
 status: accepted
 kind: fix
 issues: [1584]
@@ -291,7 +291,8 @@ Unique lookups (`UniqueAttributeLookupBenchmark`, results in its `.md`) are flat
   The wire shape is unchanged, so old recordings still read, but a recorded `scope(ARCHIVED, LIVE)` replays as
   `scope(LIVE, ARCHIVED)` - the order was never captured and cannot be recovered.
 - `hierarchyWithin` accepts a nested `scope(...)` but resolves its parent within the queried scope, ignoring it.
-  Pinned as it stands in `NestedEntityScopeFunctionalTest`; whether it should be honoured or refused is open.
+  Pinned as it stands in `NestedEntityScopeFunctionalTest`. #1655 proposes the rule: honour a single nested scope
+  and refuse a hierarchy filter over several scopes, which today answers from the `LIVE` tree only.
 - **`OwnerUniqueIndex#recordIds` loses records that still own values.** `unregisterUniqueKeyValue` drops the
   record id eagerly, which its comment calls transient - but in a type-level index one partition owns the values
   of all its rows, so archiving one owner dropped a partition whose other rows still carry values, and at entity
