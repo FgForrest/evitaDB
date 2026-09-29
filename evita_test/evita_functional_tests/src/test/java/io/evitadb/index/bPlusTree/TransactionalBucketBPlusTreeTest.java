@@ -49,6 +49,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.text.Collator;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
@@ -62,6 +63,8 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
+import java.util.function.ToLongFunction;
 
 import static io.evitadb.test.TestTags.CACHE;
 import static io.evitadb.test.TestTags.DATA_TYPE;
@@ -5144,6 +5147,555 @@ class TransactionalBucketBPlusTreeTest {
 				// the first and the last are met by an initial descent, the middle ones only by a step
 				assertWalksSurviveAnEmptiedChild(shallowTree(), recordCount, victimIndex);
 			}
+		}
+	}
+
+	/**
+	 * An internal node grows in place by storing the new separator, then the new child pointers, then raising `peek`
+	 * - plain stores with no ordering edge to a session-free reader. On hardware that does not keep stores in program
+	 * order a reader can see the raised `peek` while the slot it admits still reads `null` (and the separator before
+	 * it, too). The weekly sweep met exactly that on macOS/AArch64: `findLeafNode` descended into the empty slot and
+	 * handed `contains` a `null` leaf.
+	 *
+	 * These tests build that state deterministically on a real tree: {@link BPlusInternalTreeNode#setPeek} raised
+	 * outside a transaction moves `peek` up without touching either array, which is exactly what such a reader
+	 * observes. The separator of the admitted slot is written in one variant and left `null` in the other, because
+	 * the reader may see either. The torn node's last child still owns every key the admitted slot would claim, so a
+	 * reader that steps back to it answers exactly what the tree held before the grow - which is what every
+	 * assertion here checks, rather than merely that nothing was thrown.
+	 */
+	@Nested
+	@DisplayName("Session-free reads over a child slot a grow has not published yet")
+	@Tag(INDEXING)
+	class UnpublishedChildSlot {
+		/**
+		 * Leaf and internal block size of the fixtures: small enough for a few hundred keys to build three levels, and
+		 * above the four-slot floor an internal node's arrays start at, so a node that grew in place carries slack.
+		 */
+		private static final int BLOCK = 9;
+		/**
+		 * Minimum occupancy accepted for {@link #BLOCK}.
+		 */
+		private static final int MIN_BLOCK = 4;
+		/**
+		 * Keys of a fixture whose root sits directly above the leaves.
+		 */
+		private static final int TWO_LEVEL_KEYS = 40;
+		/**
+		 * Keys of a fixture whose root sits above internal nodes.
+		 */
+		private static final int THREE_LEVEL_KEYS = 240;
+		/**
+		 * Shuffle seeds tried before a fixture gives up looking for the node shape it needs.
+		 */
+		private static final int SEED_BUDGET = 1_000;
+		/**
+		 * Prices every key at zero, so the heap walk's figure depends on the tree's shape alone.
+		 */
+		private static final ToLongFunction<Object> FREE_ELEMENT_SIZER = element -> 0L;
+		/**
+		 * Mutations in one no-op run - enough for the tree to grow three levels deep and collapse again.
+		 */
+		private static final int NO_OP_CHURN_OPERATIONS = 600;
+		/**
+		 * Mutations between two full checks of a no-op run.
+		 */
+		private static final int NO_OP_CHECK_INTERVAL = 25;
+		/**
+		 * Values the no-op runs draw from.
+		 */
+		private static final int NO_OP_VALUE_RANGE = 120;
+		/**
+		 * Record ids the no-op runs draw from, starting at `1` so none of them reads as the reserved key.
+		 */
+		private static final int NO_OP_RECORD_RANGE = 400;
+
+		/**
+		 * A tree and the internal node in it that is about to be torn.
+		 *
+		 * @param tree     the tree holding the dense key range `0 .. keyCount - 1`
+		 * @param node     the internal node whose `peek` will run ahead of its published children
+		 * @param keyCount the number of keys the tree holds
+		 */
+		private record TornFixture(
+			@Nonnull TransactionalBucketBPlusTree<Integer> tree,
+			@Nonnull BPlusInternalTreeNode<Integer> node,
+			int keyCount
+		) {
+		}
+
+		/**
+		 * The record stored under a key - never `0`, which is {@link EvitaDataTypes#RESERVED_PRIMARY_KEY} and would
+		 * be indistinguishable from "no predecessor".
+		 *
+		 * @param key the key
+		 * @return its only record
+		 */
+		private static int recordOf(int key) {
+			return (key + 1) * 10;
+		}
+
+		/**
+		 * Whether the node has room for one more separator and one more child without growing an array - the state a
+		 * raised `peek` must be observed in for the admitted slot to read `null` rather than run off the array.
+		 *
+		 * @param node the node to test
+		 * @return true when both arrays carry slack past the live run
+		 */
+		private static boolean hasSlack(@Nonnull BPlusInternalTreeNode<Integer> node) {
+			return node.getPeek() + 1 < node.getChildren().length && node.getPeek() < node.getKeys().length;
+		}
+
+		/**
+		 * Builds trees from shuffled inserts - so internal nodes grow in place rather than only at the right edge -
+		 * until `selector` finds the node shape a test needs.
+		 *
+		 * @param keyCount the number of keys to insert
+		 * @param selector picks the node to tear from the root, or answers `null` when this tree has none
+		 * @return the fixture
+		 */
+		@Nonnull
+		private static TornFixture fixture(
+			int keyCount,
+			@Nonnull Function<BPlusInternalTreeNode<Integer>, BPlusInternalTreeNode<Integer>> selector
+		) {
+			for (long seed = 0; seed < SEED_BUDGET; seed++) {
+				final TransactionalBucketBPlusTree<Integer> tree =
+					new TransactionalBucketBPlusTree<>(BLOCK, MIN_BLOCK, BLOCK, MIN_BLOCK, Integer.class, null);
+				final List<Integer> keys = new ArrayList<>(keyCount);
+				for (int key = 0; key < keyCount; key++) {
+					keys.add(key);
+				}
+				Collections.shuffle(keys, new Random(seed));
+				for (final int key : keys) {
+					tree.addRecord(key, recordOf(key));
+				}
+				if (tree.getRoot() instanceof BPlusInternalTreeNode<?> root) {
+					@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> selected =
+						selector.apply((BPlusInternalTreeNode<Integer>) root);
+					if (selected != null) {
+						return new TornFixture(tree, selected, keyCount);
+					}
+				}
+			}
+			throw new IllegalStateException("No seed produced the node shape this fixture needs.");
+		}
+
+		/**
+		 * Raises the node's `peek` by one without publishing the child - the state a session-free reader observes
+		 * when the writer's `peek` store overtakes its child store.
+		 *
+		 * @param node             the node to tear
+		 * @param separatorVisible whether the admitted slot's separator is observed written (it may be either)
+		 */
+		private static void tear(@Nonnull BPlusInternalTreeNode<Integer> node, boolean separatorVisible) {
+			final int peek = node.getPeek();
+			if (separatorVisible) {
+				// a split of the last child promotes a key from INSIDE that child's range, and the child itself stays
+				// in place until the stores behind the separator become visible
+				node.getKeysForUpdate()[peek] = node.getChildren()[peek].getLeftBoundaryKey() + 1;
+			}
+			node.setPeek(peek + 1);
+			assertEquals(peek + 1, node.getPeek(), "the fixture must raise peek");
+			assertNull(
+				node.getChildren()[peek + 1], "the admitted slot must read null - that unpublished slot IS the defect"
+			);
+		}
+
+		/**
+		 * Collects the keys a cursor yields.
+		 *
+		 * @param cursor the cursor to drain
+		 * @return the keys in the order yielded
+		 */
+		@Nonnull
+		private static List<Integer> keysOf(@Nonnull BucketCursor<Integer> cursor) {
+			final List<Integer> keys = new ArrayList<>(THREE_LEVEL_KEYS);
+			while (cursor.next()) {
+				keys.add(cursor.value());
+			}
+			return keys;
+		}
+
+		/**
+		 * The dense key range `from .. to - 1`, ascending.
+		 *
+		 * @param from the first key, inclusive
+		 * @param to   the last key, exclusive
+		 * @return the keys
+		 */
+		@Nonnull
+		private static List<Integer> ascending(int from, int to) {
+			final List<Integer> keys = new ArrayList<>(Math.max(0, to - from));
+			for (int key = from; key < to; key++) {
+				keys.add(key);
+			}
+			return keys;
+		}
+
+		/**
+		 * Tears the fixture's node and asserts that every session-free entry point still answers exactly what the tree
+		 * held before the tear: the torn node's last child still owns every key the unpublished slot would claim.
+		 *
+		 * @param fixture          the fixture to tear
+		 * @param separatorVisible whether the admitted slot's separator is observed written
+		 */
+		private static void assertEveryReadAnswersThePreGrowthTree(
+			@Nonnull TornFixture fixture,
+			boolean separatorVisible
+		) {
+			final TransactionalBucketBPlusTree<Integer> tree = fixture.tree();
+			final int keyCount = fixture.keyCount();
+			assertEquals(keyCount, tree.recordCount(), "the healthy fixture must hold every key");
+			final long heapBefore = tree.getHeapSizeInBytes(FREE_ELEMENT_SIZER);
+
+			tear(fixture.node(), separatorVisible);
+
+			for (int key = 0; key < keyCount; key++) {
+				final int probed = key;
+				assertTrue(tree.contains(key), () -> "contains(" + probed + ")");
+				assertEquals(1, tree.cardinalityOf(key), () -> "cardinalityOf(" + probed + ")");
+				assertArrayEquals(
+					new int[]{recordOf(key)}, tree.getRecordsEqualTo(key).getArray(),
+					() -> "getRecordsEqualTo(" + probed + ")"
+				);
+				assertEquals(
+					key == 0 ? EvitaDataTypes.RESERVED_PRIMARY_KEY : recordOf(key - 1),
+					tree.computePreviousRecord(key, recordOf(key)),
+					() -> "computePreviousRecord(" + probed + ")"
+				);
+			}
+			assertFalse(tree.contains(keyCount), "a key past the right edge must stay absent");
+
+			assertEquals(keyCount, tree.recordCount(), "the session-free count must not lose the torn node's tail");
+			assertEquals(ascending(0, keyCount), keysOf(tree.cursor()), "the forward walk");
+			for (int from = 0; from < keyCount; from += 7) {
+				assertEquals(ascending(from, keyCount), keysOf(tree.cursor(from)), "the keyed walk from " + from);
+			}
+			final List<Integer> expectedReverse = ascending(0, keyCount);
+			Collections.reverse(expectedReverse);
+			assertEquals(expectedReverse, keysOf(tree.reverseCursor()), "the reverse walk");
+			assertEquals(
+				heapBefore, tree.getHeapSizeInBytes(FREE_ELEMENT_SIZER),
+				"the heap walk must step over the unpublished slot - the torn node owns no more heap than before"
+			);
+		}
+
+		@Test
+		@DisplayName("a root above the leaves whose peek admits an unpublished child")
+		void shouldAnswerFromThePreGrowthChildWhenARootOverLeavesAdmitsAnUnpublishedSlot() {
+			// the slot the sweep failed on: the point descent indexes the root's children and lands on the leaf slot
+			// the split has not published yet
+			for (final boolean separatorVisible : new boolean[]{true, false}) {
+				assertEveryReadAnswersThePreGrowthTree(
+					fixture(
+						TWO_LEVEL_KEYS,
+						root -> root.getChildren()[0] instanceof BPlusLeafTreeNode<?> && hasSlack(root) ? root : null
+					),
+					separatorVisible
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("a root above internal nodes whose peek admits an unpublished child")
+		void shouldAnswerFromThePreGrowthChildWhenARootOverInternalNodesAdmitsAnUnpublishedSlot() {
+			// one level higher the forward walk meets the null while re-descending from the root, where it used to
+			// fail the "Internal node expected!" premise, and the heap walk refused the null outright
+			for (final boolean separatorVisible : new boolean[]{true, false}) {
+				assertEveryReadAnswersThePreGrowthTree(
+					fixture(
+						THREE_LEVEL_KEYS,
+						root -> root.getChildren()[0] instanceof BPlusInternalTreeNode<?> && hasSlack(root) ? root : null
+					),
+					separatorVisible
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("an inner node with a following sibling whose peek admits an unpublished child")
+		void shouldAnswerFromThePreGrowthChildWhenAnInnerNodeAdmitsAnUnpublishedSlot() {
+			// a torn node that is NOT the rightmost one: the previous-record climb out of its following sibling
+			// rebuilds the torn node's rightmost level, and the reverse walk steps into it from the right - both
+			// address exactly the slot the raised peek admits
+			for (final boolean separatorVisible : new boolean[]{true, false}) {
+				assertEveryReadAnswersThePreGrowthTree(
+					fixture(
+						THREE_LEVEL_KEYS,
+						root -> {
+							for (int i = 0; i < root.getPeek(); i++) {
+								if (root.getChildren()[i] instanceof BPlusInternalTreeNode<?> child
+									&& child.getChildren()[0] instanceof BPlusLeafTreeNode<?>) {
+									@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> inner =
+										(BPlusInternalTreeNode<Integer>) child;
+									if (hasSlack(inner)) {
+										return inner;
+									}
+								}
+							}
+							return null;
+						}
+					),
+					separatorVisible
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("a point lookup into a subtree a merge has emptied answers absent")
+		void shouldAnswerAPointLookupIntoAnEmptiedSubtreeAsAbsent() {
+			// the merge-side twin: `mergeWithLeft` / `mergeWithRight` empty their donor with `setPeek(-1)` one
+			// statement before `consolidate` unlinks it, and a point lookup routed into the donor used to reach
+			// `searchIndex` with a negative bound and fail `Arrays.binarySearch`'s range check. The walks step over
+			// such a subtree; a point lookup cannot step anywhere meaningful, so it answers absent
+			final TransactionalBucketBPlusTree<Integer> tree =
+				new TransactionalBucketBPlusTree<>(3, 1, 3, 1, Integer.class, null);
+			final int keyCount = 40;
+			for (int key = 0; key < keyCount; key++) {
+				tree.addRecord(key, recordOf(key));
+			}
+			@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> root =
+				(BPlusInternalTreeNode<Integer>) tree.getRoot();
+			final BPlusTreeNode<Integer, ?> victim = root.getChildren()[0];
+			assertInstanceOf(BPlusInternalTreeNode.class, victim, "the fixture needs an internal node to empty");
+			final int firstSurvivingKey = root.getChildren()[1].getLeftBoundaryKey();
+
+			victim.setPeek(-1);
+			assertSame(victim, root.getChildren()[0], "the parent must still reference the emptied node");
+
+			for (int key = 0; key < keyCount; key++) {
+				final int probed = key;
+				if (key < firstSurvivingKey) {
+					assertFalse(tree.contains(key), () -> "contains(" + probed + ")");
+					assertEquals(0, tree.cardinalityOf(key), () -> "cardinalityOf(" + probed + ")");
+					assertTrue(tree.getRecordsEqualTo(key).isEmpty(), () -> "getRecordsEqualTo(" + probed + ")");
+					assertEquals(
+						EvitaDataTypes.RESERVED_PRIMARY_KEY, tree.computePreviousRecord(key, recordOf(key)),
+						() -> "computePreviousRecord(" + probed + ")"
+					);
+				} else {
+					assertTrue(tree.contains(key), () -> "contains(" + probed + ")");
+					assertEquals(1, tree.cardinalityOf(key), () -> "cardinalityOf(" + probed + ")");
+					assertArrayEquals(
+						new int[]{recordOf(key)}, tree.getRecordsEqualTo(key).getArray(),
+						() -> "getRecordsEqualTo(" + probed + ")"
+					);
+					if (key > firstSurvivingKey) {
+						// the first surviving key has no in-leaf anchor and climbs INTO the emptied node, which the
+						// previous-node rebuild does not step over - see the content-sized columns record
+						assertEquals(
+							recordOf(key - 1), tree.computePreviousRecord(key, recordOf(key)),
+							() -> "computePreviousRecord(" + probed + ")"
+						);
+					}
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("every guard is a no-op for a transaction reading its own layers through splits, merges and steals")
+		void shouldLeaveEveryTransactionalReadUnchanged() {
+			// the guards exist only for a reader that shares no happens-before edge with the writer. A transaction
+			// reading its own layers is the opposite case, and there every one of them must return its input untouched
+			final TransactionalBucketBPlusTree<Integer> tree =
+				new TransactionalBucketBPlusTree<>(5, 2, 5, 2, Integer.class, null);
+			final TreeMap<Integer, TreeSet<Integer>> oracle = new TreeMap<>();
+			final Random random = new Random(7L);
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					for (int op = 1; op <= NO_OP_CHURN_OPERATIONS; op++) {
+						churnOnce(tested, oracle, random, op);
+						if (op % NO_OP_CHECK_INTERVAL == 0) {
+							assertGuardsAreNoOps(tested, oracle, "in transaction after op " + op);
+						}
+					}
+				},
+				(original, committed) -> assertGuardsAreNoOps(committed, oracle, "after commit")
+			);
+		}
+
+		@Test
+		@DisplayName("every guard is a no-op for the warm-up writer reading the nodes it mutates in place")
+		void shouldLeaveEveryInPlaceWriterReadUnchanged() {
+			// the in-place path the session-free reader races: here the reader IS the writer, so it sees every store
+			// in program order and no guard may change a single answer
+			final TransactionalBucketBPlusTree<Integer> tree =
+				new TransactionalBucketBPlusTree<>(5, 2, 5, 2, Integer.class, null);
+			final TreeMap<Integer, TreeSet<Integer>> oracle = new TreeMap<>();
+			final Random random = new Random(11L);
+			for (int op = 1; op <= NO_OP_CHURN_OPERATIONS; op++) {
+				churnOnce(tree, oracle, random, op);
+				if (op % NO_OP_CHECK_INTERVAL == 0) {
+					assertGuardsAreNoOps(tree, oracle, "in place after op " + op);
+				}
+			}
+		}
+
+		/**
+		 * Applies one random mutation: mostly adds during the first half of the run and mostly removals of a present
+		 * record during the second, so a single run grows the tree through splits and shrinks it again through steals
+		 * and merges.
+		 *
+		 * @param tree      the tree to mutate
+		 * @param oracle    the reference content, updated alongside
+		 * @param random    the source of the operation
+		 * @param operation the one-based index of this operation within the run
+		 */
+		private static void churnOnce(
+			@Nonnull TransactionalBucketBPlusTree<Integer> tree,
+			@Nonnull TreeMap<Integer, TreeSet<Integer>> oracle,
+			@Nonnull Random random,
+			int operation
+		) {
+			final boolean growing = operation <= NO_OP_CHURN_OPERATIONS / 2;
+			final boolean add = oracle.isEmpty() || random.nextInt(10) < (growing ? 8 : 2);
+			if (add) {
+				final int value = random.nextInt(NO_OP_VALUE_RANGE);
+				final int pk = 1 + random.nextInt(NO_OP_RECORD_RANGE);
+				tree.addRecord(value, pk);
+				oracle.computeIfAbsent(value, k -> new TreeSet<>()).add(pk);
+			} else {
+				final Integer probe = oracle.ceilingKey(random.nextInt(NO_OP_VALUE_RANGE));
+				final int value = probe == null ? oracle.firstKey() : probe;
+				final TreeSet<Integer> records = oracle.get(value);
+				final int pk = records.first();
+				tree.removeRecord(value, pk);
+				records.remove(pk);
+				if (records.isEmpty()) {
+					oracle.remove(value);
+				}
+			}
+		}
+
+		/**
+		 * Asserts the state that makes every guard an identity, and then that every guarded entry point answers
+		 * exactly what an unguarded descent and the oracle answer.
+		 *
+		 * The structural half is the proof: each guard returns its input unchanged precisely when every internal node
+		 * the reader can reach has `peek >= 0`, a child array at least `peek + 1` long, no `null` among its children
+		 * `[0, peek]` and no `null` among its separators `[0, peek)`. The behavioural half confirms it end to end -
+		 * `findLeafNode` and `createCursor` must land on the very leaf instance a plain binary-search descent with no
+		 * guard at all reaches.
+		 *
+		 * @param tree   the tree to inspect, read through the calling thread's transactional layers when one is open
+		 * @param oracle the reference content
+		 * @param phase  where in the run this check sits, for failure messages
+		 */
+		private static void assertGuardsAreNoOps(
+			@Nonnull TransactionalBucketBPlusTree<Integer> tree,
+			@Nonnull TreeMap<Integer, TreeSet<Integer>> oracle,
+			@Nonnull String phase
+		) {
+			assertEveryReachableNodeIsFullyPublished(tree.getRoot(), phase);
+
+			for (int key = -1; key <= NO_OP_VALUE_RANGE; key++) {
+				final int probed = key;
+				final BPlusTreeNode<Integer, ?> expectedLeaf = unguardedLeafOf(tree, key);
+				assertSame(expectedLeaf, tree.findLeafNode(key), () -> phase + ": findLeafNode(" + probed + ")");
+				assertSame(
+					expectedLeaf, tree.createCursor(key).leafNode(), () -> phase + ": createCursor(" + probed + ")"
+				);
+				final TreeSet<Integer> records = oracle.get(key);
+				assertEquals(records != null, tree.contains(key), () -> phase + ": contains(" + probed + ")");
+				assertEquals(
+					records == null ? 0 : records.size(), tree.cardinalityOf(key),
+					() -> phase + ": cardinalityOf(" + probed + ")"
+				);
+				assertArrayEquals(
+					records == null ? new int[0] : records.stream().mapToInt(Integer::intValue).toArray(),
+					tree.getRecordsEqualTo(key).getArray(),
+					() -> phase + ": getRecordsEqualTo(" + probed + ")"
+				);
+				for (int pk = 1; pk <= NO_OP_RECORD_RANGE; pk += 37) {
+					final int probedPk = pk;
+					assertEquals(
+						expectedAnchor(oracle, key, pk), tree.computePreviousRecord(key, pk),
+						() -> phase + ": computePreviousRecord(" + probed + ", " + probedPk + ")"
+					);
+				}
+			}
+
+			final List<Integer> expectedKeys = new ArrayList<>(oracle.keySet());
+			assertEquals(expectedKeys, keysOf(tree.cursor()), phase + ": forward walk");
+			final List<Integer> expectedReverse = new ArrayList<>(expectedKeys);
+			Collections.reverse(expectedReverse);
+			assertEquals(expectedReverse, keysOf(tree.reverseCursor()), phase + ": reverse walk");
+			assertEquals(
+				oracle.values().stream().mapToInt(TreeSet::size).sum(), tree.recordCount(), phase + ": recordCount"
+			);
+		}
+
+		/**
+		 * Asserts that no internal node reachable from `node` holds any of the states the guards exist for.
+		 *
+		 * @param node  the subtree root
+		 * @param phase where in the run this check sits, for failure messages
+		 */
+		private static void assertEveryReachableNodeIsFullyPublished(
+			@Nonnull BPlusTreeNode<Integer, ?> node,
+			@Nonnull String phase
+		) {
+			if (node instanceof BPlusInternalTreeNode<?> internal) {
+				@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> internalNode =
+					(BPlusInternalTreeNode<Integer>) internal;
+				final int peek = internalNode.getPeek();
+				final BPlusTreeNode<Integer, ?>[] children = internalNode.getChildren();
+				final Integer[] keys = internalNode.getKeys();
+				assertTrue(peek >= 0, phase + ": a reachable internal node is emptied");
+				assertTrue(children.length >= peek + 1, phase + ": peek runs past the child array");
+				for (int i = 0; i < peek; i++) {
+					assertNotNull(keys[i], phase + ": separator " + i + " of " + peek + " is null");
+				}
+				for (int i = 0; i <= peek; i++) {
+					assertNotNull(children[i], phase + ": child " + i + " of " + peek + " is null");
+					assertEveryReachableNodeIsFullyPublished(children[i], phase);
+				}
+			}
+		}
+
+		/**
+		 * The leaf a descent with no guard at all reaches - `getChildren()[binarySearch(getKeys(), 0, getPeek())]` at
+		 * every level, exactly the rule `searchIndex` implemented before any bound was added to it.
+		 *
+		 * @param tree the tree to descend
+		 * @param key  the key to route
+		 * @return the leaf the key routes to
+		 */
+		@Nonnull
+		private static BPlusTreeNode<Integer, ?> unguardedLeafOf(
+			@Nonnull TransactionalBucketBPlusTree<Integer> tree,
+			int key
+		) {
+			BPlusTreeNode<Integer, ?> node = tree.getRoot();
+			while (node instanceof BPlusInternalTreeNode<?> internal) {
+				@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> internalNode =
+					(BPlusInternalTreeNode<Integer>) internal;
+				final int position = Arrays.binarySearch(internalNode.getKeys(), 0, internalNode.getPeek(), key);
+				node = internalNode.getChildren()[position >= 0 ? position + 1 : -position - 1];
+			}
+			return node;
+		}
+
+		/**
+		 * The anchor {@link TransactionalBucketBPlusTree#computePreviousRecord} must answer, computed from the oracle:
+		 * the greatest lower record in the value's own bucket, else the last record of the closest preceding bucket,
+		 * else {@link EvitaDataTypes#RESERVED_PRIMARY_KEY}.
+		 *
+		 * @param oracle the reference content
+		 * @param value  the value the record belongs to
+		 * @param pk     the record id
+		 * @return the expected anchor
+		 */
+		private static int expectedAnchor(@Nonnull TreeMap<Integer, TreeSet<Integer>> oracle, int value, int pk) {
+			final TreeSet<Integer> own = oracle.get(value);
+			final Integer lower = own == null ? null : own.lower(pk);
+			if (lower != null) {
+				return lower;
+			}
+			final Entry<Integer, TreeSet<Integer>> preceding = oracle.lowerEntry(value);
+			return preceding == null ? EvitaDataTypes.RESERVED_PRIMARY_KEY : preceding.getValue().last();
 		}
 	}
 }

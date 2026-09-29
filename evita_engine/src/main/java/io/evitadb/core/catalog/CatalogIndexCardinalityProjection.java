@@ -25,6 +25,7 @@ package io.evitadb.core.catalog;
 
 import io.evitadb.api.statistics.CatalogIndexCardinality;
 import io.evitadb.api.statistics.CatalogIndexCardinality.GlobalUniqueIndexCardinality;
+import io.evitadb.core.management.ManagementReads;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex;
 
@@ -76,19 +77,31 @@ final class CatalogIndexCardinalityProjection {
 		for (final CatalogIndex catalogIndex : catalogIndexes) {
 			final Scope scope = catalogIndex.getIndexKey().scope();
 			// `forEach`, never `entrySet()`: asking a map for a view parks it on the map for the lifetime of the index -
-			// see `documentation/developer/heap-size-testing.md`, trap 6
-			catalogIndex.getGlobalUniqueIndexes().forEach((attributeKey, globalUniqueIndex) ->
-				described.add(
-					new GlobalUniqueIndexCardinality(
-						attributeKey.attributeName(),
-						attributeKey.locale(),
-						scope,
-						// distinct values, which is not always the covered-record count - a localized globally-unique
-						// attribute has one locale-less key covering every locale, so one record can own several values
-						// in it. The covered-record count comes from `GlobalUniqueIndex#getRecordCount` and is reported
-						// by the per-index detail call, which reaches one catalog index rather than all of them
-						globalUniqueIndex.size()
-					)
+			// see `documentation/developer/heap-size-testing.md`, trap 6. Walked through
+			// `ManagementReads#walkTolerantly`: outside a transaction a warm-up writer files a new unique index
+			// straight into this map, and this call runs on a management thread with no happens-before edge to it, so
+			// a disturbed walk is started over rather than failing the call
+			described.addAll(
+				ManagementReads.<List<GlobalUniqueIndexCardinality>>walkTolerantly(
+					ArrayList::new,
+					readings -> catalogIndex.getGlobalUniqueIndexes().forEach((attributeKey, globalUniqueIndex) -> {
+						// a node published by a racing writer may not show its value yet - it holds no index to count
+						if (globalUniqueIndex != null) {
+							readings.add(
+								new GlobalUniqueIndexCardinality(
+									attributeKey.attributeName(),
+									attributeKey.locale(),
+									scope,
+									// distinct values, which is not always the covered-record count - a localized
+									// globally-unique attribute has one locale-less key covering every locale, so one
+									// record can own several values in it. The covered-record count comes from
+									// `GlobalUniqueIndex#getRecordCount` and is reported by the per-index detail
+									// call, which reaches one catalog index rather than all of them
+									globalUniqueIndex.size()
+								)
+							);
+						}
+					})
 				)
 			);
 		}

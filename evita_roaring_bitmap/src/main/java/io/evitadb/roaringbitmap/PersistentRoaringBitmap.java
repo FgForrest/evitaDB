@@ -2334,6 +2334,15 @@ public class PersistentRoaringBitmap
 	 *
 	 * Runs in `O(containers)` — no iteration over the contained values.
 	 *
+	 * **The walk tolerates a backbone a concurrent in-place writer has torn.** A bitmap mutated outside a
+	 * transaction — every bitmap of an index a warm-up load builds — is written with plain stores: a removal
+	 * that empties a chunk nulls the vacated last slot before lowering `size`, and an insertion that fills the
+	 * backbone reallocates `values` before raising it. The heap walk behind `EntityCollection#describeIndex`
+	 * reads that bitmap from a management thread with no happens-before edge to the writer, so it can hold a
+	 * `size` whose last slot reads `null`, or one past the `values` array it reads. The array is therefore read
+	 * once, the count is bounded by its length and a `null` slot is stepped over; on a consistent bitmap every
+	 * slot below `size` is populated and `size` never exceeds the array, so the figure is unchanged.
+	 *
 	 * @param layout the running VM's object layout; this module depends on nothing but `jsr305` and so
 	 *               cannot detect it for itself
 	 * @return the bitmap's heap footprint in bytes, including alignment padding
@@ -2344,13 +2353,20 @@ public class PersistentRoaringBitmap
 		// the RoaringArray: its keys/values references, the `size` counter and the `frozen` flag
 		size += layout.sizeOfObject(2L * layout.referenceSize() + Integer.BYTES + 1L);
 		// the backbone arrays at their allocated lengths - `keys` and `values` grow together, while
-		// `shared` is allowed to lag behind them, so all three are read rather than derived from one
+		// `shared` is allowed to lag behind them, so all three are read rather than derived from one.
+		// `values` is read ONCE, so the containers below come from the very array charged here
+		final Container[] theValues = this.highLowContainer.values;
 		size += layout.sizeOfArray(this.highLowContainer.keys.length, Character.BYTES);
-		size += layout.sizeOfArray(this.highLowContainer.values.length, layout.referenceSize());
+		size += layout.sizeOfArray(theValues.length, layout.referenceSize());
 		size += layout.sizeOfArray(this.shared.length, 1);
-		final int containers = this.highLowContainer.size();
+		// bounded by the array just read: a torn reader can see a count raised past it - see the javadoc
+		final int containers = Math.min(this.highLowContainer.size(), theValues.length);
 		for (int i = 0; i < containers; i++) {
-			size += this.highLowContainer.getContainerAtIndex(i).getHeapSizeInBytes(layout);
+			final Container container = theValues[i];
+			// a slot the count admits but whose container a concurrent removal has already nulled
+			if (container != null) {
+				size += container.getHeapSizeInBytes(layout);
+			}
 		}
 		return size;
 	}
