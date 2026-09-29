@@ -1885,6 +1885,86 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 		}
 
 		/**
+		 * A value comparison of `globalLabel`, globally unique across locales, claims the query locale - its formula
+		 * reports {@link io.evitadb.core.query.algebra.attribute.AttributeFormula#isLocaleImplied()} - and the prefetch
+		 * plan then drops the sibling `entityLocaleEquals`. That is sound only because the unique index of the catalog
+		 * keeps the locale of every value and a lookup matches it against the query locale, so an owner carrying the value
+		 * in another locale is never found. Owners 7 (LIVE) and 8 (ARCHIVED) hold the English locale but carry the
+		 * attribute in German only, which makes each German value looked up in English the witness: its owner holds the
+		 * requested locale, so nothing but the lookup's locale match keeps it out of the answer. The English values they
+		 * removed must match no owner in either locale.
+		 */
+		@DisplayName("Should match a value unique across the catalog's locales only in the locale it is carried in")
+		@UseDataSet(MIXED_UNIQUENESS_NULL)
+		@Test
+		void shouldMatchAValueUniqueAcrossTheCatalogLocalesOnlyInTheLocaleItIsCarriedIn(
+			Evita evita,
+			List<SealedEntity> originalMixedOwners
+		) {
+			final Set<String> values = new TreeSet<>();
+			for (SealedEntity owner : originalMixedOwners) {
+				for (Locale locale : MIXED_LOCALES) {
+					final String value = owner.getAttribute(GLOBAL_LABEL, locale);
+					if (value != null) {
+						values.add(value);
+					}
+				}
+			}
+			for (int pk : OWNERS_KEEPING_GERMAN_ONLY) {
+				values.add(globalLabelOf(pk, Locale.ENGLISH));
+			}
+			int witnesses = 0;
+			for (SealedEntity owner : originalMixedOwners) {
+				final String germanValue = owner.getAttribute(GLOBAL_LABEL, Locale.GERMAN);
+				if (germanValue != null && owner.getAttribute(GLOBAL_LABEL, Locale.ENGLISH) == null &&
+					owner.getAllLocales().contains(Locale.ENGLISH)) {
+					witnesses++;
+				}
+			}
+			assertEquals(
+				OWNERS_KEEPING_GERMAN_ONLY.length, witnesses,
+				"Fixture guard: owners 7 and 8 must hold the English locale and carry `" + GLOBAL_LABEL +
+					"` in German only!"
+			);
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					for (Scope scope : Scope.values()) {
+						assertEquals(
+							GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG,
+							session.getCatalogSchema().getAttribute(GLOBAL_LABEL).orElseThrow()
+								.getGlobalUniquenessType(scope),
+							"Fixture guard: `" + GLOBAL_LABEL + "` must be globally unique across locales in " + scope
+						);
+					}
+					for (Locale locale : MIXED_LOCALES) {
+						for (Scope[] order : ALL_SCOPE_ORDERS) {
+							final Set<Scope> requestedScopes = Set.of(order);
+							for (String value : values) {
+								assertMatches(
+									session, ENTITY_MIXED_OWNER, originalMixedOwners,
+									owner -> requestedScopes.contains(owner.getScope()) &&
+										value.equals(owner.getAttribute(GLOBAL_LABEL, locale)),
+									null,
+									scope(order), entityLocaleEquals(locale), attributeEquals(GLOBAL_LABEL, value)
+								);
+							}
+							assertMatches(
+								session, ENTITY_MIXED_OWNER, originalMixedOwners,
+								owner -> requestedScopes.contains(owner.getScope()) &&
+									owner.getAttribute(GLOBAL_LABEL, locale) != null,
+								null,
+								scope(order), entityLocaleEquals(locale),
+								attributeInSet(GLOBAL_LABEL, values.toArray(String[]::new))
+							);
+						}
+					}
+					return null;
+				}
+			);
+		}
+
+		/**
 		 * A sibling `referenceHaving` can win index selection, so that the query is answered from the reduced indexes
 		 * of the referenced entities instead of the global one. The null and not-null tests of a globally unique
 		 * attribute then read the filter indexes of each reduced index: the null side subtracts the carriers from the
@@ -2763,10 +2843,23 @@ public class ReferenceHavingAttributeIsNullFunctionalTest {
 			.orElseThrow()
 			.openForWrite();
 		for (Locale locale : MIXED_LOCALES) {
-			builder.setAttribute(GLOBAL_LABEL, locale, "global-label-" + pk + "-" + locale.getLanguage());
+			builder.setAttribute(GLOBAL_LABEL, locale, globalLabelOf(pk, locale));
 			builder.setAttribute(TITLE, locale, "title-" + pk + "-" + locale.getLanguage());
 		}
 		builder.upsertVia(session);
+	}
+
+	/**
+	 * Returns the value of {@link #GLOBAL_LABEL} an owner of the mixed-uniqueness fixture sets in the locale - distinct
+	 * for every owner and locale, which is what lets it be unique across the catalog's locales.
+	 *
+	 * @param pk     primary key of the owner
+	 * @param locale the locale of the value
+	 * @return the value
+	 */
+	@Nonnull
+	private static String globalLabelOf(int pk, @Nonnull Locale locale) {
+		return "global-label-" + pk + "-" + locale.getLanguage();
 	}
 
 	/**

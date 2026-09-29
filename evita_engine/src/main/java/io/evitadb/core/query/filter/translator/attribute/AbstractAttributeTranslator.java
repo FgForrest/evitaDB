@@ -197,8 +197,10 @@ class AbstractAttributeTranslator {
 	) {
 		return isQueryLocaleImpliedByEveryScope(
 			filterByVisitor,
-			scope -> attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
-				globalAttributeSchema.isUniqueGloballyInScope(scope) ||
+			// a catalog lookup matches the locale of the value even where the uniqueness spans every locale, so unlike
+			// `isBoundToQueryLocale` (which answers the null tests) any global uniqueness implies the query locale here
+			scope -> (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
+				globalAttributeSchema.isUniqueGloballyInScope(scope)) ||
 				!attributeSchema.isUniqueInScope(scope) ||
 				attributeSchema.isUniqueWithinLocaleInScope(scope)
 		);
