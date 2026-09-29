@@ -1,7 +1,7 @@
 ---
 title: A referenceHaving body is a predicate about one reference row, evaluated by transposing the planned formula per reduced index
 date: 2026-09-17
-updated: 2026-09-29 14:45
+updated: 2026-09-29 15:10
 status: partially-implemented
 kind: fix
 issues: [1585, 1644]
@@ -84,6 +84,7 @@ whose row attributes vary **within one owner** to tell them apart, and the test 
 | 2026-09-17 | **(c), first half: a negated reference attribute is answered from the counterpart end** | The counterpart's per-owner index is row-exact, so the complement is taken inside a set the rewrite already builds — no new structure | `BidirectionalReferenceRewriter#createPerOwnerFormulas` |
 | 2026-09-29 | **An `entityHaving` verdict is settled per index at planning time**, as membership of the index's target in the nested result computed once; a matching index contributes its own owner bitmap, a non-matching one nothing | A per-index formula embedding the shared nested filter cost N·M at execution and copied the filter's transactional ids into every one of N formulas — 16–18 s and an `OutOfMemoryError` on a 32 GiB heap in production | "Per-index cost" below |
 | 2026-09-29 | **In candidate mode, `groupHaving` narrows the candidate indexes** to those of the targets the matching groups' reduced group indexes hold; strict mode keeps the whole family | The value condition alone selects every group sharing the attribute (9,358 indexes where 833 are heights), and every later per-index step multiplies that count | `HavingTranslatorHelper#groupNarrowedReducedIndexPksFormula` |
+| 2026-09-29 | **Each `or` node's children are split by tag once per rebuild**, and a projection reads only its own index's children | Visiting every child of every `or` once per index made the rebuild quadratic — 25.6 s at 32,000 indexes; the split keeps the survivors and their order exactly as before | `ReferenceBodyTransposer#projectDisjunction` |
 | 2026-09-29 | **A `groupHaving` row is answered through a per-plan lookup of the matching groups' reduced group indexes, bucketed by (scope, representative values)**, keeping the per-index direction | The fetch path evaluates the branch once per index with a single-index scope, and a broad group filter can match 100k groups — enumerating the groups' targets instead would be worse than the scan it replaces | `HavingTranslatorHelper.GroupRowLookup` |
 
 ### Row-scoped over owner-scoped
@@ -283,6 +284,11 @@ archived owners and targets, duplicate rows told apart by a representative attri
 each against an oracle derived from the fixture's row model, on every alternative plan and caching tree. It
 passes on v2026.2.17 and on the fix, and fails 13 of 19 on v2026.2.16, which is the pooled reading.
 
+**Linear rebuild (2026-09-29).** `ReferenceBodyTransposerTest` rebuilds a conjunctive body over 32,000 indexes
+in about 0.2 s under a 5 s bound; the previous algorithm took 25.6 s there and fails it. On the restored catalog,
+warm: `entityHaving(0..1000)` with `not(groupHaving(vyska))` 0.54 s → 0.12 s, and two `entityHaving` value
+conditions 0.72 s → 0.09 s, same answers.
+
 ## Consequences & open follow-ups
 
 **A negated body walks the whole index family, and the rebuild was quadratic in it.** `transpose` walked the
@@ -300,9 +306,13 @@ attribute leaf until `2026-09-25-attribute-is-null-in-reference-having` taught t
 `AttributeFormula` - before that a plain `referenceHaving(Product.media, attributeIsNotNull(a))` took the
 quadratic rebuild and measured 281 s per query.
 
-What the fast path does **not** remove is the rebuild for a conjunctive or negated body, which still walks the
-family once per index. Removing that needs a **compositional candidate set plus the residue term**, so the
-loop visits only the indexes that can contribute. **Blocked on the residue decision above** - as written it
+What the fast path does **not** remove is the rebuild for a conjunctive or negated body. Each projection used
+to walk the whole body, visiting every child of the `or` nodes that hold one contribution per index, so the
+rebuild was quadratic; since 2026-09-29 each `or` node's children are split by tag once and a projection reads
+only its own index's children, which makes it linear (see the per-index cost item below). A negated body still
+projects once per index of the whole family, because an index contributing nothing to a negated leaf
+contributes all its owners. Removing *that* needs a **compositional candidate set plus the residue term**, so
+the loop visits only the indexes that can contribute. **Blocked on the residue decision above** - as written it
 would be implemented against a per-owner row count the engine does not have.
 
 **The per-index `entityHaving` branch did N·M expander calls where N membership tests would do — resolved
@@ -313,13 +323,14 @@ selected 9,358 candidate indexes (11,448 matching values, 9,893 transactional id
 group holding 833 of them. Fixed by the three 2026-09-29 decisions above; measured on the restored catalog it
 is now faster than before the row-scoped reading existed (see Verification). What is **still open**:
 
-- **The transposer's rebuild of a conjunctive body stays quadratic in N** where the group cannot narrow the
-  candidates — e.g. `and(entityHaving(wide range), attributeEquals(referenceAttribute, x))` keeps N at the whole
-  range (21,229 indexes ≈ 4.5 s by the rebuild's own curve). A bounded fix was designed and deferred: bucket
-  each `or` node's tagged children by tag once, so a projection takes its own bucket plus the untagged children
-  (O(tagged leaves + N × untagged nodes)); the current `project` is its oracle. Deferred because the reported
-  shape narrows to N ≤ 1,055 on production, well under the ~2k where it would matter; revisit when a
-  conjunctive body without a group selector appears on a large family.
+The transposer's rebuild of a conjunctive body **was quadratic in N** wherever the group cannot narrow the
+candidates — a negated group, or two conditions on the referenced entity, keep N at the whole range. Fixed the
+same day: each `or` node's children are split by tag once per rebuild (`ReferenceBodyTransposer#projectDisjunction`,
+`OrChildren`), so a projection reads its own index's children plus the untagged ones and the rebuild is
+O(tagged leaves + N × untagged nodes). The survivors, their order and their combination are exactly what visiting
+every child produced; `ReferenceBodyTransposerTest` keeps the previous algorithm as the oracle of a differential
+test over 2,000 random bodies. What is **still open**:
+
 - **The `groupHaving` lookup walks per index, never from the groups' side.** Enumerating the matching groups'
   targets is cheaper when N and the group count are both large, which group narrowing cannot shrink either;
   it was declined because it is worse for the fetch path (N = 1 per call) and for broad group filters.
@@ -454,6 +465,6 @@ surprising enough to be worth saying explicitly.
   produced nine findings, seven fixed, one refuted by execution, one left open and named above
 - **2026-09-25** — backported to 2026.2 as v2026.2.17 (#1646, for #1644)
 - **2026-09-29** — v2026.2.17 timed out and ran out of memory on a production storefront; the per-index cost
-  was fixed (plan-time `entityHaving` membership, group-narrowed candidates, per-plan group lookup) in the
-  2026.2.18 hotfix and on `dev`; the design was reviewed by two independent reviewers before implementation,
+  was fixed (plan-time `entityHaving` membership, group-narrowed candidates, per-plan group lookup, a linear
+  transposer rebuild) in the 2026.2.18 hotfix and on `dev`; the design was reviewed by two independent reviewers before implementation,
   who found one blocker (an empty `ConstantFormula`) and one lost `ReferenceNotIndexedException`, both fixed
