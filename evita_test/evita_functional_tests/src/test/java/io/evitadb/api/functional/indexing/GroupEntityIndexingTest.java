@@ -27,6 +27,7 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -49,6 +50,8 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import org.junit.jupiter.api.Tag;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static org.junit.jupiter.api.Assertions.*;
@@ -1072,70 +1075,92 @@ class GroupEntityIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 			);
 		}
 
+		/**
+		 * A reference indexed for the group component alone is refused at session close, but a catalog that
+		 * already stores the shape still loads and keeps indexing through it. This pins what that write path builds -
+		 * the group indexes and no entity indexes - inside the session that holds the shape, and then that the close
+		 * refuses to publish it.
+		 */
 		@Test
-		@DisplayName("Should index only group component without entity component")
-		void shouldIndexOnlyGroupComponentWithoutEntityComponent() {
-			GroupEntityIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
-				session -> {
-					session.defineEntitySchema(Entities.BRAND).updateVia(session);
-					session.defineEntitySchema(Entities.CATEGORY).updateVia(session);
+		@DisplayName("Should index only group component without entity component and refuse the schema at close")
+		void shouldIndexOnlyGroupComponentWithoutEntityComponentAndRefuseTheSchemaAtClose() {
+			final AtomicBoolean indexesAsserted = new AtomicBoolean(false);
+			final InvalidSchemaMutationException exception = assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> GroupEntityIndexingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.defineEntitySchema(Entities.BRAND).updateVia(session);
+						session.defineEntitySchema(Entities.CATEGORY).updateVia(session);
 
-					// configure only the REFERENCED_GROUP_ENTITY component
-					session.defineEntitySchema(Entities.PRODUCT)
-						.withReferenceToEntity(
-							Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
-							whichIs -> whichIs
-								.indexedWithComponents(
-									ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
-								)
-								.withGroupTypeRelatedToEntity(Entities.BRAND)
-						)
-						.updateVia(session);
+						// configure only the REFERENCED_GROUP_ENTITY component
+						session.defineEntitySchema(Entities.PRODUCT)
+							.withReferenceToEntity(
+								Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+								whichIs -> whichIs
+									.indexedWithComponents(
+										ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+									)
+									.withGroupTypeRelatedToEntity(Entities.BRAND)
+							)
+							.updateVia(session);
 
-					session.upsertEntity(session.createNewEntity(Entities.BRAND, 1));
-					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1));
+						session.upsertEntity(session.createNewEntity(Entities.BRAND, 1));
+						session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1));
 
-					session.createNewEntity(Entities.PRODUCT, 1)
-						.setReference(
-							Entities.CATEGORY, 1,
-							whichIs -> whichIs.setGroup(Entities.BRAND, 1)
-						)
-						.upsertVia(session);
+						session.createNewEntity(Entities.PRODUCT, 1)
+							.setReference(
+								Entities.CATEGORY, 1,
+								whichIs -> whichIs.setGroup(Entities.BRAND, 1)
+							)
+							.upsertVia(session);
 
-					final CatalogContract catalog = GroupEntityIndexingTest.this.evita
-						.getCatalogInstance(TEST_CATALOG).orElseThrow();
-					final EntityCollectionContract productCollection =
-						catalog.getCollectionForEntity(Entities.PRODUCT).orElseThrow();
+						final CatalogContract catalog = GroupEntityIndexingTest.this.evita
+							.getCatalogInstance(TEST_CATALOG).orElseThrow();
+						final EntityCollectionContract productCollection =
+							catalog.getCollectionForEntity(Entities.PRODUCT).orElseThrow();
 
-					// group indexes should exist
-					assertNotNull(
-						IndexingTestSupport.getReferencedGroupEntityIndex(
-							productCollection, Scope.LIVE, Entities.CATEGORY, 1
-						),
-						"REFERENCED_GROUP_ENTITY index should exist"
-					);
-					assertNotNull(
-						IndexingTestSupport.getReferencedGroupEntityTypeIndex(
-							productCollection, Scope.LIVE, Entities.CATEGORY
-						),
-						"REFERENCED_GROUP_ENTITY_TYPE index should exist"
-					);
+						// group indexes should exist
+						assertNotNull(
+							IndexingTestSupport.getReferencedGroupEntityIndex(
+								productCollection, Scope.LIVE, Entities.CATEGORY, 1
+							),
+							"REFERENCED_GROUP_ENTITY index should exist"
+						);
+						assertNotNull(
+							IndexingTestSupport.getReferencedGroupEntityTypeIndex(
+								productCollection, Scope.LIVE, Entities.CATEGORY
+							),
+							"REFERENCED_GROUP_ENTITY_TYPE index should exist"
+						);
 
-					// entity (reduced) indexes should NOT exist
-					assertNull(
-						IndexingTestSupport.getReferencedEntityIndex(
-							productCollection, Entities.CATEGORY, 1
-						),
-						"REFERENCED_ENTITY index should NOT exist when only group component is enabled"
-					);
-					assertNull(
-						IndexingTestSupport.getReferencedEntityTypeIndex(
-							productCollection, Scope.LIVE, Entities.CATEGORY
-						),
-						"REFERENCED_ENTITY_TYPE index should NOT exist with only group component"
-					);
-				}
+						// entity (reduced) indexes should NOT exist
+						assertNull(
+							IndexingTestSupport.getReferencedEntityIndex(
+								productCollection, Entities.CATEGORY, 1
+							),
+							"REFERENCED_ENTITY index should NOT exist when only group component is enabled"
+						);
+						assertNull(
+							IndexingTestSupport.getReferencedEntityTypeIndex(
+								productCollection, Scope.LIVE, Entities.CATEGORY
+							),
+							"REFERENCED_ENTITY_TYPE index should NOT exist with only group component"
+						);
+						indexesAsserted.set(true);
+					}
+				),
+				"A reference indexed in LIVE without REFERENCED_ENTITY must be refused when the session closes"
+			);
+			assertTrue(
+				indexesAsserted.get(),
+				"The refusal must come from the session close, after the write path indexed the product - was: " +
+					exception.getMessage()
+			);
+			assertTrue(
+				exception.getMessage().contains("`" + Entities.CATEGORY + "`")
+					&& exception.getMessage().contains("REFERENCED_ENTITY"),
+				"The refusal must name the reference and the missing component, was: " + exception.getMessage()
 			);
 		}
 

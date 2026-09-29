@@ -593,6 +593,45 @@ class CreateReferenceSchemaMutationTest {
 		}
 
 		/**
+		 * Replaying the write-ahead log re-applies stored mutations through `mutate()`, and a log written before the
+		 * entity-component schema rule existed can carry a reference indexed for the group component alone. The rule is enforced
+		 * by `validate()` at session close only, so the mutation itself must still build that shape verbatim -
+		 * refusing it here would make such a log impossible to replay.
+		 */
+		@Test
+		@DisplayName("should create reference indexed only for the group component, as a WAL replay does")
+		void shouldCreateReferenceWithGroupOnlyIndexedComponents() {
+			final CreateReferenceSchemaMutation mutation = createReferenceSchemaMutation(
+				REFERENCE_NAME,
+				"description", "deprecationNotice",
+				Cardinality.ZERO_OR_MORE,
+				REFERENCE_TYPE, false,
+				GROUP_TYPE, false,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				},
+				new ScopedReferenceIndexedComponents[]{
+					new ScopedReferenceIndexedComponents(
+						Scope.LIVE,
+						new ReferenceIndexedComponents[]{ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY}
+					)
+				},
+				Scope.NO_SCOPE
+			);
+
+			final ReferenceSchemaContract referenceSchema =
+				mutation.mutate(Mockito.mock(EntitySchemaContract.class), null);
+
+			assertNotNull(referenceSchema);
+			assertEquals(
+				Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+				referenceSchema.getIndexedComponents(Scope.LIVE),
+				"The replayed mutation must build the stored group-only shape exactly - neither refuse it nor fill " +
+					"in REFERENCED_ENTITY, which would change what the replayed catalog indexes"
+			);
+		}
+
+		/**
 		 * Verifies that the 12-arg constructor with facetedPartially produces
 		 * a reference schema where the expression is retrievable.
 		 */

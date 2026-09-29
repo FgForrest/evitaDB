@@ -34,7 +34,9 @@ import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.core.exception.ReferenceComponentNotIndexedException;
 import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
@@ -51,7 +53,6 @@ import io.evitadb.core.query.filter.NestedQueryRestriction;
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator.EntityPropertyWithScopes;
 import io.evitadb.dataType.Scope;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.EntityIndex;
@@ -264,8 +265,63 @@ public class HavingTranslatorHelper {
 	}
 
 	/**
+	 * Verifies that the reference maintains its {@link ReferenceIndexedComponents#REFERENCED_ENTITY} index family in
+	 * the passed scope, and refuses the lookup that is about to read it when it does not.
+	 *
+	 * Every query path over a reference - `referenceHaving` (including under `not`), `hierarchyWithin`,
+	 * `hierarchyOfReference`, `referenceContent` with a filter or with an ordering by a predecessor attribute,
+	 * `referenceProperty` ordering, the histograms of `referenceSummaryOfReference` and `histogramHaving`, which is
+	 * rewritten into a `referenceHaving` - reads the reduced entity indexes, and only the entity component builds them.
+	 * A scope indexed for {@link ReferenceIndexedComponents#REFERENCED_GROUP_ENTITY} alone, or with no component at
+	 * all, reports itself indexed while holding none of them, so every such path answers it with an empty result - and
+	 * a `not` around it with the whole collection. Neither answer is distinguishable from a genuine one. The schema
+	 * rule in `ReferenceSchema#validate` refuses the shape, but it runs only when a schema changes, never on load, so a
+	 * catalog stored before the rule existed still carries it and reaches this guard.
+	 *
+	 * The guard is called where the entity index family is looked up - `FilterByVisitor#getReducedIndexPrimaryKeyFormula`,
+	 * `QueryPlanningContext#getReducedEntityIndexes`, the chain-index lookup of `ReferenceOrderByVisitor` and the
+	 * type-index lookup of `ReferenceHistogramAccumulator` - rather than once per constraint, so that no path reading
+	 * the family can bypass it; `ReferencePropertyTranslator` checks every ordered scope up front, because it may be
+	 * handed a reduced index set that index selection narrowed with `inScope(...)` and never look the family up at
+	 * all. It judges **the schema only**: an indexed scope that holds no rows legitimately has no index and must keep
+	 * answering with an empty result, so the absence of an index is never taken as evidence of the misconfiguration.
+	 *
+	 * A scope in which the reference is not indexed at all is not this guard's concern - the lookups handle it on
+	 * their own, and the ones that refuse it do so with {@link io.evitadb.core.exception.ReferenceNotIndexedException},
+	 * whose message names the real problem.
+	 *
+	 * @param entitySchema    schema of the entity owning the reference
+	 * @param referenceSchema schema of the reference whose entity index family is about to be read
+	 * @param scope           the scope the lookup reads
+	 * @param queriedScopes   every scope the query asks for; the message offers narrowing the query as a workaround
+	 *                        only when there is another scope to narrow it to
+	 * @throws ReferenceComponentNotIndexedException when the reference is indexed in the scope without the entity
+	 *                                               component
+	 */
+	public static void assertEntityComponentIndexed(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Scope scope,
+		@Nonnull Set<Scope> queriedScopes
+	) {
+		if (
+			referenceSchema.isIndexedInScope(scope) &&
+				!referenceSchema.getIndexedComponents(scope).contains(ReferenceIndexedComponents.REFERENCED_ENTITY)
+		) {
+			throw new ReferenceComponentNotIndexedException(
+				"Reference `" + referenceSchema.getName() + "` of entity `" + entitySchema.getName() +
+					"` is indexed in scope `" + scope.name() + "` without the `REFERENCED_ENTITY` indexed component, " +
+					"so it holds none of the reduced entity indexes that filtering, hierarchy, ordering and histogram " +
+					"queries over it read, and it cannot answer them in that scope (facet summaries are not affected). " +
+					entityComponentSchemaFix(referenceSchema, scope.name()) + storedDataNotReindexed() +
+					narrowingRemedy(scope, queriedScopes)
+			);
+		}
+	}
+
+	/**
 	 * Verifies that the reference maintains its {@link ReferenceIndexedComponents#REFERENCED_GROUP_ENTITY} index in
-	 * at least one of the queried scopes, and rejects a `groupHaving` that reads it when it does not.
+	 * every queried scope in which it is indexed, and rejects a `groupHaving` that reads it when it does not.
 	 *
 	 * Declaring a referenced group type does not by itself make the engine maintain group indexes -
 	 * {@link ReferenceSchemaContract#getIndexedComponents(Scope)} decides that, per scope, and it defaults to
@@ -276,28 +332,27 @@ public class HavingTranslatorHelper {
 	 * is what makes the silence dangerous: it is how a fixture in `ReferenceHavingRowSemanticsFunctionalTest` passed
 	 * while proving nothing, and how a real defect came to be recorded as refuted.
 	 *
-	 * The check is deliberately narrow in two ways.
-	 *
-	 * It passes as soon as **any** queried scope carries the component. A schema may legitimately index groups in
-	 * one scope and not another; the scopes that cannot answer contribute nothing to the union, which is a correct
-	 * partial answer rather than a misconfiguration.
+	 * **One such scope among those queried is enough to refuse.** A union over several scopes that silently drops
+	 * the rows of one of them is a partial answer that looks exactly like a complete one - an owner carrying the
+	 * requested group in the scope without the component would simply be missing. The message therefore names the
+	 * offending scopes and the ways out: indexing the component there, or - when the query spans other scopes that
+	 * carry it - narrowing the query to them with `scope(...)`, or confining the constraint to them with `inScope(...)`.
 	 *
 	 * It stays silent when the reference is indexed in none of the queried scopes, leaving that case to the
 	 * {@link io.evitadb.core.exception.ReferenceNotIndexedException} the throwing stub built by
 	 * {@link ReferencedTypeEntityIndex#createThrowingStub} already raises. That message names the real problem -
-	 * the reference is not indexed at all - and is strictly better than the one below.
+	 * the reference is not indexed at all - and is strictly better than the one below. A queried scope that does not
+	 * index the reference is skipped for the same reason.
 	 *
-	 * There is no counterpart for {@link ReferenceIndexedComponents#REFERENCED_ENTITY} and an `entityHaving`, and
-	 * adding one would be dead code: for such a check to fire, no queried scope could carry the entity component,
-	 * and a reference with no reduced entity index in any queried scope resolves to an empty result before its body
-	 * is ever translated. That short-circuit is itself a defect - a reference indexed for the group component alone
-	 * answers even `groupHaving` with nothing - but it is a different one, and it has to be fixed where it happens
-	 * rather than papered over by a guard that cannot be reached.
+	 * The entity-component counterpart is {@link #assertEntityComponentIndexed}, which guards the lookups of the
+	 * reduced entity indexes rather than one constraint, because every query path over a reference reads them.
 	 *
 	 * @param groupHaving     the constraint being translated, quoted back in the error message
 	 * @param entitySchema    schema of the entity being queried
 	 * @param referenceSchema schema of the reference the constraint is nested in
 	 * @param scopes          the scopes the query asked for
+	 * @throws ReferenceComponentNotIndexedException when a queried scope indexes the reference without the group
+	 *                                               component
 	 */
 	static void assertGroupComponentIndexed(
 		@Nonnull GroupHaving groupHaving,
@@ -305,34 +360,151 @@ public class HavingTranslatorHelper {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Set<Scope> scopes
 	) {
-		boolean indexedInAnyQueriedScope = false;
-		for (final Scope scope : scopes) {
-			if (referenceSchema.isIndexedInScope(scope)) {
-				indexedInAnyQueriedScope = true;
-				if (referenceSchema.getIndexedComponents(scope).contains(
-					ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
-				)) {
-					return;
-				}
+		final EnumSet<Scope> missingScopes = EnumSet.noneOf(Scope.class);
+		for (final Scope scope : Scope.values()) {
+			if (
+				scopes.contains(scope) &&
+					referenceSchema.isIndexedInScope(scope) &&
+					!referenceSchema.getIndexedComponents(scope).contains(
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+			) {
+				missingScopes.add(scope);
 			}
 		}
-		if (!indexedInAnyQueriedScope) {
+		if (missingScopes.isEmpty()) {
 			return;
 		}
-		final StringBuilder queriedScopes = new StringBuilder(32);
-		for (final Scope scope : Scope.values()) {
-			if (scopes.contains(scope)) {
-				queriedScopes.append(queriedScopes.isEmpty() ? "" : ", ").append(scope.name());
-			}
-		}
-		throw new EvitaInvalidUsageException(
+		final String missingScopeNames = scopeNames(missingScopes);
+		final String fix = referenceSchema instanceof ReflectedReferenceSchemaContract reflected &&
+			reflected.isIndexedComponentsInherited() ?
+			inheritedComponentsFix(reflected, "REFERENCED_GROUP_ENTITY", missingScopeNames) :
+			"Add `REFERENCED_GROUP_ENTITY` to `indexedComponentsInScopes` of reference `" + referenceSchema.getName() +
+				"` in scope(s) `" + missingScopeNames + "`.";
+		throw new ReferenceComponentNotIndexedException(
 			"Filtering constraint `" + groupHaving + "` targets reference `" + referenceSchema.getName() +
 				"` of entity `" + entitySchema.getName() + "`, but that reference does not index its referenced " +
-				"group entity in any of the queried scopes `" + queriedScopes + "`. Add `REFERENCED_GROUP_ENTITY` " +
-				"to `indexedComponentsInScopes` of reference `" + referenceSchema.getName() + "` in at least one " +
-				"queried scope - declaring a group type alone builds no group index, so the constraint could never " +
-				"match anything."
+				"group entity in the queried scope(s) `" + missingScopeNames + "` it is indexed in. Declaring a group " +
+				"type alone builds no group index, so the constraint could never match anything there. " + fix +
+				storedDataNotReindexed() + narrowingRemedy(missingScopes, scopes)
 		);
+	}
+
+	/**
+	 * Describes the schema change that gives a reference the {@link ReferenceIndexedComponents#REFERENCED_ENTITY}
+	 * component in a scope. A reflected reference inheriting its components takes them from the reference it
+	 * reflects, so the component cannot be added to it directly - the message points at the inheritance instead.
+	 *
+	 * @param referenceSchema the reference lacking the component
+	 * @param scopeNames      the scope or comma-separated scopes lacking it
+	 * @return the sentence telling how to fix the schema
+	 */
+	@Nonnull
+	private static String entityComponentSchemaFix(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull String scopeNames
+	) {
+		if (referenceSchema instanceof ReflectedReferenceSchemaContract reflected && reflected.isIndexedComponentsInherited()) {
+			return inheritedComponentsFix(reflected, "REFERENCED_ENTITY", scopeNames);
+		} else {
+			return "Fix the schema: add `REFERENCED_ENTITY` to `indexedComponentsInScopes` of reference `" +
+				referenceSchema.getName() + "` in scope `" + scopeNames + "`.";
+		}
+	}
+
+	/**
+	 * Describes the schema change for a reflected reference that inherits its indexed components: it has none of its
+	 * own to add the missing one to, so it has to declare them explicitly - or the reference it reflects has to carry
+	 * the component in the scope.
+	 *
+	 * @param reflected  the reflected reference lacking the component
+	 * @param component  name of the missing component
+	 * @param scopeNames the scope or comma-separated scopes lacking it
+	 * @return the sentence telling how to fix the schema
+	 */
+	@Nonnull
+	private static String inheritedComponentsFix(
+		@Nonnull ReflectedReferenceSchemaContract reflected,
+		@Nonnull String component,
+		@Nonnull String scopeNames
+	) {
+		return "Reference `" + reflected.getName() + "` inherits its indexed components from reference `" +
+			reflected.getReflectedReferenceName() + "` of entity `" + reflected.getReferencedEntityType() +
+			"`, which carries no `" + component + "` in scope `" + scopeNames + "`. Fix the schema: declare the " +
+			"indexed components of reference `" + reflected.getName() + "` explicitly, with `" + component +
+			"` in scope `" + scopeNames + "`, or index reference `" + reflected.getReflectedReferenceName() +
+			"` in that scope with it.";
+	}
+
+	/**
+	 * Completes an error message of the indexed-component guards with the workaround that avoids the scopes a
+	 * reference cannot answer in: narrowing the whole query to the other queried scopes with `scope(...)`, or
+	 * confining the constraint to them with `inScope(...)`. When the query asks for no other scope there is nothing to
+	 * narrow it to, and only the schema fix is left.
+	 *
+	 * @param unanswerableScopes the scopes the query must avoid
+	 * @param queriedScopes      every scope the query asks for
+	 * @return the closing sentence of the message, or an empty string when no workaround exists
+	 */
+	@Nonnull
+	private static String narrowingRemedy(@Nonnull Set<Scope> unanswerableScopes, @Nonnull Set<Scope> queriedScopes) {
+		final EnumSet<Scope> answerableScopes = EnumSet.noneOf(Scope.class);
+		for (final Scope scope : queriedScopes) {
+			if (!unanswerableScopes.contains(scope)) {
+				answerableScopes.add(scope);
+			}
+		}
+		if (answerableScopes.isEmpty()) {
+			return "";
+		}
+		return " As a workaround, query only the scope(s) that can answer: narrow the query with `scope(" +
+			scopeNames(answerableScopes) + ")`, or wrap the constraint in `inScope(...)` naming only them.";
+	}
+
+	/**
+	 * Single-scope form of {@link #narrowingRemedy(Set, Set)}.
+	 *
+	 * @param unanswerableScope the scope the query must avoid
+	 * @param queriedScopes     every scope the query asks for
+	 * @return the closing sentence of the message, or an empty string when no workaround exists
+	 */
+	@Nonnull
+	private static String narrowingRemedy(@Nonnull Scope unanswerableScope, @Nonnull Set<Scope> queriedScopes) {
+		return narrowingRemedy(EnumSet.of(unanswerableScope), queriedScopes);
+	}
+
+	/**
+	 * Lists the scope names in {@link Scope} declaration order, separated by commas.
+	 *
+	 * @param scopes the scopes to list
+	 * @return the comma-separated names
+	 */
+	@Nonnull
+	private static String scopeNames(@Nonnull Set<Scope> scopes) {
+		final StringBuilder names = new StringBuilder(32);
+		for (final Scope scope : Scope.values()) {
+			if (scopes.contains(scope)) {
+				if (!names.isEmpty()) {
+					names.append(", ");
+				}
+				names.append(scope.name());
+			}
+		}
+		return names.toString();
+	}
+
+	/**
+	 * Warns that adding a component to a collection which already holds data does not index what is already stored.
+	 * The indexes a component builds are filled only as entities are written, so the schema fix alone leaves every
+	 * entity stored before it invisible to the queries it enables - a partial answer that looks complete.
+	 *
+	 * @return the sentence, to be placed right after the schema fix it qualifies
+	 */
+	@Nonnull
+	private static String storedDataNotReindexed() {
+		return " On a collection that already holds data the schema change does not index the entities already " +
+			"stored - they are indexed only as they are written - so data written before the change stays invisible " +
+			"to these queries until it is written again.";
 	}
 
 	/**

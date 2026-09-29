@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2026
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,16 +38,16 @@ import javax.annotation.Nonnull;
 import java.io.Serializable;
 
 /**
- * Example interface for ClassSchemaAnalyzerTest demonstrating `indexedComponents` usage.
- * Covers the empty-scope branch (general `indexedComponents`) and the per-scope branch
- * (`indexedComponents` on `@ScopeReferenceSettings`). Every indexed scope keeps
- * `REFERENCED_ENTITY`, so the schema this model produces is valid and publishes - the shapes the
- * schema rule refuses live in {@link GetterBasedEntityWithGroupOnlyIndexedComponents}.
+ * Example interface for ClassSchemaAnalyzerTest declaring `indexedComponents` without
+ * `REFERENCED_ENTITY` in an indexed scope - once through the general `indexedComponents` and once
+ * through `@ScopeReferenceSettings#indexedComponents`. The analyzer must wire both declarations
+ * through verbatim, and the session that defines the schema must then refuse it at close, because
+ * such a scope builds no reduced entity index and every query over the reference is blind in it.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Entity
-public interface GetterBasedEntityWithIndexedComponents {
+public interface GetterBasedEntityWithGroupOnlyIndexedComponents {
 
 	@PrimaryKey
 	int getId();
@@ -57,33 +57,18 @@ public interface GetterBasedEntityWithIndexedComponents {
 	String getCode();
 
 	/**
-	 * Reference indexed for filtering, no `indexedComponents` configured — should resolve to the
-	 * default `{REFERENCED_ENTITY}` of the schema, matching the annotation default.
-	 */
-	@Reference(
-		managed = false,
-		indexed = ReferenceIndexType.FOR_FILTERING
-	)
-	Brand getDefaultComponents();
-
-	/**
-	 * Reference indexed with both components — verifies the analyzer wires a non-default override
-	 * through, and that multiple components can be selected.
+	 * Reference indexed for filtering with `indexedComponents = {REFERENCED_GROUP_ENTITY}` in the
+	 * default scope.
 	 */
 	@Reference(
 		managed = false,
 		indexed = ReferenceIndexType.FOR_FILTERING,
-		indexedComponents = {
-			ReferenceIndexedComponents.REFERENCED_ENTITY,
-			ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
-		}
+		indexedComponents = { ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY }
 	)
-	Brand getBothComponents();
+	Brand getGroupOnlyComponents();
 
 	/**
-	 * Reference using per-scope `@ScopeReferenceSettings#indexedComponents` — verifies the
-	 * scope-driven branch of the analyzer. LIVE indexes both sides; ARCHIVED indexes only the
-	 * referenced entity, so the two scopes end up with different component sets.
+	 * Reference valid in LIVE but indexed only for the group entity in ARCHIVED.
 	 */
 	@Reference(
 		managed = false,
@@ -99,22 +84,11 @@ public interface GetterBasedEntityWithIndexedComponents {
 			@ScopeReferenceSettings(
 				scope = Scope.ARCHIVED,
 				indexed = ReferenceIndexType.FOR_FILTERING,
-				indexedComponents = { ReferenceIndexedComponents.REFERENCED_ENTITY }
+				indexedComponents = { ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY }
 			)
 		}
 	)
-	Brand getPerScopeComponents();
-
-	/**
-	 * Reference with `indexed = NONE` and a non-default `indexedComponents` — components should
-	 * be silently ignored because the reference is not indexed.
-	 */
-	@Reference(
-		managed = false,
-		indexed = ReferenceIndexType.NONE,
-		indexedComponents = { ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY }
-	)
-	Brand getIgnoredWhenNotIndexed();
+	Brand getGroupOnlyInArchiveComponents();
 
 	interface Brand extends Serializable {
 
@@ -123,9 +97,6 @@ public interface GetterBasedEntityWithIndexedComponents {
 
 		@ReferencedEntityGroup
 		int getBrandGroup();
-
-		@Attribute
-		String getMarket();
 
 	}
 

@@ -39,8 +39,10 @@ import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
@@ -763,6 +765,54 @@ class SetReferenceSchemaIndexedMutationTest {
 			final ReflectedReferenceSchemaContract reflected =
 				(ReflectedReferenceSchemaContract) mutatedSchema;
 			assertFalse(reflected.isIndexedComponentsInherited());
+		}
+
+		/**
+		 * A reflected reference that was never bound to the reference it reflects cannot resolve its inherited scopes
+		 * - asking throws - and it cannot have indexed anything yet, so there is no stored empty scope to preserve.
+		 * The mutation making its scopes and components explicit must therefore default the scope its components
+		 * leave uncovered without consulting the previous shape.
+		 */
+		@Test
+		@DisplayName("should default an uncovered scope of a reflected reference that is not bound yet")
+		void shouldDefaultAnUncoveredScopeOfANotYetBoundReflectedReference() {
+			final ReflectedReferenceSchema unbound = ReflectedReferenceSchema._internalBuild(
+				REFERENCE_NAME, NamingConvention.generate(REFERENCE_NAME),
+				null, null,
+				"Product", "categories",
+				null,
+				// scopes and components both inherited
+				null, null, null, null, null, null,
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
+				null
+			);
+			assertFalse(unbound.isReflectedReferenceAvailable(), "The premise is a reflected reference not bound yet");
+			assertTrue(unbound.isIndexedInherited(), "The premise is a reflected reference inheriting its scopes");
+
+			final SetReferenceSchemaIndexedMutation mutation = new SetReferenceSchemaIndexedMutation(
+				REFERENCE_NAME,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING),
+					new ScopedReferenceIndexType(Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING)
+				},
+				new ScopedReferenceIndexedComponents[]{
+					new ScopedReferenceIndexedComponents(
+						Scope.LIVE, new ReferenceIndexedComponents[]{ReferenceIndexedComponents.REFERENCED_ENTITY}
+					)
+				}
+			);
+
+			final ReferenceSchemaContract mutatedSchema = assertDoesNotThrow(
+				() -> mutation.mutate(EntitySchema._internalBuild("Category"), unbound)
+			);
+
+			assertEquals(
+				Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY),
+				mutatedSchema.getIndexedComponents(Scope.ARCHIVED),
+				"The scope the explicit components leave uncovered must get the default component"
+			);
 		}
 
 		@Test

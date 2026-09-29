@@ -283,7 +283,7 @@ reference whose group entity is subjected to the filtering restrictions in the `
 constraints for the group entity can use the entire range of [filtering operators](../basics.md#filter-by).
 
 This constraint requires the reference to be configured with a group type and to have the `REFERENCED_GROUP_ENTITY`
-[indexed component](../../use/schema.md#reference) enabled. The three sibling constraints address different
+[indexed component](../../use/schema.md#indexed-components) enabled. The three sibling constraints address different
 "layers" of a single reference and can be combined freely inside `referenceHaving`:
 
 | Filter constraint                 | Targets                                  |
