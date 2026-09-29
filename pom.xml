@@ -137,7 +137,7 @@
 		<slf4j.version>2.0.18</slf4j.version>
 		<logback.version>1.6.1</logback.version>
 		<kryo.version>5.6.2</kryo.version>
-		<jackson.version>2.22.2</jackson.version>
+		<jackson.version>2.22.3</jackson.version>
 		<jackson.annotations.version>2.22</jackson.annotations.version>
 		<snakeyaml.version>2.7</snakeyaml.version>
 		<roaringbitmap.version>1.6.18</roaringbitmap.version>
@@ -223,7 +223,7 @@
 			<dependency>
 				<groupId>com.carrotsearch</groupId>
 				<artifactId>hppc</artifactId>
-				<version>0.11.1</version>
+				<version>0.12.0</version>
 			</dependency>
 			<dependency>
 				<groupId>net.openhft</groupId>
@@ -955,7 +955,7 @@
 			<plugin>
 				<groupId>org.owasp</groupId>
 				<artifactId>dependency-check-maven</artifactId>
-				<version>12.2.2</version>
+				<version>13.0.0</version>
 				<configuration>
 					<format>ALL</format>
 					<failBuildOnCVSS>5</failBuildOnCVSS>
@@ -1035,7 +1035,7 @@
 			<plugin>
 				<groupId>org.owasp</groupId>
 				<artifactId>dependency-check-maven</artifactId>
-				<version>12.2.2</version>
+				<version>13.0.0</version>
 			</plugin>
 		</plugins>
 	</reporting>
