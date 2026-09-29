@@ -24,9 +24,6 @@
 package io.evitadb.core.query.sort.reference.sorter;
 
 import io.evitadb.api.query.order.OrderDirection;
-import io.evitadb.core.query.QueryExecutionContext;
-import io.evitadb.core.query.QueryPlanningContext;
-import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter;
@@ -57,15 +54,6 @@ import static io.evitadb.test.TestTags.ORDER;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
 
 /**
  * Verifies {@link PickFirstReducedIndexResolver} against real reduced indexes and a real
@@ -160,18 +148,16 @@ class PickFirstReducedIndexResolverTest {
 	}
 
 	/**
-	 * Creates a sorter over the targets that places the listed targets first, in the listed order, and appends the
-	 * other targets in ascending order.
+	 * Creates a sorter over the targets, running in an execution context of the fixture, that places the listed
+	 * targets first, in the listed order, and appends the other targets in ascending order.
 	 */
 	@Nonnull
-	private static NestedContextSorter createTargetSorter(@Nonnull int... leadingTargets) {
-		final QueryExecutionContext executionContext = mock(QueryExecutionContext.class);
-		when(executionContext.getQueryContext()).thenReturn(mock(QueryPlanningContext.class));
-		when(executionContext.getPrefetchedEntities()).thenReturn(null);
-		doAnswer(invocation -> SharedBufferPool.INSTANCE.obtain()).when(executionContext).borrowBuffer();
-		doNothing().when(executionContext).returnBuffer(any());
+	private static NestedContextSorter createTargetSorter(
+		@Nonnull PickFirstReducedIndexFixture fixture,
+		@Nonnull int... leadingTargets
+	) {
 		return new NestedContextSorter(
-			executionContext,
+			fixture.createExecutionContext(),
 			() -> "target order",
 			List.of(
 				new PreSortedRecordsSorter(
@@ -194,10 +180,10 @@ class PickFirstReducedIndexResolverTest {
 		// 101 and 102 through the owners' entries, 104 and 105 through the residual set - 105 holds no selected owner
 		// and is left for the sorter's intersection with the unclaimed owners to reject
 		assertIndexes(new int[]{101, 102, 104, 105}, resolved);
-		verify(fixture.queryContext, times(1)).getEntityIndexByPrimaryKeyIfExists(105);
+		assertEquals(1, fixture.lookups(105));
 		// the covered indexes of unselected owners are never looked up - the gather ran, not the family walk
-		verify(fixture.queryContext, never()).getEntityIndexByPrimaryKeyIfExists(103);
-		verify(fixture.queryContext, never()).getEntityIndexByPrimaryKeyIfExists(106);
+		assertEquals(0, fixture.lookups(103));
+		assertEquals(0, fixture.lookups(106));
 	}
 
 	@Test
@@ -210,7 +196,7 @@ class PickFirstReducedIndexResolverTest {
 
 		assertIndexes(new int[]{101, 102, 103, 104, 105, 106}, resolved);
 		for (int indexPrimaryKey = 101; indexPrimaryKey <= 106; indexPrimaryKey++) {
-			verify(fixture.queryContext, times(1)).getEntityIndexByPrimaryKeyIfExists(indexPrimaryKey);
+			assertEquals(1, fixture.lookups(indexPrimaryKey));
 		}
 	}
 
@@ -224,7 +210,7 @@ class PickFirstReducedIndexResolverTest {
 
 		assertIndexes(new int[]{101, 102, 103, 104, 105, 106}, resolved);
 		for (int indexPrimaryKey = 101; indexPrimaryKey <= 106; indexPrimaryKey++) {
-			verify(fixture.queryContext, times(1)).getEntityIndexByPrimaryKeyIfExists(indexPrimaryKey);
+			assertEquals(1, fixture.lookups(indexPrimaryKey));
 		}
 	}
 
@@ -272,7 +258,7 @@ class PickFirstReducedIndexResolverTest {
 			case COVERED_NOT_SMALLER -> fixture.registerFamily(Scope.LIVE, COVERED);
 		}
 		final PickFirstReducedIndexResolver resolver = fixture.resolver(
-			createTargetSorter(), () -> new ReducedEntityIndex[0], Scope.LIVE
+			createTargetSorter(fixture), () -> new ReducedEntityIndex[0], Scope.LIVE
 		);
 
 		// 105 holds no selected owner; a set-dependent target order must never see its target, on any path
@@ -301,7 +287,7 @@ class PickFirstReducedIndexResolverTest {
 
 		assertIndexes(new int[]{101, 104, 105}, resolved);
 		for (int stale : new int[]{200, 201, 202, 203}) {
-			verify(fixture.queryContext, times(1)).getEntityIndexByPrimaryKeyIfExists(stale);
+			assertEquals(1, fixture.lookups(stale));
 		}
 	}
 
@@ -317,7 +303,7 @@ class PickFirstReducedIndexResolverTest {
 		// the stale entry leads to the index, which holds no selected owner; the sorter's intersection with the
 		// unclaimed owners is what rejects it, so no probe is repeated here for every index
 		assertIndexes(new int[]{103, 104, 105}, resolved);
-		verify(fixture.queryContext, times(1)).getEntityIndexByPrimaryKeyIfExists(103);
+		assertEquals(1, fixture.lookups(103));
 	}
 
 	@Test
@@ -341,7 +327,7 @@ class PickFirstReducedIndexResolverTest {
 		final PickFirstReducedIndexFixture fixture = createStandardFixture();
 		// targets 4, 1 and 2 lead in this order, the sorter appends the remaining ones ascending
 		final PickFirstReducedIndexResolver resolver = fixture.resolver(
-			createTargetSorter(4, 1, 2), () -> new ReducedEntityIndex[0], Scope.LIVE
+			createTargetSorter(fixture, 4, 1, 2), () -> new ReducedEntityIndex[0], Scope.LIVE
 		);
 		final Bitmap selection = new BaseBitmap(WIDE_SELECTION);
 
@@ -361,20 +347,15 @@ class PickFirstReducedIndexResolverTest {
 	@Test
 	@DisplayName("should rank the plain primary key order without touching any index")
 	void shouldRankPrimaryKeyOrderWithoutTouchingIndexes() {
-		final QueryPlanningContext queryContext = mock(QueryPlanningContext.class);
-		final PickFirstReducedIndexFixture fixture = new PickFirstReducedIndexFixture();
+		final PickFirstReducedIndexFixture fixture = createStandardFixture();
 		final Bitmap selection = new BaseBitmap(1, 2, 3);
 
-		final IntUnaryOperator ascending = new PickFirstReducedIndexResolver(
-			queryContext, fixture.referenceSchema, new Scope[]{Scope.LIVE}, null, false, () -> new ReducedEntityIndex[0]
-		).getTargetRank(selection);
-		final IntUnaryOperator descending = new PickFirstReducedIndexResolver(
-			queryContext, fixture.referenceSchema, new Scope[]{Scope.LIVE}, null, true, () -> new ReducedEntityIndex[0]
-		).getTargetRank(selection);
+		final IntUnaryOperator ascending = fixture.resolver(false, Scope.LIVE).getTargetRank(selection);
+		final IntUnaryOperator descending = fixture.resolver(true, Scope.LIVE).getTargetRank(selection);
 
 		assertEquals(5, ascending.applyAsInt(5));
 		assertEquals(-5, descending.applyAsInt(5));
-		verifyNoInteractions(queryContext);
+		assertEquals(0, fixture.lookups());
 	}
 
 	@Test
@@ -388,13 +369,13 @@ class PickFirstReducedIndexResolverTest {
 		final ResolvedReducedIndexes second = resolver.resolve(selection);
 
 		assertSame(first, second);
-		verify(fixture.queryContext, times(1)).getEntityIndexByPrimaryKeyIfExists(101);
+		assertEquals(1, fixture.lookups(101));
 
 		// an equal but distinct selection is resolved again
 		final ResolvedReducedIndexes third = resolver.resolve(new BaseBitmap(1, 3));
 
 		assertArrayEquals(primaryKeys(first), primaryKeys(third));
-		verify(fixture.queryContext, times(2)).getEntityIndexByPrimaryKeyIfExists(101);
+		assertEquals(2, fixture.lookups(101));
 	}
 
 	@Test
@@ -405,7 +386,7 @@ class PickFirstReducedIndexResolverTest {
 		final ResolvedReducedIndexes resolved = fixture.resolver(false, Scope.LIVE).resolve(EmptyBitmap.INSTANCE);
 
 		assertIndexes(new int[0], resolved);
-		verifyNoInteractions(fixture.queryContext);
+		assertEquals(0, fixture.lookups());
 	}
 
 	@Test

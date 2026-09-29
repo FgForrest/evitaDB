@@ -26,7 +26,7 @@ package io.evitadb.core.query.sort.reference.sorter;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlanningContext;
-import io.evitadb.core.query.SharedBufferPool;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.Sorter.SortingContext;
 import io.evitadb.dataType.Scope;
@@ -60,11 +60,6 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Verifies the index route of a `pickFirst` reference ordering, {@link PickFirstReferenceSorter}, around the page and
@@ -104,21 +99,6 @@ class PickFirstReferenceSorterTest {
 	 * Value marking an owner held by an index that has no value for it.
 	 */
 	private static final int NO_VALUE = Integer.MIN_VALUE;
-
-	/**
-	 * Creates the execution context the sorter runs in, `prefetched` deciding whether entity bodies were prefetched.
-	 */
-	@Nonnull
-	private static QueryExecutionContext createExecutionContext(boolean prefetched) {
-		final QueryExecutionContext executionContext = mock(QueryExecutionContext.class);
-		// the sorter reads the planning context for the debug sort override / telemetry; the unstubbed mock returns
-		// false for isDebugModeEnabled and null for getCurrentStep -> cost-based selection with telemetry off
-		when(executionContext.getQueryContext()).thenReturn(mock(QueryPlanningContext.class));
-		when(executionContext.getPrefetchedEntities()).thenReturn(prefetched ? List.of() : null);
-		doAnswer(invocation -> SharedBufferPool.INSTANCE.obtain()).when(executionContext).borrowBuffer();
-		doNothing().when(executionContext).returnBuffer(any());
-		return executionContext;
-	}
 
 	/**
 	 * Creates a provider holding the passed owners with their values in the ordering direction: ascending by value
@@ -211,7 +191,7 @@ class PickFirstReferenceSorterTest {
 
 		final SortResult sorted = sort(
 			fixture.sorter(OrderDirection.ASC),
-			new SortingContext(createExecutionContext(false), fixture.allOwners(), 2, 5, 0, 0),
+			new SortingContext(fixture.createExecutionContext(), fixture.allOwners(), 2, 5, 0, 0),
 			5
 		);
 
@@ -232,7 +212,7 @@ class PickFirstReferenceSorterTest {
 		// a preceding sorter wrote three other records and left these ten
 		final SortResult sorted = sort(
 			fixture.sorter(OrderDirection.ASC),
-			new SortingContext(createExecutionContext(false), fixture.allOwners(), 0, 13, 3, 0),
+			new SortingContext(fixture.createExecutionContext(), fixture.allOwners(), 0, 13, 3, 0),
 			13
 		);
 
@@ -251,7 +231,7 @@ class PickFirstReferenceSorterTest {
 
 		final SortResult sorted = sort(
 			fixture.sorter(OrderDirection.ASC),
-			new SortingContext(createExecutionContext(false), fixture.allOwners(), 0, 3, 0, 0),
+			new SortingContext(fixture.createExecutionContext(), fixture.allOwners(), 0, 3, 0, 0),
 			3
 		);
 
@@ -269,7 +249,7 @@ class PickFirstReferenceSorterTest {
 
 		final SortResult sorted = sort(
 			fixture.sorter(OrderDirection.ASC),
-			new SortingContext(createExecutionContext(false), fixture.allOwners(), 9, 10, 0, 0),
+			new SortingContext(fixture.createExecutionContext(), fixture.allOwners(), 9, 10, 0, 0),
 			1
 		);
 
@@ -287,14 +267,14 @@ class PickFirstReferenceSorterTest {
 		final WitnessFixture fixture = new WitnessFixture();
 		final PickFirstReferenceSorter sorter = fixture.sorter(OrderDirection.ASC);
 		final SortingContext prefetched = new SortingContext(
-			createExecutionContext(true), fixture.allOwners(), 0, 10, 0, 0
+			new PrefetchedExecutionContext(fixture.indexFixture.queryContext), fixture.allOwners(), 0, 10, 0, 0
 		);
 		final SortingContext empty = new SortingContext(
-			createExecutionContext(false), EmptyBitmap.INSTANCE, 0, 10, 0, 0
+			fixture.createExecutionContext(), EmptyBitmap.INSTANCE, 0, 10, 0, 0
 		);
 		// owner 4 is held by index 105, which has no value for it, and owner 5 by no index at all
 		final SortingContext noValue = new SortingContext(
-			createExecutionContext(false), new BaseBitmap(UNCLAIMED), 0, 10, 0, 0
+			fixture.createExecutionContext(), new BaseBitmap(UNCLAIMED), 0, 10, 0, 0
 		);
 
 		assertAll(
@@ -317,7 +297,7 @@ class PickFirstReferenceSorterTest {
 
 		final SortResult sorted = sort(
 			sorter,
-			new SortingContext(createExecutionContext(false), fixture.allOwners(), 0, 10, 0, 0),
+			new SortingContext(fixture.createExecutionContext(), fixture.allOwners(), 0, 10, 0, 0),
 			10
 		);
 
@@ -336,12 +316,12 @@ class PickFirstReferenceSorterTest {
 		// owners 2 and 9 tie inside index 103, owner 6 ties with both from index 106
 		final SortResult ascending = sort(
 			fixture.sorter(OrderDirection.ASC),
-			new SortingContext(createExecutionContext(false), fixture.allOwners(), 0, 10, 0, 0),
+			new SortingContext(fixture.createExecutionContext(), fixture.allOwners(), 0, 10, 0, 0),
 			10
 		);
 		final SortResult descending = sort(
 			fixture.sorter(OrderDirection.DESC),
-			new SortingContext(createExecutionContext(false), fixture.allOwners(), 0, 10, 0, 0),
+			new SortingContext(fixture.createExecutionContext(), fixture.allOwners(), 0, 10, 0, 0),
 			10
 		);
 
@@ -362,7 +342,7 @@ class PickFirstReferenceSorterTest {
 				for (int end = start + 1; end <= fullOrder.length + 1; end++) {
 					final SortResult sorted = sort(
 						fixture.sorter(direction),
-						new SortingContext(createExecutionContext(false), fixture.allOwners(), start, end, 0, 0),
+						new SortingContext(fixture.createExecutionContext(), fixture.allOwners(), start, end, 0, 0),
 						10
 					);
 					final int[] expected = Arrays.copyOfRange(fullOrder, start, Math.min(end, fullOrder.length));
@@ -398,7 +378,7 @@ class PickFirstReferenceSorterTest {
 		);
 		final SortResult sorted = sort(
 			sorter,
-			new SortingContext(createExecutionContext(false), new BaseBitmap(1, 7), 0, 10, 0, 0),
+			new SortingContext(fixture.createExecutionContext(), new BaseBitmap(1, 7), 0, 10, 0, 0),
 			10
 		);
 
@@ -436,7 +416,7 @@ class PickFirstReferenceSorterTest {
 		// owner 3 has value 198, owner 7 value 194, owner 75 value 80
 		final SortResult sorted = sort(
 			sorter,
-			new SortingContext(createExecutionContext(false), new BaseBitmap(3, 7, 75), 0, 10, 0, 0),
+			new SortingContext(indexFixture.createExecutionContext(), new BaseBitmap(3, 7, 75), 0, 10, 0, 0),
 			10
 		);
 
@@ -476,7 +456,7 @@ class PickFirstReferenceSorterTest {
 
 		final SortResult sorted = sort(
 			sorter,
-			new SortingContext(createExecutionContext(false), new BaseBitmap(75), 0, 10, 0, 0),
+			new SortingContext(indexFixture.createExecutionContext(), new BaseBitmap(75), 0, 10, 0, 0),
 			10
 		);
 
@@ -495,7 +475,7 @@ class PickFirstReferenceSorterTest {
 
 		sort(
 			fixture.sorter(OrderDirection.ASC),
-			new SortingContext(createExecutionContext(false), selection, 0, 10, 0, 0),
+			new SortingContext(fixture.createExecutionContext(), selection, 0, 10, 0, 0),
 			10
 		);
 
@@ -523,7 +503,7 @@ class PickFirstReferenceSorterTest {
 
 		final SortResult sorted = sort(
 			sorter,
-			new SortingContext(createExecutionContext(false), new BaseBitmap(owners), 0, ownerCount, 0, 0),
+			new SortingContext(indexFixture.createExecutionContext(), new BaseBitmap(owners), 0, ownerCount, 0, 0),
 			ownerCount
 		);
 
@@ -554,6 +534,10 @@ class PickFirstReferenceSorterTest {
 	 */
 	private static final class WitnessFixture {
 		/**
+		 * The indexes of the fixture.
+		 */
+		@Nonnull final PickFirstReducedIndexFixture indexFixture = new PickFirstReducedIndexFixture();
+		/**
 		 * The resolver over the fixture's indexes, targets in ascending primary key order.
 		 */
 		@Nonnull final PickFirstReducedIndexResolver resolver;
@@ -564,33 +548,35 @@ class PickFirstReferenceSorterTest {
 			new EnumMap<>(OrderDirection.class);
 
 		WitnessFixture() {
-			final PickFirstReducedIndexFixture indexFixture = new PickFirstReducedIndexFixture();
-			addIndex(indexFixture, 101, 1, 7, 1, 8, 60);
-			addIndex(indexFixture, 102, 2, 1, NO_VALUE, 3, 50);
-			addIndex(indexFixture, 103, 3, 2, 20, 3, 10, 9, 20, 10, 70);
-			addIndex(indexFixture, 104, 4, 1, 30, 7, 40);
-			addIndex(indexFixture, 105, 5, 4, NO_VALUE);
-			addIndex(indexFixture, 106, 6, 6, 20);
-			this.resolver = indexFixture.resolver(false, Scope.LIVE);
+			addIndex(101, 1, 7, 1, 8, 60);
+			addIndex(102, 2, 1, NO_VALUE, 3, 50);
+			addIndex(103, 3, 2, 20, 3, 10, 9, 20, 10, 70);
+			addIndex(104, 4, 1, 30, 7, 40);
+			addIndex(105, 5, 4, NO_VALUE);
+			addIndex(106, 6, 6, 20);
+			this.resolver = this.indexFixture.resolver(false, Scope.LIVE);
 		}
 
 		/**
 		 * Adds one index holding the owners of the pairs, and its providers when any owner has a value.
 		 */
-		private void addIndex(
-			@Nonnull PickFirstReducedIndexFixture indexFixture,
-			int primaryKey,
-			int target,
-			@Nonnull int... ownerValues
-		) {
+		private void addIndex(int primaryKey, int target, @Nonnull int... ownerValues) {
 			final int[] owners = IntStream.range(0, ownerValues.length / 2).map(i -> ownerValues[i * 2]).toArray();
-			final ReducedEntityIndex index = indexFixture.addIndex(Scope.LIVE, primaryKey, target, owners);
+			final ReducedEntityIndex index = this.indexFixture.addIndex(Scope.LIVE, primaryKey, target, owners);
 			for (OrderDirection direction : OrderDirection.values()) {
 				final SortedRecordsSupplier provider = createProvider(index, direction, ownerValues);
 				if (provider != null) {
 					this.providers.computeIfAbsent(direction, it -> new HashMap<>(8)).put(primaryKey, provider);
 				}
 			}
+		}
+
+		/**
+		 * Creates a fresh execution context over the fixture's indexes, with no entities prefetched.
+		 */
+		@Nonnull
+		QueryExecutionContext createExecutionContext() {
+			return this.indexFixture.createExecutionContext();
 		}
 
 		/**
@@ -620,6 +606,28 @@ class PickFirstReferenceSorterTest {
 				direction == OrderDirection.ASC ? Comparator.naturalOrder() : Comparator.reverseOrder(),
 				direction
 			);
+		}
+	}
+
+	/**
+	 * An execution context whose entity bodies were prefetched - the one state of a real context that cannot be
+	 * reached without an entity collection to prefetch from.
+	 */
+	private static final class PrefetchedExecutionContext extends QueryExecutionContext {
+
+		PrefetchedExecutionContext(@Nonnull QueryPlanningContext queryContext) {
+			super(
+				queryContext, true, null,
+				(type, entity) -> {
+					throw new UnsupportedOperationException("No entity is converted in this test.");
+				}
+			);
+		}
+
+		@Nonnull
+		@Override
+		public List<ServerEntityDecorator> getPrefetchedEntities() {
+			return List.of();
 		}
 	}
 

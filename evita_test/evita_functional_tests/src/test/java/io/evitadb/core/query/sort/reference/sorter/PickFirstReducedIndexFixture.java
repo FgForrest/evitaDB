@@ -24,10 +24,15 @@
 package io.evitadb.core.query.sort.reference.sorter;
 
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.core.cache.NoCacheSupervisor;
+import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.dataType.Scope;
@@ -43,23 +48,26 @@ import io.evitadb.utils.ArrayUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.time.OffsetDateTime;
+import java.util.AbstractMap;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.PrimitiveIterator.OfInt;
+import java.util.Set;
 import java.util.function.Supplier;
 
-import static org.mockito.ArgumentMatchers.anyInt;
+import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.collection;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Real reduced indexes, type indexes, global indexes and memberships of one reference, served to a
- * {@link PickFirstReducedIndexResolver} through a mocked {@link QueryPlanningContext} - the only collaborator that
- * cannot reasonably be built outside a running catalog. Every index is registered with the planning context's
- * primary key lookup; the type index of a scope lists the reduced indexes added to it as its family, while the
- * membership of a scope is filled explicitly by the test, so that it can be made to disagree with the indexes.
+ * {@link PickFirstReducedIndexResolver} through a real {@link QueryPlanningContext}. Every index is registered with
+ * the planning context's primary key lookup; the type index of a scope lists the reduced indexes added to it as its
+ * family, while the membership of a scope is filled explicitly by the test, so that it can be made to disagree with
+ * the indexes. The planning context reads the indexes through views counting every lookup, which is how the tests
+ * observe which indexes the resolver looked at.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -82,10 +90,6 @@ final class PickFirstReducedIndexFixture {
 	private static final int INFRASTRUCTURE_PRIMARY_KEY_BASE = 10_000;
 
 	/**
-	 * The mocked planning context.
-	 */
-	@Nonnull final QueryPlanningContext queryContext = mock(QueryPlanningContext.class);
-	/**
 	 * The reference the resolver walks.
 	 */
 	@Nonnull final ReferenceSchema referenceSchema = ReferenceSchema._internalBuild(
@@ -96,6 +100,34 @@ final class PickFirstReducedIndexFixture {
 	 * {@link QueryPlanningContext#getEntityIndexByPrimaryKeyIfExists(int)}.
 	 */
 	private final Map<Integer, EntityIndex> indexesByPrimaryKey = new HashMap<>(32);
+	/**
+	 * The type and global indexes by their key, the backing of
+	 * {@link QueryPlanningContext#getIndexIfExists(io.evitadb.index.IndexKey, Class)}.
+	 */
+	private final Map<EntityIndexKey, EntityIndex> indexesByKey = new HashMap<>(8);
+	/**
+	 * The view of {@link #indexesByPrimaryKey} the planning context reads.
+	 */
+	private final CountingIndexMap<Integer> countedIndexesByPrimaryKey =
+		new CountingIndexMap<>(this.indexesByPrimaryKey);
+	/**
+	 * The view of {@link #indexesByKey} the planning context reads.
+	 */
+	private final CountingIndexMap<EntityIndexKey> countedIndexesByKey = new CountingIndexMap<>(this.indexesByKey);
+	/**
+	 * The planning context of a query over the owners, built without a session the way an index-only evaluation is.
+	 * Its catalog is the only mock: {@link Catalog} cannot be built outside a running engine, and none of the lookups
+	 * the resolver makes reads it.
+	 */
+	@Nonnull final QueryPlanningContext queryContext = new QueryPlanningContext(
+		mock(Catalog.class),
+		null,
+		null,
+		new EvitaRequest(query(collection(OWNER_TYPE)), OffsetDateTime.now(), EntityReference.class, null),
+		this.countedIndexesByKey,
+		this.countedIndexesByPrimaryKey,
+		NoCacheSupervisor.INSTANCE
+	);
 	/**
 	 * Type index of the reference per scope, created with the first reduced index of the scope.
 	 */
@@ -108,11 +140,6 @@ final class PickFirstReducedIndexFixture {
 	 * Primary key of the next type or global index.
 	 */
 	private int nextInfrastructurePrimaryKey = INFRASTRUCTURE_PRIMARY_KEY_BASE;
-
-	PickFirstReducedIndexFixture() {
-		when(this.queryContext.getEntityIndexByPrimaryKeyIfExists(anyInt()))
-			.thenAnswer(invocation -> this.indexesByPrimaryKey.get((Integer) invocation.getArgument(0)));
-	}
 
 	/**
 	 * Adds a reduced index of {@link #REFERENCE_NAME} without representative values and lists it in the type index
@@ -190,8 +217,8 @@ final class PickFirstReducedIndexFixture {
 	}
 
 	/**
-	 * Returns a reduced index added to the fixture, without going through the mocked planning context, so that the
-	 * lookups a test verifies are only those of the code under test.
+	 * Returns a reduced index added to the fixture, without going through the planning context, so that the lookups
+	 * a test counts are only those of the code under test.
 	 *
 	 * @param primaryKey primary key of the index
 	 * @return the index
@@ -257,6 +284,35 @@ final class PickFirstReducedIndexFixture {
 	}
 
 	/**
+	 * Returns how many times the planning context looked up the index by its primary key.
+	 *
+	 * @param indexPrimaryKey primary key of the index
+	 * @return the number of lookups
+	 */
+	int lookups(int indexPrimaryKey) {
+		return this.countedIndexesByPrimaryKey.lookups(indexPrimaryKey);
+	}
+
+	/**
+	 * Returns how many index lookups the planning context made in total, by primary key and by key.
+	 *
+	 * @return the number of lookups
+	 */
+	int lookups() {
+		return this.countedIndexesByPrimaryKey.lookups() + this.countedIndexesByKey.lookups();
+	}
+
+	/**
+	 * Creates a fresh execution context of the fixture's planning context, with no entities prefetched.
+	 *
+	 * @return the execution context
+	 */
+	@Nonnull
+	QueryExecutionContext createExecutionContext() {
+		return this.queryContext.createExecutionContext();
+	}
+
+	/**
 	 * Creates a resolver ordering the targets by their primary key.
 	 *
 	 * @param descending whether the targets are ordered descending
@@ -290,7 +346,7 @@ final class PickFirstReducedIndexFixture {
 	}
 
 	/**
-	 * Returns the type index of the scope, creating it and registering it with the planning context on first use.
+	 * Returns the type index of the scope, creating it and making it available to the planning context on first use.
 	 *
 	 * @param scope the scope
 	 * @return the type index
@@ -306,15 +362,15 @@ final class PickFirstReducedIndexFixture {
 				final ReferencedTypeEntityIndex typeIndex = new ReferencedTypeEntityIndex(
 					this.nextInfrastructurePrimaryKey++, OWNER_TYPE, key
 				);
-				when(this.queryContext.getIndexIfExists(key, ReferencedTypeEntityIndex.class))
-					.thenReturn(Optional.of(typeIndex));
+				this.indexesByKey.put(key, typeIndex);
 				return typeIndex;
 			}
 		);
 	}
 
 	/**
-	 * Returns the global index of the scope, creating it and registering it with the planning context on first use.
+	 * Returns the global index of the scope, creating it and making it available to the planning context on first
+	 * use.
 	 *
 	 * @param scope the scope
 	 * @return the global index
@@ -324,14 +380,65 @@ final class PickFirstReducedIndexFixture {
 		return this.globalIndexes.computeIfAbsent(
 			scope,
 			theScope -> {
+				final EntityIndexKey key = new EntityIndexKey(EntityIndexType.GLOBAL, theScope);
 				final GlobalEntityIndex globalIndex = new GlobalEntityIndex(
-					this.nextInfrastructurePrimaryKey++, OWNER_TYPE,
-					new EntityIndexKey(EntityIndexType.GLOBAL, theScope)
+					this.nextInfrastructurePrimaryKey++, OWNER_TYPE, key
 				);
-				when(this.queryContext.getGlobalEntityIndexIfExists(theScope)).thenReturn(Optional.of(globalIndex));
+				this.indexesByKey.put(key, globalIndex);
 				return globalIndex;
 			}
 		);
+	}
+
+	/**
+	 * Read-only view of an index map counting the lookups made through it.
+	 *
+	 * @param <K> type of the key
+	 */
+	private static final class CountingIndexMap<K> extends AbstractMap<K, EntityIndex> {
+		/**
+		 * The map the view reads.
+		 */
+		private final Map<K, EntityIndex> delegate;
+		/**
+		 * Number of lookups per looked up key.
+		 */
+		private final Map<Object, Integer> lookupsByKey = new HashMap<>(32);
+
+		CountingIndexMap(@Nonnull Map<K, EntityIndex> delegate) {
+			this.delegate = delegate;
+		}
+
+		@Override
+		public EntityIndex get(Object key) {
+			this.lookupsByKey.merge(key, 1, Integer::sum);
+			return this.delegate.get(key);
+		}
+
+		@Nonnull
+		@Override
+		public Set<Entry<K, EntityIndex>> entrySet() {
+			return this.delegate.entrySet();
+		}
+
+		/**
+		 * Returns how many times the key was looked up.
+		 *
+		 * @param key the key
+		 * @return the number of lookups
+		 */
+		int lookups(@Nonnull K key) {
+			return this.lookupsByKey.getOrDefault(key, 0);
+		}
+
+		/**
+		 * Returns how many lookups were made in total.
+		 *
+		 * @return the number of lookups
+		 */
+		int lookups() {
+			return this.lookupsByKey.values().stream().mapToInt(Integer::intValue).sum();
+		}
 	}
 
 }
