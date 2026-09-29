@@ -30,7 +30,6 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
-import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -68,6 +67,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.NumberUtils;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -75,14 +75,20 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import static io.evitadb.api.query.QueryConstraints.groupHaving;
+import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -270,7 +276,8 @@ public class HavingTranslatorHelper {
 	 * Declaring a referenced group type does not by itself make the engine maintain group indexes -
 	 * {@link ReferenceSchemaContract#getIndexedComponents(Scope)} decides that, per scope, and it defaults to
 	 * {@link ReferenceIndexedComponents#REFERENCED_ENTITY} alone. Without the group component the reduced group
-	 * indexes {@link #createIndexLocalGroupFormula} reads were never built, so every index contributes
+	 * indexes {@link GroupRowLookup#createIndexLocalGroupFormula(ReducedEntityIndex)} reads were never built, so
+	 * every index contributes
 	 * {@link EmptyBitmap#INSTANCE} and the constraint silently matches nothing - while a `not` around it matches
 	 * *everything*, the complement of the empty set. Neither answer is distinguishable from a genuine result, which
 	 * is what makes the silence dangerous: it is how a fixture in `ReferenceHavingRowSemanticsFunctionalTest` passed
@@ -387,18 +394,29 @@ public class HavingTranslatorHelper {
 				.map(nestedResult -> {
 					if (ReferencedTypeEntityIndex.class.isAssignableFrom(processingScope.getIndexType())) {
 						return switch (typeLevelIndexType) {
-							// In the index-discovery phase (scope holds a ReferencedTypeEntityIndex), we cannot
-							// narrow ReducedEntityIndex PKs by group entity PKs directly — the type-level index
-							// in scope is keyed by referenced entity PKs, not group PKs. Returning the *unrestricted*
-							// set of reduced-index PKs keeps the AND with sibling constraints correct and lets the
-							// outer reference filter (ReferenceHavingTranslator.applySearchOnIndexes) compute the
-							// group filter through BRANCH B (reducedIndexLookup) where it works correctly.
+							// In the index-discovery phase (scope holds a ReferencedTypeEntityIndex) the type-level
+							// index is keyed by referenced entity PKs, not group PKs, so it cannot be asked about
+							// groups. When the caller re-evaluates every candidate row afterwards (candidate mode),
+							// the reduced indexes of the targets the matching groups hold are a safe superset -
+							// and a far smaller one than the whole family, which every later per-index step
+							// multiplies. When the returned set IS the answer (strict mode), the unrestricted set
+							// is kept, exactly as before.
 							case REFERENCED_GROUP_ENTITY_TYPE -> FormulaFactory.or(
 								processingScope
 									.getIndexStream()
 									.filter(it -> processingScope.getScopes().contains(it.getIndexKey().scope()))
 									.map(ReferencedTypeEntityIndex.class::cast)
-									.map(HavingTranslatorHelper::allReducedIndexPksFormula)
+									.map(
+										it -> processingScope.isNegationResolvedPerRow() ?
+											groupNarrowedReducedIndexPksFormula(
+												it,
+												getGroupRowLookup(
+													filterByVisitor, entitySchema, referenceSchema,
+													filterConstraint, nestedResult
+												)
+											) :
+											allReducedIndexPksFormula(it)
+									)
 									.toArray(Formula[]::new)
 							);
 							case REFERENCED_ENTITY_TYPE -> FormulaFactory.or(
@@ -432,18 +450,19 @@ public class HavingTranslatorHelper {
 						if (nestedResult.globalIndex() == null) {
 							return EmptyFormula.INSTANCE;
 						}
+						final GroupRowLookup groupRowLookup = getGroupRowLookup(
+							filterByVisitor, entitySchema, referenceSchema, filterConstraint, nestedResult
+						);
+						// only a reduced ENTITY index holds rows keyed by a referenced entity; a group index in the
+						// scope would have its group PK misread as a target, so it is filtered out explicitly
 						return FormulaFactory.or(
 							processingScope
 								.getIndexStream()
 								.filter(it -> processingScope.getScopes().contains(it.getIndexKey().scope()))
-								.filter(AbstractReducedEntityIndex.class::isInstance)
-								.map(AbstractReducedEntityIndex.class::cast)
-								.map(
-									it -> createIndexLocalGroupFormula(
-										filterByVisitor, entitySchema, referenceSchema, it,
-										nestedResult.globalIndex(), nestedResult.filter()
-									)
-								)
+								.filter(ReducedEntityIndex.class::isInstance)
+								.map(ReducedEntityIndex.class::cast)
+								.map(groupRowLookup::createIndexLocalGroupFormula)
+								.filter(it -> it != EmptyFormula.INSTANCE)
 								.toArray(Formula[]::new)
 						);
 					} else if (processingScope.getReferenceSchema() != null &&
@@ -464,19 +483,34 @@ public class HavingTranslatorHelper {
 						if (nestedResult.globalIndex() == null) {
 							return EmptyFormula.INSTANCE;
 						}
+						// A reduced entity index is keyed by the one referenced entity it holds rows for, so the
+						// nested query's verdict is the same for every row in it: all of its owners, or none. The
+						// verdict is therefore settled here, once per index, against the nested result computed a
+						// single time - rather than by a per-index formula that scans the whole nested result at
+						// execution to find its one target. That per-index formula also embedded the nested filter,
+						// so every one of them carried a copy of its transactional ids, which every enclosing `or`
+						// concatenated again: quadratic in time and in memory in the size of the index family.
+						// The membership decision lives in the SHAPE of the tree (which indexes contribute), so a
+						// changed nested result yields a different formula and can never be served a stale cache
+						// hit; each contribution is a constant over the index's own transactional bitmap.
+						// The nested filter was initialised by `computeOnlyOnce` in `planNestedQuery` and memoizes
+						// its result, so every plan alternative and every per-index call shares one computation.
+						final Bitmap matchingTargets = nestedResult.filter().compute();
+						if (matchingTargets.isEmpty()) {
+							return EmptyFormula.INSTANCE;
+						}
+						// an index whose target does not match contributes nothing and is not tagged at all: the
+						// transposer reads an absent tag exactly as an empty one - dropped under `or`, emptying the
+						// row under `and`, and the row's whole owner set under a negation
 						return FormulaFactory.or(
 							processingScope
 								.getIndexStream()
 								.filter(it -> processingScope.getScopes().contains(it.getIndexKey().scope()))
 								.filter(ReducedEntityIndex.class::isInstance)
 								.map(ReducedEntityIndex.class::cast)
-								.map(
-									it -> createIndexLocalTargetFormula(
-										filterByVisitor, entitySchema, referenceSchema, filterConstraint,
-										it, nestedResult.globalIndex(), nestedResult.filter(),
-										nestedQueryDescription
-									)
-								)
+								.filter(it -> matchingTargets.contains(it.getReferenceKey().primaryKey()))
+								.map(HavingTranslatorHelper::createIndexLocalTargetFormula)
+								.filter(it -> it != EmptyFormula.INSTANCE)
 								.toArray(Formula[]::new)
 						);
 					} else {
@@ -535,212 +569,133 @@ public class HavingTranslatorHelper {
 	}
 
 	/**
-	 * Builds the row-exact owner formula contributed by one reduced entity index for an `entityHaving` body.
+	 * Builds the row-exact owner formula contributed by one reduced entity index whose target matched the nested
+	 * query of an `entityHaving` body.
 	 *
-	 * A reduced entity index is keyed by the referenced entity it holds rows for, so the nested query's verdict is
-	 * constant across the whole index: either its target matches and every row it holds satisfies the constraint,
-	 * or none does. Restricting the expander to this one target is what makes the answer row-exact - the
-	 * collection-wide lookup answers "does this owner reference anything matching" instead, which is cross-row and
-	 * combines wrongly with sibling constraints and with `not`.
+	 * The verdict of the nested query is constant across the whole index - it is keyed by the one referenced entity
+	 * it holds rows for - so the contribution of a matching index is simply all of its owners. The result carries an
+	 * {@link IndexTaggedFormula}, because an untagged leaf is kept whole for every index by
+	 * {@link ReferenceBodyTransposer} - which is precisely the owner-level reading the per-index evaluation exists
+	 * to avoid.
 	 *
-	 * The result carries an {@link IndexTaggedFormula}, because nothing tags a formula assembled here and an
-	 * untagged leaf is kept whole for every index by {@link ReferenceBodyTransposer} - which is precisely the
-	 * owner-level reading this method exists to avoid.
-	 *
-	 * @param filterByVisitor        visitor whose planning context memoizes and initialises the formula
-	 * @param entitySchema           schema of the owning entity
-	 * @param referenceSchema        schema of the reference being filtered
-	 * @param filterConstraint       the nested query's constraint, part of the memoization key
-	 * @param targetIndex            the reduced entity index whose rows are being evaluated
-	 * @param referencedGlobalIndex  global index of the referenced entity type, the nested query's universe
-	 * @param referencedFilter       formula selecting the matching referenced entity primary keys
-	 * @param nestedQueryDescription description of the nested query, for the telemetry step
-	 * @return formula producing the owner primary keys this index contributes
+	 * @param targetIndex the reduced entity index whose target matched
+	 * @return the tagged owner formula, or {@link EmptyFormula#INSTANCE} when the index holds no owner
 	 */
 	@Nonnull
-	private static Formula createIndexLocalTargetFormula(
-		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull FilterConstraint filterConstraint,
-		@Nonnull ReducedEntityIndex targetIndex,
-		@Nonnull GlobalEntityIndex referencedGlobalIndex,
-		@Nonnull Formula referencedFilter,
-		@Nonnull Supplier<String> nestedQueryDescription
-	) {
-		final int targetPrimaryKey = targetIndex.getReferenceKey().primaryKey();
-		return new IndexTaggedFormula(
-			targetIndex.getPrimaryKey(),
-			filterByVisitor.computeOnlyOnce(
-				List.of(referencedGlobalIndex),
-				filterConstraint,
-				() -> {
-					final ReferenceOwnerTranslatingFormula outputFormula = new ReferenceOwnerTranslatingFormula(
-						referencedGlobalIndex,
-						referencedFilter,
-						referencedPrimaryKey -> referencedPrimaryKey == targetPrimaryKey ?
-							targetIndex.getAllPrimaryKeys() : EmptyBitmap.INSTANCE,
-						// the expander is bound to THIS index; without an identity the per-index formulas all
-						// hash alike and every one but the first is silently dropped as a duplicate
-						targetIndex.getPrimaryKey()
-					);
-					// the `DeferredFormula` is load bearing beyond its telemetry step: it declares no inner
-					// formulas, so the nested query stays a terminal node to every tree rewriter above it.
-					// `FormulaCloner`, driven by `ExtraResultPlanningVisitor#shortcutFormula`, otherwise descends
-					// into the translating formula and clones it with its only child removed - which both trips
-					// that formula's own arity check and hides the facet selections the extra-result planner
-					// reads off the very same tree. It must be handed out through `computeOnlyOnce`, which is
-					// what initialises the wrapper - built outside it, the wrapper fails its own premise check
-					// wherever a filter formula is computed without an execution context.
-					return new DeferredFormula(
-						new FormulaWrapper(
-							outputFormula,
-							(executionContext, formula) -> {
-								try {
-									executionContext.pushStep(
-										QueryPhase.EXECUTION_FILTER_NESTED_QUERY, nestedQueryDescription
-									);
-									return formula.compute();
-								} finally {
-									executionContext.popStep();
-								}
-							}
-						)
-					);
-				},
-				2L,
-				// we need to add exact pointers to the entity schema and reference schema,
-				// which play role in the lambda evaluation
-				NumberUtils.pack(
-					System.identityHashCode(entitySchema),
-					System.identityHashCode(referenceSchema)
-				),
-				referencedGlobalIndex.getPrimaryKey(),
-				// ... and the reduced index this contribution is bound to, or every index shares one entry
-				targetIndex.getPrimaryKey()
-			)
-		);
+	private static Formula createIndexLocalTargetFormula(@Nonnull ReducedEntityIndex targetIndex) {
+		final Formula owners = targetIndex.getAllPrimaryKeysFormula();
+		return owners instanceof EmptyFormula ?
+			EmptyFormula.INSTANCE : new IndexTaggedFormula(targetIndex.getPrimaryKey(), owners);
 	}
 
 	/**
-	 * Builds the row-exact owner formula contributed by one reduced entity index for a `groupHaving` body.
+	 * Returns the {@link GroupRowLookup} for the matching groups of one nested `groupHaving` query, building it on
+	 * the first request and memoizing it in the planning context for the rest of the plan.
 	 *
-	 * A reference row is the tuple `(owner, target, representativeValues, group)`, and a reduced entity index
-	 * is keyed by `(referenceName, target, representativeValues)` - so one index holds at most one row per
-	 * owner. The reduced **group** index keyed by the same representative values is therefore the one holding
-	 * that very row, and asking it which owners reference this index's target answers "whose row *here* carries
-	 * one of the matching groups" rather than "who references a matching group at all". That distinction is the
-	 * whole point: the second question is cross-row and combines wrongly with sibling constraints and with `not`.
+	 * The memo matters more than it looks: `ReferencedEntityFetcher` evaluates a filtered `referenceContent` once per
+	 * reduced index, each time with a single-index scope, and the index-discovery pass and the per-index pass of
+	 * one `referenceHaving` both need the same lookup. Rebuilding it on every call would cost the matching groups'
+	 * index resolution once per index - worse than the per-group scan it replaces. The key is a value-equal
+	 * `referenceHaving(reference, groupHaving(filter))`, because the bare `groupHaving` would collide across
+	 * references, plus the processing scopes the group indexes are resolved in; inside it, the lookup is kept per
+	 * queried entity type and per group global index (one per scope of the group collection).
 	 *
-	 * @param filterByVisitor         visitor used to resolve the group indexes
-	 * @param entitySchema            schema of the owning entity
-	 * @param referenceSchema         schema of the reference carrying the group
-	 * @param targetIndex             the reduced entity index whose rows are being evaluated
-	 * @param groupGlobalIndex        global index of the group entity type, the nested query's universe
-	 * @param groupFilter             formula selecting the matching group primary keys
-	 * @return formula producing the owner primary keys this index contributes
+	 * @param filterByVisitor visitor providing the planning context and the processing scope
+	 * @param entitySchema    schema of the entity owning the reference
+	 * @param referenceSchema schema of the reference carrying the group
+	 * @param groupFilter     the filter of the `groupHaving` container
+	 * @param nestedResult    the planned nested query over one group global index
+	 * @return the lookup, empty when the group collection has no global index in the scope
 	 */
 	@Nonnull
-	private static Formula createIndexLocalGroupFormula(
+	private static GroupRowLookup getGroupRowLookup(
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull AbstractReducedEntityIndex targetIndex,
-		@Nonnull GlobalEntityIndex groupGlobalIndex,
-		@Nonnull Formula groupFilter
+		@Nonnull FilterConstraint groupFilter,
+		@Nonnull GlobalIndexAndFormula nestedResult
 	) {
-		final RepresentativeReferenceKey representativeKey = targetIndex.getRepresentativeReferenceKey();
-		final int targetPrimaryKey = representativeKey.referenceKey().primaryKey();
-		final Serializable[] representativeValues = representativeKey.representativeAttributeValues();
-		final Scope scope = targetIndex.getIndexKey().scope();
-		// deliberately NOT wrapped in a `DeferredFormula`: the conditional-facet re-evaluation on the write
-		// path (`ReevaluateExpressionExecutor`) computes filter formulas without ever initialising an
-		// execution context, and a `FormulaWrapper` reached that way fails its own premise check. The
-		// telemetry step that wrapping would add is not worth making this branch unusable there.
-		//
-		// It IS wrapped in an `IndexTaggedFormula`, exactly as the sibling `entityHaving` branch is. Without
-		// the tag `ReferenceBodyTransposer#project` reads the whole disjunction as index-independent and keeps
-		// it for every row, so the group conjunct stops constraining the row it belongs to: an owner holding
-		// the group on one row and an attribute value on another satisfies both, and a negation falls back to
-		// the per-owner reading. The expander discriminator below is NOT a substitute - it keeps the per-index
-		// formulas distinct from one another, it does not tell the transposer which row each one speaks about.
-		return new IndexTaggedFormula(
-			targetIndex.getPrimaryKey(),
-			new ReferenceOwnerTranslatingFormula(
-				groupGlobalIndex,
-				groupFilter,
-				groupPrimaryKey -> collectOwnersOfTargetInGroup(
-					filterByVisitor, entitySchema, referenceSchema, scope,
-					groupPrimaryKey, targetPrimaryKey, representativeValues
-				),
-				// the expander is bound to THIS index; without an identity the per-index formulas all hash
-				// alike and every one but the first is silently dropped as a duplicate
-				targetIndex.getPrimaryKey()
-			)
-		);
-	}
-
-	/**
-	 * Returns the owners whose row for `targetPrimaryKey` - the row held by the reduced entity index carrying
-	 * `representativeValues` - belongs to the group `groupPrimaryKey`.
-	 *
-	 * The representative-value match is what keeps the answer row-exact: a single group may be shared by many
-	 * references and by many rows of one owner, and only the group index built for the same representative
-	 * values describes the row this index holds.
-	 *
-	 * @param filterByVisitor      visitor used to resolve the group indexes
-	 * @param entitySchema         schema of the owning entity
-	 * @param referenceSchema      schema of the reference carrying the group
-	 * @param scope                scope of the reduced entity index being evaluated
-	 * @param groupPrimaryKey      the group the nested query matched
-	 * @param targetPrimaryKey     the referenced entity the evaluated index is keyed by
-	 * @param representativeValues representative attribute values of the evaluated index
-	 * @return owner primary keys, or {@link EmptyBitmap#INSTANCE} when this index contributes none
-	 */
-	@Nonnull
-	private static Bitmap collectOwnersOfTargetInGroup(
-		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull Scope scope,
-		int groupPrimaryKey,
-		int targetPrimaryKey,
-		@Nonnull Serializable[] representativeValues
-	) {
-		final List<PersistentRoaringBitmap> matchingOwners = new ArrayList<>(2);
-		filterByVisitor
-			.getReferencedGroupEntityIndexes(entitySchema, referenceSchema, groupPrimaryKey)
-			.filter(it -> it.getIndexKey().scope() == scope)
-			.filter(ReducedGroupEntityIndex.class::isInstance)
-			.map(ReducedGroupEntityIndex.class::cast)
-			.filter(
-				it -> Arrays.equals(
-					it.getRepresentativeReferenceKey().representativeAttributeValues(), representativeValues
-				)
-			)
-			.forEach(it -> {
-				final Bitmap owners = it.getOwnerPKsForReferencedEntity(targetPrimaryKey);
-				if (owners != null && !owners.isEmpty()) {
-					matchingOwners.add(RoaringBitmapBackedBitmap.getRoaringBitmap(owners));
-				}
-			});
-		if (matchingOwners.isEmpty()) {
-			return EmptyBitmap.INSTANCE;
+		final GlobalEntityIndex groupGlobalIndex = nestedResult.globalIndex();
+		if (groupGlobalIndex == null) {
+			return GroupRowLookup.EMPTY;
 		}
-		final PersistentRoaringBitmap combinedResult = PersistentRoaringBitmap.or(
-			matchingOwners.toArray(PersistentRoaringBitmap[]::new)
+		final GroupRowLookups lookups = Objects.requireNonNull(
+			filterByVisitor.getQueryContext().computeOncePerConstraint(
+				referenceHaving(referenceSchema.getName(), groupHaving(groupFilter)),
+				filterByVisitor.getProcessingScope().getScopes(),
+				GroupRowLookups::new
+			)
 		);
-		return combinedResult.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(combinedResult);
+		return lookups.computeIfAbsent(
+			new GroupRowLookupKey(entitySchema.getName(), groupGlobalIndex.getPrimaryKey()),
+			() -> GroupRowLookup.build(
+				filterByVisitor, entitySchema, referenceSchema, nestedResult.filter().compute()
+			)
+		);
+	}
+
+	/**
+	 * Returns a formula carrying the reduced-index primary keys that can possibly hold a row of one of the groups the
+	 * `groupHaving` matched - the candidate set used in the index-discovery phase when every candidate row is
+	 * re-evaluated afterwards.
+	 *
+	 * The type-level index in scope is keyed by referenced entity PKs, so it cannot be asked about groups directly.
+	 * The reduced group indexes of the matching groups can: each lists the referenced entities it holds rows for, and
+	 * the reduced entity indexes of those targets - every representative variant of them - are a superset of the rows
+	 * the group condition can accept. The superset is all this phase promises; the rows are re-examined per index.
+	 * Narrowing here is what keeps every later per-index step proportional to the rows of the selected group rather
+	 * than to the whole reference family, which a value condition shared by many groups (one attribute holding
+	 * widths, heights and weights alike) would otherwise select almost entirely.
+	 *
+	 * Three rules keep the result identical to the unrestricted one wherever it has to be:
+	 *
+	 * - the type index is read **first and unconditionally**: a reference not indexed in the scope is represented by
+	 *   a throwing stub, and that read is what raises its `ReferenceNotIndexedException`;
+	 * - when the matching groups hold at least as many targets as the whole family, the unrestricted set is returned -
+	 *   a broad group filter must never cost more than the set it would narrow;
+	 * - an empty set is {@link EmptyFormula#INSTANCE}, never a {@link ConstantFormula} over an empty bitmap, which that
+	 *   class refuses.
+	 *
+	 * @param scopeIndex     the {@link ReferencedTypeEntityIndex} currently in the processing scope
+	 * @param groupRowLookup the matching groups' reduced group indexes
+	 * @return formula yielding the candidate reduced-index PKs
+	 */
+	@Nonnull
+	private static Formula groupNarrowedReducedIndexPksFormula(
+		@Nonnull ReferencedTypeEntityIndex scopeIndex,
+		@Nonnull GroupRowLookup groupRowLookup
+	) {
+		final Bitmap allReferenced = scopeIndex.getAllReferencedPrimaryKeys();
+		if (allReferenced.isEmpty()) {
+			return EmptyFormula.INSTANCE;
+		}
+		final List<ReducedGroupEntityIndex> groupIndexes = groupRowLookup.getIndexesInScope(
+			scopeIndex.getIndexKey().scope()
+		);
+		long estimatedTargets = 0;
+		for (final ReducedGroupEntityIndex groupIndex : groupIndexes) {
+			estimatedTargets += groupIndex.getReferencedEntityPrimaryKeys().size();
+		}
+		if (estimatedTargets >= allReferenced.size()) {
+			return reducedIndexPksFormula(scopeIndex, RoaringBitmapBackedBitmap.getRoaringBitmap(allReferenced));
+		}
+		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		for (final ReducedGroupEntityIndex groupIndex : groupIndexes) {
+			for (final Integer target : groupIndex.getReferencedEntityPrimaryKeys()) {
+				writer.add(target);
+			}
+		}
+		final PersistentRoaringBitmap targets = writer.get();
+		return targets.isEmpty() ? EmptyFormula.INSTANCE : reducedIndexPksFormula(scopeIndex, targets);
 	}
 
 	/**
 	 * Returns a constant formula carrying *all* reduced-index primary keys tracked by the supplied
 	 * REFERENCED_ENTITY_TYPE index. Used by {@link GroupHaving} during the reference index-discovery
-	 * phase: the type-level index in scope is keyed by referenced entity PKs, so it cannot narrow
-	 * reduced-index PKs by group entity PKs. By returning the full set we keep AND-composition with
-	 * sibling constraints (EntityHaving, attribute filters) intact while letting the outer
-	 * `ReferenceHavingTranslator.applySearchOnIndexes` pass produce the correct group filter through
-	 * the reducedIndexLookup branch.
+	 * phase when the returned set is the answer itself (nothing re-examines the rows afterwards): the
+	 * type-level index in scope is keyed by referenced entity PKs, so it cannot narrow reduced-index PKs
+	 * by group entity PKs. By returning the full set we keep AND-composition with sibling constraints
+	 * (EntityHaving, attribute filters) intact.
 	 *
 	 * @param scopeIndex the {@link ReferencedTypeEntityIndex} currently in the processing scope
 	 * @return formula yielding the full bitmap of reduced-index PKs from the index
@@ -751,12 +706,203 @@ public class HavingTranslatorHelper {
 		if (allReferenced.isEmpty()) {
 			return EmptyFormula.INSTANCE;
 		}
-		final Bitmap allIndexPks = scopeIndex.getIndexPrimaryKeys(
-			RoaringBitmapBackedBitmap.getRoaringBitmap(allReferenced)
-		);
-		return allIndexPks.isEmpty()
-			? EmptyFormula.INSTANCE
-			: new ConstantFormula(allIndexPks);
+		return reducedIndexPksFormula(scopeIndex, RoaringBitmapBackedBitmap.getRoaringBitmap(allReferenced));
+	}
+
+	/**
+	 * Translates referenced entity PKs into the primary keys of the reduced entity indexes holding their rows.
+	 *
+	 * @param scopeIndex the {@link ReferencedTypeEntityIndex} currently in the processing scope
+	 * @param targets    referenced entity primary keys to translate
+	 * @return constant formula over the reduced-index PKs, or {@link EmptyFormula#INSTANCE} when there are none
+	 */
+	@Nonnull
+	private static Formula reducedIndexPksFormula(
+		@Nonnull ReferencedTypeEntityIndex scopeIndex,
+		@Nonnull PersistentRoaringBitmap targets
+	) {
+		final Bitmap indexPks = scopeIndex.getIndexPrimaryKeys(targets);
+		return indexPks.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(indexPks);
+	}
+
+	/**
+	 * Key of one {@link GroupRowLookup} inside the per-plan {@link GroupRowLookups} memo.
+	 *
+	 * @param entityType              type of the entity owning the reference - the group indexes belong to it
+	 * @param groupGlobalIndexPrimaryKey primary key of the group global index the nested query was planned over
+	 */
+	private record GroupRowLookupKey(
+		@Nonnull String entityType,
+		int groupGlobalIndexPrimaryKey
+	) {
+	}
+
+	/**
+	 * Key of one bucket of reduced group indexes: the scope of the owners and the representative attribute values of
+	 * the rows. A reduced entity index with the same scope and representative values holds the very rows the group
+	 * indexes of the bucket describe. The values are held as a list so that the key compares them element-wise.
+	 *
+	 * @param scope                scope of the reduced group indexes in the bucket
+	 * @param representativeValues representative attribute values of the rows, compared element-wise
+	 */
+	private record GroupBucketKey(
+		@Nonnull Scope scope,
+		@Nonnull List<Serializable> representativeValues
+	) {
+
+		/**
+		 * Creates the key of the bucket describing the rows held by the passed reduced index.
+		 *
+		 * @param index a reduced entity or group index
+		 * @return key of the bucket its rows belong to
+		 */
+		@Nonnull
+		static GroupBucketKey of(@Nonnull AbstractReducedEntityIndex index) {
+			return new GroupBucketKey(
+				index.getIndexKey().scope(),
+				Arrays.asList(index.getRepresentativeReferenceKey().representativeAttributeValues())
+			);
+		}
+	}
+
+	/**
+	 * Per-plan memo of {@link GroupRowLookup}s for one `groupHaving`, keyed by the queried entity type and the group
+	 * global index the nested query was planned over.
+	 */
+	private static final class GroupRowLookups {
+		/**
+		 * Lookups built so far.
+		 */
+		private final Map<GroupRowLookupKey, GroupRowLookup> lookups = new HashMap<>(4);
+
+		/**
+		 * Returns the lookup for the key, building it with the supplier on the first request.
+		 *
+		 * @param key     the lookup key
+		 * @param factory builds the lookup when it is not memoized yet
+		 * @return the memoized lookup
+		 */
+		@Nonnull
+		GroupRowLookup computeIfAbsent(@Nonnull GroupRowLookupKey key, @Nonnull Supplier<GroupRowLookup> factory) {
+			return this.lookups.computeIfAbsent(key, k -> factory.get());
+		}
+	}
+
+	/**
+	 * The reduced group indexes of the groups a `groupHaving` matched, bucketed so that one reduced entity index can
+	 * find the group indexes describing its own rows with a single hash lookup.
+	 *
+	 * A reference row is the tuple `(owner, target, representativeValues, group)`, and a reduced entity index is keyed
+	 * by `(referenceName, target, representativeValues)` - so one index holds at most one row per owner. The reduced
+	 * **group** index keyed by the same representative values is therefore the one holding that very row, and asking
+	 * it which owners reference this index's target answers "whose row *here* carries one of the matching groups"
+	 * rather than "who references a matching group at all". That distinction is the whole point: the second question
+	 * is cross-row and combines wrongly with sibling constraints and with `not`.
+	 *
+	 * Built once per plan, it replaces a per-index formula that re-resolved every matching group's indexes and
+	 * scanned them at execution time: the cost per reduced entity index is now one lookup per group index in its
+	 * bucket - one for the single group a `histogramHaving` selects.
+	 */
+	private static final class GroupRowLookup {
+		/**
+		 * Lookup of a `groupHaving` whose group collection has no global index in the scope - it matches no group.
+		 */
+		static final GroupRowLookup EMPTY = new GroupRowLookup(Map.of(), Map.of());
+		/**
+		 * Reduced group indexes of the matching groups, keyed by the rows they describe.
+		 */
+		private final Map<GroupBucketKey, List<ReducedGroupEntityIndex>> buckets;
+		/**
+		 * The same reduced group indexes, keyed by their scope only.
+		 */
+		private final Map<Scope, List<ReducedGroupEntityIndex>> byScope;
+
+		/**
+		 * Resolves the reduced group indexes of every matching group in the processing scopes and buckets them.
+		 *
+		 * @param filterByVisitor visitor used to resolve the group indexes
+		 * @param entitySchema    schema of the entity owning the reference
+		 * @param referenceSchema schema of the reference carrying the group
+		 * @param matchingGroups  primary keys of the groups the nested query matched
+		 * @return the lookup
+		 */
+		@Nonnull
+		static GroupRowLookup build(
+			@Nonnull FilterByVisitor filterByVisitor,
+			@Nonnull EntitySchemaContract entitySchema,
+			@Nonnull ReferenceSchemaContract referenceSchema,
+			@Nonnull Bitmap matchingGroups
+		) {
+			if (matchingGroups.isEmpty()) {
+				return EMPTY;
+			}
+			final Map<GroupBucketKey, List<ReducedGroupEntityIndex>> buckets = new HashMap<>(16);
+			final Map<Scope, List<ReducedGroupEntityIndex>> byScope = new EnumMap<>(Scope.class);
+			final OfInt it = matchingGroups.iterator();
+			while (it.hasNext()) {
+				filterByVisitor
+					.getReferencedGroupEntityIndexes(entitySchema, referenceSchema, it.nextInt())
+					.filter(ReducedGroupEntityIndex.class::isInstance)
+					.map(ReducedGroupEntityIndex.class::cast)
+					.forEach(groupIndex -> {
+						buckets.computeIfAbsent(GroupBucketKey.of(groupIndex), k -> new ArrayList<>(2))
+							.add(groupIndex);
+						byScope.computeIfAbsent(groupIndex.getIndexKey().scope(), k -> new ArrayList<>(16))
+							.add(groupIndex);
+					});
+			}
+			return new GroupRowLookup(buckets, byScope);
+		}
+
+		private GroupRowLookup(
+			@Nonnull Map<GroupBucketKey, List<ReducedGroupEntityIndex>> buckets,
+			@Nonnull Map<Scope, List<ReducedGroupEntityIndex>> byScope
+		) {
+			this.buckets = buckets;
+			this.byScope = byScope;
+		}
+
+		/**
+		 * Returns the reduced group indexes of the matching groups whose owners live in the passed scope.
+		 *
+		 * @param scope the scope of the owners
+		 * @return the group indexes, possibly empty
+		 */
+		@Nonnull
+		List<ReducedGroupEntityIndex> getIndexesInScope(@Nonnull Scope scope) {
+			return this.byScope.getOrDefault(scope, List.of());
+		}
+
+		/**
+		 * Builds the row-exact owner formula contributed by one reduced entity index for a `groupHaving` body: the
+		 * owners whose row held by this index belongs to one of the matching groups.
+		 *
+		 * @param targetIndex the reduced entity index whose rows are being evaluated
+		 * @return the tagged owner formula, or {@link EmptyFormula#INSTANCE} when no row of the index is in a matching
+		 * group
+		 */
+		@Nonnull
+		Formula createIndexLocalGroupFormula(@Nonnull ReducedEntityIndex targetIndex) {
+			final List<ReducedGroupEntityIndex> bucket = this.buckets.get(GroupBucketKey.of(targetIndex));
+			if (bucket == null) {
+				return EmptyFormula.INSTANCE;
+			}
+			final int targetPrimaryKey = targetIndex.getReferenceKey().primaryKey();
+			final List<Formula> owners = new ArrayList<>(bucket.size());
+			for (final ReducedGroupEntityIndex groupIndex : bucket) {
+				final Bitmap groupOwners = groupIndex.getOwnerPKsForReferencedEntity(targetPrimaryKey);
+				if (groupOwners != null && !groupOwners.isEmpty()) {
+					owners.add(new ConstantFormula(groupOwners));
+				}
+			}
+			return switch (owners.size()) {
+				case 0 -> EmptyFormula.INSTANCE;
+				case 1 -> new IndexTaggedFormula(targetIndex.getPrimaryKey(), owners.get(0));
+				default -> new IndexTaggedFormula(
+					targetIndex.getPrimaryKey(), FormulaFactory.or(owners.toArray(Formula[]::new))
+				);
+			};
+		}
 	}
 
 	private HavingTranslatorHelper() {
