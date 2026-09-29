@@ -1,11 +1,11 @@
 ---
 title: attributeIsNull inside referenceHaving widens candidate discovery and is answered one reference row at a time
 date: 2026-09-25
-updated: 2026-09-28 20:18
+updated: 2026-09-29 07:25
 status: accepted
 kind: fix
 issues: [1584]
-prs: []
+prs: [1664]
 areas: [evita_engine/src/main/java/io/evitadb/core/query/filter/translator/attribute, evita_query/src/main/java/io/evitadb/api/query/filter/EntityScope.java, evita_api/src/main/java/io/evitadb/api/requestResponse/EvitaRequest.java, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/reference/ReferenceBodyTransposer.java, evita_engine/src/main/java/io/evitadb/core/query/filter/FilterByVisitor.java, evita_engine/src/main/java/io/evitadb/index/cardinality/ReferenceTypeCardinalityIndex.java]
 supersedes: []
 superseded-by: []
@@ -270,6 +270,14 @@ per-partition overhead, which only visiting fewer partitions removes — Option 
 Harness: `evita_test/evita_performance_tests/src/main/java/io/evitadb/spike/ReferenceHavingNullBenchmark.java`
 (`-p denseFixture=true` for the fixtures above; its `main` prints the census that picks them).
 
+The later fixes (not-null carriers, per-scope unique lookups, catalog null tests) were priced against `6aaa58840`,
+the build measured above, on the same fixtures: 2 interleaved rounds of every cell, then 4 more of `IS_NOT_NULL`
+alone. No cell moved beyond its spread. The `IS_NOT_NULL` medians over 20 iterations are, before → after:
+`media` 261.7 → 255.9 ms, `parameterValues` 44.7 → 43.7 ms, `relatedProducts` 23.9 → 22.4 ms.
+`parameterValues` occasionally runs a slow fork (54-70 ms) on either build.
+Unique lookups (`UniqueAttributeLookupBenchmark`, results in its `.md`) are flat: `code` `attributeEquals`
+4.98 → 4.89 µs, localized `url` 21.1 → 19.8 µs.
+
 ## Consequences & open follow-ups
 
 - **A null body now costs a walk over the whole partition family** — ~0.76 µs per partition. Option C is the
@@ -325,3 +333,4 @@ Harness: `evita_test/evita_performance_tests/src/main/java/io/evitadb/spike/Refe
   to follow the order of `scope(...)`, and a nested `scope(...)` kept from leaking into the outer query
 - **2026-09-28** — the null tests of a catalog attribute moved from the catalog's per-entity-type bitmap to the
   collection's filter indexes after an entity that removed one locale's value read as null
+- **2026-09-29** — the later fixes re-measured against the build of 2026-09-25: flat, unique lookups included
