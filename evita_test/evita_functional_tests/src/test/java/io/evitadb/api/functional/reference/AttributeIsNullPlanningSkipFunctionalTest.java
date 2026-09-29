@@ -47,7 +47,6 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -119,13 +118,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   non-empty set);
  * - **negative rows** — the skip must *not* fire when some record genuinely lacks the attribute; an inverted subset
  *   test turns these red;
- * - **regression rows** — the boolean algebra around a planning-time `EmptyFormula`, plus the confirmed defect R3,
+ * - **regression rows** — the boolean algebra around a planning-time `EmptyFormula`, plus the user-filter collapse,
  *   where a `userFilter` that collapses at planning time destroys the carrier the reference summary needs.
  *
  * Every row carries `DebugMode.PREFER_INDEX_SCAN`: without it the planner answers a 12-row collection from prefetched
  * entity bodies and the translator under test never runs.
  *
- * The B-side entity attributes are exercised on `CATEGORY` (12 rows — enough, because the headline assertion is "the
+ * The entity attributes are exercised on `CATEGORY` (12 rows — enough, because the headline assertion is "the
  * result is empty") and the reference attributes from `PRODUCT` against `categories`, which is the direction in which
  * the bidirectional reference rewrite declines. The `attributeIs(NULL)` translator is therefore always observed on the
  * ordinary, un-rewritten path.
@@ -159,7 +158,7 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 	private static final long HISTOGRAM_THRESHOLD = 4L;
 
 	/* ---------------------------------------------------------------------------------------------------------- */
-	/*  B-positive — the skip fires                                                                                 */
+	/*  Positive rows — the skip fires                                                                              */
 	/* ---------------------------------------------------------------------------------------------------------- */
 
 	/**
@@ -280,10 +279,10 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 	}
 
 	/**
-	 * The unique-index variant of the headline row — `code` is `unique()` and set on every category, so the skip
-	 * fires inside `createNullUniqueSubtractionFormula`. The unique path matters separately because
-	 * `OwnerUniqueIndex.getRecordIdsFormula()` builds its `ConstantFormula` without the empty-bitmap guard the
-	 * filterable path has, so it reaches the subset test with shapes the filterable path never produces.
+	 * The unique variant of the headline row — `code` is `unique()` and set on every category. A unique attribute
+	 * reads its carriers from the filter index, which `EntityIndex#upsertAttribute` writes for unique attributes too,
+	 * so it takes the same planning-time skip as a filterable one. The row turns red if the unique attribute finds no
+	 * carrier structure and every index falls back to "every record is null".
 	 */
 	@DisplayName("Should return nothing when every record carries the unique attribute")
 	@UseDataSet(BIDI_REWRITE)
@@ -327,7 +326,7 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 	 * The companion query establishes that the two locale indexes really are different populations; without it the
 	 * claim "a wrong locale would have been visible" would be hollow.
 	 *
-	 * The design's variant — asking in German and expecting the German-less categories back — cannot be stated on
+	 * The opposite variant — asking in German and expecting the German-less categories back — cannot be stated on
 	 * this fixture. `localizedLabel` is CATEGORY's only localized attribute, so "carries the German locale" and
 	 * "carries a German `localizedLabel`" are the same set, and the conjoined `entityLocaleEquals(GERMAN)` intersects
 	 * the whole answer away. Note also that the `LocaleFormula` is *not* elided here: `EntityLocaleEqualsTranslator`
@@ -390,25 +389,13 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 	 * the reduced indexes are those of the archived owners, whose rows are a different population than the live
 	 * ones — so a loop that silently iterated the live family would answer with live primary keys and fail here.
 	 *
-	 * This row replaces the design's `shouldSkipEmptyIndexesEntirely`: the `BIDI_REWRITE` fixture contains no entity
-	 * index with zero records, so the `getAllPrimaryKeysFormula() instanceof EmptyFormula` guard is unreachable from
-	 * a functional test against it.
+	 * The `BIDI_REWRITE` fixture contains no entity index with zero records, so the
+	 * `getAllPrimaryKeysFormula() instanceof EmptyFormula` guard is unreachable from a functional test against it.
 	 *
-	 * **Measured, not inferred.** This row fails identically on the pre-optimisation `AttributeIsTranslator`
-	 * (A/B swap of the committed translator, this session), so the `attributeIs(NULL)` planning-time skip is not
-	 * its cause — the defect predates it. Keep the row red and keep the expectation derived from the entity
-	 * bodies; do not weaken it to the observed empty answer.
-	 *
-	 * **Classification: ENGINE DEFECT, pre-existing** — the archived-scope face of the same defect. The diagnosis,
-	 * the probe cardinalities and the one observation that contradicts them are recorded on
-	 * {@link #shouldReturnNullBearingReferenceRowsWhenSomeRowsLackTheAttribute}; this row adds only that the defect
-	 * is not scope-specific, since the live sibling fails identically.
+	 * It is also the archived-scope face of the mixed-partition case pinned by
+	 * {@link #shouldReturnNullBearingReferenceRowsWhenSomeRowsLackTheAttribute}, and proves the null test is answered
+	 * per row in every scope.
 	 */
-	@Disabled(
-		"Pins the correct behaviour of a pre-existing engine defect: `attributeIsNull` on a reference attribute " +
-		"resolved through reduced indexes returns empty. Measured red with the planning-time skip reverted too. " +
-		"Re-enable when issue #1584 is fixed."
-	)
 	@DisplayName("Should resolve the null filter against the indexes of the requested scope only")
 	@UseDataSet(BIDI_REWRITE)
 	@Test
@@ -466,11 +453,6 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 	 * over-fires and drops every subtraction, the `NULL` side collapses to nothing, the union shrinks to just the
 	 * `NOT_NULL` side, and this row goes red without anyone having to know what the right answer was.
 	 */
-	@Disabled(
-		"Pins the correct behaviour of a pre-existing engine defect: `attributeIsNull` on a reference attribute " +
-		"resolved through reduced indexes returns empty, so the NULL side of the partition collapses. Measured red with " +
-		"the planning-time skip reverted too. Re-enable when issue #1584 is fixed."
-	)
 	@DisplayName("Should partition the owners between the null and not-null reference filters")
 	@UseDataSet(BIDI_REWRITE)
 	@Test
@@ -511,7 +493,7 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 	}
 
 	/* ---------------------------------------------------------------------------------------------------------- */
-	/*  B-negative — the skip must not fire                                                                         */
+	/*  Negative rows — the skip must not fire                                                                      */
 	/* ---------------------------------------------------------------------------------------------------------- */
 
 	/**
@@ -548,42 +530,12 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 	 * The inversion guard for the reference-attribute path. `refSometimesSet` is written on every row of a product or
 	 * on none of them, so "the product has a row without the attribute" is a clean partition of the live collection.
 	 *
-	 * **Measured, not inferred.** This row fails identically on the pre-optimisation `AttributeIsTranslator`
-	 * (A/B swap of the committed translator, this session), so the `attributeIs(NULL)` planning-time skip is not
-	 * its cause — the defect predates it. Keep the row red and keep the expectation derived from the entity
-	 * bodies; do not weaken it to the observed empty answer.
-	 *
-	 * **Classification: ENGINE DEFECT, pre-existing.** Not caused by either optimisation under test, out of scope for
-	 * the work that wrote this class, and needing its own issue. What follows is where the investigation stopped, so
-	 * whoever picks it up starts here rather than from scratch.
-	 *
-	 * Probed against this fixture and these reduced indexes:
-	 *
-	 * - `referenceHaving(categories)` bare -> 230 owners
-	 * - `attributeIsNotNull(refAlwaysSet)` -> 230 and `attributeIsNotNull(refSometimesSet)` -> 76, both correct
-	 * - `attributeIsNull(refSometimesSet)` -> **0**, where the correct answer is 154
-	 * - the same `attributeIsNull` against the **global** entity index -> 3, correct
-	 *
-	 * So `NOT_NULL` resolves correctly through the very indexes from which `NULL` answers zero, and 76 + 0 does not
-	 * close the 230 partition. The asymmetry points at the superset: `NOT_NULL` needs only
-	 * `FilterIndex#getAllRecordsFormula`, while `NULL` also needs `EntityIndex#getAllPrimaryKeysFormula`, which
-	 * returns `EmptyFormula` when its `entityIds` are empty (`EntityIndex.java:364-366`). With an empty superset the
-	 * pre-optimisation translator built `NotFormula(rowsCarryingTheAttribute, EMPTY)` and computed nothing, while the
-	 * current one proves the subtraction empty at its first branch and emits nothing — the same answer by two routes,
-	 * which is why the A/B found no difference.
-	 *
-	 * **That reading is unconfirmed, and one observation contradicts it.**
-	 * `EntityByDuplicateReferencesFunctionalTest:1411` asserts `attributeIsNull` returns one owner through a reduced
-	 * index, and it is green on both translator versions — so the superset is not universally empty there. That query
-	 * differs in three ways and one of them matters: it narrows to a single reduced index with
-	 * `entityPrimaryKeyInSet`, its attribute is `representative`, and its reference is `ZERO_OR_MORE_WITH_DUPLICATES`.
-	 * Start by finding which.
+	 * It is also the shape in which a wrong null test is most visible (0 owners returned where 154 are right). Every reduced index of
+	 * `categories` holds rows of products that carry the attribute next to rows of products that do not, and
+	 * candidate discovery used to answer `attributeIsNull` on the type-level index with an exact subtraction - which
+	 * keeps only the partitions in which *no* row carries the attribute, here none at all. It now widens to every
+	 * partition, like a `not` does, and leaves the null test to the per-row evaluation.
 	 */
-	@Disabled(
-		"Pins the correct behaviour of a pre-existing engine defect: `attributeIsNull` on a reference attribute " +
-		"resolved through reduced indexes returns empty. Measured red with the planning-time skip reverted too. " +
-		"Re-enable when issue #1584 is fixed."
-	)
 	@DisplayName("Should return the null-bearing reference rows when some rows lack the attribute")
 	@UseDataSet(BIDI_REWRITE)
 	@Test
@@ -615,14 +567,13 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 	}
 
 	/**
-	 * The unique-index inversion guard. `uniqueSometimes` is `unique()` and written on only some categories, so the
-	 * unique subtraction must survive — the path in which `OwnerUniqueIndex.getRecordIdsFormula()` hands the subset
-	 * test a `ConstantFormula` that may legitimately wrap an empty bitmap.
+	 * The unique-attribute inversion guard. `uniqueSometimes` is `unique()` and written on only some categories, so
+	 * the subtraction built over its filter-index carriers must survive planning.
 	 */
-	@DisplayName("Should keep the unique subtraction when the unique index is incomplete")
+	@DisplayName("Should keep the subtraction of a unique attribute set on only some records")
 	@UseDataSet(BIDI_REWRITE)
 	@Test
-	void shouldKeepUniqueSubtractionWhenTheUniqueIndexIsIncomplete(
+	void shouldKeepTheSubtractionOfAUniqueAttributeSetOnSomeRecords(
 		Evita evita,
 		List<SealedEntity> originalCategories
 	) {
@@ -634,7 +585,7 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 					filterBy(attributeIsNull(ATTR_UNIQUE_SOMETIMES))
 				);
 				assertResultIs(
-					"The unique subtraction must survive planning when the unique index does not cover every record",
+					"The subtraction must survive planning when the unique attribute is missing on some records",
 					originalCategories,
 					it -> it.getScope() == Scope.LIVE && it.getAttribute(ATTR_UNIQUE_SOMETIMES) == null,
 					result.getRecordData()
@@ -645,7 +596,7 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 	}
 
 	/* ---------------------------------------------------------------------------------------------------------- */
-	/*  B-regression — the boolean algebra around a planning-time EmptyFormula                                      */
+	/*  Regression rows — the boolean algebra around a planning-time EmptyFormula                                   */
 	/* ---------------------------------------------------------------------------------------------------------- */
 
 	/**
@@ -1265,17 +1216,18 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 	}
 
 	/* ---------------------------------------------------------------------------------------------------------- */
-	/*  R3 — the confirmed regression                                                                               */
+	/*  User-filter collapse at planning time                                                                       */
 	/* ---------------------------------------------------------------------------------------------------------- */
 
 	/**
-	 * **Expected to fail on today's code.** The reference summary is computed against the filter with every
-	 * `UserFilterFormula` sub-tree stripped (`ExtraResultPlanningVisitor.getFilteringFormulaWithoutUserFilter`), so a
-	 * `userFilter` — whatever it contains — must never change it. Three queries make that claim falsifiable:
+	 * The reference summary is computed against the filter with every `UserFilterFormula` sub-tree stripped
+	 * (`ExtraResultPlanningVisitor.getFilteringFormulaWithoutUserFilter`), so a `userFilter` — whatever it
+	 * contains — must never change it. Three queries make that claim falsifiable:
 	 *
 	 * - **A** — `userFilter(attributeIs(alwaysSet, NULL))`, which collapses at planning time *because of the
-	 *   optimisation this class pins*. `UserFilterFormula` is a conjunctive formula, so `FormulaOptimizer` replaces
-	 *   the whole carrier with `EmptyFormula` and there is no longer anything for the producer to strip.
+	 *   optimisation this class pins*. `UserFilterFormula` implements `NonCollapsibleFormula`, so `FormulaOptimizer`
+	 *   keeps the container as `UserFilterFormula(EmptyFormula)` instead of replacing it with a bare `EmptyFormula`,
+	 *   leaving the producer a carrier to strip.
 	 * - **B** — no `filterBy` at all: the baseline every summary must match.
 	 * - **C** — `userFilter(attributeEquals(active, true))`, true of every category. It collapses to "everything" at
 	 *   *execution*, but keeps a populated `UserFilterFormula`, so the carrier survives. This is the control that
@@ -1358,15 +1310,14 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 				);
 				assertEquals(
 					baselineProjection, referenceSummaryProjectionOf(collapsing),
-					"R3-A: the user filter collapsed at planning time through the `attributeIs(NULL)` SKIP - " +
-						"`wrapFormula` returned a bare `EmptyFormula`, which `FormulaOptimizer` propagated through " +
-						"the conjunctive `UserFilterFormula`, leaving `getFilteringFormulaWithoutUserFilter()` no " +
-						"carrier to strip. Read this row together with its D sibling " +
+					"Query A: the `attributeIs(NULL)` skip collapses the carrier to `EmptyFormula` at planning " +
+						"time, but `UserFilterFormula` implements `NonCollapsibleFormula`, so `FormulaOptimizer` " +
+						"keeps the container as `UserFilterFormula(EmptyFormula)` instead of replacing it with a " +
+						"bare `EmptyFormula`, leaving `getFilteringFormulaWithoutUserFilter()` a carrier to strip. " +
+						"Read this row together with its D sibling " +
 						"(shouldComputeFacetSummaryAgainstTheBaseline" +
-						"WhenAnUnrelatedUserFilterCollapsesAtPlanningTime): " +
-						"MEASURED: this row PASSES on the pre-optimisation translator, so the skip INTRODUCED this " +
-						"defect. It must go green together with its D sibling once `FormulaOptimizer` preserves the " +
-						"collapsing `UserFilterFormula` carrier."
+						"WhenAnUnrelatedUserFilterCollapsesAtPlanningTime): both must agree with the baseline, or " +
+						"the `NonCollapsibleFormula` marker has stopped protecting the container."
 				);
 				return null;
 			}
@@ -1374,20 +1325,20 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 	}
 
 	/**
-	 * The second half of R3, split out deliberately: query **D** is
+	 * The second half of the user-filter collapse, split out deliberately: query **D** is
 	 * `userFilter(attributeEquals(code, <no such code>))`, which is empty at *planning* time for a reason that has
 	 * nothing to do with the `attributeIs(NULL)` skip — `AttributeEqualsTranslator.createUniqueAttributeFormula`
-	 * wraps an `EmptyFormula` when the unique index has no match.
+	 * wraps an `EmptyFormula` when the unique index has no match. `AttributeFormula` is itself conjunctive, so
+	 * `FormulaOptimizer` collapses it and then the enclosing `UserFilterFormula` sees an `EmptyFormula` child too -
+	 * exactly the shape its A sibling tests, but reached through a different translator.
 	 *
-	 * **Measured.** An A/B against the committed translator settled this: D fails on **both** versions, while its
-	 * A sibling passes on the pre-optimisation one. So this row is a genuinely pre-existing defect, and A is one
-	 * the `attributeIs(NULL)` skip introduced. A prediction that the two must always agree was recorded here and
-	 * is now known to be wrong: it computed A's tree under the optimised translator, where the skip makes the two
-	 * trees identical, and then used that identity to argue the skip was not the cause.
-	 *
-	 * One fix serves both — preserving a collapsing `UserFilterFormula` as `UserFilterFormula(EmptyFormula)` in
-	 * `FormulaOptimizer` rather than replacing it with a bare `EmptyFormula`. **Both rows must go green together
-	 * when it lands**, and because they currently differ that is a real acceptance test rather than a restatement.
+	 * Both rows rely on the same guarantee: `UserFilterFormula` implements `NonCollapsibleFormula`, so
+	 * `FormulaOptimizer` keeps it as `UserFilterFormula(EmptyFormula)` rather than replacing it outright, leaving
+	 * `getFilteringFormulaWithoutUserFilter()` a carrier to strip regardless of which translator produced the
+	 * empty carrier underneath. Read this row together with its A sibling
+	 * ({@link #shouldComputeFacetSummaryAgainstTheBaselineWhenTheUserFilterCollapsesAtPlanningTime}): the two
+	 * exercise independent collapse paths into the same container, so one passing without the other would point at
+	 * a path-specific gap in the marker's coverage rather than a shared cause.
 	 */
 	@DisplayName("Should keep the baseline reference summary when an unrelated user filter collapses at planning time")
 	@UseDataSet(BIDI_REWRITE)
@@ -1434,15 +1385,15 @@ public class AttributeIsNullPlanningSkipFunctionalTest extends AbstractBidirecti
 				);
 				assertEquals(
 					baselineProjection, referenceSummaryProjectionOf(collapsing),
-					"R3-D: the user filter collapsed at planning time through an UNMATCHED UNIQUE LOOKUP - " +
-						"`createUniqueAttributeFormula` wrapped an `EmptyFormula` in an `AttributeFormula`, which is " +
-						"itself conjunctive, so `FormulaOptimizer` collapsed it and then the enclosing " +
-						"`UserFilterFormula`. Nothing here involves the `attributeIs(NULL)` skip. Read this row " +
-						"together with its A sibling " +
+					"Query D: the user filter collapses at planning time through an UNMATCHED UNIQUE LOOKUP - " +
+						"`createUniqueAttributeFormula` wraps an `EmptyFormula` in an `AttributeFormula`, which is " +
+						"itself conjunctive, so `FormulaOptimizer` collapses it and then the enclosing " +
+						"`UserFilterFormula` sees an `EmptyFormula` child. Nothing here involves the " +
+						"`attributeIs(NULL)` skip. Read this row together with its A sibling " +
 						"(shouldComputeFacetSummaryAgainstTheBaselineWhenTheUserFilterCollapsesAtPlanningTime): " +
-						"MEASURED: this row fails on the pre-optimisation translator too, so it is PRE-EXISTING and " +
-						"not caused by the skip. It must go green with its A sibling once `FormulaOptimizer` " +
-						"preserves the collapsing `UserFilterFormula` carrier."
+						"both reach the same `UserFilterFormula(EmptyFormula)` shape through independent collapse " +
+						"paths, so one failing without the other would point at a path-specific gap in the " +
+						"`NonCollapsibleFormula` marker's coverage."
 				);
 				return null;
 			}

@@ -67,6 +67,7 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NumberUtils;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
@@ -206,7 +207,8 @@ public class HavingTranslatorHelper {
 							Collections.singletonList(globalIndex),
 							combinedFilterBy,
 							() -> {
-								final Set<Scope> targetedScopes = EnumSet.noneOf(Scope.class);
+								// ordered - a unique lookup in the nested query prefers the scope its `scope(...)` lists first
+								final Set<Scope> targetedScopes = CollectionUtils.createLinkedHashSet(4);
 								Collections.addAll(
 									targetedScopes,
 									ofNullable(
@@ -214,7 +216,7 @@ public class HavingTranslatorHelper {
 											combinedFilterBy, EntityScope.class,
 											SeparateEntityScopeContainer.class
 										)
-									).map(it -> it.getScope().toArray(Scope[]::new))
+									).map(EntityScope::getScopesInRequestedOrder)
 										.orElseGet(() -> new Scope[]{
 											globalIndex.getIndexKey().scope()
 										})

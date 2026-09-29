@@ -1227,6 +1227,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 
 	/**
 	 * Returns stream of indexes that should be all considered for record lookup.
+	 *
+	 * With several scopes in play the indexes come in the order `scope(...)` requested the scopes in, which is what
+	 * lets the first-match lookups ({@link #applyOnFirstUniqueIndex}) prefer the scope listed first.
 	 */
 	@Nonnull
 	public Stream<EntityIndex> getEntityIndexStream() {
@@ -1547,111 +1550,80 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
-	 * Method executes the logic on first unique index of certain attribute.
-	 */
-	@Nonnull
-	public Formula applyOnGlobalUniqueIndexes(
-		@Nonnull GlobalAttributeSchemaContract attributeDefinition,
-		@Nonnull Function<GlobalUniqueIndex, Formula> formulaFunction
-	) {
-		final Set<Scope> allowedScopes = getProcessingScope().getScopes();
-		if (allowedScopes.size() == 1) {
-			return getIndexIfExists(new CatalogIndexKey(allowedScopes.iterator().next()), CatalogIndex.class)
-				.map(catalogIndex -> {
-					final GlobalUniqueIndex globalUniqueIndex = catalogIndex.getGlobalUniqueIndex(attributeDefinition, getLocale());
-					return globalUniqueIndex == null ? EmptyFormula.INSTANCE : formulaFunction.apply(globalUniqueIndex);
-				})
-				.orElse(EmptyFormula.INSTANCE);
-		} else {
-			return joinFormulas(
-				Arrays.stream(this.queryContext.getEvitaRequest().getScopesAsArray())
-					.filter(allowedScopes::contains)
-					.map(CatalogIndexKey::new)
-					.map(ixKey -> getIndexIfExists(ixKey, CatalogIndex.class))
-					.filter(Optional::isPresent)
-					.map(Optional::get)
-					.map(index -> {
-						final GlobalUniqueIndex globalUniqueIndex = index.getGlobalUniqueIndex(attributeDefinition, getLocale());
-						return globalUniqueIndex == null ? EmptyFormula.INSTANCE : formulaFunction.apply(globalUniqueIndex);
-					})
-					.filter(formula -> formula != EmptyFormula.INSTANCE)
-			);
-		}
-	}
-
-	/**
-	 * Method executes the logic on first unique index of certain attribute that produces non empty result.
-	 */
-	@Nonnull
-	public Formula applyOnFirstGlobalUniqueIndex(
-		@Nonnull GlobalAttributeSchemaContract attributeDefinition,
-		@Nonnull Function<GlobalUniqueIndex, Formula> formulaFunction
-	) {
-		final Set<Scope> allowedScopes = getProcessingScope().getScopes();
-		if (allowedScopes.size() == 1) {
-			return getIndexIfExists(new CatalogIndexKey(allowedScopes.iterator().next()), CatalogIndex.class)
-				.map(catalogIndex -> {
-					final GlobalUniqueIndex globalUniqueIndex = catalogIndex.getGlobalUniqueIndex(attributeDefinition, getLocale());
-					return globalUniqueIndex == null ? EmptyFormula.INSTANCE : formulaFunction.apply(globalUniqueIndex);
-				})
-				.orElse(EmptyFormula.INSTANCE);
-		} else {
-			return Arrays.stream(this.queryContext.getEvitaRequest().getScopesAsArray())
-				.filter(allowedScopes::contains)
-				.map(CatalogIndexKey::new)
-				.map(ixKey -> this.getIndexIfExists(ixKey, CatalogIndex.class))
-				.filter(Optional::isPresent)
-				.map(Optional::get)
-				.map(catalogIndex -> catalogIndex.getGlobalUniqueIndex(attributeDefinition, getLocale()))
-				.filter(Objects::nonNull)
-				.map(formulaFunction)
-				.filter(it -> !(it instanceof EmptyFormula))
-				.findFirst()
-				.orElse(EmptyFormula.INSTANCE);
-		}
-	}
-
-	/**
-	 * Method executes the logic on unique index of certain attribute.
-	 */
-	@Nonnull
-	public Formula applyOnUniqueIndexes(
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull AttributeSchemaContract attributeDefinition,
-		@Nonnull Function<UniqueIndex, Formula> formulaFunction
-	) {
-		return joinFormulas(
-			getEntityIndexStream()
-				.map(
-					entityIndex -> {
-						final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(referenceSchema, attributeDefinition, getLocale());
-						return uniqueIndex == null ?
-							EmptyFormula.INSTANCE :
-							tagWithProducingIndex(entityIndex, formulaFunction.apply(uniqueIndex));
-					}
-				)
-		);
-	}
-
-	/**
-	 * Method executes the logic on first unique index of certain attribute returning non-empty result.
+	 * Looks a value of a unique attribute up in the first requested scope that holds it, and returns the first
+	 * non-empty answer.
+	 *
+	 * The scopes are walked in the order `scope(...)` requested them in, so a value that several requested scopes hold
+	 * resolves to the scope listed first, and a negation of the lookup complements that answer - it may return the
+	 * entity in the other scope that carries the very value. Each scope is looked up the way it declares the
+	 * uniqueness:
+	 *
+	 * - in the unique index of the catalog of that scope, where the attribute is a catalog attribute globally unique
+	 *   there - the only lookup available when the queried collection is not known;
+	 * - otherwise in the unique indexes of the entity indexes of that scope, where the attribute is unique within the
+	 *   collection there;
+	 * - a scope declaring neither is passed over.
+	 *
+	 * A result of a collection unique index is tagged with the index that produced it, like every formula
+	 * {@link #applyOnIndexes(Function)} builds: inside a `referenceHaving` body an untagged leaf reads as
+	 * index-independent, so the row-scoping rebuild would apply the match to every row of the owner -
+	 * `not(attributeEquals(u, x1))` then drops an owner whose other row carries a different value. Outside a reference
+	 * body no tag is attached. A catalog attribute is never resolved inside a reference body.
+	 *
+	 * @param referenceSchema     the reference schema the attribute belongs to, or NULL for an entity attribute
+	 * @param attributeDefinition the schema definition of the attribute being looked up
+	 * @param globalLookup        the lookup in the unique index of a catalog
+	 * @param collectionLookup    the lookup in a unique index of an entity index
+	 * @return the first non-empty answer, or {@link EmptyFormula} when no requested scope holds the value
 	 */
 	@Nonnull
 	public Formula applyOnFirstUniqueIndex(
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeDefinition,
-		@Nonnull Function<UniqueIndex, Formula> formulaFunction
+		@Nonnull Function<GlobalUniqueIndex, Formula> globalLookup,
+		@Nonnull Function<UniqueIndex, Formula> collectionLookup
 	) {
-		return getEntityIndexStream()
-			.map(
-				entityIndex -> {
-					final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(referenceSchema, attributeDefinition, getLocale());
-					return uniqueIndex == null ? EmptyFormula.INSTANCE : formulaFunction.apply(uniqueIndex);
-				}
-			)
-			.filter(it -> !(it instanceof EmptyFormula))
-			.findFirst()
-			.orElse(EmptyFormula.INSTANCE);
+		final Set<Scope> allowedScopes = getProcessingScope().getScopes();
+		final Scope[] scopesInOrder = allowedScopes.size() == 1 ?
+			new Scope[]{allowedScopes.iterator().next()} :
+			Arrays.stream(this.queryContext.getEvitaRequest().getScopesAsArray())
+				.filter(allowedScopes::contains)
+				.toArray(Scope[]::new);
+		for (Scope scope : scopesInOrder) {
+			final Formula answer;
+			if (attributeDefinition instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
+				globalAttributeSchema.isUniqueGloballyInScope(scope)
+			) {
+				answer = getIndexIfExists(new CatalogIndexKey(scope), CatalogIndex.class)
+					.map(catalogIndex -> catalogIndex.getGlobalUniqueIndex(globalAttributeSchema, getLocale()))
+					.map(globalLookup)
+					.orElse(EmptyFormula.INSTANCE);
+			} else if (attributeDefinition.isUniqueInScope(scope) && isEntityTypeKnown()) {
+				answer = getProcessingScope().getIndexStream()
+					.filter(ix -> ix.getIndexKey().scope() == scope)
+					.filter(EntityIndex.class::isInstance)
+					.map(EntityIndex.class::cast)
+					.map(
+						entityIndex -> {
+							final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(
+								referenceSchema, attributeDefinition, getLocale()
+							);
+							return uniqueIndex == null ?
+								EmptyFormula.INSTANCE :
+								tagWithProducingIndex(entityIndex, collectionLookup.apply(uniqueIndex));
+						}
+					)
+					.filter(it -> !(it instanceof EmptyFormula))
+					.findFirst()
+					.orElse(EmptyFormula.INSTANCE);
+			} else {
+				continue;
+			}
+			if (!(answer instanceof EmptyFormula)) {
+				return answer;
+			}
+		}
+		return EmptyFormula.INSTANCE;
 	}
 
 	/**

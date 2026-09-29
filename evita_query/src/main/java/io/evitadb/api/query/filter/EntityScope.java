@@ -34,6 +34,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Set;
@@ -65,7 +66,10 @@ import java.util.Set;
  *
  * **Scope Priority for Duplicates**: If the same entity exists in multiple scopes (which should be rare but is technically possible during
  * transitions), evitaDB prioritizes the entity from the **first declared scope** in the argument list. For example, `scope(LIVE, ARCHIVED)` will
- * return the LIVE version of an entity if it exists in both scopes.
+ * return the LIVE version of an entity if it exists in both scopes. The same rule decides a lookup by a unique value that several requested
+ * scopes hold (see below): `attributeEquals` / `attributeInSet` on a unique attribute - of the entity, of the catalog, or of a reference
+ * inside `referenceHaving` - returns the entity from the scope listed first, and a negation of such a lookup complements that answer. The
+ * order therefore is part of the constraint: `scope(LIVE, ARCHIVED)` and `scope(ARCHIVED, LIVE)` are not equal.
  *
  * **Unique Constraint Enforcement**: Unique attribute constraints are enforced **within each scope independently**, not globally. This means two
  * entities in different scopes can have the same value for a unique attribute without violating uniqueness. For example, an ARCHIVED entity and
@@ -188,7 +192,8 @@ public class EntityScope extends AbstractFilterConstraintLeaf implements Generic
 	}
 
 	/**
-	 * Returns requested scopes.
+	 * Returns requested scopes as a set answering membership only - see {@link #getScopesInRequestedOrder()} for the
+	 * order they were requested in.
 	 */
 	@Nonnull
 	public Set<Scope> getScope() {
@@ -205,6 +210,28 @@ public class EntityScope extends AbstractFilterConstraintLeaf implements Generic
 		}
 	}
 
+	/**
+	 * Returns the requested scopes in the order the constraint lists them, each scope once (a repeated scope keeps its
+	 * first position).
+	 *
+	 * Unlike {@link #getScope()}, which answers membership only, the order is meaningful: a lookup by a unique value
+	 * that lives in several of the requested scopes prefers the scope listed first.
+	 *
+	 * @return the distinct requested scopes in the requested order
+	 */
+	@Nonnull
+	public Scope[] getScopesInRequestedOrder() {
+		final Serializable[] arguments = getArguments();
+		final Scope[] ordered = new Scope[arguments.length];
+		int count = 0;
+		for (final Serializable argument : arguments) {
+			if (argument instanceof Scope scope && !contains(ordered, count, scope)) {
+				ordered[count++] = scope;
+			}
+		}
+		return count == ordered.length ? ordered : Arrays.copyOf(ordered, count);
+	}
+
 	@Override
 	public boolean isApplicable() {
 		return isArgumentsNonNull() && getArguments().length >= 1;
@@ -216,16 +243,40 @@ public class EntityScope extends AbstractFilterConstraintLeaf implements Generic
 		return new EntityScope(newArguments);
 	}
 
+	/**
+	 * Answers whether the scope is among the first `count` items of the array.
+	 *
+	 * @param scopes the array
+	 * @param count  number of valid items at its start
+	 * @param scope  the scope looked for
+	 * @return true when present
+	 */
+	private static boolean contains(@Nonnull Scope[] scopes, int count, @Nonnull Scope scope) {
+		for (int i = 0; i < count; i++) {
+			if (scopes[i] == scope) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Compares the distinct scopes in their requested order. The order decides which scope a unique lookup prefers,
+	 * so two orders are two different queries; a repeated scope changes nothing and is ignored.
+	 */
 	@Override
 	public boolean equals(@Nullable Object o) {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		final EntityScope that = (EntityScope) o;
-		return getScope().equals(that.getScope());
+		return Arrays.equals(getScopesInRequestedOrder(), that.getScopesInRequestedOrder());
 	}
 
+	/**
+	 * Hashes the distinct scopes in their requested order - see {@link #equals(Object)}.
+	 */
 	@Override
 	public int hashCode() {
-		return getScope().hashCode();
+		return Arrays.hashCode(getScopesInRequestedOrder());
 	}
 }
