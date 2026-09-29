@@ -325,6 +325,12 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * {@link #parentContext}
 	 */
 	private Map<ConstraintScopeCacheKey, Object> constraintScopeCache;
+	/**
+	 * Memoized planning structures keyed by value, for callers that rebuild their key on every request.
+	 *
+	 * @see #computeOncePerKey(Object, Supplier) for the contract
+	 */
+	private Map<Object, Object> valueKeyedCache;
 
 
 	/**
@@ -1479,9 +1485,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * and therefore identifies the context too, a decision memoized here is only valid against the schemas and
 	 * indexes of the context that produced it. A nested query has its own, so it gets its own cache.
 	 *
-	 * Constraints do not implement value equality, so the key compares them by identity. That makes a miss possible
-	 * when the same constraint is rebuilt rather than reused - and a miss costs exactly what the call cost before
-	 * this method existed, never a wrong result.
+	 * The key compares the constraint by identity, not by the value equality constraints implement. That makes a
+	 * miss certain when the same constraint is rebuilt rather than reused - and a miss costs exactly what the call
+	 * cost before this method existed, never a wrong result. A caller that has to rebuild its key on every call
+	 * needs {@link #computeOncePerKey(Object, Supplier)} instead.
 	 *
 	 * @param constraint the constraint the decision belongs to, compared by identity
 	 * @param scopes     processing scopes the decision was taken under
@@ -1506,6 +1513,42 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		}
 		final T computed = supplier.get();
 		this.constraintScopeCache.put(cacheKey, computed == null ? NULL_DECISION : computed);
+		return computed;
+	}
+
+	/**
+	 * Memoizes a planning structure under a key compared by value, so that the second request for it within this
+	 * plan is a map lookup instead of a repeat of the work.
+	 *
+	 * Unlike {@link #computeOncePerConstraint(Constraint, Set, Supplier)}, the key is compared by value: it is meant
+	 * for callers that cannot hold on to one key instance - the filtered `referenceContent` fetch re-translates its
+	 * filter once per reduced index, rebuilding every constraint it derives - and whose key therefore has to
+	 * identify the structure by what it is derived from. The same soundness rule applies: the supplier must be a
+	 * pure function of this context's schemas and indexes and of what the key identifies.
+	 *
+	 * The key's type selects the type of the memoized value, which is what makes the cast below safe - a key type
+	 * must therefore belong to a single caller. Like {@link #computeOncePerConstraint(Constraint, Set, Supplier)},
+	 * the memo is not delegated to {@link #parentContext}: the structures are only valid against the schemas and
+	 * indexes of the context that derived them.
+	 *
+	 * @param key      value-equal key identifying everything the structure is derived from
+	 * @param supplier derives the structure on the first request
+	 * @param <T>      type of the memoized structure
+	 * @return the structure, freshly derived or memoized
+	 */
+	@Nonnull
+	public <T> T computeOncePerKey(@Nonnull Object key, @Nonnull Supplier<T> supplier) {
+		if (this.valueKeyedCache == null) {
+			this.valueKeyedCache = new HashMap<>();
+		}
+		//noinspection unchecked
+		final T cached = (T) this.valueKeyedCache.get(key);
+		if (cached != null) {
+			return cached;
+		}
+		// not `computeIfAbsent` - a supplier that memoizes a structure of its own would modify the map mid-call
+		final T computed = Objects.requireNonNull(supplier.get());
+		this.valueKeyedCache.put(key, computed);
 		return computed;
 	}
 
@@ -2042,9 +2085,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	private static final Object NULL_DECISION = new Object();
 
 	/**
-	 * Key of {@link #constraintScopeCache}. The constraint is compared by identity - constraints do not implement
-	 * value equality - and the scope set is part of the key because the same constraint is planned under different
-	 * scope sets when index selection explores alternatives.
+	 * Key of {@link #constraintScopeCache}. The constraint is compared by identity, not by value, and the scope set
+	 * is part of the key because the same constraint is planned under different scope sets when index selection
+	 * explores alternatives.
 	 *
 	 * @param constraint the constraint the memoized decision belongs to
 	 * @param scopes     processing scopes the decision was taken under
