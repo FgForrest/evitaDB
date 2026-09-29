@@ -1,11 +1,11 @@
 ---
 title: A referenceHaving body is a predicate about one reference row, evaluated by transposing the planned formula per reduced index
 date: 2026-09-17
-updated: 2026-09-29 15:10
+updated: 2026-09-29 16:10
 status: partially-implemented
 kind: fix
 issues: [1585, 1644]
-prs: []
+prs: [1646, 1667, 1668]
 areas: [evita_engine/src/main/java/io/evitadb/core/query/filter/translator/reference, evita_engine/src/main/java/io/evitadb/core/query/algebra/reference, evita_engine/src/main/java/io/evitadb/core/query/filter/FilterByVisitor.java, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/bool, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/entity, evita_engine/src/main/java/io/evitadb/index/ReferencedTypeEntityIndex.java]
 supersedes: []
 superseded-by: []
@@ -84,8 +84,8 @@ whose row attributes vary **within one owner** to tell them apart, and the test 
 | 2026-09-17 | **(c), first half: a negated reference attribute is answered from the counterpart end** | The counterpart's per-owner index is row-exact, so the complement is taken inside a set the rewrite already builds — no new structure | `BidirectionalReferenceRewriter#createPerOwnerFormulas` |
 | 2026-09-29 | **An `entityHaving` verdict is settled per index at planning time**, as membership of the index's target in the nested result computed once; a matching index contributes its own owner bitmap, a non-matching one nothing | A per-index formula embedding the shared nested filter cost N·M at execution and copied the filter's transactional ids into every one of N formulas — 16–18 s and an `OutOfMemoryError` on a 32 GiB heap in production | "Per-index cost" below |
 | 2026-09-29 | **In candidate mode, `groupHaving` narrows the candidate indexes** to those of the targets the matching groups' reduced group indexes hold; strict mode keeps the whole family | The value condition alone selects every group sharing the attribute (9,358 indexes where 833 are heights), and every later per-index step multiplies that count | `HavingTranslatorHelper#groupNarrowedReducedIndexPksFormula` |
-| 2026-09-29 | **Each `or` node's children are split by tag once per rebuild**, and a projection reads only its own index's children | Visiting every child of every `or` once per index made the rebuild quadratic — 25.6 s at 32,000 indexes; the split keeps the survivors and their order exactly as before | `ReferenceBodyTransposer#projectDisjunction` |
-| 2026-09-29 | **A `groupHaving` row is answered through a per-plan lookup of the matching groups' reduced group indexes, bucketed by (scope, representative values)**, keeping the per-index direction | The fetch path evaluates the branch once per index with a single-index scope, and a broad group filter can match 100k groups — enumerating the groups' targets instead would be worse than the scan it replaces | `HavingTranslatorHelper.GroupRowLookup` |
+| 2026-09-29 | **Each `or` node's children are split by tag once per rebuild**, and a projection reads only its own index's children | Visiting every child of every `or` once per index made the rebuild quadratic — 23.6 s of CPU at 32,000 indexes; the split keeps the survivors and their order exactly as before | `ReferenceBodyTransposer#projectDisjunction` |
+| 2026-09-29 | **A `groupHaving` row is answered through a per-plan lookup of the matching groups' reduced group indexes, bucketed by (scope, representative values) and memoized by value**, keeping the per-index direction | The fetch path evaluates the branch once per index with a single-index scope, and a broad group filter can match 100k groups — enumerating the groups' targets instead would be worse than the scan it replaces | `HavingTranslatorHelper.GroupRowLookup` |
 
 ### Row-scoped over owner-scoped
 
@@ -195,10 +195,23 @@ owner set under a negation.
 **Candidate narrowing by group reads the type index first.** `groupNarrowedReducedIndexPksFormula` calls
 `getAllReferencedPrimaryKeys()` on the discovery index unconditionally, because a reference not indexed in the
 scope is represented by a throwing stub and that read is what raises its `ReferenceNotIndexedException`. It
-returns `EmptyFormula` for an empty set — `ConstantFormula` refuses an empty bitmap — and falls back to the whole
-family when the matching groups hold at least as many targets as the family, so a broad group filter never costs
-more than before. A `groupHaving` matching no group now empties the candidate set already in index selection:
-same answer, earlier.
+returns `EmptyFormula` for an empty set — `ConstantFormula` refuses an empty bitmap. The union of the matching
+groups' targets is built once per plan and scope inside the group lookup, so a broad group filter costs one pass
+over its targets; the first version instead fell back to the whole family when the summed target counts of the
+group indexes reached the family size, which over-counted every target shared by several groups or representative
+variants and could defeat the narrowing on exactly the duplicate-row shape. A `groupHaving` matching no group now
+empties the candidate set already in index selection: same answer, earlier.
+
+**The group lookup is memoized by value, never by a rebuilt constraint.** Index discovery, the per-index pass and
+— on the filtered `referenceContent` fetch — every single reduced index ask for the same lookup, and none of
+them can hand over the same constraint instance twice: the fetch re-translates its filter per index and
+`histogramHaving` rewrites itself on every translation. The first version keyed the memo with a freshly built
+`referenceHaving(R, groupHaving(filter))` through `QueryPlanningContext#computeOncePerConstraint`, which compares
+by identity: it never hit, answered correctly, and silently kept the N × G group resolution on the fetch path.
+`QueryPlanningContext#computeOncePerKey` compares by value; the key (`GroupRowLookupKey`) names the entity type,
+the reference, the processing scopes and the nested group query — by the formula instance `computeOnlyOnce` hands
+out, one per group global index and value-equal nested filter. Only a test that counts resolutions can see this
+kind of defect (`GroupRowLookupMemoTest`).
 
 **The reduced index holds at most one row per owner, and the per-index complement is exact only because of
 it.** Projection does not distribute over set difference, so `owners(index) \ owners(σ_φ(index))` equals
@@ -278,14 +291,14 @@ same queries in 1.6–1.9 s and 4.2 s — it escaped the `OutOfMemoryError` only
 one transactional id per sorted-array page (#1486), not because the N·M scan was absent. With the fix `dev`
 answers them in 0.054–0.107 s and 0.030–0.056 s.
 
-`HistogramHavingMultiGroupFunctionalTest` (19 tests) pins the shape: several groups sharing one value
+`HistogramHavingMultiGroupFunctionalTest` (21 tests) pins the shape: several groups sharing one value
 attribute, two sliders at once, ranges dominated by other groups, group sets, negations in every position,
 archived owners and targets, duplicate rows told apart by a representative attribute, and the fetch path —
 each against an oracle derived from the fixture's row model, on every alternative plan and caching tree. It
-passes on v2026.2.17 and on the fix, and fails 13 of 19 on v2026.2.16, which is the pooled reading.
+passes on v2026.2.17 and on the fix; its first 19 tests fail 13 on v2026.2.16, which is the pooled reading.
 
 **Linear rebuild (2026-09-29).** `ReferenceBodyTransposerTest` rebuilds a conjunctive body over 32,000 indexes
-in about 0.2 s under a 5 s bound; the previous algorithm took 25.6 s there and fails it. On the restored catalog,
+in about 0.2 s of CPU under a 5 s bound; the previous algorithm took 23.6 s there and fails it. On the restored catalog,
 warm: `entityHaving(0..1000)` with `not(groupHaving(vyska))` 0.54 s → 0.12 s, and two `entityHaving` value
 conditions 0.72 s → 0.09 s, same answers.
 
@@ -334,6 +347,19 @@ test over 2,000 random bodies. What is **still open**:
 - **The `groupHaving` lookup walks per index, never from the groups' side.** Enumerating the matching groups'
   targets is cheaper when N and the group count are both large, which group narrowing cannot shrink either;
   it was declined because it is worse for the fetch path (N = 1 per call) and for broad group filters.
+- **Group narrowing changes which rows `orderBy(referenceProperty(R, …))` ranks an owner by.** The sorter ranks
+  an owner by its first row among the reduced indexes index selection picked for R
+  (`ReferencePropertyTranslator#selectReducedEntityIndexSet`). With a `groupHaving` in the body that set is now
+  group-narrowed instead of the whole family, so an owner whose first row sits in another group can move. It moves
+  towards the intended "first *matching* row" (see `BidirectionalReferenceRewriter`), but the candidate set is
+  still a superset: every representative variant of a target the group holds is a candidate, including a
+  duplicate row of that target in another group. No test pins either ordering; pinning the candidate set would
+  pin an artefact.
+- **The nested queries of `entityHaving` and `groupHaving` run during planning.** Their result decides the shape
+  of the tree, so they are computed while translating - for every index-selection alternative, not only the plan
+  that is executed. `computeOnlyOnce` de-duplicates by value-equal nested filter and index, so the extra cost is
+  one evaluation per distinct `NestedQueryRestriction` across the alternatives; an expensive nested body on a
+  query with many alternatives pays it on plans that are then discarded.
 
 **The fetch side now runs the same adapters, and doing so fixed a crash.** `ReferencedEntityFetcher
 #computeResultWithPassedIndex` used to suppress `EntityPrimaryKeyInSet` while translating a reference body,
@@ -467,4 +493,7 @@ surprising enough to be worth saying explicitly.
 - **2026-09-29** — v2026.2.17 timed out and ran out of memory on a production storefront; the per-index cost
   was fixed (plan-time `entityHaving` membership, group-narrowed candidates, per-plan group lookup, a linear
   transposer rebuild) in the 2026.2.18 hotfix and on `dev`; the design was reviewed by two independent reviewers before implementation,
-  who found one blocker (an empty `ConstantFormula`) and one lost `ReferenceNotIndexedException`, both fixed
+  who found one blocker (an empty `ConstantFormula`) and one lost `ReferenceNotIndexedException`, both fixed;
+  the review of the finished PRs by the same two reviewers found, independently, that the per-plan group lookup's
+  memo never hit (a rebuilt key compared by identity) - fixed by a value-keyed memo, together with a whole-family
+  fallback that over-counted, a test whose expectation was empty and a CPU-time bound that could pass anything
