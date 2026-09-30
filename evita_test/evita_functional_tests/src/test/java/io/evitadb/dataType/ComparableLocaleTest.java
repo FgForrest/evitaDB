@@ -138,6 +138,78 @@ class ComparableLocaleTest {
 	}
 
 	@Nested
+	@DisplayName("Consistency with equals")
+	class ConsistencyWithEqualsTest {
+
+		/**
+		 * An ill-formed variant is DROPPED from a language tag, so ordering by the tag alone equates two locales
+		 * that {@link Locale#equals} keeps apart. These instances are index keys - a filter or sort value tree
+		 * identifies one entry per key by this comparator - so an order that equates them merges two entries into
+		 * one and the removal of the second fails an internal premise.
+		 */
+		@Test
+		@DisplayName("two locales sharing a language tag but not equal must NOT compare equal")
+		void shouldNotEquateLocalesThatShareALanguageTag() {
+			final Locale withIllFormedVariant = new Locale("en", "US", "ill!formed");
+			final Locale plain = new Locale("en", "US");
+
+			assertEquals(
+				withIllFormedVariant.toLanguageTag(), plain.toLanguageTag(),
+				"premise: the ill-formed variant is dropped, so both render as the same tag"
+			);
+			assertNotEquals(withIllFormedVariant, plain, "premise: they are nevertheless distinct locales");
+
+			assertNotEquals(
+				0,
+				new ComparableLocale(withIllFormedVariant).compareTo(new ComparableLocale(plain)),
+				"the order must separate them, or they collapse into one index entry"
+			);
+		}
+
+		@Test
+		@DisplayName("a well-formed variant survives in the tag and was never at risk")
+		void shouldSeparateLocalesWithWellFormedVariants() {
+			final ComparableLocale first = new ComparableLocale(new Locale("en", "US", "x"));
+			final ComparableLocale second = new ComparableLocale(new Locale("en", "US", "y"));
+
+			assertNotEquals(0, first.compareTo(second), "encoded as x-lvariant-x / x-lvariant-y");
+		}
+
+		@Test
+		@DisplayName("the tie-break decides only what the language tag left tied")
+		void shouldPreserveLanguageTagOrdering() {
+			final Locale[] distinctTags = {
+				new Locale("cs", "CZ"), new Locale("de", "DE"), new Locale("en", "US")
+			};
+			for (int i = 0; i < distinctTags.length; i++) {
+				for (int j = 0; j < distinctTags.length; j++) {
+					final int tagOrder = distinctTags[i].toLanguageTag()
+						.compareTo(distinctTags[j].toLanguageTag());
+					if (tagOrder != 0) {
+						assertEquals(
+							Integer.signum(tagOrder),
+							Integer.signum(
+								new ComparableLocale(distinctTags[i])
+									.compareTo(new ComparableLocale(distinctTags[j]))
+							),
+							"every ordering decision the tag makes must survive the tie-break"
+						);
+					}
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("equal locales still compare equal")
+		void shouldStillEquateEqualLocales() {
+			assertEquals(
+				0,
+				new ComparableLocale(new Locale("en", "US")).compareTo(new ComparableLocale(new Locale("en", "US")))
+			);
+		}
+	}
+
+	@Nested
 	@DisplayName("Equality")
 	class EqualityTest {
 

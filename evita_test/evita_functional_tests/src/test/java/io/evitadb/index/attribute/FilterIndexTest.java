@@ -60,6 +60,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.text.Normalizer;
 import java.util.Arrays;
+import java.text.Collator;
 import java.util.Comparator;
 import java.util.Currency;
 import java.util.Locale;
@@ -1194,8 +1195,9 @@ class FilterIndexTest {
 
 		@Test
 		@DisplayName(
-			"getComparator returns LocalizedStringComparator for localized"
+			"getComparator returns the equals-consistent localized order for localized"
 		)
+		@SuppressWarnings("unchecked")
 		void shouldReturnLocalizedComparatorForLocalizedString() {
 			final AttributeIndexKey key =
 				new AttributeIndexKey(null, "a", Locale.ENGLISH);
@@ -1203,7 +1205,22 @@ class FilterIndexTest {
 			final Comparator<? extends Comparable> comparator =
 				FilterIndex.getComparator(key, String.class);
 
-			assertInstanceOf(LocalizedStringComparator.class, comparator);
+			assertInstanceOf(EqualsConsistentLocalizedStringComparator.class, comparator);
+
+			// the type is the cheap half of the assertion; the load-bearing half is the PROPERTY, because a bucket
+			// is identified by this order and an order that equates two non-equal strings merges their buckets
+			final Comparator<String> stringOrder = (Comparator<String>) comparator;
+			assertEquals(
+				0, Collator.getInstance(Locale.ENGLISH).compare("ab", "a\u200Bb"),
+				"premise: the bare collation equates these two"
+			);
+			assertNotEquals(
+				0, stringOrder.compare("ab", "a\u200Bb"),
+				"the index-key order must not, or the cardinality counter cannot describe the tree it guards"
+			);
+			assertTrue(
+				stringOrder.compare("apple", "banana") < 0, "and national ordering is otherwise unchanged"
+			);
 		}
 
 		@Test
