@@ -1,7 +1,7 @@
 ---
 title: A pick-first reference ordering sorts on the first row of every selected owner, resolved from the selection rather than from the filter
 date: 2026-09-23
-updated: 2026-09-29 12:45
+updated: 2026-09-30 07:30
 status: accepted
 kind: fix
 issues: [1614]
@@ -340,6 +340,16 @@ a measured production shape: that is where the per-query cost still follows `row
   unsorted while the prefetch route orders them. It predates this change and lives on the write path, so it was
   left for its own fix; the oracle test declares the localized compound on the partitioning reference only and
   says why.
+- **Found, not fixed: the two routes disagree on `traverseByEntityProperty`.** On the oracle test's dataset the
+  index route and the prefetch route return different orders for a traverse ordering - off by 4-9 positions over
+  live owners, by more than 100 over both scopes, the index route placing archived owners after live ones within a
+  target. It predates this change, which leaves traverse untouched (see Key technical details), and needs the
+  traverse-narrowing decision above before either route can be called right.
+- **Found, not fixed: `ExactSorter` fails on a page starting past the matched keys.** With
+  `orderBy(entityPrimaryKeyExact(10, 3), ...)` and `page(2, 3)`, `ExactSorter#sortAndSlice` computes
+  `toAppend = lastSortedItem - recomputedStartIndex`, which goes negative when fewer keys match the exact order than
+  the page skips, and `System.arraycopy` throws `ArrayIndexOutOfBoundsException` instead of handing the rest to the
+  next sorter. Found by the quality pass of this work; outside its diff.
 
 ## Related work
 

@@ -1,11 +1,11 @@
 ---
 title: Mark members that are public only for cross-module reach with @Internal, and enforce it from bytecode
 date: 2026-09-23
-updated: 2026-09-24 09:45
+updated: 2026-09-30 07:30
 status: accepted
 kind: infrastructure
 issues: [1640]
-prs: []
+prs: [1642]
 areas:
   - evita_common/src/main/java/io/evitadb/annotation
   - evita_query/src/main/java/io/evitadb/api/query/require
