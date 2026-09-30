@@ -907,6 +907,52 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 				)
 			);
 		}
+
+		@Test
+		@DisplayName("Should name the reference, not internal keys, when two owners repeat a unique reference value")
+		void shouldNameTheReferenceWhenTwoOwnersRepeatUniqueValueOnDifferentTargets() {
+			ReferenceIndexingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.CATEGORY).updateVia(session);
+					session.defineEntitySchema(Entities.PRODUCT)
+						.withReferenceToEntity(
+							Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+							whichIs -> whichIs
+								.indexedForFilteringAndPartitioning()
+								.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::unique)
+						)
+						.updateVia(session);
+					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 10));
+					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 11));
+					session.createNewEntity(Entities.PRODUCT, 1)
+						.setReference(Entities.CATEGORY, 10, whichIs -> whichIs.setAttribute(ATTRIBUTE_CODE, "X"))
+						.upsertVia(session);
+				}
+			);
+
+			// the two values sit in different per-target partitions, so only the type-level index sees both - and its
+			// records are partitions, not products, so the message must not present them as primary keys
+			final UniqueValueViolationException ex = assertThrows(
+				UniqueValueViolationException.class,
+				() -> ReferenceIndexingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.createNewEntity(Entities.PRODUCT, 2)
+							.setReference(Entities.CATEGORY, 11, whichIs -> whichIs.setAttribute(ATTRIBUTE_CODE, "X"))
+							.upsertVia(session);
+					}
+				)
+			);
+			assertEquals(
+				"Unique constraint violation: attribute `" + ATTRIBUTE_CODE + "` of reference `" + Entities.CATEGORY +
+					"` value `X` is already used by another `" + Entities.CATEGORY + "` reference of an entity `" +
+					Entities.PRODUCT + "`!",
+				ex.getMessage()
+			);
+			assertNull(ex.getExistingRecordId());
+			assertNull(ex.getNewRecordId());
+		}
 	}
 
 	@Nested

@@ -1,12 +1,12 @@
 ---
 title: Unique indexes keep no record-id set, and a unique value occurs once whatever the locale
 date: 2026-09-30
-updated: 2026-09-30 14:40
+updated: 2026-09-30 15:05
 status: accepted
 kind: refactor
 issues: [1658]
 prs: []
-areas: [evita_engine/src/main/java/io/evitadb/index/attribute/OwnerUniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/GlobalUniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/UniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/AttributeIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/FilterIndex.java, evita_engine/src/main/java/io/evitadb/index/invertedIndex/InvertedIndex.java, evita_engine/src/main/java/io/evitadb/core/collection/IndexCardinalityProjection.java, evita_api/src/main/java/io/evitadb/api/statistics]
+areas: [evita_engine/src/main/java/io/evitadb/index/attribute/OwnerUniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/GlobalUniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/UniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/AttributeIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/FilterIndex.java, evita_engine/src/main/java/io/evitadb/index/invertedIndex/InvertedIndex.java, evita_engine/src/main/java/io/evitadb/core/collection/IndexCardinalityProjection.java, evita_api/src/main/java/io/evitadb/api/statistics, evita_api/src/main/java/io/evitadb/api/exception/UniqueValueViolationException.java]
 supersedes: []
 superseded-by: []
 relates: [2026-09-25-attribute-is-null-in-reference-having, 2026-08-10-catalog-and-collection-statistics, 2026-09-03-content-sized-value-tree-columns]
@@ -193,9 +193,13 @@ removal.
 - **A catalog stored before this change may hold an entity that repeats a value across the locales of a
   localized `unique()` attribute.** It loads, but it breaks the in-memory index on the first change to either
   value, and a re-upsert of it is now refused. This is deliberately not migrated.
-- `UniqueValueViolationException` names the index's record id. In a reduced (reference) index that is the
-  reduced index's own key, not the owner's primary key: the probe reported `existing entity PK: 3` for owner
-  1. The message does not tell an operator which owner collided. Not addressed here.
+- **`UniqueValueViolationException` from a referenced-type index names no primary keys.** That index's records are
+  the reduced indexes of the referenced targets, so the probe reported `existing entity PK: 3` for owner 1. When
+  two owners repeat a unique reference value on different targets, it is the only index that sees both, and the
+  owners are not known there. The exception then names the reference instead, and its `existingRecordId` /
+  `newRecordId` are `null` (`AttributeIndex#referencedTypeViolation`, covered by `ReferenceIndexingTest`
+  `#shouldNameTheReferenceWhenTwoOwnersRepeatUniqueValueOnDifferentTargets`). Naming the owners would take a
+  reverse lookup from a partition to its owning entities, which was not worth it for an error message.
 - The statistics' "cost proportional to the schema" contract (`IndexCardinalityProjection`) has one stated
   exception: the covered-record readings (FILTER and UNIQUE) walk their value trees. The FILTER one always did.
 

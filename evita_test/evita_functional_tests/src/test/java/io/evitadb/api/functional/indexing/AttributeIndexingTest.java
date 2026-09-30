@@ -177,7 +177,9 @@ class AttributeIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 
 			} catch (UniqueValueViolationException ex) {
 				assertEquals(
-					"Unique constraint violation: attribute `name` value A` is already present for entity `PRODUCT` (existing entity PK: 1, newly inserted  entity PK: 2)!",
+					"Unique constraint violation: attribute `name` value `A` " +
+						"is already used by entity `PRODUCT` with primary key 1 " +
+						"and cannot be assigned to entity with primary key 2!",
 					ex.getMessage()
 				);
 			}
@@ -209,8 +211,8 @@ class AttributeIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 				)
 			);
 			assertEquals(
-				"Unique constraint violation: attribute `name` value A` is already present for entity `PRODUCT` " +
-					"(existing entity PK: 1, newly inserted  entity PK: 1)!",
+				"Unique constraint violation: attribute `name` value `A` is already used by entity `PRODUCT` with " +
+					"primary key 1 and cannot be assigned to entity with primary key 1!",
 				ex.getMessage()
 			);
 		}
@@ -643,7 +645,9 @@ class AttributeIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 
 			} catch (UniqueValueViolationException ex) {
 				assertEquals(
-					"Unique constraint violation: attribute `name` value A` in locale `en` is already present for entity `PRODUCT` (existing entity PK: 1, newly inserted  entity PK: 2)!",
+					"Unique constraint violation: attribute `name` value `A` in locale `en` " +
+						"is already used by entity `PRODUCT` with primary key 1 " +
+						"and cannot be assigned to entity with primary key 2!",
 					ex.getMessage()
 				);
 			}
@@ -742,7 +746,9 @@ class AttributeIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 
 			} catch (UniqueValueViolationException ex) {
 				assertEquals(
-					"Unique constraint violation: attribute `name` value A` is already present for entity `PRODUCT` (existing entity PK: 1, newly inserted `CATEGORY` entity PK: 2)!",
+					"Unique constraint violation: attribute `name` value `A` " +
+						"is already used by entity `PRODUCT` with primary key 1 " +
+						"and cannot be assigned to entity `CATEGORY` with primary key 2!",
 					ex.getMessage()
 				);
 			}
@@ -868,7 +874,9 @@ class AttributeIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 
 			} catch (UniqueValueViolationException ex) {
 				assertEquals(
-					"Unique constraint violation: attribute `name` value A` in locale `en` is already present for entity `PRODUCT` (existing entity PK: 1, newly inserted `CATEGORY` entity PK: 2)!",
+					"Unique constraint violation: attribute `name` value `A` in locale `en` " +
+						"is already used by entity `PRODUCT` with primary key 1 " +
+						"and cannot be assigned to entity `CATEGORY` with primary key 2!",
 					ex.getMessage()
 				);
 			}

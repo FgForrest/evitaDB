@@ -1129,7 +1129,14 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		// registerUniqueKey mutates the standalone unique index in place — declare it for the O(Δ) commit walk (the
 		// folded case writes through the shared filter tree, which the filter-insert path already marks)
 		uniqueIndexes.markValueMutated(lookupKey);
-		theUniqueIndex.registerUniqueKey(value, recordId);
+		try {
+			theUniqueIndex.registerUniqueKey(value, recordId);
+		} catch (UniqueValueViolationException ex) {
+			if (isReferencedTypeIndex()) {
+				throw referencedTypeViolation(lookupKey, ex.getValue());
+			}
+			throw ex;
+		}
 		return UniquenessEnforcement.BY_OWNER_INDEX;
 	}
 
@@ -2518,11 +2525,43 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	) {
 		final Bitmap bucket = theFilterIndex.getRecordsEqualTo(value);
 		if (!bucket.isEmpty()) {
+			if (isReferencedTypeIndex()) {
+				throw referencedTypeViolation(lookupKey, value);
+			}
 			throw new UniqueValueViolationException(
 				attributeSchema.getName(), lookupKey.locale(), value,
 				this.entityType, bucket.getFirst(), this.entityType, recordId
 			);
 		}
+	}
+
+	/**
+	 * Returns `true` when this index belongs to a {@link io.evitadb.index.ReferencedTypeEntityIndex}: the only
+	 * reference-scoped index without a representative reference key. Its records are the primary keys of the reduced
+	 * indexes of the referenced targets, not of the entities owning the references.
+	 *
+	 * @return `true` for the attribute index of a referenced-type index
+	 */
+	private boolean isReferencedTypeIndex() {
+		return this.referenceKey == null && getScope() == AttributeScope.REFERENCE;
+	}
+
+	/**
+	 * Creates the violation reported by a referenced-type index. Its records identify reduced indexes rather than
+	 * entities, so the exception names the reference and carries no primary keys, which would read as entity keys.
+	 *
+	 * @param lookupKey the key of the unique attribute
+	 * @param value     the value already in use
+	 * @return the exception to throw
+	 */
+	@Nonnull
+	private UniqueValueViolationException referencedTypeViolation(
+		@Nonnull AttributeIndexKey lookupKey,
+		@Nonnull Serializable value
+	) {
+		return new UniqueValueViolationException(
+			lookupKey.attributeName(), lookupKey.referenceName(), lookupKey.locale(), value, this.entityType
+		);
 	}
 
 	/**
