@@ -1,7 +1,7 @@
 ---
 title: A pick-first reference ordering sorts on the first row of every selected owner, resolved from the selection rather than from the filter
 date: 2026-09-23
-updated: 2026-09-30 13:34
+updated: 2026-09-30 14:30
 status: accepted
 kind: fix
 issues: [1614]
@@ -349,7 +349,9 @@ a measured production shape: that is where the per-query cost still follows `row
   `orderBy(entityPrimaryKeyExact(10, 3), ...)` and `page(2, 3)`, `ExactSorter#sortAndSlice` computed a negative copy
   length and threw `ArrayIndexOutOfBoundsException` instead of handing the rest to the next sorter. Found by the
   quality pass of this work; the fix also covers `AttributeExactSorter`, `ReversedPrimaryKeySorter` and
-  `TranslatedPrimaryKeySorter`, which mis-sliced pages with an offset too.
+  `TranslatedPrimaryKeySorter`, which mis-sliced pages with an offset too, and makes `ReversedPrimaryKeySorter` and
+  `NoSorter` hand the records they skip to the skipped-records consumer, without which a later `segment` received
+  records an earlier one had already skipped.
 
 ## Related work
 

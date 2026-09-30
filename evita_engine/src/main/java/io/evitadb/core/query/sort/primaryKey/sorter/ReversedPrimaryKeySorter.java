@@ -64,6 +64,14 @@ public class ReversedPrimaryKeySorter implements Sorter {
 		final int end = Math.min(size, recomputedEndIndex);
 		final int[] range = start < end ?
 			filteredRecordIdBitmap.getRange(size - end, size - start) : ArrayUtils.EMPTY_INT_ARRAY;
+		// the skipped records (the slice `[0, start)` of the reversed order) must reach the consumer - a wrapping
+		// sorter (such as a segment) relies on it to exclude them from the input of the sorters that follow
+		if (skippedRecordsConsumer != null && start > 0) {
+			final int[] skipped = filteredRecordIdBitmap.getRange(size - start, size);
+			for (int i = skipped.length - 1; i >= 0; i--) {
+				skippedRecordsConsumer.accept(skipped[i]);
+			}
+		}
 		// and copy the range contents in reversed order
 		int newPeak = peak;
 		for (int i = range.length - 1; i >= 0; i--) {

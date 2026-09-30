@@ -353,6 +353,85 @@ class EntityFetchSortingFunctionalTest extends AbstractEntityFetchingFunctionalT
 
 	}
 
+	@Nested
+	@DisplayName("Pages of products sorted in segments starting past the first segment")
+	class PagesOfSegments {
+
+		@DisplayName("Should exclude the products of a descending primary key segment skipped by the page from the next segment")
+		@UseDataSet(HUNDRED_PRODUCTS)
+		@Test
+		void shouldExcludeSkippedProductsOfDescendingSegmentFromNextSegment(Evita evita, List<SealedEntity> originalProducts) {
+			final int[] ascending = originalProducts.stream()
+				.mapToInt(EntityContract::getPrimaryKeyOrThrowException)
+				.sorted()
+				.toArray();
+			final int[] expectedOrder = IntStream.concat(
+					IntStream.range(0, 5).map(i -> ascending[ascending.length - 1 - i]),
+					Arrays.stream(ascending, 0, ascending.length - 5)
+				)
+				.toArray();
+
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertEveryPageIsSliceOf(
+						expectedOrder,
+						(pageNumber, pageSize) -> queryProductPage(
+							session,
+							orderBy(
+								segments(
+									segment(orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)), limit(5)),
+									segment(orderBy(entityPrimaryKeyNatural(OrderDirection.ASC)))
+								)
+							),
+							pageNumber, pageSize
+						)
+					);
+					return null;
+				}
+			);
+		}
+
+		@DisplayName("Should exclude the products filling up an exact segment skipped by the page from the next segment")
+		@UseDataSet(HUNDRED_PRODUCTS)
+		@Test
+		void shouldExcludeSkippedProductsFillingUpExactSegmentFromNextSegment(Evita evita, List<SealedEntity> originalProducts) {
+			final int[] exactOrder = {10, 3, 57};
+			final Set<Integer> exactKeys = Arrays.stream(exactOrder).boxed().collect(Collectors.toSet());
+			final int[] rest = originalProducts.stream()
+				.mapToInt(EntityContract::getPrimaryKeyOrThrowException)
+				.filter(pk -> !exactKeys.contains(pk))
+				.sorted()
+				.toArray();
+			final int[] expectedOrder = IntStream.concat(
+					IntStream.concat(Arrays.stream(exactOrder), Arrays.stream(rest, 0, 2)),
+					IntStream.range(2, rest.length).map(i -> rest[rest.length - 1 - (i - 2)])
+				)
+				.toArray();
+
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertEveryPageIsSliceOf(
+						expectedOrder,
+						(pageNumber, pageSize) -> queryProductPage(
+							session,
+							orderBy(
+								segments(
+									segment(orderBy(entityPrimaryKeyExact(10, 3, 57)), limit(5)),
+									segment(orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)))
+								)
+							),
+							pageNumber, pageSize
+						)
+					);
+					return null;
+				}
+			);
+		}
+
+	}
+
 	/**
 	 * Queries a single page of all products ordered by the given ordering and returns their primary keys.
 	 *
