@@ -107,14 +107,13 @@ class CatalogIndexHeapSizeTest {
 	 */
 	private static final String[] CHILD_EXCLUSIONS = {
 		"comparator", "pageStreamRegistry", "scope",
-		"tree.valueColumnFactory", "tree.recordColumnFactory",
-		"entitiesPerType.transactionalLayerWrapper"
+		"tree.valueColumnFactory", "tree.recordColumnFactory"
 	};
 
 	/**
 	 * Resolves everything to one entity type, whose primary key is seeded past the autobox cache for the reason
-	 * `IndexHeapSizeAssertions#AUTOBOX_CACHE_CEILING` gives: a global unique index boxes it as a map key, and inside
-	 * the cache that box is the JVM's rather than the index's.
+	 * `IndexHeapSizeAssertions#AUTOBOX_CACHE_CEILING` gives, so that should a global unique index ever box it, the
+	 * box is the index's rather than the JVM's; today it only packs it into the value tree's `long` payloads.
 	 */
 	private static final EntityTypeClassifierResolver RESOLVER = new EntityTypeClassifierResolver() {
 		@Override

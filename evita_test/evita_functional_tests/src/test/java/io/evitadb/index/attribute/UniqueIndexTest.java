@@ -25,7 +25,6 @@ package io.evitadb.index.attribute;
 
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.core.buffer.TrappedChanges;
-import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
@@ -208,12 +207,12 @@ class UniqueIndexTest {
 					original.registerUniqueKey("Y", 20);
 				},
 				(original, committed) -> {
-					// committed must carry map, bitmap, and dirty state
+					// committed must carry the value tree and the dirty state
 					assertEquals(10, committed.getRecordIdByUniqueValue("X"));
 					assertEquals(20, committed.getRecordIdByUniqueValue("Y"));
 					assertArrayEquals(
 						new int[]{10, 20},
-						committed.getRecordIds().getArray()
+						UniqueIndexTestSupport.ownerRecordIds(committed)
 					);
 					assertEquals(2, committed.size());
 				}
@@ -316,7 +315,7 @@ class UniqueIndexTest {
 					assertEquals(2, original.size());
 					assertArrayEquals(
 						new int[]{10, 20},
-						original.getRecordIds().getArray()
+						UniqueIndexTestSupport.ownerRecordIds(original)
 					);
 				}
 			);
@@ -324,87 +323,68 @@ class UniqueIndexTest {
 	}
 
 	/**
-	 * Tests for formula memoization and cache invalidation in {@link UniqueIndex}.
+	 * Tests for the record count the index statistics read through {@link UniqueIndex#size()}.
 	 */
 	@Nested
-	@DisplayName("Formula and memoization")
-	class FormulaAndMemoizationTest {
+	@DisplayName("Record count")
+	class RecordCountTest {
 
 		@Test
-		@DisplayName("getRecordIdsFormula() hands out a fresh formula that tracks mutations (T8)")
-		void shouldReturnFreshFormulaTrackingMutations() {
+		@DisplayName("a record owning several values is counted once")
+		void shouldCountRecordOwningSeveralValuesOnce() {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
 			);
-			index.registerUniqueKey("A", 1);
+			// the key carries no locale, so record 1 owns its english and its german value in this one index
+			index.registerUniqueKey("en-A", 1);
+			index.registerUniqueKey("de-A", 1);
+			index.registerUniqueKey("en-B", 2);
 
-			// a formula node carries per-query state once a plan initializes it, so an index-lifetime structure
-			// must never hand out the same instance twice - see OwnerUniqueIndex#getRecordIdsFormula
-			final Formula first = index.getRecordIdsFormula();
-			final Formula second = index.getRecordIdsFormula();
-			assertNotSame(first, second);
-			assertArrayEquals(new int[]{1}, second.compute().getArray());
-
-			// a mutation is picked up by the next formula handed out
-			index.registerUniqueKey("B", 2);
-			final Formula afterMutation = index.getRecordIdsFormula();
-			assertNotSame(first, afterMutation);
-			assertArrayEquals(new int[]{1, 2}, afterMutation.compute().getArray());
+			assertEquals(3, index.getDistinctValueCount());
+			assertEquals(2, index.size());
 		}
 
 		@Test
-		@DisplayName("getRecordIdsFormula() reflects an unregister in the next formula handed out")
-		void shouldReflectUnregisterInNextFormula() {
+		@DisplayName("a record stays counted while it holds any value")
+		void shouldKeepCountingRecordAfterOneOfItsValuesIsRemoved() {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
 			);
-			index.registerUniqueKey("A", 1);
-			index.registerUniqueKey("B", 2);
+			// the same shape as a type-level index, whose record is a partition several owners' values map to
+			index.registerUniqueKey("en-A", 1);
+			index.registerUniqueKey("de-A", 1);
+			index.registerUniqueKey("en-B", 2);
 
-			final Formula before = index.getRecordIdsFormula();
-			assertArrayEquals(new int[]{1, 2}, before.compute().getArray());
+			index.unregisterUniqueKey("en-A", 1);
 
-			index.unregisterUniqueKey("A", 1);
-			final Formula after = index.getRecordIdsFormula();
-			assertNotSame(before, after);
-			assertArrayEquals(new int[]{2}, after.compute().getArray());
+			assertEquals(2, index.getDistinctValueCount());
+			assertEquals(2, index.size(), "record 1 still owns `de-A` and must still be counted");
+
+			index.unregisterUniqueKey("de-A", 1);
+			assertEquals(1, index.size(), "record 1 owns nothing any more");
 		}
 
 		@Test
-		@DisplayName("getRecordIdsFormula() during open transaction with dirty flag returns fresh formula")
-		void shouldReturnFreshFormulaInDirtyTransaction() {
+		@DisplayName("the committed index counts a record holding a value after one of its values is removed")
+		void shouldCountExactlyAfterCommit() {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
 			);
-			index.registerUniqueKey("A", 1);
-
-			// cache formula before transaction
-			final Formula cachedBefore = index.getRecordIdsFormula();
+			index.registerUniqueKey("en-A", 1);
+			index.registerUniqueKey("de-A", 1);
 
 			assertStateAfterCommit(
 				index,
-				original -> {
-					original.registerUniqueKey("B", 2);
-					// inside a dirty transaction, formula should reflect changes
-					final Formula inTx = original.getRecordIdsFormula();
-					assertArrayEquals(
-						new int[]{1, 2},
-						inTx.compute().getArray()
-					);
-				},
+				original -> original.unregisterUniqueKey("en-A", 1),
 				(original, committed) -> {
-					// committed index should provide a formula with both records
-					final Formula committedFormula = committed.getRecordIdsFormula();
-					assertArrayEquals(
-						new int[]{1, 2},
-						committedFormula.compute().getArray()
-					);
+					assertEquals(1, committed.size());
+					assertArrayEquals(new int[]{1}, UniqueIndexTestSupport.ownerRecordIds(committed));
 				}
 			);
 		}
@@ -554,7 +534,7 @@ class UniqueIndexTest {
 			assertEquals(20, index.getRecordIdByUniqueValue("Y"));
 			assertArrayEquals(
 				new int[]{10, 20},
-				index.getRecordIds().getArray()
+				UniqueIndexTestSupport.ownerRecordIds(index)
 			);
 		}
 

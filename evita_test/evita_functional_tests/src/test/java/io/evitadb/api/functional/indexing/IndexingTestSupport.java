@@ -250,10 +250,8 @@ public interface IndexingTestSupport {
 	 */
 	static void assertDataWasPropagated(@Nonnull EntityIndex categoryIndex, int recordId) {
 		assertNotNull(categoryIndex);
-		assertTrue(
-			categoryIndex.getUniqueIndex(null, ATTRIBUTE_EAN_SCHEMA, null)
-				.getRecordIds().contains(recordId)
-		);
+		// the unique index must exist; which records carry a unique value is answered by the filter index below
+		assertNotNull(categoryIndex.getUniqueIndex(null, ATTRIBUTE_EAN_SCHEMA, null));
 		assertTrue(
 			categoryIndex.getFilterIndex(null, ATTRIBUTE_EAN_SCHEMA, null)
 				.getAllRecords().contains(recordId)

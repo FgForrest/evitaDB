@@ -42,8 +42,8 @@ import javax.annotation.Nonnull;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Pins the unique indexes against an array attribute that carries the SAME value twice.
@@ -108,7 +108,7 @@ class UniqueIndexArrayDuplicateTest {
 			"registration folds the array onto its distinct values, so the duplicated element is claimed once and " +
 				"the state this test exists for can exist"
 		);
-		assertTrue(index.getRecordIds().contains(RECORD));
+		assertEquals(RECORD, index.getRecordIdByUniqueValue(DUPLICATED));
 	}
 
 	@Test

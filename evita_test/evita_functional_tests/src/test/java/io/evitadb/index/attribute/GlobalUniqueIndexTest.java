@@ -206,6 +206,43 @@ class GlobalUniqueIndexTest {
 	}
 
 	@Test
+	void shouldCountRecordForAsLongAsItHoldsAnyValue() {
+		final EntityCollection categoryCollection = Mockito.mock(EntityCollection.class);
+		Mockito.when(categoryCollection.getEntityTypePrimaryKey()).thenReturn(2);
+		Mockito.when(categoryCollection.getEntityType()).thenReturn(Entities.CATEGORY);
+		Mockito.when(this.catalog.getCollectionForEntityOrThrowException(Entities.CATEGORY))
+			.thenReturn(categoryCollection);
+		// one locale-less index: product 1 owns a value per locale, and category 1 shares product 1's primary key
+		// without being the same entity
+		this.tested.registerUniqueKey("en-A", Entities.PRODUCT, Locale.ENGLISH, 1, this.classifierResolver);
+		this.tested.registerUniqueKey("de-A", Entities.PRODUCT, Locale.GERMAN, 1, this.classifierResolver);
+		this.tested.registerUniqueKey("en-B", Entities.PRODUCT, Locale.ENGLISH, 2, this.classifierResolver);
+		this.tested.registerUniqueKey("en-C", Entities.CATEGORY, Locale.ENGLISH, 1, this.classifierResolver);
+		assertEquals(4, this.tested.size());
+		assertEquals(3, this.tested.getRecordCount(), "two products and one category");
+
+		this.tested.unregisterUniqueKey("en-A", Entities.PRODUCT, Locale.ENGLISH, 1, this.classifierResolver);
+		assertEquals(3, this.tested.getRecordCount(), "product 1 still holds `de-A` and must still be counted");
+
+		this.tested.unregisterUniqueKey("de-A", Entities.PRODUCT, Locale.GERMAN, 1, this.classifierResolver);
+		assertEquals(2, this.tested.getRecordCount(), "product 1 holds nothing any more");
+	}
+
+	@Test
+	void shouldLeaveValueOwnedByAnotherRecordUntouchedOnFailedUnregister() {
+		this.tested.registerUniqueKey("A", Entities.PRODUCT, null, 1, this.classifierResolver);
+
+		assertThrows(
+			IllegalArgumentException.class,
+			() -> this.tested.unregisterUniqueKey("A", Entities.PRODUCT, null, 2, this.classifierResolver)
+		);
+		assertEquals(
+			this.productRef, this.tested.getEntityReferenceByUniqueValue("A", null, this.classifierResolver).orElse(null),
+			"a refused unregister must not have removed the owner's value"
+		);
+	}
+
+	@Test
 	void shouldRejectSameValueInAnotherLocaleOfLocaleLessIndex() {
 		// `uniqueGlobally` on a localized attribute keys one locale-less index, and a value occurs in it once whatever
 		// the locale - `uniqueGloballyWithinLocale` gets one index per locale instead and never meets this case
@@ -309,7 +346,8 @@ class GlobalUniqueIndexTest {
 			new EntityReferenceWithLocale(Entities.PRODUCT, 1, Locale.ENGLISH),
 			index.getEntityReferenceByUniqueValue("en-value", Locale.ENGLISH, this.classifierResolver).orElse(null)
 		);
-		// one index holds a value once whatever the locale, so the english value cannot be claimed again under the new one
+		// one index holds a value once whatever the locale, so the english value cannot be claimed again under the
+		// new one
 		assertThrows(
 			UniqueValueViolationException.class,
 			() -> index.registerUniqueKey("en-value", Entities.PRODUCT, Locale.GERMAN, 4, this.classifierResolver)

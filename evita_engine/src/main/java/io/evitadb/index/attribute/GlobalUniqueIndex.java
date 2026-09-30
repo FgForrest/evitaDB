@@ -27,9 +27,6 @@ import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.buffer.TrappedChanges;
-import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
@@ -45,9 +42,7 @@ import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.LeafPageHandle;
 import io.evitadb.index.bPlusTree.ValueColumnFactory;
-import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.EmptyBitmap;
-import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.page.PageEmission;
@@ -69,7 +64,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.ConcurrentModificationException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -153,8 +147,7 @@ public class GlobalUniqueIndex implements
 	/**
 	 * Keeps the unique value to entity tuple mappings. Each bucket holds exactly one packed `long` payload (an
 	 * {@link EntityWithTypeTuple} folded by {@link #packTuple}); for String keys the leaf column is front-coded.
-	 * Ordering by the unique value is irrelevant to look-ups — per-type record ordering is carried by
-	 * {@link #entitiesPerType}.
+	 * Ordering by the unique value is irrelevant to look-ups.
 	 */
 	@Nonnull private final LongPayloadBucketTree tree;
 	/**
@@ -164,10 +157,6 @@ public class GlobalUniqueIndex implements
 	 * the same {@link #tree}), exactly like {@code OwnerUniqueIndex}.
 	 */
 	@Nonnull private final PageStreamRegistry pageStreamRegistry;
-	/**
-	 * Keeps the lists of primary keys per entity type.
-	 */
-	@Nonnull private final TransactionalMap<Integer, TransactionalBitmap> entitiesPerType;
 	/**
 	 * Keeps internal index where each locale has assigned its own unique integer primary key.
 	 * These primary keys are assigned internally and don't leave this unique index, but are serialized and deserialized
@@ -235,9 +224,8 @@ public class GlobalUniqueIndex implements
 	 * page identities (mirrors {@code OwnerUniqueIndex.fromPersistedPages}). One leaf per persisted page is built from the
 	 * positionally-aligned value + packed-`long`-payload columns, each stamped with its page sequence, and the
 	 * page-stream bookkeeping (high-water + live set) is restored, so the first post-restart commit rewrites only
-	 * genuinely-changed leaves rather than re-paginating the whole index. The {@link #entitiesPerType} index is rebuilt by
-	 * UNPACKING every payload, and {@link #localeToIdIndex} + {@link #localePkSequence} are reconstructed from
-	 * `idToLocaleIndex` exactly as the inline restore constructors do.
+	 * genuinely-changed leaves rather than re-paginating the whole index. {@link #localeToIdIndex} +
+	 * {@link #localePkSequence} are reconstructed from `idToLocaleIndex` exactly as the inline restore constructors do.
 	 *
 	 * @param scope                 scope of the owning {@link CatalogIndex}
 	 * @param attributeKey          identifies the indexed attribute (name and optional locale)
@@ -268,7 +256,6 @@ public class GlobalUniqueIndex implements
 		final Class<?> plainType = plainTypeOf(attributeType);
 		final Comparator<Comparable<?>> comparator = comparatorFor(plainType);
 		final List<TransactionalBucketBPlusTree> pageTrees = new ArrayList<>(orderedPageSequences.length);
-		final Map<Integer, TransactionalBitmap> entitiesPerTypeBase = CollectionUtils.createHashMap(8);
 		for (int i = 0; i < orderedPageSequences.length; i++) {
 			final Serializable[] values = perPageValues[i];
 			final long[] payloads = perPagePayloads[i];
@@ -278,11 +265,6 @@ public class GlobalUniqueIndex implements
 			// bulkLoadSingleRecordPage's javadoc
 			final TransactionalBucketBPlusTree pageTree = createEmptyTree(plainType, comparator);
 			pageTree.bulkLoadSingleRecordPage(values, payloads, values.length);
-			for (int j = 0; j < values.length; j++) {
-				final EntityWithTypeTuple tuple = unpackTuple(payloads[j]);
-				entitiesPerTypeBase.computeIfAbsent(tuple.entityType(), entityType -> new TransactionalBitmap())
-					.add(tuple.entityPrimaryKey());
-			}
 			pageTrees.add(pageTree);
 		}
 		final TransactionalBucketBPlusTree tree =
@@ -294,7 +276,7 @@ public class GlobalUniqueIndex implements
 			UNIQUE_PAGE_STREAM, highWaterPageSequence, tree.leafPageHandles()
 		);
 		return new GlobalUniqueIndex(
-			scope, attributeKey, attributeType, tree, pageStreamRegistry, entitiesPerTypeBase, idToLocaleIndex
+			scope, attributeKey, attributeType, tree, pageStreamRegistry, idToLocaleIndex
 		);
 	}
 
@@ -319,15 +301,14 @@ public class GlobalUniqueIndex implements
 		this.comparator = comparatorFor(this.plainType);
 		this.tree = createEmptyTree(this.plainType, this.comparator);
 		this.pageStreamRegistry = new PageStreamRegistry();
-		this.entitiesPerType = new TransactionalMap<>(new HashMap<>(), TransactionalBitmap.class, TransactionalBitmap::new);
 		this.localeToIdIndex = new TransactionalMap<>(new HashMap<>());
 		this.idToLocaleIndex = new TransactionalMap<>(new HashMap<>());
 	}
 
 	/**
 	 * Restores a `SINGLE`-shape index from its persisted inline value/payload columns. The value tree is rebuilt by
-	 * replaying every `(value, packed-long payload)` pair, the {@link #entitiesPerType} index is rebuilt by unpacking each
-	 * payload, the reverse {@link #localeToIdIndex} is derived from `localeIndex`, and {@link #localePkSequence} is primed
+	 * replaying every `(value, packed-long payload)` pair, the reverse {@link #localeToIdIndex} is derived from
+	 * `localeIndex`, and {@link #localePkSequence} is primed
 	 * past the highest locale id already in use so new locales receive fresh ids.
 	 *
 	 * @param scope         scope of the owning {@link CatalogIndex}
@@ -365,18 +346,10 @@ public class GlobalUniqueIndex implements
 					)
 				)
 		);
-		// rebuild the per-entity-type record bitmaps by unpacking each persisted payload
-		final Map<Integer, TransactionalBitmap> entitiesPerTypeBase = CollectionUtils.createHashMap(8);
-		for (final long payload : payloads) {
-			final EntityWithTypeTuple tuple = unpackTuple(payload);
-			entitiesPerTypeBase.computeIfAbsent(tuple.entityType(), entityType -> new TransactionalBitmap())
-				.add(tuple.entityPrimaryKey());
-		}
-		this.entitiesPerType = new TransactionalMap<>(entitiesPerTypeBase, TransactionalBitmap.class, TransactionalBitmap::new);
 	}
 
 	/**
-	 * Adopts an already-built committed value tree (no re-seeding) and re-wraps the committed per-type / locale maps,
+	 * Adopts an already-built committed value tree (no re-seeding) and re-wraps the committed locale map,
 	 * priming {@link #localePkSequence} past the highest locale id and rebuilding {@link #localeToIdIndex} from
 	 * `localeIndex`. Used by {@link #createCopyWithMergedTransactionalMemory} where the committed tree already carries
 	 * its column kind and contents.
@@ -386,7 +359,6 @@ public class GlobalUniqueIndex implements
 	 * @param attributeType runtime type of the indexed attribute value
 	 * @param committedTree the already-committed value tree to adopt
 	 * @param pageStreamRegistry the catalog-resident page bookkeeping, carried BY REFERENCE
-	 * @param entitiesPerType committed per-entity-type record id bitmaps to re-wrap
 	 * @param localeIndex   committed mapping of internal locale id to {@link Locale}
 	 */
 	private GlobalUniqueIndex(
@@ -395,7 +367,6 @@ public class GlobalUniqueIndex implements
 		@Nonnull Class<? extends Serializable> attributeType,
 		@Nonnull TransactionalBucketBPlusTree committedTree,
 		@Nonnull PageStreamRegistry pageStreamRegistry,
-		@Nonnull Map<Integer, TransactionalBitmap> entitiesPerType,
 		@Nonnull Map<Integer, Locale> localeIndex
 	) {
 		this.dirty = new TransactionalBoolean();
@@ -406,7 +377,6 @@ public class GlobalUniqueIndex implements
 		this.comparator = comparatorFor(this.plainType);
 		this.tree = committedTree;
 		this.pageStreamRegistry = pageStreamRegistry;
-		this.entitiesPerType = new TransactionalMap<>(entitiesPerType, TransactionalBitmap.class, TransactionalBitmap::new);
 		this.idToLocaleIndex = new TransactionalMap<>(localeIndex);
 		primeLocaleSequence(localeIndex.keySet());
 		this.localeToIdIndex = new TransactionalMap<>(
@@ -477,34 +447,6 @@ public class GlobalUniqueIndex implements
 	}
 
 	/**
-	 * Generates a {@link Formula} instance that provides the record IDs associated with the specified entity type.
-	 *
-	 * @param entityType the type of the entity for which to generate the record IDs formula
-	 * @param resolver   translates the entity type name to its compact primary key
-	 * @return a {@link Formula} instance that computes the record IDs for the given entity type
-	 */
-	@Nonnull
-	public Formula getRecordIdsFormula(@Nonnull String entityType, @Nonnull EntityTypeClassifierResolver resolver) {
-		final Bitmap recordIds = getRecordIds(entityType, resolver);
-		return recordIds instanceof EmptyBitmap ? EmptyFormula.INSTANCE : new ConstantFormula(recordIds);
-	}
-
-	/**
-	 * Retrieves the record IDs associated with a specific entity type.
-	 *
-	 * @param entityType the type of the entity for which record IDs are being retrieved
-	 * @param resolver   translates the entity type name to its compact primary key
-	 * @return a Bitmap containing the record IDs for the specified entity type
-	 */
-	@Nonnull
-	public Bitmap getRecordIds(@Nonnull String entityType, @Nonnull EntityTypeClassifierResolver resolver) {
-		final int entityTypePk = resolver.toEntityTypePrimaryKey(entityType);
-		return ofNullable(this.entitiesPerType.get(entityTypePk))
-			.map(Bitmap.class::cast)
-			.orElse(EmptyBitmap.INSTANCE);
-	}
-
-	/**
 	 * Returns number of unique keys in this index.
 	 */
 	public int size() {
@@ -512,43 +454,45 @@ public class GlobalUniqueIndex implements
 	}
 
 	/**
-	 * Counts the records this index covers, summed over the per-entity-type membership bitmaps.
+	 * Counts the records this index covers: the distinct `(entity type, primary key)` pairs owning its values.
 	 *
-	 * This is the global counterpart of {@link UniqueIndex#size()} - the membership set the engine itself queries the
-	 * index through - and it is what {@link #size()} is *not*: that counts distinct values. The two agree for an
-	 * ordinary globally-unique attribute, where one value belongs to one record, and diverge for one that is localized
-	 * as well: that has a single locale-less key covering every locale, so one record can own several values in it.
+	 * This is the global counterpart of {@link UniqueIndex#size()}, and it is what {@link #size()} is *not*: that
+	 * counts distinct values. The two agree for an ordinary globally-unique attribute, where one value belongs to one
+	 * record, and diverge for a localized one, whose single locale-less key holds a distinct value per locale of the
+	 * same entity - and for an array attribute, whose record owns every element. A record id repeated under two entity
+	 * types is counted twice, correctly - those are two different entities.
 	 *
-	 * A record id repeated under two entity types is counted twice, correctly - those are two different entities.
-	 *
-	 * The cost is `O(entity types present)`, each summand an `O(1)` bitmap cardinality, so it is bounded by the
-	 * catalog's collection count rather than by its data.
-	 *
-	 * **A monitoring reading, tolerant of a concurrent warm-up write.** Its only caller is the catalog index detail
-	 * (`CatalogIndexProjection#describe`), reached from `EvitaManagement#getIndexDetail` with no session and no
-	 * snapshot, on a thread with no happens-before edge to a warm-up writer. That writer adds an entity type to
-	 * {@link #entitiesPerType} in place the first time one of its records registers a value here, and the walk below
-	 * would then end in `ConcurrentModificationException`. The count is read to the end instead, see the body.
+	 * Counted on demand by one cursor walk over the value tree, whose payload already packs the entity type and
+	 * primary key, into a transient bitmap per entity type present: `O(values)`, which is why its only caller is the
+	 * catalog index detail (`CatalogIndexProjection#describe`) and never a query path. That caller runs with no
+	 * session and no snapshot, concurrently with a warm-up writer mutating the tree in place; the bucket cursors bound
+	 * every leaf read by its observable live run for exactly this reader (see
+	 * `documentation/adr/2026-09-03-content-sized-value-tree-columns.md`), so a racing walk reads a bounded, possibly
+	 * slightly stale count rather than failing.
 	 *
 	 * @return number of records covered by this index across every entity type
 	 */
 	public int getRecordCount() {
-		// `forEach`, never `values()`: asking a map for a view parks it on the map for good - see
-		// `documentation/developer/heap-size-testing.md`, trap 6
-		final int[] total = new int[1];
-		try {
-			this.entitiesPerType.forEach((entityType, records) -> {
-				// a node published by a racing writer may not show its value yet - it holds no records to count
-				if (records != null) {
-					total[0] += records.size();
-				}
-			});
-		} catch (ConcurrentModificationException ex) {
-			// outside a transaction this walks the `HashMap` itself, whose `forEach` checks `modCount` only after it has
-			// visited the whole table: the sum is complete for every entity type the walk reached, off only by the one
-			// a warm-up write added or dropped meanwhile - a monitoring figure, not a failed monitoring call
+		// the entity type changes rarely between neighbouring values, so the last type's bitmap is kept at hand and
+		// the map is consulted only when the type changes
+		final Map<Integer, BaseBitmap> ownersPerType = CollectionUtils.createHashMap(4);
+		int lastEntityType = -1;
+		BaseBitmap lastOwners = null;
+		final BucketCursor cursor = this.tree.cursor();
+		while (cursor.next()) {
+			final long payload = cursor.longRecordId();
+			final int entityType = NumberUtils.unpackMid16(payload);
+			if (lastOwners == null || entityType != lastEntityType) {
+				lastOwners = ownersPerType.computeIfAbsent(entityType, type -> new BaseBitmap());
+				lastEntityType = entityType;
+			}
+			lastOwners.add(NumberUtils.unpackLow32(payload));
 		}
-		return total[0];
+		int total = 0;
+		for (final BaseBitmap owners : ownersPerType.values()) {
+			total += owners.size();
+		}
+		return total;
 	}
 
 	/**
@@ -655,8 +599,6 @@ public class GlobalUniqueIndex implements
 	 * whether the JVM hands back a cached `Integer` moves with `-XX:AutoBoxCacheMax` and must not decide what a
 	 * memory reading says.
 	 *
-	 * {@link #entitiesPerType} bitmaps are charged in full — each is constructed here, per entity type.
-	 *
 	 * {@link #scope}, {@link #attributeKey}, {@link #type}, {@link #plainType} and {@link #comparator} contribute
 	 * their **slot alone**: an enum constant, the key the enclosing {@code CatalogIndex} filed this index under, two
 	 * `Class` objects, and fixed scaffolding chosen by the attribute type. {@link #pageStreamRegistry} is excluded as
@@ -671,13 +613,10 @@ public class GlobalUniqueIndex implements
 		final VMLayout layout = VMLayout.current();
 		final long boxedInteger = layout.sizeOfObject(Integer.BYTES);
 		// id, then the scope / attributeKey / type / dirty / plainType / comparator / tree / pageStreamRegistry /
-		// entitiesPerType / localeToIdIndex / idToLocaleIndex / localePkSequence slots
-		return layout.sizeOfObject(Long.BYTES + 12L * layout.referenceSize())
+		// localeToIdIndex / idToLocaleIndex / localePkSequence slots
+		return layout.sizeOfObject(Long.BYTES + 11L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.tree.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER)
-			+ this.entitiesPerType.getHeapSizeInBytes(
-				key -> boxedInteger, TransactionalBitmap::getHeapSizeInBytes
-			)
 			// Locale is interned by the JVM's LocaleObjectCache - only its slot is here, on either side
 			+ this.localeToIdIndex.getHeapSizeInBytes(locale -> 0L, value -> boxedInteger)
 			+ this.idToLocaleIndex.getHeapSizeInBytes(key -> boxedInteger, locale -> 0L)
@@ -706,7 +645,6 @@ public class GlobalUniqueIndex implements
 			this.scope, this.attributeKey, this.type,
 			committedTree,
 			this.pageStreamRegistry,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.entitiesPerType),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.idToLocaleIndex)
 		);
 		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
@@ -722,7 +660,6 @@ public class GlobalUniqueIndex implements
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		this.dirty.removeLayer(transactionalLayer);
 		this.tree.removeLayer(transactionalLayer);
-		this.entitiesPerType.removeLayer(transactionalLayer);
 		this.localeToIdIndex.removeLayer(transactionalLayer);
 		this.idToLocaleIndex.removeLayer(transactionalLayer);
 	}
@@ -920,8 +857,7 @@ public class GlobalUniqueIndex implements
 	}
 
 	/**
-	 * Claims a single scalar unique value for the given record and adds the record's primary key to the matching
-	 * per-entity-type bitmap, keeping the value tree and {@link #entitiesPerType} in lockstep.
+	 * Claims a single scalar unique value for the given record.
 	 *
 	 * Only an absent value can be claimed (see {@link #assertUniqueKeyIsFree}), so every value holds exactly one tuple.
 	 *
@@ -937,9 +873,6 @@ public class GlobalUniqueIndex implements
 	) {
 		assertUniqueKeyIsFree(key, record, lookupTuple(key), resolver);
 		this.tree.addLongRecord(key, packTuple(record));
-		this.entitiesPerType
-			.computeIfAbsent(record.entityType(), entityType -> new TransactionalBitmap())
-			.add(record.entityPrimaryKey());
 	}
 
 	/**
@@ -981,29 +914,20 @@ public class GlobalUniqueIndex implements
 	}
 
 	/**
-	 * Releases a single scalar unique value and removes the record's primary key from the matching per-entity-type
-	 * bitmap, then asserts the value was actually owned by the expected record.
+	 * Releases a single scalar unique value after asserting it is owned by the expected record. The assertion runs
+	 * first, so a value owned by someone else - or not present at all - is left untouched rather than removed and
+	 * then complained about.
 	 *
 	 * @param key             the scalar unique value to release
 	 * @param expectedRecordId the record expected to currently own the value
-	 * @return the tuple that previously owned the value, or `null` if the value was not present
+	 * @return the tuple that previously owned the value - always equal to `expectedRecordId`
 	 */
-	@Nullable
+	@Nonnull
 	private <T extends Serializable & Comparable<T>> EntityWithTypeTuple unregisterUniqueKeyValue(@Nonnull T key, EntityWithTypeTuple expectedRecordId) {
 		final EntityWithTypeTuple existingRecordId = lookupTuple(key);
-		if (existingRecordId != null) {
-			this.tree.removeLongRecord(key);
-			// the per-type bitmap is maintained in lockstep with the value tree in registerUniqueKeyValue, so a present
-			// value tuple guarantees a present bitmap here
-			final TransactionalBitmap entityTypeRecords = this.entitiesPerType.get(existingRecordId.entityType());
-			Assert.isPremiseValid(
-				entityTypeRecords != null,
-				() -> "Entity type `" + existingRecordId.entityType() + "` unexpectedly missing from the per-type index!"
-			);
-			entityTypeRecords.remove(existingRecordId.entityPrimaryKey());
-		}
 		assertUniqueKeyOwnership(key, expectedRecordId, existingRecordId);
-		return existingRecordId;
+		this.tree.removeLongRecord(key);
+		return expectedRecordId;
 	}
 
 	/**

@@ -28,7 +28,6 @@ import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.function.Functions;
-import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
@@ -180,7 +179,7 @@ class OwnerUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 		}
 		assertTrue(source.isPaged(), "the index must span multiple leaves to exercise the paged layout");
 
-		final Bitmap expectedRecordIds = source.getRecordIds();
+		final int[] expectedRecordIds = UniqueIndexTestSupport.ownerRecordIds(source);
 
 		// collect the granular emission (leaf pages + paged root; no freed-page removals on a first flush)
 		final TrappedChanges trappedChanges = new TrappedChanges();
@@ -233,8 +232,8 @@ class OwnerUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 			assertTrue(restored.isPaged(), "the reassembled index must still be paged");
 			assertEquals(source.size(), restored.size(), "size must round-trip");
 			assertArrayEquals(
-				expectedRecordIds.getArray(), restored.getRecordIds().getArray(),
-				"the record-id bitmap must round-trip identically"
+				expectedRecordIds, UniqueIndexTestSupport.ownerRecordIds(restored),
+				"the owning records must round-trip identically"
 			);
 			// every value -> record id mapping survives the page round-trip through the real OffsetIndex
 			for (int i = 0; i < KEY_COUNT; i++) {
@@ -281,7 +280,8 @@ class OwnerUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 			assertFalse(restored.isPaged(), "a small inline index reloads as SINGLE (not paged)");
 			assertEquals(3, restored.size(), "the per-type record set must be rebuilt from the inline columns");
 			assertArrayEquals(
-				new int[] {1, 2, 3}, restored.getRecordIds().getArray(), "the record-id bitmap must round-trip"
+				new int[] {1, 2, 3}, UniqueIndexTestSupport.ownerRecordIds(restored),
+				"the owning records must round-trip"
 			);
 			assertEquals(Integer.valueOf(1), restored.getRecordIdByUniqueValue("alpha"), "`alpha` must resolve to record 1");
 			assertEquals(Integer.valueOf(2), restored.getRecordIdByUniqueValue("beta"), "`beta` must resolve to record 2");
@@ -410,8 +410,8 @@ class OwnerUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 			assertTrue(reloaded.isPaged(), "the reloaded survivor index must still be paged");
 			assertEquals(expected.size(), reloaded.size(), "the surviving size must match the oracle");
 			assertArrayEquals(
-				expected.getRecordIds().getArray(), reloaded.getRecordIds().getArray(),
-				"the surviving record-id bitmap must match the oracle built from only the surviving values"
+				UniqueIndexTestSupport.ownerRecordIds(expected), UniqueIndexTestSupport.ownerRecordIds(reloaded),
+				"the surviving owning records must match the oracle built from only the surviving values"
 			);
 			assertArrayEquals(
 				expected.inlineSnapshot().values(), reloaded.inlineSnapshot().values(),

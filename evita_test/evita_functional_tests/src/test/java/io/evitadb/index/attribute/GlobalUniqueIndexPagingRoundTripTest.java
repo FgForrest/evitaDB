@@ -33,7 +33,6 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.Scope;
 import io.evitadb.function.Functions;
 import io.evitadb.index.EntityTypeClassifierResolver;
-import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
@@ -200,7 +199,7 @@ class GlobalUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 		assertTrue(source.isPaged(), "the index must span multiple leaves to exercise the paged layout");
 
 		final GlobalUniqueIndex.InlineSnapshot expectedSnapshot = source.inlineSnapshot();
-		final Bitmap expectedRecordIds = source.getRecordIds(ENTITY_TYPE, this.classifierResolver);
+		final int expectedRecordCount = source.getRecordCount();
 
 		// collect the granular emission (leaf pages + paged root; no freed-page removals on a first flush)
 		final TrappedChanges trappedChanges = new TrappedChanges();
@@ -249,15 +248,12 @@ class GlobalUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 			final GlobalUniqueIndex.InlineSnapshot restoredSnapshot = restored.inlineSnapshot();
 			assertArrayEquals(expectedSnapshot.values(), restoredSnapshot.values(), "value column must round-trip identically");
 			assertArrayEquals(expectedSnapshot.payloads(), restoredSnapshot.payloads(), "payload column must round-trip identically");
-			// the per-entity-type record set (rebuilt by unpacking every payload) matches
-			assertEquals(
-				expectedRecordIds.getArray().length, restored.getRecordIds(ENTITY_TYPE, this.classifierResolver).getArray().length,
-				"per-type record cardinality must round-trip"
-			);
-			assertTrue(
-				restored.getRecordIds(ENTITY_TYPE, this.classifierResolver).contains(1) && restored.getRecordIds(ENTITY_TYPE, this.classifierResolver).contains(KEY_COUNT),
-				"per-type record set must contain the boundary primary keys"
-			);
+			// the owning records (read off the unpacked payloads) match, boundary primary keys included
+			assertEquals(expectedRecordCount, restored.getRecordCount(), "the record count must round-trip");
+			final int[] restoredOwners =
+				UniqueIndexTestSupport.ownerRecordIds(restored, ENTITY_TYPE, this.classifierResolver);
+			assertEquals(1, restoredOwners[0], "the owners must start at the lowest primary key");
+			assertEquals(KEY_COUNT, restoredOwners[restoredOwners.length - 1], "the owners must end at the highest one");
 			// a spot-check that a localized lookup resolves to the expected entity reference
 			final EntityReferenceWithLocale resolved =
 				restored.getEntityReferenceByUniqueValue(keyForIndex(0), Locale.ENGLISH, this.classifierResolver).orElseThrow();
@@ -312,7 +308,7 @@ class GlobalUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 			final GlobalUniqueIndex.InlineSnapshot restoredSnapshot = restored.inlineSnapshot();
 			assertArrayEquals(expectedSnapshot.values(), restoredSnapshot.values(), "inline value column must round-trip identically");
 			assertArrayEquals(expectedSnapshot.payloads(), restoredSnapshot.payloads(), "inline payload column must round-trip identically");
-			assertEquals(3, restored.getRecordIds(ENTITY_TYPE, this.classifierResolver).getArray().length, "per-type record set must be rebuilt from the inline columns");
+			assertEquals(3, restored.getRecordCount(), "the record count must be read off the inline columns");
 		} finally {
 			if (reloaded != null) {
 				IOUtils.closeQuietly(reloaded::close);
@@ -442,9 +438,9 @@ class GlobalUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 				"the surviving payload column must match the oracle built from only the surviving values"
 			);
 			assertArrayEquals(
-				expected.getRecordIds(ENTITY_TYPE, this.classifierResolver).getArray(),
-				reloaded.getRecordIds(ENTITY_TYPE, this.classifierResolver).getArray(),
-				"the surviving per-type record set must match the oracle"
+				UniqueIndexTestSupport.ownerRecordIds(expected, ENTITY_TYPE, this.classifierResolver),
+				UniqueIndexTestSupport.ownerRecordIds(reloaded, ENTITY_TYPE, this.classifierResolver),
+				"the surviving owning records must match the oracle"
 			);
 		} finally {
 			if (reopened != null) {

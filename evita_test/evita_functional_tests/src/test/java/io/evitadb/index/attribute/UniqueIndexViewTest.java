@@ -23,9 +23,7 @@
 
 package io.evitadb.index.attribute;
 
-import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import org.junit.jupiter.api.DisplayName;
@@ -153,12 +151,12 @@ class UniqueIndexViewTest {
 		}
 
 		@Test
-		@DisplayName("getRecordIds, size and isEmpty reflect the backing filter view")
+		@DisplayName("size, distinct value count and isEmpty reflect the backing filter view")
 		void shouldReflectBackingFilterView() {
 			final UniqueIndex view = newUniqueView(newFilterView(newPopulatedSharedTree()));
 
-			assertArrayEquals(new int[]{1, 2, 3}, view.getRecordIds().getArray(), "all owning records must be visible!");
 			assertEquals(3, view.size(), "size() must reflect the backing filter view!");
+			assertEquals(3, view.getDistinctValueCount(), "every owning record holds one value!");
 			assertFalse(view.isEmpty(), "a populated view must not be empty!");
 		}
 	}
@@ -173,11 +171,7 @@ class UniqueIndexViewTest {
 			final UniqueIndex view = newUniqueView(null);
 
 			assertNull(view.getRecordIdByUniqueValue("alpha"), "an unresolved filter view must yield no record!");
-			assertSame(EmptyBitmap.INSTANCE, view.getRecordIds(), "an unresolved filter view must yield the empty bitmap!");
-			assertSame(
-				EmptyFormula.INSTANCE, view.getRecordIdsFormula(),
-				"an unresolved filter view must yield the empty formula!"
-			);
+			assertEquals(0, view.getDistinctValueCount(), "an unresolved filter view must hold no value!");
 			assertEquals(0, view.size(), "an unresolved filter view must report size 0!");
 			assertTrue(view.isEmpty(), "an unresolved filter view must be empty!");
 		}

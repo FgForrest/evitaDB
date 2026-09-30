@@ -209,9 +209,9 @@ class OwnerUniqueIndexPagingTest {
 
 		assertTrue(reloaded.isPaged(), "the reassembled index must still be PAGED");
 		assertEquals(original.size(), reloaded.size(), "size must match");
-		assertEquals(
-			original.getRecordIds(), reloaded.getRecordIds(),
-			"the reassembled record-id bitmap must equal the original"
+		assertArrayEquals(
+			UniqueIndexTestSupport.ownerRecordIds(original), UniqueIndexTestSupport.ownerRecordIds(reloaded),
+			"the reassembled owning records must equal the original"
 		);
 		// every URL slug must resolve to its exact record through the point-lookup path
 		for (int i = 1; i <= VALUE_COUNT; i++) {
@@ -339,7 +339,7 @@ class OwnerUniqueIndexPagingTest {
 	/**
 	 * Builds a standalone array-typed (`String[]`) unique index where each of {@link #ARRAY_RECORD_COUNT} records owns
 	 * {@link #ARRAY_ELEMENTS_PER_RECORD} distinct element values. The element total exceeds one leaf, so the value tree
-	 * goes PAGED while the record-id bitmap stays at the (smaller) record count.
+	 * goes PAGED while the owning-record count stays at the (smaller) record count.
 	 *
 	 * @return the populated array-typed owner unique index
 	 */
@@ -394,7 +394,11 @@ class OwnerUniqueIndexPagingTest {
 
 			assertTrue(reloaded.isPaged(), "the reassembled BigDecimal index must still be PAGED");
 			assertEquals(original.size(), reloaded.size(), "size must match");
-			assertEquals(original.getRecordIds(), reloaded.getRecordIds(), "the record-id bitmap must equal the original");
+			assertArrayEquals(
+				UniqueIndexTestSupport.ownerRecordIds(original),
+				UniqueIndexTestSupport.ownerRecordIds(reloaded),
+				"the owning records must equal the original"
+			);
 			for (int i = 1; i <= DECIMAL_VALUE_COUNT; i++) {
 				assertEquals(Integer.valueOf(i), reloaded.getRecordIdByUniqueValue(decimalKey(i)), "point lookup for record " + i);
 			}
@@ -421,7 +425,7 @@ class OwnerUniqueIndexPagingTest {
 			final OwnerUniqueIndex index = buildLargeArrayIndex();
 			final int elementCount = ARRAY_RECORD_COUNT * ARRAY_ELEMENTS_PER_RECORD;
 			assertTrue(index.isPaged(), elementCount + " element values must span multiple leaves → PAGED");
-			assertEquals(ARRAY_RECORD_COUNT, index.size(), "the record-id bitmap counts records, not elements");
+			assertEquals(ARRAY_RECORD_COUNT, index.size(), "size() counts records, not elements");
 
 			final List<StoragePart> parts = flush(index);
 			final long rootCount = parts.stream().filter(UniqueIndexStoragePart.class::isInstance).count();
@@ -435,7 +439,11 @@ class OwnerUniqueIndexPagingTest {
 			assertEquals(elementCount, totalLeafValues, "every array element lands in exactly one leaf page");
 
 			final OwnerUniqueIndex reloaded = reassemble(parts, String[].class);
-			assertEquals(index.getRecordIds(), reloaded.getRecordIds(), "the reassembled record-id bitmap must equal the original");
+			assertArrayEquals(
+				UniqueIndexTestSupport.ownerRecordIds(index),
+				UniqueIndexTestSupport.ownerRecordIds(reloaded),
+				"the reassembled owning records must equal the original"
+			);
 			// every element of every record must resolve to its owning record after the round-trip
 			for (int record = 1; record <= ARRAY_RECORD_COUNT; record++) {
 				for (int k = 0; k < ARRAY_ELEMENTS_PER_RECORD; k++) {
@@ -450,7 +458,7 @@ class OwnerUniqueIndexPagingTest {
 	}
 
 	@Nested
-	@DisplayName("Array whole-value unregister keeps the record-id bitmap consistent")
+	@DisplayName("Array whole-value unregister keeps the owning records consistent")
 	class ArrayWholeValueUnregisterInvariantTest {
 
 		/**
@@ -468,13 +476,21 @@ class OwnerUniqueIndexPagingTest {
 			final OwnerUniqueIndex index = new OwnerUniqueIndex(ENTITY_TYPE, ATTRIBUTE_KEY, String[].class);
 			index.registerUniqueKey(new String[] {"a", "b"}, 5);
 			index.registerUniqueKey(new String[] {"c", "d"}, 6);
-			assertArrayEquals(new int[] {5, 6}, index.getRecordIds().getArray(), "both records present after registration");
+			assertArrayEquals(
+				new int[] {5, 6},
+				UniqueIndexTestSupport.ownerRecordIds(index),
+				"both records present after registration"
+			);
 
 			// the real mutation path removes the WHOLE array value atomically — every element owned by record 5 leaves
 			// the tree within this single call, so the bitmap correctly drops record 5 and only record 5
 			index.unregisterUniqueKey(new String[] {"a", "b"}, 5);
 
-			assertArrayEquals(new int[] {6}, index.getRecordIds().getArray(), "only record 5 is dropped, record 6 survives");
+			assertArrayEquals(
+				new int[] {6},
+				UniqueIndexTestSupport.ownerRecordIds(index),
+				"only record 5 is dropped, record 6 survives"
+			);
 			assertNull(index.getRecordIdByUniqueValue("a"), "element a of record 5 is gone");
 			assertNull(index.getRecordIdByUniqueValue("b"), "element b of record 5 is gone");
 			assertEquals(Integer.valueOf(6), index.getRecordIdByUniqueValue("c"), "record 6's element c stays live");
@@ -500,15 +516,19 @@ class OwnerUniqueIndexPagingTest {
 			index.unregisterUniqueKey(new String[] {"a", "b"}, 5);
 			index.registerUniqueKey(new String[] {"a", "c"}, 5);
 
-			assertArrayEquals(new int[] {5}, index.getRecordIds().getArray(), "record 5 survives the whole-array replace");
+			assertArrayEquals(
+				new int[] {5},
+				UniqueIndexTestSupport.ownerRecordIds(index),
+				"record 5 survives the whole-array replace"
+			);
 			assertEquals(Integer.valueOf(5), index.getRecordIdByUniqueValue("a"), "retained element a still resolves");
 			assertEquals(Integer.valueOf(5), index.getRecordIdByUniqueValue("c"), "added element c resolves");
 			assertNull(index.getRecordIdByUniqueValue("b"), "removed element b is gone");
 		}
 
 		/**
-		 * Removing the only record's whole array empties both the value tree and the record-id bitmap — the index becomes
-		 * empty, which is what lets {@code AttributeIndex.removeUniqueAttribute} drop the now-empty owner index.
+		 * Removing the only record's whole array empties the value tree and leaves no owning record — the index
+		 * becomes empty, which is what lets {@code AttributeIndex.removeUniqueAttribute} drop the now-empty owner index.
 		 */
 		@Test
 		@DisplayName("removing the sole owner's whole array empties the index")
@@ -521,7 +541,7 @@ class OwnerUniqueIndexPagingTest {
 			index.unregisterUniqueKey(new String[] {"a", "b"}, 5);
 
 			assertTrue(index.isEmpty(), "the index is empty once its sole record's whole array is removed");
-			assertEquals(0, index.getRecordIds().getArray().length, "the record-id bitmap is empty");
+			assertEquals(0, UniqueIndexTestSupport.ownerRecordIds(index).length, "no record owns a value any more");
 			assertNull(index.getRecordIdByUniqueValue("a"), "element a is gone");
 			assertNull(index.getRecordIdByUniqueValue("b"), "element b is gone");
 		}
@@ -626,8 +646,8 @@ class OwnerUniqueIndexPagingTest {
 						expectedCommittedRecordIds[i] = i + 1;
 					}
 					assertArrayEquals(
-						expectedCommittedRecordIds, committedOwner.getRecordIds().getArray(),
-						"the committed record-id bitmap carries every original record plus the new one"
+						expectedCommittedRecordIds, UniqueIndexTestSupport.ownerRecordIds(committedOwner),
+						"the committed index is owned by every original record plus the new one"
 					);
 					for (int i = 1; i <= VALUE_COUNT; i++) {
 						assertEquals(Integer.valueOf(i), committedOwner.getRecordIdByUniqueValue(slug(i)), "point lookup for record " + i);
@@ -678,7 +698,7 @@ class OwnerUniqueIndexPagingTest {
 		void shouldRestorePagedIndexUnchangedOnRollback() {
 			final OwnerUniqueIndex baseline = reassemble(flush(buildLargeIndex()));
 			final int sizeBefore = baseline.size();
-			final int[] recordIdsBefore = baseline.getRecordIds().getArray();
+			final int[] recordIdsBefore = UniqueIndexTestSupport.ownerRecordIds(baseline);
 
 			assertStateAfterRollback(
 				baseline,
@@ -691,8 +711,8 @@ class OwnerUniqueIndexPagingTest {
 					assertTrue(original.isPaged(), "the rolled-back index is still PAGED");
 					assertEquals(sizeBefore, original.size(), "size is unchanged after rollback");
 					assertArrayEquals(
-						recordIdsBefore, original.getRecordIds().getArray(),
-						"the record-id bitmap is unchanged after rollback"
+						recordIdsBefore, UniqueIndexTestSupport.ownerRecordIds(original),
+						"the owning records are unchanged after rollback"
 					);
 					for (int i = 1; i <= VALUE_COUNT; i++) {
 						assertEquals(Integer.valueOf(i), original.getRecordIdByUniqueValue(slug(i)), "point lookup for record " + i);

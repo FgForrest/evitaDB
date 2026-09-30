@@ -25,8 +25,6 @@ package io.evitadb.index.attribute;
 
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.core.buffer.TrappedChanges;
-import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.dataType.array.CompositeObjectArray;
@@ -36,8 +34,8 @@ import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.LeafPageHandle;
 import io.evitadb.index.bPlusTree.ValueColumnFactory;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.page.PageStreamRegistry;
@@ -66,9 +64,9 @@ import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.plainTypeOf
 import static io.evitadb.utils.Assert.isTrue;
 
 /**
- * Owner variant of {@link UniqueIndex}. It OWNS its value→record-id mappings and the record-id bitmap, and fully
- * participates in the commit cycle. Used for global-unique-localized attributes whose locale-less uniqueness cannot be
- * folded into the per-locale shared filter tree.
+ * Owner variant of {@link UniqueIndex}. It OWNS its value→record-id mappings and fully participates in the commit
+ * cycle. Used for a localized attribute unique across locales (`UNIQUE_WITHIN_COLLECTION`), whose locale-less
+ * uniqueness cannot be folded into the per-locale shared filter tree.
  *
  * The value to record id relation is kept in a {@link TransactionalBucketBPlusTree} keyed by the unique value, where
  * each bucket holds exactly one record id (uniqueness is enforced on insert, so the bucket's overflow bitmap is never
@@ -116,10 +114,6 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * REFERENCE through {@link #createCopyWithMergedTransactionalMemory}, exactly like {@code InvertedIndex}.
 	 */
 	@Nonnull private final PageStreamRegistry pageStreamRegistry;
-	/**
-	 * Keeps information about all record ids present in this index.
-	 */
-	@Nonnull private final TransactionalBitmap recordIds;
 
 	/**
 	 * Creates a fresh, empty value tree (int payload column holding the owning record id) ordered by the given
@@ -152,14 +146,11 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		this.comparator = comparatorFor(this.plainType);
 		this.tree = createEmptyTree(this.plainType, this.comparator);
 		this.pageStreamRegistry = new PageStreamRegistry();
-		this.recordIds = new TransactionalBitmap();
 	}
 
 	/**
 	 * Reconstructs a `SINGLE`-shape index from its persisted inline value/payload columns - the path taken when loading
-	 * an inline (SINGLE) index back from storage. The tree is rebuilt by inserting every `(value, recordId)` pair and the
-	 * {@link #recordIds} membership bitmap is rebuilt from the payload column (its deduplicated set), so no separate
-	 * bitmap needs to be persisted alongside the columns.
+	 * an inline (SINGLE) index back from storage. The tree is rebuilt by inserting every `(value, recordId)` pair.
 	 *
 	 * @param entityType        type of the entity this index belongs to
 	 * @param attributeIndexKey key identifying the indexed attribute
@@ -174,7 +165,6 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		this.comparator = comparatorFor(this.plainType);
 		this.tree = createEmptyTree(this.plainType, this.comparator);
 		this.pageStreamRegistry = new PageStreamRegistry();
-		this.recordIds = new TransactionalBitmap(recordIds);
 		seedTree(values, recordIds);
 	}
 
@@ -187,7 +177,6 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * @param attributeIndexKey  key identifying the indexed attribute
 	 * @param attributeType      declared type of the attribute value
 	 * @param tree               the already-built value tree
-	 * @param recordIds          bitmap of all record ids contained in the tree
 	 * @param pageStreamRegistry the owner-resident page bookkeeping, carried BY REFERENCE
 	 */
 	private OwnerUniqueIndex(
@@ -195,7 +184,6 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull Class<? extends Serializable> attributeType,
 		@Nonnull TransactionalBucketBPlusTree tree,
-		@Nonnull Bitmap recordIds,
 		@Nonnull PageStreamRegistry pageStreamRegistry
 	) {
 		super(entityType, attributeIndexKey, attributeType);
@@ -204,7 +192,6 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		this.comparator = comparatorFor(this.plainType);
 		this.tree = tree;
 		this.pageStreamRegistry = pageStreamRegistry;
-		this.recordIds = new TransactionalBitmap(recordIds);
 	}
 
 	/**
@@ -240,7 +227,6 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		final Class<?> plainType = plainTypeOf(attributeType);
 		final Comparator<Comparable<?>> comparator = comparatorFor(plainType);
 		final List<TransactionalBucketBPlusTree> pageTrees = new ArrayList<>(orderedPageSequences.length);
-		final CompositeIntArray allRecordIds = new CompositeIntArray();
 		for (int i = 0; i < orderedPageSequences.length; i++) {
 			final Serializable[] values = perPageValues[i];
 			final int[] records = perPageRecordIds[i];
@@ -253,7 +239,6 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 			final long[] payloads = new long[values.length];
 			for (int j = 0; j < values.length; j++) {
 				payloads[j] = records[j];
-				allRecordIds.add(records[j]);
 			}
 			pageTree.bulkLoadSingleRecordPage(values, payloads, values.length);
 			pageTrees.add(pageTree);
@@ -266,10 +251,7 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		final PageStreamRegistry pageStreamRegistry = PageStreamRegistry.restoredFrom(
 			UNIQUE_PAGE_STREAM, highWaterPageSequence, tree.leafPageHandles()
 		);
-		return new OwnerUniqueIndex(
-			entityType, attributeIndexKey, attributeType, tree,
-			new TransactionalBitmap(allRecordIds.toArray()), pageStreamRegistry
-		);
+		return new OwnerUniqueIndex(entityType, attributeIndexKey, attributeType, tree, pageStreamRegistry);
 	}
 
 	@Override
@@ -292,41 +274,11 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	/**
 	 * {@inheritDoc}
 	 *
-	 * A **fresh** formula is returned on every call, wrapping the {@link #recordIds} bitmap this index already
-	 * holds — there is nothing left to memoize, because the expensive part was always the bitmap and never the
-	 * few scalars of scaffolding around it.
-	 *
-	 * Building one per call is `O(1)` here for a reason worth knowing: {@link #recordIds} is a
-	 * {@link TransactionalBitmap} and therefore a
-	 * {@link io.evitadb.core.transaction.memory.TransactionalLayerProducer}, so `ConstantFormula` keys its cache
-	 * entry on the transactional id and never looks at the contents. A filter index's multi-bucket memo is a plain
-	 * `BaseBitmap` with no such id and has to hash the records instead, which is why that bitmap memoizes the hash
-	 * — see `FilterIndex#memoizedAllRecords`. Do not "harmonise" the two; they are not the same case.
-	 *
-	 * The formula must not be cached here. A {@link Formula} node carries per-query state:
-	 * {@link io.evitadb.core.query.algebra.AbstractFormula#initialize(io.evitadb.core.query.QueryExecutionContext)}
-	 * writes the executing query's context onto every node of the plan it joins, and that context transitively
-	 * reaches the session and the whole catalog generation the query ran against. An index-lifetime formula would
-	 * pin the first session that ever used it until the index is next written to.
-	 */
-	@Override
-	public Formula getRecordIdsFormula() {
-		return new ConstantFormula(this.recordIds);
-	}
-
-	/**
-	 * {@inheritDoc}
-	 *
 	 * # What is charged, and what is not
 	 *
 	 * The value tree is charged in full, its **keys included** — they are attribute values this index owns, priced by
-	 * {@link IndexHeapSize#OWNED_KEY_SIZER}. {@link #recordIds} is likewise charged in full: every construction
-	 * site builds it fresh rather than adopting a caller's set.
-	 *
-	 * **No formula is charged, because none is retained.** {@link #getRecordIdsFormula()} builds
-	 * `new ConstantFormula(this.recordIds)` fresh per call and that wrapper dies with the query it served, so there
-	 * is nothing of index lifetime to price. It wrapped the very set already charged above in any case, so charging
-	 * it would have risked counting one bitmap twice.
+	 * {@link IndexHeapSize#OWNED_KEY_SIZER}. No record-id set is kept beside it - the owning records are read off the
+	 * tree's payloads when {@link #size()} is asked for them - so the tree is the whole of the data this index holds.
 	 *
 	 * {@link #plainType} is a `Class` and {@link #comparator} is fixed scaffolding chosen by the attribute type, so
 	 * both contribute their slot alone — the same call {@code SortIndex} makes, for the same reason.
@@ -335,22 +287,31 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	@Override
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// the dirty / plainType / comparator / tree / pageStreamRegistry / recordIds slots
-		return getSharedHeapSizeInBytes(6L * layout.referenceSize())
+		// the dirty / plainType / comparator / tree / pageStreamRegistry slots
+		return getSharedHeapSizeInBytes(5L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
-			+ this.tree.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER)
-			+ this.recordIds.getHeapSizeInBytes();
+			+ this.tree.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER);
 	}
 
-	@Nonnull
-	@Override
-	public Bitmap getRecordIds() {
-		return this.recordIds;
-	}
-
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Counted on demand as the distinct owners of the tree's values: a record owns one value per locale here, so the
+	 * value count alone would over-count it. The cost is one cursor walk over the tree plus a transient bitmap of the
+	 * owners, `O(values)` rather than `O(1)`, which is why only the index statistics call it - never a query path.
+	 *
+	 * A walk racing an in-place warm-up write reads a bounded, possibly slightly stale picture rather than failing:
+	 * the bucket cursors bound every leaf read by its observable live run for exactly this session-free management
+	 * reader (see `documentation/adr/2026-09-03-content-sized-value-tree-columns.md`).
+	 */
 	@Override
 	public int size() {
-		return this.recordIds.size();
+		final BaseBitmap owners = new BaseBitmap();
+		final BucketCursor cursor = this.tree.cursor();
+		while (cursor.next()) {
+			owners.add(cursor.singleRecordId());
+		}
+		return owners.size();
 	}
 
 	@Override
@@ -360,12 +321,9 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 
 	@Override
 	public boolean isEmpty() {
-		// emptiness MUST be value-based, not record-based: a `localized` + `uniqueGlobally` attribute has a locale-less
-		// unique key, so one record legitimately owns several values (one per locale) in this single index, registered
-		// and unregistered in separate per-locale calls. The `recordIds` bitmap drops a pk on the FIRST of its values
-		// removed (it is an eager denormalized cache), so a record-based check would report the index empty while sibling
-		// locale values are still present — and the caller would then drop a live index. The value tree is authoritative;
-		// `size()` is an O(1) counter, so the index is empty exactly when no value remains (for any record, any locale).
+		// the index is empty exactly when no value remains, for any record and any locale: a localized attribute unique
+		// across locales has a locale-less key, so one record owns a distinct value per locale here. The tree's own
+		// `size()` is an O(1) value counter, unlike this index's record-counting `size()`
 		return this.tree.size() == 0;
 	}
 
@@ -454,14 +412,12 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		if (isDirty) {
 			final TransactionalBucketBPlusTree committedTree =
 				(TransactionalBucketBPlusTree) transactionalLayer.getStateCopyWithCommittedChanges(this.tree);
-			final Bitmap committedRecordIds = transactionalLayer.getStateCopyWithCommittedChanges(this.recordIds);
 			// publish the page baseline staged by this commit's flush: the merge runs only AFTER the flush has durably
 			// written the changed leaf pages + root, so the staged live set now reflects what is on disk. The registry is
 			// then carried BY REFERENCE into the committed copy, so the surviving owner keeps it (mirrors InvertedIndex).
 			this.pageStreamRegistry.publishStaged();
 			return new OwnerUniqueIndex(
-				getEntityType(), getAttributeIndexKey(), getType(),
-				committedTree, committedRecordIds, this.pageStreamRegistry
+				getEntityType(), getAttributeIndexKey(), getType(), committedTree, this.pageStreamRegistry
 			);
 		} else {
 			return this;
@@ -472,7 +428,6 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.dirty);
 		this.tree.removeLayer(transactionalLayer);
-		this.recordIds.removeLayer(transactionalLayer);
 	}
 
 	@Nonnull
@@ -625,8 +580,7 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	}
 
 	/**
-	 * Registers a single unique value to a record id after asserting the value is free, then adds the record id to
-	 * the {@link #recordIds} bitmap.
+	 * Registers a single unique value to a record id after asserting the value is free.
 	 *
 	 * @param key      unique value to register
 	 * @param recordId record id that should own the value
@@ -636,7 +590,6 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		final Integer existingRecordId = getRecordIdByUniqueValue(key);
 		assertUniqueKeyIsFree(key, recordId, existingRecordId);
 		this.tree.addRecord(key, recordId);
-		this.recordIds.add(recordId);
 	}
 
 	/**
@@ -681,8 +634,7 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	}
 
 	/**
-	 * Removes a single unique value, asserting it was owned by `expectedRecordId`, and drops that record id from
-	 * the {@link #recordIds} bitmap. The ownership assertion guarantees the removed mapping was non-null and equal
+	 * Removes a single unique value, asserting it was owned by `expectedRecordId`. The ownership assertion guarantees the removed mapping was non-null and equal
 	 * to `expectedRecordId`, so beyond it the boxed `existingRecordId` and the primitive `expectedRecordId` are
 	 * interchangeable; the primitive is used to avoid unboxing the (provably non-null) {@link Integer}.
 	 *
@@ -697,13 +649,6 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		// are interchangeable; using the primitive expectedRecordId avoids unboxing the (provably non-null) Integer
 		assertUniqueKeyOwnership(key, expectedRecordId, existingRecordId);
 		this.tree.removeRecord(key, expectedRecordId);
-		// dropping the pk from the membership bitmap is eager: a pk that still owns sibling values in this index (an
-		// array element not yet processed, or another locale's value for a locale-less global-unique key) is transiently
-		// excluded from `recordIds` between the per-value unregister calls. This mirrors the historical (non-granular)
-		// UniqueIndex behaviour and is why emptiness is tracked value-side (see #isEmpty) rather than off this bitmap —
-		// the index must NOT be dropped while any value remains. Tracking exact per-pk membership would need a per-record
-		// cardinality counter; the eager bitmap is kept for parity and low memory, accepting the transient imprecision.
-		this.recordIds.remove(expectedRecordId);
 		return expectedRecordId;
 	}
 
