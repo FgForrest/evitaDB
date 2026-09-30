@@ -84,12 +84,11 @@ import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.IntObjPredicate;
-import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.ReducedEntityIndex;
-import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
 import io.evitadb.spi.store.catalog.persistence.accessor.EntityStoragePartAccessor;
@@ -105,7 +104,6 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityStorag
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart.MissingReferenceBehavior;
-import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NumberUtils;
@@ -328,30 +326,33 @@ public final class ContainerizedLocalMutationExecutor
 			.getEntitySchema(referenceSchema.getReferencedEntityType())
 			.flatMap(it -> it.getReference(referenceSchema.getReflectedReferenceName()));
 
-		// we need to access index in target entity collection, because we need to retrieve index with primary
-		// references; the primary holders may live in any scope, so all scopes where the relation is maintained
-		// for this entity's scope are searched
-		final List<ReducedEntityIndex> indexes;
+		// we need to access partitions in target entity collection, because we need to retrieve partitions with
+		// primary references; the primary holders may live in any scope, so all scopes where the relation is
+		// maintained for this entity's scope are searched - always through the target collection's data store
+		// reader, which layers the partitions created earlier in the same transaction over the committed ones
+		final List<ReferencePartition> partitions;
 		if (counterpartSchemaRef.isEmpty()) {
-			indexes = Collections.emptyList();
+			partitions = Collections.emptyList();
 		} else {
 			final ReferenceSchemaContract counterpartSchema = counterpartSchemaRef.get();
-			indexes = new ArrayList<>(4);
+			partitions = new ArrayList<>(4);
 			for (Scope counterpartScope : Scope.values()) {
 				if (isRelationMaintained(referenceSchema, counterpartSchema, scope, counterpartScope)) {
-					indexes.addAll(
-						getAllReducedReferencedEntityIndexes(
+					// the reflected reference's cardinality decides the lookup, exactly as it always has
+					Collections.addAll(
+						partitions,
+						ReferencePartitions.resolveOfTarget(
 							dataStoreReader, counterpartScope,
 							referenceSchema.getReflectedReferenceName(),
-							this.entityPrimaryKey,
-							referenceSchema.getCardinality().allowsDuplicates()
+							referenceSchema.getCardinality().allowsDuplicates(),
+							this.entityPrimaryKey
 						)
 					);
 				}
 			}
 		}
 
-		for (ReducedEntityIndex referenceIndexWithPrimaryReferences : indexes) {
+		for (ReferencePartition referenceIndexWithPrimaryReferences : partitions) {
 			// for each such entity create internal (reflected) reference to it (if it doesn't exist)
 			final Bitmap referencingEntities = referenceIndexWithPrimaryReferences.getAllPrimaryKeys();
 			final DataStoreReader targetDataStoreReader = ofNullable(
@@ -362,11 +363,7 @@ public final class ContainerizedLocalMutationExecutor
 							"` unexpectedly not found!"
 					)
 				);
-			final RepresentativeReferenceKey rrk = Objects.requireNonNull(
-				(RepresentativeReferenceKey) referenceIndexWithPrimaryReferences
-					.getIndexKey()
-					.discriminator()
-			);
+			final RepresentativeReferenceKey rrk = referenceIndexWithPrimaryReferences.getRepresentativeReferenceKey();
 			final List<ReferenceKey> referenceKeys = new ArrayList<>(referencingEntities.size());
 			final OfInt it = referencingEntities.iterator();
 			while (it.hasNext()) {
@@ -394,101 +391,6 @@ public final class ContainerizedLocalMutationExecutor
 				eachReferenceConsumer.accept(referenceKeys, dataStoreReader);
 			}
 		}
-	}
-
-	/**
-	 * Retrieves a list of all reduced entity indexes based on the provided parameters.
-	 *
-	 * @param dataStoreReader the reader used to access the data store and retrieve indexes
-	 * @param scope the scope within which indexes should be retrieved
-	 * @param referenceName the name of the reference associated with the indexes
-	 * @param entityPrimaryKey the primary key of the entity for which indexes are retrieved
-	 * @param allowsDuplicates specifies whether duplicate entries are allowed in the retrieved indexes
-	 * @return a list of reduced entity indexes that match the specified parameters
-	 */
-	@Nonnull
-	private static List<ReducedEntityIndex> getAllReducedReferencedEntityIndexes(
-		@Nonnull DataStoreReader dataStoreReader,
-		@Nonnull Scope scope,
-		@Nonnull String referenceName,
-		int entityPrimaryKey,
-		boolean allowsDuplicates
-	) {
-		return getAllReducedIndexes(
-			eik -> dataStoreReader.getIndexIfExists(eik, __ -> null),
-			eik -> dataStoreReader.getIndexIfExists(eik, __ -> null),
-			epk -> dataStoreReader.getIndexIfExists(epk, __ -> null),
-			scope, referenceName, entityPrimaryKey, allowsDuplicates,
-			EntityIndexType.REFERENCED_ENTITY_TYPE,
-			EntityIndexType.REFERENCED_ENTITY
-		);
-	}
-
-	/**
-	 * Retrieves all reduced entity indexes matching the given reference and entity primary key, parameterized
-	 * by the type index type and reduced index type. This allows the same logic to be reused for both
-	 * entity-level and group-level reference indexes.
-	 *
-	 * @param referencedTypeIndexProvider function that provides the type-level index
-	 * @param reducedIndexProvider        function that provides the reduced index by key
-	 * @param reducedIndexByPkProvider    function that provides the reduced index by internal PK
-	 * @param scope                       the scope in which the indexes are searched
-	 * @param referenceName               the name of the reference schema
-	 * @param theEntityPrimaryKey         the primary key (entity PK or group PK) to look up
-	 * @param allowsDuplicates            whether the reference schema allows duplicate references
-	 * @param typeIndexType               the {@link EntityIndexType} for the type-level index
-	 * @param reducedIndexType            the {@link EntityIndexType} for the reduced index
-	 * @return a list of reduced entity indexes corresponding to the given parameters
-	 */
-	@Nonnull
-	public static <T extends AbstractReducedEntityIndex> List<T> getAllReducedIndexes(
-		@Nonnull Function<EntityIndexKey, ReferencedTypeEntityIndex> referencedTypeIndexProvider,
-		@Nonnull Function<EntityIndexKey, T> reducedIndexProvider,
-		@Nonnull IntFunction<T> reducedIndexByPkProvider,
-		@Nonnull Scope scope,
-		@Nonnull String referenceName,
-		int theEntityPrimaryKey,
-		boolean allowsDuplicates,
-		@Nonnull EntityIndexType typeIndexType,
-		@Nonnull EntityIndexType reducedIndexType
-	) {
-		final List<T> indexes;
-		if (allowsDuplicates) {
-			// we need to collect all indexes that contain primary references to this entity
-			// with all combinations of representative attribute values
-			final ReferencedTypeEntityIndex typeIndex = referencedTypeIndexProvider.apply(
-				new EntityIndexKey(
-					typeIndexType,
-					scope,
-					referenceName
-				)
-			);
-			indexes = typeIndex == null ?
-				Collections.emptyList() :
-				Arrays.stream(typeIndex.getAllReferenceIndexes(theEntityPrimaryKey))
-				      .mapToObj(reducedIndexByPkProvider)
-				      .filter(Objects::nonNull)
-				      .toList();
-		} else {
-			final T targetIndex = reducedIndexProvider.apply(
-				new EntityIndexKey(
-					reducedIndexType,
-					scope,
-					// we need to use this reflected reference name
-					new RepresentativeReferenceKey(
-						new ReferenceKey(
-							referenceName,
-							theEntityPrimaryKey
-						),
-						// and we don't need any representative attribute values,
-						// since reference cannot contain duplicates
-						ArrayUtils.EMPTY_SERIALIZABLE_ARRAY
-					)
-				)
-			);
-			indexes = targetIndex == null ? Collections.emptyList() : List.of(targetIndex);
-		}
-		return indexes;
 	}
 
 	/**
@@ -635,8 +537,8 @@ public final class ContainerizedLocalMutationExecutor
 	 *                                    being created.
 	 * @param referencedEntityType       The type of the referenced entity that should be
 	 *                                    checked and potentially created.
-	 * @param reducedIndexesProvider     Function that provides a list of reduced entity
-	 *                                    indexes based on the entity primary key.
+	 * @param partitionsProvider         Function that provides the partitions of the reference
+	 *                                    pointing to the given entity primary key.
 	 * @param referenceAttributeSupplier Supplier providing an array of reference attribute
 	 *                                    mutations to be applied to the missing references.
 	 * @param entityPrimaryKeyPredicate  A predicate that determines if the entity primary
@@ -652,7 +554,7 @@ public final class ContainerizedLocalMutationExecutor
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nonnull String referencedSchemaName,
 		@Nonnull String referencedEntityType,
-		@Nonnull IntFunction<List<ReducedEntityIndex>> reducedIndexesProvider,
+		@Nonnull IntFunction<ReferencePartition[]> partitionsProvider,
 		@Nonnull Function<ReferenceKey, Stream<ReferenceAttributeMutation>> referenceAttributeSupplier,
 		@Nonnull IntObjPredicate<Serializable[]> entityPrimaryKeyPredicate,
 		@Nonnull Predicate<RepresentativeReferenceKey> removedRepresentativeReferenceKeyPredicate,
@@ -666,15 +568,15 @@ public final class ContainerizedLocalMutationExecutor
 			//noinspection rawtypes
 			final List<LocalMutation> localMutations = new ArrayList<>(32);
 			// but we need to match only those, our entity refers to via this reference and doesn't exist
-			final List<ReducedEntityIndex> reducedEntityIndexes = reducedIndexesProvider.apply(ownerEntityPrimaryKey);
+			final ReferencePartition[] partitions = partitionsProvider.apply(ownerEntityPrimaryKey);
 			if (referenceSchema instanceof ReflectedReferenceSchema rrs) {
 				// if we work with the reflected reference schema
 				// we need to look up for reference internal PKs in external referenceStoragePart (fetch)
 				final ReferenceKey reflectedReferenceKey = new ReferenceKey(rrs.getName(), ownerEntityPrimaryKey);
 				final ArrayList<PrimaryReferenceKeyWithRepresentativeAttributes> primaryReferenceKeys =
-					new ArrayList<>(reducedEntityIndexes.size());
-				for (final ReducedEntityIndex reducedEntityIndex : reducedEntityIndexes) {
-					final Serializable[] representativeAttributeValues = reducedEntityIndex
+					new ArrayList<>(partitions.length);
+				for (final ReferencePartition partition : partitions) {
+					final Serializable[] representativeAttributeValues = partition
 						.getRepresentativeReferenceKey()
 						.representativeAttributeValues();
 					final RepresentativeReferenceKey rrk = new RepresentativeReferenceKey(
@@ -763,8 +665,8 @@ public final class ContainerizedLocalMutationExecutor
 			} else {
 				// if we work with the standard reference schema,
 				// we will look up for reference internal PKs in the current referenceStoragePart
-				for (ReducedEntityIndex reducedEntityIndex : reducedEntityIndexes) {
-					final Serializable[] representativeAttributeValues = reducedEntityIndex
+				for (ReferencePartition partition : partitions) {
+					final Serializable[] representativeAttributeValues = partition
 						.getRepresentativeReferenceKey()
 						.representativeAttributeValues();
 					final ReferenceKey referenceKey = new ReferenceKey(referenceSchema.getName(), ownerEntityPrimaryKey);
@@ -982,9 +884,10 @@ public final class ContainerizedLocalMutationExecutor
 	}
 
 	/**
-	 * Creates a predicate testing whether the counterpart side of the relation is already established in the reduced
-	 * index of the referenced collection in the given scope. The reduced indexes follow the scope of the entity they
-	 * index, so the check must always be performed in the scope the counterpart entity currently lives in.
+	 * Creates a predicate testing whether the counterpart side of the relation is already established in the
+	 * partition of the referenced collection in the given scope. The partitions follow the scope of the entity they
+	 * index, so the check must always be performed in the scope the counterpart entity currently lives in. A missing
+	 * partition reads as "absent".
 	 *
 	 * @param hardReference        true when the reference name equals the counterpart schema name
 	 * @param dataStoreReader      reader of the referenced entity collection
@@ -1004,35 +907,31 @@ public final class ContainerizedLocalMutationExecutor
 		if (hardReference) {
 			// provide reduced entity index related to provided entity primary key
 			return (epk, representativeAttributeValues) -> {
-				final ReducedEntityIndex targetReducedIndex = dataStoreReader.getIndexIfExists(
-					new EntityIndexKey(
-						EntityIndexType.REFERENCED_ENTITY,
-						usedScope,
-						new RepresentativeReferenceKey(
-							new ReferenceKey(referencedSchemaName, epk),
-							representativeAttributeValues
-						)
-					),
-					__ -> null
+				// a missing partition reads as "absent"
+				final ReferencePartition targetPartition = ReferencePartitions.resolveIfExists(
+					dataStoreReader,
+					usedScope,
+					new RepresentativeReferenceKey(
+						new ReferenceKey(referencedSchemaName, epk),
+						representativeAttributeValues
+					)
 				);
 				// always check this entity primary key
-				return targetReducedIndex != null && targetReducedIndex.getAllPrimaryKeys().contains(entityPrimaryKey);
+				return targetPartition != null && targetPartition.getAllPrimaryKeys().contains(entityPrimaryKey);
 			};
 		} else {
 			// always provide the same reference index
 			return (epk, representativeAttributeValues) -> {
-				final ReducedEntityIndex targetReducedIndex = dataStoreReader.getIndexIfExists(
-					new EntityIndexKey(
-						EntityIndexType.REFERENCED_ENTITY,
-						usedScope,
-						new RepresentativeReferenceKey(
-							new ReferenceKey(referencedSchemaName, entityPrimaryKey),
-							representativeAttributeValues
-						)
-					),
-					__ -> null
+				// a missing partition reads as "absent"
+				final ReferencePartition targetPartition = ReferencePartitions.resolveIfExists(
+					dataStoreReader,
+					usedScope,
+					new RepresentativeReferenceKey(
+						new ReferenceKey(referencedSchemaName, entityPrimaryKey),
+						representativeAttributeValues
+					)
 				);
-				return targetReducedIndex != null && targetReducedIndex.getAllPrimaryKeys().contains(epk);
+				return targetPartition != null && targetPartition.getAllPrimaryKeys().contains(epk);
 			};
 		}
 	}
@@ -2626,14 +2525,13 @@ public final class ContainerizedLocalMutationExecutor
 									referenceSchema,
 									referencedSchemaName,
 									referencedEntityType,
-									epk ->
-										getAllReducedReferencedEntityIndexes(
-											this.dataStoreReader,
-											targetEntityScope,
-											referenceName,
-											epk,
-											allowsDuplicates
-										),
+									epk -> ReferencePartitions.resolveOfTarget(
+										this.dataStoreReader,
+										targetEntityScope,
+										referenceName,
+										allowsDuplicates,
+										epk
+									),
 									referenceBlock.getAttributeSupplier(),
 									// we need to negate the predicate, because we want to insert missing references
 									createCounterpartPresencePredicate(

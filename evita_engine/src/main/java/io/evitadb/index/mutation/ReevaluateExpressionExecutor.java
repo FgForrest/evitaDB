@@ -54,6 +54,7 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.HistogramIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
+import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -2304,9 +2305,10 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			// entity component indexes exist — use reduced entity indexes to find owner PKs
 			final List<AffectedReferenceGroup> groups = new ArrayList<>(storagePKs.length);
 			for (int storagePK : storagePKs) {
-				final EntityIndex reducedIndex = target.getIndexByPrimaryKeyIfExists(storagePK);
-				if (reducedIndex != null) {
-					final Bitmap ownerPKs = reducedIndex.getAllPrimaryKeys();
+				// lenient - a partition the type index still advertises but the collection no longer holds is skipped
+				final ReferencePartition partition = target.resolvePartitionIfExists(storagePK);
+				if (partition != null) {
+					final Bitmap ownerPKs = partition.getAllPrimaryKeys();
 					if (!ownerPKs.isEmpty()) {
 						groups.add(new AffectedReferenceGroup(refEntityPK, null, ownerPKs));
 					}
@@ -2469,11 +2471,12 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		for (int refPK : allRefPKs) {
 			final int[] storagePKs = rtei.getAllReferenceIndexes(refPK);
 			for (int storagePK : storagePKs) {
-				final EntityIndex reducedIndex = target.getIndexByPrimaryKeyIfExists(storagePK);
-				if (reducedIndex == null) {
+				// lenient - a partition the type index still advertises but the collection no longer holds is skipped
+				final ReferencePartition partition = target.resolvePartitionIfExists(storagePK);
+				if (partition == null) {
 					continue;
 				}
-				final Bitmap ownerPKs = reducedIndex.getAllPrimaryKeys();
+				final Bitmap ownerPKs = partition.getAllPrimaryKeys();
 				if (!ownerPKs.isEmpty()) {
 					// Intersect the reduced index's owner PKs with the hierarchy children bitmap;
 					// only owners that are actually children of the mutated parent are relevant.

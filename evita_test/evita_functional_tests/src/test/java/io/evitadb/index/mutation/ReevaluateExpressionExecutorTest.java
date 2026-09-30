@@ -886,6 +886,54 @@ class ReevaluateExpressionExecutorTest {
 		}
 
 		@Test
+		@DisplayName("skips a partition the type index advertises but the collection no longer holds")
+		void shouldSkipStalePartitionPrimaryKeyWhenResolvingUngroupedOwners() {
+			final FilterBy triggerFilter = new FilterBy(
+				new ReferenceHaving(
+					REFERENCE_NAME,
+					new EntityHaving(
+						new AttributeEquals("isActive", true)
+					)
+				)
+			);
+			final StubFacetTrigger facetTrigger = new StubFacetTrigger(
+				REFERENCE_NAME, triggerFilter, DependencyType.REFERENCED_ENTITY_ATTRIBUTE
+			);
+			final AffectedReferenceGroup group = new AffectedReferenceGroup(
+				3, null, new BaseBitmap(100)
+			);
+			final TestTarget testTarget = createTestTargetUngrouped(
+				group, ReferenceIndexType.FOR_FILTERING
+			);
+			final IndexMutationTarget target = testTarget.target();
+			// the type index also advertises a partition primary key the collection does not hold (a stale
+			// selector) - the by-primary-key lookup answers null for it
+			final ReferencedTypeEntityIndex rtei = (ReferencedTypeEntityIndex) target.getIndexIfExists(
+				new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, REFERENCE_NAME)
+			);
+			final int stalePartitionPk = nextStoragePk();
+			rtei.insertPrimaryKeyIfMissing(stalePartitionPk, 3);
+			assertNull(target.getIndexByPrimaryKeyIfExists(stalePartitionPk));
+
+			final ReevaluateExpressionMutation mutation = ReevaluateExpressionMutation.withoutOldValues(
+				REFERENCE_NAME, 3, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE
+			);
+			when(target.evaluateFilter(any(FilterBy.class), eq(Scope.LIVE)))
+				.thenReturn(new BaseBitmap(100));
+			when(target.getFacetTrigger(REFERENCE_NAME, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE))
+				.thenReturn(facetTrigger);
+			when(target.getHistogramTriggers(REFERENCE_NAME, Scope.LIVE))
+				.thenReturn(Collections.emptyList());
+
+			// Act - must neither throw nor lose the owners of the partition that does exist
+			assertDoesNotThrow(() -> ReevaluateExpressionExecutorTest.this.executor.execute(mutation, target));
+
+			// the resolution still found owner 100 through the live partition, so the trigger was evaluated
+			verify(target, times(1)).evaluateFilter(any(), any());
+			verify(target).resolvePartitionIfExists(stalePartitionPk);
+		}
+
+		@Test
 		@DisplayName("skips processing when no facet or histogram triggers exist")
 		void shouldSkipProcessingWhenNoTriggersExist() {
 			final AffectedReferenceGroup group = new AffectedReferenceGroup(
@@ -1358,6 +1406,21 @@ class ReevaluateExpressionExecutorTest {
 	// -- target factory methods --
 
 	/**
+	 * Creates the mock {@link IndexMutationTarget} every factory below starts from. The partition resolver is a
+	 * default method of the interface built on the stubbed by-primary-key lookup, so the mock runs the real one -
+	 * stubbing it separately would let the two disagree.
+	 *
+	 * @return the mock target
+	 */
+	@Nonnull
+	private static IndexMutationTarget mockTarget() {
+		final IndexMutationTarget target = mock(IndexMutationTarget.class);
+		when(target.resolvePartitionIfExists(anyInt())).thenCallRealMethod();
+		return target;
+	}
+
+
+	/**
 	 * Creates a mock {@link IndexMutationTarget} backed by real indexes and schemas for grouped
 	 * references. The target's `evaluateFilter`, `getFacetTrigger`, and `getHistogramTriggers`
 	 * remain as mock stubs for per-test configuration.
@@ -1371,7 +1434,7 @@ class ReevaluateExpressionExecutorTest {
 		@Nonnull AffectedEntityResolution affected,
 		@Nonnull ReferenceIndexType indexType
 	) {
-		final IndexMutationTarget target = mock(IndexMutationTarget.class);
+		final IndexMutationTarget target = mockTarget();
 
 		final ReferenceSchema refSchema = createRealReferenceSchema(indexType);
 		final EntitySchema entitySchema = createRealEntitySchema(refSchema);
@@ -1404,7 +1467,7 @@ class ReevaluateExpressionExecutorTest {
 		@Nonnull AffectedReferenceGroup group,
 		@Nonnull ReferenceIndexType indexType
 	) {
-		final IndexMutationTarget target = mock(IndexMutationTarget.class);
+		final IndexMutationTarget target = mockTarget();
 
 		final ReferenceSchema refSchema = createRealReferenceSchema(indexType);
 		final EntitySchema entitySchema = createRealEntitySchema(refSchema);
@@ -1453,7 +1516,7 @@ class ReevaluateExpressionExecutorTest {
 		@Nonnull AffectedReferenceGroup group,
 		@Nonnull ReferenceIndexType indexType
 	) {
-		final IndexMutationTarget target = mock(IndexMutationTarget.class);
+		final IndexMutationTarget target = mockTarget();
 
 		// Schema WITHOUT a group type
 		final ReferenceSchema refSchema = createRealReferenceSchemaUngrouped(indexType);

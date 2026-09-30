@@ -1924,16 +1924,43 @@ public final class EntityCollection implements
 					if (typedTypeIndex == null) {
 						continue;
 					}
-					typedTypeIndex.forEachReferenceIndexPrimaryKey(
-						reducedIndexPk -> registerReducedIndex(membership, reducedIndexPk)
-					);
+					if (family == EntityIndexType.REFERENCED_ENTITY_TYPE) {
+						typedTypeIndex.forEachReferenceIndexPrimaryKey(
+							partitionPk -> registerPartition(membership, partitionPk)
+						);
+					} else {
+						typedTypeIndex.forEachReferenceIndexPrimaryKey(
+							reducedIndexPk -> registerReducedIndex(membership, reducedIndexPk)
+						);
+					}
 				}
 			}
 		}
 	}
 
 	/**
-	 * Registers one reduced index into the membership lookup.
+	 * Registers one reference partition into the membership lookup - the entity-family counterpart of
+	 * {@link #registerReducedIndex(ReducedIndexMembership, int)}, whose reasoning applies unchanged: a partition
+	 * advertised but not resolvable is recorded as residual, a repeat surfaces as a programming error.
+	 *
+	 * @param membership  the lookup being built
+	 * @param partitionPk primary key of the advertised partition
+	 */
+	private void registerPartition(
+		@Nonnull ReducedIndexMembership membership,
+		int partitionPk
+	) {
+		final ReferencePartition partition = resolvePartitionIfExists(partitionPk);
+		if (partition == null) {
+			// advertised but not resolvable - see `registerReducedIndex`
+			membership.registerIndexAsResidual(partitionPk);
+			return;
+		}
+		membership.registerIndex(partitionPk, partition.getAllPrimaryKeys());
+	}
+
+	/**
+	 * Registers one reduced index of the group family into the membership lookup.
 	 *
 	 * The traversal cannot in fact advertise a primary key twice. A reduced index is filed in its type index
 	 * under exactly one referenced (or group) primary key — `ReferenceIndexMutator#referenceInsertPerComponent`

@@ -33,6 +33,8 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.IndexProvider;
+import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
 
@@ -130,5 +132,18 @@ public interface IndexMutationTarget extends IndexProvider<EntityIndexKey, Entit
 	 */
 	@Nonnull
 	Set<Locale> getEntitySchemaLocales(@Nonnull String entityType);
+
+	/**
+	 * Returns the reference partition of this collection registered under the primary key, leniently - see
+	 * {@link ReferencePartitions}. Cross-entity maintenance reads primary keys a type index advertises and must
+	 * tolerate one that no longer resolves: such a key names nothing it could act on.
+	 *
+	 * @param partitionPrimaryKey primary key of the partition in this collection
+	 * @return the partition or `null` when the key names nothing or an index that is not a reference partition
+	 */
+	@Nullable
+	default ReferencePartition resolvePartitionIfExists(int partitionPrimaryKey) {
+		return ReferencePartitions.asPartition(getIndexByPrimaryKeyIfExists(partitionPrimaryKey));
+	}
 
 }

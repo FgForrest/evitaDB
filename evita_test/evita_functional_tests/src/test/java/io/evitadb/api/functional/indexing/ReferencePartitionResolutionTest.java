@@ -28,6 +28,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
@@ -449,6 +450,49 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 			collectionOf(ENTITY_PRODUCT).resolvePartitionIfExists(
 				Scope.LIVE, new RepresentativeReferenceKey(new ReferenceKey(REF_CATEGORIES, CATEGORY_PK))
 			)
+		);
+	}
+
+	/**
+	 * A category created in the same session as a product that already references it must receive the reflected
+	 * reference: its propagation reads the product collection's partition of that category, which the product's
+	 * upsert created moments earlier and which is neither committed (`ALIVE`) nor flushed (`WARMING_UP`) yet. The
+	 * read goes through the product collection's data store reader; a read of committed state only would find no
+	 * partition and create no reflected reference.
+	 *
+	 * @param state catalog state the scenario runs in
+	 */
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName("propagates reflected references from partitions created earlier in the same session")
+	void shouldPropagateReflectedReferencesFromPartitionsCreatedEarlierInSameSession(@Nonnull CatalogState state) {
+		prepare(state);
+		final int ownerPk = 5;
+		final int newCategoryPk = 3;
+		final RepresentativeReferenceKey categoryKey = new RepresentativeReferenceKey(
+			new ReferenceKey(REF_CATEGORIES, newCategoryPk)
+		);
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			(Consumer<EvitaSessionContract>) session -> {
+				assertNull(collectionOf(ENTITY_PRODUCT).resolvePartitionIfExists(Scope.LIVE, categoryKey));
+				// the product references a category that does not exist yet
+				session.createNewEntity(ENTITY_PRODUCT, ownerPk)
+					.setReference(REF_CATEGORIES, newCategoryPk)
+					.upsertVia(session);
+				// the premise: the product's partition of the category exists in-flight only
+				assertNotNull(collectionOf(ENTITY_PRODUCT).resolvePartitionIfExists(Scope.LIVE, categoryKey));
+
+				// creating the category propagates the reflected reference from that partition
+				session.createNewEntity(ENTITY_CATEGORY, newCategoryPk).upsertVia(session);
+				final SealedEntity category = session.getEntity(ENTITY_CATEGORY, newCategoryPk, entityFetchAllContent())
+					.orElseThrow();
+				assertEquals(
+					1, category.getReferences(REF_PRODUCTS).size(),
+					"the reflected reference was not propagated from the partition created earlier in the session"
+				);
+				assertEquals(ownerPk, category.getReferences(REF_PRODUCTS).iterator().next().getReferencedPrimaryKey());
+			}
 		);
 	}
 

@@ -3196,21 +3196,22 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					if (reference != null) {
 						final Integer groupPK = extractActiveGroupPrimaryKey(reference);
 						if (groupPK != null) {
-							final List<ReducedGroupEntityIndex> groupReducedIndexes =
-								ContainerizedLocalMutationExecutor.getAllReducedIndexes(
-									eik -> ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(this, eik),
-									eik -> (ReducedGroupEntityIndex) getOrCreateIndex(eik),
-									epk -> getIndexByPrimaryKey(epk).map(ReducedGroupEntityIndex.class::cast)
-										.orElse(null),
-									scope,
-									theReferenceSchema.getName(),
-									groupPK,
-									// always use type index path to locate all reduced group indexes for a given group PK
-									true,
-									EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE,
-									EntityIndexType.REFERENCED_GROUP_ENTITY
+							// always use type index path to locate all reduced group indexes for a given group PK -
+							// one group is shared by many references, so the group key alone would find only one
+							final ReferencedTypeEntityIndex groupTypeIndex =
+								ReferenceIndexMutator.getOrCreateReferencedGroupTypeEntityIndex(
+									this, theReferenceSchema.getName(), scope
 								);
-							for (AbstractReducedEntityIndex groupIndex : groupReducedIndexes) {
+							final int[] groupIndexPrimaryKeys = groupTypeIndex.getAllReferenceIndexes(groupPK);
+							// every group index is acquired for writing before the first consumer runs
+							final List<ReducedGroupEntityIndex> groupReducedIndexes =
+								new ArrayList<>(groupIndexPrimaryKeys.length);
+							for (final int groupIndexPrimaryKey : groupIndexPrimaryKeys) {
+								getIndexByPrimaryKey(groupIndexPrimaryKey)
+									.map(ReducedGroupEntityIndex.class::cast)
+									.ifPresent(groupReducedIndexes::add);
+							}
+							for (ReducedGroupEntityIndex groupIndex : groupReducedIndexes) {
 								entityIndexConsumer.accept(theReferenceSchema, groupIndex);
 							}
 						}
