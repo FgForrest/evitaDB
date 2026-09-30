@@ -57,8 +57,10 @@ import io.evitadb.index.HistogramCapableEntityIndex;
 import io.evitadb.index.HistogramIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
+import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.facet.FacetGroupIndex;
 import io.evitadb.index.facet.FacetIdIndex;
 import io.evitadb.index.facet.FacetReferenceIndex;
@@ -332,10 +334,15 @@ public interface ReferenceIndexMutator {
 					referenceKey, referencePresenceExpected
 				);
 
-				final ReducedEntityIndex indexToUse = referenceKey.isKnownInternalPrimaryKey() ?
-					getOrCreateReferencedEntityIndex(executor, bothKeys.stored(), scope) :
-					getOrCreateReferencedEntityIndex(executor, bothKeys.current(), scope);
-				referenceIndexConsumer.accept(referenceSchema, indexToUse, indexToUse);
+				final ReferencePartition partition = executor.getOrCreatePartitionForWrite(
+					scope, referenceKey.isKnownInternalPrimaryKey() ? bothKeys.stored() : bothKeys.current()
+				);
+				// the fan-out consumers write through the generic index API, which only a materialized partition
+				// offers - every production caller fans out over references indexed for partitioning
+				switch (partition) {
+					case ReducedEntityIndex indexToUse ->
+						referenceIndexConsumer.accept(referenceSchema, indexToUse, indexToUse);
+				}
 			}
 		}
 	}
@@ -385,31 +392,6 @@ public interface ReferenceIndexMutator {
 				}
 			}
 		}
-	}
-
-	/**
-	 * Returns (or lazily creates) the {@link ReducedEntityIndex} of type {@link EntityIndexType#REFERENCED_ENTITY}
-	 * for the given reference key and scope.
-	 *
-	 * The index is keyed by the {@link RepresentativeReferenceKey} discriminator, which encodes both the referenced
-	 * entity type, the referenced entity primary key, and optional representative attribute values used for ordering.
-	 *
-	 * @param executor     the mutation executor that manages index lifecycle
-	 * @param referenceKey the representative key identifying the specific referenced entity instance
-	 * @param scope        the scope (e.g. live vs. archived) in which the index is maintained
-	 * @return the existing or newly created reduced entity index for the given reference
-	 */
-	@Nonnull
-	static ReducedEntityIndex getOrCreateReferencedEntityIndex(
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull RepresentativeReferenceKey referenceKey,
-		@Nonnull Scope scope
-	) {
-		final EntityIndexKey entityIndexKey = new EntityIndexKey(
-			EntityIndexType.REFERENCED_ENTITY, scope,
-			referenceKey
-		);
-		return (ReducedEntityIndex) executor.getOrCreateIndex(entityIndexKey);
 	}
 
 	/**
@@ -630,23 +612,24 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Propagates a single reference-attribute mutation into both the type-level index and the per-reference reduced
-	 * index.
+	 * Propagates a single reference-attribute mutation into both the type-level index and the reference partition
+	 * the reference belongs to.
 	 *
 	 * The attribute is looked up via the reference schema (not the entity schema), since reference attributes are
 	 * scoped to the reference, not to the owning entity. The method delegates to
 	 * {@link EntityIndexLocalMutationExecutor#updateAttribute(ReferenceSchemaContract, AttributeMutation,
 	 * AttributeAndCompoundSchemaProvider, ExistingAttributeValueSupplier, EntityIndex, EntityIndex, boolean, boolean)}
-	 * twice: once for the type index (keyed by the internal reduced-index primary key) and once for the reduced
-	 * entity index (keyed by the owning entity's primary key, or by the referenced entity's primary key when the
-	 * attribute type is {@link ReferencedEntityPredecessor}).
+	 * twice: once for the type index (keyed by the partition primary key) and once for the partition itself (keyed by
+	 * the owning entity's primary key, or by the referenced entity's primary key when the attribute type is
+	 * {@link ReferencedEntityPredecessor}). The type index half is written for every partition whatever its form; the
+	 * partition half is a dispatch over the partition's form.
 	 *
 	 * @param executor                 the mutation executor coordinating the index updates
 	 * @param attributeSupplierFactory factory for reading existing reference attribute values from storage
 	 * @param referenceTypeIndex       the type-level index receiving the attribute change (keyed by referenced PK)
-	 * @param indexForRemoval          the reduced index from which old attribute data is removed; typically the
-	 *                                 same object as `indexForUpsert` but passed separately for correct ordering
-	 * @param indexForUpsert           the reduced index into which updated attribute data is inserted
+	 * @param partitionForRemoval      the partition from which old attribute data is removed; typically the same
+	 *                                 partition as `partitionForUpsert` but passed separately for correct ordering
+	 * @param partitionForUpsert       the partition into which updated attribute data is inserted
 	 * @param referenceSchema          the schema describing the reference and its attributes
 	 * @param referenceKey             identifies the specific reference instance being updated
 	 * @param attributeMutation        the attribute-level mutation to apply (upsert, remove, or delta)
@@ -655,29 +638,121 @@ public interface ReferenceIndexMutator {
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ExistingDataSupplierFactory attributeSupplierFactory,
 		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
-		@Nonnull AbstractReducedEntityIndex indexForRemoval,
-		@Nonnull AbstractReducedEntityIndex indexForUpsert,
+		@Nonnull ReferencePartition partitionForRemoval,
+		@Nonnull ReferencePartition partitionForUpsert,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull AttributeMutation attributeMutation
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
-
 		// use different existing attribute value accessor - attributes needs to be looked up in ReferencesStoragePart
 		final ExistingAttributeValueSupplier existingValueAccessorFactory = attributeSupplierFactory
 			.getNormalizedReferenceAttributeValueSupplier(referenceKey);
-
 		// we access attributes and sortable compounds from the reference schema
 		final ReferenceSchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider =
-			new ReferenceSchemaAttributeAndCompoundSchemaProvider(
-				entitySchema, referenceSchema
-			);
+			new ReferenceSchemaAttributeAndCompoundSchemaProvider(entitySchema, referenceSchema);
 
+		// kind 1: the type index is keyed by partition primary keys
+		updateAttributeInTypeIndex(
+			executor, referenceTypeIndex,
+			partitionForRemoval.getPrimaryKey(), partitionForUpsert.getPrimaryKey(),
+			referenceSchema, attributeMutation, attributeSchemaProvider, existingValueAccessorFactory
+		);
+		// partition-local: the pair form - both partitions carry the same reference, before and after a migration
+		switch (partitionForRemoval) {
+			case ReducedEntityIndex indexForRemoval -> {
+				switch (partitionForUpsert) {
+					case ReducedEntityIndex indexForUpsert -> updateAttributeInReducedIndex(
+						executor, indexForRemoval, indexForUpsert,
+						referenceSchema, referenceKey, attributeMutation,
+						attributeSchemaProvider, existingValueAccessorFactory
+					);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Propagates a single reference-attribute mutation into both the group type-level index and the reduced group
+	 * entity indexes. The group family counterpart of
+	 * {@link #attributeUpdate(EntityIndexLocalMutationExecutor, ExistingDataSupplierFactory, ReferencedTypeEntityIndex,
+	 * ReferencePartition, ReferencePartition, ReferenceSchemaContract, ReferenceKey, AttributeMutation)}: on a group
+	 * index the reference-attribute filter index is keyed on the referenced entity primary key, mirroring the initial
+	 * population in `indexAllReferenceLevelAttributes`, so subsequent attribute updates follow the same keying rule.
+	 *
+	 * @param executor                 the mutation executor coordinating the index updates
+	 * @param attributeSupplierFactory factory for reading existing reference attribute values from storage
+	 * @param groupTypeIndex           the group type-level index receiving the attribute change
+	 * @param indexForRemoval          the group index from which old attribute data is removed
+	 * @param indexForUpsert           the group index into which updated attribute data is inserted
+	 * @param referenceSchema          the schema describing the reference and its attributes
+	 * @param referenceKey             identifies the specific reference instance being updated
+	 * @param attributeMutation        the attribute-level mutation to apply (upsert, remove, or delta)
+	 */
+	static void attributeUpdate(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ExistingDataSupplierFactory attributeSupplierFactory,
+		@Nonnull ReferencedTypeEntityIndex groupTypeIndex,
+		@Nonnull ReducedGroupEntityIndex indexForRemoval,
+		@Nonnull ReducedGroupEntityIndex indexForUpsert,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull AttributeMutation attributeMutation
+	) {
+		final EntitySchema entitySchema = executor.getEntitySchema();
+		// use different existing attribute value accessor - attributes needs to be looked up in ReferencesStoragePart
+		final ExistingAttributeValueSupplier existingValueAccessorFactory = attributeSupplierFactory
+			.getNormalizedReferenceAttributeValueSupplier(referenceKey);
+		// we access attributes and sortable compounds from the reference schema
+		final ReferenceSchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider =
+			new ReferenceSchemaAttributeAndCompoundSchemaProvider(entitySchema, referenceSchema);
+
+		updateAttributeInTypeIndex(
+			executor, groupTypeIndex,
+			indexForRemoval.getPrimaryKey(), indexForUpsert.getPrimaryKey(),
+			referenceSchema, attributeMutation, attributeSchemaProvider, existingValueAccessorFactory
+		);
+		// mirror the initial-population logic in `indexAllReferenceLevelAttributes`: on grouped
+		// reduced indexes the reference-attribute FilterIndex is keyed on the referenced entity PK,
+		// so subsequent attribute updates must follow the same keying rule
+		executor.executeWithDifferentPrimaryKeyToIndex(
+			(indexType, target) -> referenceKey.primaryKey(),
+			() -> updateAttributeInReducedIndex(
+				executor, indexForRemoval, indexForUpsert,
+				referenceSchema, referenceKey, attributeMutation,
+				attributeSchemaProvider, existingValueAccessorFactory
+			)
+		);
+	}
+
+	/**
+	 * Writes a reference-attribute mutation into a type-level index, where the records are the primary keys of the
+	 * reduced indexes (partitions or group indexes) the type index advertises.
+	 *
+	 * @param executor                     the mutation executor coordinating the index updates
+	 * @param referenceTypeIndex           the type-level index receiving the attribute change
+	 * @param primaryKeyForRemoval         primary key of the reduced index the old value belonged to
+	 * @param primaryKeyForUpsert          primary key of the reduced index the new value belongs to
+	 * @param referenceSchema              the schema describing the reference and its attributes
+	 * @param attributeMutation            the attribute-level mutation to apply
+	 * @param attributeSchemaProvider      provider of the reference's attribute and compound schemas
+	 * @param existingValueAccessorFactory supplier of the reference's existing attribute values
+	 */
+	private static void updateAttributeInTypeIndex(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
+		int primaryKeyForRemoval,
+		int primaryKeyForUpsert,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeMutation attributeMutation,
+		@Nonnull ReferenceSchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider,
+		@Nonnull ExistingAttributeValueSupplier existingValueAccessorFactory
+	) {
 		executor.executeWithDifferentPrimaryKeyToIndex(
 			(indexType, target) ->
 				switch (target) {
-					case EXISTING -> indexForRemoval.getPrimaryKey();
-					case NEW -> indexForUpsert.getPrimaryKey();
+					case EXISTING -> primaryKeyForRemoval;
+					case NEW -> primaryKeyForUpsert;
 				},
 			() -> executor.updateAttribute(
 				referenceSchema,
@@ -690,8 +765,33 @@ public interface ReferenceIndexMutator {
 				false
 			)
 		);
+	}
 
-		final Runnable applyToReducedIndex = () -> executeWithProperPrimaryKey(
+	/**
+	 * Writes a reference-attribute mutation into a pair of reduced indexes - the one the old value is removed from and
+	 * the one the new value is inserted into - keyed by the owning entity's primary key, or by the referenced
+	 * entity's primary key when the attribute type is {@link ReferencedEntityPredecessor}.
+	 *
+	 * @param executor                     the mutation executor coordinating the index updates
+	 * @param indexForRemoval              the reduced index the old value is removed from
+	 * @param indexForUpsert               the reduced index the new value is inserted into
+	 * @param referenceSchema              the schema describing the reference and its attributes
+	 * @param referenceKey                 identifies the specific reference instance being updated
+	 * @param attributeMutation            the attribute-level mutation to apply
+	 * @param attributeSchemaProvider      provider of the reference's attribute and compound schemas
+	 * @param existingValueAccessorFactory supplier of the reference's existing attribute values
+	 */
+	private static void updateAttributeInReducedIndex(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull AbstractReducedEntityIndex indexForRemoval,
+		@Nonnull AbstractReducedEntityIndex indexForUpsert,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull AttributeMutation attributeMutation,
+		@Nonnull ReferenceSchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider,
+		@Nonnull ExistingAttributeValueSupplier existingValueAccessorFactory
+	) {
+		executeWithProperPrimaryKey(
 			executor,
 			referenceKey.primaryKey(),
 			attributeMutation.getAttributeKey().attributeName(),
@@ -707,17 +807,6 @@ public interface ReferenceIndexMutator {
 				true
 			)
 		);
-		// mirror the initial-population logic in `indexAllReferenceLevelAttributes`: on grouped
-		// reduced indexes the reference-attribute FilterIndex is keyed on the referenced entity PK,
-		// so subsequent attribute updates must follow the same keying rule
-		if (indexForUpsert instanceof ReducedGroupEntityIndex
-			|| indexForRemoval instanceof ReducedGroupEntityIndex) {
-			executor.executeWithDifferentPrimaryKeyToIndex(
-				(indexType, target) -> referenceKey.primaryKey(), applyToReducedIndex
-			);
-		} else {
-			applyToReducedIndex.run();
-		}
 	}
 
 	/**
@@ -748,18 +837,19 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Performs per-component indexing for a reference insertion. This registers the PK mapping in
-	 * the type index, indexes reference attributes, populates the reduced index with entity data,
-	 * and adds the facet to the reduced index. Called once per indexed component (entity and/or group).
+	 * Performs the entity-component indexing of a reference insertion. This registers the partition's primary key in
+	 * the type index and indexes the reference attributes there (kind 1 - written for every partition, whatever its
+	 * form), adds the owner to the partition and populates it with the owner's data, records the membership boundary
+	 * and adds the facet to the partition.
 	 *
 	 * @param entityPrimaryKey            the primary key of the entity being indexed
 	 * @param entitySchema                the entity schema
 	 * @param referenceSchema             the schema of the reference being inserted
 	 * @param executor                    the mutation executor
-	 * @param referenceTypeIndex          the type-level index for this component
-	 * @param referenceIndex              the reduced entity index for this component
+	 * @param referenceTypeIndex          the `REFERENCED_ENTITY_TYPE` index of the reference
+	 * @param partition                   the partition the reference belongs to
 	 * @param referenceKey                the original reference key — used for facets and reference attribute lookup
-	 * @param referencedPrimaryKey        the target primary key for type index mapping (entity PK or group PK)
+	 * @param referencedPrimaryKey        the target primary key for type index mapping
 	 * @param groupId                     the group primary key, or null if not grouped
 	 * @param existingDataSupplierFactory factory to supply existing data needed for indexing
 	 */
@@ -769,15 +859,131 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
-		@Nonnull AbstractReducedEntityIndex referenceIndex,
+		@Nonnull ReferencePartition partition,
 		@Nonnull ReferenceKey referenceKey,
 		int referencedPrimaryKey,
 		@Nullable Integer groupId,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
+		advertiseInTypeIndex(
+			entitySchema, referenceSchema, executor, referenceTypeIndex, partition.getPrimaryKey(),
+			referenceKey, referencedPrimaryKey, existingDataSupplierFactory
+		);
+		// partition-local: the owner's row and the owner's data replicated into the partition
+		final boolean entityFirstIndexedInTargetIndex = switch (partition) {
+			case ReducedEntityIndex referenceIndex -> {
+				final boolean firstIndexed = referenceIndex.insertPrimaryKeyIfMissing(entityPrimaryKey);
+				// REI indexes are keyed per-reference so no duplicate refs can land here; always run the
+				// full entity-level + reference-level population when the entity is freshly inserted
+				if (firstIndexed) {
+					indexAllExistingData(
+						executor, referenceIndex,
+						entitySchema, referenceSchema,
+						referenceKey,
+						entityPrimaryKey,
+						true,
+						existingDataSupplierFactory
+					);
+				}
+				yield firstIndexed;
+			}
+		};
+		// the owner-membership boundary the cross-entity facet trigger's reverse lookup is maintained from -
+		// exactly the 0 -> 1 transition, for both index families, and for no other event
+		if (entityFirstIndexedInTargetIndex) {
+			recordOwnerEnteredReducedIndex(
+				executor, referenceSchema, partition.getPrimaryKey(), partition.getAllPrimaryKeys(), entityPrimaryKey
+			);
+		}
+		// add facet to the partition
+		addFacetToPartition(partition, referenceSchema, referenceKey, groupId, entityPrimaryKey, executor);
+	}
+
+	/**
+	 * Performs the group-component indexing of a reference insertion - the group family counterpart of
+	 * {@link #referenceInsertPerComponent(int, EntitySchema, ReferenceSchemaContract, EntityIndexLocalMutationExecutor,
+	 * ReferencedTypeEntityIndex, ReferencePartition, ReferenceKey, int, Integer, ExistingDataSupplierFactory)}.
+	 *
+	 * @param entityPrimaryKey            the primary key of the entity being indexed
+	 * @param entitySchema                the entity schema
+	 * @param referenceSchema             the schema of the reference being inserted
+	 * @param executor                    the mutation executor
+	 * @param groupTypeIndex              the `REFERENCED_GROUP_ENTITY_TYPE` index of the reference
+	 * @param groupIndex                  the reduced group entity index of the group
+	 * @param referenceKey                the original reference key — used for facets and reference attribute lookup
+	 * @param referencedPrimaryKey        the target primary key for type index mapping (the group PK)
+	 * @param groupId                     the group primary key, or null if not grouped
+	 * @param existingDataSupplierFactory factory to supply existing data needed for indexing
+	 */
+	static void referenceInsertPerComponent(
+		int entityPrimaryKey,
+		@Nonnull EntitySchema entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferencedTypeEntityIndex groupTypeIndex,
+		@Nonnull ReducedGroupEntityIndex groupIndex,
+		@Nonnull ReferenceKey referenceKey,
+		int referencedPrimaryKey,
+		@Nullable Integer groupId,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
+	) {
+		advertiseInTypeIndex(
+			entitySchema, referenceSchema, executor, groupTypeIndex, groupIndex.getPrimaryKey(),
+			referenceKey, referencedPrimaryKey, existingDataSupplierFactory
+		);
+		// group indexes need cardinality tracking — use two-arg version
+		// `entityFirstIndexedInTargetIndex` is true only when this insert causes the entity to
+		// enter this group reduced index for the first time (cardinality 0 -> 1); subsequent
+		// references contributing to the same group still need per-reference indexing (facets,
+		// reference attributes) but must skip entity-level data that was already populated
+		final boolean entityFirstIndexedInTargetIndex =
+			groupIndex.insertPrimaryKeyIfMissing(entityPrimaryKey, referenceKey.primaryKey())
+				== CardinalityChange.BOUNDARY_CROSSED;
+		indexAllExistingData(
+			executor, groupIndex,
+			entitySchema, referenceSchema,
+			referenceKey,
+			entityPrimaryKey,
+			entityFirstIndexedInTargetIndex,
+			existingDataSupplierFactory
+		);
+		// the owner-membership boundary - see the entity-family counterpart
+		if (entityFirstIndexedInTargetIndex) {
+			recordOwnerEnteredReducedIndex(
+				executor, referenceSchema, groupIndex.getPrimaryKey(), groupIndex.getAllPrimaryKeys(), entityPrimaryKey
+			);
+		}
+		// add facet to reduced index
+		addFacetToIndex(
+			groupIndex, referenceSchema, referenceKey, groupId, entityPrimaryKey, executor
+		);
+	}
+
+	/**
+	 * Registers a reduced index in the type index of its component and indexes the reference attributes there - the
+	 * kind-1 half of a reference insertion, written for the reduced index's primary key whatever the index's form.
+	 *
+	 * @param entitySchema                the entity schema
+	 * @param referenceSchema             the schema of the reference being inserted
+	 * @param executor                    the mutation executor
+	 * @param referenceTypeIndex          the type-level index of the component
+	 * @param reducedIndexPrimaryKey      primary key of the reduced index (partition or group index)
+	 * @param referenceKey                the original reference key — used for the reference attribute lookup
+	 * @param referencedPrimaryKey        the target primary key for type index mapping (entity PK or group PK)
+	 * @param existingDataSupplierFactory factory to supply existing data needed for indexing
+	 */
+	private static void advertiseInTypeIndex(
+		@Nonnull EntitySchema entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
+		int reducedIndexPrimaryKey,
+		@Nonnull ReferenceKey referenceKey,
+		int referencedPrimaryKey,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
+	) {
 		// register reduced index PK → referenced primary key mapping in the type index
-		final int pkForReferenceTypeIndex = referenceIndex.getPrimaryKey();
-		referenceTypeIndex.insertPrimaryKeyIfMissing(pkForReferenceTypeIndex, referencedPrimaryKey);
+		referenceTypeIndex.insertPrimaryKeyIfMissing(reducedIndexPrimaryKey, referencedPrimaryKey);
 
 		// we access attributes and sortable compounds from the reference schema
 		final ReferenceSchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider =
@@ -790,7 +996,7 @@ public interface ReferenceIndexMutator {
 			.getNormalizedReferenceAttributeValueSupplier(referenceKey);
 
 		executor.executeWithDifferentPrimaryKeyToIndex(
-			(indexType, target) -> pkForReferenceTypeIndex,
+			(indexType, target) -> reducedIndexPrimaryKey,
 			() -> referenceAttributeValueSupplier
 				.getAttributeValues()
 				.forEach(attributeValue -> AttributeIndexMutator.executeAttributeUpsert(
@@ -806,52 +1012,32 @@ public interface ReferenceIndexMutator {
 					false
 				))
 		);
+	}
 
-		// index entity primary key into the reduced index and populate with existing data
-		final boolean entityFirstIndexedInTargetIndex;
-		if (referenceIndex instanceof ReducedGroupEntityIndex rgei) {
-			// group indexes need cardinality tracking — use two-arg version
-			// `entityFirstIndexedInTargetIndex` is true only when this insert causes the entity to
-			// enter this group reduced index for the first time (cardinality 0 -> 1); subsequent
-			// references contributing to the same group still need per-reference indexing (facets,
-			// reference attributes) but must skip entity-level data that was already populated
-			entityFirstIndexedInTargetIndex =
-				rgei.insertPrimaryKeyIfMissing(entityPrimaryKey, referenceKey.primaryKey())
-					== CardinalityChange.BOUNDARY_CROSSED;
-			indexAllExistingData(
-				executor, referenceIndex,
-				entitySchema, referenceSchema,
-				referenceKey,
-				entityPrimaryKey,
-				entityFirstIndexedInTargetIndex,
-				existingDataSupplierFactory
+	/**
+	 * Adds the facet of a reference to the partition - see {@link #addFacetToIndex}, which keeps facets out of every
+	 * partition of a reference not indexed for partitioning.
+	 *
+	 * @param partition        the partition receiving the facet
+	 * @param referenceSchema  the schema of the partition's reference
+	 * @param referenceKey     identifies the specific referenced entity for the facet entry
+	 * @param groupId          the group primary key for this facet, or `null` if no group is assigned
+	 * @param entityPrimaryKey the primary key of the entity owning the reference
+	 * @param executor         the mutation executor
+	 */
+	static void addFacetToPartition(
+		@Nonnull ReferencePartition partition,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Integer groupId,
+		int entityPrimaryKey,
+		@Nonnull EntityIndexLocalMutationExecutor executor
+	) {
+		switch (partition) {
+			case ReducedEntityIndex referenceIndex -> addFacetToIndex(
+				referenceIndex, referenceSchema, referenceKey, groupId, entityPrimaryKey, executor
 			);
-		} else {
-			entityFirstIndexedInTargetIndex =
-				referenceIndex.insertPrimaryKeyIfMissing(entityPrimaryKey);
-			// REI indexes are keyed per-reference so no duplicate refs can land here; always run the
-			// full entity-level + reference-level population when the entity is freshly inserted
-			if (entityFirstIndexedInTargetIndex) {
-				indexAllExistingData(
-					executor, referenceIndex,
-					entitySchema, referenceSchema,
-					referenceKey,
-					entityPrimaryKey,
-					true,
-					existingDataSupplierFactory
-				);
-			}
 		}
-		// the owner-membership boundary the cross-entity facet trigger's reverse lookup is maintained from -
-		// exactly the 0 -> 1 transition, for both index families, and for no other event
-		if (entityFirstIndexedInTargetIndex) {
-			recordOwnerEnteredReducedIndex(executor, referenceSchema, referenceIndex, entityPrimaryKey);
-		}
-
-		// add facet to reduced index
-		addFacetToIndex(
-			referenceIndex, referenceSchema, referenceKey, groupId, entityPrimaryKey, executor
-		);
 	}
 
 	/**
@@ -868,7 +1054,7 @@ public interface ReferenceIndexMutator {
 	 * @param executor                    the mutation executor coordinating the index updates
 	 * @param entityIndex                 the global entity index to which the facet is registered once
 	 * @param referenceTypeIndex          the type-level index ({@link EntityIndexType#REFERENCED_ENTITY_TYPE})
-	 * @param referenceIndex              the per-reference reduced index ({@link EntityIndexType#REFERENCED_ENTITY})
+	 * @param referenceIndex              the partition the reference belongs to
 	 * @param referenceKey                identifies the specific referenced entity
 	 * @param groupId                     the group primary key to associate with the facet, or `null` if not grouped
 	 * @param existingDataSupplierFactory factory for reading existing entity data to populate the reduced index
@@ -880,7 +1066,7 @@ public interface ReferenceIndexMutator {
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
-		@Nonnull AbstractReducedEntityIndex referenceIndex,
+		@Nonnull ReferencePartition referenceIndex,
 		@Nonnull ReferenceKey referenceKey,
 		@Nullable Integer groupId,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
@@ -923,17 +1109,18 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Performs per-component removal from the type index and reduced index. Called once per indexed
-	 * component (entity and/or group).
+	 * Performs the entity-component removal of a reference: un-advertises the partition in the type index and removes
+	 * the reference attributes there (kind 1), removes the owner and its data from the partition, and records the
+	 * membership boundary.
 	 *
 	 * @param entityPrimaryKey            the primary key of the entity being removed
 	 * @param entitySchema                the entity schema
 	 * @param referenceSchema             the schema of the reference being removed
 	 * @param executor                    the mutation executor
-	 * @param referenceTypeIndex          the type-level index for this component
-	 * @param referenceIndex              the reduced entity index for this component
+	 * @param referenceTypeIndex          the `REFERENCED_ENTITY_TYPE` index of the reference
+	 * @param partition                   the partition the reference belongs to
 	 * @param referenceKey                the original reference key — for attribute lookup
-	 * @param referencedPrimaryKey        the target primary key for type index mapping (entity PK or group PK)
+	 * @param referencedPrimaryKey        the target primary key for type index mapping
 	 * @param existingDataSupplierFactory factory to supply existing data
 	 */
 	static void referenceRemovalPerComponent(
@@ -942,7 +1129,113 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
-		@Nonnull AbstractReducedEntityIndex referenceIndex,
+		@Nonnull ReferencePartition partition,
+		@Nonnull ReferenceKey referenceKey,
+		int referencedPrimaryKey,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
+	) {
+		unadvertiseFromTypeIndex(
+			entitySchema, referenceSchema, executor, referenceTypeIndex, partition.getPrimaryKey(),
+			referenceKey, referencedPrimaryKey, existingDataSupplierFactory
+		);
+		// partition-local: the owner's row and the owner's data replicated into the partition
+		final boolean entityFullyRemovedFromTargetIndex = switch (partition) {
+			case ReducedEntityIndex referenceIndex -> {
+				final boolean removed = referenceIndex.removePrimaryKey(entityPrimaryKey);
+				if (removed) {
+					removeAllExistingData(
+						executor, referenceIndex,
+						entitySchema, referenceSchema,
+						referenceKey,
+						entityPrimaryKey,
+						true,
+						existingDataSupplierFactory
+					);
+				}
+				yield removed;
+			}
+		};
+		// the symmetric 1 -> 0 boundary; see the insert counterpart
+		if (entityFullyRemovedFromTargetIndex) {
+			recordOwnerLeftReducedIndex(
+				executor, referenceSchema, partition.getPrimaryKey(), partition.getAllPrimaryKeys(), entityPrimaryKey
+			);
+		}
+	}
+
+	/**
+	 * Performs the group-component removal of a reference - the group family counterpart of
+	 * {@link #referenceRemovalPerComponent(int, EntitySchema, ReferenceSchemaContract, EntityIndexLocalMutationExecutor,
+	 * ReferencedTypeEntityIndex, ReferencePartition, ReferenceKey, int, ExistingDataSupplierFactory)}.
+	 *
+	 * @param entityPrimaryKey            the primary key of the entity being removed
+	 * @param entitySchema                the entity schema
+	 * @param referenceSchema             the schema of the reference being removed
+	 * @param executor                    the mutation executor
+	 * @param groupTypeIndex              the `REFERENCED_GROUP_ENTITY_TYPE` index of the reference
+	 * @param groupIndex                  the reduced group entity index of the group
+	 * @param referenceKey                the original reference key — for attribute lookup
+	 * @param referencedPrimaryKey        the target primary key for type index mapping (the group PK)
+	 * @param existingDataSupplierFactory factory to supply existing data
+	 */
+	static void referenceRemovalPerComponent(
+		int entityPrimaryKey,
+		@Nonnull EntitySchema entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferencedTypeEntityIndex groupTypeIndex,
+		@Nonnull ReducedGroupEntityIndex groupIndex,
+		@Nonnull ReferenceKey referenceKey,
+		int referencedPrimaryKey,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
+	) {
+		unadvertiseFromTypeIndex(
+			entitySchema, referenceSchema, executor, groupTypeIndex, groupIndex.getPrimaryKey(),
+			referenceKey, referencedPrimaryKey, existingDataSupplierFactory
+		);
+		// group indexes need cardinality tracking — use two-arg version
+		// `entityFullyRemovedFromTargetIndex` is true only when this removal causes the entity
+		// to leave this group reduced index entirely (cardinality 1 -> 0); earlier removals on
+		// the same (entity, RGEI) pair still need per-reference cleanup (facets, reference
+		// attributes) but must skip entity-level data that other references still rely on
+		final boolean entityFullyRemovedFromTargetIndex =
+			groupIndex.removePrimaryKey(entityPrimaryKey, referenceKey.primaryKey())
+				== CardinalityChange.BOUNDARY_CROSSED;
+		removeAllExistingData(
+			executor, groupIndex,
+			entitySchema, referenceSchema,
+			referenceKey,
+			entityPrimaryKey,
+			entityFullyRemovedFromTargetIndex,
+			existingDataSupplierFactory
+		);
+		// the symmetric 1 -> 0 boundary; see the insert counterpart
+		if (entityFullyRemovedFromTargetIndex) {
+			recordOwnerLeftReducedIndex(
+				executor, referenceSchema, groupIndex.getPrimaryKey(), groupIndex.getAllPrimaryKeys(), entityPrimaryKey
+			);
+		}
+	}
+
+	/**
+	 * Un-advertises a reduced index in the type index of its component and removes the reference attributes there -
+	 * the kind-1 half of a reference removal, written for the reduced index's primary key whatever the index's form.
+	 *
+	 * @param entitySchema                the entity schema
+	 * @param referenceSchema             the schema of the reference being removed
+	 * @param executor                    the mutation executor
+	 * @param referenceTypeIndex          the type-level index of the component
+	 * @param reducedIndexPrimaryKey      primary key of the reduced index (partition or group index)
+	 * @param referenceKey                the original reference key — for attribute lookup
+	 * @param referencedPrimaryKey        the target primary key for type index mapping (entity PK or group PK)
+	 * @param existingDataSupplierFactory factory to supply existing data
+	 */
+	private static void unadvertiseFromTypeIndex(
+		@Nonnull EntitySchema entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
+		int reducedIndexPrimaryKey,
 		@Nonnull ReferenceKey referenceKey,
 		int referencedPrimaryKey,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
@@ -953,8 +1246,7 @@ public interface ReferenceIndexMutator {
 		// synchronous step in which the membership map forgets it below, so `covered ∪ residual == advertised`
 		// holds across the removal. Deferring or conditioning this un-advertise would leave an advertised index
 		// in neither of that map's sets - a reduced index the cross-entity facet trigger then never visits.
-		final int pkForReferenceTypeIndex = referenceIndex.getPrimaryKey();
-		referenceTypeIndex.removePrimaryKey(pkForReferenceTypeIndex, referencedPrimaryKey);
+		referenceTypeIndex.removePrimaryKey(reducedIndexPrimaryKey, referencedPrimaryKey);
 
 		// we access attributes and sortable compounds from the reference schema
 		final ReferenceSchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider =
@@ -966,7 +1258,7 @@ public interface ReferenceIndexMutator {
 		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory
 			.getNormalizedReferenceAttributeValueSupplier(referenceKey);
 		executor.executeWithDifferentPrimaryKeyToIndex(
-			(indexType, target) -> pkForReferenceTypeIndex,
+			(indexType, target) -> reducedIndexPrimaryKey,
 			() -> referenceAttributeValueSupplier
 				.getAttributeValues()
 				.forEach(attributeValue -> AttributeIndexMutator.executeAttributeRemoval(
@@ -981,44 +1273,6 @@ public interface ReferenceIndexMutator {
 					false
 				))
 		);
-
-		// remove entity primary key from the reduced index
-		final boolean entityFullyRemovedFromTargetIndex;
-		if (referenceIndex instanceof ReducedGroupEntityIndex rgei) {
-			// group indexes need cardinality tracking — use two-arg version
-			// `entityFullyRemovedFromTargetIndex` is true only when this removal causes the entity
-			// to leave this group reduced index entirely (cardinality 1 -> 0); earlier removals on
-			// the same (entity, RGEI) pair still need per-reference cleanup (facets, reference
-			// attributes) but must skip entity-level data that other references still rely on
-			entityFullyRemovedFromTargetIndex =
-				rgei.removePrimaryKey(entityPrimaryKey, referenceKey.primaryKey())
-					== CardinalityChange.BOUNDARY_CROSSED;
-			removeAllExistingData(
-				executor, referenceIndex,
-				entitySchema, referenceSchema,
-				referenceKey,
-				entityPrimaryKey,
-				entityFullyRemovedFromTargetIndex,
-				existingDataSupplierFactory
-			);
-		} else {
-			entityFullyRemovedFromTargetIndex =
-				referenceIndex.removePrimaryKey(entityPrimaryKey);
-			if (entityFullyRemovedFromTargetIndex) {
-				removeAllExistingData(
-					executor, referenceIndex,
-					entitySchema, referenceSchema,
-					referenceKey,
-					entityPrimaryKey,
-					true,
-					existingDataSupplierFactory
-				);
-			}
-		}
-		// the symmetric 1 -> 0 boundary; see the insert counterpart
-		if (entityFullyRemovedFromTargetIndex) {
-			recordOwnerLeftReducedIndex(executor, referenceSchema, referenceIndex, entityPrimaryKey);
-		}
 	}
 
 	/**
@@ -1286,15 +1540,20 @@ public interface ReferenceIndexMutator {
 	 * write path free of that removal is deliberate: it costs a lookup per reference write, and a structural
 	 * removal from a transactional map is work worth confining to a rare, discrete event.
 	 *
-	 * @param executor          the mutation executor, which owns the global index the lookup hangs off
-	 * @param referenceSchema   schema of the reference whose reduced index was joined
-	 * @param referenceIndex    the reduced index the owner entered
-	 * @param entityPrimaryKey  primary key of the owner entity
+	 * The boundary is kind-1 state: it is described by the reduced index's primary key and owners alone, never by the
+	 * index object, so it applies to a partition whatever its form and to the group family alike.
+	 *
+	 * @param executor               the mutation executor, which owns the global index the lookup hangs off
+	 * @param referenceSchema        schema of the reference whose reduced index was joined
+	 * @param reducedIndexPrimaryKey primary key of the reduced index the owner entered
+	 * @param reducedIndexOwners     the owners of that reduced index, the owner included
+	 * @param entityPrimaryKey       primary key of the owner entity
 	 */
 	private static void recordOwnerEnteredReducedIndex(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull AbstractReducedEntityIndex referenceIndex,
+		int reducedIndexPrimaryKey,
+		@Nonnull Bitmap reducedIndexOwners,
 		int entityPrimaryKey
 	) {
 		final Scope scope = executor.getScope();
@@ -1308,9 +1567,7 @@ public interface ReferenceIndexMutator {
 			membership = globalIndex.getOrCreateReducedIndexMembership(referenceSchema.getName());
 			seedFromAdvertisedIndexes(executor, referenceSchema, scope, membership);
 		}
-		membership.ownerAdded(
-			referenceIndex.getPrimaryKey(), entityPrimaryKey, referenceIndex.getAllPrimaryKeys()
-		);
+		membership.ownerAdded(reducedIndexPrimaryKey, entityPrimaryKey, reducedIndexOwners);
 	}
 
 	/**
@@ -1432,15 +1689,17 @@ public interface ReferenceIndexMutator {
 	 * {@link #recordOwnerEnteredReducedIndex}; see that method for which references are maintained, and where a
 	 * lookup that maintenance has stopped following is dropped instead.
 	 *
-	 * @param executor          the mutation executor, which owns the global index the lookup hangs off
-	 * @param referenceSchema   schema of the reference whose reduced index was left
-	 * @param referenceIndex    the reduced index the owner left
-	 * @param entityPrimaryKey  primary key of the owner entity
+	 * @param executor               the mutation executor, which owns the global index the lookup hangs off
+	 * @param referenceSchema        schema of the reference whose reduced index was left
+	 * @param reducedIndexPrimaryKey primary key of the reduced index the owner left
+	 * @param reducedIndexOwners     the owners of that reduced index, the owner no longer among them
+	 * @param entityPrimaryKey       primary key of the owner entity
 	 */
 	private static void recordOwnerLeftReducedIndex(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull AbstractReducedEntityIndex referenceIndex,
+		int reducedIndexPrimaryKey,
+		@Nonnull Bitmap reducedIndexOwners,
 		int entityPrimaryKey
 	) {
 		final Scope scope = executor.getScope();
@@ -1464,9 +1723,7 @@ public interface ReferenceIndexMutator {
 			() -> "The reduced-index membership lookup of `" + referenceSchema.getName() +
 				"` disappeared between the probe and the registration."
 		);
-		membership.ownerRemoved(
-			referenceIndex.getPrimaryKey(), entityPrimaryKey, referenceIndex.getAllPrimaryKeys()
-		);
+		membership.ownerRemoved(reducedIndexPrimaryKey, entityPrimaryKey, reducedIndexOwners);
 	}
 
 	/**

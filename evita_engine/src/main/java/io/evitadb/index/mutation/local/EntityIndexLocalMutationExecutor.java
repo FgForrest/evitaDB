@@ -512,7 +512,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * `ReferenceIndexMutator.forEachReferenceIndex` so the handler call site spells out the
 	 * `IterationPath` exactly once and never reaches into the static method directly.
 	 *
-	 * @param indexType                 minimum reference-index level required for a reference to qualify
+	 * @param indexType                 minimum reference-index level required for a reference to qualify; must be
+	 *                                  {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}
 	 * @param consumer                  callback invoked for each qualifying reference
 	 * @param referencePredicate        additional predicate applied after the schema-level filter
 	 * @param referencePresenceExpected whether the referenced/group primary key is expected to be
@@ -526,6 +527,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		boolean referencePresenceExpected,
 		@Nonnull ReferenceIndexMutator.IterationPath path
 	) {
+		// every handler fans out into the reduced indexes of references indexed for partitioning only - the
+		// partitions of a reference indexed for filtering must never reach the generic write consumers
+		Assert.isPremiseValid(
+			indexType == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+			() -> "Fan-out below FOR_FILTERING_AND_PARTITIONING is not supported, got `" + indexType + "`!"
+		);
 		ReferenceIndexMutator.forEachReferenceIndex(
 			indexType, this, consumer, referencePredicate, referencePresenceExpected, path
 		);
@@ -537,7 +544,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * locale tracking. Thin wrapper around `ReferenceIndexMutator.forEachUniqueReferenceIndex`
 	 * with explicit `IterationPath` at the call site.
 	 *
-	 * @param indexType                 minimum reference-index level required for a reference to qualify
+	 * @param indexType                 minimum reference-index level required for a reference to qualify; must be
+	 *                                  {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}
 	 * @param consumer                  callback invoked at most once per unique target index
 	 * @param referencePredicate        additional predicate applied after the schema-level filter
 	 * @param referencePresenceExpected whether the referenced/group primary key is expected to be
@@ -551,6 +559,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		boolean referencePresenceExpected,
 		@Nonnull ReferenceIndexMutator.IterationPath path
 	) {
+		// every handler fans out into the reduced indexes of references indexed for partitioning only - the
+		// partitions of a reference indexed for filtering must never reach the generic write consumers
+		Assert.isPremiseValid(
+			indexType == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+			() -> "Fan-out below FOR_FILTERING_AND_PARTITIONING is not supported, got `" + indexType + "`!"
+		);
 		ReferenceIndexMutator.forEachUniqueReferenceIndex(
 			indexType, this, consumer, referencePredicate, referencePresenceExpected, path
 		);
@@ -1612,21 +1626,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Returns the existing entity index by its storage primary key, or `null` if not found.
-	 * Used for resolving reduced indexes from their internal primary key without creating new indexes.
-	 *
-	 * @param indexPrimaryKey the storage primary key of the index
-	 * @return the existing index, or `null` if no index with the given PK exists
-	 */
-	@Nullable
-	EntityIndex getEntityIndexByPrimaryKeyIfExists(int indexPrimaryKey) {
-		return this.entityIndexCreatingAccessor.getIndexByPrimaryKeyIfExists(indexPrimaryKey);
-	}
-
-	/**
 	 * Returns the existing entity index by its storage primary key and registers it for modification tracking
 	 * so that its changed storage parts are persisted on flush. Returns `null` if no index with the given PK exists.
-	 * Use this method instead of {@link #getEntityIndexByPrimaryKeyIfExists(int)} when the caller intends to
+	 * Use this method instead of a plain read by primary key when the caller intends to
 	 * mutate the returned index (e.g. inserting/removing histogram values).
 	 *
 	 * @param indexPrimaryKey the storage primary key of the index
@@ -2229,7 +2231,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				ReferenceIndexMutator.getOrCreateReferencedGroupTypeEntityIndex(
 					this, rrk.referenceName(), scope
 				);
-			final AbstractReducedEntityIndex groupIndex = ReferenceIndexMutator.getOrCreateReferencedGroupEntityIndex(
+			final ReducedGroupEntityIndex groupIndex = ReferenceIndexMutator.getOrCreateReferencedGroupEntityIndex(
 				this, rrk, groupPK, scope
 			);
 			ReferenceIndexMutator.referenceRemovalPerComponent(
@@ -2268,7 +2270,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			ReferenceIndexMutator.getOrCreateReferencedGroupTypeEntityIndex(
 				this, rrk.referenceName(), scope
 			);
-		final AbstractReducedEntityIndex groupIndex =
+		final ReducedGroupEntityIndex groupIndex =
 			ReferenceIndexMutator.getOrCreateReferencedGroupEntityIndex(
 				this, rrk, groupPK, scope
 			);
@@ -2335,14 +2337,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 							ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
 								this, referenceKey.referenceName(), scope
 							);
-						final ReducedEntityIndex formerReferenceIndex =
-							ReferenceIndexMutator.getOrCreateReferencedEntityIndex(
-								this, bothKeys.stored(), scope
-							);
-						final ReducedEntityIndex newReferenceIndex =
-							ReferenceIndexMutator.getOrCreateReferencedEntityIndex(
-								this, bothKeys.current(), scope
-							);
+						final ReferencePartition formerReferenceIndex =
+							getOrCreatePartitionForWrite(scope, bothKeys.stored());
+						final ReferencePartition newReferenceIndex =
+							getOrCreatePartitionForWrite(scope, bothKeys.current());
 						ReferenceIndexMutator.referenceRemovalPerComponent(
 							entityPrimaryKey, entitySchema, referenceSchema, this,
 							referenceTypeIndex, formerReferenceIndex, referenceKey,
@@ -2790,8 +2788,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 							ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
 								this, referenceKey.referenceName(), scope
 							);
-						final ReducedEntityIndex mainReferenceIndex =
-							ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
+						final ReferencePartition mainReferenceIndex = getOrCreatePartitionForWrite(scope, rrk);
 						ReferenceIndexMutator.referenceRemovalPerComponent(
 							epk, entitySchema, referenceSchema, this,
 							referenceTypeIndex, mainReferenceIndex, referenceKey,
@@ -3113,10 +3110,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 							ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
 								this, rrk.referenceName(), scope
 							);
-						final ReducedEntityIndex mainReferenceIndex =
-							ReferenceIndexMutator.getOrCreateReferencedEntityIndex(
-								this, rrk, scope
-							);
+						final ReferencePartition mainReferenceIndex = getOrCreatePartitionForWrite(scope, rrk);
 						ReferenceIndexMutator.referenceInsertPerComponent(
 							epk, entitySchema, referenceSchema, this,
 							referenceTypeIndex, mainReferenceIndex, referenceKey,
@@ -3129,7 +3123,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 								if (ReferenceKey.FULL_COMPARATOR.compare(
 									rrk.referenceKey(), otherRef.getReferenceKey()
 								) != 0) {
-									ReferenceIndexMutator.addFacetToIndex(
+									ReferenceIndexMutator.addFacetToPartition(
 										mainReferenceIndex,
 										referenceSchema,
 										referenceKey,
@@ -3181,21 +3175,18 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				}
 				// entity reduced indexes (only when entity component is configured)
 				if (ReferenceIndexMutator.isIndexedForEntityComponent(theReferenceSchema, scope)) {
-					final List<ReducedEntityIndex> allReducedIndexes =
-						ContainerizedLocalMutationExecutor.getAllReducedIndexes(
-							eik -> ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(this, eik),
-							eik -> (ReducedEntityIndex) getOrCreateIndex(eik),
-							epk -> getIndexByPrimaryKey(epk).map(ReducedEntityIndex.class::cast).orElse(null),
-							scope,
-							theReferenceSchema.getName(),
-							refKey.primaryKey(),
-							theReferenceSchema.getCardinality().allowsDuplicates(),
-							EntityIndexType.REFERENCED_ENTITY_TYPE,
-							EntityIndexType.REFERENCED_ENTITY
-						);
-					for (ReducedEntityIndex reducedIndex : allReducedIndexes) {
-						entityIndexConsumer.accept(theReferenceSchema, reducedIndex);
-					}
+					final ReferenceSchemaContract partitionSchema = theReferenceSchema;
+					forEachPartitionOfTargetForWrite(
+						scope, partitionSchema, refKey.primaryKey(),
+						// the consumers (locales, prices) write through the generic index API, which only a
+						// materialized partition offers
+						partition -> {
+							switch (partition) {
+								case ReducedEntityIndex reducedIndex ->
+									entityIndexConsumer.accept(partitionSchema, reducedIndex);
+							}
+						}
+					);
 				}
 				// group reduced indexes
 				if (ReferenceIndexMutator.isIndexedForGroupComponent(theReferenceSchema, scope)) {
@@ -3311,14 +3302,16 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		);
 		// entity component: update facet group in entity reduced index
 		if (entityComponentEnabled) {
-			final ReducedEntityIndex referenceIndex =
-				ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
-			ReferenceIndexMutator.setFacetGroupInIndex(
-				epk, referenceIndex, referenceSchema,
-				mutation.getReferenceKey(),
-				mutation.getGroupPrimaryKey(),
-				this
-			);
+			// the acquisition enrols the partition even when the reference holds no facets there - kept as is
+			final ReferencePartition partition = getOrCreatePartitionForWrite(scope, rrk);
+			switch (partition) {
+				case ReducedEntityIndex referenceIndex -> ReferenceIndexMutator.setFacetGroupInIndex(
+					epk, referenceIndex, referenceSchema,
+					mutation.getReferenceKey(),
+					mutation.getGroupPrimaryKey(),
+					this
+				);
+			}
 		}
 		// defer histogram group transfer while cardinality data is still present
 		deferHistogramGroupTransfer(referenceKey, mutation.getGroupPrimaryKey(), epk, scope);
@@ -3368,13 +3361,15 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		);
 		// entity component: update facet group in entity reduced index
 		if (entityComponentEnabled) {
-			final ReducedEntityIndex referenceIndex =
-				ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
-			ReferenceIndexMutator.removeFacetGroupInIndex(
-				epk, referenceIndex, referenceSchema,
-				mutation.getReferenceKey(),
-				this
-			);
+			// the acquisition enrols the partition even when the reference holds no facets there - kept as is
+			final ReferencePartition partition = getOrCreatePartitionForWrite(scope, rrk);
+			switch (partition) {
+				case ReducedEntityIndex referenceIndex -> ReferenceIndexMutator.removeFacetGroupInIndex(
+					epk, referenceIndex, referenceSchema,
+					mutation.getReferenceKey(),
+					this
+				);
+			}
 		}
 		// defer histogram group transfer while cardinality data is still present
 		deferHistogramGroupTransfer(referenceKey, null, epk, scope);
@@ -3414,8 +3409,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
 					this, referenceKey.referenceName(), scope
 				);
-			final ReducedEntityIndex referenceIndex =
-				ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
+			final ReferencePartition referenceIndex = getOrCreatePartitionForWrite(scope, rrk);
 			ReferenceIndexMutator.attributeUpdate(
 				this, existingStoragePartFactory,
 				referenceTypeIndex,
@@ -3483,8 +3477,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
 					this, referenceKey.referenceName(), scope
 				);
-			final ReducedEntityIndex referenceIndex =
-				ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
+			final ReferencePartition referenceIndex = getOrCreatePartitionForWrite(scope, rrk);
 			ReferenceIndexMutator.referenceInsertPerComponent(
 				epk, entitySchema, referenceSchema, this,
 				referenceTypeIndex, referenceIndex, referenceKey,
@@ -3555,8 +3548,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
 					this, rrk.referenceName(), scope
 				);
-			final ReducedEntityIndex referenceIndex =
-				ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
+			final ReferencePartition referenceIndex = getOrCreatePartitionForWrite(scope, rrk);
 			ReferenceIndexMutator.referenceRemovalPerComponent(
 				epk, entitySchema, referenceSchema, this,
 				referenceTypeIndex, referenceIndex, referenceKey,

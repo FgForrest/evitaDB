@@ -60,6 +60,7 @@ import java.util.function.Consumer;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.TRANSACTION;
@@ -76,7 +77,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Proves that the reference partition resolvers of {@link EntityCollection}, {@link QueryPlanningContext} and the
  * data-store-reader overloads of {@link ReferencePartitions} read what the engine really holds: the partitions of a
  * reference with and without duplicates, the per-collection primary key namespace, and partitions created by a
- * mutation that has not been committed (`ALIVE`) or flushed (`WARMING_UP`) yet.
+ * mutation that has not been committed (`ALIVE`) or flushed (`WARMING_UP`) yet - and that the end-of-mutation sweep
+ * retires a partition its last owner left.
  *
  * The resolution rules themselves are pinned over plain maps by `io.evitadb.index.ReferencePartitionsTest`; this test
  * is about where each surface reads from.
@@ -374,6 +376,80 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 		} else {
 			scenario.run();
 		}
+	}
+
+	/**
+	 * The end-of-mutation sweep retires a partition whose last owner has left - for partitions acquired through the
+	 * partition write acquisition: a non-duplicate partition, a duplicate (representative) partition, and the
+	 * reflected partition the implicit mutation of the category leaves empty in the other collection. The partitions
+	 * are gone as soon as the removing upsert finished, and stay gone after the session ends.
+	 *
+	 * @param state catalog state the scenario runs in
+	 */
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName("retires a partition emptied by the removal of its last owner")
+	void shouldRetirePartitionEmptiedByRemovalOfItsLastOwner(@Nonnull CatalogState state) {
+		prepare(state);
+		final int ownerPk = 4;
+		final RepresentativeReferenceKey categoryKey = new RepresentativeReferenceKey(
+			new ReferenceKey(REF_CATEGORIES, NEW_CATEGORY_PK)
+		);
+		final RepresentativeReferenceKey storeKey = new RepresentativeReferenceKey(
+			new ReferenceKey(REF_STORES, STORE_PK), new Serializable[]{"PL"}
+		);
+		final RepresentativeReferenceKey reflectedKey = new RepresentativeReferenceKey(
+			new ReferenceKey(REF_PRODUCTS, ownerPk)
+		);
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			(Consumer<EvitaSessionContract>) session -> {
+				session.createNewEntity(ENTITY_PRODUCT, ownerPk)
+					.setReference(REF_CATEGORIES, NEW_CATEGORY_PK)
+					.setOrUpdateReference(
+						REF_STORES, STORE_PK, Functions.alwaysFalse(),
+						whichIs -> whichIs.setAttribute(ATTR_COUNTRY, "PL")
+					)
+					.upsertVia(session);
+			}
+		);
+		// the premise: the only owner created all three partitions
+		assertNotNull(collectionOf(ENTITY_PRODUCT).resolvePartitionIfExists(Scope.LIVE, categoryKey));
+		assertNotNull(collectionOf(ENTITY_PRODUCT).resolvePartitionIfExists(Scope.LIVE, storeKey));
+		assertNotNull(collectionOf(ENTITY_CATEGORY).resolvePartitionIfExists(Scope.LIVE, reflectedKey));
+
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			(Consumer<EvitaSessionContract>) session -> {
+				session.getEntity(ENTITY_PRODUCT, ownerPk, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.removeReferences(REF_CATEGORIES)
+					.removeReferences(REF_STORES)
+					.upsertVia(session);
+				assertNull(
+					collectionOf(ENTITY_PRODUCT).resolvePartitionIfExists(Scope.LIVE, categoryKey),
+					"the emptied non-duplicate partition survived the end-of-mutation sweep"
+				);
+				assertNull(
+					collectionOf(ENTITY_PRODUCT).resolvePartitionIfExists(Scope.LIVE, storeKey),
+					"the emptied duplicate partition survived the end-of-mutation sweep"
+				);
+				assertNull(
+					collectionOf(ENTITY_CATEGORY).resolvePartitionIfExists(Scope.LIVE, reflectedKey),
+					"the emptied reflected partition survived the end-of-mutation sweep"
+				);
+			}
+		);
+		assertNull(collectionOf(ENTITY_PRODUCT).resolvePartitionIfExists(Scope.LIVE, categoryKey));
+		assertNull(collectionOf(ENTITY_PRODUCT).resolvePartitionIfExists(Scope.LIVE, storeKey));
+		assertNull(collectionOf(ENTITY_CATEGORY).resolvePartitionIfExists(Scope.LIVE, reflectedKey));
+		// the shared partitions of the baseline are untouched
+		assertNotNull(
+			collectionOf(ENTITY_PRODUCT).resolvePartitionIfExists(
+				Scope.LIVE, new RepresentativeReferenceKey(new ReferenceKey(REF_CATEGORIES, CATEGORY_PK))
+			)
+		);
 	}
 
 	/**
