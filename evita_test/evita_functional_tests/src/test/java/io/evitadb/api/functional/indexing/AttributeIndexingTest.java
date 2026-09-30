@@ -176,6 +176,76 @@ class AttributeIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 		}
 
 		@Test
+		@DisplayName("Should fail when one entity repeats a unique value in another locale")
+		void shouldFailToReuseUniqueValueInAnotherLocaleOfTheSameEntity() {
+			// `unique` means once per collection whatever the locale - the entity holding the value already is no
+			// exception. Accepting it once left a single index entry behind two locales, so removing either one lost
+			// the value for the other
+			final UniqueValueViolationException ex = assertThrows(
+				UniqueValueViolationException.class,
+				() -> AttributeIndexingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.updateEntitySchema(
+							session
+								.defineEntitySchema(Entities.PRODUCT)
+								.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().unique())
+						);
+
+						session
+							.createNewEntity(Entities.PRODUCT, 1)
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "A")
+							.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "A")
+							.upsertVia(session);
+					}
+				)
+			);
+			assertEquals(
+				"Unique constraint violation: attribute `name` value A` is already present for entity `PRODUCT` " +
+					"(existing entity PK: 1, newly inserted  entity PK: 1)!",
+				ex.getMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("Should allow one entity to repeat a locale-specific unique value in another locale")
+		void shouldAllowToReuseLocaleSpecificUniqueValueInAnotherLocaleOfTheSameEntity() {
+			AttributeIndexingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.updateEntitySchema(
+						session
+							.defineEntitySchema(Entities.PRODUCT)
+							.withAttribute(
+								ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().uniqueWithinLocale())
+					);
+
+					session
+						.createNewEntity(Entities.PRODUCT, 1)
+						.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "A")
+						.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "A")
+						.upsertVia(session);
+				}
+			);
+			AttributeIndexingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					for (Locale locale : new Locale[]{Locale.ENGLISH, Locale.GERMAN}) {
+						assertTrue(
+							session.queryOneEntityReference(
+								query(
+									collection(Entities.PRODUCT),
+									filterBy(attributeEquals(ATTRIBUTE_NAME, "A"), entityLocaleEquals(locale))
+								)
+							).isPresent(),
+							"the value must be found in " + locale
+						);
+					}
+				}
+			);
+		}
+
+		@Test
 		@DisplayName("Should fail when creating two entities with the same non-localized unique attribute value")
 		void shouldFailToInsertConflictingNonLocalizedUniqueAttributes() {
 			AttributeIndexingTest.this.evita.updateCatalog(
@@ -452,6 +522,36 @@ class AttributeIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 					ex.getMessage()
 				);
 			}
+		}
+
+		@Test
+		@DisplayName("Should fail when one entity repeats a globally unique value in another locale")
+		void shouldFailToReuseGloballyUniqueValueInAnotherLocaleOfTheSameEntity() {
+			// `uniqueGlobally` means once per catalog whatever the locale, exactly like `unique` within a collection
+			assertThrows(
+				UniqueValueViolationException.class,
+				() -> AttributeIndexingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.getCatalogSchema()
+							.openForWrite()
+							.withAttribute(
+								ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().uniqueGlobally())
+							.updateVia(session);
+
+						session
+							.defineEntitySchema(Entities.PRODUCT)
+							.withGlobalAttribute(ATTRIBUTE_NAME)
+							.updateVia(session);
+
+						session
+							.createNewEntity(Entities.PRODUCT, 1)
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "A")
+							.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "A")
+							.upsertVia(session);
+					}
+				)
+			);
 		}
 
 		@Test

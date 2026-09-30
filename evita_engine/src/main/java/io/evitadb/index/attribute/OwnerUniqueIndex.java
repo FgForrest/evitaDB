@@ -597,7 +597,7 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 *
 	 * @param key      single unique value or an array of unique values to register
 	 * @param recordId record id that should own the value(s)
-	 * @throws UniqueValueViolationException when any value is already owned by a different record
+	 * @throws UniqueValueViolationException when any value is already owned by any record, this one included
 	 */
 	private <T extends Serializable & Comparable<T>> void registerUniqueKeyValue(@Nonnull Object key, int recordId) {
 		if (key instanceof @Nonnull final Object[] valueArray) {
@@ -630,7 +630,7 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 *
 	 * @param key      unique value to register
 	 * @param recordId record id that should own the value
-	 * @throws UniqueValueViolationException when the value is already owned by a different record
+	 * @throws UniqueValueViolationException when the value is already owned by any record
 	 */
 	private <T extends Serializable & Comparable<T>> void registerUniqueKeyValue(@Nonnull T key, int recordId) {
 		final Integer existingRecordId = getRecordIdByUniqueValue(key);
@@ -708,16 +708,23 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	}
 
 	/**
-	 * Enforces the registration invariant: a value may be claimed only when it is currently unowned or already
-	 * owned by the same record. An idempotent re-registration by the same record is therefore allowed.
+	 * Enforces the registration invariant: a value may be claimed only when it is currently unowned - **even by the
+	 * record that already owns it**.
+	 *
+	 * This index serves only a localized attribute unique across locales, so its key carries no locale and a record's
+	 * values in different locales all land here. A value it already owns therefore arrives from another locale (or
+	 * from a second reference carrying the same value), and that is the second occurrence the uniqueness contract
+	 * forbids: `unique` means once per collection, whatever the locale. Tolerating it would also leave one tree entry
+	 * standing for two registrations, so unregistering either would drop the value the other still holds. The upsert
+	 * path unregisters a record's prior value before registering its new one, so an unchanged value never re-arrives.
 	 *
 	 * @param key              value being registered (used for the violation message)
 	 * @param recordId         record id attempting to claim the value
 	 * @param existingRecordId record id currently owning the value, or `null` if the value is free
-	 * @throws UniqueValueViolationException when the value is already owned by a different record
+	 * @throws UniqueValueViolationException when the value is already owned by any record, this one included
 	 */
 	private <T extends Serializable & Comparable<T>> void assertUniqueKeyIsFree(@Nonnull T key, int recordId, @Nullable Integer existingRecordId) {
-		if (!(existingRecordId == null || existingRecordId.equals(recordId))) {
+		if (existingRecordId != null) {
 			throw new UniqueValueViolationException(getAttributeIndexKey().attributeName(), getAttributeIndexKey().locale(), key, getEntityType(), existingRecordId, getEntityType(), recordId);
 		}
 	}

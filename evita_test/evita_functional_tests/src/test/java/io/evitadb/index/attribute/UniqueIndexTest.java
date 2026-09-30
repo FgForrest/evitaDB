@@ -74,6 +74,16 @@ class UniqueIndexTest {
 	}
 
 	@Test
+	void shouldFailToRegisterValueTheSameRecordAlreadyOwns() {
+		// the key carries no locale, so a record's repeat arrives from another locale - a second occurrence of the
+		// value; tolerating it left one entry for two registrations, and unregistering either lost the other
+		this.tested.registerUniqueKey("A", 1);
+		assertThrows(UniqueValueViolationException.class, () -> this.tested.registerUniqueKey("A", 1));
+		assertEquals(1, this.tested.unregisterUniqueKey("A", 1));
+		assertNull(this.tested.getRecordIdByUniqueValue("A"));
+	}
+
+	@Test
 	void shouldUnregisterPreviouslyRegisteredValue() {
 		this.tested.registerUniqueKey("A", 1);
 		assertEquals(1, this.tested.unregisterUniqueKey("A", 1));

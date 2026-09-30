@@ -60,8 +60,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * The standalone unique tree carries no normalizer, so unlike the filter index it cannot be reached by two
  * distinct values folding onto one key — only by the same value appearing twice. That state is reachable:
- * registration explicitly tolerates re-registering a key to the record that already owns it, and nothing
- * upstream rejects a duplicated array element.
+ * registration folds the array onto its distinct values before claiming them, so the repeated element is claimed
+ * once rather than refused as a second occurrence, and nothing upstream rejects a duplicated array element.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -105,8 +105,8 @@ class UniqueIndexArrayDuplicateTest {
 
 		assertDoesNotThrow(
 			() -> index.registerUniqueKey(new String[]{DUPLICATED, DUPLICATED}, RECORD),
-			"registration refuses a key owned by ANOTHER record, never one already owned by this one, so the " +
-				"duplicated element passes and the state this test exists for can exist"
+			"registration folds the array onto its distinct values, so the duplicated element is claimed once and " +
+				"the state this test exists for can exist"
 		);
 		assertTrue(index.getRecordIds().contains(RECORD));
 	}

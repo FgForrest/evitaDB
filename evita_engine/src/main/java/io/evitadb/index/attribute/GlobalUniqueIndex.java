@@ -894,7 +894,7 @@ public class GlobalUniqueIndex implements
 	 * @param key    the unique value, or array of unique values, to claim
 	 * @param record the entity tuple claiming the value(s)
 	 * @param resolver translates entity type primary keys to names for the violation message
-	 * @throws UniqueValueViolationException when any value is already owned by a different record
+	 * @throws UniqueValueViolationException when any value is already owned by any record
 	 */
 	@SuppressWarnings("unchecked")
 	private <T extends Serializable & Comparable<T>> void registerUniqueKeyValue(@Nonnull Object key, @Nonnull EntityWithTypeTuple record, @Nonnull EntityTypeClassifierResolver resolver) {
@@ -923,31 +923,20 @@ public class GlobalUniqueIndex implements
 	 * Claims a single scalar unique value for the given record and adds the record's primary key to the matching
 	 * per-entity-type bitmap, keeping the value tree and {@link #entitiesPerType} in lockstep.
 	 *
-	 * The value→tuple insert reproduces the overwrite semantics of the {@code HashMap.put} it replaces: an absent value
-	 * is added; an already-present value owned by a *different* tuple (the cross-locale coexistence allowed for a
-	 * localized attribute) is replaced (the tree is UNIQUE so the bucket is removed then re-added); an idempotent
-	 * re-registration by the very same tuple is a no-op on the tree (the payload is already identical).
+	 * Only an absent value can be claimed (see {@link #assertUniqueKeyIsFree}), so every value holds exactly one tuple.
 	 *
 	 * @param key    the scalar unique value to claim
 	 * @param record the entity tuple claiming the value
 	 * @param resolver translates entity type primary keys to names for the violation message
-	 * @throws UniqueValueViolationException when the value is already owned by a different record in the same locale
+	 * @throws UniqueValueViolationException when the value is already owned by any record
 	 */
 	private <T extends Serializable & Comparable<T>> void registerUniqueKeyValue(
 		@Nonnull T key,
 		@Nonnull EntityWithTypeTuple record,
 		@Nonnull EntityTypeClassifierResolver resolver
 	) {
-		final EntityWithTypeTuple existingRecordId = lookupTuple(key);
-		assertUniqueKeyIsFree(key, record, existingRecordId, resolver);
-		if (existingRecordId == null) {
-			this.tree.addLongRecord(key, packTuple(record));
-		} else if (!existingRecordId.equals(record)) {
-			// cross-locale coexistence for a localized attribute: overwrite the value→tuple mapping exactly like the
-			// HashMap.put this backing replaces (entitiesPerType keeps every pk, see below)
-			this.tree.removeLongRecord(key);
-			this.tree.addLongRecord(key, packTuple(record));
-		}
+		assertUniqueKeyIsFree(key, record, lookupTuple(key), resolver);
+		this.tree.addLongRecord(key, packTuple(record));
 		this.entitiesPerType
 			.computeIfAbsent(record.entityType(), entityType -> new TransactionalBitmap())
 			.add(record.entityPrimaryKey());
@@ -1018,25 +1007,28 @@ public class GlobalUniqueIndex implements
 	}
 
 	/**
-	 * Verifies the value can be claimed by `record`: it must be unowned, or already owned by the very same record.
-	 * For a localized attribute the same value is allowed to coexist across different locales, so a clash only
-	 * counts as a violation when the two records share the locale.
+	 * Verifies the value can be claimed by `record`: it must be unowned - **even by the very same tuple**.
+	 *
+	 * `uniqueGlobally` means once per catalog whatever the locale, so an owned value is a second occurrence no matter
+	 * who holds it: another entity, the same entity in another locale, or the same entity in the same locale. The
+	 * last one never arrives from the upsert path, which unregisters a record's prior value before registering the
+	 * new one; were it tolerated, one tree entry would stand for two registrations and the first unregister would
+	 * drop the value the second still holds. `uniqueGloballyWithinLocale` needs no exemption either, because it keys
+	 * one index per locale.
 	 *
 	 * @param key            the unique value being claimed (for error reporting)
 	 * @param record         the record attempting to claim the value
 	 * @param existingRecord the record currently owning the value, or `null` if unowned
 	 * @param resolver       translates entity type primary keys to names for the violation message
-	 * @throws UniqueValueViolationException when the value is already owned by a different record in the same locale
+	 * @throws UniqueValueViolationException when the value is already owned by any record
 	 */
 	private <T extends Serializable & Comparable<T>> void assertUniqueKeyIsFree(@Nonnull T key, EntityWithTypeTuple record, @Nullable EntityWithTypeTuple existingRecord, @Nonnull EntityTypeClassifierResolver resolver) {
-		if (!(existingRecord == null || existingRecord.equals(record))) {
-			if (!this.attributeKey.localized() || existingRecord.locale() == record.locale()) {
-				throw new UniqueValueViolationException(
-					this.attributeKey.attributeName(), this.attributeKey.locale(), key,
-					resolver.toEntityTypeName(existingRecord.entityType()), existingRecord.entityPrimaryKey(),
-					resolver.toEntityTypeName(record.entityType()), record.entityPrimaryKey()
-				);
-			}
+		if (existingRecord != null) {
+			throw new UniqueValueViolationException(
+				this.attributeKey.attributeName(), this.attributeKey.locale(), key,
+				resolver.toEntityTypeName(existingRecord.entityType()), existingRecord.entityPrimaryKey(),
+				resolver.toEntityTypeName(record.entityType()), record.entityPrimaryKey()
+			);
 		}
 	}
 

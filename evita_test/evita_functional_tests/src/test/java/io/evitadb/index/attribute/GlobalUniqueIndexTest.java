@@ -30,7 +30,6 @@ import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityTypeClassifierResolver;
-import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -207,23 +206,34 @@ class GlobalUniqueIndexTest {
 	}
 
 	@Test
-	void shouldAllowSameValueAcrossLocalesForLocalizedAttribute() {
-		// a localized (within-locale-unique) attribute permits the same value to coexist across different locales
+	void shouldRejectSameValueInAnotherLocaleOfLocaleLessIndex() {
+		// `uniqueGlobally` on a localized attribute keys one locale-less index, and a value occurs in it once whatever
+		// the locale - `uniqueGloballyWithinLocale` gets one index per locale instead and never meets this case
 		final GlobalUniqueIndex localized = new GlobalUniqueIndex(
-			Scope.LIVE, new AttributeKey("localizedCode", Locale.ENGLISH), String.class
+			Scope.LIVE, new AttributeKey("localizedCode"), String.class
 		);
 		localized.registerUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 2, this.classifierResolver);
-		// registering the same value under a different locale must NOT raise a uniqueness violation
-		assertDoesNotThrow(() -> localized.registerUniqueKey("A", Entities.PRODUCT, Locale.FRENCH, 3, this.classifierResolver));
-		// the value resolves under the last writer's locale (the value-keyed tree overwrites like the HashMap it replaces)
-		assertEquals(
-			new EntityReferenceWithLocale(Entities.PRODUCT, 3, Locale.FRENCH),
-			localized.getEntityReferenceByUniqueValue("A", Locale.FRENCH, this.classifierResolver).orElse(null)
+
+		assertThrows(
+			UniqueValueViolationException.class,
+			() -> localized.registerUniqueKey("A", Entities.PRODUCT, Locale.FRENCH, 3, this.classifierResolver),
+			"another entity must not claim the value in another locale"
 		);
-		// both primary keys remain visible in the per-entity-type record set
-		final Bitmap productRecords = localized.getRecordIds(Entities.PRODUCT, this.classifierResolver);
-		assertTrue(productRecords.contains(2));
-		assertTrue(productRecords.contains(3));
+		assertThrows(
+			UniqueValueViolationException.class,
+			() -> localized.registerUniqueKey("A", Entities.PRODUCT, Locale.FRENCH, 2, this.classifierResolver),
+			"the owning entity must not repeat the value in another locale either"
+		);
+		assertThrows(
+			UniqueValueViolationException.class,
+			() -> localized.registerUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 2, this.classifierResolver),
+			"nor register it a second time in its own locale"
+		);
+		// the rejected claims left the original owner in place
+		assertEquals(
+			new EntityReferenceWithLocale(Entities.PRODUCT, 2, Locale.ENGLISH),
+			localized.getEntityReferenceByUniqueValue("A", Locale.ENGLISH, this.classifierResolver).orElse(null)
+		);
 	}
 
 	@Test
@@ -299,8 +309,9 @@ class GlobalUniqueIndexTest {
 			new EntityReferenceWithLocale(Entities.PRODUCT, 1, Locale.ENGLISH),
 			index.getEntityReferenceByUniqueValue("en-value", Locale.ENGLISH, this.classifierResolver).orElse(null)
 		);
-		// the same value under the new locale must not trip the within-locale uniqueness guard against the old locale
-		assertDoesNotThrow(
+		// one index holds a value once whatever the locale, so the english value cannot be claimed again under the new one
+		assertThrows(
+			UniqueValueViolationException.class,
 			() -> index.registerUniqueKey("en-value", Entities.PRODUCT, Locale.GERMAN, 4, this.classifierResolver)
 		);
 	}
