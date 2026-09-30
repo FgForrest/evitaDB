@@ -1834,6 +1834,40 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 	}
 
 	/**
+	 * Checks the rule "Should place owners that are alone in their blocks when ordering by the referenced primary key".
+	 *
+	 * Every block of the selection holds a single owner, so sorting a block compares nothing - the prefetch route
+	 * then still has to read each owner's row of the block to tell whether the owner belongs there, which needs the
+	 * references prefetched although the query fetches no entity body. The ordering is right whatever the tie-break,
+	 * so this row isolates the prefetch requirement of the traverse branch from C3b/C3c.
+	 */
+	@DisplayName("Should place owners alone in their blocks when ordering by the referenced primary key")
+	@UseDataSet(TRAVERSE_REFERENCES)
+	@ParameterizedTest(name = "{0} via {1}")
+	@MethodSource("allRoutes")
+	void shouldPlaceLoneOwnersWhenOrderingByReferencedPrimaryKey(
+		String referenceName, SortRoute route, EvitaSessionContract session
+	) {
+		// category (1 4 6 7 5 2 3 8 9): 6: 10 | 7: 1 | 8: 7 | unplaced 8
+		// brand (1 .. 9): 2: 10 | 3: 1 | 8: 7 | unplaced 8
+		final Integer[] loneOwners = {1, 7, 8, 10};
+		final List<Executable> assertions = new ArrayList<>(2);
+		for (OrderDirection direction : OrderDirection.values()) {
+			assertions.add(
+				() -> assertOrder(
+					new int[]{10, 1, 7, 8},
+					queryOrder(
+						session, route, loneOwners, NO_FILTER,
+						traverseOrdering(referenceName, entityPrimaryKeyNatural(direction))
+					),
+					direction.toString()
+				)
+			);
+		}
+		assertAll(assertions);
+	}
+
+	/**
 	 * Checks the rule "Should order by a sortable attribute compound inside each block".
 	 *
 	 * Owners 81 and 86 carry the identical tuple, so the descending assertion on the prefetch route is the witness of

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -104,15 +104,7 @@ public class EntityPrimaryKeyNaturalTranslator
 		} else if (pickFirstIndexResolver != null) {
 			// if prefetch happens, the comparator reads the references - and, for a reference allowing duplicates,
 			// their representative attributes, which order the references sharing one referenced entity
-			final List<String> representativeAttributes = referenceSchema.getCardinality().allowsDuplicates() ?
-				referenceSchema.getRepresentativeAttributeDefinition().getAttributeNames() : List.of();
-			orderByVisitor.addRequirementToPrefetch(
-				representativeAttributes.isEmpty() ?
-					referenceContent(referenceSchema.getName()) :
-					referenceContentWithAttributes(
-						referenceSchema.getName(), representativeAttributes.toArray(String[]::new)
-					)
-			);
+			registerReferencesToPrefetch(referenceSchema, orderByVisitor);
 			return Stream.of(
 				new PrefetchedRecordsSorter(
 					new PickFirstReferencePrimaryKeyEntityComparator(referenceSchema, orderDirection, pickFirstIndexResolver)
@@ -125,6 +117,9 @@ public class EntityPrimaryKeyNaturalTranslator
 				)
 			);
 		} else {
+			// if prefetch happens, the traversal comparator classifies every owner of a block by its row of the block -
+			// matched on the representative attributes for a reference allowing duplicates - so it reads them too
+			registerReferencesToPrefetch(referenceSchema, orderByVisitor);
 			final EntityIndex[] entityIndices = processingScope.entityIndex();
 			return Stream.of(
 				new PreSortedRecordsSorter(
@@ -191,6 +186,29 @@ public class EntityPrimaryKeyNaturalTranslator
 	}
 
 	/**
+	 * Registers the content the prefetch-route comparators of an ordering by the referenced primary key read: the
+	 * references of the ordered reference and, for a reference allowing duplicates, their representative attributes,
+	 * which tell the references sharing one referenced entity apart.
+	 *
+	 * @param referenceSchema the ordered reference
+	 * @param orderByVisitor  the visitor collecting the requirements of the prefetch
+	 */
+	private static void registerReferencesToPrefetch(
+		@Nonnull ReferenceSchema referenceSchema,
+		@Nonnull OrderByVisitor orderByVisitor
+	) {
+		final List<String> representativeAttributes = referenceSchema.getCardinality().allowsDuplicates() ?
+			referenceSchema.getRepresentativeAttributeDefinition().getAttributeNames() : List.of();
+		orderByVisitor.addRequirementToPrefetch(
+			representativeAttributes.isEmpty() ?
+				referenceContent(referenceSchema.getName()) :
+				referenceContentWithAttributes(
+					referenceSchema.getName(), representativeAttributes.toArray(String[]::new)
+				)
+		);
+	}
+
+	/**
 	 * Creates the provider of one reduced index for a `pickFirst` ordering by the referenced primary key: every owner
 	 * of the index carries the same value, the primary key of the index's referenced entity, and owners follow in the
 	 * order of their own primary keys in the direction of the ordering - the order the merge keeps for equal values.
@@ -246,11 +264,15 @@ public class EntityPrimaryKeyNaturalTranslator
 	}
 
 	/**
-	 * A comparator that compares entities based on the primary key of the referenced entity.
+	 * A comparator that compares entities based on the primary key of the referenced entity, one traversal block at
+	 * a time: the block key is bound by {@link #withReferencedEntityId(RepresentativeReferenceKey, Runnable)} and an
+	 * entity without a row of the block is classified as not sortable ({@link #canSort(EntityContract)}), so it is
+	 * passed on to the next block rather than claimed by this one. Package-private so that its classification can be
+	 * unit-tested over real prefetched entities.
 	 */
 	@SuppressWarnings("ComparatorNotSerializable")
 	@RequiredArgsConstructor
-	private static class ReferencePrimaryKeyEntityComparator implements EntityComparator, EntityReferenceSensitiveComparator {
+	static class ReferencePrimaryKeyEntityComparator implements EntityComparator, EntityReferenceSensitiveComparator {
 		/**
 		 * The schema of the reference that is being traversed.
 		 */
@@ -263,19 +285,26 @@ public class EntityPrimaryKeyNaturalTranslator
 		 * The comparator used to compare the primary keys of the referenced entities.
 		 */
 		@Nonnull private final IntComparator comparator;
-		/**
-		 * The array that collects non-sorted entities.
-		 */
-		private CompositeObjectArray<EntityContract> nonSortedEntities;
 
+		/**
+		 * Returns no entity: every entity without a row of the bound block is classified as not sortable by
+		 * {@link #canSort(EntityContract)} and never compared, so there is nothing left to report.
+		 *
+		 * @return an empty iterable
+		 */
 		@Nonnull
 		@Override
 		public Iterable<EntityContract> getNonSortedEntities() {
-			return this.nonSortedEntities == null ?
-				EmptyIterator.iterableInstance(EntityContract.class) :
-				this.nonSortedEntities;
+			return EmptyIterator.iterableInstance(EntityContract.class);
 		}
 
+		/**
+		 * Binds the comparator to the key of the sorted block for the duration of the lambda, which classifies and
+		 * sorts the entities of the block; the key is released whatever the outcome.
+		 *
+		 * @param referenceKey the key of the sorted block
+		 * @param lambda       the classification and sorting of the block
+		 */
 		@Override
 		public void withReferencedEntityId(@Nonnull RepresentativeReferenceKey referenceKey, @Nonnull Runnable lambda) {
 			try {
@@ -291,37 +320,41 @@ public class EntityPrimaryKeyNaturalTranslator
 			}
 		}
 
+		/**
+		 * Classifies the entity for the bound block: it is sortable when it has the row of the block key.
+		 *
+		 * @param entity the entity to classify
+		 * @return `true` when the entity has the row of the bound block key
+		 */
+		@Override
+		public boolean canSort(@Nonnull EntityContract entity) {
+			Assert.isPremiseValid(this.referenceKey != null, "Referenced entity id must be set!");
+			return getReferenceByRepresentativeReferenceKey(entity, this.referenceSchema, this.referenceKey)
+				.isPresent();
+		}
+
+		/**
+		 * Compares two entities classified as sortable by {@link #canSort(EntityContract)} within the bound block by
+		 * the primary key of the entity their row of the block references.
+		 *
+		 * @param o1 the first entity
+		 * @param o2 the second entity
+		 * @return the comparison result
+		 */
 		@Override
 		public int compare(EntityContract o1, EntityContract o2) {
 			Assert.isPremiseValid(this.referenceKey != null, "Referenced entity id must be set!");
 
 			final ReferenceContract o1Reference = getReferenceByRepresentativeReferenceKey(o1, this.referenceSchema, this.referenceKey).orElse(null);
 			final ReferenceContract o2Reference = getReferenceByRepresentativeReferenceKey(o2, this.referenceSchema, this.referenceKey).orElse(null);
-			if (o1Reference == null && o2Reference == null) {
-				this.nonSortedEntities = getOrCreatedNonSortedEntitiesCollector();
-				this.nonSortedEntities.add(o1);
-				this.nonSortedEntities.add(o2);
-				return 0;
-			} else if (o1Reference == null) {
-				this.nonSortedEntities = getOrCreatedNonSortedEntitiesCollector();
-				this.nonSortedEntities.add(o1);
-				return 1;
-			} else if (o2Reference == null) {
-				this.nonSortedEntities = getOrCreatedNonSortedEntitiesCollector();
-				this.nonSortedEntities.add(o2);
-				return -1;
-			} else {
-				return this.comparator.compare(
-					o1Reference.getReferencedPrimaryKey(),
-					o2Reference.getReferencedPrimaryKey()
-				);
-			}
-		}
-
-		@Nonnull
-		private CompositeObjectArray<EntityContract> getOrCreatedNonSortedEntitiesCollector() {
-			return ofNullable(this.nonSortedEntities)
-				.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));
+			Assert.isPremiseValid(
+				o1Reference != null && o2Reference != null,
+				"Only entities classified as sortable within the bound block may be compared!"
+			);
+			return this.comparator.compare(
+				o1Reference.getReferencedPrimaryKey(),
+				o2Reference.getReferencedPrimaryKey()
+			);
 		}
 	}
 
@@ -389,6 +422,19 @@ public class EntityPrimaryKeyNaturalTranslator
 				this.nonSortedEntities;
 		}
 
+		/**
+		 * Classifies the entity: it is sortable when it is admitted by the ordering's scopes and has a reference to
+		 * pick. The picked value is memoized for the comparisons that follow, and an entity classified as not
+		 * sortable is not reported through {@link #getNonSortedEntities()} - the caller passes it on by itself.
+		 *
+		 * @param entity the entity to classify
+		 * @return `true` when the entity has a referenced primary key to be sorted by
+		 */
+		@Override
+		public boolean canSort(@Nonnull EntityContract entity) {
+			return memoizeValue(entity, false) != MISSING;
+		}
+
 		@Override
 		public int compare(EntityContract o1, EntityContract o2) {
 			final int value1 = pickValue(o1);
@@ -414,6 +460,19 @@ public class EntityPrimaryKeyNaturalTranslator
 		 * @return the referenced primary key or {@link #MISSING} when the entity has no reference
 		 */
 		private int pickValue(@Nonnull EntityContract entity) {
+			return memoizeValue(entity, true);
+		}
+
+		/**
+		 * Returns the referenced primary key of the first reference of the entity in target order, memoized. An
+		 * entity without one is reported through {@link #getNonSortedEntities()} when `reportMissing` is set and the
+		 * value is computed by this call - i.e. only from the comparison path, never from the classification.
+		 *
+		 * @param entity        the entity whose value is requested
+		 * @param reportMissing whether a freshly computed missing value is reported as a non-sorted entity
+		 * @return the referenced primary key or {@link #MISSING} when the entity has no reference
+		 */
+		private int memoizeValue(@Nonnull EntityContract entity, boolean reportMissing) {
 			final int entityPrimaryKey = entity.getPrimaryKeyOrThrowException();
 			final int index = this.pickedValues.indexOf(entityPrimaryKey);
 			if (this.pickedValues.indexExists(index)) {
@@ -427,7 +486,7 @@ public class EntityPrimaryKeyNaturalTranslator
 					.orElse(MISSING) :
 				MISSING;
 			this.pickedValues.indexInsert(index, entityPrimaryKey, value);
-			if (value == MISSING) {
+			if (reportMissing && value == MISSING) {
 				if (this.nonSortedEntities == null) {
 					this.nonSortedEntities = new CompositeObjectArray<>(EntityContract.class);
 				}

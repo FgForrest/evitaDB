@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -211,6 +211,43 @@ public class PredecessorAttributeComparator implements EntityComparator {
 			result = Integer.compare(o1FoundInProvider, o2FoundInProvider);
 		}
 		return result;
+	}
+
+	/**
+	 * Resolves the sorted position of the primary key in the provider at `providerIndex`, memoized in the provider's
+	 * cache under the very encoding {@link #computeIfAbsent(IntIntMap, Integer, IntUnaryOperator)} uses, so positions
+	 * resolved here are reused by {@link #comparePositionsAcrossProviders} and vice versa. The cache of the provider
+	 * is created on first use with the size {@link #comparePositionsAcrossProviders} would give it. Unlike
+	 * {@link #computeIfAbsent(IntIntMap, Integer, IntUnaryOperator)} it neither boxes the primary key nor needs a
+	 * method reference, so it allocates nothing once the cache exists.
+	 *
+	 * @param sortedRecordsProviders providers ordered by precedence
+	 * @param cache                  per-provider position cache, lazily populated
+	 * @param providerIndex          index of the provider to look into
+	 * @param estimatedCount         expected entity count, used to size a freshly created cache
+	 * @param primaryKey             primary key of the entity to find
+	 * @return sorted position of the entity in the provider or a negative number when the provider does not hold it
+	 */
+	static int cachedPositionOf(
+		@Nonnull SortedRecordsProvider[] sortedRecordsProviders,
+		@Nonnull IntIntMap[] cache,
+		int providerIndex,
+		int estimatedCount,
+		int primaryKey
+	) {
+		IntIntMap providerCache = cache[providerIndex];
+		if (providerCache == null) {
+			providerCache = new IntIntHashMap(estimatedCount * 5);
+			cache[providerIndex] = providerCache;
+		}
+		final int result = providerCache.get(primaryKey);
+		if (result == 0) {
+			final int computedIndex = sortedRecordsProviders[providerIndex].positionOf(primaryKey);
+			providerCache.put(primaryKey, computedIndex == 0 ? Integer.MIN_VALUE : computedIndex);
+			return computedIndex;
+		} else {
+			return result == Integer.MIN_VALUE ? 0 : result;
+		}
 	}
 
 	/**

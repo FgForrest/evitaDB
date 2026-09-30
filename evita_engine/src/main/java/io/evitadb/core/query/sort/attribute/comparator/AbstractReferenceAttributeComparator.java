@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -96,6 +96,12 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 	 * localized.
 	 */
 	@Nonnull protected final Function<ReferenceContract, Serializable> attributeExtractor;
+	/**
+	 * Function turning the reference selected by {@link #pickReference(EntityContract)} into the compared value,
+	 * {@link ReferenceAttributeValue#MISSING_VALUE} when the reference lacks the attribute. Built once, so computing
+	 * a value allocates no capturing lambda.
+	 */
+	@Nonnull private final Function<ReferenceContract, ReferenceAttributeValue> referenceValueExtractor;
 
 	public AbstractReferenceAttributeComparator(
 		@Nonnull String attributeName,
@@ -131,40 +137,38 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 		this.attributeExtractor = locale == null ?
 			referenceContract -> referenceContract.getAttribute(attributeName) :
 			referenceContract -> referenceContract.getAttribute(attributeName, locale);
+		this.referenceValueExtractor = reference -> {
+			final Serializable storedAttributeValue = this.attributeExtractor.apply(reference);
+			if (storedAttributeValue == null) {
+				return ReferenceAttributeValue.MISSING_VALUE;
+			} else if (allowsDuplicates) {
+				return new ReferenceAttributeValue(
+					new RepresentativeReferenceKey(
+						reference.getReferenceKey(),
+						rad.getRepresentativeValues(reference)
+					),
+					normalizer.apply(storedAttributeValue),
+					valueComparator
+				);
+			} else {
+				return new ReferenceAttributeValue(
+					new RepresentativeReferenceKey(reference.getReferenceKey()),
+					normalizer.apply(storedAttributeValue),
+					valueComparator
+				);
+			}
+		};
 		this.attributeValueFetcher = entityContract -> {
-			final ReferenceAttributeValue cachedValue = this.cache.get(entityContract.getPrimaryKeyOrThrowException());
+			final int primaryKey = entityContract.getPrimaryKeyOrThrowException();
+			final ReferenceAttributeValue cachedValue = this.cache.get(primaryKey);
 			if (cachedValue == null) {
-				// find the reference contract that has the attribute we are looking for
-				final ReferenceAttributeValue calculatedValue = pickReference(entityContract)
-					.map(
-						it -> {
-							final Serializable storedAttributeValue = this.attributeExtractor.apply(it);
-							if (storedAttributeValue == null) {
-								return ReferenceAttributeValue.MISSING_VALUE;
-							} else if (allowsDuplicates) {
-								return new ReferenceAttributeValue(
-									new RepresentativeReferenceKey(
-										it.getReferenceKey(),
-										rad.getRepresentativeValues(it)
-									),
-									normalizer.apply(storedAttributeValue),
-									valueComparator
-								);
-							} else {
-								return new ReferenceAttributeValue(
-									new RepresentativeReferenceKey(it.getReferenceKey()),
-									normalizer.apply(storedAttributeValue),
-									valueComparator
-								);
-							}
-						}
-					)
-					.orElse(ReferenceAttributeValue.MISSING_VALUE);
-
-				this.cache.put(entityContract.getPrimaryKeyOrThrowException(), calculatedValue);
+				// the entity was not classified - it reports its missing value from the comparison, once
+				final ReferenceAttributeValue calculatedValue = computeValue(entityContract);
+				this.cache.put(primaryKey, calculatedValue);
 				if (calculatedValue == ReferenceAttributeValue.MISSING_VALUE) {
-					this.nonSortedEntities = ofNullable(this.nonSortedEntities)
-						.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));
+					if (this.nonSortedEntities == null) {
+						this.nonSortedEntities = new CompositeObjectArray<>(EntityContract.class);
+					}
 					this.nonSortedEntities.add(entityContract);
 					return null;
 				} else {
@@ -174,6 +178,56 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 				return cachedValue == ReferenceAttributeValue.MISSING_VALUE ? null : cachedValue;
 			}
 		};
+	}
+
+	/**
+	 * Classifies the entity by the value of the reference {@link #pickReference(EntityContract)} selects: the entity
+	 * is sortable when that reference exists and carries the sorted attribute. The computed value is memoized for the
+	 * comparisons that follow, and an entity classified as not sortable is not reported through
+	 * {@link #getNonSortedEntities()} - the caller passes it on by itself.
+	 *
+	 * @param entity the entity to classify
+	 * @return `true` when the entity carries a value to be sorted by
+	 */
+	@Override
+	public boolean canSort(@Nonnull EntityContract entity) {
+		return getMemoizedValue(entity) != ReferenceAttributeValue.MISSING_VALUE;
+	}
+
+	/**
+	 * Returns the memoized value of the entity, computing and memoizing it on the first request. Unlike
+	 * {@link #attributeValueFetcher} it reports nothing through {@link #getNonSortedEntities()} and returns
+	 * {@link ReferenceAttributeValue#MISSING_VALUE} rather than `null` for an entity without a value.
+	 *
+	 * @param entity the entity whose value is requested
+	 * @return the memoized value or {@link ReferenceAttributeValue#MISSING_VALUE}
+	 */
+	@Nonnull
+	protected ReferenceAttributeValue getMemoizedValue(@Nonnull EntityContract entity) {
+		final int primaryKey = entity.getPrimaryKeyOrThrowException();
+		final ReferenceAttributeValue cachedValue = this.cache.get(primaryKey);
+		if (cachedValue == null) {
+			final ReferenceAttributeValue calculatedValue = computeValue(entity);
+			this.cache.put(primaryKey, calculatedValue);
+			return calculatedValue;
+		} else {
+			return cachedValue;
+		}
+	}
+
+	/**
+	 * Computes the value of the entity from the reference {@link #pickReference(EntityContract)} selects, without
+	 * memoizing it.
+	 *
+	 * @param entity the entity whose value is computed
+	 * @return the value or {@link ReferenceAttributeValue#MISSING_VALUE} when there is no such reference or it lacks
+	 * the attribute
+	 */
+	@Nonnull
+	private ReferenceAttributeValue computeValue(@Nonnull EntityContract entity) {
+		return pickReference(entity)
+			.map(this.referenceValueExtractor)
+			.orElse(ReferenceAttributeValue.MISSING_VALUE);
 	}
 
 	/**

@@ -7,7 +7,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,6 +53,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static io.evitadb.core.query.sort.attribute.comparator.PredecessorAttributeComparator.cachedPositionOf;
 import static io.evitadb.core.query.sort.attribute.comparator.PredecessorAttributeComparator.comparePositionsAcrossProviders;
 import static io.evitadb.core.query.sort.attribute.sorter.MergedSortedRecordsSupplierSorter.createSortedRecordsOffsets;
 
@@ -94,9 +95,16 @@ public class TraverseReferencePredecessorAttributeComparator
 	 */
 	@Nullable private LinkedHashMap<RepresentativeReferenceKey, OffsetAndLimit> sortedRecordsOffsets;
 	/**
-	 * Array of caches storing the index positions of entities for each {@link SortedRecordsProvider}.
+	 * Array of caches storing the index positions of entities for each {@link SortedRecordsProvider}. Named apart from
+	 * the inherited {@code cache} of the compared values, which lives for one block only, while positions stay valid
+	 * for the whole query.
 	 */
-	private IntIntMap[] cache;
+	private IntIntMap[] positionCaches;
+	/**
+	 * Whether {@link #sortedRecordsProviders}, {@link #sortedRecordsOffsets} and {@link #positionCaches} were resolved;
+	 * the offsets alone cannot tell, because they stay `null` for a family without any chain provider.
+	 */
+	private boolean providersInitialized;
 
 	public TraverseReferencePredecessorAttributeComparator(
 		@Nonnull String attributeName,
@@ -147,6 +155,13 @@ public class TraverseReferencePredecessorAttributeComparator
 		}
 	}
 
+	/**
+	 * Binds the comparator to the key of the sorted block for the duration of the lambda, which classifies and sorts
+	 * the entities of the block; the key is released whatever the outcome.
+	 *
+	 * @param referenceKey the key of the sorted block
+	 * @param lambda       the classification and sorting of the block
+	 */
 	@Override
 	public void withReferencedEntityId(@Nonnull RepresentativeReferenceKey referenceKey, @Nonnull Runnable lambda) {
 		try {
@@ -174,14 +189,59 @@ public class TraverseReferencePredecessorAttributeComparator
 		return Optional.empty();
 	}
 
+	/**
+	 * Classifies the entity for the bound block: it is sortable when its row of the block carries the chain attribute
+	 * and one of the block's chain providers holds it - an entity no provider of the block can place is passed on to
+	 * the next block rather than claimed by this one, as the index route does. The positions resolved here are
+	 * memoized, so the comparisons that follow find them in the cache.
+	 *
+	 * Without a bound block (a chain sorted under an implicit `pickFirst`, which walks every provider at once) every
+	 * entity is classified as sortable and {@link #compare(EntityContract, EntityContract)} keeps reporting the
+	 * entities it cannot place through {@link #getNonSortedEntities()}.
+	 *
+	 * @param entity the entity to classify
+	 * @return `true` when the entity can be placed within the bound block
+	 */
+	@Override
+	public boolean canSort(@Nonnull EntityContract entity) {
+		if (this.referenceKey == null) {
+			return true;
+		}
+		final ReferenceAttributeValue value = getMemoizedValue(entity);
+		if (value == ReferenceAttributeValue.MISSING_VALUE) {
+			return false;
+		}
+		initializeProviders();
+		final OffsetAndLimit offsetAndLimit = this.sortedRecordsOffsets == null ?
+			null : this.sortedRecordsOffsets.get(value.referencedKey());
+		if (offsetAndLimit == null) {
+			return false;
+		}
+		final int primaryKey = entity.getPrimaryKeyOrThrowException();
+		for (int i = offsetAndLimit.offset(); i < offsetAndLimit.limit(); i++) {
+			final int position = cachedPositionOf(
+				this.sortedRecordsProviders, this.positionCaches, i, this.estimatedCount, primaryKey
+			);
+			if (position >= 0) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Compares two entities by their positions in the chain providers. Within a bound block both entities were
+	 * classified as placeable by {@link #canSort(EntityContract)}, so they share the block's reference key and are
+	 * found in its providers; without a bound block the entities may sit on different references and the comparison
+	 * reports every entity it cannot place through {@link #getNonSortedEntities()}.
+	 *
+	 * @param o1 the first entity
+	 * @param o2 the second entity
+	 * @return the comparison result
+	 */
 	@Override
 	public int compare(EntityContract o1, EntityContract o2) {
-		if (this.sortedRecordsOffsets == null) {
-			this.sortedRecordsProviders = this.sortedRecordsSupplier.get();
-			this.sortedRecordsOffsets = createSortedRecordsOffsets(this.sortedRecordsProviders);
-			//noinspection ObjectInstantiationInEqualsHashCode
-			this.cache = new IntIntMap[this.sortedRecordsProviders.length];
-		}
+		initializeProviders();
 		final ReferenceAttributeValue attribute1 = this.attributeValueFetcher.apply(o1);
 		final ReferenceAttributeValue attribute2 = this.attributeValueFetcher.apply(o2);
 		// to correctly compare the references we need to compare only attributes on the same reference
@@ -195,7 +255,7 @@ public class TraverseReferencePredecessorAttributeComparator
 			if (offsetAndLimit != null) {
 				// scan only the providers belonging to the shared reference key
 				return comparePositionsAcrossProviders(
-					this.sortedRecordsProviders, this.cache,
+					this.sortedRecordsProviders, this.positionCaches,
 					offsetAndLimit.offset(), offsetAndLimit.limit(),
 					this.estimatedCount, o1, o2, this.unsortedCollector
 				);
@@ -221,6 +281,19 @@ public class TraverseReferencePredecessorAttributeComparator
 			return -1;
 		} else {
 			return 0;
+		}
+	}
+
+	/**
+	 * Resolves the chain providers, their offsets per reference key and the per-provider position caches on the
+	 * first use; they stay valid for the whole query.
+	 */
+	private void initializeProviders() {
+		if (!this.providersInitialized) {
+			this.sortedRecordsProviders = this.sortedRecordsSupplier.get();
+			this.sortedRecordsOffsets = createSortedRecordsOffsets(this.sortedRecordsProviders);
+			this.positionCaches = new IntIntMap[this.sortedRecordsProviders.length];
+			this.providersInitialized = true;
 		}
 	}
 

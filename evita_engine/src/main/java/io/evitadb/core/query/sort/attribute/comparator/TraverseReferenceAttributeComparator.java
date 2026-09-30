@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -46,6 +46,11 @@ import static io.evitadb.core.query.sort.EntityReferenceSensitiveComparator.getR
  * accessing the entity attribute value and the simple {@link Comparable} comparator implementation. This implementation
  * adheres to {@link MergeMode#APPEND_ALL} which relates to {@link TraverseByEntityProperty} ordering.
  *
+ * The comparator sorts one traversal block at a time - the block key is bound by
+ * {@link #withReferencedEntityId(RepresentativeReferenceKey, Runnable)} - and an entity whose row of the block lacks
+ * the attribute is classified as not sortable ({@link #canSort(EntityContract)}), so it is passed on to the next
+ * block rather than claimed by this one.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class TraverseReferenceAttributeComparator
@@ -74,6 +79,13 @@ public class TraverseReferenceAttributeComparator
 		);
 	}
 
+	/**
+	 * Binds the comparator to the key of the sorted block for the duration of the lambda, which classifies and sorts
+	 * the entities of the block; the key is released whatever the outcome.
+	 *
+	 * @param referenceKey the key of the sorted block
+	 * @param lambda       the classification and sorting of the block
+	 */
 	@Override
 	public void withReferencedEntityId(@Nonnull RepresentativeReferenceKey referenceKey, @Nonnull Runnable lambda) {
 		try {
@@ -86,6 +98,12 @@ public class TraverseReferenceAttributeComparator
 		}
 	}
 
+	/**
+	 * Picks the reference of the bound block key - the one row of the entity the block may sort it by.
+	 *
+	 * @param entity the entity whose reference is picked
+	 * @return the reference of the bound block key, empty when the entity has none
+	 */
 	@Nonnull
 	@Override
 	protected Optional<ReferenceContract> pickReference(@Nonnull EntityContract entity) {
@@ -93,29 +111,26 @@ public class TraverseReferenceAttributeComparator
 		return getReferenceByRepresentativeReferenceKey(entity, this.referenceSchema, this.referenceKey);
 	}
 
+	/**
+	 * Compares two entities classified as sortable by {@link #canSort(EntityContract)} within the bound block: both
+	 * carry the attribute on the reference of the block, so they differ only in the value - equal values fall back to
+	 * the primary key in the direction of the ordering. Entities without the value never get here, the sorter passes
+	 * them on to the next block before any comparison.
+	 *
+	 * @param o1 the first entity
+	 * @param o2 the second entity
+	 * @return the comparison result
+	 */
 	@Override
 	public int compare(EntityContract o1, EntityContract o2) {
 		final ReferenceAttributeValue attribute1 = this.attributeValueFetcher.apply(o1);
 		final ReferenceAttributeValue attribute2 = this.attributeValueFetcher.apply(o2);
-		// to correctly compare the references we need to compare only attributes on the same reference
-		final boolean bothAttributesSpecified = attribute1 != null && attribute2 != null;
-		final boolean attributesExistOnSameReference = bothAttributesSpecified && attribute1.referencedKey().equals(attribute2.referencedKey());
-		if (attributesExistOnSameReference) {
-			final int result = attribute1.compareTo(attribute2);
-			if (result == 0) {
-				return this.pkComparator.compare(o1, o2);
-			} else {
-				return result;
-			}
-		} else if (bothAttributesSpecified) {
-			return RepresentativeReferenceKey.GENERIC_COMPARATOR.compare(attribute1.referencedKey(), attribute2.referencedKey());
-		} else if (attribute1 == null && attribute2 != null) {
-			return 1;
-		} else if (attribute1 != null) {
-			return -1;
-		} else {
-			return 0;
-		}
+		Assert.isPremiseValid(
+			attribute1 != null && attribute2 != null,
+			"Only entities classified as sortable within the bound block may be compared!"
+		);
+		final int result = attribute1.compareTo(attribute2);
+		return result == 0 ? this.pkComparator.compare(o1, o2) : result;
 	}
 
 }
