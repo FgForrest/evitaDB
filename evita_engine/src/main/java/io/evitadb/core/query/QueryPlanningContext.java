@@ -89,6 +89,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.*;
 import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
@@ -1059,6 +1061,142 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 					missingIndexSupplier.apply(entitySchema, entityIndexKey);
 				return missingIndex == null ? Stream.empty() : Stream.of(missingIndex);
 			});
+	}
+
+	/**
+	 * Returns the reference partition of the named collection registered under the primary key, leniently - see
+	 * {@link ReferencePartitions}.
+	 *
+	 * Partition primary keys are per collection (see {@link #getEntityIndexByPrimaryKey(String, int, Class)}), so the
+	 * caller names the collection that handed the key out. The queried collection is read from the index snapshot
+	 * this query was set up with, any other collection from its live indexes - exactly as
+	 * {@link #getEntityIndexByPrimaryKey(String, int, Class)} reads them.
+	 *
+	 * @param entityType          the collection the primary key belongs to
+	 * @param partitionPrimaryKey primary key of the partition
+	 * @return the partition or `null` when the key names nothing or an index that is not a reference partition
+	 */
+	@Nullable
+	public ReferencePartition resolvePartitionIfExists(@Nonnull String entityType, int partitionPrimaryKey) {
+		return ReferencePartitions.asPartition(getIndexByPrimaryKeyReader(entityType).apply(partitionPrimaryKey));
+	}
+
+	/**
+	 * Returns the reference partition of the named collection registered under the primary key, strictly - the key
+	 * must have been handed out by an index of that collection that knows the partition exists. See
+	 * {@link #resolvePartitionIfExists(String, int)} for where the partition is read from.
+	 *
+	 * @param entityType          the collection the primary key belongs to
+	 * @param partitionPrimaryKey primary key of the partition
+	 * @return the partition
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key names no reference partition
+	 */
+	@Nonnull
+	public ReferencePartition resolvePartition(@Nonnull String entityType, int partitionPrimaryKey) {
+		return ReferencePartitions.requirePartition(
+			getIndexByPrimaryKeyReader(entityType).apply(partitionPrimaryKey), entityType, partitionPrimaryKey
+		);
+	}
+
+	/**
+	 * Returns the reference partition of the named collection holding the rows of the representative reference key
+	 * in the scope. See {@link #resolvePartitionIfExists(String, int)} for where the partition is read from.
+	 *
+	 * @param entityType                 the collection owning the partition
+	 * @param scope                      the scope of the partition
+	 * @param representativeReferenceKey the representative reference key of the partition
+	 * @return the partition or `null` when the collection holds none
+	 */
+	@Nullable
+	public ReferencePartition resolvePartitionIfExists(
+		@Nonnull String entityType,
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey
+	) {
+		return ReferencePartitions.resolveIfExists(getIndexByKeyReader(entityType), scope, representativeReferenceKey);
+	}
+
+	/**
+	 * Returns the reference partitions of the named collection registered under the primary keys, strictly, in the
+	 * ascending order of the keys. See {@link #resolvePartitionIfExists(String, int)} for where the partitions are
+	 * read from.
+	 *
+	 * @param entityType           the collection the primary keys belong to
+	 * @param partitionPrimaryKeys primary keys of partitions
+	 * @return the partitions, one per primary key
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when a key names no reference partition
+	 */
+	@Nonnull
+	public ReferencePartition[] resolvePartitions(@Nonnull String entityType, @Nonnull Bitmap partitionPrimaryKeys) {
+		return ReferencePartitions.resolveAll(getIndexByPrimaryKeyReader(entityType), partitionPrimaryKeys, entityType);
+	}
+
+	/**
+	 * Returns every reference partition of the entity type holding rows of the reference that point to the target
+	 * entity in the scope. A missing type index or partition yields no element, a primary key the type index lists
+	 * must resolve - the strictness of
+	 * {@link #getReducedEntityIndexes(Scope, int, EntitySchemaContract, ReferenceSchemaContract, BiFunction)}, whose
+	 * missing-index supplier every caller passes as "none". See {@link #resolvePartitionIfExists(String, int)} for where
+	 * the partitions are read from.
+	 *
+	 * @param entitySchema     the entity type owning the reference
+	 * @param referenceSchema  the reference
+	 * @param scope            the scope of the partitions
+	 * @param targetPrimaryKey the primary key of the referenced entity
+	 * @return the partitions of the target, possibly empty
+	 * @throws io.evitadb.core.exception.ReferenceComponentNotIndexedException when the reference is indexed in the
+	 *         scope without the `REFERENCED_ENTITY` component - see
+	 *         {@link HavingTranslatorHelper#assertEntityComponentIndexed}
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when a listed primary key names no partition
+	 */
+	@Nonnull
+	public ReferencePartition[] resolvePartitionsOfTarget(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Scope scope,
+		int targetPrimaryKey
+	) {
+		// a scope indexed without the entity component builds no partitions - an empty answer would be
+		// indistinguishable from a target with no owners
+		HavingTranslatorHelper.assertEntityComponentIndexed(entitySchema, referenceSchema, scope, getScopes());
+		final String entityType = entitySchema.getName();
+		return ReferencePartitions.resolveOfTargetOrThrow(
+			getIndexByKeyReader(entityType), getIndexByPrimaryKeyReader(entityType),
+			scope, referenceSchema.getName(), referenceSchema.getCardinality().allowsDuplicates(), targetPrimaryKey,
+			entityType
+		);
+	}
+
+	/**
+	 * Returns the by-key index lookup of the named collection: this query's index snapshot for the queried collection,
+	 * the collection's live indexes (dirty buffer first) for any other.
+	 *
+	 * @param entityType the collection
+	 * @return the lookup answering `null` when the key holds nothing
+	 */
+	@Nonnull
+	private Function<EntityIndexKey, Index<?>> getIndexByKeyReader(@Nonnull String entityType) {
+		if (Objects.equals(this.entityType, entityType)) {
+			return this.indexes::get;
+		}
+		final EntityCollection collection = getEntityCollectionOrThrowException(entityType, "access entity index");
+		return collection::getIndexByKeyIfExists;
+	}
+
+	/**
+	 * Returns the by-primary-key index lookup of the named collection: this query's index snapshot for the queried
+	 * collection, the collection's live indexes (dirty buffer first) for any other.
+	 *
+	 * @param entityType the collection
+	 * @return the lookup answering `null` when the primary key names nothing
+	 */
+	@Nonnull
+	private IntFunction<Index<?>> getIndexByPrimaryKeyReader(@Nonnull String entityType) {
+		if (Objects.equals(this.entityType, entityType)) {
+			return this.indexesByPk::get;
+		}
+		final EntityCollection collection = getEntityCollectionOrThrowException(entityType, "access entity index");
+		return collection::getIndexByPrimaryKeyIfExists;
 	}
 
 	/**

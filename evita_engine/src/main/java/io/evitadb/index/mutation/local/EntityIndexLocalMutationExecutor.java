@@ -116,6 +116,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
@@ -1653,6 +1654,69 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		final EntityIndex index = this.entityIndexCreatingAccessor.getOrCreateIndexByPrimaryKey(indexPrimaryKey);
 		this.accessedIndexes.add(index.getIndexKey());
 		return of(index);
+	}
+
+	/**
+	 * Returns the reference partition of the representative reference key in the scope, acquired for writing: the
+	 * partition is created when the collection holds none yet, registered for modification tracking so that its
+	 * changed storage parts are persisted on flush, and added to the set of indexes the end-of-mutation sweep
+	 * inspects - the same acquisition as {@link #getOrCreateIndex(EntityIndexKey)}.
+	 *
+	 * @param scope                      the scope of the partition
+	 * @param representativeReferenceKey the representative reference key of the partition
+	 * @return the existing or newly created partition
+	 */
+	@Nonnull
+	ReferencePartition getOrCreatePartitionForWrite(
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey
+	) {
+		return Objects.requireNonNull(
+			ReferencePartitions.resolveIfExists(this::getOrCreateIndex, scope, representativeReferenceKey)
+		);
+	}
+
+	/**
+	 * Returns the reference partition registered under the primary key, acquired for writing - see
+	 * {@link #getIndexByPrimaryKey(int)} for why the acquisition must register the partition for modification.
+	 *
+	 * @param partitionPrimaryKey primary key of the partition in this collection
+	 * @return the partition registered for modification
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key names no reference partition
+	 */
+	@Nonnull
+	ReferencePartition getPartitionForWrite(int partitionPrimaryKey) {
+		return ReferencePartitions.requirePartition(
+			getIndexByPrimaryKey(partitionPrimaryKey).orElse(null), getEntitySchema().getName(), partitionPrimaryKey
+		);
+	}
+
+	/**
+	 * Passes every reference partition holding rows of the reference that point to the target entity in the scope to
+	 * the consumer, each acquired for writing. The acquisition creates what it does not find - the type index of a
+	 * reference allowing duplicates, the single partition of one that does not - exactly as the write path always
+	 * has; a primary key the type index lists must resolve.
+	 *
+	 * @param scope            the scope of the partitions
+	 * @param referenceSchema  the reference of this collection's entity type
+	 * @param targetPrimaryKey the primary key of the referenced entity
+	 * @param consumer         receives each partition of the target, registered for modification
+	 */
+	void forEachPartitionOfTargetForWrite(
+		@Nonnull Scope scope,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		int targetPrimaryKey,
+		@Nonnull Consumer<ReferencePartition> consumer
+	) {
+		final ReferencePartition[] partitions = ReferencePartitions.resolveOfTargetOrThrow(
+			this::getOrCreateIndex,
+			partitionPrimaryKey -> getIndexByPrimaryKey(partitionPrimaryKey).orElse(null),
+			scope, referenceSchema.getName(), referenceSchema.getCardinality().allowsDuplicates(), targetPrimaryKey,
+			getEntitySchema().getName()
+		);
+		for (final ReferencePartition partition : partitions) {
+			consumer.accept(partition);
+		}
 	}
 
 	/**

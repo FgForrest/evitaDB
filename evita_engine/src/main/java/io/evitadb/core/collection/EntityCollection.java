@@ -2087,6 +2087,86 @@ public final class EntityCollection implements
 	}
 
 	/**
+	 * Returns the reference partition of this collection registered under the primary key, leniently - see
+	 * {@link ReferencePartitions}. Reads the dirty buffer of the current mutation first and the collection's maps
+	 * second, exactly as {@link #getIndexByPrimaryKeyIfExists(int)} does.
+	 *
+	 * @param partitionPrimaryKey primary key of the partition in this collection
+	 * @return the partition or `null` when the key names nothing or an index that is not a reference partition
+	 */
+	@Nullable
+	public ReferencePartition resolvePartitionIfExists(int partitionPrimaryKey) {
+		return ReferencePartitions.asPartition(getIndexByPrimaryKeyIfExists(partitionPrimaryKey));
+	}
+
+	/**
+	 * Returns the reference partition of this collection registered under the primary key, strictly - the key must
+	 * have been handed out by an index of this collection that knows the partition exists.
+	 *
+	 * @param partitionPrimaryKey primary key of the partition in this collection
+	 * @return the partition
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key names no reference partition
+	 */
+	@Nonnull
+	public ReferencePartition resolvePartition(int partitionPrimaryKey) {
+		return ReferencePartitions.requirePartition(
+			getIndexByPrimaryKeyIfExists(partitionPrimaryKey), getEntityType(), partitionPrimaryKey
+		);
+	}
+
+	/**
+	 * Returns the reference partition of this collection holding the rows of the representative reference key in
+	 * the scope, reading the dirty buffer of the current mutation first and the collection's maps second.
+	 *
+	 * @param scope                      the scope of the partition
+	 * @param representativeReferenceKey the representative reference key of the partition
+	 * @return the partition or `null` when the collection holds none
+	 */
+	@Nullable
+	public ReferencePartition resolvePartitionIfExists(
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey
+	) {
+		return ReferencePartitions.resolveIfExists(this::getIndexByKeyIfExists, scope, representativeReferenceKey);
+	}
+
+	/**
+	 * Returns the reference partitions of this collection registered under the primary keys, strictly, in the
+	 * ascending order of the keys.
+	 *
+	 * @param partitionPrimaryKeys primary keys of partitions in this collection
+	 * @return the partitions, one per primary key
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when a key names no reference partition
+	 */
+	@Nonnull
+	public ReferencePartition[] resolvePartitions(@Nonnull Bitmap partitionPrimaryKeys) {
+		return ReferencePartitions.resolveAll(this::getIndexByPrimaryKeyIfExists, partitionPrimaryKeys, getEntityType());
+	}
+
+	/**
+	 * Returns every reference partition of this collection holding rows of the reference that point to the target
+	 * entity in the scope, leniently: a primary key the reference's type index lists but the collection no longer
+	 * holds is skipped - see
+	 * {@link ReferencePartitions#resolveOfTarget(Function, IntFunction, Scope, String, boolean, int)}.
+	 *
+	 * @param scope            the scope of the partitions
+	 * @param referenceSchema  the reference of this collection's entity type
+	 * @param targetPrimaryKey the primary key of the referenced entity
+	 * @return the partitions of the target, possibly empty
+	 */
+	@Nonnull
+	public ReferencePartition[] resolvePartitionsOfTarget(
+		@Nonnull Scope scope,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		int targetPrimaryKey
+	) {
+		return ReferencePartitions.resolveOfTarget(
+			this::getIndexByKeyIfExists, this::getIndexByPrimaryKeyIfExists,
+			scope, referenceSchema.getName(), referenceSchema.getCardinality().allowsDuplicates(), targetPrimaryKey
+		);
+	}
+
+	/**
 	 * Method returns {@link GlobalEntityIndex} or throws an exception if it hasn't yet exist.
 	 */
 	@Nonnull

@@ -74,9 +74,13 @@ import java.util.function.Function;
  * This class handles {@link EntityIndexType#REFERENCED_ENTITY} indexes for individual referenced entities.
  * For group-level indexes with cardinality tracking, see {@link ReducedGroupEntityIndex}.
  *
+ * Every instance is the materialized form of a {@link ReferencePartition} - the class implements the handle
+ * directly, so resolving a partition allocates nothing and keeps the object's identity. The class is `final`
+ * because the sealed handle permits exactly this type.
+ *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class ReducedEntityIndex extends AbstractReducedEntityIndex {
+public final class ReducedEntityIndex extends AbstractReducedEntityIndex implements ReferencePartition {
 
 	/**
 	 * Creates a new empty reduced entity index.

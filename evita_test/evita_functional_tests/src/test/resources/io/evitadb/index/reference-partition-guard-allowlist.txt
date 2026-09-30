@@ -1,0 +1,239 @@
+# Allow-list of ReferencePartitionAccessGuardTest - direct REFERENCED_ENTITY reduced index accesses that exist
+# today. Format: rule | Class#member | inventory row | reason. Rows refer to
+# specifications/1615-virtual-single-owner-partitions/phase1/INVENTORY.md (issue #1615); `§3.4` / `§3.5` mark the
+# partition resolver and acquisition surfaces themselves, `–` a hit that is not a partition access at all.
+# The list only shrinks: an entry that is no longer hit fails the test, so each migrating commit deletes its entries.
+R1 | io.evitadb.core.collection.EntityCollection#addIndex | A11 | physical load / WAL attach of both reduced families
+R1 | io.evitadb.core.collection.EntityCollection$EntityIndexMaintainer#getOrCreateIndex | A5 | construction of REFERENCED_ENTITY indexes, mints the pk
+R1 | io.evitadb.core.query.QueryPlan#getReducedEntityIndexes | E6 | Lombok @Delegate of QueryPlanningContext
+R1 | io.evitadb.core.query.QueryPlanningContext#getReducedEntityIndexes | E6 | partitions of one target (replaced by resolvePartitionsOfTarget in 1e)
+R1 | io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor#createPrefetcherIfNeededOrWorthwhile | E39 | owners of the winning reduced indexes (partitioning gate)
+R1 | io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor#getReducedEntityIndexes | E6 | Lombok @Delegate of QueryPlanningContext
+R1 | io.evitadb.core.query.extraResult.translator.hierarchyStatistics.HierarchyOfReferenceTranslator#createProducer | E36 | owners formula per hierarchy node
+R1 | io.evitadb.core.query.fetch.ReferencedEntityFetcher#<clinit> | F1 | rrk comparator
+R1 | io.evitadb.core.query.fetch.ReferencedEntityFetcher#computeResultWithPassedIndex | F4 | isolated body per partition
+R1 | io.evitadb.core.query.fetch.ReferencedEntityFetcher#field:BY_DISCRIMINATOR | F1 | rrk comparator
+R1 | io.evitadb.core.query.fetch.ReferencedEntityFetcher#getFilteredReferencedEntityIds | F2/F3 | partitions for referenceContent(filterBy/orderBy)
+R1 | io.evitadb.core.query.filter.FilterByVisitor#<clinit> | E8 | typed missing-index supplier
+R1 | io.evitadb.core.query.filter.FilterByVisitor#field:NO_OP_MISSING_REI_SUPPLIER | E8 | typed missing-index supplier
+R1 | io.evitadb.core.query.filter.FilterByVisitor#getReducedEntityIndexes | E6 | Lombok @Delegate of QueryPlanningContext
+R1 | io.evitadb.core.query.filter.FilterByVisitor#getReferencedEntityIndexes | E14 | partitions of one target
+R1 | io.evitadb.core.query.filter.FilterByVisitor#getReferencedGroupEntityIndexes | E15 | group-family
+R1 | io.evitadb.core.query.filter.FilterByVisitor#getReferencedRecordEntityIndexCandidates | E10 | candidate discovery, strict and delegated lenient by pk
+R1 | io.evitadb.core.query.filter.FilterByVisitor#getReferencedRecordEntityIndexes | E9 | typed partition list
+R1 | io.evitadb.core.query.filter.FilterByVisitor#getReferencedRecordIdFormula | E12 | object resolved only to read the target pk
+R1 | io.evitadb.core.query.filter.FilterByVisitor$ReducedIndexCandidates#<init> | E11 | one object per candidate pk
+R1 | io.evitadb.core.query.filter.FilterByVisitor$ReducedIndexCandidates#field:indexAccessor | E11 | one object per candidate pk
+R1 | io.evitadb.core.query.filter.FilterByVisitor$ReducedIndexCandidates#indexAccessor | E11 | one object per candidate pk
+R1 | io.evitadb.core.query.filter.FilterByVisitor$ReducedIndexCandidates#resolve | E11 | one object per candidate pk
+R1 | io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyInSetTranslator#translate | E29/E30 | partition-scoped body class test and owners
+R1 | io.evitadb.core.query.filter.translator.hierarchy.AbstractHierarchyTranslator#createFormulaForReferencingEntities | E35 | owners formula per node
+R1 | io.evitadb.core.query.filter.translator.reference.BidirectionalReferenceRewriter#allRowsOf | E34 | owners formula
+R1 | io.evitadb.core.query.filter.translator.reference.BidirectionalReferenceRewriter#createPerOwnerFormulas | E33 | counterpart partitions per candidate owner
+R1 | io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper#createIndexLocalTargetFormula | E26 | BRANCH A owners tagged by pk
+R1 | io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper#translateHavingConstraint | E25/E26 | class tests and casts of the body indexes
+R1 | io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper$GroupBucketKey#of | E28 | rrk values
+R1 | io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper$GroupRowLookup#build | E25 | group branch per partition
+R1 | io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper$GroupRowLookup#createIndexLocalGroupFormula | E25 | group branch per partition
+R1 | io.evitadb.core.query.filter.translator.reference.ReferenceHavingTranslator#applySearchOnIndexes | E21 | body entry (typed supplier, class token)
+R1 | io.evitadb.core.query.filter.translator.reference.ReferenceHavingTranslator#getTargetIndexes | E23 | reuse of the selected target indexes
+R1 | io.evitadb.core.query.filter.translator.reference.ReferenceHavingTranslator#translate | E21/E22 | typed partition list feeding the body
+R1 | io.evitadb.core.query.indexSelection.IndexSelectionVisitor#addHierarchyIndexOption | E19 | hierarchy option resolves partitions per node
+R1 | io.evitadb.core.query.indexSelection.IndexSelectionVisitor#addReferenceIndexOption | E20 | owner-count sum of candidates
+R1 | io.evitadb.core.query.sort.OrderByVisitor#getIndexesForSort | G1 | object channel for sorters
+R1 | io.evitadb.core.query.sort.OrderByVisitor#getReducedEntityIndexes | E6 | Lombok @Delegate of QueryPlanningContext
+R1 | io.evitadb.core.query.sort.ReferenceOrderByVisitor#getChainIndex | G20/G21 | chain index by REFERENCED_ENTITY key
+R1 | io.evitadb.core.query.sort.ReferenceOrderByVisitor#getReducedEntityIndexes | E6 | Lombok @Delegate of QueryPlanningContext
+R1 | io.evitadb.core.query.sort.attribute.translator.AttributeNaturalTranslator#createPickFirstSorters | G15 | pick-first sort provider per partition
+R1 | io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyNaturalTranslator#createReferencedPrimaryKeyProvider | G18 | owners + target pk
+R1 | io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyNaturalTranslator#createSorter | G18/G19 | pre-sorted provider per partition
+R1 | io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver#<init> | G8/G10 | memoized planning partitions
+R1 | io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver#field:memoizedPlanningIndexes | G8/G10 | memoized planning partitions
+R1 | io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver#field:planningIndexes | G8/G10 | memoized planning partitions
+R1 | io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver#getPlanningIndexes | G8/G10 | memoized planning partitions
+R1 | io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver#order | G13 | target + rrk order
+R1 | io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver#resolve | G9 | pick-first candidates
+R1 | io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver#resolveReducedIndex | G12 | lenient pk with family / scope / reference checks
+R1 | io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver$ResolvedReducedIndexes#<init> | G13 | record of ordered partitions
+R1 | io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver$ResolvedReducedIndexes#equals | G13 | record of ordered partitions
+R1 | io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver$ResolvedReducedIndexes#field:indexes | G13 | record of ordered partitions
+R1 | io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver$ResolvedReducedIndexes#hashCode | G13 | record of ordered partitions
+R1 | io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver$ResolvedReducedIndexes#indexes | G13 | record of ordered partitions
+R1 | io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver$ResolvedReducedIndexes#toString | G13 | record of ordered partitions
+R1 | io.evitadb.core.query.sort.reference.sorter.PickFirstReferenceSorter#<init> | G14 | provider factory + owners in the claim loop
+R1 | io.evitadb.core.query.sort.reference.sorter.PickFirstReferenceSorter#claim | G14 | provider factory + owners in the claim loop
+R1 | io.evitadb.core.query.sort.reference.sorter.PickFirstReferenceSorter#field:providerFactory | G14 | provider factory + owners in the claim loop
+R1 | io.evitadb.core.query.sort.reference.sorter.PickFirstReferenceSorter#sortAndSlice | G14 | provider factory + owners in the claim loop
+R1 | io.evitadb.core.query.sort.reference.sorter.SequentialSorter#<init> | G7 | owners formula and rrk per block
+R1 | io.evitadb.core.query.sort.reference.sorter.SequentialSorter#field:atomicBlocks | G7 | owners formula and rrk per block
+R1 | io.evitadb.core.query.sort.reference.sorter.SequentialSorter#sortAndSlice | G7 | owners formula and rrk per block
+R1 | io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator#<clinit> | G3 | typed empty array constant
+R1 | io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator#createPickFirstIndexResolver | G8 | planning partitions supplier
+R1 | io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator#createSorter | G6 | traverse blocks per target
+R1 | io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator#field:EMPTY_REDUCED_INDEXES | G3 | typed empty array constant
+R1 | io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator#selectFullEntityIndexSet | G4 | whole family of the reference by strict pk
+R1 | io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator#selectPlanningReducedIndexes | G5 | target order of planning partitions
+R1 | io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator#selectReducedEntityIndexSet | G3 | reuse of the filter partitions
+R1 | io.evitadb.index.ReferencePartitions#asPartition | §3.5 | the resolver implementation itself
+R1 | io.evitadb.index.ReferencePartitions#requirePartition | §3.5 | the resolver implementation itself
+R1 | io.evitadb.index.ReferencedTypeEntityIndex#<clinit> | §7 | throwing stub matcher names AbstractReducedEntityIndex
+R1 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#applyOnExistingReducedIndexes | B15/B16 | partitions of the entity's targets, both families
+R1 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#getRepresentativeReferenceKeysAndUpdateIndexesIfNecessary | B8 | RRK migration, former + new partition
+R1 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#indexAllReferences | B14 | by-key write acquisition
+R1 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#insertInitialSuiteOfSortableAttributeCompounds | B9 | dispatch point D5
+R1 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#insertIntoGroupIndexes | C5 | group-family acquisition
+R1 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#removeEntireSuiteOfSortableAttributeCompounds | B10 | dispatch point D5
+R1 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#removeFromGroupIndexes | C5 | group-family acquisition
+R1 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#unindexReferences | B11 | by-key write acquisition
+R1 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#updatePriceHandlingForEntity | B25 | price fan-out consumer (partitioning gate)
+R1 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#updateReferenceOnAttributeChange | B20 | by-key write acquisition
+R1 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#updateReferenceOnInsert | B21 | by-key write acquisition
+R1 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#updateReferenceOnRemoval | B22 | by-key write acquisition
+R1 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#updateReferenceOnRemoveGroup | B19 | by-key write acquisition
+R1 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#updateReferenceOnSetGroup | B18 | by-key write acquisition
+R1 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#updateReferencesInReferenceIndex | B24 | cross-reference fan-out consumer
+R1 | io.evitadb.index.mutation.local.ReferenceIndexConsumer#accept | B26 | consumer signature (partitioning gate)
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#applySortableAttributeCompoundSuite | C18 | partition-local write set
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#attributeUpdate | C6 | dispatch point D3
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#collectOwnerReducedIndexes | C11 | owner partitions for facet re-evaluation (partitioning gate)
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#extractRepresentativeReferenceKey | C17 | discriminator cast
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#forEachUniqueReferenceIndex | C1 | identity dedupe (partitioning gate)
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#getOrCreateReferencedEntityIndex | C4 | the entity-family write acquisition
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#indexAllEntityLevelAttributes | C18 | partition-local write set
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#indexAllExistingData | C18 | partition-local write set
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#indexAllFacets | C18 | partition-local write set
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#indexAllPrices | C18 | partition-local write set
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#indexAllReferenceLevelAttributes | C18 | partition-local write set
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#insertInitialSuiteOfSortableAttributeCompounds | C15 | compound suite insert / remove
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#iterateGroupPath | C3 | group-family
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#iterateReducedEntityPath | C2 | by-key acquisition per reference (partitioning gate)
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#reEvaluateFacetExpressionsInAllIndexes | C11 | owner partitions for facet re-evaluation (partitioning gate)
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#recordOwnerEnteredReducedIndex | C12 | membership, dispatch point D7
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#recordOwnerLeftReducedIndex | C14 | membership, dispatch point D7
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#referenceInsert | C8 | delegates to dispatch point D1
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#referenceInsertPerComponent | C7 | dispatch point D1
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#referenceRemovalPerComponent | C9 | dispatch point D2
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#removeAllEntityLevelAttributes | C18 | partition-local write set
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#removeAllExistingData | C18 | partition-local write set
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#removeAllFacets | C18 | partition-local write set
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#removeAllPrices | C18 | partition-local write set
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#removeAllReferenceLevelAttributes | C18 | partition-local write set
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#removeEntireSuiteOfSortableAttributeCompounds | C15 | compound suite insert / remove
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator#shouldIndexFacetToTargetIndex | C10 | facets only into PARTITIONING partitions
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator$OwnerReducedIndex#<init> | C11 | record of owner partitions (partitioning gate)
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator$OwnerReducedIndex#equals | C11 | record of owner partitions (partitioning gate)
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator$OwnerReducedIndex#field:index | C11 | record of owner partitions (partitioning gate)
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator$OwnerReducedIndex#hashCode | C11 | record of owner partitions (partitioning gate)
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator$OwnerReducedIndex#index | C11 | record of owner partitions (partitioning gate)
+R1 | io.evitadb.index.mutation.local.ReferenceIndexMutator$OwnerReducedIndex#toString | C11 | record of owner partitions (partitioning gate)
+R1 | io.evitadb.index.mutation.local.handler.AttributeMutationFanOut#apply | B26 | fan-out consumer signature (partitioning gate)
+R1 | io.evitadb.index.mutation.local.handler.PriceMutationFanOut#apply | B26 | fan-out consumer signature (partitioning gate)
+R1 | io.evitadb.index.mutation.local.handler.ReferenceMutationFanOut#apply | B26 | fan-out consumer signature (partitioning gate)
+R1 | io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor#createAndRegisterReferencePropagationMutation | D1 | counterpart partitions -> reflected references
+R1 | io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor#createCounterpartPresencePredicate | D5 | partition presence by REFERENCED_ENTITY key
+R1 | io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor#generateMissing | D4 | representative values of counterpart partitions
+R1 | io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor#getAllReducedIndexes | D3 | shared dup / non-dup helper, both families
+R1 | io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor#getAllReducedReferencedEntityIndexes | D2 | partitions of one target, cross-collection
+R1 | io.evitadb.store.catalog.DefaultEntityCollectionPersistenceService#resolvePlanFor | A29 | deserialization by EntityIndexType (evita_store)
+R2 | io.evitadb.core.collection.EntityCollection$EntityIndexMaintainer#getOrCreateIndex | A5 | construction of REFERENCED_ENTITY indexes, mints the pk
+R2 | io.evitadb.core.query.QueryPlanningContext#getReducedEntityIndexes | E6 | partitions of one target (replaced by resolvePartitionsOfTarget in 1e)
+R2 | io.evitadb.core.query.indexSelection.IndexSelectionVisitor#addHierarchyIndexOption | E19 | hierarchy option resolves partitions per node
+R2 | io.evitadb.core.query.indexSelection.IndexSelectionVisitor#addReferenceIndexOption | E20 | owner-count sum of candidates
+R2 | io.evitadb.core.query.sort.ReferenceOrderByVisitor#getChainIndex | G20/G21 | chain index by REFERENCED_ENTITY key
+R2 | io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver#resolveReducedIndex | G12 | lenient pk with family / scope / reference checks
+R2 | io.evitadb.index.EntityIndexKey#<init> | – | key validation per index type, not a partition access
+R2 | io.evitadb.index.EntityIndexKey$1#<clinit> | – | enum switch map of the key validation
+R2 | io.evitadb.index.ReferencePartitions#createKey | §3.5 | the resolver implementation itself
+R2 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#applyOnExistingReducedIndexes | B15/B16 | partitions of the entity's targets, both families
+R2 | io.evitadb.index.mutation.local.ReferenceIndexMutator#getOrCreateReferencedEntityIndex | C4 | the entity-family write acquisition
+R2 | io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor#createCounterpartPresencePredicate | D5 | partition presence by REFERENCED_ENTITY key
+R2 | io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor#getAllReducedReferencedEntityIndexes | D2 | partitions of one target, cross-collection
+R2 | io.evitadb.store.catalog.DefaultEntityCollectionPersistenceService$3#<clinit> | A29 | deserialization by EntityIndexType (evita_store)
+R2 | io.evitadb.store.catalog.Migration_2025_6#upgradeFromStorageProtocolVersion_3_to_4 | A30 | storage migration (key format)
+R2 | io.evitadb.store.index.serializer.EntityIndexStoragePartSerializer_2024_11$1#<clinit> | A30 | key / storage-part serialization
+R2 | io.evitadb.store.index.serializer.EntityIndexStoragePartSerializer_2025_6#read | A30 | key / storage-part serialization
+R2 | io.evitadb.store.index.serializer.EntityIndexTypeSerializer#read | A30 | key / storage-part serialization
+R3 | io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer#getIndexIfExists | A23 | generic buffer plumbing
+R3 | io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer#getOrCreateIndexForModification | A23 | generic buffer plumbing
+R3 | io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer#getIndexIfExists | A23 | generic buffer plumbing
+R3 | io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer#getOrCreateIndexForModification | A23 | generic buffer plumbing
+R3 | io.evitadb.core.catalog.Catalog$CatalogIndexMaintainerImpl#getIndexByPrimaryKeyIfExists | – | catalog index maintainer - name collision, no partition access
+R3 | io.evitadb.core.catalog.Catalog$CatalogIndexMaintainerImpl#getOrCreateIndexByPrimaryKey | – | catalog index maintainer - name collision, no partition access
+R3 | io.evitadb.core.collection.EntityCollection#<init> | A4 | wires the by-pk accessor into DataStoreReaderBridge
+R3 | io.evitadb.core.collection.EntityCollection#describeIndex | A14 | physical index detail projection by pk
+R3 | io.evitadb.core.collection.EntityCollection#getIndexByPrimaryKeyIfExists | A2 | by-pk resolver implementation
+R3 | io.evitadb.core.collection.EntityCollection#getIndexIfExists | A3 | Lombok @Delegate of DataStoreReader (raw by-pk plumbing)
+R3 | io.evitadb.core.collection.EntityCollection#registerReducedIndex | A10 | membership registration by pk
+R3 | io.evitadb.core.collection.EntityCollection#resolvePartition | §3.5 | partition resolver surface
+R3 | io.evitadb.core.collection.EntityCollection#resolvePartitionIfExists | §3.5 | partition resolver surface
+R3 | io.evitadb.core.collection.EntityCollection#resolvePartitions | §3.5 | partition resolver surface
+R3 | io.evitadb.core.collection.EntityCollection#resolvePartitionsOfTarget | §3.5 | partition resolver surface
+R3 | io.evitadb.core.collection.EntityCollection$DataStoreReaderBridge#getIndexIfExists | A4 | dirty-buffer layering every write-path reader relies on
+R3 | io.evitadb.core.collection.EntityCollection$EntityIndexMaintainer#getIndexByPrimaryKeyIfExists | A6/A7 | maintainer by-pk read / write resolver implementation
+R3 | io.evitadb.core.collection.EntityCollection$EntityIndexMaintainer#getOrCreateIndexByPrimaryKey | A6/A7 | maintainer by-pk read / write resolver implementation
+R3 | io.evitadb.core.query.QueryPlan#getEntityIndexByPrimaryKey | E3/E4 | Lombok @Delegate of QueryPlanningContext
+R3 | io.evitadb.core.query.QueryPlan#getEntityIndexByPrimaryKeyIfExists | E3/E4 | Lombok @Delegate of QueryPlanningContext
+R3 | io.evitadb.core.query.QueryPlanningContext#getEntityIndexByPrimaryKey | E4 | strict by-pk, snapshot vs live split
+R3 | io.evitadb.core.query.QueryPlanningContext#getIndexByPrimaryKeyReader | §3.5 | partition resolver surface
+R3 | io.evitadb.core.query.QueryPlanningContext#getReducedEntityIndexes | E6 | partitions of one target (replaced by resolvePartitionsOfTarget in 1e)
+R3 | io.evitadb.core.query.QueryPlanningContext#getReducedGroupEntityIndexes | E7 | group-family
+R3 | io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor#getEntityIndexByPrimaryKey | E3/E4 | Lombok @Delegate of QueryPlanningContext
+R3 | io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor#getEntityIndexByPrimaryKeyIfExists | E3/E4 | Lombok @Delegate of QueryPlanningContext
+R3 | io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceHistogramAccumulator#collectGroupedPending | E40 | group-family
+R3 | io.evitadb.core.query.filter.FilterByVisitor#getEntityIndexByPrimaryKey | E3/E4 | Lombok @Delegate of QueryPlanningContext
+R3 | io.evitadb.core.query.filter.FilterByVisitor#getEntityIndexByPrimaryKeyIfExists | E3/E4 | Lombok @Delegate of QueryPlanningContext
+R3 | io.evitadb.core.query.filter.FilterByVisitor#getReferencedRecordEntityIndexCandidates | E10 | candidate discovery, strict and delegated lenient by pk
+R3 | io.evitadb.core.query.filter.FilterByVisitor#getReferencedRecordIdFormula | E12 | object resolved only to read the target pk
+R3 | io.evitadb.core.query.sort.OrderByVisitor#getEntityIndexByPrimaryKey | E3/E4 | Lombok @Delegate of QueryPlanningContext
+R3 | io.evitadb.core.query.sort.OrderByVisitor#getEntityIndexByPrimaryKeyIfExists | E3/E4 | Lombok @Delegate of QueryPlanningContext
+R3 | io.evitadb.core.query.sort.ReferenceOrderByVisitor#getEntityIndexByPrimaryKey | E3/E4 | Lombok @Delegate of QueryPlanningContext
+R3 | io.evitadb.core.query.sort.ReferenceOrderByVisitor#getEntityIndexByPrimaryKeyIfExists | E3/E4 | Lombok @Delegate of QueryPlanningContext
+R3 | io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver#resolveReducedIndex | G12 | lenient pk with family / scope / reference checks
+R3 | io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator#selectFullEntityIndexSet | G4 | whole family of the reference by strict pk
+R3 | io.evitadb.index.IndexMaintainer#getIndexByPrimaryKey | A24 | generic throwing by-pk default
+R3 | io.evitadb.index.ReferencePartitions#resolveOfTarget | §3.5 | the resolver implementation itself
+R3 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#addFromReferenceAttributeForLocale | D13 | group histograms / resolution
+R3 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#applyFacetToReducedIndexFamily | D12 | facet into the mutated reference's partitions (partitioning gate)
+R3 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#insertHistogramValue | D13 | group histograms / resolution
+R3 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#probeReducedIndexForAffectedOwners | D10 | owners of affected partitions (partitioning gate)
+R3 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#removeFromReferenceAttributeForLocale | D13 | group histograms / resolution
+R3 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#removeHistogramValue | D13 | group histograms / resolution
+R3 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#resolveForGroupEntityAttribute | D13 | group histograms / resolution
+R3 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#resolveForParentGrouped | D13 | group histograms / resolution
+R3 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#resolveForParentUngrouped | D15 | every partition of the reference per parent mutation
+R3 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#resolveForRefEntityAttrGrouped | D13 | group histograms / resolution
+R3 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#resolveForRefEntityAttrUngrouped | D14 | owners of a target's partitions, lenient by pk
+R3 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#applyOnExistingReducedIndexes | B15/B16 | partitions of the entity's targets, both families
+R3 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#forEachPartitionOfTargetForWrite | §3.4 | partition write acquisition surface
+R3 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#getEntityIndexByPrimaryKeyForModification | B6 | group-family by-pk write
+R3 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#getEntityIndexByPrimaryKeyIfExists | B5 | dead, removed in 1c
+R3 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#getIndexByPrimaryKey | B7 | by-pk write acquisition
+R3 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#getPartitionForWrite | §3.4 | partition write acquisition surface
+R3 | io.evitadb.index.mutation.local.ReferenceIndexMutator#insertSingleHistogramValue | C19 | group histograms by pk
+R3 | io.evitadb.index.mutation.local.ReferenceIndexMutator#removeHistogramFromPreResolvedGroupIndexes | C16 | group histograms
+R3 | io.evitadb.index.mutation.local.ReferenceIndexMutator#removeHistogramValuesWithGuard | C19 | group histograms by pk
+R3 | io.evitadb.index.mutation.local.ReferenceIndexMutator#removeSingleHistogramValue | C19 | group histograms by pk
+R3 | io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor#getAllReducedReferencedEntityIndexes | D2 | partitions of one target, cross-collection
+R4 | io.evitadb.core.collection.EntityCollection#rebuildReducedIndexMembership | A9 | membership rebuild enumerates partition pks
+R4 | io.evitadb.core.query.QueryPlanningContext#getReducedEntityIndexes | E6 | partitions of one target (replaced by resolvePartitionsOfTarget in 1e)
+R4 | io.evitadb.core.query.QueryPlanningContext#getReducedGroupEntityIndexes | E7 | group-family
+R4 | io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceHistogramAccumulator#collectGroupedPending | E40 | group-family
+R4 | io.evitadb.index.ReferencePartitions#resolveOfTarget | §3.5 | the resolver implementation itself
+R4 | io.evitadb.index.ReferencedTypeEntityIndex#getAllReferenceIndexes | H3 | declaration delegating to the cardinality index
+R4 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#addFromReferenceAttributeForLocale | D13 | group histograms / resolution
+R4 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#applyFacetToReducedIndexFamily | D12 | facet into the mutated reference's partitions (partitioning gate)
+R4 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#collectOwnersOfReducedIndexes | D11 | unaccelerated walk (partitioning gate)
+R4 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#insertHistogramValue | D13 | group histograms / resolution
+R4 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#removeFromReferenceAttributeForLocale | D13 | group histograms / resolution
+R4 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#removeHistogramValue | D13 | group histograms / resolution
+R4 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#resolveForGroupEntityAttribute | D13 | group histograms / resolution
+R4 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#resolveForParentGrouped | D13 | group histograms / resolution
+R4 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#resolveForParentUngrouped | D15 | every partition of the reference per parent mutation
+R4 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#resolveForRefEntityAttrGrouped | D13 | group histograms / resolution
+R4 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#resolveForRefEntityAttrUngrouped | D14 | owners of a target's partitions, lenient by pk
+R4 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#resolveGroupStoragePKs | B23 | group-family
+R4 | io.evitadb.index.mutation.local.ReferenceIndexMutator#insertSingleHistogramValue | C19 | group histograms by pk
+R4 | io.evitadb.index.mutation.local.ReferenceIndexMutator#removeHistogramValuesWithGuard | C19 | group histograms by pk
+R4 | io.evitadb.index.mutation.local.ReferenceIndexMutator#removeSingleHistogramValue | C19 | group histograms by pk
+R4 | io.evitadb.index.mutation.local.ReferenceIndexMutator#seedFromAdvertisedIndexes | C13 | lazy membership seeding enumerates pks
+R4 | io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor#getAllReducedIndexes | D3 | shared dup / non-dup helper, both families
