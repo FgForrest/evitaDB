@@ -23,6 +23,8 @@
 
 package io.evitadb.core.query.sort.attribute.sorter;
 
+import com.carrotsearch.hppc.IntIntHashMap;
+import com.carrotsearch.hppc.IntIntMap;
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -235,16 +237,26 @@ public class AttributeExactSorter implements Sorter {
 	@SuppressWarnings({"ObjectInstantiationInEqualsHashCode", "ComparatorNotSerializable"})
 	@RequiredArgsConstructor
 	private static class AttributePositionComparator implements EntityComparator {
+		/**
+		 * Marker of an entity whose position has not been resolved yet - no resolved position can be negative.
+		 */
+		private static final int NOT_RESOLVED = Integer.MIN_VALUE;
 		private final String attributeName;
 		private final Serializable[] attributeValues;
 		private int estimatedCount = 100;
 		private ObjectIntMap<Serializable> cache;
+		/**
+		 * Resolved positions keyed by entity primary key, so that every entity is resolved (and tracked as non-sorted)
+		 * only once, although it takes part in many comparisons.
+		 */
+		private IntIntMap positionsByPrimaryKey;
 		@Nullable private CompositeObjectArray<EntityContract> nonSortedEntities;
 
 		@Override
 		public void prepareFor(int entityCount) {
 			this.estimatedCount = entityCount;
 			this.nonSortedEntities = null;
+			this.positionsByPrimaryKey = null;
 		}
 
 		@Nonnull
@@ -268,6 +280,15 @@ public class AttributeExactSorter implements Sorter {
 		 * @return the position of the entity's attribute value or {@link Integer#MAX_VALUE} for non-sorted entities
 		 */
 		private int getPosition(@Nonnull EntityContract entity) {
+			if (this.positionsByPrimaryKey == null) {
+				this.positionsByPrimaryKey = new IntIntHashMap(this.estimatedCount);
+			}
+			final int primaryKey = entity.getPrimaryKeyOrThrowException();
+			final int resolvedPosition = this.positionsByPrimaryKey.getOrDefault(primaryKey, NOT_RESOLVED);
+			if (resolvedPosition != NOT_RESOLVED) {
+				return resolvedPosition;
+			}
+
 			final Serializable attribute = entity.getAttribute(this.attributeName);
 			final int position;
 			if (attribute == null) {
@@ -283,8 +304,10 @@ public class AttributeExactSorter implements Sorter {
 				this.nonSortedEntities = ofNullable(this.nonSortedEntities)
 					.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));
 				this.nonSortedEntities.add(entity);
+				this.positionsByPrimaryKey.put(primaryKey, Integer.MAX_VALUE);
 				return Integer.MAX_VALUE;
 			} else {
+				this.positionsByPrimaryKey.put(primaryKey, position);
 				return position;
 			}
 		}

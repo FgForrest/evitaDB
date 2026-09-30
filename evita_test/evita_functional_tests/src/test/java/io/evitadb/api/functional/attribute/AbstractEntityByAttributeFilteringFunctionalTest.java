@@ -5128,6 +5128,38 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should order prefetched products outside the exact order of the attribute by the next sorter on every page")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldOrderPrefetchedProductsOutsideExactAttributeOrderByNextSorterOnEveryPage(Evita evita, List<SealedEntity> originalProductEntities) {
+		final List<SealedEntity> productsStartingWithE = getProductsWithCodeStartingWithE(originalProductEntities);
+		final String[] exactCodeOrder = getEveryOtherCodeInReverseOrder(productsStartingWithE);
+		final int[] expectedOrder = composeExpectedOrderByExactCodes(productsStartingWithE, exactCodeOrder, Comparator.reverseOrder());
+		final Integer[] productIds = productsStartingWithE.stream()
+			.map(EntityContract::getPrimaryKeyOrThrowException)
+			.toArray(Integer[]::new);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertEveryPageIsSliceOf(
+					expectedOrder,
+					(pageNumber, pageSize) -> queryProductPage(
+						session,
+						filterBy(entityPrimaryKeyInSet(productIds)),
+						orderBy(
+							attributeSetExact(ATTRIBUTE_CODE, exactCodeOrder),
+							entityPrimaryKeyNatural(DESC)
+						),
+						page(pageNumber, pageSize),
+						debug(DebugMode.PREFER_PREFETCHING)
+					)
+				);
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return every page of prefetched products sorted by exact order of the attribute as a slice of the entire result")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
