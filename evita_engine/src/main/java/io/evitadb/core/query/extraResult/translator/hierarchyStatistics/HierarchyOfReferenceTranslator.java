@@ -43,16 +43,14 @@ import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.dataType.Scope;
-import io.evitadb.function.Functions;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencePartition;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.List;
 import java.util.Optional;
 
 /**
@@ -131,22 +129,19 @@ public class HierarchyOfReferenceTranslator
 						// same result regardless of how the index was carved up
 						final Formula cachedGlobal = extraResultPlanner
 							.getFilteringFormulaForStatisticsBase(statisticsBase, referenceSchema);
-						final List<ReducedEntityIndex> reducedIndexes = extraResultPlanner
+						final ReferencePartition[] partitions = extraResultPlanner
 							.getQueryContext()
-							.getReducedEntityIndexes(
-								scope, nodeId, entitySchema, referenceSchema, Functions.noOpBiFunction()
-							)
-							.toList();
+							.resolvePartitionsOfTarget(entitySchema, referenceSchema, scope, nodeId);
 
-						final Formula[] formulas = new Formula[reducedIndexes.size()];
+						final Formula[] formulas = new Formula[partitions.length];
 						if (cachedGlobal == null) {
-							for (int i = 0; i < reducedIndexes.size(); i++) {
-								formulas[i] = reducedIndexes.get(i).getAllPrimaryKeysFormula();
+							for (int i = 0; i < partitions.length; i++) {
+								formulas[i] = partitions[i].getAllPrimaryKeysFormula();
 							}
 						} else {
-							for (int i = 0; i < reducedIndexes.size(); i++) {
+							for (int i = 0; i < partitions.length; i++) {
 								formulas[i] = FormulaFactory.and(
-									reducedIndexes.get(i).getAllPrimaryKeysFormula(),
+									partitions[i].getAllPrimaryKeysFormula(),
 									cachedGlobal
 								);
 							}

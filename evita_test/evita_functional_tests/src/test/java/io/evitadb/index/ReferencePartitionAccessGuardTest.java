@@ -115,7 +115,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 @Tag(REFERENCE)
 class ReferencePartitionAccessGuardTest {
 	/**
-	 * The allow-list resource, one entry per line: `rule | Class#member | inventory row | reason`.
+	 * The allow-list resource, one entry per line: `rule | Class#member | reason`.
 	 */
 	private static final String ALLOW_LIST = "reference-partition-guard-allowlist.txt";
 	/**
@@ -209,7 +209,7 @@ class ReferencePartitionAccessGuardTest {
 				for (Map.Entry<String, Set<String>> hit : unexpected.entrySet()) {
 					final String[] ruleAndSite = hit.getKey().split(" ", 2);
 					message.append(ruleAndSite[0]).append(" | ").append(ruleAndSite[1])
-						.append(" | ? | ").append(hit.getValue()).append('\n');
+						.append(" | ? ").append(hit.getValue()).append('\n');
 				}
 			}
 			if (!stale.isEmpty()) {
@@ -283,7 +283,7 @@ class ReferencePartitionAccessGuardTest {
 	}
 
 	/**
-	 * Reads the allow-list resource into `rule Class#member` keys mapped to their inventory row and reason.
+	 * Reads the allow-list resource into `rule Class#member` keys mapped to their reason.
 	 *
 	 * @return the allow-list entries
 	 */
@@ -307,13 +307,13 @@ class ReferencePartitionAccessGuardTest {
 				if (trimmed.isEmpty() || trimmed.startsWith("#")) {
 					continue;
 				}
-				final String[] parts = trimmed.split("\\s*\\|\\s*", 4);
+				final String[] parts = trimmed.split("\\s*\\|\\s*", 3);
 				assertEquals(
-					4, parts.length,
-					ALLOW_LIST + ":" + lineNumber + " must read `rule | Class#member | inventory row | reason`"
+					3, parts.length,
+					ALLOW_LIST + ":" + lineNumber + " must read `rule | Class#member | reason`"
 				);
-				assertTrue(!parts[3].isBlank(), ALLOW_LIST + ":" + lineNumber + " carries no reason");
-				final String previous = result.put(parts[0] + " " + parts[1], parts[2] + " | " + parts[3]);
+				assertTrue(!parts[2].isBlank(), ALLOW_LIST + ":" + lineNumber + " carries no reason");
+				final String previous = result.put(parts[0] + " " + parts[1], parts[2]);
 				assertTrue(previous == null, ALLOW_LIST + ":" + lineNumber + " duplicates an earlier entry");
 			}
 		} catch (IOException e) {

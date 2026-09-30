@@ -70,10 +70,6 @@ import io.evitadb.core.query.sort.translator.OrderInScopeTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.api.index.EntityIndexType;
-import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -377,16 +373,11 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 				HavingTranslatorHelper.assertEntityComponentIndexed(
 					targetEntitySchema, targetReferenceSchema, scope, EnumSet.of(scope)
 				);
-				// get the index from the referenced entity collection using inverted key specification
-				final Optional<ChainIndex> chainIndex = this.queryContext.getEntityIndex(
-					this.referenceSchema.getReferencedEntityType(),
-					new EntityIndexKey(
-						EntityIndexType.REFERENCED_ENTITY,
-						scope,
-						// this would fail if the entity primary key is null, but it should never happen, and if so, exception is thrown
-						theLookupReferenceKey
-					),
-					EntityIndex.class
+				// get the partition from the referenced entity collection using inverted key specification
+				final Optional<ChainIndex> chainIndex = Optional.ofNullable(
+					this.queryContext.resolvePartitionIfExists(
+						this.referenceSchema.getReferencedEntityType(), scope, theLookupReferenceKey
+					)
 				).map(
 					it -> it.getChainIndex(
 						targetReferenceSchema,
@@ -424,14 +415,9 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 				HavingTranslatorHelper.assertEntityComponentIndexed(
 					this.getSchema(), this.referenceSchema, scope, EnumSet.of(scope)
 				);
-				// get the index from this entity collection using the reference key
-				final Optional<ChainIndex> chainIndex = this.queryContext.getIndexIfExists(
-					new EntityIndexKey(
-						EntityIndexType.REFERENCED_ENTITY,
-						scope,
-						referenceKey
-					),
-					ReducedEntityIndex.class
+				// get the partition from this entity collection using the reference key
+				final Optional<ChainIndex> chainIndex = Optional.ofNullable(
+					this.queryContext.resolvePartitionIfExists(scope, referenceKey)
 				).map(
 					it -> it.getChainIndex(
 						this.referenceSchema,

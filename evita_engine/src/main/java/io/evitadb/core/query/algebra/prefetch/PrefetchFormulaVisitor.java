@@ -27,6 +27,9 @@ import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
@@ -173,10 +176,18 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 					);
 					final List<?> indexes = this.targetIndexes.getIndexes();
 					final PersistentRoaringBitmap[] indexBitmaps = new PersistentRoaringBitmap[indexes.size()];
+					final EntitySchemaContract entitySchema = this.queryContext.getSchema();
 					for (int i = 0; i < indexes.size(); i++) {
-						indexBitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(
-							((AbstractReducedEntityIndex) indexes.get(i)).getAllPrimaryKeys()
+						final AbstractReducedEntityIndex reducedIndex = (AbstractReducedEntityIndex) indexes.get(i);
+						// a narrowed index set wins a plan only for a reference indexed for partitioning: a candidate
+						// of any other reference carries `NOT_PARTITIONED_INDEX`, and `QueryPlanner` builds no plan -
+						// and no prefetch visitor - for an ineligible candidate, debug alternatives included
+						Assert.isPremiseValid(
+							isIndexedForPartitioning(entitySchema, reducedIndex),
+							() -> "Prefetch narrowed to reduced index `" + reducedIndex.getIndexKey() + "` of a " +
+								"reference that is not indexed for partitioning!"
 						);
+						indexBitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(reducedIndex.getAllPrimaryKeys());
 					}
 					entitiesToPrefetch = RoaringBitmapBackedBitmap.and(
 						new PersistentRoaringBitmap[]{
@@ -290,6 +301,23 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	 */
 	private long getExpectedComputationalCosts() {
 		return this.expectedComputationalCosts;
+	}
+
+	/**
+	 * Tells whether the reference the reduced index belongs to is indexed for partitioning in the index's scope.
+	 *
+	 * @param entitySchema the schema of the queried entity
+	 * @param reducedIndex the reduced index of the winning index set
+	 * @return true when the reference is indexed for partitioning in the scope
+	 */
+	private static boolean isIndexedForPartitioning(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull AbstractReducedEntityIndex reducedIndex
+	) {
+		final ReferenceSchemaContract referenceSchema = entitySchema
+			.getReferenceOrThrowException(reducedIndex.getRepresentativeReferenceKey().referenceName());
+		return referenceSchema.getReferenceIndexType(reducedIndex.getIndexKey().scope()) ==
+			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING;
 	}
 
 }

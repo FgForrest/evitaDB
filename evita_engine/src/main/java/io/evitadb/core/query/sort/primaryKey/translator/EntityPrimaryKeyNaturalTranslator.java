@@ -55,7 +55,7 @@ import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.dataType.iterator.EmptyIterator;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
-import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.attribute.ReferenceSortedRecordsProvider;
 import io.evitadb.index.attribute.SortedRecordsSupplier;
 import io.evitadb.index.bitmap.Bitmap;
@@ -196,13 +196,13 @@ public class EntityPrimaryKeyNaturalTranslator
 	 * order of their own primary keys in the direction of the ordering - the order the merge keeps for equal values.
 	 * The owners are read from the index's bitmap whatever its implementation.
 	 *
-	 * @param index          the reduced index
+	 * @param index          the partition
 	 * @param orderDirection the direction of the ordering
 	 * @return the provider or `null` when the index holds no owner
 	 */
 	@Nullable
 	private static SortedRecordsSupplier createReferencedPrimaryKeyProvider(
-		@Nonnull ReducedEntityIndex index,
+		@Nonnull ReferencePartition index,
 		@Nonnull OrderDirection orderDirection
 	) {
 		final Bitmap owners = index.getAllPrimaryKeys();

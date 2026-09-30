@@ -32,7 +32,7 @@ import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableF
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.sorter.SortResolutionStrategies;
-import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -98,7 +98,7 @@ public final class PickFirstReferenceSorter implements Sorter {
 	 * Finding out whether an index holds values is cheap; building its provider is not (it creates the value seeker
 	 * eagerly), so the provider is built only once the index has shown it holds an unclaimed owner.
 	 */
-	@Nonnull private final Function<ReducedEntityIndex, Supplier<SortedRecordsProvider>> providerFactory;
+	@Nonnull private final Function<ReferencePartition, Supplier<SortedRecordsProvider>> providerFactory;
 	/**
 	 * Comparator of the provided values, already in the ordering direction.
 	 */
@@ -120,7 +120,7 @@ public final class PickFirstReferenceSorter implements Sorter {
 	 */
 	public PickFirstReferenceSorter(
 		@Nonnull PickFirstReducedIndexResolver indexResolver,
-		@Nonnull Function<ReducedEntityIndex, Supplier<SortedRecordsProvider>> providerFactory,
+		@Nonnull Function<ReferencePartition, Supplier<SortedRecordsProvider>> providerFactory,
 		@SuppressWarnings("rawtypes") @Nonnull Comparator comparator,
 		@Nonnull OrderDirection primaryKeyOrder
 	) {
@@ -142,7 +142,7 @@ public final class PickFirstReferenceSorter implements Sorter {
 		if (queryContext.getPrefetchedEntities() != null || selection.isEmpty()) {
 			return sortingContext;
 		}
-		final ReducedEntityIndex[] indexes = this.indexResolver.resolve(selection).indexes();
+		final ReferencePartition[] indexes = this.indexResolver.resolve(selection).indexes();
 		final Claims claims = claim(queryContext, selection, indexes);
 		if (claims.runCount == 0) {
 			return sortingContext;
@@ -189,7 +189,7 @@ public final class PickFirstReferenceSorter implements Sorter {
 	private Claims claim(
 		@Nonnull QueryExecutionContext queryContext,
 		@Nonnull Bitmap selection,
-		@Nonnull ReducedEntityIndex[] indexes
+		@Nonnull ReferencePartition[] indexes
 	) {
 		// the working copy is copy-on-write, so removing claimed owners never touches the selection itself
 		PersistentRoaringBitmap unclaimed = RoaringBitmapBackedBitmap.getRoaringBitmap(selection).clone();
@@ -201,7 +201,7 @@ public final class PickFirstReferenceSorter implements Sorter {
 		final ForcedSortResolution forcedResolution = SortResolutionStrategies.resolveForcedResolution(queryContext);
 		final int[] strategyTally = SortResolutionStrategies.newStrategyTally(queryContext);
 		try {
-			for (ReducedEntityIndex index : indexes) {
+			for (ReferencePartition index : indexes) {
 				if (unclaimedCount == 0) {
 					break;
 				}

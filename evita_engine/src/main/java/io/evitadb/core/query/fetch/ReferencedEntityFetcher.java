@@ -116,6 +116,7 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -188,13 +189,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * one per examined scope). An index carrying no discriminator fails fast here, since it could never take part in
 	 * that aggregation.
 	 */
-	private static final Comparator<AbstractReducedEntityIndex> BY_DISCRIMINATOR = Comparator.comparing(
-		rede -> {
-			final EntityIndexKey indexKey = rede.getIndexKey();
-			return Objects.requireNonNull(
-				(RepresentativeReferenceKey) indexKey.discriminator()
-			);
-		}
+	private static final Comparator<ReferencePartition> BY_DISCRIMINATOR = Comparator.comparing(
+		ReferencePartition::getRepresentativeReferenceKey
 	);
 	/**
 	 * Requirement for fetching the parents from hierarchical structure.

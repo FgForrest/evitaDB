@@ -28,6 +28,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -57,10 +58,14 @@ import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.List;
 import java.util.function.Consumer;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
+import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
@@ -359,6 +364,29 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 				assertSame(
 					reflected,
 					queryContext.resolvePartitionIfExists(ENTITY_CATEGORY, Scope.LIVE, reflectedKey)
+				);
+				// by key in the queried collection - read from the query's index snapshot, which must carry the
+				// partitions the session created before the query was planned
+				assertSame(newCategory, queryContext.resolvePartitionIfExists(Scope.LIVE, newCategoryKey));
+				assertSame(
+					newCategory, queryContext.resolvePartitionIfExists(ENTITY_PRODUCT, Scope.LIVE, newCategoryKey)
+				);
+				assertArrayEquals(
+					new ReferencePartition[]{newCategory},
+					queryContext.resolvePartitionsOfTarget(
+						productSchema, productSchema.getReferenceOrThrowException(REF_CATEGORIES), Scope.LIVE,
+						NEW_CATEGORY_PK
+					)
+				);
+				// and a real query answered through those partitions sees the new owner
+				assertEquals(
+					List.of(3),
+					session.queryListOfEntityReferences(
+						query(
+							collection(ENTITY_PRODUCT),
+							filterBy(referenceHaving(REF_CATEGORIES, entityPrimaryKeyInSet(NEW_CATEGORY_PK)))
+						)
+					).stream().map(EntityClassifier::getPrimaryKeyOrThrowException).toList()
 				);
 
 				if (state == CatalogState.ALIVE) {

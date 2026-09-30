@@ -52,13 +52,14 @@ import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslat
 import io.evitadb.core.query.indexSelection.TargetIndexes.EligibilityObstacle;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.function.Functions;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
 
@@ -213,12 +214,14 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					final AtomicLong cardinalityCounter = new AtomicLong(0L);
 					for (Integer hierarchyEntityId : requestedHierarchyNodes) {
 						for (Scope scope : scopes) {
-							this.queryContext.getReducedEntityIndexes(
-								scope, hierarchyEntityId, entitySchema, referenceSchema, Functions.noOpBiFunction()
-							).forEach(ix -> {
-								theTargetIndexes.add(ix);
-								cardinalityCounter.addAndGet(ix.size());
-							});
+							final ReferencePartition[] partitions = this.queryContext.resolvePartitionsOfTarget(
+								entitySchema, referenceSchema, scope, hierarchyEntityId
+							);
+							for (final ReferencePartition partition : partitions) {
+								// the target indexes are evaluated through the query body channel
+								theTargetIndexes.add(ReferencePartitions.toReducedEntityIndex(partition));
+								cardinalityCounter.addAndGet(partition.size());
+							}
 						}
 					}
 					final long cardinalityLimit = (long) this.mainIndexCardinality / 2;

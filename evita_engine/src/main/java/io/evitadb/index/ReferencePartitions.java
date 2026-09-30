@@ -81,6 +81,23 @@ public final class ReferencePartitions {
 	}
 
 	/**
+	 * Hands a partition to the query body channel - `TargetIndexes`, `ProcessingScope`, the `executeInContext`
+	 * family and the sort index arrays - which is bound to {@link Index} and so accepts only a partition that is an
+	 * index object. This is the single entry into that channel: every partition the query side resolves through the
+	 * handle and then evaluates a body or a sorter against passes here. A partition that is not an index object has
+	 * to be split off before this point - its arm will be missing here and the compiler will say so.
+	 *
+	 * @param partition the partition
+	 * @return the index object the partition is
+	 */
+	@Nonnull
+	public static ReducedEntityIndex toReducedEntityIndex(@Nonnull ReferencePartition partition) {
+		return switch (partition) {
+			case ReducedEntityIndex index -> index;
+		};
+	}
+
+	/**
 	 * Creates the key a partition is registered under.
 	 *
 	 * @param scope                      the scope of the partition

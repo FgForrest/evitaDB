@@ -67,6 +67,7 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -224,7 +225,12 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 							it -> it
 								.getAllPrimaryKeys()
 								.stream()
-								.mapToObj(indexPk -> orderByVisitor.getEntityIndexByPrimaryKey(indexPk, ReducedEntityIndex.class))
+								// the partitions are sorted through the query body channel
+								.mapToObj(
+									indexPk -> ReferencePartitions.toReducedEntityIndex(
+										orderByVisitor.resolvePartition(indexPk)
+									)
+								)
 						)
 						.orElse(Stream.empty())
 				);

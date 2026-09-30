@@ -108,6 +108,8 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
+import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
@@ -169,11 +171,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 */
 	private static final BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex> THROWING_MISSING_RTEI_SUPPLIER =
 		ReferencedTypeEntityIndex::createThrowingStub;
-	/**
-	 * A no-op supplier that returns `null` for any missing reduced entity index lookup.
-	 */
-	private static final BiFunction<EntitySchemaContract, EntityIndexKey, ReducedEntityIndex>
-		NO_OP_MISSING_REI_SUPPLIER = (entitySchema, entityIndexKey) -> null;
 	/**
 	 * A no-op supplier that returns `null` for any missing reduced group entity index lookup.
 	 */
@@ -944,20 +941,20 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			)
 		);
 
-		final IntFunction<ReducedEntityIndex> indexAccessor;
+		final IntFunction<ReferencePartition> partitionAccessor;
 		if (this.getSchema().getName().equals(entitySchema.getName())) {
-			indexAccessor = reducedIndexPk ->
-				getEntityIndexByPrimaryKey(reducedIndexPk, ReducedEntityIndex.class);
+			// the queried collection - its index snapshot, strictly
+			partitionAccessor = this::resolvePartition;
 		} else {
+			// another collection - its live indexes (dirty buffer first), leniently; a miss is caught by `resolve`
 			final EntityCollection targetCollection = getEntityCollectionOrThrowException(
 				entitySchema.getName(),
 				"locate referenced record entity indexes"
 			);
-			indexAccessor = reducedIndexPk ->
-				targetCollection.getIndexIfExists(reducedIndexPk, value -> (ReducedEntityIndex) null);
+			partitionAccessor = targetCollection::resolvePartitionIfExists;
 		}
 
-		return new ReducedIndexCandidates(reducedIndexPksFormula.compute(), indexAccessor);
+		return new ReducedIndexCandidates(reducedIndexPksFormula.compute(), partitionAccessor);
 	}
 
 	/**
@@ -967,12 +964,12 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * resolution safe: {@link #resolve()} reads nothing that could have moved on since, so a caller that
 	 * resolves later in the same query gets the list discovery would have produced.
 	 *
-	 * @param primaryKeys   primary keys of the candidate reduced indexes
-	 * @param indexAccessor resolves one candidate primary key into its index object
+	 * @param primaryKeys       primary keys of the candidate reduced indexes
+	 * @param partitionAccessor resolves one candidate primary key into its partition
 	 */
 	public record ReducedIndexCandidates(
 		@Nonnull Bitmap primaryKeys,
-		@Nonnull IntFunction<ReducedEntityIndex> indexAccessor
+		@Nonnull IntFunction<ReferencePartition> partitionAccessor
 	) {
 
 		/**
@@ -985,7 +982,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		}
 
 		/**
-		 * Resolves every candidate into its index object.
+		 * Resolves every candidate into the index object the query body channel consumes.
 		 *
 		 * @return the resolved indexes, in candidate primary key order
 		 */
@@ -995,14 +992,14 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			final OfInt it = this.primaryKeys.iterator();
 			while (it.hasNext()) {
 				final int reducedIndexPk = it.nextInt();
-				final ReducedEntityIndex reducedEntityIndex = this.indexAccessor.apply(reducedIndexPk);
+				final ReferencePartition partition = this.partitionAccessor.apply(reducedIndexPk);
 				// supplier, not concatenation - this loop runs once per reduced index, which is once per
 				// referenced entity of the whole collection
 				Assert.isPremiseValid(
-					reducedEntityIndex != null,
+					partition != null,
 					() -> "Reduced entity index with primary key " + reducedIndexPk + " was unexpectedly not found!"
 				);
-				result.add(reducedEntityIndex);
+				result.add(ReferencePartitions.toReducedEntityIndex(partition));
 			}
 			return result;
 		}
@@ -1113,8 +1110,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		// we need to translate entity index primary keys to referenced entity primary keys
 		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 		for (Integer indexPk : reducedEntityIndexPrimaryKeys.compute()) {
-			final ReducedEntityIndex reducedIndex = this.getEntityIndexByPrimaryKey(indexPk, ReducedEntityIndex.class);
-			writer.add(reducedIndex.getReferenceKey().primaryKey());
+			writer.add(resolvePartition(indexPk).getReferenceKey().primaryKey());
 		}
 		final PersistentRoaringBitmap bitmap = writer.get();
 		return bitmap.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(bitmap));
@@ -1235,6 +1231,11 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	public Stream<EntityIndex> getEntityIndexStream() {
 		final ProcessingScope<? extends Index<?>> processingScope = getProcessingScope();
 		final Set<Scope> allowedScopes = processingScope.getScopes();
+		// on the partition channel every element is a partition, so an element that is not an entity index would
+		// be a partition this stream silently lost - it is a premise there, and a legitimate filter elsewhere
+		final Predicate<Index<?>> isEntityIndex =
+			ReferencePartition.class.isAssignableFrom(processingScope.getIndexType()) ?
+				FilterByVisitor::requirePartitionIsEntityIndex : EntityIndex.class::isInstance;
 		if (allowedScopes.isEmpty()) {
 			return Stream.empty();
 		} else if (allowedScopes.size() == 1) {
@@ -1243,14 +1244,29 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			final Scope theOnlyScope = allowedScopes.iterator().next();
 			return processingScope.getIndexStream()
 				.filter(ix -> ix.getIndexKey().scope() == theOnlyScope)
-				.filter(EntityIndex.class::isInstance)
+				.filter(isEntityIndex)
 				.map(EntityIndex.class::cast);
 		} else {
 			return Arrays.stream(this.queryContext.getEvitaRequest().getScopesAsArray())
 				.flatMap(theScope -> processingScope.getIndexStream().filter(ix -> ix.getIndexKey().scope() == theScope))
-				.filter(EntityIndex.class::isInstance)
+				.filter(isEntityIndex)
 				.map(EntityIndex.class::cast);
 		}
+	}
+
+	/**
+	 * Asserts that an element of the partition channel is an entity index - every partition the channel carries is
+	 * one, and one that is not must fail loudly rather than drop out of the stream.
+	 *
+	 * @param index the element of the partition channel
+	 * @return always `true`
+	 */
+	private static boolean requirePartitionIsEntityIndex(@Nonnull Index<?> index) {
+		isPremiseValid(
+			index instanceof EntityIndex,
+			() -> "The partition channel carries `" + index.getClass() + "`, which is not an entity index!"
+		);
+		return true;
 	}
 
 	/**
@@ -1275,10 +1291,12 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		final Set<Scope> scopes = getProcessingScope().getScopes();
 		return (scopes.isEmpty() ? Stream.of(Scope.DEFAULT_SCOPE) : scopes.stream())
 			.flatMap(
-				scope -> getQueryContext().getReducedEntityIndexes(
-					scope, referencedEntityId, entitySchema, referenceSchema, NO_OP_MISSING_REI_SUPPLIER
+				scope -> Arrays.stream(
+					getQueryContext().resolvePartitionsOfTarget(entitySchema, referenceSchema, scope, referencedEntityId)
 				)
-			);
+			)
+			// the consumers read the partitions as indexes of the query body channel
+			.<AbstractReducedEntityIndex>map(ReferencePartitions::toReducedEntityIndex);
 	}
 
 	/**

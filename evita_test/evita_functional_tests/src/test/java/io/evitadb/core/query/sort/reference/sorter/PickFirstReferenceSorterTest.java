@@ -31,6 +31,7 @@ import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProv
 import io.evitadb.core.query.sort.Sorter.SortingContext;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.attribute.SortedRecordsSupplier;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -591,7 +592,7 @@ class PickFirstReferenceSorterTest {
 		 * Returns the provider of an index of the fixture for the ordering direction, or `null` when it has none.
 		 */
 		@Nullable
-		SortedRecordsProvider provider(@Nonnull OrderDirection direction, @Nonnull ReducedEntityIndex index) {
+		SortedRecordsProvider provider(@Nonnull OrderDirection direction, @Nonnull ReferencePartition index) {
 			return this.providers.getOrDefault(direction, Map.of()).get(index.getPrimaryKey());
 		}
 

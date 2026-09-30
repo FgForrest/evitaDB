@@ -46,7 +46,6 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.FacetFilterBy;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
@@ -205,7 +204,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * The very same indexes as in {@link #indexes}, keyed by the index primary key (the id the index is stored
 	 * under in the persistent data store) instead. This is the lookup direction needed when
 	 * {@link ReferencedTypeEntityIndex} hands out the primary keys of all reduced indexes belonging to
-	 * a particular referenced entity - see {@link #getEntityIndexByPrimaryKey(int, Class)}.
+	 * a particular referenced entity - see {@link #resolvePartition(String, int)}.
 	 */
 	@Nonnull private final Map<Integer, Index<?>> indexesByPk;
 	/**
@@ -850,73 +849,6 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns {@link EntityIndex} of the **queried** entity collection by its storage primary key, or `null` when the
-	 * collection holds no index of that key.
-	 *
-	 * The lenient counterpart of {@link #getEntityIndexByPrimaryKey(int, Class)}, for primary keys that come from an
-	 * accelerator rather than from the index that owns them - typically
-	 * {@link io.evitadb.index.membership.ReducedIndexMembership}, whose entries may name an index that has since been
-	 * dropped, or one of a different family than the caller walks. Such a caller must tolerate a miss and check the
-	 * type itself, which is why this method neither asserts the presence nor the type.
-	 *
-	 * @param indexPrimaryKey primary key of the requested index
-	 * @return the index or `null` when the queried collection holds no index of that primary key
-	 */
-	@Nullable
-	public EntityIndex getEntityIndexByPrimaryKeyIfExists(int indexPrimaryKey) {
-		return this.indexesByPk.get(indexPrimaryKey) instanceof EntityIndex entityIndex ? entityIndex : null;
-	}
-
-	/**
-	 * Returns {@link EntityIndex} of the **queried** entity collection by its storage primary key.
-	 *
-	 * The lookup reads {@link #indexesByPk}, which holds the indexes of the collection this context plans over and
-	 * nothing else. Whenever the primary keys were announced by an index of a *different* collection, use
-	 * {@link #getEntityIndexByPrimaryKey(String, int, Class)} instead - see the reasoning there.
-	 *
-	 * The primary key is expected to come from an index that already knows the index exists (typically
-	 * {@link ReferencedTypeEntityIndex} listing its reduced indexes), therefore a missing index is treated as
-	 * a programming error rather than an ordinary "not found" outcome.
-	 *
-	 * @param indexPrimaryKey primary key of the requested index
-	 * @param indexType       expected index implementation, verified at runtime
-	 * @return the requested index, never NULL
-	 */
-	@Nonnull
-	public <T extends EntityIndex> T getEntityIndexByPrimaryKey(int indexPrimaryKey, @Nonnull Class<T> indexType) {
-		return getEntityIndexByPrimaryKey(this.entityType, indexPrimaryKey, indexType);
-	}
-
-	/**
-	 * Returns {@link EntityIndex} of the named entity collection by its storage primary key.
-	 *
-	 * Index primary keys come from a per-collection sequence ({@link io.evitadb.core.sequence.SequenceType#INDEX} is
-	 * requested per entity type), so the same number names a different index in every collection. A caller resolving
-	 * keys handed out by {@link ReferencedTypeEntityIndex#getAllReferenceIndexes(int)} therefore has to say which
-	 * collection that type index belonged to - exactly as {@link #getEntityIndex(String, EntityIndexKey, Class)} does
-	 * for the by-key path. Resolving them against the queried collection instead returns whichever of its indexes
-	 * happens to carry the same number, which is a wrong answer rather than a missing one.
-	 */
-	@Nonnull
-	public <T extends EntityIndex> T getEntityIndexByPrimaryKey(
-		@Nullable String entityType,
-		int indexPrimaryKey,
-		@Nonnull Class<T> indexType
-	) {
-		final Index<?> index = Objects.equals(this.entityType, entityType) ?
-			this.indexesByPk.get(indexPrimaryKey) :
-			getEntityCollectionOrThrowException(entityType, "access entity index")
-				.getIndexByPrimaryKeyIfExists(indexPrimaryKey);
-		Assert.isPremiseValid(
-			indexType.isInstance(index),
-			() -> "Expected index of type " + indexType + " with primary key " + indexPrimaryKey + " in collection `" +
-				entityType + "` but got " + (index == null ? "NULL" : index.getClass()) + "!"
-		);
-		//noinspection unchecked
-		return (T) index;
-	}
-
-	/**
 	 * Returns {@link EntityIndex} by its key, looked up among the indexes this query was set up with.
 	 *
 	 * A {@link CatalogIndexKey} is special-cased: catalog indexes are not part of the per-query index map (they
@@ -944,78 +876,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Retrieves a stream of {@link ReducedEntityIndex} objects based on the provided scope, referenced
-	 * entity ID, entity schema, reference schema, and a supplier for handling missing indexes.
-	 *
-	 * The lookup path depends on the reference cardinality. When duplicates are allowed, a single referenced
-	 * entity may be covered by several reduced indexes, so they have to be enumerated through
-	 * the `REFERENCED_ENTITY_TYPE` index; otherwise there is at most one and it is addressed directly by
-	 * the `REFERENCED_ENTITY` key built from the reference key.
-	 *
-	 * @param scope the scope within which the entity indexes are retrieved
-	 * @param referencedEntityId the ID of the referenced entity
-	 * @param entitySchema the schema of the entity used for configuration
-	 * @param referenceSchema the schema of the reference defining the relationship to the referenced entity
-	 * @param missingIndexSupplier a supplier function to provide a fallback index when a requested index is missing;
-	 *                             it may return NULL, in which case an empty stream is produced
-	 * @return a stream of {@link ReducedEntityIndex} corresponding to the specified query criteria
-	 * @throws io.evitadb.core.exception.ReferenceComponentNotIndexedException when the reference is indexed in the
-	 *         scope without the `REFERENCED_ENTITY` component - see
-	 *         {@link HavingTranslatorHelper#assertEntityComponentIndexed}
-	 */
-	@Nonnull
-	public Stream<ReducedEntityIndex> getReducedEntityIndexes(
-		@Nonnull Scope scope,
-		int referencedEntityId,
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReducedEntityIndex> missingIndexSupplier
-	) {
-		// both branches below read the entity index family, which a scope indexed without the entity component never
-		// builds - they would answer it with an empty stream, indistinguishable from a referenced entity with no owners
-		HavingTranslatorHelper.assertEntityComponentIndexed(entitySchema, referenceSchema, scope, getScopes());
-		final String referenceName = referenceSchema.getName();
-		if (referenceSchema.getCardinality().allowsDuplicates()) {
-			final EntityIndexKey entityIndexKey = new EntityIndexKey(
-				EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName
-			);
-			return getEntityIndex(entitySchema.getName(), entityIndexKey, ReferencedTypeEntityIndex.class)
-				.map(referencedTypeEntityIndex -> {
-					final int[] allReducedEntityIndexPks = referencedTypeEntityIndex.getAllReferenceIndexes(
-						referencedEntityId
-					);
-					return Arrays.stream(allReducedEntityIndexPks)
-						.mapToObj(
-							// the keys were handed out by the type index of `entitySchema`, so they have to be
-							// resolved there too - this is the one branch that can be asked about a collection
-							// other than the queried one
-							pk -> getEntityIndexByPrimaryKey(
-								entitySchema.getName(), pk, ReducedEntityIndex.class
-							)
-						);
-				})
-				.orElseGet(() -> {
-					final ReducedEntityIndex missingIndex = missingIndexSupplier.apply(entitySchema, entityIndexKey);
-					return missingIndex == null ? Stream.empty() : Stream.of(missingIndex);
-				});
-		} else {
-			final EntityIndexKey entityIndexKey = new EntityIndexKey(
-				EntityIndexType.REFERENCED_ENTITY,
-				scope,
-				new RepresentativeReferenceKey(
-					new ReferenceKey(referenceName, referencedEntityId)
-				)
-			);
-			return getEntityIndex(entitySchema.getName(), entityIndexKey, ReducedEntityIndex.class)
-				.or(() -> Optional.ofNullable(missingIndexSupplier.apply(entitySchema, entityIndexKey)))
-				.stream();
-		}
-	}
-
-	/**
 	 * Retrieves a stream of {@link ReducedGroupEntityIndex} instances corresponding to the group entity
 	 * identified by `groupEntityId` within the given scope. This is the group-level counterpart of
-	 * {@link #getReducedEntityIndexes(Scope, int, EntitySchemaContract, ReferenceSchemaContract, BiFunction)}.
+	 * {@link #resolvePartitionsOfTarget(EntitySchemaContract, ReferenceSchemaContract, Scope, int)}.
 	 *
 	 * It differs from that sibling in one important aspect: **there is no cardinality branch here.** A single
 	 * group is routinely shared by many references, so the group indexes are always looked up through
@@ -1050,10 +913,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 				);
 				return Arrays.stream(allReducedEntityIndexPks)
 					.mapToObj(
-						// same reasoning as in #getReducedEntityIndexes - the keys belong to `entitySchema`
-						pk -> getEntityIndexByPrimaryKey(
-							entitySchema.getName(), pk, ReducedGroupEntityIndex.class
-						)
+						// the keys were handed out by the type index of `entitySchema`, so they are resolved there too
+						pk -> requireReducedGroupEntityIndex(entitySchema.getName(), pk)
 					);
 			})
 			.orElseGet(() -> {
@@ -1064,13 +925,76 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Returns the reduced group entity index of the **queried** collection registered under the primary key. The key
+	 * is expected to come from a type index that knows the index exists, so a miss or an index of another family is a
+	 * programming error. The group family has no partition handle; this is its typed by-primary-key path.
+	 *
+	 * @param groupIndexPrimaryKey primary key of the group index in the queried collection
+	 * @return the group index
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key names no reduced group entity index
+	 */
+	@Nonnull
+	public ReducedGroupEntityIndex getReducedGroupEntityIndexByPrimaryKey(int groupIndexPrimaryKey) {
+		return requireReducedGroupEntityIndex(this.entityType, groupIndexPrimaryKey);
+	}
+
+	/**
+	 * Returns the reference partition of the **queried** collection registered under the primary key, leniently -
+	 * see {@link ReferencePartitions}. For primary keys that come from an accelerator rather than from the index that
+	 * owns them - typically {@link io.evitadb.index.membership.ReducedIndexMembership}, whose entries may name a
+	 * partition that has since been dropped, or an index of the group family.
+	 *
+	 * @param partitionPrimaryKey primary key of the partition
+	 * @return the partition or `null` when the key names nothing or an index that is not a reference partition
+	 */
+	@Nullable
+	public ReferencePartition resolvePartitionIfExists(int partitionPrimaryKey) {
+		return ReferencePartitions.asPartition(getIndexByPrimaryKeyOf(this.entityType, partitionPrimaryKey));
+	}
+
+	/**
+	 * Returns the reference partition of the **queried** collection registered under the primary key, strictly - the
+	 * key must have been handed out by an index of the queried collection that knows the partition exists.
+	 *
+	 * @param partitionPrimaryKey primary key of the partition
+	 * @return the partition
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key names no reference partition
+	 */
+	@Nonnull
+	public ReferencePartition resolvePartition(int partitionPrimaryKey) {
+		return ReferencePartitions.requirePartition(
+			getIndexByPrimaryKeyOf(this.entityType, partitionPrimaryKey),
+			String.valueOf(this.entityType), partitionPrimaryKey
+		);
+	}
+
+	/**
+	 * Returns the reference partition of the **queried** collection holding the rows of the representative reference
+	 * key in the scope, read from the index snapshot this query was set up with.
+	 *
+	 * @param scope                      the scope of the partition
+	 * @param representativeReferenceKey the representative reference key of the partition
+	 * @return the partition or `null` when the queried collection holds none
+	 */
+	@Nullable
+	public ReferencePartition resolvePartitionIfExists(
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey
+	) {
+		return ReferencePartitions.resolveIfExists(this.indexes::get, scope, representativeReferenceKey);
+	}
+
+	/**
 	 * Returns the reference partition of the named collection registered under the primary key, leniently - see
 	 * {@link ReferencePartitions}.
 	 *
-	 * Partition primary keys are per collection (see {@link #getEntityIndexByPrimaryKey(String, int, Class)}), so the
-	 * caller names the collection that handed the key out. The queried collection is read from the index snapshot
-	 * this query was set up with, any other collection from its live indexes - exactly as
-	 * {@link #getEntityIndexByPrimaryKey(String, int, Class)} reads them.
+	 * Index primary keys come from a per-collection sequence ({@link io.evitadb.core.sequence.SequenceType#INDEX} is
+	 * requested per entity type), so the same number names a different index in every collection. A caller resolving
+	 * keys handed out by {@link ReferencedTypeEntityIndex#getAllReferenceIndexes(int)} therefore has to say which
+	 * collection that type index belonged to; resolving them against the queried collection instead returns whichever
+	 * of its indexes happens to carry the same number, which is a wrong answer rather than a missing one. The queried
+	 * collection is read from the index snapshot this query was set up with, any other collection from its live
+	 * indexes (dirty buffer first).
 	 *
 	 * @param entityType          the collection the primary key belongs to
 	 * @param partitionPrimaryKey primary key of the partition
@@ -1078,7 +1002,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nullable
 	public ReferencePartition resolvePartitionIfExists(@Nonnull String entityType, int partitionPrimaryKey) {
-		return ReferencePartitions.asPartition(getIndexByPrimaryKeyReader(entityType).apply(partitionPrimaryKey));
+		return ReferencePartitions.asPartition(getIndexByPrimaryKeyOf(entityType, partitionPrimaryKey));
 	}
 
 	/**
@@ -1094,7 +1018,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	@Nonnull
 	public ReferencePartition resolvePartition(@Nonnull String entityType, int partitionPrimaryKey) {
 		return ReferencePartitions.requirePartition(
-			getIndexByPrimaryKeyReader(entityType).apply(partitionPrimaryKey), entityType, partitionPrimaryKey
+			getIndexByPrimaryKeyOf(entityType, partitionPrimaryKey), entityType, partitionPrimaryKey
 		);
 	}
 
@@ -1133,11 +1057,11 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 	/**
 	 * Returns every reference partition of the entity type holding rows of the reference that point to the target
-	 * entity in the scope. A missing type index or partition yields no element, a primary key the type index lists
-	 * must resolve - the strictness of
-	 * {@link #getReducedEntityIndexes(Scope, int, EntitySchemaContract, ReferenceSchemaContract, BiFunction)}, whose
-	 * missing-index supplier every caller passes as "none". See {@link #resolvePartitionIfExists(String, int)} for where
-	 * the partitions are read from.
+	 * entity in the scope. When duplicates are allowed, one target may be covered by several partitions, so they are
+	 * enumerated through the `REFERENCED_ENTITY_TYPE` index; otherwise there is at most one, addressed directly by
+	 * the key built from the reference key. A missing type index or partition yields no element; a primary key the
+	 * type index lists must resolve. See {@link #resolvePartitionIfExists(String, int)} for where the partitions are
+	 * read from.
 	 *
 	 * @param entitySchema     the entity type owning the reference
 	 * @param referenceSchema  the reference
@@ -1165,6 +1089,44 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			scope, referenceSchema.getName(), referenceSchema.getCardinality().allowsDuplicates(), targetPrimaryKey,
 			entityType
 		);
+	}
+
+	/**
+	 * Returns the reduced group entity index of the named collection registered under the primary key, strictly.
+	 *
+	 * @param entityType           the collection the primary key belongs to, `null` for the queried one
+	 * @param groupIndexPrimaryKey primary key of the group index
+	 * @return the group index
+	 */
+	@Nonnull
+	private ReducedGroupEntityIndex requireReducedGroupEntityIndex(
+		@Nullable String entityType,
+		int groupIndexPrimaryKey
+	) {
+		final Index<?> index = getIndexByPrimaryKeyOf(entityType, groupIndexPrimaryKey);
+		Assert.isPremiseValid(
+			index instanceof ReducedGroupEntityIndex,
+			() -> "Expected index of type " + ReducedGroupEntityIndex.class + " with primary key " +
+				groupIndexPrimaryKey + " in collection `" + entityType + "` but got " +
+				(index == null ? "NULL" : index.getClass()) + "!"
+		);
+		return (ReducedGroupEntityIndex) index;
+	}
+
+	/**
+	 * Returns the index of the named collection registered under the primary key: this query's index snapshot for the
+	 * queried collection, the collection's live indexes (dirty buffer first) for any other.
+	 *
+	 * @param entityType      the collection, `null` or equal to the queried entity type for the queried collection
+	 * @param indexPrimaryKey primary key of the index
+	 * @return the index or `null` when the primary key names nothing
+	 */
+	@Nullable
+	private Index<?> getIndexByPrimaryKeyOf(@Nullable String entityType, int indexPrimaryKey) {
+		return Objects.equals(this.entityType, entityType) ?
+			this.indexesByPk.get(indexPrimaryKey) :
+			getEntityCollectionOrThrowException(entityType, "access entity index")
+				.getIndexByPrimaryKeyIfExists(indexPrimaryKey);
 	}
 
 	/**

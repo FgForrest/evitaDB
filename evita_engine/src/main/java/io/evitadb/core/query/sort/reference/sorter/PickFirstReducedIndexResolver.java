@@ -32,9 +32,10 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -214,7 +215,7 @@ public final class PickFirstReducedIndexResolver {
 			return this.memoizedResult;
 		}
 		final PersistentRoaringBitmap selected = RoaringBitmapBackedBitmap.getRoaringBitmap(selection);
-		final List<ReducedEntityIndex> found = new ArrayList<>(64);
+		final List<ReferencePartition> found = new ArrayList<>(64);
 		if (!selected.isEmpty()) {
 			for (Scope scope : this.scopes) {
 				final ReferencedTypeEntityIndex typeIndex = getTypeIndex(scope);
@@ -222,7 +223,7 @@ public final class PickFirstReducedIndexResolver {
 					final Bitmap candidates = selectCandidates(scope, typeIndex, selected);
 					final OfInt it = candidates.iterator();
 					while (it.hasNext()) {
-						final ReducedEntityIndex index = resolveReducedIndex(it.nextInt(), scope);
+						final ReferencePartition index = resolveReducedIndex(it.nextInt(), scope);
 						if (
 							index != null &&
 								(this.targetSorter == null || PersistentRoaringBitmap.intersects(
@@ -339,18 +340,10 @@ public final class PickFirstReducedIndexResolver {
 	 * @return the reduced index or `null` when the key does not name one of this reference in the scope
 	 */
 	@Nullable
-	private ReducedEntityIndex resolveReducedIndex(int indexPrimaryKey, @Nonnull Scope scope) {
-		final EntityIndex index = this.queryContext.getEntityIndexByPrimaryKeyIfExists(indexPrimaryKey);
-		if (
-			index instanceof ReducedEntityIndex reducedIndex &&
-				reducedIndex.getIndexKey().type() == EntityIndexType.REFERENCED_ENTITY &&
-				reducedIndex.getIndexKey().scope() == scope &&
-				reducedIndex.getIndexKey().discriminator() instanceof RepresentativeReferenceKey rrk &&
-				this.referenceSchema.getName().equals(rrk.referenceName())
-		) {
-			return reducedIndex;
-		}
-		return null;
+	private ReferencePartition resolveReducedIndex(int indexPrimaryKey, @Nonnull Scope scope) {
+		final ReferencePartition partition = this.queryContext.resolvePartitionIfExists(indexPrimaryKey);
+		return partition != null && ReferencePartitions.belongsTo(partition, scope, this.referenceSchema.getName()) ?
+			partition : null;
 	}
 
 	/**
@@ -361,26 +354,27 @@ public final class PickFirstReducedIndexResolver {
 	 * @return the ordered indexes along with the rank function of the targets
 	 */
 	@Nonnull
-	private ResolvedReducedIndexes order(@Nonnull List<ReducedEntityIndex> found) {
+	private ResolvedReducedIndexes order(@Nonnull List<ReferencePartition> found) {
 		if (this.targetSorter == null) {
 			// the plain primary key order needs no grouping: one sort by target, then by representative values
-			final ReducedEntityIndex[] ordered = found.toArray(ReducedEntityIndex[]::new);
-			final Comparator<ReducedEntityIndex> byTarget = Comparator.comparingInt(it -> it.getReferenceKey().primaryKey());
+			final ReferencePartition[] ordered = found.toArray(ReferencePartition[]::new);
+			final Comparator<ReferencePartition> byTarget =
+				Comparator.comparingInt(it -> it.getReferenceKey().primaryKey());
 			Arrays.sort(
 				ordered,
 				(this.targetsDescending ? byTarget.reversed() : byTarget)
 					.thenComparing(
-						ReducedEntityIndex::getRepresentativeReferenceKey,
+						ReferencePartition::getRepresentativeReferenceKey,
 						RepresentativeReferenceKey.GENERIC_COMPARATOR
 					)
 			);
 			return new ResolvedReducedIndexes(ordered, createTargetRank(ArrayUtils.EMPTY_INT_ARRAY));
 		}
-		final IntObjectHashMap<List<ReducedEntityIndex>> indexesByTarget = new IntObjectHashMap<>(found.size());
+		final IntObjectHashMap<List<ReferencePartition>> indexesByTarget = new IntObjectHashMap<>(found.size());
 		final RoaringBitmapWriter<PersistentRoaringBitmap> targetWriter = RoaringBitmapBackedBitmap.buildWriter();
-		for (ReducedEntityIndex index : found) {
+		for (ReferencePartition index : found) {
 			final int target = index.getReferenceKey().primaryKey();
-			List<ReducedEntityIndex> sameTarget = indexesByTarget.get(target);
+			List<ReferencePartition> sameTarget = indexesByTarget.get(target);
 			if (sameTarget == null) {
 				sameTarget = new ArrayList<>(1);
 				indexesByTarget.put(target, sameTarget);
@@ -389,10 +383,10 @@ public final class PickFirstReducedIndexResolver {
 			sameTarget.add(index);
 		}
 		final int[] orderedTargets = orderTargets(new BaseBitmap(targetWriter.get()));
-		final ReducedEntityIndex[] ordered = new ReducedEntityIndex[found.size()];
+		final ReferencePartition[] ordered = new ReferencePartition[found.size()];
 		int peak = 0;
 		for (int target : orderedTargets) {
-			final List<ReducedEntityIndex> sameTarget = indexesByTarget.get(target);
+			final List<ReferencePartition> sameTarget = indexesByTarget.get(target);
 			if (sameTarget.size() > 1) {
 				sameTarget.sort(
 					(a, b) -> RepresentativeReferenceKey.GENERIC_COMPARATOR.compare(
@@ -400,7 +394,7 @@ public final class PickFirstReducedIndexResolver {
 					)
 				);
 			}
-			for (ReducedEntityIndex index : sameTarget) {
+			for (ReferencePartition index : sameTarget) {
 				ordered[peak++] = index;
 			}
 		}
@@ -445,13 +439,13 @@ public final class PickFirstReducedIndexResolver {
 	}
 
 	/**
-	 * The reduced indexes resolved for one selection.
+	 * The partitions resolved for one selection.
 	 *
-	 * @param indexes    reduced indexes that may hold a row of the selection, in target order
+	 * @param indexes    partitions that may hold a row of the selection, in target order
 	 * @param targetRank function returning a lower number for a target that comes first in target order
 	 */
 	public record ResolvedReducedIndexes(
-		@Nonnull ReducedEntityIndex[] indexes,
+		@Nonnull ReferencePartition[] indexes,
 		@Nonnull IntUnaryOperator targetRank
 	) {
 	}

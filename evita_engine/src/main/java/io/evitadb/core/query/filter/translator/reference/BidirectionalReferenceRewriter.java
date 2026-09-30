@@ -57,6 +57,8 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
@@ -930,9 +932,13 @@ public class BidirectionalReferenceRewriter {
 			// the counterpart's reduced index for an owner lives in the scope of the *target* rows it holds, which is
 			// not necessarily one of the requested scopes - see `counterpartScopes`
 			for (final Scope scope : counterpartScopes) {
-				queryContext.getReducedEntityIndexes(
-					scope, ownerPrimaryKey, targetEntitySchema, counterpart, (schema, indexKey) -> null
-				).forEach(reusableIndexes::add);
+				final ReferencePartition[] partitions = queryContext.resolvePartitionsOfTarget(
+					targetEntitySchema, counterpart, scope, ownerPrimaryKey
+				);
+				for (final ReferencePartition partition : partitions) {
+					// the owner's rows are evaluated through the query body channel
+					reusableIndexes.add(ReferencePartitions.toReducedEntityIndex(partition));
+				}
 			}
 			if (reusableIndexes.isEmpty()) {
 				// the owner was announced by the type-level index but carries no reduced index - treat as no match

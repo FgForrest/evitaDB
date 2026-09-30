@@ -55,7 +55,7 @@ import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
-import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
@@ -401,7 +401,7 @@ public class AttributeNaturalTranslator
 		final Comparator valueComparator;
 		// the sort index lookup decides whether an index holds any value; the provider itself - which creates its value
 		// seeker eagerly - is built only when the sorter finds an unclaimed owner in the index
-		final Function<ReducedEntityIndex, Supplier<SortedRecordsProvider>> providerFactory;
+		final Function<ReferencePartition, Supplier<SortedRecordsProvider>> providerFactory;
 		final EntityComparator entityComparator;
 		if (attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract compoundSchema) {
 			final Comparator<ComparableArray> naturalComparator = createCombinedComparatorFor(

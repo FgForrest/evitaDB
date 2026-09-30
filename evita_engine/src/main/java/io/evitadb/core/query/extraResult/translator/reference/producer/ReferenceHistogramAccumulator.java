@@ -369,7 +369,7 @@ final class ReferenceHistogramAccumulator {
 			final int[] rgeiPks = rtei.getAllReferenceIndexes(groupPk);
 			for (final int rgeiPk : rgeiPks) {
 				final ReducedGroupEntityIndex rgei = context.getQueryContext()
-					.getEntityIndexByPrimaryKey(rgeiPk, ReducedGroupEntityIndex.class);
+					.getReducedGroupEntityIndexByPrimaryKey(rgeiPk);
 				computePendingHistogram(
 					resolved, rgei, groupPk, attributeHistogramBaselineFormula, context, facetSorter
 				).ifPresent(pending::add);
