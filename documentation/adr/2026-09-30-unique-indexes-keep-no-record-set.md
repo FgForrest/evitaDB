@@ -1,7 +1,7 @@
 ---
 title: Unique indexes keep no record-id set, and a unique value occurs once whatever the locale
 date: 2026-09-30
-updated: 2026-09-30 15:05
+updated: 2026-09-30 15:25
 status: accepted
 kind: refactor
 issues: [1658]
@@ -191,8 +191,11 @@ removal.
 ## Consequences & open follow-ups
 
 - **A catalog stored before this change may hold an entity that repeats a value across the locales of a
-  localized `unique()` attribute.** It loads, but it breaks the in-memory index on the first change to either
-  value, and a re-upsert of it is now refused. This is deliberately not migrated.
+  localized `unique()` attribute.** It loads normally: the persisted tree never held more than one entry per value,
+  so nothing at load time can see the repeat. The value is registered once, so removing it in one locale drops it
+  for the other as well, and removing it there afterwards fails with `No unique key exists`, exactly as it did
+  before this change (traced through the code, not tested). This is deliberately neither migrated nor pinned by a
+  test: the state is unsupported, and a test would turn its broken behaviour into a contract.
 - **`UniqueValueViolationException` from a referenced-type index names no primary keys.** That index's records are
   the reduced indexes of the referenced targets, so the probe reported `existing entity PK: 3` for owner 1. When
   two owners repeat a unique reference value on different targets, it is the only index that sees both, and the
