@@ -124,21 +124,26 @@ public class AttributeExactSorter implements Sorter {
 		// now sort the real result by the exactPkOrder
 		final int lastSortedItem = ArrayUtils.sortAlong(exactPkOrder, entireResult);
 
-		// copy the sorted data to result
-		final int toAppend = Math.min(lastSortedItem, recomputedEndIndex - recomputedStartIndex);
+		// only the records matched by the exact order (positions `[0, lastSortedItem)`) are sorted by this sorter -
+		// when the page starts past them, none is appended and only the matched ones count as skipped, so that
+		// the next sorter skips the rest of the offset from the records it receives
+		final int skippedRecords = Math.min(recomputedStartIndex, lastSortedItem);
+		final int toAppend = Math.max(0, Math.min(lastSortedItem, recomputedEndIndex) - recomputedStartIndex);
 		if (skippedRecordsConsumer != null) {
-			for (int i = 0; i < Math.min(recomputedStartIndex, entireResult.length); i++) {
+			for (int i = 0; i < skippedRecords; i++) {
 				skippedRecordsConsumer.accept(entireResult[i]);
 			}
 		}
-		System.arraycopy(entireResult, recomputedStartIndex, result, sortingContext.peak(), toAppend);
+		if (toAppend > 0) {
+			System.arraycopy(entireResult, recomputedStartIndex, result, sortingContext.peak(), toAppend);
+		}
 
 		// if there are no more records to sort or no additional sorter is present, return entire result
 		if (lastSortedItem == entireResult.length) {
 			return sortingContext.createResultContext(
 				EmptyBitmap.INSTANCE,
 				toAppend,
-				recomputedStartIndex
+				skippedRecords
 			);
 		} else {
 			// otherwise, collect the not sorted record ids
@@ -152,7 +157,7 @@ public class AttributeExactSorter implements Sorter {
 				outputBitmap.isEmpty() ?
 					EmptyBitmap.INSTANCE : new BaseBitmap(outputBitmap),
 				toAppend,
-				recomputedStartIndex
+				skippedRecords
 			);
 		}
 	}
@@ -251,33 +256,36 @@ public class AttributeExactSorter implements Sorter {
 
 		@Override
 		public int compare(EntityContract o1, EntityContract o2) {
-			final Serializable attribute1 = o1.getAttribute(this.attributeName);
-			final Serializable attribute2 = o2.getAttribute(this.attributeName);
-			if (attribute1 == null && attribute2 == null) {
-				this.nonSortedEntities = ofNullable(this.nonSortedEntities)
-					.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));
-				this.nonSortedEntities.add(o1);
-				this.nonSortedEntities.add(o2);
-				return 0;
-			} else if (attribute1 == null) {
-				this.nonSortedEntities = ofNullable(this.nonSortedEntities)
-					.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));
-				this.nonSortedEntities.add(o1);
-				return -1;
-			} else if (attribute2 == null) {
-				this.nonSortedEntities = ofNullable(this.nonSortedEntities)
-					.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));
-				this.nonSortedEntities.add(o2);
-				return 1;
+			return Integer.compare(getPosition(o1), getPosition(o2));
+		}
+
+		/**
+		 * Returns the position of the entity's attribute value in {@link #attributeValues}. Entities that miss
+		 * the attribute or whose value is not part of the exact order are tracked as non-sorted and placed after all
+		 * the sorted ones, so that they form the trailing part of the sorted list the caller hands to the next sorter.
+		 *
+		 * @param entity the entity to locate
+		 * @return the position of the entity's attribute value or {@link Integer#MAX_VALUE} for non-sorted entities
+		 */
+		private int getPosition(@Nonnull EntityContract entity) {
+			final Serializable attribute = entity.getAttribute(this.attributeName);
+			final int position;
+			if (attribute == null) {
+				position = -1;
 			} else {
-				// and try to find primary keys of both entities in each provider
 				if (this.cache == null) {
 					// let's create the cache with estimated size multiply 5 expected steps for binary search
 					this.cache = new ObjectIntHashMap<>(this.estimatedCount * 5);
 				}
-				final int attribute1Index = computeIfAbsent(this.cache, attribute1, it -> ArrayUtils.indexOf(it, this.attributeValues));
-				final int attribute2Index = computeIfAbsent(this.cache, attribute2, it -> ArrayUtils.indexOf(it, this.attributeValues));
-				return Integer.compare(attribute1Index, attribute2Index);
+				position = computeIfAbsent(this.cache, attribute, it -> ArrayUtils.indexOf(it, this.attributeValues));
+			}
+			if (position < 0) {
+				this.nonSortedEntities = ofNullable(this.nonSortedEntities)
+					.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));
+				this.nonSortedEntities.add(entity);
+				return Integer.MAX_VALUE;
+			} else {
+				return position;
 			}
 		}
 
