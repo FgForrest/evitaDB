@@ -138,8 +138,9 @@ public class PredecessorAttributeComparator implements EntityComparator {
 	 * following the predecessor-ordering contract:
 	 *
 	 * - both entities found in the same provider: ordered by their positions,
-	 * - only one found: that one sorts first,
-	 * - found in different providers: the earlier (lower-index) provider wins.
+	 * - only one found: that one sorts first, whichever provider holds it,
+	 * - found in different providers: the earlier (lower-index) provider wins,
+	 * - found in none: they are equal.
 	 *
 	 * Every entity not found in any scanned provider is handed to `unsortedCollector` so the caller can park it at
 	 * the end of the sorted result.
@@ -186,12 +187,8 @@ public class PredecessorAttributeComparator implements EntityComparator {
 				o1FoundInProvider = i;
 				o2FoundInProvider = i;
 			} else if (o1Position >= 0) {
-				// if only one entity is found, it is considered to be smaller than the other one
-				result = result == 0 ? 1 : result;
 				o1FoundInProvider = i;
 			} else if (o2Position >= 0) {
-				// if only one entity is found, it is considered to be smaller than the other one
-				result = result == 0 ? -1 : result;
 				o2FoundInProvider = i;
 			}
 			// if both entities are found, we can stop searching
@@ -206,9 +203,16 @@ public class PredecessorAttributeComparator implements EntityComparator {
 		if (o2FoundInProvider == -1) {
 			unsortedCollector.accept(o2);
 		}
-		// when the entities were found in different providers, order them by provider precedence
+		// when the entities were not found in the same provider, the one no provider holds sorts last, otherwise
+		// the earlier provider wins
 		if (o1FoundInProvider != o2FoundInProvider) {
-			result = Integer.compare(o1FoundInProvider, o2FoundInProvider);
+			if (o1FoundInProvider == -1) {
+				return 1;
+			} else if (o2FoundInProvider == -1) {
+				return -1;
+			} else {
+				return Integer.compare(o1FoundInProvider, o2FoundInProvider);
+			}
 		}
 		return result;
 	}

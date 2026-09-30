@@ -212,15 +212,15 @@ class PredecessorAttributeComparatorTest {
 		@DisplayName("ranks a found entity relative to a missing one and honours provider precedence")
 		void shouldRankFoundEntityBeforeNotFoundAndEarlierProviderFirst() {
 			// single provider holding record 20 only: comparing it against the absent record 99 exercises the
-			// only-one-found epilogue branch (the resolved entity gets the provider-index rank, the missing one -1)
+			// only-one-found branch (the resolved entity sorts first, the missing one last)
 			final PredecessorAttributeComparator singleProviderComparator = new PredecessorAttributeComparator(
 				() -> new SortedRecordsProvider[]{singleRecordProvider(20)}
 			);
 			singleProviderComparator.prepareFor(100);
 			final EntityContract found = entityWithPrimaryKey(20);
 			final EntityContract missing = entityWithPrimaryKey(99);
-			assertEquals(1, singleProviderComparator.compare(found, missing), "provider index 0 ranks after the -1 miss");
-			assertEquals(-1, singleProviderComparator.compare(missing, found), "the mirrored comparison flips the sign");
+			assertEquals(-1, singleProviderComparator.compare(found, missing), "the found entity must sort first");
+			assertEquals(1, singleProviderComparator.compare(missing, found), "the mirrored comparison flips the sign");
 			// the missing entity is handed to the collector on each comparison (found twice)
 			assertEquals(2, collect(singleProviderComparator.getNonSortedEntities()).size(), "only the missing entity is parked");
 
@@ -246,10 +246,32 @@ class PredecessorAttributeComparatorTest {
 				"records found in any provider must not be collected"
 			);
 		}
+
+		@Test
+		@DisplayName("ranks an entity no provider holds against one a later provider holds")
+		void shouldRankEntityMissingFromEveryProviderAgainstOneFoundInLaterProvider() {
+			// record 200 lives only in the later provider and record 99 in none - an entity found in any provider,
+			// however late, must still sort before one no provider holds
+			final PredecessorAttributeComparator comparator = new PredecessorAttributeComparator(
+				() -> new SortedRecordsProvider[]{singleRecordProvider(100), singleRecordProvider(200)}
+			);
+			comparator.prepareFor(100);
+			final EntityContract lateProviderEntity = entityWithPrimaryKey(200);
+			final EntityContract missing = entityWithPrimaryKey(99);
+
+			assertEquals(
+				-1, comparator.compare(lateProviderEntity, missing), "an entity of the later provider must sort first"
+			);
+			assertEquals(1, comparator.compare(missing, lateProviderEntity), "the mirrored comparison flips the sign");
+			assertEquals(
+				List.of(missing, missing), collect(comparator.getNonSortedEntities()),
+				"only the missing entity is parked, once per comparison"
+			);
+		}
 	}
 
 	@Nested
-	@DisplayName("Position cache (computeIfAbsent)")
+	@DisplayName("Position cache (computeIfAbsent, cachedPositionOf)")
 	class PositionCacheTest {
 
 		@Test
@@ -292,6 +314,70 @@ class PredecessorAttributeComparatorTest {
 			assertEquals(5, PredecessorAttributeComparator.computeIfAbsent(cache, presentKey, positiveLocator));
 			assertEquals(1, positiveLocator.invocations(), "the cached position must not re-invoke the locator");
 			assertEquals(5, cache.get(presentKey), "a positive position is stored verbatim");
+		}
+
+		@Test
+		@DisplayName("stores a position of zero found by cachedPositionOf under the remap computeIfAbsent decodes")
+		void shouldShareZeroEncodingBetweenCachedPositionOfAndComputeIfAbsent() {
+			final SortedRecordsProvider[] providers = {singleRecordProvider(42)};
+			final IntIntMap[] caches = new IntIntMap[1];
+
+			assertEquals(
+				0, PredecessorAttributeComparator.cachedPositionOf(providers, caches, 0, 4, 42),
+				"record 42 sits at position 0"
+			);
+			assertTrue(caches[0] != null, "the cache of the provider is created on first use");
+			assertEquals(Integer.MIN_VALUE, caches[0].get(42), "position 0 must be stored as the reserved remap");
+
+			final CountingLocator locator = new CountingLocator(7);
+			assertEquals(
+				0, PredecessorAttributeComparator.computeIfAbsent(caches[0], 42, locator),
+				"computeIfAbsent decodes the remap back to position 0"
+			);
+			assertEquals(0, locator.invocations(), "a position cached by cachedPositionOf must not be resolved again");
+		}
+
+		@Test
+		@DisplayName("reads the positions computeIfAbsent memoized, zero included, without probing the provider")
+		void shouldReadPositionsMemoizedByComputeIfAbsent() {
+			// the provider holds neither record and would answer POSITION_NOT_FOUND for both
+			final SortedRecordsProvider[] providers = {singleRecordProvider(42)};
+			final IntIntMap[] caches = {new IntIntHashMap(16)};
+			PredecessorAttributeComparator.computeIfAbsent(caches[0], 7, new CountingLocator(3));
+			PredecessorAttributeComparator.computeIfAbsent(caches[0], 8, new CountingLocator(0));
+
+			assertEquals(
+				3, PredecessorAttributeComparator.cachedPositionOf(providers, caches, 0, 4, 7),
+				"a positive position memoized by computeIfAbsent"
+			);
+			assertEquals(
+				0, PredecessorAttributeComparator.cachedPositionOf(providers, caches, 0, 4, 8),
+				"a position of zero memoized by computeIfAbsent"
+			);
+		}
+
+		@Test
+		@DisplayName("memoizes the not-found sentinel in cachedPositionOf and never probes the provider again")
+		void shouldMemoizeNotFoundSentinelInCachedPositionOf() {
+			final SortedRecordsProvider[] providers = {singleRecordProvider(42)};
+			final IntIntMap[] caches = new IntIntMap[1];
+
+			assertEquals(
+				SortedRecordsProvider.POSITION_NOT_FOUND,
+				PredecessorAttributeComparator.cachedPositionOf(providers, caches, 0, 4, 99),
+				"the provider does not hold record 99"
+			);
+			assertEquals(
+				SortedRecordsProvider.POSITION_NOT_FOUND, caches[0].get(99), "the sentinel is stored verbatim"
+			);
+
+			// a provider that would place record 99 at position 0 is not consulted any more
+			providers[0] = singleRecordProvider(99);
+			assertEquals(
+				SortedRecordsProvider.POSITION_NOT_FOUND,
+				PredecessorAttributeComparator.cachedPositionOf(providers, caches, 0, 4, 99),
+				"the cached sentinel must be returned without probing the provider"
+			);
 		}
 	}
 
