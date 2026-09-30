@@ -82,7 +82,7 @@ public interface EntityComparator extends Comparator<EntityContract> {
 	}
 
 	/**
-	 * Returns references to all entities that were lacking the data we were sort along - in other words such values was
+	 * Returns references to all entities that were lacking the data we were sort along - in other words such values were
 	 * evaluated to NULL. Such entities need to be propagated to further evaluation.
 	 *
 	 * Method will produce result after {@link #compare(Object, Object)} was called on all the entities. Entities that

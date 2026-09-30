@@ -27,6 +27,7 @@ import io.evitadb.comparator.IntComparator.IntAscendingComparator;
 import io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture;
 import io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.SortResult;
 import io.evitadb.core.query.sort.generic.PrefetchedRecordsSorter;
+import io.evitadb.exception.EvitaInternalError;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -35,12 +36,14 @@ import javax.annotation.Nonnull;
 
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.BLOCK_1;
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.BLOCK_2;
+import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.OWNERS;
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.REFERENCE_SCHEMA;
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.sort;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.ORDER;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Verifies the prefetch-route classification of a traversal ordering by the referenced primary key: an owner belongs
@@ -102,6 +105,24 @@ class ReferencePrimaryKeyEntityComparatorTest {
 			() -> assertArrayEquals(new int[]{14, 17}, first.passedOn(), "14 and 17 have no row of category 1"),
 			() -> assertArrayEquals(new int[]{14}, second.written(), "the block of category 2"),
 			() -> assertArrayEquals(new int[]{17}, second.passedOn(), "17 has a row of category 3 only")
+		);
+	}
+
+	@Test
+	@DisplayName("should refuse to classify an owner when no block is bound")
+	void shouldRefuseClassificationWithoutBoundBlock() {
+		assertThrows(EvitaInternalError.class, () -> comparator().canSort(OWNERS.get(11)));
+	}
+
+	@Test
+	@DisplayName("should refuse a comparison of an owner without the row of the block")
+	void shouldRefuseComparisonOfUnclassifiedOwner() {
+		// owner 14 has no row of category 1, so it is never classified as sortable in its block
+		final EntityPrimaryKeyNaturalTranslator.ReferencePrimaryKeyEntityComparator comparator = comparator();
+
+		comparator.withReferencedEntityId(
+			BLOCK_1,
+			() -> assertThrows(EvitaInternalError.class, () -> comparator.compare(OWNERS.get(11), OWNERS.get(14)))
 		);
 	}
 

@@ -21,6 +21,7 @@
  *   limitations under the License.
  */
 
+
 package io.evitadb.core.query.sort.generic;
 
 import io.evitadb.api.query.order.OrderDirection;
@@ -30,8 +31,10 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.EntityReferenceSensitiveComparator;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.attribute.comparator.AttributeComparator;
+import io.evitadb.core.query.sort.attribute.comparator.PredecessorAttributeComparator;
 import io.evitadb.core.query.sort.attribute.comparator.TraverseReferenceAttributeComparator;
 import io.evitadb.core.query.sort.attribute.comparator.TraverseReferenceCompoundAttributeComparator;
 import io.evitadb.core.query.sort.attribute.comparator.TraverseReferencePredecessorAttributeComparator;
@@ -40,9 +43,11 @@ import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.attribute.ReferenceSortedRecordsProvider;
+import io.evitadb.index.attribute.SortedRecordsSupplier;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -50,6 +55,9 @@ import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntUnaryOperator;
+import java.util.function.Supplier;
 
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.ATTRIBUTE_CHAIN;
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.ATTRIBUTE_ORDER;
@@ -96,301 +104,526 @@ class PrefetchedRecordsSorterClassificationTest {
 	}
 
 	/**
-	 * Creates the traversal comparator of the chains: category 1 has a live chain 15, 11, 13 and an archived chain
-	 * holding 18 alone - two providers sharing one block key, the live one first - and category 2 a chain holding 14;
-	 * category 3 has none.
+	 * Creates the traversal comparator of the `orderSecond` compound in the ascending direction.
+	 */
+	@Nonnull
+	private static TraverseReferenceCompoundAttributeComparator compoundComparator() {
+		final SortableAttributeCompoundSchemaContract compound =
+			REFERENCE_SCHEMA.getSortableAttributeCompound(COMPOUND).orElseThrow();
+		return new TraverseReferenceCompoundAttributeComparator(
+			compound, REFERENCE_SCHEMA, null,
+			attributeName -> REFERENCE_SCHEMA.getAttribute(attributeName).map(AttributeSchemaContract.class::cast)
+				.orElseThrow(),
+			OrderDirection.ASC
+		);
+	}
+
+	/**
+	 * Creates the chain providers of the categories with the factory: category 1 has a live chain 15, 11, 13 and an
+	 * archived chain holding 18 alone - two providers sharing one block key, the live one first - and category 2 a
+	 * chain holding 14; category 3 has none.
+	 */
+	@Nonnull
+	private static ReferenceSortedRecordsProvider[] chainProviders(@Nonnull ChainProviderFactory factory) {
+		return new ReferenceSortedRecordsProvider[]{
+			factory.create(1L, new int[]{15, 11, 13}, new int[]{1, 2, 0}, new BaseBitmap(11, 13, 15), BLOCK_1),
+			factory.create(2L, new int[]{18}, new int[]{0}, new BaseBitmap(18), BLOCK_1),
+			factory.create(3L, new int[]{14}, new int[]{0}, new BaseBitmap(14), BLOCK_2)
+		};
+	}
+
+	/**
+	 * Creates the traversal comparator of the chains of {@link #chainProviders(ChainProviderFactory)}.
 	 */
 	@Nonnull
 	private static TraverseReferencePredecessorAttributeComparator chainComparator() {
-		final SortedRecordsProvider[] providers = {
-			new ReferenceSortedRecordsProvider(
-				1L, new int[]{15, 11, 13}, new int[]{1, 2, 0}, new BaseBitmap(11, 13, 15),
-				position -> null, BLOCK_1
-			),
-			new ReferenceSortedRecordsProvider(
-				2L, new int[]{18}, new int[]{0}, new BaseBitmap(18), position -> null, BLOCK_1
-			),
-			new ReferenceSortedRecordsProvider(
-				3L, new int[]{14}, new int[]{0}, new BaseBitmap(14), position -> null, BLOCK_2
-			)
-		};
+		final SortedRecordsProvider[] providers = chainProviders(
+			(transactionalId, sortedRecordIds, recordPositions, allRecords, referenceKey) ->
+				new ReferenceSortedRecordsProvider(
+					transactionalId, sortedRecordIds, recordPositions, allRecords, position -> null, referenceKey
+				)
+		);
+		return chainComparator(() -> providers);
+	}
+
+	/**
+	 * Creates the traversal comparator of the chains the supplier resolves.
+	 */
+	@Nonnull
+	private static TraverseReferencePredecessorAttributeComparator chainComparator(
+		@Nonnull Supplier<SortedRecordsProvider[]> providers
+	) {
 		return new TraverseReferencePredecessorAttributeComparator(
-			ATTRIBUTE_CHAIN, Predecessor.class, REFERENCE_SCHEMA, null, OrderDirection.ASC, () -> providers
+			ATTRIBUTE_CHAIN, Predecessor.class, REFERENCE_SCHEMA, null, OrderDirection.ASC, providers
 		);
 	}
 
-	@Test
-	@DisplayName("should pass on a lone owner whose row of the block lacks the value")
-	void shouldPassOnLoneOwnerWithoutValue() {
-		// owner 12 is alone in the block of category 1 and its row there has no `order` - sorting one element
-		// compares nothing, so only the classification can pass it on to the block of category 2
-		final SortResult sorted = sort(orderComparator(OrderDirection.ASC), BLOCK_1, 0, 10, 12);
-
-		assertAll(
-			() -> assertArrayEquals(new int[0], sorted.written(), "no owner may be claimed by the block"),
-			() -> assertArrayEquals(new int[]{12}, sorted.passedOn(), "the owner moves on to the next block")
-		);
+	/**
+	 * Asserts that the comparator reports no entity as not sortable.
+	 */
+	private static void assertNothingReported(@Nonnull EntityComparator comparator, @Nonnull String message) {
+		assertFalse(comparator.getNonSortedEntities().iterator().hasNext(), message);
 	}
 
-	@Test
-	@DisplayName("should claim a lone owner whose row of the block carries the value")
-	void shouldClaimLoneOwnerWithValue() {
-		final SortResult sorted = sort(orderComparator(OrderDirection.ASC), BLOCK_1, 0, 10, 13);
+	@Nested
+	@DisplayName("Sorter lifecycle")
+	class SorterLifecycle {
 
-		assertAll(
-			() -> assertArrayEquals(new int[]{13}, sorted.written()),
-			() -> assertArrayEquals(new int[0], sorted.passedOn())
-		);
-	}
+		@Test
+		@DisplayName("should reset, prepare, bind, classify each entity once, sort the sortable ones and unbind")
+		void shouldDriveComparatorThroughLifecycle() {
+			final RecordingComparator comparator = new RecordingComparator(orderComparator(OrderDirection.ASC));
 
-	@Test
-	@DisplayName("should sort only the owners carrying the value of the block and pass on the rest")
-	void shouldSortOnlyOwnersCarryingValueOfBlock() {
-		// 12 has a value-less row of the block, 14 no row of the block at all; 13 and 15 tie on 10
-		final SortResult ascending = sort(orderComparator(OrderDirection.ASC), BLOCK_1, 0, 10, 11, 12, 13, 14, 15);
-		final SortResult descending = sort(orderComparator(OrderDirection.DESC), BLOCK_1, 0, 10, 11, 12, 13, 14, 15);
+			final SortResult sorted = sort(comparator, BLOCK_1, 0, 10, 11, 12, 13, 14, 15);
 
-		assertAll(
-			() -> assertArrayEquals(new int[]{13, 15, 11}, ascending.written(), "ascending, ties by owner"),
-			() -> assertArrayEquals(new int[]{12, 14}, ascending.passedOn(), "ascending passes on"),
-			() -> assertArrayEquals(new int[]{11, 15, 13}, descending.written(), "descending, ties by owner"),
-			() -> assertArrayEquals(new int[]{12, 14}, descending.passedOn(), "descending passes on")
-		);
-	}
-
-	@Test
-	@DisplayName("should skip and slice only the sortable owners")
-	void shouldSkipAndSliceOnlySortableOwners() {
-		final SortResult sorted = sort(orderComparator(OrderDirection.ASC), BLOCK_1, 1, 2, 11, 12, 13, 14, 15);
-
-		assertAll(
-			() -> assertArrayEquals(new int[]{15}, sorted.written()),
-			() -> assertArrayEquals(new int[]{13}, sorted.skipped()),
-			() -> assertArrayEquals(new int[]{12, 14}, sorted.passedOn())
-		);
-	}
-
-	@Test
-	@DisplayName("should reset, prepare, bind, classify each entity once, sort the sortable ones and unbind")
-	void shouldDriveComparatorThroughLifecycle() {
-		final RecordingComparator comparator = new RecordingComparator(orderComparator(OrderDirection.ASC));
-
-		final SortResult sorted = sort(comparator, BLOCK_1, 0, 10, 11, 12, 13, 14, 15);
-
-		final List<String> calls = comparator.calls;
-		assertAll(
-			() -> assertArrayEquals(new int[]{13, 15, 11}, sorted.written()),
-			() -> assertEquals(
-				List.of(
-					"prepareFor", "prepareForSelection [11, 12, 13, 14, 15]", "bind",
-					"canSort 11", "canSort 12", "canSort 13", "canSort 14", "canSort 15"
+			final List<String> calls = comparator.calls;
+			assertAll(
+				() -> assertArrayEquals(new int[]{13, 15, 11}, sorted.written()),
+				() -> assertEquals(
+					List.of(
+						"prepareFor", "prepareForSelection [11, 12, 13, 14, 15]", "bind",
+						"canSort 11", "canSort 12", "canSort 13", "canSort 14", "canSort 15"
+					),
+					calls.subList(0, 8),
+					"the comparator is reset and prepared before the block key is bound, then classifies in order"
 				),
-				calls.subList(0, 8),
-				"the comparator is reset and prepared before the block key is bound, then classifies in order"
-			),
-			() -> assertEquals("unbind", calls.get(calls.size() - 1), "the block key is released at the end"),
-			() -> assertTrue(
-				calls.subList(8, calls.size() - 1).stream().allMatch(it -> it.startsWith("compare")),
-				"only comparisons happen between the classification and the unbinding: " + calls
-			),
-			() -> assertFalse(
-				calls.stream().anyMatch(it -> it.startsWith("compare") && (it.contains(" 12") || it.contains(" 14"))),
-				"owners classified as not sortable are never compared: " + calls
-			)
-		);
-	}
+				() -> assertEquals("unbind", calls.get(calls.size() - 1), "the block key is released at the end"),
+				() -> assertTrue(
+					calls.subList(8, calls.size() - 1).stream().allMatch(it -> it.startsWith("compare")),
+					"only comparisons happen between the classification and the unbinding: " + calls
+				),
+				() -> assertFalse(
+					calls.stream()
+						.anyMatch(it -> it.startsWith("compare") && (it.contains(" 12") || it.contains(" 14"))),
+					"owners classified as not sortable are never compared: " + calls
+				)
+			);
+		}
 
-	@Test
-	@DisplayName("should release the block key when the classification fails")
-	void shouldUnbindWhenClassificationFails() {
-		final TraverseReferenceAttributeComparator delegate = orderComparator(OrderDirection.ASC);
-		final RecordingComparator failing = new RecordingComparator(delegate) {
-			@Override
-			public boolean canSort(@Nonnull EntityContract entity) {
-				super.canSort(entity);
-				throw new IllegalStateException("classification failed");
-			}
-		};
-
-		assertThrows(IllegalStateException.class, () -> sort(failing, BLOCK_1, 0, 10, 11, 13));
-		// the very comparator that failed binds again - a key left bound refuses the second binding
-		assertArrayEquals(new int[]{13}, sort(delegate, BLOCK_1, 0, 10, 13).written());
-	}
-
-	@Test
-	@DisplayName("should hand on the entities a comparator without classification reports while comparing")
-	void shouldHandOnEntitiesReportedByComparison() {
-		// the entity-level attribute comparator keeps the default classification and detects owner 12 lacking
-		// `tail` only while comparing - that channel must keep working
-		final SortResult sorted = sort(
-			new AttributeComparator(ATTRIBUTE_TAIL, Integer.class, null, OrderDirection.ASC), null, 0, 10,
-			11, 12, 13, 14
-		);
-
-		assertAll(
-			() -> assertArrayEquals(new int[]{13, 11, 14}, sorted.written()),
-			() -> assertArrayEquals(new int[]{12}, sorted.passedOn())
-		);
-	}
-
-	@Test
-	@DisplayName("should count an entity both classified out and reported while comparing only once")
-	void shouldNotDoubleCountEntityClassifiedOutAndReported() {
-		// a comparator that rejects owner 12 up front and still reports it, next to owner 14 detected while comparing
-		final CompositeObjectArray<EntityContract> reported = new CompositeObjectArray<>(EntityContract.class);
-		final EntityComparator comparator = new EntityComparator() {
-			@Override
-			public boolean canSort(@Nonnull EntityContract entity) {
-				if (entity.getPrimaryKeyOrThrowException() == 12) {
-					reported.add(entity);
-					return false;
+		@Test
+		@DisplayName("should release the block key when the classification fails")
+		void shouldUnbindWhenClassificationFails() {
+			final TraverseReferenceAttributeComparator delegate = orderComparator(OrderDirection.ASC);
+			final RecordingComparator failing = new RecordingComparator(delegate) {
+				@Override
+				public boolean canSort(@Nonnull EntityContract entity) {
+					super.canSort(entity);
+					throw new IllegalStateException("classification failed");
 				}
-				return true;
-			}
+			};
 
-			@Nonnull
-			@Override
-			public Iterable<EntityContract> getNonSortedEntities() {
-				return reported;
-			}
+			assertThrows(IllegalStateException.class, () -> sort(failing, BLOCK_1, 0, 10, 11, 13));
+			// the very comparator that failed binds again - a key left bound refuses the second binding
+			assertArrayEquals(new int[]{13}, sort(delegate, BLOCK_1, 0, 10, 13).written());
+		}
 
-			@Override
-			public int compare(EntityContract o1, EntityContract o2) {
-				for (EntityContract entity : new EntityContract[]{o1, o2}) {
-					if (entity.getPrimaryKeyOrThrowException() == 14 && !contains(reported, entity)) {
-						reported.add(entity);
-					}
-				}
-				return Integer.compare(o1.getPrimaryKeyOrThrowException(), o2.getPrimaryKeyOrThrowException());
-			}
-		};
+		@Test
+		@DisplayName("should skip and slice only the sortable owners")
+		void shouldSkipAndSliceOnlySortableOwners() {
+			final SortResult sorted = sort(orderComparator(OrderDirection.ASC), BLOCK_1, 1, 2, 11, 12, 13, 14, 15);
 
-		final SortResult sorted = sort(comparator, null, 0, 10, 11, 12, 13, 14);
-
-		assertAll(
-			() -> assertArrayEquals(new int[]{11, 13}, sorted.written()),
-			() -> assertArrayEquals(new int[]{12, 14}, sorted.passedOn())
-		);
+			assertAll(
+				() -> assertArrayEquals(new int[]{15}, sorted.written()),
+				() -> assertArrayEquals(new int[]{13}, sorted.skipped()),
+				() -> assertArrayEquals(new int[]{12, 14}, sorted.passedOn())
+			);
+		}
 	}
 
-	@Test
-	@DisplayName("should refuse a comparator that keeps a reported entity inside the sortable slice")
-	void shouldRefuseReportedEntityInsideSortableSlice() {
-		// owner 11 is reported as not sortable but ordered first - downstream sorters would emit it twice
-		final EntityComparator comparator = new EntityComparator() {
-			@Nonnull
-			@Override
-			public Iterable<EntityContract> getNonSortedEntities() {
-				return List.of(OWNERS.get(11));
-			}
+	@Nested
+	@DisplayName("Entities reported while comparing")
+	class CompareTimeReporting {
 
-			@Override
-			public int compare(EntityContract o1, EntityContract o2) {
-				return Integer.compare(o1.getPrimaryKeyOrThrowException(), o2.getPrimaryKeyOrThrowException());
-			}
-		};
-
-		assertThrows(EvitaInternalError.class, () -> sort(comparator, null, 0, 10, 11, 13));
-	}
-
-	@Test
-	@DisplayName("should refuse a traversal comparison of an entity that was not classified as sortable")
-	void shouldRefuseComparisonOfUnclassifiedEntity() {
-		final TraverseReferenceAttributeComparator comparator = orderComparator(OrderDirection.ASC);
-		comparator.prepareFor(2);
-
-		comparator.withReferencedEntityId(
-			BLOCK_1,
-			() -> assertThrows(EvitaInternalError.class, () -> comparator.compare(OWNERS.get(11), OWNERS.get(12)))
-		);
-	}
-
-	@Test
-	@DisplayName("should pass on owners without the compound value of the block, a lone one included")
-	void shouldClassifyByCompound() {
-		final SortableAttributeCompoundSchemaContract compound =
-			REFERENCE_SCHEMA.getSortableAttributeCompound(COMPOUND).orElseThrow();
-		final TraverseReferenceCompoundAttributeComparator comparator =
-			new TraverseReferenceCompoundAttributeComparator(
-				compound, REFERENCE_SCHEMA, null,
-				attributeName -> REFERENCE_SCHEMA.getAttribute(attributeName).map(AttributeSchemaContract.class::cast)
-					.orElseThrow(),
-				OrderDirection.ASC
+		@Test
+		@DisplayName("should hand on the entities a comparator without classification reports while comparing")
+		void shouldHandOnEntitiesReportedByComparison() {
+			// the entity-level attribute comparator keeps the default classification and detects owner 12 lacking
+			// `tail` only while comparing - that channel must keep working
+			final SortResult sorted = sort(
+				new AttributeComparator(ATTRIBUTE_TAIL, Integer.class, null, OrderDirection.ASC), null, 0, 10,
+				11, 12, 13, 14
 			);
 
-		final SortResult lone = sort(comparator, BLOCK_1, 0, 10, 16);
-		final SortResult block = sort(comparator, BLOCK_1, 0, 10, 11, 12, 13, 14, 15, 16);
+			assertAll(
+				() -> assertArrayEquals(new int[]{13, 11, 14}, sorted.written()),
+				() -> assertArrayEquals(new int[]{12}, sorted.passedOn())
+			);
+		}
 
-		assertAll(
-			() -> assertArrayEquals(new int[0], lone.written(), "the lone owner has no compound value"),
-			() -> assertArrayEquals(new int[]{16}, lone.passedOn()),
-			() -> assertArrayEquals(new int[]{15, 13, 11}, block.written(), "(10,2) (10,3) (50,1)"),
-			() -> assertArrayEquals(new int[]{12, 14, 16}, block.passedOn())
-		);
+		@Test
+		@DisplayName("should count an entity both classified out and reported while comparing only once")
+		void shouldNotDoubleCountEntityClassifiedOutAndReported() {
+			// a comparator that rejects owner 12 up front and still reports it, next to owner 14 detected while
+			// comparing
+			final CompositeObjectArray<EntityContract> reported = new CompositeObjectArray<>(EntityContract.class);
+			final EntityComparator comparator = new EntityComparator() {
+				@Override
+				public boolean canSort(@Nonnull EntityContract entity) {
+					if (entity.getPrimaryKeyOrThrowException() == 12) {
+						reported.add(entity);
+						return false;
+					}
+					return true;
+				}
+
+				@Nonnull
+				@Override
+				public Iterable<EntityContract> getNonSortedEntities() {
+					return reported;
+				}
+
+				@Override
+				public int compare(EntityContract o1, EntityContract o2) {
+					for (EntityContract entity : new EntityContract[]{o1, o2}) {
+						if (entity.getPrimaryKeyOrThrowException() == 14 && !contains(reported, entity)) {
+							reported.add(entity);
+						}
+					}
+					return Integer.compare(o1.getPrimaryKeyOrThrowException(), o2.getPrimaryKeyOrThrowException());
+				}
+			};
+
+			final SortResult sorted = sort(comparator, null, 0, 10, 11, 12, 13, 14);
+
+			assertAll(
+				() -> assertArrayEquals(new int[]{11, 13}, sorted.written()),
+				() -> assertArrayEquals(new int[]{12, 14}, sorted.passedOn())
+			);
+		}
+
+		@Test
+		@DisplayName("should refuse a comparator that keeps a reported entity inside the sortable slice")
+		void shouldRefuseReportedEntityInsideSortableSlice() {
+			// owner 11 is reported as not sortable but ordered first - downstream sorters would emit it twice
+			final EntityComparator comparator = new EntityComparator() {
+				@Nonnull
+				@Override
+				public Iterable<EntityContract> getNonSortedEntities() {
+					return List.of(OWNERS.get(11));
+				}
+
+				@Override
+				public int compare(EntityContract o1, EntityContract o2) {
+					return Integer.compare(o1.getPrimaryKeyOrThrowException(), o2.getPrimaryKeyOrThrowException());
+				}
+			};
+
+			assertThrows(EvitaInternalError.class, () -> sort(comparator, null, 0, 10, 11, 13));
+		}
+
+		@Test
+		@DisplayName("should refuse a comparator that reports more non-sortable entities than it was given")
+		void shouldRefuseComparatorReportingMoreEntitiesThanItSorted() {
+			// owners 13 and 14 are reported although only owner 11 was sorted
+			final EntityComparator comparator = new EntityComparator() {
+				@Nonnull
+				@Override
+				public Iterable<EntityContract> getNonSortedEntities() {
+					return List.of(OWNERS.get(13), OWNERS.get(14));
+				}
+
+				@Override
+				public int compare(EntityContract o1, EntityContract o2) {
+					return Integer.compare(o1.getPrimaryKeyOrThrowException(), o2.getPrimaryKeyOrThrowException());
+				}
+			};
+
+			final EvitaInternalError error = assertThrows(
+				EvitaInternalError.class, () -> sort(comparator, null, 0, 10, 11)
+			);
+			assertTrue(
+				error.getMessage().contains("reported more non-sortable entities"),
+				"the sorter names the broken contract: " + error.getMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("should write the chained entities and pass on the ones no chain provider holds")
+		void shouldSortEntitiesMissingFromEveryChainProvider() {
+			// the entity-level chain holds 13 and then 11, owner 12 is in no provider and is reported while comparing
+			final SortedRecordsProvider provider = new SortedRecordsSupplier(
+				1L, new int[]{13, 11}, new int[]{1, 0}, new BaseBitmap(11, 13), SortedComparableForwardSeeker.EMPTY
+			);
+			final PredecessorAttributeComparator comparator = new PredecessorAttributeComparator(
+				() -> new SortedRecordsProvider[]{provider}
+			);
+
+			final SortResult sorted = sort(comparator, null, 0, 10, 11, 12, 13);
+
+			assertAll(
+				() -> assertArrayEquals(new int[]{13, 11}, sorted.written(), "the chain order of the held entities"),
+				() -> assertArrayEquals(new int[]{12}, sorted.passedOn(), "the entity no provider holds moves on")
+			);
+		}
 	}
 
-	@Test
-	@DisplayName("should pass on owners the chain of the block cannot place, a lone one included")
-	void shouldClassifyByChainPosition() {
-		final SortResult block = sort(chainComparator(), BLOCK_1, 0, 10, 11, 12, 13, 15, 16);
-		final SortResult lone = sort(chainComparator(), BLOCK_1, 0, 10, 16);
-		final SortResult noChain = sort(chainComparator(), BLOCK_3, 0, 10, 17);
+	@Nested
+	@DisplayName("Reference attribute classification")
+	class AttributeClassification {
 
-		assertAll(
-			() -> assertArrayEquals(new int[]{15, 11, 13}, block.written(), "chain order of category 1"),
-			() -> assertArrayEquals(new int[]{12, 16}, block.passedOn(), "value-less 12, 16 absent in the chain"),
-			() -> assertArrayEquals(new int[0], lone.written(), "16 carries a value but the chain lacks it"),
-			() -> assertArrayEquals(new int[]{16}, lone.passedOn()),
-			() -> assertArrayEquals(new int[0], noChain.written(), "category 3 has no chain provider"),
-			() -> assertArrayEquals(new int[]{17}, noChain.passedOn())
-		);
+		@Test
+		@DisplayName("should pass on a lone owner whose row of the block lacks the value")
+		void shouldPassOnLoneOwnerWithoutValue() {
+			// owner 12 is alone in the block of category 1 and its row there has no `order` - sorting one element
+			// compares nothing, so only the classification can pass it on to the block of category 2
+			final SortResult sorted = sort(orderComparator(OrderDirection.ASC), BLOCK_1, 0, 10, 12);
+
+			assertAll(
+				() -> assertArrayEquals(new int[0], sorted.written(), "no owner may be claimed by the block"),
+				() -> assertArrayEquals(new int[]{12}, sorted.passedOn(), "the owner moves on to the next block")
+			);
+		}
+
+		@Test
+		@DisplayName("should claim a lone owner whose row of the block carries the value")
+		void shouldClaimLoneOwnerWithValue() {
+			final SortResult sorted = sort(orderComparator(OrderDirection.ASC), BLOCK_1, 0, 10, 13);
+
+			assertAll(
+				() -> assertArrayEquals(new int[]{13}, sorted.written()),
+				() -> assertArrayEquals(new int[0], sorted.passedOn())
+			);
+		}
+
+		@Test
+		@DisplayName("should sort only the owners carrying the value of the block and pass on the rest")
+		void shouldSortOnlyOwnersCarryingValueOfBlock() {
+			// 12 has a value-less row of the block, 14 no row of the block at all; 13 and 15 tie on 10
+			final TraverseReferenceAttributeComparator ascendingComparator = orderComparator(OrderDirection.ASC);
+			final SortResult ascending = sort(ascendingComparator, BLOCK_1, 0, 10, 11, 12, 13, 14, 15);
+			final SortResult descending =
+				sort(orderComparator(OrderDirection.DESC), BLOCK_1, 0, 10, 11, 12, 13, 14, 15);
+
+			assertAll(
+				() -> assertArrayEquals(new int[]{13, 15, 11}, ascending.written(), "ascending, ties by owner"),
+				() -> assertArrayEquals(new int[]{12, 14}, ascending.passedOn(), "ascending passes on"),
+				() -> assertArrayEquals(new int[]{11, 15, 13}, descending.written(), "descending, ties by owner"),
+				() -> assertArrayEquals(new int[]{12, 14}, descending.passedOn(), "descending passes on"),
+				() -> assertNothingReported(ascendingComparator, "owners classified out are not reported as well")
+			);
+		}
+
+		@Test
+		@DisplayName("should refuse a traversal comparison of an entity that was not classified as sortable")
+		void shouldRefuseComparisonOfUnclassifiedEntity() {
+			final TraverseReferenceAttributeComparator comparator = orderComparator(OrderDirection.ASC);
+			comparator.prepareFor(2);
+
+			comparator.withReferencedEntityId(
+				BLOCK_1,
+				() -> assertThrows(EvitaInternalError.class, () -> comparator.compare(OWNERS.get(11), OWNERS.get(12)))
+			);
+		}
+
+		@Test
+		@DisplayName("should classify every block afresh with one comparator instance")
+		void shouldClassifyEachBlockAfresh() {
+			// owner 12 lacks the value in block 1 but carries it in block 2 - the reset between blocks must not let the
+			// classification of one block leak into the next
+			final TraverseReferenceAttributeComparator comparator = orderComparator(OrderDirection.ASC);
+			final SortResult first = sort(comparator, BLOCK_1, 0, 10, 12);
+			final SortResult second = sort(comparator, blockKey(2), 0, 10, 12);
+
+			assertAll(
+				() -> assertArrayEquals(new int[]{12}, first.passedOn(), "block 1 passes the owner on"),
+				() -> assertArrayEquals(new int[]{12}, second.written(), "block 2 claims it")
+			);
+		}
 	}
 
-	@Test
-	@DisplayName("should admit an owner held by a later provider sharing the block key, across blocks")
-	void shouldClassifyByEveryProviderOfBlock() {
-		// category 1 is backed by two providers - the live chain 15, 11, 13 and the archived chain holding 18 - so 18
-		// belongs to the block although the first provider lacks it, and follows the live chain; one comparator
-		// instance then sorts the block of category 2 and the block of category 1 again
-		final TraverseReferencePredecessorAttributeComparator comparator = chainComparator();
-		final SortResult first = sort(comparator, BLOCK_1, 0, 10, 11, 13, 14, 15, 18);
-		final SortResult second = sort(comparator, BLOCK_2, 0, 10, 14, 18);
-		final SortResult loneArchived = sort(comparator, BLOCK_1, 0, 10, 18);
+	@Nested
+	@DisplayName("Reference compound classification")
+	class CompoundClassification {
 
-		assertAll(
-			() -> assertArrayEquals(new int[]{15, 11, 13, 18}, first.written(), "live chain, then archived chain"),
-			() -> assertArrayEquals(new int[]{14}, first.passedOn(), "14 has no row of category 1"),
-			() -> assertArrayEquals(new int[]{14}, second.written(), "the block of category 2"),
-			() -> assertArrayEquals(new int[]{18}, second.passedOn(), "18 has no row of category 2"),
-			() -> assertArrayEquals(new int[]{18}, loneArchived.written(), "the second provider places 18 alone")
-		);
+		@Test
+		@DisplayName("should pass on owners without the compound value of the block, a lone one included")
+		void shouldClassifyByCompound() {
+			final TraverseReferenceCompoundAttributeComparator comparator = compoundComparator();
+
+			final SortResult lone = sort(comparator, BLOCK_1, 0, 10, 16);
+			final SortResult block = sort(comparator, BLOCK_1, 0, 10, 11, 12, 13, 14, 15, 16);
+
+			assertAll(
+				() -> assertArrayEquals(new int[0], lone.written(), "the lone owner has no compound value"),
+				() -> assertArrayEquals(new int[]{16}, lone.passedOn()),
+				() -> assertArrayEquals(new int[]{15, 13, 11}, block.written(), "(10,2) (10,3) (50,1)"),
+				() -> assertArrayEquals(new int[]{12, 14, 16}, block.passedOn()),
+				() -> assertNothingReported(comparator, "owners classified out are not reported as well")
+			);
+		}
+
+		@Test
+		@DisplayName("should classify every block afresh with one compound comparator instance")
+		void shouldClassifyEachCompoundBlockAfresh() {
+			// owner 12's row of category 1 carries no element of the compound, its row of category 2 carries `order`
+			final TraverseReferenceCompoundAttributeComparator comparator = compoundComparator();
+			final SortResult first = sort(comparator, BLOCK_1, 0, 10, 12);
+			final SortResult second = sort(comparator, BLOCK_2, 0, 10, 12);
+
+			assertAll(
+				() -> assertArrayEquals(new int[]{12}, first.passedOn(), "block 1 passes the owner on"),
+				() -> assertArrayEquals(new int[]{12}, second.written(), "block 2 claims it")
+			);
+		}
+
+		@Test
+		@DisplayName("should answer a repeated compound classification from the memo without reporting")
+		void shouldAnswerRepeatedClassificationFromMemo() {
+			final TraverseReferenceCompoundAttributeComparator comparator = compoundComparator();
+			comparator.prepareFor(4);
+
+			comparator.withReferencedEntityId(
+				BLOCK_1,
+				() -> assertAll(
+					() -> assertFalse(comparator.canSort(OWNERS.get(12)), "12 lacks the compound"),
+					() -> assertFalse(comparator.canSort(OWNERS.get(12)), "12 lacks it again, from the memo"),
+					() -> assertTrue(comparator.canSort(OWNERS.get(13)), "13 carries the compound"),
+					() -> assertTrue(comparator.canSort(OWNERS.get(13)), "13 carries it again, from the memo")
+				)
+			);
+			assertNothingReported(comparator, "the classification reports nothing");
+		}
+
+		@Test
+		@DisplayName("should refuse a compound comparison of an entity that was not classified as sortable")
+		void shouldRefuseCompoundComparisonOfUnclassifiedEntity() {
+			// owner 16's row of category 1 carries no element of the compound
+			final TraverseReferenceCompoundAttributeComparator comparator = compoundComparator();
+			comparator.prepareFor(2);
+
+			comparator.withReferencedEntityId(
+				BLOCK_1,
+				() -> assertThrows(EvitaInternalError.class, () -> comparator.compare(OWNERS.get(13), OWNERS.get(16)))
+			);
+		}
 	}
 
-	@Test
-	@DisplayName("should admit every owner to the chain comparison when no block is bound")
-	void shouldAdmitEveryOwnerToChainWithoutBlock() {
-		final TraverseReferencePredecessorAttributeComparator comparator = chainComparator();
-		comparator.prepareFor(2);
+	@Nested
+	@DisplayName("Reference chain classification")
+	class ChainClassification {
 
-		assertAll(
-			() -> assertTrue(comparator.canSort(OWNERS.get(12)), "value-less owner is left to the comparison"),
-			() -> assertTrue(comparator.canSort(OWNERS.get(16)), "unplaced owner is left to the comparison")
-		);
-	}
+		@Test
+		@DisplayName("should pass on owners the chain of the block cannot place, a lone one included")
+		void shouldClassifyByChainPosition() {
+			final TraverseReferencePredecessorAttributeComparator blockComparator = chainComparator();
+			final SortResult block = sort(blockComparator, BLOCK_1, 0, 10, 11, 12, 13, 15, 16);
+			final SortResult lone = sort(chainComparator(), BLOCK_1, 0, 10, 16);
+			final SortResult noChain = sort(chainComparator(), BLOCK_3, 0, 10, 17);
 
-	@Test
-	@DisplayName("should classify every block afresh with one comparator instance")
-	void shouldClassifyEachBlockAfresh() {
-		// owner 12 lacks the value in block 1 but carries it in block 2 - the reset between blocks must not let the
-		// classification of one block leak into the next
-		final TraverseReferenceAttributeComparator comparator = orderComparator(OrderDirection.ASC);
-		final SortResult first = sort(comparator, BLOCK_1, 0, 10, 12);
-		final SortResult second = sort(comparator, blockKey(2), 0, 10, 12);
+			assertAll(
+				() -> assertArrayEquals(new int[]{15, 11, 13}, block.written(), "chain order of category 1"),
+				() -> assertArrayEquals(new int[]{12, 16}, block.passedOn(), "value-less 12, 16 absent in the chain"),
+				() -> assertNothingReported(blockComparator, "owners classified out are not reported as well"),
+				() -> assertArrayEquals(new int[0], lone.written(), "16 carries a value but the chain lacks it"),
+				() -> assertArrayEquals(new int[]{16}, lone.passedOn()),
+				() -> assertArrayEquals(new int[0], noChain.written(), "category 3 has no chain provider"),
+				() -> assertArrayEquals(new int[]{17}, noChain.passedOn())
+			);
+		}
 
-		assertAll(
-			() -> assertArrayEquals(new int[]{12}, first.passedOn(), "block 1 passes the owner on"),
-			() -> assertArrayEquals(new int[]{12}, second.written(), "block 2 claims it")
-		);
+		@Test
+		@DisplayName("should admit an owner held by a later provider sharing the block key, across blocks")
+		void shouldClassifyByEveryProviderOfBlock() {
+			// category 1 is backed by two providers - the live chain 15, 11, 13 and the archived chain holding 18 - so
+			// 18 belongs to the block although the first provider lacks it, and follows the live chain; one comparator
+			// instance then sorts the block of category 2 and the block of category 1 again
+			final TraverseReferencePredecessorAttributeComparator comparator = chainComparator();
+			final SortResult first = sort(comparator, BLOCK_1, 0, 10, 11, 13, 14, 15, 18);
+			final SortResult second = sort(comparator, BLOCK_2, 0, 10, 14, 18);
+			final SortResult loneArchived = sort(comparator, BLOCK_1, 0, 10, 18);
+
+			assertAll(
+				() -> assertArrayEquals(new int[]{15, 11, 13, 18}, first.written(), "live chain, then archived chain"),
+				() -> assertArrayEquals(new int[]{14}, first.passedOn(), "14 has no row of category 1"),
+				() -> assertArrayEquals(new int[]{14}, second.written(), "the block of category 2"),
+				() -> assertArrayEquals(new int[]{18}, second.passedOn(), "18 has no row of category 2"),
+				() -> assertArrayEquals(new int[]{18}, loneArchived.written(), "the second provider places 18 alone")
+			);
+		}
+
+		@Test
+		@DisplayName("should admit every owner to the chain comparison when no block is bound")
+		void shouldAdmitEveryOwnerToChainWithoutBlock() {
+			final TraverseReferencePredecessorAttributeComparator comparator = chainComparator();
+			comparator.prepareFor(2);
+
+			assertAll(
+				() -> assertTrue(comparator.canSort(OWNERS.get(12)), "value-less owner is left to the comparison"),
+				() -> assertTrue(comparator.canSort(OWNERS.get(16)), "unplaced owner is left to the comparison")
+			);
+		}
+
+		@Test
+		@DisplayName("should hand on a value-less owner reported while comparing when no block is bound")
+		void shouldReportValueLessOwnerWhileComparingWithoutBlock() {
+			// owner 12's row of category 1 lacks `chain`, so the unbound comparison reports it and sorts it last
+			final SortResult sorted = sort(chainComparator(), null, 0, 10, 11, 12, 13, 15);
+
+			assertAll(
+				() -> assertArrayEquals(new int[]{15, 11, 13}, sorted.written(), "chain order of category 1"),
+				() -> assertArrayEquals(new int[]{12}, sorted.passedOn(), "the value-less owner is handed on")
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should pass on every owner when the reference has no chain provider at all, resolving the family once"
+		)
+		void shouldPassOnEveryOwnerWhenFamilyHasNoChainProvider() {
+			final AtomicInteger resolutions = new AtomicInteger();
+			final TraverseReferencePredecessorAttributeComparator comparator = chainComparator(
+				() -> {
+					resolutions.incrementAndGet();
+					return new SortedRecordsProvider[0];
+				}
+			);
+
+			final SortResult first = sort(comparator, BLOCK_1, 0, 10, 11, 13, 15);
+			final SortResult second = sort(comparator, BLOCK_2, 0, 10, 14);
+
+			assertAll(
+				() -> assertArrayEquals(new int[0], first.written(), "no chain can place an owner of category 1"),
+				() -> assertArrayEquals(new int[]{11, 13, 15}, first.passedOn()),
+				() -> assertArrayEquals(new int[0], second.written(), "no chain can place an owner of category 2"),
+				() -> assertArrayEquals(new int[]{14}, second.passedOn()),
+				() -> assertEquals(1, resolutions.get(), "the family is resolved once for the whole query")
+			);
+		}
+
+		@Test
+		@DisplayName("should resolve each chain position once across classification, comparison and repeated blocks")
+		void shouldResolveEveryChainPositionOnce() {
+			final ReferenceSortedRecordsProvider[] providers =
+				chainProviders(CountingReferenceSortedRecordsProvider::new);
+			final IntUnaryOperator lookups =
+				index -> ((CountingReferenceSortedRecordsProvider) providers[index]).positionLookups;
+			final AtomicInteger resolutions = new AtomicInteger();
+			final TraverseReferencePredecessorAttributeComparator comparator = chainComparator(
+				() -> {
+					resolutions.incrementAndGet();
+					return providers;
+				}
+			);
+
+			// each owner's classification probes the live chain, 18 misses there and is found in the archived one;
+			// the comparisons then find every position in the cache
+			final SortResult first = sort(comparator, BLOCK_1, 0, 10, 11, 13, 15, 18);
+			final int liveAfterFirst = lookups.applyAsInt(0);
+			final int archivedAfterFirst = lookups.applyAsInt(1);
+			// the positions stay valid for the whole query, so sorting the block again resolves nothing
+			final SortResult second = sort(comparator, BLOCK_1, 0, 10, 11, 13, 15, 18);
+
+			assertAll(
+				() -> assertArrayEquals(new int[]{15, 11, 13, 18}, first.written(), "live chain, then archived chain"),
+				() -> assertArrayEquals(new int[]{15, 11, 13, 18}, second.written(), "the same order again"),
+				() -> assertEquals(4, liveAfterFirst, "one lookup per owner in the live chain"),
+				() -> assertEquals(1, archivedAfterFirst, "one lookup of 18 in the archived chain"),
+				() -> assertEquals(4, lookups.applyAsInt(0), "no new lookup in the live chain"),
+				() -> assertEquals(1, lookups.applyAsInt(1), "no new lookup in the archived chain"),
+				() -> assertEquals(0, lookups.applyAsInt(2), "the chain of category 2 is never probed"),
+				() -> assertEquals(1, resolutions.get(), "the family is resolved once for the whole query")
+			);
+		}
 	}
 
 	/**
@@ -406,6 +639,52 @@ class PrefetchedRecordsSorterClassificationTest {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Creates one chain provider of a block from its sorted record ids, the positions of its records in ascending
+	 * record id order, the records themselves and the key of the block.
+	 */
+	@FunctionalInterface
+	private interface ChainProviderFactory {
+
+		/**
+		 * Creates the provider.
+		 */
+		@Nonnull
+		ReferenceSortedRecordsProvider create(
+			long transactionalId,
+			@Nonnull int[] sortedRecordIds,
+			@Nonnull int[] recordPositions,
+			@Nonnull Bitmap allRecords,
+			@Nonnull RepresentativeReferenceKey referenceKey
+		);
+	}
+
+	/**
+	 * A chain provider counting how many times the position of a record was looked up in it.
+	 */
+	private static final class CountingReferenceSortedRecordsProvider extends ReferenceSortedRecordsProvider {
+		/**
+		 * The number of position lookups so far.
+		 */
+		private int positionLookups;
+
+		CountingReferenceSortedRecordsProvider(
+			long transactionalId,
+			@Nonnull int[] sortedRecordIds,
+			@Nonnull int[] recordPositions,
+			@Nonnull Bitmap allRecords,
+			@Nonnull RepresentativeReferenceKey referenceKey
+		) {
+			super(transactionalId, sortedRecordIds, recordPositions, allRecords, position -> null, referenceKey);
+		}
+
+		@Override
+		public int positionOf(int recordId) {
+			this.positionLookups++;
+			return super.positionOf(recordId);
+		}
 	}
 
 	/**

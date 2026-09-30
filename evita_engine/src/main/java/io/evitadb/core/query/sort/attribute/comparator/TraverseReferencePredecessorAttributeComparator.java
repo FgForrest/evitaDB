@@ -62,6 +62,14 @@ import static io.evitadb.core.query.sort.attribute.sorter.MergedSortedRecordsSup
  * accessing the entity attribute value and the simple {@link Comparable} comparator implementation. This implementation
  * adheres to {@link MergeMode#APPEND_ALL} which relates to {@link TraverseByEntityProperty} ordering.
  *
+ * The comparator sorts one traversal block at a time - the block key is bound by
+ * {@link #withReferencedEntityId(RepresentativeReferenceKey, Runnable)}. Within a bound block, an entity whose row of
+ * the block lacks the chain attribute, or that none of the block's chain providers can place, is classified as not
+ * sortable ({@link #canSort(EntityContract)}), so it is passed on to the next block rather than claimed by this one -
+ * matching what the index route does. Without a bound block (a chain sorted under an implicit {@code pickFirst}),
+ * every entity is classified as sortable and {@link #compare(EntityContract, EntityContract)} keeps reporting the
+ * entities it cannot place through {@link #getNonSortedEntities()}.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class TraverseReferencePredecessorAttributeComparator

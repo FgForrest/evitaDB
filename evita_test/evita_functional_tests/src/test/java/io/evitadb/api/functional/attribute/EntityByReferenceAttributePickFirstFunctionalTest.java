@@ -291,6 +291,27 @@ public class EntityByReferenceAttributePickFirstFunctionalTest {
 	}
 
 	/**
+	 * Runs a query whose first segment orders the owners of `segmentOwners` by `segmentOrdering` and whose second
+	 * segment orders the rest by descending primary key, and returns the owner primary keys in result order.
+	 */
+	@Nonnull
+	private static int[] querySegments(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull SortRoute route,
+		@Nonnull Integer[] owners,
+		@Nonnull Integer[] segmentOwners,
+		@Nonnull OrderConstraint segmentOrdering
+	) {
+		return queryOrder(
+			session, route, owners, null,
+			segments(
+				segment(entityHaving(entityPrimaryKeyInSet(segmentOwners)), orderBy(segmentOrdering)),
+				segment(orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)))
+			)
+		);
+	}
+
+	/**
 	 * Reads every page of the passed size on the requested route and returns the concatenated owner primary keys.
 	 */
 	@Nonnull
@@ -555,6 +576,45 @@ public class EntityByReferenceAttributePickFirstFunctionalTest {
 				expected,
 				queryPage(session, route, PLAIN_OWNERS, null, 1, 100, entityPrimaryKeyExact(10, 3), pickFirst),
 				"after exact primary keys"
+			)
+		);
+	}
+
+	@DisplayName("A value-less owner selected by a segment is ordered identically on both routes")
+	@UseDataSet(PICK_FIRST_REFERENCES)
+	@ParameterizedTest(name = "{0} via {1}")
+	@MethodSource("plainReferenceRoutes")
+	void shouldOrderValuelessOwnerOfSegmentIdenticallyOnBothRoutes(
+		String referenceName, SortRoute route, EvitaSessionContract session
+	) {
+		// owner 4's only row carries no `order`, owner 5 has no row at all; the second segment orders the rest by
+		// descending primary key
+		final Integer[] owners = {2, 4, 5, 6, 8};
+		final OrderConstraint byOrder = referenceProperty(referenceName, attributeNatural(ATTRIBUTE_ORDER));
+		final OrderConstraint byReferencedPrimaryKey = referenceProperty(
+			referenceName, entityPrimaryKeyNatural(OrderDirection.ASC)
+		);
+		// Known limitation: a segment keeps the owners it selects but cannot order, after the ones it orders, on
+		// both routes and for an entity attribute ordering alike - the segment documentation excludes them from the
+		// segment, which would give 8, 6, 5, 4, 2 for every case below
+		assertAll(
+			() -> assertOrder(
+				new int[]{4, 8, 6, 5, 2}, querySegments(session, route, owners, new Integer[]{4}, byOrder),
+				"value-less owner alone"
+			),
+			() -> assertOrder(
+				new int[]{8, 4, 6, 5, 2}, querySegments(session, route, owners, new Integer[]{4, 8}, byOrder),
+				"value-less owner next to an owner with the value"
+			),
+			() -> assertOrder(
+				new int[]{5, 8, 6, 4, 2},
+				querySegments(session, route, owners, new Integer[]{5}, byReferencedPrimaryKey),
+				"owner without a row alone, by referenced primary key"
+			),
+			() -> assertOrder(
+				new int[]{4, 8, 6, 5, 2},
+				querySegments(session, route, owners, new Integer[]{4}, attributeNatural(ATTRIBUTE_SCORE)),
+				"owner without the entity attribute alone"
 			)
 		);
 	}

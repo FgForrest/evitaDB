@@ -162,15 +162,7 @@ public abstract class AbstractReferenceCompoundAttributeComparator implements En
 	 */
 	@Override
 	public boolean canSort(@Nonnull EntityContract entity) {
-		final int primaryKey = entity.getPrimaryKeyOrThrowException();
-		final ReferenceAttributeValue memoizedValue = this.memoizedValues.get(primaryKey);
-		if (memoizedValue == null) {
-			final ReferenceAttributeValue calculatedValue = computeValue(entity);
-			this.memoizedValues.put(primaryKey, calculatedValue);
-			return calculatedValue != ReferenceAttributeValue.MISSING;
-		} else {
-			return memoizedValue != ReferenceAttributeValue.MISSING;
-		}
+		return memoizeValue(entity, false) != ReferenceAttributeValue.MISSING;
 	}
 
 	/**
@@ -184,22 +176,35 @@ public abstract class AbstractReferenceCompoundAttributeComparator implements En
 	 */
 	@Nonnull
 	protected ReferenceAttributeValue getAndMemoizeValue(@Nonnull EntityContract entity) {
+		return memoizeValue(entity, true);
+	}
+
+	/**
+	 * Looks up the memoized value of the entity, computing and memoizing it on the first request. A value computed
+	 * as {@link ReferenceAttributeValue#MISSING} by this call is reported through {@link #getNonSortedEntities()}
+	 * when `reportMissing` is set - i.e. only from the comparison path ({@link #getAndMemoizeValue(EntityContract)}),
+	 * never from the classification ({@link #canSort(EntityContract)}).
+	 *
+	 * @param entity        the entity whose value is requested
+	 * @param reportMissing whether a freshly computed missing value is reported as a non-sorted entity
+	 * @return the memoized value, {@link ReferenceAttributeValue#MISSING} when the entity has none
+	 */
+	@Nonnull
+	private ReferenceAttributeValue memoizeValue(@Nonnull EntityContract entity, boolean reportMissing) {
 		final int primaryKey = entity.getPrimaryKeyOrThrowException();
 		final ReferenceAttributeValue memoizedValue = this.memoizedValues.get(primaryKey);
-		if (memoizedValue == null) {
-			final ReferenceAttributeValue calculatedValue = computeValue(entity);
-			this.memoizedValues.put(primaryKey, calculatedValue);
-			// if the value is missing, we need to add the entity to the non-sorted entities
-			if (calculatedValue == ReferenceAttributeValue.MISSING) {
-				if (this.nonSortedEntities == null) {
-					this.nonSortedEntities = new CompositeObjectArray<>(EntityContract.class);
-				}
-				this.nonSortedEntities.add(entity);
-			}
-			return calculatedValue;
-		} else {
+		if (memoizedValue != null) {
 			return memoizedValue;
 		}
+		final ReferenceAttributeValue calculatedValue = computeValue(entity);
+		this.memoizedValues.put(primaryKey, calculatedValue);
+		if (reportMissing && calculatedValue == ReferenceAttributeValue.MISSING) {
+			if (this.nonSortedEntities == null) {
+				this.nonSortedEntities = new CompositeObjectArray<>(EntityContract.class);
+			}
+			this.nonSortedEntities.add(entity);
+		}
+		return calculatedValue;
 	}
 
 	/**
