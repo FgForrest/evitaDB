@@ -268,19 +268,15 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 	}
 
 	/**
-	 * Compounds each reference can be ordered by on the index route. A compound with a localized element is declared
-	 * on the partitioning reference only: a reduced index of a reference indexed for filtering alone receives no
-	 * per-locale compound entries (`EntityIndexLocalMutationExecutor#insertInitialSuiteOfSortableAttributeCompounds`
-	 * skips it), so its index route cannot order by such a compound at all - an indexing gap outside the ordering
-	 * this test checks.
+	 * Both references crossed with both compounds - the one with a localized element and the one without.
 	 */
 	@Nonnull
 	static Stream<Arguments> compounds() {
-		return Stream.of(
-			Arguments.of(REFERENCE_ITEMS_PARTITIONING, COMPOUND_ORDER_LABEL),
-			Arguments.of(REFERENCE_ITEMS_PARTITIONING, COMPOUND_ORDER_KIND),
-			Arguments.of(REFERENCE_ITEMS_FILTERING, COMPOUND_ORDER_KIND)
-		);
+		return Stream.of(REFERENCE_ITEMS_PARTITIONING, REFERENCE_ITEMS_FILTERING)
+			.flatMap(
+				reference -> Stream.of(COMPOUND_ORDER_LABEL, COMPOUND_ORDER_KIND)
+					.map(compound -> Arguments.of(reference, compound))
+			);
 	}
 
 	@DataSet(value = PICK_FIRST_ORACLE, destroyAfterClass = true)
@@ -343,6 +339,10 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 							.withAttribute(
 								ATTRIBUTE_KIND, String.class,
 								thatIs -> thatIs.filterableInScope(BOTH_SCOPES).sortableInScope(BOTH_SCOPES)
+							)
+							.withSortableAttributeCompound(
+								COMPOUND_ORDER_LABEL, localizedCompoundElements,
+								thatIs -> thatIs.indexedInScope(BOTH_SCOPES)
 							)
 							.withSortableAttributeCompound(
 								COMPOUND_ORDER_KIND, compoundElements, thatIs -> thatIs.indexedInScope(BOTH_SCOPES)

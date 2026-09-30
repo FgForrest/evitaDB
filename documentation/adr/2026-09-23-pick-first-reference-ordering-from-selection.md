@@ -1,7 +1,7 @@
 ---
 title: A pick-first reference ordering sorts on the first row of every selected owner, resolved from the selection rather than from the filter
 date: 2026-09-23
-updated: 2026-09-30 07:30
+updated: 2026-09-30 17:55
 status: accepted
 kind: fix
 issues: [1614]
@@ -332,14 +332,16 @@ a measured production shape: that is where the per-query cost still follows `row
   membership's per-owner coverage threshold - being checked on every narrowed query. Tracking, per owner, the large
   partitions it belongs to as well would remove most of it at a memory cost in `ReducedIndexMembership`; that belongs
   with the membership rework of #1615, not here.
-- **Found, not fixed: a localized sortable compound on a reference indexed for filtering alone cannot be ordered by
-  on the index route.** `EntityIndexLocalMutationExecutor#insertInitialSuiteOfSortableAttributeCompounds` (and its
-  removal twin) skip the reduced index unless the reference is `FOR_FILTERING_AND_PARTITIONING`, although
-  `ReferenceIndexMutator#applySortableAttributeCompoundSuite` already gates only its entity-level half; the
-  reference-level compound therefore never gets its per-locale entries, and the index route leaves every owner
-  unsorted while the prefetch route orders them. It predates this change and lives on the write path, so it was
-  left for its own fix; the oracle test declares the localized compound on the partitioning reference only and
-  says why.
+- **Fixed under #1615: a localized sortable compound on a reference indexed for filtering alone could not be
+  ordered by on the index route.** `EntityIndexLocalMutationExecutor#insertInitialSuiteOfSortableAttributeCompounds`
+  (and its removal twin) skipped the reduced index unless the reference was `FOR_FILTERING_AND_PARTITIONING`,
+  although `ReferenceIndexMutator#applySortableAttributeCompoundSuite` already gates only its entity-level half; the
+  reference-level compound never got its per-locale entries, and the index route left every owner unsorted while the
+  prefetch route ordered them. Both gates are gone; the oracle test now crosses both references with both compounds
+  and `ReferenceLocalizedCompoundIndexingTest` covers every write path at both indexing levels. Catalogs written
+  before the fix lack these entries, and removing a reference, archiving or deleting an affected owner then fails -
+  they must be rebuilt (release note on #1615); removal was deliberately not made tolerant, because that would hide
+  genuine inconsistency.
 - **Found, not fixed: the two routes disagree on `traverseByEntityProperty`.** On the oracle test's dataset the
   index route and the prefetch route return different orders for a traverse ordering - off by 4-9 positions over
   live owners, by more than 100 over both scopes, the index route placing archived owners after live ones within a

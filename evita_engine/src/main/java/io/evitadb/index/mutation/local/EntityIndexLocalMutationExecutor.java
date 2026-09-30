@@ -2381,16 +2381,16 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				? referenceKey : representativeKey.referenceKey();
 			final ReferenceSchemaContract referenceSchema = entitySchema
 				.getReferenceOrThrowException(effectiveReferenceKey.referenceName());
-			if (ReferenceIndexMutator.isIndexedReferenceForFilteringAndPartitioning(referenceSchema, getScope())) {
-				ReferenceIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
-					this,
-					referenceSchema,
-					reducedEntityIndex,
-					effectiveReferenceKey,
-					locale,
-					existingDataSupplierFactory
-				);
-			}
+			// every reduced index holds the reference-level compounds, whatever the indexing level - the mutator itself
+			// restricts the entity-level half to references indexed for partitioning
+			ReferenceIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
+				this,
+				referenceSchema,
+				reducedEntityIndex,
+				effectiveReferenceKey,
+				locale,
+				existingDataSupplierFactory
+			);
 		} else {
 			AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
 				this,
@@ -2457,15 +2457,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			final String referenceName = effectiveReferenceKey.referenceName();
 			// same contract as the previous getReference(..).orElseThrow(..) chain, without the Optional and the lambda
 			referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
-			if (ReferenceIndexMutator.isIndexedReferenceForFilteringAndPartitioning(referenceSchema, getScope())) {
-				ReferenceIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
-					this,
-					referenceSchema, reducedEntityIndex,
-					effectiveReferenceKey,
-					locale,
-					existingDataSupplierFactory
-				);
-			}
+			// the exact inverse of the insertion - ungated, the mutator restricts the entity-level half itself
+			ReferenceIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
+				this,
+				referenceSchema, reducedEntityIndex,
+				effectiveReferenceKey,
+				locale,
+				existingDataSupplierFactory
+			);
 		} else {
 			AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
 				this,
