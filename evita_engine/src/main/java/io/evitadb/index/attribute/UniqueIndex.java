@@ -187,10 +187,11 @@ public abstract sealed class UniqueIndex implements
 	public abstract Integer getRecordIdByUniqueValue(@Nonnull Serializable value);
 
 	/**
-	 * Returns the number of distinct records owning at least one value in this index - a statistics reading. The
-	 * owner variant counts it by walking its value tree, so it is `O(values)` there and must never be called from a
-	 * query path. This index offers no set of those records on purpose: "which records carry a value" is answered by
-	 * the attribute's filter indexes, which are written for every unique attribute and removed per value.
+	 * Returns the number of distinct records owning at least one value in this index - a statistics reading. Both
+	 * variants count it by walking a value tree (the folded view walks the shared filter tree), so it is `O(values)`
+	 * and must never be called from a query path. This index offers no set of those records on purpose: "which
+	 * records carry a value" is answered by the attribute's filter indexes, which are written for every unique
+	 * attribute and removed per value.
 	 *
 	 * @return number of records covered by this index
 	 */

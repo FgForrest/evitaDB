@@ -29,12 +29,14 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.ReferenceCardinalityViolatedException;
+import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.facet.FacetGroupIndex;
@@ -585,12 +587,12 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 					assertNotNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 1));
 					final EntityIndex categoryIndex =
 						getReferencedEntityIndex(productCollection, Entities.CATEGORY, 1);
-					assertDataWasPropagated(categoryIndex, 1);
+					assertDataWasPropagated(categoryIndex, 1, "123_ABC");
 
 					assertNotNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 1));
 					final EntityIndex brandIndex =
 						getReferencedEntityIndex(productCollection, Entities.BRAND, 1);
-					assertDataWasPropagated(brandIndex, 1);
+					assertDataWasPropagated(brandIndex, 1, "123_ABC");
 
 					// load it and remove references
 					session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
@@ -801,6 +803,108 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 					assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 1));
 					assertNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 1));
 				}
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Unique reference attributes")
+	class UniqueReferenceAttributesTest {
+
+		/**
+		 * Representative attribute telling apart two references of one entity to the same target.
+		 */
+		private static final String ATTRIBUTE_ROLE = "role";
+
+		@Test
+		@DisplayName("Should refuse one entity repeating a unique value on two references to the same target")
+		void shouldRefuseRepeatingUniqueValueOnDuplicateReferencesToOneTarget() {
+			ReferenceIndexingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.CATEGORY).updateVia(session);
+					session.defineEntitySchema(Entities.PRODUCT)
+						.withReferenceToEntity(
+							Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+							whichIs -> whichIs
+								.indexedForFilteringAndPartitioning()
+								.withAttribute(
+									ATTRIBUTE_ROLE, String.class, thatIs -> thatIs.filterable().representative()
+								)
+								.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::unique)
+						)
+						.updateVia(session);
+					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 10));
+				}
+			);
+
+			assertThrows(
+				UniqueValueViolationException.class,
+				() -> ReferenceIndexingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.createNewEntity(Entities.PRODUCT, 1)
+							.setOrUpdateReference(
+								Entities.CATEGORY, 10,
+								ref -> "a".equals(ref.getAttribute(ATTRIBUTE_ROLE)),
+								whichIs -> whichIs.setAttribute(ATTRIBUTE_ROLE, "a").setAttribute(ATTRIBUTE_CODE, "X")
+							)
+							.setOrUpdateReference(
+								Entities.CATEGORY, 10,
+								ref -> "b".equals(ref.getAttribute(ATTRIBUTE_ROLE)),
+								whichIs -> whichIs.setAttribute(ATTRIBUTE_ROLE, "b").setAttribute(ATTRIBUTE_CODE, "X")
+							)
+							.upsertVia(session);
+					}
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("Should refuse one entity repeating a unique value on two references sharing one group")
+		void shouldRefuseRepeatingUniqueValueOnReferencesSharingOneGroup() {
+			ReferenceIndexingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.BRAND).updateVia(session);
+					session.defineEntitySchema(Entities.CATEGORY).updateVia(session);
+					session.defineEntitySchema(Entities.PRODUCT)
+						.withReferenceToEntity(
+							Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+							whichIs -> whichIs
+								.indexedWithComponents(
+									ReferenceIndexedComponents.REFERENCED_ENTITY,
+									ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+								)
+								.withGroupTypeRelatedToEntity(Entities.BRAND)
+								.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::unique)
+						)
+						.updateVia(session);
+					session.upsertEntity(session.createNewEntity(Entities.BRAND, 100));
+					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 10));
+					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 11));
+				}
+			);
+
+			// in the group type index both references resolve to the one group partition, i.e. to the same record -
+			// and a reference is never indexed by its group alone, so the per-target partitions see the repeat too
+			assertThrows(
+				UniqueValueViolationException.class,
+				() -> ReferenceIndexingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.createNewEntity(Entities.PRODUCT, 1)
+							.setReference(
+								Entities.CATEGORY, 10,
+								whichIs -> whichIs.setGroup(Entities.BRAND, 100).setAttribute(ATTRIBUTE_CODE, "X")
+							)
+							.setReference(
+								Entities.CATEGORY, 11,
+								whichIs -> whichIs.setGroup(Entities.BRAND, 100).setAttribute(ATTRIBUTE_CODE, "X")
+							)
+							.upsertVia(session);
+					}
+				)
 			);
 		}
 	}

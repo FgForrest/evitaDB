@@ -23,14 +23,20 @@
 
 package io.evitadb.api.functional.indexing;
 
+import io.evitadb.api.CatalogState;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.MandatoryAttributesNotProvidedException;
 import io.evitadb.api.exception.UniqueValueViolationException;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
@@ -44,6 +50,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
@@ -204,6 +212,222 @@ class AttributeIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 				"Unique constraint violation: attribute `name` value A` is already present for entity `PRODUCT` " +
 					"(existing entity PK: 1, newly inserted  entity PK: 1)!",
 				ex.getMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("Should allow one entity to move a unique value to another locale across two upserts")
+		void shouldAllowToMoveUniqueValueToAnotherLocaleOfTheSameEntityAcrossTwoUpserts() {
+			createProductWithUniqueNames();
+
+			// removing the value releases it, so the same entity may claim it again in another locale
+			AttributeIndexingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.removeAttribute(ATTRIBUTE_NAME, Locale.ENGLISH)
+						.upsertVia(session);
+					session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTRIBUTE_NAME, Locale.FRENCH, "A")
+						.upsertVia(session);
+				}
+			);
+
+			assertUniqueNameFoundOnlyInFrench();
+		}
+
+		@Test
+		@DisplayName("Should allow one entity to move a unique value to another locale in one upsert")
+		void shouldAllowToMoveUniqueValueToAnotherLocaleOfTheSameEntityInOneUpsert() {
+			createProductWithUniqueNames();
+
+			// the builder orders a removal ahead of every upsert, so the english value is released before the french
+			// one claims it
+			AttributeIndexingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.removeAttribute(ATTRIBUTE_NAME, Locale.ENGLISH)
+						.setAttribute(ATTRIBUTE_NAME, Locale.FRENCH, "A")
+						.upsertVia(session);
+				}
+			);
+
+			assertUniqueNameFoundOnlyInFrench();
+		}
+
+		@Test
+		@DisplayName("Should accept a re-upsert of an unchanged localized unique value")
+		void shouldAcceptReUpsertOfUnchangedLocalizedUniqueValue() {
+			createProductWithUniqueNames();
+
+			// a raw mutation rather than a builder, which would elide the no-op before it reached the index - the
+			// upsert path releases the entity's prior value before it registers the new one, so an unchanged value
+			// never meets itself
+			AttributeIndexingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.upsertEntity(
+						new EntityUpsertMutation(
+							Entities.PRODUCT, 1, EntityExistence.MUST_EXIST,
+							new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_NAME, Locale.ENGLISH), "A")
+						)
+					);
+				}
+			);
+
+			AttributeIndexingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertEquals(
+						1,
+						session.queryOneEntityReference(
+							query(
+								collection(Entities.PRODUCT),
+								filterBy(attributeEquals(ATTRIBUTE_NAME, "A"), entityLocaleEquals(Locale.ENGLISH))
+							)
+						).orElseThrow().getPrimaryKey()
+					);
+				}
+			);
+		}
+
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should refuse swapping unique values between two locales of one entity and keep both indexed")
+		void shouldRefuseSwappingUniqueValuesBetweenLocalesOfOneEntityAndKeepBothIndexed(CatalogState state) {
+			createProductWithUniqueNames();
+			if (state == CatalogState.ALIVE) {
+				AttributeIndexingTest.this.evita.updateCatalog(TEST_CATALOG, EvitaSessionContract::goLiveAndClose);
+			}
+
+			// the locale mutations apply one after another, so whichever runs first claims a value the other locale
+			// still holds and the swap is refused - and the value it had already released must come back
+			assertThrows(
+				UniqueValueViolationException.class,
+				() -> AttributeIndexingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+							.orElseThrow()
+							.openForWrite()
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "B")
+							.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "A")
+							.upsertVia(session);
+					}
+				)
+			);
+
+			AttributeIndexingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertEquals(
+						1,
+						session.queryOneEntityReference(
+							query(
+								collection(Entities.PRODUCT),
+								filterBy(attributeEquals(ATTRIBUTE_NAME, "A"), entityLocaleEquals(Locale.ENGLISH))
+							)
+						).orElseThrow().getPrimaryKey()
+					);
+					assertEquals(
+						1,
+						session.queryOneEntityReference(
+							query(
+								collection(Entities.PRODUCT),
+								filterBy(attributeEquals(ATTRIBUTE_NAME, "B"), entityLocaleEquals(Locale.GERMAN))
+							)
+						).orElseThrow().getPrimaryKey()
+					);
+				}
+			);
+
+			// the unique index still holds `A`, so another entity cannot take it
+			assertThrows(
+				UniqueValueViolationException.class,
+				() -> AttributeIndexingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.createNewEntity(Entities.PRODUCT, 2)
+							.setAttribute(ATTRIBUTE_NAME, Locale.FRENCH, "A")
+							.upsertVia(session);
+					}
+				)
+			);
+
+			// both locales release their values cleanly, which only an index consistent with the entity allows (the
+			// german value is replaced rather than removed, because `name` keeps the entity localized)
+			AttributeIndexingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.removeAttribute(ATTRIBUTE_NAME, Locale.ENGLISH)
+						.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "C")
+						.upsertVia(session);
+					session.createNewEntity(Entities.PRODUCT, 2)
+						.setAttribute(ATTRIBUTE_NAME, Locale.FRENCH, "A")
+						.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "B")
+						.upsertVia(session);
+				}
+			);
+		}
+
+		/**
+		 * Defines the `name` attribute as a localized attribute unique across locales and creates product 1 carrying
+		 * the english value `A` and the german value `B` - the german one keeps the entity localized while its
+		 * english value is removed.
+		 */
+		private void createProductWithUniqueNames() {
+			AttributeIndexingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.updateEntitySchema(
+						session
+							.defineEntitySchema(Entities.PRODUCT)
+							.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().unique())
+					);
+					session
+						.createNewEntity(Entities.PRODUCT, 1)
+						.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "A")
+						.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "B")
+						.upsertVia(session);
+				}
+			);
+		}
+
+		/**
+		 * Asserts that the unique value `A` resolves to product 1 in french and no longer in english.
+		 */
+		private void assertUniqueNameFoundOnlyInFrench() {
+			AttributeIndexingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertEquals(
+						1,
+						session.queryOneEntityReference(
+							query(
+								collection(Entities.PRODUCT),
+								filterBy(attributeEquals(ATTRIBUTE_NAME, "A"), entityLocaleEquals(Locale.FRENCH))
+							)
+						).orElseThrow().getPrimaryKey()
+					);
+					assertTrue(
+						session.queryOneEntityReference(
+							query(
+								collection(Entities.PRODUCT),
+								filterBy(attributeEquals(ATTRIBUTE_NAME, "A"), entityLocaleEquals(Locale.ENGLISH))
+							)
+						).isEmpty()
+					);
+				}
 			);
 		}
 

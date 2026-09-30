@@ -159,6 +159,23 @@ class UniqueIndexViewTest {
 			assertEquals(3, view.getDistinctValueCount(), "every owning record holds one value!");
 			assertFalse(view.isEmpty(), "a populated view must not be empty!");
 		}
+
+		@Test
+		@DisplayName("size counts a record holding several values of an array once")
+		void shouldCountRecordHoldingSeveralArrayValuesOnce() {
+			// a non-localized unique array folds onto the shared tree, where its owner sits in one bucket per element
+			final InvertedIndex shared = new InvertedIndex(
+				FilterIndex.getNormalizer(TYPE, 0),
+				FilterIndex.getComparator(KEY, TYPE)
+			);
+			shared.addRecord("alpha", 1);
+			shared.addRecord("beta", 1);
+			shared.addRecord("gamma", 2);
+			final UniqueIndex view = newUniqueView(newFilterView(shared));
+
+			assertEquals(3, view.getDistinctValueCount());
+			assertEquals(2, view.size(), "size() counts distinct records, not their bucket memberships!");
+		}
 	}
 
 	@Nested

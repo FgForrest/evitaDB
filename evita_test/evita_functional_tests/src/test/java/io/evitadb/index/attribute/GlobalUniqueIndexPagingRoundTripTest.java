@@ -82,6 +82,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.SERIALIZATION;
@@ -200,6 +201,7 @@ class GlobalUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 
 		final GlobalUniqueIndex.InlineSnapshot expectedSnapshot = source.inlineSnapshot();
 		final int expectedRecordCount = source.getRecordCount();
+		assertEquals(KEY_COUNT, expectedRecordCount, "every key is owned by its own primary key");
 
 		// collect the granular emission (leaf pages + paged root; no freed-page removals on a first flush)
 		final TrappedChanges trappedChanges = new TrappedChanges();
@@ -252,8 +254,10 @@ class GlobalUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 			assertEquals(expectedRecordCount, restored.getRecordCount(), "the record count must round-trip");
 			final int[] restoredOwners =
 				UniqueIndexTestSupport.ownerRecordIds(restored, ENTITY_TYPE, this.classifierResolver);
-			assertEquals(1, restoredOwners[0], "the owners must start at the lowest primary key");
-			assertEquals(KEY_COUNT, restoredOwners[restoredOwners.length - 1], "the owners must end at the highest one");
+			assertArrayEquals(
+				IntStream.rangeClosed(1, KEY_COUNT).toArray(), restoredOwners,
+				"every owning primary key must survive the round-trip"
+			);
 			// a spot-check that a localized lookup resolves to the expected entity reference
 			final EntityReferenceWithLocale resolved =
 				restored.getEntityReferenceByUniqueValue(keyForIndex(0), Locale.ENGLISH, this.classifierResolver).orElseThrow();

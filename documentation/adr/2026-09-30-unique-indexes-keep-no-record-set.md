@@ -1,12 +1,12 @@
 ---
 title: Unique indexes keep no record-id set, and a unique value occurs once whatever the locale
 date: 2026-09-30
-updated: 2026-09-30 10:30
+updated: 2026-09-30 14:40
 status: accepted
 kind: refactor
 issues: [1658]
 prs: []
-areas: [evita_engine/src/main/java/io/evitadb/index/attribute/OwnerUniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/GlobalUniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/UniqueIndex.java, evita_engine/src/main/java/io/evitadb/core/collection/IndexCardinalityProjection.java, evita_api/src/main/java/io/evitadb/api/statistics]
+areas: [evita_engine/src/main/java/io/evitadb/index/attribute/OwnerUniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/GlobalUniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/UniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/AttributeIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/FilterIndex.java, evita_engine/src/main/java/io/evitadb/index/invertedIndex/InvertedIndex.java, evita_engine/src/main/java/io/evitadb/core/collection/IndexCardinalityProjection.java, evita_api/src/main/java/io/evitadb/api/statistics]
 supersedes: []
 superseded-by: []
 relates: [2026-09-25-attribute-is-null-in-reference-having, 2026-08-10-catalog-and-collection-statistics, 2026-09-03-content-sized-value-tree-columns]
@@ -23,8 +23,8 @@ their accessors (`UniqueIndex#getRecordIds` / `#getRecordIdsFormula`, and `Globa
 `#getRecordIdsFormula`). The statistics now count owning records off the value tree.
 
 Counting off the tree is exact only if the tree is exact. It was not: the collection index let a record repeat
-a value in a second locale. So the change also enforces the documented contract, in both indexes: `unique` and
-`uniqueGlobally` mean the value occurs once in the collection or catalog, even for the entity that already
+a value in a second locale. So the change also enforces the documented contract, in every unique check: `unique`
+and `uniqueGlobally` mean the value occurs once in the collection or catalog, even for the entity that already
 holds it.
 
 ## Why
@@ -103,8 +103,9 @@ value so that removal balances.
 
 ## Decision
 
-**Chosen: Option A, with strict uniqueness in both indexes.** Both unique indexes now reject any registration
-of a value that is already present, whoever owns it. With that, every value in a tree has exactly one owner,
+**Chosen: Option A, with strict uniqueness in every unique check.** The two unique indexes and the check guarding
+a unique attribute folded onto its filter index now reject any registration of a value that is already present,
+whoever owns it. With that, every value in a tree has exactly one owner,
 and a walk of the tree is an exact count of the owning records.
 
 The walk is cheap enough because the statistics are the only caller. Existing catalogs that already hold a
@@ -113,8 +114,12 @@ removal.
 
 ## Key technical details
 
-- **Strictness:** `OwnerUniqueIndex#assertUniqueKeyIsFree` and `GlobalUniqueIndex#assertUniqueKeyIsFree`
-  throw whenever the value is present. The upsert path (`AttributeIndexMutator#executeAttributeUpsert`)
+- **Strictness:** `OwnerUniqueIndex#assertUniqueKeyIsFree`, `GlobalUniqueIndex#assertUniqueKeyIsFree` and
+  `AttributeIndex#assertFoldedUniqueValueFree` (a non-localized unique attribute folded onto its filter index)
+  throw whenever the value is present. The folded check had the same "same record may re-claim" leniency. No write
+  path reaches it end to end: duplicate references to one target get their own reduced index each, and a reference
+  cannot be indexed for its group alone. It is strict anyway, so that no unique check tolerates one entry standing
+  for two registrations. The upsert path (`AttributeIndexMutator#executeAttributeUpsert`)
   unregisters a record's prior value before registering the new one, so an unchanged value never re-arrives. An
   array is folded onto its distinct values before registration, so a repeated element is claimed once.
 - **Reference attributes were already strict across owners.** A probe was rejected with
@@ -124,10 +129,21 @@ removal.
 - **Ordering on unregister:** `GlobalUniqueIndex#unregisterUniqueKeyValue` now asserts ownership before it
   removes. It used to remove first and throw afterwards. On the warm-up path, which has no transaction to roll
   that back, a refused unregister therefore used to leave the value removed.
+- **Moving a value between locales of one entity:** within one upsert it works, because the builder sorts removals
+  before upserts (`LocalMutation#compareTo`, removal priority 10 over upsert 0). *Swapping* two values between two
+  locales in one upsert is refused, as it is between two entities; nothing is half-applied.
 - **Counting:** `OwnerUniqueIndex#size()` and `GlobalUniqueIndex#getRecordCount()` walk `BucketCursor`s. A walk
   racing an in-place warm-up writer is bounded by the cursors' observable-live-run reads, the same guarantee the
   heap walks rely on (`2026-09-03-content-sized-value-tree-columns`). It reads a possibly slightly stale count
-  and never fails. `UniqueIndexView#size()` still reads the shared filter view.
+  and never fails. `UniqueIndexView#size()` reads the shared filter view, whose `FilterIndex#size()` used to sum
+  bucket memberships and so counted a record once per element of an array value. It now counts distinct records
+  (`InvertedIndex#getDistinctRecordCount`, a cursor walk into a transient bitmap). Its only consumers are the two
+  statistics readings, so the FILTER reading of an array attribute became exact too.
+- **Reads assign no locale ids:** `GlobalUniqueIndex#getEntityReferenceByUniqueValue` and `#unregisterUniqueKey`
+  resolved the locale through `fromLocale`, which assigns an id to a locale seen for the first time. A query for an
+  unseen locale therefore wrote the locale maps, which are persisted with the index, and outside a transaction it
+  wrote the committed ones from a query thread. Both now use the read-only `lookupLocaleId`. Only registration
+  assigns ids.
 - **Membership questions go to the filter index.** `UniqueIndex` offers no record set on purpose. Tests that
   need the owners read them off the tree through `UniqueIndexTestSupport`.
 - **Storage format unchanged:** neither set was ever persisted.
@@ -155,7 +171,16 @@ removal.
   - end to end, the locale case: `expected: <1> but was: <0>`;
   - end to end, the archived type-level partition, run with the locale assertion removed: `expected: <1> but
     was: <0>`.
-- The affected classes: 635 tests in 55 classes, green.
+- Found by review after the first two commits, each red before its fix:
+  - the folded same-record re-claim: `UniqueIndexFoldTest#shouldRejectReclaimBySameRecord` ("nothing was thrown");
+    the end-to-end probes in `ReferenceIndexingTest` could not be made red, because the engine already refuses
+    both shapes upstream, and they stay as regression tests;
+  - the array overcount: `UniqueIndexViewTest` and `FilterIndexTest` `…ArrayValuesOnce` (`expected: <2> but was:
+    <3>`), and end to end `CheapScalarStatisticsTest` (`expected: <2> but was: <4>`);
+  - locale ids assigned on read: `GlobalUniqueIndexTest#shouldNotAssignLocaleIdWhenLookingUpUnseenLocale` and its
+    unregister twin (`expected: <{1=en}> but was: <{1=en, 2=ja}>`).
+- The affected classes: 635 tests in 55 classes, green; after the review fixes, the attribute-index, indexing,
+  statistics, projection and heap tests: 1,841 tests, green.
 - Whole-reactor `test-compile` with `-P unitAndFunctional,full`: green, 29 modules, the long-running and
   performance test modules included.
 - Full functional suite: 24,964 tests, with 5 non-passing:
@@ -172,7 +197,7 @@ removal.
   reduced index's own key, not the owner's primary key: the probe reported `existing entity PK: 3` for owner
   1. The message does not tell an operator which owner collided. Not addressed here.
 - The statistics' "cost proportional to the schema" contract (`IndexCardinalityProjection`) has one stated
-  exception now: the record count of a standalone unique index.
+  exception: the covered-record readings (FILTER and UNIQUE) walk their value trees. The FILTER one always did.
 
 ## Related work
 
@@ -186,4 +211,6 @@ removal.
 ## Timeline
 
 - **2026-09-28**: #1658 filed from the #1584 investigation.
-- **2026-09-30**: same-value-two-locales defect found by probe; strict semantics decided; sets removed.
+- **2026-09-30**: same-value-two-locales defect found by probe; strict semantics decided; sets removed. An
+  adversarial review then found the folded check's leniency and the array overcount; the locale-id write on read
+  was found alongside. All three fixed on the same branch.

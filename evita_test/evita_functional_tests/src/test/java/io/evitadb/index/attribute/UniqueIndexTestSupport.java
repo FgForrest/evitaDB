@@ -29,6 +29,8 @@ import io.evitadb.index.EntityTypeClassifierResolver;
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+
 /**
  * Reads the owning records of a unique index off its value tree, for tests.
  *
@@ -45,15 +47,20 @@ public final class UniqueIndexTestSupport {
 	}
 
 	/**
-	 * Returns the distinct records owning a value in the index, in ascending order. A folded view owns no values of
-	 * its own - its data lives in the shared filter tree - so it yields an empty array.
+	 * Returns the distinct records owning a value in the index, in ascending order. Only an {@link OwnerUniqueIndex} is
+	 * accepted: a folded view owns no values of its own - its data lives in the shared filter tree, which is what a
+	 * test must ask instead - so reading one here would yield an empty array that any comparison accepts.
 	 *
-	 * @param index the unique index to inspect
+	 * @param index the owner unique index to inspect
 	 * @return distinct owning record ids, ascending
+	 * @throws org.opentest4j.AssertionFailedError when `index` is not an {@link OwnerUniqueIndex}
 	 */
 	@Nonnull
 	public static int[] ownerRecordIds(@Nonnull UniqueIndex index) {
-		return Arrays.stream(index.inlineSnapshot().recordIds()).distinct().sorted().toArray();
+		final OwnerUniqueIndex owner = assertInstanceOf(
+			OwnerUniqueIndex.class, index, "a folded view owns no values - ask its filter index instead"
+		);
+		return Arrays.stream(owner.inlineSnapshot().recordIds()).distinct().sorted().toArray();
 	}
 
 	/**

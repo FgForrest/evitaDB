@@ -464,12 +464,11 @@ class OwnerUniqueIndexPagingTest {
 		/**
 		 * An array-typed unique attribute maps several element keys to one owning record, yet the real mutation path only
 		 * ever (un)registers the WHOLE array value atomically (`executeAttributeRemoval` → `removeUniqueAttribute` →
-		 * `unregisterUniqueKey(whole array)`). This locks in that removing one record's whole array drops only that
-		 * record from the bitmap and leaves every other record's element keys live — the contract that makes the
-		 * unconditional `recordIds.remove` in {@link OwnerUniqueIndex} safe.
+		 * `unregisterUniqueKey(whole array)`). This locks in that removing one record's whole array makes only that
+		 * record stop owning a value and leaves every other record's element keys live.
 		 */
 		@Test
-		@DisplayName("unregistering a record's whole array drops only that record from the bitmap")
+		@DisplayName("unregistering a record's whole array drops only that record's values")
 		@Tag(INDEXING)
 		@Tag(ATTRIBUTE)
 		void shouldDropOnlyTheRecordWhoseWholeArrayIsUnregistered() {
@@ -483,7 +482,7 @@ class OwnerUniqueIndexPagingTest {
 			);
 
 			// the real mutation path removes the WHOLE array value atomically — every element owned by record 5 leaves
-			// the tree within this single call, so the bitmap correctly drops record 5 and only record 5
+			// the tree within this single call, so record 5, and only record 5, stops owning a value
 			index.unregisterUniqueKey(new String[] {"a", "b"}, 5);
 
 			assertArrayEquals(
@@ -499,12 +498,12 @@ class OwnerUniqueIndexPagingTest {
 
 		/**
 		 * Replacing an array value (`["a","b"]` → `["a","c"]`) goes through `executeAttributeUpsert`, which removes the
-		 * WHOLE old array and inserts the WHOLE new array. The shared element `a` is removed and immediately re-added, so
-		 * even though the unconditional `recordIds.remove` drops the pk during the removal, the subsequent whole-array
-		 * insert restores it — record 5 must remain present.
+		 * WHOLE old array and inserts the WHOLE new array. The shared element `a` is removed and immediately re-added,
+		 * so record 5 owns nothing for a moment and the subsequent whole-array insert makes it an owner again —
+		 * record 5 must remain present.
 		 */
 		@Test
-		@DisplayName("replacing an array via whole-value remove then add keeps the record in the bitmap")
+		@DisplayName("replacing an array via whole-value remove then add keeps the record an owner")
 		@Tag(INDEXING)
 		@Tag(ATTRIBUTE)
 		void shouldKeepRecordWhenArrayValueReplacedThroughWholeValueRemoveThenAdd() {
@@ -542,6 +541,7 @@ class OwnerUniqueIndexPagingTest {
 
 			assertTrue(index.isEmpty(), "the index is empty once its sole record's whole array is removed");
 			assertEquals(0, UniqueIndexTestSupport.ownerRecordIds(index).length, "no record owns a value any more");
+			assertEquals(0, index.size(), "the record count reads no owner either");
 			assertNull(index.getRecordIdByUniqueValue("a"), "element a is gone");
 			assertNull(index.getRecordIdByUniqueValue("b"), "element b is gone");
 		}

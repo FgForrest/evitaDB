@@ -1198,7 +1198,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * @param value           the attribute value to insert
 	 * @param recordId        the primary key the value is attributed to
 	 * @param foldedUnique    `true` when this is a folded unique attribute write (enforce uniqueness + register the view)
-	 * @throws UniqueValueViolationException when `foldedUnique` is set and the value is already owned by another record
+	 * @throws UniqueValueViolationException when `foldedUnique` is set and any record already holds the value
 	 */
 	public void insertFilterAttribute(
 		@Nullable ReferenceSchemaContract referenceSchema,
@@ -1226,7 +1226,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * @param recordId        the primary key the value is attributed to
 	 * @param foldedUnique    `true` when this is a folded unique attribute write
 	 * @param sink            learns about the values born by this write, or `null` when nobody is interested
-	 * @throws UniqueValueViolationException when `foldedUnique` is set and the value is already owned by another record
+	 * @throws UniqueValueViolationException when `foldedUnique` is set and any record already holds the value
 	 */
 	public void insertFilterAttribute(
 		@Nullable ReferenceSchemaContract referenceSchema,
@@ -1314,7 +1314,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * @param value           the array elements to add
 	 * @param recordId        the primary key the values are attributed to
 	 * @param foldedUnique    `true` when this is a folded unique attribute write (enforce uniqueness + register the view)
-	 * @throws UniqueValueViolationException when `foldedUnique` is set and any element is already owned by another record
+	 * @throws UniqueValueViolationException when `foldedUnique` is set and any record already holds an element
 	 */
 	public void addDeltaFilterAttribute(
 		@Nullable ReferenceSchemaContract referenceSchema,
@@ -1343,8 +1343,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * @param recordId        the primary key the values are attributed to
 	 * @param foldedUnique    `true` when this is a folded unique attribute write
 	 * @param sink            learns about the values born by this write, or `null` when nobody is interested
-	 * @throws UniqueValueViolationException when `foldedUnique` is set and any element is already owned by
-	 *                                       another record
+	 * @throws UniqueValueViolationException when `foldedUnique` is set and any record already holds an element
 	 */
 	public void addDeltaFilterAttribute(
 		@Nullable ReferenceSchemaContract referenceSchema,
@@ -2473,7 +2472,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * @param theFilterIndex  the filter view over the shared tree to probe
 	 * @param value           the scalar value or array of values being attributed to `recordId`
 	 * @param recordId        the record claiming the value(s)
-	 * @throws UniqueValueViolationException when any value is already owned by a different record
+	 * @throws UniqueValueViolationException when any value is already owned by any record, `recordId` included
 	 */
 	private void enforceFoldedUniqueness(
 		@Nonnull AttributeIndexKey lookupKey,
@@ -2493,10 +2492,22 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	}
 
 	/**
-	 * Asserts a single folded unique value is free to be claimed by `recordId`. The shared bucket for a unique value
-	 * holds at most one record; any record other than the one being (re)attributed is a violation — the same ≠-self
-	 * rule the standalone {@link UniqueIndex} enforces (an idempotent re-claim by the same record is allowed, and a
-	 * reindex that already removed the prior owner sees an empty/own bucket).
+	 * Asserts a single folded unique value is free to be claimed by `recordId`: its shared bucket must be empty -
+	 * **even when the record already in it is `recordId` itself**, the same strict rule the standalone
+	 * {@link OwnerUniqueIndex} enforces.
+	 *
+	 * The upsert path releases a record's prior value before it registers the new one, so a legitimate write never
+	 * meets its own value here. A bucket holds one entry however many times its record is added, so tolerating a
+	 * second claim would let one entry stand for two registrations, and removing either would drop the value the
+	 * other still holds. In a reduced or type-level index the "record" is a partition rather than one owner of one
+	 * value, which is exactly where such a second claim could otherwise slip through unnoticed.
+	 *
+	 * @param lookupKey       the (filter == unique) key of the folded attribute
+	 * @param attributeSchema the attribute schema (for the violation message)
+	 * @param theFilterIndex  the filter view over the shared tree to probe
+	 * @param value           the single value being claimed
+	 * @param recordId        the record claiming the value
+	 * @throws UniqueValueViolationException when any record, `recordId` included, already holds the value
 	 */
 	private void assertFoldedUniqueValueFree(
 		@Nonnull AttributeIndexKey lookupKey,
@@ -2506,15 +2517,11 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		int recordId
 	) {
 		final Bitmap bucket = theFilterIndex.getRecordsEqualTo(value);
-		final int size = bucket.size();
-		for (int i = 0; i < size; i++) {
-			final int existing = bucket.get(i);
-			if (existing != recordId) {
-				throw new UniqueValueViolationException(
-					attributeSchema.getName(), lookupKey.locale(), value,
-					this.entityType, existing, this.entityType, recordId
-				);
-			}
+		if (!bucket.isEmpty()) {
+			throw new UniqueValueViolationException(
+				attributeSchema.getName(), lookupKey.locale(), value,
+				this.entityType, bucket.getFirst(), this.entityType, recordId
+			);
 		}
 	}
 

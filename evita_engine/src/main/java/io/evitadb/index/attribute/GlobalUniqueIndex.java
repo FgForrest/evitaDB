@@ -115,6 +115,11 @@ public class GlobalUniqueIndex implements
 	 */
 	private static final int NO_LOCALE = -1;
 	/**
+	 * Locale id standing for a locale this index has never assigned an id to. It is only ever compared, never stored:
+	 * no tuple carries it, so a lookup or ownership check resolving to it matches nothing.
+	 */
+	private static final int UNKNOWN_LOCALE = -2;
+	/**
 	 * Single page stream per global unique index — its value bucket tree (mirrors {@code OwnerUniqueIndex.UNIQUE_PAGE_STREAM}).
 	 */
 	private static final int UNIQUE_PAGE_STREAM = 0;
@@ -429,7 +434,9 @@ public class GlobalUniqueIndex implements
 	@Nullable
 	public EntityReferenceWithLocale unregisterUniqueKey(@Nonnull Object value, @Nonnull String entityType, @Nullable Locale locale, int recordId, @Nonnull EntityTypeClassifierResolver resolver) {
 		final int classifierId = resolver.toEntityTypePrimaryKey(entityType);
-		final int localeId = fromLocale(locale);
+		// a locale never registered here cannot own the value - resolve it without assigning an id, so the refused
+		// removal leaves the locale maps untouched
+		final int localeId = lookupLocaleId(locale);
 		return unregisterUniqueKeyValue(value, new EntityWithTypeTuple(classifierId, recordId, localeId)) == null ?
 			null : new EntityReferenceWithLocale(entityType, recordId, locale);
 	}
@@ -442,7 +449,7 @@ public class GlobalUniqueIndex implements
 	@Nonnull
 	public Optional<EntityReferenceWithLocale> getEntityReferenceByUniqueValue(@Nonnull Serializable value, @Nullable Locale locale, @Nonnull EntityTypeClassifierResolver resolver) {
 		return ofNullable(lookupTuple(value))
-			.filter(it -> locale == null || it.locale() == NO_LOCALE || fromLocale(locale) == it.locale())
+			.filter(it -> locale == null || it.locale() == NO_LOCALE || lookupLocaleId(locale) == it.locale())
 			.map(it -> new EntityReferenceWithLocale(resolver.toEntityTypeName(it.entityType()), it.entityPrimaryKey(), toLocale(it.locale())));
 	}
 
@@ -956,8 +963,6 @@ public class GlobalUniqueIndex implements
 		}
 	}
 
-
-
 	/**
 	 * Resolves an internal locale id stored in tuples back to its {@link Locale}, returning `null` for the
 	 * {@link #NO_LOCALE} sentinel (attribute value with no locale).
@@ -965,6 +970,25 @@ public class GlobalUniqueIndex implements
 	@Nullable
 	private Locale toLocale(int locale) {
 		return locale == NO_LOCALE ? null : Objects.requireNonNull(this.idToLocaleIndex.get(locale));
+	}
+
+	/**
+	 * Resolves a {@link Locale} to its internal locale id without assigning one - the read counterpart of
+	 * {@link #fromLocale}. A locale never registered here resolves to {@link #UNKNOWN_LOCALE}, which no tuple carries.
+	 *
+	 * Reads and ownership checks must use this: assigning an id writes the locale maps (and bumps the sequence), which
+	 * outside a transaction would mutate the committed maps from a query thread and inside one would dirty its layer,
+	 * all for a locale that cannot match anything.
+	 *
+	 * @param locale the locale to resolve, `null` for a value with no locale
+	 * @return the assigned locale id, {@link #NO_LOCALE} for `null`, or {@link #UNKNOWN_LOCALE} for an unseen locale
+	 */
+	private int lookupLocaleId(@Nullable Locale locale) {
+		if (locale == null) {
+			return NO_LOCALE;
+		}
+		final Integer localeId = this.localeToIdIndex.get(locale);
+		return localeId == null ? UNKNOWN_LOCALE : localeId;
 	}
 
 	/**

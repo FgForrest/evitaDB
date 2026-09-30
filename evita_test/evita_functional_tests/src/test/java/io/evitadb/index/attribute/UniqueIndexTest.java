@@ -78,6 +78,9 @@ class UniqueIndexTest {
 		// value; tolerating it left one entry for two registrations, and unregistering either lost the other
 		this.tested.registerUniqueKey("A", 1);
 		assertThrows(UniqueValueViolationException.class, () -> this.tested.registerUniqueKey("A", 1));
+		// the refusal left the single entry alone rather than recording a second registration
+		assertEquals(1, this.tested.size());
+		assertEquals(1, this.tested.getDistinctValueCount());
 		assertEquals(1, this.tested.unregisterUniqueKey("A", 1));
 		assertNull(this.tested.getRecordIdByUniqueValue("A"));
 	}
@@ -388,6 +391,107 @@ class UniqueIndexTest {
 				}
 			);
 		}
+
+		@Test
+		@DisplayName("a transaction's changes are counted inside it and leave the baseline count untouched")
+		void shouldCountTransactionalChangesOnlyInsideTheTransaction() {
+			final UniqueIndex index = createIndexWithRecordOwningTwoValues();
+
+			assertStateAfterCommit(
+				index,
+				original -> {
+					original.unregisterUniqueKey("en-A", 1);
+					original.registerUniqueKey("en-C", 3);
+					// record 1 still owns `de-A`, and record 3 joins records 1 and 2
+					assertEquals(3, original.size());
+				},
+				(original, committed) -> {
+					assertEquals(3, committed.size());
+					assertEquals(2, original.size(), "the baseline must not see the transaction's changes");
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a rolled back transaction leaves the count as it was")
+		void shouldRestoreRecordCountOnRollback() {
+			final UniqueIndex index = createIndexWithRecordOwningTwoValues();
+
+			assertStateAfterRollback(
+				index,
+				original -> {
+					original.unregisterUniqueKey("en-A", 1);
+					original.unregisterUniqueKey("de-A", 1);
+					assertEquals(1, original.size(), "record 1 owns nothing inside the transaction");
+				},
+				(original, committed) -> {
+					assertNull(committed);
+					assertEquals(2, original.size());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("record ids across the whole int range are counted and read back")
+		void shouldCountExtremeRecordIds() {
+			final UniqueIndex index = new OwnerUniqueIndex(
+				Entities.PRODUCT,
+				new AttributeIndexKey(null, "code", null),
+				String.class
+			);
+			// an owner index also serves type-level indexes whose record is not an entity primary key, so every int is
+			// a legitimate record id
+			index.registerUniqueKey("min", Integer.MIN_VALUE);
+			index.registerUniqueKey("minus-one", -1);
+			index.registerUniqueKey("minus-one-again", -1);
+			index.registerUniqueKey("zero", 0);
+			index.registerUniqueKey("max", Integer.MAX_VALUE);
+
+			assertEquals(5, index.getDistinctValueCount());
+			assertEquals(4, index.size());
+			assertArrayEquals(
+				new int[]{Integer.MIN_VALUE, -1, 0, Integer.MAX_VALUE},
+				UniqueIndexTestSupport.ownerRecordIds(index)
+			);
+		}
+
+		@Test
+		@DisplayName("a record whose every value is removed is no longer counted")
+		void shouldCountNoRecordsOnceEveryValueIsRemoved() {
+			final UniqueIndex index = new OwnerUniqueIndex(
+				Entities.PRODUCT,
+				new AttributeIndexKey(null, "code", null),
+				String.class
+			);
+			index.registerUniqueKey("en-A", 1);
+			index.registerUniqueKey("de-A", 1);
+
+			index.unregisterUniqueKey("en-A", 1);
+			index.unregisterUniqueKey("de-A", 1);
+
+			assertEquals(0, index.size());
+			assertTrue(index.isEmpty());
+		}
+
+		/**
+		 * Creates the baseline the transactional count tests start from: record 1 owns `en-A` and `de-A`, record 2 owns
+		 * `en-B`, so the index holds three values of two records.
+		 *
+		 * @return the prepared index
+		 */
+		@Nonnull
+		private UniqueIndex createIndexWithRecordOwningTwoValues() {
+			final UniqueIndex index = new OwnerUniqueIndex(
+				Entities.PRODUCT,
+				new AttributeIndexKey(null, "code", null),
+				String.class
+			);
+			index.registerUniqueKey("en-A", 1);
+			index.registerUniqueKey("de-A", 1);
+			index.registerUniqueKey("en-B", 2);
+			assertEquals(2, index.size());
+			return index;
+		}
 	}
 
 	/**
@@ -500,6 +604,30 @@ class UniqueIndexTest {
 		}
 
 		@Test
+		@DisplayName("array value registration: a value the same record already owns throws before any mutation")
+		void shouldThrowOnArrayRepeatingValueTheSameRecordOwnsBeforeMutation() {
+			final UniqueIndex index = new OwnerUniqueIndex(
+				Entities.PRODUCT,
+				new AttributeIndexKey(null, "code", null),
+				String.class
+			);
+			index.registerUniqueKey("B", 1);
+
+			// the same record claiming "B" a second time is a second occurrence of the value, exactly as another
+			// record's claim would be
+			assertThrows(
+				UniqueValueViolationException.class,
+				() -> index.registerUniqueKey(new String[]{"A", "B", "C"}, 1)
+			);
+
+			assertNull(index.getRecordIdByUniqueValue("A"));
+			assertNull(index.getRecordIdByUniqueValue("C"));
+			assertEquals(1, index.getRecordIdByUniqueValue("B"));
+			assertEquals(1, index.size());
+			assertEquals(1, index.getDistinctValueCount());
+		}
+
+		@Test
 		@DisplayName("inlineSnapshot() exposes the registered (value, recordId) columns")
 		void shouldReturnUnmodifiableMap() {
 			final UniqueIndex index = new OwnerUniqueIndex(
@@ -516,7 +644,7 @@ class UniqueIndexTest {
 
 		@Test
 		@DisplayName("constructor with pre-populated value/record columns")
-		void shouldConstructFromPrePopulatedMapAndBitmap() {
+		void shouldConstructFromPrePopulatedColumns() {
 			final Serializable[] values = {"X", "Y"};
 			final int[] recordIds = {10, 20};
 

@@ -634,9 +634,10 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	}
 
 	/**
-	 * Removes a single unique value, asserting it was owned by `expectedRecordId`. The ownership assertion guarantees the removed mapping was non-null and equal
-	 * to `expectedRecordId`, so beyond it the boxed `existingRecordId` and the primitive `expectedRecordId` are
-	 * interchangeable; the primitive is used to avoid unboxing the (provably non-null) {@link Integer}.
+	 * Removes a single unique value, asserting it was owned by `expectedRecordId`. The ownership assertion
+	 * guarantees the removed mapping was non-null and equal to `expectedRecordId`, so beyond it the boxed
+	 * `existingRecordId` and the primitive `expectedRecordId` are interchangeable; the primitive is used to
+	 * avoid unboxing the (provably non-null) {@link Integer}.
 	 *
 	 * @param key              unique value to unregister
 	 * @param expectedRecordId record id expected to currently own the value

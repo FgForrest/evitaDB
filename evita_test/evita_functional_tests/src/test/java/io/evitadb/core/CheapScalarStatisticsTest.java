@@ -672,6 +672,44 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 	}
 
 	@Test
+	@DisplayName("An array attribute counts its record once however many elements it holds")
+	void shouldCountRecordOnceAcrossTheElementsOfAnArrayAttribute() {
+		// an array attribute puts its owner in one bucket per element - of the shared filter tree for a filterable
+		// one, and of the same tree for a non-localized unique one, which folds onto it - so summing the buckets
+		// would count product 1 once per element
+		final String arrayCatalog = CATALOG + "Array";
+		this.evita.defineCatalog(arrayCatalog).updateViaNewSession(this.evita);
+		this.evita.updateCatalog(
+			arrayCatalog,
+			session -> {
+				session.defineEntitySchema(ENTITY_PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withAttribute("codes", String[].class, AttributeSchemaEditor::unique)
+					.withAttribute("tags", String[].class, AttributeSchemaEditor::filterable)
+					.updateVia(session);
+				session.upsertEntity(
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setAttribute("codes", new String[]{"a", "b", "c"})
+						.setAttribute("tags", new String[]{"x", "y"})
+				);
+				session.upsertEntity(
+					session.createNewEntity(ENTITY_PRODUCT, 2)
+						.setAttribute("codes", new String[]{"d"})
+						.setAttribute("tags", new String[]{"y"})
+				);
+			}
+		);
+
+		final CollectionIndexCardinality cardinality = cardinalityOf(arrayCatalog, ENTITY_PRODUCT);
+		final AttributeCardinality unique = uniqueCardinalityOf(cardinality, EntityIndexType.GLOBAL, "codes");
+		assertEquals(4, unique.distinctValueCount());
+		assertEquals(2, unique.recordsCovered(), "two products hold the four codes between them");
+		final AttributeCardinality filter = filterCardinalityOf(cardinality, "tags");
+		assertEquals(2, filter.distinctValueCount());
+		assertEquals(2, filter.recordsCovered(), "two products hold the two tags between them");
+	}
+
+	@Test
 	@DisplayName("Data-bounded indexes are counted rather than described")
 	void shouldOmitThePerReferencedEntityIndexesFromTheCardinalityReport() {
 		final String indexedCatalog = CATALOG + "Indexed";

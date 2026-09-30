@@ -180,6 +180,8 @@ class OwnerUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 		assertTrue(source.isPaged(), "the index must span multiple leaves to exercise the paged layout");
 
 		final int[] expectedRecordIds = UniqueIndexTestSupport.ownerRecordIds(source);
+		assertEquals(KEY_COUNT, expectedRecordIds.length, "every key is owned by its own record");
+		assertEquals(KEY_COUNT, source.size(), "the record count must see every owner");
 
 		// collect the granular emission (leaf pages + paged root; no freed-page removals on a first flush)
 		final TrappedChanges trappedChanges = new TrappedChanges();
@@ -278,7 +280,7 @@ class OwnerUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 				ENTITY_TYPE, attributeIndexKey, String.class, root.getValues(), root.getRecordIds()
 			);
 			assertFalse(restored.isPaged(), "a small inline index reloads as SINGLE (not paged)");
-			assertEquals(3, restored.size(), "the per-type record set must be rebuilt from the inline columns");
+			assertEquals(3, restored.size(), "the record count must be read off the inline columns");
 			assertArrayEquals(
 				new int[] {1, 2, 3}, UniqueIndexTestSupport.ownerRecordIds(restored),
 				"the owning records must round-trip"

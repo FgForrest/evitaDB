@@ -71,10 +71,11 @@ import java.util.function.BiConsumer;
  * what was found. The cost is therefore proportional to the **schema**, not to the data: a collection with two
  * indexes and one with two million pay the same.
  *
- * One reading within a described index is the exception: the records a standalone unique index covers (see
- * `OwnerUniqueIndex#size`) are counted by a walk of its value tree, because a record owns one value per locale there
- * and no per-record set is kept to read the count from. That is `O(values)` for a localized attribute unique across
- * locales, which is acceptable only because this component is requested explicitly and never polled.
+ * One reading within a described index is the exception: the records an index covers (`recordsCovered`) are counted
+ * by a walk of its value tree - see `FilterIndex#size` and `OwnerUniqueIndex#size`. A record can hold several values,
+ * one per array element or, in a standalone unique index, one per locale, and no per-record set is kept to read the
+ * count from. That is `O(values)`, which is acceptable only because this component is requested explicitly and never
+ * polled.
  *
  * A consequence worth knowing: an index whose reference name is no longer in the schema - a reference dropped whose
  * index has not been reclaimed yet - is counted as omitted rather than described. That is the accurate reading; it is

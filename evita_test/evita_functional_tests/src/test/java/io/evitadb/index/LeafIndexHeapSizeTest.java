@@ -868,6 +868,24 @@ class LeafIndexHeapSizeTest {
 		}
 
 		@Test
+		void shouldNotGrowAtAllWhenTheGlobalRecordCountIsRequested() {
+			final GlobalUniqueIndex index = seededGlobal(200);
+			final long cold = index.getHeapSizeInBytes();
+			final long coldMeasured = measuredHeapOf(index, GLOBAL_EXCLUSIONS);
+
+			index.getRecordCount();
+
+			// The global mirror of the owner case above: `getRecordCount()` walks the value tree into per-type
+			// bitmaps that die with the call, so neither the charged nor the reachable footprint may move. A step up
+			// in either would mean a memo, or a per-type record set kept beside the tree, came back.
+			assertEquals(cold, index.getHeapSizeInBytes(), "asking for the record count must not change the footprint");
+			assertEquals(
+				coldMeasured, measuredHeapOf(index, GLOBAL_EXCLUSIONS),
+				"asking for the record count must not leave anything reachable behind"
+			);
+		}
+
+		@Test
 		void shouldNotLetAGlobalIndexDivergeWithItsSize() {
 			// four times the unique values: the only gaps a global unique index has are fixed ones plus the
 			// separator keys of its value tree, so a gap that tracked the ENTRY count would mean a real per-value
