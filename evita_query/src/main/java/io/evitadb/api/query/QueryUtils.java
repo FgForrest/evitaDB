@@ -39,7 +39,6 @@ import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.query.visitor.FinderVisitor.PredicateWithDescription;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.exception.GenericEvitaInternalError;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -48,7 +47,6 @@ import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
@@ -416,99 +414,122 @@ public class QueryUtils {
 	 * - require: every {@link io.evitadb.api.query.require.SeparateEntityContentRequireContainer}
 	 *
 	 * Every `inScope` container of the query is checked, including those inside the stopping containers, so a nesting
-	 * within the other entity's own context is refused as well.
+	 * within the other entity's own context is refused as well. The check is one traversal of the query that
+	 * allocates nothing unless it fails.
 	 *
 	 * @param query the query to check
 	 * @throws EvitaInvalidUsageException when a nested container of the same kind is found
 	 */
 	public static void assertNoNestedScopeContainers(@Nonnull Query query) {
-		assertNoNestedScopeContainers(query.getFilterBy());
-		assertNoNestedScopeContainers(query.getOrderBy());
-		assertNoNestedScopeContainers(query.getRequire());
-	}
-
-	/**
-	 * Checks every `inScope` container found anywhere below `root` - see {@link #assertNoNestedScopeContainers(Query)}.
-	 *
-	 * @param root the root of one query section, may be NULL when the query has no such section
-	 */
-	private static void assertNoNestedScopeContainers(@Nullable Constraint<?> root) {
-		if (root == null) {
-			return;
+		// one allocation-free pass per section: the query is checked on every execution, and almost no query
+		// contains an `inScope` at all
+		final FilterBy filterBy = query.getFilterBy();
+		if (filterBy != null) {
+			assertNoNestedScopeContainers(filterBy, null, null, null);
 		}
-		final List<Constraint<?>> scopeContainers = FinderVisitor.findConstraints(
-			root,
-			constraint -> constraint instanceof FilterInScope ||
-				constraint instanceof OrderInScope ||
-				constraint instanceof RequireInScope
-		);
-		for (final Constraint<?> scopeContainer : scopeContainers) {
-			if (scopeContainer instanceof final FilterInScope filterInScope) {
-				assertNoNestedScopeContainer(
-					filterInScope.getScope(), filterInScope.getChildren(),
-					FilterInScope.class, FilterInScope::getScope,
-					constraint -> constraint instanceof SeparateEntityScopeContainer &&
-						!(constraint instanceof ReferenceHaving)
-				);
-			} else if (scopeContainer instanceof final OrderInScope orderInScope) {
-				assertNoNestedScopeContainer(
-					orderInScope.getScope(), orderInScope.getChildren(),
-					OrderInScope.class, OrderInScope::getScope,
-					constraint -> constraint instanceof EntityProperty ||
-						constraint instanceof EntityGroupProperty ||
-						constraint instanceof ReferenceOrderingSpecification
-				);
-			} else if (scopeContainer instanceof final RequireInScope requireInScope) {
-				assertNoNestedScopeContainer(
-					requireInScope.getScope(), requireInScope.getChildren(),
-					RequireInScope.class, RequireInScope::getScope,
-					SeparateEntityContentRequireContainer.class::isInstance
-				);
-			} else {
-				throw new GenericEvitaInternalError(
-					"Unexpected scope container type: " + scopeContainer.getClass().getName()
-				);
-			}
+		final OrderBy orderBy = query.getOrderBy();
+		if (orderBy != null) {
+			assertNoNestedScopeContainers(orderBy, null, null, null);
+		}
+		final Require require = query.getRequire();
+		if (require != null) {
+			assertNoNestedScopeContainers(require, null, null, null);
 		}
 	}
 
 	/**
-	 * Refuses the `inScope` container described by `scope` and `children` when another container of the same type
-	 * is found among its descendants - see {@link #assertNoNestedScopeContainers(Query)}.
+	 * Walks `constraint` and its descendants once, remembering for each kind of scope container the one enclosing
+	 * the visited constraint within the current evaluation context - see {@link #assertNoNestedScopeContainers(Query)}.
 	 *
-	 * @param scope              the scope of the examined container
-	 * @param children           the children of the examined container
-	 * @param scopeContainerType the type of the examined container
-	 * @param scopeAccessor      reads the scope of a nested container
-	 * @param otherEntityContext recognizes the containers whose children target another entity collection
-	 * @param <T>                the type of the examined container
-	 * @throws EvitaInvalidUsageException when a nested container of the same type is found
+	 * A container whose children are evaluated against another entity collection starts a new evaluation context for
+	 * its own kind: the enclosing container of that kind is forgotten below it, so an `inScope` there is accepted -
+	 * yet still checked against any `inScope` nested in it within that other context.
+	 *
+	 * @param constraint       the constraint to visit
+	 * @param enclosingFilter  the filter `inScope` enclosing the constraint in the current context, or NULL
+	 * @param enclosingOrder   the order `inScope` enclosing the constraint in the current context, or NULL
+	 * @param enclosingRequire the require `inScope` enclosing the constraint in the current context, or NULL
+	 * @throws EvitaInvalidUsageException when an `inScope` is enclosed by another one of the same kind
 	 */
-	private static <T extends Constraint<?>> void assertNoNestedScopeContainer(
-		@Nonnull Scope scope,
-		@Nonnull Constraint<?>[] children,
-		@Nonnull Class<T> scopeContainerType,
-		@Nonnull Function<T, Scope> scopeAccessor,
-		@Nonnull Predicate<Constraint<?>> otherEntityContext
+	private static void assertNoNestedScopeContainers(
+		@Nonnull Constraint<?> constraint,
+		@Nullable FilterInScope enclosingFilter,
+		@Nullable OrderInScope enclosingOrder,
+		@Nullable RequireInScope enclosingRequire
 	) {
-		for (final Constraint<?> child : children) {
-			final List<T> nestedContainers = FinderVisitor.findConstraints(
-				child, scopeContainerType::isInstance, otherEntityContext
-			);
-			if (!nestedContainers.isEmpty()) {
-				final T nestedContainer = nestedContainers.get(0);
-				final Scope nestedScope = scopeAccessor.apply(nestedContainer);
-				throw new EvitaInvalidUsageException(
-					nestedScope == scope ?
-						"Constraint `" + nestedContainer + "` is nested in another `inScope(" + scope + ", ...)` " +
-							"container, which is redundant - place its children directly in the outer container." :
-						"Constraint `" + nestedContainer + "` is nested in an `inScope(" + scope + ", ...)` " +
-							"container, which is contradictory - its children would apply only when entities of " +
-							"scopes `" + scope + "` and `" + nestedScope + "` were processed at once, which never " +
-							"happens. Place the two `inScope` containers side by side instead."
+		FilterInScope filterContext = enclosingFilter;
+		OrderInScope orderContext = enclosingOrder;
+		RequireInScope requireContext = enclosingRequire;
+		if (constraint instanceof final FilterInScope filterInScope) {
+			if (enclosingFilter != null) {
+				throw createNestedScopeContainerException(
+					enclosingFilter.getScope(), filterInScope, filterInScope.getScope()
 				);
 			}
+			filterContext = filterInScope;
+		} else if (constraint instanceof final OrderInScope orderInScope) {
+			if (enclosingOrder != null) {
+				throw createNestedScopeContainerException(
+					enclosingOrder.getScope(), orderInScope, orderInScope.getScope()
+				);
+			}
+			orderContext = orderInScope;
+		} else if (constraint instanceof final RequireInScope requireInScope) {
+			if (enclosingRequire != null) {
+				throw createNestedScopeContainerException(
+					enclosingRequire.getScope(), requireInScope, requireInScope.getScope()
+				);
+			}
+			requireContext = requireInScope;
+		} else if (
+			constraint instanceof SeparateEntityScopeContainer && !(constraint instanceof ReferenceHaving)
+		) {
+			// the children filter another entity (`referenceHaving`'s own body filters the owner's references)
+			filterContext = null;
+		} else if (
+			constraint instanceof EntityProperty ||
+				constraint instanceof EntityGroupProperty ||
+				constraint instanceof ReferenceOrderingSpecification
+		) {
+			// the children order by the properties of another entity
+			orderContext = null;
+		} else if (constraint instanceof SeparateEntityContentRequireContainer) {
+			// the children describe the content of another entity
+			requireContext = null;
 		}
+		if (constraint instanceof final ConstraintContainer<?> container) {
+			for (final Constraint<?> child : container.getChildren()) {
+				assertNoNestedScopeContainers(child, filterContext, orderContext, requireContext);
+			}
+			for (final Constraint<?> additionalChild : container.getAdditionalChildren()) {
+				assertNoNestedScopeContainers(additionalChild, filterContext, orderContext, requireContext);
+			}
+		}
+	}
+
+	/**
+	 * Creates the exception refusing `nestedContainer` nested in an `inScope` container of `enclosingScope`.
+	 *
+	 * @param enclosingScope  the scope of the enclosing container
+	 * @param nestedContainer the nested container
+	 * @param nestedScope     the scope of the nested container
+	 * @return the exception to throw
+	 */
+	@Nonnull
+	private static EvitaInvalidUsageException createNestedScopeContainerException(
+		@Nonnull Scope enclosingScope,
+		@Nonnull Constraint<?> nestedContainer,
+		@Nonnull Scope nestedScope
+	) {
+		return new EvitaInvalidUsageException(
+			nestedScope == enclosingScope ?
+				"Constraint `" + nestedContainer + "` is nested in another `inScope(" + enclosingScope + ", ...)` " +
+					"container, which is redundant - place its children directly in the outer container." :
+				"Constraint `" + nestedContainer + "` is nested in an `inScope(" + enclosingScope + ", ...)` " +
+					"container, which is contradictory - its children would apply only when entities of " +
+					"scopes `" + enclosingScope + "` and `" + nestedScope + "` were processed at once, which never " +
+					"happens. Place the two `inScope` containers side by side instead."
+		);
 	}
 
 	/**

@@ -51,6 +51,7 @@ import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.exception.SchemaNotFoundException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.requestResponse.EvitaEntityReferenceResponse;
@@ -704,6 +705,9 @@ public final class EntityCollection implements
 	@Override
 	@Nonnull
 	public Optional<SealedEntity> getEntity(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+		// a fetch is not planned, so the structural rules `QueryPlanner#planQuery` checks for a query are checked here
+		// - the reference content filters of the requirements are evaluated directly by the reference fetcher
+		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
 		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
 
 		// record query information
@@ -717,6 +721,8 @@ public final class EntityCollection implements
 	@Override
 	@Nonnull
 	public ServerEntityDecorator enrichEntity(@Nonnull EntityContract entity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+		// see `getEntity` - an enrichment is not planned either
+		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
 		// enrichment adds and never subtracts, so the named sets this entity already carries have to survive a
 		// request that does not mention them. They are fetched again rather than carried over: this read may land on

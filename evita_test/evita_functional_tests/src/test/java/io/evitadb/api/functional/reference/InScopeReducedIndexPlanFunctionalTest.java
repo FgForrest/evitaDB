@@ -35,6 +35,8 @@ import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
@@ -91,6 +93,7 @@ import static io.evitadb.api.query.QueryConstraints.page;
 import static io.evitadb.api.query.QueryConstraints.priceInCurrency;
 import static io.evitadb.api.query.QueryConstraints.priceInPriceLists;
 import static io.evitadb.api.query.QueryConstraints.queryTelemetry;
+import static io.evitadb.api.query.QueryConstraints.referenceContent;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.scope;
@@ -929,6 +932,48 @@ public class InScopeReducedIndexPlanFunctionalTest {
 		assertThrows(
 			EvitaInvalidUsageException.class,
 			() -> runQuery(session, BOTH_SCOPES, new FilterConstraint[]{copy}, false)
+		);
+	}
+
+	/**
+	 * Checks that a nested `inScope` in the reference content filter of a direct fetch or an enrichment is refused like
+	 * in a query - neither is planned, the reference fetcher evaluates the filter directly, so the rule is checked
+	 * where the fetch and the enrichment are admitted. A filter whose nesting was introduced by copying a container
+	 * with new children is refused too, and the same filter without the nesting is answered.
+	 *
+	 * @param session the session provided by the test extension
+	 */
+	@DisplayName("Should reject nested inScope in the reference content of a fetch and an enrichment")
+	@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+	@Test
+	void shouldRejectNestedInScopeInReferenceContentOfFetchAndEnrichment(@Nonnull EvitaSessionContract session) {
+		final FilterConstraint nested = inScope(Scope.LIVE, inScope(Scope.LIVE, entityPrimaryKeyInSet(SUBTREE_CATEGORY)));
+		final FilterConstraint copiedNested = inScope(Scope.LIVE, entityPrimaryKeyInSet(SUBTREE_CATEGORY))
+			.getCopyWithNewChildren(
+				new FilterConstraint[]{inScope(Scope.LIVE, entityPrimaryKeyInSet(SUBTREE_CATEGORY))},
+				new Constraint<?>[0]
+			);
+		for (final FilterConstraint filter : new FilterConstraint[]{nested, copiedNested}) {
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> session.getEntity(ENTITY_PRODUCT, 1, referenceContent(REF_CATEGORIES, filterBy(filter))),
+				() -> "a direct fetch must refuse " + filter
+			);
+			final SealedEntity bare = session.getEntity(ENTITY_PRODUCT, 1).orElseThrow();
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> session.enrichEntity(bare, referenceContent(REF_CATEGORIES, filterBy(filter))),
+				() -> "an enrichment must refuse " + filter
+			);
+		}
+
+		final SealedEntity fetched = session.getEntity(
+			ENTITY_PRODUCT, 1,
+			referenceContent(REF_CATEGORIES, filterBy(inScope(Scope.LIVE, entityPrimaryKeyInSet(SUBTREE_CATEGORY))))
+		).orElseThrow();
+		assertEquals(
+			List.of(SUBTREE_CATEGORY),
+			fetched.getReferences(REF_CATEGORIES).stream().map(ReferenceContract::getReferencedPrimaryKey).toList()
 		);
 	}
 
