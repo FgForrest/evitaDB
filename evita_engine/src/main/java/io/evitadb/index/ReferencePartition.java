@@ -122,13 +122,6 @@ public sealed interface ReferencePartition permits ReducedEntityIndex {
 	int size();
 
 	/**
-	 * Returns true when the partition holds no data and may be retired.
-	 *
-	 * @return true when the partition is empty
-	 */
-	boolean isEmpty();
-
-	/**
 	 * Returns the sort index of a reference attribute over the partition's owners.
 	 *
 	 * @param referenceSchema the reference schema that holds the attribute

@@ -1042,51 +1042,6 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Fully indexes a newly created reference for the entity-level component. Combines the global facet registration
-	 * (via {@link #referenceInsertGlobal}) and the per-component registration in the type index and reduced entity
-	 * index (via {@link #referenceInsertPerComponent}).
-	 *
-	 * Use this method when inserting a reference for the entity component only. For group-component indexing, call
-	 * {@link #referenceInsertPerComponent} separately with the group primary key and group-specific indexes.
-	 *
-	 * @param entityPrimaryKey            the primary key of the owning entity
-	 * @param entitySchema                the entity schema of the owning entity
-	 * @param referenceSchema             the schema describing the reference being inserted
-	 * @param executor                    the mutation executor coordinating the index updates
-	 * @param entityIndex                 the global entity index to which the facet is registered once
-	 * @param referenceTypeIndex          the type-level index ({@link EntityIndexType#REFERENCED_ENTITY_TYPE})
-	 * @param partition                   the partition the reference belongs to
-	 * @param referenceKey                identifies the specific referenced entity
-	 * @param groupId                     the group primary key to associate with the facet, or `null` if not grouped
-	 * @param existingDataSupplierFactory factory for reading existing entity data to populate the reduced index
-	 */
-	static void referenceInsert(
-		int entityPrimaryKey,
-		@Nonnull EntitySchema entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex entityIndex,
-		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
-		@Nonnull ReferencePartition partition,
-		@Nonnull ReferenceKey referenceKey,
-		@Nullable Integer groupId,
-		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
-	) {
-		// global operation — add facet to global index (once per reference)
-		referenceInsertGlobal(
-			entityPrimaryKey, referenceSchema, entityIndex, referenceKey, groupId,
-			executor
-		);
-		// per-component operation — type index + partition
-		referenceInsertPerComponent(
-			entityPrimaryKey, entitySchema, referenceSchema, executor,
-			referenceTypeIndex, partition, referenceKey,
-			referenceKey.primaryKey(), groupId,
-			existingDataSupplierFactory
-		);
-	}
-
-	/**
 	 * Performs the global-only operation for a reference removal.
 	 * This removes the facet from the global entity index and must be called exactly once
 	 * per reference removal, regardless of how many indexed components are configured.

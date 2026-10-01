@@ -1650,10 +1650,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Method returns existing index by primary key and adds it to the changed set of indexes that needs persisting.
 	 *
 	 * The resolution MUST go through the registering accessor, not the plain read: every caller of this method mutates
-	 * the index it gets back - it is the by-primary-key half of {@link #getPartitionForWrite(int)}, of
-	 * {@link #forEachPartitionOfTargetForWrite(Scope, ReferenceSchemaContract, int, Consumer)}, and of the group-index
-	 * walk in {@link #applyOnExistingReducedIndexes}, and all three feed the reduced indexes an entity upsert then
-	 * writes into. An index that is mutated without being registered is invisible to the
+	 * the index it gets back - it is the by-primary-key half of
+	 * {@link #forEachPartitionOfTargetForWrite(Scope, ReferenceSchemaContract, int, Consumer)} and of the group-index
+	 * walk in {@link #applyOnExistingReducedIndexes}, and both feed the reduced indexes an entity upsert then writes
+	 * into. An index that is mutated without being registered is invisible to the
 	 * flush, so its changed storage parts are never persisted — and it is invisible to the dirty-key snapshot the
 	 * commit-time merge prunes on, so the merge carries it across the catalog version by reference and orphans the
 	 * transactional layers its mutation created, which surfaces as a `StaleTransactionMemoryException` that suspends
@@ -1689,21 +1689,6 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	) {
 		return Objects.requireNonNull(
 			ReferencePartitions.resolveIfExists(this::getOrCreateIndex, scope, representativeReferenceKey)
-		);
-	}
-
-	/**
-	 * Returns the reference partition registered under the primary key, acquired for writing - see
-	 * {@link #getIndexByPrimaryKey(int)} for why the acquisition must register the partition for modification.
-	 *
-	 * @param partitionPrimaryKey primary key of the partition in this collection
-	 * @return the partition registered for modification
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key names no reference partition
-	 */
-	@Nonnull
-	ReferencePartition getPartitionForWrite(int partitionPrimaryKey) {
-		return ReferencePartitions.requirePartition(
-			getIndexByPrimaryKey(partitionPrimaryKey).orElse(null), getEntitySchema().getName(), partitionPrimaryKey
 		);
 	}
 

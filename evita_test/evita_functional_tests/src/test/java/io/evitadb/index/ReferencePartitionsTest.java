@@ -26,10 +26,11 @@ package io.evitadb.index;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.bitmap.BaseBitmap;
-import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.DisplayName;
@@ -38,8 +39,13 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Map;
+import java.util.OptionalLong;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.IntFunction;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
@@ -57,7 +63,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * to a primary key that names nothing, and the two ways the partitions of one target are found.
  *
  * The maps stand in for the lookups the resolver surfaces pass in (a collection's buffer and maps, a query snapshot,
- * a data store reader); those surfaces and their layering are covered by
+ * a data store reader - {@link MapDataStoreReader} adapts them to the last); those surfaces and their layering are
+ * covered by
  * `io.evitadb.api.functional.indexing.ReferencePartitionResolutionTest`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -164,16 +171,30 @@ class ReferencePartitionsTest {
 	}
 
 	/**
-	 * Resolves the partitions of {@link #TARGET_PK} leniently over the fixture maps.
+	 * Resolves the partitions of {@link #TARGET_PK} leniently over the fixture maps, through a data store reader - the
+	 * only route to the lenient resolution.
 	 *
 	 * @param allowsDuplicates whether the reference allows duplicates
 	 * @return the partitions
 	 */
 	@Nonnull
 	private ReferencePartition[] ofTarget(boolean allowsDuplicates) {
+		return ofTarget(Scope.LIVE, allowsDuplicates);
+	}
+
+	/**
+	 * Resolves the partitions of {@link #TARGET_PK} in the scope leniently over the fixture maps, through a data store
+	 * reader - the only route to the lenient resolution.
+	 *
+	 * @param scope            the scope of the partitions
+	 * @param allowsDuplicates whether the reference allows duplicates
+	 * @return the partitions
+	 */
+	@Nonnull
+	private ReferencePartition[] ofTarget(@Nonnull Scope scope, boolean allowsDuplicates) {
 		return ReferencePartitions.resolveOfTarget(
-			this.indexesByKey::get, this.indexesByPrimaryKey::get,
-			Scope.LIVE, REFERENCE_NAME, allowsDuplicates, TARGET_PK
+			new MapDataStoreReader(this.indexesByKey, this.indexesByPrimaryKey),
+			scope, REFERENCE_NAME, allowsDuplicates, TARGET_PK
 		);
 	}
 
@@ -200,7 +221,6 @@ class ReferencePartitionsTest {
 		void shouldReturnTheReducedEntityIndexItselfWhenNarrowed() {
 			final ReducedEntityIndex index = addPartition(1, Scope.LIVE, REFERENCE_NAME, TARGET_PK);
 			assertSame(index, ReferencePartitions.asPartition(index));
-			assertSame(index, ReferencePartitions.asPartition(index, Scope.LIVE, REFERENCE_NAME));
 			assertSame(index, ReferencePartitions.requirePartition(index, ENTITY_TYPE, 1));
 			assertSame(index, ReferencePartitions.toReducedEntityIndex(index));
 		}
@@ -217,17 +237,15 @@ class ReferencePartitionsTest {
 			assertNull(ReferencePartitions.asPartition(groupIndex));
 			assertNull(ReferencePartitions.asPartition(typeIndex));
 			assertNull(ReferencePartitions.asPartition(globalIndex));
-			assertNull(ReferencePartitions.asPartition(groupIndex, Scope.LIVE, REFERENCE_NAME));
 		}
 
 		@Test
-		@DisplayName("answers null for a partition of another scope or another reference")
-		void shouldReturnNullWhenPartitionBelongsToAnotherScopeOrReference() {
+		@DisplayName("tells apart a partition of another scope or another reference")
+		void shouldTellApartPartitionOfAnotherScopeOrReference() {
 			final ReducedEntityIndex archived = addPartition(1, Scope.ARCHIVED, REFERENCE_NAME, TARGET_PK);
 			final ReducedEntityIndex otherReference = addPartition(2, Scope.LIVE, OTHER_REFERENCE_NAME, TARGET_PK);
-			assertNull(ReferencePartitions.asPartition(archived, Scope.LIVE, REFERENCE_NAME));
-			assertNull(ReferencePartitions.asPartition(otherReference, Scope.LIVE, REFERENCE_NAME));
-			assertSame(archived, ReferencePartitions.asPartition(archived, Scope.ARCHIVED, REFERENCE_NAME));
+			assertFalse(ReferencePartitions.belongsTo(archived, Scope.LIVE, REFERENCE_NAME));
+			assertTrue(ReferencePartitions.belongsTo(archived, Scope.ARCHIVED, REFERENCE_NAME));
 			assertTrue(ReferencePartitions.belongsTo(otherReference, Scope.LIVE, OTHER_REFERENCE_NAME));
 			assertFalse(ReferencePartitions.belongsTo(otherReference, Scope.LIVE, REFERENCE_NAME));
 		}
@@ -252,8 +270,8 @@ class ReferencePartitionsTest {
 	}
 
 	@Nested
-	@DisplayName("resolving by key and by primary keys")
-	class ByKeyAndPrimaryKeys {
+	@DisplayName("resolving by key")
+	class ByKey {
 
 		@Test
 		@DisplayName("resolves a representative reference key to its partition, and to null when absent")
@@ -282,40 +300,6 @@ class ReferencePartitionsTest {
 				GenericEvitaInternalError.class,
 				() -> ReferencePartitions.resolveIfExists(key -> groupIndex, Scope.LIVE, rrk)
 			);
-		}
-
-		@Test
-		@DisplayName("resolves primary keys strictly, in ascending primary key order")
-		void shouldResolveAllPrimaryKeysInAscendingOrder() {
-			final ReducedEntityIndex third = addPartition(30, Scope.LIVE, REFERENCE_NAME, 3);
-			final ReducedEntityIndex first = addPartition(10, Scope.LIVE, REFERENCE_NAME, 1);
-			final ReducedEntityIndex second = addPartition(20, Scope.ARCHIVED, OTHER_REFERENCE_NAME, 2);
-			assertArrayEquals(
-				new ReferencePartition[]{first, second, third},
-				ReferencePartitions.resolveAll(
-					ReferencePartitionsTest.this.indexesByPrimaryKey::get, new BaseBitmap(30, 10, 20), ENTITY_TYPE
-				)
-			);
-			assertSame(
-				ReferencePartitions.EMPTY_PARTITIONS,
-				ReferencePartitions.resolveAll(
-					ReferencePartitionsTest.this.indexesByPrimaryKey::get, EmptyBitmap.INSTANCE, ENTITY_TYPE
-				)
-			);
-			assertThrows(
-				GenericEvitaInternalError.class,
-				() -> ReferencePartitions.resolveAll(
-					ReferencePartitionsTest.this.indexesByPrimaryKey::get, new BaseBitmap(10, 11), ENTITY_TYPE
-				)
-			);
-			addGroupIndex(40, TARGET_PK);
-			final GenericEvitaInternalError otherFamily = assertThrows(
-				GenericEvitaInternalError.class,
-				() -> ReferencePartitions.resolveAll(
-					ReferencePartitionsTest.this.indexesByPrimaryKey::get, new BaseBitmap(10, 40), ENTITY_TYPE
-				)
-			);
-			assertTrue(otherFamily.getPrivateMessage().contains("primary key 40"), otherFamily.getPrivateMessage());
 		}
 	}
 
@@ -409,14 +393,7 @@ class ReferencePartitionsTest {
 		void shouldResolvePartitionsOfRequestedScopeOnly() {
 			final ReducedEntityIndex archived = addPartition(1, Scope.ARCHIVED, REFERENCE_NAME, TARGET_PK);
 			assertSame(ReferencePartitions.EMPTY_PARTITIONS, ofTarget(false));
-			assertArrayEquals(
-				new ReferencePartition[]{archived},
-				ReferencePartitions.resolveOfTarget(
-					ReferencePartitionsTest.this.indexesByKey::get,
-					ReferencePartitionsTest.this.indexesByPrimaryKey::get,
-					Scope.ARCHIVED, REFERENCE_NAME, false, TARGET_PK
-				)
-			);
+			assertArrayEquals(new ReferencePartition[]{archived}, ofTarget(Scope.ARCHIVED, false));
 		}
 	}
 
@@ -430,6 +407,84 @@ class ReferencePartitionsTest {
 			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, Scope.ARCHIVED, rrk),
 			ReferencePartitions.createKey(Scope.ARCHIVED, rrk)
 		);
+	}
+
+	/**
+	 * A data store reader over one collection's index maps with nothing layered on top - the lenient resolution of
+	 * the partitions of one target is reached only through a reader. Only the index lookups are supported.
+	 *
+	 * @param indexesByKey        the indexes by key
+	 * @param indexesByPrimaryKey the indexes by primary key
+	 */
+	private record MapDataStoreReader(
+		@Nonnull Map<EntityIndexKey, EntityIndex> indexesByKey,
+		@Nonnull Map<Integer, EntityIndex> indexesByPrimaryKey
+	) implements DataStoreReader {
+
+		@Override
+		public int countStorageParts(long catalogVersion, @Nonnull Class<? extends StoragePart> containerType) {
+			throw new UnsupportedOperationException("Not supported in the test.");
+		}
+
+		@Nullable
+		@Override
+		public <T extends StoragePart> T fetch(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
+			throw new UnsupportedOperationException("Not supported in the test.");
+		}
+
+		@Nullable
+		@Override
+		public <T extends StoragePart> byte[] fetchBinary(
+			long catalogVersion,
+			long primaryKey,
+			@Nonnull Class<T> containerType
+		) {
+			throw new UnsupportedOperationException("Not supported in the test.");
+		}
+
+		@Nullable
+		@Override
+		public <T extends StoragePart, U extends Comparable<U>> T fetch(
+			long catalogVersion,
+			@Nonnull U originalKey,
+			@Nonnull Class<T> containerType,
+			@Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer
+		) {
+			throw new UnsupportedOperationException("Not supported in the test.");
+		}
+
+		@Nullable
+		@Override
+		public <T extends StoragePart, U extends Comparable<U>> byte[] fetchBinary(
+			long catalogVersion,
+			@Nonnull U originalKey,
+			@Nonnull Class<T> containerType,
+			@Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer
+		) {
+			throw new UnsupportedOperationException("Not supported in the test.");
+		}
+
+		@Nullable
+		@Override
+		public <IK extends IndexKey, I extends Index<IK>> I getIndexIfExists(
+			@Nonnull IK entityIndexKey,
+			@Nonnull Function<IK, I> accessorWhenMissing
+		) {
+			//noinspection unchecked,SuspiciousMethodCalls
+			final I index = (I) this.indexesByKey.get(entityIndexKey);
+			return index == null ? accessorWhenMissing.apply(entityIndexKey) : index;
+		}
+
+		@Nullable
+		@Override
+		public <IK extends IndexKey, I extends Index<IK>> I getIndexIfExists(
+			int entityIndexPrimaryKey,
+			@Nonnull IntFunction<I> accessorWhenMissing
+		) {
+			//noinspection unchecked
+			final I index = (I) this.indexesByPrimaryKey.get(entityIndexPrimaryKey);
+			return index == null ? accessorWhenMissing.apply(entityIndexPrimaryKey) : index;
+		}
 	}
 
 }

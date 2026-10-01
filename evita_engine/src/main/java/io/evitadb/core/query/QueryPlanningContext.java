@@ -204,7 +204,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * The very same indexes as in {@link #indexes}, keyed by the index primary key (the id the index is stored
 	 * under in the persistent data store) instead. This is the lookup direction needed when
 	 * {@link ReferencedTypeEntityIndex} hands out the primary keys of all reduced indexes belonging to
-	 * a particular referenced entity - see {@link #resolvePartition(String, int)}.
+	 * a particular referenced entity - see {@link #resolvePartition(int)}.
 	 */
 	@Nonnull private final Map<Integer, Index<?>> indexesByPk;
 	/**
@@ -987,46 +987,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns the reference partition of the named collection registered under the primary key, leniently - see
-	 * {@link ReferencePartitions}.
-	 *
-	 * Index primary keys come from a per-collection sequence ({@link io.evitadb.core.sequence.SequenceType#INDEX} is
-	 * requested per entity type), so the same number names a different index in every collection. A caller resolving
-	 * keys handed out by {@link ReferencedTypeEntityIndex#getAllReferenceIndexes(int)} therefore has to say which
-	 * collection that type index belonged to; resolving them against the queried collection instead returns whichever
-	 * of its indexes happens to carry the same number, which is a wrong answer rather than a missing one. The queried
-	 * collection is read from the index maps this context was created with, any other collection from its live
-	 * indexes (dirty buffer first).
-	 *
-	 * @param entityType          the collection the primary key belongs to
-	 * @param partitionPrimaryKey primary key of the partition
-	 * @return the partition or `null` when the key names nothing or an index that is not a reference partition
-	 */
-	@Nullable
-	public ReferencePartition resolvePartitionIfExists(@Nonnull String entityType, int partitionPrimaryKey) {
-		return ReferencePartitions.asPartition(getIndexByPrimaryKeyOf(entityType, partitionPrimaryKey));
-	}
-
-	/**
-	 * Returns the reference partition of the named collection registered under the primary key, strictly - the key
-	 * must have been handed out by an index of that collection that knows the partition exists. See
-	 * {@link #resolvePartitionIfExists(String, int)} for where the partition is read from.
-	 *
-	 * @param entityType          the collection the primary key belongs to
-	 * @param partitionPrimaryKey primary key of the partition
-	 * @return the partition
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key names no reference partition
-	 */
-	@Nonnull
-	public ReferencePartition resolvePartition(@Nonnull String entityType, int partitionPrimaryKey) {
-		return ReferencePartitions.requirePartition(
-			getIndexByPrimaryKeyOf(entityType, partitionPrimaryKey), entityType, partitionPrimaryKey
-		);
-	}
-
-	/**
 	 * Returns the reference partition of the named collection holding the rows of the representative reference key
-	 * in the scope. See {@link #resolvePartitionIfExists(String, int)} for where the partition is read from.
+	 * in the scope. The queried collection is read from the index maps this context was created with, any other
+	 * collection from its live indexes (dirty buffer first).
 	 *
 	 * @param entityType                 the collection owning the partition
 	 * @param scope                      the scope of the partition
@@ -1045,27 +1008,18 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns the reference partitions of the named collection registered under the primary keys, strictly, in the
-	 * ascending order of the keys. See {@link #resolvePartitionIfExists(String, int)} for where the partitions are
-	 * read from.
-	 *
-	 * @param entityType           the collection the primary keys belong to
-	 * @param partitionPrimaryKeys primary keys of partitions
-	 * @return the partitions, one per primary key
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when a key names no reference partition
-	 */
-	@Nonnull
-	public ReferencePartition[] resolvePartitions(@Nonnull String entityType, @Nonnull Bitmap partitionPrimaryKeys) {
-		return ReferencePartitions.resolveAll(getIndexByPrimaryKeyReader(entityType), partitionPrimaryKeys, entityType);
-	}
-
-	/**
 	 * Returns every reference partition of the entity type holding rows of the reference that point to the target
 	 * entity in the scope. When duplicates are allowed, one target may be covered by several partitions, so they are
 	 * enumerated through the `REFERENCED_ENTITY_TYPE` index; otherwise there is at most one, addressed directly by
 	 * the key built from the reference key. A missing type index or partition yields no element; a primary key the
-	 * type index lists must resolve. See {@link #resolvePartitionIfExists(String, int)} for where the partitions are
-	 * read from.
+	 * type index lists must resolve. The collection is read as
+	 * {@link #resolvePartitionIfExists(String, Scope, RepresentativeReferenceKey)} reads it.
+	 *
+	 * The primary keys the type index lists are resolved in the same collection. Index primary keys come from a
+	 * per-collection sequence ({@link io.evitadb.core.sequence.SequenceType#INDEX} is requested per entity type), so
+	 * the same number names a different index in every collection; resolving them against the queried collection
+	 * instead returns whichever of its indexes happens to carry the same number, which is a wrong answer rather than
+	 * a missing one.
 	 *
 	 * @param entitySchema     the entity type owning the reference
 	 * @param referenceSchema  the reference

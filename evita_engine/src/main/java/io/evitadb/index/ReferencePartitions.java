@@ -29,14 +29,12 @@ import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
-import java.util.PrimitiveIterator.OfInt;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -52,10 +50,10 @@ import java.util.function.IntFunction;
  * ## Lenient and strict resolution
  *
  * - **Lenient** (`…IfExists`, {@link #asPartition}): `null` or no element when the primary key names nothing, and
- *   also when it names an index of the other family (a {@link ReducedGroupEntityIndex}), of another scope or of
- *   another reference. This is for primary keys that come from an accelerator rather than from the index that owns
- *   them - `ReducedIndexMembership` entries may name an index that has since been dropped, or one of the group
- *   family.
+ *   also when it names an index of the other family (a {@link ReducedGroupEntityIndex}); {@link #belongsTo} narrows a
+ *   partition further to one scope and reference. This is for primary keys that come from an accelerator rather than
+ *   from the index that owns them - `ReducedIndexMembership` entries may name an index that has since been dropped, or
+ *   one of the group family.
  * - **Strict** (`require…`, `…OrThrow`): a primary key handed out by the index that owns the partition must
  *   resolve; anything else is a programming error reported as {@link GenericEvitaInternalError} naming the
  *   collection and the primary key.
@@ -73,7 +71,7 @@ import java.util.function.IntFunction;
  */
 public final class ReferencePartitions {
 	/**
-	 * Shared empty result of the batch resolutions.
+	 * Shared empty result of the resolutions of the partitions of one target.
 	 */
 	public static final ReferencePartition[] EMPTY_PARTITIONS = new ReferencePartition[0];
 
@@ -122,25 +120,6 @@ public final class ReferencePartitions {
 	@Nullable
 	public static ReferencePartition asPartition(@Nullable Index<?> index) {
 		return index instanceof ReducedEntityIndex partition ? partition : null;
-	}
-
-	/**
-	 * Narrows an index to a partition of the given reference in the given scope, leniently.
-	 *
-	 * @param index         the index, possibly `null`
-	 * @param scope         the scope the partition must live in
-	 * @param referenceName the reference the partition must belong to
-	 * @return the partition or `null` when the index is absent, not a reference partition, or a partition of another
-	 * scope or reference
-	 */
-	@Nullable
-	public static ReferencePartition asPartition(
-		@Nullable Index<?> index,
-		@Nonnull Scope scope,
-		@Nonnull String referenceName
-	) {
-		final ReferencePartition partition = asPartition(index);
-		return partition != null && belongsTo(partition, scope, referenceName) ? partition : null;
 	}
 
 	/**
@@ -226,72 +205,13 @@ public final class ReferencePartitions {
 	}
 
 	/**
-	 * Resolves the partitions of the given primary keys, strictly, in the ascending order of the primary keys.
-	 *
-	 * @param indexByPrimaryKey    lookup of the collection's indexes by primary key, answering `null` when absent
-	 * @param partitionPrimaryKeys primary keys that must all name partitions of the collection
-	 * @param entityType           the collection the primary keys belong to, for the error message
-	 * @return the partitions, one per primary key
-	 * @throws GenericEvitaInternalError when a primary key names no partition
-	 */
-	@Nonnull
-	public static ReferencePartition[] resolveAll(
-		@Nonnull IntFunction<? extends Index<?>> indexByPrimaryKey,
-		@Nonnull Bitmap partitionPrimaryKeys,
-		@Nonnull String entityType
-	) {
-		if (partitionPrimaryKeys.isEmpty()) {
-			return EMPTY_PARTITIONS;
-		}
-		final ReferencePartition[] result = new ReferencePartition[partitionPrimaryKeys.size()];
-		final OfInt it = partitionPrimaryKeys.iterator();
-		int index = 0;
-		while (it.hasNext()) {
-			final int partitionPrimaryKey = it.nextInt();
-			result[index++] = requirePartition(
-				indexByPrimaryKey.apply(partitionPrimaryKey), entityType, partitionPrimaryKey
-			);
-		}
-		return result;
-	}
-
-	/**
-	 * Resolves every partition of one target entity of a reference in a scope, leniently: a missing type index or
-	 * partition yields no element, and so does a primary key the type index lists but the collection no longer holds.
+	 * Resolves every partition of one target entity of a reference in a scope, strictly: a missing type index or
+	 * partition yields no element, but a primary key the type index lists must resolve to a partition.
 	 *
 	 * The lookup depends on the reference cardinality. When duplicates are allowed, one target may be covered by
 	 * several partitions (one per combination of representative attribute values), so they are enumerated through
 	 * the `REFERENCED_ENTITY_TYPE` index of the reference; otherwise there is at most one and it is addressed directly
 	 * by the key built from the reference key with no representative values.
-	 *
-	 * @param indexByKey        lookup of the collection's indexes by key, answering `null` when absent
-	 * @param indexByPrimaryKey lookup of the collection's indexes by primary key, answering `null` when absent
-	 * @param scope             the scope of the partitions
-	 * @param referenceName     the reference the partitions belong to
-	 * @param allowsDuplicates  whether the reference allows duplicate references to one target
-	 * @param targetPrimaryKey  the primary key of the target entity
-	 * @return the partitions of the target, possibly empty
-	 * @throws GenericEvitaInternalError when a key or a listed primary key names an index that is not a partition of
-	 *                                   the reference in the scope
-	 */
-	@Nonnull
-	public static ReferencePartition[] resolveOfTarget(
-		@Nonnull Function<EntityIndexKey, ? extends Index<?>> indexByKey,
-		@Nonnull IntFunction<? extends Index<?>> indexByPrimaryKey,
-		@Nonnull Scope scope,
-		@Nonnull String referenceName,
-		boolean allowsDuplicates,
-		int targetPrimaryKey
-	) {
-		return resolveOfTarget(
-			indexByKey, indexByPrimaryKey, scope, referenceName, allowsDuplicates, targetPrimaryKey, null
-		);
-	}
-
-	/**
-	 * Resolves every partition of one target entity of a reference in a scope, strictly: a missing type index or
-	 * partition still yields no element, but a primary key the type index lists must resolve to a partition. See
-	 * {@link #resolveOfTarget(Function, IntFunction, Scope, String, boolean, int)} for the lookup.
 	 *
 	 * @param indexByKey        lookup of the collection's indexes by key, answering `null` when absent
 	 * @param indexByPrimaryKey lookup of the collection's indexes by primary key, answering `null` when absent
@@ -320,9 +240,11 @@ public final class ReferencePartitions {
 	}
 
 	/**
-	 * Resolves every partition of one target entity through another collection's data store reader, leniently - see
-	 * {@link #resolveOfTarget(Function, IntFunction, Scope, String, boolean, int)}. The reader layers the in-flight
-	 * indexes of that collection's current mutation over its committed maps.
+	 * Resolves every partition of one target entity through another collection's data store reader, leniently: a
+	 * missing type index or partition yields no element, and so does a primary key the type index lists but the
+	 * collection no longer holds. The lookup is the one of
+	 * {@link #resolveOfTargetOrThrow(Function, IntFunction, Scope, String, boolean, int, String)}. The reader layers
+	 * the in-flight indexes of that collection's current mutation over its committed maps.
 	 *
 	 * @param dataStoreReader  the reader of the collection owning the partitions
 	 * @param scope            the scope of the partitions

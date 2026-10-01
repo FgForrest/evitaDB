@@ -105,10 +105,7 @@ R3 | io.evitadb.core.collection.EntityCollection#describeIndex | physical index 
 R3 | io.evitadb.core.collection.EntityCollection#getIndexByPrimaryKeyIfExists | the collection resolver by primary key that the partition resolvers read through
 R3 | io.evitadb.core.collection.EntityCollection#getIndexIfExists | DataStoreReader method Lombok delegates onto EntityCollection - raw by-pk plumbing of the buffers
 R3 | io.evitadb.core.collection.EntityCollection#registerReducedIndex | membership rebuild registers group indexes by pk (partitions go through registerPartition)
-R3 | io.evitadb.core.collection.EntityCollection#resolvePartition | partition resolver surface over the collection's or the query's indexes
 R3 | io.evitadb.core.collection.EntityCollection#resolvePartitionIfExists | partition resolver surface over the collection's or the query's indexes
-R3 | io.evitadb.core.collection.EntityCollection#resolvePartitions | partition resolver surface over the collection's or the query's indexes
-R3 | io.evitadb.core.collection.EntityCollection#resolvePartitionsOfTarget | partition resolver surface over the collection's or the query's indexes
 R3 | io.evitadb.core.collection.EntityCollection$DataStoreReaderBridge#getIndexIfExists | dirty-buffer layering (DataStoreReaderBridge) every write-path reader relies on
 R3 | io.evitadb.core.collection.EntityCollection$EntityIndexMaintainer#getIndexByPrimaryKeyIfExists | the collection maintainer's by-pk read and write implementation of IndexProvider
 R3 | io.evitadb.core.collection.EntityCollection$EntityIndexMaintainer#getOrCreateIndexByPrimaryKey | the collection maintainer's by-pk read and write implementation of IndexProvider
@@ -130,7 +127,6 @@ R3 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#applyOnExi
 R3 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#forEachPartitionOfTargetForWrite | partition write acquisition surface of the local mutation executor
 R3 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#getEntityIndexByPrimaryKeyForModification | group family: reduced group entity indexes have no partition handle (by-pk write acquisition of group histograms)
 R3 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#getIndexByPrimaryKey | by-pk write acquisition that enrols the index in the dirty set; the partition acquisition goes through it
-R3 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#getPartitionForWrite | partition write acquisition surface of the local mutation executor
 R3 | io.evitadb.index.mutation.local.ReferenceIndexMutator#insertSingleHistogramValue | group family: reduced group entity indexes have no partition handle (group histograms by primary key)
 R3 | io.evitadb.index.mutation.local.ReferenceIndexMutator#removeHistogramFromPreResolvedGroupIndexes | group family: reduced group entity indexes have no partition handle (group histograms)
 R3 | io.evitadb.index.mutation.local.ReferenceIndexMutator#removeHistogramValuesWithGuard | group family: reduced group entity indexes have no partition handle (group histograms by primary key)

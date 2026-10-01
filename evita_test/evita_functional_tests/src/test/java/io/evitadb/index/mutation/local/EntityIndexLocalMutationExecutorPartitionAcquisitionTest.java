@@ -268,46 +268,6 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 	}
 
 	@Nested
-	@DisplayName("by primary key")
-	class ByPrimaryKey {
-
-		@Test
-		@DisplayName("returns the partition through the enrolling accessor")
-		void shouldReturnPartitionThroughEnrollingAccessor() {
-			final ReducedEntityIndex partition = addDuplicatePartition(11, "DE");
-			assertSame(
-				partition,
-				EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this.partitionExecutor.getPartitionForWrite(11)
-			);
-			assertEquals(
-				1,
-				EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this.indexMaintainer
-					.acquisitionsByPrimaryKey(11)
-			);
-		}
-
-		@Test
-		@DisplayName("rejects a primary key of the group family")
-		void shouldThrowWhenPrimaryKeyNamesGroupIndex() {
-			EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this.indexMaintainer.register(
-				new ReducedGroupEntityIndex(
-					12, ENTITY_NAME,
-					new EntityIndexKey(
-						EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE,
-						new RepresentativeReferenceKey(new ReferenceKey(DUPLICATE_REFERENCE, 3))
-					)
-				)
-			);
-			final GenericEvitaInternalError error = assertThrows(
-				GenericEvitaInternalError.class,
-				() -> EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this.partitionExecutor
-					.getPartitionForWrite(12)
-			);
-			assertTrue(error.getPrivateMessage().contains("12"), error.getPrivateMessage());
-		}
-	}
-
-	@Nested
 	@DisplayName("partitions of one target")
 	class OfTarget {
 
@@ -358,6 +318,25 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 			addDuplicatePartition(21, "DE");
 			listInTypeIndex(23);
 			assertThrows(GenericEvitaInternalError.class, () -> collectPartitionsOfTarget(DUPLICATE_REFERENCE));
+		}
+
+		@Test
+		@DisplayName("rejects a listed primary key of the group family, naming the primary key")
+		void shouldThrowWhenListedPrimaryKeyNamesGroupIndex() {
+			EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this.indexMaintainer.register(
+				new ReducedGroupEntityIndex(
+					12, ENTITY_NAME,
+					new EntityIndexKey(
+						EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE,
+						new RepresentativeReferenceKey(new ReferenceKey(DUPLICATE_REFERENCE, 3))
+					)
+				)
+			);
+			listInTypeIndex(12);
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class, () -> collectPartitionsOfTarget(DUPLICATE_REFERENCE)
+			);
+			assertTrue(error.getPrivateMessage().contains("primary key 12"), error.getPrivateMessage());
 		}
 	}
 

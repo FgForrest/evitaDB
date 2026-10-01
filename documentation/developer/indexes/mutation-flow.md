@@ -96,8 +96,8 @@ then calls into the per-domain mutators:
 | `RemovePriceMutation` / non-indexed | `updatePriceIndex` on reduced 1st |     Yes (removal)      |
 | `SetParentMutation`                 | `setParent`                       |           No           |
 | `RemoveParentMutation`              | `removeParent`                    |           No           |
-| `InsertReferenceMutation`           | `referenceInsert` + facets        |          Yes           |
-| `RemoveReferenceMutation`           | `referenceRemoval` + facets       |          Yes           |
+| `InsertReferenceMutation`           | `referenceInsert*` + facets       |          Yes           |
+| `RemoveReferenceMutation`           | `referenceRemoval*` + facets      |          Yes           |
 | `SetReferenceGroupMutation`         | facet group swap + group indexes  |          Yes           |
 | `RemoveReferenceGroupMutation`      | facet group clear + group indexes |          Yes           |
 | `ReferenceAttributeMutation`        | `attributeUpdate` on ref indexes  |          Yes           |
@@ -298,7 +298,7 @@ sequenceDiagram
     participant G as GlobalEntityIndex
     participant TI as ReferencedTypeEntityIndex
     participant RI as ReducedEntityIndex
-    Note over O: referenceInsert()
+    Note over O: reference insertion
     O ->> G: referenceInsertGlobal()<br/>addFacet(referenceKey, groupId, epk)
     O ->> TI: insertPrimaryKeyIfMissing(reducedIndexPK, referencedEntityPK)
     O ->> TI: upsert all reference attributes (keyed by reducedIndexPK)
@@ -338,7 +338,7 @@ sequenceDiagram
     participant TI as ReferencedTypeEntityIndex
     participant RI as ReducedEntityIndex
     participant G as GlobalEntityIndex
-    Note over O: referenceRemoval()
+    Note over O: reference removal
     O ->> TI: removePrimaryKey(reducedIndexPK, referencedEntityPK)
     O ->> TI: remove all reference attributes (keyed by reducedIndexPK)
     O ->> RI: removePrimaryKey(epk)
@@ -402,7 +402,8 @@ orchestrator. This method:
    **current** (post-mutation) key.
 
 When the stored and current keys differ, the orchestrator migrates the entity from the old
-reduced index to the new one by calling `referenceRemoval` followed by `referenceInsert`.
+reduced index to the new one by calling `referenceRemovalPerComponent` on the former partition followed by
+`referenceInsertPerComponent` on the new one.
 
 ### Facet Management
 

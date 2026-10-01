@@ -44,7 +44,6 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.ReferencePartitions;
-import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.Functions;
 import org.junit.jupiter.api.AfterEach;
@@ -55,6 +54,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
@@ -81,8 +81,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Proves that the reference partition resolvers of {@link EntityCollection}, {@link QueryPlanningContext} and the
- * data-store-reader overloads of {@link ReferencePartitions} read what the engine really holds: the partitions of a
+ * Proves that the reference partition resolvers of {@link EntityCollection} (by primary key),
+ * {@link QueryPlanningContext} and the data-store-reader overloads of {@link ReferencePartitions} (by key and by
+ * target, as production reads another collection) read what the engine really holds: the partitions of a
  * reference with and without duplicates, the per-collection primary key namespace, and partitions created by a
  * mutation that has not been committed (`ALIVE`) or flushed (`WARMING_UP`) yet - and that the end-of-mutation sweep
  * retires a partition its last owner left.
@@ -150,21 +151,18 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 				final ReferenceSchemaContract categories = productSchema.getReferenceOrThrowException(REF_CATEGORIES);
 				final ReferenceSchemaContract stores = productSchema.getReferenceOrThrowException(REF_STORES);
 
-				final ReferencePartition category = products.resolvePartitionIfExists(
-					Scope.LIVE, new RepresentativeReferenceKey(new ReferenceKey(REF_CATEGORIES, CATEGORY_PK))
+				final ReferencePartition category = partitionOf(
+					products, Scope.LIVE, new RepresentativeReferenceKey(new ReferenceKey(REF_CATEGORIES, CATEGORY_PK))
 				);
 				assertNotNull(category);
 				assertArrayEquals(new int[]{1, 2}, category.getAllPrimaryKeys().getArray());
 				assertArrayEquals(
 					new ReferencePartition[]{category},
-					products.resolvePartitionsOfTarget(Scope.LIVE, categories, CATEGORY_PK)
+					partitionsOfTarget(products, Scope.LIVE, categories, CATEGORY_PK)
 				);
-				assertSame(category, products.resolvePartition(category.getPrimaryKey()));
 				assertSame(category, products.resolvePartitionIfExists(category.getPrimaryKey()));
 
-				final ReferencePartition[] storePartitions = products.resolvePartitionsOfTarget(
-					Scope.LIVE, stores, STORE_PK
-				);
+				final ReferencePartition[] storePartitions = partitionsOfTarget(products, Scope.LIVE, stores, STORE_PK);
 				assertEquals(2, storePartitions.length);
 				assertArrayEquals(
 					new Serializable[][]{{"DE"}, {"US"}},
@@ -173,32 +171,11 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 						.sorted((a, b) -> ((String) a[0]).compareTo((String) b[0]))
 						.toArray(Serializable[][]::new)
 				);
-				final BaseBitmap storePartitionPks = new BaseBitmap(
-					storePartitions[0].getPrimaryKey(), storePartitions[1].getPrimaryKey()
-				);
-				final ReferencePartition[] byPrimaryKeys = products.resolvePartitions(storePartitionPks);
-				assertEquals(2, byPrimaryKeys.length);
-				assertTrue(byPrimaryKeys[0].getPrimaryKey() < byPrimaryKeys[1].getPrimaryKey());
+				for (ReferencePartition storePartition : storePartitions) {
+					assertSame(storePartition, products.resolvePartitionIfExists(storePartition.getPrimaryKey()));
+				}
 				// the group family and the other index kinds are no partitions
 				assertNull(products.resolvePartitionIfExists(products.getGlobalIndex().getPrimaryKey()));
-				assertThrows(
-					GenericEvitaInternalError.class,
-					() -> products.resolvePartition(products.getGlobalIndex().getPrimaryKey())
-				);
-
-				// the data store reader layers the same indexes
-				assertSame(
-					category,
-					ReferencePartitions.resolveIfExists(
-						products.getDataStoreReader(), Scope.LIVE, category.getRepresentativeReferenceKey()
-					)
-				);
-				assertArrayEquals(
-					storePartitions,
-					ReferencePartitions.resolveOfTarget(
-						products.getDataStoreReader(), Scope.LIVE, REF_STORES, true, STORE_PK
-					)
-				);
 
 				// the planning context of a query over the products reads the same objects
 				final QueryPlanningContext queryContext = planningContext(products, session);
@@ -210,14 +187,18 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 					new ReferencePartition[]{category},
 					queryContext.resolvePartitionsOfTarget(productSchema, categories, Scope.LIVE, CATEGORY_PK)
 				);
-				assertSame(category, queryContext.resolvePartition(ENTITY_PRODUCT, category.getPrimaryKey()));
+				assertSame(category, queryContext.resolvePartition(category.getPrimaryKey()));
+				assertSame(category, queryContext.resolvePartitionIfExists(category.getPrimaryKey()));
+				assertSame(
+					category,
+					queryContext.resolvePartitionIfExists(Scope.LIVE, category.getRepresentativeReferenceKey())
+				);
 				assertSame(
 					category,
 					queryContext.resolvePartitionIfExists(
 						ENTITY_PRODUCT, Scope.LIVE, category.getRepresentativeReferenceKey()
 					)
 				);
-				assertArrayEquals(byPrimaryKeys, queryContext.resolvePartitions(ENTITY_PRODUCT, storePartitionPks));
 				// and answers a primary key of another index kind as the collection does - null or a named failure
 				final int globalPrimaryKey = products.getGlobalIndex().getPrimaryKey();
 				assertNull(queryContext.resolvePartitionIfExists(globalPrimaryKey));
@@ -265,8 +246,8 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 					new ReferenceKey(REF_CATEGORIES, CATEGORY_PK)
 				);
 
-				final ReferencePartition live = products.resolvePartitionIfExists(Scope.LIVE, categoryKey);
-				final ReferencePartition archived = products.resolvePartitionIfExists(Scope.ARCHIVED, categoryKey);
+				final ReferencePartition live = partitionOf(products, Scope.LIVE, categoryKey);
+				final ReferencePartition archived = partitionOf(products, Scope.ARCHIVED, categoryKey);
 				assertNotNull(live);
 				assertNotNull(archived);
 				assertArrayEquals(new int[]{1}, live.getAllPrimaryKeys().getArray());
@@ -274,13 +255,13 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 				assertEquals(Scope.ARCHIVED, archived.getIndexKey().scope());
 				assertArrayEquals(
 					new ReferencePartition[]{archived},
-					products.resolvePartitionsOfTarget(Scope.ARCHIVED, categories, CATEGORY_PK)
+					partitionsOfTarget(products, Scope.ARCHIVED, categories, CATEGORY_PK)
 				);
 				assertArrayEquals(
 					new ReferencePartition[]{live},
-					products.resolvePartitionsOfTarget(Scope.LIVE, categories, CATEGORY_PK)
+					partitionsOfTarget(products, Scope.LIVE, categories, CATEGORY_PK)
 				);
-				assertSame(archived, products.resolvePartition(archived.getPrimaryKey()));
+				assertSame(archived, products.resolvePartitionIfExists(archived.getPrimaryKey()));
 
 				// the planning context of a query over both scopes resolves each scope to its own partition
 				final QueryPlanningContext queryContext = planningContext(
@@ -304,8 +285,8 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 	/**
 	 * Partition primary keys come from a per-collection sequence, so one number names a partition in the product
 	 * collection and a different one in the category collection. Every resolver must read the collection it is told
-	 * to, and the planning context of a product query must resolve a category key in the category collection rather
-	 * than in its own snapshot.
+	 * to, and the planning context of a query must resolve the partitions of another collection in that collection
+	 * rather than in its own snapshot - the primary keys the type index of another collection lists included.
 	 *
 	 * @param state catalog state the scenario runs in
 	 */
@@ -319,6 +300,13 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 			(Consumer<EvitaSessionContract>) session -> {
 				final EntityCollection products = collectionOf(ENTITY_PRODUCT);
 				final EntityCollection categories = collectionOf(ENTITY_CATEGORY);
+				// every new owner of the category adds a reflected partition to the category collection, which
+				// numbers its indexes up to where the product collection numbers its store partitions
+				for (int productPk = 10; productPk < 14; productPk++) {
+					session.createNewEntity(ENTITY_PRODUCT, productPk)
+						.setReference(REF_CATEGORIES, CATEGORY_PK)
+						.upsertVia(session);
+				}
 				// find a number that names a partition in both collections - the trap needs a collision
 				int sharedPrimaryKey = -1;
 				for (int pk = 1; pk < 100 && sharedPrimaryKey < 0; pk++) {
@@ -333,28 +321,47 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 					sharedPrimaryKey > 0,
 					"No primary key names a partition in both collections, so the test proves nothing"
 				);
-				final ReferencePartition productPartition = products.resolvePartition(sharedPrimaryKey);
-				final ReferencePartition categoryPartition = categories.resolvePartition(sharedPrimaryKey);
+				final ReferencePartition productPartition = products.resolvePartitionIfExists(sharedPrimaryKey);
+				final ReferencePartition categoryPartition = categories.resolvePartitionIfExists(sharedPrimaryKey);
+				assertNotNull(productPartition);
+				assertNotNull(categoryPartition);
 				assertNotEquals(
 					productPartition.getRepresentativeReferenceKey().referenceName(),
 					categoryPartition.getRepresentativeReferenceKey().referenceName()
 				);
 				assertEquals(REF_PRODUCTS, categoryPartition.getRepresentativeReferenceKey().referenceName());
 
+				// the planning context of each collection resolves the number in its own collection
 				final QueryPlanningContext queryContext = planningContext(products, session);
-				assertSame(productPartition, queryContext.resolvePartition(ENTITY_PRODUCT, sharedPrimaryKey));
-				assertSame(categoryPartition, queryContext.resolvePartition(ENTITY_CATEGORY, sharedPrimaryKey));
-				assertSame(categoryPartition, queryContext.resolvePartitionIfExists(ENTITY_CATEGORY, sharedPrimaryKey));
+				final QueryPlanningContext categoryQueryContext = planningContext(categories, session);
+				assertSame(productPartition, queryContext.resolvePartition(sharedPrimaryKey));
+				assertSame(categoryPartition, categoryQueryContext.resolvePartition(sharedPrimaryKey));
+
+				// the planning context of a product query finds the partitions of the category collection there
 				final EntitySchemaContract categorySchema = categories.getSchema();
+				final ReferenceSchemaContract reflected = categorySchema.getReferenceOrThrowException(REF_PRODUCTS);
+				final int reflectedTarget = categoryPartition.getReferenceKey().primaryKey();
 				assertArrayEquals(
-					categories.resolvePartitionsOfTarget(
-						Scope.LIVE, categorySchema.getReferenceOrThrowException(REF_PRODUCTS),
-						categoryPartition.getReferenceKey().primaryKey()
-					),
-					queryContext.resolvePartitionsOfTarget(
-						categorySchema, categorySchema.getReferenceOrThrowException(REF_PRODUCTS), Scope.LIVE,
-						categoryPartition.getReferenceKey().primaryKey()
-					)
+					partitionsOfTarget(categories, Scope.LIVE, reflected, reflectedTarget),
+					queryContext.resolvePartitionsOfTarget(categorySchema, reflected, Scope.LIVE, reflectedTarget)
+				);
+
+				// and the planning context of a category query resolves the primary keys the type index of the product
+				// collection lists in the product collection rather than in its own snapshot
+				final EntitySchemaContract productSchema = products.getSchema();
+				final ReferenceSchemaContract stores = productSchema.getReferenceOrThrowException(REF_STORES);
+				final ReferencePartition[] storePartitions = partitionsOfTarget(products, Scope.LIVE, stores, STORE_PK);
+				assertEquals(2, storePartitions.length);
+				for (ReferencePartition storePartition : storePartitions) {
+					assertNotNull(
+						categories.getIndexByPrimaryKeyIfExists(storePartition.getPrimaryKey()),
+						"The category collection holds no index numbered " + storePartition.getPrimaryKey() +
+							", so the test proves nothing"
+					);
+				}
+				assertArrayEquals(
+					storePartitions,
+					categoryQueryContext.resolvePartitionsOfTarget(productSchema, stores, Scope.LIVE, STORE_PK)
 				);
 			}
 		);
@@ -387,9 +394,9 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 			(Consumer<EvitaSessionContract>) session -> {
 				final EntityCollection products = collectionOf(ENTITY_PRODUCT);
 				final EntityCollection categories = collectionOf(ENTITY_CATEGORY);
-				assertNull(products.resolvePartitionIfExists(Scope.LIVE, newCategoryKey));
-				assertNull(products.resolvePartitionIfExists(Scope.LIVE, newStoreKey));
-				assertNull(categories.resolvePartitionIfExists(Scope.LIVE, reflectedKey));
+				assertNull(partitionOf(products, Scope.LIVE, newCategoryKey));
+				assertNull(partitionOf(products, Scope.LIVE, newStoreKey));
+				assertNull(partitionOf(categories, Scope.LIVE, reflectedKey));
 
 				session.createNewEntity(ENTITY_PRODUCT, 3)
 					.setReference(REF_CATEGORIES, NEW_CATEGORY_PK)
@@ -400,41 +407,39 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 					.upsertVia(session);
 
 				final EntitySchemaContract productSchema = products.getSchema();
-				final ReferencePartition newCategory = products.resolvePartitionIfExists(Scope.LIVE, newCategoryKey);
-				assertNotNull(newCategory, "the collection resolver does not see the partition just created");
+				// by key, through the data store reader of the collection - the route of cross-collection reads
+				final ReferencePartition newCategory = partitionOf(products, Scope.LIVE, newCategoryKey);
+				assertNotNull(
+					newCategory, "the collection's data store reader does not see the partition just created"
+				);
 				assertArrayEquals(new int[]{3}, newCategory.getAllPrimaryKeys().getArray());
-				assertSame(newCategory, products.resolvePartition(newCategory.getPrimaryKey()));
 				assertArrayEquals(
 					new ReferencePartition[]{newCategory},
-					products.resolvePartitionsOfTarget(
-						Scope.LIVE, productSchema.getReferenceOrThrowException(REF_CATEGORIES), NEW_CATEGORY_PK
+					partitionsOfTarget(
+						products, Scope.LIVE, productSchema.getReferenceOrThrowException(REF_CATEGORIES),
+						NEW_CATEGORY_PK
 					)
 				);
-				final ReferencePartition[] storePartitions = products.resolvePartitionsOfTarget(
-					Scope.LIVE, productSchema.getReferenceOrThrowException(REF_STORES), STORE_PK
+				final ReferencePartition[] storePartitions = partitionsOfTarget(
+					products, Scope.LIVE, productSchema.getReferenceOrThrowException(REF_STORES), STORE_PK
 				);
 				assertEquals(3, storePartitions.length, "the new duplicate partition is missing from its target");
-
-				// the data store reader of the collection - the route of cross-collection write-path reads
-				assertSame(
-					newCategory,
-					ReferencePartitions.resolveIfExists(products.getDataStoreReader(), Scope.LIVE, newCategoryKey)
-				);
-				assertArrayEquals(
-					storePartitions,
-					ReferencePartitions.resolveOfTarget(
-						products.getDataStoreReader(), Scope.LIVE, REF_STORES, true, STORE_PK
-					)
-				);
+				// by primary key, through the collection itself
+				assertSame(newCategory, products.resolvePartitionIfExists(newCategory.getPrimaryKey()));
+				for (ReferencePartition storePartition : storePartitions) {
+					assertSame(storePartition, products.resolvePartitionIfExists(storePartition.getPrimaryKey()));
+				}
 
 				// the reflected partition created in another collection by the same upsert
-				final ReferencePartition reflected = categories.resolvePartitionIfExists(Scope.LIVE, reflectedKey);
+				final ReferencePartition reflected = partitionOf(categories, Scope.LIVE, reflectedKey);
 				assertNotNull(reflected, "the reflected partition of the category collection is not visible");
 				assertArrayEquals(new int[]{NEW_CATEGORY_PK}, reflected.getAllPrimaryKeys().getArray());
+				assertSame(reflected, categories.resolvePartitionIfExists(reflected.getPrimaryKey()));
 
 				// a planning context opened now reads the in-flight state of its own and of other collections
 				final QueryPlanningContext queryContext = planningContext(products, session);
-				assertSame(newCategory, queryContext.resolvePartition(ENTITY_PRODUCT, newCategory.getPrimaryKey()));
+				assertSame(newCategory, queryContext.resolvePartition(newCategory.getPrimaryKey()));
+				assertSame(newCategory, queryContext.resolvePartitionIfExists(newCategory.getPrimaryKey()));
 				assertArrayEquals(
 					storePartitions,
 					queryContext.resolvePartitionsOfTarget(
@@ -479,9 +484,9 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 			// the rollback requested above surfaces as an exception once the session closes
 			assertThrows(RollbackException.class, scenario::run);
 			// the partitions lived in the rolled-back transaction only
-			assertNull(collectionOf(ENTITY_PRODUCT).resolvePartitionIfExists(Scope.LIVE, newCategoryKey));
-			assertNull(collectionOf(ENTITY_PRODUCT).resolvePartitionIfExists(Scope.LIVE, newStoreKey));
-			assertNull(collectionOf(ENTITY_CATEGORY).resolvePartitionIfExists(Scope.LIVE, reflectedKey));
+			assertNull(partitionOf(collectionOf(ENTITY_PRODUCT), Scope.LIVE, newCategoryKey));
+			assertNull(partitionOf(collectionOf(ENTITY_PRODUCT), Scope.LIVE, newStoreKey));
+			assertNull(partitionOf(collectionOf(ENTITY_CATEGORY), Scope.LIVE, reflectedKey));
 		} else {
 			scenario.run();
 		}
@@ -523,9 +528,9 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 			}
 		);
 		// the premise: the only owner created all three partitions
-		assertNotNull(collectionOf(ENTITY_PRODUCT).resolvePartitionIfExists(Scope.LIVE, categoryKey));
-		assertNotNull(collectionOf(ENTITY_PRODUCT).resolvePartitionIfExists(Scope.LIVE, storeKey));
-		assertNotNull(collectionOf(ENTITY_CATEGORY).resolvePartitionIfExists(Scope.LIVE, reflectedKey));
+		assertNotNull(partitionOf(collectionOf(ENTITY_PRODUCT), Scope.LIVE, categoryKey));
+		assertNotNull(partitionOf(collectionOf(ENTITY_PRODUCT), Scope.LIVE, storeKey));
+		assertNotNull(partitionOf(collectionOf(ENTITY_CATEGORY), Scope.LIVE, reflectedKey));
 
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -537,26 +542,27 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 					.removeReferences(REF_STORES)
 					.upsertVia(session);
 				assertNull(
-					collectionOf(ENTITY_PRODUCT).resolvePartitionIfExists(Scope.LIVE, categoryKey),
+					partitionOf(collectionOf(ENTITY_PRODUCT), Scope.LIVE, categoryKey),
 					"the emptied non-duplicate partition survived the end-of-mutation sweep"
 				);
 				assertNull(
-					collectionOf(ENTITY_PRODUCT).resolvePartitionIfExists(Scope.LIVE, storeKey),
+					partitionOf(collectionOf(ENTITY_PRODUCT), Scope.LIVE, storeKey),
 					"the emptied duplicate partition survived the end-of-mutation sweep"
 				);
 				assertNull(
-					collectionOf(ENTITY_CATEGORY).resolvePartitionIfExists(Scope.LIVE, reflectedKey),
+					partitionOf(collectionOf(ENTITY_CATEGORY), Scope.LIVE, reflectedKey),
 					"the emptied reflected partition survived the end-of-mutation sweep"
 				);
 			}
 		);
-		assertNull(collectionOf(ENTITY_PRODUCT).resolvePartitionIfExists(Scope.LIVE, categoryKey));
-		assertNull(collectionOf(ENTITY_PRODUCT).resolvePartitionIfExists(Scope.LIVE, storeKey));
-		assertNull(collectionOf(ENTITY_CATEGORY).resolvePartitionIfExists(Scope.LIVE, reflectedKey));
+		assertNull(partitionOf(collectionOf(ENTITY_PRODUCT), Scope.LIVE, categoryKey));
+		assertNull(partitionOf(collectionOf(ENTITY_PRODUCT), Scope.LIVE, storeKey));
+		assertNull(partitionOf(collectionOf(ENTITY_CATEGORY), Scope.LIVE, reflectedKey));
 		// the shared partitions of the baseline are untouched
 		assertNotNull(
-			collectionOf(ENTITY_PRODUCT).resolvePartitionIfExists(
-				Scope.LIVE, new RepresentativeReferenceKey(new ReferenceKey(REF_CATEGORIES, CATEGORY_PK))
+			partitionOf(
+				collectionOf(ENTITY_PRODUCT), Scope.LIVE,
+				new RepresentativeReferenceKey(new ReferenceKey(REF_CATEGORIES, CATEGORY_PK))
 			)
 		);
 	}
@@ -583,13 +589,13 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
 			(Consumer<EvitaSessionContract>) session -> {
-				assertNull(collectionOf(ENTITY_PRODUCT).resolvePartitionIfExists(Scope.LIVE, categoryKey));
+				assertNull(partitionOf(collectionOf(ENTITY_PRODUCT), Scope.LIVE, categoryKey));
 				// the product references a category that does not exist yet
 				session.createNewEntity(ENTITY_PRODUCT, ownerPk)
 					.setReference(REF_CATEGORIES, newCategoryPk)
 					.upsertVia(session);
 				// the premise: the product's partition of the category exists in-flight only
-				assertNotNull(collectionOf(ENTITY_PRODUCT).resolvePartitionIfExists(Scope.LIVE, categoryKey));
+				assertNotNull(partitionOf(collectionOf(ENTITY_PRODUCT), Scope.LIVE, categoryKey));
 
 				// creating the category propagates the reflected reference from that partition
 				session.createNewEntity(ENTITY_CATEGORY, newCategoryPk).upsertVia(session);
@@ -660,6 +666,49 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 					session.goLiveAndClose();
 				}
 			}
+		);
+	}
+
+	/**
+	 * Resolves the partition of the representative reference key in the collection through its data store reader -
+	 * the route production reads a partition of another collection by key, the in-flight indexes of the current
+	 * mutation layered over the committed maps.
+	 *
+	 * @param collection                 the collection owning the partition
+	 * @param scope                      the scope of the partition
+	 * @param representativeReferenceKey the representative reference key of the partition
+	 * @return the partition or `null` when the collection holds none
+	 */
+	@Nullable
+	private static ReferencePartition partitionOf(
+		@Nonnull EntityCollection collection,
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey
+	) {
+		return ReferencePartitions.resolveIfExists(collection.getDataStoreReader(), scope, representativeReferenceKey);
+	}
+
+	/**
+	 * Resolves every partition of the target in the collection through its data store reader - the route production
+	 * reads the partitions of one target of another collection, the in-flight indexes of the current mutation layered
+	 * over the committed maps.
+	 *
+	 * @param collection       the collection owning the partitions
+	 * @param scope            the scope of the partitions
+	 * @param referenceSchema  the reference of the collection's entity type
+	 * @param targetPrimaryKey the primary key of the referenced entity
+	 * @return the partitions of the target, possibly empty
+	 */
+	@Nonnull
+	private static ReferencePartition[] partitionsOfTarget(
+		@Nonnull EntityCollection collection,
+		@Nonnull Scope scope,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		int targetPrimaryKey
+	) {
+		return ReferencePartitions.resolveOfTarget(
+			collection.getDataStoreReader(), scope, referenceSchema.getName(),
+			referenceSchema.getCardinality().allowsDuplicates(), targetPrimaryKey
 		);
 	}
 
