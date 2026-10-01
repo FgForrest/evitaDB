@@ -188,6 +188,42 @@ class QueryPlanningContextHierarchyResolutionTest {
 	}
 
 	@Test
+	@DisplayName("should prefer the share of an occurrence over several scopes to the whole of it")
+	void shouldPreferProjectedShareToOccurrenceCoveringSeveralScopes() {
+		this.context.setRootHierarchyNodesFormula(this.constraint, BOTH, roots(LIVE_ROOT, ARCHIVED_ROOT));
+		this.context.setProjectedRootHierarchyNodesFormula(this.constraint, Scope.LIVE, roots(LIVE_ROOT));
+		this.context.setProjectedRootHierarchyNodesFormula(this.constraint, Scope.ARCHIVED, roots(ARCHIVED_ROOT));
+
+		assertArrayEquals(new int[]{LIVE_ROOT}, rootsFor(this.constraint, Scope.LIVE));
+		assertArrayEquals(new int[]{ARCHIVED_ROOT}, rootsFor(this.constraint, Scope.ARCHIVED));
+	}
+
+	@Test
+	@DisplayName("should prefer an occurrence translated in exactly the scope to a share, whichever comes first")
+	void shouldPreferOccurrenceTranslatedInExactlyTheScopeToProjectedShare() {
+		for (final boolean shareFirst : new boolean[]{true, false}) {
+			final QueryPlanningContext tested = createContext();
+			final HierarchyFilterConstraint equalConstraint = hierarchyWithin(
+				REFERENCE_NAME, entityPrimaryKeyInSet(LIVE_ROOT)
+			);
+			tested.setRootHierarchyNodesFormula(this.constraint, BOTH, roots(LIVE_ROOT));
+			if (shareFirst) {
+				tested.setProjectedRootHierarchyNodesFormula(this.constraint, Scope.ARCHIVED, roots(OTHER_LIVE_ROOT));
+				tested.setRootHierarchyNodesFormula(equalConstraint, ARCHIVED, roots(ARCHIVED_ROOT));
+			} else {
+				tested.setRootHierarchyNodesFormula(equalConstraint, ARCHIVED, roots(ARCHIVED_ROOT));
+				tested.setProjectedRootHierarchyNodesFormula(this.constraint, Scope.ARCHIVED, roots(OTHER_LIVE_ROOT));
+			}
+
+			assertArrayEquals(
+				new int[]{ARCHIVED_ROOT},
+				tested.getRootHierarchyNodes(this.constraint, Scope.ARCHIVED).getArray(),
+				() -> "the occurrence translated in ARCHIVED must answer for ARCHIVED, share first: " + shareFirst
+			);
+		}
+	}
+
+	@Test
 	@DisplayName("should keep the first resolution recorded for a constraint and a scope set")
 	void shouldKeepFirstResolutionRecordedForOccurrence() {
 		this.context.setRootHierarchyNodesFormula(this.constraint, LIVE, roots(LIVE_ROOT));

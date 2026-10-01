@@ -52,7 +52,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -157,14 +156,16 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 	}
 
 	/**
-	 * Registers the roots of a `hierarchyWithin` translated over several processing scopes once more for each of
-	 * them, narrowed to the nodes of that scope.
+	 * Registers the share of the roots of a `hierarchyWithin` translated over several processing scopes that falls into
+	 * each of them.
 	 *
 	 * The parent filter is evaluated over all the processing scopes, so it may select a node in the tree of each
 	 * scope, while the hierarchy statistics of a scope describe that scope's tree only and must start at its own node.
 	 * An entity lives in exactly one scope, so the roots intersected with the primary keys of the scope's global
-	 * index are exactly what the parent filter selects in a query over that scope alone. Roots recorded for exactly
-	 * one scope take precedence when the statistics look them up - see
+	 * index are what the parent filter selects in that scope - though not necessarily what it selects in a query over
+	 * that scope alone: a unique attribute is looked up in the first scope holding the value only. The share is
+	 * therefore recorded apart from the roots of the occurrences actually translated in one scope, which take
+	 * precedence over it when the statistics look the roots up - see
 	 * {@link QueryPlanningContext#getRootHierarchyNodes(io.evitadb.api.query.filter.HierarchyFilterConstraint, Scope)}.
 	 *
 	 * @param hierarchyWithin        the translated constraint
@@ -189,7 +190,7 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 				.map(index -> FormulaFactory.and(hierarchyParentFormula, index.getAllPrimaryKeysFormula()))
 				.orElse(EmptyFormula.INSTANCE);
 			rootsOfScope.initialize(filterByVisitor.getInternalExecutionContext());
-			queryContext.setRootHierarchyNodesFormula(hierarchyWithin, EnumSet.of(scope), rootsOfScope);
+			queryContext.setProjectedRootHierarchyNodesFormula(hierarchyWithin, scope, rootsOfScope);
 		}
 	}
 

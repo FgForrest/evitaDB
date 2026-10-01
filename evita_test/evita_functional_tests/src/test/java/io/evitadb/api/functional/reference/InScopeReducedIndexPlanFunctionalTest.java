@@ -156,6 +156,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * | 12 | ARCHIVED | 11 | products 1-8 (live) and 49-56 (archived) - the archived subtree of 11 |
  * | 15 | ARCHIVED | - (root) | products 9-16 - live owners only |
  *
+ * Categories 1 and 11 share the `code` value `root`, which is unique within each scope: category 11 receives it while
+ * every category is live, category 1 only after 11 has been archived.
+ *
  * `inScopePlanProduct` supports the `en` and `de` locales and has a `visible` attribute filterable in both scopes,
  * a CZK price in price list `basic`, a partitioned `categories` reference, a partitioned and faceted `brand`
  * reference, and a `tags` reference indexed for filtering only (no partitions) - all indexed in both scopes. The
@@ -222,6 +225,8 @@ public class InScopeReducedIndexPlanFunctionalTest {
 	private static final String REF_TAGS = "tags";
 	private static final String ATTR_NAME = "name";
 	private static final String ATTR_VISIBLE = "visible";
+	private static final String ATTR_CODE = "code";
+	private static final String ROOT_CODE = "root";
 	private static final String PRICE_LIST = "basic";
 	private static final Currency CZK = Currency.getInstance("CZK");
 	private static final Locale LOCALE = Locale.ENGLISH;
@@ -367,6 +372,7 @@ public class InScopeReducedIndexPlanFunctionalTest {
 					.withHierarchyIndexedInScope(BOTH_SCOPES)
 					.withLocale(LOCALE)
 					.withAttribute(ATTR_NAME, String.class, thatIs -> thatIs.localized())
+					.withAttribute(ATTR_CODE, String.class, thatIs -> thatIs.nullable().uniqueInScope(BOTH_SCOPES))
 					.updateVia(session);
 				session.defineEntitySchema(ENTITY_BRAND)
 					.withoutGeneratedPrimaryKey()
@@ -412,6 +418,7 @@ public class InScopeReducedIndexPlanFunctionalTest {
 				session.upsertEntity(
 					session.createNewEntity(ENTITY_CATEGORY, ARCHIVED_ROOT_CATEGORY)
 						.setAttribute(ATTR_NAME, LOCALE, "archived root")
+						.setAttribute(ATTR_CODE, ROOT_CODE)
 				);
 				session.upsertEntity(
 					session.createNewEntity(ENTITY_CATEGORY, ARCHIVED_SUBTREE_CATEGORY)
@@ -438,6 +445,16 @@ public class InScopeReducedIndexPlanFunctionalTest {
 				for (int pk = FIRST_ARCHIVED; pk <= PRODUCT_COUNT; pk++) {
 					session.archiveEntity(ENTITY_PRODUCT, pk);
 				}
+			}
+		);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(ENTITY_CATEGORY, ROOT_CATEGORY, attributeContentAll())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTR_CODE, ROOT_CODE)
+					.upsertVia(session);
 			}
 		);
 	}
@@ -1635,6 +1652,55 @@ public class InScopeReducedIndexPlanFunctionalTest {
 				union(sortedPrimaryKeys(control), sortedPrimaryKeys(otherScopeControl)), sortedPrimaryKeys(response)
 			);
 			assertEquals(expected, describe(computedStatistics(response)));
+		}
+
+		/**
+		 * Checks that the statistics of a scope use the roots an occurrence translated in exactly that scope resolved,
+		 * rather than the roots a top-level occurrence over both scopes resolved and narrowed to that scope, whichever
+		 * of the two is translated first.
+		 *
+		 * The two differ when the parent filter looks up a unique attribute: over both scopes the lookup answers from
+		 * the first scope holding the value, so the top-level
+		 * `hierarchyWithin(categories, attributeEquals(code, root))` selects the live category 1 only and its archived
+		 * share is empty, while the occurrence in `inScope(ARCHIVED, ...)` selects the archived category 11. The
+		 * archived `children` statistics must describe category 11 and its child 12, each with the 8 archived owners
+		 * 49-56.
+		 *
+		 * @param scopedFirst whether the scoped constraint precedes the top-level one
+		 * @param reused      whether both places hold the same instance
+		 * @param session     the session provided by the test extension
+		 */
+		@DisplayName("Should prefer the roots resolved in the scope over the share of a top-level occurrence")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+		@ParameterizedTest(name = "scoped first: {0}, reused instance: {1}")
+		@MethodSource("mixedHierarchyOccurrenceRows")
+		@Tag(ENGINE)
+		@Tag(QUERY)
+		void shouldPreferRootsResolvedInScopeOverShareOfTopLevelOccurrence(
+			boolean scopedFirst,
+			boolean reused,
+			@Nonnull EvitaSessionContract session
+		) {
+			final FilterConstraint scoped = hierarchyWithin(REF_CATEGORIES, attributeEquals(ATTR_CODE, ROOT_CODE));
+			final FilterConstraint topLevel = reused ?
+				scoped : hierarchyWithin(REF_CATEGORIES, attributeEquals(ATTR_CODE, ROOT_CODE));
+			final EvitaResponse<EntityReference> response = queryHierarchy(
+				session,
+				BOTH_SCOPES,
+				Scope.ARCHIVED,
+				scopedFirst ?
+					new FilterConstraint[]{inScope(Scope.ARCHIVED, scoped), topLevel} :
+					new FilterConstraint[]{topLevel, inScope(Scope.ARCHIVED, scoped)},
+				children(HIERARCHY_OUTPUT, statistics(StatisticsType.QUERIED_ENTITY_COUNT))
+			);
+			assertArrayEquals(union(LIVE_SUBTREE, ARCHIVED_SUBTREE), sortedPrimaryKeys(response));
+			assertEquals(
+				List.of(
+					ARCHIVED_ROOT_CATEGORY + ": " + ARCHIVED_SUBTREE.length,
+					"  " + ARCHIVED_SUBTREE_CATEGORY + ": " + ARCHIVED_SUBTREE.length
+				),
+				describe(computedStatistics(response))
+			);
 		}
 
 		/**
