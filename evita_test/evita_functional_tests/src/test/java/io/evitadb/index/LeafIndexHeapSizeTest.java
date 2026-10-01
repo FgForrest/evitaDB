@@ -1072,6 +1072,78 @@ class LeafIndexHeapSizeTest {
 	}
 
 	@Nested
+	@DisplayName("virtual reference partition index")
+	class VirtualReferencePartitionIndexes {
+
+		/**
+		 * The flush bookkeeping and the two column-factory lambdas of the entry tree.
+		 */
+		private static final String[] VIRTUAL_PARTITION_EXCLUSIONS = {
+			"pageStreamRegistry",
+			"entries.valueColumnFactory", "entries.recordColumnFactory", "entries.comparator"
+		};
+
+		@Test
+		void shouldMeasureAnEmptyIndexExactly() {
+			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
+			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, VIRTUAL_PARTITION_EXCLUSIONS);
+		}
+
+		@Test
+		void shouldNotLetASeededIndexDivergeWithItsSize() {
+			// four times the partitions, the same handful of tuples - a per-entry or per-tuple term the arithmetic
+			// missed would widen the gap, while the fixed ones (cached boxes, the shared comparator) cannot
+			final VirtualReferencePartitionIndex small = seeded(300);
+			final VirtualReferencePartitionIndex large = seeded(1_200);
+			assertDivergenceDoesNotGrowWithTheData(
+				small.getHeapSizeInBytes(), small, large.getHeapSizeInBytes(), large, VIRTUAL_PARTITION_EXCLUSIONS
+			);
+		}
+
+		@Test
+		void shouldChargeEachDictionaryTupleOnce() {
+			// a tuple and its id box are held by both dictionary maps; charging them at both would make each new tuple
+			// widen the gap between the arithmetic and the walk
+			final VirtualReferencePartitionIndex fewTuples = seededWithTuples(10, 2);
+			final VirtualReferencePartitionIndex manyTuples = seededWithTuples(10, 10);
+			assertDivergenceDoesNotGrowWithTheData(
+				fewTuples.getHeapSizeInBytes(), fewTuples, manyTuples.getHeapSizeInBytes(), manyTuples,
+				VIRTUAL_PARTITION_EXCLUSIONS
+			);
+		}
+
+		/**
+		 * Seeds an index with the given number of partitions cycling through three tuples.
+		 *
+		 * @param partitions how many partitions
+		 * @return the seeded index
+		 */
+		@Nonnull
+		private static VirtualReferencePartitionIndex seeded(int partitions) {
+			return seededWithTuples(partitions, 3);
+		}
+
+		/**
+		 * Seeds an index with the given number of partitions cycling through the given number of distinct tuples.
+		 *
+		 * @param partitions how many partitions
+		 * @param tuples     how many distinct tuples, at most `partitions`
+		 * @return the seeded index
+		 */
+		@Nonnull
+		private static VirtualReferencePartitionIndex seededWithTuples(int partitions, int tuples) {
+			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
+			for (int partition = 1; partition <= partitions; partition++) {
+				index.putPartitionOwner(partition, AUTOBOX_CACHE_CEILING + partition, AUTOBOX_CACHE_CEILING - partition);
+				// an Integer rather than a String: `EvitaDataTypes.estimateSize` prices a String as UTF-16, which would
+				// read as a per-tuple divergence that belongs to the shared pricing convention, not to this index
+				index.putRepresentativeTuple(partition, new Serializable[]{AUTOBOX_CACHE_CEILING + partition % tuples});
+			}
+			return index;
+		}
+	}
+
+	@Nested
 	@DisplayName("substrate the leaf indexes are built from")
 	class Substrate {
 

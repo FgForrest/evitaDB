@@ -1,0 +1,117 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2026
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.index.component.loader;
+
+import io.evitadb.index.VirtualReferencePartitionIndex;
+import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceNameKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionLeafStreamKey;
+
+import javax.annotation.Nonnull;
+import java.util.Objects;
+import java.util.OptionalInt;
+
+import static io.evitadb.utils.Assert.isPremiseValid;
+
+/**
+ * Reloads the {@link VirtualReferencePartitionIndex} carried by `ReferencedTypeEntityIndex`.
+ *
+ * Unlike the other loaders this one treats a missing root as a valid state: an index that never held an entry
+ * persists nothing, so an absent root - in a catalog written before the index existed, or in one that never put an
+ * entry into it - loads as an empty index. A root that is present, however, must have every leaf page it lists.
+ *
+ * The reference name is the `EntityIndexKey.discriminator()`, which the dispatcher has validated to be a `String`
+ * before invoking the loader.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+ */
+public final class VirtualReferencePartitionLoader implements ComponentLoader {
+
+	@Override
+	@Nonnull
+	public LoadedComponentBundle load(@Nonnull LoadContext context) {
+		final String referenceName = Objects.requireNonNull((String) context.entityIndexKey().discriminator());
+		final StoragePartPersistenceService<?> service = context.storagePartService();
+		final KeyCompressor keyCompressor = service.getReadOnlyKeyCompressor();
+		final int entityIndexId = context.entityIndexId();
+
+		// a reference name the compressor never saw proves no root was ever written
+		final OptionalInt referenceNameId = keyCompressor.getIdIfExists(new ReferenceNameKey(referenceName));
+		final VirtualReferencePartitionIndexStoragePart part = referenceNameId.isPresent() ?
+			service.getStoragePart(
+				context.catalogVersion(),
+				VirtualReferencePartitionIndexStoragePart.computeUniquePartId(
+					entityIndexId, referenceNameId.getAsInt()
+				),
+				VirtualReferencePartitionIndexStoragePart.class
+			) :
+			null;
+		if (part == null) {
+			return new LoadedComponentBundle.VirtualReferencePartitions(new VirtualReferencePartitionIndex());
+		}
+
+		final String indexDescription = "reference `" + referenceName + "` of entity index `" + entityIndexId + "`";
+		final VirtualReferencePartitionIndex index;
+		if (part.isPaged()) {
+			// fetch each live leaf page by its `pack(streamId, pageSequence)` key, then reassemble the tree with its
+			// persisted leaf boundaries
+			final int streamId = keyCompressor.getId(
+				new VirtualReferencePartitionLeafStreamKey(entityIndexId, referenceName)
+			);
+			final int[] orderedPageSequences = Objects.requireNonNull(part.getLeafPageSequences());
+			final long[][] perPageKeys = new long[orderedPageSequences.length][];
+			final long[][] perPagePayloads = new long[orderedPageSequences.length][];
+			for (int i = 0; i < orderedPageSequences.length; i++) {
+				final int pageSequence = orderedPageSequences[i];
+				final VirtualReferencePartitionIndexLeafPagePart leaf = service.getStoragePart(
+					context.catalogVersion(),
+					VirtualReferencePartitionIndexLeafPagePart.computeUniquePartId(streamId, pageSequence),
+					VirtualReferencePartitionIndexLeafPagePart.class
+				);
+				isPremiseValid(
+					leaf != null,
+					() -> "Leaf page " + pageSequence + " of the virtual reference partition index for " +
+						indexDescription + " was not found in persistent storage!"
+				);
+				perPageKeys[i] = leaf.getKeys();
+				perPagePayloads[i] = leaf.getPayloads();
+			}
+			index = VirtualReferencePartitionIndex.fromPersistedPages(
+				indexDescription, orderedPageSequences, perPageKeys, perPagePayloads,
+				part.getHighWaterPageSequence(), part.getTupleIds(), part.getTuples()
+			);
+		} else {
+			index = new VirtualReferencePartitionIndex(
+				indexDescription,
+				Objects.requireNonNull(part.getKeys()), Objects.requireNonNull(part.getPayloads()),
+				part.getTupleIds(), part.getTuples()
+			);
+		}
+		return new LoadedComponentBundle.VirtualReferencePartitions(index);
+	}
+
+}

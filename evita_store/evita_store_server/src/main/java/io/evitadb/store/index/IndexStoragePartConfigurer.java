@@ -357,6 +357,23 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			index++
 		);
 
+		// the root of the virtual reference partition index - a brand-new record type with no backward-compatible
+		// reader (catalogs without it simply have no root, which loads as an empty index). Appended last to keep the
+		// preceding registration ids stable.
+		kryo.register(
+			VirtualReferencePartitionIndexStoragePart.class,
+			new SerialVersionBasedSerializer<>(new VirtualReferencePartitionIndexStoragePartSerializer(this.keyCompressor), VirtualReferencePartitionIndexStoragePart.class),
+			index++
+		);
+
+		// the granular leaf-page record of the virtual reference partition index - a brand-new record type with no
+		// backward-compatible reader. Appended last to keep the preceding registration ids stable.
+		kryo.register(
+			VirtualReferencePartitionIndexLeafPagePart.class,
+			new SerialVersionBasedSerializer<>(new VirtualReferencePartitionIndexLeafPagePartSerializer(), VirtualReferencePartitionIndexLeafPagePart.class),
+			index++
+		);
+
 		Assert.isPremiseValid(index < 700, "Index count overflow.");
 	}
 
