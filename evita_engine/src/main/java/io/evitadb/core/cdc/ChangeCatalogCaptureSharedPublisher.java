@@ -25,6 +25,7 @@ package io.evitadb.core.cdc;
 
 
 import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
@@ -32,6 +33,7 @@ import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.buffer.RingBuffer.OutsideScopeException;
 import io.evitadb.core.catalog.Catalog;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
@@ -305,11 +307,13 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 			this.lock.lock();
 			try {
 				if (this.lastCaptures == null) {
-					// Initialize the ring buffer with the current catalog version
+					// Initialize the ring buffer with the current catalog version - the transaction being processed
+					// is not visible yet, so the newest visible version is the one before it; claiming more would
+					// let a fill copy captures of a version still being offered and vouch for having seen all of it
 					this.lastCaptures = new ChangeCaptureRingBuffer<>(
 						getCatalog().getName(),
 						tm.getVersion(), 0,
-						tm.getVersion() + 1,
+						tm.getVersion() - 1,
 						this.bufferSize,
 						ChangeCatalogCapture.class
 					);
@@ -657,39 +661,56 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 * Reads change catalog captures from the Write-Ahead Log (WAL) starting from the specified WAL pointer.
 	 * This method is called when the requested changes are no longer available in the ring buffer.
 	 *
+	 * The read either delivers everything the subscriber is owed or fails - it never ends quietly short of it:
+	 *
+	 * - it is bounded by the newest version that is both published and written to the WAL, and names that version
+	 *   to the WAL reader, which then reports any failure to reach it instead of ending the stream early - a lagging
+	 *   subscriber once re-read the same unreadable transaction forever without anyone being told
+	 * - a position the WAL retention has already removed is reported as
+	 *   {@link TemporalDataNotAvailableException} - the subscriber cannot be served any more, and pretending
+	 *   otherwise would starve it of every later capture as well
+	 * - a position older than a WAL that never lost a file is served from its first transaction: the versions below
+	 *   it were never transactions (they belong to the warm-up phase), so nothing is skipped
+	 *
 	 * @param walPointer            the WAL pointer indicating where to start reading from
 	 * @param changeCatalogCaptures the queue to fill with change catalog captures
-	 * @return the last change catalog capture that was added to the queue, or empty if none were added
-	 * @throws InstanceTerminatedException if the publisher is closed
+	 * @return the last capture added to the queue and the newest version the read examined in full
+	 * @throws InstanceTerminatedException       if the publisher is closed
+	 * @throws TemporalDataNotAvailableException if the WAL retention has removed the position
 	 */
 	@Nonnull
-	Optional<ChangeCatalogCapture> readWal(
+	WalReadResult<ChangeCatalogCapture> readWal(
 		@Nonnull WalPointer walPointer,
 		@Nonnull Queue<ChangeCatalogCapture> changeCatalogCaptures
 	) {
 		assertActive();
 		final Catalog catalog = getCatalog();
-		final long lastPublishedCatalogVersion = catalog.getVersion();
+		// a version is owed once it is published and readable once it is written to the WAL, so the read is bounded by
+		// both. The WAL's last written version covers the whole log rather than its active file, which holds nothing
+		// right after a rotation - and indefinitely after a crash before the first append to it
+		final long readUpToVersion = Math.min(catalog.getVersion(), catalog.getLastCatalogVersionInMutationStream());
+		if (walPointer.version() > readUpToVersion) {
+			return new WalReadResult<>(null, readUpToVersion);
+		}
+		WalReadResult.assertPositionRetained(walPointer, catalog.getFirstReplayableCatalogVersion());
 		// we must not use the shared predicate, because this method is called from subscriber thread
 		// and the shared predicate is not thread-safe
 		final MutationPredicate localPredicate = this.criteria.createPredicate(
 			walPointer.version(), walPointer.index()
 		);
 		try (
-			// Get a stream of mutations starting from the specified WAL pointer
-			final Stream<CatalogBoundMutation> committedMutationStream = getCatalog().getCommittedMutationStream(walPointer.version())
+			// the version named here is published, so it is in the WAL - failing to reach it is damage, not the
+			// end of the data
+			final Stream<CatalogBoundMutation> committedMutationStream = catalog.getCommittedLiveMutationStream(
+				walPointer.version(), readUpToVersion, VersionSource.INTERNAL
+			)
 		) {
 			// Track the last capture that was successfully added to the queue
 			final AtomicReference<Optional<ChangeCatalogCapture>> lastCapture = new AtomicReference<>(Optional.empty());
 
 			// Process the mutation stream and count the number of events sent
 			final long sentEvents = committedMutationStream
-				// Stop processing when we reach a mutation that is not yet visible in the live view
-				.takeWhile(
-					mutation -> !(mutation instanceof TransactionMutation txMutation) ||
-						txMutation.getVersion() <= lastPublishedCatalogVersion
-				)
-				// Stop processing when the queue is full or when we encounter an error
+				// Stop processing when the queue is full
 				.takeWhile(
 					// Convert each mutation to change catalog captures
 					// We read mutation always with the body, the body is stripped at subscription if not needed
@@ -729,10 +750,14 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 					catalog.getName(),
 					walPointer.version(),
 					walPointer.index(),
-					lastPublishedCatalogVersion
+					readUpToVersion
 				);
 			}
-			return lastCapture.get();
+			return new WalReadResult<>(changeCatalogCapture.orElse(null), readUpToVersion);
+		} catch (RuntimeException ex) {
+			// the retention may have removed the position between the check above and the read - report that as
+			// what it is rather than as the WAL damage the reader had to assume
+			throw WalReadResult.classifyReadFailure(ex, walPointer, catalog::getFirstReplayableCatalogVersion);
 		}
 	}
 
@@ -757,8 +782,9 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 * lowest available catalog version recorded in the ring buffer with the lowest catalog
 	 * version still actively used by subscribers. If data in the ring buffer is no longer
 	 * needed by any subscriber, it is cleared. If all necessary data in the ring buffer is
-	 * still being actively used, subscription statistics for catalog versions that are no
-	 * longer required are removed.
+	 * still being actively used, the subscription statistics of versions no subscriber tracks any more are
+	 * removed - the counts of subscribers lagging behind the ring buffer are kept, because they are what the
+	 * lagging-subscriber metric reports.
 	 *
 	 * Thread safety is ensured through the encapsulating context of this method's usage, so
 	 * it is assumed that this method runs in a controlled synchronized context or with
@@ -769,19 +795,19 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 			// clear unused data from the ring buffer / statistics
 			final long lowestAvailableCatalogVersion = this.lastCaptures.getEffectiveStartCatalogVersion();
 			// firstEntry() returns null on an empty map atomically, unlike firstKey() which throws
-			// NoSuchElementException - this must be re-read on each loop iteration because removing the
-			// last remaining entry empties the map
-			Entry<Long, Integer> lowestUsedEntry = this.versionSubscribersCount.firstEntry();
+			// NoSuchElementException
+			final Entry<Long, Integer> lowestUsedEntry = this.versionSubscribersCount.firstEntry();
 			if (lowestUsedEntry != null) {
 				// if the lowest available catalog version is lower than the lowest used catalog version
 				if (lowestAvailableCatalogVersion < lowestUsedEntry.getKey()) {
 					// it means that we keep unnecessary data in the ring buffer and we may strip it
 					this.lastCaptures.clearAllUntil(lowestAvailableCatalogVersion);
 				} else {
-					// otherwise we may clear the statistics
-					while (lowestUsedEntry != null && lowestUsedEntry.getKey() < lowestAvailableCatalogVersion) {
-						this.versionSubscribersCount.remove(lowestUsedEntry.getKey());
-						lowestUsedEntry = this.versionSubscribersCount.firstEntry();
+					// otherwise we may sweep the statistics of versions nobody tracks any more - but only those: a
+					// count above zero belongs to a subscriber that lags behind the ring buffer and is reading the WAL,
+					// which is exactly what `getLaggingSubscribersCount` has to report
+					for (Long version : this.versionSubscribersCount.headMap(lowestAvailableCatalogVersion).keySet()) {
+						this.versionSubscribersCount.remove(version, 0);
 					}
 				}
 			}
@@ -804,36 +830,52 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 		@Nonnull Queue<ChangeCatalogCapture> changeCatalogCaptures
 	) {
 		Optional<ChangeCatalogCapture> lastCapture;
+		// the newest version whose every capture this fill examined, provided it was not cut short by a full queue
+		long examinedThroughVersion;
 
 		// Check if the requested version is older than what we have in the ring buffer
 		if (this.lastCaptures == null || walPointer.version() < this.lastCaptures.getEffectiveStartCatalogVersion()) {
 			// If so, we need to read the WAL from the disk and process manually
-			lastCapture = readWal(walPointer, changeCatalogCaptures);
+			final WalReadResult<ChangeCatalogCapture> walRead = readWal(walPointer, changeCatalogCaptures);
+			lastCapture = Optional.ofNullable(walRead.lastCapture());
+			examinedThroughVersion = walRead.examinedThroughVersion();
 		} else {
 			try {
+				// read before the copy - the copy then reaches at least this far, because the captures of a version
+				// are offered before the version becomes visible
+				examinedThroughVersion = this.lastCaptures.getEffectiveLastCatalogVersion();
 				// Try to copy data from the ring buffer in synchronized block for efficiency
 				lastCapture = this.lastCaptures.copyTo(walPointer, changeCatalogCaptures);
 			} catch (OutsideScopeException e) {
 				// We detected that we're outside the ring buffer in the locked scope
 				// This can happen if the buffer was updated between our check and the actual copy
-				lastCapture = readWal(walPointer, changeCatalogCaptures);
+				final WalReadResult<ChangeCatalogCapture> walRead = readWal(walPointer, changeCatalogCaptures);
+				lastCapture = Optional.ofNullable(walRead.lastCapture());
+				examinedThroughVersion = walRead.examinedThroughVersion();
 			}
 		}
 
-		// Update the subscriber count for the new version that the subscriber is now at
-		lastCapture.ifPresentOrElse(
-			capture -> subscription.setTrackedVersion(
-				capture.version(),
-				this::moveTrackedVersionsInCache
-			),
-			() -> {
-				// Decrement the subscriber count for the previous version
-				subscription.setTrackedVersion(
-					walPointer.version() + 1,
+		// a fill that left room in the queue ran out of captures, not of space, so it examined every version up to
+		// the bound and queued each match - the subscription may continue after it even if nothing matched
+		if (examinedThroughVersion >= walPointer.version() && subscription.hasQueueCapacity()) {
+			subscription.markExaminedThrough(examinedThroughVersion);
+			subscription.setTrackedVersion(examinedThroughVersion + 1, this::moveTrackedVersionsInCache);
+		} else {
+			// Update the subscriber count for the new version that the subscriber is now at
+			lastCapture.ifPresentOrElse(
+				capture -> subscription.setTrackedVersion(
+					capture.version(),
 					this::moveTrackedVersionsInCache
-				);
-			}
-		);
+				),
+				() -> {
+					// Decrement the subscriber count for the previous version
+					subscription.setTrackedVersion(
+						walPointer.version() + 1,
+						this::moveTrackedVersionsInCache
+					);
+				}
+			);
+		}
 
 		// clear the ring buffer if the first entry has no subscribers
 		final Entry<Long, Integer> firstEntry = this.versionSubscribersCount.firstEntry();

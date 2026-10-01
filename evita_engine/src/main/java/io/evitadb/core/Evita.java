@@ -108,6 +108,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.roaringbitmap.RoaringKernels;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
 import io.evitadb.spi.store.engine.EnginePersistenceServiceFactory;
 import io.evitadb.spi.store.engine.model.AdoptableCatalogFolder;
@@ -1201,6 +1202,44 @@ public final class Evita implements EvitaContract {
 	@Nonnull
 	public Stream<EngineMutation<?>> getCommittedMutationStream(long version) {
 		return this.engineTransactionManager.getCommittedMutationStream(version);
+	}
+
+	/**
+	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
+	 * the engine to `startVersion`, for a WAL that is being appended to while it is read. A failure to reach
+	 * `requestedVersion` surfaces as an exception instead of an exhausted stream, and no transaction past it is
+	 * delivered.
+	 *
+	 * BEWARE! Stream implements {@link java.io.Closeable} and needs to be closed to release resources.
+	 *
+	 * @param startVersion     version of the engine to start the stream with
+	 * @param requestedVersion the version the stream must reach, and does not pass
+	 * @param versionSource    who chose those versions
+	 * @return a stream containing committed mutations
+	 */
+	@Nonnull
+	public Stream<EngineMutation<?>> getCommittedLiveMutationStream(
+		long startVersion, long requestedVersion, @Nonnull VersionSource versionSource
+	) {
+		return this.engineTransactionManager.getCommittedLiveMutationStream(startVersion, requestedVersion, versionSource);
+	}
+
+	/**
+	 * Retrieves the last engine version written in the WAL.
+	 *
+	 * @return the last engine version written in the WAL
+	 */
+	public long getLastVersionInMutationStream() {
+		return this.engineTransactionManager.getLastVersionInMutationStream();
+	}
+
+	/**
+	 * Retrieves the first engine version the WAL can still replay once retention has removed older WAL files.
+	 *
+	 * @return the first replayable engine version, or `-1` when retention has not removed any WAL file
+	 */
+	public long getFirstReplayableVersion() {
+		return this.engineTransactionManager.getFirstReplayableVersion();
 	}
 
 	/**

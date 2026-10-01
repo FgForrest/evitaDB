@@ -603,6 +603,20 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	long getFirstCatalogVersionInMutationStream();
 
 	/**
+	 * Retrieves the first catalog version the WAL can still replay once retention has removed older WAL files -
+	 * the version a reader positioned below it can no longer be served from. Unlike
+	 * {@link #getFirstCatalogVersionInMutationStream()} it looks at the oldest surviving WAL file, not the current
+	 * one.
+	 *
+	 * A WAL that has never lost a file answers `-1` even when its first transaction starts above version one: the
+	 * versions below it were never transactions (they belong to the warm-up phase), so nothing was removed and a
+	 * reader starting below them misses nothing.
+	 *
+	 * @return the first replayable catalog version, or `-1` when retention has not removed any WAL file
+	 */
+	long getFirstReplayableCatalogVersion();
+
+	/**
 	 * We need to forget all volatile data when the data written to catalog aren't going to be committed (incorporated
 	 * in the final state). Usually the data written by {@link #getStoragePartPersistenceService(long)}  are immediately
 	 * written to the disk and are volatile until {@link #storeHeader(UUID, CatalogState, long, int, TransactionMutation, List, DataStoreMemoryBuffer)}

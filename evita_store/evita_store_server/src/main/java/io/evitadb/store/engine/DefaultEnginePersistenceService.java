@@ -39,6 +39,7 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.function.Functions;
 import io.evitadb.spi.store.catalog.persistence.CatalogStorageFootprint;
 import io.evitadb.spi.store.catalog.shared.model.TransactionMutationWithWalReference;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
 import io.evitadb.spi.store.engine.model.AdoptableCatalogFolder;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
@@ -259,13 +260,10 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 			this.created = true;
 		}
 
-		final LogFileRecordReference logFileRecordReference = this.engineState.walReference() == null ?
-			new LogFileRecordReference(EnginePersistenceService::getWalFileName) : this.engineState.walReference();
-
 		// Initialize the write-ahead log if there are any WAL files present
 		this.mutationLog = createWalIfAnyWalFilePresent(
 			this.engineState.version(),
-			logFileRecordReference,
+			getPublishedWalReference(),
 			this.storageSettings,
 			scheduler,
 			this.walKryoPool
@@ -564,6 +562,14 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 
 		// Update the current engine state
 		this.engineState = engineState;
+
+		// replay starts after the version this record publishes, so the log files holding nothing newer are no
+		// longer needed by recovery - without this the log keeps the version it was opened at, and the rotated
+		// files queued for removal stay on disk until a restart opens it at a later one
+		final EngineMutationLog theMutationLog = this.mutationLog;
+		if (theMutationLog != null) {
+			theMutationLog.walProcessedUntil(engineState.version());
+		}
 	}
 
 	/**
@@ -601,8 +607,8 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	 * On success both `getLastVersionInMutationStream()` and `getEngineState().version()` equal `version` by
 	 * construction.
 	 *
-	 * Failure semantics (all-or-nothing): if `stateFactory` throws, the WAL append is rolled back (WAL file
-	 * truncated to the pre-append position and the in-memory mutation log reset), then the throwable is rethrown.
+	 * Failure semantics (all-or-nothing): if `stateFactory` throws, the WAL append is rolled back (the WAL restored
+	 * to its pre-append bytes and the mutation log re-opened over it), then the throwable is rethrown.
 	 */
 	@Nonnull
 	@Override
@@ -657,7 +663,9 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 				writeBootstrapFile(newEngineState);
 				return txRef;
 			} catch (Throwable t) {
-				rollbackWalAppend(preAppendWalFilePath, preAppendWalFileSize, preAppendWalReference);
+				rollbackWalAppend(
+					preAppendWalFilePath, preAppendWalFileSize, preAppendWalReference, txRef.walReference(), t
+				);
 				throw t;
 			}
 		} finally {
@@ -677,7 +685,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		if (this.mutationLog == null) {
 			this.mutationLog = new EngineMutationLog(
 				getVersion(),
-				new LogFileRecordReference(EnginePersistenceService::getWalFileName),
+				getPublishedWalReference(),
 				this.storageSettings.storageDirectory(),
 				this.walKryoPool,
 				this.storageSettings,
@@ -685,6 +693,21 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 			);
 		}
 		return this.mutationLog;
+	}
+
+	/**
+	 * Returns the reference the engine WAL is opened at - the one the published engine state carries, or the start
+	 * of the first WAL file while that state has processed no transaction yet. Opening the log at the first file
+	 * whenever a reference exists fails once the retention has removed that file, which it does as soon as the
+	 * versions in it are published.
+	 *
+	 * @return the reference the log continues after
+	 */
+	@Nonnull
+	private LogFileRecordReference getPublishedWalReference() {
+		final LogFileRecordReference walReference = this.engineState.walReference();
+		return walReference == null ?
+			new LogFileRecordReference(EnginePersistenceService::getWalFileName) : walReference;
 	}
 
 	/**
@@ -759,36 +782,89 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	/**
 	 * Rolls the most recent WAL append back to the captured pre-append position.
 	 *
-	 * The rollback implements Option A all-or-nothing semantics of
-	 * `appendWalAndStoreState`: on a failure after a successful WAL append the
-	 * WAL file is truncated back to `preAppendFileSize` (or deleted when the
-	 * file was freshly created by the failing call) and the in-memory
-	 * `mutationLog` is closed so that the next append reopens it and
-	 * re-derives its state from the truncated file.
+	 * The rollback implements the all-or-nothing semantics of `appendWalAndStoreState`: on a failure after a
+	 * successful WAL append the WAL is restored byte for byte to what it was before the call, and the mutation log
+	 * is re-opened over it.
 	 *
-	 * This is called under `walWriteLock` so no concurrent append can observe
-	 * the intermediate state.
+	 * - An append that rotated the WAL landed in a file of its own, created by that very rotation and holding nothing
+	 *   but the transaction being rolled back. That file is deleted first, which makes the pre-append file the newest
+	 *   one again.
+	 * - The file the log appended to before the call is then cut back to the size it had before the call, which
+	 *   removes the rolled-back transaction - or the trailer the rotation finalized the file with. The size is used
+	 *   rather than the published engine state's WAL reference, because after a crash between rotation and the
+	 *   first append the reference points into the finalized file before the one the append landed in, and that
+	 *   file has nothing to give back. When no transaction preceded the call the file was created by it and is
+	 *   deleted instead.
+	 * - Finally the mutation log is re-opened from the published reference, the way startup opens it, so its
+	 *   in-memory last written version and cumulative checksum match the disk. Leaving it closed until the next
+	 *   append would hide a WAL that is on disk from every reader in the meantime - the system change capture
+	 *   catching a lagging subscriber up would read nothing. A failure to re-open is attached to `cause` rather than
+	 *   thrown over it; the next append then opens the log itself.
+	 *
+	 * None of the bytes removed were ever published - the bootstrap write is what failed or never ran - so the
+	 * deletions are not the kind `.claude/rules/durability-model.md` forbids.
+	 *
+	 * This is called under `walWriteLock` so no concurrent append can observe the intermediate state.
+	 *
+	 * @param preAppendWalFilePath  the WAL file the log appended to before the call
+	 * @param preAppendWalFileSize  the size of that file before the call
+	 * @param preAppendWalReference the WAL reference of the engine state before the call
+	 * @param appendedWalReference  the reference of the record the rolled-back append wrote
+	 * @param cause                 the failure being rolled back, which collects a failure to re-open the log
 	 */
 	private void rollbackWalAppend(
 		@Nonnull Path preAppendWalFilePath,
 		long preAppendWalFileSize,
-		@Nullable LogFileRecordReference preAppendWalReference
+		@Nullable LogFileRecordReference preAppendWalReference,
+		@Nonnull LogFileRecordReference appendedWalReference,
+		@Nonnull Throwable cause
 	) {
-		// Close the current mutation log so the next legitimate append rebuilds
-		// it from the truncated file — this guarantees the in-memory
-		// lastWrittenVersion and cumulative checksum are consistent with disk.
+		// the log holds the file open and caches its last written version and checksum - close it before the files
+		// change underneath it
 		if (this.mutationLog != null) {
 			IOUtils.closeQuietly(this.mutationLog::close);
 			this.mutationLog = null;
 		}
-		if (preAppendWalFileSize > 0L && preAppendWalReference != null && preAppendWalReference.fileLocation() != null) {
-			// A prior WAL record existed — truncate back to its end position using
-			// the public helper that already implements this operation.
-			truncateWriteAheadLog(preAppendWalReference);
+		final Path appendedWalFilePath = appendedWalReference.toFilePath(this.storageSettings.storageDirectory());
+		if (!appendedWalFilePath.equals(preAppendWalFilePath)) {
+			// the append rotated: the file it landed in was created for it and holds only the rolled-back transaction
+			FileUtils.deleteFileIfExists(appendedWalFilePath);
+		}
+		if (
+			preAppendWalFileSize > 0L && preAppendWalReference != null && preAppendWalReference.fileLocation() != null
+		) {
+			// a prior WAL record existed - restore the file the append went to, not the file the reference points into
+			truncateWalFile(preAppendWalFilePath, preAppendWalFileSize);
 		} else {
 			// The WAL file was freshly created by the failing call; deleting it
 			// leaves the service in the same shape as before the call.
 			FileUtils.deleteFileIfExists(preAppendWalFilePath);
+		}
+		try {
+			this.mutationLog = createWalIfAnyWalFilePresent(
+				getVersion(), getPublishedWalReference(), this.storageSettings, this.scheduler, this.walKryoPool
+			);
+		} catch (RuntimeException ex) {
+			cause.addSuppressed(ex);
+		}
+	}
+
+	/**
+	 * Cuts an engine WAL file down to the given length.
+	 *
+	 * @param walFilePath the WAL file to truncate
+	 * @param length      the length the file is cut down to
+	 * @throws UnexpectedIOException when the file cannot be truncated
+	 */
+	private static void truncateWalFile(@Nonnull Path walFilePath, long length) {
+		try (RandomAccessFile randomAccessFile = new RandomAccessFile(walFilePath.toFile(), "rw")) {
+			randomAccessFile.setLength(length);
+		} catch (IOException ex) {
+			throw new UnexpectedIOException(
+				"Failed to truncate an engine log file: " + walFilePath,
+				"Failed to truncate an engine log file!",
+				ex
+			);
 		}
 	}
 
@@ -814,6 +890,19 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		} else {
 			// Get stream of committed mutations from the WAL
 			return this.mutationLog.getCommittedMutationStream(version);
+		}
+	}
+
+	@Nonnull
+	@Override
+	public Stream<EngineMutation<?>> getCommittedLiveMutationStream(
+		long startVersion, long requestedVersion, @Nonnull VersionSource versionSource
+	) {
+		if (this.mutationLog == null) {
+			// If WAL is not initialized, there are no mutations
+			return Stream.empty();
+		} else {
+			return this.mutationLog.getCommittedLiveMutationStream(startVersion, requestedVersion, versionSource);
 		}
 	}
 
@@ -885,20 +974,23 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	public void truncateWriteAheadLog(@Nonnull LogFileRecordReference walReference) {
 		if (walReference.fileLocation() != null) {
 			final Path filePath = walReference.toFilePath(this.storageSettings.storageDirectory());
+			// Only the newest WAL file can carry the unfinished tail this method discards. A file the WAL rotated away
+			// from ends with the trailer rotation finalized it with, and the reference stops short of exactly that
+			// whenever the last transaction it covers is the last one of the file - which is what a crash between
+			// rotation and the first append into the next file leaves behind. Cutting the trailer off would make
+			// the next startup read the tail of a transaction as the file's version range and refuse to boot.
+			final Path nextFilePath = new LogFileRecordReference(
+				walReference.walFileNameProvider(), walReference.fileIndex() + 1, null, 0L
+			).toFilePath(this.storageSettings.storageDirectory());
+			if (nextFilePath.toFile().exists()) {
+				return;
+			}
 			if (filePath.toFile().length() > walReference.fileLocation().endPosition()) {
-				try (RandomAccessFile randomAccessFile = new RandomAccessFile(filePath.toFile(), "rw")) {
-					log.info(
-						"Engine log file contains more data than expected, truncating it to {} bytes: {}",
-						walReference.fileLocation().endPosition(), filePath
-					);
-					randomAccessFile.setLength(walReference.fileLocation().endPosition());
-				} catch (IOException ex) {
-					throw new UnexpectedIOException(
-						"Failed to truncate an engine log file: " + filePath,
-						"Failed to truncate an engine log file!",
-						ex
-					);
-				}
+				log.info(
+					"Engine log file contains more data than expected, truncating it to {} bytes: {}",
+					walReference.fileLocation().endPosition(), filePath
+				);
+				truncateWalFile(filePath, walReference.fileLocation().endPosition());
 			}
 		}
 	}
@@ -909,8 +1001,19 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 			// If WAL is not initialized, return 0 as the last version
 			return 0L;
 		} else {
-			// Get the last written version from the WAL
+			// Get the last written version from the WAL - the whole log, not its active file, which holds nothing
+			// right after a rotation
 			return this.mutationLog.getLastWrittenVersion();
+		}
+	}
+
+	@Override
+	public long getFirstReplayableVersion() {
+		if (this.mutationLog == null) {
+			// If WAL is not initialized, nothing was ever removed from it
+			return -1L;
+		} else {
+			return this.mutationLog.getFirstReplayableVersion();
 		}
 	}
 

@@ -3176,6 +3176,7 @@ public class DefaultCatalogPersistenceService
 		if (theCatalogWal == null) {
 			return 0L;
 		} else {
+			// the whole log, not its active file - which holds nothing right after a rotation
 			return theCatalogWal.getLastWrittenVersion();
 		}
 	}
@@ -3187,6 +3188,16 @@ public class DefaultCatalogPersistenceService
 			return -1L;
 		} else {
 			return theCatalogWal.getFirstVersionOfCurrentWalFile();
+		}
+	}
+
+	@Override
+	public long getFirstReplayableCatalogVersion() {
+		final CatalogWriteAheadLog theCatalogWal = this.catalogWal;
+		if (theCatalogWal == null) {
+			return -1L;
+		} else {
+			return theCatalogWal.getFirstReplayableVersion();
 		}
 	}
 

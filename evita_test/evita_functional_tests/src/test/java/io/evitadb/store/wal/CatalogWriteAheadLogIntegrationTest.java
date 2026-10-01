@@ -100,8 +100,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Random;
 import java.util.UUID;
+import java.util.function.IntSupplier;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -870,6 +872,115 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 		}
 
 		/**
+		 * The log's last written version must describe the whole log, not its active file. The active file holds no
+		 * transaction right after a rotation, and indefinitely when the process crashed between rotation creating
+		 * it - with only its cumulative checksum header - and the first append landing in it, a state the log opens
+		 * as it is. Every caller of the last written version means the log: readers bound their reads by it, a
+		 * restarted transaction manager continues after it, and startup checks the persisted state against it.
+		 *
+		 * The crash state is produced from a real rotation: cutting the active file back to its header leaves
+		 * exactly the bytes rotation wrote before the append that triggered it.
+		 */
+		@Test
+		@DisplayName("should report the last version of the whole log while its active file holds no transaction")
+		void shouldReportTheLastVersionOfTheWholeLogWhileItsActiveFileHoldsNoTransaction() throws IOException {
+			CatalogWriteAheadLogIntegrationTest.this.wal.close();
+			CatalogWriteAheadLogIntegrationTest.this.wal = createCatalogWriteAheadLogOfSmallSize();
+
+			final int[] transactionSizes = {10, 15, 20, 15, 10};
+			writeWal(CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager, transactionSizes);
+			final File[] walFiles = sortedWalFiles();
+			assertEquals(3, walFiles.length, "the fixture relies on the log having rotated twice");
+			assertEquals(transactionSizes.length, CatalogWriteAheadLogIntegrationTest.this.wal.getLastWrittenVersion());
+			final long lastVersionOfFinalizedFile = getFirstAndLastVersionsFromWalFile(
+				walFiles[1], WriteAheadLogCorruptedException.WalKind.CATALOG
+			).lastVersion();
+
+			// the crash: rotation created the active file, and the append that triggered it never landed
+			CatalogWriteAheadLogIntegrationTest.this.wal.close();
+			try (final RandomAccessFile raf = new RandomAccessFile(walFiles[2], "rw")) {
+				raf.setLength(AbstractMutationLog.CUMULATIVE_CRC32_SIZE);
+			}
+			CatalogWriteAheadLogIntegrationTest.this.wal = createCatalogWriteAheadLogOfSmallSize();
+
+			assertEquals(
+				-1L, CatalogWriteAheadLogIntegrationTest.this.wal.getLastWrittenVersionOfCurrentWalFile(),
+				"precondition: the reopened active file holds no transaction"
+			);
+			assertEquals(
+				lastVersionOfFinalizedFile, CatalogWriteAheadLogIntegrationTest.this.wal.getLastWrittenVersion(),
+				"The log's last written version is the last version of the finalized file before the empty active " +
+					"one - every transaction up to it is intact and readable. Reporting the active file's -1 makes " +
+					"the log look empty to everyone bounding a read by it or continuing after it."
+			);
+
+			// the next append continues the log rather than starting it over
+			final Map<Long, List<Mutation>> appended = writeWal(
+				CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager, new int[]{10}
+			);
+			final long nextVersion = lastVersionOfFinalizedFile + 1;
+			assertEquals(List.of(nextVersion), new ArrayList<>(appended.keySet()));
+			assertEquals(nextVersion, CatalogWriteAheadLogIntegrationTest.this.wal.getLastWrittenVersion());
+			assertEquals(nextVersion, CatalogWriteAheadLogIntegrationTest.this.wal.getLastWrittenVersionOfCurrentWalFile());
+
+			// and the log still opens - its files continue one another
+			CatalogWriteAheadLogIntegrationTest.this.wal.close();
+			CatalogWriteAheadLogIntegrationTest.this.wal = createCatalogWriteAheadLogOfSmallSize();
+			assertEquals(nextVersion, CatalogWriteAheadLogIntegrationTest.this.wal.getLastWrittenVersion());
+			try (
+				final Stream<CatalogBoundMutation> stream = CatalogWriteAheadLogIntegrationTest.this.wal
+					.getCommittedLiveMutationStream(1L, nextVersion, VersionSource.INTERNAL)
+			) {
+				assertEquals(
+					List.of(1L, 2L, 3L, nextVersion),
+					stream
+						.filter(TransactionMutation.class::isInstance)
+						.map(it -> ((TransactionMutation) it).getVersion())
+						.toList()
+				);
+			}
+		}
+
+		/**
+		 * The retention removes several files in one sweep, oldest first, while a lagging reader looks up the first
+		 * replayable version. A listing of the folder taken during that sweep may still see a file deleted after
+		 * the listing passed it and miss one deleted before - leaving a gap among the files it reports. The lookup
+		 * needs only the oldest file listed, and the reader it serves can still be served; failing it on the gap
+		 * reports an internal error to a subscriber that is not behind the retention at all.
+		 *
+		 * The race cannot be timed against a real folder, so the test leaves on disk what such a listing reports.
+		 */
+		@Test
+		@DisplayName("should resolve the first replayable version from a listing missing a file removed mid-listing")
+		void shouldResolveTheFirstReplayableVersionFromAListingThatMissedAFileRemovedMidListing() throws IOException {
+			CatalogWriteAheadLogIntegrationTest.this.wal.close();
+			CatalogWriteAheadLogIntegrationTest.this.wal = createCatalogWriteAheadLogOfSmallSize();
+
+			final int[] transactionSizes = {10, 15, 20, 15, 10, 10, 15, 20, 15, 10};
+			writeWal(CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager, transactionSizes);
+			final File[] walFiles = sortedWalFiles();
+			assertTrue(
+				walFiles.length >= 4,
+				"the fixture needs a removed file between two surviving ones; it produced " + walFiles.length +
+					" file(s)"
+			);
+			final long expectedFirstReplayableVersion = getFirstAndLastVersionsFromWalFile(
+				walFiles[1], WriteAheadLogCorruptedException.WalKind.CATALOG
+			).firstVersion();
+
+			// what the listing reports: the oldest file is gone, and so is the file after the oldest one it still saw
+			assertTrue(walFiles[0].delete());
+			assertTrue(walFiles[2].delete());
+
+			assertEquals(
+				expectedFirstReplayableVersion,
+				CatalogWriteAheadLogIntegrationTest.this.wal.getFirstReplayableVersion(),
+				"The oldest file listed survives and its first version is the floor - a gap after it says nothing " +
+					"about how far back the log reaches."
+			);
+		}
+
+		/**
 		 * Lists the WAL files of the test directory ordered by their file index.
 		 *
 		 * @return the WAL files, oldest first
@@ -899,6 +1010,100 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 				return ByteBuffer.wrap(prefix).order(ByteOrder.LITTLE_ENDIAN).getInt();
 			}
 		}
+	}
+
+	/**
+	 * Pins the lookup of the first replayable version against the retention removing files while it runs.
+	 *
+	 * The lookup lists the oldest file and then reads its head, and the retention removes files on the scheduler in
+	 * between. The race cannot be timed against a real folder, so it is reproduced through the seam the lookup is
+	 * built on: a listing that moves forward when asked again, and a reader that reports a file as gone.
+	 */
+	@Nested
+	@DisplayName("First replayable version racing the retention")
+	class FirstReplayableVersionRaceTests {
+
+		/**
+		 * Returns a listing that answers the given oldest file indexes one per call, and fails when asked more often.
+		 *
+		 * @param oldestWalFileIndexes the indexes the successive listings find
+		 * @return the listing
+		 */
+		@Nonnull
+		private static IntSupplier listing(int... oldestWalFileIndexes) {
+			final Iterator<Integer> iterator = Arrays.stream(oldestWalFileIndexes).iterator();
+			return () -> {
+				assertTrue(iterator.hasNext(), "The folder was listed more often than the test expected.");
+				return iterator.next();
+			};
+		}
+
+		@Test
+		@DisplayName("should follow the retention to the next oldest file when the listed one vanishes before it is read")
+		void shouldFollowTheRetentionWhenTheOldestFileVanishesBeforeItIsRead() {
+			final List<Integer> readIndexes = new ArrayList<>(2);
+			final long firstReplayableVersion = AbstractMutationLog.resolveFirstReplayableVersion(
+				listing(3, 4),
+				walFileIndex -> {
+					readIndexes.add(walFileIndex);
+					// file 3 was removed between the listing and the read; file 4 is the oldest one left
+					return walFileIndex == 3 ? OptionalLong.empty() : OptionalLong.of(17L);
+				},
+				WriteAheadLogCorruptedException.WalKind.CATALOG
+			);
+
+			assertEquals(
+				17L, firstReplayableVersion,
+				"The retention removed the oldest file after it was listed. The floor is the first version of the " +
+					"file that is oldest now - answering -1 claims nothing was ever purged, and failing tells a " +
+					"reader whose position is still in the log that it cannot be served."
+			);
+			assertEquals(List.of(3, 4), readIndexes);
+		}
+
+		@Test
+		@DisplayName("should answer a stub as the oldest file without listing the folder again")
+		void shouldAnswerAStubWithoutListingAgain() {
+			assertEquals(
+				-1L,
+				AbstractMutationLog.resolveFirstReplayableVersion(
+					listing(5), walFileIndex -> OptionalLong.of(-1L), WriteAheadLogCorruptedException.WalKind.CATALOG
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should not read any file of a log that still has its first file")
+		void shouldNotReadAnyFileOfALogThatStillHasItsFirstFile() {
+			assertEquals(
+				-1L,
+				AbstractMutationLog.resolveFirstReplayableVersion(
+					listing(0),
+					walFileIndex -> {
+						throw new AssertionError("No file may be read when nothing was ever purged.");
+					},
+					WriteAheadLogCorruptedException.WalKind.CATALOG
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should report an oldest file that vanished without a newer one taking its place")
+		void shouldReportAnOldestFileThatVanishedWithoutANewerOneTakingItsPlace() {
+			final WriteAheadLogCorruptedException exception = assertThrows(
+				WriteAheadLogCorruptedException.class,
+				() -> AbstractMutationLog.resolveFirstReplayableVersion(
+					listing(3, 2),
+					walFileIndex -> walFileIndex == 3 ? OptionalLong.empty() : OptionalLong.of(9L),
+					WriteAheadLogCorruptedException.WalKind.CATALOG
+				),
+				"The retention removes files oldest first, so after it removed file 3 the oldest file cannot be an " +
+					"older one. A listing that goes backwards is not the retention at work, and its answer must not " +
+					"be passed off as the floor."
+			);
+			assertTrue(exception.getMessage().contains("index 3"), exception.getMessage());
+		}
+
 	}
 
 	/**
