@@ -254,11 +254,20 @@ public class AttributeNaturalTranslator
 			valueComparator = orderDirection == ASC ? naturalComparator : naturalComparator.reversed();
 			mergeMode = mergeModeDefinition == null ? MergeMode.APPEND_FIRST : mergeModeDefinition.mergeMode();
 			if (referenceSchema == null) {
+				// the comparator sorts the entities of exactly the scopes whose compound index sorts them on the index
+				// route - the ordered scopes (narrowed by `inScope`) in which the compound is indexed
+				final Set<Scope> sortableScopes = EnumSet.noneOf(Scope.class);
+				for (Scope scope : processingScope.getScopes()) {
+					if (compoundSchemaContract.isIndexedInScope(scope)) {
+						sortableScopes.add(scope);
+					}
+				}
 				entityComparator = new CompoundAttributeComparator(
 					compoundSchemaContract,
 					locale,
 					attributeName -> processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE),
-					orderDirection
+					orderDirection,
+					sortableScopes
 				);
 			} else {
 				assertTraversing(mergeMode);

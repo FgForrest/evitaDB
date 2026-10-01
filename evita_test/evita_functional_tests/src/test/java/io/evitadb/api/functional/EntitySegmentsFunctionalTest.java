@@ -34,6 +34,8 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.annotation.DataSet;
@@ -73,7 +75,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * really taken, because a small dataset is easily answered from prefetched bodies.
  *
  * The fixture (`code` filterable and sortable in both scopes, `score` filterable and sortable in the live scope only,
- * `rank` sortable in both scopes; prices in EUR, price lists `basic` and `reference`):
+ * `rank` sortable in both scopes; prices in EUR, price lists `basic` and `reference`; the compounds `rankCodeLive`
+ * (indexed in the live scope) and `rankCodeBoth` (indexed in both scopes) of `rank` ascending with nulls first and
+ * `code` ascending with nulls last - product 6 has no part of them and so no compound value at all):
  *
  * | product | scope    | code | score | rank | basic | reference |
  * |---------|----------|------|-------|------|-------|-----------|
@@ -98,6 +102,8 @@ public class EntitySegmentsFunctionalTest {
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_SCORE = "score";
 	private static final String ATTRIBUTE_RANK = "rank";
+	private static final String COMPOUND_RANK_CODE_LIVE = "rankCodeLive";
+	private static final String COMPOUND_RANK_CODE_BOTH = "rankCodeBoth";
 	private static final String PRICE_LIST_BASIC = "basic";
 	private static final String PRICE_LIST_REFERENCE = "reference";
 	private static final Currency EUR = Currency.getInstance("EUR");
@@ -132,6 +138,22 @@ public class EntitySegmentsFunctionalTest {
 				thatIs -> thatIs.filterableInScope(Scope.LIVE).sortableInScope(Scope.LIVE).nullable()
 			)
 			.withAttribute(ATTRIBUTE_RANK, Integer.class, thatIs -> thatIs.sortableInScope(BOTH_SCOPES).nullable())
+			.withSortableAttributeCompound(
+				COMPOUND_RANK_CODE_LIVE,
+				new AttributeElement[]{
+					new AttributeElement(ATTRIBUTE_RANK, OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
+					new AttributeElement(ATTRIBUTE_CODE, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+				},
+				thatIs -> thatIs.indexedInScope(Scope.LIVE)
+			)
+			.withSortableAttributeCompound(
+				COMPOUND_RANK_CODE_BOTH,
+				new AttributeElement[]{
+					new AttributeElement(ATTRIBUTE_RANK, OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
+					new AttributeElement(ATTRIBUTE_CODE, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+				},
+				thatIs -> thatIs.indexedInScope(BOTH_SCOPES)
+			)
 			.updateVia(session);
 
 		upsertProduct(session, 1, "A", 10, 10, null, null);
@@ -616,6 +638,49 @@ public class EntitySegmentsFunctionalTest {
 				new int[]{6, 5, 4, 3, 2, 1},
 				queryOrder(session, route, bothScopes, entityPrimaryKeyNatural(OrderDirection.DESC)),
 				"without a scope container both scopes are sorted"
+			)
+		);
+	}
+
+	@DisplayName("A compound order sorts only the entities the compound index holds")
+	@UseDataSet(SEGMENT_PRODUCTS)
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(SortRoute.class)
+	void shouldSortCompoundLikeTheIndexRoute(SortRoute route, EvitaSessionContract session) {
+		// the compound index holds no entry for product 6 (no part present) and none for the scopes it is not indexed
+		// in - nulls first puts 4 (no rank, code Z) before 2 (20, B) and 3 (30, no code)
+		final FilterConstraint bothScopes = scope(BOTH_SCOPES);
+		assertAll(
+			() -> assertOrder(
+				new int[]{4, 2, 3, 6},
+				queryOrder(session, route, null, attributeNatural(COMPOUND_RANK_CODE_LIVE)),
+				"product without any part of the compound"
+			),
+			() -> assertOrder(
+				new int[]{4, 2, 3, 1, 5, 6},
+				queryOrder(session, route, bothScopes, inScope(Scope.LIVE, attributeNatural(COMPOUND_RANK_CODE_LIVE))),
+				"compound indexed in the live scope only"
+			),
+			() -> assertOrder(
+				new int[]{4, 5, 1, 2, 3, 6},
+				queryOrder(session, route, bothScopes, attributeNatural(COMPOUND_RANK_CODE_BOTH)),
+				"compound indexed in both scopes"
+			),
+			() -> assertOrder(
+				new int[]{4, 2, 3, 1, 5, 6},
+				queryOrder(session, route, bothScopes, inScope(Scope.LIVE, attributeNatural(COMPOUND_RANK_CODE_BOTH))),
+				"compound indexed in both scopes, ordered in the live scope"
+			),
+			() -> assertOrder(
+				new int[]{2, 6, 4, 3},
+				querySegments(
+					session, route, null,
+					segment(
+						entityHaving(entityPrimaryKeyInSet(2, 6)),
+						orderBy(attributeNatural(COMPOUND_RANK_CODE_LIVE))
+					)
+				),
+				"segment leaves out the product without any part of the compound"
 			)
 		);
 	}

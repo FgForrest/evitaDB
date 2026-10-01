@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,8 +33,10 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.core.query.sort.EntityComparator;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
+import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -43,6 +45,7 @@ import java.io.Serializable;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
@@ -83,13 +86,48 @@ public class CompoundAttributeComparator implements EntityComparator, Serializab
 	 * in compare method multiple times.
 	 */
 	@Nonnull private final IntObjectMap<ComparableArray> memoizedValues = new IntObjectHashMap<>(128);
+	/**
+	 * Scopes whose entities the comparator may sort - the ordered scopes in which the compound is indexed, so that the
+	 * comparator places exactly the entities the compound sort indexes of the index route hold. `null` means every
+	 * scope.
+	 */
+	@Nullable private final Set<Scope> sortableScopes;
 
+	/**
+	 * Creates a comparator sorting the entities of every scope.
+	 *
+	 * @param compoundSchemaContract   the sorted compound
+	 * @param locale                   locale of the localized elements, `null` otherwise
+	 * @param attributeSchemaExtractor resolves the schemas of the compound elements
+	 * @param orderDirection           direction of the ordering
+	 */
 	public CompoundAttributeComparator(
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nullable Locale locale,
 		@Nonnull Function<String, AttributeSchemaContract> attributeSchemaExtractor,
 		@Nonnull OrderDirection orderDirection
 	) {
+		this(compoundSchemaContract, locale, attributeSchemaExtractor, orderDirection, null);
+	}
+
+	/**
+	 * Creates a comparator sorting only the entities of the passed scopes.
+	 *
+	 * @param compoundSchemaContract   the sorted compound
+	 * @param locale                   locale of the localized elements, `null` otherwise
+	 * @param attributeSchemaExtractor resolves the schemas of the compound elements
+	 * @param orderDirection           direction of the ordering
+	 * @param sortableScopes           scopes whose entities may be sorted (the compound is indexed there), `null` for
+	 *                                 every scope
+	 */
+	public CompoundAttributeComparator(
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
+		@Nullable Locale locale,
+		@Nonnull Function<String, AttributeSchemaContract> attributeSchemaExtractor,
+		@Nonnull OrderDirection orderDirection,
+		@Nullable Set<Scope> sortableScopes
+	) {
+		this.sortableScopes = sortableScopes;
 		final List<AttributeElement> attributeElements = compoundSchemaContract
 			.getAttributeElements();
 		this.comparatorSource = attributeElements
@@ -120,6 +158,30 @@ public class CompoundAttributeComparator implements EntityComparator, Serializab
 		return List.of();
 	}
 
+	/**
+	 * Classifies the entity as sortable when it belongs to one of the {@link #sortableScopes} and carries at least one
+	 * element of the compound - the index route stores no compound entry for an entity none of whose elements is
+	 * present. The value of a sortable entity is memoized for the comparisons that follow.
+	 *
+	 * @param entity the entity to classify
+	 * @return `true` when the entity is to be sorted by this comparator
+	 */
+	@Override
+	public boolean canSort(@Nonnull EntityContract entity) {
+		if (this.sortableScopes != null && !this.sortableScopes.contains(entity.getScope())) {
+			return false;
+		}
+		final Serializable[] valueArray = fetchValues(entity);
+		if (ArrayUtils.isEmptyOrItsValuesNull(valueArray)) {
+			return false;
+		}
+		final int primaryKey = entity.getPrimaryKeyOrThrowException();
+		if (this.memoizedValues.get(primaryKey) == null) {
+			this.memoizedValues.put(primaryKey, toComparableArray(valueArray));
+		}
+		return true;
+	}
+
 	@Override
 	public int compare(EntityContract o1, EntityContract o2) {
 		final ComparableArray valueToCompare1 = getAndMemoizeValue(o1);
@@ -139,18 +201,36 @@ public class CompoundAttributeComparator implements EntityComparator, Serializab
 	private ComparableArray getAndMemoizeValue(@Nonnull EntityContract entity) {
 		ComparableArray value = this.memoizedValues.get(entity.getPrimaryKeyOrThrowException());
 		if (value == null) {
-			final Serializable[] valueArray = new Serializable[this.attributeElements.length];
-			for (int i = 0; i < this.attributeElements.length; i++) {
-				final AttributeElement attributeElement = this.attributeElements[i];
-				valueArray[i] = this.attributeValueFetcher.apply(entity, attributeElement.attributeName());
-			}
-			value = new ComparableArray(
-				this.comparatorSource,
-				(Serializable[]) this.normalizer.apply(valueArray)
-			);
+			value = toComparableArray(fetchValues(entity));
 			this.memoizedValues.put(entity.getPrimaryKeyOrThrowException(), value);
 		}
 		return value;
+	}
+
+	/**
+	 * Fetches the raw values of the compound elements of the entity, in the order of the elements.
+	 *
+	 * @param entity the entity whose values are fetched
+	 * @return the values, `null` for an element the entity lacks
+	 */
+	@Nonnull
+	private Serializable[] fetchValues(@Nonnull EntityContract entity) {
+		final Serializable[] valueArray = new Serializable[this.attributeElements.length];
+		for (int i = 0; i < this.attributeElements.length; i++) {
+			valueArray[i] = this.attributeValueFetcher.apply(entity, this.attributeElements[i].attributeName());
+		}
+		return valueArray;
+	}
+
+	/**
+	 * Normalizes the raw values of the compound elements into the comparable form.
+	 *
+	 * @param valueArray the raw values of the compound elements
+	 * @return the comparable array of the normalized values
+	 */
+	@Nonnull
+	private ComparableArray toComparableArray(@Nonnull Serializable[] valueArray) {
+		return new ComparableArray(this.comparatorSource, (Serializable[]) this.normalizer.apply(valueArray));
 	}
 
 }
