@@ -21,11 +21,13 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.sort.primaryKey.sorter;
+package io.evitadb.core.query.sort;
 
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.sort.Sorter.SortingContext;
+import io.evitadb.core.query.sort.primaryKey.sorter.ExactSorter;
+import io.evitadb.core.query.sort.primaryKey.sorter.ReversedPrimaryKeySorter;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.test.utils.SortUtils;
 import org.junit.jupiter.api.DisplayName;
@@ -45,18 +47,18 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 
 /**
- * Drives {@link ScopedPrimaryKeySorter#sortAndSlice} directly: the records of the scope are ordered by primary key in
- * the requested direction - page by page, reporting the records the page skips - and the records of the other scopes
- * are passed on to the next sorter untouched.
+ * Drives {@link ScopedSorter#sortAndSlice} directly: the records of the scope are ordered by the delegate - page by
+ * page, reporting the records the page skips - and the records of the other scopes are passed on to the next sorter
+ * untouched, together with the records of the scope the delegate passes on itself.
  *
- * The sorter never touches the query execution context, so a bare mock stands in for it.
+ * Neither the sorter nor its delegates touch the query execution context, so a bare mock stands in for it.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Tag(ENGINE)
 @Tag(ORDER)
-@DisplayName("ScopedPrimaryKeySorter ordering of the records of one scope")
-class ScopedPrimaryKeySorterTest {
+@DisplayName("ScopedSorter ordering of the records of one scope")
+class ScopedSorterTest {
 	/**
 	 * All records to sort, in ascending order.
 	 */
@@ -67,7 +69,7 @@ class ScopedPrimaryKeySorterTest {
 	private static final int[] SCOPE_RECORDS = {2, 3, 4, 6};
 
 	/**
-	 * Runs the sorter for the passed slice with nothing written or skipped before.
+	 * Runs the scoped primary key order for the passed slice with nothing written or skipped before.
 	 *
 	 * @param direction      the direction of the primary key order
 	 * @param startIndex     the slice start index (inclusive)
@@ -84,8 +86,32 @@ class ScopedPrimaryKeySorterTest {
 		@Nonnull List<Integer> skippedRecords,
 		@Nonnull List<Integer> passedOn
 	) {
+		return sortAndSlice(
+			direction == OrderDirection.DESC ? ReversedPrimaryKeySorter.INSTANCE : NoSorter.INSTANCE,
+			startIndex, endIndex, skippedRecords, passedOn
+		);
+	}
+
+	/**
+	 * Runs the passed delegate restricted to the scope for the passed slice with nothing written or skipped before.
+	 *
+	 * @param delegate       the sorter ordering the records of the scope
+	 * @param startIndex     the slice start index (inclusive)
+	 * @param endIndex       the slice end index (exclusive)
+	 * @param skippedRecords receives the records the sorter reports as skipped
+	 * @param passedOn       receives the records left for the next sorter
+	 * @return the written slice
+	 */
+	@Nonnull
+	private static int[] sortAndSlice(
+		@Nonnull Sorter delegate,
+		int startIndex,
+		int endIndex,
+		@Nonnull List<Integer> skippedRecords,
+		@Nonnull List<Integer> passedOn
+	) {
 		final int[] result = new int[endIndex - startIndex];
-		final SortingContext resultContext = new ScopedPrimaryKeySorter(new BaseBitmap(SCOPE_RECORDS), direction)
+		final SortingContext resultContext = new ScopedSorter(new BaseBitmap(SCOPE_RECORDS), delegate)
 			.sortAndSlice(
 				new SortingContext(
 					mock(QueryExecutionContext.class), new BaseBitmap(RECORDS), startIndex, endIndex, 0, 0
@@ -128,6 +154,17 @@ class ScopedPrimaryKeySorterTest {
 				direction + " by pages of " + pageSize
 			);
 		}
+	}
+
+	@Test
+	@DisplayName("The records of the scope the delegate leaves unsorted are passed on with the other scopes")
+	void shouldPassOnRecordsOfScopeTheDelegateLeavesUnsorted() {
+		final List<Integer> passedOn = new ArrayList<>(4);
+		assertArrayEquals(
+			new int[]{6, 2},
+			sortAndSlice(new ExactSorter(new int[]{6, 5, 2}), 0, 6, new ArrayList<>(0), passedOn)
+		);
+		assertEquals(List.of(1, 3, 4, 5), passedOn);
 	}
 
 }

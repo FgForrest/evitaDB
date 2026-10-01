@@ -34,7 +34,6 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.comparator.IntComparator;
 import io.evitadb.comparator.IntComparator.IntAscendingComparator;
 import io.evitadb.comparator.IntComparator.IntDescendingComparator;
-import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.EntityReferenceSensitiveComparator;
 import io.evitadb.core.query.sort.NoSorter;
@@ -42,6 +41,7 @@ import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.OrderByVisitor.MergeModeDefinition;
 import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
+import io.evitadb.core.query.sort.ScopedSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.comparator.PickFirstReferenceTargetRanking;
 import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter;
@@ -49,12 +49,10 @@ import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeM
 import io.evitadb.core.query.sort.generic.PrefetchedRecordsSorter;
 import io.evitadb.core.query.sort.primaryKey.comparator.ReferencePrimaryKeyComparator;
 import io.evitadb.core.query.sort.primaryKey.sorter.ReversedPrimaryKeySorter;
-import io.evitadb.core.query.sort.primaryKey.sorter.ScopedPrimaryKeySorter;
 import io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver;
 import io.evitadb.core.query.sort.reference.sorter.PickFirstReferenceSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
-import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.dataType.iterator.EmptyIterator;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -62,23 +60,17 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.attribute.ReferenceSortedRecordsProvider;
 import io.evitadb.index.attribute.SortedRecordsSupplier;
-import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.EmptyBitmap;
-import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.referenceContent;
@@ -99,44 +91,6 @@ public class EntityPrimaryKeyNaturalTranslator
 	 */
 	private static final int MISSING = Integer.MIN_VALUE;
 
-	/**
-	 * Returns the primary keys of the records of the ordered scopes when an `inScope` container narrows them below the
-	 * scopes of the query, and `null` when the order applies to every queried scope. A primary key order in a narrowed
-	 * scope must sort only the entities of that scope - see {@link ScopedPrimaryKeySorter}. A query without a
-	 * collection has no collection index telling which records a scope holds, so its order stays unscoped.
-	 *
-	 * @param orderByVisitor  the visitor creating the sorters
-	 * @param processingScope the processing scope carrying the ordered scopes
-	 * @return the records of the ordered scopes, or `null` when the order is not narrowed
-	 */
-	@Nullable
-	private static Bitmap getRecordsOfNarrowedScopes(
-		@Nonnull OrderByVisitor orderByVisitor,
-		@Nonnull ProcessingScope processingScope
-	) {
-		final QueryPlanningContext queryContext = orderByVisitor.getQueryContext();
-		final Set<Scope> orderedScopes = processingScope.getScopes();
-		if (!queryContext.isEntityTypeKnown() || orderedScopes.containsAll(queryContext.getScopes())) {
-			return null;
-		}
-		final List<PersistentRoaringBitmap> scopeRecords = new ArrayList<>(orderedScopes.size());
-		for (Scope scope : orderedScopes) {
-			queryContext.getGlobalEntityIndexIfExists(scope)
-				.ifPresent(
-					index -> scopeRecords.add(RoaringBitmapBackedBitmap.getRoaringBitmap(index.getAllPrimaryKeys()))
-				);
-		}
-		if (scopeRecords.isEmpty()) {
-			return EmptyBitmap.INSTANCE;
-		} else if (scopeRecords.size() == 1) {
-			return new BaseBitmap(scopeRecords.get(0));
-		} else {
-			return new BaseBitmap(
-				PersistentRoaringBitmap.or(scopeRecords.toArray(PersistentRoaringBitmap[]::new))
-			);
-		}
-	}
-
 	@Nonnull
 	@Override
 	public Stream<Sorter> createSorter(@Nonnull EntityPrimaryKeyNatural entityPrimaryKeyNatural, @Nonnull OrderByVisitor orderByVisitor) {
@@ -145,10 +99,15 @@ public class EntityPrimaryKeyNaturalTranslator
 		final ReferenceSchema referenceSchema = processingScope.referenceSchema();
 		final PickFirstReducedIndexResolver pickFirstIndexResolver = processingScope.pickFirstIndexResolver();
 		if (referenceSchema == null) {
-			final Bitmap recordsOfNarrowedScopes = getRecordsOfNarrowedScopes(orderByVisitor, processingScope);
+			final Bitmap recordsOfNarrowedScopes = orderByVisitor.getRecordsOfNarrowedScopes();
 			if (recordsOfNarrowedScopes != null) {
 				// an order in an `inScope` container sorts only the entities of its scope, at its declared position
-				return Stream.of(new ScopedPrimaryKeySorter(recordsOfNarrowedScopes, orderDirection));
+				return Stream.of(
+					new ScopedSorter(
+						recordsOfNarrowedScopes,
+						orderDirection == OrderDirection.DESC ? ReversedPrimaryKeySorter.INSTANCE : NoSorter.INSTANCE
+					)
+				);
 			} else if (orderDirection == OrderDirection.DESC) {
 				return Stream.of(ReversedPrimaryKeySorter.INSTANCE);
 			} else if (orderByVisitor.isWithinSegment()) {

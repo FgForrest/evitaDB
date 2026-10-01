@@ -174,9 +174,10 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		if (sellingPriceFilteringEnvelopeContainers.isEmpty()) {
 			// without a price filter there is no price for sale and so no discount to sort by on either route - the
 			// prefetched entities carry no price context either, so no prefetch comparator is registered and no price
-			// is prefetched; outside a segment every entity keeps its ascending primary key order, a segment takes
-			// none of them
-			return orderByVisitor.isWithinSegment() ? Stream.empty() : Stream.of(NoSorter.INSTANCE);
+			// is prefetched; outside a segment every entity of the ordered scopes keeps its ascending primary key
+			// order, a segment takes none of them
+			return orderByVisitor.isWithinSegment() ?
+				Stream.empty() : Stream.of(orderByVisitor.restrictToOrderedScopes(NoSorter.INSTANCE));
 		}
 
 		// if prefetch happens we need to prefetch prices so that the entity comparator can work
@@ -215,9 +216,10 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		}
 
 		// return both sorters
+		// an `inScope` ordering sorts only the entities of its scope on either route, the others are passed on
 		return Stream.of(
-			new PrefetchedRecordsSorter(entityComparator),
-			thisSorter
+			orderByVisitor.restrictToOrderedScopes(new PrefetchedRecordsSorter(entityComparator)),
+			orderByVisitor.restrictToOrderedScopes(thisSorter)
 		);
 	}
 

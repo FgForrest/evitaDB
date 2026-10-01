@@ -67,6 +67,11 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.attribute.SortIndex;
+import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 import lombok.experimental.Delegate;
@@ -457,6 +462,59 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		} else {
 			return this.scope.peek();
 		}
+	}
+
+	/**
+	 * Returns the primary keys of the records of the ordered scopes when an `inScope` container narrows them below the
+	 * scopes of the query, and `null` when the ordering applies to every queried scope. An entity-level ordering whose
+	 * sorter cannot tell the scopes apart (primary key and price orders) wraps it in a {@link ScopedSorter} with these
+	 * records, so that it sorts only the entities of its scope. A reference ordering is limited by the reduced indexes
+	 * of its scopes instead, and a query without a collection has no collection index telling which records a scope
+	 * holds - both get `null`.
+	 *
+	 * @return the records of the ordered scopes, or `null` when the ordering is not narrowed
+	 */
+	@Nullable
+	public Bitmap getRecordsOfNarrowedScopes() {
+		final ProcessingScope processingScope = getProcessingScope();
+		final Set<Scope> orderedScopes = processingScope.getScopes();
+		if (
+			processingScope.referenceSchema() != null ||
+				!this.queryContext.isEntityTypeKnown() ||
+				orderedScopes.containsAll(this.queryContext.getScopes())
+		) {
+			return null;
+		}
+		final List<PersistentRoaringBitmap> scopeRecords = new ArrayList<>(orderedScopes.size());
+		for (Scope scope : orderedScopes) {
+			this.queryContext.getGlobalEntityIndexIfExists(scope)
+				.ifPresent(
+					index -> scopeRecords.add(RoaringBitmapBackedBitmap.getRoaringBitmap(index.getAllPrimaryKeys()))
+				);
+		}
+		if (scopeRecords.isEmpty()) {
+			return EmptyBitmap.INSTANCE;
+		} else if (scopeRecords.size() == 1) {
+			return new BaseBitmap(scopeRecords.get(0));
+		} else {
+			return new BaseBitmap(
+				PersistentRoaringBitmap.or(scopeRecords.toArray(PersistentRoaringBitmap[]::new))
+			);
+		}
+	}
+
+	/**
+	 * Restricts the passed sorter to the entities of the ordered scopes when an `inScope` container narrows them below
+	 * the scopes of the query (see {@link #getRecordsOfNarrowedScopes()}) - the entities of the other scopes are then
+	 * passed on to the next sorter. Otherwise the sorter is returned unchanged.
+	 *
+	 * @param sorter the sorter that cannot tell the scopes of the entities apart
+	 * @return the sorter restricted to the ordered scopes, or the passed sorter when the ordering is not narrowed
+	 */
+	@Nonnull
+	public Sorter restrictToOrderedScopes(@Nonnull Sorter sorter) {
+		final Bitmap recordsOfNarrowedScopes = getRecordsOfNarrowedScopes();
+		return recordsOfNarrowedScopes == null ? sorter : new ScopedSorter(recordsOfNarrowedScopes, sorter);
 	}
 
 	/**
