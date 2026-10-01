@@ -24,6 +24,7 @@
 package io.evitadb.core.query.sort.primaryKey.translator;
 
 import io.evitadb.comparator.IntComparator.IntAscendingComparator;
+import io.evitadb.comparator.IntComparator.IntDescendingComparator;
 import io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture;
 import io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.SortResult;
 import io.evitadb.core.query.sort.generic.PrefetchedRecordsSorter;
@@ -48,7 +49,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * Verifies the prefetch-route classification of a traversal ordering by the referenced primary key: an owner belongs
  * to a block when it has the row of the block's key - whether that row carries attributes does not matter, the
- * referenced primary key is always there - and an owner without that row is passed on, even when it is alone.
+ * referenced primary key is always there - and an owner without that row is passed on, even when it is alone. The
+ * owners of one block share its value and follow their own primary keys in the direction of the ordering.
  *
  * Runs {@link PrefetchedRecordsSorter} over the real owners of {@link PrefetchedOwnersFixture}.
  *
@@ -58,6 +60,16 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @Tag(ENGINE)
 @Tag(ORDER)
 class ReferencePrimaryKeyEntityComparatorTest {
+
+	/**
+	 * Creates the comparator in the descending direction.
+	 */
+	@Nonnull
+	private static EntityPrimaryKeyNaturalTranslator.ReferencePrimaryKeyEntityComparator descendingComparator() {
+		return new EntityPrimaryKeyNaturalTranslator.ReferencePrimaryKeyEntityComparator(
+			REFERENCE_SCHEMA, IntDescendingComparator.INSTANCE
+		);
+	}
 
 	/**
 	 * Creates the comparator in the ascending direction.
@@ -115,15 +127,22 @@ class ReferencePrimaryKeyEntityComparatorTest {
 	}
 
 	@Test
-	@DisplayName("should refuse a comparison of an owner without the row of the block")
-	void shouldRefuseComparisonOfUnclassifiedOwner() {
-		// owner 14 has no row of category 1, so it is never classified as sortable in its block
-		final EntityPrimaryKeyNaturalTranslator.ReferencePrimaryKeyEntityComparator comparator = comparator();
+	@DisplayName("should order the owners of a block by their primary key in the direction of the ordering")
+	void shouldOrderOwnersOfBlockByPrimaryKeyInDirection() {
+		// owners 11, 12, 13 all have a row of category 1, so they share the value 1 and the tie decides their order
+		final SortResult ascending = sort(comparator(), BLOCK_1, 0, 10, 11, 12, 13);
+		final SortResult descending = sort(descendingComparator(), BLOCK_1, 0, 10, 11, 12, 13);
 
-		comparator.withReferencedEntityId(
-			BLOCK_1,
-			() -> assertThrows(EvitaInternalError.class, () -> comparator.compare(OWNERS.get(11), OWNERS.get(14)))
+		assertAll(
+			() -> assertArrayEquals(new int[]{11, 12, 13}, ascending.written(), "ascending"),
+			() -> assertArrayEquals(new int[]{13, 12, 11}, descending.written(), "descending")
 		);
+	}
+
+	@Test
+	@DisplayName("should refuse a comparison when no block is bound")
+	void shouldRefuseComparisonWithoutBoundBlock() {
+		assertThrows(EvitaInternalError.class, () -> comparator().compare(OWNERS.get(11), OWNERS.get(13)));
 	}
 
 }

@@ -59,14 +59,12 @@ import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.attribute.ReferenceSortedRecordsProvider;
 import io.evitadb.index.attribute.SortedRecordsSupplier;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -121,7 +119,17 @@ public class EntityPrimaryKeyNaturalTranslator
 			// matched on the representative attributes for a reference allowing duplicates - so it reads them too
 			registerReferencesToPrefetch(referenceSchema, orderByVisitor);
 			final EntityIndex[] entityIndices = processingScope.entityIndex();
+			// every owner of a block carries the same value, so both routes order a block by the owner primary key in
+			// the direction of the ordering: the comparator breaks the tie that way and each provider lists its
+			// owners that way
 			return Stream.of(
+				new PrefetchedRecordsSorter(
+					new ReferencePrimaryKeyEntityComparator(
+						referenceSchema,
+						orderDirection == OrderDirection.DESC ?
+							IntDescendingComparator.INSTANCE : IntAscendingComparator.INSTANCE
+					)
+				),
 				new PreSortedRecordsSorter(
 					ofNullable(processingScope.mergeModeDefinition())
 						.map(MergeModeDefinition::mergeMode)
@@ -131,39 +139,17 @@ public class EntityPrimaryKeyNaturalTranslator
 					() -> Arrays.stream(entityIndices)
 						.map(
 							entityIndex -> {
-								final Serializable discriminator = entityIndex.getIndexKey().discriminator();
-								final Bitmap bitmap = entityIndex.getAllPrimaryKeys();
-								final int[] pkArray = bitmap.getArray();
-								if (pkArray.length == 0) {
-									return null;
-								} else if (bitmap instanceof TransactionalBitmap txBitmap) {
-									if (discriminator instanceof RepresentativeReferenceKey rrk) {
-										return new ReferenceSortedRecordsProvider(
-											txBitmap.getId(), pkArray, createPositionArray(bitmap.size()), bitmap,
-											position -> rrk.primaryKey(),
-											rrk
-										);
-									} else {
-										throw new GenericEvitaInternalError(
-											"Entity index " + entityIndex + " is expected to be ReducedEntityIndex with ReferenceKey as discriminator!"
-										);
-									}
+								if (entityIndex instanceof ReducedEntityIndex reducedEntityIndex) {
+									return createReferencedPrimaryKeyProvider(reducedEntityIndex, orderDirection);
 								} else {
 									throw new GenericEvitaInternalError(
-										"Bitmap " + bitmap + " is not transactional and cannot be used for sorting!"
+										"Entity index " + entityIndex + " is expected to be ReducedEntityIndex with ReferenceKey as discriminator!"
 									);
 								}
 							}
 						)
 						.filter(Objects::nonNull)
 						.toArray(SortedRecordsSupplier[]::new)
-				),
-				new PrefetchedRecordsSorter(
-					new ReferencePrimaryKeyEntityComparator(
-						referenceSchema,
-						orderDirection == OrderDirection.DESC ?
-							IntDescendingComparator.INSTANCE : IntAscendingComparator.INSTANCE
-					)
 				)
 			);
 		}
@@ -209,17 +195,19 @@ public class EntityPrimaryKeyNaturalTranslator
 	}
 
 	/**
-	 * Creates the provider of one reduced index for a `pickFirst` ordering by the referenced primary key: every owner
-	 * of the index carries the same value, the primary key of the index's referenced entity, and owners follow in the
-	 * order of their own primary keys in the direction of the ordering - the order the merge keeps for equal values.
-	 * The owners are read from the index's bitmap whatever its implementation.
+	 * Creates the provider of one reduced index for an ordering by the referenced primary key - a `pickFirst` one or a
+	 * traversal: every owner of the index carries the same value, the primary key of the index's referenced entity,
+	 * and owners follow in the order of their own primary keys in the direction of the ordering - the order the merge
+	 * keeps for equal values. A descending provider mirrors the positions of the ascending owner array instead of
+	 * sorting anything. The provider carries the representative reference key of the index, which the traversal uses
+	 * to find the providers of a block. The owners are read from the index's bitmap whatever its implementation.
 	 *
 	 * @param index          the reduced index
 	 * @param orderDirection the direction of the ordering
 	 * @return the provider or `null` when the index holds no owner
 	 */
 	@Nullable
-	private static SortedRecordsSupplier createReferencedPrimaryKeyProvider(
+	private static ReferenceSortedRecordsProvider createReferencedPrimaryKeyProvider(
 		@Nonnull ReducedEntityIndex index,
 		@Nonnull OrderDirection orderDirection
 	) {
@@ -243,32 +231,19 @@ public class EntityPrimaryKeyNaturalTranslator
 				positions[i] = i;
 			}
 		}
-		return new SortedRecordsSupplier(
-			index.getPrimaryKey(), sortedOwners, positions, owners, position -> referencedPrimaryKey
+		return new ReferenceSortedRecordsProvider(
+			index.getPrimaryKey(), sortedOwners, positions, owners, position -> referencedPrimaryKey,
+			index.getRepresentativeReferenceKey()
 		);
-	}
-
-	/**
-	 * Creates an array of positions from 0 to size - 1.
-	 *
-	 * @param size the size of the array
-	 * @return an array of positions from 0 to size - 1
-	 */
-	@Nonnull
-	private static int[] createPositionArray(int size) {
-		final int[] result = new int[size];
-		for (int i = 0; i < size; i++) {
-			result[i] = i;
-		}
-		return result;
 	}
 
 	/**
 	 * A comparator that compares entities based on the primary key of the referenced entity, one traversal block at
 	 * a time: the block key is bound by {@link #withReferencedEntityId(RepresentativeReferenceKey, Runnable)} and an
 	 * entity without a row of the block is classified as not sortable ({@link #canSort(EntityContract)}), so it is
-	 * passed on to the next block rather than claimed by this one. Package-private so that its classification can be
-	 * unit-tested over real prefetched entities.
+	 * passed on to the next block rather than claimed by this one. Every owner of a block references the same entity,
+	 * so the owners of a block follow their own primary keys in the direction of the ordering, as on the index route.
+	 * Package-private so that its classification can be unit-tested over real prefetched entities.
 	 */
 	@SuppressWarnings("ComparatorNotSerializable")
 	@RequiredArgsConstructor
@@ -282,7 +257,8 @@ public class EntityPrimaryKeyNaturalTranslator
 		 */
 		@Nullable private RepresentativeReferenceKey referenceKey;
 		/**
-		 * The comparator used to compare the primary keys of the referenced entities.
+		 * Compares the owner primary keys in the direction of the ordering - the tie-break of owners sharing the
+		 * value of their block.
 		 */
 		@Nonnull private final IntComparator comparator;
 
@@ -334,8 +310,11 @@ public class EntityPrimaryKeyNaturalTranslator
 		}
 
 		/**
-		 * Compares two entities classified as sortable by {@link #canSort(EntityContract)} within the bound block by
-		 * the primary key of the entity their row of the block references.
+		 * Compares two entities classified as sortable by {@link #canSort(EntityContract)} within the bound block.
+		 * Both have the row of the block key, so both carry the same value - the primary key of the block's referenced
+		 * entity - and the tie is broken by their own primary keys in the direction of the ordering. Neither row is
+		 * looked up again: the classification already established it, and the value it would yield is fixed by the
+		 * block key.
 		 *
 		 * @param o1 the first entity
 		 * @param o2 the second entity
@@ -344,17 +323,7 @@ public class EntityPrimaryKeyNaturalTranslator
 		@Override
 		public int compare(EntityContract o1, EntityContract o2) {
 			Assert.isPremiseValid(this.referenceKey != null, "Referenced entity id must be set!");
-
-			final ReferenceContract o1Reference = getReferenceByRepresentativeReferenceKey(o1, this.referenceSchema, this.referenceKey).orElse(null);
-			final ReferenceContract o2Reference = getReferenceByRepresentativeReferenceKey(o2, this.referenceSchema, this.referenceKey).orElse(null);
-			Assert.isPremiseValid(
-				o1Reference != null && o2Reference != null,
-				"Only entities classified as sortable within the bound block may be compared!"
-			);
-			return this.comparator.compare(
-				o1Reference.getReferencedPrimaryKey(),
-				o2Reference.getReferencedPrimaryKey()
-			);
+			return this.comparator.compare(o1.getPrimaryKeyOrThrowException(), o2.getPrimaryKeyOrThrowException());
 		}
 	}
 

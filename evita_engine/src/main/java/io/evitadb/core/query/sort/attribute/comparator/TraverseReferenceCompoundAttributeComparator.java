@@ -122,7 +122,8 @@ public class TraverseReferenceCompoundAttributeComparator
 
 	/**
 	 * Compares two entities classified as sortable by {@link #canSort(EntityContract)} within the bound block: both
-	 * carry the compound on the reference of the block, so they differ only in the compound value. Entities without
+	 * carry the compound on the reference of the block, so they differ only in the compound value; entities with equal
+	 * values follow their own primary keys in the direction of the ordering, as on the index route. Entities without
 	 * the value never get here, the sorter passes them on to the next block before any comparison.
 	 *
 	 * @param o1 the first entity
@@ -137,7 +138,8 @@ public class TraverseReferenceCompoundAttributeComparator
 			attribute1 != ReferenceAttributeValue.MISSING && attribute2 != ReferenceAttributeValue.MISSING,
 			"Only entities classified as sortable within the bound block may be compared!"
 		);
-		return attribute1.compareTo(attribute2);
+		final int result = attribute1.compareTo(attribute2);
+		return result == 0 ? this.pkComparator.compare(o1, o2) : result;
 	}
 
 }
