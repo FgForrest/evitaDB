@@ -73,9 +73,11 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 	 * {@link QueryPlanningContext#computeOnlyOnce(java.util.List, FilterConstraint, Supplier, long...)}.
 	 *
 	 * The memoized computation registers the roots and the node visibility of the constraint for the processing
-	 * scopes it runs in, and its result depends on them too, so an equal constraint translated in another scope set
-	 * (`inScope(LIVE, ...)` next to a top-level occurrence over both scopes) must not be answered from the cache -
-	 * it would leave its own scope set unregistered.
+	 * scopes it runs in, and its result depends on them too, so a computation for one scope set must never be answered
+	 * from the cache of another - it would leave its own scope set unregistered. Both hierarchy translators compute
+	 * one scope at a time over that scope's global index, so the key carries a single scope: an occurrence in
+	 * `inScope(LIVE, ...)` and the live part of a top-level occurrence over both scopes share one computation, which is
+	 * correct, because they are the same one.
 	 *
 	 * @param scopes the processing scopes of the translated occurrence
 	 * @return a positive key, one bit per scope

@@ -294,16 +294,6 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	@Nullable
 	private Map<ScopedHierarchyFilter, Formula> rootHierarchyNodesFormula;
 	/**
-	 * Contains the share of the roots of an occurrence translated over several scopes that falls into one of them,
-	 * keyed by the constraint and that single scope. Kept apart from {@link #rootHierarchyNodesFormula} because
-	 * a share is derived, not resolved: an occurrence actually translated in exactly that scope may resolve
-	 * a different node - a unique attribute is looked up in the first scope holding the value - and must win
-	 * whichever of the two is recorded first. Lazily allocated by
-	 * {@link #setProjectedRootHierarchyNodesFormula(HierarchyFilterConstraint, Scope, Formula)}.
-	 */
-	@Nullable
-	private Map<ScopedHierarchyFilter, Formula> projectedRootHierarchyNodesFormula;
-	/**
 	 * The index contains rules for facet summary computation regarding the inter facet relation. The key in the index
 	 * is a tuple consisting of `referenceName`, `typeOfRule` and the {@link FacetGroupRelationLevel} the relation was
 	 * asked about, the value in the index is prepared predicate allowing to mark the group id involved in special
@@ -1725,31 +1715,6 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Sets the share of the roots of an occurrence translated over several scopes that falls into the passed scope.
-	 *
-	 * The share answers the statistics of the scope only when no occurrence was translated in exactly that scope -
-	 * see {@link #getRootHierarchyNodes(HierarchyFilterConstraint, Scope)}. The first share recorded for
-	 * a constraint and a scope wins, for the same reason as in
-	 * {@link #setRootHierarchyNodesFormula(HierarchyFilterConstraint, Set, Formula)}.
-	 *
-	 * @param hierarchyFilterConstraint the constraint whose roots were resolved
-	 * @param scope                     the scope the share belongs to
-	 * @param rootHierarchyNodesFormula formula computing primary keys of the roots in that scope
-	 */
-	public void setProjectedRootHierarchyNodesFormula(
-		@Nonnull HierarchyFilterConstraint hierarchyFilterConstraint,
-		@Nonnull Scope scope,
-		@Nonnull Formula rootHierarchyNodesFormula
-	) {
-		if (this.projectedRootHierarchyNodesFormula == null) {
-			this.projectedRootHierarchyNodesFormula = CollectionUtils.createHashMap(4);
-		}
-		this.projectedRootHierarchyNodesFormula.putIfAbsent(
-			new ScopedHierarchyFilter(hierarchyFilterConstraint, EnumSet.of(scope)), rootHierarchyNodesFormula
-		);
-	}
-
-	/**
 	 * Sets resolved hierarchy having/exclusion predicate of one occurrence of a hierarchy filter constraint, to be
 	 * shared among the filter and the requirement phase.
 	 *
@@ -2030,13 +1995,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * yield an empty bitmap, which the producers read as "the index roots".
 	 *
 	 * The roots come from an occurrence covering the scope - see
-	 * {@link #findCoveringResolution(Map, HierarchyFilterConstraint, Scope)} - except that the share of an
-	 * occurrence translated over several scopes, recorded by
-	 * {@link #setProjectedRootHierarchyNodesFormula(HierarchyFilterConstraint, Scope, Formula)}, answers before the
-	 * whole of it, though never before an occurrence translated in exactly the scope. For a `hierarchyWithin` an empty
-	 * bitmap therefore means that the covering occurrence selected no node in the scope, and its statistics are
-	 * empty - just like those of a query over that scope alone, which an unmatched `hierarchyWithin` empties entirely.
-	 * An empty bitmap is returned as well when no occurrence covers the scope, but the producers never ask about such
+	 * {@link #findCoveringResolution(Map, HierarchyFilterConstraint, Scope)}. For a `hierarchyWithin` an empty bitmap
+	 * therefore means that the covering occurrence selected no node in the scope, and its statistics are empty - just
+	 * like those of a query over that scope alone, which an unmatched `hierarchyWithin` empties entirely. An empty
+	 * bitmap is returned as well when no occurrence covers the scope, but the producers never ask about such
 	 * a constraint: it does not restrict the scope, so `getHierarchyFilterForScope` hands them NULL in its place.
 	 *
 	 * @param hierarchyFilterConstraint the constraint whose roots are asked for, may be NULL
@@ -2051,41 +2013,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		if (this.rootHierarchyNodesFormula == null || hierarchyFilterConstraint == null) {
 			return EmptyBitmap.INSTANCE;
 		}
-		final Formula formula = findRootHierarchyNodesFormula(
-			this.rootHierarchyNodesFormula, hierarchyFilterConstraint, scope
-		);
+		final Formula formula = findCoveringResolution(this.rootHierarchyNodesFormula, hierarchyFilterConstraint, scope);
 		return formula == null ? EmptyBitmap.INSTANCE : formula.compute();
-	}
-
-	/**
-	 * Finds the roots formula answering for the passed scope: the occurrence translated in exactly that scope, then
-	 * the share of an occurrence translated over several scopes, then the first occurrence covering the scope.
-	 *
-	 * @param resolutions               the roots recorded per occurrence
-	 * @param hierarchyFilterConstraint the constraint whose roots are asked for
-	 * @param scope                     the scope the statistics are computed for
-	 * @return the roots formula, or NULL when no occurrence covers the scope
-	 */
-	@Nullable
-	private Formula findRootHierarchyNodesFormula(
-		@Nonnull Map<ScopedHierarchyFilter, Formula> resolutions,
-		@Nonnull HierarchyFilterConstraint hierarchyFilterConstraint,
-		@Nonnull Scope scope
-	) {
-		if (this.projectedRootHierarchyNodesFormula != null) {
-			final ScopedHierarchyFilter exactKey = new ScopedHierarchyFilter(
-				hierarchyFilterConstraint, EnumSet.of(scope)
-			);
-			final Formula actual = resolutions.get(exactKey);
-			if (actual != null) {
-				return actual;
-			}
-			final Formula projected = this.projectedRootHierarchyNodesFormula.get(exactKey);
-			if (projected != null) {
-				return projected;
-			}
-		}
-		return findCoveringResolution(resolutions, hierarchyFilterConstraint, scope);
 	}
 
 	/**
