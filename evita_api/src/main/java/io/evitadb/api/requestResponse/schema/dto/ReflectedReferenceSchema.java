@@ -1059,9 +1059,11 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 						Stream.of(
 							"Reflected reference `" + this.getName() + "` cannot " +
 								(originalAllowsDuplicates ? "disallow" : "allow") + " duplicates, " +
-								"because the original reflected reference `" + this.reflectedReferenceName + "` in entity `" + referencedEntityType + "` " +
+								"because the original reflected reference `" + this.reflectedReferenceName + "` " +
+								"in entity `" + referencedEntityType + "` " +
 								(originalAllowsDuplicates ? "allows" : "disallows") + " them! " +
-								"Align the cardinality of both references, for example by letting the reflected reference inherit the cardinality of the original one."
+								"Align the cardinality of both references, for example by letting the reflected " +
+								"reference inherit the cardinality of the original one."
 						)
 					);
 				}
@@ -1088,7 +1090,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 							referenceErrors,
 							Stream.of(
 								"Reflected reference `" + this.getName() + "` must contain all representative attributes " +
-									"of the original reflected reference `" + this.reflectedReferenceName + "` in entity `" + referencedEntityType + "`! " +
+									"of the original reflected reference `" + this.reflectedReferenceName + "` " +
+									"in entity `" + referencedEntityType + "`! " +
 									"Missing representative attributes: " + String.join(", ", representativeAttributes)
 							)
 						);
