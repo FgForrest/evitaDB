@@ -921,6 +921,22 @@ When you allow definition of *duplicate* references using one of the cardinality
 
 There are situations when duplicate references come in handy. Imagine you have an entity type `Product` that has a reference `medias` to an entity of type `Media`. You want to be able to link multiple media items to a single product, and you also want to be able to distinguish between them based on their role (e.g., "thumbnail", "gallery", "video", etc.). In such a case you can define reference attribute `role` as `representative`, and then you'll be able to create multiple references to the same `Media` entity with different `role` values.
 
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### Representative attributes should have low cardinality
+</NoteTitle>
+
+Representative attributes are expected to have a small, closed set of values that usually mirrors an enumeration in
+your application, such as the media role or the type of relation between two products. evitaDB keeps the distinct
+combinations of representative values of a reference in a shared dictionary, which stays small and cheap to maintain
+as long as the values repeat across many references. Do not use a value that is unique to each reference (an
+identifier, a timestamp or free text) as a representative attribute: the dictionary would then grow with every
+reference created, and each new value would make writes more expensive.
+
+</Note>
+
 ## Scopes
 
 Scopes are separate areas of memory where entity indexes are stored. Scopes are used to separate live data from archived 
