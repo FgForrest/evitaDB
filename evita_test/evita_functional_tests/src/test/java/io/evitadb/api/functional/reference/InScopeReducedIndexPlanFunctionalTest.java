@@ -100,6 +100,7 @@ import static io.evitadb.api.query.QueryConstraints.hierarchyWithinRoot;
 import static io.evitadb.api.query.QueryConstraints.hierarchyWithinRootSelf;
 import static io.evitadb.api.query.QueryConstraints.inScope;
 import static io.evitadb.api.query.QueryConstraints.not;
+import static io.evitadb.api.query.QueryConstraints.or;
 import static io.evitadb.api.query.QueryConstraints.orderBy;
 import static io.evitadb.api.query.QueryConstraints.page;
 import static io.evitadb.api.query.QueryConstraints.parents;
@@ -269,6 +270,14 @@ public class InScopeReducedIndexPlanFunctionalTest {
 	 * An archived product referencing the archived category 12 only - none of the live tree.
 	 */
 	private static final int ARCHIVED_SUBTREE_ONLY_PRODUCT = 100;
+	/**
+	 * A product primary key that does not exist in any scope.
+	 */
+	private static final int MISSING_PRODUCT = 999;
+	/**
+	 * Every primary key the fixture uses, products and categories alike.
+	 */
+	private static final int[] ALL_KEYS = range(1, ARCHIVED_SUBTREE_ONLY_PRODUCT);
 	/**
 	 * An archived product referencing the tag, which passes every outer constraint.
 	 */
@@ -1917,6 +1926,36 @@ public class InScopeReducedIndexPlanFunctionalTest {
 					union(LIVE_SUBTREE, range(17, 48)),
 					none
 				),
+				// inside a disjunction the index selection registers no target indexes for the hierarchy filter, so
+				// the translator resolves the owners on its own - they must be the same as in a conjunction
+				Arguments.of(
+					"roots by primary key in or", ENTITY_PRODUCT,
+					or(
+						hierarchyWithin(REF_CATEGORIES, entityPrimaryKeyInSet(ROOT_CATEGORY, ARCHIVED_ROOT_CATEGORY)),
+						entityPrimaryKeyInSet(MISSING_PRODUCT)
+					),
+					bothSubtrees, LIVE_SUBTREE, archivedSubtree
+				),
+				// a live node with archived owners and an archived node with live owners: each scope alone returns
+				// nothing, both scopes return the owners of the other scope's node
+				Arguments.of(
+					"nodes owned across scopes in or", ENTITY_PRODUCT,
+					or(
+						hierarchyWithin(
+							REF_CATEGORIES,
+							entityPrimaryKeyInSet(LIVE_NODE_WITH_ARCHIVED_OWNERS, ARCHIVED_NODE_WITH_LIVE_OWNERS)
+						),
+						entityPrimaryKeyInSet(MISSING_PRODUCT)
+					),
+					union(range(9, 16), range(65, 72)), none, none
+				),
+				Arguments.of(
+					"whole hierarchy in or", ENTITY_PRODUCT,
+					or(hierarchyWithinRoot(REF_CATEGORIES), entityPrimaryKeyInSet(MISSING_PRODUCT)),
+					union(ALL_PRODUCTS, new int[]{ARCHIVED_SUBTREE_ONLY_PRODUCT}),
+					union(LIVE_SUBTREE, range(17, 48)),
+					archivedSubtree
+				),
 				Arguments.of(
 					"own roots by primary key", ENTITY_CATEGORY,
 					hierarchyWithinSelf(entityPrimaryKeyInSet(ROOT_CATEGORY, ARCHIVED_ROOT_CATEGORY)),
@@ -1976,6 +2015,52 @@ public class InScopeReducedIndexPlanFunctionalTest {
 			assertArrayEquals(
 				both, union(both, live, archived), "the query over both scopes must contain the controls"
 			);
+		}
+
+		/**
+		 * Checks that the hierarchy filter of each row of {@link #hierarchyFilterRows()} selects the same entities in
+		 * every query shape, both over both scopes and over each scope alone: placed in a disjunction with a primary key
+		 * nobody has, it selects what it selects on its own, and its negation selects exactly the entities it does not
+		 * select. Inside `or` and `not` the index selection registers no target indexes, so these shapes exercise the
+		 * owner lookup of the translator itself.
+		 *
+		 * @param label           the row label, used in the test name only
+		 * @param entityType      the queried entity type
+		 * @param hierarchyFilter the hierarchy filter
+		 * @param session         the session provided by the test extension
+		 */
+		@DisplayName("Should select the same entities in a disjunction and the rest in a negation")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN_ARCHIVED_SUBTREE_OWNER)
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("hierarchyFilterRows")
+		@Tag(ENGINE)
+		@Tag(QUERY)
+		void shouldSelectSameEntitiesInDisjunctionAndRestInNegation(
+			@Nonnull String label,
+			@Nonnull String entityType,
+			@Nonnull FilterConstraint hierarchyFilter,
+			@Nonnull int[] expectedBoth,
+			@Nonnull int[] expectedLive,
+			@Nonnull int[] expectedArchived,
+			@Nonnull EvitaSessionContract session
+		) {
+			for (final Scope[] scopes : new Scope[][]{BOTH_SCOPES, LIVE_ONLY, ARCHIVED_ONLY}) {
+				final String scopeLabel = Arrays.toString(scopes);
+				final int[] selected = queryPrimaryKeys(session, entityType, scopes, hierarchyFilter);
+				final int[] universe = queryPrimaryKeys(session, entityType, scopes, entityPrimaryKeyInSet(ALL_KEYS));
+				assertArrayEquals(
+					selected,
+					queryPrimaryKeys(
+						session, entityType, scopes, or(hierarchyFilter, entityPrimaryKeyInSet(MISSING_PRODUCT))
+					),
+					() -> "the disjunction over " + scopeLabel
+				);
+				assertArrayEquals(
+					without(universe, selected),
+					queryPrimaryKeys(session, entityType, scopes, not(hierarchyFilter)),
+					() -> "the negation over " + scopeLabel
+				);
+			}
 		}
 
 		/**

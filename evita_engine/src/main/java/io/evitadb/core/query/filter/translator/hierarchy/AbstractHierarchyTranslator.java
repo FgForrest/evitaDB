@@ -40,15 +40,12 @@ import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
-import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
-import io.evitadb.index.Index;
 import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -56,7 +53,6 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -147,7 +143,8 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 	 * {@link io.evitadb.core.query.indexSelection.IndexSelectionVisitor} - it descends only through conjunctions, so
 	 * a hierarchy constraint nested in `or` or `not` always lands on the computed branch. Both branches must produce
 	 * the same formula, which is why the computed one resolves the reduced indexes exactly the way the index
-	 * selection does: from the queried entity schema and the reference the constraint itself names.
+	 * selection does: from the queried entity schema and the reference the constraint itself names, for every node
+	 * the constraint selects in any processing scope's tree and in every processing scope.
 	 */
 	@Nonnull
 	protected static Formula createFormulaForReferencingEntities(
@@ -164,13 +161,7 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 		final TargetIndexes<?> targetIndexes = filterByVisitor.findTargetIndexSet(hierarchyWithinConstraint);
 		if (targetIndexes == null) {
 			final Formula hierarchyNodesFormula = hierarchyNodesFormulaSupplier.get();
-			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
-			final Set<Scope> scopes = processingScope.getScopes();
-			Assert.isTrue(
-				scopes.isEmpty() || scopes.size() == 1,
-				() -> "Hierarchy queries cannot be executed in multiple scopes (" +
-					scopes.stream().map(Scope::name).collect(Collectors.joining(", ")) + ") simultaneously."
-			);
+			// the nodes of every processing scope's tree, each paired with the owners of every processing scope
 			return FormulaFactory.or(
 				StreamSupport.stream(hierarchyNodesFormula.compute().spliterator(), false)
 					.flatMap(
