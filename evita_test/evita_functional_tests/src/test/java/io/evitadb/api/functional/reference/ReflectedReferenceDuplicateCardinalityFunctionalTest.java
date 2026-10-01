@@ -458,4 +458,52 @@ class ReflectedReferenceDuplicateCardinalityFunctionalTest implements EvitaTestS
 			);
 		}
 	}
+
+	@Nested
+	@DisplayName("when the reflected reference does not inherit the representative attributes")
+	class RepresentativeAttributesNotInherited {
+
+		@ParameterizedTest(name = "alive {0}")
+		@ValueSource(booleans = {false, true})
+		@DisplayName("should refuse a same-named representative attribute declared instead of inherited")
+		void shouldRefuseDeclaredRepresentativeAttribute(boolean alive) {
+			if (alive) {
+				ReflectedReferenceDuplicateCardinalityFunctionalTest.this.evita.updateCatalog(
+					TEST_CATALOG, EvitaSessionContract::goLiveAndClose
+				);
+			}
+			// propagation fills only inherited attributes and the declared one is not persisted, so a declared
+			// same-named attribute must not satisfy the requirement
+			final Exception failure = assertThrows(
+				Exception.class,
+				() -> write(session -> {
+					session.defineEntitySchema(CATEGORY)
+						.withReflectedReferenceToEntity(
+							REF_PRODUCTS, PRODUCT, REF_CATEGORIES,
+							whichIs -> whichIs.indexedForFiltering()
+								.withAttributesInheritedExcept(ATTRIBUTE_COUNTRY)
+								.withAttribute(
+									ATTRIBUTE_COUNTRY, String.class, thatIs -> thatIs.filterable().representative()
+								)
+						)
+						.updateVia(session);
+					session.defineEntitySchema(PRODUCT)
+						.withReferenceToEntity(
+							REF_CATEGORIES, CATEGORY, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+							whichIs -> whichIs.indexedForFiltering()
+								.withAttribute(
+									ATTRIBUTE_COUNTRY, String.class, thatIs -> thatIs.filterable().representative()
+								)
+						)
+						.updateVia(session);
+				})
+			);
+			assertRefusedWith(
+				failure,
+				"Reflected reference `products` must inherit all representative attributes of the original " +
+					"reflected reference `categories` in entity `Product`! Representative attributes not inherited: " +
+					"country"
+			);
+		}
+	}
 }

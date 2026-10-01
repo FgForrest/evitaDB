@@ -1082,17 +1082,17 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 							.map(NamedSchemaContract::getName)
 							.collect(Collectors.toSet());
 					}
-					this.getAttributes().keySet().forEach(
-						representativeAttributes::remove
-					);
+					// a same-named attribute declared on the reflected side does not count - propagation fills only
+					// inherited attributes, and the declared one is not persisted while the original defines the name
+					representativeAttributes.removeAll(this.inheritedAttributes);
 					if (!representativeAttributes.isEmpty()) {
 						referenceErrors = Stream.concat(
 							referenceErrors,
 							Stream.of(
-								"Reflected reference `" + this.getName() + "` must contain all representative attributes " +
+								"Reflected reference `" + this.getName() + "` must inherit all representative attributes " +
 									"of the original reflected reference `" + this.reflectedReferenceName + "` " +
 									"in entity `" + referencedEntityType + "`! " +
-									"Missing representative attributes: " + String.join(", ", representativeAttributes)
+									"Representative attributes not inherited: " + String.join(", ", representativeAttributes)
 							)
 						);
 					}
