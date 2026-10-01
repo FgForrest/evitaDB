@@ -149,6 +149,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * Brand (flat) 1-9 with `rank` 5, 3, 8, 1, 7, 2, 6, 4 and none for 9: rank order 4 6 2 8 1 7 5 3 9.
  *
+ * Scoped category (hierarchical, the target of `scopedCategories` only), whose `rank` is sortable in the live scope
+ * only: live root 1 (rank 10); archived root 2 with the archived children 3 (rank 20) and 4 (rank 10) - the rank
+ * order of 3 and 4 opposes their primary key order.
+ *
  * Tag (flat) 1-20, the target of `tags`, whose counterpart `taggedOwners` on the tag reflects it - the only
  * bidirectional pair of the fixture.
  *
@@ -181,6 +185,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   chain 102 → 100 → 104 and the archived chain 103 → 101
  * - **rank-ordered pick-first 110-114**: 110: (4,10) (6,50) · 111: (8,1) (4,30) · 112: (6,-) (4,20) · 113: (6,40) ·
  *   114: (5,5) (4,-)
+ * - **scoped categories 130-132**, `scopedCategories` only, all live: 130: none · 131: (3,1) · 132: (4,1)
  * - **tags 120-123**, `tags` only, rows `(target, order, kind)`: 120: (1,50,y) (5,10,x) · 121: (2,30,x) (6,5,y) ·
  *   122: (1,20,y) (3,40,x) · 123: (4,15,x) and (t,t,y) for every tag t from 7 to 20
  *
@@ -223,6 +228,8 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 		REFERENCE_CHAIN_CATEGORIES_PARTITIONING, REFERENCE_CHAIN_CATEGORIES_FILTERING,
 		REFERENCE_CHAIN_BRANDS_PARTITIONING, REFERENCE_CHAIN_BRANDS_FILTERING
 	};
+	private static final String ENTITY_SCOPED_CATEGORY = "traverseScopedCategory";
+	private static final String REFERENCE_SCOPED_CATEGORIES = "scopedCategories";
 	private static final String ENTITY_TAG = "traverseTag";
 	private static final String REFERENCE_TAGS = "tags";
 	private static final String REFERENCE_TAGGED_OWNERS = "taggedOwners";
@@ -265,6 +272,7 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 	private static final Integer[] PREDECESSOR_OWNERS = boxedRange(100, 105);
 	private static final Integer[] PICK_FIRST_RANK_OWNERS = boxedRange(110, 114);
 	private static final Integer[] TAG_OWNERS = boxedRange(120, 123);
+	private static final Integer[] SCOPED_CATEGORY_OWNERS = boxedRange(130, 132);
 	/**
 	 * The basic group without owners 7 and 8 - its rows reach brands 1-7 only, see
 	 * {@link #shouldKeepSeededTargetOrderWhenIrrelevantOwnerIsAdded(String, SortRoute, EvitaSessionContract)}.
@@ -732,6 +740,12 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 		session.defineEntitySchema(ENTITY_TAG)
 			.withoutGeneratedPrimaryKey()
 			.updateVia(session);
+		// `rank` is sortable in the live scope only - a nested target order cannot read it in the archived tree
+		session.defineEntitySchema(ENTITY_SCOPED_CATEGORY)
+			.withoutGeneratedPrimaryKey()
+			.withHierarchyIndexedInScope(BOTH_SCOPES)
+			.withAttribute(ATTRIBUTE_RANK, Integer.class, thatIs -> thatIs.sortableInScope(Scope.LIVE).nullable())
+			.updateVia(session);
 		final EntitySchemaBuilder owner = session.defineEntitySchema(ENTITY_OWNER)
 			.withoutGeneratedPrimaryKey()
 			.withAttribute(ATTRIBUTE_TAIL, Integer.class, thatIs -> thatIs.sortableInScope(BOTH_SCOPES).nullable());
@@ -780,6 +794,10 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 			REFERENCE_CATEGORIES_ACROSS_SCOPES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
 			whichIs -> declareRowAttributes(whichIs.indexedForFilteringAndPartitioningInScope(BOTH_SCOPES))
 		);
+		owner.withReferenceToEntity(
+			REFERENCE_SCOPED_CATEGORIES, ENTITY_SCOPED_CATEGORY, Cardinality.ZERO_OR_MORE,
+			whichIs -> declareRowAttributes(whichIs.indexedForFilteringAndPartitioningInScope(BOTH_SCOPES))
+		);
 		final String[][] variantReferences = {{REFERENCE_VARIANTS_PARTITIONING, "P"}, {REFERENCE_VARIANTS_FILTERING, "F"}};
 		for (String[] variants : variantReferences) {
 			owner.withReferenceToEntity(
@@ -826,6 +844,17 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 		}
 		for (int tag = 1; tag <= TAG_COUNT; tag++) {
 			session.createNewEntity(ENTITY_TAG, tag).upsertVia(session);
+		}
+		final int[][] scopedCategories = {{1, 0, 10}, {2, 0, 0}, {3, 2, 20}, {4, 2, 10}};
+		for (int[] scopedCategory : scopedCategories) {
+			final EntityBuilder builder = session.createNewEntity(ENTITY_SCOPED_CATEGORY, scopedCategory[0]);
+			if (scopedCategory[1] > 0) {
+				builder.setParent(scopedCategory[1]);
+			}
+			if (scopedCategory[2] > 0) {
+				builder.setAttribute(ATTRIBUTE_RANK, scopedCategory[2]);
+			}
+			builder.upsertVia(session);
 		}
 
 		// basic
@@ -925,11 +954,25 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 			.mapToObj(tag -> kindRow(tag, tag, KIND_Y))
 			.toArray(Row[]::new);
 		upsertTagOwner(session, 123, ArrayUtils.mergeArrays(new Row[]{kindRow(4, 15, KIND_X)}, fillers));
+		// scoped categories
+		session.createNewEntity(ENTITY_OWNER, 130).upsertVia(session);
+		for (int[] ownerRow : new int[][]{{131, 3}, {132, 4}}) {
+			session.createNewEntity(ENTITY_OWNER, ownerRow[0])
+				.setReference(
+					REFERENCE_SCOPED_CATEGORIES, ownerRow[1],
+					whichIs -> whichIs.setAttribute(ATTRIBUTE_KIND, KIND_X).setAttribute(ATTRIBUTE_ORDER, 1)
+				)
+				.upsertVia(session);
+		}
 
 		for (int archived : new int[]{33, 34, 51, 53, 54, 101, 103}) {
 			session.archiveEntity(ENTITY_OWNER, archived);
 		}
 		session.archiveEntity(ENTITY_CATEGORY, 10);
+		// the parent first, so that the children attach to it in the archived tree
+		for (int archivedScopedCategory : new int[]{2, 3, 4}) {
+			session.archiveEntity(ENTITY_SCOPED_CATEGORY, archivedScopedCategory);
+		}
 	}
 
 	/**
@@ -1747,6 +1790,66 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 			"by rank, live scope only (extra defect 1 witness)"
 		);
 		assertAll(byDescendingPrimaryKey, byRank, byRankLiveOnly);
+	}
+
+	/**
+	 * Checks the rule "Should place a live owner in the block of its archived target, walked in the archived tree".
+	 *
+	 * The ordering sorts the live scope only, while owners 131 and 132 reference nothing but the archived categories 3
+	 * and 4 - a target is walked in the tree of its own scope, so their blocks exist, after the (here empty) live
+	 * tree, and both precede owner 130, which has no row and is handed to the next sorter. The `rank` of the scoped
+	 * category is sortable in the live scope only, so a nested order cannot read it in the archived tree: the
+	 * siblings 3 and 4 keep their primary key order there, although their ranks (20, 10) say the opposite.
+	 *
+	 * What the rejected readings give: skipping the archived tree hands all three owners to the next sorter
+	 * `[130, 131, 132]`; ordering the archived siblings by rank `[132, 131, 130]`.
+	 */
+	@DisplayName("Should place a live owner in the block of its archived target, walked in the archived tree")
+	@UseDataSet(TRAVERSE_REFERENCES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("sortRoutes")
+	void shouldPlaceLiveOwnerInBlockOfArchivedTarget(SortRoute route, EvitaSessionContract session) {
+		final OrderConstraint byOrder = attributeNatural(ATTRIBUTE_ORDER);
+		assertAll(
+			() -> assertOrder(
+				new int[]{131, 132, 130},
+				queryOrder(
+					session, route, SCOPED_CATEGORY_OWNERS, NO_FILTER,
+					referenceProperty(
+						REFERENCE_SCOPED_CATEGORIES,
+						traverseByEntityProperty(TraversalMode.DEPTH_FIRST, entityPrimaryKeyNatural(OrderDirection.ASC)),
+						byOrder
+					)
+				),
+				"by primary key"
+			),
+			() -> assertOrder(
+				new int[]{132, 131, 130},
+				queryOrder(
+					session, route, SCOPED_CATEGORY_OWNERS, NO_FILTER,
+					referenceProperty(
+						REFERENCE_SCOPED_CATEGORIES,
+						traverseByEntityProperty(
+							TraversalMode.DEPTH_FIRST, entityPrimaryKeyNatural(OrderDirection.DESC)
+						),
+						byOrder
+					)
+				),
+				"by descending primary key"
+			),
+			() -> assertOrder(
+				new int[]{131, 132, 130},
+				queryOrder(
+					session, route, SCOPED_CATEGORY_OWNERS, NO_FILTER,
+					referenceProperty(
+						REFERENCE_SCOPED_CATEGORIES,
+						traverseByEntityProperty(TraversalMode.DEPTH_FIRST, attributeNatural(ATTRIBUTE_RANK)),
+						byOrder
+					)
+				),
+				"by rank sortable in the live scope only"
+			)
+		);
 	}
 
 	/**
