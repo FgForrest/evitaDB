@@ -73,9 +73,12 @@ public class TranslatedPrimaryKeySorter implements Sorter {
 		final int recomputedEndIndex = sortingContext.recomputedEndIndex();
 
 		ArrayUtils.sortSecondAlongFirstArray(originalPrimaryKeys, order);
-		final int length = Math.min(translatedPrimaryKeys.length, recomputedEndIndex - recomputedStartIndex);
-		for (int i = recomputedStartIndex; i < length; i++) {
-			result[i] = translatedPrimaryKeys[order[i]];
+		// the page is the slice `[recomputedStartIndex, recomputedEndIndex)` of the ordered keys, written after the
+		// records already present in the result
+		final int peak = sortingContext.peak();
+		final int length = Math.max(0, Math.min(translatedPrimaryKeys.length, recomputedEndIndex) - recomputedStartIndex);
+		for (int i = 0; i < length; i++) {
+			result[peak + i] = translatedPrimaryKeys[order[recomputedStartIndex + i]];
 		}
 
 		if (skippedRecordsConsumer != null) {
@@ -85,7 +88,7 @@ public class TranslatedPrimaryKeySorter implements Sorter {
 		}
 		return sortingContext.createResultContext(
 			EmptyBitmap.INSTANCE,
-			Math.min(translatedPrimaryKeys.length, length),
+			length,
 			Math.min(recomputedStartIndex, order.length)
 		);
 	}
