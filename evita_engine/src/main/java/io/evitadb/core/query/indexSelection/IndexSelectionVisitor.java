@@ -246,6 +246,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 							EntityIndexType.REFERENCED_ENTITY.name() +
 								" composed of " + requestedHierarchyNodes.size() + " indexes",
 							constraint,
+							scopes,
 							ReducedEntityIndex.class,
 							theTargetIndexes,
 							Stream.of(
@@ -330,6 +331,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					new TargetIndexes<>(
 						indexDescription,
 						constraint,
+						scopes,
 						ReducedEntityIndex.class,
 						candidateCount,
 						candidates::resolve,
@@ -354,6 +356,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					new TargetIndexes<>(
 						indexDescription,
 						constraint,
+						scopes,
 						ReducedEntityIndex.class,
 						theTargetIndexes,
 						ownerRows <= cardinalityLimit

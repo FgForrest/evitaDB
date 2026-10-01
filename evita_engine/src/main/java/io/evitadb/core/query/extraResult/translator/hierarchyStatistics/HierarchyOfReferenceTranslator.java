@@ -115,7 +115,7 @@ public class HierarchyOfReferenceTranslator
 
 				// the request is more complex
 				hierarchyStatisticsProducer.interpret(
-					() -> extraResultPlanner.getQueryContext().getRootHierarchyNodes(hierarchyWithin),
+					() -> extraResultPlanner.getQueryContext().getRootHierarchyNodes(hierarchyWithin, scope),
 					referencedEntitySchema,
 					referenceSchema,
 					extraResultPlanner.getAttributeSchemaAccessor().withReferenceSchemaAccessor(referenceName),

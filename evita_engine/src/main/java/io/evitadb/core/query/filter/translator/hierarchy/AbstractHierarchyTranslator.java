@@ -111,7 +111,7 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 				referenceSchema
 			);
 
-			queryContext.setHierarchyHavingPredicate(hierarchyFilterConstraint, predicate);
+			queryContext.setHierarchyHavingPredicate(hierarchyFilterConstraint, requestedScopes, predicate);
 			return predicate;
 		}
 	}

@@ -32,9 +32,12 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.FilterInScope;
 import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
@@ -53,6 +56,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -69,6 +73,7 @@ import java.util.stream.Stream;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
 import static io.evitadb.api.query.QueryConstraints.attributeNatural;
+import static io.evitadb.api.query.QueryConstraints.children;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.debug;
 import static io.evitadb.api.query.QueryConstraints.entityHaving;
@@ -76,6 +81,7 @@ import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.facetHaving;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.hierarchyOfReference;
 import static io.evitadb.api.query.QueryConstraints.hierarchyWithin;
 import static io.evitadb.api.query.QueryConstraints.hierarchyWithinRoot;
 import static io.evitadb.api.query.QueryConstraints.inScope;
@@ -88,6 +94,7 @@ import static io.evitadb.api.query.QueryConstraints.queryTelemetry;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.scope;
+import static io.evitadb.api.query.QueryConstraints.statistics;
 import static io.evitadb.api.query.QueryConstraints.userFilter;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -222,6 +229,10 @@ public class InScopeReducedIndexPlanFunctionalTest {
 	private static final int BRAND = 1;
 	private static final int TAG = 1;
 	private static final int PRODUCT_COUNT = 72;
+	/**
+	 * Output name of the hierarchy statistics computed by the statistics witness.
+	 */
+	private static final String HIERARCHY_OUTPUT = "children";
 	/**
 	 * Products from this value to {@link #PRODUCT_COUNT} are archived.
 	 */
@@ -588,6 +599,29 @@ public class InScopeReducedIndexPlanFunctionalTest {
 	}
 
 	/**
+	 * Returns the rows of the reused-instance witness: the same `referenceHaving` placed in `inScope(LIVE, ...)` and
+	 * in `inScope(ARCHIVED, ...)`, either as one Java object or as two equal objects. Each row is a label, the
+	 * reference name, and whether the instance is reused.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> reusedConstraintInstanceRows() {
+		return Stream.of(
+			// tags are not partitioned, so every REFERENCED_ENTITY candidate is ineligible and the global plan
+			// answers - plan choice is out of play; catches an identity-only lookup of the candidate (#1686)
+			Arguments.of("tags (not partitioned), one instance", REF_TAGS, true),
+			// control: two equal but distinct instances find their own candidates
+			Arguments.of("tags (not partitioned), two instances", REF_TAGS, false),
+			// the same on a partitioned reference, where the narrowed candidates exist but are ineligible - only
+			// the lookup decides the answer
+			Arguments.of("categories (partitioned), one instance", REF_CATEGORIES, true),
+			// control
+			Arguments.of("categories (partitioned), two instances", REF_CATEGORIES, false)
+		);
+	}
+
+	/**
 	 * Returns the rows of the nested-`inScope` rejection: a label, the scope of the outer container and the scope of
 	 * the container nested in it.
 	 *
@@ -739,6 +773,47 @@ public class InScopeReducedIndexPlanFunctionalTest {
 	}
 
 	/**
+	 * Checks that one `referenceHaving` instance placed both in `inScope(LIVE, ...)` and in `inScope(ARCHIVED, ...)`
+	 * is answered per scope (#1686) - plan choice is not involved. Index selection registers one candidate per
+	 * container, and the translator must look up the candidate built for the scope it is translating
+	 * (`FilterByVisitor#findTargetIndexSet` matches the instance together with the processing scopes); matching the
+	 * instance alone would hand the LIVE candidate to the ARCHIVED translation and lose the archived owners of tag 1 /
+	 * category 2. Two equal but distinct instances are the control.
+	 *
+	 * The expected answer is the subtree in both scopes: tag 1 is set exactly on products 1-8 and 49-56, the same
+	 * products that reference category 2.
+	 *
+	 * @param label         the row label, used in the test name only
+	 * @param referenceName the reference the constraint targets
+	 * @param reused        whether both containers hold the same instance
+	 * @param session       the session provided by the test extension
+	 */
+	@DisplayName("Should resolve a constraint instance reused in two inScope containers per scope")
+	@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("reusedConstraintInstanceRows")
+	void shouldResolveReusedConstraintInstancePerScope(
+		@Nonnull String label,
+		@Nonnull String referenceName,
+		boolean reused,
+		@Nonnull EvitaSessionContract session
+	) {
+		final int referencedPk = REF_TAGS.equals(referenceName) ? TAG : SUBTREE_CATEGORY;
+		final FilterConstraint liveConstraint = referenceHaving(referenceName, entityPrimaryKeyInSet(referencedPk));
+		final FilterConstraint archivedConstraint = reused ?
+			liveConstraint : referenceHaving(referenceName, entityPrimaryKeyInSet(referencedPk));
+		assertQueryReturns(
+			session, BOTH_SCOPES,
+			new FilterConstraint[]{
+				inScope(Scope.LIVE, liveConstraint),
+				inScope(Scope.ARCHIVED, archivedConstraint)
+			},
+			false,
+			union(LIVE_SUBTREE, ARCHIVED_SUBTREE)
+		);
+	}
+
+	/**
 	 * Checks that a query with `inScope` nested in another `inScope` is refused when executed, with an error naming
 	 * both scopes - while the constraint itself can still be built, so that a stored query of this shape stays
 	 * readable. The opposite nesting is contradictory, the same-scope nesting redundant.
@@ -855,6 +930,71 @@ public class InScopeReducedIndexPlanFunctionalTest {
 			EvitaInvalidUsageException.class,
 			() -> runQuery(session, BOTH_SCOPES, new FilterConstraint[]{copy}, false)
 		);
+	}
+
+	/**
+	 * Checks that hierarchy statistics computed for one scope use the hierarchy roots resolved in that scope when one
+	 * `hierarchyWithin` instance is placed both in `inScope(LIVE, ...)` and in `inScope(ARCHIVED, ...)` (#1686).
+	 *
+	 * The parent filter `entityPrimaryKeyInSet(1, 11)` matches root 1 in the live tree and root 11 in the archived
+	 * tree. The archived `children` statistics must describe the archived root 11 - requested, with its 8 archived
+	 * owners 49-56 below it - rather than look for the live root 1, which the archived tree does not contain and which
+	 * would leave the statistics empty.
+	 *
+	 * @param reused  whether both containers hold the same instance
+	 * @param session the session provided by the test extension
+	 */
+	@DisplayName("Should compute hierarchy statistics of a scope from the roots resolved in that scope")
+	@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+	@ParameterizedTest(name = "reused instance: {0}")
+	@ValueSource(booleans = {true, false})
+	@Tag(ENGINE)
+	@Tag(QUERY)
+	void shouldComputeHierarchyStatisticsOfScopeFromRootsResolvedInThatScope(
+		boolean reused,
+		@Nonnull EvitaSessionContract session
+	) {
+		final FilterConstraint liveHierarchy = hierarchyWithin(
+			REF_CATEGORIES, entityPrimaryKeyInSet(ROOT_CATEGORY, ARCHIVED_ROOT_CATEGORY)
+		);
+		final FilterConstraint archivedHierarchy = reused ?
+			liveHierarchy :
+			hierarchyWithin(REF_CATEGORIES, entityPrimaryKeyInSet(ROOT_CATEGORY, ARCHIVED_ROOT_CATEGORY));
+		final EvitaResponse<EntityReference> response = session.query(
+			query(
+				collection(ENTITY_PRODUCT),
+				filterBy(
+					scope(BOTH_SCOPES),
+					inScope(Scope.LIVE, liveHierarchy),
+					inScope(Scope.ARCHIVED, archivedHierarchy)
+				),
+				require(
+					page(1, PRODUCT_COUNT),
+					inScope(
+						Scope.ARCHIVED,
+						hierarchyOfReference(
+							REF_CATEGORIES,
+							children(HIERARCHY_OUTPUT, statistics(StatisticsType.QUERIED_ENTITY_COUNT))
+						)
+					)
+				)
+			),
+			EntityReference.class
+		);
+		assertArrayEquals(
+			union(LIVE_SUBTREE, ARCHIVED_SUBTREE),
+			response.getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).sorted().toArray()
+		);
+		final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+		assertNotNull(hierarchy, "the hierarchy statistics must be computed");
+		final List<LevelInfo> children = hierarchy.getReferenceHierarchy(REF_CATEGORIES, HIERARCHY_OUTPUT);
+		assertEquals(
+			List.of(ARCHIVED_ROOT_CATEGORY),
+			children.stream().map(it -> it.entity().getPrimaryKey()).toList(),
+			() -> "the archived statistics must describe the archived root 11, got: " + children
+		);
+		assertTrue(children.get(0).requested());
+		assertEquals(Integer.valueOf(ARCHIVED_SUBTREE.length), children.get(0).queriedEntityCount());
 	}
 
 	/**

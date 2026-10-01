@@ -128,7 +128,9 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 						// because we'll need the result in planning phase
 						hierarchyParentFormula.initialize(filterByVisitor.getInternalExecutionContext());
 
-						queryContext.setRootHierarchyNodesFormula(hierarchyWithin, hierarchyParentFormula);
+						queryContext.setRootHierarchyNodesFormula(
+							hierarchyWithin, scopesToLookup, hierarchyParentFormula
+						);
 
 						final int[] nodeIds = hierarchyParentFormula.compute().stream().toArray();
 						return createFormulaFromHierarchyIndex(

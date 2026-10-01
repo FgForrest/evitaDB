@@ -101,7 +101,9 @@ public class HierarchyParentsTranslator
 						extraResultPlanningVisitor
 					),
 					context.hierarchyFilterPredicateProducer(),
-					extraResultPlanningVisitor.getQueryContext().getHierarchyHavingPredicate(context.hierarchyFilter()),
+					extraResultPlanningVisitor.getQueryContext().getHierarchyHavingPredicate(
+						context.hierarchyFilter(), context.entityIndex().getIndexKey().scope()
+					),
 					scopePredicate,
 					statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),
 					statistics.map(HierarchyStatistics::getStatisticsType).orElseGet(() -> EnumSet.noneOf(StatisticsType.class)),
@@ -149,7 +151,9 @@ public class HierarchyParentsTranslator
 				extraResultPlanner
 			),
 			context.hierarchyFilterPredicateProducer(),
-			extraResultPlanner.getQueryContext().getHierarchyHavingPredicate(context.hierarchyFilter()),
+			extraResultPlanner.getQueryContext().getHierarchyHavingPredicate(
+				context.hierarchyFilter(), context.entityIndex().getIndexKey().scope()
+			),
 			scopePredicate,
 			statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),
 			statistics.map(HierarchyStatistics::getStatisticsType).orElseGet(() -> EnumSet.noneOf(StatisticsType.class))

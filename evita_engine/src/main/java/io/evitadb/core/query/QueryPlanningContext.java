@@ -271,22 +271,46 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * observe exactly the same node visibility as the filter did. Keyed by the constraint for the same reason as
 	 * {@link #rootHierarchyNodesFormula} - a query may carry several hierarchy filters and the statistics of one
 	 * hierarchy must never observe the visibility another one declared. Read through
-	 * {@link #getHierarchyHavingPredicate(HierarchyFilterConstraint)}. Lazily allocated by
-	 * {@link #setHierarchyHavingPredicate(HierarchyFilterConstraint, HierarchyFilteringPredicate)}.
+	 * {@link #getHierarchyHavingPredicate(HierarchyFilterConstraint, Scope)}. Lazily allocated by
+	 * {@link #setHierarchyHavingPredicate(HierarchyFilterConstraint, Set, HierarchyFilteringPredicate)}.
+	 *
+	 * This map keeps the first predicate recorded for a constraint; {@link #scopedHierarchyHavingPredicate} keeps
+	 * the predicate of each scope set the constraint was translated in.
 	 */
 	@Nullable
 	private Map<HierarchyFilterConstraint, HierarchyFilteringPredicate> hierarchyHavingPredicate;
+	/**
+	 * The same predicates as {@link #hierarchyHavingPredicate}, keyed by the constraint together with the processing
+	 * scopes it was translated in.
+	 *
+	 * One constraint - the same instance or an equal one - placed both in `inScope(LIVE, ...)` and in
+	 * `inScope(ARCHIVED, ...)` is translated once per container against a different hierarchy tree, and the
+	 * statistics of one scope must observe the visibility resolved in that scope. Lazily allocated together with
+	 * {@link #hierarchyHavingPredicate}.
+	 */
+	@Nullable
+	private Map<ScopedHierarchyFilter, HierarchyFilteringPredicate> scopedHierarchyHavingPredicate;
 	/**
 	 * Contains the {@link Formula} that calculates the root hierarchy node ids of each translated hierarchy filter
 	 * constraint, so that the requirement phase (hierarchy statistics) can reuse what the filtering phase already
 	 * computed. Keyed by the constraint itself, because a single query may legitimately carry several of them -
 	 * two subtrees joined by `or`, or two constraints aimed at different references - and the statistics of one
 	 * hierarchy must never observe the roots of another. Read through
-	 * {@link #getRootHierarchyNodes(HierarchyFilterConstraint)}. Lazily allocated by
-	 * {@link #setRootHierarchyNodesFormula(HierarchyFilterConstraint, Formula)}.
+	 * {@link #getRootHierarchyNodes(HierarchyFilterConstraint, Scope)}. Lazily allocated by
+	 * {@link #setRootHierarchyNodesFormula(HierarchyFilterConstraint, Set, Formula)}.
+	 *
+	 * This map keeps the first formula recorded for a constraint; {@link #scopedRootHierarchyNodesFormula} keeps the
+	 * formula of each scope set the constraint was translated in.
 	 */
 	@Nullable
 	private Map<HierarchyFilterConstraint, Formula> rootHierarchyNodesFormula;
+	/**
+	 * The same formulas as {@link #rootHierarchyNodesFormula}, keyed by the constraint together with the processing
+	 * scopes it was translated in - see {@link #scopedHierarchyHavingPredicate} for why. Lazily allocated together
+	 * with {@link #rootHierarchyNodesFormula}.
+	 */
+	@Nullable
+	private Map<ScopedHierarchyFilter, Formula> scopedRootHierarchyNodesFormula;
 	/**
 	 * The index contains rules for facet summary computation regarding the inter facet relation. The key in the index
 	 * is a tuple consisting of `referenceName`, `typeOfRule` and the {@link FacetGroupRelationLevel} the relation was
@@ -1690,17 +1714,26 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * translation deliberately lets the first applicable scope take precedence (LIVE before ARCHIVED), so the roots
 	 * have to follow the same precedence rather than being overwritten by a later scope.
 	 *
+	 * The formula is also recorded for the scopes it was resolved in, so that the statistics of a scope find the
+	 * roots of that scope when the constraint was translated in several `inScope` containers.
+	 *
 	 * @param hierarchyFilterConstraint the constraint whose roots were resolved
+	 * @param scopes                    the processing scopes the roots were resolved in
 	 * @param rootHierarchyNodesFormula formula computing primary keys of the hierarchy roots
 	 */
 	public void setRootHierarchyNodesFormula(
 		@Nonnull HierarchyFilterConstraint hierarchyFilterConstraint,
+		@Nonnull Set<Scope> scopes,
 		@Nonnull Formula rootHierarchyNodesFormula
 	) {
 		if (this.rootHierarchyNodesFormula == null) {
 			this.rootHierarchyNodesFormula = CollectionUtils.createHashMap(4);
+			this.scopedRootHierarchyNodesFormula = CollectionUtils.createHashMap(4);
 		}
 		this.rootHierarchyNodesFormula.putIfAbsent(hierarchyFilterConstraint, rootHierarchyNodesFormula);
+		Objects.requireNonNull(this.scopedRootHierarchyNodesFormula).putIfAbsent(
+			new ScopedHierarchyFilter(hierarchyFilterConstraint, scopes), rootHierarchyNodesFormula
+		);
 	}
 
 	/**
@@ -1708,20 +1741,29 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * the filter and the requirement phase.
 	 *
 	 * The first predicate recorded for a constraint wins, for the same reason as in
-	 * {@link #setRootHierarchyNodesFormula(HierarchyFilterConstraint, Formula)}: a constraint is translated once per
+	 * {@link #setRootHierarchyNodesFormula(HierarchyFilterConstraint, Set, Formula)}: a constraint is translated once per
 	 * scope index and the first applicable scope takes precedence.
 	 *
+	 * The predicate is also recorded for the scopes it was resolved in - see
+	 * {@link #setRootHierarchyNodesFormula(HierarchyFilterConstraint, Set, Formula)}.
+	 *
 	 * @param hierarchyFilterConstraint the constraint whose node visibility was resolved
+	 * @param scopes                    the processing scopes the visibility was resolved in
 	 * @param hierarchyHavingPredicate  predicate deciding which hierarchy nodes are traversable
 	 */
 	public void setHierarchyHavingPredicate(
 		@Nonnull HierarchyFilterConstraint hierarchyFilterConstraint,
+		@Nonnull Set<Scope> scopes,
 		@Nonnull HierarchyFilteringPredicate hierarchyHavingPredicate
 	) {
 		if (this.hierarchyHavingPredicate == null) {
 			this.hierarchyHavingPredicate = CollectionUtils.createHashMap(4);
+			this.scopedHierarchyHavingPredicate = CollectionUtils.createHashMap(4);
 		}
 		this.hierarchyHavingPredicate.putIfAbsent(hierarchyFilterConstraint, hierarchyHavingPredicate);
+		Objects.requireNonNull(this.scopedHierarchyHavingPredicate).putIfAbsent(
+			new ScopedHierarchyFilter(hierarchyFilterConstraint, scopes), hierarchyHavingPredicate
+		);
 	}
 
 	/**
@@ -1732,15 +1774,25 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * A NULL constraint, and a constraint that declares no `having` / `havingAnyChild` / `excluding` filter, both
 	 * yield NULL, which the computers read as "every node is traversable".
 	 *
+	 * The predicate resolved in exactly the scope of the statistics wins; when the constraint was not translated in
+	 * that scope alone (a top-level constraint of a query over several scopes), the first recorded predicate is used.
+	 *
 	 * @param hierarchyFilterConstraint the constraint whose node visibility is asked for, may be NULL
+	 * @param scope                     the scope the statistics are computed for
 	 * @return the predicate declared by that constraint, or NULL when it declared none
 	 */
 	@Nullable
 	public HierarchyFilteringPredicate getHierarchyHavingPredicate(
-		@Nullable HierarchyFilterConstraint hierarchyFilterConstraint
+		@Nullable HierarchyFilterConstraint hierarchyFilterConstraint,
+		@Nonnull Scope scope
 	) {
-		return this.hierarchyHavingPredicate == null || hierarchyFilterConstraint == null ?
-			null : this.hierarchyHavingPredicate.get(hierarchyFilterConstraint);
+		if (this.hierarchyHavingPredicate == null || hierarchyFilterConstraint == null) {
+			return null;
+		}
+		final HierarchyFilteringPredicate scopedPredicate = Objects.requireNonNull(this.scopedHierarchyHavingPredicate)
+			.get(new ScopedHierarchyFilter(hierarchyFilterConstraint, EnumSet.of(scope)));
+		return scopedPredicate == null ?
+			this.hierarchyHavingPredicate.get(hierarchyFilterConstraint) : scopedPredicate;
 	}
 
 	/**
@@ -1913,15 +1965,26 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * constraint, and a constraint that declares no roots of its own (`hierarchyWithinRoot`), both yield an empty
 	 * bitmap, which the producers read as "the index roots".
 	 *
+	 * The roots resolved in exactly the scope of the statistics win; when the constraint was not translated in that
+	 * scope alone (a top-level constraint of a query over several scopes), the first recorded roots are used.
+	 *
 	 * @param hierarchyFilterConstraint the constraint whose roots are asked for, may be NULL
+	 * @param scope                     the scope the statistics are computed for
 	 * @return bitmap of root hierarchy nodes
 	 */
 	@Nonnull
-	public Bitmap getRootHierarchyNodes(@Nullable HierarchyFilterConstraint hierarchyFilterConstraint) {
-		return ofNullable(this.rootHierarchyNodesFormula)
-			.map(it -> hierarchyFilterConstraint == null ? null : it.get(hierarchyFilterConstraint))
-			.map(Formula::compute)
-			.orElse(EmptyBitmap.INSTANCE);
+	public Bitmap getRootHierarchyNodes(
+		@Nullable HierarchyFilterConstraint hierarchyFilterConstraint,
+		@Nonnull Scope scope
+	) {
+		if (this.rootHierarchyNodesFormula == null || hierarchyFilterConstraint == null) {
+			return EmptyBitmap.INSTANCE;
+		}
+		final Formula scopedFormula = Objects.requireNonNull(this.scopedRootHierarchyNodesFormula)
+			.get(new ScopedHierarchyFilter(hierarchyFilterConstraint, EnumSet.of(scope)));
+		final Formula formula = scopedFormula == null ?
+			this.rootHierarchyNodesFormula.get(hierarchyFilterConstraint) : scopedFormula;
+		return formula == null ? EmptyBitmap.INSTANCE : formula.compute();
 	}
 
 	/**
@@ -2164,6 +2227,19 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 				", constraint=" + this.constraint +
 				'}';
 		}
+	}
+
+	/**
+	 * Key of the hierarchy resolutions recorded per scope: a hierarchy filter constraint together with the processing
+	 * scopes it was translated in.
+	 *
+	 * @param constraint the hierarchy filter constraint, compared by equality like the constraint-only key
+	 * @param scopes     the processing scopes the constraint was translated in
+	 */
+	private record ScopedHierarchyFilter(
+		@Nonnull HierarchyFilterConstraint constraint,
+		@Nonnull Set<Scope> scopes
+	) {
 	}
 
 }

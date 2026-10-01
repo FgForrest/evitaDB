@@ -1672,21 +1672,28 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 
 	/**
 	 * Method returns TRUE if target index fully represents the passed filtering query (i.e. disjunction
-	 * of all {@link EntityIndex#getAllPrimaryKeys()} would produce the correct result for passed query).
+	 * of all {@link EntityIndex#getAllPrimaryKeys()} would produce the correct result for passed query) in the current
+	 * processing scopes - see {@link TargetIndexes#represents(FilterConstraint, Set)}.
 	 */
 	public boolean isTargetIndexRepresentingConstraint(@Nonnull FilterConstraint filterConstraint) {
-		return this.indexSetToUse.getRepresentedConstraint() == filterConstraint;
+		return this.indexSetToUse.represents(filterConstraint, getProcessingScope().getScopes());
 	}
 
 	/**
 	 * Method returns variant of {@link TargetIndexes} that fully represents the passed filtering query (i.e. disjunction
-	 * of all {@link EntityIndex#getAllPrimaryKeys()} would produce the correct result for passed query).
+	 * of all {@link EntityIndex#getAllPrimaryKeys()} would produce the correct result for passed query) in the current
+	 * processing scopes.
+	 *
+	 * The scopes matter when one constraint instance is placed in several `inScope` containers: index selection
+	 * registers one variant per container, and matching the instance alone would hand every container the variant
+	 * of the first one - see {@link TargetIndexes#represents(FilterConstraint, Set)}.
 	 */
 	@Nullable
 	public TargetIndexes<?> findTargetIndexSet(@Nonnull FilterConstraint filterConstraint) {
+		final Set<Scope> processingScopes = getProcessingScope().getScopes();
 		return this.targetIndexes
 			.stream()
-			.filter(it -> it.getRepresentedConstraint() == filterConstraint)
+			.filter(it -> it.represents(filterConstraint, processingScopes))
 			.findFirst()
 			.orElse(null);
 	}
