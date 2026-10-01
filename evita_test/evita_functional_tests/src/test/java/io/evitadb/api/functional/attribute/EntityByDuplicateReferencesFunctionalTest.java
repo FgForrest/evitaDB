@@ -894,7 +894,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				"""
 					Schema `CATEGORY` contains validation errors:
 						Reference schema `products` contains validation errors:
-						Reflected reference `products` cannot disallow duplicates, because the original reflected reference `categories` in entity `PRODUCT` allows them!""",
+						Reflected reference `products` cannot disallow duplicates, because the original reflected reference `categories` in entity `PRODUCT` allows them! Align the cardinality of both references, for example by letting the reflected reference inherit the cardinality of the original one.""",
 				cause.getMessage()
 			);
 		}
