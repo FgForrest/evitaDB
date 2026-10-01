@@ -40,10 +40,10 @@ import javax.annotation.Nonnull;
  *
  * - **Fixed width** makes the key order exactly (field, term). A variable-width prefix would interleave field `1`'s
  *   terms with field `10`'s, and a prefix expansion would no longer be a single contiguous cursor walk.
- * - **Lower-case hexadecimal ASCII** sorts in numeric order under the natural code-point order the dictionary uses
- *   (`'0'..'9'` precede `'a'..'f'`), and keeps every prefix character outside the surrogate range, which the
- *   front-coded string column's byte-compare fast path assumes. A packed `char` per field would be shorter but would
- *   reach the surrogates past field 55,295.
+ * - **Lower-case hexadecimal ASCII** sorts in numeric order under the natural `String` (UTF-16 code-unit) order the
+ *   dictionary uses (`'0'..'9'` precede `'a'..'f'`), and keeps every prefix character outside the surrogate range,
+ *   which the front-coded string column's byte-compare fast path assumes. A packed `char` per field would be shorter
+ *   but would reach the surrogates past field 55,295.
  *
  * Four digits address 65,536 fields per dictionary, far beyond any realistic schema; the limit is checked rather than
  * assumed.

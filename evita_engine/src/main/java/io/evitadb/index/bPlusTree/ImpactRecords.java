@@ -108,6 +108,21 @@ final class ImpactRecords {
 	 * Low 16 bits of a record id select the position inside its roaring container; the high 16 select the container.
 	 */
 	private static final int CONTAINER_SHIFT = 16;
+	/**
+	 * Bit 62 of a position packed by {@link #locate}: set when the id is a member of the bitmap, and the offset is
+	 * then its index in its chunk.
+	 */
+	private static final long PRESENT_FLAG = 1L << 62;
+	/**
+	 * Bit 61 of a position packed by {@link #locate}: set when the id's roaring container already holds at least one
+	 * id, so its chunk exists.
+	 */
+	private static final long CONTAINER_FLAG = 1L << 61;
+	/**
+	 * The low 61 bits of a position packed by {@link #locate}, without the flags: the chunk ordinal shifted left by
+	 * 32 and the offset in the chunk in the low 32 bits - so masked positions sort by ordinal, then offset.
+	 */
+	private static final long POSITION_MASK = (1L << 61) - 1;
 
 	private ImpactRecords() {
 		throw new UnsupportedOperationException("ImpactRecords is a static utility and must not be instantiated!");
@@ -272,6 +287,14 @@ final class ImpactRecords {
 			return chunks;
 		}
 		Arrays.sort(positions, 0, count);
+		// a repeated id resolves to the same position, and equal positions are adjacent once sorted: drop them once
+		int unique = 0;
+		for (int i = 0; i < count; i++) {
+			if (i == 0 || positions[i] != positions[i - 1]) {
+				positions[unique++] = positions[i];
+			}
+		}
+		count = unique;
 		final byte[][] result = new byte[chunks.length][];
 		int written = 0;
 		int next = 0;
@@ -283,13 +306,7 @@ final class ImpactRecords {
 			}
 			final int first = next;
 			while (next < count && ordinalOf(positions[next]) == ordinal) {
-				// a repeated id resolves to the same position twice; it is dropped once
-				if (next == first || positions[next] != positions[next - 1]) {
-					next++;
-				} else {
-					System.arraycopy(positions, next + 1, positions, next, count - next - 1);
-					count--;
-				}
+				next++;
 			}
 			final int drop = next - first;
 			if (drop == chunk.length) {
@@ -324,6 +341,9 @@ final class ImpactRecords {
 	 *                         record, a sorted `int[]` when it settles into the array tier, a
 	 *                         {@link TransactionalBitmap} when it stays a bitmap
 	 * @return the impact slot to store beside `committedSlot` - the same instance when nothing changed
+	 * @throws GenericEvitaInternalError when a bitmap bucket arrives without its committed records, or its impacts
+	 *                                   do not cover exactly the committed records - a record write that bypassed
+	 *                                   the impact column
 	 */
 	@Nonnull
 	static Object committed(
@@ -373,6 +393,10 @@ final class ImpactRecords {
 	 * Returns the impacts of a bucket aligned with the order its records enumerate in. Inside a transaction a
 	 * bitmap bucket with pending writes is aligned on the fly against its merged view - a read-your-writes answer
 	 * that costs one merge, paid only by a reader of a bucket the open transaction touched.
+	 *
+	 * Every shape answers a fresh array the caller owns and may keep or write - a clone, a concatenation or a new
+	 * alignment, never the stored slot - which is what lets {@link TransactionalBucketBPlusTree#impactsOf} promise a
+	 * copy.
 	 *
 	 * @param impacts the bucket's impact slot
 	 * @param records the bucket's record slot - `null` for a single-record bucket
@@ -424,26 +448,6 @@ final class ImpactRecords {
 	}
 
 	/**
-	 * Returns how many impacts a committed slot holds - what {@link OverflowRecords#cardinality(Object)} must
-	 * answer for the record slot beside it.
-	 *
-	 * @param impacts the bucket's impact slot
-	 * @return the number of impact bytes
-	 */
-	static int cardinality(@Nonnull Object impacts) {
-		if (impacts instanceof Byte) {
-			return 1;
-		}
-		if (impacts instanceof final byte[] array) {
-			return array.length;
-		}
-		if (impacts instanceof final byte[][] chunks) {
-			return totalLength(chunks);
-		}
-		throw unexpectedSlot(impacts);
-	}
-
-	/**
 	 * Returns the heap an impact slot occupies, excluding the slot in the impact column that points at it - the
 	 * column charges that itself. A cached {@link Byte} is owned by the JVM and costs the leaf nothing.
 	 *
@@ -490,8 +494,9 @@ final class ImpactRecords {
 	 * since - the single pass in which a transaction's unaligned delta becomes aligned. Both bitmaps are walked in
 	 * roaring's unsigned order with two cursors; an id in both takes the delta's impact when it has one and its old
 	 * chunk byte otherwise, an id only in the new view must be in the delta, an id only in the old view was removed
-	 * and is skipped. Chunks the transaction did not touch are still read byte by byte here; sharing them by
-	 * reference is the obvious refinement and was left out of the probe.
+	 * and is skipped. Chunks the transaction did not touch are copied byte by byte as well. Sharing them by reference
+	 * would save that copy - a possible optimization, which would need the commit merge to assemble the chunk spine
+	 * directly rather than re-chunk the one flat array this answers.
 	 *
 	 * @param oldView   the bitmap the chunks are aligned with
 	 * @param oldChunks the aligned chunks, one per container of `oldView`
@@ -533,19 +538,9 @@ final class ImpactRecords {
 			}
 			final int deltaIndex = delta.indexOf(pk);
 			if (hasOld && oldPk == pk) {
+				// the matched old id is consumed lazily: the new ids ascend strictly, so the skip loop of the next
+				// iteration steps past it
 				out[written++] = deltaIndex >= 0 ? delta.indexGet(deltaIndex) : oldChunks[oldOrdinal][oldOffset];
-				if (oldIt.hasNext()) {
-					final int next = oldIt.next();
-					if ((next >>> CONTAINER_SHIFT) != (oldPk >>> CONTAINER_SHIFT)) {
-						oldOrdinal++;
-						oldOffset = 0;
-					} else {
-						oldOffset++;
-					}
-					oldPk = next;
-				} else {
-					hasOld = false;
-				}
 			} else {
 				if (deltaIndex < 0) {
 					throw new GenericEvitaInternalError(
@@ -590,7 +585,7 @@ final class ImpactRecords {
 	/**
 	 * Splits impacts that are aligned with a sorted id array into one chunk per container the ids would occupy.
 	 *
-	 * @param flat the impacts, index-parallel to `sortedIds`
+	 * @param flat      the impacts, index-parallel to `sortedIds`
 	 * @param sortedIds the ids in unsigned order
 	 * @return the chunks, ordinal-parallel to the containers a bitmap of these ids has
 	 */
@@ -666,13 +661,6 @@ final class ImpactRecords {
 		}
 		return total;
 	}
-
-	/**
-	 * The flag bits and fields of the packed position {@link #locate} answers.
-	 */
-	private static final long PRESENT_FLAG = 1L << 62;
-	private static final long CONTAINER_FLAG = 1L << 61;
-	private static final long POSITION_MASK = (1L << 61) - 1;
 
 	/**
 	 * Resolves where `pk` sits, or would sit, in chunks aligned with `live` - all from ranks over the live delegate,

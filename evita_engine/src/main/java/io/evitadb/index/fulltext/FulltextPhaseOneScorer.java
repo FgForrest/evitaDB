@@ -27,6 +27,7 @@ import io.evitadb.index.bPlusTree.ImpactView;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.concurrent.ThreadSafe;
 import java.util.Arrays;
 
 /**
@@ -64,9 +65,10 @@ import java.util.Arrays;
  *
  * Each expansion's postings are merged against the sorted candidate array by whichever of two strategies is cheaper
  * for its length: a linear two-cursor walk costing `candidates + postings`, or a galloping search that moves only
- * the candidate cursor and costs about `postings × log2(candidates / postings)`. Both visit **every posting in
- * order**, so the posting index is always the offset of its impact byte — no rank computation is ever needed, and
- * the impact reader only ever moves forward, crossing each chunk boundary of a chunked bucket once. The
+ * the candidate cursor and costs about `postings × log2(candidates / postings)`. Both visit the postings **in order,
+ * one by one, never going back** - each stops early only once the candidates run out - so the posting index is always
+ * the offset of its impact byte — no rank computation is ever needed, and the impact reader only ever moves forward,
+ * crossing each chunk boundary of a chunked bucket at most once. The
  * galloping strategy is what lets a short posting list against a large candidate set stay within the phase-1 budget
  * (`p1-index-core-measurements.md`, part 3: 25 → 32 of 36 grid cells, up to 45× on the widest).
  *
@@ -75,6 +77,7 @@ import java.util.Arrays;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
+@ThreadSafe
 public final class FulltextPhaseOneScorer {
 
 	/**
@@ -115,7 +118,8 @@ public final class FulltextPhaseOneScorer {
 	 * One term a query token expanded into, with its posting list and the impact bytes aligned to it.
 	 *
 	 * The impacts are an {@link ImpactView}, so they can come straight from the dictionary cursor
-	 * ({@link io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor#impacts()}) without a copy.
+	 * ({@link io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor#impacts()}) without a copy. The
+	 * postings are adopted without a copy too, so neither may be written while the expansion is in use.
 	 *
 	 * @param postings primary keys of the entities containing the term, ascending
 	 * @param impacts  impact byte of each posting, the i-th belonging to `postings[i]`
@@ -157,7 +161,8 @@ public final class FulltextPhaseOneScorer {
 	 * @param composites       the composite of each, parallel to `primaryKeys`; compare them unsigned (see the
 	 *                         class documentation)
 	 * @param matchedDocuments how many candidates matched at least one token
-	 * @param postingsWalked   how many postings the merges stepped over, the cost model's dominant term
+	 * @param postingsWalked   the total length of every expansion's posting list - the cost model's dominant term,
+	 *                         counted whether or not a merge stopped early because the candidates ran out
 	 */
 	public record Result(
 		@Nonnull int[] primaryKeys,
@@ -170,11 +175,16 @@ public final class FulltextPhaseOneScorer {
 	/**
 	 * Scores the candidates against the query and returns the top N.
 	 *
+	 * The candidates and every expansion's postings must ascend in the same, signed `int` order, which is what the
+	 * merges walk them in. The expansions are only read, never copied or written, for the duration of the call.
+	 *
 	 * @param candidates primary keys of the candidate entities, ascending and distinct
 	 * @param tokens     the query tokens, each as the expansions it produced; a token without expansions matches
 	 *                   nothing but still counts toward the token limit
 	 * @param topN       how many entities to return, at least one
 	 * @return the selected entities in descending rank order; ties are broken by ascending primary key
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when `topN` is not positive, or the query carries more
+	 *                                                        than {@link #MAX_QUERY_TOKENS} tokens
 	 */
 	@Nonnull
 	public static Result score(@Nonnull int[] candidates, @Nonnull Expansion[][] tokens, int topN) {
@@ -189,6 +199,8 @@ public final class FulltextPhaseOneScorer {
 	 * @param topN       how many entities to return, at least one
 	 * @param strategy   how each expansion is merged
 	 * @return the selected entities in descending rank order; ties are broken by ascending primary key
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when `topN` is not positive, or the query carries more
+	 *                                                        than {@link #MAX_QUERY_TOKENS} tokens
 	 */
 	@Nonnull
 	static Result score(
@@ -213,9 +225,9 @@ public final class FulltextPhaseOneScorer {
 		final byte[] tokenTypo = new byte[candidateCount];
 		long postingsWalked = 0L;
 
-		for (Expansion[] expansions : tokens) {
+		for (final Expansion[] expansions : tokens) {
 			boolean anyHit = false;
-			for (Expansion expansion : expansions) {
+			for (final Expansion expansion : expansions) {
 				final int[] postings = expansion.postings();
 				// stored one-based, so `0` in the typo lane means "this token did not hit the candidate"
 				final byte distance = (byte) (expansion.distance() + 1);

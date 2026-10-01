@@ -228,7 +228,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * Creates an empty index.
 	 *
 	 * @param indexAnalyzer      analyzer of the index slot of the partition's locale
-	 * @param defaultLengthPivot length pivot a field gets when registered without one; must be positive
+	 * @param defaultLengthPivot length pivot a field gets when registered without one; must be positive and finite
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the pivot is not positive and finite
 	 */
 	@SuppressWarnings("unchecked")
 	public FulltextIndex(@Nonnull FulltextAnalyzer indexAnalyzer, double defaultLengthPivot) {
@@ -237,7 +238,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		this.defaultLengthPivot = defaultLengthPivot;
 		this.fieldIds = CollectionUtils.createHashMap(8);
 		this.fields = new ArrayList<>(8);
-		// natural (code-point) order: the field prefix relies on it, see FulltextTermKeys
+		// natural `String` order - UTF-16 code-unit order, not code-point order: the field prefix relies on it, see
+		// FulltextTermKeys
 		this.dictionary = new TransactionalBucketBPlusTree<>(
 			VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_INTERNAL_NODE_BLOCK_SIZE,
 			String.class,
@@ -275,7 +277,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * normalized against the pivot, scaled to `1..`{@link #MAX_IMPACT}. Never `0`, so a stored impact can always be
 	 * told from an absent one.
 	 *
-	 * @param termFrequency how many times the term occurs in the value, at least one
+	 * @param termFrequency how many times the term occurs in the value, at least one; it may exceed `length`, since
+	 *                      stacked variants of one position each count
 	 * @param length        length of the value in tokens, at least one
 	 * @param lengthPivot   the field's length pivot
 	 * @return the impact as an unsigned value
@@ -385,6 +388,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 *
 	 * @param fieldId id of the field
 	 * @return the pivot its impacts are computed against
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the index never assigned the id
 	 */
 	public double getLengthPivot(int fieldId) {
 		assertFieldKnown(fieldId);
@@ -485,7 +489,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		}
 		markWritten();
 		final double pivot = field.lengthPivot();
-		for (Map.Entry<String, int[]> entry : analyzed.termFrequencies().entrySet()) {
+		for (final Map.Entry<String, int[]> entry : analyzed.termFrequencies().entrySet()) {
 			final int impact = computeImpact(entry.getValue()[0], analyzed.length(), pivot);
 			this.dictionary.addRecord(FulltextTermKeys.encode(fieldId, entry.getKey()), primaryKey, (byte) impact);
 		}
@@ -511,7 +515,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			return;
 		}
 		markWritten();
-		for (String term : analyzed.termFrequencies().keySet()) {
+		for (final String term : analyzed.termFrequencies().keySet()) {
 			this.dictionary.removeRecord(FulltextTermKeys.encode(fieldId, term), primaryKey);
 		}
 		fieldAt(fieldId).lengths().remove(primaryKey);
@@ -522,10 +526,15 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * {@link #addValue(String, int, String)} for callers that analyze themselves. Adding a posting that is already
 	 * present replaces its impact.
 	 *
+	 * Only the dictionary is touched: the field's {@link FieldLengthTable} is not, so a caller mixing this with
+	 * {@link #addValue(String, int, String)} for the same entity leaves its length and its postings disagreeing.
+	 *
 	 * @param fieldId    id of the field, as returned by {@link #getOrAssignFieldId(String)}
 	 * @param term       the analyzed term
 	 * @param primaryKey primary key of the entity
 	 * @param impact     the posting's impact, `1..`{@link #MAX_IMPACT}
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the index never assigned the field id, or the
+	 *                                                        impact is out of range
 	 */
 	public void addPosting(int fieldId, @Nonnull String term, int primaryKey, int impact) {
 		assertFieldKnown(fieldId);
@@ -539,11 +548,13 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 
 	/**
 	 * Removes a single posting directly, bypassing analysis. The term leaves the dictionary with its last posting;
-	 * removing a posting that is not present changes nothing.
+	 * removing a posting that is not present changes nothing. Like {@link #addPosting}, it leaves the field's
+	 * {@link FieldLengthTable} untouched.
 	 *
 	 * @param fieldId    id of the field, as returned by {@link #getOrAssignFieldId(String)}
 	 * @param term       the analyzed term
 	 * @param primaryKey primary key of the entity
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the index never assigned the field id
 	 */
 	public void removePosting(int fieldId, @Nonnull String term, int primaryKey) {
 		assertFieldKnown(fieldId);
@@ -566,7 +577,9 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
-	 * Returns the impacts of a term in a field, aligned with its posting list.
+	 * Returns the impacts of a term in a field, aligned with its posting list. The answer is a copy, paid for with a
+	 * descent of the dictionary; a walk over many terms reads them through {@link #forEachTerm} and its
+	 * {@link TermVisitor} instead, which costs neither.
 	 *
 	 * @param fieldId id of the field
 	 * @param term    the analyzed term
@@ -596,9 +609,13 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * asks to stop. An empty prefix walks every term of the field. Keys of other fields are never reached: the walk
 	 * starts at the encoded lower bound and ends at the first key without the encoded prefix.
 	 *
+	 * The walk runs a cursor over the dictionary's live leaves, so the visitor must not write to this index while
+	 * it runs.
+	 *
 	 * @param fieldId    id of the field
 	 * @param termPrefix prefix the visited terms share; empty for all terms of the field
 	 * @param visitor    receives each term, its posting list and its impacts
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the index never assigned the field id
 	 */
 	public void forEachTerm(int fieldId, @Nonnull String termPrefix, @Nonnull TermVisitor visitor) {
 		assertFieldKnown(fieldId);
@@ -737,6 +754,9 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * The length counts token **positions**: a term arriving at position increment `0` is a variant of the previous
 	 * position, not a further token of the text, and a stop word removed by the chain leaves a gap but is not a token
 	 * either. Each element is analyzed on its own, so no token spans two of them.
+	 *
+	 * The term frequencies count every term the chain emits, stacked variants at increment `0` included, so a term's
+	 * frequency may exceed the length.
 	 *
 	 * @param values the elements to analyze
 	 * @return the analysis

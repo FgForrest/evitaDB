@@ -41,6 +41,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -970,6 +971,36 @@ class BucketImpactColumnTest {
 			assertEquals(0, ImpactView.EMPTY.toArray().length);
 			assertSame(ImpactView.EMPTY, ImpactView.of(new byte[0]));
 			assertThrows(GenericEvitaInternalError.class, () -> ImpactView.EMPTY.reader().impactAt(0));
+		}
+
+		@Test
+		@DisplayName("switching impacts on a second time changes nothing")
+		void shouldTolerateEnablingImpactsTwice() {
+			final TransactionalBucketBPlusTree<Integer> tree = emptyImpactTree(5);
+			tree.enableImpacts();
+			assertTrue(tree.carriesImpacts());
+			tree.addRecord(1, 10, (byte) 3);
+			tree.addRecord(1, 11, (byte) 4);
+			// a populated tree accepts the repeated switch-on too, since it is already on
+			tree.enableImpacts();
+			assertArrayEquals(new byte[]{3, 4}, tree.impactsOf(1));
+		}
+
+		@Test
+		@DisplayName("an impact view prints its impacts in record order, flat or chunked")
+		void shouldPrintImpactViewInRecordOrder() {
+			assertEquals("[1, 2]", ImpactView.of(new byte[]{1, 2}).toString());
+			assertEquals("[]", ImpactView.EMPTY.toString());
+			final TransactionalBucketBPlusTree<Integer> tree = emptyImpactTree(5);
+			// two roaring containers, so the cursor hands out a chunked view
+			for (int i = 0; i <= OverflowRecords.SMALL_BUCKET_THRESHOLD; i++) {
+				tree.addRecord(1, i < 64 ? i : 65_536 + i, (byte) i);
+			}
+			assertEquals(2, assertInstanceOf(byte[][].class, impactSlot(tree, 1)).length);
+			final BucketCursor<Integer> cursor = tree.cursor();
+			assertTrue(cursor.next());
+			final ImpactView view = cursor.impacts();
+			assertEquals(Arrays.toString(tree.impactsOf(1)), view.toString());
 		}
 
 		@Test

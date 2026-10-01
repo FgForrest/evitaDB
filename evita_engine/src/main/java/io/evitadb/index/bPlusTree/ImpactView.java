@@ -170,6 +170,7 @@ public final class ImpactView {
 		return result;
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return Arrays.toString(toArray());
@@ -207,8 +208,9 @@ public final class ImpactView {
 		/**
 		 * Returns the impact of the record at the passed index of the bucket's record order.
 		 *
-		 * @param index the record's index, `0..`{@link #size()}` - 1`
-		 * @return the impact byte, unsigned
+		 * @param index the record's index, `0` to {@link ImpactView#size()} `- 1`
+		 * @return the impact byte; widen it with `Byte.toUnsignedInt` to read the unsigned impact
+		 * @throws io.evitadb.exception.GenericEvitaInternalError when the index is outside the view
 		 */
 		public byte impactAt(int index) {
 			final int offset = index - this.chunkStart;

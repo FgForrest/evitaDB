@@ -85,7 +85,7 @@ import static io.evitadb.utils.ArrayUtils.*;
  * primitive `int` single-record column, and a sparse, lazily-allocated overflow column for the few multi-record
  * buckets.
  *
- * **Leaf layout — LAZY-PARALLEL.** All four columns have a logical capacity of `valueBlockSize` and move in lockstep
+ * **Leaf layout — LAZY-PARALLEL.** All five columns have a logical capacity of `valueBlockSize` and move in lockstep
  * on insert-shift / split / merge / steal:
  *
  * - `ValueColumn keys` — the value, ordered by the {@link #comparator} (natural order when `null`).
@@ -104,7 +104,7 @@ import static io.evitadb.utils.ArrayUtils.*;
  * **Each column's backing storage is sized to what the leaf actually holds, not to `valueBlockSize`.** The capacity
  * above is a logical number every column stores and answers from; the array behind it starts at four slots and doubles
  * up to that capacity, and is trimmed back when the commit merge builds a new committed leaf. The invariant that ties
- * the four together — every column's live run equals `peek + 1` — is asserted at every **structural** mutation's
+ * the five together — every column's live run equals `peek + 1` — is asserted at every **structural** mutation's
  * exit, but deliberately not on the per-insert path; see `BPlusLeafTreeNode.assertColumnsAlignedWithPeek` for
  * exactly which paths that is and why the per-insert exclusion is safe.
  *
@@ -1159,6 +1159,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * Accepted only while the tree is EMPTY. Unlike value ids there is nothing a back-fill could stamp onto an
 	 * existing bucket — an impact is a property of each record the tree has already lost the source of — so a
 	 * populated tree is refused rather than walked. Idempotent on a tree that already carries impacts.
+	 *
+	 * @throws GenericEvitaInternalError when the tree does not carry impacts yet and already holds a bucket
 	 */
 	public void enableImpacts() {
 		if (this.impactCarrying) {
@@ -1177,6 +1179,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	}
 
 	/**
+	 * Returns whether {@link #enableImpacts()} has switched this tree into impact-carrying mode - which decides the
+	 * insert API it accepts and whether {@link #impactsOf} and {@link BucketCursor#impacts()} can be read.
+	 *
 	 * @return `true` when this tree stores an impact byte beside every record
 	 */
 	public boolean carriesImpacts() {
@@ -1191,6 +1196,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 *
 	 * @param value the value whose bucket to read
 	 * @return the aligned impacts, or an empty array when the tree holds no bucket for the value
+	 * @throws GenericEvitaInternalError when this tree carries no impacts
 	 */
 	@Nonnull
 	public byte[] impactsOf(@Nonnull K value) {
@@ -1749,6 +1755,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 *
 	 * @param value the value identifying the bucket
 	 * @param pk    the record id to add (may be any int, including negative ids)
+	 * @throws GenericEvitaInternalError when this tree carries impacts - it takes every record through
+	 *                                   {@link #addRecord(Comparable, int, byte)}
 	 */
 	@Override
 	public void addRecord(@Nonnull K value, int pk) {
@@ -1768,6 +1776,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * @param pk    the record id to add (may be any int, including negative ids)
 	 * @return the id minted for the newly created bucket, `0` when a bucket was created on a tree that carries no
 	 *         value ids, or {@link #NO_CREATED_BUCKET} when the record joined an existing bucket
+	 * @throws GenericEvitaInternalError when this tree carries impacts - it takes every record through
+	 *                                   {@link #addRecord(Comparable, int, byte)}
 	 */
 	@Override
 	public int addRecordReportingValueBirth(@Nonnull K value, int pk) {
@@ -1786,6 +1796,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * @param value  the value identifying the bucket
 	 * @param pk     the record id to add (may be any int, including negative ids)
 	 * @param impact the record's impact, read as an unsigned byte
+	 * @throws GenericEvitaInternalError when this tree carries no impacts
 	 */
 	public void addRecord(@Nonnull K value, int pk, byte impact) {
 		Assert.isPremiseValid(this.impactCarrying, "Impacts are accepted only on an impact-carrying tree!");
@@ -1841,6 +1852,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 *
 	 * @param value the value identifying the bucket
 	 * @param pks   the record ids to add; must be non-empty (may contain negative ids)
+	 * @throws GenericEvitaInternalError when this tree carries impacts - it takes every record through
+	 *                                   {@link #addRecord(Comparable, int, byte)}
 	 */
 	@Override
 	public void addRecord(@Nonnull K value, @Nonnull int... pks) {
@@ -1856,6 +1869,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * @param pks   the record ids to add; must be non-empty (may contain negative ids)
 	 * @return the id minted for the newly created bucket, `0` when a bucket was created on a tree that carries no
 	 *         value ids, or {@link #NO_CREATED_BUCKET} when the records joined an existing bucket
+	 * @throws GenericEvitaInternalError when this tree carries impacts - it takes every record through
+	 *                                   {@link #addRecord(Comparable, int, byte)}
 	 */
 	@Override
 	public int addRecordReportingValueBirth(@Nonnull K value, @Nonnull int... pks) {
@@ -2627,7 +2642,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * {@code observableLiveRun()} rather than by `size()` — see {@link ValueColumn#observableLiveRun()} for why one
 	 * reading of that bound stays valid for the whole walk.
 	 *
-	 * Every column is asked, not just the key column: the four are grown by four independent reallocations, so a
+	 * Every column is asked, not just the key column: the five are grown by five independent reallocations, so a
 	 * torn reader can catch any one of them behind the others. The cost is one call per column per **leaf**, never
 	 * per key — the cursors keep the answer in a field.
 	 *
@@ -5532,7 +5547,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 *
 		 * `null` unless the owning tree carries impacts at all (see the tree's `impactCarrying`), which is the common
 		 * case. Reuses {@link OverflowColumn} because that column is an untyped reference column whose grow / trim /
-		 * shallow-clone contract is exactly what an impact slot needs: a slot's content is never written in place.
+		 * shallow-clone contract is exactly what an impact slot needs: a slot's content is never written in place -
+		 * except an {@link ImpactRecords.PendingImpacts}, a transaction's delta, which accumulates in place. A
+		 * savepoint memento therefore marks it rather than sharing it ({@link ImpactRecords#snapshotColumn}), and a
+		 * layer never shares one with its base ({@link ImpactRecords#ownPendingDeltas}).
 		 */
 		@Nullable private OverflowColumn impacts;
 		/**
@@ -5668,8 +5686,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		/**
-		 * Creates a new leaf node by copying a range of all three columns from origin arrays into the target arrays,
-		 * used during node split operations. The overflow column is allocated in the target only when the origin has one.
+		 * Creates a new leaf node by copying a range of every column from origin arrays into the target arrays, used
+		 * during node split operations. The optional columns - overflow, value ids, impacts - are copied only when the
+		 * target has them.
 		 *
 		 * @param originKeys         the source key column to copy from
 		 * @param originRecords      the source single-record column to copy from
@@ -5979,11 +5998,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		/**
 		 * Returns the heap this leaf occupies, in bytes.
 		 *
-		 * Charges its own object, every column it owns and - when it has one - each record set the overflow column
-		 * points at, priced per tier by {@link OverflowRecords#heapSizeInBytes}. `comparator` is the tree's and
-		 * shared by every node, so only its slot is charged; the overflow column is `null` until the leaf's first
-		 * multi-record bucket and costs nothing until then, and the `valueIds` column is `null` unless some
-		 * subsystem has registered as a consumer of this tree's ids.
+		 * Charges its own object, every column it owns, each record set the overflow column points at - priced per
+		 * tier by {@link OverflowRecords#heapSizeInBytes} - and each impact slot the impact column holds, priced by
+		 * {@link ImpactRecords#heapSizeInBytes}. `comparator` is the tree's and shared by every node, so only its slot
+		 * is charged; the overflow column is `null` until the leaf's first multi-record bucket and costs nothing until
+		 * then, the `valueIds` column is `null` unless some subsystem has registered as a consumer of this tree's ids,
+		 * and the `impacts` column is `null` unless the tree carries impacts.
 		 *
 		 * Every column prices its backing array at its **allocated** length, which follows the live content rather
 		 * than the leaf block size, so this figure moves as buckets are inserted and removed.
@@ -5998,7 +6018,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			long size = layout.sizeOfObject(3L * Long.BYTES + 2L + 6L * layout.referenceSize() + 2L * Integer.BYTES);
 			size += this.keys.getHeapSizeInBytes(elementSizer);
 			size += this.records.getHeapSizeInBytes();
-			// both optional columns are read ONCE: a warm-up savepoint rollback resets `overflow` to `null` in place
+			// every optional column is read ONCE: a warm-up savepoint rollback resets `overflow` to `null` in place
 			// (see `journalBucketInsertionIfOpen`), and this walk runs with no happens-before edge to that writer, so
 			// a second read could find `null` where the check found a column
 			final RecordColumn theValueIds = this.valueIds;
@@ -7083,7 +7103,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * Returns the index of the bucket for the given value, or -1 if absent.
 		 *
 		 * The index is safe to address ANY of the leaf's columns with, not merely the key column the search ran over:
-		 * the search is bounded by {@link TransactionalBucketBPlusTree#observableLeafPeek} across all four of them,
+		 * the search is bounded by {@link TransactionalBucketBPlusTree#observableLeafPeek} across all five of them,
 		 * so a slot a torn reader's key column can still see but its record column cannot is reported absent rather
 		 * than handed out for {@link #longRecordAt} to answer with an unmaterialized `0`.
 		 *
@@ -7166,11 +7186,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * {@link ValueColumn#duplicate()}, the single-record column via {@link RecordColumn#duplicate()}, and the lazy
 		 * overflow column via {@link OverflowColumn#duplicate()}, which copies the array but **not** the bitmaps in it
 		 * — those own their own transactional layers and are snapshotted independently, so the leaf only needs to
-		 * remember which slot points to which bitmap. Independent copies guarantee a later mutation, or a repeated
-		 * {@link #restore}, cannot corrupt the memento. Every column keeps its physical length verbatim, so a rollback
-		 * restores the leaf's physical shape as faithfully as its content.
+		 * remember which slot points to which bitmap. The optional value id column is deep-copied the same way. The
+		 * impact column goes through {@link ImpactRecords#snapshotColumn}: its slots are shared like the overflow
+		 * column's, except a pending delta, which is written in place and is therefore marked rather than shared.
+		 * Independent copies guarantee a later mutation, or a repeated {@link #restore}, cannot corrupt the memento.
+		 * Every column keeps its physical length verbatim, so a rollback restores the leaf's physical shape as
+		 * faithfully as its content.
 		 *
-		 * @return an independent snapshot of this leaf's three columns and peek
+		 * @return an independent snapshot of every column of this leaf and its peek
 		 */
 		@Nonnull
 		@Override
@@ -7188,7 +7211,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 
 		/**
 		 * Restores the columnar state captured by {@link #snapshot}. Fresh copies of the memento's columns are installed
-		 * so the memento stays reusable for a repeated restore.
+		 * so the memento stays reusable for a repeated restore; the impact column is rebuilt through
+		 * {@link ImpactRecords#restoreColumn}, which rewinds every marked pending delta to its mark.
 		 *
 		 * @param memento the state previously captured by {@link #snapshot}
 		 */
@@ -7667,10 +7691,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * Adds a single record to the existing bucket at `index`, promoting it if needed. Operates on the resolved
 		 * (decoupled) column instance (`this` is the layer or the non-transactional node).
 		 *
-		 * Two of its three arms write nothing into this leaf's columns and therefore journal nothing: the multi-bucket
-		 * arm hands the write to the bucket's own {@link TransactionalBitmap}, which journals the exact membership it
-		 * changes, and the already-the-sole-record arm is a no-op. Only the promotion writes a column, and its inverse
-		 * is pushed before the first of those writes.
+		 * Two of its three arms write nothing into this leaf's record columns: the multi-bucket arm hands the write to
+		 * the bucket's own record set - a {@link TransactionalBitmap} journals the exact membership it changes, a
+		 * replacement array is journalled here - and the already-the-sole-record arm is a no-op on the record set. On
+		 * an impact-carrying tree both arms do write the bucket's impact slot, and journal it through
+		 * {@link #journalBucketImpactsIfOpen} first. The promotion writes the record columns, and its inverse is pushed
+		 * before the first of those writes.
 		 *
 		 * @param index  the bucket index
 		 * @param value  the bucket's key, by which the journalled inverse re-finds this slot at replay time
@@ -7696,8 +7722,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					this.overflow.setAt(index, updated);
 				}
 				if (updatedImpacts != bucketImpacts) {
-					// an impact slot is never written in place, so a changed slot is a new object and its pre-image
-					// is a total restore
+					// a changed slot is a new object: the only slot written in place is a transaction's pending
+					// delta, which keeps answering with the same instance and is captured by the leaf memento instead.
+					// Its pre-image is therefore a total restore
 					journalBucketImpactsIfOpen(value, bucketImpacts);
 					this.impacts.setAt(index, updatedImpacts);
 				}
@@ -7786,8 +7813,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * the primitive single form (see the class javadoc), so a bucket never thrashes its representation within one
 		 * transaction.
 		 *
-		 * A multi bucket that survives the removal writes nothing into this leaf's columns, so the bucket's own
-		 * {@link TransactionalBitmap} is the only thing that journals. Both arms that DELETE a bucket push their
+		 * A multi bucket that survives the removal writes nothing into this leaf's record columns beyond a replacement
+		 * record set or impact slot, each journalled before it is stored; a {@link TransactionalBitmap} journals its
+		 * own membership. Both arms that DELETE a bucket push their
 		 * re-insertion inverse first, and for the drained multi bucket the two pushes land in exactly the order a
 		 * rollback needs: the bitmap's own `removeAll` inverse was pushed before this leaf's, so reverse replay
 		 * re-inserts the (still empty) bucket first and only then refills it.
@@ -7858,7 +7886,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		/**
-		 * Inserts a new single-record bucket at `position`, shifting all three columns right by one. The payload is widened
+		 * Inserts a new single-record bucket at `position`, shifting every column right by one. The payload is widened
 		 * to `long` so the same helper serves both the `int` record-set path (an `int` pk auto-widens, then narrows back in
 		 * {@link IntRecordColumn#insertAt}) and the `long`-payload path (a packed `long` stored verbatim by
 		 * {@link LongRecordColumn#insertAt}).
@@ -7893,7 +7921,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		/**
-		 * Inserts a bucket holding an ALREADY BUILT record set at `position`, shifting all three columns right by one.
+		 * Inserts a bucket holding an ALREADY BUILT record set at `position`, shifting every column right by one.
 		 * The multi-bucket counterpart of {@link #insertNewSingleBucket}, and it journals nothing for the same reason:
 		 * it also serves the replay of a drained bucket's deletion, which re-attaches the very bitmap instance that was
 		 * dropped so the bitmap's own (older) inverse can refill it.
@@ -7942,7 +7970,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 
 		/**
 		 * Inserts a new bucket at `position` holding the given records (single when one id, a multi bitmap otherwise),
-		 * shifting all three columns right by one, and journals the deletion that undoes it.
+		 * shifting every column right by one, and journals the deletion that undoes it.
 		 *
 		 * @param position the position at which to insert the new bucket
 		 * @param value    the bucket value
@@ -7965,7 +7993,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		/**
-		 * Deletes the bucket at `index`, collapsing all three columns. When the bucket was bitmap-tier its
+		 * Deletes the bucket at `index`, collapsing every column. When the bucket was bitmap-tier its
 		 * transactional layer is released via {@code discardRemovedValueLayer} so it is not detected as stale on
 		 * commit; an array-tier or single bucket owns no such layer and the call is a no-op for it.
 		 *
@@ -8083,10 +8111,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		/**
-		 * Journals the inverse of a multi bucket's impact slot being REPLACED: putting the previous slot back at that
+		 * Journals the inverse of a bucket's impact slot being REPLACED - a multi bucket's on an insert or removal, a
+		 * single bucket's when its sole record is re-added with a new impact: putting the previous slot back at that
 		 * key. The impact twin of {@link #journalBucketRecordsIfOpen}, and it fires on every tier for the same reason
-		 * that method fires on the array tier only: an impact slot is never written in place and journals nothing of
-		 * its own, so a changed slot is a new object whose pre-image, captured by reference, is a total restore.
+		 * that method fires on the array tier only: outside a transaction, where a warm-up savepoint journals, an
+		 * impact slot is never written in place and journals nothing of its own, so a changed slot is a new object
+		 * whose pre-image, captured by reference, is a total restore.
 		 *
 		 * Must be called BEFORE the slot is written.
 		 *
@@ -8162,15 +8192,16 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * {@code InvertedIndex#removeRecord} refuses as a premise violation the next time that value dies, and it
 		 * silently unlinks the value from every posting a substring accelerator holds against its old id.
 		 *
-		 * @param value   the key of the bucket about to be deleted
-		 * @param payload the value the record column carries at the bucket's slot — its lone record for a single
-		 *                bucket, and for a multi one the value a later demotion may still expose (see
-		 *                {@link #insertMultiBucket})
-		 * @param bucket  the drained record set to re-attach, or `null` when the bucket was a single one
+		 * @param value      the key of the bucket about to be deleted
+		 * @param payload    the value the record column carries at the bucket's slot — its lone record for a single
+		 *                   bucket, and for a multi one the value a later demotion may still expose (see
+		 *                   {@link #insertMultiBucket})
+		 * @param bucket     the drained record set to re-attach, or `null` when the bucket was a single one
 		 * @param valueId    the id the dying bucket carried, or {@link ValueIdAllocator#UNASSIGNED_VALUE_ID} when this
 		 *                   leaf holds no id column
 		 * @param impactSlot the impact slot the dying bucket carried, or `null` when this leaf holds no impact column;
-		 *                   captured by reference, which is a total restore because a slot is never written in place
+		 *                   captured by reference, which is a total restore because outside a transaction a slot is
+		 *                   never written in place
 		 */
 		private void journalBucketDeletionIfOpen(
 			@Nonnull M value,
@@ -8278,7 +8309,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * defeating inlining" is one of the three named ways to break it, and that doing so "silently reintroduces a
 		 * per-insert allocation with **no test failure**". Planting one inside the two hottest insert methods, and
 		 * enlarging them against the inlining budget of the chain that escape analysis depends on, is a cost this
-		 * invariant does not have to pay: the per-insert lockstep of the four columns is pinned by
+		 * invariant does not have to pay: the per-insert lockstep of the five columns is pinned by
 		 * `BucketBPlusTreeValueIdTest` and the bucket tree's own suites instead, and the failure mode the invariant
 		 * really guards — a committed column reallocated by a self-copy — is reached through the structural paths.
 		 *
@@ -8327,7 +8358,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * republished through two unordered stores on an object a query thread may be reading — after which the
 		 * trailing check finds the leaf tidy and says nothing at all.
 		 *
-		 * Only columns the caller actually aliased are examined, so the genuine split pays four reference compares.
+		 * Only columns the caller actually aliased are examined, so the genuine split pays at most five reference
+		 * compares.
 		 *
 		 * @param expected         the live run every aliased origin column must report (the copied range's length)
 		 * @param originKeys       the source key column
@@ -8397,9 +8429,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		/**
-		 * Decouples the node's four columns into transaction-local copies before mutation. A layer starts out
+		 * Decouples the node's five columns into transaction-local copies before mutation. A layer starts out
 		 * aliasing the committed columns ({@link #createLayer()} passes them twice), so the copy is taken by
-		 * reference identity and every later call on the same layer is a no-op.
+		 * reference identity and every later call on the same layer is a no-op. The one exception is an impact column
+		 * holding pending deltas, which {@link #createLayer()} already replaced with the layer's own copy - the
+		 * identity check then finds nothing to decouple.
 		 *
 		 * `forInsert` picks which duplication primitive the copies are taken with, and it is not a hint — it decides
 		 * whether the very next statement allocates a second time. A committed leaf whose columns are exactly full
@@ -8442,10 +8476,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		/**
-		 * Immutable savepoint memento of a leaf node's three columns. The key column and single-record column are
-		 * private deep copies; the overflow column is a private **shallow** copy whose {@link TransactionalBitmap}
-		 * elements are shared by design (each owns its own snapshotted layer). See {@link #snapshot} and
-		 * {@link OverflowColumn#duplicate()}.
+		 * Savepoint memento of every column of a leaf node. The key, single-record and value id columns are private
+		 * deep copies; the overflow column is a private **shallow** copy whose {@link TransactionalBitmap} elements are
+		 * shared by design (each owns its own snapshotted layer). See {@link #snapshot} and
+		 * {@link OverflowColumn#duplicate()}. The memento is never written, but it is not immutable in full: its impact
+		 * column may hold {@link ImpactRecords.PendingImpactsMark} entries naming a live delta that keeps changing, so
+		 * the column must never be installed live as is - {@link ImpactRecords#restoreColumn} rebuilds it.
 		 *
 		 * @param keys     deep copy of the key (bucket-value) column
 		 * @param records  deep copy of the single-record column

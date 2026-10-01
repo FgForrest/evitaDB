@@ -82,12 +82,14 @@ import java.util.Arrays;
  * three bytes per entity the block holds. A table no transaction wrote to is carried forward as the same instance.
  *
  * Outside a transaction (the warm-up bulk path) the blocks are written in place, and while a warm-up savepoint is open
- * each write first journals the entity's previous length, so a rolled-back entity mutation restores every length it
- * changed. The restore is per entity, not per block: a block the rolled-back write promoted to dense may stay dense.
- * That is no divergence - the shape of a block already depends on its history, through the hysteresis above.
+ * each write that changes a length first journals the entity's previous one, so a rolled-back entity mutation
+ * restores every length it changed. The restore is per entity, not per block: a block the rolled-back write promoted
+ * to dense may stay dense. That is no divergence - the shape of a block already depends on its history, through the
+ * hysteresis above.
  *
- * Not thread-safe for writes - one writer at a time, as with every index structure; readers of a committed
- * instance are never disturbed, because a committed instance is never written again.
+ * Not thread-safe for writes - one writer at a time, as with every index structure, which is what the
+ * `@NotThreadSafe` annotation states. Readers of a committed instance are safe concurrently and never disturbed,
+ * because a committed instance is never written again.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -266,7 +268,7 @@ public class FieldLengthTable implements TransactionalLayerProducer<FieldLengthT
 	 * @return true for a dense block, false for a sparse or absent one
 	 */
 	boolean isDenseBlock(int primaryKey) {
-		final int blockIndex = Arrays.binarySearch(this.blockKeys, 0, this.blockCount, (char) (primaryKey >>> 16));
+		final int blockIndex = findBlock(primaryKey);
 		return blockIndex >= 0 && this.blocks[blockIndex] instanceof byte[];
 	}
 
@@ -277,7 +279,7 @@ public class FieldLengthTable implements TransactionalLayerProducer<FieldLengthT
 	}
 
 	/**
-	 * The delegate branch journals every write - see {@link #write(int, int)}.
+	 * The delegate branch journals every write that changes a length - see {@link #write(int, int)}.
 	 *
 	 * @return always true
 	 */
@@ -420,7 +422,7 @@ public class FieldLengthTable implements TransactionalLayerProducer<FieldLengthT
 	 * @param primaryKey primary key of the entity
 	 */
 	private void removeInPlace(int primaryKey) {
-		final int blockIndex = Arrays.binarySearch(this.blockKeys, 0, this.blockCount, (char) (primaryKey >>> 16));
+		final int blockIndex = findBlock(primaryKey);
 		if (blockIndex < 0) {
 			return;
 		}
@@ -452,7 +454,7 @@ public class FieldLengthTable implements TransactionalLayerProducer<FieldLengthT
 	 * @return the encoded length as an unsigned value, `0` when the table holds no length for the entity
 	 */
 	private int getEncodedInPlace(int primaryKey) {
-		final int blockIndex = Arrays.binarySearch(this.blockKeys, 0, this.blockCount, (char) (primaryKey >>> 16));
+		final int blockIndex = findBlock(primaryKey);
 		if (blockIndex < 0) {
 			return 0;
 		}
@@ -462,6 +464,16 @@ public class FieldLengthTable implements TransactionalLayerProducer<FieldLengthT
 		} else {
 			return ((SparseBlock) block).get((char) primaryKey);
 		}
+	}
+
+	/**
+	 * Searches the block spine for the block covering a primary key.
+	 *
+	 * @param primaryKey any primary key the block covers
+	 * @return the block's index, or `-(insertion point) - 1` when no block covers the key
+	 */
+	private int findBlock(int primaryKey) {
+		return Arrays.binarySearch(this.blockKeys, 0, this.blockCount, (char) (primaryKey >>> 16));
 	}
 
 	/**
