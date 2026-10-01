@@ -1576,6 +1576,113 @@ public class InScopeReducedIndexPlanFunctionalTest {
 		}
 
 		/**
+		 * Returns the rows of the witness of a top-level `hierarchyWithin` whose parent filter selects a node in each
+		 * scope: the scope the statistics are computed for and the statistics requirement.
+		 *
+		 * @return the row arguments
+		 */
+		@Nonnull
+		static Stream<Arguments> parentSelectedInEveryScopeRows() {
+			return Stream.of(Scope.LIVE, Scope.ARCHIVED)
+				.flatMap(
+					scope -> statisticsOfSelectedNodeRows()
+						.map(row -> Arguments.of(scope, row.get()[0], row.get()[1]))
+				);
+		}
+
+		/**
+		 * Checks the statistics of each scope when a top-level `hierarchyWithin` of a query over both scopes selects
+		 * a node in each of them: `entityPrimaryKeyInSet(1, 11)` matches root 1 in the live tree and root 11 in the
+		 * archived tree. The statistics of a scope describe the node selected in that scope's own tree - the node of
+		 * the other scope is not part of it - so they must equal those of the same query over that scope alone, and
+		 * the records must be those of the two single-scope queries together.
+		 *
+		 * @param statisticsScope the scope the statistics are computed for
+		 * @param label           the row label, used in the test name only
+		 * @param requirement     the statistics requirement, named {@link #HIERARCHY_OUTPUT}
+		 * @param session         the session provided by the test extension
+		 */
+		@DisplayName("Should compute the statistics of a scope from the node selected in its own tree")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+		@ParameterizedTest(name = "{0} {1}")
+		@MethodSource("parentSelectedInEveryScopeRows")
+		@Tag(ENGINE)
+		@Tag(QUERY)
+		void shouldComputeStatisticsOfScopeFromNodeSelectedInItsOwnTree(
+			@Nonnull Scope statisticsScope,
+			@Nonnull String label,
+			@Nonnull HierarchyRequireConstraint requirement,
+			@Nonnull EvitaSessionContract session
+		) {
+			final FilterConstraint[] hierarchyFilter = {
+				hierarchyWithin(REF_CATEGORIES, entityPrimaryKeyInSet(ROOT_CATEGORY, ARCHIVED_ROOT_CATEGORY))
+			};
+			final EvitaResponse<EntityReference> control = queryHierarchy(
+				session, new Scope[]{statisticsScope}, statisticsScope, hierarchyFilter, requirement
+			);
+			// queried for its records only
+			final Scope otherScope = statisticsScope == Scope.LIVE ? Scope.ARCHIVED : Scope.LIVE;
+			final EvitaResponse<EntityReference> otherScopeControl = queryHierarchy(
+				session, new Scope[]{otherScope}, otherScope, hierarchyFilter, requirement
+			);
+			final List<String> expected = describe(computedStatistics(control));
+			assertFalse(expected.isEmpty(), "the statistics of the single-scope control must not be empty");
+
+			final EvitaResponse<EntityReference> response = queryHierarchy(
+				session, BOTH_SCOPES, statisticsScope, hierarchyFilter, requirement
+			);
+			assertArrayEquals(
+				union(sortedPrimaryKeys(control), sortedPrimaryKeys(otherScopeControl)), sortedPrimaryKeys(response)
+			);
+			assertEquals(expected, describe(computedStatistics(response)));
+		}
+
+		/**
+		 * Runs a query over the passed scopes with the passed filter constraints, requesting the hierarchy statistics
+		 * of the `categories` reference in the passed scope.
+		 *
+		 * @param session         the session to query
+		 * @param scopes          the scopes of `scope(...)`
+		 * @param statisticsScope the scope the statistics are computed for
+		 * @param constraints     the constraints placed next to `scope(...)`
+		 * @param requirement     the statistics requirement, named {@link #HIERARCHY_OUTPUT}
+		 * @return the response
+		 */
+		@Nonnull
+		private static EvitaResponse<EntityReference> queryHierarchy(
+			@Nonnull EvitaSessionContract session,
+			@Nonnull Scope[] scopes,
+			@Nonnull Scope statisticsScope,
+			@Nonnull FilterConstraint[] constraints,
+			@Nonnull HierarchyRequireConstraint requirement
+		) {
+			return session.query(
+				query(
+					collection(ENTITY_PRODUCT),
+					filterBy(ArrayUtils.mergeArrays(new FilterConstraint[]{scope(scopes)}, constraints)),
+					require(
+						page(1, PRODUCT_COUNT),
+						inScope(statisticsScope, hierarchyOfReference(REF_CATEGORIES, requirement))
+					)
+				),
+				EntityReference.class
+			);
+		}
+
+		/**
+		 * Returns the hierarchy statistics of the `categories` reference named {@link #HIERARCHY_OUTPUT} that the
+		 * response carries, or an empty list when the query computed none.
+		 *
+		 * @param response the response of a query requesting the statistics
+		 * @return the statistics
+		 */
+		@Nonnull
+		private static List<LevelInfo> computedStatistics(@Nonnull EvitaResponse<EntityReference> response) {
+			final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+			return hierarchy == null ? List.of() : hierarchy.getReferenceHierarchy(REF_CATEGORIES, HIERARCHY_OUTPUT);
+		}
+
+		/**
 		 * Describes the statistics as a depth-first list of `primary key: queried entity count` entries, indented by
 		 * level, so that two statistics compare by structure and counts alone.
 		 *

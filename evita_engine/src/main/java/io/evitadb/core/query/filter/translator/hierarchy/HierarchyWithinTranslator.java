@@ -52,6 +52,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -131,6 +132,11 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 						queryContext.setRootHierarchyNodesFormula(
 							hierarchyWithin, scopesToLookup, hierarchyParentFormula
 						);
+						if (scopesToLookup.size() > 1) {
+							registerRootsOfEachScope(
+								hierarchyWithin, hierarchyParentFormula, scopesToLookup, targetEntitySchema, filterByVisitor
+							);
+						}
 
 						final int[] nodeIds = hierarchyParentFormula.compute().stream().toArray();
 						return createFormulaFromHierarchyIndex(
@@ -148,6 +154,43 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 			.filter(it -> it != EmptyFormula.INSTANCE)
 			.findFirst()
 			.orElse(EmptyFormula.INSTANCE);
+	}
+
+	/**
+	 * Registers the roots of a `hierarchyWithin` translated over several processing scopes once more for each of
+	 * them, narrowed to the nodes of that scope.
+	 *
+	 * The parent filter is evaluated over all the processing scopes, so it may select a node in the tree of each
+	 * scope, while the hierarchy statistics of a scope describe that scope's tree only and must start at its own node.
+	 * An entity lives in exactly one scope, so the roots intersected with the primary keys of the scope's global
+	 * index are exactly what the parent filter selects in a query over that scope alone. Roots recorded for exactly
+	 * one scope take precedence when the statistics look them up - see
+	 * {@link QueryPlanningContext#getRootHierarchyNodes(io.evitadb.api.query.filter.HierarchyFilterConstraint, Scope)}.
+	 *
+	 * @param hierarchyWithin        the translated constraint
+	 * @param hierarchyParentFormula the initialized formula of the roots resolved over all the processing scopes
+	 * @param scopesToLookup         the processing scopes the constraint was translated in
+	 * @param targetEntitySchema     the schema of the hierarchical entity the parent filter selects
+	 * @param filterByVisitor        the visitor translating the constraint
+	 */
+	private static void registerRootsOfEachScope(
+		@Nonnull HierarchyWithin hierarchyWithin,
+		@Nonnull Formula hierarchyParentFormula,
+		@Nonnull Set<Scope> scopesToLookup,
+		@Nonnull EntitySchemaContract targetEntitySchema,
+		@Nonnull FilterByVisitor filterByVisitor
+	) {
+		final QueryPlanningContext queryContext = filterByVisitor.getQueryContext();
+		for (final Scope scope : scopesToLookup) {
+			final Formula rootsOfScope = queryContext
+				.getEntityIndex(
+					targetEntitySchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL, scope), EntityIndex.class
+				)
+				.map(index -> FormulaFactory.and(hierarchyParentFormula, index.getAllPrimaryKeysFormula()))
+				.orElse(EmptyFormula.INSTANCE);
+			rootsOfScope.initialize(filterByVisitor.getInternalExecutionContext());
+			queryContext.setRootHierarchyNodesFormula(hierarchyWithin, EnumSet.of(scope), rootsOfScope);
+		}
 	}
 
 	/**
