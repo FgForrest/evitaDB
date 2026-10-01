@@ -74,6 +74,11 @@ public class CompoundAttributeComparator implements EntityComparator, Serializab
 	 */
 	@Nonnull private final Comparator<Serializable> comparator;
 	/**
+	 * Comparator breaking the ties of equal compound values by primary key in the direction of the ordering - the
+	 * order in which the compound sort index of the index route holds the entities sharing one value.
+	 */
+	@Nonnull private final Comparator<EntityContract> pkComparator;
+	/**
 	 * Comparator sources for each attribute element.
 	 */
 	@Nonnull private final ComparatorSource[] comparatorSource;
@@ -146,6 +151,9 @@ public class CompoundAttributeComparator implements EntityComparator, Serializab
 		//noinspection unchecked
 		this.comparator = orderDirection == OrderDirection.ASC ?
 			baseComparator : (o1, o2) -> baseComparator.compare(o2, o1);
+		this.pkComparator = orderDirection == OrderDirection.ASC ?
+			Comparator.comparingInt(EntityContract::getPrimaryKeyOrThrowException) :
+			Comparator.comparingInt(EntityContract::getPrimaryKeyOrThrowException).reversed();
 		this.attributeValueFetcher = locale == null ?
 			AttributesContract::getAttribute :
 			(entityContract, attributeName) -> entityContract.getAttribute(attributeName, locale);
@@ -186,7 +194,8 @@ public class CompoundAttributeComparator implements EntityComparator, Serializab
 	public int compare(EntityContract o1, EntityContract o2) {
 		final ComparableArray valueToCompare1 = getAndMemoizeValue(o1);
 		final ComparableArray valueToCompare2 = getAndMemoizeValue(o2);
-		return this.comparator.compare(valueToCompare1, valueToCompare2);
+		final int result = this.comparator.compare(valueToCompare1, valueToCompare2);
+		return result == 0 ? this.pkComparator.compare(o1, o2) : result;
 	}
 
 	/**
