@@ -29,6 +29,9 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
@@ -48,6 +51,7 @@ import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.catalog.DefaultIsolatedWalService;
 import io.evitadb.store.checksum.Crc32CChecksumFactory;
 import io.evitadb.store.compression.CompressionFactory;
+import io.evitadb.store.compression.ZipCompressionFactory;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.model.reference.TransactionMutationWithWalFileReference;
@@ -85,6 +89,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -92,8 +97,10 @@ import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.UUID;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
@@ -1262,6 +1269,164 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 		assertEquals(expected.getMutationCount(), actual.getMutationCount());
 		assertEquals(expected.getWalSizeInBytes(), actual.getWalSizeInBytes());
 		assertEquals(expected.getCommitTimestamp(), actual.getCommitTimestamp());
+	}
+
+	/**
+	 * Tests reading a WAL whose records are compressed.
+	 *
+	 * The WAL reader checks every transaction's framing prefix against the size it measured for the leading
+	 * {@link TransactionMutation} record, measured as the difference of {@link io.evitadb.store.kryo.ObservableInput}
+	 * stream offsets. When the compressed leading record straddles the end of the reader's raw buffer, the inflater
+	 * refills that buffer in the middle of the record - and the stream offset restored after the record once
+	 * forgot the bytes the refill discarded. The intact file was then refused as `Invalid WAL file on position`,
+	 * which a greedy forward read (CDC catch-up) reported as a silent early end of the stream.
+	 *
+	 * Only a sequential advance into the next transaction can meet the straddle - a reader seeking to a
+	 * transaction starts its buffer at that transaction - so the WAL must hold enough transactions for the
+	 * leading records to land across the buffer's edge several times; with the fixed seed below they do.
+	 */
+	@Nested
+	@DisplayName("Compressed WAL Tests")
+	class CompressedWalTests {
+		/**
+		 * Words the compressible payloads are assembled from - a small vocabulary deflates well, so the mutations
+		 * and the leading transaction records keep their compression bit.
+		 */
+		private static final String[] VOCABULARY = {
+			"product", "variant", "price", "stock", "category", "brand", "attribute", "reference", "locale",
+			"currency", "delivery", "warranty", "color", "material", "dimensions", "weight", "the", "and", "with"
+		};
+		/**
+		 * Number of transactions written - enough for the leading records to straddle the reader's raw buffer edge
+		 * repeatedly.
+		 */
+		private static final int TRANSACTION_COUNT = 1_500;
+
+		@Test
+		@DisplayName("should read every transaction forward when compressed leading records span raw buffer refills")
+		void shouldReadCompressedWalForwardAcrossRawBufferRefills() throws IOException {
+			final CatalogWriteAheadLogIntegrationTest outer = CatalogWriteAheadLogIntegrationTest.this;
+			outer.wal.close();
+			outer.wal = new CatalogWriteAheadLog(
+				0L,
+				TEST_CATALOG,
+				new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)),
+				outer.walDirectory,
+				outer.catalogKryoPool,
+				new StorageSettings(
+					StorageOptions.builder().compress(true).build(),
+					TransactionOptions.builder().walFileSizeBytes(Long.MAX_VALUE).build()
+				),
+				Mockito.mock(Scheduler.class),
+				outer.offsetConsumer
+			);
+
+			final Map<Long, List<Mutation>> txInMutations = writeCompressibleTransactions(new Random(1687L));
+
+			// a reader that names the version it expects must deliver every transaction, or fail loudly
+			final List<Long> deliveredVersions = new ArrayList<>(TRANSACTION_COUNT);
+			try (
+				final Stream<CatalogBoundMutation> stream = outer.wal.getCommittedLiveMutationStream(
+					1L, TRANSACTION_COUNT, VersionSource.INTERNAL
+				)
+			) {
+				final Iterator<CatalogBoundMutation> it = stream.iterator();
+				while (it.hasNext()) {
+					final TransactionMutation txMutation = assertInstanceOf(TransactionMutation.class, it.next());
+					final List<Mutation> written = txInMutations.get(txMutation.getVersion());
+					assertTransactionMutationEquals((TransactionMutation) written.get(0), txMutation);
+					for (int i = 1; i <= txMutation.getMutationCount(); i++) {
+						assertEquals(written.get(i), it.next(), "Mutation " + i + " of transaction " + txMutation.getVersion());
+					}
+					deliveredVersions.add(txMutation.getVersion());
+				}
+			}
+			assertEquals(TRANSACTION_COUNT, deliveredVersions.size());
+			assertEquals(TRANSACTION_COUNT, deliveredVersions.get(deliveredVersions.size() - 1));
+
+			// the greedy read CDC catches up with must not end early either - it turns every failure into an end
+			try (final Stream<CatalogBoundMutation> stream = outer.wal.getCommittedMutationStream(1L)) {
+				assertEquals(
+					TRANSACTION_COUNT,
+					stream.filter(TransactionMutation.class::isInstance).count(),
+					"The greedy forward read ended before the last transaction of an intact WAL."
+				);
+			}
+		}
+
+		/**
+		 * Writes {@link #TRANSACTION_COUNT} transactions of one to three compressible upsert mutations each. Every
+		 * transaction gets its own isolated WAL handle, as in production, and a fixed id and timestamp, so the WAL
+		 * bytes - and with them the buffer edges the test depends on - are the same in every run.
+		 *
+		 * @param random seeded random number generator shaping the transactions
+		 * @return written mutations by catalog version, the leading transaction mutation first
+		 */
+		@Nonnull
+		private Map<Long, List<Mutation>> writeCompressibleTransactions(@Nonnull Random random) {
+			final CatalogWriteAheadLogIntegrationTest outer = CatalogWriteAheadLogIntegrationTest.this;
+			final Map<Long, List<Mutation>> txInMutations = CollectionUtils.createHashMap(TRANSACTION_COUNT);
+			final OffsetDateTime firstTimestamp = OffsetDateTime.of(2026, 10, 1, 12, 0, 0, 0, ZoneOffset.UTC);
+			for (int i = 0; i < TRANSACTION_COUNT; i++) {
+				final long version = i + 1;
+				final List<Mutation> mutations = new ArrayList<>(4);
+				final DefaultIsolatedWalService isolatedWal = new DefaultIsolatedWalService(
+					TEST_CATALOG,
+					new UUID(0L, version),
+					new ConflictResolution(ConflictPolicy.NONE),
+					KryoFactory.createKryo(WalKryoConfigurer.INSTANCE),
+					new WriteOnlyOffHeapWithFileBackupHandle(
+						outer.walDirectory.resolve("isolatedWal-" + version + ".tmp"),
+						StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE,
+						false,
+						outer.observableOutputKeeper,
+						outer.bigOffHeapMemoryManager,
+						Crc32CChecksumFactory.INSTANCE,
+						ZipCompressionFactory.INSTANCE
+					)
+				);
+				try {
+					final int mutationCount = 1 + random.nextInt(3);
+					for (int m = 1; m <= mutationCount; m++) {
+						final Mutation mutation = new EntityUpsertMutation(
+							"product", m, EntityExistence.MAY_EXIST,
+							new UpsertAttributeMutation(
+								"description", Locale.ENGLISH, generateCompressibleText(10 + random.nextInt(3_000), random)
+							)
+						);
+						isolatedWal.write(version, mutation);
+						mutations.add(mutation);
+					}
+					final OffHeapWithFileBackupReference walReference = isolatedWal.getWalReference();
+					final TransactionMutation txMutation = new TransactionMutation(
+						new UUID(1L, version), version, mutations.size(), walReference.getContentLength(),
+						firstTimestamp.plusSeconds(i)
+					);
+					outer.wal.append(txMutation, walReference);
+					mutations.add(0, txMutation);
+				} finally {
+					isolatedWal.close();
+				}
+				txInMutations.put(version, mutations);
+			}
+			return txInMutations;
+		}
+
+		/**
+		 * Generates text of words from {@link #VOCABULARY} that deflates well.
+		 *
+		 * @param length minimal length of the generated text
+		 * @param random random number generator picking the words
+		 * @return compressible text at least `length` characters long
+		 */
+		@Nonnull
+		private static String generateCompressibleText(int length, @Nonnull Random random) {
+			final StringBuilder sb = new StringBuilder(length + 16);
+			while (sb.length() < length) {
+				sb.append(VOCABULARY[random.nextInt(VOCABULARY.length)]).append(' ');
+			}
+			return sb.toString();
+		}
 	}
 
 	/**

@@ -83,7 +83,9 @@ public class ObservableInput<T extends InputStream> extends Input {
 	 */
 	private int bytesReadFromInputStreamSinceReset;
 	/**
-	 * Total number of bytes in total variable before starting decompression.
+	 * Stream offset of index 0 of the raw data in {@link #decompressionBuffer} - the value {@link #markEnd(byte)}
+	 * restores {@link #total} to. It starts as {@link #total} when the compressed payload starts and advances by
+	 * the length of the raw data every refill of {@link #decompressionBuffer} discards.
 	 */
 	private long decompressionTotalBefore;
 	/**
@@ -418,6 +420,10 @@ public class ObservableInput<T extends InputStream> extends Input {
 							} else {
 								// data has been read successfully, now we need to update the inflater and counters
 								this.inflaterReadBytesOnLastDecompressionBufferFill = currentlyReadBytes;
+								// the refill overwrites the raw buffer from index 0, so the stream offset of index 0 moves
+								// forward by everything the buffer held - `markEnd` restores `total` from this value, and
+								// leaving it behind understates `total()` by a whole buffer for every refill
+								this.decompressionTotalBefore += this.decompressionBufferPeek;
 								this.decompressionBufferStart = 0;
 								this.decompressionBufferPeek = readLength;
 								this.payloadReadLength += readLength;
