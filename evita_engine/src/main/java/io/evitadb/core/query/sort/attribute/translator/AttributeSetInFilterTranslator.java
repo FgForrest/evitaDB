@@ -73,7 +73,10 @@ public class AttributeSetInFilterTranslator implements OrderingConstraintTransla
 		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work
 		orderByVisitor.addRequirementToPrefetch(attributeContentAll());
 		final EntityIndex[] indexForSort = orderByVisitor.getIndexesForSort();
-
+		if (indexForSort.length == 0) {
+			// the ordered scope holds no entity of the collection, so there is nothing to sort and all are passed on
+			return Stream.empty();
+		}
 		Assert.isTrue(
 			indexForSort.length == 1,
 			"Expected exactly one index for sorting, but " + indexForSort.length + " were found. " +
