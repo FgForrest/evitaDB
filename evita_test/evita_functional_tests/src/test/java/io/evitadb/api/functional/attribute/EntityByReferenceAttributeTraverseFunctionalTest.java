@@ -49,6 +49,7 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Functions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -57,6 +58,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -186,6 +188,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * - **rank-ordered pick-first 110-114**: 110: (4,10) (6,50) · 111: (8,1) (4,30) · 112: (6,-) (4,20) · 113: (6,40) ·
  *   114: (5,5) (4,-)
  * - **scoped categories 130-132**, `scopedCategories` only, all live: 130: none · 131: (3,1) · 132: (4,1)
+ * - **decimal variants 140-141**, `decimalVariants` only (duplicates told apart by the `BigDecimal` representative
+ *   attribute `scale`), rows `(target, scale, order)`: 140: (2,1.0,10) · 141: (2,1.00,5) - the two scales compare
+ *   equal but are two different representative keys, so brand 2 has two reduced indexes
+ * - **chain variants 150-151**, `chainVariants` only (duplicates told apart by `variant`, a `Predecessor` chain per
+ *   representative key), rows `(target, variant)`, every row the head of its chain: 151: (2,b) is written first,
+ *   then 150: (2,c) (2,a) - so the reduced indexes of brand 2 are created in the order b, c, a
  * - **tags 120-123**, `tags` only, rows `(target, order, kind)`: 120: (1,50,y) (5,10,x) · 121: (2,30,x) (6,5,y) ·
  *   122: (1,20,y) (3,40,x) · 123: (4,15,x) and (t,t,y) for every tag t from 7 to 20
  *
@@ -233,6 +241,9 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 	private static final String ENTITY_TAG = "traverseTag";
 	private static final String REFERENCE_TAGS = "tags";
 	private static final String REFERENCE_TAGGED_OWNERS = "taggedOwners";
+	private static final String REFERENCE_DECIMAL_VARIANTS = "decimalVariants";
+	private static final String REFERENCE_CHAIN_VARIANTS = "chainVariants";
+	private static final String ATTRIBUTE_SCALE = "scale";
 	private static final int TAG_COUNT = 20;
 	/**
 	 * Prefix of the `PLANNING_FILTER_ALTERNATIVE` telemetry argument of the reference index option - absent when the
@@ -273,6 +284,8 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 	private static final Integer[] PICK_FIRST_RANK_OWNERS = boxedRange(110, 114);
 	private static final Integer[] TAG_OWNERS = boxedRange(120, 123);
 	private static final Integer[] SCOPED_CATEGORY_OWNERS = boxedRange(130, 132);
+	private static final Integer[] DECIMAL_VARIANT_OWNERS = boxedRange(140, 141);
+	private static final Integer[] CHAIN_VARIANT_OWNERS = boxedRange(150, 151);
 	/**
 	 * The basic group without owners 7 and 8 - its rows reach brands 1-7 only, see
 	 * {@link #shouldKeepSeededTargetOrderWhenIrrelevantOwnerIsAdded(String, SortRoute, EvitaSessionContract)}.
@@ -618,6 +631,25 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 	}
 
 	/**
+	 * Upserts one owner with rows of `chainVariants` to brand 2 only, one per passed variant in the passed order, each
+	 * row the head of the chain of its variant.
+	 */
+	private static void upsertChainVariantOwner(
+		@Nonnull EvitaSessionContract session,
+		int primaryKey,
+		@Nonnull String... variants
+	) {
+		final EntityBuilder builder = session.createNewEntity(ENTITY_OWNER, primaryKey);
+		for (String variant : variants) {
+			builder.setOrUpdateReference(
+				REFERENCE_CHAIN_VARIANTS, 2, Functions.alwaysFalse(),
+				whichIs -> whichIs.setAttribute(ATTRIBUTE_VARIANT, variant).setAttribute(ATTRIBUTE_CHAIN, Predecessor.HEAD)
+			);
+		}
+		builder.upsertVia(session);
+	}
+
+	/**
 	 * Upserts one owner with rows of `tags` only.
 	 */
 	private static void upsertTagOwner(@Nonnull EvitaSessionContract session, int primaryKey, @Nonnull Row... rows) {
@@ -798,6 +830,20 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 			REFERENCE_SCOPED_CATEGORIES, ENTITY_SCOPED_CATEGORY, Cardinality.ZERO_OR_MORE,
 			whichIs -> declareRowAttributes(whichIs.indexedForFilteringAndPartitioningInScope(BOTH_SCOPES))
 		);
+		owner.withReferenceToEntity(
+			REFERENCE_DECIMAL_VARIANTS, ENTITY_BRAND, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+			whichIs -> whichIs.indexedForFilteringAndPartitioningInScope(BOTH_SCOPES)
+				.withAttribute(ATTRIBUTE_SCALE, BigDecimal.class, thatIs -> thatIs.representative())
+				.withAttribute(ATTRIBUTE_ORDER, Integer.class, thatIs -> thatIs.sortableInScope(BOTH_SCOPES).nullable())
+		);
+		owner.withReferenceToEntity(
+			REFERENCE_CHAIN_VARIANTS, ENTITY_BRAND, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+			whichIs -> whichIs.indexedForFilteringAndPartitioningInScope(BOTH_SCOPES)
+				.withAttribute(ATTRIBUTE_VARIANT, String.class, thatIs -> thatIs.representative())
+				.withAttribute(
+					ATTRIBUTE_CHAIN, Predecessor.class, thatIs -> thatIs.sortableInScope(BOTH_SCOPES).nullable()
+				)
+		);
 		final String[][] variantReferences = {{REFERENCE_VARIANTS_PARTITIONING, "P"}, {REFERENCE_VARIANTS_FILTERING, "F"}};
 		for (String[] variants : variantReferences) {
 			owner.withReferenceToEntity(
@@ -954,6 +1000,19 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 			.mapToObj(tag -> kindRow(tag, tag, KIND_Y))
 			.toArray(Row[]::new);
 		upsertTagOwner(session, 123, ArrayUtils.mergeArrays(new Row[]{kindRow(4, 15, KIND_X)}, fillers));
+		// decimal variants - two scales of one representative value
+		for (Object[] decimalRow : new Object[][]{{140, new BigDecimal("1.0"), 10}, {141, new BigDecimal("1.00"), 5}}) {
+			session.createNewEntity(ENTITY_OWNER, (Integer) decimalRow[0])
+				.setOrUpdateReference(
+					REFERENCE_DECIMAL_VARIANTS, 2, Functions.alwaysFalse(),
+					whichIs -> whichIs.setAttribute(ATTRIBUTE_SCALE, (BigDecimal) decimalRow[1])
+						.setAttribute(ATTRIBUTE_ORDER, (Integer) decimalRow[2])
+				)
+				.upsertVia(session);
+		}
+		// chain variants - the reduced indexes of brand 2 come to exist in the order b, c, a
+		upsertChainVariantOwner(session, 151, "b");
+		upsertChainVariantOwner(session, 150, "c", "a");
 		// scoped categories
 		session.createNewEntity(ENTITY_OWNER, 130).upsertVia(session);
 		for (int[] ownerRow : new int[][]{{131, 3}, {132, 4}}) {
@@ -1887,6 +1946,68 @@ public class EntityByReferenceAttributeTraverseFunctionalTest {
 				new int[]{74, 71, 73, 72, 70},
 				queryOrder(session, route, DUPLICATE_OWNERS, NO_FILTER, descending), "descending"
 			)
+		);
+	}
+
+	/**
+	 * Checks the rule "Should place owners of representative values that compare equal but differ, in one block".
+	 *
+	 * `BigDecimal` 1.0 and 1.00 compare equal but are two different representative keys - brand 2 holds two reduced
+	 * indexes whose keys the representative order cannot tell apart. Planning must not take them for one index
+	 * listed twice (it did, with a premise violation, when the duplicate check was made by the order's equality), and
+	 * the block of brand 2 orders both owners by value: 141 (5) before 140 (10).
+	 */
+	@DisplayName("Should place owners of representative values that compare equal but differ, in one block")
+	@UseDataSet(TRAVERSE_REFERENCES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("sortRoutes")
+	void shouldPlaceOwnersOfEqualComparingRepresentativeValues(SortRoute route, EvitaSessionContract session) {
+		assertAll(
+			() -> assertOrder(
+				new int[]{141, 140},
+				queryOrder(
+					session, route, DECIMAL_VARIANT_OWNERS, NO_FILTER,
+					traverseOrdering(REFERENCE_DECIMAL_VARIANTS, attributeNatural(ATTRIBUTE_ORDER, OrderDirection.ASC))
+				),
+				"ascending"
+			),
+			() -> assertOrder(
+				new int[]{140, 141},
+				queryOrder(
+					session, route, DECIMAL_VARIANT_OWNERS, NO_FILTER,
+					traverseOrdering(REFERENCE_DECIMAL_VARIANTS, attributeNatural(ATTRIBUTE_ORDER, OrderDirection.DESC))
+				),
+				"descending"
+			)
+		);
+	}
+
+	/**
+	 * Checks the rule "Should keep the index-route order of a chain under an implicit pick-first unchanged by the
+	 * traversal".
+	 *
+	 * A chain under an implicit `pickFirst` (brand is a flat target) is outside #1670 - it walks the planning-time
+	 * indexes without blocks. This pins that the representative key order the traversal applies to the indexes of one
+	 * target does not leak into it: the indexes of brand 2 stay in the order they were met (b, c, a - created in that
+	 * order), so the provider of b claims 151 before the provider of c claims 150. Sorting the keys would give
+	 * `[150, 151]` (a claims 150 first).
+	 *
+	 * The index route only: the prefetch route of this path picks, without any block, the first stored row whose key
+	 * has a chain, and on this fixture it returns `[150, 151]` - before the traversal changes and after them alike, so
+	 * the two routes of this out-of-scope path disagree here whichever order the planning keeps; that is pinned
+	 * neither way.
+	 */
+	@DisplayName("Should keep the index-route order of a chain under an implicit pick-first unchanged by the traversal")
+	@UseDataSet(TRAVERSE_REFERENCES)
+	@Test
+	void shouldKeepImplicitPickFirstChainOrderOnIndexRoute(EvitaSessionContract session) {
+		assertOrder(
+			new int[]{151, 150},
+			queryOrder(
+				session, SortRoute.INDEX, CHAIN_VARIANT_OWNERS, NO_FILTER,
+				referenceProperty(REFERENCE_CHAIN_VARIANTS, attributeNatural(ATTRIBUTE_CHAIN))
+			),
+			"implicit pick-first chain"
 		);
 	}
 

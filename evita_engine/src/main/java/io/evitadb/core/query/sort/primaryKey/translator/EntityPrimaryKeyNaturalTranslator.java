@@ -73,7 +73,6 @@ import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.referenceContent;
 import static io.evitadb.api.query.QueryConstraints.referenceContentWithAttributes;
-import static io.evitadb.core.query.sort.EntityReferenceSensitiveComparator.getReferenceByRepresentativeReferenceKey;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -115,8 +114,8 @@ public class EntityPrimaryKeyNaturalTranslator
 				)
 			);
 		} else {
-			// if prefetch happens, the traversal comparator classifies every owner of a block by its row of the block -
-			// matched on the representative attributes for a reference allowing duplicates - so it reads them too
+			// if prefetch happens, the traversal comparator classifies every owner of a block by its rows to the block's
+			// referenced entity - taken in representative order for a reference allowing duplicates - so it reads them
 			registerReferencesToPrefetch(referenceSchema, orderByVisitor);
 			final EntityIndex[] entityIndices = processingScope.entityIndex();
 			// every owner of a block carries the same value, so both routes order a block by the owner primary key in
@@ -240,9 +239,10 @@ public class EntityPrimaryKeyNaturalTranslator
 
 	/**
 	 * A comparator that compares entities based on the primary key of the referenced entity, one traversal block at
-	 * a time: the block key is bound by {@link #withReferencedEntityId(RepresentativeReferenceKey, Runnable)} and an
-	 * entity without a row of the block is classified as not sortable ({@link #canSort(EntityContract)}), so it is
-	 * passed on to the next block rather than claimed by this one. Every owner of a block references the same entity,
+	 * a time: the block key, naming the block's referenced entity, is bound by
+	 * {@link #withReferencedEntityId(RepresentativeReferenceKey, Runnable)} and an entity without a row to it is
+	 * classified as not sortable ({@link #canSort(EntityContract)}), so it is passed on to the next block rather than
+	 * claimed by this one. Every owner of a block references the same entity,
 	 * so the owners of a block follow their own primary keys in the direction of the ordering, as on the index route.
 	 * Package-private so that its classification can be unit-tested over real prefetched entities.
 	 */
@@ -298,22 +298,22 @@ public class EntityPrimaryKeyNaturalTranslator
 		}
 
 		/**
-		 * Classifies the entity for the bound block: it is sortable when it has the row of the block key.
+		 * Classifies the entity for the bound block: it is sortable when it has any row to the block's referenced
+		 * entity - every row carries the value, so whichever row represents the entity, the value is the same and
+		 * only the existence of a row is checked; no row is picked and no representative value is read.
 		 *
 		 * @param entity the entity to classify
-		 * @return `true` when the entity has the row of the bound block key
+		 * @return `true` when the entity has a row to the referenced entity of the bound block
 		 */
 		@Override
 		public boolean canSort(@Nonnull EntityContract entity) {
 			Assert.isPremiseValid(this.referenceKey != null, "Referenced entity id must be set!");
-			return getReferenceByRepresentativeReferenceKey(entity, this.referenceSchema, this.referenceKey)
-				.isPresent();
+			return !entity.getReferences(this.referenceKey.referenceKey()).isEmpty();
 		}
 
 		/**
 		 * Compares two entities classified as sortable by {@link #canSort(EntityContract)} within the bound block.
-		 * Both have the row of the block key, so both carry the same value - the primary key of the block's referenced
-		 * entity - and the tie is broken by their own primary keys in the direction of the ordering. Neither row is
+		 * Both have a row to the block's referenced entity, so both carry the same value - its primary key - and the tie is broken by their own primary keys in the direction of the ordering. Neither row is
 		 * looked up again: the classification already established it, and the value it would yield is fixed by the
 		 * block key.
 		 *

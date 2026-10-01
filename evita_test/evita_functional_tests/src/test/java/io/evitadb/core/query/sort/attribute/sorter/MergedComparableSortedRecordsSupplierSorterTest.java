@@ -61,7 +61,8 @@ import static org.mockito.Mockito.mock;
  * Verifies how {@link MergedComparableSortedRecordsSupplierSorter} sorts a selection over several providers when at
  * most one of them holds selected records: the records of the only contributing provider are emitted straight from
  * its position mask, sliced to the requested page, without reading a single value, and the records no provider holds
- * are handed to the next sorter. Two contributing providers are merged by value as before.
+ * are handed to the next sorter. Two or more contributing providers are merged by value, lazily and with a number of
+ * comparisons logarithmic in the number of contributing providers per emitted record.
  *
  * Fixture - rows `(record, value)`, the providers in this array order unless a test says otherwise:
  *
@@ -70,7 +71,7 @@ import static org.mockito.Mockito.mock;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Merged comparable sorter with at most one contributing provider")
+@DisplayName("Merged comparable sorter of several providers")
 @Tag(ENGINE)
 @Tag(ORDER)
 class MergedComparableSortedRecordsSupplierSorterTest {
@@ -183,6 +184,89 @@ class MergedComparableSortedRecordsSupplierSorterTest {
 		);
 	}
 
+	@Test
+	@DisplayName("should merge many interleaved runs with a logarithmic number of comparisons per emitted record")
+	void shouldMergeManyInterleavedRunsWithLogarithmicComparisons() {
+		// 64 providers, provider i holding 8 records with the values i, i + 64, i + 128, ...: every emitted record
+		// hands the head to the next provider, the worst case for keeping the run heads in order
+		final int providerCount = 64;
+		final int recordsPerProvider = 8;
+		final SortedRecordsProvider[] providers = new SortedRecordsProvider[providerCount];
+		final int[] selection = new int[providerCount * recordsPerProvider];
+		for (int i = 0; i < providerCount; i++) {
+			final int[] pairs = new int[recordsPerProvider * 2];
+			for (int j = 0; j < recordsPerProvider; j++) {
+				final int record = i * recordsPerProvider + j + 1;
+				pairs[j * 2] = record;
+				pairs[j * 2 + 1] = i + providerCount * j;
+				selection[record - 1] = record;
+			}
+			providers[i] = createProvider(i + 1, OrderDirection.ASC, pairs);
+		}
+		final int[] comparisons = new int[1];
+		final Comparator<Integer> countingComparator = (a, b) -> {
+			comparisons[0]++;
+			return Integer.compare(a, b);
+		};
+
+		final SortOutcome all = sort(providers, countingComparator, OrderDirection.ASC, 0, selection.length, selection);
+		final int comparisonsOfAll = comparisons[0];
+		final int readsOfAll = this.valueReads;
+		this.valueReads = 0;
+		final SortOutcome firstPage = sort(providers, countingComparator, OrderDirection.ASC, 0, 10, selection);
+
+		// the value v belongs to record (v % 64) * 8 + v / 64 + 1
+		final int[] expected = new int[selection.length];
+		for (int value = 0; value < selection.length; value++) {
+			expected[value] = (value % providerCount) * recordsPerProvider + value / providerCount + 1;
+		}
+		// building the heap costs at most 2k comparisons, every advance at most 2 per level of the heap
+		final int levels = 32 - Integer.numberOfLeadingZeros(providerCount - 1);
+		final int bound = 2 * providerCount + selection.length * 2 * levels;
+		assertAll(
+			() -> assertArrayEquals(expected, all.written(), "the merged order"),
+			() -> assertTrue(
+				comparisonsOfAll <= bound,
+				() -> "comparisons " + comparisonsOfAll + " exceed the bound " + bound
+			),
+			() -> assertEquals(selection.length, readsOfAll, "one value read per record"),
+			() -> assertArrayEquals(Arrays.copyOf(expected, 10), firstPage.written(), "the first page"),
+			() -> assertEquals(providerCount + 10, this.valueReads, "the heads plus one read per emitted record")
+		);
+	}
+
+	@Test
+	@DisplayName("should merge interleaved runs with ties by primary key in the direction of the ordering")
+	void shouldMergeInterleavedRunsWithTiesInDirection() {
+		// three providers, value ties across providers: 10 held by records 1, 4 and 7, 20 by 2, 5, 8, 30 by 3, 6, 9
+		final SortedRecordsProvider[] ascending = {
+			createProvider(1, OrderDirection.ASC, 1, 10, 2, 20, 3, 30),
+			createProvider(2, OrderDirection.ASC, 4, 10, 5, 20, 6, 30),
+			createProvider(3, OrderDirection.ASC, 7, 10, 8, 20, 9, 30)
+		};
+		final SortedRecordsProvider[] descending = {
+			createProvider(1, OrderDirection.DESC, 1, 10, 2, 20, 3, 30),
+			createProvider(2, OrderDirection.DESC, 4, 10, 5, 20, 6, 30),
+			createProvider(3, OrderDirection.DESC, 7, 10, 8, 20, 9, 30)
+		};
+
+		assertAll(
+			() -> assertArrayEquals(
+				new int[]{1, 4, 7, 2, 5, 8, 3, 6, 9},
+				sort(ascending, OrderDirection.ASC, 0, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9).written()
+			),
+			() -> assertArrayEquals(
+				new int[]{9, 6, 3, 8, 5, 2, 7, 4, 1},
+				sort(descending, OrderDirection.DESC, 0, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9).written()
+			),
+			() -> assertArrayEquals(
+				new int[]{7, 2, 5},
+				sort(ascending, OrderDirection.ASC, 2, 5, 1, 2, 3, 4, 5, 6, 7, 8, 9).written(),
+				"a page in the middle"
+			)
+		);
+	}
+
 	/**
 	 * Runs the sorter over the providers with the comparator of the direction and returns what it wrote, skipped and
 	 * left unsorted.
@@ -202,8 +286,36 @@ class MergedComparableSortedRecordsSupplierSorterTest {
 		int endIndex,
 		@Nonnull int... selection
 	) {
-		final MergedComparableSortedRecordsSupplierSorter sorter = new MergedComparableSortedRecordsSupplierSorter(
+		return sort(
+			providers,
 			direction == OrderDirection.ASC ? Comparator.<Integer>naturalOrder() : Comparator.<Integer>reverseOrder(),
+			direction, startIndex, endIndex, selection
+		);
+	}
+
+	/**
+	 * Runs the sorter over the providers with the passed value comparator and returns what it wrote, skipped and left
+	 * unsorted.
+	 *
+	 * @param providers       the providers in the order in which they claim records
+	 * @param valueComparator the comparator of the values, already in the ordering direction
+	 * @param direction       the ordering direction
+	 * @param startIndex      the first requested position
+	 * @param endIndex        the position after the last requested one
+	 * @param selection       the records to sort
+	 * @return the outcome of the sort
+	 */
+	@Nonnull
+	private SortOutcome sort(
+		@Nonnull SortedRecordsProvider[] providers,
+		@Nonnull Comparator<Integer> valueComparator,
+		@Nonnull OrderDirection direction,
+		int startIndex,
+		int endIndex,
+		@Nonnull int... selection
+	) {
+		final MergedComparableSortedRecordsSupplierSorter sorter = new MergedComparableSortedRecordsSupplierSorter(
+			valueComparator,
 			direction,
 			providers
 		);

@@ -81,9 +81,11 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -112,7 +114,6 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	 * All scopes in their declaration order - live first; cached, since {@link Scope#values()} copies the array.
 	 */
 	private static final Scope[] SCOPES = Scope.values();
-
 	/**
 	 * Method locates all {@link EntityIndex} from the resolved list of {@link TargetIndexes} which were identified
 	 * by the {@link IndexSelectionVisitor}. The list is expected to be much smaller than the full list computed
@@ -469,23 +470,29 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	 * Selects the reduced indexes of the reference at planning time and orders them by their referenced entities.
 	 * The set is the candidate set of a `referenceHaving` / `hierarchyWithin` on the same reference when the index
 	 * selection built one, the whole family of the reference otherwise - in both cases restricted to the scopes the
-	 * ordering sorts. Indexes sharing one referenced entity are grouped by their representative reference key, in the
-	 * order the selection met the keys, and by scope inside a key (live first), so each key's indexes are contiguous.
+	 * ordering sorts. Indexes sharing one referenced entity are grouped by their representative reference key and, inside
+	 * a key, by scope (live first), so the indexes of one referenced entity, and of each of its keys, are contiguous; the
+	 * keys follow {@link RepresentativeReferenceKey#GENERIC_COMPARATOR} for a traversal and the order the selection met
+	 * them otherwise (see {@link #appendGroupedByRepresentativeKey(List, boolean, ReducedEntityIndex[], int)}).
 	 *
 	 * This is the index set of the block-by-block orderings - `traverseByEntityProperty` and chain attributes, whose
 	 * blocks follow the narrowed set. A `pickFirst` ordering of comparable values resolves its indexes at execution
 	 * time instead (see {@link PickFirstReducedIndexResolver}).
 	 *
-	 * @param orderByVisitor the visitor of the planned query
-	 * @param referenceName  the reference being ordered by
-	 * @param targetOrder    orders the primary keys of the referenced entities
+	 * @param orderByVisitor           the visitor of the planned query
+	 * @param referenceName            the reference being ordered by
+	 * @param targetOrder              orders the primary keys of the referenced entities
+	 * @param inRepresentativeKeyOrder whether the keys of one referenced entity follow the representative order (a
+	 *                                 traversal) rather than the order they were met in (the planning-time indexes of
+	 *                                 a `pickFirst` ordering)
 	 * @return the ordered reduced indexes, empty when the reference has none
 	 */
 	@Nonnull
 	private static ReducedEntityIndex[] selectPlanningReducedIndexes(
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nonnull String referenceName,
-		@Nonnull Function<Formula, IntStream> targetOrder
+		@Nonnull Function<Formula, IntStream> targetOrder,
+		boolean inRepresentativeKeyOrder
 	) {
 		final List<ReducedEntityIndex> reducedEntityIndexSet = selectReducedEntityIndexSet(orderByVisitor, referenceName);
 		final List<ReducedEntityIndex> referenceIndexes = reducedEntityIndexSet.isEmpty() ?
@@ -517,7 +524,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 				if (sameTarget.size() == 1) {
 					result[peak++] = sameTarget.get(0);
 				} else {
-					peak = appendGroupedByRepresentativeKey(sameTarget, result, peak);
+					peak = appendGroupedByRepresentativeKey(sameTarget, inRepresentativeKeyOrder, result, peak);
 				}
 			}
 		}
@@ -525,19 +532,39 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	}
 
 	/**
-	 * Appends the reduced indexes of one referenced entity so that the indexes sharing a representative reference key
-	 * lie next to each other, the live one first: the providers of a traversal block are looked up by that key as one
-	 * contiguous slice, which merges the owners of both scopes, and a chain of the block relies on the live chain
-	 * preceding the archived one. The keys keep the order of their first index, so the key the block is sorted by -
-	 * the key of its first index - is the one the selection met first.
+	 * Appends the reduced indexes of one referenced entity grouped by their representative reference keys, so that
+	 * the indexes of one key lie next to each other, live first. The keys follow either
+	 * {@link RepresentativeReferenceKey#GENERIC_COMPARATOR} (`inRepresentativeKeyOrder`) or the order in which the
+	 * selection met them.
 	 *
-	 * @param sameTarget the reduced indexes of one referenced entity in the order they were selected in
-	 * @param result     the array the indexes are appended to
-	 * @param peak       the first free position of `result`
+	 * The representative order carries the rule of a traversal for rows sharing one target: a traversal block is the
+	 * whole target, and each owner is represented in it by its first row - in this order - that carries the sorted
+	 * value. The index route realizes the rule by letting the block's providers claim their owners in exactly this
+	 * order, the prefetch route by picking the row in the same order (see
+	 * `EntityReferenceSensitiveComparator#getFirstValuedReference`). A chain under an implicit `pickFirst` walks the
+	 * same planning-time indexes without blocks and is left in the order the keys were met - the order it had before
+	 * the traversal adopted the representative one.
+	 *
+	 * Keys are told apart by their own equality, never by the representative order: values comparing equal may still
+	 * be different keys (`BigDecimal` 1.0 and 1.00), and each has an index of its own. Such keys keep the order in which
+	 * they were met (the sort is stable). Contiguity of one key's indexes is what the providers' lookup by key
+	 * (`MergedSortedRecordsSupplierSorter#createSortedRecordsOffsets`) requires, and a chain of a key relies on its
+	 * live chain preceding the archived one.
+	 *
+	 * Costs one pass over the `m` indexes of the referenced entity plus, in representative order, a sort of its `k`
+	 * distinct keys (`O(k log k)`); reached only by a referenced entity with more than one index - a reference
+	 * allowing duplicates, or one entity referenced from both scopes.
+	 *
+	 * @param sameTarget              the reduced indexes of one referenced entity in the order they were selected in
+	 * @param inRepresentativeKeyOrder whether the keys follow the representative order rather than the order they
+	 *                                were met in
+	 * @param result                  the array the indexes are appended to
+	 * @param peak                    the first free position of `result`
 	 * @return the first free position of `result` after the append
 	 */
-	private static int appendGroupedByRepresentativeKey(
+	static int appendGroupedByRepresentativeKey(
 		@Nonnull List<ReducedEntityIndex> sameTarget,
+		boolean inRepresentativeKeyOrder,
 		@Nonnull ReducedEntityIndex[] result,
 		int peak
 	) {
@@ -558,8 +585,21 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 			);
 			scopeSlots[slot] = index;
 		}
+		final Collection<ReducedEntityIndex[]> keyGroups;
+		if (inRepresentativeKeyOrder && byKey.size() > 1) {
+			final List<Entry<RepresentativeReferenceKey, ReducedEntityIndex[]>> entries = new ArrayList<>(byKey.entrySet());
+			// a stable sort - keys the representative order cannot tell apart keep the order they were met in
+			entries.sort(Entry.comparingByKey(RepresentativeReferenceKey.GENERIC_COMPARATOR));
+			final List<ReducedEntityIndex[]> sortedGroups = new ArrayList<>(entries.size());
+			for (Entry<RepresentativeReferenceKey, ReducedEntityIndex[]> entry : entries) {
+				sortedGroups.add(entry.getValue());
+			}
+			keyGroups = sortedGroups;
+		} else {
+			keyGroups = byKey.values();
+		}
 		int resultPeak = peak;
-		for (ReducedEntityIndex[] scopeSlots : byKey.values()) {
+		for (ReducedEntityIndex[] scopeSlots : keyGroups) {
 			// slots follow the order of the scopes - live first
 			for (ReducedEntityIndex index : scopeSlots) {
 				if (index != null) {
@@ -665,7 +705,9 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 						referenceName,
 						referenceIndexIds -> getSortedReducedIndexPrimaryKeys(
 							orderByVisitor, referenceSchema, pfbep.getChildren(), referenceIndexIds
-						)
+						),
+						// outside the traversal: the keys of one referenced entity stay in the order they were met
+						false
 					)
 				),
 				() -> {
@@ -688,14 +730,16 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 				) :
 				getSortedReducedIndexPrimaryKeys(
 					orderByVisitor, referenceSchema, tbep.getChildren(), referenceIndexIds
-				)
+				),
+			true
 		);
 		if (sortedReducedIndexes.length == 0) {
 			return Stream.empty();
 		}
 
-		// split the indexes into blocks of one referenced entity each - the indexes of both scopes of one referenced
-		// entity form one block, whose owners the index sorters merge by value (chains excepted, see
+		// split the indexes into blocks of one referenced entity each - the indexes of every representative key and of
+		// both scopes of one referenced entity form one block, in which each owner is represented by its first valued
+		// row in representative key order, and whose owners the index sorters merge by value (chains excepted, see
 		// MergedSortedRecordsSupplierSorter) and the prefetch comparators sort together
 		final List<ReducedEntityIndex[]> atomicBlocks = new ArrayList<>(sortedReducedIndexes.length);
 		int start = 0;

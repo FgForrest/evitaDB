@@ -40,6 +40,7 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.roaringbitmap.RoaringBatchIterator;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
@@ -54,20 +55,23 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.IntConsumer;
 
-import static java.util.Optional.ofNullable;
-
 /**
  * Implementation of the {@link SortedRecordsProvider} that merges multiple instances into a one discarding
  * the duplicate record primary keys. This operation is quite costly for large data sets and should be cached.
  *
- * Within a traversal block - the providers sharing the {@link RepresentativeReferenceKey} the sorting context names -
- * the providers are combined in one of two ways:
+ * A traversal block is one referenced entity - the sorting context names it - and its providers are all the providers
+ * of that entity: one per representative reference key and scope, lined up in the order of the keys
+ * ({@link RepresentativeReferenceKey#GENERIC_COMPARATOR}) and, for one key, of the scopes, live first. The providers
+ * claim the block's records in that order, each the records it holds that no earlier provider claimed - so an owner
+ * is represented by its first row, in key order, that carries the value (a provider holds only the owners with
+ * a value). The claimed records are then combined in one of two ways:
  *
- * - **merged by value** when the sorter has a value {@link Comparator}: the owners of the block's providers (one per
- *   scope of the referenced entity) follow their values, then their primary keys in the direction of the ordering,
- *   whichever provider holds them - the merge is block-local, a provider of another block never takes part;
- * - **appended one after another** when it has none - a chain, whose positions are not comparable across providers,
- *   so the live chain of a block precedes its archived chain.
+ * - **merged by value** when the sorter has a value {@link Comparator}: the owners follow their values, then their
+ *   primary keys in the direction of the ordering, whichever provider claimed them - the merge is block-local,
+ *   a provider of another block never takes part;
+ * - **appended one after another** when it has none - a chain, whose positions are not comparable across providers:
+ *   the owners follow the provider that claimed them, so the chain of an earlier key precedes the chain of a later one
+ *   and, for one key, the live chain precedes the archived one.
  *
  * A block with a single provider is walked directly in both cases, at the cost of the plain concatenation.
  *
@@ -79,9 +83,17 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 	 */
 	private final SortedRecordsProvider[] sortedRecordsProviders;
 	/**
-	 * Contains the index of the {@link ReferenceKey} in the {@link #sortedRecordsProviders} that is used for sorting.
+	 * The slice of {@link #sortedRecordsProviders} holding the providers of each referenced entity - the providers of
+	 * all its representative keys and scopes; `null` when the providers are not reference providers. Resolved on the
+	 * first sort of a traversal block (see {@link #targetSlicesResolved}) - a sort without a block walks every
+	 * provider and never needs it.
 	 */
-	private final Map<RepresentativeReferenceKey, OffsetAndLimit> referenceKeyIndexes;
+	@Nullable private Map<ReferenceKey, OffsetAndLimit> targetSlices;
+	/**
+	 * Whether {@link #targetSlices} was resolved; the slices alone cannot tell, because they stay `null` for providers
+	 * that are not reference providers.
+	 */
+	private boolean targetSlicesResolved;
 	/**
 	 * Comparator of the provider values in the direction of the ordering, merging the providers of one block by value;
 	 * `null` when the values are not comparable across providers (a chain) and the providers are appended instead.
@@ -95,7 +107,7 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 	 * Block-local merges of the blocks holding more than one provider, created on the first sort of the block and
 	 * reused for the rest of the query; `null` until the first one is needed.
 	 */
-	@Nullable private Map<RepresentativeReferenceKey, MergedComparableSortedRecordsSupplierSorter> blockMerges;
+	@Nullable private Map<ReferenceKey, MergedComparableSortedRecordsSupplierSorter> blockMerges;
 
 	/**
 	 * Creates a mapping of {@link ReferenceKey} objects to their corresponding {@link OffsetAndLimit} values,
@@ -135,6 +147,63 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 			referenceKeyIndexes.put(referenceKey, new OffsetAndLimit(oal.offset(), srpCount, srpCount));
 		}
 		return referenceKeyIndexes;
+	}
+
+	/**
+	 * Creates the slice of the providers of each referenced entity: the providers of all representative reference keys
+	 * and scopes of one referenced entity, which must lie next to each other - a referenced entity met again after
+	 * another one is a premise violation, since its earlier providers would be lost from its block.
+	 *
+	 * @param sortedRecordsProviders the providers in the order in which they claim records
+	 * @return the slice of each referenced entity, `null` when the providers are not reference providers
+	 */
+	@Nullable
+	private static Map<ReferenceKey, OffsetAndLimit> createTargetSlices(@Nonnull SortedRecordsProvider[] sortedRecordsProviders) {
+		final int srpCount = sortedRecordsProviders.length;
+		Map<ReferenceKey, OffsetAndLimit> targetSlices = null;
+		ReferenceKey target = null;
+		int sliceStart = -1;
+		for (int i = 0; i < srpCount; i++) {
+			if (sortedRecordsProviders[i] instanceof ReferenceSortedRecordsProvider rssp) {
+				final ReferenceKey providerTarget = rssp.getReferenceKey().referenceKey();
+				if (!providerTarget.equals(target)) {
+					if (targetSlices == null) {
+						targetSlices = CollectionUtils.createHashMap(srpCount);
+					} else if (target != null) {
+						putTargetSlice(targetSlices, target, sliceStart, i, srpCount);
+					}
+					target = providerTarget;
+					sliceStart = i;
+				}
+			}
+		}
+		if (target != null) {
+			putTargetSlice(targetSlices, target, sliceStart, srpCount, srpCount);
+		}
+		return targetSlices;
+	}
+
+	/**
+	 * Registers the slice of one referenced entity, refusing a second slice of the same entity.
+	 *
+	 * @param targetSlices the slices registered so far
+	 * @param target       the referenced entity
+	 * @param offset       the first provider of the slice
+	 * @param limit        the position after the last provider of the slice
+	 * @param srpCount     the number of all providers
+	 */
+	private static void putTargetSlice(
+		@Nonnull Map<ReferenceKey, OffsetAndLimit> targetSlices,
+		@Nonnull ReferenceKey target,
+		int offset,
+		int limit,
+		int srpCount
+	) {
+		final OffsetAndLimit previous = targetSlices.put(target, new OffsetAndLimit(offset, limit, srpCount));
+		Assert.isPremiseValid(
+			previous == null,
+			() -> "The providers of the referenced entity `" + target + "` are not contiguous!"
+		);
 	}
 
 	/**
@@ -223,7 +292,7 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 	 * Creates the sorter.
 	 *
 	 * @param sortedRecordsProviders providers in the order in which they claim records, the providers of one
-	 *                               representative reference key next to each other
+	 *                               referenced entity next to each other
 	 * @param comparator             comparator of the provider values in the direction of the ordering, merging the
 	 *                               providers of one block by value; `null` to append them one after another
 	 * @param primaryKeyOrder        direction of the ordering, applied to the primary keys of records with equal
@@ -235,7 +304,6 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 		@Nonnull OrderDirection primaryKeyOrder
 	) {
 		this.sortedRecordsProviders = sortedRecordsProviders;
-		this.referenceKeyIndexes = createSortedRecordsOffsets(sortedRecordsProviders);
 		this.comparator = comparator;
 		this.primaryKeyOrder = primaryKeyOrder;
 	}
@@ -248,16 +316,19 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
 		final QueryExecutionContext queryContext = sortingContext.queryContext();
-		final RepresentativeReferenceKey blockKey = sortingContext.referenceKey();
-		final OffsetAndLimit offsetAndLimit = ofNullable(blockKey)
-			.map(this::getOffsetAndLimit)
-			.orElse(new OffsetAndLimit(0, this.sortedRecordsProviders.length, this.sortedRecordsProviders.length));
+		// a traversal block names its referenced entity - the representative attribute values carry no meaning there
+		final RepresentativeReferenceKey contextKey = sortingContext.referenceKey();
+		final ReferenceKey blockKey = contextKey == null ? null : contextKey.referenceKey();
+		final OffsetAndLimit offsetAndLimit = blockKey == null ?
+			new OffsetAndLimit(0, this.sortedRecordsProviders.length, this.sortedRecordsProviders.length) :
+			getOffsetAndLimit(blockKey);
 
 		if (
 			this.comparator != null && blockKey != null && offsetAndLimit.offset() >= 0 &&
 				offsetAndLimit.limit() - offsetAndLimit.offset() > 1
 		) {
-			// a block of several providers (the scopes of one referenced entity) merges its owners by value
+			// a block of several providers (the representative keys and scopes of one referenced entity) merges the
+			// owners its providers claim, in their order, by value
 			return getBlockMerge(blockKey, offsetAndLimit).sortAndSlice(sortingContext, result, skippedRecordsConsumer);
 		} else if (queryContext.getPrefetchedEntities() == null && offsetAndLimit.offset() >= 0) {
 			final int[] buffer = queryContext.borrowBuffer();
@@ -323,13 +394,13 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 	 * on the first sort of the block. The merge sees only the block's own providers, so a provider of another block
 	 * can never claim an owner of this one.
 	 *
-	 * @param blockKey       the representative reference key of the block
+	 * @param blockKey       the referenced entity of the block
 	 * @param offsetAndLimit the slice of {@link #sortedRecordsProviders} belonging to the block
 	 * @return the block-local merge
 	 */
 	@Nonnull
 	private MergedComparableSortedRecordsSupplierSorter getBlockMerge(
-		@Nonnull RepresentativeReferenceKey blockKey,
+		@Nonnull ReferenceKey blockKey,
 		@Nonnull OffsetAndLimit offsetAndLimit
 	) {
 		if (this.blockMerges == null) {
@@ -348,19 +419,22 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 	}
 
 	/**
-	 * Retrieves the {@link OffsetAndLimit} settings associated with the specified {@link ReferenceKey}.
+	 * Retrieves the slice of the providers of the referenced entity the specified {@link ReferenceKey} names.
 	 * If no mapping exists for the provided key, a default {@link OffsetAndLimit} is returned with an offset of -1,
 	 * a limit of 0, and the total record count based on the length of the {@code sortedRecordsProviders}.
 	 *
-	 * @param referenceKey the key used to lookup the associated {@link OffsetAndLimit};
-	 *                     must not be null.
+	 * @param referenceKey the referenced entity whose providers are looked up; must not be null.
 	 * @return the {@link OffsetAndLimit} associated with the provided {@link ReferenceKey},
 	 * or a default {@link OffsetAndLimit} if no mapping exists.
 	 */
 	@Nonnull
-	private OffsetAndLimit getOffsetAndLimit(@Nonnull RepresentativeReferenceKey referenceKey) {
-		if (this.referenceKeyIndexes != null) {
-			final OffsetAndLimit indexes = this.referenceKeyIndexes.getOrDefault(referenceKey, null);
+	private OffsetAndLimit getOffsetAndLimit(@Nonnull ReferenceKey referenceKey) {
+		if (!this.targetSlicesResolved) {
+			this.targetSlices = createTargetSlices(this.sortedRecordsProviders);
+			this.targetSlicesResolved = true;
+		}
+		if (this.targetSlices != null) {
+			final OffsetAndLimit indexes = this.targetSlices.get(referenceKey);
 			if (indexes != null) {
 				return indexes;
 			}

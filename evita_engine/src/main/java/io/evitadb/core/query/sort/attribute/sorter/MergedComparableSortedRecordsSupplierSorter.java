@@ -35,8 +35,6 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import io.evitadb.roaringbitmap.RoaringBatchIterator;
@@ -45,7 +43,6 @@ import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.function.IntConsumer;
@@ -62,6 +59,10 @@ import java.util.function.IntConsumer;
  * the order of their primary keys in the direction of the ordering - ascending for an ascending order, descending for
  * a descending one - which is the order a single provider already yields for them, so merging never changes the order
  * of equal records.
+ *
+ * The runs the contributing providers claimed are merged lazily: their current heads form a binary min-heap, each
+ * emitted record costs `O(log k)` for `k` contributing providers, a value is read only for a record the merge passes,
+ * and the merge stops at the end of the requested page.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -182,6 +183,10 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 				// init first values
 				for (int i = 0; i <= maskPeak; i++) {
 					final PositionResolution resolution = maskResults[i];
+					if (resolution.mask().isEmpty()) {
+						// a provider that claimed nothing gets no buffer - creating one borrows a buffer and a seeker
+						continue;
+					}
 					final SortedRecordsProvider sortedRecordsProvider = this.sortedRecordsProviders[i];
 					final SortedRecordsProviderBuffer sortedRecordsProviderBuffer = new SortedRecordsProviderBuffer(
 						this.comparator, primaryKeysDescending,
@@ -194,11 +199,14 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 					}
 				}
 
-				// sort buffers
-				Arrays.sort(sortedRecordsProviderBuffers, 0, sortedRecordsProviderBufferPeak);
+				// the heads of the runs form a binary min-heap - one advance costs O(log k) comparisons and moves, where
+				// keeping the heads in a sorted array shifted up to k - 1 of them per emitted record
+				for (int i = (sortedRecordsProviderBufferPeak >>> 1) - 1; i >= 0; i--) {
+					siftDown(sortedRecordsProviderBuffers, sortedRecordsProviderBufferPeak, i);
+				}
 
 				while ((toRead > alreadyRead || toSkip > 0) && sortedRecordsProviderBufferPeak > 0) {
-					SortedRecordsProviderBuffer sortedPk = sortedRecordsProviderBuffers[0];
+					final SortedRecordsProviderBuffer sortedPk = sortedRecordsProviderBuffers[0];
 					if (toSkip > 0) {
 						toSkip--;
 						if (skippedRecordsConsumer != null) {
@@ -207,40 +215,15 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 					} else {
 						result[peak + alreadyRead++] = sortedPk.primaryKey();
 					}
-					// fetch next value for the used one
-					if (sortedPk.fetchNext()) {
-						if (sortedRecordsProviderBufferPeak > 1) {
-							final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
-								sortedPk, sortedRecordsProviderBuffers, 1, sortedRecordsProviderBufferPeak
-							);
-							// when the position is zero, we don't need to do anything and the sortedPk is already in the right place
-							// it will produce next sorted PK in the next iteration
-							if (insertionPosition.position() > 0) {
-								if (insertionPosition.alreadyPresent()) {
-									if (sortedRecordsProviderBuffers[insertionPosition.position() - 1].primaryKey() > sortedPk.primaryKey()) {
-										// otherwise we need to perform copy of the existing values first
-										System.arraycopy(sortedRecordsProviderBuffers, 1, sortedRecordsProviderBuffers, 0, insertionPosition.position() + 1);
-										// and then insert the new value
-										sortedRecordsProviderBuffers[insertionPosition.position() - 1] = sortedPk;
-									} else {
-										// otherwise we need to perform copy of the existing values first
-										System.arraycopy(sortedRecordsProviderBuffers, 1, sortedRecordsProviderBuffers, 0, insertionPosition.position());
-										// and then insert the new value
-										sortedRecordsProviderBuffers[insertionPosition.position()] = sortedPk;
-									}
-								} else {
-									// otherwise we need to perform copy of the existing values first
-									System.arraycopy(sortedRecordsProviderBuffers, 1, sortedRecordsProviderBuffers, 0, Math.min(sortedRecordsProviderBuffers.length - 1, insertionPosition.position()));
-									// and then insert the new value
-									sortedRecordsProviderBuffers[insertionPosition.position() - 1] = sortedPk;
-								}
-							}
-						}
-					} else {
-						// finalize the sorted record provider buffer
+					// fetch next value for the used one and restore the heap
+					if (!sortedPk.fetchNext()) {
+						// the run is exhausted - its last head takes the root and sinks
 						sortedPk.close();
-						// sorted record provider buffer is empty, we need to remove it from the array
-						System.arraycopy(sortedRecordsProviderBuffers, 1, sortedRecordsProviderBuffers, 0, --sortedRecordsProviderBufferPeak);
+						sortedRecordsProviderBuffers[0] = sortedRecordsProviderBuffers[--sortedRecordsProviderBufferPeak];
+						sortedRecordsProviderBuffers[sortedRecordsProviderBufferPeak] = null;
+					}
+					if (sortedRecordsProviderBufferPeak > 1) {
+						siftDown(sortedRecordsProviderBuffers, sortedRecordsProviderBufferPeak, 0);
 					}
 				}
 
@@ -263,6 +246,34 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 		} else {
 			return sortingContext;
 		}
+	}
+
+	/**
+	 * Restores the min-heap property of the run heads below `slot`: the head there sinks until neither of its children
+	 * precedes it. The heads of different runs never compare equal - the runs hold disjoint records, and equal values
+	 * fall back to the primary keys - so the heap yields exactly the order of the merge.
+	 *
+	 * @param heap the run heads, a binary heap in `[0, size)`
+	 * @param size the number of heads in the heap
+	 * @param slot the slot whose head may violate the heap property
+	 */
+	private static void siftDown(@Nonnull SortedRecordsProviderBuffer[] heap, int size, int slot) {
+		final SortedRecordsProviderBuffer sinking = heap[slot];
+		int current = slot;
+		int child = (current << 1) + 1;
+		while (child < size) {
+			final int right = child + 1;
+			if (right < size && heap[right].compareTo(heap[child]) < 0) {
+				child = right;
+			}
+			if (heap[child].compareTo(sinking) >= 0) {
+				break;
+			}
+			heap[current] = heap[child];
+			current = child;
+			child = (current << 1) + 1;
+		}
+		heap[current] = sinking;
 	}
 
 	/**

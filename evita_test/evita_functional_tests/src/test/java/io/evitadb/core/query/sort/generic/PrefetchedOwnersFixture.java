@@ -50,10 +50,12 @@ import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.Sorter.SortingContext;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.utils.Functions;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -89,6 +91,20 @@ import static org.mockito.Mockito.mock;
  * Owner 11 has the attribute `tail` 2, 13 has 1 and 14 has 3; the others have none. Owner 19 ties owner 15 on `order`
  * and on the compound in category 1.
  *
+ * Owners 70-74 carry rows of `variants`, a reference allowing several rows to one brand, told apart by the
+ * representative attribute `variant` (rows as `[brand] variant: order, chain`):
+ *
+ * | owner | rows                                       |
+ * |-------|--------------------------------------------|
+ * | 70    | [2] z: 1, head                             |
+ * | 71    | [2] a: 100, head                           |
+ * | 72    | [2] a: -, -; [2] b: 50, after 73           |
+ * | 73    | [2] b: 60, head; [2] c: 5, head            |
+ * | 74    | [1] m: 60, head                            |
+ * | 75    | [2] a: 60, -                               |
+ *
+ * Owner 75 ties owner 73 on `order` in brand 2, but by a row of another representative value (`a` against `b`).
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public final class PrefetchedOwnersFixture {
@@ -99,6 +115,8 @@ public final class PrefetchedOwnersFixture {
 	public static final String ATTRIBUTE_CHAIN = "chain";
 	public static final String ATTRIBUTE_TAIL = "tail";
 	public static final String COMPOUND = "orderSecond";
+	public static final String VARIANTS_REFERENCE_NAME = "variants";
+	public static final String ATTRIBUTE_VARIANT = "variant";
 	/**
 	 * The key of the block of category 1.
 	 */
@@ -138,12 +156,25 @@ public final class PrefetchedOwnersFixture {
 					new AttributeElement(ATTRIBUTE_SECOND, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 				)
 		)
+		.withReferenceTo(
+			VARIANTS_REFERENCE_NAME, "brand", Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+			thatIs -> thatIs
+				.indexedForFilteringAndPartitioning()
+				.withAttribute(ATTRIBUTE_VARIANT, String.class, attribute -> attribute.representative())
+				.withAttribute(ATTRIBUTE_ORDER, Integer.class, attribute -> attribute.sortable().nullable())
+				.withAttribute(ATTRIBUTE_CHAIN, Predecessor.class, attribute -> attribute.sortable().nullable())
+		)
 		.toInstance();
 	/**
 	 * The schema of the `category` reference.
 	 */
 	public static final ReferenceSchema REFERENCE_SCHEMA =
 		(ReferenceSchema) SCHEMA.getReferenceOrThrowException(REFERENCE_NAME);
+	/**
+	 * The schema of the `variants` reference, which allows several rows to one brand.
+	 */
+	public static final ReferenceSchema VARIANTS_REFERENCE_SCHEMA =
+		(ReferenceSchema) SCHEMA.getReferenceOrThrowException(VARIANTS_REFERENCE_NAME);
 	/**
 	 * The owners described in the class documentation, by primary key.
 	 */
@@ -162,6 +193,33 @@ public final class PrefetchedOwnersFixture {
 	@Nonnull
 	public static RepresentativeReferenceKey blockKey(int categoryPrimaryKey) {
 		return new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, categoryPrimaryKey));
+	}
+
+	/**
+	 * Creates the key of the block of the brand of the `variants` reference - the brand alone, as a traversal names
+	 * its blocks.
+	 *
+	 * @param brandPrimaryKey the primary key of the brand
+	 * @return the key of its block
+	 */
+	@Nonnull
+	public static RepresentativeReferenceKey variantsBlockKey(int brandPrimaryKey) {
+		return new RepresentativeReferenceKey(new ReferenceKey(VARIANTS_REFERENCE_NAME, brandPrimaryKey));
+	}
+
+	/**
+	 * Creates the representative key of one row of the `variants` reference - the key of the reduced index, and so of
+	 * the providers, the row belongs to.
+	 *
+	 * @param brandPrimaryKey the primary key of the brand
+	 * @param variant         the representative attribute value of the row
+	 * @return the representative key of the row
+	 */
+	@Nonnull
+	public static RepresentativeReferenceKey variantKey(int brandPrimaryKey, @Nonnull String variant) {
+		return new RepresentativeReferenceKey(
+			new ReferenceKey(VARIANTS_REFERENCE_NAME, brandPrimaryKey), new Serializable[]{variant}
+		);
 	}
 
 	/**
@@ -238,7 +296,49 @@ public final class PrefetchedOwnersFixture {
 		addOwner(owners, 19, null, builder -> builder.setReference(
 			REFERENCE_NAME, 1, ref -> ref.setAttribute(ATTRIBUTE_ORDER, 10).setAttribute(ATTRIBUTE_SECOND, 2)
 		));
+		addOwner(owners, 70, null, builder -> addVariant(builder, 2, "z", 1, Predecessor.HEAD));
+		addOwner(owners, 71, null, builder -> addVariant(builder, 2, "a", 100, Predecessor.HEAD));
+		addOwner(owners, 72, null, builder -> {
+			addVariant(builder, 2, "a", null, null);
+			addVariant(builder, 2, "b", 50, new Predecessor(73));
+		});
+		addOwner(owners, 73, null, builder -> {
+			addVariant(builder, 2, "b", 60, Predecessor.HEAD);
+			addVariant(builder, 2, "c", 5, Predecessor.HEAD);
+		});
+		addOwner(owners, 74, null, builder -> addVariant(builder, 1, "m", 60, Predecessor.HEAD));
+		addOwner(owners, 75, null, builder -> addVariant(builder, 2, "a", 60, null));
 		return owners;
+	}
+
+	/**
+	 * Adds one more row of the `variants` reference to the brand, never replacing a row the owner already has.
+	 *
+	 * @param builder the builder of the owner
+	 * @param brand   the primary key of the brand
+	 * @param variant the representative attribute value of the row
+	 * @param order   the `order` of the row, `null` for none
+	 * @param chain   the `chain` of the row, `null` for none
+	 */
+	private static void addVariant(
+		@Nonnull InitialEntityBuilder builder,
+		int brand,
+		@Nonnull String variant,
+		@Nullable Integer order,
+		@Nullable Predecessor chain
+	) {
+		builder.setOrUpdateReference(
+			VARIANTS_REFERENCE_NAME, brand, Functions.alwaysFalse(),
+			ref -> {
+				ref.setAttribute(ATTRIBUTE_VARIANT, variant);
+				if (order != null) {
+					ref.setAttribute(ATTRIBUTE_ORDER, order);
+				}
+				if (chain != null) {
+					ref.setAttribute(ATTRIBUTE_CHAIN, chain);
+				}
+			}
+		);
 	}
 
 	/**

@@ -62,13 +62,18 @@ import static io.evitadb.core.query.sort.attribute.sorter.MergedSortedRecordsSup
  * accessing the entity attribute value and the simple {@link Comparable} comparator implementation. This implementation
  * adheres to {@link MergeMode#APPEND_ALL} which relates to {@link TraverseByEntityProperty} ordering.
  *
- * The comparator sorts one traversal block at a time - the block key is bound by
- * {@link #withReferencedEntityId(RepresentativeReferenceKey, Runnable)}. Within a bound block, an entity whose row of
- * the block lacks the chain attribute, or that none of the block's chain providers can place, is classified as not
- * sortable ({@link #canSort(EntityContract)}), so it is passed on to the next block rather than claimed by this one -
- * matching what the index route does. Without a bound block (a chain sorted under an implicit {@code pickFirst}),
- * every entity is classified as sortable and {@link #compare(EntityContract, EntityContract)} keeps reporting the
- * entities it cannot place through {@link #getNonSortedEntities()}.
+ * The comparator sorts one traversal block at a time - the block key, naming the referenced entity of the block, is
+ * bound by {@link #withReferencedEntityId(RepresentativeReferenceKey, Runnable)}. Within a bound block, an entity is
+ * represented by its first row to that referenced entity, in the order of the representative attribute values, that
+ * carries the chain attribute and that a chain provider of the row's representative key holds; an entity without
+ * such a row is classified as not sortable ({@link #canSort(EntityContract)}), so it is passed on to the next block
+ * rather than claimed by this one - matching what the index route does, where the providers of a block claim their
+ * owners in the same order. Chain positions are not comparable across providers, so the entities of a block follow
+ * the provider that placed them: entities represented by an earlier representative key precede those represented by
+ * a later one, and for one key the live chain precedes the archived one. Without a bound block (a chain sorted under
+ * an implicit {@code pickFirst}), every entity is classified as sortable and
+ * {@link #compare(EntityContract, EntityContract)} keeps reporting the entities it cannot place through
+ * {@link #getNonSortedEntities()}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -81,9 +86,16 @@ public class TraverseReferencePredecessorAttributeComparator
 	 */
 	private final Supplier<SortedRecordsProvider[]> sortedRecordsSupplier;
 	/**
-	 * Initialized predicate function that relates to the {@link ReferenceSchema}.
+	 * Selects the references an entity may be sorted by when no block is bound (a chain under an implicit
+	 * {@code pickFirst}): for a reference allowing duplicates the references whose representative key has a chain
+	 * provider, any reference otherwise. A bound block picks its row by {@link #pickRowOfBlock(EntityContract)}.
 	 */
 	private final Predicate<ReferenceContract> pickerPredicate;
+	/**
+	 * Definition of the representative attributes telling the rows of one referenced entity apart, `null` when the
+	 * reference allows no duplicates and a referenced entity has a single row per entity.
+	 */
+	@Nullable private final RepresentativeAttributeDefinition representativeAttributeDefinition;
 	/**
 	 * Sink appending an entity that no provider could place to the inherited {@code nonSortedEntities} container
 	 * (created on first use). Allocated once so {@code comparePositionsAcrossProviders} can hand off unsortable
@@ -130,16 +142,11 @@ public class TraverseReferencePredecessorAttributeComparator
 			orderDirection
 		);
 		this.sortedRecordsSupplier = sortedRecordsSupplier;
-		if (referenceSchema.getCardinality().allowsDuplicates()) {
-			final RepresentativeAttributeDefinition rad = this.referenceSchema.getRepresentativeAttributeDefinition();
+		this.representativeAttributeDefinition = referenceSchema.getCardinality().allowsDuplicates() ?
+			referenceSchema.getRepresentativeAttributeDefinition() : null;
+		if (this.representativeAttributeDefinition != null) {
+			final RepresentativeAttributeDefinition rad = this.representativeAttributeDefinition;
 			this.pickerPredicate = reference -> {
-				if (this.referenceKey != null) {
-					return this.referenceKey.referenceKey().equalsInGeneral(reference.getReferenceKey()) &&
-						Arrays.equals(
-							this.referenceKey.representativeAttributeValues(),
-							rad.getRepresentativeValues(reference)
-						);
-				}
 				final Set<RepresentativeReferenceKey> sortedRRKs = Objects.requireNonNull(this.sortedRecordsOffsets)
 					.keySet();
 				for (RepresentativeReferenceKey referenceKey : sortedRRKs) {
@@ -157,9 +164,7 @@ public class TraverseReferencePredecessorAttributeComparator
 				return false;
 			};
 		} else {
-			this.pickerPredicate = referenceContract ->
-				this.referenceKey == null ||
-					this.referenceKey.referenceKey().equals(referenceContract.getReferenceKey());
+			this.pickerPredicate = referenceContract -> true;
 		}
 	}
 
@@ -185,9 +190,20 @@ public class TraverseReferencePredecessorAttributeComparator
 		}
 	}
 
+	/**
+	 * Picks the reference the entity is sorted by: within a bound block the row representing the entity in it (see
+	 * {@link #pickRowOfBlock(EntityContract)}), without a block the first reference the {@link #pickerPredicate}
+	 * accepts.
+	 *
+	 * @param entity the entity whose reference is picked
+	 * @return the picked reference, empty when there is none
+	 */
 	@Nonnull
 	@Override
 	protected Optional<ReferenceContract> pickReference(@Nonnull EntityContract entity) {
+		if (this.referenceKey != null) {
+			return Optional.ofNullable(pickRowOfBlock(entity));
+		}
 		final Collection<ReferenceContract> references = entity.getReferences(this.referenceName);
 		for (ReferenceContract reference : references) {
 			if (this.pickerPredicate.test(reference)) {
@@ -198,10 +214,81 @@ public class TraverseReferencePredecessorAttributeComparator
 	}
 
 	/**
-	 * Classifies the entity for the bound block: it is sortable when its row of the block carries the chain attribute
-	 * and one of the block's chain providers holds it - an entity no provider of the block can place is passed on to
-	 * the next block rather than claimed by this one, as the index route does. The positions resolved here are
-	 * memoized, so the comparisons that follow find them in the cache.
+	 * Picks the row representing the entity in the bound block: among its rows to the block's referenced entity, the
+	 * first one in {@link RepresentativeReferenceKey#GENERIC_COMPARATOR} order of their representative keys that
+	 * carries the chain attribute and that one of the chain providers of its key holds - the provider that claims the
+	 * entity on the index route, where the providers of a block are lined up in the same order. The positions found
+	 * on the way are memoized, so the comparisons that follow find them in the cache.
+	 *
+	 * @param entity the entity whose row is picked
+	 * @return the representing row, `null` when no row of the entity can be placed in the block
+	 */
+	@Nullable
+	private ReferenceContract pickRowOfBlock(@Nonnull EntityContract entity) {
+		initializeProviders();
+		if (this.sortedRecordsOffsets == null) {
+			return null;
+		}
+		final int primaryKey = entity.getPrimaryKeyOrThrowException();
+		ReferenceContract picked = null;
+		RepresentativeReferenceKey pickedKey = null;
+		for (ReferenceContract row : entity.getReferences(Objects.requireNonNull(this.referenceKey).referenceKey())) {
+			if (this.attributeExtractor.apply(row) != null) {
+				final RepresentativeReferenceKey rowKey = representativeKeyOf(row);
+				if (
+					(pickedKey == null || RepresentativeReferenceKey.GENERIC_COMPARATOR.compare(rowKey, pickedKey) < 0) &&
+						isPlacedByProviderOf(rowKey, primaryKey)
+				) {
+					picked = row;
+					pickedKey = rowKey;
+				}
+			}
+		}
+		return picked;
+	}
+
+	/**
+	 * Returns the representative key of the row - the key of the reduced index, and so of the chain providers, the
+	 * row belongs to.
+	 *
+	 * @param row the row of the ordered reference
+	 * @return the representative key of the row
+	 */
+	@Nonnull
+	private RepresentativeReferenceKey representativeKeyOf(@Nonnull ReferenceContract row) {
+		return this.representativeAttributeDefinition == null ?
+			new RepresentativeReferenceKey(row.getReferenceKey()) :
+			new RepresentativeReferenceKey(
+				row.getReferenceKey(), this.representativeAttributeDefinition.getRepresentativeValues(row)
+			);
+	}
+
+	/**
+	 * Tells whether one of the chain providers of the representative key holds the entity.
+	 *
+	 * @param representativeKey the representative key whose providers are searched
+	 * @param primaryKey        the primary key of the entity
+	 * @return `true` when a provider of the key holds the entity
+	 */
+	private boolean isPlacedByProviderOf(@Nonnull RepresentativeReferenceKey representativeKey, int primaryKey) {
+		final OffsetAndLimit offsetAndLimit = Objects.requireNonNull(this.sortedRecordsOffsets).get(representativeKey);
+		if (offsetAndLimit == null) {
+			return false;
+		}
+		for (int i = offsetAndLimit.offset(); i < offsetAndLimit.limit(); i++) {
+			if (cachedPositionOf(this.sortedRecordsProviders, this.positionCaches, i, this.estimatedCount, primaryKey) >= 0) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Classifies the entity for the bound block: it is sortable when one of its rows to the block's referenced entity
+	 * carries the chain attribute and is held by a chain provider of the row's key (see
+	 * {@link #pickRowOfBlock(EntityContract)}) - an entity no provider of the block can place is passed on to the next
+	 * block rather than claimed by this one, as the index route does. The positions resolved here are memoized, so the
+	 * comparisons that follow find them in the cache.
 	 *
 	 * Without a bound block (a chain sorted under an implicit `pickFirst`, which walks every provider at once) every
 	 * entity is classified as sortable and {@link #compare(EntityContract, EntityContract)} keeps reporting the
@@ -215,26 +302,8 @@ public class TraverseReferencePredecessorAttributeComparator
 		if (this.referenceKey == null) {
 			return true;
 		}
-		final ReferenceAttributeValue value = getMemoizedValue(entity);
-		if (value == ReferenceAttributeValue.MISSING_VALUE) {
-			return false;
-		}
-		initializeProviders();
-		final OffsetAndLimit offsetAndLimit = this.sortedRecordsOffsets == null ?
-			null : this.sortedRecordsOffsets.get(value.referencedKey());
-		if (offsetAndLimit == null) {
-			return false;
-		}
-		final int primaryKey = entity.getPrimaryKeyOrThrowException();
-		for (int i = offsetAndLimit.offset(); i < offsetAndLimit.limit(); i++) {
-			final int position = cachedPositionOf(
-				this.sortedRecordsProviders, this.positionCaches, i, this.estimatedCount, primaryKey
-			);
-			if (position >= 0) {
-				return true;
-			}
-		}
-		return false;
+		// the picked row is placed by a provider of its key already
+		return getMemoizedValue(entity) != ReferenceAttributeValue.MISSING_VALUE;
 	}
 
 	/**

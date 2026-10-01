@@ -24,6 +24,7 @@
 package io.evitadb.core.query.sort.reference.sorter;
 
 
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
@@ -46,6 +47,10 @@ import java.util.function.IntConsumer;
  * Sequential sorter will apply {@link #embeddedSorters} one by one on the {@link #atomicBlocks}. The sorter is meant
  * to be used when traversal sorting is required (i.e. {@link MergeMode#APPEND_ALL}.
  *
+ * A block holds the reduced indexes of one referenced entity - all its representative keys and both scopes - and the
+ * sorting context of the block names that referenced entity only (see {@link #blockKeys}); which row of an owner
+ * represents it inside the block is up to the embedded sorters.
+ *
  * The embedded sorters see only the records of a block that no earlier block claimed. A block none of those records
  * belongs to is skipped without invoking any embedded sorter, and the walk stops once every record is claimed - an
  * embedded sorter is never handed an empty input.
@@ -60,6 +65,13 @@ public class SequentialSorter implements Sorter {
 	 */
 	private final ReducedEntityIndex[][] atomicBlocks;
 	/**
+	 * The key of each of {@link #atomicBlocks}, at the same position: the referenced entity of the block without any
+	 * representative attribute values. A block is the whole referenced entity - the indexes of all its representative
+	 * keys and of both scopes - so the key names the target only, and the embedded sorters look up everything they
+	 * need for the block by that target.
+	 */
+	private final RepresentativeReferenceKey[] blockKeys;
+	/**
 	 * Sorters that are applied on the {@link #atomicBlocks} one by one. The order of the sorters matters.
 	 */
 	private final List<Sorter> embeddedSorters;
@@ -69,6 +81,10 @@ public class SequentialSorter implements Sorter {
 		@Nonnull List<Sorter> embeddedSorters
 	) {
 		this.atomicBlocks = atomicBlocks;
+		this.blockKeys = new RepresentativeReferenceKey[atomicBlocks.length];
+		for (int i = 0; i < atomicBlocks.length; i++) {
+			this.blockKeys[i] = new RepresentativeReferenceKey(atomicBlocks[i][0].getReferenceKey());
+		}
 		this.embeddedSorters = embeddedSorters;
 		// ensure NoSorter is not present in the list of embedded sorters
 		// we need to avoid sorting records which may not have related sort information (such as attribute by which we sort)
@@ -103,7 +119,8 @@ public class SequentialSorter implements Sorter {
 
 		SortingContext nextSortingContext = sortingContext;
 		top:
-		for (ReducedEntityIndex[] atomicBlock : this.atomicBlocks) {
+		for (int blockIndex = 0; blockIndex < this.atomicBlocks.length; blockIndex++) {
+			final ReducedEntityIndex[] atomicBlock = this.atomicBlocks[blockIndex];
 			if (recordsToSort.isEmpty()) {
 				// every record found its block - no later block can claim anything
 				break;
@@ -140,7 +157,7 @@ public class SequentialSorter implements Sorter {
 				nextSortingContext.endIndex(),
 				nextSortingContext.peak(),
 				nextSortingContext.skipped(),
-				atomicBlock[0].getRepresentativeReferenceKey()
+				this.blockKeys[blockIndex]
 			);
 
 			final int previousPeak = nextSortingContext.peak();

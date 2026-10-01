@@ -68,8 +68,11 @@ import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.BLOCK_3
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.COMPOUND;
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.OWNERS;
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.REFERENCE_SCHEMA;
+import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.VARIANTS_REFERENCE_SCHEMA;
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.blockKey;
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.sort;
+import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.variantKey;
+import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.variantsBlockKey;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.ORDER;
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -515,6 +518,91 @@ class PrefetchedRecordsSorterClassificationTest {
 			comparator.withReferencedEntityId(
 				BLOCK_1,
 				() -> assertThrows(EvitaInternalError.class, () -> comparator.compare(OWNERS.get(13), OWNERS.get(16)))
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Duplicate rows of one target")
+	class DuplicateRowsClassification {
+
+		/**
+		 * Creates the traversal comparator of the `order` attribute of the `variants` reference in the direction.
+		 */
+		@Nonnull
+		private static TraverseReferenceAttributeComparator variantsOrderComparator(@Nonnull OrderDirection direction) {
+			return new TraverseReferenceAttributeComparator(
+				ATTRIBUTE_ORDER, Integer.class, VARIANTS_REFERENCE_SCHEMA, null, direction
+			);
+		}
+
+		@Test
+		@DisplayName("should represent each owner by its first valued row in representative order and order by value")
+		void shouldRepresentOwnerByFirstValuedRow() {
+			// block of brand 2: 70 by z (1), 72 by b (50) - its a row has no value, 73 by b (60) although its c row
+			// carries 5, 75 by a (60), 71 by a (100); the representative values pick the row, never the position of
+			// the owner - 73 and 75 tie on 60 and follow their primary keys, not their rows' a < b
+			final SortResult ascending = sort(
+				variantsOrderComparator(OrderDirection.ASC), variantsBlockKey(2), 0, 10, 70, 71, 72, 73, 74, 75
+			);
+			final SortResult descending = sort(
+				variantsOrderComparator(OrderDirection.DESC), variantsBlockKey(2), 0, 10, 70, 71, 72, 73, 74, 75
+			);
+
+			assertAll(
+				() -> assertArrayEquals(new int[]{70, 72, 73, 75, 71}, ascending.written(), "ascending"),
+				() -> assertArrayEquals(new int[]{74}, ascending.passedOn(), "74 has a row of brand 1 only"),
+				() -> assertArrayEquals(new int[]{71, 75, 73, 72, 70}, descending.written(), "descending"),
+				() -> assertArrayEquals(new int[]{74}, descending.passedOn())
+			);
+		}
+
+		@Test
+		@DisplayName("should claim a lone owner by a later row when its first row carries no value")
+		void shouldClaimLoneOwnerByLaterValuedRow() {
+			final SortResult lone = sort(
+				variantsOrderComparator(OrderDirection.ASC), variantsBlockKey(2), 0, 10, 72
+			);
+
+			assertAll(
+				() -> assertArrayEquals(new int[]{72}, lone.written(), "row b carries the value"),
+				() -> assertArrayEquals(new int[0], lone.passedOn())
+			);
+		}
+
+		@Test
+		@DisplayName("should place the owners of a chain by the provider of their first placeable row, in key order")
+		void shouldPlaceChainOwnersByProviderOfFirstPlaceableRow() {
+			// chains of brand 2: a holds 71, b holds 73 then 72, c holds 73, z holds 70; 72's a row has no chain, 73
+			// is placed by b before c - the owners follow the keys, then their positions in the chain of one key
+			final SortedRecordsProvider[] providers = {
+				new ReferenceSortedRecordsProvider(
+					1L, new int[]{74}, new int[]{0}, new BaseBitmap(74), position -> null, variantKey(1, "m")
+				),
+				new ReferenceSortedRecordsProvider(
+					2L, new int[]{71}, new int[]{0}, new BaseBitmap(71), position -> null, variantKey(2, "a")
+				),
+				new ReferenceSortedRecordsProvider(
+					3L, new int[]{73, 72}, new int[]{1, 0}, new BaseBitmap(72, 73), position -> null,
+					variantKey(2, "b")
+				),
+				new ReferenceSortedRecordsProvider(
+					4L, new int[]{73}, new int[]{0}, new BaseBitmap(73), position -> null, variantKey(2, "c")
+				),
+				new ReferenceSortedRecordsProvider(
+					5L, new int[]{70}, new int[]{0}, new BaseBitmap(70), position -> null, variantKey(2, "z")
+				)
+			};
+			final TraverseReferencePredecessorAttributeComparator comparator =
+				new TraverseReferencePredecessorAttributeComparator(
+					ATTRIBUTE_CHAIN, Predecessor.class, VARIANTS_REFERENCE_SCHEMA, null, OrderDirection.ASC,
+					() -> providers
+				);
+			final SortResult sorted = sort(comparator, variantsBlockKey(2), 0, 10, 70, 71, 72, 73, 74);
+
+			assertAll(
+				() -> assertArrayEquals(new int[]{71, 73, 72, 70}, sorted.written()),
+				() -> assertArrayEquals(new int[]{74}, sorted.passedOn())
 			);
 		}
 	}

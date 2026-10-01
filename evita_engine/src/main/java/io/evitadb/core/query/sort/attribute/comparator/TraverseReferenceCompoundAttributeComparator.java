@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.query.sort.EntityReferenceSensitiveComparator;
 import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeMode;
@@ -42,18 +43,20 @@ import java.io.Serial;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
-import static io.evitadb.core.query.sort.EntityReferenceSensitiveComparator.getReferenceByRepresentativeReferenceKey;
+import static io.evitadb.core.query.sort.EntityReferenceSensitiveComparator.getFirstValuedReference;
 
 /**
  * Comparator for sorting entities according to a sortable compound attribute value. It combines multiple attribute
  * comparators into one. This implementation adheres to {@link MergeMode#APPEND_ALL} which relates
  * to {@link TraverseByEntityProperty} ordering.
  *
- * The comparator sorts one traversal block at a time - the block key is bound by
- * {@link #withReferencedEntityId(RepresentativeReferenceKey, Runnable)} - and an entity whose row of the block carries
- * no element of the compound is classified as not sortable ({@link #canSort(EntityContract)}), so it is passed on to
- * the next block rather than claimed by this one.
+ * The comparator sorts one traversal block at a time - the block key, naming the referenced entity of the block, is
+ * bound by {@link #withReferencedEntityId(RepresentativeReferenceKey, Runnable)}. An entity is represented in the
+ * block by its first row to that referenced entity, in the order of the representative attribute values, that carries
+ * at least one element of the compound; an entity without such a row is classified as not sortable
+ * ({@link #canSort(EntityContract)}), so it is passed on to the next block rather than claimed by this one.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -70,6 +73,11 @@ public class TraverseReferenceCompoundAttributeComparator
 	 * The id of the referenced entity that is being traversed.
 	 */
 	@Nullable private RepresentativeReferenceKey referenceKey;
+	/**
+	 * Tells whether a row carries at least one element of the compound - created once, so picking a row allocates no
+	 * lambda.
+	 */
+	@Nonnull private final Predicate<ReferenceContract> carriesValue = this::carriesAnyElement;
 
 	public TraverseReferenceCompoundAttributeComparator(
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
@@ -108,22 +116,39 @@ public class TraverseReferenceCompoundAttributeComparator
 	}
 
 	/**
-	 * Picks the reference of the bound block key - the one row of the entity the block may sort it by.
+	 * Picks the row of the entity that represents it in the bound block: its first row to the block's referenced
+	 * entity, in the order of the representative attribute values, that carries at least one element of the compound.
 	 *
 	 * @param entity the entity whose reference is picked
-	 * @return the reference of the bound block key, empty when the entity has none
+	 * @return the representing row, empty when no row of the entity to the block's referenced entity carries the value
 	 */
 	@Nonnull
 	@Override
 	protected Optional<ReferenceContract> pickReference(@Nonnull EntityContract entity) {
 		Assert.isPremiseValid(this.referenceKey != null, "Referenced entity id must be set!");
-		return getReferenceByRepresentativeReferenceKey(entity, this.referenceSchema, this.referenceKey);
+		return getFirstValuedReference(entity, this.referenceSchema, this.referenceKey.referenceKey(), this.carriesValue);
 	}
 
 	/**
-	 * Compares two entities classified as sortable by {@link #canSort(EntityContract)} within the bound block: both
-	 * carry the compound on the reference of the block, so they differ only in the compound value; entities with equal
-	 * values follow their own primary keys in the direction of the ordering, as on the index route. Entities without
+	 * Tells whether the row carries at least one element of the compound - the condition under which
+	 * {@link #canSort(EntityContract)} admits an entity represented by the row.
+	 *
+	 * @param reference the row
+	 * @return `true` when some element of the compound is set on the row
+	 */
+	private boolean carriesAnyElement(@Nonnull ReferenceContract reference) {
+		for (AttributeElement attributeElement : this.attributeElements) {
+			if (this.attributeValueFetcher.apply(reference, attributeElement.attributeName()) != null) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Compares two entities classified as sortable by {@link #canSort(EntityContract)} within the bound block by the
+	 * compound values of their representing rows - which rows they are takes no part; entities with equal values follow
+	 * their own primary keys in the direction of the ordering, as on the index route. Entities without
 	 * the value never get here, the sorter passes them on to the next block before any comparison.
 	 *
 	 * @param o1 the first entity

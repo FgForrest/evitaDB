@@ -39,7 +39,9 @@ import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.BLOCK_1
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.BLOCK_2;
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.OWNERS;
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.REFERENCE_SCHEMA;
+import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.VARIANTS_REFERENCE_SCHEMA;
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.sort;
+import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.variantsBlockKey;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.ORDER;
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -48,9 +50,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Verifies the prefetch-route classification of a traversal ordering by the referenced primary key: an owner belongs
- * to a block when it has the row of the block's key - whether that row carries attributes does not matter, the
- * referenced primary key is always there - and an owner without that row is passed on, even when it is alone. The
- * owners of one block share its value and follow their own primary keys in the direction of the ordering.
+ * to a block when it has a row to the block's referenced entity - whether that row carries attributes or which
+ * representative values it has does not matter, the referenced primary key is always there - and an owner without
+ * such a row is passed on, even when it is alone. The owners of one block share its value and follow their own
+ * primary keys in the direction of the ordering.
  *
  * Runs {@link PrefetchedRecordsSorter} over the real owners of {@link PrefetchedOwnersFixture}.
  *
@@ -136,6 +139,24 @@ class ReferencePrimaryKeyEntityComparatorTest {
 		assertAll(
 			() -> assertArrayEquals(new int[]{11, 12, 13}, ascending.written(), "ascending"),
 			() -> assertArrayEquals(new int[]{13, 12, 11}, descending.written(), "descending")
+		);
+	}
+
+	@Test
+	@DisplayName("should claim every owner with any row to the brand of the block, whatever its representative value")
+	void shouldClaimOwnerWithAnyRowOfDuplicateReference() {
+		// the block of brand 2 is the whole brand: 70 (z), 71 (a), 72 (a, b) and 73 (b, c) all have a row to it, none
+		// of them with the representative values of the block key (it has none), and all share the value 2
+		final SortResult sorted = sort(
+			new EntityPrimaryKeyNaturalTranslator.ReferencePrimaryKeyEntityComparator(
+				VARIANTS_REFERENCE_SCHEMA, IntDescendingComparator.INSTANCE
+			),
+			variantsBlockKey(2), 0, 10, 70, 71, 72, 73, 74
+		);
+
+		assertAll(
+			() -> assertArrayEquals(new int[]{73, 72, 71, 70}, sorted.written(), "descending by owner"),
+			() -> assertArrayEquals(new int[]{74}, sorted.passedOn(), "74 has a row of brand 1 only")
 		);
 	}
 
