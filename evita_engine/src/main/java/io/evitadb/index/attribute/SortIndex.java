@@ -1460,17 +1460,22 @@ public abstract sealed class SortIndex
 		 * Validating constructor that asserts each value matches the type declared by the corresponding
 		 * {@link ComparatorSource} element before wrapping the array (null values are permitted).
 		 *
+		 * The values are the normalized ones, so an element declared as `Locale` or `Currency` holds the comparable
+		 * wrapper the normalizer turned it into - the type {@link #assertComparable(Class)} maps the declared type to -
+		 * and that wrapper is the type the value is checked against.
+		 *
 		 * @param comparatorBase the per-element type/order descriptors of the owning compound
-		 * @param value          the values to wrap, aligned positionally with `comparatorBase`
-		 * @throws IllegalArgumentException if any non-null value is not an instance of its declared element type
+		 * @param value          the normalized values to wrap, aligned positionally with `comparatorBase`
+		 * @throws IllegalArgumentException if any non-null value is not an instance of its normalized element type
 		 */
 		public ComparableArray(@Nonnull ComparatorSource[] comparatorBase, @Nonnull Serializable[] value) {
 			this(value);
 			for (int i = 0; i < comparatorBase.length; i++) {
+				final Class<?> normalizedType = assertComparable(comparatorBase[i].type());
 				isTrue(
-					value[i] == null || comparatorBase[i].type().isInstance(value[i]),
-					"Value on index `" + i + "` must be of type `" + comparatorBase[i].type()
-						.getName() + "` but is `" + value[i] + "`!"
+					value[i] == null || normalizedType.isInstance(value[i]),
+					"Value on index `" + i + "` must be of type `" + normalizedType.getName() + "` but is `" +
+						value[i] + "`!"
 				);
 			}
 		}
