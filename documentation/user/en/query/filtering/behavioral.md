@@ -55,8 +55,9 @@ An `inScope` container cannot be nested in another `inScope` container that filt
 a different scope the inner constraints would apply only to entities that are in both scopes at once, which none are,
 and with the same scope the inner container would be redundant - so the query is rejected with an error in both cases.
 Place the containers side by side instead. This includes the body of `referenceHaving`, whose reference attributes
-belong to the queried entities. A container that filters another entity - `entityHaving`, `groupHaving`, or the parent
-filter of `hierarchyWithin` - may contain its own `inScope`, which then restricts the scope of that other entity.
+belong to the queried entities. A container that filters another entity - `entityHaving`, `groupHaving`,
+`hierarchyWithin`, or `hierarchyWithinRoot` - may contain its own `inScope` anywhere among its children, which then
+restricts the scope of that other entity.
 
 </Note>
 
