@@ -53,6 +53,7 @@ import java.util.function.Consumer;
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.TRANSACTION;
+import static io.evitadb.utils.AssertionUtils.assertSavepointCommitKeeps;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
@@ -732,6 +733,38 @@ class BucketImpactColumnTest {
 					t.addRecord(1, 6_000, (byte) 50);
 				}
 			);
+		}
+
+		@Test
+		@DisplayName("a savepoint commit closes the mark on a delta whose leaf the savepoint split")
+		void shouldCloseTheDeltaMarkWhenTheSavepointThatSplitItsLeafCommits() {
+			final int threshold = OverflowRecords.SMALL_BUCKET_THRESHOLD;
+			final TransactionalBucketBPlusTree<Integer> tree = emptyImpactTree(5);
+			for (int i = 0; i <= threshold; i++) {
+				tree.addRecord(1, i, (byte) (i + 1));
+			}
+			tree.addRecord(2, 2, (byte) 2);
+			tree.addRecord(3, 3, (byte) 3);
+			tree.addRecord(4, 4, (byte) 4);
+			final PendingImpacts[] delta = new PendingImpacts[1];
+			assertSavepointCommitKeeps(
+				tree,
+				// an earlier entity of the transaction: opens the bucket's pending delta in the leaf's layer
+				t -> t.addRecord(1, 5_000, (byte) 7),
+				BucketImpactColumnTest::contentOf,
+				t -> {
+					// the first write of the savepoint snapshots the leaf, which opens a mark on the delta
+					t.addRecord(1, 0, (byte) 99);
+					delta[0] = assertInstanceOf(PendingImpacts.class, impactSlot(t, 1));
+					// the fifth key fills the leaf, which splits: its layer is removed while the savepoint is open,
+					// and the delta lives on in the split-born leaf
+					t.addRecord(5, 5, (byte) 5);
+					assertNotSame(t.findLeafNode(1), t.findLeafNode(5), "the leaf must have split");
+					assertSame(delta[0], impactSlot(t, 1), "the split must carry the delta along");
+				}
+			);
+			// the savepoint commit must have closed the only mark, so one more release finds none open
+			assertThrows(GenericEvitaInternalError.class, delta[0]::release);
 		}
 
 		@ParameterizedTest(name = "seed {0}")

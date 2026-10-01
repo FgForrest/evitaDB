@@ -451,10 +451,15 @@ public class TransactionalLayerMaintainer {
 		this.currentSavepoint = null;
 		for (final LongObjectCursor<Object> cursor : savepoint.mementos) {
 			final Object memento = cursor.value;
-			if (memento == CREATED_IN_SAVEPOINT || memento instanceof RemovedLayer) {
-				// a layer created inside the savepoint was never snapshotted (nothing to release); a layer removed
-				// inside the savepoint is already detached from the transactional memory - neither keeps drainable
-				// per-savepoint scratch state on a still-attached layer
+			if (memento == CREATED_IN_SAVEPOINT) {
+				// a layer created inside the savepoint was never snapshotted - there is nothing to release
+				continue;
+			}
+			if (memento instanceof final RemovedLayer removed) {
+				// a layer removed inside the savepoint is detached, but its snapshot may have opened state that
+				// outlives it - a B+ tree leaf marks impact deltas a split hands on to the leaves that replace it -
+				// so the memento is released exactly as rollbackSavepoint releases it
+				releaseLayerMemento(removed.entry().getItem(), removed.memento());
 				continue;
 			}
 			// a plain memento is only ever recorded for a layer that still exists (a removal upgrades it to a
