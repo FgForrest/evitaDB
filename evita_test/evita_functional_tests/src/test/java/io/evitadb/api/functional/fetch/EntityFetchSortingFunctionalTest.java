@@ -23,9 +23,12 @@
 
 package io.evitadb.api.functional.fetch;
 
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
@@ -35,12 +38,19 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import javax.annotation.Nonnull;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -93,6 +103,28 @@ class EntityFetchSortingFunctionalTest extends AbstractEntityFetchingFunctionalT
 					products.getRecordData().stream()
 						.map(EntityContract::getPrimaryKey)
 						.toArray(Integer[]::new)
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return every page of products sorted by primary key in descending order")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEveryPageOfProductsSortedByPrimaryKeyInDescendingOrder(Evita evita, List<SealedEntity> originalProducts) {
+		final int[] expectedOrder = composeExpectedOrder(
+			new int[0], originalProducts, Comparator.reverseOrder()
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertEveryPageIsSliceOf(
+					expectedOrder,
+					(pageNumber, pageSize) -> queryProductPage(
+						session, orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)), pageNumber, pageSize
+					)
 				);
 				return null;
 			}
@@ -243,6 +275,240 @@ class EntityFetchSortingFunctionalTest extends AbstractEntityFetchingFunctionalT
 				return null;
 			}
 		);
+	}
+
+	@Nested
+	@DisplayName("Pages of products sorted by exact order starting past the exactly ordered keys")
+	class PagesPastExactlyOrderedKeys {
+
+		@DisplayName("Should fill the page from the products outside the exact order in primary key order")
+		@UseDataSet(HUNDRED_PRODUCTS)
+		@Test
+		void shouldFillPageFromProductsOutsideExactOrder(Evita evita, List<SealedEntity> originalProducts) {
+			final int[] exactOrder = {10, 3};
+			final int[] expectedOrder = composeExpectedOrder(
+				exactOrder, originalProducts, Comparator.naturalOrder()
+			);
+
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final int[] page = queryProductPage(session, orderBy(entityPrimaryKeyExact(10, 3)), 2, 3);
+					assertArrayEquals(Arrays.copyOfRange(expectedOrder, 3, 6), page);
+					return null;
+				}
+			);
+		}
+
+		@DisplayName("Should return every page as a slice of the entire exactly ordered result")
+		@UseDataSet(HUNDRED_PRODUCTS)
+		@Test
+		void shouldReturnEveryPageAsSliceOfEntireOrderedResult(Evita evita, List<SealedEntity> originalProducts) {
+			final int[] exactOrder = {10, 3, 57};
+			final int[] expectedOrder = composeExpectedOrder(
+				exactOrder, originalProducts, Comparator.naturalOrder()
+			);
+
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertEveryPageIsSliceOf(
+						expectedOrder,
+						(pageNumber, pageSize) -> queryProductPage(
+							session, orderBy(entityPrimaryKeyExact(10, 3, 57)), pageNumber, pageSize
+						)
+					);
+					return null;
+				}
+			);
+		}
+
+		@DisplayName("Should order the products outside the exact order by the next sorter on every page")
+		@UseDataSet(HUNDRED_PRODUCTS)
+		@Test
+		void shouldOrderProductsOutsideExactOrderByNextSorter(Evita evita, List<SealedEntity> originalProducts) {
+			final int[] exactOrder = {10, 3, 57};
+			final int[] expectedOrder = composeExpectedOrder(
+				exactOrder, originalProducts, Comparator.reverseOrder()
+			);
+
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertEveryPageIsSliceOf(
+						expectedOrder,
+						(pageNumber, pageSize) -> queryProductPage(
+							session,
+							orderBy(
+								entityPrimaryKeyExact(10, 3, 57),
+								entityPrimaryKeyNatural(OrderDirection.DESC)
+							),
+							pageNumber, pageSize
+						)
+					);
+					return null;
+				}
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Pages of products sorted in segments starting past the first segment")
+	class PagesOfSegments {
+
+		@DisplayName("Should exclude the products of a descending primary key segment skipped by the page from the next segment")
+		@UseDataSet(HUNDRED_PRODUCTS)
+		@Test
+		void shouldExcludeSkippedProductsOfDescendingSegmentFromNextSegment(Evita evita, List<SealedEntity> originalProducts) {
+			final int[] ascending = originalProducts.stream()
+				.mapToInt(EntityContract::getPrimaryKeyOrThrowException)
+				.sorted()
+				.toArray();
+			final int[] expectedOrder = IntStream.concat(
+					IntStream.range(0, 5).map(i -> ascending[ascending.length - 1 - i]),
+					Arrays.stream(ascending, 0, ascending.length - 5)
+				)
+				.toArray();
+
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertEveryPageIsSliceOf(
+						expectedOrder,
+						(pageNumber, pageSize) -> queryProductPage(
+							session,
+							orderBy(
+								segments(
+									segment(orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)), limit(5)),
+									segment(orderBy(entityPrimaryKeyNatural(OrderDirection.ASC)))
+								)
+							),
+							pageNumber, pageSize
+						)
+					);
+					return null;
+				}
+			);
+		}
+
+		@DisplayName("Should exclude the products filling up an exact segment skipped by the page from the next segment")
+		@UseDataSet(HUNDRED_PRODUCTS)
+		@Test
+		void shouldExcludeSkippedProductsFillingUpExactSegmentFromNextSegment(Evita evita, List<SealedEntity> originalProducts) {
+			final int[] exactOrder = {10, 3, 57};
+			final Set<Integer> exactKeys = Arrays.stream(exactOrder).boxed().collect(Collectors.toSet());
+			final int[] rest = originalProducts.stream()
+				.mapToInt(EntityContract::getPrimaryKeyOrThrowException)
+				.filter(pk -> !exactKeys.contains(pk))
+				.sorted()
+				.toArray();
+			final int[] expectedOrder = IntStream.concat(
+					IntStream.concat(Arrays.stream(exactOrder), Arrays.stream(rest, 0, 2)),
+					IntStream.range(2, rest.length).map(i -> rest[rest.length - 1 - (i - 2)])
+				)
+				.toArray();
+
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertEveryPageIsSliceOf(
+						expectedOrder,
+						(pageNumber, pageSize) -> queryProductPage(
+							session,
+							orderBy(
+								segments(
+									segment(orderBy(entityPrimaryKeyExact(10, 3, 57)), limit(5)),
+									segment(orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)))
+								)
+							),
+							pageNumber, pageSize
+						)
+					);
+					return null;
+				}
+			);
+		}
+
+	}
+
+	/**
+	 * Queries a single page of all products ordered by the given ordering and returns their primary keys.
+	 *
+	 * @param session    the session to query
+	 * @param orderBy    the ordering to apply
+	 * @param pageNumber the number of the page to fetch (starting with 1)
+	 * @param pageSize   the size of the page
+	 * @return primary keys of the products on the page in the order they were returned
+	 */
+	@Nonnull
+	private static int[] queryProductPage(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull OrderBy orderBy,
+		int pageNumber,
+		int pageSize
+	) {
+		return session.queryEntityReference(
+				query(
+					collection(Entities.PRODUCT),
+					orderBy,
+					require(page(pageNumber, pageSize))
+				)
+			)
+			.getRecordData()
+			.stream()
+			.mapToInt(EntityReferenceContract::getPrimaryKey)
+			.toArray();
+	}
+
+	/**
+	 * Composes the expected order of all products - the keys of the exact order first, followed by the rest of
+	 * the products ordered by their primary key using the given comparator.
+	 *
+	 * @param exactOrder       primary keys that must come first in this order
+	 * @param originalProducts all products in the dataset
+	 * @param restComparator   comparator of the primary keys of the products outside the exact order
+	 * @return the primary keys of all products in the expected order
+	 */
+	@Nonnull
+	private static int[] composeExpectedOrder(
+		@Nonnull int[] exactOrder,
+		@Nonnull List<SealedEntity> originalProducts,
+		@Nonnull Comparator<Integer> restComparator
+	) {
+		final Set<Integer> exactKeys = Arrays.stream(exactOrder).boxed().collect(Collectors.toSet());
+		return IntStream.concat(
+				Arrays.stream(exactOrder),
+				originalProducts.stream()
+					.map(EntityContract::getPrimaryKeyOrThrowException)
+					.filter(pk -> !exactKeys.contains(pk))
+					.sorted(restComparator)
+					.mapToInt(Integer::intValue)
+			)
+			.toArray();
+	}
+
+	/**
+	 * Verifies that every page of several page sizes covering the first fifteen records (the exactly ordered keys,
+	 * if any, and the records just past them) equals the corresponding slice of the entire expected order.
+	 *
+	 * @param expectedOrder the primary keys of all records in the expected order
+	 * @param pageFetcher   function fetching the primary keys of a page by its number and size
+	 */
+	private static void assertEveryPageIsSliceOf(
+		@Nonnull int[] expectedOrder,
+		@Nonnull BiFunction<Integer, Integer, int[]> pageFetcher
+	) {
+		for (int pageSize : new int[]{1, 2, 3, 4, 7}) {
+			for (int pageNumber = 1; (pageNumber - 1) * pageSize < 15; pageNumber++) {
+				final int offset = (pageNumber - 1) * pageSize;
+				assertArrayEquals(
+					Arrays.copyOfRange(expectedOrder, offset, Math.min(offset + pageSize, expectedOrder.length)),
+					pageFetcher.apply(pageNumber, pageSize),
+					"Page " + pageNumber + " of size " + pageSize + " differs from the slice of the entire result."
+				);
+			}
+		}
 	}
 
 }

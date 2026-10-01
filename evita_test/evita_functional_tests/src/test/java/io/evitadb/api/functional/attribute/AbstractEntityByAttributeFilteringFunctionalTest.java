@@ -28,6 +28,9 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.exception.EntityCollectionRequiredException;
 import io.evitadb.api.exception.EntityLocaleMissingException;
+import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
@@ -75,6 +78,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
 
@@ -5071,6 +5075,153 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return every page of products sorted by exact order of the attribute as a slice of the entire result")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEveryPageOfProductsSortedByExactAttributeOrderAsSliceOfEntireResult(Evita evita, List<SealedEntity> originalProductEntities) {
+		final List<SealedEntity> productsStartingWithE = getProductsWithCodeStartingWithE(originalProductEntities);
+		final String[] exactCodeOrder = getEveryOtherCodeInReverseOrder(productsStartingWithE);
+		final int[] expectedOrder = composeExpectedOrderByExactCodes(productsStartingWithE, exactCodeOrder, Comparator.naturalOrder());
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertEveryPageIsSliceOf(
+					expectedOrder,
+					(pageNumber, pageSize) -> queryProductPage(
+						session,
+						filterBy(attributeStartsWith(ATTRIBUTE_CODE, "E")),
+						orderBy(attributeSetExact(ATTRIBUTE_CODE, exactCodeOrder)),
+						page(pageNumber, pageSize)
+					)
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should order products outside the exact order of the attribute by the next sorter on every page")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldOrderProductsOutsideExactAttributeOrderByNextSorterOnEveryPage(Evita evita, List<SealedEntity> originalProductEntities) {
+		final List<SealedEntity> productsStartingWithE = getProductsWithCodeStartingWithE(originalProductEntities);
+		final String[] exactCodeOrder = getEveryOtherCodeInReverseOrder(productsStartingWithE);
+		final int[] expectedOrder = composeExpectedOrderByExactCodes(productsStartingWithE, exactCodeOrder, Comparator.reverseOrder());
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertEveryPageIsSliceOf(
+					expectedOrder,
+					(pageNumber, pageSize) -> queryProductPage(
+						session,
+						filterBy(attributeStartsWith(ATTRIBUTE_CODE, "E")),
+						orderBy(
+							attributeSetExact(ATTRIBUTE_CODE, exactCodeOrder),
+							entityPrimaryKeyNatural(DESC)
+						),
+						page(pageNumber, pageSize)
+					)
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should order prefetched products outside the exact order of the attribute by the next sorter on every page")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldOrderPrefetchedProductsOutsideExactAttributeOrderByNextSorterOnEveryPage(Evita evita, List<SealedEntity> originalProductEntities) {
+		final List<SealedEntity> productsStartingWithE = getProductsWithCodeStartingWithE(originalProductEntities);
+		final String[] exactCodeOrder = getEveryOtherCodeInReverseOrder(productsStartingWithE);
+		final int[] expectedOrder = composeExpectedOrderByExactCodes(productsStartingWithE, exactCodeOrder, Comparator.reverseOrder());
+		final Integer[] productIds = productsStartingWithE.stream()
+			.map(EntityContract::getPrimaryKeyOrThrowException)
+			.toArray(Integer[]::new);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertEveryPageIsSliceOf(
+					expectedOrder,
+					(pageNumber, pageSize) -> queryProductPage(
+						session,
+						filterBy(entityPrimaryKeyInSet(productIds)),
+						orderBy(
+							attributeSetExact(ATTRIBUTE_CODE, exactCodeOrder),
+							entityPrimaryKeyNatural(DESC)
+						),
+						page(pageNumber, pageSize),
+						debug(DebugMode.PREFER_PREFETCHING)
+					)
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return every page of prefetched products sorted by exact order of the attribute as a slice of the entire result")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEveryPageOfPrefetchedProductsSortedByExactAttributeOrderAsSliceOfEntireResult(Evita evita, List<SealedEntity> originalProductEntities) {
+		final List<SealedEntity> productsStartingWithE = getProductsWithCodeStartingWithE(originalProductEntities);
+		final String[] exactCodeOrder = getEveryOtherCodeInReverseOrder(productsStartingWithE);
+		final int[] expectedOrder = composeExpectedOrderByExactCodes(productsStartingWithE, exactCodeOrder, Comparator.naturalOrder());
+		final Integer[] productIds = productsStartingWithE.stream()
+			.map(EntityContract::getPrimaryKeyOrThrowException)
+			.toArray(Integer[]::new);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertEveryPageIsSliceOf(
+					expectedOrder,
+					(pageNumber, pageSize) -> queryProductPage(
+						session,
+						filterBy(entityPrimaryKeyInSet(productIds)),
+						orderBy(attributeSetExact(ATTRIBUTE_CODE, exactCodeOrder)),
+						page(pageNumber, pageSize),
+						debug(DebugMode.PREFER_PREFETCHING)
+					)
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return every page of entities found by global attribute without collection in primary key order")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEveryPageOfEntitiesFoundByGlobalAttributeInPrimaryKeyOrder(Evita evita, List<SealedEntity> originalProductEntities) {
+		final List<SealedEntity> productsStartingWithE = getProductsWithCodeStartingWithE(originalProductEntities);
+		final String[] codes = productsStartingWithE.stream()
+			.map(it -> it.getAttribute(ATTRIBUTE_CODE, String.class))
+			.toArray(String[]::new);
+		final int[] expectedOrder = productsStartingWithE.stream()
+			.mapToInt(EntityContract::getPrimaryKeyOrThrowException)
+			.toArray();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertEveryPageIsSliceOf(
+					expectedOrder,
+					(pageNumber, pageSize) -> session.queryEntityReference(
+							query(
+								filterBy(attributeInSet(ATTRIBUTE_CODE, codes)),
+								require(page(pageNumber, pageSize))
+							)
+						)
+						.getRecordData()
+						.stream()
+						.mapToInt(EntityReferenceContract::getPrimaryKey)
+						.toArray()
+				);
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return only first page of filtered and sorted entities")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -6359,6 +6510,120 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 			.skip(10)
 			.findFirst()
 			.orElseThrow(() -> new IllegalStateException("Failed to localize `" + attributeName + "` attribute!"));
+	}
+
+	/**
+	 * Returns the products whose code starts with `E` ordered by their primary key.
+	 *
+	 * @param originalProductEntities all products in the dataset
+	 * @return products with code starting with `E` in ascending order of their primary keys
+	 */
+	@Nonnull
+	private static List<SealedEntity> getProductsWithCodeStartingWithE(@Nonnull List<SealedEntity> originalProductEntities) {
+		final List<SealedEntity> productsStartingWithE = originalProductEntities.stream()
+			.filter(it -> ofNullable(it.getAttribute(ATTRIBUTE_CODE, String.class)).map(code -> code.startsWith("E")).orElse(false))
+			.sorted(Comparator.comparing(EntityContract::getPrimaryKeyOrThrowException))
+			.toList();
+		Assert.isTrue(productsStartingWithE.size() >= 10, "Not enough products starting with E found");
+		return productsStartingWithE;
+	}
+
+	/**
+	 * Returns the codes of every other product (starting with the first one) in reverse order, so that the products
+	 * of the exact order interleave with the rest of the products in primary key order.
+	 *
+	 * @param products products to pick the codes from
+	 * @return codes of every other product in reverse order
+	 */
+	@Nonnull
+	private static String[] getEveryOtherCodeInReverseOrder(@Nonnull List<SealedEntity> products) {
+		final String[] codes = IntStream.range(0, 3)
+			.mapToObj(i -> products.get(i * 2).getAttribute(ATTRIBUTE_CODE, String.class))
+			.toArray(String[]::new);
+		ArrayUtils.reverse(codes);
+		return codes;
+	}
+
+	/**
+	 * Composes the expected order of the products - the products carrying the codes of the exact order first,
+	 * followed by the rest of the products ordered by their primary key using the given comparator.
+	 *
+	 * @param products       all products matching the filter
+	 * @param exactCodeOrder codes whose products must come first in this order
+	 * @param restComparator comparator of the primary keys of the products outside the exact order
+	 * @return the primary keys of all products in the expected order
+	 */
+	@Nonnull
+	private static int[] composeExpectedOrderByExactCodes(
+		@Nonnull List<SealedEntity> products,
+		@Nonnull String[] exactCodeOrder,
+		@Nonnull Comparator<Integer> restComparator
+	) {
+		final Map<String, Integer> productIdsByCode = products.stream()
+			.collect(Collectors.toMap(it -> it.getAttribute(ATTRIBUTE_CODE, String.class), EntityContract::getPrimaryKeyOrThrowException));
+		final Set<String> exactCodes = Set.of(exactCodeOrder);
+		return IntStream.concat(
+				Arrays.stream(exactCodeOrder).mapToInt(productIdsByCode::get),
+				products.stream()
+					.filter(it -> !exactCodes.contains(it.getAttribute(ATTRIBUTE_CODE, String.class)))
+					.map(EntityContract::getPrimaryKeyOrThrowException)
+					.sorted(restComparator)
+					.mapToInt(Integer::intValue)
+			)
+			.toArray();
+	}
+
+	/**
+	 * Queries a single page of products and returns their primary keys.
+	 *
+	 * @param session     the session to query
+	 * @param filterBy    the filter to apply
+	 * @param orderBy     the ordering to apply
+	 * @param requirement the requirements to apply (including the page)
+	 * @return primary keys of the products on the page in the order they were returned
+	 */
+	@Nonnull
+	private static int[] queryProductPage(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull FilterBy filterBy,
+		@Nonnull OrderBy orderBy,
+		@Nonnull RequireConstraint... requirement
+	) {
+		return session.queryEntityReference(
+				query(
+					collection(Entities.PRODUCT),
+					filterBy,
+					orderBy,
+					require(requirement)
+				)
+			)
+			.getRecordData()
+			.stream()
+			.mapToInt(EntityReferenceContract::getPrimaryKey)
+			.toArray();
+	}
+
+	/**
+	 * Verifies that every page of several page sizes covering the exactly ordered records and the records just past
+	 * them equals the corresponding slice of the entire expected order.
+	 *
+	 * @param expectedOrder the primary keys of all records in the expected order
+	 * @param pageFetcher   function fetching the primary keys of a page by its number and size
+	 */
+	private static void assertEveryPageIsSliceOf(
+		@Nonnull int[] expectedOrder,
+		@Nonnull BiFunction<Integer, Integer, int[]> pageFetcher
+	) {
+		for (int pageSize : new int[]{1, 2, 3, 4, 7}) {
+			for (int pageNumber = 1; (pageNumber - 1) * pageSize < Math.min(15, expectedOrder.length); pageNumber++) {
+				final int offset = (pageNumber - 1) * pageSize;
+				assertArrayEquals(
+					Arrays.copyOfRange(expectedOrder, offset, Math.min(offset + pageSize, expectedOrder.length)),
+					pageFetcher.apply(pageNumber, pageSize),
+					"Page " + pageNumber + " of size " + pageSize + " differs from the slice of the entire result."
+				);
+			}
+		}
 	}
 
 	public record PredicateWithComparatorTuple(Predicate<SealedEntity> predicate, Comparator<SealedEntity> comparator) {

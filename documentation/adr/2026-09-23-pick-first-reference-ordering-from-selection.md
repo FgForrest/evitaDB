@@ -1,7 +1,7 @@
 ---
 title: A pick-first reference ordering sorts on the first row of every selected owner, resolved from the selection rather than from the filter
 date: 2026-09-23
-updated: 2026-09-30 07:30
+updated: 2026-09-30 14:30
 status: accepted
 kind: fix
 issues: [1614]
@@ -345,11 +345,13 @@ a measured production shape: that is where the per-query cost still follows `row
   live owners, by more than 100 over both scopes, the index route placing archived owners after live ones within a
   target. It predates this change, which leaves traverse untouched (see Key technical details), and needs the
   traverse-narrowing decision above before either route can be called right.
-- **Found, not fixed: `ExactSorter` fails on a page starting past the matched keys.** With
-  `orderBy(entityPrimaryKeyExact(10, 3), ...)` and `page(2, 3)`, `ExactSorter#sortAndSlice` computes
-  `toAppend = lastSortedItem - recomputedStartIndex`, which goes negative when fewer keys match the exact order than
-  the page skips, and `System.arraycopy` throws `ArrayIndexOutOfBoundsException` instead of handing the rest to the
-  next sorter. Found by the quality pass of this work; outside its diff.
+- **Fixed by #1671: `ExactSorter` failed on a page starting past the matched keys.** With
+  `orderBy(entityPrimaryKeyExact(10, 3), ...)` and `page(2, 3)`, `ExactSorter#sortAndSlice` computed a negative copy
+  length and threw `ArrayIndexOutOfBoundsException` instead of handing the rest to the next sorter. Found by the
+  quality pass of this work; the fix also covers `AttributeExactSorter`, `ReversedPrimaryKeySorter` and
+  `TranslatedPrimaryKeySorter`, which mis-sliced pages with an offset too, and makes `ReversedPrimaryKeySorter` and
+  `NoSorter` hand the records they skip to the skipped-records consumer, without which a later `segment` received
+  records an earlier one had already skipped.
 
 ## Related work
 

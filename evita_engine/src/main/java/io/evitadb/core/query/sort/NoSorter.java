@@ -54,6 +54,15 @@ public class NoSorter implements Sorter {
 		final int peak = sortingContext.peak();
 		final Bitmap filteredRecordIdBitmap = sortingContext.nonSortedKeys();
 
+		final int skippedRecords = Math.min(recomputedStartIndex, filteredRecordIdBitmap.size());
+		// the records preceding the page must reach the consumer - a wrapping sorter (such as a segment) relies on it
+		// to exclude them from the input of the sorters that follow
+		if (skippedRecordsConsumer != null && skippedRecords > 0) {
+			for (int skippedRecord : filteredRecordIdBitmap.getRange(0, skippedRecords)) {
+				skippedRecordsConsumer.accept(skippedRecord);
+			}
+		}
+
 		final int maxLength = Math.max(0, Math.min(recomputedEndIndex - recomputedStartIndex, filteredRecordIdBitmap.size() - recomputedStartIndex));
 		if (recomputedEndIndex > 0 && !filteredRecordIdBitmap.isEmpty()) {
 			final int[] slice = filteredRecordIdBitmap.getRange(recomputedStartIndex, recomputedStartIndex + maxLength);
@@ -62,13 +71,13 @@ public class NoSorter implements Sorter {
 			return sortingContext.createResultContext(
 				EmptyBitmap.INSTANCE,
 				copiedLength,
-				Math.min(recomputedStartIndex, filteredRecordIdBitmap.size())
+				skippedRecords
 			);
 		} else {
 			return sortingContext.createResultContext(
 				EmptyBitmap.INSTANCE,
 				0,
-				Math.min(recomputedStartIndex, filteredRecordIdBitmap.size())
+				skippedRecords
 			);
 		}
 	}
