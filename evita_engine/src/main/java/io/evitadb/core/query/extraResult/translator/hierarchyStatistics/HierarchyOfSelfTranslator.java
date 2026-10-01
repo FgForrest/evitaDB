@@ -80,7 +80,6 @@ public class HierarchyOfSelfTranslator
 
 		// prepare shared data from the context
 		final EvitaRequest evitaRequest = extraResultPlanner.getEvitaRequest();
-		final HierarchyFilterConstraint hierarchyWithin = evitaRequest.getHierarchyWithin(null);
 
 		// retrieve existing producer or create new one
 		final HierarchyStatisticsProducer hierarchyStatisticsProducer = getHierarchyStatisticsProducer(
@@ -92,6 +91,9 @@ public class HierarchyOfSelfTranslator
 		// verify that the queried schema has its hierarchy indexed in the single requested scope
 		final Scope scope = resolveSingleHierarchicalScope(extraResultPlanner.getProcessingScope(), queriedSchema);
 		final Set<Scope> scopes = Collections.singleton(scope);
+		// a `hierarchyWithin` no occurrence of which covers the scope leaves its statistics unfiltered
+		final HierarchyFilterConstraint hierarchyWithin = extraResultPlanner.getQueryContext()
+			.getHierarchyFilterForScope(evitaRequest.getHierarchyWithin(null), scope);
 
 		final Optional<EntityCollection> targetCollectionRef = extraResultPlanner.getEntityCollection(queriedEntityType);
 		final GlobalEntityIndex globalIndex = targetCollectionRef

@@ -89,7 +89,10 @@ public class HierarchyParentsTranslator
 			)
 			.orElse(null);
 
-		if (context.hierarchyFilter() instanceof HierarchyWithin) {
+		// the request is checked rather than the context: the context holds NULL for a scope no `hierarchyWithin`
+		// occurrence covers - such a scope is not restricted, and without a selected node it has no parents to describe
+		final String referenceName = context.referenceSchema() == null ? null : context.referenceSchema().getName();
+		if (extraResultPlanningVisitor.getEvitaRequest().getHierarchyWithin(referenceName) instanceof HierarchyWithin) {
 			producer.addComputer(
 				parents.getName(),
 				parents.getOutputName(),

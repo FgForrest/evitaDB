@@ -52,7 +52,8 @@ import java.util.function.Supplier;
  *
  * @param entitySchema                           Target entity schema of the entity.
  * @param referenceSchema                        Target entity schema of the entity.
- * @param hierarchyFilter                        Contains {@link HierarchyWithin} or {@link HierarchyWithinRoot} filtering query if it was part of the query filter.
+ * @param hierarchyFilter                        Contains {@link HierarchyWithin} or {@link HierarchyWithinRoot} filtering query if it was part of the query filter
+ *                                               and restricts the scope the statistics are computed for.
  * @param entityIndex                            Contains reference to the owner {@link EntityIndex} of the {@link HierarchyIndex}.
  * @param fetchRequirementCollector              Reference to the collector of requirements for entity prefetch phase.
  * @param directlyQueriedEntitiesFormulaProducer Contains a function that produces bitmap of queried entity ids connected with particular hierarchical entity.

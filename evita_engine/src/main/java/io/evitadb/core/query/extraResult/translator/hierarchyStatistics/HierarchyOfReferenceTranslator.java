@@ -95,7 +95,9 @@ public class HierarchyOfReferenceTranslator
 				extraResultPlanner.getProcessingScope(), referencedEntitySchema
 			);
 
-			final HierarchyFilterConstraint hierarchyWithin = evitaRequest.getHierarchyWithin(referenceName);
+			// a `hierarchyWithin` no occurrence of which covers the scope leaves its statistics unfiltered
+			final HierarchyFilterConstraint hierarchyWithin = extraResultPlanner.getQueryContext()
+				.getHierarchyFilterForScope(evitaRequest.getHierarchyWithin(referenceName), scope);
 			final Optional<EntityCollection> targetCollectionRef = extraResultPlanner.getEntityCollection(entityType);
 			final GlobalEntityIndex globalIndex = targetCollectionRef
 				.map(entityCollection -> entityCollection.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope)))

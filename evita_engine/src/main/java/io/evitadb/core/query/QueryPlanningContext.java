@@ -34,6 +34,7 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
+import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
 import io.evitadb.api.query.require.EntityContentRequire;
@@ -1957,16 +1958,48 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Returns the hierarchy filter constraint as it applies to the hierarchy statistics of the passed scope: the
+	 * constraint itself, or NULL when it is a `hierarchyWithin` no occurrence of which covers the scope - see
+	 * {@link #findCoveringResolution(Map, HierarchyFilterConstraint, Scope)}. Such a constraint does not restrict that
+	 * scope's entities at all, so the statistics of the scope are computed as if the query had no hierarchy filter.
+	 *
+	 * A `hierarchyWithinRoot` is returned as it is: it declares no roots of its own, so its statistics start at the
+	 * index roots whether an occurrence covers the scope or not, and its node visibility is resolved per scope by
+	 * {@link #getHierarchyHavingPredicate(HierarchyFilterConstraint, Scope)}.
+	 *
+	 * @param hierarchyFilterConstraint the constraint resolved by {@link EvitaRequest#getHierarchyWithin(String)},
+	 *                                  may be NULL
+	 * @param scope                     the scope the statistics are computed for
+	 * @return the constraint restricting the scope, or NULL when there is none
+	 */
+	@Nullable
+	public HierarchyFilterConstraint getHierarchyFilterForScope(
+		@Nullable HierarchyFilterConstraint hierarchyFilterConstraint,
+		@Nonnull Scope scope
+	) {
+		if (hierarchyFilterConstraint instanceof HierarchyWithin &&
+			(this.rootHierarchyNodesFormula == null ||
+				findCoveringResolution(this.rootHierarchyNodesFormula, hierarchyFilterConstraint, scope) == null)) {
+			return null;
+		}
+		return hierarchyFilterConstraint;
+	}
+
+	/**
 	 * Returns primary keys of all root hierarchy nodes that cover the hierarchy requested by the passed constraint.
 	 *
 	 * The caller passes the constraint the extra result decided to describe - resolved by
-	 * {@link EvitaRequest#getHierarchyWithin(String)} - so the roots always belong to that very hierarchy. A NULL
-	 * constraint, and a constraint that declares no roots of its own (`hierarchyWithinRoot`), both yield an empty
-	 * bitmap, which the producers read as "the index roots".
+	 * {@link EvitaRequest#getHierarchyWithin(String)} and narrowed by
+	 * {@link #getHierarchyFilterForScope(HierarchyFilterConstraint, Scope)} - so the roots always belong to that very
+	 * hierarchy. A NULL constraint, and a constraint that declares no roots of its own (`hierarchyWithinRoot`), both
+	 * yield an empty bitmap, which the producers read as "the index roots".
 	 *
 	 * The roots come from an occurrence covering the scope - see
-	 * {@link #findCoveringResolution(Map, HierarchyFilterConstraint, Scope)}. An empty bitmap is returned as well when
-	 * no occurrence covers the scope: the constraint does not restrict that scope's entities at all.
+	 * {@link #findCoveringResolution(Map, HierarchyFilterConstraint, Scope)}. For a `hierarchyWithin` an empty bitmap
+	 * therefore means that the covering occurrence selected no node in the scope, and its statistics are empty - just
+	 * like those of a query over that scope alone, which an unmatched `hierarchyWithin` empties entirely. An empty
+	 * bitmap is returned as well when no occurrence covers the scope, but the producers never ask about such
+	 * a constraint: it does not restrict the scope, so `getHierarchyFilterForScope` hands them NULL in its place.
 	 *
 	 * @param hierarchyFilterConstraint the constraint whose roots are asked for, may be NULL
 	 * @param scope                     the scope the statistics are computed for
