@@ -29,6 +29,8 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.dataType.ComparableLocale;
 
+import java.util.Locale;
+
 /**
  * Class handles Kryo (de)serialization of {@link ComparableLocale} instances.
  *
@@ -41,7 +43,7 @@ public class ComparableLocaleSerializer extends Serializer<ComparableLocale> {
 	}
 
 	public ComparableLocale read(Kryo kryo, Input input, Class<? extends ComparableLocale> type) {
-		return kryo.readObject(input, ComparableLocale.class);
+		return new ComparableLocale(kryo.readObject(input, Locale.class));
 	}
 
 }
