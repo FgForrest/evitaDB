@@ -518,6 +518,20 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	}
 
 	/**
+	 * Returns the resolver of the reduced indexes of the enclosing `pickFirst` reference ordering, limited to the
+	 * scopes the current ordering sorts - an `inScope` container nested in the reference ordering narrows them below
+	 * the scopes the resolver was created for, and neither route may then sort the owners of the other scopes.
+	 *
+	 * @return the resolver limited to the ordered scopes, or `null` outside a `pickFirst` reference ordering
+	 */
+	@Nullable
+	public PickFirstReducedIndexResolver getPickFirstIndexResolver() {
+		final ProcessingScope processingScope = getProcessingScope();
+		final PickFirstReducedIndexResolver resolver = processingScope.pickFirstIndexResolver();
+		return resolver == null ? null : resolver.restrictTo(processingScope.getScopes());
+	}
+
+	/**
 	 * Returns index which is best suited for supplying {@link SortIndex}.
 	 *
 	 * Only the indexes of the scopes the ordering applies to are returned: an `inScope` container narrows the ordered

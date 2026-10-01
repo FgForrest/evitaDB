@@ -177,7 +177,7 @@ public class AttributeNaturalTranslator
 		final EntitySchemaContract entitySchema = attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract ?
 			orderByVisitor.getSchema() : null;
 		final ReferenceSchema referenceSchema = processingScope.referenceSchema();
-		final PickFirstReducedIndexResolver pickFirstIndexResolver = processingScope.pickFirstIndexResolver();
+		final PickFirstReducedIndexResolver pickFirstIndexResolver = orderByVisitor.getPickFirstIndexResolver();
 		if (pickFirstIndexResolver != null && !isChainAttribute(attributeOrCompoundSchema)) {
 			return createPickFirstSorters(
 				attributeOrCompoundSchema, orderDirection, locale, entitySchema,
@@ -424,7 +424,12 @@ public class AttributeNaturalTranslator
 		// seeker eagerly - is built only when the sorter finds an unclaimed owner in the index
 		final Function<ReducedEntityIndex, Supplier<SortedRecordsProvider>> providerFactory;
 		final EntityComparator entityComparator;
+		// the resolver both routes share - the index route claims an owner only in a reduced index holding the sort
+		// index, so the prefetch route must not admit the owners of the scopes holding none
+		final PickFirstReducedIndexResolver resolver;
 		if (attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract compoundSchema) {
+			// a compound may be indexed in fewer scopes than its elements are sortable in, which planning accepts
+			resolver = indexResolver.restrictTo(compoundSchema.getIndexedInScopes());
 			final Comparator<ComparableArray> naturalComparator = createCombinedComparatorFor(
 				locale,
 				compoundSchema.getAttributeElements()
@@ -449,9 +454,11 @@ public class AttributeNaturalTranslator
 				locale,
 				attributeName -> processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE),
 				orderDirection,
-				indexResolver
+				resolver
 			);
 		} else if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema) {
+			// planning refuses an attribute that is not sortable in every ordered scope
+			resolver = indexResolver;
 			valueComparator = createComparatorFor(
 				locale,
 				new ComparatorSource(attributeSchema.getPlainType(), orderDirection, OrderBehaviour.NULLS_LAST)
@@ -477,7 +484,7 @@ public class AttributeNaturalTranslator
 
 		return Stream.of(
 			new PrefetchedRecordsSorter(entityComparator),
-			new PickFirstReferenceSorter(indexResolver, providerFactory, valueComparator, orderDirection)
+			new PickFirstReferenceSorter(resolver, providerFactory, valueComparator, orderDirection)
 		);
 	}
 

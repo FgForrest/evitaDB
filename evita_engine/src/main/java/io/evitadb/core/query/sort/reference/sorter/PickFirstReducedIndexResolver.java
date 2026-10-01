@@ -52,6 +52,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.PrimitiveIterator.OfInt;
+import java.util.Set;
 import java.util.function.IntUnaryOperator;
 import java.util.function.Supplier;
 
@@ -199,6 +200,32 @@ public final class PickFirstReducedIndexResolver {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Returns a resolver limited to the passed scopes - the scopes an ordering nested in the `pickFirst` reference
+	 * ordering sorts (narrowed by an `inScope` container, or by the scopes a sorted compound is indexed in). Both
+	 * routes of that ordering must use the limited resolver: the index route then resolves no reduced index of the
+	 * other scopes and the prefetch route admits no owner living in them. The resolver itself is returned when it
+	 * processes none of the other scopes.
+	 *
+	 * @param orderedScopes the scopes the nested ordering sorts
+	 * @return the resolver processing only the passed scopes among its own
+	 */
+	@Nonnull
+	public PickFirstReducedIndexResolver restrictTo(@Nonnull Set<Scope> orderedScopes) {
+		final Scope[] retainedScopes = Arrays.stream(this.scopes)
+			.filter(orderedScopes::contains)
+			.toArray(Scope[]::new);
+		if (retainedScopes.length == this.scopes.length) {
+			return this;
+		}
+		return new PickFirstReducedIndexResolver(
+			this.queryContext, this.referenceSchema, retainedScopes, this.targetSorter, this.targetsDescending,
+			() -> Arrays.stream(getPlanningIndexes())
+				.filter(index -> orderedScopes.contains(index.getIndexKey().scope()))
+				.toArray(ReducedEntityIndex[]::new)
+		);
 	}
 
 	/**

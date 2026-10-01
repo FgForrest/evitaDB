@@ -97,7 +97,7 @@ public class EntityPrimaryKeyNaturalTranslator
 		final OrderDirection orderDirection = entityPrimaryKeyNatural.getOrderDirection();
 		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
 		final ReferenceSchema referenceSchema = processingScope.referenceSchema();
-		final PickFirstReducedIndexResolver pickFirstIndexResolver = processingScope.pickFirstIndexResolver();
+		final PickFirstReducedIndexResolver pickFirstIndexResolver = orderByVisitor.getPickFirstIndexResolver();
 		if (referenceSchema == null) {
 			final Bitmap recordsOfNarrowedScopes = orderByVisitor.getRecordsOfNarrowedScopes();
 			if (recordsOfNarrowedScopes != null) {
