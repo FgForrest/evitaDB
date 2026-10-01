@@ -148,3 +148,8 @@ mcp-jdwp-inspector.log
 # A spike that graduates into evidence an open issue depends on is force-added (`git add -f`) and
 # then stays tracked, since git-ignore does not untrack - the three ValueDedup* classes are that case.
 /evita_test/evita_performance_tests/src/main/java/io/evitadb/spike/trigram/
+
+# The fulltext spike package is the same thing for the P1 index-core measurement campaign (#258):
+# instruments written to answer the gate's two questions, force-added one at a time with a companion
+# .md, never swept in wholesale.
+/evita_test/evita_performance_tests/src/main/java/io/evitadb/spike/fulltext/
