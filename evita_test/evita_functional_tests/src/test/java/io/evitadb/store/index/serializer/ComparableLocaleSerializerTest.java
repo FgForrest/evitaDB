@@ -81,9 +81,14 @@ class ComparableLocaleSerializerTest {
 	}
 
 	@Test
-	@DisplayName("a comparable locale reads back as the same locale")
+	@DisplayName("a comparable locale reads back as the same locale, script and extensions included")
 	void shouldRoundTripComparableLocale() {
-		for (final Locale locale : new Locale[]{Locale.ENGLISH, Locale.forLanguageTag("cs-CZ"), Locale.ROOT}) {
+		final Locale[] locales = new Locale[]{
+			Locale.ENGLISH, Locale.forLanguageTag("cs-CZ"), Locale.ROOT,
+			Locale.forLanguageTag("zh-Hans"), Locale.forLanguageTag("zh-Hant"),
+			Locale.forLanguageTag("de-DE-u-co-phonebk")
+		};
+		for (final Locale locale : locales) {
 			assertEquals(new ComparableLocale(locale), roundTrip(new ComparableLocale(locale)));
 		}
 	}
