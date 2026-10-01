@@ -35,7 +35,6 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
-import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.OrderByVisitor.MergeModeDefinition;
@@ -250,11 +249,13 @@ public class AttributeNaturalTranslator
 			// the order direction is not resolved within createCombinedComparatorFor() method
 			valueComparator = orderDirection == ASC ? naturalComparator : naturalComparator.reversed();
 			mergeMode = mergeModeDefinition == null ? MergeMode.APPEND_FIRST : mergeModeDefinition.mergeMode();
+			// the compound being sortable is the whole contract - its elements need not be sortable themselves, so
+			// the comparators of prefetched entities look the elements up without demanding any trait
 			if (referenceSchema == null) {
 				entityComparator = new CompoundAttributeComparator(
 					compoundSchemaContract,
 					locale,
-					attributeName -> processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE),
+					attributeName -> processingScope.getAttributeSchema(attributeName),
 					orderDirection
 				);
 			} else {
@@ -263,7 +264,7 @@ public class AttributeNaturalTranslator
 					compoundSchemaContract,
 					referenceSchema,
 					locale,
-					attributeName -> processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE),
+					attributeName -> processingScope.getAttributeSchema(attributeName),
 					orderDirection
 				);
 			}
@@ -422,11 +423,12 @@ public class AttributeNaturalTranslator
 				final SortIndex sortIndex = index.getSortIndex(theEntitySchema, referenceSchema, compoundSchema, locale);
 				return sortIndex == null ? null : () -> providerExtractor.apply(sortIndex);
 			};
+			// the compound being sortable is the whole contract - its elements need not be sortable themselves
 			entityComparator = new PickFirstReferenceCompoundAttributeComparator(
 				compoundSchema,
 				referenceSchema,
 				locale,
-				attributeName -> processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE),
+				attributeName -> processingScope.getAttributeSchema(attributeName),
 				orderDirection,
 				indexResolver
 			);
@@ -537,8 +539,13 @@ public class AttributeNaturalTranslator
 			throw new GenericEvitaInternalError("Unsupported attribute schema type: " + attributeOrCompoundSchema);
 		}
 
-		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work
-		orderByVisitor.addRequirementsToPrefetch(attributeContent(attributeOrCompoundSchema.getName()));
+		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work - for a compound
+		// these are its elements, the compound itself is no attribute a reference could carry
+		orderByVisitor.addRequirementsToPrefetch(
+			attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract sacsc ?
+				attributeContent(combineCompoundWithReferencedAttributes(attributeOrCompoundName, sacsc)) :
+				attributeContent(attributeOrCompoundName)
+		);
 		orderByVisitor.addComparator(comparator);
 	}
 

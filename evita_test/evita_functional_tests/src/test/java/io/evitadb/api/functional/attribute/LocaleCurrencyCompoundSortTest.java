@@ -125,10 +125,10 @@ class LocaleCurrencyCompoundSortTest implements EvitaTestSupport {
 			session -> {
 				session.defineEntitySchema(Entities.PRODUCT)
 					.withoutGeneratedPrimaryKey()
-					// ordering by a compound on prefetched entities reads its elements as sortable attributes
-					.withAttribute(LANGUAGE, Locale.class, whichIs -> whichIs.sortable())
-					.withAttribute(CURRENCY, Currency.class, whichIs -> whichIs.sortable())
-					.withAttribute(PRIORITY, Integer.class, whichIs -> whichIs.sortable())
+					// the compound is sortable, its elements need not be
+					.withAttribute(LANGUAGE, Locale.class)
+					.withAttribute(CURRENCY, Currency.class)
+					.withAttribute(PRIORITY, Integer.class)
 					.withSortableAttributeCompound(
 						compoundName,
 						AttributeElement.attributeElement(elementName),
