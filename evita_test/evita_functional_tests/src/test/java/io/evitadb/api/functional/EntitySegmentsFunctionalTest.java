@@ -468,9 +468,10 @@ public class EntitySegmentsFunctionalTest {
 	@EnumSource(SortRoute.class)
 	void shouldRestrictAscendingPrimaryKeyOrderByScopeEnclosingSegments(SortRoute route, EvitaSessionContract session) {
 		// the live scope encloses the whole segments container, so the first segment takes live product 2, not the
-		// archived product 1 with a smaller primary key
+		// archived product 1 with a smaller primary key, and the second one orders only the live products - the
+		// archived ones follow all segments in ascending primary key order
 		assertOrder(
-			new int[]{2, 6, 5, 4, 3, 1},
+			new int[]{2, 6, 4, 3, 1, 5},
 			queryOrder(
 				session, route, scope(BOTH_SCOPES),
 				inScope(
@@ -513,7 +514,7 @@ public class EntitySegmentsFunctionalTest {
 			)
 		);
 		assertOrder(
-			new int[]{2, 6, 5, 4, 3, 1},
+			new int[]{2, 6, 4, 3, 1, 5},
 			queryOrder(
 				session, SortRoute.INDEX, scope(BOTH_SCOPES),
 				inScope(
@@ -525,6 +526,97 @@ public class EntitySegmentsFunctionalTest {
 				)
 			),
 			"segments side by side in a scope container"
+		);
+	}
+
+	@DisplayName("A scoped attribute order sorts only the entities of its scope")
+	@UseDataSet(SEGMENT_PRODUCTS)
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(SortRoute.class)
+	void shouldApplyScopedAttributeOrderOnlyToItsScope(SortRoute route, EvitaSessionContract session) {
+		// `rank` is sortable in both scopes, yet an order in the live scope sorts only the live products 2 (20) and
+		// 3 (30); the archived products 1 (10) and 5 (5) are left to the next order
+		final FilterConstraint bothScopes = scope(BOTH_SCOPES);
+		assertAll(
+			() -> assertOrder(
+				new int[]{2, 3, 1, 4, 5, 6},
+				queryOrder(session, route, bothScopes, inScope(Scope.LIVE, attributeNatural(ATTRIBUTE_RANK))),
+				"live scope only"
+			),
+			() -> assertOrder(
+				new int[]{2, 3, 1, 5, 4, 6},
+				queryOrder(
+					session, route, bothScopes,
+					inScope(Scope.LIVE, attributeNatural(ATTRIBUTE_RANK)),
+					inScope(Scope.ARCHIVED, attributeNatural(ATTRIBUTE_RANK, OrderDirection.DESC))
+				),
+				"each scope by its own order"
+			),
+			() -> assertOrder(
+				new int[]{2, 6, 5, 4, 3, 1},
+				querySegments(
+					session, route, bothScopes,
+					segment(
+						entityHaving(entityPrimaryKeyInSet(1, 2)),
+						orderBy(inScope(Scope.LIVE, attributeNatural(ATTRIBUTE_RANK)))
+					)
+				),
+				"segment ordered in the live scope"
+			),
+			() -> assertOrder(
+				new int[]{2, 1, 3, 4, 5, 6},
+				queryOrder(
+					session, route, bothScopes, inScope(Scope.LIVE, attributeSetExact(ATTRIBUTE_CODE, "B", "A"))
+				),
+				"exact attribute order in the live scope"
+			),
+			() -> assertOrder(
+				new int[]{5, 1, 2, 3, 4, 6},
+				queryOrder(session, route, bothScopes, attributeNatural(ATTRIBUTE_RANK)),
+				"without a scope container both scopes are sorted"
+			)
+		);
+	}
+
+	@DisplayName("A scoped primary key order sorts only the entities of its scope at its declared position")
+	@UseDataSet(SEGMENT_PRODUCTS)
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(SortRoute.class)
+	void shouldApplyScopedPrimaryKeyOrderOnlyToItsScope(SortRoute route, EvitaSessionContract session) {
+		// live products 2, 3, 4, 6; archived products 1 (rank 10) and 5 (rank 5)
+		final FilterConstraint bothScopes = scope(BOTH_SCOPES);
+		assertAll(
+			() -> assertOrder(
+				new int[]{6, 4, 3, 2, 5, 1},
+				queryOrder(
+					session, route, bothScopes,
+					inScope(Scope.LIVE, entityPrimaryKeyNatural(OrderDirection.DESC)),
+					inScope(Scope.ARCHIVED, attributeNatural(ATTRIBUTE_RANK))
+				),
+				"descending primary key in the live scope"
+			),
+			() -> assertOrder(
+				new int[]{2, 3, 4, 6, 5, 1},
+				queryOrder(
+					session, route, bothScopes,
+					inScope(Scope.LIVE, entityPrimaryKeyNatural(OrderDirection.ASC)),
+					inScope(Scope.ARCHIVED, attributeNatural(ATTRIBUTE_RANK))
+				),
+				"ascending primary key in the live scope"
+			),
+			() -> assertOrder(
+				new int[]{5, 6, 4, 3, 2, 1},
+				querySegments(
+					session, route, bothScopes,
+					segment(orderBy(inScope(Scope.ARCHIVED, entityPrimaryKeyNatural(OrderDirection.DESC))), limit(1))
+				),
+				"segment ordered by descending primary key in the archived scope"
+			),
+			() -> assertOrder(
+				new int[]{6, 5, 4, 3, 2, 1},
+				queryOrder(session, route, bothScopes, entityPrimaryKeyNatural(OrderDirection.DESC)),
+				"without a scope container both scopes are sorted"
+			)
 		);
 	}
 

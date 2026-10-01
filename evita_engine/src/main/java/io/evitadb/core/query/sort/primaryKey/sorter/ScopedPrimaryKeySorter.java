@@ -23,9 +23,9 @@
 
 package io.evitadb.core.query.sort.primaryKey.sorter;
 
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.dataType.Scope;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -37,31 +37,40 @@ import javax.annotation.Nullable;
 import java.util.function.IntConsumer;
 
 /**
- * Orders the records of a single {@link Scope} by ascending primary key and passes the records of the other scopes on
- * to the next sorter. It is the scoped counterpart of {@link NoSorter} for an ascending primary key order declared in
- * an `inScope` container of a segment ordering: unlike `NoSorter`, which places every record it receives, it must
- * leave the records of the other scopes to the following segments.
+ * Orders the records of the ordered scopes by primary key - ascending or descending - and passes the records of the
+ * other scopes on to the next sorter. It is the scoped counterpart of {@link NoSorter} and
+ * {@link ReversedPrimaryKeySorter} for a primary key order declared in an `inScope` container that narrows the scopes
+ * of the query: unlike them, which place every record they receive, it must leave the records of the other scopes to
+ * the following sorters (or segments).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public class ScopedPrimaryKeySorter implements Sorter {
 	/**
-	 * Primary keys of all records of the scope this sorter orders.
+	 * Primary keys of all records of the scopes this sorter orders.
 	 */
 	private final Bitmap scopeRecords;
+	/**
+	 * The sorter ordering the records of the scopes - {@link NoSorter} for the ascending order,
+	 * {@link ReversedPrimaryKeySorter} for the descending one.
+	 */
+	private final Sorter scopeSorter;
 
 	/**
 	 * Creates the sorter.
 	 *
-	 * @param scopeRecords primary keys of all records of the scope the sorter orders
+	 * @param scopeRecords   primary keys of all records of the scopes the sorter orders
+	 * @param orderDirection direction of the primary key order
 	 */
-	public ScopedPrimaryKeySorter(@Nonnull Bitmap scopeRecords) {
+	public ScopedPrimaryKeySorter(@Nonnull Bitmap scopeRecords, @Nonnull OrderDirection orderDirection) {
 		this.scopeRecords = scopeRecords;
+		this.scopeSorter = orderDirection == OrderDirection.DESC ?
+			ReversedPrimaryKeySorter.INSTANCE : NoSorter.INSTANCE;
 	}
 
 	/**
-	 * Orders the records of the scope by ascending primary key - exactly as {@link NoSorter} does - and returns the
-	 * context carrying the records of the other scopes.
+	 * Orders the records of the scopes by primary key - exactly as the unscoped primary key sorter of the direction
+	 * does - and returns the context carrying the records of the other scopes.
 	 *
 	 * @param sortingContext         the records to sort and the requested slice
 	 * @param result                 the array the sorted records are written to
@@ -86,8 +95,8 @@ public class ScopedPrimaryKeySorter implements Sorter {
 			return sortingContext;
 		}
 		final PersistentRoaringBitmap outOfScope = PersistentRoaringBitmap.andNot(selected, scope);
-		// the records of the scope are ordered by the very sorter an unscoped ascending primary key order uses
-		final SortingContext scopeResult = NoSorter.INSTANCE.sortAndSlice(
+		// the records of the scopes are ordered by the very sorter an unscoped primary key order uses
+		final SortingContext scopeResult = this.scopeSorter.sortAndSlice(
 			new SortingContext(
 				sortingContext.queryContext(),
 				new BaseBitmap(inScope),

@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -70,15 +71,29 @@ public class AttributeExactSorter implements Sorter {
 	 * The attribute values whose order must be maintained in the sorted result.
 	 */
 	private final Serializable[] exactOrder;
+	/**
+	 * The scope of the {@link #sortIndex} - only its entities are sorted, on the prefetch route as on the index route.
+	 */
+	private final Scope scope;
 
+	/**
+	 * Creates the sorter.
+	 *
+	 * @param attributeName name of the sorted attribute
+	 * @param exactOrder    the attribute values in the requested order
+	 * @param sortIndex     the sort index of the attribute
+	 * @param scope         the scope of the sort index, whose entities alone the sorter sorts
+	 */
 	public AttributeExactSorter(
 		@Nonnull String attributeName,
 		@Nonnull Serializable[] exactOrder,
-		@Nonnull SortIndex sortIndex
+		@Nonnull SortIndex sortIndex,
+		@Nonnull Scope scope
 	) {
 		this.attributeName = attributeName;
 		this.exactOrder = exactOrder;
 		this.sortIndex = sortIndex;
+		this.scope = scope;
 	}
 
 	@Nonnull
@@ -179,7 +194,7 @@ public class AttributeExactSorter implements Sorter {
 		// to the next sorter and never compared, so that even a lone one is recognized
 		final Bitmap nonSortedKeys = sortingContext.nonSortedKeys();
 		final AttributePositionComparator entityComparator = new AttributePositionComparator(
-			this.attributeName, this.exactOrder
+			this.attributeName, this.exactOrder, this.scope
 		);
 		entityComparator.prepareFor(nonSortedKeys.size());
 		final List<EntityContract> sortedEntities = new ArrayList<>(nonSortedKeys.size());
@@ -235,6 +250,10 @@ public class AttributeExactSorter implements Sorter {
 		private static final int NOT_RESOLVED = Integer.MIN_VALUE;
 		private final String attributeName;
 		private final Serializable[] attributeValues;
+		/**
+		 * The scope whose entities alone are sortable - the scope of the sort index the index route uses.
+		 */
+		private final Scope scope;
 		private int estimatedCount = 100;
 		private ObjectIntMap<Serializable> cache;
 		/**
@@ -261,15 +280,15 @@ public class AttributeExactSorter implements Sorter {
 		}
 
 		/**
-		 * Classifies the entity as sortable when its attribute value is listed in the exact order. The position is
-		 * memoized for the comparisons that follow.
+		 * Classifies the entity as sortable when it belongs to the {@link #scope} and its attribute value is listed in
+		 * the exact order. The position is memoized for the comparisons that follow.
 		 *
 		 * @param entity the entity to classify
-		 * @return `true` when the entity's attribute value is listed
+		 * @return `true` when the entity is to be sorted by this comparator
 		 */
 		@Override
 		public boolean canSort(@Nonnull EntityContract entity) {
-			return getPosition(entity) != Integer.MAX_VALUE;
+			return entity.getScope() == this.scope && getPosition(entity) != Integer.MAX_VALUE;
 		}
 
 		@Override

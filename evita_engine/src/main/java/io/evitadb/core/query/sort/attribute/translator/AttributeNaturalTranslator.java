@@ -282,9 +282,9 @@ public class AttributeNaturalTranslator
 			mergeMode = mergeModeDefinition == null ? MergeMode.APPEND_FIRST : mergeModeDefinition.mergeMode();
 			if (referenceSchema == null) {
 				// the comparator sorts the entities of exactly the scopes whose index sorts them on the index route -
-				// the scopes in which the attribute is sortable
+				// the ordered scopes (narrowed by `inScope`) in which the attribute is sortable
 				final Set<Scope> sortableScopes = EnumSet.noneOf(Scope.class);
-				for (Scope scope : Scope.values()) {
+				for (Scope scope : processingScope.getScopes()) {
 					if (attributeSchema.isSortableInScope(scope)) {
 						sortableScopes.add(scope);
 					}

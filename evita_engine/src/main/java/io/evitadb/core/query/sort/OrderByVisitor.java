@@ -462,16 +462,53 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	/**
 	 * Returns index which is best suited for supplying {@link SortIndex}.
 	 *
+	 * Only the indexes of the scopes the ordering applies to are returned: an `inScope` container narrows the ordered
+	 * scopes ({@link ProcessingScope#getScopes()}) while the processing scope still holds the indexes of every scope
+	 * of the query, and an ordering in one scope must not sort the entities of another one.
+	 *
 	 * Within a `pickFirst` reference ordering the indexes depend on the selection and are resolved at execution time
 	 * by {@link ProcessingScope#pickFirstIndexResolver()}; a consumer asking for them at planning time gets
-	 * {@link PickFirstReducedIndexResolver#getPlanningIndexes()}.
+	 * {@link PickFirstReducedIndexResolver#getPlanningIndexes()}, which is limited to the ordered scopes already.
 	 */
 	@Nonnull
 	public EntityIndex[] getIndexesForSort() {
 		final ProcessingScope theScope = this.scope.peek();
 		isPremiseValid(theScope != null, "Scope is unexpectedly empty!");
 		final PickFirstReducedIndexResolver resolver = theScope.pickFirstIndexResolver();
-		return resolver == null ? theScope.entityIndex() : resolver.getPlanningIndexes();
+		return resolver == null ? retainOrderedScopes(theScope.entityIndex(), theScope.getScopes()) :
+			resolver.getPlanningIndexes();
+	}
+
+	/**
+	 * Returns the indexes of the passed scopes. The array is returned as is when every index belongs to one of them -
+	 * the common case without an `inScope` container - so that nothing is allocated.
+	 *
+	 * @param indexes       the indexes of the processing scope
+	 * @param orderedScopes the scopes the ordering applies to
+	 * @return the indexes of the ordered scopes
+	 */
+	@Nonnull
+	private static EntityIndex[] retainOrderedScopes(
+		@Nonnull EntityIndex[] indexes,
+		@Nonnull Set<Scope> orderedScopes
+	) {
+		int retained = 0;
+		for (EntityIndex index : indexes) {
+			if (orderedScopes.contains(index.getIndexKey().scope())) {
+				retained++;
+			}
+		}
+		if (retained == indexes.length) {
+			return indexes;
+		}
+		final EntityIndex[] result = new EntityIndex[retained];
+		int position = 0;
+		for (EntityIndex index : indexes) {
+			if (orderedScopes.contains(index.getIndexKey().scope())) {
+				result[position++] = index;
+			}
+		}
+		return result;
 	}
 
 	/**

@@ -100,26 +100,24 @@ public class EntityPrimaryKeyNaturalTranslator
 	private static final int MISSING = Integer.MIN_VALUE;
 
 	/**
-	 * Creates the sorter of an ascending entity primary key order declared in a segment ordering. Every entity has a
-	 * primary key, so the order sorts every entity it receives - {@link NoSorter} does exactly that. Within an
-	 * `inScope` container (which narrows the ordered scopes below the scopes of the query) the order sorts only the
-	 * entities of the ordered scopes and leaves the others to the following sorters, which
-	 * {@link ScopedPrimaryKeySorter} does. A query without a collection has no collection index telling which records
-	 * a scope holds, so its scoped order falls back to {@link NoSorter}.
+	 * Returns the primary keys of the records of the ordered scopes when an `inScope` container narrows them below the
+	 * scopes of the query, and `null` when the order applies to every queried scope. A primary key order in a narrowed
+	 * scope must sort only the entities of that scope - see {@link ScopedPrimaryKeySorter}. A query without a
+	 * collection has no collection index telling which records a scope holds, so its order stays unscoped.
 	 *
-	 * @param orderByVisitor  the visitor creating the sorters of the segment
+	 * @param orderByVisitor  the visitor creating the sorters
 	 * @param processingScope the processing scope carrying the ordered scopes
-	 * @return the sorter applying the ascending primary key order
+	 * @return the records of the ordered scopes, or `null` when the order is not narrowed
 	 */
-	@Nonnull
-	private static Sorter createAscendingPrimaryKeySorter(
+	@Nullable
+	private static Bitmap getRecordsOfNarrowedScopes(
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nonnull ProcessingScope processingScope
 	) {
 		final QueryPlanningContext queryContext = orderByVisitor.getQueryContext();
 		final Set<Scope> orderedScopes = processingScope.getScopes();
 		if (!queryContext.isEntityTypeKnown() || orderedScopes.containsAll(queryContext.getScopes())) {
-			return NoSorter.INSTANCE;
+			return null;
 		}
 		final List<PersistentRoaringBitmap> scopeRecords = new ArrayList<>(orderedScopes.size());
 		for (Scope scope : orderedScopes) {
@@ -128,17 +126,15 @@ public class EntityPrimaryKeyNaturalTranslator
 					index -> scopeRecords.add(RoaringBitmapBackedBitmap.getRoaringBitmap(index.getAllPrimaryKeys()))
 				);
 		}
-		final Bitmap orderedRecords;
 		if (scopeRecords.isEmpty()) {
-			orderedRecords = EmptyBitmap.INSTANCE;
+			return EmptyBitmap.INSTANCE;
 		} else if (scopeRecords.size() == 1) {
-			orderedRecords = new BaseBitmap(scopeRecords.get(0));
+			return new BaseBitmap(scopeRecords.get(0));
 		} else {
-			orderedRecords = new BaseBitmap(
+			return new BaseBitmap(
 				PersistentRoaringBitmap.or(scopeRecords.toArray(PersistentRoaringBitmap[]::new))
 			);
 		}
-		return new ScopedPrimaryKeySorter(orderedRecords);
 	}
 
 	@Nonnull
@@ -149,11 +145,15 @@ public class EntityPrimaryKeyNaturalTranslator
 		final ReferenceSchema referenceSchema = processingScope.referenceSchema();
 		final PickFirstReducedIndexResolver pickFirstIndexResolver = processingScope.pickFirstIndexResolver();
 		if (referenceSchema == null) {
-			if (orderDirection == OrderDirection.DESC) {
+			final Bitmap recordsOfNarrowedScopes = getRecordsOfNarrowedScopes(orderByVisitor, processingScope);
+			if (recordsOfNarrowedScopes != null) {
+				// an order in an `inScope` container sorts only the entities of its scope, at its declared position
+				return Stream.of(new ScopedPrimaryKeySorter(recordsOfNarrowedScopes, orderDirection));
+			} else if (orderDirection == OrderDirection.DESC) {
 				return Stream.of(ReversedPrimaryKeySorter.INSTANCE);
 			} else if (orderByVisitor.isWithinSegment()) {
 				// a segment chain has no default sorter, so the ascending order is registered at its declared position
-				return Stream.of(createAscendingPrimaryKeySorter(orderByVisitor, processingScope));
+				return Stream.of(NoSorter.INSTANCE);
 			} else {
 				// the default sorter appended to every chain applies the ascending order
 				return Stream.empty();
