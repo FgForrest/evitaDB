@@ -167,39 +167,37 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		final String[] priceLists = priceDiscount.getInPriceLists();
 		final QueryPriceMode queryPriceMode = orderByVisitor.getQueryPriceMode();
 
-		// if prefetch happens we need to prefetch prices so that the entity comparator can work
-		orderByVisitor.addRequirementToPrefetch(PriceContent.respectingFilter());
-
 		// are filtered prices used in the filtering?
 		final Collection<PriceFilteringEnvelopeContainer> sellingPriceFilteringEnvelopeContainers = FormulaFinder.find(
 			orderByVisitor.getFilteringFormula(), PriceFilteringEnvelopeContainer.class, LookUp.SHALLOW
 		);
-
-		final Sorter thisSorter;
-		if (!sellingPriceFilteringEnvelopeContainers.isEmpty()) {
-			// collect all the selling price record accessors
-			final Collection<FilteredPriceRecordAccessor> sellingPriceRecordAccessors = FormulaFinder.find(
-				orderByVisitor.getFilteringFormula(), FilteredPriceRecordAccessor.class, LookUp.SHALLOW
-			);
-			// if so, create filtered prices sorter
-			thisSorter = new FilteredPricesSorter(
-				// with specific kind of comparator
-				createPriceComparator(
-					priceDiscount.getOrder(),
-					queryPriceMode,
-					sellingPriceFilteringEnvelopeContainers.stream()
-						.map(it -> createReferencePriceFormula(orderByVisitor, it, priceLists, queryPriceMode))
-						.toList()
-				),
-				sellingPriceRecordAccessors
-			);
-		} else if (orderByVisitor.isWithinSegment()) {
-			// otherwise, we cannot sort the entities by price - and a segment takes no entity it cannot sort
-			thisSorter = null;
-		} else {
-			// otherwise, we cannot sort the entities by price
-			thisSorter = NoSorter.INSTANCE;
+		if (sellingPriceFilteringEnvelopeContainers.isEmpty()) {
+			// without a price filter there is no price for sale and so no discount to sort by on either route - the
+			// prefetched entities carry no price context either, so no prefetch comparator is registered and no price
+			// is prefetched; outside a segment every entity keeps its ascending primary key order, a segment takes
+			// none of them
+			return orderByVisitor.isWithinSegment() ? Stream.empty() : Stream.of(NoSorter.INSTANCE);
 		}
+
+		// if prefetch happens we need to prefetch prices so that the entity comparator can work
+		orderByVisitor.addRequirementToPrefetch(PriceContent.respectingFilter());
+
+		// collect all the selling price record accessors
+		final Collection<FilteredPriceRecordAccessor> sellingPriceRecordAccessors = FormulaFinder.find(
+			orderByVisitor.getFilteringFormula(), FilteredPriceRecordAccessor.class, LookUp.SHALLOW
+		);
+		// create filtered prices sorter
+		final Sorter thisSorter = new FilteredPricesSorter(
+			// with specific kind of comparator
+			createPriceComparator(
+				priceDiscount.getOrder(),
+				queryPriceMode,
+				sellingPriceFilteringEnvelopeContainers.stream()
+					.map(it -> createReferencePriceFormula(orderByVisitor, it, priceLists, queryPriceMode))
+					.toList()
+			),
+			sellingPriceRecordAccessors
+		);
 
 		// and for the scenario where the entities are prefetched instantiate different comparator - for entity objects
 		final EntityComparator entityComparator;
@@ -217,9 +215,10 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		}
 
 		// return both sorters
-		final PrefetchedRecordsSorter prefetchedRecordsSorter = new PrefetchedRecordsSorter(entityComparator);
-		return thisSorter == null ?
-			Stream.of(prefetchedRecordsSorter) : Stream.of(prefetchedRecordsSorter, thisSorter);
+		return Stream.of(
+			new PrefetchedRecordsSorter(entityComparator),
+			thisSorter
+		);
 	}
 
 	/**

@@ -75,29 +75,26 @@ public class PriceNaturalTranslator implements OrderingConstraintTranslator<Pric
 			);
 		}
 
-		// if prefetch happens we need to prefetch prices so that the attribute comparator can work
-		orderByVisitor.addRequirementToPrefetch(PriceContent.respectingFilter());
-
 		// are filtered prices used in the filtering?
 		final Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors = FormulaFinder.find(
 			orderByVisitor.getFilteringFormula(), FilteredPriceRecordAccessor.class, LookUp.SHALLOW
 		);
-
-		final Sorter thisSorter;
-		if (!filteredPriceRecordAccessors.isEmpty()) {
-			// if so, create filtered prices sorter
-			thisSorter = new FilteredPricesSorter(
-					priceNatural.getOrderDirection(),
-					orderByVisitor.getQueryPriceMode(),
-					filteredPriceRecordAccessors
-			);
-		} else if (orderByVisitor.isWithinSegment()) {
-			// otherwise, we cannot sort the entities by price - and a segment takes no entity it cannot sort
-			thisSorter = null;
-		} else {
-			// otherwise, we cannot sort the entities by price
-			thisSorter = NoSorter.INSTANCE;
+		if (filteredPriceRecordAccessors.isEmpty()) {
+			// without a price filter there is no price for sale to sort by on either route - the prefetched entities
+			// carry no price context either, so no prefetch comparator is registered and no price is prefetched;
+			// outside a segment every entity keeps its ascending primary key order, a segment takes none of them
+			return orderByVisitor.isWithinSegment() ? Stream.empty() : Stream.of(NoSorter.INSTANCE);
 		}
+
+		// if prefetch happens we need to prefetch prices so that the attribute comparator can work
+		orderByVisitor.addRequirementToPrefetch(PriceContent.respectingFilter());
+
+		// create filtered prices sorter
+		final Sorter thisSorter = new FilteredPricesSorter(
+			priceNatural.getOrderDirection(),
+			orderByVisitor.getQueryPriceMode(),
+			filteredPriceRecordAccessors
+		);
 
 		final EntityComparator entityComparator;
 		final Function<PriceContract, BigDecimal> priceExtractor = orderByVisitor.getQueryPriceMode() == QueryPriceMode.WITH_TAX ?
@@ -113,9 +110,10 @@ public class PriceNaturalTranslator implements OrderingConstraintTranslator<Pric
 			);
 		}
 
-		final PrefetchedRecordsSorter prefetchedRecordsSorter = new PrefetchedRecordsSorter(entityComparator);
-		return thisSorter == null ?
-			Stream.of(prefetchedRecordsSorter) : Stream.of(prefetchedRecordsSorter, thisSorter);
+		return Stream.of(
+			new PrefetchedRecordsSorter(entityComparator),
+			thisSorter
+		);
 	}
 
 	/**

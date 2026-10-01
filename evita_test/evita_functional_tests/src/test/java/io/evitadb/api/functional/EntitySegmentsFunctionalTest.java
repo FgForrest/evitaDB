@@ -733,14 +733,32 @@ public class EntitySegmentsFunctionalTest {
 		);
 	}
 
-	@DisplayName("A price order outside segments keeps its fallback for entities without price data")
+	@DisplayName("A price order leaves out an entity the filter selects without a selling price")
 	@UseDataSet(SEGMENT_PRODUCTS)
 	@Test
-	void shouldKeepPriceFallbackOutsideSegments(EvitaSessionContract session) {
-		// the index route only: on the prefetch route the same queries fail with a ContextMissingException (the
-		// comparators read the price for sale of a query without a price filter) - a defect outside segments, which
-		// the segment rule deliberately does not touch
-		final SortRoute route = SortRoute.INDEX;
+	void shouldLeaveEntitySelectedWithoutSellingPriceOutOfPriceSegment(EvitaSessionContract session) {
+		// the price filter selects live products 2 (200), 3 (100) and 4 (150), the other branch of `or` adds
+		// product 6, which has no selling price at all - the prefetched comparator must leave it to the next segment;
+		// the prefetch route only: the index route fails on a selection with entities without price records, a
+		// defect of the filtered prices sorter that is not specific to segments
+		assertOrder(
+			new int[]{3, 4, 2, 6},
+			querySegments(
+				session, SortRoute.PREFETCH,
+				or(and(priceInPriceLists(PRICE_LIST_BASIC), priceInCurrency(EUR)), entityPrimaryKeyInSet(6)),
+				segment(orderBy(priceNatural(OrderDirection.ASC)))
+			),
+			"product without a selling price"
+		);
+	}
+
+	@DisplayName("A price order outside segments keeps its fallback for entities without price data")
+	@UseDataSet(SEGMENT_PRODUCTS)
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(SortRoute.class)
+	void shouldKeepPriceFallbackOutsideSegments(SortRoute route, EvitaSessionContract session) {
+		// without a price filter there is no price for sale to sort by - both routes order every product by
+		// ascending primary key, so the descending primary key order that follows is never reached
 		assertAll(
 			() -> assertOrder(
 				new int[]{2, 3, 4, 6},
