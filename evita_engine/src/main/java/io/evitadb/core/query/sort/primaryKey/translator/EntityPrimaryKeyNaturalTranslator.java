@@ -216,7 +216,8 @@ public class EntityPrimaryKeyNaturalTranslator
 		if (size == 0) {
 			return null;
 		}
-		final int referencedPrimaryKey = index.getReferenceKey().primaryKey();
+		// boxed once - the merge of a block's providers asks for the value of every record it compares
+		final Integer referencedPrimaryKey = index.getReferenceKey().primaryKey();
 		final int[] ownersAscending = owners.getArray();
 		final int[] positions = new int[size];
 		final int[] sortedOwners;

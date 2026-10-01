@@ -54,6 +54,9 @@ import java.util.function.IntConsumer;
  * Implementation of the {@link SortedRecordsProvider} that merges multiple instances into a one discarding
  * the duplicate record primary keys. This operation is quite costly for large data sets and should be cached.
  *
+ * When at most one provider holds selected records - always the case for a single provider - its records are emitted
+ * straight from the position mask, without reading any value; only several contributing providers are merged.
+ *
  * A record is claimed by the first provider in array order that contains it, so the order of the providers decides
  * which value a record present in several of them is compared on. Records comparing equal on their values follow in
  * the order of their primary keys in the direction of the ordering - ascending for an ascending order, descending for
@@ -129,35 +132,17 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 						recordsToSort, recordsToSortCount, resolveBufferA, resolveBufferB, forcedResolution
 					);
 					SortResolutionStrategies.tally(strategyTally, resolution);
-					final RoaringBatchIterator maskIterator = resolution.mask().getBatchIterator();
-					while ((toRead > alreadyRead || toSkip > 0) && maskIterator.hasNext()) {
-						final int batchPeak = maskIterator.nextBatch(resolveBufferB);
-						if (batchPeak == 0) {
-							break;
-						}
-						for (int i = 0; i < batchPeak && (toRead > alreadyRead || toSkip > 0); i++) {
-							final int recordId = provider.recordAt(resolveBufferB[i]);
-							if (toSkip > 0) {
-								toSkip--;
-								if (skippedRecordsConsumer != null) {
-									skippedRecordsConsumer.accept(recordId);
-								}
-							} else {
-								result[peak + alreadyRead++] = recordId;
-							}
-						}
-					}
-					final PersistentRoaringBitmap notFound = resolution.notFoundRecords();
-					return sortingContext.createResultContext(
-						notFound.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(notFound),
-						alreadyRead,
-						startIndex - toSkip
+					return emitSingleMask(
+						sortingContext, provider, resolution.mask(), resolution.notFoundRecords(),
+						result, resolveBufferB, toRead, skippedRecordsConsumer
 					);
 				}
 
 				// first we need to create masks for all selected record ids using provided sorted record providers
 				final PositionResolution[] maskResults = new PositionResolution[this.sortedRecordsProviders.length];
 				int maskPeak = -1;
+				// the only provider whose mask is not empty, -1 for none, -2 once a second one is found
+				int contributingProvider = -1;
 				for (int i = 0; i < this.sortedRecordsProviders.length; i++) {
 					final SortedRecordsProvider sortedRecordsProvider = this.sortedRecordsProviders[++maskPeak];
 					final PositionResolution resolution = sortedRecordsProvider.resolvePositions(
@@ -165,11 +150,29 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 					);
 					SortResolutionStrategies.tally(strategyTally, resolution);
 					maskResults[maskPeak] = resolution;
+					if (!resolution.mask().isEmpty()) {
+						contributingProvider = contributingProvider == -1 ? maskPeak : -2;
+					}
 					recordsToSort = resolution.notFoundRecords();
 					recordsToSortCount = resolution.notFoundRecordsCount();
 					if (recordsToSortCount == 0) {
 						break;
 					}
+				}
+
+				if (contributingProvider != -2) {
+					// at most one provider holds selected records - its mask positions are already in value-then-pk
+					// order, so they are emitted directly; the merge would read the value of every record through
+					// a seeker that may have to walk the provider's values from the start for nothing to compare
+					return contributingProvider == -1 ?
+						sortingContext.createResultContext(
+							recordsToSort.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(recordsToSort), 0, 0
+						) :
+						emitSingleMask(
+							sortingContext, this.sortedRecordsProviders[contributingProvider],
+							maskResults[contributingProvider].mask(), recordsToSort,
+							result, resolveBufferB, toRead, skippedRecordsConsumer
+						);
 				}
 
 				// next we need to fetch comparable values for head values from each mask and compare them
@@ -260,6 +263,61 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 		} else {
 			return sortingContext;
 		}
+	}
+
+	/**
+	 * Emits the records of the one provider holding selected records straight from its mask, whose positions are
+	 * already in the order of the values and then of the primary keys - no value is read. Honours the requested
+	 * slice: the records before it are skipped (and reported), the records after it are left out.
+	 *
+	 * @param sortingContext         the sorting context of the call
+	 * @param provider               the provider holding the selected records
+	 * @param mask                   positions of the selected records in the provider
+	 * @param notFound               the selected records no provider holds
+	 * @param result                 the array the records are written to
+	 * @param buffer                 scratch buffer for the mask batches
+	 * @param toRead                 how many records the slice asks for
+	 * @param skippedRecordsConsumer consumer of the skipped records, or `null`
+	 * @return the context carrying the records no provider holds
+	 */
+	@Nonnull
+	private static SortingContext emitSingleMask(
+		@Nonnull SortingContext sortingContext,
+		@Nonnull SortedRecordsProvider provider,
+		@Nonnull PersistentRoaringBitmap mask,
+		@Nonnull PersistentRoaringBitmap notFound,
+		@Nonnull int[] result,
+		@Nonnull int[] buffer,
+		int toRead,
+		@Nullable IntConsumer skippedRecordsConsumer
+	) {
+		final int startIndex = sortingContext.recomputedStartIndex();
+		final int peak = sortingContext.peak();
+		int alreadyRead = 0;
+		int toSkip = startIndex;
+		final RoaringBatchIterator maskIterator = mask.getBatchIterator();
+		while ((toRead > alreadyRead || toSkip > 0) && maskIterator.hasNext()) {
+			final int batchPeak = maskIterator.nextBatch(buffer);
+			if (batchPeak == 0) {
+				break;
+			}
+			for (int i = 0; i < batchPeak && (toRead > alreadyRead || toSkip > 0); i++) {
+				final int recordId = provider.recordAt(buffer[i]);
+				if (toSkip > 0) {
+					toSkip--;
+					if (skippedRecordsConsumer != null) {
+						skippedRecordsConsumer.accept(recordId);
+					}
+				} else {
+					result[peak + alreadyRead++] = recordId;
+				}
+			}
+		}
+		return sortingContext.createResultContext(
+			notFound.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(notFound),
+			alreadyRead,
+			startIndex - toSkip
+		);
 	}
 
 	/**

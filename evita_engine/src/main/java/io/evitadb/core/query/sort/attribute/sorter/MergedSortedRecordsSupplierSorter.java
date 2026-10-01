@@ -25,6 +25,7 @@ package io.evitadb.core.query.sort.attribute.sorter;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.chunk.OffsetAndLimit;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
@@ -45,6 +46,9 @@ import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -55,6 +59,17 @@ import static java.util.Optional.ofNullable;
 /**
  * Implementation of the {@link SortedRecordsProvider} that merges multiple instances into a one discarding
  * the duplicate record primary keys. This operation is quite costly for large data sets and should be cached.
+ *
+ * Within a traversal block - the providers sharing the {@link RepresentativeReferenceKey} the sorting context names -
+ * the providers are combined in one of two ways:
+ *
+ * - **merged by value** when the sorter has a value {@link Comparator}: the owners of the block's providers (one per
+ *   scope of the referenced entity) follow their values, then their primary keys in the direction of the ordering,
+ *   whichever provider holds them - the merge is block-local, a provider of another block never takes part;
+ * - **appended one after another** when it has none - a chain, whose positions are not comparable across providers,
+ *   so the live chain of a block precedes its archived chain.
+ *
+ * A block with a single provider is walked directly in both cases, at the cost of the plain concatenation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -67,13 +82,28 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 	 * Contains the index of the {@link ReferenceKey} in the {@link #sortedRecordsProviders} that is used for sorting.
 	 */
 	private final Map<RepresentativeReferenceKey, OffsetAndLimit> referenceKeyIndexes;
+	/**
+	 * Comparator of the provider values in the direction of the ordering, merging the providers of one block by value;
+	 * `null` when the values are not comparable across providers (a chain) and the providers are appended instead.
+	 */
+	@SuppressWarnings("rawtypes") @Nullable private final Comparator comparator;
+	/**
+	 * Direction of the ordering, applied to the primary keys of records whose values compare equal in a block merge.
+	 */
+	@Nonnull private final OrderDirection primaryKeyOrder;
+	/**
+	 * Block-local merges of the blocks holding more than one provider, created on the first sort of the block and
+	 * reused for the rest of the query; `null` until the first one is needed.
+	 */
+	@Nullable private Map<RepresentativeReferenceKey, MergedComparableSortedRecordsSupplierSorter> blockMerges;
 
 	/**
 	 * Creates a mapping of {@link ReferenceKey} objects to their corresponding {@link OffsetAndLimit} values,
 	 * indicating the positions and pagination limits of records in each sorted records provider.
 	 *
 	 * The method iterates through the provided sorted records providers and generates the mapping by identifying changes
-	 * in the {@link ReferenceKey} and calculating the appropriate offsets and limits for each key.
+	 * in the {@link ReferenceKey} and calculating the appropriate offsets and limits for each key. The providers of one
+	 * key must lie next to each other - a key met again after another one replaces its earlier slice.
 	 *
 	 * @param sortedRecordsProviders an array of {@link SortedRecordsProvider} objects,
 	 *                               which serve as sources of pre-sorted records to process; must not be null.
@@ -189,9 +219,25 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 		return new PartialSortResult(skip - toSkip, read, peak);
 	}
 
-	public MergedSortedRecordsSupplierSorter(@Nonnull SortedRecordsProvider[] sortedRecordsProviders) {
+	/**
+	 * Creates the sorter.
+	 *
+	 * @param sortedRecordsProviders providers in the order in which they claim records, the providers of one
+	 *                               representative reference key next to each other
+	 * @param comparator             comparator of the provider values in the direction of the ordering, merging the
+	 *                               providers of one block by value; `null` to append them one after another
+	 * @param primaryKeyOrder        direction of the ordering, applied to the primary keys of records with equal
+	 *                               values in a block merge
+	 */
+	public MergedSortedRecordsSupplierSorter(
+		@Nonnull SortedRecordsProvider[] sortedRecordsProviders,
+		@SuppressWarnings("rawtypes") @Nullable Comparator comparator,
+		@Nonnull OrderDirection primaryKeyOrder
+	) {
 		this.sortedRecordsProviders = sortedRecordsProviders;
 		this.referenceKeyIndexes = createSortedRecordsOffsets(sortedRecordsProviders);
+		this.comparator = comparator;
+		this.primaryKeyOrder = primaryKeyOrder;
 	}
 
 	@Nonnull
@@ -202,11 +248,18 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
 		final QueryExecutionContext queryContext = sortingContext.queryContext();
-		final OffsetAndLimit offsetAndLimit = ofNullable(sortingContext.referenceKey())
+		final RepresentativeReferenceKey blockKey = sortingContext.referenceKey();
+		final OffsetAndLimit offsetAndLimit = ofNullable(blockKey)
 			.map(this::getOffsetAndLimit)
 			.orElse(new OffsetAndLimit(0, this.sortedRecordsProviders.length, this.sortedRecordsProviders.length));
 
-		if (queryContext.getPrefetchedEntities() == null && offsetAndLimit.offset() >= 0) {
+		if (
+			this.comparator != null && blockKey != null && offsetAndLimit.offset() >= 0 &&
+				offsetAndLimit.limit() - offsetAndLimit.offset() > 1
+		) {
+			// a block of several providers (the scopes of one referenced entity) merges its owners by value
+			return getBlockMerge(blockKey, offsetAndLimit).sortAndSlice(sortingContext, result, skippedRecordsConsumer);
+		} else if (queryContext.getPrefetchedEntities() == null && offsetAndLimit.offset() >= 0) {
 			final int[] buffer = queryContext.borrowBuffer();
 			final int[] resolveBufferA = queryContext.borrowBuffer();
 			final int[] resolveBufferB = queryContext.borrowBuffer();
@@ -263,6 +316,35 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 		} else {
 			return sortingContext;
 		}
+	}
+
+	/**
+	 * Returns the merge of the providers of one block, creating it over a copy of the block's slice of the providers
+	 * on the first sort of the block. The merge sees only the block's own providers, so a provider of another block
+	 * can never claim an owner of this one.
+	 *
+	 * @param blockKey       the representative reference key of the block
+	 * @param offsetAndLimit the slice of {@link #sortedRecordsProviders} belonging to the block
+	 * @return the block-local merge
+	 */
+	@Nonnull
+	private MergedComparableSortedRecordsSupplierSorter getBlockMerge(
+		@Nonnull RepresentativeReferenceKey blockKey,
+		@Nonnull OffsetAndLimit offsetAndLimit
+	) {
+		if (this.blockMerges == null) {
+			this.blockMerges = new HashMap<>();
+		}
+		MergedComparableSortedRecordsSupplierSorter blockMerge = this.blockMerges.get(blockKey);
+		if (blockMerge == null) {
+			blockMerge = new MergedComparableSortedRecordsSupplierSorter(
+				Objects.requireNonNull(this.comparator),
+				this.primaryKeyOrder,
+				Arrays.copyOfRange(this.sortedRecordsProviders, offsetAndLimit.offset(), offsetAndLimit.limit())
+			);
+			this.blockMerges.put(blockKey, blockMerge);
+		}
+		return blockMerge;
 	}
 
 	/**

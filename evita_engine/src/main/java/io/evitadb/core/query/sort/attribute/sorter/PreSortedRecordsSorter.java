@@ -59,7 +59,8 @@ public class PreSortedRecordsSorter implements Sorter {
 	private final Supplier<SortedRecordsProvider[]> sortedRecordsSupplier;
 	/**
 	 * The {@link Comparator} instance used for sorting records when {@link MergeMode#APPEND_FIRST} is used and multiple
-	 * {@link SortedRecordsProvider} are provided and needs to be merged together.
+	 * {@link SortedRecordsProvider} are provided and needs to be merged together. With {@link MergeMode#APPEND_ALL} it
+	 * merges the providers of one traversal block; `null` there appends them one after another (a chain).
 	 */
 	@SuppressWarnings("rawtypes") private final Comparator comparator;
 	/**
@@ -115,7 +116,8 @@ public class PreSortedRecordsSorter implements Sorter {
 	/**
 	 * Retrieves the memoized result of the merged sorted records supplier. If the result is not memoized yet,
 	 * it initializes the memoized result based on the specified merge mode. When {@code MergeMode.APPEND_ALL}
-	 * is used, it creates a {@link MergedSortedRecordsSupplierSorter}. Otherwise, it initializes a
+	 * is used, it creates a {@link MergedSortedRecordsSupplierSorter}, which merges the providers of one traversal
+	 * block by the comparator when there is one and appends them otherwise. Otherwise, it initializes a
 	 * {@link MergedComparableSortedRecordsSupplierSorter} with the provided comparator, the ordering direction that
 	 * breaks ties by primary key, and the sorted records providers.
 	 *
@@ -126,7 +128,9 @@ public class PreSortedRecordsSorter implements Sorter {
 		if (this.memoizedResult == null) {
 			this.memoizedResult = this.mergeMode == MergeMode.APPEND_ALL ?
 				new MergedSortedRecordsSupplierSorter(
-					getSortedRecordsProviders()
+					getSortedRecordsProviders(),
+					this.comparator,
+					this.primaryKeyOrder
 				) :
 				new MergedComparableSortedRecordsSupplierSorter(
 					Objects.requireNonNull(this.comparator),
@@ -160,7 +164,9 @@ public class PreSortedRecordsSorter implements Sorter {
 
 		/**
 		 * This mode will append all sorted records from first {@link SortedRecordsProvider}, then second, etc. until all
-		 * sorted records are consumed. Duplicate record records are eliminated from the result.
+		 * sorted records are consumed. Duplicate record records are eliminated from the result. Within one traversal
+		 * block, the providers of comparable values are merged by value instead (see
+		 * {@link MergedSortedRecordsSupplierSorter}).
 		 */
 		APPEND_ALL,
 		/**
