@@ -108,13 +108,21 @@ class PrefetchedRecordsSorterClassificationTest {
 	 */
 	@Nonnull
 	private static TraverseReferenceCompoundAttributeComparator compoundComparator() {
+		return compoundComparator(OrderDirection.ASC);
+	}
+
+	/**
+	 * Creates the traversal comparator of the `orderSecond` compound in the direction.
+	 */
+	@Nonnull
+	private static TraverseReferenceCompoundAttributeComparator compoundComparator(@Nonnull OrderDirection direction) {
 		final SortableAttributeCompoundSchemaContract compound =
 			REFERENCE_SCHEMA.getSortableAttributeCompound(COMPOUND).orElseThrow();
 		return new TraverseReferenceCompoundAttributeComparator(
 			compound, REFERENCE_SCHEMA, null,
 			attributeName -> REFERENCE_SCHEMA.getAttribute(attributeName).map(AttributeSchemaContract.class::cast)
 				.orElseThrow(),
-			OrderDirection.ASC
+			direction
 		);
 	}
 
@@ -449,6 +457,19 @@ class PrefetchedRecordsSorterClassificationTest {
 				() -> assertArrayEquals(new int[]{15, 13, 11}, block.written(), "(10,2) (10,3) (50,1)"),
 				() -> assertArrayEquals(new int[]{12, 14, 16}, block.passedOn()),
 				() -> assertNothingReported(comparator, "owners classified out are not reported as well")
+			);
+		}
+
+		@Test
+		@DisplayName("should order owners with equal compound values by their primary key in the direction of the ordering")
+		void shouldOrderCompoundTiesByPrimaryKeyInDirection() {
+			// owners 15 and 19 tie on (10,2) in category 1, owner 13 follows with (10,3)
+			final SortResult ascending = sort(compoundComparator(OrderDirection.ASC), BLOCK_1, 0, 10, 13, 15, 19);
+			final SortResult descending = sort(compoundComparator(OrderDirection.DESC), BLOCK_1, 0, 10, 13, 15, 19);
+
+			assertAll(
+				() -> assertArrayEquals(new int[]{15, 19, 13}, ascending.written(), "ascending"),
+				() -> assertArrayEquals(new int[]{13, 19, 15}, descending.written(), "descending")
 			);
 		}
 

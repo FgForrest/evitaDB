@@ -215,6 +215,100 @@ class SequentialSorterBlockMergeTest {
 		);
 	}
 
+	@Test
+	@DisplayName("should merge every two-scope block over its own providers, across repeated sorts of one sorter")
+	void shouldKeepOneMergePerBlock() {
+		// target 2 gains an archived index: block 2 becomes 7(1) 5(5) 6(40) 8(50), merged over its own two providers
+		final ReducedEntityIndex archivedTarget2 = createIndex(4, 2, Scope.ARCHIVED, 7, 8);
+		final SequentialSorter sorter = createSequentialSorter(
+			new ReducedEntityIndex[][]{{this.liveTarget1, this.archivedTarget1}, {this.liveTarget2, archivedTarget2}},
+			new SortedRecordsProvider[]{
+				createProvider(this.liveTarget1, new int[]{3, 1}, 10, 30),
+				createProvider(this.archivedTarget1, new int[]{2, 4}, 20, 30),
+				createProvider(this.liveTarget2, new int[]{5, 6}, 5, 40),
+				createProvider(archivedTarget2, new int[]{7, 8}, 1, 50)
+			},
+			Comparator.naturalOrder(),
+			OrderDirection.ASC
+		);
+
+		final SortOutcome fullPage = sort(sorter, 0, 10, 1, 2, 3, 4, 5, 6, 7, 8);
+		// the second sort reuses the merges the first one created, so each must still belong to its own block
+		final SortOutcome secondPage = sort(sorter, 4, 8, 1, 2, 3, 4, 5, 6, 7, 8);
+
+		assertAll(
+			() -> assertArrayEquals(new int[]{3, 2, 1, 4, 7, 5, 6, 8}, fullPage.written(), "full page"),
+			() -> assertArrayEquals(new int[0], fullPage.remaining(), "full page"),
+			() -> assertArrayEquals(new int[]{7, 5, 6, 8}, secondPage.written(), "second page"),
+			() -> assertArrayEquals(new int[]{3, 2, 1, 4}, secondPage.skipped(), "second page"),
+			() -> assertArrayEquals(new int[0], secondPage.remaining(), "second page")
+		);
+	}
+
+	@Test
+	@DisplayName("should hand on an owner of a two-scope block that neither provider holds")
+	void shouldHandOnBlockOwnerHeldByNoProvider() {
+		// owner 7 belongs to the live index of target 1 but has no value, so no provider of the block holds it
+		final ReducedEntityIndex liveTarget1WithoutValue = createIndex(5, 1, Scope.LIVE, 1, 3, 7);
+		final SequentialSorter sorter = createSequentialSorter(
+			new ReducedEntityIndex[][]{{liveTarget1WithoutValue, this.archivedTarget1}, {this.liveTarget2}},
+			new SortedRecordsProvider[]{
+				createProvider(liveTarget1WithoutValue, new int[]{3, 1}, 10, 30),
+				createProvider(this.archivedTarget1, new int[]{2, 4}, 20, 30),
+				createProvider(this.liveTarget2, new int[]{5, 6}, 5, 40)
+			},
+			Comparator.naturalOrder(),
+			OrderDirection.ASC
+		);
+
+		final SortOutcome aloneInSelection = sort(sorter, 0, 10, 7);
+		final SortOutcome withOwnersHavingValue = sort(sorter, 0, 10, 1, 2, 7);
+
+		assertAll(
+			() -> assertArrayEquals(new int[0], aloneInSelection.written(), "owner alone"),
+			() -> assertArrayEquals(new int[]{7}, aloneInSelection.remaining(), "owner alone"),
+			() -> assertArrayEquals(new int[]{2, 1}, withOwnersHavingValue.written(), "with owners having a value"),
+			() -> assertArrayEquals(new int[]{7}, withOwnersHavingValue.remaining(), "with owners having a value")
+		);
+	}
+
+	@Test
+	@DisplayName("should slice the owners of a block's archived scope alone, reporting the skipped ones, without reading any value")
+	void shouldEmitArchivedOwnersAloneWithPageWithoutReadingValues() {
+		// the selection holds archived owners of target 1 only - 2(20) 4(30) - and the page starts at the second one
+		final SortOutcome outcome = sort(
+			createSequentialSorter(createAscendingProviders(), Comparator.naturalOrder(), OrderDirection.ASC),
+			1, 10, 2, 4
+		);
+
+		assertAll(
+			() -> assertArrayEquals(new int[]{4}, outcome.written()),
+			() -> assertArrayEquals(new int[]{2}, outcome.skipped()),
+			() -> assertArrayEquals(new int[0], outcome.remaining()),
+			() -> assertEquals(0, this.valueReads, "no value may be read when a single provider holds the selection")
+		);
+	}
+
+	@Test
+	@DisplayName("should append the providers one after another when the sort is bound to no block")
+	void shouldAppendProvidersWhenNoBlockKeyIsBound() {
+		// without a block key the sorter walks the providers of the whole family; merging them by value would
+		// interleave the blocks - 5 3 2 1 4 6
+		final MergedSortedRecordsSupplierSorter sorter = new MergedSortedRecordsSupplierSorter(
+			createAscendingProviders(), Comparator.naturalOrder(), OrderDirection.ASC
+		);
+		final int[] result = new int[6];
+		final SortingContext output = sorter.sortAndSlice(
+			new SortingContext(
+				this.fixture.createExecutionContext(), new BaseBitmap(1, 2, 3, 4, 5, 6), 0, 6, 0, 0
+			),
+			result,
+			null
+		);
+
+		assertArrayEquals(new int[]{3, 1, 2, 4, 5, 6}, Arrays.copyOf(result, output.peak()));
+	}
+
 	/**
 	 * Runs the sequential sorter over the two blocks of the fixture.
 	 *
@@ -235,15 +329,40 @@ class SequentialSorterBlockMergeTest {
 		int endIndex,
 		@Nonnull int... selection
 	) {
+		return sort(createSequentialSorter(providers, comparator, primaryKeyOrder), startIndex, endIndex, selection)
+			.written();
+	}
+
+	/**
+	 * Runs the passed sequential sorter and returns what it wrote, skipped and left unsorted.
+	 *
+	 * @param sorter     the sorter to run
+	 * @param startIndex the first requested position
+	 * @param endIndex   the position after the last requested one
+	 * @param selection  the owners to sort
+	 * @return the outcome of the sort
+	 */
+	@Nonnull
+	private SortOutcome sort(
+		@Nonnull SequentialSorter sorter,
+		int startIndex,
+		int endIndex,
+		@Nonnull int... selection
+	) {
 		final int[] result = new int[endIndex - startIndex];
-		final SortingContext output = createSequentialSorter(providers, comparator, primaryKeyOrder).sortAndSlice(
+		final List<Integer> skipped = new ArrayList<>(4);
+		final SortingContext output = sorter.sortAndSlice(
 			new SortingContext(
 				this.fixture.createExecutionContext(), new BaseBitmap(selection), startIndex, endIndex, 0, 0
 			),
 			result,
-			null
+			skipped::add
 		);
-		return Arrays.copyOf(result, output.peak());
+		return new SortOutcome(
+			Arrays.copyOf(result, output.peak()),
+			skipped.stream().mapToInt(Integer::intValue).toArray(),
+			output.nonSortedKeys().getArray()
+		);
 	}
 
 	/**
@@ -260,8 +379,31 @@ class SequentialSorterBlockMergeTest {
 		@Nullable Comparator<?> comparator,
 		@Nonnull OrderDirection primaryKeyOrder
 	) {
-		return new SequentialSorter(
+		return createSequentialSorter(
 			new ReducedEntityIndex[][]{{this.liveTarget1, this.archivedTarget1}, {this.liveTarget2}},
+			providers, comparator, primaryKeyOrder
+		);
+	}
+
+	/**
+	 * Creates the sequential sorter of the passed blocks, sorting each by a pre-sorted records sorter over the
+	 * providers.
+	 *
+	 * @param blocks          the blocks in traversal order, the indexes of one referenced entity in each
+	 * @param providers       the providers of the family in traversal order
+	 * @param comparator      the value comparator in the direction of the ordering, `null` for a chain
+	 * @param primaryKeyOrder the direction of the ordering
+	 * @return the sorter
+	 */
+	@Nonnull
+	private static SequentialSorter createSequentialSorter(
+		@Nonnull ReducedEntityIndex[][] blocks,
+		@Nonnull SortedRecordsProvider[] providers,
+		@Nullable Comparator<?> comparator,
+		@Nonnull OrderDirection primaryKeyOrder
+	) {
+		return new SequentialSorter(
+			blocks,
 			new ArrayList<>(
 				List.of(new PreSortedRecordsSorter(MergeMode.APPEND_ALL, comparator, primaryKeyOrder, () -> providers))
 			)
@@ -326,8 +468,9 @@ class SequentialSorterBlockMergeTest {
 	}
 
 	/**
-	 * Creates the array-backed provider of one reduced index, whose value seeker counts its reads in
-	 * {@link #valueReads}.
+	 * Creates the array-backed provider of one reduced index holding the passed owners, whose value seeker counts its
+	 * reads in {@link #valueReads}. An owner of the index left out of `sortedOwners` is an owner without a value, which
+	 * no provider holds.
 	 *
 	 * @param index        the reduced index
 	 * @param sortedOwners the owners of the index in the sort order
@@ -340,7 +483,8 @@ class SequentialSorterBlockMergeTest {
 		@Nonnull int[] sortedOwners,
 		@Nonnull int... values
 	) {
-		final int[] ownersAscending = index.getAllPrimaryKeys().getArray();
+		// the provider holds exactly the sorted owners, which may be fewer than the owners of its index
+		final int[] ownersAscending = Arrays.stream(sortedOwners).sorted().toArray();
 		// the position of each owner, in ascending owner order, within the sorted array
 		final int[] positions = new int[ownersAscending.length];
 		for (int i = 0; i < ownersAscending.length; i++) {
@@ -352,13 +496,23 @@ class SequentialSorterBlockMergeTest {
 		}
 		final Serializable[] boxedValues = Arrays.stream(values).boxed().toArray(Serializable[]::new);
 		return new ReferenceSortedRecordsProvider(
-			index.getPrimaryKey(), sortedOwners, positions, index.getAllPrimaryKeys(),
+			index.getPrimaryKey(), sortedOwners, positions, new BaseBitmap(ownersAscending),
 			position -> {
 				this.valueReads++;
 				return boxedValues[position];
 			},
 			index.getRepresentativeReferenceKey()
 		);
+	}
+
+	/**
+	 * What one run of the sorter produced.
+	 *
+	 * @param written   the owners the sorter wrote, in order
+	 * @param skipped   the owners it skipped before the requested page, in order
+	 * @param remaining the owners no block claimed
+	 */
+	private record SortOutcome(@Nonnull int[] written, @Nonnull int[] skipped, @Nonnull int[] remaining) {
 	}
 
 }

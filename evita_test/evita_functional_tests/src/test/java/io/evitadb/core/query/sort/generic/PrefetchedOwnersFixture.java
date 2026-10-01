@@ -84,8 +84,10 @@ import static org.mockito.Mockito.mock;
  * | 16    | [1] -                 | [1] -         | [1] head, absent in the chain |
  * | 17    | [3] 7                 | -             | [3] head, no chain at all     |
  * | 18    | [1] -                 | -             | [1] head of the second chain  |
+ * | 19    | [1] 10                | [1] 2         | -                             |
  *
- * Owner 11 has the attribute `tail` 2, 13 has 1 and 14 has 3; the others have none.
+ * Owner 11 has the attribute `tail` 2, 13 has 1 and 14 has 3; the others have none. Owner 19 ties owner 15 on `order`
+ * and on the compound in category 1.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -232,6 +234,9 @@ public final class PrefetchedOwnersFixture {
 		));
 		addOwner(owners, 18, null, builder -> builder.setReference(
 			REFERENCE_NAME, 1, ref -> ref.setAttribute(ATTRIBUTE_CHAIN, Predecessor.HEAD)
+		));
+		addOwner(owners, 19, null, builder -> builder.setReference(
+			REFERENCE_NAME, 1, ref -> ref.setAttribute(ATTRIBUTE_ORDER, 10).setAttribute(ATTRIBUTE_SECOND, 2)
 		));
 		return owners;
 	}
