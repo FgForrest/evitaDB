@@ -60,6 +60,7 @@ import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -668,8 +669,8 @@ class WarmUpSavepointDataStoreChangesTest {
 				DataStoreChanges.RemovedStoragePart.class, trappedPart(EntityIndexStoragePart.class, INDEX_PRIMARY_KEY),
 				"The test would be vacuous unless the drop really staged the manifest removal."
 			);
-			assertTrue(
-				!pendingIndexRemovalParts().isEmpty(),
+			assertFalse(
+				pendingIndexRemovalParts().isEmpty(),
 				"The test would be vacuous unless the drop really staged the deferred root removal."
 			);
 

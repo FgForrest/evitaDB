@@ -25,10 +25,12 @@ package io.evitadb.index;
 
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
-import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.dataType.ComparableCurrency;
+import io.evitadb.dataType.ComparableLocale;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.OwnerSortIndex;
 import io.evitadb.index.attribute.SortIndex;
@@ -54,7 +56,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Currency;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -64,6 +65,8 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
+import static io.evitadb.index.VirtualReferencePartitionIndexTest.flush;
+import static io.evitadb.index.VirtualReferencePartitionIndexTest.rootOf;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.TRANSACTION;
@@ -86,8 +89,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Verifies the sort value slots of {@link VirtualReferencePartitionIndex} in memory: declaring and retiring sort keys,
  * the per-slot value dictionary and its reference counting, the normalization of every value form a sort key can hold
  * (localized and decomposed strings, scaled and unscaled `BigDecimal`, `Locale`, `Currency`, compounds with missing
- * elements), the sort index kept in step with the slot, and the transactional (STM) and warm-up savepoint behaviour
- * of all of it.
+ * elements and with `Locale` and `Currency` elements), the sort index kept in step with the slot, and the
+ * transactional (STM) and warm-up savepoint behaviour of all of it.
  *
  * Every sort index is checked against a model - the raw values per partition, normalized and ordered by the very
  * normalizer and comparator {@link SortIndex} derives - so a sort index that merely agrees with a broken twin of
@@ -100,7 +103,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(REFERENCE)
 class VirtualReferencePartitionIndexSortValueTest {
 	static final String REFERENCE_NAME = "media";
-	static final int ENTITY_INDEX_PK = 3;
 	static final Locale CZECH = Locale.forLanguageTag("cs");
 	static final AttributeIndexKey ORDER = new AttributeIndexKey(REFERENCE_NAME, "mediaOrder", null);
 	static final ComparatorSource[] INTEGER_ASC = {
@@ -178,6 +180,20 @@ class VirtualReferencePartitionIndexSortValueTest {
 			random -> new Serializable[]{
 				pick(random, CAJ_COMPOSED, CAJ_DECOMPOSED, "chata", "cesta", null),
 				pick(random, 1, 2, 3, null)
+			}
+		),
+		new SortKeyFixture(
+			new AttributeIndexKey(REFERENCE_NAME, "languageCurrency", null),
+			new ComparatorSource[]{
+				new ComparatorSource(Locale.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+				new ComparatorSource(Currency.class, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
+				new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+			},
+			0, true,
+			random -> new Serializable[]{
+				pick(random, Locale.ENGLISH, Locale.GERMAN, Locale.forLanguageTag("cs-CZ"), null),
+				pick(random, Currency.getInstance("CZK"), Currency.getInstance("EUR"), null),
+				pick(random, 1, 2, null)
 			}
 		)
 	);
@@ -424,24 +440,6 @@ class VirtualReferencePartitionIndexSortValueTest {
 	}
 
 	/**
-	 * Drains a flush of the index into a list.
-	 *
-	 * @param index the index to flush
-	 * @return every part the flush emitted, in emission order
-	 */
-	@Nonnull
-	static List<StoragePart> flush(@Nonnull VirtualReferencePartitionIndex index) {
-		final TrappedChanges trappedChanges = new TrappedChanges();
-		index.appendStorageParts(ENTITY_INDEX_PK, REFERENCE_NAME, trappedChanges);
-		final List<StoragePart> parts = new ArrayList<>();
-		final Iterator<StoragePart> iterator = trappedChanges.getTrappedChangesIterator();
-		while (iterator.hasNext()) {
-			parts.add(iterator.next());
-		}
-		return parts;
-	}
-
-	/**
 	 * Returns the persisted slot of the sort key from the root of an emission.
 	 *
 	 * @param parts the emission
@@ -450,12 +448,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 	 */
 	@Nullable
 	static SortValueSlot persistedSlot(@Nonnull List<StoragePart> parts, @Nonnull AttributeIndexKey key) {
-		final VirtualReferencePartitionIndexStoragePart root = parts.stream()
-			.filter(VirtualReferencePartitionIndexStoragePart.class::isInstance)
-			.map(VirtualReferencePartitionIndexStoragePart.class::cast)
-			.findFirst()
-			.orElseThrow(() -> new AssertionError("The emission must hold a root: " + parts));
-		return Arrays.stream(root.getSortValueSlots())
+		return Arrays.stream(rootOf(parts).getSortValueSlots())
 			.filter(slot -> slot.attributeIndexKey().equals(key))
 			.findFirst()
 			.orElse(null);
@@ -523,7 +516,9 @@ class VirtualReferencePartitionIndexSortValueTest {
 			assertThrows(
 				GenericEvitaInternalError.class,
 				() -> index.declareSortKey(
-					ORDER, new ComparatorSource[]{new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST)}, 0
+					ORDER,
+					new ComparatorSource[]{new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST)},
+					0
 				)
 			);
 			assertThrows(GenericEvitaInternalError.class, () -> index.declareSortKey(ORDER, INTEGER_ASC, 2));
@@ -691,6 +686,40 @@ class VirtualReferencePartitionIndexSortValueTest {
 		}
 
 		@Test
+		@DisplayName("a compound with Locale and Currency elements is recorded, ordered and removed again")
+		void shouldRecordAndRemoveACompoundWithLocaleAndCurrencyElements() {
+			final SortKeyFixture languageCurrency = FIXTURES.get(7);
+			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
+			languageCurrency.declare(index);
+			final Map<Integer, Serializable> model = new TreeMap<>();
+			model.put(1, new Serializable[]{Locale.GERMAN, Currency.getInstance("CZK"), 1});
+			model.put(2, new Serializable[]{Locale.ENGLISH, Currency.getInstance("EUR"), 2});
+			model.put(3, new Serializable[]{Locale.GERMAN, null, null});
+			model.forEach((partition, value) -> languageCurrency.put(index, partition, value));
+
+			final SortValueSlot slot = persistedSlot(flush(index), languageCurrency.key());
+			assertNotNull(slot);
+			assertEquals(3, slot.values().length);
+			for (final Serializable value : slot.values()) {
+				final Serializable[] elements = assertInstanceOf(ComparableArray.class, value).array();
+				assertInstanceOf(ComparableLocale.class, elements[0]);
+				if (elements[1] != null) {
+					assertInstanceOf(ComparableCurrency.class, elements[1]);
+				}
+			}
+			// `de` before `en`, and the missing currency first among the `de` values
+			assertEquals(List.of(3, 1, 2), snapshotOf(index.getSortIndex(languageCurrency.key())).records());
+			assertMatchesModel(languageCurrency, index.getSortIndex(languageCurrency.key()), model);
+
+			// removal hands the sort index values it can normalize again
+			for (final int partition : List.of(1, 2, 3)) {
+				assertTrue(index.removeSortValue(languageCurrency.key(), partition));
+			}
+			assertTrue(index.getSortIndex(languageCurrency.key()).isEmpty());
+			assertEquals(0, persistedSlot(flush(index), languageCurrency.key()).values().length);
+		}
+
+		@Test
 		@DisplayName("a value of the wrong type or shape is refused before anything changes")
 		void shouldRefuseWrongValueBeforeWriting() {
 			final VirtualReferencePartitionIndex index = declaredIndex();
@@ -705,8 +734,9 @@ class VirtualReferencePartitionIndexSortValueTest {
 			assertThrows(
 				GenericEvitaInternalError.class, () -> index.putSortValue(compoundKey, 1, new Serializable[]{"video"})
 			);
+			// the compound normalizer leaves the misplaced Integer as it is, the validating compound refuses it
 			assertThrows(
-				RuntimeException.class,
+				EvitaInvalidUsageException.class,
 				() -> index.putSortValue(compoundKey, 1, new Serializable[]{"video", 7, 1})
 			);
 			assertThrows(

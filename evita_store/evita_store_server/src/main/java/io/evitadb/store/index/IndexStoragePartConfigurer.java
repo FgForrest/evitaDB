@@ -362,7 +362,10 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		// preceding registration ids stable.
 		kryo.register(
 			VirtualReferencePartitionIndexStoragePart.class,
-			new SerialVersionBasedSerializer<>(new VirtualReferencePartitionIndexStoragePartSerializer(this.keyCompressor), VirtualReferencePartitionIndexStoragePart.class),
+			new SerialVersionBasedSerializer<>(
+				new VirtualReferencePartitionIndexStoragePartSerializer(this.keyCompressor),
+				VirtualReferencePartitionIndexStoragePart.class
+			),
 			index++
 		);
 
@@ -370,7 +373,9 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		// backward-compatible reader. Appended last to keep the preceding registration ids stable.
 		kryo.register(
 			VirtualReferencePartitionIndexLeafPagePart.class,
-			new SerialVersionBasedSerializer<>(new VirtualReferencePartitionIndexLeafPagePartSerializer(), VirtualReferencePartitionIndexLeafPagePart.class),
+			new SerialVersionBasedSerializer<>(
+				new VirtualReferencePartitionIndexLeafPagePartSerializer(), VirtualReferencePartitionIndexLeafPagePart.class
+			),
 			index++
 		);
 

@@ -26,7 +26,6 @@ package io.evitadb.index;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart.ChainPredecessorSlot;
@@ -51,7 +50,8 @@ import java.util.TreeMap;
 import static io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC;
 import static io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.ORDER;
 import static io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.REFERENCE_NAME;
-import static io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.flush;
+import static io.evitadb.index.VirtualReferencePartitionIndexTest.flush;
+import static io.evitadb.index.VirtualReferencePartitionIndexTest.rootOf;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.TRANSACTION;
@@ -223,21 +223,6 @@ class VirtualReferencePartitionIndexChainPredecessorTest {
 		final Map<AttributeIndexKey, Map<Integer, Integer>> copy = new HashMap<>();
 		models.forEach((key, model) -> copy.put(key, new TreeMap<>(model)));
 		return copy;
-	}
-
-	/**
-	 * Returns the root of an emission.
-	 *
-	 * @param parts the emission
-	 * @return the root
-	 */
-	@Nonnull
-	static VirtualReferencePartitionIndexStoragePart rootOf(@Nonnull List<StoragePart> parts) {
-		return parts.stream()
-			.filter(VirtualReferencePartitionIndexStoragePart.class::isInstance)
-			.map(VirtualReferencePartitionIndexStoragePart.class::cast)
-			.findFirst()
-			.orElseThrow(() -> new AssertionError("The emission must hold a root: " + parts));
 	}
 
 	/**

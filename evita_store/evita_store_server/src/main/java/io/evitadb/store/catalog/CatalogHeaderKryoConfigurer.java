@@ -157,7 +157,9 @@ public class CatalogHeaderKryoConfigurer implements Consumer<Kryo> {
 		// backward-compatible reader. Appended last to keep the preceding registration ids stable.
 		kryo.register(
 			VirtualReferencePartitionLeafStreamKey.class,
-			new SerialVersionBasedSerializer<>(new VirtualReferencePartitionLeafStreamKeySerializer(), VirtualReferencePartitionLeafStreamKey.class),
+			new SerialVersionBasedSerializer<>(
+				new VirtualReferencePartitionLeafStreamKeySerializer(), VirtualReferencePartitionLeafStreamKey.class
+			),
 			index++
 		);
 

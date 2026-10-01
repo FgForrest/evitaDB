@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.SortKeyFixture;
 import io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.SortSnapshot;
@@ -38,6 +39,7 @@ import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortIndexView;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
+import io.evitadb.index.component.VirtualReferencePartitionComponent;
 import io.evitadb.index.component.loader.LoadContext;
 import io.evitadb.index.component.loader.LoadedComponentBundle;
 import io.evitadb.index.component.loader.LoadedComponentBundle.VirtualReferencePartitions;
@@ -50,6 +52,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.KeyCompressorSnapshot;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceNameKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexLeafPagePart;
@@ -121,6 +124,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -131,7 +135,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * a collapse from PAGED to SINGLE, an index emptied after a flush, and the absent root that every catalog without a
  * virtual partition has. The sort value slots are covered too: the sort indexes rebuilt on load equal the live ones
  * after random churn in warm-up and in transactions, a sort value change costs one leaf page, a retired key leaves
- * nothing behind, and a value tree shared with real partitions cannot reach the rebuilt sort index.
+ * nothing behind, and a value tree shared with real partitions cannot reach the rebuilt sort index. Dropping an index
+ * reclaims its root and every leaf page it has on disk, published or not, a root naming a leaf page the store lacks
+ * fails the load, and the reload plan of the referenced type entity index carries the persisted partitions.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -381,6 +387,163 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 			this.offsetIndex.getReadOnlyKeyCompressor().getIdIfExists(new ReferenceNameKey(REFERENCE_NAME)).isPresent()
 		);
 		assertTrue(reloadThroughLoader().isEmpty());
+	}
+
+	@Test
+	@DisplayName("a paged root naming a leaf page the store lacks fails the load and names the page")
+	void shouldRefuseToLoadWhenALeafPageIsMissing() {
+		final VirtualReferencePartitionIndexStoragePart pagedRoot =
+			singleRoot(flushAndPersist(populated(PARTITION_COUNT)));
+		final int[] pageSequences = pagedRoot.getLeafPageSequences();
+		final int missingPage = pageSequences[pageSequences.length / 2];
+		persist(
+			List.of(new VirtualReferencePartitionIndexLeafPageRemoval(ENTITY_INDEX_PK, REFERENCE_NAME, missingPage))
+		);
+		assertNull(readLeafPageOrNull(missingPage), "The page must be gone before the load is attempted");
+
+		final GenericEvitaInternalError error =
+			assertThrows(GenericEvitaInternalError.class, this::reloadThroughLoader);
+		assertTrue(
+			error.getMessage().contains("Leaf page " + missingPage + " "),
+			"The error must name the missing page: " + error.getMessage()
+		);
+	}
+
+	@Test
+	@DisplayName("the referenced type index reload plan carries the persisted virtual partitions")
+	void shouldReloadTheTypeIndexWithItsVirtualPartitions() {
+		final ReferencedTypeEntityIndex typeIndex =
+			new ReferencedTypeEntityIndex(ENTITY_INDEX_PK, ENTITY_TYPE, ENTITY_INDEX_KEY);
+		// the membership makes the type index write its manifest, ids and cardinality root, as a real one does
+		typeIndex.insertPrimaryKeyIfMissing(1, 100);
+		final VirtualReferencePartitionIndex live = typeIndex.getVirtualReferencePartitionIndex();
+		final AttributeIndexKey order = VirtualReferencePartitionIndexSortValueTest.ORDER;
+		final AttributeIndexKey chain = VirtualReferencePartitionIndexChainPredecessorTest.CHAIN;
+		live.declareSortKey(order, VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC, 0);
+		live.declareChainKey(chain);
+		final int partitions = 300;
+		for (int partition = 1; partition <= partitions; partition++) {
+			live.putPartitionOwner(partition, partition % 13, 1_000 + partition);
+			live.putRepresentativeTuple(partition, TUPLES[partition % TUPLES.length]);
+			live.putSortValue(order, partition, partition % 17);
+			if (partition % 5 != 0) {
+				live.putChainPredecessor(chain, partition, partition - 1);
+			}
+		}
+
+		final TrappedChanges changes = new TrappedChanges();
+		typeIndex.getModifiedStorageParts(changes);
+		final List<StoragePart> emission = drain(changes);
+		assertTrue(singleRoot(emission).isPaged(), "The virtual partitions must page out through the type index");
+		persist(emission);
+
+		final ReferencedTypeEntityIndex reloadedTypeIndex = reloadTypeIndexThroughPlan();
+		final VirtualReferencePartitionIndex reloaded = reloadedTypeIndex.getVirtualReferencePartitionIndex();
+		assertFalse(reloaded.isEmpty(), "The reload plan must hand the type index the persisted virtual partitions");
+		assertEquals(
+			VirtualReferencePartitionIndexTest.contentOf(live),
+			VirtualReferencePartitionIndexTest.contentOf(reloaded)
+		);
+		assertEquals(
+			VirtualReferencePartitionIndexSortValueTest.snapshotOf(live.getSortIndex(order)),
+			VirtualReferencePartitionIndexSortValueTest.snapshotOf(reloaded.getSortIndex(order))
+		);
+		for (int partition = 1; partition <= partitions; partition++) {
+			assertEquals(
+				live.getChainPredecessor(chain, partition), reloaded.getChainPredecessor(chain, partition),
+				"Predecessor of partition " + partition
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Reclaiming a dropped index")
+	class ReclaimingADroppedIndex {
+
+		/**
+		 * Emits the removals of the persisted footprint of the index, as dropping its owning entity index does.
+		 *
+		 * @param index the index being dropped
+		 * @return the emitted removals
+		 */
+		@Nonnull
+		private List<StoragePart> drop(@Nonnull VirtualReferencePartitionIndex index) {
+			final TrappedChanges sink = new TrappedChanges();
+			new VirtualReferencePartitionComponent(index, REFERENCE_NAME)
+				.emitPersistedFootprintRemovals(ENTITY_INDEX_PK, sink);
+			return drain(sink);
+		}
+
+		/**
+		 * Asserts the removals reclaim the root and every leaf page of the persisted root, and that once persisted
+		 * nothing of the index is left in the store.
+		 *
+		 * @param pagedRoot the persisted root
+		 * @param removals  the removals emitted by the drop
+		 */
+		private void assertReclaimsEverything(
+			@Nonnull VirtualReferencePartitionIndexStoragePart pagedRoot,
+			@Nonnull List<StoragePart> removals
+		) {
+			final int[] pageSequences = pagedRoot.getLeafPageSequences();
+			assertEquals(pageSequences.length, countLeafPageRemovals(removals), "Every leaf page: " + removals);
+			assertEquals(
+				1, removals.stream().filter(VirtualReferencePartitionRootRemoval.class::isInstance).count(),
+				"The root: " + removals
+			);
+			assertEquals(pageSequences.length + 1, removals.size(), "Nothing else: " + removals);
+
+			persist(removals);
+			assertNull(readRootOrNull(), "The root must be gone from storage");
+			for (final int pageSequence : pageSequences) {
+				assertNull(readLeafPageOrNull(pageSequence), "Page " + pageSequence + " must be gone from storage");
+			}
+			assertTrue(reloadThroughLoader().isEmpty());
+		}
+
+		@Test
+		@DisplayName("dropping a reloaded paged index reclaims the root and every leaf page")
+		void shouldReclaimEveryPageAndTheRootOfADroppedPagedIndex() {
+			final VirtualReferencePartitionIndexStoragePart pagedRoot =
+				singleRoot(flushAndPersist(populated(PARTITION_COUNT)));
+			assertTrue(pagedRoot.isPaged());
+
+			assertReclaimsEverything(pagedRoot, drop(reloadThroughLoader()));
+		}
+
+		@Test
+		@DisplayName("dropping an index right after an unpublished flush reclaims the pages that flush wrote")
+		void shouldReclaimThePagesOfAnUnpublishedFlush() {
+			final VirtualReferencePartitionIndex source = populated(PARTITION_COUNT);
+			final VirtualReferencePartitionIndexStoragePart pagedRoot = singleRoot(flushAndPersist(source));
+			assertTrue(pagedRoot.isPaged());
+
+			// no later flush or commit merge published the page set the flush staged
+			assertReclaimsEverything(pagedRoot, drop(source));
+		}
+
+		@Test
+		@DisplayName("the root removal of a never-persisted index resolves to nothing on a store without its reference")
+		void shouldResolveTheRootRemovalOfANeverPersistedIndexOnABlankStore() {
+			assertTrue(
+				VirtualReferencePartitionIndexPagingRoundTripTest.this.offsetIndex.getReadOnlyKeyCompressor()
+					.getIdIfExists(new ReferenceNameKey(REFERENCE_NAME)).isEmpty(),
+				"The store must never have seen the reference name"
+			);
+			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
+			index.putPartitionOwner(1, 10, 100);
+			index.removePartitionOwner(1);
+
+			final List<StoragePart> emission = flush(index);
+			assertEquals(1, emission.size(), "A never-flushed emptied index removes its root only: " + emission);
+			assertInstanceOf(VirtualReferencePartitionRootRemoval.class, emission.get(0));
+			persist(emission);
+			assertTrue(reloadThroughLoader().isEmpty());
+
+			// dropping the never-persisted index resolves the same way
+			persist(drop(index));
+			assertTrue(reloadThroughLoader().isEmpty());
+		}
 	}
 
 	@Nested
@@ -884,6 +1047,31 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 			)
 		);
 		return assertInstanceOf(VirtualReferencePartitions.class, bundle).virtualReferencePartitionIndex();
+	}
+
+	/**
+	 * Reloads the whole referenced type entity index through its production reload plan from the current offset
+	 * index, building the load context from the persisted manifest and entity ids exactly as the entity collection
+	 * persistence service does.
+	 *
+	 * @return the reloaded referenced type entity index
+	 */
+	@Nonnull
+	private ReferencedTypeEntityIndex reloadTypeIndexThroughPlan() {
+		final EntityIndexStoragePart manifest =
+			this.offsetIndex.get(this.version, ENTITY_INDEX_PK, EntityIndexStoragePart.class);
+		assertNotNull(manifest, "The type index must have persisted its manifest");
+		final EntityIdsStoragePart entityIds =
+			this.offsetIndex.get(this.version, ENTITY_INDEX_PK, EntityIdsStoragePart.class);
+		assertNotNull(entityIds, "The type index must have persisted its entity ids");
+		final EntityIndex reloaded = ReferencedTypeEntityIndex.reloadPlan().run(
+			new LoadContext(
+				this.version, ENTITY_INDEX_PK, EntitySchema._internalBuild(ENTITY_TYPE), manifest.getEntityIndexKey(),
+				manifest, Math.max(manifest.getVersion(), entityIds.getVersion()), entityIds.getEntityIds(),
+				entityIds.getEntityIdsByLanguage(), new OffsetIndexReadService(this.offsetIndex), null
+			)
+		);
+		return assertInstanceOf(ReferencedTypeEntityIndex.class, reloaded);
 	}
 
 	/**

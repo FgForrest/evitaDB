@@ -95,6 +95,12 @@ class VirtualReferencePartitionIndexLeafPagePartSerializerTest {
 		return page;
 	}
 
+	/**
+	 * Serializes the part with the serializer under test and returns the raw bytes.
+	 *
+	 * @param part the part to serialize
+	 * @return the serialized bytes
+	 */
 	@Nonnull
 	private byte[] serialize(@Nonnull VirtualReferencePartitionIndexLeafPagePart part) {
 		final ByteArrayOutputStream os = new ByteArrayOutputStream(4_096);
@@ -104,6 +110,12 @@ class VirtualReferencePartitionIndexLeafPagePartSerializerTest {
 		return os.toByteArray();
 	}
 
+	/**
+	 * Serializes the part with the serializer under test and reads it straight back.
+	 *
+	 * @param part the part to round-trip
+	 * @return the deserialized copy
+	 */
 	@Nonnull
 	private VirtualReferencePartitionIndexLeafPagePart roundTrip(
 		@Nonnull VirtualReferencePartitionIndexLeafPagePart part

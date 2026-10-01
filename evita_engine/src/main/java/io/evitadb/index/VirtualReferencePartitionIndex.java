@@ -29,7 +29,6 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
-import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.array.CompositeLongArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.OwnerSortIndex;
@@ -433,7 +432,16 @@ public class VirtualReferencePartitionIndex
 			// one box shared by both maps, see DictionaryEntry
 			final Integer boxedId = tupleId;
 			final ComparableArray tuple = new ComparableArray(tuples[i]);
-			tupleIdIndex.put(tuple, boxedId);
+			// a second id holding the same tuple would shadow the first in the lookup by values, and releasing the
+			// first would then drop the mapping of the second while partitions still refer to it
+			final Integer shadowedId = tupleIdIndex.put(tuple, boxedId);
+			Assert.isPremiseValid(
+				shadowedId == null,
+				() -> new GenericEvitaInternalError(
+					"The tuple dictionary of the virtual reference partition index for " + indexDescription +
+						" holds one tuple under tuple ids " + shadowedId + " and " + tupleId + "!"
+				)
+			);
 			tupleIndex.put(boxedId, new DictionaryEntry(tuple, boxedId, userCount));
 		}
 		this.tupleIds = new PersistentTransactionalMap<>(tupleIdIndex);
@@ -938,8 +946,8 @@ public class VirtualReferencePartitionIndex
 	/**
 	 * Appends the storage parts that changed since the last flush to the sink:
 	 *
-	 * - an index with no entry and no declared sort or chain key removes its root and every leaf page it has on disk, so it
-	 *   leaves nothing behind,
+	 * - an index with no entry and no declared sort or chain key removes its root and every leaf page it has on
+	 *   disk, so it leaves nothing behind,
 	 * - a PAGED index writes one leaf page per changed leaf and a removal per freed leaf, and rewrites its root only
 	 *   when the leaf list, a dictionary or the declared sort or chain keys changed,
 	 * - a SINGLE index removes the leaf pages left behind by a collapse from PAGED and writes the inline root.
@@ -1063,13 +1071,11 @@ public class VirtualReferencePartitionIndex
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.dictionaryDirty.getHeapSizeInBytes()
 			+ this.entries.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER)
-			+ this.tupleIds.getHeapSizeInBytes(
-				VirtualReferencePartitionIndex::tupleSizeInBytes, tupleId -> boxedInteger
-			)
+			+ this.tupleIds.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER, tupleId -> boxedInteger)
 			+ this.tuples.getHeapSizeInBytes(tupleId -> 0L, entry -> dictionaryEntry)
 			+ this.sortKeys.getHeapSizeInBytes(attributeIndexKey -> 0L, DeclaredSortKey::getHeapSizeInBytes)
 			+ this.sortValueIds.getHeapSizeInBytes(
-				key -> sortValueKey + sortValueSizeInBytes(key.value()), valueId -> boxedInteger
+				key -> sortValueKey + IndexHeapSize.OWNED_KEY_SIZER.applyAsLong(key.value()), valueId -> boxedInteger
 			)
 			+ this.sortValues.getHeapSizeInBytes(packedId -> boxedLong, entry -> sortValueEntry)
 			+ this.sortIndexes.getHeapSizeInBytes(attributeIndexKey -> 0L, OwnerSortIndex::getHeapSizeInBytes)
@@ -1128,39 +1134,6 @@ public class VirtualReferencePartitionIndex
 	/*
 		PRIVATE METHODS
 	 */
-
-	/**
-	 * Prices one dictionary tuple the index owns: the wrapper, its array and every value in it.
-	 *
-	 * @param tuple the dictionary tuple
-	 * @return the heap footprint of the tuple in bytes
-	 */
-	private static long tupleSizeInBytes(@Nonnull ComparableArray tuple) {
-		final VMLayout layout = VMLayout.current();
-		final Serializable[] values = tuple.array();
-		long size = layout.sizeOfObject(layout.referenceSize())
-			+ layout.sizeOfArray(values.length, layout.referenceSize());
-		for (final Serializable value : values) {
-			if (value != null) {
-				size += EvitaDataTypes.estimateSize(value);
-			}
-		}
-		return size;
-	}
-
-	/**
-	 * Prices one normalized sort value the index owns: a plain value, or a compound's wrapper, its array and every
-	 * element in it.
-	 *
-	 * @param value the normalized sort value
-	 * @return the heap footprint of the value in bytes
-	 */
-	private static long sortValueSizeInBytes(@Nonnull Serializable value) {
-		if (value instanceof ComparableArray compound) {
-			return tupleSizeInBytes(compound);
-		}
-		return EvitaDataTypes.estimateSize(value);
-	}
 
 	/**
 	 * Creates the comparator a sort index of the given sort key orders its normalized values by - the very comparator
@@ -1967,9 +1940,10 @@ public class VirtualReferencePartitionIndex
 	 * taken against what disk actually holds.
 	 *
 	 * A warm-up flush never reaches the commit-merge that publishes in
-	 * {@link #createCopyWithMergedTransactionalMemory}, so without this the live set of a bulk-loaded index would stay empty while disk moved on, and a leaf merge
-	 * between two warm-up flushes would leave the dropped page orphaned on disk - and, because this PAGED root lists
-	 * only its leaves, also listed on a stale root that a later flush skips rewriting. Publishing here is safe
+	 * {@link #createCopyWithMergedTransactionalMemory}, so without this the live set of a bulk-loaded index would
+	 * stay empty while disk moved on, and a leaf merge between two warm-up flushes would leave the dropped page
+	 * orphaned on disk - and, because this PAGED root lists only its leaves, also listed on a stale root that a
+	 * later flush skips rewriting. Publishing here is safe
 	 * because a failed flush is never followed by another flush of the same data: the catalog's transaction
 	 * processing is suspended, or the warm-up catalog is marked unpublishable. See
 	 * {@code ReferenceTypeCardinalityIndex#publishPreviousFlush} for the full argument.

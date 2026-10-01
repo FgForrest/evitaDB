@@ -114,6 +114,13 @@ import static java.util.Optional.ofNullable;
  * non-grouped references: the accumulator calls {@link #getHistogramFilterIndex(String, Locale)} to obtain the
  * source {@link io.evitadb.index.attribute.FilterIndex} and runs histogram bucket computation against it.
  *
+ * **Virtual reference partitions** — this index also carries one {@link VirtualReferencePartitionIndex}, recording
+ * what is known about single-owner reference partitions that have no reduced entity index of their own: the owner
+ * each partition belongs to, its representative attribute tuple, its sortable attribute and compound values, and
+ * its chain predecessors. It is exposed by {@link #getVirtualReferencePartitionIndex()}, persisted as its own root
+ * and leaf-page storage parts, and loaded back by
+ * {@link io.evitadb.index.component.loader.VirtualReferencePartitionLoader}.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class ReferencedTypeEntityIndex extends EntityIndex implements

@@ -56,15 +56,15 @@ import java.io.Serializable;
  * hold each value is read off the slot's entries on load - so a partition switching between existing values never
  * rewrites this root either.
  *
- * Each chain predecessor slot rides inline as one {@link ChainPredecessorSlot} - only the chained attribute the slot was
- * declared for, because the predecessors themselves are the payloads of the slot's entries.
+ * Each chain predecessor slot rides inline as one {@link ChainPredecessorSlot} - only the chained attribute the
+ * slot was declared for, because the predecessors themselves are the payloads of the slot's entries.
  *
  * The primary key is `pack(entityIndexPrimaryKey, id(ReferenceNameKey))` - the same number the reference-type
  * cardinality root of the same entity index carries, which cannot collide with it, because the offset index keys
  * every record by its record type as well.
  *
- * Only an index holding at least one entry or one declared sort or chain key is ever persisted: an empty one has no root at
- * all, and the loader reads an absent root as an empty index.
+ * Only an index holding at least one entry or one declared sort or chain key is ever persisted: an empty one has
+ * no root at all, and the loader reads an absent root as an empty index.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

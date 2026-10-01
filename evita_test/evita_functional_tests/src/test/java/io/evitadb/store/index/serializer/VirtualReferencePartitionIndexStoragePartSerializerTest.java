@@ -260,8 +260,8 @@ class VirtualReferencePartitionIndexStoragePartSerializerTest {
 
 	/**
 	 * Builds sort value slots covering every normalized value form: a plain number, a decomposed localized string, a
-	 * scaled `BigDecimal`, the comparable wrappers of `Locale` and `Currency`, and a compound with a `BigDecimal` and a
-	 * missing element, sorted descending with nulls first.
+	 * scaled `BigDecimal`, the comparable wrappers of `Locale` and `Currency`, a compound with a `BigDecimal` and a
+	 * missing element, sorted descending with nulls first, and a compound of the `Locale` and `Currency` wrappers.
 	 *
 	 * @return the slots in ascending slot id order
 	 */
@@ -311,6 +311,24 @@ class VirtualReferencePartitionIndexStoragePartSerializerTest {
 				22, new AttributeIndexKey(REFERENCE_NAME, "empty", null),
 				new ComparatorSource[]{new ComparatorSource(Long.class, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)},
 				0, new int[0], new Serializable[0]
+			),
+			new SortValueSlot(
+				23, new AttributeIndexKey(REFERENCE_NAME, "languageCurrency", null),
+				new ComparatorSource[]{
+					new ComparatorSource(Locale.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+					new ComparatorSource(Currency.class, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
+				},
+				0, new int[]{1, 2},
+				new Serializable[]{
+					new ComparableArray(
+						new Serializable[]{
+							new ComparableLocale(Locale.GERMAN), new ComparableCurrency(Currency.getInstance("EUR"))
+						}
+					),
+					new ComparableArray(
+						new Serializable[]{null, new ComparableCurrency(Currency.getInstance("CZK"))}
+					)
+				}
 			)
 		};
 	}
@@ -370,7 +388,8 @@ class VirtualReferencePartitionIndexStoragePartSerializerTest {
 		@DisplayName("round-trip a root without any sort value slot")
 		void shouldRoundTripRootWithoutSortValueSlots() {
 			final VirtualReferencePartitionIndexStoragePart part = VirtualReferencePartitionIndexStoragePart.single(
-				ENTITY_INDEX_PK, REFERENCE_NAME, new long[0], new long[0], TUPLE_IDS, TUPLES, NO_SORT_VALUE_SLOTS, NO_CHAIN_SLOTS, null
+				ENTITY_INDEX_PK, REFERENCE_NAME, new long[0], new long[0], TUPLE_IDS, TUPLES,
+				NO_SORT_VALUE_SLOTS, NO_CHAIN_SLOTS, null
 			);
 			assertEquals(0, roundTrip(part).getSortValueSlots().length);
 		}
@@ -384,13 +403,13 @@ class VirtualReferencePartitionIndexStoragePartSerializerTest {
 		@DisplayName("round-trip next to sort value slots on both shapes")
 		void shouldRoundTripChainPredecessorSlots() {
 			final ChainPredecessorSlot[] chainSlots = {
-				new ChainPredecessorSlot(23, new AttributeIndexKey(REFERENCE_NAME, "order", null)),
+				new ChainPredecessorSlot(24, new AttributeIndexKey(REFERENCE_NAME, "order", null)),
 				new ChainPredecessorSlot(30, new AttributeIndexKey(REFERENCE_NAME, "order", Locale.forLanguageTag("cs")))
 			};
 			final SortValueSlot[] sortSlots = sortValueSlots();
 			for (final VirtualReferencePartitionIndexStoragePart part : List.of(
 				VirtualReferencePartitionIndexStoragePart.single(
-					ENTITY_INDEX_PK, REFERENCE_NAME, new long[]{NumberUtils.pack(23, 1)}, new long[]{-1L},
+					ENTITY_INDEX_PK, REFERENCE_NAME, new long[]{NumberUtils.pack(24, 1)}, new long[]{-1L},
 					TUPLE_IDS, TUPLES, sortSlots, chainSlots, null
 				),
 				VirtualReferencePartitionIndexStoragePart.paged(

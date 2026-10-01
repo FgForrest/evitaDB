@@ -135,6 +135,21 @@ class VirtualReferencePartitionIndexTest {
 	}
 
 	/**
+	 * Returns the root of an emission.
+	 *
+	 * @param parts the emission
+	 * @return the root
+	 */
+	@Nonnull
+	static VirtualReferencePartitionIndexStoragePart rootOf(@Nonnull List<StoragePart> parts) {
+		return parts.stream()
+			.filter(VirtualReferencePartitionIndexStoragePart.class::isInstance)
+			.map(VirtualReferencePartitionIndexStoragePart.class::cast)
+			.findFirst()
+			.orElseThrow(() -> new AssertionError("The emission must hold a root: " + parts));
+	}
+
+	/**
 	 * Closes a savepoint a failing test might have left bound to this thread.
 	 */
 	@AfterEach

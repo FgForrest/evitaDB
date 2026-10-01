@@ -115,6 +115,34 @@ class DataStoreChangesIndexRetirementTest {
 	}
 
 	@Test
+	@DisplayName("dropping an index leaves a different index registered under the same primary key in place")
+	void shouldLeaveAnotherIndexUnderTheSamePrimaryKeyInPlace() {
+		final EntityIndexKey otherKey = new EntityIndexKey(
+			EntityIndexType.REFERENCED_ENTITY, Scope.LIVE,
+			new RepresentativeReferenceKey(new ReferenceKey("brand", 2))
+		);
+		final ReducedEntityIndex other = new ReducedEntityIndex(INDEX_PRIMARY_KEY, ENTITY_TYPE, otherKey);
+		this.changes.getOrCreateIndexForModification(otherKey, key -> other);
+		assertSame(
+			other, this.changes.getIndexIfExists(INDEX_PRIMARY_KEY, pk -> null),
+			"The test would be vacuous unless the other index was registered under the shared primary key first."
+		);
+
+		// the origin collection hands over a clean index of its own that happens to share the primary key
+		final ReducedEntityIndex dropped = new ReducedEntityIndex(INDEX_PRIMARY_KEY, ENTITY_TYPE, REDUCED_INDEX_KEY);
+		this.changes.removeIndex(CATALOG_VERSION, REDUCED_INDEX_KEY, key -> dropped);
+
+		assertSame(
+			other, this.changes.getIndexIfExists(INDEX_PRIMARY_KEY, pk -> null),
+			"The primary key entry of a different index must survive the drop."
+		);
+		assertSame(
+			other, this.changes.getIndexIfExists(otherKey, key -> null),
+			"The key entry of a different index must survive the drop."
+		);
+	}
+
+	@Test
 	@DisplayName("a write acquisition by the primary key of a dropped index is refused")
 	void shouldRefuseWriteAcquisitionOfDroppedPk() {
 		final ReducedEntityIndex index = new ReducedEntityIndex(INDEX_PRIMARY_KEY, ENTITY_TYPE, REDUCED_INDEX_KEY);
