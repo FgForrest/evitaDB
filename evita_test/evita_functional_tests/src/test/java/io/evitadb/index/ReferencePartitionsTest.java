@@ -31,6 +31,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -38,7 +39,6 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
-import java.util.HashMap;
 import java.util.Map;
 
 import static io.evitadb.test.TestTags.INDEXING;
@@ -74,11 +74,11 @@ class ReferencePartitionsTest {
 	/**
 	 * Every index of the fixture collection by key.
 	 */
-	private final Map<EntityIndexKey, EntityIndex> indexesByKey = new HashMap<>(16);
+	private final Map<EntityIndexKey, EntityIndex> indexesByKey = CollectionUtils.createHashMap(16);
 	/**
 	 * Every index of the fixture collection by primary key.
 	 */
-	private final Map<Integer, EntityIndex> indexesByPrimaryKey = new HashMap<>(16);
+	private final Map<Integer, EntityIndex> indexesByPrimaryKey = CollectionUtils.createHashMap(16);
 
 	/**
 	 * Registers a reduced entity index in both maps.

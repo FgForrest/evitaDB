@@ -991,13 +991,13 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			final List<ReducedEntityIndex> result = new ArrayList<>(this.primaryKeys.size());
 			final OfInt it = this.primaryKeys.iterator();
 			while (it.hasNext()) {
-				final int reducedIndexPk = it.nextInt();
-				final ReferencePartition partition = this.partitionAccessor.apply(reducedIndexPk);
+				final int partitionPk = it.nextInt();
+				final ReferencePartition partition = this.partitionAccessor.apply(partitionPk);
 				// supplier, not concatenation - this loop runs once per reduced index, which is once per
 				// referenced entity of the whole collection
 				Assert.isPremiseValid(
 					partition != null,
-					() -> "Reduced entity index with primary key " + reducedIndexPk + " was unexpectedly not found!"
+					() -> "Reference partition with primary key " + partitionPk + " was unexpectedly not found!"
 				);
 				result.add(ReferencePartitions.toReducedEntityIndex(partition));
 			}
@@ -1231,8 +1231,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	public Stream<EntityIndex> getEntityIndexStream() {
 		final ProcessingScope<? extends Index<?>> processingScope = getProcessingScope();
 		final Set<Scope> allowedScopes = processingScope.getScopes();
-		// on the partition channel every element is a partition, so an element that is not an entity index would
-		// be a partition this stream silently lost - it is a premise there, and a legitimate filter elsewhere
+		// when the processing scope carries partitions every element is one, so an element that is not an entity
+		// index would be a partition this stream silently lost - it is a premise there, and a legitimate filter
+		// elsewhere
 		final Predicate<Index<?>> isEntityIndex =
 			ReferencePartition.class.isAssignableFrom(processingScope.getIndexType()) ?
 				FilterByVisitor::requirePartitionIsEntityIndex : EntityIndex.class::isInstance;
@@ -1255,16 +1256,17 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
-	 * Asserts that an element of the partition channel is an entity index - every partition the channel carries is
-	 * one, and one that is not must fail loudly rather than drop out of the stream.
+	 * Asserts that an element of a processing scope whose index type is a {@link ReferencePartition} is an entity
+	 * index - every partition such a scope carries is one, and one that is not must fail loudly rather than drop
+	 * out of the stream.
 	 *
-	 * @param index the element of the partition channel
+	 * @param index the element of the processing scope
 	 * @return always `true`
 	 */
 	private static boolean requirePartitionIsEntityIndex(@Nonnull Index<?> index) {
 		isPremiseValid(
 			index instanceof EntityIndex,
-			() -> "The partition channel carries `" + index.getClass() + "`, which is not an entity index!"
+			() -> "The processing scope over partitions carries `" + index.getClass() + "`, which is not an entity index!"
 		);
 		return true;
 	}

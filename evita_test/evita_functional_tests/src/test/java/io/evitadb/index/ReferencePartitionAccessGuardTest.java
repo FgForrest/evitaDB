@@ -25,6 +25,7 @@ package io.evitadb.index;
 
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.store.catalog.DefaultEntityCollectionPersistenceService;
+import io.evitadb.utils.CollectionUtils;
 import net.bytebuddy.jar.asm.ClassReader;
 import net.bytebuddy.jar.asm.ClassVisitor;
 import net.bytebuddy.jar.asm.FieldVisitor;
@@ -49,7 +50,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Enumeration;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -67,6 +67,7 @@ import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -74,8 +75,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * Guards the reference partition handle: every place in the production bytecode of `evita_engine`
  * and `evita_store_server` that reaches a `REFERENCED_ENTITY` reduced index directly - rather than through
  * {@link ReferencePartition} and its resolvers - must be on the allow-list, and every allow-list entry must still be
- * hit. The allow-list therefore only ever shrinks, and each commit that migrates a site proves it by deleting the
- * entry.
+ * hit. The allow-list therefore only ever shrinks, and a change that moves a site behind the handle proves it by
+ * deleting the entry.
  *
  * ## Rules
  *
@@ -262,7 +263,7 @@ class ReferencePartitionAccessGuardTest {
 		);
 		final String fixture = ReferencePartitionGuardFixture.class.getName() + "#";
 		final String nested = ReferencePartitionGuardFixture.class.getName() + "$";
-		final Map<String, String> expected = new LinkedHashMap<>(16);
+		final Map<String, String> expected = CollectionUtils.createLinkedHashMap(20);
 		expected.put("R1 " + fixture + "castShape", "CHECKCAST");
 		expected.put("R1 " + fixture + "instanceofShape", "INSTANCEOF");
 		expected.put("R1 " + fixture + "classTokenShape", "LDC");
@@ -347,7 +348,7 @@ class ReferencePartitionAccessGuardTest {
 				);
 				assertFalse(parts[2].isBlank(), ALLOW_LIST + ":" + lineNumber + " carries no reason");
 				final String previous = result.put(parts[0] + " " + parts[1], parts[2]);
-				assertTrue(previous == null, ALLOW_LIST + ":" + lineNumber + " duplicates an earlier entry");
+				assertNull(previous, ALLOW_LIST + ":" + lineNumber + " duplicates an earlier entry");
 			}
 		} catch (IOException e) {
 			throw new UncheckedIOException(e);
@@ -635,11 +636,6 @@ class ReferencePartitionAccessGuardTest {
 				if (mentionsReducedIndexType(descriptor) || mentionsReducedIndexType(signature)) {
 					hit("R1", this.site, "local " + name + " " + (signature == null ? descriptor : signature));
 				}
-			}
-
-			@Override
-			public void visitTryCatchBlock(Label start, Label end, Label handler, String type) {
-				// exception types are never reduced indexes - nothing to check
 			}
 
 			/**

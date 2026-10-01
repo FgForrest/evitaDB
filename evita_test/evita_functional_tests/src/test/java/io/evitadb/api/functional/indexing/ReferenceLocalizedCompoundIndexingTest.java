@@ -164,7 +164,7 @@ public class ReferenceLocalizedCompoundIndexingTest implements EvitaTestSupport 
 	@DisplayName("Should order by the compound when the owner is inserted with a locale")
 	@ParameterizedTest(name = "{0}")
 	@EnumSource(value = ReferenceIndexType.class, names = {"FOR_FILTERING", "FOR_FILTERING_AND_PARTITIONING"})
-	void shouldOrderByCompoundWhenOwnerIsInsertedWithLocale(ReferenceIndexType indexType) {
+	void shouldOrderByCompoundWhenOwnerIsInsertedWithLocale(@Nonnull ReferenceIndexType indexType) {
 		createSchema(indexType);
 		createOwnersWithLocale();
 
@@ -174,7 +174,7 @@ public class ReferenceLocalizedCompoundIndexingTest implements EvitaTestSupport 
 	@DisplayName("Should order by the compound when the reference is added to an owner that has the locale")
 	@ParameterizedTest(name = "{0}")
 	@EnumSource(value = ReferenceIndexType.class, names = {"FOR_FILTERING", "FOR_FILTERING_AND_PARTITIONING"})
-	void shouldOrderByCompoundWhenReferenceIsAddedToOwnerWithLocale(ReferenceIndexType indexType) {
+	void shouldOrderByCompoundWhenReferenceIsAddedToOwnerWithLocale(@Nonnull ReferenceIndexType indexType) {
 		createSchema(indexType);
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -202,7 +202,7 @@ public class ReferenceLocalizedCompoundIndexingTest implements EvitaTestSupport 
 	@DisplayName("Should order by the compound when the owner gains the locale after the reference exists")
 	@ParameterizedTest(name = "{0}")
 	@EnumSource(value = ReferenceIndexType.class, names = {"FOR_FILTERING", "FOR_FILTERING_AND_PARTITIONING"})
-	void shouldOrderByCompoundWhenOwnerGainsLocaleAfterReference(ReferenceIndexType indexType) {
+	void shouldOrderByCompoundWhenOwnerGainsLocaleAfterReference(@Nonnull ReferenceIndexType indexType) {
 		createSchema(indexType);
 		// no localized value anywhere - the owners have no locale yet and the compound has only its `order` half
 		this.evita.updateCatalog(
@@ -238,7 +238,7 @@ public class ReferenceLocalizedCompoundIndexingTest implements EvitaTestSupport 
 	@DisplayName("Should drop the compound when the owner loses the locale and index it again when regained")
 	@ParameterizedTest(name = "{0}")
 	@EnumSource(value = ReferenceIndexType.class, names = {"FOR_FILTERING", "FOR_FILTERING_AND_PARTITIONING"})
-	void shouldDropCompoundWhenOwnerLosesLocale(ReferenceIndexType indexType) {
+	void shouldDropCompoundWhenOwnerLosesLocale(@Nonnull ReferenceIndexType indexType) {
 		createSchema(indexType);
 		createOwnersWithLocale();
 		assertCompoundEntry(1, 1, true);
@@ -293,7 +293,7 @@ public class ReferenceLocalizedCompoundIndexingTest implements EvitaTestSupport 
 	@DisplayName("Should drop the compound when the reference is removed and index it again when re-added")
 	@ParameterizedTest(name = "{0}")
 	@EnumSource(value = ReferenceIndexType.class, names = {"FOR_FILTERING", "FOR_FILTERING_AND_PARTITIONING"})
-	void shouldDropCompoundWhenReferenceIsRemoved(ReferenceIndexType indexType) {
+	void shouldDropCompoundWhenReferenceIsRemoved(@Nonnull ReferenceIndexType indexType) {
 		createSchema(indexType);
 		createOwnersWithLocale();
 
@@ -320,7 +320,7 @@ public class ReferenceLocalizedCompoundIndexingTest implements EvitaTestSupport 
 	@DisplayName("Should keep the compound across archiving and restoring the owner")
 	@ParameterizedTest(name = "{0}")
 	@EnumSource(value = ReferenceIndexType.class, names = {"FOR_FILTERING", "FOR_FILTERING_AND_PARTITIONING"})
-	void shouldKeepCompoundAcrossArchiveAndRestore(ReferenceIndexType indexType) {
+	void shouldKeepCompoundAcrossArchiveAndRestore(@Nonnull ReferenceIndexType indexType) {
 		createSchema(indexType);
 		createOwnersWithLocale();
 
@@ -352,7 +352,7 @@ public class ReferenceLocalizedCompoundIndexingTest implements EvitaTestSupport 
 	@DisplayName("Should reorder by the compound when a reference attribute changes")
 	@ParameterizedTest(name = "{0}")
 	@EnumSource(value = ReferenceIndexType.class, names = {"FOR_FILTERING", "FOR_FILTERING_AND_PARTITIONING"})
-	void shouldReorderByCompoundWhenReferenceAttributeChanges(ReferenceIndexType indexType) {
+	void shouldReorderByCompoundWhenReferenceAttributeChanges(@Nonnull ReferenceIndexType indexType) {
 		createSchema(indexType);
 		createOwnersWithLocale();
 
@@ -372,7 +372,7 @@ public class ReferenceLocalizedCompoundIndexingTest implements EvitaTestSupport 
 	@DisplayName("Should keep the compound consistent when the reference indexing level changes on existing data")
 	@ParameterizedTest(name = "to {0}")
 	@EnumSource(value = ReferenceIndexType.class, names = {"FOR_FILTERING", "FOR_FILTERING_AND_PARTITIONING"})
-	void shouldKeepCompoundConsistentWhenIndexingLevelChanges(ReferenceIndexType targetIndexType) {
+	void shouldKeepCompoundConsistentWhenIndexingLevelChanges(@Nonnull ReferenceIndexType targetIndexType) {
 		createSchema(
 			targetIndexType == ReferenceIndexType.FOR_FILTERING ?
 				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING : ReferenceIndexType.FOR_FILTERING
@@ -414,7 +414,7 @@ public class ReferenceLocalizedCompoundIndexingTest implements EvitaTestSupport 
 	@DisplayName("Should keep the entity-level compound in the reduced indexes of a partitioned reference only")
 	@ParameterizedTest(name = "{0}")
 	@EnumSource(value = ReferenceIndexType.class, names = {"FOR_FILTERING", "FOR_FILTERING_AND_PARTITIONING"})
-	void shouldKeepEntityLevelCompoundInPartitioningIndexesOnly(ReferenceIndexType indexType) {
+	void shouldKeepEntityLevelCompoundInPartitioningIndexesOnly(@Nonnull ReferenceIndexType indexType) {
 		createSchema(
 			indexType,
 			owner -> owner

@@ -72,7 +72,6 @@ import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
 import io.evitadb.api.requestResponse.data.structure.ParentChainEnd;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
-import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
 import io.evitadb.api.requestResponse.data.structure.ReferenceSetFetcher;
 import io.evitadb.api.requestResponse.data.structure.References.ChunkTransformerAccessor;
@@ -182,7 +181,7 @@ import static java.util.Optional.ofNullable;
  */
 public class ReferencedEntityFetcher implements ReferenceFetcher {
 	/**
-	 * Orders reduced entity indexes by their {@link RepresentativeReferenceKey} discriminator. The ordering is not
+	 * Orders reference partitions by their {@link RepresentativeReferenceKey} discriminator. The ordering is not
 	 * cosmetic - {@link #getFilteredReferencedEntityIds} depends on it: sorting brings all indexes sharing the same
 	 * discriminator next to each other, which allows their partial results to be OR-ed together in a single streaming
 	 * pass instead of being accumulated in a map (the same discriminator may be backed by more than one index, e.g.

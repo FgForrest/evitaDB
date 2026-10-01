@@ -4,7 +4,6 @@
 R1 | io.evitadb.core.collection.EntityCollection#addIndex | physical load / WAL attach of both reduced index families
 R1 | io.evitadb.core.collection.EntityCollection$EntityIndexMaintainer#getOrCreateIndex | the collection maintainer constructs reduced entity indexes and mints their primary keys
 R1 | io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor#createPrefetcherIfNeededOrWorthwhile | owners of the winning narrowed index set of the query body channel, premised to be partitioned
-R1 | io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor#isIndexedForPartitioning | premise that the winning narrowed index set belongs to a partitioned reference
 R1 | io.evitadb.core.query.fetch.ReferencedEntityFetcher#computeResultWithPassedIndex | isolated body per partition entered under the class token of the query body channel
 R1 | io.evitadb.core.query.fetch.ReferencedEntityFetcher#getFilteredReferencedEntityIds | partitions of referenceContent(filterBy/orderBy) evaluated through the query body channel
 R1 | io.evitadb.core.query.filter.FilterByVisitor#getReferencedEntityIndexes | partitions of one target handed to the shared entity/group owner lookup of the having translators

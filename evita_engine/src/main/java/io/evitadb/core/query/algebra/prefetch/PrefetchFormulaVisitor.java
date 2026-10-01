@@ -37,6 +37,7 @@ import io.evitadb.core.query.algebra.FormulaVisitor;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -177,16 +178,26 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 					final List<?> indexes = this.targetIndexes.getIndexes();
 					final PersistentRoaringBitmap[] indexBitmaps = new PersistentRoaringBitmap[indexes.size()];
 					final EntitySchemaContract entitySchema = this.queryContext.getSchema();
+					// partitions narrowed to one plan almost always share a single (reference, scope) pair, so the
+					// premise below is checked once per distinct pair instead of once per partition
+					String lastCheckedReferenceName = null;
+					Scope lastCheckedScope = null;
 					for (int i = 0; i < indexes.size(); i++) {
 						final AbstractReducedEntityIndex reducedIndex = (AbstractReducedEntityIndex) indexes.get(i);
-						// a narrowed index set wins a plan only for a reference indexed for partitioning: a candidate
-						// of any other reference carries `NOT_PARTITIONED_INDEX`, and `QueryPlanner` builds no plan -
-						// and no prefetch visitor - for an ineligible candidate, debug alternatives included
-						Assert.isPremiseValid(
-							isIndexedForPartitioning(entitySchema, reducedIndex),
-							() -> "Prefetch narrowed to reduced index `" + reducedIndex.getIndexKey() + "` of a " +
-								"reference that is not indexed for partitioning!"
-						);
+						final String referenceName = reducedIndex.getRepresentativeReferenceKey().referenceName();
+						final Scope scope = reducedIndex.getIndexKey().scope();
+						if (!referenceName.equals(lastCheckedReferenceName) || scope != lastCheckedScope) {
+							// a narrowed index set wins a plan only for a reference indexed for partitioning: a candidate
+							// of any other reference carries `NOT_PARTITIONED_INDEX`, and `QueryPlanner` builds no plan -
+							// and no prefetch visitor - for an ineligible candidate, debug alternatives included
+							Assert.isPremiseValid(
+								isIndexedForPartitioning(entitySchema, referenceName, scope),
+								() -> "Prefetch narrowed to reduced index `" + reducedIndex.getIndexKey() + "` of a " +
+									"reference that is not indexed for partitioning!"
+							);
+							lastCheckedReferenceName = referenceName;
+							lastCheckedScope = scope;
+						}
 						indexBitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(reducedIndex.getAllPrimaryKeys());
 					}
 					entitiesToPrefetch = RoaringBitmapBackedBitmap.and(
@@ -304,20 +315,20 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	}
 
 	/**
-	 * Tells whether the reference the reduced index belongs to is indexed for partitioning in the index's scope.
+	 * Tells whether the reference is indexed for partitioning in the given scope.
 	 *
-	 * @param entitySchema the schema of the queried entity
-	 * @param reducedIndex the reduced index of the winning index set
+	 * @param entitySchema  the schema of the queried entity
+	 * @param referenceName the name of the reference a reduced index of the winning index set belongs to
+	 * @param scope         the scope of that reduced index
 	 * @return true when the reference is indexed for partitioning in the scope
 	 */
 	private static boolean isIndexedForPartitioning(
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull AbstractReducedEntityIndex reducedIndex
+		@Nonnull String referenceName,
+		@Nonnull Scope scope
 	) {
-		final ReferenceSchemaContract referenceSchema = entitySchema
-			.getReferenceOrThrowException(reducedIndex.getRepresentativeReferenceKey().referenceName());
-		return referenceSchema.getReferenceIndexType(reducedIndex.getIndexKey().scope()) ==
-			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING;
+		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
+		return referenceSchema.getReferenceIndexType(scope) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING;
 	}
 
 }

@@ -911,11 +911,11 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		boolean nowFaceted
 	) {
 		// only a reference indexed for partitioning keeps facets in its reduced indexes - see `targetReduced`
+		final Scope scope = typeIndex.getIndexKey().scope();
 		Assert.isPremiseValid(
-			refSchema.getReferenceIndexType(typeIndex.getIndexKey().scope()) ==
-				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+			refSchema.getReferenceIndexType(scope) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
 			() -> "Facets of reference `" + refSchema.getName() + "` are not maintained in its reduced indexes - " +
-				"it is not indexed for partitioning in scope `" + typeIndex.getIndexKey().scope() + "`!"
+				"it is not indexed for partitioning in scope `" + scope + "`!"
 		);
 		final int[] reducedStoragePKs = typeIndex.getAllReferenceIndexes(partitionKey);
 		for (int reducedStoragePK : reducedStoragePKs) {

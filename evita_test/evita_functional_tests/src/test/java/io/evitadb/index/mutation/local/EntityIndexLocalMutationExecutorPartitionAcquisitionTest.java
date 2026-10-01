@@ -71,8 +71,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Pins the write acquisition of reference partitions on {@link EntityIndexLocalMutationExecutor}: every partition
  * handed out for writing must come through the enrolling accessor of the index maintainer (so that its changed
  * storage parts are persisted and the commit-time merge sees it), the by-key acquisition creates what it does not
- * find exactly as the reference write path always has, and the partitions of one target are found by the same two
- * routes as the read-side resolvers. The fan-out entry points refuse any reference indexing level below
+ * find, and the partitions of one target are found by the same two routes as the read-side resolvers. The fan-out
+ * entry points refuse any reference indexing level below
  * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}, whose partitions must never reach their consumers.
  *
  * The index maintainer is a real map of real indexes that counts how each index was reached, which is how the tests
@@ -312,7 +312,7 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 	class OfTarget {
 
 		@Test
-		@DisplayName("creates the single partition of a reference without duplicates, as the write path always has")
+		@DisplayName("creates the single partition of a reference without duplicates")
 		void shouldCreateSinglePartitionWhenReferenceDisallowsDuplicates() {
 			final List<ReferencePartition> partitions = collectPartitionsOfTarget(SINGLE_REFERENCE);
 			assertEquals(1, partitions.size());
@@ -348,7 +348,7 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 				EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this.indexMaintainer.getIndexIfExists(
 					new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, DUPLICATE_REFERENCE)
 				),
-				"the acquisition creates the type index it reads, exactly as the write path always has"
+				"the acquisition must create the type index it reads"
 			);
 		}
 

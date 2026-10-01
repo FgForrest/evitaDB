@@ -338,7 +338,7 @@ public final class ContainerizedLocalMutationExecutor
 			partitions = new ArrayList<>(4);
 			for (Scope counterpartScope : Scope.values()) {
 				if (isRelationMaintained(referenceSchema, counterpartSchema, scope, counterpartScope)) {
-					// the reflected reference's cardinality decides the lookup, exactly as it always has
+					// the reflected reference's cardinality decides the lookup
 					Collections.addAll(
 						partitions,
 						ReferencePartitions.resolveOfTarget(
@@ -352,9 +352,9 @@ public final class ContainerizedLocalMutationExecutor
 			}
 		}
 
-		for (ReferencePartition referenceIndexWithPrimaryReferences : partitions) {
+		for (ReferencePartition partitionWithPrimaryReferences : partitions) {
 			// for each such entity create internal (reflected) reference to it (if it doesn't exist)
-			final Bitmap referencingEntities = referenceIndexWithPrimaryReferences.getAllPrimaryKeys();
+			final Bitmap referencingEntities = partitionWithPrimaryReferences.getAllPrimaryKeys();
 			final DataStoreReader targetDataStoreReader = ofNullable(
 				this.dataStoreReaderAccessor.apply(referenceSchema.getReferencedEntityType()))
 				.orElseThrow(
@@ -363,7 +363,7 @@ public final class ContainerizedLocalMutationExecutor
 							"` unexpectedly not found!"
 					)
 				);
-			final RepresentativeReferenceKey rrk = referenceIndexWithPrimaryReferences.getRepresentativeReferenceKey();
+			final RepresentativeReferenceKey rrk = partitionWithPrimaryReferences.getRepresentativeReferenceKey();
 			final List<ReferenceKey> referenceKeys = new ArrayList<>(referencingEntities.size());
 			final OfInt it = referencingEntities.iterator();
 			while (it.hasNext()) {

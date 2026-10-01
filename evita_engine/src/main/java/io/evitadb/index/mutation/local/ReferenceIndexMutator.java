@@ -652,13 +652,14 @@ public interface ReferenceIndexMutator {
 		final ReferenceSchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider =
 			new ReferenceSchemaAttributeAndCompoundSchemaProvider(entitySchema, referenceSchema);
 
-		// kind 1: the type index is keyed by partition primary keys
+		// the type index half: its records are partition primary keys
 		updateAttributeInTypeIndex(
 			executor, referenceTypeIndex,
 			partitionForRemoval.getPrimaryKey(), partitionForUpsert.getPrimaryKey(),
 			referenceSchema, attributeMutation, attributeSchemaProvider, existingValueAccessorFactory
 		);
-		// partition-local: the pair form - both partitions carry the same reference, before and after a migration
+		// partition-local: the pair form - both partitions carry the same reference, before and after a change of
+		// its representative attribute values moves the row
 		switch (partitionForRemoval) {
 			case ReducedEntityIndex indexForRemoval -> {
 				switch (partitionForUpsert) {
@@ -838,7 +839,7 @@ public interface ReferenceIndexMutator {
 
 	/**
 	 * Performs the entity-component indexing of a reference insertion. This registers the partition's primary key in
-	 * the type index and indexes the reference attributes there (kind 1 - written for every partition, whatever its
+	 * the type index and indexes the reference attributes there (written for every partition, whatever its
 	 * form), adds the owner to the partition and populates it with the owner's data, records the membership boundary
 	 * and adds the facet to the partition.
 	 *
@@ -961,7 +962,7 @@ public interface ReferenceIndexMutator {
 
 	/**
 	 * Registers a reduced index in the type index of its component and indexes the reference attributes there - the
-	 * kind-1 half of a reference insertion, written for the reduced index's primary key whatever the index's form.
+	 * type-index half of a reference insertion, written for the reduced index's primary key whatever the index's form.
 	 *
 	 * @param entitySchema                the entity schema
 	 * @param referenceSchema             the schema of the reference being inserted
@@ -1054,7 +1055,7 @@ public interface ReferenceIndexMutator {
 	 * @param executor                    the mutation executor coordinating the index updates
 	 * @param entityIndex                 the global entity index to which the facet is registered once
 	 * @param referenceTypeIndex          the type-level index ({@link EntityIndexType#REFERENCED_ENTITY_TYPE})
-	 * @param referenceIndex              the partition the reference belongs to
+	 * @param partition                   the partition the reference belongs to
 	 * @param referenceKey                identifies the specific referenced entity
 	 * @param groupId                     the group primary key to associate with the facet, or `null` if not grouped
 	 * @param existingDataSupplierFactory factory for reading existing entity data to populate the reduced index
@@ -1066,7 +1067,7 @@ public interface ReferenceIndexMutator {
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
-		@Nonnull ReferencePartition referenceIndex,
+		@Nonnull ReferencePartition partition,
 		@Nonnull ReferenceKey referenceKey,
 		@Nullable Integer groupId,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
@@ -1076,10 +1077,10 @@ public interface ReferenceIndexMutator {
 			entityPrimaryKey, referenceSchema, entityIndex, referenceKey, groupId,
 			executor
 		);
-		// per-component operation — type index + reduced index
+		// per-component operation — type index + partition
 		referenceInsertPerComponent(
 			entityPrimaryKey, entitySchema, referenceSchema, executor,
-			referenceTypeIndex, referenceIndex, referenceKey,
+			referenceTypeIndex, partition, referenceKey,
 			referenceKey.primaryKey(), groupId,
 			existingDataSupplierFactory
 		);
@@ -1110,7 +1111,7 @@ public interface ReferenceIndexMutator {
 
 	/**
 	 * Performs the entity-component removal of a reference: un-advertises the partition in the type index and removes
-	 * the reference attributes there (kind 1), removes the owner and its data from the partition, and records the
+	 * the reference attributes there, removes the owner and its data from the partition, and records the
 	 * membership boundary.
 	 *
 	 * @param entityPrimaryKey            the primary key of the entity being removed
@@ -1219,7 +1220,7 @@ public interface ReferenceIndexMutator {
 
 	/**
 	 * Un-advertises a reduced index in the type index of its component and removes the reference attributes there -
-	 * the kind-1 half of a reference removal, written for the reduced index's primary key whatever the index's form.
+	 * the type-index half of a reference removal, written for the reduced index's primary key whatever the index's form.
 	 *
 	 * @param entitySchema                the entity schema
 	 * @param referenceSchema             the schema of the reference being removed
@@ -1540,8 +1541,8 @@ public interface ReferenceIndexMutator {
 	 * write path free of that removal is deliberate: it costs a lookup per reference write, and a structural
 	 * removal from a transactional map is work worth confining to a rare, discrete event.
 	 *
-	 * The boundary is kind-1 state: it is described by the reduced index's primary key and owners alone, never by the
-	 * index object, so it applies to a partition whatever its form and to the group family alike.
+	 * The boundary is type-index-level state: it is described by the reduced index's primary key and owners alone,
+	 * never by the index object, so it applies to a partition whatever its form and to the group family alike.
 	 *
 	 * @param executor               the mutation executor, which owns the global index the lookup hangs off
 	 * @param referenceSchema        schema of the reference whose reduced index was joined

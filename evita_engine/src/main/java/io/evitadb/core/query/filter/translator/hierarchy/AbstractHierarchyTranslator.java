@@ -156,8 +156,8 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 							entitySchema, referenceSchema, hierarchyNodeId
 						)
 					)
-					// the partition channel never yields a hole - a missing partition would be a lost node, not a
-					// node without owners
+					// FilterByVisitor#getReferencedEntityIndexes never yields a hole - a missing partition would be a
+					// lost node, not a node without owners
 					.map(AbstractHierarchyTranslator::requirePartitionIndex)
 					.map(EntityIndex::getAllPrimaryKeysFormula)
 					.toArray(Formula[]::new)
@@ -176,15 +176,15 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 	}
 
 	/**
-	 * Asserts that the partition channel produced an index rather than a hole.
+	 * Asserts that a resolved partition exists rather than being a hole.
 	 *
-	 * @param index the index the partition channel produced
+	 * @param index the resolved partition
 	 * @param <T>   the type of the index
 	 * @return the same index
 	 */
 	@Nonnull
 	private static <T extends EntityIndex> T requirePartitionIndex(@Nullable T index) {
-		Assert.isPremiseValid(index != null, "The partition channel produced no index for a hierarchy node!");
+		Assert.isPremiseValid(index != null, "No partition was resolved for a hierarchy node!");
 		return index;
 	}
 

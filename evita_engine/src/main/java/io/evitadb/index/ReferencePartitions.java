@@ -56,8 +56,8 @@ import java.util.function.IntFunction;
  *   them - `ReducedIndexMembership` entries may name an index that has since been dropped, or one of the group
  *   family.
  * - **Strict** (`require…`, `…OrThrow`): a primary key handed out by the index that owns the partition must
- *   resolve; anything else is a programming error reported as {@link GenericEvitaInternalError} naming the collection and the
- *   primary key.
+ *   resolve; anything else is a programming error reported as {@link GenericEvitaInternalError} naming the
+ *   collection and the primary key.
  *
  * A by-key lookup and the primary keys a type index lists for one target are fixed to one family, scope and reference
  * by construction, so a mismatch there is always a programming error, in both modes.

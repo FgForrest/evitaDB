@@ -223,14 +223,14 @@ public final class PickFirstReducedIndexResolver {
 					final Bitmap candidates = selectCandidates(scope, typeIndex, selected);
 					final OfInt it = candidates.iterator();
 					while (it.hasNext()) {
-						final ReferencePartition index = resolveReducedIndex(it.nextInt(), scope);
+						final ReferencePartition partition = resolvePartitionOfScope(it.nextInt(), scope);
 						if (
-							index != null &&
+							partition != null &&
 								(this.targetSorter == null || PersistentRoaringBitmap.intersects(
-									RoaringBitmapBackedBitmap.getRoaringBitmap(index.getAllPrimaryKeys()), selected
+									RoaringBitmapBackedBitmap.getRoaringBitmap(partition.getAllPrimaryKeys()), selected
 								))
 						) {
-							found.add(index);
+							found.add(partition);
 						}
 					}
 				}
@@ -332,15 +332,15 @@ public final class PickFirstReducedIndexResolver {
 	}
 
 	/**
-	 * Resolves a candidate primary key to a reduced index of this reference's entity family in the scope, tolerating
-	 * keys that name nothing or an index of another family.
+	 * Resolves a candidate primary key to a partition of this reference in the scope, tolerating keys that name
+	 * nothing or an index of another family.
 	 *
 	 * @param indexPrimaryKey primary key of the candidate index
 	 * @param scope           the scope the candidate was found in
-	 * @return the reduced index or `null` when the key does not name one of this reference in the scope
+	 * @return the partition or `null` when the key does not name one of this reference in the scope
 	 */
 	@Nullable
-	private ReferencePartition resolveReducedIndex(int indexPrimaryKey, @Nonnull Scope scope) {
+	private ReferencePartition resolvePartitionOfScope(int indexPrimaryKey, @Nonnull Scope scope) {
 		final ReferencePartition partition = this.queryContext.resolvePartitionIfExists(indexPrimaryKey);
 		return partition != null && ReferencePartitions.belongsTo(partition, scope, this.referenceSchema.getName()) ?
 			partition : null;
