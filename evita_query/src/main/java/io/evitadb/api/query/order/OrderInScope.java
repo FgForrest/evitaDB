@@ -58,6 +58,11 @@ import java.io.Serializable;
  * ordering to LIVE scope only. Attribute "code" is indexed in both scopes and can be used for ordering without any
  * restrictions in this example.
  *
+ * An `inScope` container must not be nested in another one within the same evaluation context (a container ordering by
+ * the referenced entity's own properties starts another one): a different scope would be contradictory and the same
+ * scope redundant, so a query containing either is rejected with {@link io.evitadb.exception.EvitaInvalidUsageException}
+ * when it is executed (see {@link io.evitadb.api.query.QueryUtils#assertNoNestedScopeContainers(io.evitadb.api.query.Query)}).
+ *
  * [Visit detailed user documentation](https://evitadb.io/documentation/query/ordering/behavioral#in-scope)
  *
  * @see Scope

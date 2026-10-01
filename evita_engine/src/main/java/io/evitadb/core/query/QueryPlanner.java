@@ -24,6 +24,7 @@
 package io.evitadb.core.query;
 
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
@@ -139,6 +140,9 @@ public class QueryPlanner {
 	 */
 	@Nonnull
 	public static QueryPlan planQuery(@Nonnull QueryPlanningContext context) {
+		// structural rules the constraints cannot check themselves - they are verified on the final tree here, so
+		// that a stored query of the refused shape stays readable and a copied container cannot slip past them
+		QueryUtils.assertNoNestedScopeContainers(context.getEvitaRequest().getQuery());
 		context.pushStep(QueryPhase.PLANNING);
 		try {
 			// determine the indexes that should be used for filtering

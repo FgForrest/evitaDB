@@ -72,6 +72,10 @@ import java.io.Serializable;
  * - Additional children of different constraint types are not accepted — all children must be
  *   `RequireConstraint` instances.
  * - Children must be unique within the container (see `@Child(uniqueChildren = true)`).
+ * - No `inScope` may be nested among the children within the same evaluation context (a container fetching another
+ *   entity's content starts another one): a different scope would be contradictory and the same scope redundant, so
+ *   a query containing either is rejected when it is executed - the container itself accepts any children, so that
+ *   stored queries stay readable.
  *
  * ## Applicability and necessity
  *

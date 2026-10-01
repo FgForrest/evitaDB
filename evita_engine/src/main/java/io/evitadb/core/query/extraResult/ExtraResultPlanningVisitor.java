@@ -432,7 +432,9 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 *    - Reference-hierarchy with a non-partitioned reference schema — REDUCED_ENTITY of the same reference is
 	 *      tagged with `EligibilityObstacle.NOT_PARTITIONED_INDEX` and is not picked as the primary plan.
 	 *    - Reference-hierarchy whose schema is `FOR_FILTERING_AND_PARTITIONING` for every active scope — the
-	 *      planner may have selected REDUCED_ENTITY of the same reference, breaking this prerequisite.
+	 *      planner may have selected REDUCED_ENTITY of the same reference, breaking this prerequisite. (A
+	 *      REDUCED_ENTITY built inside `inScope(...)` for fewer scopes than the query requests is tagged with
+	 *      `EligibilityObstacle.PARTIAL_SCOPE_COVERAGE` and never selected, but the gate does not rely on it.)
 	 *
 	 * 2. **No having/excluding filter to preserve** — when the user's `hierarchyWithin` / `hierarchyWithinRoot`
 	 *    carries a `having(...)` or `excluding(...)` clause, those predicates are baked into the

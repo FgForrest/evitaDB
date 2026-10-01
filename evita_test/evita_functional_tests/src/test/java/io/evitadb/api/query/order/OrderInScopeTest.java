@@ -353,4 +353,22 @@ class OrderInScopeTest {
 			);
 		}
 	}
+
+	@Nested
+	@DisplayName("Nesting")
+	class NestingTest {
+
+		@Test
+		@DisplayName("should accept inScope nested in another inScope at construction")
+		void shouldAcceptInScopeNestedInAnotherInScopeAtConstruction() {
+			// the nesting is refused when the query is executed, never when it is built - a stored query of this shape
+			// has to stay readable
+			final OrderInScope constraint = assertDoesNotThrow(
+				() -> inScope(Scope.LIVE, inScope(Scope.ARCHIVED, attributeNatural("code", ASC)))
+			);
+
+			assertEquals(Scope.LIVE, constraint.getScope());
+			assertInstanceOf(OrderInScope.class, constraint.getOrdering()[0]);
+		}
+	}
 }

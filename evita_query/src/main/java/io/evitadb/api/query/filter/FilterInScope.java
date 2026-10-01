@@ -54,6 +54,14 @@ import java.io.Serializable;
  * The scope specified in `inScope` must match one of the scopes declared in the query's {@link EntityScope} constraint. Using `inScope(LIVE, ...)`
  * in a query that only searches `scope(ARCHIVED)` will result in a validation error, as the filtering constraints would never be applied.
  *
+ * An `inScope` container must not be nested in another one within the same evaluation context: `inScope(LIVE, inScope(ARCHIVED, ...))`
+ * would apply the inner constraints only when LIVE and ARCHIVED entities were searched at once, which never happens, and
+ * `inScope(LIVE, inScope(LIVE, ...))` is redundant. A query containing either is rejected with
+ * {@link io.evitadb.exception.EvitaInvalidUsageException} when it is executed (see
+ * {@link io.evitadb.api.query.QueryUtils#assertNoNestedScopeContainers(io.evitadb.api.query.Query)}). An `inScope` placed inside
+ * a container that filters another entity (`entityHaving`, `groupHaving`, `hierarchyWithin`, ...) restricts the scope of that entity and is
+ * not nested in this sense; one placed in the body of `referenceHaving` restricts the owner's references and is.
+ *
  * ## Multi-Scope Query Behavior
  *
  * When querying multiple scopes with `scope(LIVE, ARCHIVED)`:

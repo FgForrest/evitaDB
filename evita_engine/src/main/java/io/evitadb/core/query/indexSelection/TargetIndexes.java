@@ -275,9 +275,31 @@ public class TargetIndexes<T extends Index<?>> {
 		 * It is also raised from the candidate count alone, without summing anything - the count is a lower bound
 		 * on that sum, so a count already over the limit settles the question. The converse does not hold: when a
 		 * reference is rejected on its schema the sum is never computed, so this obstacle appears next to
-		 * {@link #NOT_PARTITIONED_INDEX} only where the count alone decided it.
+		 * {@link #NOT_PARTITIONED_INDEX} or {@link #PARTIAL_SCOPE_COVERAGE} only where the count alone decided it.
 		 */
-		HIGH_CARDINALITY
+		HIGH_CARDINALITY,
+		/**
+		 * Indicates that the index set was built for fewer scopes than the query requests - the constraint it
+		 * represents sits in an `inScope(...)` container of a query over several scopes, and only the partitions of
+		 * the container's scope were collected.
+		 *
+		 * Unlike the two obstacles above this one is about **correctness**, not cost. The disjunction of the set's
+		 * indexes is the answer of the container's branch, not of the query (the contract on {@link TargetIndexes}
+		 * no longer holds): the indexes hold no entity of the other queried scopes, so a plan built on them would
+		 * answer every constraint outside the container - locale, attributes, prices, facets, negation - from the
+		 * narrowed scope alone, and the other scopes' entities would be lost.
+		 *
+		 * The set still stays registered, because the translator of the represented constraint looks it up by
+		 * constraint identity to evaluate the container's branch, which it answers correctly. It must never be
+		 * registered **empty**, though: {@code IndexSelectionResult#isEmpty()} reads any empty candidate as "the
+		 * whole query matches nothing" regardless of its eligibility, while an empty narrowed set says nothing about
+		 * the other scopes - so index selection skips it instead.
+		 *
+		 * Eligibility governs the choice of the plan only. Ordering still consults registered candidates without
+		 * looking at their obstacles (`ReferencePropertyTranslator#selectReducedEntityIndexSet`), so a narrowed set
+		 * keeps feeding reference ordering exactly as before it was marked.
+		 */
+		PARTIAL_SCOPE_COVERAGE
 
 	}
 

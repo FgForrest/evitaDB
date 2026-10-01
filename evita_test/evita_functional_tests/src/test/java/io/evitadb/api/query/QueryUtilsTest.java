@@ -25,9 +25,13 @@ package io.evitadb.api.query;
 
 import io.evitadb.api.query.filter.AttributeEquals;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.FilterInScope;
 import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.query.order.AttributeNatural;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.Page;
+import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -339,6 +343,305 @@ class QueryUtilsTest {
 		@DisplayName("should return true for array vs non-array")
 		void shouldReturnTrueForArrayVsNonArray() {
 			assertTrue(QueryUtils.valueDiffers(new String[]{"a"}, "a"));
+		}
+	}
+
+	@Nested
+	@DisplayName("Assert no nested scope containers")
+	class AssertNoNestedScopeContainersTest {
+
+		@Test
+		@DisplayName("should reject filter inScope of the other scope nested directly")
+		void shouldRejectFilterInScopeOfOtherScopeNestedDirectly() {
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> QueryUtils.assertNoNestedScopeContainers(
+					query(
+						collection("product"),
+						filterBy(inScope(Scope.LIVE, inScope(Scope.ARCHIVED, attributeEquals("code", "a"))))
+					)
+				)
+			);
+
+			assertTrue(exception.getMessage().contains("contradictory"), exception.getMessage());
+			assertTrue(exception.getMessage().contains("`LIVE`"), exception.getMessage());
+			assertTrue(exception.getMessage().contains("`ARCHIVED`"), exception.getMessage());
+		}
+
+		@Test
+		@DisplayName("should reject filter inScope of the same scope nested directly")
+		void shouldRejectFilterInScopeOfSameScopeNestedDirectly() {
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> QueryUtils.assertNoNestedScopeContainers(
+					query(
+						collection("product"),
+						filterBy(inScope(Scope.ARCHIVED, inScope(Scope.ARCHIVED, attributeEquals("code", "a"))))
+					)
+				)
+			);
+
+			assertTrue(exception.getMessage().contains("redundant"), exception.getMessage());
+		}
+
+		@Test
+		@DisplayName("should reject filter inScope nested deeper in logical containers")
+		void shouldRejectFilterInScopeNestedDeeperInLogicalContainers() {
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> QueryUtils.assertNoNestedScopeContainers(
+					query(
+						collection("product"),
+						filterBy(
+							inScope(
+								Scope.LIVE,
+								entityPrimaryKeyInSet(1),
+								and(not(inScope(Scope.ARCHIVED, attributeEquals("code", "a"))))
+							)
+						)
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should reject filter inScope nested in the body of referenceHaving")
+		void shouldRejectFilterInScopeNestedInReferenceHavingBody() {
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> QueryUtils.assertNoNestedScopeContainers(
+					query(
+						collection("product"),
+						filterBy(
+							inScope(
+								Scope.LIVE,
+								referenceHaving("brand", inScope(Scope.ARCHIVED, attributeEquals("order", 1)))
+							)
+						)
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should reject nesting introduced by copying a container with new children")
+		void shouldRejectNestingIntroducedByCopyingContainerWithNewChildren() {
+			final FilterInScope valid = inScope(Scope.LIVE, attributeEquals("code", "a"));
+			final FilterConstraint copy = valid.getCopyWithNewChildren(
+				new FilterConstraint[]{inScope(Scope.ARCHIVED, attributeEquals("code", "a"))},
+				new Constraint<?>[0]
+			);
+
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> QueryUtils.assertNoNestedScopeContainers(query(collection("product"), filterBy(copy)))
+			);
+		}
+
+		@Test
+		@DisplayName("should reject filter nesting within the referenced entity's own context")
+		void shouldRejectFilterNestingWithinReferencedEntityContext() {
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> QueryUtils.assertNoNestedScopeContainers(
+					query(
+						collection("product"),
+						filterBy(
+							referenceHaving(
+								"brand",
+								entityHaving(
+									inScope(Scope.LIVE, inScope(Scope.ARCHIVED, attributeEquals("code", "a")))
+								)
+							)
+						)
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should reject filter nesting inside a requirement")
+		void shouldRejectFilterNestingInsideRequirement() {
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> QueryUtils.assertNoNestedScopeContainers(
+					query(
+						collection("product"),
+						require(
+							entityFetch(
+								referenceContent(
+									"brand",
+									filterBy(
+										inScope(Scope.LIVE, inScope(Scope.ARCHIVED, attributeEquals("order", 1)))
+									)
+								)
+							)
+						)
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should accept filter inScope restricting another entity inside an inScope")
+		void shouldAcceptFilterInScopeRestrictingAnotherEntityInsideInScope() {
+			assertDoesNotThrow(
+				() -> QueryUtils.assertNoNestedScopeContainers(
+					query(
+						collection("product"),
+						filterBy(
+							inScope(
+								Scope.LIVE,
+								referenceHaving(
+									"brand", entityHaving(inScope(Scope.ARCHIVED, attributeEquals("code", "a")))
+								),
+								hierarchyWithin("categories", inScope(Scope.ARCHIVED, attributeEquals("code", "a")))
+							)
+						)
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should accept inScope containers side by side")
+		void shouldAcceptInScopeContainersSideBySide() {
+			assertDoesNotThrow(
+				() -> QueryUtils.assertNoNestedScopeContainers(
+					query(
+						collection("product"),
+						filterBy(
+							inScope(Scope.LIVE, attributeEquals("code", "a")),
+							inScope(Scope.ARCHIVED, attributeEquals("code", "b"))
+						),
+						orderBy(
+							inScope(Scope.LIVE, attributeNatural("code", OrderDirection.ASC)),
+							inScope(Scope.ARCHIVED, attributeNatural("code", OrderDirection.DESC))
+						),
+						require(
+							inScope(Scope.LIVE, facetSummary()),
+							inScope(Scope.ARCHIVED, attributeHistogram(10, "code"))
+						)
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should accept a query without any section")
+		void shouldAcceptQueryWithoutAnySection() {
+			assertDoesNotThrow(() -> QueryUtils.assertNoNestedScopeContainers(query(collection("product"))));
+		}
+
+		@Test
+		@DisplayName("should reject order inScope of the other scope nested directly")
+		void shouldRejectOrderInScopeOfOtherScopeNestedDirectly() {
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> QueryUtils.assertNoNestedScopeContainers(
+					query(
+						collection("product"),
+						orderBy(inScope(Scope.LIVE, inScope(Scope.ARCHIVED, attributeNatural("code", OrderDirection.ASC))))
+					)
+				)
+			);
+
+			assertTrue(exception.getMessage().contains("contradictory"), exception.getMessage());
+		}
+
+		@Test
+		@DisplayName("should reject order inScope of the same scope nested directly")
+		void shouldRejectOrderInScopeOfSameScopeNestedDirectly() {
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> QueryUtils.assertNoNestedScopeContainers(
+					query(
+						collection("product"),
+						orderBy(inScope(Scope.LIVE, inScope(Scope.LIVE, attributeNatural("code", OrderDirection.ASC))))
+					)
+				)
+			);
+
+			assertTrue(exception.getMessage().contains("redundant"), exception.getMessage());
+		}
+
+		@Test
+		@DisplayName("should reject order inScope nested in the body of referenceProperty")
+		void shouldRejectOrderInScopeNestedInReferencePropertyBody() {
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> QueryUtils.assertNoNestedScopeContainers(
+					query(
+						collection("product"),
+						orderBy(
+							inScope(
+								Scope.LIVE,
+								referenceProperty(
+									"brand", inScope(Scope.ARCHIVED, attributeNatural("order", OrderDirection.ASC))
+								)
+							)
+						)
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should accept order inScope ordering by the referenced entity's own properties")
+		void shouldAcceptOrderInScopeOrderingByReferencedEntityProperties() {
+			assertDoesNotThrow(
+				() -> QueryUtils.assertNoNestedScopeContainers(
+					query(
+						collection("product"),
+						orderBy(
+							inScope(
+								Scope.LIVE,
+								referenceProperty(
+									"brand",
+									pickFirstByEntityProperty(
+										inScope(Scope.ARCHIVED, attributeNatural("code", OrderDirection.ASC))
+									),
+									entityProperty(
+										inScope(Scope.ARCHIVED, attributeNatural("name", OrderDirection.DESC))
+									)
+								)
+							)
+						)
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should reject require inScope of the other scope nested directly")
+		void shouldRejectRequireInScopeOfOtherScopeNestedDirectly() {
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> QueryUtils.assertNoNestedScopeContainers(
+					query(
+						collection("product"),
+						require(inScope(Scope.LIVE, inScope(Scope.ARCHIVED, facetSummary())))
+					)
+				)
+			);
+
+			assertTrue(exception.getMessage().contains("contradictory"), exception.getMessage());
+		}
+
+		@Test
+		@DisplayName("should reject require inScope of the same scope nested directly")
+		void shouldRejectRequireInScopeOfSameScopeNestedDirectly() {
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> QueryUtils.assertNoNestedScopeContainers(
+					query(
+						collection("product"),
+						require(inScope(Scope.ARCHIVED, inScope(Scope.ARCHIVED, facetSummary())))
+					)
+				)
+			);
+
+			assertTrue(exception.getMessage().contains("redundant"), exception.getMessage());
 		}
 	}
 }

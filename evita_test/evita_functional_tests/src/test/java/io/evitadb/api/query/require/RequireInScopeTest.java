@@ -230,4 +230,21 @@ class RequireInScopeTest {
 		}
 	}
 
+	@Nested
+	@DisplayName("Nesting")
+	class NestingTest {
+
+		@Test
+		@DisplayName("should accept inScope nested in another inScope at construction")
+		void shouldAcceptInScopeNestedInAnotherInScopeAtConstruction() {
+			// the nesting is refused when the query is executed, never when it is built - a stored query of this shape
+			// has to stay readable
+			final RequireInScope constraint = assertDoesNotThrow(
+				() -> inScope(Scope.LIVE, inScope(Scope.ARCHIVED, facetSummary()))
+			);
+
+			assertEquals(Scope.LIVE, constraint.getScope());
+			assertInstanceOf(RequireInScope.class, constraint.getRequire()[0]);
+		}
+	}
 }
