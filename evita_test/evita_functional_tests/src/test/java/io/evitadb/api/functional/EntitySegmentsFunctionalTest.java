@@ -733,22 +733,45 @@ public class EntitySegmentsFunctionalTest {
 		);
 	}
 
-	@DisplayName("A price order leaves out an entity the filter selects without a selling price")
+	@DisplayName("A price order passes on an entity the filter selects without a selling price")
 	@UseDataSet(SEGMENT_PRODUCTS)
-	@Test
-	void shouldLeaveEntitySelectedWithoutSellingPriceOutOfPriceSegment(EvitaSessionContract session) {
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(SortRoute.class)
+	void shouldPassOnEntitySelectedWithoutSellingPrice(SortRoute route, EvitaSessionContract session) {
 		// the price filter selects live products 2 (200), 3 (100) and 4 (150), the other branch of `or` adds
-		// product 6, which has no selling price at all - the prefetched comparator must leave it to the next segment;
-		// the prefetch route only: the index route fails on a selection with entities without price records, a
-		// defect of the filtered prices sorter that is not specific to segments
-		assertOrder(
-			new int[]{3, 4, 2, 6},
-			querySegments(
-				session, SortRoute.PREFETCH,
-				or(and(priceInPriceLists(PRICE_LIST_BASIC), priceInCurrency(EUR)), entityPrimaryKeyInSet(6)),
-				segment(orderBy(priceNatural(OrderDirection.ASC)))
+		// product 6, which has no selling price at all, so the price order passes it on - to the next sorter, the next
+		// segment or the default ascending primary key order; product 3 has no `reference` price, so no discount
+		final FilterConstraint priceOrProduct6 = or(
+			and(priceInPriceLists(PRICE_LIST_BASIC), priceInCurrency(EUR)), entityPrimaryKeyInSet(6)
+		);
+		assertAll(
+			() -> assertOrder(
+				new int[]{3, 4, 2, 6},
+				queryOrder(
+					session, route, priceOrProduct6,
+					priceNatural(OrderDirection.ASC), entityPrimaryKeyNatural(OrderDirection.DESC)
+				),
+				"natural price"
 			),
-			"product without a selling price"
+			() -> assertOrder(
+				new int[]{3, 4, 2, 6},
+				queryOrder(session, route, priceOrProduct6, priceNatural(OrderDirection.ASC)),
+				"natural price, then the default order"
+			),
+			() -> assertOrder(
+				new int[]{2, 4, 6, 3},
+				queryOrder(
+					session, route, priceOrProduct6,
+					priceDiscount(OrderDirection.ASC, PRICE_LIST_REFERENCE),
+					entityPrimaryKeyNatural(OrderDirection.DESC)
+				),
+				"discount"
+			),
+			() -> assertOrder(
+				new int[]{3, 4, 2, 6},
+				querySegments(session, route, priceOrProduct6, segment(orderBy(priceNatural(OrderDirection.ASC)))),
+				"segment ordered by natural price"
+			)
 		);
 	}
 
