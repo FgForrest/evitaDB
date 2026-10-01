@@ -99,6 +99,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
@@ -622,6 +623,142 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 			assertEquals(1, retirement.stream().filter(VirtualReferencePartitionRootRemoval.class::isInstance).count());
 			persist(retirement);
 			assertTrue(reloadThroughLoader().isEmpty());
+		}
+	}
+
+	@Nested
+	@DisplayName("Chain predecessor slots")
+	class ChainPredecessorSlots {
+		private static final AttributeIndexKey CHAIN = VirtualReferencePartitionIndexChainPredecessorTest.CHAIN;
+		private static final AttributeIndexKey LOCALIZED_CHAIN =
+			VirtualReferencePartitionIndexChainPredecessorTest.LOCALIZED_CHAIN;
+		/**
+		 * Owners and rows per owner of the large fixture - 29,280 single-owner partitions, the size of the largest
+		 * chained reference in the census.
+		 */
+		private static final int OWNERS = 120;
+		private static final int ROWS_PER_OWNER = 244;
+		private static final int PARTITIONS = OWNERS * ROWS_PER_OWNER;
+
+		@Test
+		@DisplayName("chains reload exactly - every chained partition with its predecessor, every other one unchained")
+		void shouldReloadChainsExactly() {
+			final VirtualReferencePartitionIndex live = VirtualReferencePartitionIndexChainPredecessorTest.declaredIndex();
+			final Map<AttributeIndexKey, Map<Integer, Integer>> models =
+				VirtualReferencePartitionIndexChainPredecessorTest.populate(live, OWNERS, ROWS_PER_OWNER);
+			final VirtualReferencePartitionIndexStoragePart root = singleRoot(flushAndPersist(live));
+			assertTrue(root.isPaged());
+			assertEquals(2, root.getChainPredecessorSlots().length);
+
+			final VirtualReferencePartitionIndex reloaded = reloadThroughLoader();
+			VirtualReferencePartitionIndexChainPredecessorTest.assertMatchesModels(reloaded, models, PARTITIONS);
+			assertEquals(
+				VirtualReferencePartitionIndexTest.contentOf(live), VirtualReferencePartitionIndexTest.contentOf(reloaded)
+			);
+			assertTrue(flush(reloaded).isEmpty(), "A freshly reloaded index is clean and emits nothing");
+
+			// the reloaded index goes on from where it stopped
+			VirtualReferencePartitionIndexChainPredecessorTest.churn(reloaded, models, new Random(29), 3_000, PARTITIONS);
+			flushAndPersist(reloaded);
+			VirtualReferencePartitionIndexChainPredecessorTest.assertMatchesModels(
+				reloadThroughLoader(), models, PARTITIONS
+			);
+		}
+
+		@Test
+		@DisplayName("one chained attribute of the census size pages out into a bounded number of leaves")
+		void shouldPageOutOneChainIntoBoundedLeaves() {
+			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
+			index.declareChainKey(CHAIN);
+			// 29,272 chained partitions - the parameter values of the production retail corpus
+			for (int partition = 1; partition <= 29_272; partition++) {
+				index.putChainPredecessor(CHAIN, partition, partition - 1);
+			}
+			final List<StoragePart> emission = flushAndPersist(index);
+			final long leaves = countLeafPages(emission);
+			assertTrue(leaves >= 115 && leaves <= 230, "Expected 115-230 leaves, got " + leaves);
+			assertEquals(OptionalInt.of(29_271), reloadThroughLoader().getChainPredecessor(CHAIN, 29_272));
+		}
+
+		@Test
+		@Tag(TRANSACTION)
+		@DisplayName("chains reload exactly after transactional changes")
+		void shouldReloadChainsAfterTransactionalChurn() {
+			final VirtualReferencePartitionIndex initial = VirtualReferencePartitionIndexChainPredecessorTest.declaredIndex();
+			final Map<AttributeIndexKey, Map<Integer, Integer>> models =
+				VirtualReferencePartitionIndexChainPredecessorTest.populate(initial, 20, 100);
+			flushAndPersist(initial);
+
+			final VirtualReferencePartitionIndex[] current = {reloadThroughLoader()};
+			final Random random = new Random(1615);
+			for (int round = 0; round < 3; round++) {
+				assertStateAfterCommit(
+					current[0],
+					original -> {
+						VirtualReferencePartitionIndexChainPredecessorTest.churn(original, models, random, 800, 2_000);
+						// the flush runs inside the transaction, before the commit merges it - as the catalog flushes
+						persist(flush(original));
+					},
+					(original, committed) -> current[0] = committed
+				);
+				VirtualReferencePartitionIndexChainPredecessorTest.assertMatchesModels(current[0], models, 2_000);
+				VirtualReferencePartitionIndexChainPredecessorTest.assertMatchesModels(
+					reloadThroughLoader(), models, 2_000
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("a predecessor change rewrites one leaf, a newly declared chain key the root as well")
+		void shouldBoundTheWriteOfAPredecessorChange() {
+			final VirtualReferencePartitionIndex source = VirtualReferencePartitionIndexChainPredecessorTest.declaredIndex();
+			VirtualReferencePartitionIndexChainPredecessorTest.populate(source, 20, 100);
+			final VirtualReferencePartitionIndexStoragePart persistedRoot = singleRoot(flushAndPersist(source));
+			final VirtualReferencePartitionIndex reloaded = reloadThroughLoader();
+
+			reloaded.putChainPredecessor(CHAIN, 1_000, 424_242);
+			final List<StoragePart> predecessorChange = flush(reloaded);
+			reloaded.resetDirty();
+			assertEquals(1, countLeafPages(predecessorChange), "One changed entry rewrites one leaf: " + predecessorChange);
+			assertEquals(0, countRoots(predecessorChange), "A changed predecessor keeps the root: " + predecessorChange);
+
+			reloaded.declareChainKey(new AttributeIndexKey(REFERENCE_NAME, "fresh", null));
+			final List<StoragePart> declaration = flush(reloaded);
+			reloaded.resetDirty();
+			assertEquals(0, countLeafPages(declaration));
+			assertEquals(3, singleRoot(declaration).getChainPredecessorSlots().length);
+			assertArrayEquals(persistedRoot.getLeafPageSequences(), singleRoot(declaration).getLeafPageSequences());
+
+			persist(predecessorChange);
+			persist(declaration);
+			final VirtualReferencePartitionIndex reloadedAgain = reloadThroughLoader();
+			assertEquals(OptionalInt.of(424_242), reloadedAgain.getChainPredecessor(CHAIN, 1_000));
+			assertEquals(
+				OptionalInt.empty(),
+				reloadedAgain.getChainPredecessor(new AttributeIndexKey(REFERENCE_NAME, "fresh", null), 1_000)
+			);
+		}
+
+		@Test
+		@DisplayName("a retired chain key leaves no entry and no slot behind on disk")
+		void shouldLeaveNothingOfARetiredChainOnDisk() {
+			final VirtualReferencePartitionIndex live = VirtualReferencePartitionIndexChainPredecessorTest.declaredIndex();
+			final Map<AttributeIndexKey, Map<Integer, Integer>> models =
+				VirtualReferencePartitionIndexChainPredecessorTest.populate(live, 20, 100);
+			flushAndPersist(live);
+			final VirtualReferencePartitionIndex reloaded = reloadThroughLoader();
+
+			assertTrue(reloaded.retireChainKey(CHAIN));
+			final List<StoragePart> retirement = flush(reloaded);
+			reloaded.resetDirty();
+			assertEquals(1, singleRoot(retirement).getChainPredecessorSlots().length);
+			persist(retirement);
+
+			// the loader refuses entries of a slot the root does not declare, so a clean load proves the reclaim
+			final VirtualReferencePartitionIndex afterRetirement = reloadThroughLoader();
+			afterRetirement.declareChainKey(CHAIN);
+			models.remove(CHAIN);
+			VirtualReferencePartitionIndexChainPredecessorTest.assertMatchesModels(afterRetirement, models, 2_000);
 		}
 	}
 

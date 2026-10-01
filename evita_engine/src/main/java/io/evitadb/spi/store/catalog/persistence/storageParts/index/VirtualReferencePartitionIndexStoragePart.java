@@ -40,7 +40,7 @@ import java.io.Serializable;
 
 /**
  * Persists the root of a {@link io.evitadb.index.VirtualReferencePartitionIndex}: its slot-keyed entries, its
- * representative tuple dictionary and its sort value slots.
+ * representative tuple dictionary, its sort value slots and its chain predecessor slots.
  *
  * The entries are carried in one of two shapes. A registry that fits one bucket-tree leaf is written inline on this
  * root as positionally-aligned `(keys, payloads)` columns (the SINGLE shape). A larger one is paged out as individual
@@ -56,11 +56,14 @@ import java.io.Serializable;
  * hold each value is read off the slot's entries on load - so a partition switching between existing values never
  * rewrites this root either.
  *
+ * Each chain predecessor slot rides inline as one {@link ChainPredecessorSlot} - only the chained attribute the slot was
+ * declared for, because the predecessors themselves are the payloads of the slot's entries.
+ *
  * The primary key is `pack(entityIndexPrimaryKey, id(ReferenceNameKey))` - the same number the reference-type
  * cardinality root of the same entity index carries, which cannot collide with it, because the offset index keys
  * every record by its record type as well.
  *
- * Only an index holding at least one entry or one declared sort key is ever persisted: an empty one has no root at
+ * Only an index holding at least one entry or one declared sort or chain key is ever persisted: an empty one has no root at
  * all, and the loader reads an absent root as an empty index.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -111,6 +114,10 @@ public class VirtualReferencePartitionIndexStoragePart implements StoragePart, R
 	 */
 	@Nonnull @Getter private final SortValueSlot[] sortValueSlots;
 	/**
+	 * The declared chain keys, in ascending slot id order.
+	 */
+	@Nonnull @Getter private final ChainPredecessorSlot[] chainPredecessorSlots;
+	/**
 	 * Id used for lookups in file offset index for this particular container.
 	 */
 	@Nullable @Getter @Setter private Long storagePartPK;
@@ -129,6 +136,7 @@ public class VirtualReferencePartitionIndexStoragePart implements StoragePart, R
 		@Nonnull int[] tupleIds,
 		@Nonnull Serializable[][] tuples,
 		@Nonnull SortValueSlot[] sortValueSlots,
+		@Nonnull ChainPredecessorSlot[] chainPredecessorSlots,
 		@Nullable Long storagePartPK
 	) {
 		Assert.isPremiseValid(
@@ -144,6 +152,7 @@ public class VirtualReferencePartitionIndexStoragePart implements StoragePart, R
 		this.tupleIds = tupleIds;
 		this.tuples = tuples;
 		this.sortValueSlots = sortValueSlots;
+		this.chainPredecessorSlots = chainPredecessorSlots;
 		this.storagePartPK = storagePartPK;
 	}
 
@@ -157,6 +166,7 @@ public class VirtualReferencePartitionIndexStoragePart implements StoragePart, R
 	 * @param tupleIds              the dictionary tuple ids in ascending order
 	 * @param tuples                the dictionary tuples, aligned with `tupleIds`
 	 * @param sortValueSlots        the declared sort keys with their value dictionaries, in ascending slot id order
+	 * @param chainPredecessorSlots the declared chain keys, in ascending slot id order
 	 * @param storagePartPK         the already-known primary key, or `null` on the write path
 	 * @return the SINGLE root storage part
 	 */
@@ -169,12 +179,13 @@ public class VirtualReferencePartitionIndexStoragePart implements StoragePart, R
 		@Nonnull int[] tupleIds,
 		@Nonnull Serializable[][] tuples,
 		@Nonnull SortValueSlot[] sortValueSlots,
+		@Nonnull ChainPredecessorSlot[] chainPredecessorSlots,
 		@Nullable Long storagePartPK
 	) {
 		Assert.isPremiseValid(keys.length == payloads.length, "Keys and payloads must be positionally aligned!");
 		return new VirtualReferencePartitionIndexStoragePart(
 			entityIndexPrimaryKey, referenceName, false, keys, payloads, 0, null, tupleIds, tuples, sortValueSlots,
-			storagePartPK
+			chainPredecessorSlots, storagePartPK
 		);
 	}
 
@@ -189,6 +200,7 @@ public class VirtualReferencePartitionIndexStoragePart implements StoragePart, R
 	 * @param tupleIds              the dictionary tuple ids in ascending order
 	 * @param tuples                the dictionary tuples, aligned with `tupleIds`
 	 * @param sortValueSlots        the declared sort keys with their value dictionaries, in ascending slot id order
+	 * @param chainPredecessorSlots the declared chain keys, in ascending slot id order
 	 * @param storagePartPK         the already-known primary key, or `null` on the write path
 	 * @return the PAGED root storage part
 	 */
@@ -201,11 +213,13 @@ public class VirtualReferencePartitionIndexStoragePart implements StoragePart, R
 		@Nonnull int[] tupleIds,
 		@Nonnull Serializable[][] tuples,
 		@Nonnull SortValueSlot[] sortValueSlots,
+		@Nonnull ChainPredecessorSlot[] chainPredecessorSlots,
 		@Nullable Long storagePartPK
 	) {
 		return new VirtualReferencePartitionIndexStoragePart(
 			entityIndexPrimaryKey, referenceName, true, null, null,
-			highWaterPageSequence, leafPageSequences, tupleIds, tuples, sortValueSlots, storagePartPK
+			highWaterPageSequence, leafPageSequences, tupleIds, tuples, sortValueSlots, chainPredecessorSlots,
+			storagePartPK
 		);
 	}
 
@@ -269,6 +283,20 @@ public class VirtualReferencePartitionIndexStoragePart implements StoragePart, R
 			);
 		}
 
+	}
+
+	/**
+	 * One declared chain key of the index as the root persists it: the slot its entries are keyed under and the chained
+	 * attribute (with its locale) the slot belongs to. The payload of every entry of the slot is the predecessor primary
+	 * key of the partition, and an entry exists exactly for the partitions the attribute chains.
+	 *
+	 * @param slotId            the id of the slot, the high half of every key of its entries
+	 * @param attributeIndexKey the chained attribute, with its locale
+	 */
+	public record ChainPredecessorSlot(
+		int slotId,
+		@Nonnull AttributeIndexKey attributeIndexKey
+	) implements Serializable {
 	}
 
 }

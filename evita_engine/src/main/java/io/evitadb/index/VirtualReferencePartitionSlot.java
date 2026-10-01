@@ -32,8 +32,9 @@ package io.evitadb.index;
  * from the declaration order: reordering or inserting constants must not re-point the entries already on disk.
  *
  * The constants name the slots every index has. Slots the index declares at runtime - one per sort key, holding the
- * sort value of each partition - take ids from {@link #FIRST_DECLARED_SLOT_ID} up, so the ids below it stay reserved
- * for constants and a constant added later can never collide with a declared slot already on disk.
+ * sort value of each partition, and one per chained attribute, holding the predecessor of each partition - take ids
+ * from {@link #FIRST_DECLARED_SLOT_ID} up, so the ids below it stay reserved for constants and a constant added later
+ * can never collide with a declared slot already on disk.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

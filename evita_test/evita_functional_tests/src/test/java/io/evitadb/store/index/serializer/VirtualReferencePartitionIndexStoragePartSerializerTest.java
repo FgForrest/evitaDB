@@ -36,6 +36,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWrit
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceNameKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart.ChainPredecessorSlot;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart.SortValueSlot;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
@@ -56,6 +57,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.Currency;
+import java.util.List;
 import java.util.Locale;
 
 import static io.evitadb.test.TestTags.REFERENCE;
@@ -84,6 +86,7 @@ class VirtualReferencePartitionIndexStoragePartSerializerTest {
 	private static final String REFERENCE_NAME = "media";
 	private static final int[] TUPLE_IDS = {1, 2, 9};
 	private static final SortValueSlot[] NO_SORT_VALUE_SLOTS = new SortValueSlot[0];
+	private static final ChainPredecessorSlot[] NO_CHAIN_SLOTS = new ChainPredecessorSlot[0];
 	private static final Serializable[][] TUPLES = {
 		{"gallery"},
 		{"video", 7, new BigDecimal("1.50"), null},
@@ -166,7 +169,7 @@ class VirtualReferencePartitionIndexStoragePartSerializerTest {
 			payloads[i] = 9L;
 
 			final VirtualReferencePartitionIndexStoragePart part = VirtualReferencePartitionIndexStoragePart.single(
-				ENTITY_INDEX_PK, REFERENCE_NAME, keys, payloads, TUPLE_IDS, TUPLES, NO_SORT_VALUE_SLOTS, null
+				ENTITY_INDEX_PK, REFERENCE_NAME, keys, payloads, TUPLE_IDS, TUPLES, NO_SORT_VALUE_SLOTS, NO_CHAIN_SLOTS, null
 			);
 			final VirtualReferencePartitionIndexStoragePart deserialized = roundTrip(part);
 
@@ -185,7 +188,7 @@ class VirtualReferencePartitionIndexStoragePartSerializerTest {
 		void shouldRoundTripEmptyDictionary() {
 			final VirtualReferencePartitionIndexStoragePart part = VirtualReferencePartitionIndexStoragePart.single(
 				ENTITY_INDEX_PK, REFERENCE_NAME, new long[]{NumberUtils.pack(0, 1)}, new long[]{NumberUtils.pack(5, 6)},
-				new int[0], new Serializable[0][], NO_SORT_VALUE_SLOTS, null
+				new int[0], new Serializable[0][], NO_SORT_VALUE_SLOTS, NO_CHAIN_SLOTS, null
 			);
 			final VirtualReferencePartitionIndexStoragePart deserialized = roundTrip(part);
 			assertEquals(0, deserialized.getTupleIds().length);
@@ -202,7 +205,7 @@ class VirtualReferencePartitionIndexStoragePartSerializerTest {
 		void shouldRoundTripPagedRoot() {
 			final int[] leafPageSequences = {0, 3, 4, 17};
 			final VirtualReferencePartitionIndexStoragePart part = VirtualReferencePartitionIndexStoragePart.paged(
-				ENTITY_INDEX_PK, REFERENCE_NAME, 17, leafPageSequences, TUPLE_IDS, TUPLES, NO_SORT_VALUE_SLOTS, null
+				ENTITY_INDEX_PK, REFERENCE_NAME, 17, leafPageSequences, TUPLE_IDS, TUPLES, NO_SORT_VALUE_SLOTS, NO_CHAIN_SLOTS, null
 			);
 			final VirtualReferencePartitionIndexStoragePart deserialized = roundTrip(part);
 
@@ -224,7 +227,7 @@ class VirtualReferencePartitionIndexStoragePartSerializerTest {
 		void shouldPackEntityIndexAndReferenceName() {
 			final VirtualReferencePartitionIndexStoragePart part = VirtualReferencePartitionIndexStoragePart.single(
 				ENTITY_INDEX_PK, REFERENCE_NAME, new long[0], new long[0], new int[0], new Serializable[0][],
-				NO_SORT_VALUE_SLOTS, null
+				NO_SORT_VALUE_SLOTS, NO_CHAIN_SLOTS, null
 			);
 			final long primaryKey = part.computeUniquePartIdAndSet(
 				VirtualReferencePartitionIndexStoragePartSerializerTest.this.keyCompressor
@@ -239,7 +242,7 @@ class VirtualReferencePartitionIndexStoragePartSerializerTest {
 		@DisplayName("round-trips through the registered index Kryo")
 		void shouldRoundTripViaRegisteredKryo() {
 			final VirtualReferencePartitionIndexStoragePart part = VirtualReferencePartitionIndexStoragePart.paged(
-				ENTITY_INDEX_PK, REFERENCE_NAME, 2, new int[]{1, 2}, TUPLE_IDS, TUPLES, NO_SORT_VALUE_SLOTS, null
+				ENTITY_INDEX_PK, REFERENCE_NAME, 2, new int[]{1, 2}, TUPLE_IDS, TUPLES, NO_SORT_VALUE_SLOTS, NO_CHAIN_SLOTS, null
 			);
 			final Kryo theKryo = VirtualReferencePartitionIndexStoragePartSerializerTest.this.kryo;
 			final ByteArrayOutputStream os = new ByteArrayOutputStream(4_096);
@@ -341,7 +344,7 @@ class VirtualReferencePartitionIndexStoragePartSerializerTest {
 			final SortValueSlot[] slots = sortValueSlots();
 			final VirtualReferencePartitionIndexStoragePart part = VirtualReferencePartitionIndexStoragePart.single(
 				ENTITY_INDEX_PK, REFERENCE_NAME, new long[]{NumberUtils.pack(16, 1)}, new long[]{1L},
-				TUPLE_IDS, TUPLES, slots, null
+				TUPLE_IDS, TUPLES, slots, NO_CHAIN_SLOTS, null
 			);
 			final VirtualReferencePartitionIndexStoragePart deserialized = roundTrip(part);
 			assertSameSortValueSlots(slots, deserialized.getSortValueSlots());
@@ -354,7 +357,8 @@ class VirtualReferencePartitionIndexStoragePartSerializerTest {
 		void shouldRoundTripSortValueSlotsOnPagedRoot() {
 			final SortValueSlot[] slots = sortValueSlots();
 			final VirtualReferencePartitionIndexStoragePart part = VirtualReferencePartitionIndexStoragePart.paged(
-				ENTITY_INDEX_PK, REFERENCE_NAME, 3, new int[]{1, 3}, new int[0], new Serializable[0][], slots, null
+				ENTITY_INDEX_PK, REFERENCE_NAME, 3, new int[]{1, 3}, new int[0], new Serializable[0][], slots,
+				NO_CHAIN_SLOTS, null
 			);
 			final VirtualReferencePartitionIndexStoragePart deserialized = roundTrip(part);
 			assertTrue(deserialized.isPaged());
@@ -366,9 +370,38 @@ class VirtualReferencePartitionIndexStoragePartSerializerTest {
 		@DisplayName("round-trip a root without any sort value slot")
 		void shouldRoundTripRootWithoutSortValueSlots() {
 			final VirtualReferencePartitionIndexStoragePart part = VirtualReferencePartitionIndexStoragePart.single(
-				ENTITY_INDEX_PK, REFERENCE_NAME, new long[0], new long[0], TUPLE_IDS, TUPLES, NO_SORT_VALUE_SLOTS, null
+				ENTITY_INDEX_PK, REFERENCE_NAME, new long[0], new long[0], TUPLE_IDS, TUPLES, NO_SORT_VALUE_SLOTS, NO_CHAIN_SLOTS, null
 			);
 			assertEquals(0, roundTrip(part).getSortValueSlots().length);
+		}
+	}
+
+	@Nested
+	@DisplayName("Chain predecessor slots")
+	class ChainPredecessorSlots {
+
+		@Test
+		@DisplayName("round-trip next to sort value slots on both shapes")
+		void shouldRoundTripChainPredecessorSlots() {
+			final ChainPredecessorSlot[] chainSlots = {
+				new ChainPredecessorSlot(23, new AttributeIndexKey(REFERENCE_NAME, "order", null)),
+				new ChainPredecessorSlot(30, new AttributeIndexKey(REFERENCE_NAME, "order", Locale.forLanguageTag("cs")))
+			};
+			final SortValueSlot[] sortSlots = sortValueSlots();
+			for (final VirtualReferencePartitionIndexStoragePart part : List.of(
+				VirtualReferencePartitionIndexStoragePart.single(
+					ENTITY_INDEX_PK, REFERENCE_NAME, new long[]{NumberUtils.pack(23, 1)}, new long[]{-1L},
+					TUPLE_IDS, TUPLES, sortSlots, chainSlots, null
+				),
+				VirtualReferencePartitionIndexStoragePart.paged(
+					ENTITY_INDEX_PK, REFERENCE_NAME, 3, new int[]{1, 3}, TUPLE_IDS, TUPLES, sortSlots, chainSlots, null
+				)
+			)) {
+				final VirtualReferencePartitionIndexStoragePart deserialized = roundTrip(part);
+				assertArrayEquals(chainSlots, deserialized.getChainPredecessorSlots());
+				assertSameSortValueSlots(sortSlots, deserialized.getSortValueSlots());
+				assertSameDictionary(part, deserialized);
+			}
 		}
 	}
 }

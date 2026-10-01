@@ -32,6 +32,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceNameKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart.ChainPredecessorSlot;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart.SortValueSlot;
 import io.evitadb.store.index.serializer.PagedStreamMetadataSerializer.PagedStreamMetadata;
 import lombok.RequiredArgsConstructor;
@@ -53,7 +54,8 @@ import static java.util.Optional.ofNullable;
  * id of its {@link AttributeIndexKey}, its comparator base and decimal places, and its value dictionary - each value id
  * as a positive varint followed by the value in the encoding a
  * {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart} uses for its distinct
- * values, so the element types of a compound travel with each element.
+ * values, so the element types of a compound travel with each element. The chain predecessor slots follow, in
+ * ascending slot id order, each as its slot id and the compressed id of its {@link AttributeIndexKey}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -116,6 +118,13 @@ public class VirtualReferencePartitionIndexStoragePartSerializer
 				SortIndexStoragePartSerializer.writeComparableValue(kryo, output, values[i], comparatorBase.length);
 			}
 		}
+
+		final ChainPredecessorSlot[] chainPredecessorSlots = storagePart.getChainPredecessorSlots();
+		output.writeVarInt(chainPredecessorSlots.length, true);
+		for (final ChainPredecessorSlot slot : chainPredecessorSlots) {
+			output.writeVarInt(slot.slotId(), true);
+			output.writeVarInt(this.keyCompressor.getId(slot.attributeIndexKey()), true);
+		}
 	}
 
 	@Override
@@ -168,14 +177,23 @@ public class VirtualReferencePartitionIndexStoragePartSerializer
 			);
 		}
 
+		final ChainPredecessorSlot[] chainPredecessorSlots = new ChainPredecessorSlot[input.readVarInt(true)];
+		for (int i = 0; i < chainPredecessorSlots.length; i++) {
+			final int slotId = input.readVarInt(true);
+			chainPredecessorSlots[i] = new ChainPredecessorSlot(
+				slotId, this.keyCompressor.getKeyForId(input.readVarInt(true))
+			);
+		}
+
 		return paged ?
 			VirtualReferencePartitionIndexStoragePart.paged(
 				entityIndexPrimaryKey, referenceNameKey.referenceName(),
-				highWaterPageSequence, leafPageSequences, tupleIds, tuples, sortValueSlots, uniquePartId
+				highWaterPageSequence, leafPageSequences, tupleIds, tuples, sortValueSlots, chainPredecessorSlots,
+				uniquePartId
 			) :
 			VirtualReferencePartitionIndexStoragePart.single(
 				entityIndexPrimaryKey, referenceNameKey.referenceName(),
-				entries[0], entries[1], tupleIds, tuples, sortValueSlots, uniquePartId
+				entries[0], entries[1], tupleIds, tuples, sortValueSlots, chainPredecessorSlots, uniquePartId
 			);
 	}
 

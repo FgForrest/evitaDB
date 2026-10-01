@@ -50,6 +50,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeInde
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart.ChainPredecessorSlot;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart.SortValueSlot;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionRootRemoval;
 import io.evitadb.utils.Assert;
@@ -69,6 +70,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
@@ -118,15 +120,24 @@ import java.util.function.UnaryOperator;
  * buckets out in the order of the sorted distinct values yields exactly the blocks of ascending record ids the sort
  * index holds. Only the distinct values are ever compared, and the pass allocates nothing per entry.
  *
+ * # Chain predecessor slots
+ *
+ * A partition can also take part in a chain - an attribute of the `Predecessor` or `ReferencedEntityPredecessor`
+ * type. Each chained attribute, with its locale, is declared once and gets a slot of its own from the same id range as
+ * the sort keys. The entry of a partition in that slot holds the primary key of its predecessor as the chain index
+ * receives it, and the entry exists exactly when the partition is chained: a partition without an entry has no chain,
+ * whatever else the index records about it.
+ *
  * # Persistence
  *
  * The tree is persisted granularly, exactly like {@link io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex}:
  * a tree of one leaf is written inline on the root part, a larger one as one
  * {@link VirtualReferencePartitionIndexLeafPagePart} per leaf, rewriting only the leaves a flush changed. The tuple
- * dictionary, the declared sort keys and their value dictionaries ride inline on the root, without their counts -
+ * dictionary, the declared sort and chain keys and the sort value dictionaries ride inline on the root, without their
+ * counts -
  * those are rebuilt from the entries on load. A PAGED root is therefore rewritten only when its leaf list or one of
  * its dictionaries changes, and a change of one partition's entry costs one leaf page. An index with no entry and no
- * declared sort key persists nothing at all and has no root on disk.
+ * declared sort or chain key persists nothing at all and has no root on disk.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -158,14 +169,19 @@ public class VirtualReferencePartitionIndex
 	 * so the sort index map holds no function of its own.
 	 */
 	private static final Function<SortIndex, OwnerSortIndex> TO_OWNER_SORT_INDEX = OwnerSortIndex.class::cast;
+	/**
+	 * Marks, during the load-time walk over the persisted entries, a run of entries that belongs to a chain predecessor
+	 * slot rather than to a sort value slot.
+	 */
+	private static final int CHAIN_SLOT_INDEX = -2;
 
 	/**
 	 * Whether anything changed since the last flush.
 	 */
 	@Nonnull private final TransactionalBoolean dirty;
 	/**
-	 * Whether a tuple or a sort value was added to or dropped from its dictionary, or a sort key was declared or
-	 * retired, since the last flush - which is what forces a PAGED root to be rewritten even when its leaf list did not
+	 * Whether a tuple or a sort value was added to or dropped from its dictionary, or a sort or chain key was declared
+	 * or retired, since the last flush - which is what forces a PAGED root to be rewritten even when its leaf list did not
 	 * change.
 	 */
 	@Nonnull private final TransactionalBoolean dictionaryDirty;
@@ -205,6 +221,10 @@ public class VirtualReferencePartitionIndex
 	 * The sort index of each declared sort key, holding the partition primary keys of the slot's entries.
 	 */
 	@Nonnull private final PersistentTransactionalProducerMap<AttributeIndexKey, OwnerSortIndex> sortIndexes;
+	/**
+	 * The declared chain keys - the chained attribute, with its locale, mapped to the id of its slot.
+	 */
+	@Nonnull private final PersistentTransactionalMap<AttributeIndexKey, Integer> chainKeys;
 
 	/**
 	 * Creates a fresh, empty entry tree ordered by natural `long` key order.
@@ -248,6 +268,7 @@ public class VirtualReferencePartitionIndex
 	 * @param tupleIds              the persisted dictionary tuple ids
 	 * @param tuples                the persisted dictionary tuples, aligned with `tupleIds`
 	 * @param sortValueSlots        the persisted sort value slots in ascending slot id order
+	 * @param chainPredecessorSlots the persisted chain predecessor slots in ascending slot id order
 	 * @return the rebuilt index
 	 */
 	@Nonnull
@@ -259,7 +280,8 @@ public class VirtualReferencePartitionIndex
 		int highWaterPageSequence,
 		@Nonnull int[] tupleIds,
 		@Nonnull Serializable[][] tuples,
-		@Nonnull SortValueSlot[] sortValueSlots
+		@Nonnull SortValueSlot[] sortValueSlots,
+		@Nonnull ChainPredecessorSlot[] chainPredecessorSlots
 	) {
 		Assert.isPremiseValid(
 			orderedPageSequences.length == perPageKeys.length && perPageKeys.length == perPagePayloads.length,
@@ -287,7 +309,8 @@ public class VirtualReferencePartitionIndex
 			ENTRY_PAGE_STREAM, highWaterPageSequence, tree.leafPageHandles()
 		);
 		return new VirtualReferencePartitionIndex(
-			tree, registry, tupleIds, tuples, sortValueSlots, perPageKeys, perPagePayloads, indexDescription
+			tree, registry, tupleIds, tuples, sortValueSlots, chainPredecessorSlots, perPageKeys, perPagePayloads,
+			indexDescription
 		);
 	}
 
@@ -305,6 +328,7 @@ public class VirtualReferencePartitionIndex
 		this.sortValueIds = new PersistentTransactionalMap<>(CollectionUtils.createHashMap(16));
 		this.sortValues = new PersistentTransactionalMap<>(CollectionUtils.createHashMap(16));
 		this.sortIndexes = createSortIndexMap(CollectionUtils.createHashMap(4));
+		this.chainKeys = new PersistentTransactionalMap<>(CollectionUtils.createHashMap(4));
 	}
 
 	/**
@@ -315,7 +339,8 @@ public class VirtualReferencePartitionIndex
 	 * @param payloads         the persisted entry payloads, aligned with `keys`
 	 * @param tupleIds         the persisted dictionary tuple ids
 	 * @param tuples           the persisted dictionary tuples, aligned with `tupleIds`
-	 * @param sortValueSlots   the persisted sort value slots in ascending slot id order
+	 * @param sortValueSlots        the persisted sort value slots in ascending slot id order
+	 * @param chainPredecessorSlots the persisted chain predecessor slots in ascending slot id order
 	 */
 	public VirtualReferencePartitionIndex(
 		@Nonnull String indexDescription,
@@ -323,10 +348,11 @@ public class VirtualReferencePartitionIndex
 		@Nonnull long[] payloads,
 		@Nonnull int[] tupleIds,
 		@Nonnull Serializable[][] tuples,
-		@Nonnull SortValueSlot[] sortValueSlots
+		@Nonnull SortValueSlot[] sortValueSlots,
+		@Nonnull ChainPredecessorSlot[] chainPredecessorSlots
 	) {
 		this(
-			seedTree(keys, payloads), new PageStreamRegistry(), tupleIds, tuples, sortValueSlots,
+			seedTree(keys, payloads), new PageStreamRegistry(), tupleIds, tuples, sortValueSlots, chainPredecessorSlots,
 			new long[][]{keys}, new long[][]{payloads}, indexDescription
 		);
 	}
@@ -334,13 +360,14 @@ public class VirtualReferencePartitionIndex
 	/**
 	 * Adopts a tree rebuilt from storage and rebuilds the dictionaries and the sort indexes around it - the persisted
 	 * tuples paired with the user counts read off the {@link VirtualReferencePartitionSlot#REPRESENTATIVE_TUPLE}
-	 * entries, and each sort value slot by {@link #rebuildSortKeys}.
+	 * entries, each sort value slot by {@link #rebuildSortKeys}, and the declared chain keys.
 	 *
 	 * @param tree               the rebuilt entry tree
 	 * @param pageStreamRegistry the page bookkeeping matching the tree
 	 * @param tupleIds           the persisted dictionary tuple ids
 	 * @param tuples             the persisted dictionary tuples, aligned with `tupleIds`
 	 * @param sortValueSlots     the persisted sort value slots in ascending slot id order
+	 * @param chainSlots         the persisted chain predecessor slots in ascending slot id order
 	 * @param keyColumns         the persisted entry keys the tree was built from, in ascending key order across the
 	 *                           columns
 	 * @param payloadColumns     the persisted entry payloads, aligned with `keyColumns`
@@ -352,6 +379,7 @@ public class VirtualReferencePartitionIndex
 		@Nonnull int[] tupleIds,
 		@Nonnull Serializable[][] tuples,
 		@Nonnull SortValueSlot[] sortValueSlots,
+		@Nonnull ChainPredecessorSlot[] chainSlots,
 		@Nonnull long[][] keyColumns,
 		@Nonnull long[][] payloadColumns,
 		@Nonnull String indexDescription
@@ -411,13 +439,28 @@ public class VirtualReferencePartitionIndex
 		this.tupleIds = new PersistentTransactionalMap<>(tupleIdIndex);
 		this.tuples = new PersistentTransactionalMap<>(tupleIndex);
 
+		final int[] chainSlotIds = new int[chainSlots.length];
+		final Map<AttributeIndexKey, Integer> chainKeyIndex = CollectionUtils.createHashMap(chainSlots.length);
+		for (int i = 0; i < chainSlots.length; i++) {
+			final int slotId = chainSlots[i].slotId();
+			if (slotId < VirtualReferencePartitionSlot.FIRST_DECLARED_SLOT_ID || (i > 0 && slotId <= chainSlotIds[i - 1])) {
+				throw new GenericEvitaInternalError(
+					"The chain predecessor slots of the virtual reference partition index for " + indexDescription +
+						" are not in ascending order of declared slot ids at slot " + slotId + "!"
+				);
+			}
+			chainSlotIds[i] = slotId;
+			chainKeyIndex.put(chainSlots[i].attributeIndexKey(), slotId);
+		}
+		this.chainKeys = new PersistentTransactionalMap<>(chainKeyIndex);
+
 		final Map<AttributeIndexKey, DeclaredSortKey> sortKeyIndex = CollectionUtils.createHashMap(sortValueSlots.length);
 		final Map<SortValueKey, Integer> sortValueIdIndex = CollectionUtils.createHashMap(16);
 		final Map<Long, SortValueEntry> sortValueIndex = CollectionUtils.createHashMap(16);
 		final Map<AttributeIndexKey, OwnerSortIndex> sortIndexIndex =
 			CollectionUtils.createHashMap(sortValueSlots.length);
 		rebuildSortKeys(
-			indexDescription, sortValueSlots, keyColumns, payloadColumns,
+			indexDescription, sortValueSlots, chainSlotIds, keyColumns, payloadColumns,
 			sortKeyIndex, sortValueIdIndex, sortValueIndex, sortIndexIndex
 		);
 		this.sortKeys = new PersistentTransactionalMap<>(sortKeyIndex);
@@ -437,6 +480,7 @@ public class VirtualReferencePartitionIndex
 	 * @param sortValueIds       the committed `(slot, value) -> id` map
 	 * @param sortValues         the committed `pack(slot, id) -> entry` map
 	 * @param sortIndexes        the committed sort indexes
+	 * @param chainKeys          the committed declared chain keys
 	 */
 	private VirtualReferencePartitionIndex(
 		@Nonnull LongPayloadBucketTree committedTree,
@@ -446,7 +490,8 @@ public class VirtualReferencePartitionIndex
 		@Nonnull Map<AttributeIndexKey, DeclaredSortKey> sortKeys,
 		@Nonnull Map<SortValueKey, Integer> sortValueIds,
 		@Nonnull Map<Long, SortValueEntry> sortValues,
-		@Nonnull Map<AttributeIndexKey, OwnerSortIndex> sortIndexes
+		@Nonnull Map<AttributeIndexKey, OwnerSortIndex> sortIndexes,
+		@Nonnull Map<AttributeIndexKey, Integer> chainKeys
 	) {
 		this.dirty = new TransactionalBoolean();
 		this.dictionaryDirty = new TransactionalBoolean();
@@ -458,6 +503,7 @@ public class VirtualReferencePartitionIndex
 		this.sortValueIds = new PersistentTransactionalMap<>(sortValueIds);
 		this.sortValues = new PersistentTransactionalMap<>(sortValues);
 		this.sortIndexes = createSortIndexMap(sortIndexes);
+		this.chainKeys = new PersistentTransactionalMap<>(chainKeys);
 	}
 
 	/**
@@ -506,12 +552,12 @@ public class VirtualReferencePartitionIndex
 	}
 
 	/**
-	 * Returns TRUE if the index holds no entry and no declared sort key.
+	 * Returns TRUE if the index holds no entry and no declared sort or chain key.
 	 *
 	 * @return TRUE if the index holds nothing
 	 */
 	public boolean isEmpty() {
-		return this.entries.size() == 0 && this.sortKeys.isEmpty();
+		return this.entries.size() == 0 && this.sortKeys.isEmpty() && this.chainKeys.isEmpty();
 	}
 
 	/**
@@ -659,6 +705,11 @@ public class VirtualReferencePartitionIndex
 		@Nonnull ComparatorSource[] comparatorBase,
 		int indexedDecimalPlaces
 	) {
+		if (this.chainKeys.containsKey(attributeIndexKey)) {
+			throw new GenericEvitaInternalError(
+				"Attribute `" + attributeIndexKey + "` is declared as a chain key, it cannot be a sort key too!"
+			);
+		}
 		final DeclaredSortKey declared = this.sortKeys.get(attributeIndexKey);
 		if (declared != null) {
 			if (!Arrays.equals(declared.comparatorBase(), comparatorBase) ||
@@ -672,13 +723,8 @@ public class VirtualReferencePartitionIndex
 			}
 			return;
 		}
-		// one above the largest slot in use: a slot id is reused only after its key was retired with all its entries
-		final int[] largestSlotId = {VirtualReferencePartitionSlot.FIRST_DECLARED_SLOT_ID - 1};
-		this.sortKeys.forEach(
-			(key, sortKey) -> largestSlotId[0] = Math.max(largestSlotId[0], sortKey.slotId())
-		);
 		final DeclaredSortKey sortKey = DeclaredSortKey.of(
-			largestSlotId[0] + 1, attributeIndexKey, Arrays.copyOf(comparatorBase, comparatorBase.length),
+			nextDeclaredSlotId(), attributeIndexKey, Arrays.copyOf(comparatorBase, comparatorBase.length),
 			indexedDecimalPlaces, 1
 		);
 		this.sortKeys.put(attributeIndexKey, sortKey);
@@ -700,14 +746,7 @@ public class VirtualReferencePartitionIndex
 			return false;
 		}
 		final int slotId = sortKey.slotId();
-		// collect first, the tree must not change under its own cursor
-		final CompositeLongArray slotKeys = new CompositeLongArray();
-		forEachEntry(
-			slotId, (partitionPrimaryKey, valueId) -> slotKeys.add(NumberUtils.pack(slotId, partitionPrimaryKey))
-		);
-		for (final long slotKey : slotKeys.toArray()) {
-			this.entries.removeLongRecord(slotKey);
-		}
+		removeSlotEntries(slotId);
 		final List<SortValueEntry> slotValues = new ArrayList<>(16);
 		this.sortValues.forEach(
 			(packedId, entry) -> {
@@ -795,6 +834,86 @@ public class VirtualReferencePartitionIndex
 	}
 
 	/**
+	 * Declares a chain key: gives the chained attribute a slot of its own. Declaring a key that is already declared
+	 * does nothing.
+	 *
+	 * @param attributeIndexKey the attribute of the `Predecessor` or `ReferencedEntityPredecessor` type, with its locale
+	 */
+	public void declareChainKey(@Nonnull AttributeIndexKey attributeIndexKey) {
+		if (this.sortKeys.containsKey(attributeIndexKey)) {
+			throw new GenericEvitaInternalError(
+				"Attribute `" + attributeIndexKey + "` is declared as a sort key, it cannot be a chain key too!"
+			);
+		}
+		if (this.chainKeys.containsKey(attributeIndexKey)) {
+			return;
+		}
+		this.chainKeys.put(attributeIndexKey, nextDeclaredSlotId());
+		this.dictionaryDirty.setToTrue();
+		this.dirty.setToTrue();
+	}
+
+	/**
+	 * Retires a chain key: removes the predecessor of every partition from its slot, and the slot itself.
+	 *
+	 * @param attributeIndexKey the chained attribute, with its locale
+	 * @return true if the key was declared
+	 */
+	public boolean retireChainKey(@Nonnull AttributeIndexKey attributeIndexKey) {
+		final Integer slotId = this.chainKeys.remove(attributeIndexKey);
+		if (slotId == null) {
+			return false;
+		}
+		removeSlotEntries(slotId);
+		this.dictionaryDirty.setToTrue();
+		this.dirty.setToTrue();
+		return true;
+	}
+
+	/**
+	 * Records the predecessor of the partition in the chain of a declared chain key, replacing the previous one. The
+	 * partition is chained from then on.
+	 *
+	 * @param attributeIndexKey      the declared chain key
+	 * @param partitionPrimaryKey    the partition primary key, positive
+	 * @param predecessorPrimaryKey the primary key of the predecessor as the chain index receives it, any `int`
+	 */
+	public void putChainPredecessor(
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		int partitionPrimaryKey,
+		int predecessorPrimaryKey
+	) {
+		putPayload(key(getChainSlotId(attributeIndexKey), partitionPrimaryKey), predecessorPrimaryKey);
+	}
+
+	/**
+	 * Forgets the predecessor of the partition in the chain of a declared chain key - the partition is no longer
+	 * chained.
+	 *
+	 * @param attributeIndexKey   the declared chain key
+	 * @param partitionPrimaryKey the partition primary key, positive
+	 * @return true if the partition was chained
+	 */
+	public boolean removeChainPredecessor(@Nonnull AttributeIndexKey attributeIndexKey, int partitionPrimaryKey) {
+		return removePayload(key(getChainSlotId(attributeIndexKey), partitionPrimaryKey));
+	}
+
+	/**
+	 * Returns the predecessor of the partition in the chain of a declared chain key.
+	 *
+	 * @param attributeIndexKey   the declared chain key
+	 * @param partitionPrimaryKey the partition primary key, positive
+	 * @return the predecessor primary key, empty when the partition is not chained
+	 */
+	@Nonnull
+	public OptionalInt getChainPredecessor(@Nonnull AttributeIndexKey attributeIndexKey, int partitionPrimaryKey) {
+		final OptionalLong payload = this.entries.getLongRecordEqualTo(
+			key(getChainSlotId(attributeIndexKey), partitionPrimaryKey)
+		);
+		return payload.isPresent() ? OptionalInt.of((int) payload.getAsLong()) : OptionalInt.empty();
+	}
+
+	/**
 	 * Emits a removal for every leaf page this index has on disk, used when the owning entity index is dropped and
 	 * its persisted footprint must be reclaimed. Reads only the persisted page baseline and has no side effects.
 	 *
@@ -819,10 +938,10 @@ public class VirtualReferencePartitionIndex
 	/**
 	 * Appends the storage parts that changed since the last flush to the sink:
 	 *
-	 * - an index with no entry and no declared sort key removes its root and every leaf page it has on disk, so it
+	 * - an index with no entry and no declared sort or chain key removes its root and every leaf page it has on disk, so it
 	 *   leaves nothing behind,
 	 * - a PAGED index writes one leaf page per changed leaf and a removal per freed leaf, and rewrites its root only
-	 *   when the leaf list, a dictionary or the declared sort keys changed,
+	 *   when the leaf list, a dictionary or the declared sort or chain keys changed,
 	 * - a SINGLE index removes the leaf pages left behind by a collapse from PAGED and writes the inline root.
 	 *
 	 * @param entityIndexPrimaryKey primary key of the owning entity index
@@ -868,7 +987,8 @@ public class VirtualReferencePartitionIndex
 					VirtualReferencePartitionIndexStoragePart.paged(
 						entityIndexPrimaryKey, referenceName,
 						emission.highWaterPageSequence(), emission.orderedPageSequences(),
-						dictionary.tupleIds(), dictionary.tuples(), dictionary.sortValueSlots(), null
+						dictionary.tupleIds(), dictionary.tuples(), dictionary.sortValueSlots(),
+						dictionary.chainPredecessorSlots(), null
 					)
 				);
 			}
@@ -889,7 +1009,8 @@ public class VirtualReferencePartitionIndex
 			sink.addChangeToStore(
 				VirtualReferencePartitionIndexStoragePart.single(
 					entityIndexPrimaryKey, referenceName, keys.toArray(), payloads.toArray(),
-					dictionary.tupleIds(), dictionary.tuples(), dictionary.sortValueSlots(), null
+					dictionary.tupleIds(), dictionary.tuples(), dictionary.sortValueSlots(),
+					dictionary.chainPredecessorSlots(), null
 				)
 			);
 		}
@@ -917,7 +1038,8 @@ public class VirtualReferencePartitionIndex
 	 * are charged at the `(slot, value) -> id` map, the `pack(slot, id) -> entry` map pays its `Long` keys and its entry
 	 * shells. The sort index charges its own values in full as well, and a plain value its normalizer leaves untouched
 	 * is the very instance both hold - so the figure exceeds the heap by at most one value per distinct sort value,
-	 * never by anything per partition. An attribute index key belongs to the schema and contributes only its slot.
+	 * never by anything per partition. An attribute index key belongs to the schema and contributes only its slot, and a
+	 * chain key costs its map entry and its slot id box.
 	 * {@link #pageStreamRegistry} is flush bookkeeping rather than index content and is excluded.
 	 *
 	 * Walking the tree is `O(entries / blockSize)`, so this belongs to the index detail call and must never be called
@@ -936,8 +1058,8 @@ public class VirtualReferencePartitionIndex
 		final long sortValueEntry = layout.sizeOfObject(2L * layout.referenceSize() + Integer.BYTES);
 		final long boxedLong = layout.sizeOfObject(Long.BYTES);
 		// the dirty / dictionaryDirty / entries / pageStreamRegistry / tupleIds / tuples / sortKeys / sortValueIds /
-		// sortValues / sortIndexes slots
-		return layout.sizeOfObject(10L * layout.referenceSize())
+		// sortValues / sortIndexes / chainKeys slots
+		return layout.sizeOfObject(11L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.dictionaryDirty.getHeapSizeInBytes()
 			+ this.entries.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER)
@@ -950,7 +1072,8 @@ public class VirtualReferencePartitionIndex
 				key -> sortValueKey + sortValueSizeInBytes(key.value()), valueId -> boxedInteger
 			)
 			+ this.sortValues.getHeapSizeInBytes(packedId -> boxedLong, entry -> sortValueEntry)
-			+ this.sortIndexes.getHeapSizeInBytes(attributeIndexKey -> 0L, OwnerSortIndex::getHeapSizeInBytes);
+			+ this.sortIndexes.getHeapSizeInBytes(attributeIndexKey -> 0L, OwnerSortIndex::getHeapSizeInBytes)
+			+ this.chainKeys.getHeapSizeInBytes(attributeIndexKey -> 0L, slotId -> boxedInteger);
 	}
 
 	/*
@@ -966,6 +1089,7 @@ public class VirtualReferencePartitionIndex
 		this.sortValueIds.removeLayer(transactionalLayer);
 		this.sortValues.removeLayer(transactionalLayer);
 		this.sortIndexes.removeLayer(transactionalLayer);
+		this.chainKeys.removeLayer(transactionalLayer);
 		this.dirty.removeLayer(transactionalLayer);
 		this.dictionaryDirty.removeLayer(transactionalLayer);
 	}
@@ -993,7 +1117,8 @@ public class VirtualReferencePartitionIndex
 				transactionalLayer.getStateCopyWithCommittedChanges(this.sortKeys),
 				transactionalLayer.getStateCopyWithCommittedChanges(this.sortValueIds),
 				transactionalLayer.getStateCopyWithCommittedChanges(this.sortValues),
-				transactionalLayer.getStateCopyWithCommittedChanges(this.sortIndexes)
+				transactionalLayer.getStateCopyWithCommittedChanges(this.sortIndexes),
+				transactionalLayer.getStateCopyWithCommittedChanges(this.chainKeys)
 			);
 		} else {
 			return this;
@@ -1093,6 +1218,8 @@ public class VirtualReferencePartitionIndex
 	 *
 	 * @param indexDescription identification of the index for corruption diagnostics
 	 * @param sortValueSlots   the persisted sort value slots in ascending slot id order
+	 * @param chainSlotIds     the ids of the persisted chain predecessor slots in ascending order, whose entries the
+	 *                         walks skip
 	 * @param keyColumns       the persisted entry keys in ascending key order across the columns
 	 * @param payloadColumns   the persisted entry payloads, aligned with `keyColumns`
 	 * @param sortKeys         receives the declared sort keys
@@ -1103,6 +1230,7 @@ public class VirtualReferencePartitionIndex
 	private static void rebuildSortKeys(
 		@Nonnull String indexDescription,
 		@Nonnull SortValueSlot[] sortValueSlots,
+		@Nonnull int[] chainSlotIds,
 		@Nonnull long[][] keyColumns,
 		@Nonnull long[][] payloadColumns,
 		@Nonnull Map<AttributeIndexKey, DeclaredSortKey> sortKeys,
@@ -1122,10 +1250,12 @@ public class VirtualReferencePartitionIndex
 			final SortValueSlot slot = sortValueSlots[slotIndex];
 			final int slotId = slot.slotId();
 			if (slotId < VirtualReferencePartitionSlot.FIRST_DECLARED_SLOT_ID ||
-				(slotIndex > 0 && slotId <= slotIds[slotIndex - 1])) {
+				(slotIndex > 0 && slotId <= slotIds[slotIndex - 1]) ||
+				Arrays.binarySearch(chainSlotIds, slotId) >= 0) {
 				throw new GenericEvitaInternalError(
 					"The sort value slots of the virtual reference partition index for " + indexDescription +
-						" are not in ascending order of declared slot ids at slot " + slotId + "!"
+						" are not in ascending order of declared slot ids, or share one with a chain key, at slot " +
+						slotId + "!"
 				);
 			}
 			slotIds[slotIndex] = slotId;
@@ -1171,7 +1301,7 @@ public class VirtualReferencePartitionIndex
 
 		// first walk: the size of every value's block, counted one position to the right
 		walkSortValueEntries(
-			indexDescription, keyColumns, payloadColumns, slotIds, positionsByValueId,
+			indexDescription, keyColumns, payloadColumns, slotIds, chainSlotIds, positionsByValueId,
 			(slotIndex, position, partitionPrimaryKey) -> blockStarts[slotIndex][position + 1]++
 		);
 		final int[][] sortedRecords = new int[slotCount][];
@@ -1193,7 +1323,7 @@ public class VirtualReferencePartitionIndex
 		}
 		// second walk: every partition into the next free position of its value's block, in ascending partition order
 		walkSortValueEntries(
-			indexDescription, keyColumns, payloadColumns, slotIds, positionsByValueId,
+			indexDescription, keyColumns, payloadColumns, slotIds, chainSlotIds, positionsByValueId,
 			(slotIndex, position, partitionPrimaryKey) ->
 				sortedRecords[slotIndex][nextPositions[slotIndex][position]++] = partitionPrimaryKey
 		);
@@ -1233,12 +1363,14 @@ public class VirtualReferencePartitionIndex
 
 	/**
 	 * Walks the persisted entries of every sort value slot in persisted order and hands each one to the visitor with
-	 * the position of its value in the sort key's order. Entries of the fixed slots are skipped.
+	 * the position of its value in the sort key's order. Entries of the fixed slots and of the chain predecessor slots
+	 * are skipped; an entry of a slot that is declared neither way is refused.
 	 *
 	 * @param indexDescription   identification of the index for corruption diagnostics
 	 * @param keyColumns         the persisted entry keys in ascending key order across the columns
 	 * @param payloadColumns     the persisted entry payloads, aligned with `keyColumns`
-	 * @param slotIds            the ids of the persisted slots in ascending order
+	 * @param slotIds            the ids of the persisted sort value slots in ascending order
+	 * @param chainSlotIds       the ids of the persisted chain predecessor slots in ascending order
 	 * @param positionsByValueId per slot, the position of each value id in the sort key's order
 	 * @param visitor            receives every sort value entry
 	 */
@@ -1247,6 +1379,7 @@ public class VirtualReferencePartitionIndex
 		@Nonnull long[][] keyColumns,
 		@Nonnull long[][] payloadColumns,
 		@Nonnull int[] slotIds,
+		@Nonnull int[] chainSlotIds,
 		@Nonnull IntIntHashMap[] positionsByValueId,
 		@Nonnull SortValueEntryVisitor visitor
 	) {
@@ -1264,12 +1397,18 @@ public class VirtualReferencePartitionIndex
 				if (slotId != currentSlotId) {
 					currentSlotIndex = Arrays.binarySearch(slotIds, slotId);
 					if (currentSlotIndex < 0) {
-						throw new GenericEvitaInternalError(
-							"The virtual reference partition index for " + indexDescription + " holds entries of slot " +
-								slotId + ", which is not declared!"
-						);
+						if (Arrays.binarySearch(chainSlotIds, slotId) < 0) {
+							throw new GenericEvitaInternalError(
+								"The virtual reference partition index for " + indexDescription +
+									" holds entries of slot " + slotId + ", which is not declared!"
+							);
+						}
+						currentSlotIndex = CHAIN_SLOT_INDEX;
 					}
 					currentSlotId = slotId;
+				}
+				if (currentSlotIndex == CHAIN_SLOT_INDEX) {
+					continue;
 				}
 				final int position = positionsByValueId[currentSlotIndex].getOrDefault((int) payloads[i], -1);
 				if (position < 0) {
@@ -1481,6 +1620,50 @@ public class VirtualReferencePartitionIndex
 			sortIndex.addRecord(value, partitionPrimaryKey);
 		}
 		this.dirty.setToTrue();
+	}
+
+	/**
+	 * Returns the id the next declared slot gets: one above the largest declared slot id in use, at least
+	 * {@link VirtualReferencePartitionSlot#FIRST_DECLARED_SLOT_ID}. A slot id is reused only after its key was retired
+	 * together with all its entries.
+	 *
+	 * @return the next declared slot id
+	 */
+	private int nextDeclaredSlotId() {
+		final int[] largestSlotId = {VirtualReferencePartitionSlot.FIRST_DECLARED_SLOT_ID - 1};
+		this.sortKeys.forEach((key, sortKey) -> largestSlotId[0] = Math.max(largestSlotId[0], sortKey.slotId()));
+		this.chainKeys.forEach((key, slotId) -> largestSlotId[0] = Math.max(largestSlotId[0], slotId));
+		return largestSlotId[0] + 1;
+	}
+
+	/**
+	 * Removes every entry of the slot with the given id from the tree.
+	 *
+	 * @param slotId the slot id
+	 */
+	private void removeSlotEntries(int slotId) {
+		// collect first, the tree must not change under its own cursor
+		final CompositeLongArray slotKeys = new CompositeLongArray();
+		forEachEntry(
+			slotId, (partitionPrimaryKey, payload) -> slotKeys.add(NumberUtils.pack(slotId, partitionPrimaryKey))
+		);
+		for (final long slotKey : slotKeys.toArray()) {
+			this.entries.removeLongRecord(slotKey);
+		}
+	}
+
+	/**
+	 * Returns the slot id of a declared chain key, failing when it is not declared.
+	 *
+	 * @param attributeIndexKey the chain key
+	 * @return the slot id
+	 */
+	private int getChainSlotId(@Nonnull AttributeIndexKey attributeIndexKey) {
+		final Integer slotId = this.chainKeys.get(attributeIndexKey);
+		if (slotId == null) {
+			throw new GenericEvitaInternalError("Chain key `" + attributeIndexKey + "` is not declared!");
+		}
+		return slotId;
 	}
 
 	/**
@@ -1717,7 +1900,25 @@ public class VirtualReferencePartitionIndex
 			tupleIdColumn[i] = dictionaryEntries[i].id();
 			tupleColumn[i] = dictionaryEntries[i].tuple().array();
 		}
-		return new DictionarySnapshot(tupleIdColumn, tupleColumn, sortValueSlotSnapshot());
+		return new DictionarySnapshot(
+			tupleIdColumn, tupleColumn, sortValueSlotSnapshot(), chainPredecessorSlotSnapshot()
+		);
+	}
+
+	/**
+	 * Captures the declared chain keys in ascending slot id order - the shape the root part persists.
+	 *
+	 * @return the chain predecessor slots
+	 */
+	@Nonnull
+	private ChainPredecessorSlot[] chainPredecessorSlotSnapshot() {
+		final ChainPredecessorSlot[] slots = new ChainPredecessorSlot[this.chainKeys.size()];
+		final int[] index = {0};
+		this.chainKeys.forEach(
+			(attributeIndexKey, slotId) -> slots[index[0]++] = new ChainPredecessorSlot(slotId, attributeIndexKey)
+		);
+		Arrays.sort(slots, Comparator.comparingInt(ChainPredecessorSlot::slotId));
+		return slots;
 	}
 
 	/**
@@ -1982,16 +2183,18 @@ public class VirtualReferencePartitionIndex
 
 	/**
 	 * The dictionaries as the root part persists them: the tuples as positionally-aligned columns in ascending id
-	 * order, and the declared sort keys with their value dictionaries.
+	 * order, the declared sort keys with their value dictionaries, and the declared chain keys.
 	 *
-	 * @param tupleIds       the tuple ids
-	 * @param tuples         the tuples, aligned with `tupleIds`
-	 * @param sortValueSlots the sort value slots in ascending slot id order
+	 * @param tupleIds              the tuple ids
+	 * @param tuples                the tuples, aligned with `tupleIds`
+	 * @param sortValueSlots        the sort value slots in ascending slot id order
+	 * @param chainPredecessorSlots the chain predecessor slots in ascending slot id order
 	 */
 	private record DictionarySnapshot(
 		@Nonnull int[] tupleIds,
 		@Nonnull Serializable[][] tuples,
-		@Nonnull SortValueSlot[] sortValueSlots
+		@Nonnull SortValueSlot[] sortValueSlots,
+		@Nonnull ChainPredecessorSlot[] chainPredecessorSlots
 	) {
 	}
 

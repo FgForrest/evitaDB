@@ -103,13 +103,15 @@ public final class VirtualReferencePartitionLoader implements ComponentLoader {
 			}
 			index = VirtualReferencePartitionIndex.fromPersistedPages(
 				indexDescription, orderedPageSequences, perPageKeys, perPagePayloads,
-				part.getHighWaterPageSequence(), part.getTupleIds(), part.getTuples(), part.getSortValueSlots()
+				part.getHighWaterPageSequence(), part.getTupleIds(), part.getTuples(), part.getSortValueSlots(),
+				part.getChainPredecessorSlots()
 			);
 		} else {
 			index = new VirtualReferencePartitionIndex(
 				indexDescription,
 				Objects.requireNonNull(part.getKeys()), Objects.requireNonNull(part.getPayloads()),
-				part.getTupleIds(), part.getTuples(), part.getSortValueSlots()
+				part.getTupleIds(), part.getTuples(), part.getSortValueSlots(),
+				part.getChainPredecessorSlots()
 			);
 		}
 		return new LoadedComponentBundle.VirtualReferencePartitions(index);
