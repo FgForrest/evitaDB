@@ -112,7 +112,8 @@ class InternalApiUsageTest implements EvitaTestSupport {
 		"evita_api",
 		"builds the named reference content requirement map from the query the driver handed it",
 		"evita_engine",
-		"the fetch pipeline that materializes named reference sets lives here",
+		"the fetch pipeline that materializes named reference sets lives here, and so does the reference ordering " +
+			"that lines up representative reference keys in their strict order",
 		"evita_store/evita_store_server",
 		"the Kryo serializers have to round-trip a constraint exactly as it was built, instance name included",
 		"evita_external_api/evita_external_api_graphql",

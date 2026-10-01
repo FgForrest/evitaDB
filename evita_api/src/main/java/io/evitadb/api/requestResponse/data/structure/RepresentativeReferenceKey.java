@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 
+import io.evitadb.annotation.Internal;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
@@ -57,8 +58,9 @@ import static io.evitadb.utils.StringUtils.serializableArrayToString;
  * representative attribute values. The natural ordering expects both compared keys to carry the same
  * number of representative values and throws an exception when they do not. If you need a more
  * permissive ordering that handles different array lengths, use {@link #GENERIC_COMPARATOR} instead. Neither of
- * them tells apart representative values that compare equal without being equal (`BigDecimal` 1.0 and 1.00) - use
- * {@link #STRICT_COMPARATOR} when every two different keys must be ordered the same way wherever they are met.
+ * them tells apart representative values that compare equal without being equal (`BigDecimal` 1.0 and 1.00) - the
+ * query engine's reference ordering, which must order every two different keys the same way wherever it meets them,
+ * uses the internal {@link #STRICT_COMPARATOR} for that.
  *
  * This record is immutable and safe to use as a key in maps or elements of sets.
  *
@@ -86,6 +88,10 @@ public record RepresentativeReferenceKey(
 	 * {@link #compareRepresentativeValuesStrictly(Serializable[], Serializable[])}), so the order of two keys never
 	 * depends on which of them was met first, and two orderings of the same keys line them up the same way.
 	 */
+	@Internal(
+		"order keys by `GENERIC_COMPARATOR` or their natural order - the strict order is internal to the reference " +
+			"ordering of the query engine"
+	)
 	public static final Comparator<RepresentativeReferenceKey> STRICT_COMPARATOR = new StrictReferenceKeyComparator();
 
 	/**
@@ -237,6 +243,10 @@ public record RepresentativeReferenceKey(
 	 * @return negative when the first array goes first, positive when the second one does, zero when the arrays are
 	 * equal or not even the string forms of their values tell them apart
 	 */
+	@Internal(
+		"compare whole keys by `GENERIC_COMPARATOR` or their natural order - the strict order is internal to the " +
+			"reference ordering of the query engine"
+	)
 	public static int compareRepresentativeValuesStrictly(
 		@Nonnull Serializable[] values,
 		@Nonnull Serializable[] otherValues
@@ -345,6 +355,10 @@ public record RepresentativeReferenceKey(
 	 * {@link #compareRepresentativeValuesStrictly(Serializable[], Serializable[])}.
 	 * Implements {@link Serializable} to allow usage in serialization contexts.
 	 */
+	@Internal(
+		"order keys by `GENERIC_COMPARATOR` or their natural order - the strict order is internal to the reference " +
+			"ordering of the query engine"
+	)
 	@NoArgsConstructor(access = lombok.AccessLevel.PRIVATE)
 	public static class StrictReferenceKeyComparator implements Comparator<RepresentativeReferenceKey>, Serializable {
 		@Serial private static final long serialVersionUID = -5538878296073886621L;
