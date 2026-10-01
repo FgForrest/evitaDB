@@ -202,6 +202,7 @@ class ReferencePartitionsTest {
 			assertSame(index, ReferencePartitions.asPartition(index));
 			assertSame(index, ReferencePartitions.asPartition(index, Scope.LIVE, REFERENCE_NAME));
 			assertSame(index, ReferencePartitions.requirePartition(index, ENTITY_TYPE, 1));
+			assertSame(index, ReferencePartitions.toReducedEntityIndex(index));
 		}
 
 		@Test
@@ -240,8 +241,12 @@ class ReferencePartitionsTest {
 			assertTrue(missing.getPrivateMessage().contains("42"), missing.getPrivateMessage());
 			assertTrue(missing.getPrivateMessage().contains("`" + ENTITY_TYPE + "`"), missing.getPrivateMessage());
 			final ReducedGroupEntityIndex groupIndex = addGroupIndex(2, TARGET_PK);
-			assertThrows(
+			final GenericEvitaInternalError otherFamily = assertThrows(
 				GenericEvitaInternalError.class, () -> ReferencePartitions.requirePartition(groupIndex, ENTITY_TYPE, 2)
+			);
+			assertTrue(
+				otherFamily.getPrivateMessage().contains(ReducedGroupEntityIndex.class.getName()),
+				otherFamily.getPrivateMessage()
 			);
 		}
 	}
@@ -255,11 +260,12 @@ class ReferencePartitionsTest {
 		void shouldResolvePartitionByRepresentativeReferenceKey() {
 			final ReducedEntityIndex index = addPartition(1, Scope.LIVE, REFERENCE_NAME, TARGET_PK, "DE");
 			final RepresentativeReferenceKey rrk = index.getRepresentativeReferenceKey();
-			assertSame(index, ReferencePartitions.resolveIfExists(this.indexesByKey()::get, Scope.LIVE, rrk));
-			assertNull(ReferencePartitions.resolveIfExists(this.indexesByKey()::get, Scope.ARCHIVED, rrk));
+			final Map<EntityIndexKey, EntityIndex> indexesByKey = ReferencePartitionsTest.this.indexesByKey;
+			assertSame(index, ReferencePartitions.resolveIfExists(indexesByKey::get, Scope.LIVE, rrk));
+			assertNull(ReferencePartitions.resolveIfExists(indexesByKey::get, Scope.ARCHIVED, rrk));
 			assertNull(
 				ReferencePartitions.resolveIfExists(
-					this.indexesByKey()::get, Scope.LIVE,
+					ReferencePartitionsTest.this.indexesByKey::get, Scope.LIVE,
 					new RepresentativeReferenceKey(
 						new ReferenceKey(REFERENCE_NAME, TARGET_PK), new Serializable[]{"US"}
 					)
@@ -287,39 +293,29 @@ class ReferencePartitionsTest {
 			assertArrayEquals(
 				new ReferencePartition[]{first, second, third},
 				ReferencePartitions.resolveAll(
-					this.indexesByPrimaryKey()::get, new BaseBitmap(30, 10, 20), ENTITY_TYPE
+					ReferencePartitionsTest.this.indexesByPrimaryKey::get, new BaseBitmap(30, 10, 20), ENTITY_TYPE
 				)
 			);
 			assertSame(
 				ReferencePartitions.EMPTY_PARTITIONS,
-				ReferencePartitions.resolveAll(this.indexesByPrimaryKey()::get, EmptyBitmap.INSTANCE, ENTITY_TYPE)
+				ReferencePartitions.resolveAll(
+					ReferencePartitionsTest.this.indexesByPrimaryKey::get, EmptyBitmap.INSTANCE, ENTITY_TYPE
+				)
 			);
 			assertThrows(
 				GenericEvitaInternalError.class,
 				() -> ReferencePartitions.resolveAll(
-					this.indexesByPrimaryKey()::get, new BaseBitmap(10, 11), ENTITY_TYPE
+					ReferencePartitionsTest.this.indexesByPrimaryKey::get, new BaseBitmap(10, 11), ENTITY_TYPE
 				)
 			);
-		}
-
-		/**
-		 * Returns the by-key map of the enclosing fixture.
-		 *
-		 * @return the map
-		 */
-		@Nonnull
-		private Map<EntityIndexKey, EntityIndex> indexesByKey() {
-			return ReferencePartitionsTest.this.indexesByKey;
-		}
-
-		/**
-		 * Returns the by-primary-key map of the enclosing fixture.
-		 *
-		 * @return the map
-		 */
-		@Nonnull
-		private Map<Integer, EntityIndex> indexesByPrimaryKey() {
-			return ReferencePartitionsTest.this.indexesByPrimaryKey;
+			addGroupIndex(40, TARGET_PK);
+			final GenericEvitaInternalError otherFamily = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> ReferencePartitions.resolveAll(
+					ReferencePartitionsTest.this.indexesByPrimaryKey::get, new BaseBitmap(10, 40), ENTITY_TYPE
+				)
+			);
+			assertTrue(otherFamily.getPrivateMessage().contains("primary key 40"), otherFamily.getPrivateMessage());
 		}
 	}
 
@@ -361,6 +357,18 @@ class ReferencePartitionsTest {
 		}
 
 		@Test
+		@DisplayName("treats a non-type index registered under the type index key as a programming error")
+		void shouldThrowWhenTypeIndexKeyHoldsAnotherIndex() {
+			addPartition(1, Scope.LIVE, REFERENCE_NAME, TARGET_PK, "DE");
+			ReferencePartitionsTest.this.indexesByKey.put(
+				new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, REFERENCE_NAME),
+				new GlobalEntityIndex(3, ENTITY_TYPE, new EntityIndexKey(EntityIndexType.GLOBAL))
+			);
+			assertThrows(GenericEvitaInternalError.class, () -> ofTarget(true));
+			assertThrows(GenericEvitaInternalError.class, () -> ofTargetOrThrow(true));
+		}
+
+		@Test
 		@DisplayName("skips a listed primary key the collection no longer holds, unless strict")
 		void shouldSkipDanglingPrimaryKeyOnlyWhenLenient() {
 			final ReducedEntityIndex american = addPartition(2, Scope.LIVE, REFERENCE_NAME, TARGET_PK, "US");
@@ -370,6 +378,11 @@ class ReferencePartitionsTest {
 				GenericEvitaInternalError.class, () -> ofTargetOrThrow(true)
 			);
 			assertTrue(error.getPrivateMessage().contains("primary key 1"), error.getPrivateMessage());
+
+			// when every listed primary key dangles, the lenient answer is empty
+			ReferencePartitionsTest.this.indexesByPrimaryKey.remove(american.getPrimaryKey());
+			assertEquals(0, ofTarget(true).length);
+			assertThrows(GenericEvitaInternalError.class, () -> ofTargetOrThrow(true));
 		}
 
 		@Test
@@ -383,10 +396,12 @@ class ReferencePartitionsTest {
 			ReferencePartitionsTest.this.indexesByPrimaryKey.clear();
 			addPartition(1, Scope.ARCHIVED, REFERENCE_NAME, TARGET_PK, "DE");
 			assertThrows(GenericEvitaInternalError.class, () -> ofTarget(true));
+			assertThrows(GenericEvitaInternalError.class, () -> ofTargetOrThrow(true));
 
 			ReferencePartitionsTest.this.indexesByPrimaryKey.clear();
 			addPartition(1, Scope.LIVE, OTHER_REFERENCE_NAME, TARGET_PK, "DE");
 			assertThrows(GenericEvitaInternalError.class, () -> ofTarget(true));
+			assertThrows(GenericEvitaInternalError.class, () -> ofTargetOrThrow(true));
 		}
 
 		@Test
@@ -402,7 +417,6 @@ class ReferencePartitionsTest {
 					Scope.ARCHIVED, REFERENCE_NAME, false, TARGET_PK
 				)
 			);
-			assertEquals(1, archived.getPrimaryKey());
 		}
 	}
 

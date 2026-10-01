@@ -66,6 +66,7 @@ import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
+import static io.evitadb.api.query.QueryConstraints.scope;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
@@ -217,6 +218,85 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 					)
 				);
 				assertArrayEquals(byPrimaryKeys, queryContext.resolvePartitions(ENTITY_PRODUCT, storePartitionPks));
+				// and answers a primary key of another index kind as the collection does - null or a named failure
+				final int globalPrimaryKey = products.getGlobalIndex().getPrimaryKey();
+				assertNull(queryContext.resolvePartitionIfExists(globalPrimaryKey));
+				final GenericEvitaInternalError notAPartition = assertThrows(
+					GenericEvitaInternalError.class, () -> queryContext.resolvePartition(globalPrimaryKey)
+				);
+				assertTrue(
+					notAPartition.getPrivateMessage().contains("`" + ENTITY_PRODUCT + "`"),
+					notAPartition.getPrivateMessage()
+				);
+				// a partition is no group index, and the typed by-primary-key path of the group family is strict
+				assertThrows(
+					GenericEvitaInternalError.class,
+					() -> queryContext.getReducedGroupEntityIndexByPrimaryKey(category.getPrimaryKey())
+				);
+			}
+		);
+	}
+
+	/**
+	 * The partitions of an archived owner live in the archived scope, next to the live partitions of the same target,
+	 * and every surface resolves each scope to its own partition - the planning context of a query over both scopes
+	 * included.
+	 *
+	 * @param state catalog state the scenario runs in
+	 */
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName("resolves the archived partitions next to the live ones on every surface")
+	void shouldResolveArchivedPartitionsOnEverySurface(@Nonnull CatalogState state) {
+		prepare(state);
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			(Consumer<EvitaSessionContract>) session -> {
+				session.archiveEntity(ENTITY_PRODUCT, 2);
+			}
+		);
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			(Consumer<EvitaSessionContract>) session -> {
+				final EntityCollection products = collectionOf(ENTITY_PRODUCT);
+				final EntitySchemaContract productSchema = products.getSchema();
+				final ReferenceSchemaContract categories = productSchema.getReferenceOrThrowException(REF_CATEGORIES);
+				final RepresentativeReferenceKey categoryKey = new RepresentativeReferenceKey(
+					new ReferenceKey(REF_CATEGORIES, CATEGORY_PK)
+				);
+
+				final ReferencePartition live = products.resolvePartitionIfExists(Scope.LIVE, categoryKey);
+				final ReferencePartition archived = products.resolvePartitionIfExists(Scope.ARCHIVED, categoryKey);
+				assertNotNull(live);
+				assertNotNull(archived);
+				assertArrayEquals(new int[]{1}, live.getAllPrimaryKeys().getArray());
+				assertArrayEquals(new int[]{2}, archived.getAllPrimaryKeys().getArray());
+				assertEquals(Scope.ARCHIVED, archived.getIndexKey().scope());
+				assertArrayEquals(
+					new ReferencePartition[]{archived},
+					products.resolvePartitionsOfTarget(Scope.ARCHIVED, categories, CATEGORY_PK)
+				);
+				assertArrayEquals(
+					new ReferencePartition[]{live},
+					products.resolvePartitionsOfTarget(Scope.LIVE, categories, CATEGORY_PK)
+				);
+				assertSame(archived, products.resolvePartition(archived.getPrimaryKey()));
+
+				// the planning context of a query over both scopes resolves each scope to its own partition
+				final QueryPlanningContext queryContext = planningContext(
+					products, session, Scope.LIVE, Scope.ARCHIVED
+				);
+				assertSame(archived, queryContext.resolvePartitionIfExists(Scope.ARCHIVED, categoryKey));
+				assertSame(live, queryContext.resolvePartitionIfExists(Scope.LIVE, categoryKey));
+				assertArrayEquals(
+					new ReferencePartition[]{archived},
+					queryContext.resolvePartitionsOfTarget(productSchema, categories, Scope.ARCHIVED, CATEGORY_PK)
+				);
+				assertArrayEquals(
+					new ReferencePartition[]{live},
+					queryContext.resolvePartitionsOfTarget(productSchema, categories, Scope.LIVE, CATEGORY_PK)
+				);
+				assertSame(archived, queryContext.resolvePartition(archived.getPrimaryKey()));
 			}
 		);
 	}
@@ -526,7 +606,8 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 
 	/**
 	 * Creates the schema and the committed baseline: products 1 and 2 reference category 1, product 1 references
-	 * store 1 twice (countries DE and US). In `ALIVE` the baseline is committed by going live; in `WARMING_UP` it is
+	 * store 1 twice (countries DE and US). The references are indexed in both scopes, so an archived owner keeps its
+	 * partitions in the archived scope. In `ALIVE` the baseline is committed by going live; in `WARMING_UP` it is
 	 * written by an earlier bulk session.
 	 *
 	 * @param state target catalog state
@@ -540,12 +621,12 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 					.withoutGeneratedPrimaryKey()
 					.withReferenceToEntity(
 						REF_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.indexedForFiltering()
+						whichIs -> whichIs.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
 					)
 					.withReferenceToEntity(
 						REF_STORES, ENTITY_STORE, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
 						whichIs -> whichIs
-							.indexedForFiltering()
+							.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
 							.withAttribute(ATTR_COUNTRY, String.class, thatIs -> thatIs.filterable().representative())
 					)
 					.updateVia(session);
@@ -597,6 +678,29 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 		return collection.createQueryContext(
 			new EvitaRequest(
 				query(collection(collection.getEntityType())), OffsetDateTime.now(), EntityReference.class, null
+			),
+			session
+		);
+	}
+
+	/**
+	 * Builds the planning context of a query over the given collection in the given scopes, as the session would.
+	 *
+	 * @param collection the queried collection
+	 * @param session    the open session
+	 * @param scopes     the scopes the query filters by
+	 * @return a fresh planning context
+	 */
+	@Nonnull
+	private static QueryPlanningContext planningContext(
+		@Nonnull EntityCollection collection,
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Scope... scopes
+	) {
+		return collection.createQueryContext(
+			new EvitaRequest(
+				query(collection(collection.getEntityType()), filterBy(scope(scopes))),
+				OffsetDateTime.now(), EntityReference.class, null
 			),
 			session
 		);

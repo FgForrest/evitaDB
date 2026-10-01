@@ -38,6 +38,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
+import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.EvitaTestSupport.TestPaths;
@@ -593,6 +594,103 @@ class GroupEntityIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 						"Sort index in entity index must contain the product PK"
 					);
 				}
+			);
+		}
+
+		@Test
+		@DisplayName("Should key an updated reference attribute in the group index by the referenced primary key")
+		void shouldKeyReferenceAttributeUpdateInGroupIndexByReferencedPrimaryKey() {
+			// distinct primary keys, so the keying by the referenced entity cannot pass for the keying by the owner
+			final int productPk = 10;
+			final int categoryPk = 3;
+			final int brandPk = 1;
+			GroupEntityIndexingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.BRAND).updateVia(session);
+					session.defineEntitySchema(Entities.CATEGORY).updateVia(session);
+
+					session.defineEntitySchema(Entities.PRODUCT)
+						.withReferenceToEntity(
+							Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+							whichIs -> whichIs
+								.indexedWithComponents(
+									ReferenceIndexedComponents.REFERENCED_ENTITY,
+									ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+								)
+								.withGroupTypeRelatedToEntity(Entities.BRAND)
+								.withAttribute(
+									ATTRIBUTE_CATEGORY_PRIORITY, Long.class,
+									thatIs -> thatIs.filterable().sortable()
+								)
+						)
+						.updateVia(session);
+
+					session.upsertEntity(session.createNewEntity(Entities.BRAND, brandPk));
+					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, categoryPk));
+
+					session.createNewEntity(Entities.PRODUCT, productPk)
+						.setReference(
+							Entities.CATEGORY, categoryPk,
+							whichIs -> {
+								whichIs.setGroup(Entities.BRAND, brandPk);
+								whichIs.setAttribute(ATTRIBUTE_CATEGORY_PRIORITY, 42L);
+							}
+						)
+						.upsertVia(session);
+				}
+			);
+			GroupEntityIndexingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(Entities.PRODUCT, productPk, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.updateReference(
+							Entities.CATEGORY, categoryPk,
+							whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_PRIORITY, 43L)
+						)
+						.upsertVia(session);
+				}
+			);
+
+			final EntityCollectionContract productCollection = GroupEntityIndexingTest.this.evita
+				.getCatalogInstance(TEST_CATALOG).orElseThrow()
+				.getCollectionForEntity(Entities.PRODUCT).orElseThrow();
+			final ReferenceSchemaContract categoryRef = productCollection.getSchema()
+				.getReferenceOrThrowException(Entities.CATEGORY);
+			final AttributeSchemaContract priorityAttr = categoryRef
+				.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY).orElseThrow();
+
+			// the group index holds the referenced entity under the new value, and nothing under the old one
+			final EntityIndex groupEntityIndex = IndexingTestSupport.getReferencedGroupEntityIndex(
+				productCollection, Scope.LIVE, Entities.CATEGORY, brandPk
+			);
+			assertNotNull(groupEntityIndex, "Group entity index should exist");
+			final FilterIndex groupFilterIndex = groupEntityIndex.getFilterIndex(categoryRef, priorityAttr, null);
+			assertNotNull(groupFilterIndex, "Filter index for categoryPriority must exist in group entity index");
+			assertArrayEquals(
+				new int[]{categoryPk}, groupFilterIndex.getRecordsEqualTo(43L).getArray(),
+				"The group index must hold the referenced category under the updated value"
+			);
+			assertTrue(
+				groupFilterIndex.getRecordsEqualTo(42L).isEmpty(),
+				"The group index must hold nothing under the former value"
+			);
+			assertFalse(
+				groupFilterIndex.getAllRecords().contains(productPk),
+				"The group index must never hold the owning product"
+			);
+
+			// the partition of the category keys the same attribute by the owning product instead
+			final EntityIndex partition = IndexingTestSupport.getReferencedEntityIndex(
+				productCollection, Entities.CATEGORY, categoryPk
+			);
+			assertNotNull(partition, "The partition of the category should exist");
+			assertArrayEquals(
+				new int[]{productPk},
+				partition.getFilterIndex(categoryRef, priorityAttr, null).getRecordsEqualTo(43L).getArray(),
+				"The partition must hold the owning product under the updated value"
 			);
 		}
 

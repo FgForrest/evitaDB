@@ -1038,7 +1038,7 @@ class ReevaluateExpressionExecutorTest {
 		}
 
 		/**
-		 * Reproduces production `INVALID_ARGUMENT` failure (issue #1233): a production catalog,
+		 * Reproduces a production `INVALID_ARGUMENT` failure: a production catalog,
 		 * `ParameterValue` upsert blowing up with ``A total of `2` constraints were found in a query,
 		 * but expected is only one: <the two constraints>.``
 		 *
@@ -1101,8 +1101,8 @@ class ReevaluateExpressionExecutorTest {
 		}
 
 		/**
-		 * Companion regression for issue #1233: once the existence check stops throwing on multiple
-		 * sibling `GroupHaving` constraints, the per-group evaluation must still produce a
+		 * Companion regression of the multiple-`GroupHaving` failure: once the existence check stops throwing on
+		 * multiple sibling `GroupHaving` constraints, the per-group evaluation must still produce a
 		 * **correctly scoped** filter — i.e. the group PK must be injected into **every** sibling
 		 * `GroupHaving`, not just the first one. Otherwise the unscoped sibling would match across
 		 * all groups, producing the same cross-reference false positive that
@@ -1169,7 +1169,7 @@ class ReevaluateExpressionExecutorTest {
 		}
 
 		/**
-		 * Pre-existing limitation surfaced while fixing issue #1233: `parameterize` /
+		 * A limitation found next to the multiple-`GroupHaving` failure: `parameterize` /
 		 * `parameterizeWithGroupScope` previously walked only the top-level direct children of
 		 * `FilterBy`. When the trigger filter wrapped its `ReferenceHaving` instances in an
 		 * `Or` (e.g. expression `attrA == X || attrB == Y` on the same reference), neither inner
@@ -1418,7 +1418,6 @@ class ReevaluateExpressionExecutorTest {
 		when(target.resolvePartitionIfExists(anyInt())).thenCallRealMethod();
 		return target;
 	}
-
 
 	/**
 	 * Creates a mock {@link IndexMutationTarget} backed by real indexes and schemas for grouped

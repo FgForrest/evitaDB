@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -41,7 +42,9 @@ import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.mutation.local.ReferenceIndexMutator.IterationPath;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.Functions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -69,7 +72,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * handed out for writing must come through the enrolling accessor of the index maintainer (so that its changed
  * storage parts are persisted and the commit-time merge sees it), the by-key acquisition creates what it does not
  * find exactly as the reference write path always has, and the partitions of one target are found by the same two
- * routes as the read-side resolvers.
+ * routes as the read-side resolvers. The fan-out entry points refuse any reference indexing level below
+ * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}, whose partitions must never reach their consumers.
  *
  * The index maintainer is a real map of real indexes that counts how each index was reached, which is how the tests
  * see whether an acquisition enrolled what it returned.
@@ -354,6 +358,49 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 			addDuplicatePartition(21, "DE");
 			listInTypeIndex(23);
 			assertThrows(GenericEvitaInternalError.class, () -> collectPartitionsOfTarget(DUPLICATE_REFERENCE));
+		}
+	}
+
+	@Nested
+	@DisplayName("partition fan-out")
+	class FanOut {
+
+		@Test
+		@DisplayName("refuses the per-reference fan-out below the partitioning level")
+		void shouldRefuseFanOutPerReferenceBelowPartitioning() {
+			final AtomicInteger invocations = new AtomicInteger();
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this.partitionExecutor
+					.fanOutPerReference(
+						ReferenceIndexType.FOR_FILTERING,
+						(referenceSchema, indexForRemoval, indexForUpsert) -> invocations.incrementAndGet(),
+						Functions.alwaysTrue(), true, IterationPath.BOTH
+					)
+			);
+			assertTrue(
+				error.getPrivateMessage().contains(ReferenceIndexType.FOR_FILTERING.name()), error.getPrivateMessage()
+			);
+			assertEquals(0, invocations.get(), "the consumer must never be reached");
+		}
+
+		@Test
+		@DisplayName("refuses the per-index fan-out below the partitioning level")
+		void shouldRefuseUniqueFanOutBelowPartitioning() {
+			final AtomicInteger invocations = new AtomicInteger();
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this.partitionExecutor
+					.fanOutUniquePerIndex(
+						ReferenceIndexType.FOR_FILTERING,
+						(referenceSchema, indexForRemoval, indexForUpsert) -> invocations.incrementAndGet(),
+						Functions.alwaysTrue(), true, IterationPath.BOTH
+					)
+			);
+			assertTrue(
+				error.getPrivateMessage().contains(ReferenceIndexType.FOR_FILTERING.name()), error.getPrivateMessage()
+			);
+			assertEquals(0, invocations.get(), "the consumer must never be reached");
 		}
 	}
 

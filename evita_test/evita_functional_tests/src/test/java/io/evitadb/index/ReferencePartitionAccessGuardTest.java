@@ -65,12 +65,13 @@ import java.util.stream.Stream;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * Guards the reference partition migration of issue #1615: every place in the production bytecode of `evita_engine`
+ * Guards the reference partition handle: every place in the production bytecode of `evita_engine`
  * and `evita_store_server` that reaches a `REFERENCED_ENTITY` reduced index directly - rather than through
  * {@link ReferencePartition} and its resolvers - must be on the allow-list, and every allow-list entry must still be
  * hit. The allow-list therefore only ever shrinks, and each commit that migrates a site proves it by deleting the
@@ -84,7 +85,10 @@ import static org.junit.jupiter.api.Assertions.fail;
  * - **R1 type use** of {@link ReducedEntityIndex} or {@link AbstractReducedEntityIndex}: `NEW`, `CHECKCAST`,
  *   `INSTANCEOF`, `ANEWARRAY`, class tokens, the owner of a member access, field and method descriptors, generic
  *   signatures, local variable types, and `invokedynamic` call sites (method references).
- * - **R2 key construction**: reading `EntityIndexType.REFERENCED_ENTITY`, or naming it in an enum `switch`.
+ * - **R2 key construction**: reading `EntityIndexType.REFERENCED_ENTITY`, or naming it in an enum `switch`. A
+ *   pattern `switch` names it at its own call site; a classic `switch` is compiled into a synthetic switch map class
+ *   and is therefore reported as `Outer$N#<clinit>`. One allow-list entry for that site covers every classic `switch`
+ *   over the index type in the outer class - a known coarseness of the rule.
  * - **R3 raw by-primary-key resolution**, inherently ambiguous between the two reduced index families: calls and
  *   method references of the by-primary-key accessors on any owner, including `getIndexIfExists(int, IntFunction)`
  *   that Lombok delegates onto `EntityCollection` - invisible in its source.
@@ -103,7 +107,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * A green run could be vacuous - a scanner reading the wrong jar, or one that stopped recognising a shape. Hence: a
  * stale allow-list entry fails the test; a minimum number of scanned classes and a sentinel (the resolver itself must
  * be reported) are asserted; and {@link ReferencePartitionGuardFixture} carries one member per shape, each of which
- * must be reported.
+ * must be reported, next to shapes that must not be.
  *
  * The scan reads the **built** class files on the test class path - after changing engine code, rebuild it
  * (`mvn -o install -pl evita_engine -DskipTests`) or run the test with `-am`, otherwise it judges the stale artifact.
@@ -225,21 +229,39 @@ class ReferencePartitionAccessGuardTest {
 	}
 
 	/**
-	 * Scans the counterfactual fixture and asserts that every shape it carries is reported, under the right rule and
-	 * attributed to the right member.
+	 * Scans the counterfactual fixture, its nested classes and the synthetic classes javac generated for it, and
+	 * asserts that every shape it carries is reported, under the right rule and attributed to the right member - and
+	 * that nothing else is.
 	 */
 	@Test
-	@DisplayName("reports every access shape of the counterfactual fixture")
+	@DisplayName("reports every access shape of the counterfactual fixture and nothing else")
 	void shouldReportEveryShapeOfCounterfactualFixture() {
 		final Scanner scanner = new Scanner();
-		final String resource = ReferencePartitionGuardFixture.class.getName().replace('.', '/') + ".class";
-		try (InputStream is = ReferencePartitionGuardFixture.class.getClassLoader().getResourceAsStream(resource)) {
-			assertNotNull(is, "The fixture class file is not on the class path: " + resource);
-			scanner.scanClass(is);
+		final String fixtureName = ReferencePartitionGuardFixture.class.getSimpleName();
+		final Path fixturePackage = codeSource(ReferencePartitionGuardFixture.class)
+			.resolve(ReferencePartitionGuardFixture.class.getPackageName().replace('.', '/'));
+		try (Stream<Path> files = Files.list(fixturePackage)) {
+			for (Path file : (Iterable<Path>) files::iterator) {
+				final String fileName = file.getFileName().toString();
+				if (
+					fileName.endsWith(".class") &&
+						(fileName.equals(fixtureName + ".class") || fileName.startsWith(fixtureName + "$"))
+				) {
+					try (InputStream is = Files.newInputStream(file)) {
+						scanner.scanClass(is);
+					}
+				}
+			}
 		} catch (IOException e) {
 			throw new UncheckedIOException(e);
 		}
+		assertTrue(
+			scanner.scannedClasses >= 3,
+			"The fixture, its nested class and its switch map must all be scanned, but only " +
+				scanner.scannedClasses + " class file(s) were found in " + fixturePackage
+		);
 		final String fixture = ReferencePartitionGuardFixture.class.getName() + "#";
+		final String nested = ReferencePartitionGuardFixture.class.getName() + "$";
 		final Map<String, String> expected = new LinkedHashMap<>(16);
 		expected.put("R1 " + fixture + "castShape", "CHECKCAST");
 		expected.put("R1 " + fixture + "instanceofShape", "INSTANCEOF");
@@ -252,6 +274,15 @@ class ReferencePartitionAccessGuardTest {
 		expected.put("R3 " + fixture + "untypedRawPrimaryKeyShape", "getIndexByPrimaryKeyIfExists");
 		expected.put("R4 " + fixture + "enumerationShape", "getAllReferenceIndexes");
 		expected.put("R1 " + fixture + "lambdaShape", "INSTANCEOF");
+		expected.put("R1 " + fixture + "newShape", "NEW");
+		expected.put("R1 " + fixture + "arrayShape", "ANEWARRAY");
+		expected.put("R1 " + fixture + "descriptorShape", "descriptor");
+		expected.put("R1 " + fixture + "localVariableShape", "local");
+		expected.put("R1 " + nested + "ExtendsShape#<class>", "extends");
+		expected.put("R1 " + nested + "ExtendsShape#<init>", "call");
+		expected.put("R2 " + nested + "1#<clinit>", "REFERENCED_ENTITY");
+		expected.put("R3 " + fixture + "modificationByPrimaryKeyShape", "getIndexForModification");
+		expected.put("R4 " + fixture + "enumerationByCallbackShape", "forEachReferenceIndexPrimaryKey");
 		for (Map.Entry<String, String> shape : expected.entrySet()) {
 			final Set<String> evidence = scanner.hits.get(shape.getKey());
 			assertNotNull(evidence, "The guard does not report `" + shape.getKey() + "` - found only " + scanner.hits);
@@ -262,8 +293,10 @@ class ReferencePartitionAccessGuardTest {
 		}
 		// no hit may be attributed to a synthetic lambda method instead of its enclosing one
 		for (String site : scanner.hits.keySet()) {
-			assertTrue(!site.contains("lambda$"), "A lambda body was not attributed to its enclosing method: " + site);
+			assertFalse(site.contains("lambda$"), "A lambda body was not attributed to its enclosing method: " + site);
 		}
+		// the shapes that must not be reported - the group family, a group key, a by-key lookup, the handle - are
+		// covered here: any hit of theirs would be one more than expected
 		assertEquals(expected.size(), scanner.hits.size(), "Unexpected hits in the fixture: " + scanner.hits);
 	}
 
@@ -312,7 +345,7 @@ class ReferencePartitionAccessGuardTest {
 					3, parts.length,
 					ALLOW_LIST + ":" + lineNumber + " must read `rule | Class#member | reason`"
 				);
-				assertTrue(!parts[2].isBlank(), ALLOW_LIST + ":" + lineNumber + " carries no reason");
+				assertFalse(parts[2].isBlank(), ALLOW_LIST + ":" + lineNumber + " carries no reason");
 				final String previous = result.put(parts[0] + " " + parts[1], parts[2]);
 				assertTrue(previous == null, ALLOW_LIST + ":" + lineNumber + " duplicates an earlier entry");
 			}
