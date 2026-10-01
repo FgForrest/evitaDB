@@ -32,6 +32,7 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.FilterInScope;
 import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.HierarchyRequireConstraint;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -44,6 +45,7 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
+import io.evitadb.core.query.indexSelection.TargetIndexes.EligibilityObstacle;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.store.query.QuerySerializationKryoConfigurer;
@@ -53,6 +55,7 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -74,6 +77,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
 import static io.evitadb.api.query.QueryConstraints.attributeNatural;
 import static io.evitadb.api.query.QueryConstraints.children;
@@ -86,6 +90,7 @@ import static io.evitadb.api.query.QueryConstraints.excluding;
 import static io.evitadb.api.query.QueryConstraints.facetHaving;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.fromRoot;
+import static io.evitadb.api.query.QueryConstraints.having;
 import static io.evitadb.api.query.QueryConstraints.hierarchyOfReference;
 import static io.evitadb.api.query.QueryConstraints.hierarchyWithin;
 import static io.evitadb.api.query.QueryConstraints.hierarchyWithinRoot;
@@ -93,6 +98,7 @@ import static io.evitadb.api.query.QueryConstraints.inScope;
 import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.api.query.QueryConstraints.orderBy;
 import static io.evitadb.api.query.QueryConstraints.page;
+import static io.evitadb.api.query.QueryConstraints.parents;
 import static io.evitadb.api.query.QueryConstraints.priceInCurrency;
 import static io.evitadb.api.query.QueryConstraints.priceInPriceLists;
 import static io.evitadb.api.query.QueryConstraints.queryTelemetry;
@@ -100,6 +106,7 @@ import static io.evitadb.api.query.QueryConstraints.referenceContent;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.scope;
+import static io.evitadb.api.query.QueryConstraints.siblings;
 import static io.evitadb.api.query.QueryConstraints.statistics;
 import static io.evitadb.api.query.QueryConstraints.userFilter;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
@@ -115,11 +122,12 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pins queries over two scopes whose reference constraint is restricted to one of them by `inScope(...)` (#1681).
+ * Pins queries over two scopes whose reference constraint is restricted to one of them by `inScope(...)`.
  *
  * Index selection offers a `hierarchyWithin` / `referenceHaving` a `REFERENCED_ENTITY` plan built from the reduced
  * indexes of its partitioned reference. Inside `inScope(S, ...)` it collects the partitions of scope `S` only, so the
@@ -171,23 +179,25 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * | 3rd | 3, 11, 19, 51, 59, 67 | `priceInCurrency(CZK)` + `priceInPriceLists(basic)` - has no price |
  * | 4th | 4, 12, 20, 52, 60, 68 | `referenceHaving(brand, 1)` / `facetHaving(brand, 1)` - has no brand |
  *
- * Every expectation is therefore "the products the scoped reference constraint admits, minus one row of the
- * table above", which is how the rows spell it: `inScope(LIVE, hierarchyWithin(categories, 1))` admits 1-8 and every
- * archived product, `inScope(ARCHIVED, hierarchyWithin(categories, 11))` admits every live product and 49-56. Because live **and** archived products fail every outer constraint,
- * a fix that appends the other scope's owners wholesale, or that answers the other scope without applying the outer
- * constraint, returns a product the row does not expect. Because archived products outside the subtree pass the
- * outer constraints, a symmetric `inScope(ARCHIVED, ...)` row catches a fix that admits every archived product.
+ * Every expectation is therefore "the products the scoped reference constraint admits, minus one row of the table
+ * above", which is how the rows spell it: `inScope(LIVE, hierarchyWithin(categories, 1))` admits 1-8 and every archived
+ * product, `inScope(ARCHIVED, hierarchyWithin(categories, 11))` admits every live product and 49-56. Because live
+ * **and** archived products fail every outer constraint, a fix that appends the other scope's owners wholesale, or that
+ * answers the other scope without applying the outer constraint, returns a product the row does not expect. Because
+ * archived products outside the subtree pass the outer constraints, a symmetric `inScope(ARCHIVED, ...)` row catches a
+ * fix that admits every archived product.
  *
  * The cardinalities keep the narrowed plan under the cardinality limit: 8 subtree owners per scope against half the
  * queried global indexes (36 for both scopes, 24 for live only, 12 for archived only).
  *
  * ## What the result rows cannot see
  *
- * A fix that leaks the other scope's owners into the **narrowed** branch (option B of the design) is invisible in
- * a result set: `InScopeFormulaPostProcessor` answers the other scope's branch with every entity of that scope that
- * passes the outer constraints, so the leaked owners are expected anyway; and whenever that branch is restricted by
- * an `inScope` container of its own, the narrowed branch is intersected with the narrowed scope's superset, which
- * drops them again. The telemetry-pinned eligibility rows and the design review are what guard against it.
+ * A fix that keeps the narrowed candidate eligible by leaking the other scope's owners into the **narrowed** branch
+ * is invisible in a result set: `InScopeFormulaPostProcessor` answers the other scope's branch with every entity of
+ * that scope that passes the outer constraints, so the leaked owners are expected anyway; and whenever that branch is
+ * restricted by an `inScope` container of its own, the narrowed branch is intersected with the narrowed scope's
+ * superset, which drops them again. What guards against it is the assertion that the narrowed candidate stays
+ * registered with `PARTIAL_SCOPE_COVERAGE`, next to the telemetry-pinned eligibility rows.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -199,6 +209,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(HIERARCHY)
 public class InScopeReducedIndexPlanFunctionalTest {
 	private static final String IN_SCOPE_REDUCED_INDEX_PLAN = "inScopeReducedIndexPlan";
+	/**
+	 * A writable copy of the fixture, for the tests that try to change it.
+	 */
+	private static final String IN_SCOPE_REDUCED_INDEX_PLAN_WRITABLE = "inScopeReducedIndexPlanWritable";
 	private static final String ENTITY_CATEGORY = "inScopePlanCategory";
 	private static final String ENTITY_BRAND = "inScopePlanBrand";
 	private static final String ENTITY_TAG = "inScopePlanTag";
@@ -233,12 +247,25 @@ public class InScopeReducedIndexPlanFunctionalTest {
 	 */
 	private static final int MISSING_CATEGORY = 999;
 	private static final int BRAND = 1;
+	/**
+	 * A live product referencing the tag, which passes every outer constraint.
+	 */
+	private static final int LIVE_TAGGED_PRODUCT = 8;
+	/**
+	 * An archived product referencing the tag, which passes every outer constraint.
+	 */
+	private static final int ARCHIVED_TAGGED_PRODUCT = 56;
 	private static final int TAG = 1;
 	private static final int PRODUCT_COUNT = 72;
 	/**
 	 * Output name of the hierarchy statistics computed by the statistics witness.
 	 */
 	private static final String HIERARCHY_OUTPUT = "children";
+	/**
+	 * The eligibility obstacle of a reduced-index candidate built inside an `inScope` container, as the query
+	 * telemetry names it.
+	 */
+	private static final String PARTIAL_SCOPE_COVERAGE = EligibilityObstacle.PARTIAL_SCOPE_COVERAGE.name();
 	/**
 	 * Products from this value to {@link #PRODUCT_COUNT} are archived.
 	 */
@@ -294,13 +321,44 @@ public class InScopeReducedIndexPlanFunctionalTest {
 	private static final int[] ARCHIVED_NARROWED = union(LIVE_ALL, ARCHIVED_SUBTREE);
 
 	/**
-	 * Builds the fixture described on the class: the entities are written live, then categories 11, 12 and 15 and
-	 * products {@link #FIRST_ARCHIVED}-{@link #PRODUCT_COUNT} are archived.
+	 * Builds the read-only fixture described on the class.
 	 *
 	 * @param evita the engine instance provided by the test extension
 	 */
 	@DataSet(value = IN_SCOPE_REDUCED_INDEX_PLAN, destroyAfterClass = true)
 	void setUp(@Nonnull Evita evita) {
+		buildFixture(evita);
+	}
+
+	/**
+	 * Builds a writable copy of the fixture described on the class, whose categories additionally carry the `tags`
+	 * reference, so that one reference content requirement applies to a product and to a category alike.
+	 *
+	 * @param evita the engine instance provided by the test extension
+	 */
+	@DataSet(value = IN_SCOPE_REDUCED_INDEX_PLAN_WRITABLE, readOnly = false, destroyAfterClass = true)
+	void setUpWritable(@Nonnull Evita evita) {
+		buildFixture(evita);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(ENTITY_CATEGORY)
+					.withReferenceToEntity(
+						REF_TAGS, ENTITY_TAG, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.indexedForFilteringInScope(BOTH_SCOPES)
+					)
+					.updateVia(session);
+			}
+		);
+	}
+
+	/**
+	 * Builds the fixture described on the class: the entities are written live, then categories 11, 12 and 15 and
+	 * products {@link #FIRST_ARCHIVED}-{@link #PRODUCT_COUNT} are archived.
+	 *
+	 * @param evita the engine instance to build the fixture in
+	 */
+	private static void buildFixture(@Nonnull Evita evita) {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -385,701 +443,1170 @@ public class InScopeReducedIndexPlanFunctionalTest {
 	}
 
 	/**
-	 * Returns the rows placing `inScope(S, <constraint on the subtree of category 1>)` next to an outer constraint,
-	 * where the narrowed plan is non-empty. Each row is a label, the constraints placed next to
-	 * `scope(LIVE, ARCHIVED)`, and the expected primary keys; each runs without a debug mode and with
-	 * `VERIFY_ALTERNATIVE_INDEX_RESULTS`.
-	 *
-	 * The verify arm (plans as the query telemetry names them): the narrowed `REFERENCED_ENTITY` plan is ineligible
-	 * and the both-scope candidates some rows register besides - `referenceHaving(brand)` and `hierarchyWithinRoot` -
-	 * are `HIGH_CARDINALITY`, so every row runs the global plan (`Live index: GLOBAL, Archived index: GLOBAL`) alone
-	 * and the arm passes vacuously. It stays as the tripwire: were the narrowed plan made eligible without being made
-	 * correct, the rows whose outer constraint reads the plan's indexes would disagree with the global plan and the
-	 * arm would throw `InconsistentResultsException`.
-	 *
-	 * @return the row arguments
+	 * Reference constraints narrowed to one scope by `inScope(...)` next to constraints answered for both scopes: the
+	 * narrowed candidate must never answer for the whole query, and a candidate covering every queried scope must stay
+	 * the cheaper plan it is.
 	 */
-	@Nonnull
-	static Stream<Arguments> narrowedReferenceConstraintRows() {
-		final Integer[] allProducts = IntStream.rangeClosed(1, PRODUCT_COUNT).boxed().toArray(Integer[]::new);
-		return Stream.of(
-				// --- inScope(LIVE, hierarchyWithin(categories, 1)) ---
-				// nothing outside the container reads the plan's indexes; catches a planner that stops honouring the
-				// container (every live product would come back)
-				row("LIVE hierarchy alone",
-					LIVE_NARROWED, liveHierarchy(ROOT_CATEGORY)),
-				// the constant is matched per scope by SuperSetMatchingPostProcessor; catches the same over-reach as
-				// above
-				row("LIVE hierarchy + primary keys",
-					LIVE_NARROWED, entityPrimaryKeyInSet(allProducts), liveHierarchy(ROOT_CATEGORY)),
-				// referenceHaving(brand) answers from its own both-scope index set; catches a planner that appends
-				// every archived owner (52, 60, 68 have no brand)
-				row("LIVE hierarchy + referenceHaving(brand)",
-					without(LIVE_NARROWED, UNBRANDED), referenceHaving(REF_BRAND, entityPrimaryKeyInSet(BRAND)),
-					liveHierarchy(ROOT_CATEGORY)),
-				// every product references a category of the live tree; catches a lookup that resolves the hierarchy
-				// candidate by reference name instead of constraint identity - the both-scope
-				// hierarchyWithinRoot candidate would then admit every live product
-				row("LIVE hierarchy + hierarchyWithinRoot",
-					LIVE_NARROWED, hierarchyWithinRoot(REF_CATEGORIES), liveHierarchy(ROOT_CATEGORY)),
-				// the locale must not be read from live partitions only; catches "append all archived" (49, 57, 65
-				// lack `en`) and dropping the locale in the archived branch
-				row("LIVE hierarchy + locale",
-					without(LIVE_NARROWED, WITHOUT_LOCALE), entityLocaleEquals(LOCALE), liveHierarchy(ROOT_CATEGORY)),
-				// the attribute must not be read from live partitions only; catches "append all archived" (50, 58, 66 invisible)
-				row("LIVE hierarchy + attribute",
-					without(LIVE_NARROWED, INVISIBLE), attributeEquals(ATTR_VISIBLE, true),
-					liveHierarchy(ROOT_CATEGORY)),
-				// the price must not be read from live partitions only; catches "append all archived" (51, 59, 67 unpriced)
-				row("LIVE hierarchy + price",
-					without(LIVE_NARROWED, UNPRICED), priceInCurrency(CZK), priceInPriceLists(PRICE_LIST),
-					liveHierarchy(ROOT_CATEGORY)),
-				// the facet must not be read from live partitions only; catches "append all archived" (52, 60, 68 unbranded)
-				row("LIVE hierarchy + facet",
-					without(LIVE_NARROWED, UNBRANDED), userFilter(facetHaving(REF_BRAND, entityPrimaryKeyInSet(BRAND))),
-					liveHierarchy(ROOT_CATEGORY)),
-				// the complement of `not` must not be taken against live partitions only; catches a repair of the
-				// positive translators one by one that forgets the negation family
-				row("LIVE hierarchy + not(invisible)",
-					without(LIVE_NARROWED, INVISIBLE), not(attributeEquals(ATTR_VISIBLE, false)),
-					liveHierarchy(ROOT_CATEGORY)),
-				// a constraint scoped to ARCHIVED must read archived data; catches a planner that ignores the
-				// ARCHIVED container (50, 58, 66 must go, the live subtree keeps invisible product 2)
-				row("LIVE hierarchy + inScope(ARCHIVED, attribute)",
-					union(LIVE_SUBTREE, without(ARCHIVED_ALL, INVISIBLE)),
-					inScope(Scope.ARCHIVED, attributeEquals(ATTR_VISIBLE, true)), liveHierarchy(ROOT_CATEGORY)),
-				// the referenceHaving producer: the locale must not be read from the live partitions of category 2;
-				// catches a guard applied to the hierarchy producer only
-				row("LIVE referenceHaving + locale",
-					without(LIVE_NARROWED, WITHOUT_LOCALE), entityLocaleEquals(LOCALE),
-					inScope(Scope.LIVE, referenceHaving(REF_CATEGORIES, entityPrimaryKeyInSet(SUBTREE_CATEGORY)))),
-				// hierarchyWithinRoot shares the hierarchy producer: the live tree (1-4) is referenced by live 1-8 and
-				// 17-48 (9-16 reference archived category 15 only); catches a guard applied to hierarchyWithin only
-				row("LIVE hierarchyWithinRoot + locale",
-					without(union(LIVE_SUBTREE, range(17, 48), ARCHIVED_ALL), WITHOUT_LOCALE), entityLocaleEquals(LOCALE),
-					inScope(Scope.LIVE, hierarchyWithinRoot(REF_CATEGORIES))),
+	@Nested
+	@DisplayName("Narrowed reference plan")
+	class NarrowedReferencePlan {
 
-				// --- inScope(ARCHIVED, hierarchyWithin(categories, 11)) - the symmetric shape, on the archived tree ---
-				// catches a planner that admits every archived product (57-72 pass all outer constraints and must not
-				// appear) or that stops honouring the container
-				row("ARCHIVED hierarchy alone",
-					ARCHIVED_NARROWED, archivedHierarchy(ARCHIVED_ROOT_CATEGORY)),
-				// a locale read from archived partitions only would lose every live product; catches a guard keyed to
-				// Scope.LIVE, "append all live" (1, 9, 17 lack `en`) and "append all archived" (58-64 would appear)
-				row("ARCHIVED hierarchy + locale",
-					without(ARCHIVED_NARROWED, WITHOUT_LOCALE), entityLocaleEquals(LOCALE),
-					archivedHierarchy(ARCHIVED_ROOT_CATEGORY)),
-				// attribute; catches "append all live" (2, 10, 18 invisible)
-				row("ARCHIVED hierarchy + attribute",
-					without(ARCHIVED_NARROWED, INVISIBLE), attributeEquals(ATTR_VISIBLE, true),
-					archivedHierarchy(ARCHIVED_ROOT_CATEGORY)),
-				// price; catches "append all live" (3, 11, 19 unpriced)
-				row("ARCHIVED hierarchy + price",
-					without(ARCHIVED_NARROWED, UNPRICED), priceInCurrency(CZK), priceInPriceLists(PRICE_LIST),
-					archivedHierarchy(ARCHIVED_ROOT_CATEGORY)),
-				// facet; catches "append all live" (4, 12, 20 unbranded)
-				row("ARCHIVED hierarchy + facet",
-					without(ARCHIVED_NARROWED, UNBRANDED), userFilter(facetHaving(REF_BRAND, entityPrimaryKeyInSet(BRAND))),
-					archivedHierarchy(ARCHIVED_ROOT_CATEGORY)),
-				// a LIVE-scoped constraint next to the ARCHIVED-narrowed plan; catches a planner that ignores the
-				// LIVE container (2, 10, 18 must go, archived invisible 50 stays)
-				row("ARCHIVED hierarchy + inScope(LIVE, attribute)",
-					union(without(LIVE_ALL, INVISIBLE), ARCHIVED_SUBTREE),
-					inScope(Scope.LIVE, attributeEquals(ATTR_VISIBLE, true)), archivedHierarchy(ARCHIVED_ROOT_CATEGORY)),
-				// the referenceHaving producer in the symmetric scope; catches a guard applied to one producer or one
-				// scope only
-				row("ARCHIVED referenceHaving + locale",
-					without(ARCHIVED_NARROWED, WITHOUT_LOCALE), entityLocaleEquals(LOCALE),
-					inScope(Scope.ARCHIVED, referenceHaving(REF_CATEGORIES, entityPrimaryKeyInSet(ARCHIVED_SUBTREE_CATEGORY))))
-			)
-			.flatMap(InScopeReducedIndexPlanFunctionalTest::withBothVerifyArms);
-	}
-
-	/**
-	 * Returns the rows where the narrowed plan is **empty** - the second shape of #1681. Each row is a label, the
-	 * constraints placed next to `scope(LIVE, ARCHIVED)`, and the expected primary keys; each runs without a debug
-	 * mode and with `VERIFY_ALTERNATIVE_INDEX_RESULTS`.
-	 *
-	 * Two producers of an empty candidate exist in the hierarchy branch of index selection: the `TargetIndexes.EMPTY`
-	 * sentinel when no node of the subtree exists in the narrowed scope's hierarchy (a missing category, or a node of
-	 * the other scope's tree), and a candidate with no index when the nodes exist but no owner of the narrowed scope
-	 * references them (live category 4 has archived owners only, archived category 15 live owners only).
-	 * `IndexSelectionResult#isEmpty` treats either as "the whole query matches nothing", so a registered empty narrowed
-	 * candidate would return `[]` before any plan is built; neither producer registers one.
-	 *
-	 * The verify arm: with no narrowed candidate registered, every row runs the global plan alone.
-	 *
-	 * @return the row arguments
-	 */
-	@Nonnull
-	static Stream<Arguments> emptyNarrowedPlanRows() {
-		return Stream.of(
-				// TargetIndexes.EMPTY shape: catches an obstacle-only guard that leaves the sentinel registered
-				row("LIVE hierarchy of a missing node",
-					ARCHIVED_ALL, liveHierarchy(MISSING_CATEGORY)),
-				// TargetIndexes.EMPTY shape + outer constraint; catches "append all archived" (49, 57, 65)
-				row("LIVE hierarchy of a missing node + locale",
-					without(ARCHIVED_ALL, WITHOUT_LOCALE), entityLocaleEquals(LOCALE), liveHierarchy(MISSING_CATEGORY)),
-				// TargetIndexes.EMPTY shape: an archived node is not in the live tree; catches the same guard as
-				// above on the shape a user writes by mistake rather than by typo
-				row("LIVE hierarchy of an archived node",
-					ARCHIVED_ALL, liveHierarchy(ARCHIVED_ROOT_CATEGORY)),
-				// 0-index candidate shape: catches an obstacle-only guard that keeps the empty candidate registered
-				row("LIVE hierarchy without live owners",
-					ARCHIVED_ALL, liveHierarchy(LIVE_NODE_WITH_ARCHIVED_OWNERS)),
-				// 0-index candidate shape + outer constraint; catches "append all archived" (50, 58, 66)
-				row("LIVE hierarchy without live owners + attribute",
-					without(ARCHIVED_ALL, INVISIBLE), attributeEquals(ATTR_VISIBLE, true),
-					liveHierarchy(LIVE_NODE_WITH_ARCHIVED_OWNERS)),
-				// symmetric sentinel: catches a guard keyed to Scope.LIVE
-				row("ARCHIVED hierarchy of a missing node",
-					LIVE_ALL, archivedHierarchy(MISSING_CATEGORY)),
-				// symmetric sentinel: a live node is not in the archived tree; catches a guard keyed to
-				// Scope.LIVE and "append all archived" (49-72 must not appear)
-				row("ARCHIVED hierarchy of a live node + attribute",
-					without(LIVE_ALL, INVISIBLE), attributeEquals(ATTR_VISIBLE, true), archivedHierarchy(ROOT_CATEGORY)),
-				// symmetric 0-index candidate + outer constraint; catches a guard keyed to Scope.LIVE and
-				// "append all live" (1, 9, 17)
-				row("ARCHIVED hierarchy without archived owners + locale",
-					without(LIVE_ALL, WITHOUT_LOCALE), entityLocaleEquals(LOCALE),
-					archivedHierarchy(ARCHIVED_NODE_WITH_LIVE_OWNERS)),
-				// the referenceHaving producer skips an empty narrowed candidate; catches turning that skip into
-				// "registered but ineligible" without changing the empty-result short-circuit
-				row("LIVE referenceHaving without live owners + locale",
-					without(ARCHIVED_ALL, WITHOUT_LOCALE), entityLocaleEquals(LOCALE),
-					inScope(Scope.LIVE, referenceHaving(REF_CATEGORIES, entityPrimaryKeyInSet(LIVE_NODE_WITH_ARCHIVED_OWNERS))))
-			)
-			.flatMap(InScopeReducedIndexPlanFunctionalTest::withBothVerifyArms);
-	}
-
-	/**
-	 * Returns the eligibility rows: queries in which a `REFERENCED_ENTITY` plan covers **every** queried scope and
-	 * must therefore stay eligible and be chosen. Each row is a label, the queried scopes, the constraints placed
-	 * next to `scope(...)`, and the expected primary keys.
-	 *
-	 * The verify arm compares the global plan with the `REFERENCED_ENTITY` plan - these rows are where the reduced
-	 * plan keeps an independent oracle, so they must keep two plans to compare.
-	 *
-	 * @return the row arguments
-	 */
-	@Nonnull
-	static Stream<Arguments> reducedPlanCoveringEveryScopeRows() {
-		return Stream.of(
-				// catches "disable every reduced plan inside any inScope": the plan covers the only queried scope -
-				// on a default schema (DEFAULT_SCOPES = {LIVE}) this is the shape of every inScope query
-				Arguments.of(
-					"scope(LIVE) + inScope(LIVE, hierarchy) + locale", LIVE_ONLY,
-					new FilterConstraint[]{entityLocaleEquals(LOCALE), liveHierarchy(ROOT_CATEGORY)},
-					without(LIVE_SUBTREE, WITHOUT_LOCALE)
-				),
-				// catches a fix keyed to "inScope(LIVE)" only or to "ARCHIVED is queried"
-				Arguments.of(
-					"scope(ARCHIVED) + inScope(ARCHIVED, hierarchy) + locale", ARCHIVED_ONLY,
-					new FilterConstraint[]{entityLocaleEquals(LOCALE), archivedHierarchy(ARCHIVED_ROOT_CATEGORY)},
-					without(ARCHIVED_SUBTREE, WITHOUT_LOCALE)
-				),
-				// catches the same over-correction in the referenceHaving producer
-				Arguments.of(
-					"scope(LIVE) + inScope(LIVE, referenceHaving) + locale", LIVE_ONLY,
-					new FilterConstraint[]{
+		/**
+		 * Returns the rows placing `inScope(S, <constraint on the subtree of category 1>)` next to an outer constraint,
+		 * where the narrowed plan is non-empty. Each row is a label, the constraints placed next to
+		 * `scope(LIVE, ARCHIVED)`, and the expected primary keys; each runs without a debug mode and with
+		 * `VERIFY_ALTERNATIVE_INDEX_RESULTS`.
+		 *
+		 * The verify arm (plans as the query telemetry names them): the narrowed `REFERENCED_ENTITY` plan is ineligible
+		 * and the both-scope candidates some rows register besides - `referenceHaving(brand)` and
+		 * `hierarchyWithinRoot` - are `HIGH_CARDINALITY`, so every row runs the global plan
+		 * (`Live index: GLOBAL, Archived index: GLOBAL`) alone and the arm passes vacuously. It stays as the tripwire:
+		 * were the narrowed plan made eligible without being made correct, the rows whose outer constraint reads the
+		 * plan's indexes would disagree with the global plan and the arm would throw `InconsistentResultsException`.
+		 * The test asserts besides that the narrowed candidate stays registered with `PARTIAL_SCOPE_COVERAGE`, which
+		 * the result rows cannot see.
+		 *
+		 * @return the row arguments
+		 */
+		@Nonnull
+		static Stream<Arguments> narrowedReferenceConstraintRows() {
+			final Integer[] allProducts = IntStream.rangeClosed(1, PRODUCT_COUNT).boxed().toArray(Integer[]::new);
+			return Stream.of(
+					// --- inScope(LIVE, hierarchyWithin(categories, 1)) --- nothing outside the container reads the
+					// plan's indexes; catches a planner that stops honouring the container (every live product would
+					// come back)
+					row("LIVE hierarchy alone",
+						LIVE_NARROWED, liveHierarchy(ROOT_CATEGORY)),
+					// the constant is matched per scope by SuperSetMatchingPostProcessor; catches the same over-reach
+					// as above
+					row("LIVE hierarchy + primary keys",
+						LIVE_NARROWED, entityPrimaryKeyInSet(allProducts), liveHierarchy(ROOT_CATEGORY)),
+					// referenceHaving(brand) answers from its own both-scope index set; catches a planner that appends
+					// every archived owner (52, 60, 68 have no brand)
+					row("LIVE hierarchy + referenceHaving(brand)",
+						without(LIVE_NARROWED, UNBRANDED), referenceHaving(REF_BRAND, entityPrimaryKeyInSet(BRAND)),
+						liveHierarchy(ROOT_CATEGORY)),
+					// every product references a category of the live tree; catches a lookup that resolves the
+					// hierarchy candidate by reference name instead of constraint identity - the both-scope
+					// hierarchyWithinRoot candidate would then admit every live product
+					row("LIVE hierarchy + hierarchyWithinRoot",
+						LIVE_NARROWED, hierarchyWithinRoot(REF_CATEGORIES), liveHierarchy(ROOT_CATEGORY)),
+					// the locale must not be read from live partitions only; catches "append all archived" (49, 57, 65
+					// lack `en`) and dropping the locale in the archived branch
+					row("LIVE hierarchy + locale",
+						without(LIVE_NARROWED, WITHOUT_LOCALE), entityLocaleEquals(LOCALE),
+						liveHierarchy(ROOT_CATEGORY)),
+					// the attribute must not be read from live partitions only; catches "append all archived" (50, 58,
+					// 66 invisible)
+					row("LIVE hierarchy + attribute",
+						without(LIVE_NARROWED, INVISIBLE), attributeEquals(ATTR_VISIBLE, true),
+						liveHierarchy(ROOT_CATEGORY)),
+					// the price must not be read from live partitions only; catches "append all archived" (51, 59, 67
+					// unpriced)
+					row("LIVE hierarchy + price",
+						without(LIVE_NARROWED, UNPRICED), priceInCurrency(CZK), priceInPriceLists(PRICE_LIST),
+						liveHierarchy(ROOT_CATEGORY)),
+					// the facet must not be read from live partitions only; catches "append all archived" (52, 60, 68
+					// unbranded)
+					row("LIVE hierarchy + facet",
+						without(LIVE_NARROWED, UNBRANDED),
+						userFilter(facetHaving(REF_BRAND, entityPrimaryKeyInSet(BRAND))),
+						liveHierarchy(ROOT_CATEGORY)),
+					// the complement of `not` must not be taken against live partitions only; catches a repair of the
+					// positive translators one by one that forgets the negation family
+					row("LIVE hierarchy + not(invisible)",
+						without(LIVE_NARROWED, INVISIBLE), not(attributeEquals(ATTR_VISIBLE, false)),
+						liveHierarchy(ROOT_CATEGORY)),
+					// a constraint scoped to ARCHIVED must read archived data; catches a planner that ignores the
+					// ARCHIVED container (50, 58, 66 must go, the live subtree keeps invisible product 2)
+					row("LIVE hierarchy + inScope(ARCHIVED, attribute)",
+						union(LIVE_SUBTREE, without(ARCHIVED_ALL, INVISIBLE)),
+						inScope(Scope.ARCHIVED, attributeEquals(ATTR_VISIBLE, true)), liveHierarchy(ROOT_CATEGORY)),
+					// the referenceHaving producer: the locale must not be read from the live partitions of category 2;
+					// catches a guard applied to the hierarchy producer only
+					row("LIVE referenceHaving + locale",
+						without(LIVE_NARROWED, WITHOUT_LOCALE), entityLocaleEquals(LOCALE),
+						inScope(Scope.LIVE, referenceHaving(REF_CATEGORIES, entityPrimaryKeyInSet(SUBTREE_CATEGORY)))),
+					// hierarchyWithinRoot shares the hierarchy producer: the live tree (1-4) is referenced by live 1-8
+					// and 17-48 (9-16 reference archived category 15 only); catches a guard applied to hierarchyWithin
+					// only
+					row("LIVE hierarchyWithinRoot + locale",
+						without(union(LIVE_SUBTREE, range(17, 48), ARCHIVED_ALL), WITHOUT_LOCALE),
 						entityLocaleEquals(LOCALE),
-						inScope(Scope.LIVE, referenceHaving(REF_CATEGORIES, entityPrimaryKeyInSet(SUBTREE_CATEGORY)))
-					},
-					without(LIVE_SUBTREE, WITHOUT_LOCALE)
-				),
-				// catches "disable every reduced plan when several scopes are queried": a top-level hierarchyWithin
-				// builds its plan from the partitions of both scopes, so its union is the answer set
-				Arguments.of(
-					"scope(LIVE, ARCHIVED) + top-level hierarchy + locale", BOTH_SCOPES,
-					new FilterConstraint[]{
-						entityLocaleEquals(LOCALE),
-						hierarchyWithin(REF_CATEGORIES, entityPrimaryKeyInSet(ROOT_CATEGORY))
-					},
-					without(union(LIVE_SUBTREE, ARCHIVED_SUBTREE), WITHOUT_LOCALE)
+						inScope(Scope.LIVE, hierarchyWithinRoot(REF_CATEGORIES))),
+
+					// --- inScope(ARCHIVED, hierarchyWithin(categories, 11)) - the symmetric shape, on the archived
+					// tree --- catches a planner that admits every archived product (57-72 pass all outer constraints
+					// and must not appear) or that stops honouring the container
+					row("ARCHIVED hierarchy alone",
+						ARCHIVED_NARROWED, archivedHierarchy(ARCHIVED_ROOT_CATEGORY)),
+					// a locale read from archived partitions only would lose every live product; catches a guard keyed
+					// to Scope.LIVE, "append all live" (1, 9, 17 lack `en`) and "append all archived" (58-64 would
+					// appear)
+					row("ARCHIVED hierarchy + locale",
+						without(ARCHIVED_NARROWED, WITHOUT_LOCALE), entityLocaleEquals(LOCALE),
+						archivedHierarchy(ARCHIVED_ROOT_CATEGORY)),
+					// attribute; catches "append all live" (2, 10, 18 invisible)
+					row("ARCHIVED hierarchy + attribute",
+						without(ARCHIVED_NARROWED, INVISIBLE), attributeEquals(ATTR_VISIBLE, true),
+						archivedHierarchy(ARCHIVED_ROOT_CATEGORY)),
+					// price; catches "append all live" (3, 11, 19 unpriced)
+					row("ARCHIVED hierarchy + price",
+						without(ARCHIVED_NARROWED, UNPRICED), priceInCurrency(CZK), priceInPriceLists(PRICE_LIST),
+						archivedHierarchy(ARCHIVED_ROOT_CATEGORY)),
+					// facet; catches "append all live" (4, 12, 20 unbranded)
+					row("ARCHIVED hierarchy + facet",
+						without(ARCHIVED_NARROWED, UNBRANDED),
+						userFilter(facetHaving(REF_BRAND, entityPrimaryKeyInSet(BRAND))),
+						archivedHierarchy(ARCHIVED_ROOT_CATEGORY)),
+					// a LIVE-scoped constraint next to the ARCHIVED-narrowed plan; catches a planner that ignores the
+					// LIVE container (2, 10, 18 must go, archived invisible 50 stays)
+					row("ARCHIVED hierarchy + inScope(LIVE, attribute)",
+						union(without(LIVE_ALL, INVISIBLE), ARCHIVED_SUBTREE),
+						inScope(Scope.LIVE, attributeEquals(ATTR_VISIBLE, true)),
+						archivedHierarchy(ARCHIVED_ROOT_CATEGORY)),
+					// the referenceHaving producer in the symmetric scope; catches a guard applied to one producer or
+					// one scope only
+					row("ARCHIVED referenceHaving + locale",
+						without(ARCHIVED_NARROWED, WITHOUT_LOCALE), entityLocaleEquals(LOCALE),
+						inScope(
+							Scope.ARCHIVED,
+							referenceHaving(REF_CATEGORIES, entityPrimaryKeyInSet(ARCHIVED_SUBTREE_CATEGORY))
+						))
 				)
-			)
-			.flatMap(
-				row -> Stream.of(false, true)
-					.map(verify -> Arguments.of(row.get()[0], row.get()[1], row.get()[2], row.get()[3], verify))
+				.flatMap(InScopeReducedIndexPlanFunctionalTest::withBothVerifyArms);
+		}
+
+		/**
+		 * Returns the rows where the narrowed plan is **empty** - the second way a narrowed plan loses the other scope.
+		 * Each row is a label, the constraints placed next to `scope(LIVE, ARCHIVED)`, and the expected primary keys;
+		 * each runs without a debug mode and with `VERIFY_ALTERNATIVE_INDEX_RESULTS`.
+		 *
+		 * Two producers of an empty candidate exist in the hierarchy branch of index selection: the
+		 * `TargetIndexes.EMPTY` sentinel when no node of the subtree exists in the narrowed scope's hierarchy (a
+		 * missing category, or a node of the other scope's tree), and a candidate with no index when the nodes exist
+		 * but no owner of the narrowed scope references them (live category 4 has archived owners only, archived
+		 * category 15 live owners only). `IndexSelectionResult#isEmpty` treats either as "the whole query matches
+		 * nothing", so a registered empty narrowed candidate would return `[]` before any plan is built; neither
+		 * producer registers one.
+		 *
+		 * The verify arm: with no narrowed candidate registered, every row runs the global plan alone.
+		 *
+		 * @return the row arguments
+		 */
+		@Nonnull
+		static Stream<Arguments> emptyNarrowedPlanRows() {
+			return Stream.of(
+					// TargetIndexes.EMPTY shape: catches an obstacle-only guard that leaves the sentinel registered
+					row("LIVE hierarchy of a missing node",
+						ARCHIVED_ALL, liveHierarchy(MISSING_CATEGORY)),
+					// TargetIndexes.EMPTY shape + outer constraint; catches "append all archived" (49, 57, 65)
+					row("LIVE hierarchy of a missing node + locale",
+						without(ARCHIVED_ALL, WITHOUT_LOCALE), entityLocaleEquals(LOCALE),
+						liveHierarchy(MISSING_CATEGORY)),
+					// TargetIndexes.EMPTY shape: an archived node is not in the live tree; catches the same guard as
+					// above on the shape a user writes by mistake rather than by typo
+					row("LIVE hierarchy of an archived node",
+						ARCHIVED_ALL, liveHierarchy(ARCHIVED_ROOT_CATEGORY)),
+					// 0-index candidate shape: catches an obstacle-only guard that keeps the empty candidate registered
+					row("LIVE hierarchy without live owners",
+						ARCHIVED_ALL, liveHierarchy(LIVE_NODE_WITH_ARCHIVED_OWNERS)),
+					// 0-index candidate shape + outer constraint; catches "append all archived" (50, 58, 66)
+					row("LIVE hierarchy without live owners + attribute",
+						without(ARCHIVED_ALL, INVISIBLE), attributeEquals(ATTR_VISIBLE, true),
+						liveHierarchy(LIVE_NODE_WITH_ARCHIVED_OWNERS)),
+					// symmetric sentinel: catches a guard keyed to Scope.LIVE
+					row("ARCHIVED hierarchy of a missing node",
+						LIVE_ALL, archivedHierarchy(MISSING_CATEGORY)),
+					// symmetric sentinel: a live node is not in the archived tree; catches a guard keyed to
+					// Scope.LIVE and "append all archived" (49-72 must not appear)
+					row("ARCHIVED hierarchy of a live node + attribute",
+						without(LIVE_ALL, INVISIBLE), attributeEquals(ATTR_VISIBLE, true),
+						archivedHierarchy(ROOT_CATEGORY)),
+					// symmetric 0-index candidate + outer constraint; catches a guard keyed to Scope.LIVE and
+					// "append all live" (1, 9, 17)
+					row("ARCHIVED hierarchy without archived owners + locale",
+						without(LIVE_ALL, WITHOUT_LOCALE), entityLocaleEquals(LOCALE),
+						archivedHierarchy(ARCHIVED_NODE_WITH_LIVE_OWNERS)),
+					// the referenceHaving producer skips an empty narrowed candidate; catches turning that skip into
+					// "registered but ineligible" without changing the empty-result short-circuit
+					row("LIVE referenceHaving without live owners + locale",
+						without(ARCHIVED_ALL, WITHOUT_LOCALE), entityLocaleEquals(LOCALE),
+						inScope(
+							Scope.LIVE,
+							referenceHaving(REF_CATEGORIES, entityPrimaryKeyInSet(LIVE_NODE_WITH_ARCHIVED_OWNERS))
+						))
+				)
+				.flatMap(InScopeReducedIndexPlanFunctionalTest::withBothVerifyArms);
+		}
+
+		/**
+		 * Returns the eligibility rows: queries in which a `REFERENCED_ENTITY` plan covers **every** queried scope and
+		 * must therefore stay eligible and be chosen. Each row is a label, the queried scopes, the constraints placed
+		 * next to `scope(...)`, and the expected primary keys.
+		 *
+		 * The verify arm compares the global plan with the `REFERENCED_ENTITY` plan - these rows are where the reduced
+		 * plan keeps an independent oracle, so they must keep two plans to compare.
+		 *
+		 * @return the row arguments
+		 */
+		@Nonnull
+		static Stream<Arguments> reducedPlanCoveringEveryScopeRows() {
+			return Stream.of(
+					// catches "disable every reduced plan inside any inScope": the plan covers the only queried scope -
+					// on a default schema (DEFAULT_SCOPES = {LIVE}) this is the shape of every inScope query
+					Arguments.of(
+						"scope(LIVE) + inScope(LIVE, hierarchy) + locale", LIVE_ONLY,
+						new FilterConstraint[]{entityLocaleEquals(LOCALE), liveHierarchy(ROOT_CATEGORY)},
+						without(LIVE_SUBTREE, WITHOUT_LOCALE)
+					),
+					// catches a fix keyed to "inScope(LIVE)" only or to "ARCHIVED is queried"
+					Arguments.of(
+						"scope(ARCHIVED) + inScope(ARCHIVED, hierarchy) + locale", ARCHIVED_ONLY,
+						new FilterConstraint[]{entityLocaleEquals(LOCALE), archivedHierarchy(ARCHIVED_ROOT_CATEGORY)},
+						without(ARCHIVED_SUBTREE, WITHOUT_LOCALE)
+					),
+					// catches the same over-correction in the referenceHaving producer
+					Arguments.of(
+						"scope(LIVE) + inScope(LIVE, referenceHaving) + locale", LIVE_ONLY,
+						new FilterConstraint[]{
+							entityLocaleEquals(LOCALE),
+							inScope(
+								Scope.LIVE, referenceHaving(REF_CATEGORIES, entityPrimaryKeyInSet(SUBTREE_CATEGORY))
+							)
+						},
+						without(LIVE_SUBTREE, WITHOUT_LOCALE)
+					),
+					// catches "disable every reduced plan when several scopes are queried": a top-level hierarchyWithin
+					// builds its plan from the partitions of both scopes, so its union is the answer set
+					Arguments.of(
+						"scope(LIVE, ARCHIVED) + top-level hierarchy + locale", BOTH_SCOPES,
+						new FilterConstraint[]{
+							entityLocaleEquals(LOCALE),
+							hierarchyWithin(REF_CATEGORIES, entityPrimaryKeyInSet(ROOT_CATEGORY))
+						},
+						without(union(LIVE_SUBTREE, ARCHIVED_SUBTREE), WITHOUT_LOCALE)
+					)
+				)
+				.flatMap(
+					row -> Stream.of(false, true)
+						.map(verify -> Arguments.of(row.get()[0], row.get()[1], row.get()[2], row.get()[3], verify))
+				);
+		}
+
+		/**
+		 * Checks that a reference constraint narrowed to one scope by `inScope(...)` keeps every product of the other
+		 * scope that satisfies the outer constraints, whichever plan answers it, and that the narrowed candidate stays
+		 * registered but ineligible (`PARTIAL_SCOPE_COVERAGE`) rather than being dropped - reference ordering relies on
+		 * finding it - so the global plan answers.
+		 *
+		 * @param label              the row label, used in the test name only
+		 * @param constraints        the constraints placed next to `scope(LIVE, ARCHIVED)`
+		 * @param expected           the expected primary keys, ascending
+		 * @param verifyAlternatives whether every eligible plan is executed and compared
+		 * @param session            the session provided by the test extension
+		 */
+		@DisplayName("Should keep the other scope's matches next to a non-empty narrowed plan")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+		@ParameterizedTest(name = "{0}, verify alternatives: {3}")
+		@MethodSource("narrowedReferenceConstraintRows")
+		void shouldKeepOtherScopeMatchesNextToNarrowedReferenceConstraint(
+			@Nonnull String label,
+			@Nonnull FilterConstraint[] constraints,
+			@Nonnull int[] expected,
+			boolean verifyAlternatives,
+			@Nonnull EvitaSessionContract session
+		) {
+			final QueryOutcome outcome = assertQueryReturns(
+				session, BOTH_SCOPES, constraints, verifyAlternatives, expected
 			);
-	}
-
-	/**
-	 * Returns the rows of the reused-instance witness: the same `referenceHaving` placed in `inScope(LIVE, ...)` and
-	 * in `inScope(ARCHIVED, ...)`, either as one Java object or as two equal objects. Each row is a label, the
-	 * reference name, and whether the instance is reused.
-	 *
-	 * @return the row arguments
-	 */
-	@Nonnull
-	static Stream<Arguments> reusedConstraintInstanceRows() {
-		return Stream.of(
-			// tags are not partitioned, so every REFERENCED_ENTITY candidate is ineligible and the global plan
-			// answers - plan choice is out of play; catches an identity-only lookup of the candidate (#1686)
-			Arguments.of("tags (not partitioned), one instance", REF_TAGS, true),
-			// control: two equal but distinct instances find their own candidates
-			Arguments.of("tags (not partitioned), two instances", REF_TAGS, false),
-			// the same on a partitioned reference, where the narrowed candidates exist but are ineligible - only
-			// the lookup decides the answer
-			Arguments.of("categories (partitioned), one instance", REF_CATEGORIES, true),
-			// control
-			Arguments.of("categories (partitioned), two instances", REF_CATEGORIES, false)
-		);
-	}
-
-	/**
-	 * Returns the rows of the nested-`inScope` rejection: a label, the scope of the outer container and the scope of
-	 * the container nested in it.
-	 *
-	 * `inScope(S, P)` applies `P` only when entities of scope `S` are searched. Nesting two opposite containers would
-	 * apply `P` when searching LIVE **and** ARCHIVED at once - never - and nesting two equal containers is redundant,
-	 * so both are refused when the outer container is created.
-	 *
-	 * @return the row arguments
-	 */
-	@Nonnull
-	static Stream<Arguments> nestedInScopeRows() {
-		return Stream.of(
-			// contradictory: the scope-container rewrite has no sound meaning for it (it would keep the inner
-			// container's archived formula inside the LIVE branch and lose every live product)
-			Arguments.of("inScope(LIVE, inScope(ARCHIVED, attribute))", Scope.LIVE, Scope.ARCHIVED),
-			// mirror image
-			Arguments.of("inScope(ARCHIVED, inScope(LIVE, attribute))", Scope.ARCHIVED, Scope.LIVE),
-			// redundant
-			Arguments.of("inScope(LIVE, inScope(LIVE, attribute))", Scope.LIVE, Scope.LIVE)
-		);
-	}
-
-	/**
-	 * Returns the rows of the controls of the nested-`inScope` rejection - shapes that are accepted and answered:
-	 * a label, the constraints placed next to `scope(LIVE, ARCHIVED)` and the expected primary keys.
-	 *
-	 * @return the row arguments
-	 */
-	@Nonnull
-	static Stream<Arguments> acceptedInScopeRows() {
-		return Stream.of(
-			// invisible live 2, 10, 18 go, every archived product stays
-			row(
-				"inScope(LIVE, attribute)",
-				union(without(LIVE_ALL, INVISIBLE), ARCHIVED_ALL),
-				inScope(Scope.LIVE, attributeEquals(ATTR_VISIBLE, true))
-			),
-			// the invisible products of both scopes go
-			row(
-				"inScope(LIVE, attribute), inScope(ARCHIVED, attribute)",
-				without(ALL_PRODUCTS, INVISIBLE),
-				inScope(Scope.LIVE, attributeEquals(ATTR_VISIBLE, true)),
-				inScope(Scope.ARCHIVED, attributeEquals(ATTR_VISIBLE, true))
-			),
-			// an inScope restricting the brand entity in its own nested query is not nested in the outer one: the
-			// live products with the brand (unbranded 4, 12, 20 go) and every archived product
-			row(
-				"inScope(LIVE, referenceHaving(brand, entityHaving(inScope(LIVE, pk))))",
-				union(without(LIVE_ALL, UNBRANDED), ARCHIVED_ALL),
-				inScope(
-					Scope.LIVE,
-					referenceHaving(REF_BRAND, entityHaving(inScope(Scope.LIVE, entityPrimaryKeyInSet(BRAND))))
-				)
-			)
-		);
-	}
-
-	/**
-	 * Checks that a reference constraint narrowed to one scope by `inScope(...)` keeps every product of the other
-	 * scope that satisfies the outer constraints, whichever plan answers it.
-	 *
-	 * @param label              the row label, used in the test name only
-	 * @param constraints        the constraints placed next to `scope(LIVE, ARCHIVED)`
-	 * @param expected           the expected primary keys, ascending
-	 * @param verifyAlternatives whether every eligible plan is executed and compared
-	 * @param session            the session provided by the test extension
-	 */
-	@DisplayName("Should keep the other scope's matches next to a non-empty narrowed plan")
-	@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
-	@ParameterizedTest(name = "{0}, verify alternatives: {3}")
-	@MethodSource("narrowedReferenceConstraintRows")
-	void shouldKeepOtherScopeMatchesNextToNarrowedReferenceConstraint(
-		@Nonnull String label,
-		@Nonnull FilterConstraint[] constraints,
-		@Nonnull int[] expected,
-		boolean verifyAlternatives,
-		@Nonnull EvitaSessionContract session
-	) {
-		assertQueryReturns(session, BOTH_SCOPES, constraints, verifyAlternatives, expected);
-	}
-
-	/**
-	 * Checks that a narrowed reference constraint that matches nothing in its own scope does not empty the query - the
-	 * other scope's products that satisfy the outer constraints must come back.
-	 *
-	 * @param label              the row label, used in the test name only
-	 * @param constraints        the constraints placed next to `scope(LIVE, ARCHIVED)`
-	 * @param expected           the expected primary keys, ascending
-	 * @param verifyAlternatives whether every eligible plan is executed and compared
-	 * @param session            the session provided by the test extension
-	 */
-	@DisplayName("Should keep the other scope's matches when the narrowed plan is empty")
-	@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
-	@ParameterizedTest(name = "{0}, verify alternatives: {3}")
-	@MethodSource("emptyNarrowedPlanRows")
-	void shouldKeepOtherScopeMatchesWhenNarrowedPlanIsEmpty(
-		@Nonnull String label,
-		@Nonnull FilterConstraint[] constraints,
-		@Nonnull int[] expected,
-		boolean verifyAlternatives,
-		@Nonnull EvitaSessionContract session
-	) {
-		assertQueryReturns(session, BOTH_SCOPES, constraints, verifyAlternatives, expected);
-	}
-
-	/**
-	 * Guards the fix against over-correction: when the `REFERENCED_ENTITY` plan covers every queried scope, it must
-	 * stay registered, eligible and - in this fixture, where it is the cheaper one - selected. The answer is checked
-	 * too, so a guard cannot pass on a wrong result.
-	 *
-	 * @param label              the row label, used in the test name only
-	 * @param scopes             the scopes of `scope(...)`
-	 * @param constraints        the constraints placed next to `scope(...)`
-	 * @param expected           the expected primary keys, ascending
-	 * @param verifyAlternatives whether every eligible plan is executed and compared
-	 * @param session            the session provided by the test extension
-	 */
-	@DisplayName("Should keep choosing the reduced-index plan when it covers every queried scope")
-	@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
-	@ParameterizedTest(name = "{0}, verify alternatives: {4}")
-	@MethodSource("reducedPlanCoveringEveryScopeRows")
-	@Tag(ENGINE)
-	@Tag(QUERY)
-	void shouldKeepChoosingReducedIndexPlanWhenItCoversEveryQueriedScope(
-		@Nonnull String label,
-		@Nonnull Scope[] scopes,
-		@Nonnull FilterConstraint[] constraints,
-		@Nonnull int[] expected,
-		boolean verifyAlternatives,
-		@Nonnull EvitaSessionContract session
-	) {
-		final QueryOutcome outcome = assertQueryReturns(session, scopes, constraints, verifyAlternatives, expected);
-		assertFalse(
-			outcome.reducedIndexAlternatives().isEmpty(),
-			"#1681: the REFERENCED_ENTITY alternative must stay registered"
-		);
-		for (final String alternative : outcome.reducedIndexAlternatives()) {
+			assertTrue(
+				outcome.reducedIndexAlternatives().stream().anyMatch(it -> it.contains(PARTIAL_SCOPE_COVERAGE)),
+				() -> "the narrowed REFERENCED_ENTITY candidate must stay registered as ineligible, got: "
+					+ outcome.reducedIndexAlternatives()
+			);
+			assertNotNull(outcome.selectedIndex(), "the telemetry must name the selected index");
 			assertFalse(
-				alternative.contains("not eligible"),
-				() -> "#1681: the REFERENCED_ENTITY alternative covers every queried scope and must stay eligible, "
-					+ "got: " + alternative
+				outcome.selectedIndex().contains("REFERENCED_ENTITY"),
+				() -> "no REFERENCED_ENTITY plan may answer the query, got: " + outcome.selectedIndex()
 			);
 		}
-		assertNotNull(outcome.selectedIndex(), "#1681: the telemetry must name the selected index");
-		assertTrue(
-			outcome.selectedIndex().contains("REFERENCED_ENTITY"),
-			() -> "#1681: the cheaper REFERENCED_ENTITY plan must be selected, got: " + outcome.selectedIndex()
-		);
-	}
 
-	/**
-	 * Checks that one `referenceHaving` instance placed both in `inScope(LIVE, ...)` and in `inScope(ARCHIVED, ...)`
-	 * is answered per scope (#1686) - plan choice is not involved. Index selection registers one candidate per
-	 * container, and the translator must look up the candidate built for the scope it is translating
-	 * (`FilterByVisitor#findTargetIndexSet` matches the instance together with the processing scopes); matching the
-	 * instance alone would hand the LIVE candidate to the ARCHIVED translation and lose the archived owners of tag 1 /
-	 * category 2. Two equal but distinct instances are the control.
-	 *
-	 * The expected answer is the subtree in both scopes: tag 1 is set exactly on products 1-8 and 49-56, the same
-	 * products that reference category 2.
-	 *
-	 * @param label         the row label, used in the test name only
-	 * @param referenceName the reference the constraint targets
-	 * @param reused        whether both containers hold the same instance
-	 * @param session       the session provided by the test extension
-	 */
-	@DisplayName("Should resolve a constraint instance reused in two inScope containers per scope")
-	@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
-	@ParameterizedTest(name = "{0}")
-	@MethodSource("reusedConstraintInstanceRows")
-	void shouldResolveReusedConstraintInstancePerScope(
-		@Nonnull String label,
-		@Nonnull String referenceName,
-		boolean reused,
-		@Nonnull EvitaSessionContract session
-	) {
-		final int referencedPk = REF_TAGS.equals(referenceName) ? TAG : SUBTREE_CATEGORY;
-		final FilterConstraint liveConstraint = referenceHaving(referenceName, entityPrimaryKeyInSet(referencedPk));
-		final FilterConstraint archivedConstraint = reused ?
-			liveConstraint : referenceHaving(referenceName, entityPrimaryKeyInSet(referencedPk));
-		assertQueryReturns(
-			session, BOTH_SCOPES,
-			new FilterConstraint[]{
-				inScope(Scope.LIVE, liveConstraint),
-				inScope(Scope.ARCHIVED, archivedConstraint)
-			},
-			false,
-			union(LIVE_SUBTREE, ARCHIVED_SUBTREE)
-		);
-	}
-
-	/**
-	 * Checks that a query with `inScope` nested in another `inScope` is refused when executed, with an error naming
-	 * both scopes - while the constraint itself can still be built, so that a stored query of this shape stays
-	 * readable. The opposite nesting is contradictory, the same-scope nesting redundant.
-	 *
-	 * @param label      the row label, used in the test name only
-	 * @param outerScope the scope of the outer container
-	 * @param innerScope the scope of the container nested in it
-	 * @param session    the session provided by the test extension
-	 */
-	@DisplayName("Should reject inScope nested in another inScope")
-	@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
-	@ParameterizedTest(name = "{0}")
-	@MethodSource("nestedInScopeRows")
-	void shouldRejectInScopeNestedInAnotherInScope(
-		@Nonnull String label,
-		@Nonnull Scope outerScope,
-		@Nonnull Scope innerScope,
-		@Nonnull EvitaSessionContract session
-	) {
-		final FilterConstraint nested = assertDoesNotThrow(
-			() -> inScope(outerScope, inScope(innerScope, attributeEquals(ATTR_VISIBLE, true)))
-		);
-		final EvitaInvalidUsageException exception = assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> runQuery(session, BOTH_SCOPES, new FilterConstraint[]{nested}, false)
-		);
-		assertTrue(
-			exception.getMessage().contains("inScope(" + innerScope.name()) &&
-				exception.getMessage().contains("inScope(" + outerScope.name()),
-			() -> "#1681: the rejection must name both scopes, got: " + exception.getMessage()
-		);
-	}
-
-	/**
-	 * Control of {@link #shouldRejectInScopeNestedInAnotherInScope}: `inScope` containers placed side by side, and an
-	 * `inScope` restricting another entity inside an `inScope`, are accepted and answered.
-	 *
-	 * @param label              the row label, used in the test name only
-	 * @param constraints        the constraints placed next to `scope(LIVE, ARCHIVED)`
-	 * @param expected           the expected primary keys, ascending
-	 * @param session            the session provided by the test extension
-	 */
-	@DisplayName("Should apply inScope containers that are not nested in one another")
-	@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
-	@ParameterizedTest(name = "{0}")
-	@MethodSource("acceptedInScopeRows")
-	void shouldApplyInScopeContainersNotNestedInOneAnother(
-		@Nonnull String label,
-		@Nonnull FilterConstraint[] constraints,
-		@Nonnull int[] expected,
-		@Nonnull EvitaSessionContract session
-	) {
-		assertQueryReturns(session, BOTH_SCOPES, constraints, false, expected);
-	}
-
-	/**
-	 * Checks that a query with nested `inScope` survives the storage round trip unchanged - a traffic recording made
-	 * before the nesting was refused deserializes every stored query up front, and one such query must not make the
-	 * whole recording unreadable - and that executing the read-back query is refused like any other.
-	 *
-	 * @param session the session provided by the test extension
-	 */
-	@DisplayName("Should read a stored query with nested inScope back and reject its execution")
-	@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
-	@Test
-	@Tag(STORAGE)
-	void shouldReadStoredQueryWithNestedInScopeBackAndRejectItsExecution(@Nonnull EvitaSessionContract session) {
-		final Query stored = query(
-			collection(ENTITY_PRODUCT),
-			filterBy(
-				scope(BOTH_SCOPES),
-				inScope(Scope.LIVE, inScope(Scope.ARCHIVED, attributeEquals(ATTR_VISIBLE, true)))
-			),
-			orderBy(inScope(Scope.LIVE, inScope(Scope.LIVE, attributeNatural(ATTR_VISIBLE)))),
-			require(page(1, PRODUCT_COUNT))
-		);
-		final Kryo kryo = KryoFactory.createKryo(QuerySerializationKryoConfigurer.INSTANCE);
-		final ByteArrayOutputStream bytes = new ByteArrayOutputStream(1_024);
-		try (final Output output = new Output(bytes, 1_024)) {
-			kryo.writeObject(output, stored);
+		/**
+		 * Checks that a narrowed reference constraint that matches nothing in its own scope does not empty the query -
+		 * the other scope's products that satisfy the outer constraints must come back - and that no narrowed candidate
+		 * is registered for it at all, because a registered empty candidate empties the whole query.
+		 *
+		 * @param label              the row label, used in the test name only
+		 * @param constraints        the constraints placed next to `scope(LIVE, ARCHIVED)`
+		 * @param expected           the expected primary keys, ascending
+		 * @param verifyAlternatives whether every eligible plan is executed and compared
+		 * @param session            the session provided by the test extension
+		 */
+		@DisplayName("Should keep the other scope's matches when the narrowed plan is empty")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+		@ParameterizedTest(name = "{0}, verify alternatives: {3}")
+		@MethodSource("emptyNarrowedPlanRows")
+		void shouldKeepOtherScopeMatchesWhenNarrowedPlanIsEmpty(
+			@Nonnull String label,
+			@Nonnull FilterConstraint[] constraints,
+			@Nonnull int[] expected,
+			boolean verifyAlternatives,
+			@Nonnull EvitaSessionContract session
+		) {
+			final QueryOutcome outcome = assertQueryReturns(
+				session, BOTH_SCOPES, constraints, verifyAlternatives, expected
+			);
+			assertTrue(
+				outcome.reducedIndexAlternatives().stream().noneMatch(it -> it.contains(PARTIAL_SCOPE_COVERAGE)),
+				() -> "an empty narrowed REFERENCED_ENTITY candidate must not be registered, got: "
+					+ outcome.reducedIndexAlternatives()
+			);
 		}
-		final Query readBack;
-		try (final Input input = new Input(bytes.toByteArray())) {
-			readBack = assertDoesNotThrow(() -> kryo.readObject(input, Query.class));
+
+		/**
+		 * Guards the fix against over-correction: when the `REFERENCED_ENTITY` plan covers every queried scope, it must
+		 * stay registered, eligible and - in this fixture, where it is the cheaper one - selected. The answer is
+		 * checked too, so a guard cannot pass on a wrong result.
+		 *
+		 * @param label              the row label, used in the test name only
+		 * @param scopes             the scopes of `scope(...)`
+		 * @param constraints        the constraints placed next to `scope(...)`
+		 * @param expected           the expected primary keys, ascending
+		 * @param verifyAlternatives whether every eligible plan is executed and compared
+		 * @param session            the session provided by the test extension
+		 */
+		@DisplayName("Should keep choosing the reduced-index plan when it covers every queried scope")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+		@ParameterizedTest(name = "{0}, verify alternatives: {4}")
+		@MethodSource("reducedPlanCoveringEveryScopeRows")
+		@Tag(ENGINE)
+		@Tag(QUERY)
+		void shouldKeepChoosingReducedIndexPlanWhenItCoversEveryQueriedScope(
+			@Nonnull String label,
+			@Nonnull Scope[] scopes,
+			@Nonnull FilterConstraint[] constraints,
+			@Nonnull int[] expected,
+			boolean verifyAlternatives,
+			@Nonnull EvitaSessionContract session
+		) {
+			final QueryOutcome outcome = assertQueryReturns(session, scopes, constraints, verifyAlternatives, expected);
+			assertFalse(
+				outcome.reducedIndexAlternatives().isEmpty(),
+				"the REFERENCED_ENTITY alternative must stay registered"
+			);
+			for (final String alternative : outcome.reducedIndexAlternatives()) {
+				assertFalse(
+					alternative.contains("not eligible"),
+					() -> "the REFERENCED_ENTITY alternative covers every queried scope and must stay eligible, "
+						+ "got: " + alternative
+				);
+			}
+			assertNotNull(outcome.selectedIndex(), "the telemetry must name the selected index");
+			assertTrue(
+				outcome.selectedIndex().contains("REFERENCED_ENTITY"),
+				() -> "the cheaper REFERENCED_ENTITY plan must be selected, got: " + outcome.selectedIndex()
+			);
 		}
-		assertEquals(stored, readBack);
 
-		final EvitaInvalidUsageException exception = assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> session.query(readBack, EntityReference.class)
-		);
-		assertTrue(
-			exception.getMessage().contains("inScope(ARCHIVED") && exception.getMessage().contains("inScope(LIVE"),
-			() -> "the rejection must name both scopes, got: " + exception.getMessage()
-		);
 	}
 
 	/**
-	 * Checks that a nesting introduced by copying a valid container with new children - which no constructor sees -
-	 * is refused when the query is executed.
-	 *
-	 * @param session the session provided by the test extension
+	 * One constraint instance placed in several `inScope` containers, resolved per container.
 	 */
-	@DisplayName("Should reject inScope nesting introduced by copying a container with new children")
-	@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
-	@Test
-	void shouldRejectInScopeNestingIntroducedByCopyingContainer(@Nonnull EvitaSessionContract session) {
-		final FilterInScope valid = inScope(Scope.LIVE, attributeEquals(ATTR_VISIBLE, true));
-		final FilterConstraint copy = valid.getCopyWithNewChildren(
-			new FilterConstraint[]{inScope(Scope.ARCHIVED, attributeEquals(ATTR_VISIBLE, true))},
-			new Constraint<?>[0]
-		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> runQuery(session, BOTH_SCOPES, new FilterConstraint[]{copy}, false)
-		);
+	@Nested
+	@DisplayName("Constraint instance reused in several inScope containers")
+	class ReusedConstraintInstance {
+
+		/**
+		 * Returns the rows of the reused-instance witness: the same `referenceHaving` placed in `inScope(LIVE, ...)`
+		 * and in `inScope(ARCHIVED, ...)`, either as one Java object or as two equal objects. Each row is a label, the
+		 * reference name, and whether the instance is reused.
+		 *
+		 * @return the row arguments
+		 */
+		@Nonnull
+		static Stream<Arguments> reusedConstraintInstanceRows() {
+			return Stream.of(
+				// tags are not partitioned, so every REFERENCED_ENTITY candidate is ineligible and the global plan
+				// answers - plan choice is out of play; catches an identity-only lookup of the candidate
+				Arguments.of("tags (not partitioned), one instance", REF_TAGS, true),
+				// control: two equal but distinct instances find their own candidates
+				Arguments.of("tags (not partitioned), two instances", REF_TAGS, false),
+				// the same on a partitioned reference, where the narrowed candidates exist but are ineligible - only
+				// the lookup decides the answer
+				Arguments.of("categories (partitioned), one instance", REF_CATEGORIES, true),
+				// control
+				Arguments.of("categories (partitioned), two instances", REF_CATEGORIES, false)
+			);
+		}
+
+		/**
+		 * Checks that one `referenceHaving` instance placed both in `inScope(LIVE, ...)` and in `inScope(ARCHIVED,
+		 * ...)` is answered per scope - plan choice is not involved. Index selection registers one candidate per
+		 * container, and the translator must look up the candidate built for the scope it is translating
+		 * (`FilterByVisitor#findTargetIndexSet` matches the instance together with the processing scopes); matching the
+		 * instance alone would hand the LIVE candidate to the ARCHIVED translation and lose the archived owners of tag
+		 * 1 / category 2. Two equal but distinct instances are the control.
+		 *
+		 * The expected answer is the subtree in both scopes: tag 1 is set exactly on products 1-8 and 49-56, the same
+		 * products that reference category 2.
+		 *
+		 * @param label         the row label, used in the test name only
+		 * @param referenceName the reference the constraint targets
+		 * @param reused        whether both containers hold the same instance
+		 * @param session       the session provided by the test extension
+		 */
+		@DisplayName("Should resolve a constraint instance reused in two inScope containers per scope")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("reusedConstraintInstanceRows")
+		void shouldResolveReusedConstraintInstancePerScope(
+			@Nonnull String label,
+			@Nonnull String referenceName,
+			boolean reused,
+			@Nonnull EvitaSessionContract session
+		) {
+			final int referencedPk = REF_TAGS.equals(referenceName) ? TAG : SUBTREE_CATEGORY;
+			final FilterConstraint liveConstraint = referenceHaving(referenceName, entityPrimaryKeyInSet(referencedPk));
+			final FilterConstraint archivedConstraint = reused ?
+				liveConstraint : referenceHaving(referenceName, entityPrimaryKeyInSet(referencedPk));
+			assertQueryReturns(
+				session, BOTH_SCOPES,
+				new FilterConstraint[]{
+					inScope(Scope.LIVE, liveConstraint),
+					inScope(Scope.ARCHIVED, archivedConstraint)
+				},
+				false,
+				union(LIVE_SUBTREE, ARCHIVED_SUBTREE)
+			);
+		}
+
 	}
 
 	/**
-	 * Checks that a nested `inScope` in the reference content filter of a direct fetch or an enrichment is refused like
-	 * in a query - neither is planned, the reference fetcher evaluates the filter directly, so the rule is checked
-	 * where the fetch and the enrichment are admitted. A filter whose nesting was introduced by copying a container
-	 * with new children is refused too, and the same filter without the nesting is answered.
-	 *
-	 * @param session the session provided by the test extension
+	 * The rule that an `inScope` container must not be nested in another one, at every point where a query or a
+	 * fetch requirement is admitted, together with the shapes that are accepted.
 	 */
-	@DisplayName("Should reject nested inScope in the reference content of a fetch and an enrichment")
-	@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
-	@Test
-	void shouldRejectNestedInScopeInReferenceContentOfFetchAndEnrichment(@Nonnull EvitaSessionContract session) {
-		final FilterConstraint nested = inScope(Scope.LIVE, inScope(Scope.LIVE, entityPrimaryKeyInSet(SUBTREE_CATEGORY)));
-		final FilterConstraint copiedNested = inScope(Scope.LIVE, entityPrimaryKeyInSet(SUBTREE_CATEGORY))
-			.getCopyWithNewChildren(
-				new FilterConstraint[]{inScope(Scope.LIVE, entityPrimaryKeyInSet(SUBTREE_CATEGORY))},
+	@Nested
+	@DisplayName("Nested inScope rejection")
+	class NestedInScopeRejection {
+
+		/**
+		 * Returns the rows of the nested-`inScope` rejection: a label, the scope of the outer container and the scope
+		 * of the container nested in it.
+		 *
+		 * `inScope(S, P)` applies `P` only when entities of scope `S` are searched. Nesting two opposite containers
+		 * would apply `P` when searching LIVE **and** ARCHIVED at once - never - and nesting two equal containers is
+		 * redundant, so both are refused when the query is executed.
+		 *
+		 * @return the row arguments
+		 */
+		@Nonnull
+		static Stream<Arguments> nestedInScopeRows() {
+			return Stream.of(
+				// contradictory: the scope-container rewrite has no sound meaning for it (it would keep the inner
+				// container's archived formula inside the LIVE branch and lose every live product)
+				Arguments.of("inScope(LIVE, inScope(ARCHIVED, attribute))", Scope.LIVE, Scope.ARCHIVED),
+				// mirror image
+				Arguments.of("inScope(ARCHIVED, inScope(LIVE, attribute))", Scope.ARCHIVED, Scope.LIVE),
+				// redundant
+				Arguments.of("inScope(LIVE, inScope(LIVE, attribute))", Scope.LIVE, Scope.LIVE)
+			);
+		}
+
+		/**
+		 * Returns the rows of the controls of the nested-`inScope` rejection - shapes that are accepted and answered:
+		 * a label, the constraints placed next to `scope(LIVE, ARCHIVED)` and the expected primary keys.
+		 *
+		 * @return the row arguments
+		 */
+		@Nonnull
+		static Stream<Arguments> acceptedInScopeRows() {
+			return Stream.of(
+				// invisible live 2, 10, 18 go, every archived product stays
+				row(
+					"inScope(LIVE, attribute)",
+					union(without(LIVE_ALL, INVISIBLE), ARCHIVED_ALL),
+					inScope(Scope.LIVE, attributeEquals(ATTR_VISIBLE, true))
+				),
+				// the invisible products of both scopes go
+				row(
+					"inScope(LIVE, attribute), inScope(ARCHIVED, attribute)",
+					without(ALL_PRODUCTS, INVISIBLE),
+					inScope(Scope.LIVE, attributeEquals(ATTR_VISIBLE, true)),
+					inScope(Scope.ARCHIVED, attributeEquals(ATTR_VISIBLE, true))
+				),
+				// an inScope restricting the brand entity in its own nested query is not nested in the outer one: the
+				// live products with the brand (unbranded 4, 12, 20 go) and every archived product
+				row(
+					"inScope(LIVE, referenceHaving(brand, entityHaving(inScope(LIVE, pk))))",
+					union(without(LIVE_ALL, UNBRANDED), ARCHIVED_ALL),
+					inScope(
+						Scope.LIVE,
+						referenceHaving(REF_BRAND, entityHaving(inScope(Scope.LIVE, entityPrimaryKeyInSet(BRAND))))
+					)
+				)
+			);
+		}
+
+		/**
+		 * Checks that a query with `inScope` nested in another `inScope` is refused when executed, with an error naming
+		 * both scopes - while the constraint itself can still be built, so that a stored query of this shape stays
+		 * readable. The opposite nesting is contradictory, the same-scope nesting redundant.
+		 *
+		 * @param label      the row label, used in the test name only
+		 * @param outerScope the scope of the outer container
+		 * @param innerScope the scope of the container nested in it
+		 * @param session    the session provided by the test extension
+		 */
+		@DisplayName("Should reject inScope nested in another inScope")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("nestedInScopeRows")
+		void shouldRejectInScopeNestedInAnotherInScope(
+			@Nonnull String label,
+			@Nonnull Scope outerScope,
+			@Nonnull Scope innerScope,
+			@Nonnull EvitaSessionContract session
+		) {
+			final FilterConstraint nested = assertDoesNotThrow(
+				() -> inScope(outerScope, inScope(innerScope, attributeEquals(ATTR_VISIBLE, true)))
+			);
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> runQuery(session, BOTH_SCOPES, new FilterConstraint[]{nested}, false)
+			);
+			assertTrue(
+				exception.getMessage().contains("inScope(" + innerScope.name()) &&
+					exception.getMessage().contains("inScope(" + outerScope.name()),
+				() -> "the rejection must name both scopes, got: " + exception.getMessage()
+			);
+		}
+
+		/**
+		 * Control of {@link #shouldRejectInScopeNestedInAnotherInScope}: `inScope` containers placed side by side, and
+		 * an `inScope` restricting another entity inside an `inScope`, are accepted and answered.
+		 *
+		 * @param label              the row label, used in the test name only
+		 * @param constraints        the constraints placed next to `scope(LIVE, ARCHIVED)`
+		 * @param expected           the expected primary keys, ascending
+		 * @param session            the session provided by the test extension
+		 */
+		@DisplayName("Should apply inScope containers that are not nested in one another")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("acceptedInScopeRows")
+		void shouldApplyInScopeContainersNotNestedInOneAnother(
+			@Nonnull String label,
+			@Nonnull FilterConstraint[] constraints,
+			@Nonnull int[] expected,
+			@Nonnull EvitaSessionContract session
+		) {
+			assertQueryReturns(session, BOTH_SCOPES, constraints, false, expected);
+		}
+
+		/**
+		 * Checks that a query with nested `inScope` survives the storage round trip unchanged - a traffic recording
+		 * made before the nesting was refused deserializes every stored query up front, and one such query must not
+		 * make the whole recording unreadable - and that executing the read-back query is refused like any other.
+		 *
+		 * @param session the session provided by the test extension
+		 */
+		@DisplayName("Should read a stored query with nested inScope back and reject its execution")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+		@Test
+		@Tag(STORAGE)
+		void shouldReadStoredQueryWithNestedInScopeBackAndRejectItsExecution(@Nonnull EvitaSessionContract session) {
+			final Query stored = query(
+				collection(ENTITY_PRODUCT),
+				filterBy(
+					scope(BOTH_SCOPES),
+					inScope(Scope.LIVE, inScope(Scope.ARCHIVED, attributeEquals(ATTR_VISIBLE, true)))
+				),
+				orderBy(inScope(Scope.LIVE, inScope(Scope.LIVE, attributeNatural(ATTR_VISIBLE)))),
+				require(page(1, PRODUCT_COUNT))
+			);
+			final Kryo kryo = KryoFactory.createKryo(QuerySerializationKryoConfigurer.INSTANCE);
+			final ByteArrayOutputStream bytes = new ByteArrayOutputStream(1_024);
+			try (final Output output = new Output(bytes, 1_024)) {
+				kryo.writeObject(output, stored);
+			}
+			final Query readBack;
+			try (final Input input = new Input(bytes.toByteArray())) {
+				readBack = assertDoesNotThrow(() -> kryo.readObject(input, Query.class));
+			}
+			assertEquals(stored, readBack);
+
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> session.query(readBack, EntityReference.class)
+			);
+			assertTrue(
+				exception.getMessage().contains("inScope(ARCHIVED") && exception.getMessage().contains("inScope(LIVE"),
+				() -> "the rejection must name both scopes, got: " + exception.getMessage()
+			);
+		}
+
+		/**
+		 * Checks that a nesting introduced by copying a valid container with new children - which no constructor sees -
+		 * is refused when the query is executed.
+		 *
+		 * @param session the session provided by the test extension
+		 */
+		@DisplayName("Should reject inScope nesting introduced by copying a container with new children")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+		@Test
+		void shouldRejectInScopeNestingIntroducedByCopyingContainer(@Nonnull EvitaSessionContract session) {
+			final FilterInScope valid = inScope(Scope.LIVE, attributeEquals(ATTR_VISIBLE, true));
+			final FilterConstraint copy = valid.getCopyWithNewChildren(
+				new FilterConstraint[]{inScope(Scope.ARCHIVED, attributeEquals(ATTR_VISIBLE, true))},
 				new Constraint<?>[0]
 			);
-		for (final FilterConstraint filter : new FilterConstraint[]{nested, copiedNested}) {
 			assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> session.getEntity(ENTITY_PRODUCT, 1, referenceContent(REF_CATEGORIES, filterBy(filter))),
-				() -> "a direct fetch must refuse " + filter
-			);
-			final SealedEntity bare = session.getEntity(ENTITY_PRODUCT, 1).orElseThrow();
-			assertThrows(
-				EvitaInvalidUsageException.class,
-				() -> session.enrichEntity(bare, referenceContent(REF_CATEGORIES, filterBy(filter))),
-				() -> "an enrichment must refuse " + filter
+				() -> runQuery(session, BOTH_SCOPES, new FilterConstraint[]{copy}, false)
 			);
 		}
 
-		final SealedEntity fetched = session.getEntity(
-			ENTITY_PRODUCT, 1,
-			referenceContent(REF_CATEGORIES, filterBy(inScope(Scope.LIVE, entityPrimaryKeyInSet(SUBTREE_CATEGORY))))
-		).orElseThrow();
-		assertEquals(
-			List.of(SUBTREE_CATEGORY),
-			fetched.getReferences(REF_CATEGORIES).stream().map(ReferenceContract::getReferencedPrimaryKey).toList()
-		);
+		/**
+		 * Checks that a nested `inScope` in the reference content filter of a direct fetch or an enrichment is refused
+		 * like in a query - neither is planned, the reference fetcher evaluates the filter directly, so the rule is
+		 * checked where the fetch and the enrichment are admitted. A filter whose nesting was introduced by copying a
+		 * container with new children is refused too, and the same filter without the nesting is answered.
+		 *
+		 * @param session the session provided by the test extension
+		 */
+		@DisplayName("Should reject nested inScope in the reference content of a fetch and an enrichment")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+		@Test
+		void shouldRejectNestedInScopeInReferenceContentOfFetchAndEnrichment(@Nonnull EvitaSessionContract session) {
+			final FilterConstraint nested = inScope(
+				Scope.LIVE, inScope(Scope.LIVE, entityPrimaryKeyInSet(SUBTREE_CATEGORY))
+			);
+			final FilterConstraint copiedNested = inScope(Scope.LIVE, entityPrimaryKeyInSet(SUBTREE_CATEGORY))
+				.getCopyWithNewChildren(
+					new FilterConstraint[]{inScope(Scope.LIVE, entityPrimaryKeyInSet(SUBTREE_CATEGORY))},
+					new Constraint<?>[0]
+				);
+			for (final FilterConstraint filter : new FilterConstraint[]{nested, copiedNested}) {
+				assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.getEntity(ENTITY_PRODUCT, 1, referenceContent(REF_CATEGORIES, filterBy(filter))),
+					() -> "a direct fetch must refuse " + filter
+				);
+				final SealedEntity bare = session.getEntity(ENTITY_PRODUCT, 1).orElseThrow();
+				assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.enrichEntity(bare, referenceContent(REF_CATEGORIES, filterBy(filter))),
+					() -> "an enrichment must refuse " + filter
+				);
+			}
+
+			final SealedEntity fetched = session.getEntity(
+				ENTITY_PRODUCT, 1,
+				referenceContent(REF_CATEGORIES, filterBy(inScope(Scope.LIVE, entityPrimaryKeyInSet(SUBTREE_CATEGORY))))
+			).orElseThrow();
+			assertEquals(
+				List.of(SUBTREE_CATEGORY),
+				fetched.getReferences(REF_CATEGORIES).stream().map(ReferenceContract::getReferencedPrimaryKey).toList()
+			);
+		}
+
+		/**
+		 * Returns the rows of the mutation-fetch rejection: a label, the entity type and primary key of the changed
+		 * entity, and the call that changes it and fetches it with the passed requirement.
+		 *
+		 * @return the row arguments
+		 */
+		@Nonnull
+		static Stream<Arguments> mutationFetchRows() {
+			return Stream.of(
+				Arguments.of(
+					"upsertAndFetchEntity", ENTITY_PRODUCT, LIVE_TAGGED_PRODUCT,
+					(MutationFetch) (session, require) -> session.upsertAndFetchEntity(
+						session.getEntity(ENTITY_PRODUCT, LIVE_TAGGED_PRODUCT, attributeContentAll())
+							.orElseThrow()
+							.openForWrite()
+							.setAttribute(ATTR_VISIBLE, false),
+						require
+					)
+				),
+				Arguments.of(
+					"deleteEntity", ENTITY_PRODUCT, LIVE_TAGGED_PRODUCT,
+					(MutationFetch) (session, require) -> session.deleteEntity(
+						ENTITY_PRODUCT, LIVE_TAGGED_PRODUCT, require
+					)
+				),
+				Arguments.of(
+					"deleteEntityAndItsHierarchy", ENTITY_CATEGORY, OTHER_CATEGORY,
+					(MutationFetch) (session, require) -> session.deleteEntityAndItsHierarchy(
+						ENTITY_CATEGORY, OTHER_CATEGORY, require
+					)
+				),
+				Arguments.of(
+					"archiveEntity", ENTITY_PRODUCT, LIVE_TAGGED_PRODUCT,
+					(MutationFetch) (session, require) -> session.archiveEntity(
+						ENTITY_PRODUCT, LIVE_TAGGED_PRODUCT, require
+					)
+				),
+				Arguments.of(
+					"restoreEntity", ENTITY_PRODUCT, ARCHIVED_TAGGED_PRODUCT,
+					(MutationFetch) (session, require) -> session.restoreEntity(
+						ENTITY_PRODUCT, ARCHIVED_TAGGED_PRODUCT, require
+					)
+				)
+			);
+		}
+
+		/**
+		 * Checks that a call that changes an entity and returns it refuses a reference content requirement with
+		 * `inScope` nested in another `inScope` - and refuses it before the change, so the entity is left exactly as
+		 * it was. The state is read in the same session right after the refusal, before anything could roll the change
+		 * back.
+		 *
+		 * @param label      the row label, used in the test name only
+		 * @param entityType the type of the changed entity
+		 * @param primaryKey the primary key of the changed entity
+		 * @param call       the call that changes the entity and fetches it
+		 * @param evita      the engine instance provided by the test extension
+		 */
+		@DisplayName("Should reject nested inScope in the reference content of a mutation that fetches the entity")
+		@UseDataSet(value = IN_SCOPE_REDUCED_INDEX_PLAN_WRITABLE, destroyAfterTest = true)
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("mutationFetchRows")
+		void shouldRejectNestedInScopeInReferenceContentOfMutationFetch(
+			@Nonnull String label,
+			@Nonnull String entityType,
+			int primaryKey,
+			@Nonnull MutationFetch call,
+			@Nonnull Evita evita
+		) {
+			final EntityContentRequire nested = referenceContent(
+				REF_TAGS, filterBy(inScope(Scope.LIVE, inScope(Scope.LIVE, entityPrimaryKeyInSet(TAG))))
+			);
+			evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final String before = describeState(session, entityType, primaryKey);
+					assertThrows(
+						EvitaInvalidUsageException.class,
+						() -> call.apply(session, nested),
+						() -> label + " must refuse " + nested
+					);
+					assertEquals(
+						before,
+						describeState(session, entityType, primaryKey),
+						() -> label + " must leave the entity unchanged"
+					);
+				}
+			);
+		}
+
+		/**
+		 * Describes the state of an entity a mutation could change: its presence, scope and version.
+		 *
+		 * @param session    the session to read in
+		 * @param entityType the entity type
+		 * @param primaryKey the entity primary key
+		 * @return the description
+		 */
+		@Nonnull
+		private static String describeState(
+			@Nonnull EvitaSessionContract session,
+			@Nonnull String entityType,
+			int primaryKey
+		) {
+			return session.getEntity(entityType, primaryKey, BOTH_SCOPES)
+				.map(it -> it.getScope() + " version " + it.version())
+				.orElse("absent");
+		}
+
+		/**
+		 * A call that changes an entity and fetches it with the passed requirement.
+		 */
+		@FunctionalInterface
+		interface MutationFetch {
+
+			/**
+			 * Changes the entity and fetches it.
+			 *
+			 * @param session the read-write session
+			 * @param require the requirement the entity is fetched with
+			 */
+			void apply(@Nonnull EvitaSessionContract session, @Nonnull EntityContentRequire require);
+
+		}
+
 	}
 
 	/**
-	 * Checks that hierarchy statistics of a scope use the roots resolved by an occurrence of the constraint that covers
-	 * that scope when an equal `hierarchyWithin` sits both in `inScope(ARCHIVED, ...)` and at the top level of a query
-	 * over both scopes (#1686).
-	 *
-	 * The parent filter `entityPrimaryKeyInSet(1)` resolves to root 1 for the top-level occurrence (category 1 is
-	 * live) and to no root at all for the occurrence scoped to ARCHIVED (the archived tree does not contain 1). The
-	 * live `children` statistics must describe root 1 with its 8 live owners, whichever occurrence is translated first
-	 * and whether they are one instance or two - the archived occurrence does not apply to the live scope.
-	 *
-	 * @param scopedFirst whether the scoped constraint precedes the top-level one
-	 * @param reused      whether both places hold the same instance
-	 * @param session     the session provided by the test extension
+	 * Hierarchy statistics of one scope computed from what an occurrence of the hierarchy filter covering that scope
+	 * resolved - its roots and its node visibility - and never from an occurrence restricted to another scope.
 	 */
-	@DisplayName("Should compute hierarchy statistics from the roots covering their scope when scoped and top-level mix")
-	@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
-	@ParameterizedTest(name = "scoped first: {0}, reused instance: {1}")
-	@MethodSource("mixedHierarchyOccurrenceRows")
-	@Tag(ENGINE)
-	@Tag(QUERY)
-	void shouldComputeHierarchyStatisticsFromRootsCoveringTheirScope(
-		boolean scopedFirst,
-		boolean reused,
-		@Nonnull EvitaSessionContract session
-	) {
-		final FilterConstraint scoped = hierarchyWithin(REF_CATEGORIES, entityPrimaryKeyInSet(ROOT_CATEGORY));
-		final FilterConstraint topLevel = reused ?
-			scoped : hierarchyWithin(REF_CATEGORIES, entityPrimaryKeyInSet(ROOT_CATEGORY));
-		final List<LevelInfo> levels = queryLiveHierarchyStatistics(
-			session,
-			scopedFirst ?
-				new FilterConstraint[]{inScope(Scope.ARCHIVED, scoped), topLevel} :
-				new FilterConstraint[]{topLevel, inScope(Scope.ARCHIVED, scoped)},
-			children(HIERARCHY_OUTPUT, statistics(StatisticsType.QUERIED_ENTITY_COUNT))
-		);
-		assertEquals(
-			List.of(ROOT_CATEGORY),
-			levels.stream().map(it -> it.entity().getPrimaryKey()).toList(),
-			() -> "the live statistics must describe the live root 1, got: " + levels
-		);
-		assertEquals(Integer.valueOf(LIVE_SUBTREE.length), levels.get(0).queriedEntityCount());
-	}
+	@Nested
+	@DisplayName("Hierarchy statistics per scope")
+	class HierarchyStatisticsPerScope {
 
-	/**
-	 * Checks that hierarchy statistics of a scope use the node visibility the filter resolved for that scope when an
-	 * equal `hierarchyWithinRoot(..., excluding(...))` sits both in `inScope(ARCHIVED, ...)` and at the top level of
-	 * a query over both scopes (#1686).
-	 *
-	 * The exclusion of category 3 resolved in the archived scope sees no live node at all; resolved for the top-level
-	 * constraint it hides the subtree of 3 only. The live `fromRoot` statistics must therefore list root 1 - the only
-	 * live root with live owners once 3 is hidden (4 has archived owners only) - whichever constraint comes first.
-	 *
-	 * @param scopedFirst whether the scoped constraint precedes the top-level one
-	 * @param reused      whether both places hold the same instance
-	 * @param session     the session provided by the test extension
-	 */
-	@DisplayName("Should compute hierarchy statistics with the visibility covering their scope when scoped and top-level mix")
-	@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
-	@ParameterizedTest(name = "scoped first: {0}, reused instance: {1}")
-	@MethodSource("mixedHierarchyOccurrenceRows")
-	@Tag(ENGINE)
-	@Tag(QUERY)
-	void shouldComputeHierarchyStatisticsWithVisibilityCoveringTheirScope(
-		boolean scopedFirst,
-		boolean reused,
-		@Nonnull EvitaSessionContract session
-	) {
-		final FilterConstraint scoped = hierarchyWithinRoot(
-			REF_CATEGORIES, excluding(entityPrimaryKeyInSet(OTHER_CATEGORY))
-		);
-		final FilterConstraint topLevel = reused ?
-			scoped : hierarchyWithinRoot(REF_CATEGORIES, excluding(entityPrimaryKeyInSet(OTHER_CATEGORY)));
-		final List<LevelInfo> levels = queryLiveHierarchyStatistics(
-			session,
-			scopedFirst ?
-				new FilterConstraint[]{inScope(Scope.ARCHIVED, scoped), topLevel} :
-				new FilterConstraint[]{topLevel, inScope(Scope.ARCHIVED, scoped)},
-			fromRoot(HIERARCHY_OUTPUT, statistics(StatisticsType.QUERIED_ENTITY_COUNT))
-		);
-		assertEquals(
-			List.of(ROOT_CATEGORY),
-			levels.stream().map(it -> it.entity().getPrimaryKey()).toList(),
-			() -> "the live statistics must list root 1 only, got: " + levels
-		);
-	}
+		/**
+		 * Returns the rows of the mixed scoped / top-level hierarchy witnesses: whether the scoped constraint comes
+		 * first, and whether both places hold the same instance.
+		 *
+		 * @return the row arguments
+		 */
+		@Nonnull
+		static Stream<Arguments> mixedHierarchyOccurrenceRows() {
+			return Stream.of(
+				Arguments.of(true, true),
+				Arguments.of(true, false),
+				Arguments.of(false, true),
+				Arguments.of(false, false)
+			);
+		}
 
-	/**
-	 * Returns the rows of the mixed scoped / top-level hierarchy witnesses: whether the scoped constraint comes first,
-	 * and whether both places hold the same instance.
-	 *
-	 * @return the row arguments
-	 */
-	@Nonnull
-	static Stream<Arguments> mixedHierarchyOccurrenceRows() {
-		return Stream.of(
-			Arguments.of(true, true),
-			Arguments.of(true, false),
-			Arguments.of(false, true),
-			Arguments.of(false, false)
-		);
+		/**
+		 * Checks that hierarchy statistics of a scope use the roots resolved by an occurrence of the constraint that
+		 * covers that scope when an equal `hierarchyWithin` sits both in `inScope(ARCHIVED, ...)` and at the top level
+		 * of a query over both scopes.
+		 *
+		 * The parent filter `entityPrimaryKeyInSet(1)` resolves to root 1 for the top-level occurrence (category 1 is
+		 * live) and to no root at all for the occurrence scoped to ARCHIVED (the archived tree does not contain 1). The
+		 * live `children` statistics must describe root 1 with its 8 live owners, whichever occurrence is translated
+		 * first and whether they are one instance or two - the archived occurrence does not apply to the live scope.
+		 *
+		 * @param scopedFirst whether the scoped constraint precedes the top-level one
+		 * @param reused      whether both places hold the same instance
+		 * @param session     the session provided by the test extension
+		 */
+		@DisplayName("Should use the roots covering their scope when scoped and top-level occurrences mix")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+		@ParameterizedTest(name = "scoped first: {0}, reused instance: {1}")
+		@MethodSource("mixedHierarchyOccurrenceRows")
+		@Tag(ENGINE)
+		@Tag(QUERY)
+		void shouldComputeHierarchyStatisticsFromRootsCoveringTheirScope(
+			boolean scopedFirst,
+			boolean reused,
+			@Nonnull EvitaSessionContract session
+		) {
+			final FilterConstraint scoped = hierarchyWithin(REF_CATEGORIES, entityPrimaryKeyInSet(ROOT_CATEGORY));
+			final FilterConstraint topLevel = reused ?
+				scoped : hierarchyWithin(REF_CATEGORIES, entityPrimaryKeyInSet(ROOT_CATEGORY));
+			final List<LevelInfo> levels = queryLiveHierarchyStatistics(
+				session,
+				scopedFirst ?
+					new FilterConstraint[]{inScope(Scope.ARCHIVED, scoped), topLevel} :
+					new FilterConstraint[]{topLevel, inScope(Scope.ARCHIVED, scoped)},
+				children(HIERARCHY_OUTPUT, statistics(StatisticsType.QUERIED_ENTITY_COUNT))
+			);
+			assertEquals(
+				List.of(ROOT_CATEGORY),
+				levels.stream().map(it -> it.entity().getPrimaryKey()).toList(),
+				() -> "the live statistics must describe the live root 1, got: " + levels
+			);
+			assertEquals(Integer.valueOf(LIVE_SUBTREE.length), levels.get(0).queriedEntityCount());
+		}
+
+		/**
+		 * Checks that hierarchy statistics of a scope use the node visibility the filter resolved for that scope when
+		 * an equal `hierarchyWithinRoot(..., excluding(...))` sits both in `inScope(ARCHIVED, ...)` and at the top
+		 * level of a query over both scopes.
+		 *
+		 * The exclusion of category 3 resolved in the archived scope sees no live node at all; resolved for the
+		 * top-level constraint it hides the subtree of 3 only. The live `fromRoot` statistics must therefore list root
+		 * 1 - the only live root with live owners once 3 is hidden (4 has archived owners only) - whichever constraint
+		 * comes first.
+		 *
+		 * @param scopedFirst whether the scoped constraint precedes the top-level one
+		 * @param reused      whether both places hold the same instance
+		 * @param session     the session provided by the test extension
+		 */
+		@DisplayName("Should use the visibility covering their scope when scoped and top-level occurrences mix")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+		@ParameterizedTest(name = "scoped first: {0}, reused instance: {1}")
+		@MethodSource("mixedHierarchyOccurrenceRows")
+		@Tag(ENGINE)
+		@Tag(QUERY)
+		void shouldComputeHierarchyStatisticsWithVisibilityCoveringTheirScope(
+			boolean scopedFirst,
+			boolean reused,
+			@Nonnull EvitaSessionContract session
+		) {
+			final FilterConstraint scoped = hierarchyWithinRoot(
+				REF_CATEGORIES, excluding(entityPrimaryKeyInSet(OTHER_CATEGORY))
+			);
+			final FilterConstraint topLevel = reused ?
+				scoped : hierarchyWithinRoot(REF_CATEGORIES, excluding(entityPrimaryKeyInSet(OTHER_CATEGORY)));
+			final List<LevelInfo> levels = queryLiveHierarchyStatistics(
+				session,
+				scopedFirst ?
+					new FilterConstraint[]{inScope(Scope.ARCHIVED, scoped), topLevel} :
+					new FilterConstraint[]{topLevel, inScope(Scope.ARCHIVED, scoped)},
+				fromRoot(HIERARCHY_OUTPUT, statistics(StatisticsType.QUERIED_ENTITY_COUNT))
+			);
+			assertEquals(
+				List.of(ROOT_CATEGORY),
+				levels.stream().map(it -> it.entity().getPrimaryKey()).toList(),
+				() -> "the live statistics must list root 1 only, got: " + levels
+			);
+		}
+
+		/**
+		 * Checks that hierarchy statistics computed for one scope use the hierarchy roots resolved in that scope when
+		 * one `hierarchyWithin` instance is placed both in `inScope(LIVE, ...)` and in `inScope(ARCHIVED, ...)`.
+		 *
+		 * The parent filter `entityPrimaryKeyInSet(1, 11)` matches root 1 in the live tree and root 11 in the archived
+		 * tree. The archived `children` statistics must describe the archived root 11 - requested, with its 8 archived
+		 * owners 49-56 below it - rather than look for the live root 1, which the archived tree does not contain and
+		 * which would leave the statistics empty.
+		 *
+		 * @param reused  whether both containers hold the same instance
+		 * @param session the session provided by the test extension
+		 */
+		@DisplayName("Should use the roots resolved in the scope the statistics are computed for")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+		@ParameterizedTest(name = "reused instance: {0}")
+		@ValueSource(booleans = {true, false})
+		@Tag(ENGINE)
+		@Tag(QUERY)
+		void shouldComputeHierarchyStatisticsOfScopeFromRootsResolvedInThatScope(
+			boolean reused,
+			@Nonnull EvitaSessionContract session
+		) {
+			final FilterConstraint liveHierarchy = hierarchyWithin(
+				REF_CATEGORIES, entityPrimaryKeyInSet(ROOT_CATEGORY, ARCHIVED_ROOT_CATEGORY)
+			);
+			final FilterConstraint archivedHierarchy = reused ?
+				liveHierarchy :
+				hierarchyWithin(REF_CATEGORIES, entityPrimaryKeyInSet(ROOT_CATEGORY, ARCHIVED_ROOT_CATEGORY));
+			final EvitaResponse<EntityReference> response = session.query(
+				query(
+					collection(ENTITY_PRODUCT),
+					filterBy(
+						scope(BOTH_SCOPES),
+						inScope(Scope.LIVE, liveHierarchy),
+						inScope(Scope.ARCHIVED, archivedHierarchy)
+					),
+					require(
+						page(1, PRODUCT_COUNT),
+						inScope(
+							Scope.ARCHIVED,
+							hierarchyOfReference(
+								REF_CATEGORIES,
+								children(HIERARCHY_OUTPUT, statistics(StatisticsType.QUERIED_ENTITY_COUNT))
+							)
+						)
+					)
+				),
+				EntityReference.class
+			);
+			assertArrayEquals(
+				union(LIVE_SUBTREE, ARCHIVED_SUBTREE),
+				response.getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).sorted().toArray()
+			);
+			final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+			assertNotNull(hierarchy, "the hierarchy statistics must be computed");
+			final List<LevelInfo> children = hierarchy.getReferenceHierarchy(REF_CATEGORIES, HIERARCHY_OUTPUT);
+			assertEquals(
+				List.of(ARCHIVED_ROOT_CATEGORY),
+				children.stream().map(it -> it.entity().getPrimaryKey()).toList(),
+				() -> "the archived statistics must describe the archived root 11, got: " + children
+			);
+			assertTrue(children.get(0).requested());
+			assertEquals(Integer.valueOf(ARCHIVED_SUBTREE.length), children.get(0).queriedEntityCount());
+		}
+
+		/**
+		 * Returns the rows of the witness of a scope no occurrence of the hierarchy filter covers: a label, the
+		 * hierarchy filter restricted to ARCHIVED, the live statistics requirement, the expected primary keys, and
+		 * the expected description of the live statistics - NULL when they must equal those of the same query
+		 * without the hierarchy filter.
+		 *
+		 * @return the row arguments
+		 */
+		@Nonnull
+		static Stream<Arguments> scopeNotCoveredByHierarchyFilterRows() {
+			// the archived occurrence resolves root 11, which the live tree does not contain
+			final FilterConstraint archivedRoots = inScope(
+				Scope.ARCHIVED,
+				hierarchyWithin(REF_CATEGORIES, entityPrimaryKeyInSet(ROOT_CATEGORY, ARCHIVED_ROOT_CATEGORY))
+			);
+			return Stream.of(
+				// catches the live statistics reading the roots of an occurrence that does not cover the live scope
+				Arguments.of(
+					"roots of inScope(ARCHIVED, hierarchyWithin), children",
+					archivedRoots,
+					children(HIERARCHY_OUTPUT, statistics(StatisticsType.QUERIED_ENTITY_COUNT)),
+					ARCHIVED_NARROWED,
+					null
+				),
+				// the parents describe the path to a node the filter selects - the live scope has none, and the same
+				// query without any hierarchyWithin refuses `parents` outright, so the statistics are empty
+				Arguments.of(
+					"roots of inScope(ARCHIVED, hierarchyWithin), parents",
+					archivedRoots,
+					parents(HIERARCHY_OUTPUT, statistics(StatisticsType.QUERIED_ENTITY_COUNT)),
+					ARCHIVED_NARROWED,
+					List.of()
+				),
+				// without a selected node the siblings are those of the live roots
+				Arguments.of(
+					"roots of inScope(ARCHIVED, hierarchyWithin), siblings",
+					archivedRoots,
+					siblings(HIERARCHY_OUTPUT, statistics(StatisticsType.QUERIED_ENTITY_COUNT)),
+					ARCHIVED_NARROWED,
+					null
+				),
+				// the predicate resolved in the archived scope admits archived nodes only; catches the live statistics
+				// observing the node visibility of an occurrence that does not cover the live scope
+				Arguments.of(
+					"visibility of inScope(ARCHIVED, hierarchyWithinRoot(having)), fromRoot",
+					inScope(
+						Scope.ARCHIVED,
+						hierarchyWithinRoot(
+							REF_CATEGORIES,
+							having(
+								entityPrimaryKeyInSet(
+									ARCHIVED_ROOT_CATEGORY, ARCHIVED_SUBTREE_CATEGORY, ARCHIVED_NODE_WITH_LIVE_OWNERS
+								)
+							)
+						)
+					),
+					fromRoot(HIERARCHY_OUTPUT, statistics(StatisticsType.QUERIED_ENTITY_COUNT)),
+					ARCHIVED_NARROWED,
+					null
+				)
+			);
+		}
+
+		/**
+		 * Checks that a hierarchy filter placed only in `inScope(ARCHIVED, ...)` does not restrict the live hierarchy
+		 * statistics: the live entities are not filtered by it, so the live statistics must equal those of the same
+		 * query without it. The live record set is the same in both queries, so the counts must match too. The
+		 * `parents` row is the exception: the same query without a `hierarchyWithin` refuses `parents`, and with no
+		 * node selected in the live scope there is no path to describe, so its statistics are empty.
+		 *
+		 * @param label              the row label, used in the test name only
+		 * @param scopedFilter       the hierarchy filter restricted to ARCHIVED
+		 * @param requirement        the live statistics requirement, named {@link #HIERARCHY_OUTPUT}
+		 * @param expectedRecords    the expected primary keys, ascending
+		 * @param expectedStatistics the expected description of the live statistics, NULL when they must equal those
+		 *                           of the query without the hierarchy filter
+		 * @param session            the session provided by the test extension
+		 */
+		@DisplayName("Should compute the statistics of a scope no occurrence covers as if unfiltered")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("scopeNotCoveredByHierarchyFilterRows")
+		@Tag(ENGINE)
+		@Tag(QUERY)
+		void shouldComputeStatisticsOfScopeNotCoveredByHierarchyFilterAsIfUnfiltered(
+			@Nonnull String label,
+			@Nonnull FilterConstraint scopedFilter,
+			@Nonnull HierarchyRequireConstraint requirement,
+			@Nonnull int[] expectedRecords,
+			@Nullable List<String> expectedStatistics,
+			@Nonnull EvitaSessionContract session
+		) {
+			final List<String> expected;
+			if (expectedStatistics == null) {
+				expected = describe(queryLiveHierarchyStatistics(session, new FilterConstraint[0], requirement));
+				assertFalse(expected.isEmpty(), "the live statistics of the unfiltered query must not be empty");
+			} else {
+				expected = expectedStatistics;
+			}
+
+			final EvitaResponse<EntityReference> response = queryLiveHierarchy(
+				session, BOTH_SCOPES, new FilterConstraint[]{scopedFilter}, requirement
+			);
+			assertArrayEquals(expectedRecords, sortedPrimaryKeys(response));
+			assertEquals(expected, describe(liveStatistics(response)));
+		}
+
+		/**
+		 * Returns the statistics requirements of the empty-root witness, each named {@link #HIERARCHY_OUTPUT}.
+		 *
+		 * @return the row arguments
+		 */
+		@Nonnull
+		static Stream<Arguments> statisticsOfSelectedNodeRows() {
+			return Stream.of(
+				Arguments.of("children", children(HIERARCHY_OUTPUT, statistics(StatisticsType.QUERIED_ENTITY_COUNT))),
+				Arguments.of("parents", parents(HIERARCHY_OUTPUT, statistics(StatisticsType.QUERIED_ENTITY_COUNT))),
+				Arguments.of("siblings", siblings(HIERARCHY_OUTPUT, statistics(StatisticsType.QUERIED_ENTITY_COUNT)))
+			);
+		}
+
+		/**
+		 * Checks the statistics of a scope whose own `hierarchyWithin` occurrence selects no node:
+		 * `inScope(LIVE, hierarchyWithin(categories, 11))` covers the live scope, but category 11 exists in the
+		 * archived tree only, so the live statistics have no node to describe and are empty, while every archived
+		 * product is returned. A query over the live scope alone with the same `hierarchyWithin` - the control -
+		 * answers the same way: it returns no product and is short-circuited before any statistics are computed.
+		 *
+		 * @param label       the row label, used in the test name only
+		 * @param requirement the live statistics requirement
+		 * @param session     the session provided by the test extension
+		 */
+		@DisplayName("Should compute empty statistics of a scope whose covering occurrence selects no node")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("statisticsOfSelectedNodeRows")
+		@Tag(ENGINE)
+		@Tag(QUERY)
+		void shouldComputeStatisticsOfScopeWhoseCoveringOccurrenceSelectsNoNode(
+			@Nonnull String label,
+			@Nonnull HierarchyRequireConstraint requirement,
+			@Nonnull EvitaSessionContract session
+		) {
+			final EvitaResponse<EntityReference> control = queryLiveHierarchy(
+				session,
+				LIVE_ONLY,
+				new FilterConstraint[]{hierarchyWithin(REF_CATEGORIES, entityPrimaryKeyInSet(ARCHIVED_ROOT_CATEGORY))},
+				requirement
+			);
+			assertArrayEquals(new int[0], sortedPrimaryKeys(control), "the live-only control must return nothing");
+			assertNull(control.getExtraResult(Hierarchy.class), "the live-only control must compute no statistics");
+
+			final EvitaResponse<EntityReference> response = queryLiveHierarchy(
+				session, BOTH_SCOPES, new FilterConstraint[]{liveHierarchy(ARCHIVED_ROOT_CATEGORY)}, requirement
+			);
+			assertArrayEquals(ARCHIVED_ALL, sortedPrimaryKeys(response));
+			assertEquals(List.of(), liveStatistics(response), "the live statistics must be empty");
+		}
+
+		/**
+		 * Describes the statistics as a depth-first list of `primary key: queried entity count` entries, indented by
+		 * level, so that two statistics compare by structure and counts alone.
+		 *
+		 * @param levels the statistics to describe
+		 * @return the description
+		 */
+		@Nonnull
+		private static List<String> describe(@Nonnull List<LevelInfo> levels) {
+			final List<String> description = new ArrayList<>(levels.size());
+			describe(levels, "", description);
+			return description;
+		}
+
+		/**
+		 * Appends the description of the statistics on one level and of their children.
+		 *
+		 * @param levels      the statistics of the level
+		 * @param indent      the indentation of the level
+		 * @param description the sink of the description
+		 */
+		private static void describe(
+			@Nonnull List<LevelInfo> levels,
+			@Nonnull String indent,
+			@Nonnull List<String> description
+		) {
+			for (final LevelInfo level : levels) {
+				description.add(indent + level.entity().getPrimaryKey() + ": " + level.queriedEntityCount());
+				describe(level.children(), indent + "  ", description);
+			}
+		}
+
 	}
 
 	/**
@@ -1097,10 +1624,30 @@ public class InScopeReducedIndexPlanFunctionalTest {
 		@Nonnull FilterConstraint[] constraints,
 		@Nonnull HierarchyRequireConstraint requirement
 	) {
-		final EvitaResponse<EntityReference> response = session.query(
+		return liveStatistics(queryLiveHierarchy(session, BOTH_SCOPES, constraints, requirement));
+	}
+
+	/**
+	 * Runs a query over the passed scopes with the passed filter constraints, requesting the live hierarchy
+	 * statistics of the `categories` reference computed by the passed requirement.
+	 *
+	 * @param session     the session to query
+	 * @param scopes      the scopes of `scope(...)`
+	 * @param constraints the constraints placed next to `scope(...)`
+	 * @param requirement the statistics requirement, named {@link #HIERARCHY_OUTPUT}
+	 * @return the response
+	 */
+	@Nonnull
+	private static EvitaResponse<EntityReference> queryLiveHierarchy(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Scope[] scopes,
+		@Nonnull FilterConstraint[] constraints,
+		@Nonnull HierarchyRequireConstraint requirement
+	) {
+		return session.query(
 			query(
 				collection(ENTITY_PRODUCT),
-				filterBy(ArrayUtils.mergeArrays(new FilterConstraint[]{scope(BOTH_SCOPES)}, constraints)),
+				filterBy(ArrayUtils.mergeArrays(new FilterConstraint[]{scope(scopes)}, constraints)),
 				require(
 					page(1, PRODUCT_COUNT),
 					inScope(Scope.LIVE, hierarchyOfReference(REF_CATEGORIES, requirement))
@@ -1108,74 +1655,31 @@ public class InScopeReducedIndexPlanFunctionalTest {
 			),
 			EntityReference.class
 		);
+	}
+
+	/**
+	 * Returns the live hierarchy statistics of the `categories` reference named {@link #HIERARCHY_OUTPUT} that the
+	 * response carries.
+	 *
+	 * @param response the response of a query requesting the live statistics
+	 * @return the live statistics
+	 */
+	@Nonnull
+	private static List<LevelInfo> liveStatistics(@Nonnull EvitaResponse<EntityReference> response) {
 		final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
 		assertNotNull(hierarchy, "the hierarchy statistics must be computed");
 		return hierarchy.getReferenceHierarchy(REF_CATEGORIES, HIERARCHY_OUTPUT);
 	}
 
 	/**
-	 * Checks that hierarchy statistics computed for one scope use the hierarchy roots resolved in that scope when one
-	 * `hierarchyWithin` instance is placed both in `inScope(LIVE, ...)` and in `inScope(ARCHIVED, ...)` (#1686).
+	 * Returns the primary keys the response carries, ascending.
 	 *
-	 * The parent filter `entityPrimaryKeyInSet(1, 11)` matches root 1 in the live tree and root 11 in the archived
-	 * tree. The archived `children` statistics must describe the archived root 11 - requested, with its 8 archived
-	 * owners 49-56 below it - rather than look for the live root 1, which the archived tree does not contain and which
-	 * would leave the statistics empty.
-	 *
-	 * @param reused  whether both containers hold the same instance
-	 * @param session the session provided by the test extension
+	 * @param response the response
+	 * @return the ascending primary keys
 	 */
-	@DisplayName("Should compute hierarchy statistics of a scope from the roots resolved in that scope")
-	@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
-	@ParameterizedTest(name = "reused instance: {0}")
-	@ValueSource(booleans = {true, false})
-	@Tag(ENGINE)
-	@Tag(QUERY)
-	void shouldComputeHierarchyStatisticsOfScopeFromRootsResolvedInThatScope(
-		boolean reused,
-		@Nonnull EvitaSessionContract session
-	) {
-		final FilterConstraint liveHierarchy = hierarchyWithin(
-			REF_CATEGORIES, entityPrimaryKeyInSet(ROOT_CATEGORY, ARCHIVED_ROOT_CATEGORY)
-		);
-		final FilterConstraint archivedHierarchy = reused ?
-			liveHierarchy :
-			hierarchyWithin(REF_CATEGORIES, entityPrimaryKeyInSet(ROOT_CATEGORY, ARCHIVED_ROOT_CATEGORY));
-		final EvitaResponse<EntityReference> response = session.query(
-			query(
-				collection(ENTITY_PRODUCT),
-				filterBy(
-					scope(BOTH_SCOPES),
-					inScope(Scope.LIVE, liveHierarchy),
-					inScope(Scope.ARCHIVED, archivedHierarchy)
-				),
-				require(
-					page(1, PRODUCT_COUNT),
-					inScope(
-						Scope.ARCHIVED,
-						hierarchyOfReference(
-							REF_CATEGORIES,
-							children(HIERARCHY_OUTPUT, statistics(StatisticsType.QUERIED_ENTITY_COUNT))
-						)
-					)
-				)
-			),
-			EntityReference.class
-		);
-		assertArrayEquals(
-			union(LIVE_SUBTREE, ARCHIVED_SUBTREE),
-			response.getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).sorted().toArray()
-		);
-		final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-		assertNotNull(hierarchy, "the hierarchy statistics must be computed");
-		final List<LevelInfo> children = hierarchy.getReferenceHierarchy(REF_CATEGORIES, HIERARCHY_OUTPUT);
-		assertEquals(
-			List.of(ARCHIVED_ROOT_CATEGORY),
-			children.stream().map(it -> it.entity().getPrimaryKey()).toList(),
-			() -> "the archived statistics must describe the archived root 11, got: " + children
-		);
-		assertTrue(children.get(0).requested());
-		assertEquals(Integer.valueOf(ARCHIVED_SUBTREE.length), children.get(0).queriedEntityCount());
+	@Nonnull
+	private static int[] sortedPrimaryKeys(@Nonnull EvitaResponse<EntityReference> response) {
+		return response.getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).sorted().toArray();
 	}
 
 	/**
@@ -1232,11 +1736,11 @@ public class InScopeReducedIndexPlanFunctionalTest {
 	) {
 		final QueryOutcome outcome = assertDoesNotThrow(
 			() -> runQuery(session, scopes, constraints, verifyAlternatives),
-			"#1681: the alternative plans of the filter must agree"
+			"the alternative plans of the filter must agree"
 		);
 		assertArrayEquals(
 			expected, outcome.primaryKeys(),
-			() -> "#1681: expected " + Arrays.toString(expected) + " but got " + Arrays.toString(outcome.primaryKeys())
+			() -> "expected " + Arrays.toString(expected) + " but got " + Arrays.toString(outcome.primaryKeys())
 				+ "; selected: " + outcome.selectedIndex()
 				+ "; REFERENCED_ENTITY alternatives: " + outcome.reducedIndexAlternatives()
 		);
@@ -1341,7 +1845,11 @@ public class InScopeReducedIndexPlanFunctionalTest {
 	 * @return the row
 	 */
 	@Nonnull
-	private static Arguments row(@Nonnull String label, @Nonnull int[] expected, @Nonnull FilterConstraint... constraints) {
+	private static Arguments row(
+		@Nonnull String label,
+		@Nonnull int[] expected,
+		@Nonnull FilterConstraint... constraints
+	) {
 		return Arguments.of(label, constraints, expected);
 	}
 

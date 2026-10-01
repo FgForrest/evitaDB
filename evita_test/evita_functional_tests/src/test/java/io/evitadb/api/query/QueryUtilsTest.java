@@ -541,7 +541,9 @@ class QueryUtilsTest {
 				() -> QueryUtils.assertNoNestedScopeContainers(
 					query(
 						collection("product"),
-						orderBy(inScope(Scope.LIVE, inScope(Scope.ARCHIVED, attributeNatural("code", OrderDirection.ASC))))
+						orderBy(
+							inScope(Scope.LIVE, inScope(Scope.ARCHIVED, attributeNatural("code", OrderDirection.ASC)))
+						)
 					)
 				)
 			);
@@ -603,6 +605,29 @@ class QueryUtilsTest {
 									),
 									entityProperty(
 										inScope(Scope.ARCHIVED, attributeNatural("name", OrderDirection.DESC))
+									)
+								)
+							)
+						)
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should accept order inScope ordering by the referenced group entity's own properties")
+		void shouldAcceptOrderInScopeOrderingByReferencedGroupProperties() {
+			assertDoesNotThrow(
+				() -> QueryUtils.assertNoNestedScopeContainers(
+					query(
+						collection("product"),
+						orderBy(
+							inScope(
+								Scope.LIVE,
+								referenceProperty(
+									"brand",
+									entityGroupProperty(
+										inScope(Scope.ARCHIVED, attributeNatural("code", OrderDirection.ASC))
 									)
 								)
 							)

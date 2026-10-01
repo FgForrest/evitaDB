@@ -48,7 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Pins how a {@link TargetIndexes} set is matched to the constraint being translated: by the constraint instance
  * **and** the processing scopes the set was built for, so one instance placed in two `inScope` containers finds the
- * set of its own container (#1686).
+ * set of its own container.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
