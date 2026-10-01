@@ -47,6 +47,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
@@ -55,6 +56,7 @@ import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Currency;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -82,8 +84,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * with nulls first and `code` ascending with nulls last - product 6 has no part of them and so no compound value at
  * all; the compound `codeBoth` (indexed in both scopes) of `code` and the never-set `tag`, which ties the products
  * sharing a `code`; a reference `brand` whose attributes `order` and `kind` and compound `orderKindLive` are sortable
- * in the live scope only, held by products 1 and 2 to brand 1; the `brand` collection itself holds brands 1 (`A`) and
- * 2 (`B`), all of them live):
+ * in the live scope only, while its attributes `orderBoth` and `kindBoth` (holding the same values) are sortable in
+ * both scopes and their compound `orderKindBothLive` is indexed in the live scope only, held by products 1 and 2 to
+ * brand 1; the `brand` collection itself holds brands 1 (`A`) and 2 (`B`), all of them live):
  *
  * | product | scope    | code | score | rank | basic | reference | brand 1 order |
  * |---------|----------|------|-------|------|-------|-----------|---------------|
@@ -117,6 +120,9 @@ public class EntitySegmentsFunctionalTest {
 	private static final String ATTRIBUTE_ORDER = "order";
 	private static final String ATTRIBUTE_KIND = "kind";
 	private static final String COMPOUND_ORDER_KIND_LIVE = "orderKindLive";
+	private static final String ATTRIBUTE_ORDER_BOTH = "orderBoth";
+	private static final String ATTRIBUTE_KIND_BOTH = "kindBoth";
+	private static final String COMPOUND_ORDER_KIND_BOTH_LIVE = "orderKindBothLive";
 	private static final String PRICE_LIST_BASIC = "basic";
 	private static final String PRICE_LIST_REFERENCE = "reference";
 	private static final Currency EUR = Currency.getInstance("EUR");
@@ -205,6 +211,21 @@ public class EntitySegmentsFunctionalTest {
 						},
 						thatIs -> thatIs.indexedInScope(Scope.LIVE)
 					)
+					// the elements are sortable in both scopes, the compound of them is indexed in the live scope only
+					.withAttribute(
+						ATTRIBUTE_ORDER_BOTH, Integer.class, thatIs -> thatIs.sortableInScope(BOTH_SCOPES).nullable()
+					)
+					.withAttribute(
+						ATTRIBUTE_KIND_BOTH, String.class, thatIs -> thatIs.sortableInScope(BOTH_SCOPES).nullable()
+					)
+					.withSortableAttributeCompound(
+						COMPOUND_ORDER_KIND_BOTH_LIVE,
+						new AttributeElement[]{
+							new AttributeElement(ATTRIBUTE_ORDER_BOTH, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+							new AttributeElement(ATTRIBUTE_KIND_BOTH, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+						},
+						thatIs -> thatIs.indexedInScope(Scope.LIVE)
+					)
 			)
 			.updateVia(session);
 
@@ -214,7 +235,8 @@ public class EntitySegmentsFunctionalTest {
 		upsertProduct(session, 4, "Z", 40, null, 150, 300);
 		upsertProduct(session, 5, "B", 5, 5, null, null);
 		upsertProduct(session, 6, null, null, null, null, null);
-		// products 1 and 2 reference brand 1 - `order` is sortable and `orderKindLive` indexed in the live scope only
+		// products 1 and 2 reference brand 1 - `order` is sortable and `orderKindLive` indexed in the live scope only,
+		// `orderBoth` and `kindBoth` carry the same values sortable in both scopes
 		for (int[] brandRow : new int[][]{{1, 1}, {2, 2}}) {
 			session.getEntity(ENTITY_PRODUCT, brandRow[0], entityFetchAllContent())
 				.orElseThrow()
@@ -222,6 +244,7 @@ public class EntitySegmentsFunctionalTest {
 				.setReference(
 					REFERENCE_BRAND, 1,
 					whichIs -> whichIs.setAttribute(ATTRIBUTE_ORDER, brandRow[1]).setAttribute(ATTRIBUTE_KIND, "a")
+						.setAttribute(ATTRIBUTE_ORDER_BOTH, brandRow[1]).setAttribute(ATTRIBUTE_KIND_BOTH, "a")
 				)
 				.upsertVia(session);
 		}
@@ -817,6 +840,67 @@ public class EntitySegmentsFunctionalTest {
 				sortedValue + " in the live scope"
 			);
 		}
+	}
+
+	@DisplayName("A pick-first reference compound sorts only the rows of scopes indexing the compound")
+	@UseDataSet(SEGMENT_PRODUCTS)
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(SortRoute.class)
+	void shouldPickFirstCompoundOnlyInScopesIndexingIt(SortRoute route, EvitaSessionContract session) {
+		// the elements are sortable in both scopes, so planning accepts the ordering over both of them - yet the
+		// archived reduced index holds no sort index of the compound, so archived product 1 is not sorted by it
+		assertOrder(
+			new int[]{2, 1, 3, 4, 5, 6},
+			queryOrder(
+				session, route, scope(BOTH_SCOPES),
+				segments(
+					segment(
+						orderBy(
+							referenceProperty(
+								REFERENCE_BRAND,
+								pickFirstByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
+								attributeNatural(COMPOUND_ORDER_KIND_BOTH_LIVE)
+							)
+						),
+						limit(1)
+					)
+				)
+			),
+			"compound indexed in the live scope only"
+		);
+	}
+
+	@DisplayName("A scope inside a pick-first reference order narrows the rows it sorts")
+	@UseDataSet(SEGMENT_PRODUCTS)
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(SortRoute.class)
+	void shouldNarrowPickFirstRowsToScopeInsideReferenceOrder(SortRoute route, EvitaSessionContract session) {
+		// archived product 1 and live product 2 reference brand 1; ordered in the live scope, only product 2 is sorted
+		assertAll(
+			Stream.of(
+				inScope(Scope.LIVE, attributeNatural(ATTRIBUTE_ORDER)),
+				inScope(Scope.LIVE, attributeNatural(ATTRIBUTE_ORDER_BOTH)),
+				inScope(Scope.LIVE, entityPrimaryKeyNatural(OrderDirection.ASC))
+			).<Executable>map(scopedOrder -> () -> assertOrder(
+				new int[]{2, 1, 3, 4, 5, 6},
+				queryOrder(
+					session, route, scope(BOTH_SCOPES),
+					segments(
+						segment(
+							orderBy(
+								referenceProperty(
+									REFERENCE_BRAND,
+									pickFirstByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
+									scopedOrder
+								)
+							),
+							limit(1)
+						)
+					)
+				),
+				scopedOrder.toString()
+			))
+		);
 	}
 
 	@DisplayName("A scoped exact primary key order sorts only the entities of its scope")
