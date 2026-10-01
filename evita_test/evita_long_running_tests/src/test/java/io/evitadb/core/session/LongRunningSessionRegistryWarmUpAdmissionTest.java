@@ -64,13 +64,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * `.claude/rules/testing.md`.
  *
  * Each round releases {@value #CONTENDERS} threads from a {@link CyclicBarrier} straight into
- * {@link SessionRegistry#addSession(boolean, java.util.function.Supplier)} with {@code transactional = false}.
+ * {@link SessionRegistry#addSession(boolean, java.util.function.Function)} with {@code transactional = false}.
  * Exactly one must be admitted and every other one must be refused with {@link ConcurrentInitializationException}.
  * The winner is closed before the next round, so every round starts from an empty registry and a violation is
  * attributable to that round alone.
  *
  * **Calibration (measured, not estimated).** With {@code exclusiveAdmissionLock} removed from
- * {@link SessionRegistry#addSession(boolean, java.util.function.Supplier)} - the refusal check left where it was,
+ * {@link SessionRegistry#addSession(boolean, java.util.function.Function)} - the refusal check left where it was,
  * unguarded - the counterfactual admitted **two** sessions in **round 0**, the very first round, on each of five
  * consecutive runs. With the lock in place all {@value #ROUNDS} rounds pass, in 4 443 / 2 909 / 2 808 ms over three
  * consecutive runs (the first pays the JIT warm-up). Measured on a 24-core Linux box, OpenJDK 17.0.20, otherwise
@@ -223,7 +223,7 @@ class LongRunningSessionRegistryWarmUpAdmissionTest {
 				throw new IllegalStateException("The start line broke - a contender never arrived.", ex);
 			}
 			try {
-				registry.addSession(false, () -> session);
+				registry.addSession(false, resolvedCatalog -> session);
 				return session;
 			} catch (ConcurrentInitializationException ex) {
 				// the refusal this test is here to prove happens - not a failure

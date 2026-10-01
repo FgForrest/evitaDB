@@ -26,7 +26,6 @@ package io.evitadb.api.functional.reference;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -36,6 +35,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
+import io.evitadb.utils.PlanPreference;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -96,19 +96,16 @@ public class ReferenceHavingRowSemanticsSweepFunctionalTest
 	/**
 	 * Highest product primary key the prefetch-enabling `entityPrimaryKeyInSet` admits.
 	 *
-	 * A lone `referenceHaving` gives the planner no conjunctive entity ids, so `PrefetchFormulaVisitor` never finds
-	 * prefetching possible and `PREFER_PREFETCHING` is a no-op. Naming a small set of primary keys beside the
-	 * reference constraint is what supplies them - and it has to stay small, because the visitor abandons prefetch
-	 * once the collected bitmap cardinality passes its own threshold.
+	 * A lone `referenceHaving` over attributes gives the planner no conjunctive entity ids, so `PrefetchFormulaVisitor`
+	 * does not find prefetching possible and `PREFER_PREFETCHING` is a no-op. Naming a small set of primary keys
+	 * beside the reference constraint is what supplies them - and it has to stay small, because the visitor abandons
+	 * prefetch once the collected bitmap cardinality passes its own threshold.
 	 */
 	private static final int PREFETCH_CANDIDATE_LIMIT = 12;
 	/**
 	 * The primary keys handed to the prefetch-enabling `entityPrimaryKeyInSet`.
 	 */
-	private static final Integer[] PREFETCH_CANDIDATES = IntStream
-		.rangeClosed(1, PREFETCH_CANDIDATE_LIMIT)
-		.boxed()
-		.toArray(Integer[]::new);
+	private static final int[] PREFETCH_CANDIDATES = IntStream.rangeClosed(1, PREFETCH_CANDIDATE_LIMIT).toArray();
 	/**
 	 * The product the top-level double-negation row addresses, and the only one carrying that code.
 	 */
@@ -151,22 +148,19 @@ public class ReferenceHavingRowSemanticsSweepFunctionalTest
 				.filter(it -> holdsRow(it, shape.referenceName(), shape.rowPredicate()))
 				.map(SealedEntity::getPrimaryKey)
 				.collect(Collectors.toCollection(TreeSet::new));
-			for (final DebugMode debugMode : new DebugMode[]{
-				null, DebugMode.PREFER_INDEX_SCAN, DebugMode.PREFER_PREFETCHING
-			}) {
+			for (final PlanPreference plan : new PlanPreference[]{null, PlanPreference.INDEX_SCAN}) {
 				collectDisagreement(
-					evita, shape, expected, debugMode, false,
-					debugMode == null ? "planner" : debugMode.name(), failures
+					evita, shape, expected, plan, false, plan == null ? "planner" : plan.name(), failures
 				);
 			}
 			// the plans that can actually prefetch - see PREFETCH_CANDIDATE_LIMIT for why the constraint is needed
 			final Set<Integer> narrowedExpectation = expected.stream()
 				.filter(it -> it <= PREFETCH_CANDIDATE_LIMIT)
 				.collect(Collectors.toCollection(TreeSet::new));
-			for (final DebugMode debugMode : new DebugMode[]{null, DebugMode.PREFER_PREFETCHING}) {
+			for (final PlanPreference plan : new PlanPreference[]{null, PlanPreference.PREFETCH}) {
 				collectDisagreement(
-					evita, shape, narrowedExpectation, debugMode, true,
-					"pk-narrowed/" + (debugMode == null ? "planner" : debugMode.name()), failures
+					evita, shape, narrowedExpectation, plan, true,
+					"pk-narrowed/" + (plan == null ? "planner" : plan.name()), failures
 				);
 			}
 		}
@@ -214,35 +208,49 @@ public class ReferenceHavingRowSemanticsSweepFunctionalTest
 	}
 
 	/**
-	 * Runs one shape on one plan and appends a line to the report when the answer disagrees.
+	 * Runs one shape on one plan and appends a line to the report when the answer disagrees, or when a steered query
+	 * did not run on the plan it was steered towards. The prefetch is not required of a shape whose expected answer is
+	 * empty: the planner may decide such a body empty before execution - a single row pointing at two entities, two
+	 * values of a representative attribute on one row, a reference no product holds - and a formula tree with nothing
+	 * left in it registers no entity content to prefetch.
 	 *
 	 * @param evita               the engine
 	 * @param shape               the shape being examined
 	 * @param expected            the row-scoped answer derived from the fetched entity bodies
-	 * @param debugMode           plan forcing debug mode, NULL leaves the choice to the planner
+	 * @param plan                the plan the query is steered towards, NULL leaves the choice to the planner
 	 * @param narrowByPrimaryKeys whether to add the prefetch-enabling `entityPrimaryKeyInSet`
-	 * @param plan                label of the plan, for the report
+	 * @param planLabel           label of the plan, for the report
 	 * @param failures            accumulator of disagreements
 	 */
 	private static void collectDisagreement(
 		@Nonnull Evita evita,
 		@Nonnull Shape shape,
 		@Nonnull Set<Integer> expected,
-		@Nullable DebugMode debugMode,
+		@Nullable PlanPreference plan,
 		boolean narrowByPrimaryKeys,
-		@Nonnull String plan,
+		@Nonnull String planLabel,
 		@Nonnull List<String> failures
 	) {
 		try {
-			final Set<Integer> actual = run(
-				evita, shape.referenceName(), shape.body(), debugMode, narrowByPrimaryKeys
+			final EvitaResponse<EntityReference> response = run(
+				evita, shape.referenceName(), shape.body(), plan, narrowByPrimaryKeys
 			);
+			final Set<Integer> actual = response.getRecordData()
+				.stream()
+				.map(EntityReference::getPrimaryKey)
+				.collect(Collectors.toCollection(TreeSet::new));
 			if (!expected.equals(actual)) {
-				failures.add(shape.name() + " [" + plan + "]: expected " + expected + " but got " + actual);
+				failures.add(shape.name() + " [" + planLabel + "]: expected " + expected + " but got " + actual);
+			}
+			// a shape answering nothing may be decided empty before execution, leaving no formula to prefetch for
+			final boolean planAsserted = plan == PlanPreference.INDEX_SCAN ||
+				(plan == PlanPreference.PREFETCH && !expected.isEmpty());
+			if (planAsserted && (plan == PlanPreference.PREFETCH) != PlanPreference.prefetched(response)) {
+				failures.add(shape.name() + " [" + planLabel + "]: did not run on the " + plan + " plan");
 			}
 		} catch (Exception ex) {
 			failures.add(
-				shape.name() + " [" + plan + "]: threw " + ex.getClass().getName() + ": " + ex.getMessage()
+				shape.name() + " [" + planLabel + "]: threw " + ex.getClass().getName() + ": " + ex.getMessage()
 			);
 		}
 	}
@@ -527,25 +535,25 @@ public class ReferenceHavingRowSemanticsSweepFunctionalTest
 	 * @param evita               the engine
 	 * @param referenceName       reference the body is evaluated against
 	 * @param body                the body of the reference constraint
-	 * @param debugMode           plan forcing debug mode, NULL leaves the choice to the planner
+	 * @param plan                the plan the query is steered towards, NULL leaves the choice to the planner
 	 * @param narrowByPrimaryKeys whether to add the prefetch-enabling `entityPrimaryKeyInSet`
-	 * @return ordered set of matched PRODUCT primary keys
+	 * @return the response, carrying the telemetry
 	 */
 	@Nonnull
-	private static Set<Integer> run(
+	private static EvitaResponse<EntityReference> run(
 		@Nonnull Evita evita,
 		@Nonnull String referenceName,
 		@Nonnull FilterConstraint body,
-		@Nullable DebugMode debugMode,
+		@Nullable PlanPreference plan,
 		boolean narrowByPrimaryKeys
 	) {
 		return evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final RequireConstraint[] requirements = debugMode == null ?
-					new RequireConstraint[]{page(1, Integer.MAX_VALUE)} :
-					new RequireConstraint[]{debug(debugMode), page(1, Integer.MAX_VALUE)};
-				final EvitaResponse<EntityReference> result = session.query(
+				final RequireConstraint[] requirements = plan == null ?
+					new RequireConstraint[]{page(1, Integer.MAX_VALUE), queryTelemetry()} :
+					new RequireConstraint[]{plan.debug(), page(1, Integer.MAX_VALUE), queryTelemetry()};
+				return session.query(
 					query(
 						collection(Entities.PRODUCT),
 						narrowByPrimaryKeys ?
@@ -560,10 +568,6 @@ public class ReferenceHavingRowSemanticsSweepFunctionalTest
 					),
 					EntityReference.class
 				);
-				return result.getRecordData()
-					.stream()
-					.map(EntityReference::getPrimaryKey)
-					.collect(Collectors.toCollection(TreeSet::new));
 			}
 		);
 	}

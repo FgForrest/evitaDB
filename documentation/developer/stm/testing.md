@@ -112,7 +112,7 @@ Every generational test:
 4. Declares the proof as a `@ParameterizedTest(name = "…")` annotated with the **cost tag `@Tag(SLOW)`** (there is
    no `LONG_RUNNING_TEST` tag — `SLOW` is what excludes the test from the fast suite) and
    `@ArgumentsSource(TimeArgumentProvider.class)`.
-5. Accepts a `@Nonnull GenerationalTestInput input` carrying `intervalInMinutes` (default 1) and `randomSeed`.
+5. Accepts a `@Nonnull GenerationalTestInput input` carrying `intervalInSeconds` (default 30) and `randomSeed`.
 
 ```java
 @DisplayName("PersistentTransactionalMap (generational randomized proof)")
@@ -314,7 +314,17 @@ mvn clean install -P longRunning
 ```
 
 **Environment configuration:**
-- `interval` -- duration in minutes (default: 1). Set higher for thorough pre-release testing.
+- `intervalInSeconds` -- duration of each generative test in seconds (default: 30). Set higher for thorough
+  pre-release testing. It is a JUnit configuration parameter read from the test JVM's system properties; the
+  long-running module's surefire fork ignores `-DargLine`, so pass it as
+  `-DlongRunningArgLine='-Xmx5g -DintervalInSeconds=600'`. The older minute-based `interval` is still honoured
+  when `intervalInSeconds` is absent.
+- `test.seed` -- the random seed, to reproduce a reported failure (same `-DlongRunningArgLine` route).
+
+The default is short on purpose. The per-test budget is multiplied by the number of generative tests (well over
+two hundred) and divided only by the number of test classes that run in parallel (one per CPU core), and that
+quotient is the floor of the weekly `All tests including long-running` CI job. A new generative test therefore
+costs every weekly run its budget; each run draws a fresh seed, so breadth accumulates week by week.
 
 **IntelliJ IDEA:**
 Run the `LongRunning…Test` class directly, or select the `SLOW`-tagged method in your JUnit run configuration.

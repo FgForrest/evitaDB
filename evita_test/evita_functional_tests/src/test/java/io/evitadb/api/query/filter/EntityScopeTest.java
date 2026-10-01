@@ -70,6 +70,39 @@ class EntityScopeTest {
 				scope(Scope.LIVE, Scope.ARCHIVED).getScope()
 			);
 		}
+
+		@Test
+		@DisplayName("should keep the scopes in the order they were requested")
+		void shouldKeepTheScopesInTheOrderTheyWereRequested() {
+			assertArrayEquals(
+				new Scope[]{Scope.ARCHIVED, Scope.LIVE},
+				scope(Scope.ARCHIVED, Scope.LIVE).getScopesInRequestedOrder()
+			);
+			assertArrayEquals(
+				new Scope[]{Scope.LIVE, Scope.ARCHIVED},
+				scope(Scope.LIVE, Scope.ARCHIVED).getScopesInRequestedOrder()
+			);
+			// the membership view stays the same for both orders
+			assertEquals(
+				scope(Scope.LIVE, Scope.ARCHIVED).getScope(),
+				scope(Scope.ARCHIVED, Scope.LIVE).getScope()
+			);
+		}
+
+		@Test
+		@DisplayName("should drop a repeated scope and keep its first position")
+		void shouldDropARepeatedScopeAndKeepItsFirstPosition() {
+			assertArrayEquals(
+				new Scope[]{Scope.ARCHIVED, Scope.LIVE},
+				scope(Scope.ARCHIVED, Scope.LIVE, Scope.ARCHIVED).getScopesInRequestedOrder()
+			);
+		}
+
+		@Test
+		@DisplayName("should return no scopes when none was requested")
+		void shouldReturnNoScopesWhenNoneWasRequested() {
+			assertEquals(0, new EntityScope().getScopesInRequestedOrder().length);
+		}
 	}
 
 	@Nested
@@ -109,6 +142,21 @@ class EntityScopeTest {
 			// the cloned constraint name should be "scope", not "entityScope"
 			assertTrue(cloned.toString().startsWith("scope("),
 				"Expected toString to start with 'scope(' but was: " + cloned.toString());
+		}
+
+		@Test
+		@DisplayName("should keep the requested scope order when cloned")
+		void shouldKeepTheRequestedOrderWhenCloned() {
+			final FilterConstraint cloned = scope(Scope.LIVE).cloneWithArguments(
+				new Serializable[]{Scope.ARCHIVED, Scope.LIVE}
+			);
+
+			assertArrayEquals(
+				new Scope[]{Scope.ARCHIVED, Scope.LIVE},
+				((EntityScope) cloned).getScopesInRequestedOrder()
+			);
+			assertEquals(scope(Scope.ARCHIVED, Scope.LIVE), cloned);
+			assertNotEquals(scope(Scope.LIVE, Scope.ARCHIVED), cloned);
 		}
 	}
 
@@ -162,13 +210,19 @@ class EntityScopeTest {
 			assertNotSame(scope(Scope.LIVE), scope(Scope.LIVE));
 			assertEquals(scope(Scope.LIVE), scope(Scope.LIVE));
 			assertNotEquals(scope(Scope.LIVE), scope(Scope.ARCHIVED));
-			// order of scopes should not matter for equality
-			assertEquals(scope(Scope.ARCHIVED, Scope.LIVE), scope(Scope.LIVE, Scope.ARCHIVED));
+			// the order decides which scope a unique lookup prefers, so two orders are two different queries
+			assertNotEquals(scope(Scope.ARCHIVED, Scope.LIVE), scope(Scope.LIVE, Scope.ARCHIVED));
+			// a repeated scope changes nothing
+			assertEquals(scope(Scope.LIVE, Scope.ARCHIVED, Scope.LIVE), scope(Scope.LIVE, Scope.ARCHIVED));
 			assertNotEquals(scope(Scope.LIVE), scope(Scope.LIVE, Scope.ARCHIVED));
 			assertEquals(scope(Scope.LIVE).hashCode(), scope(Scope.LIVE).hashCode());
 			assertNotEquals(scope(Scope.LIVE).hashCode(), scope(Scope.ARCHIVED).hashCode());
-			assertEquals(
+			assertNotEquals(
 				scope(Scope.ARCHIVED, Scope.LIVE).hashCode(),
+				scope(Scope.LIVE, Scope.ARCHIVED).hashCode()
+			);
+			assertEquals(
+				scope(Scope.LIVE, Scope.ARCHIVED, Scope.LIVE).hashCode(),
 				scope(Scope.LIVE, Scope.ARCHIVED).hashCode()
 			);
 			assertNotEquals(

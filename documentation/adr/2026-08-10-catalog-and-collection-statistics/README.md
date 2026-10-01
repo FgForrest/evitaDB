@@ -1,15 +1,15 @@
 ---
 title: Statistics are selectable components at two levels, and an exact heap figure is reached one index at a time
 date: 2026-08-10
-updated: 2026-09-07 12:10
+updated: 2026-09-28 20:40
 status: accepted
 kind: feature
 issues: [1339]
 prs: [1418]
-areas: [evita_api/api/statistics, evita_engine/core/catalog, evita_engine/core/collection, evita_engine/core/transaction, evita_engine/index, evita_external_api/evita_external_api_grpc, evita_driver, evita_store/evita_store_server, evita_store/evita_store_key_value, evita_common/utils]
+areas: [evita_api/api/statistics, evita_engine/core/catalog, evita_engine/core/collection, evita_engine/core/management, evita_engine/core/transaction, evita_engine/index, evita_external_api/evita_external_api_grpc, evita_driver, evita_store/evita_store_server, evita_store/evita_store_key_value, evita_common/utils]
 supersedes: []
 superseded-by: []
-relates: [2026-07-27-write-path-performance-tuning, 2026-08-16-per-index-usage-statistics, 2026-09-07-storage-part-classification]
+relates: [2026-07-27-write-path-performance-tuning, 2026-09-03-content-sized-value-tree-columns, 2026-08-16-per-index-usage-statistics, 2026-09-07-storage-part-classification]
 ---
 
 # Statistics are selectable components at two levels, and an exact heap figure is reached one index at a time
@@ -246,6 +246,50 @@ twelve-gigabyte total materially.
 one is ever added it belongs to the page that was *already* selected, and still could not be used to
 select it. Reversing that would reverse the cost argument the whole browse surface rests on.
 
+**The management readers tolerate a warm-up writer at their own boundary, never inside the shared helpers.**
+This surface needs no session and takes no snapshot. Outside a transaction a warm-up load writes the
+`HashMap`s behind the index maps in place, so a walk that overlaps a new index or a new attribute key threw
+`ConcurrentModificationException` and failed the whole call. The sites were:
+
+- the attribute-family walks of `IndexCardinalityProjection`;
+- the global-unique walks of `CatalogIndexProjection` and `CatalogIndexCardinalityProjection`;
+- `GlobalUniqueIndex#getRecordCount`;
+- the `PersistentTransactionalMap#snapshot()` copy behind `INDEX_CARDINALITY` and the browse.
+
+The alternative on the table was to catch the exception where the walk happens: in `TransactionalMap#forEach`,
+in `AttributeIndex#forEachInFamily` or in `snapshot()`.
+
+- **Rejected because** those helpers also serve the flush, persistence and query paths. There the walker and the
+  writer are one thread, so the exception is a genuine bug and must stay loud.
+
+The tolerance lives instead in `io.evitadb.core.management.ManagementReads`, and only monitoring code calls it:
+
+- **`walkTolerantly` restarts a disturbed walk from a fresh accumulator**, up to three attempts, and only then
+  keeps what it gathered. A single catch was declined because a resize moves bins out from under the walk,
+  so a disturbed walk can miss whole buckets and report a key list of the wrong shape. A clean retry
+  describes one moment in time.
+- **`snapshotOf` retries the copy, then falls back to an end-checked `forEach`.** A copy abandoned mid-way is
+  unusable, because `ChampMap.from` iterates `entrySet()`, which checks `modCount` at every step. The fallback
+  keeps the property the callers take a snapshot for: every reading, and the `omittedIndexCount` subtracted
+  from them, comes from one immutable map.
+- **Accepting the last attempt is sound only for end-checked walks.** On a `HashMap`, its `keySet()` and its
+  `values()`, `forEach` checks `modCount` once, after the whole table (verified in the JDK 21 bytecode). A
+  walk that throws has therefore finished.
+
+Three residuals are known:
+
+- The UNIQUE family walks two maps in sequence. If the first one throws on the last attempt, the second is not
+  walked, so the answer lacks folded-unique keys. That takes three consecutive walks, each overlapping a new
+  key.
+- `GlobalUniqueIndex#getRecordCount` catches without a deterministic test. Its only in-walk callback is
+  `size()` on internally created bitmaps, and a hook would need a production seam.
+- Compiled code may never observe the writer's `modCount` without a happens-before edge. That walk returns
+  slightly stale data silently, which is the outcome the design accepts anyway.
+
+**Revisit if** a new management reader iterates a live map or collection. It must go through `ManagementReads`,
+not through a catch of its own. The heap-walk half of the same problem is recorded in
+[2026-09-03](../2026-09-03-content-sized-value-tree-columns.md).
+
 ## Related work
 
 - [Write-path performance tuning](../2026-07-27-write-path-performance-tuning/README.md) — same code
@@ -294,3 +338,6 @@ select it. Reversing that would reverse the cost argument the whole browse surfa
   that ships them, a throwing `default` added to both component switches, and the builder taught to refuse a
   self-contradicting snapshot. The session-registration race the same round surfaced is recorded in
   `2026-08-06-catalog-folder-decoupling` instead, whose reader guarantee it belongs to
+- **2026-09-28** — the management readers made tolerant of an in-place warm-up writer: attribute-family,
+  global-unique and index-map walks routed through `ManagementReads` (bounded retry, end-checked fallback),
+  the shared helpers left loud

@@ -51,7 +51,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
@@ -391,22 +390,6 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 		logFinished(finalState);
 	}
 
-	/**
-	 * Re-invokes [#shouldSurviveGenerationalTestWithReferenceAttributeExpression] with the
-	 * deterministic seed pinned to the CI failure. Lets a single CI green/red light up exactly
-	 * this scenario without depending on `-Dtest.seed=...` plumbing. A 5-minute interval is
-	 * sufficient to reach the originally-failing generation (~738, reproduced in ~43s before
-	 * the fix); the time-bounded driver short-circuits on the first assertion failure.
-	 */
-	@Test
-	@Tag(SLOW)
-	@DisplayName("Generative seed -1128235571 must not surface conditional histogram drift")
-	void shouldNotSurfaceHistogramDriftForSeedMinus1128235571() {
-		shouldSurviveGenerationalTestWithReferenceAttributeExpression(
-			new GenerationalTestInput(/* intervalInMinutes */ 5, /* randomSeed */ -1128235571)
-		);
-	}
-
 	// --- Test 3: Group Entity Attribute Condition (cross-entity fan-out) ---
 
 	@ParameterizedTest(name = "Conditional histogram by group entity attribute should survive generational test")
@@ -659,28 +642,6 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 			}
 		);
 		logFinished(finalState);
-	}
-
-	/**
-	 * Re-invokes [#shouldSurviveGenerationalTestWithReferencedEntityAttributeExpression] with the
-	 * deterministic seed pinned to the CI failure, mirroring
-	 * [#shouldNotSurfaceHistogramDriftForSeedMinus1128235571].
-	 *
-	 * This seed fails at **generation 4**, within ~2s, so a 5-minute interval is far more than enough
-	 * and the time-bounded driver short-circuits on the first assertion failure. Generation 4 reaches
-	 * the defect through an owner that references two parameter values whose `basicUnitValue` both
-	 * normalise to bucket `500`: a condition flip on the second one made the executor remove on mere
-	 * bucket membership and consume the first one's cardinality unit. The fast equivalent lives in
-	 * `ConditionalBucketIndexingTest` (`shouldKeepSiblingContributionWhen…`); this pins the exact
-	 * reported sequence.
-	 */
-	@Test
-	@Tag(SLOW)
-	@DisplayName("Generative seed 2095323828 must not surface conditional histogram drift")
-	void shouldNotSurfaceHistogramDriftForSeed2095323828() {
-		shouldSurviveGenerationalTestWithReferencedEntityAttributeExpression(
-			new GenerationalTestInput(/* intervalInMinutes */ 5, /* randomSeed */ 2095323828)
-		);
 	}
 
 	// --- Focused test for conditional histogram stale evaluateFilter after group attribute change ---

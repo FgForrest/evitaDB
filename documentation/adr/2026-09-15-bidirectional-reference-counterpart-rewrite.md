@@ -1,7 +1,7 @@
 ---
 title: Answer a referenceHaving from whichever end of a bidirectional reference is cheaper, and stop emitting provably-empty null subtractions
 date: 2026-09-15
-updated: 2026-09-17 11:40
+updated: 2026-09-28 17:30
 status: accepted
 kind: optimization
 issues: [1547, 1583, 1584, 1585]
@@ -9,7 +9,7 @@ prs: [1548, 1568]
 areas: [evita_engine/src/main/java/io/evitadb/core/query/filter/translator/reference, evita_engine/src/main/java/io/evitadb/core/query/algebra/reference, evita_engine/src/main/java/io/evitadb/core/query/indexSelection, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/attribute, evita_engine/src/main/java/io/evitadb/core/query/QueryPlanningContext.java]
 supersedes: []
 superseded-by: []
-relates: [2026-09-11-reference-name-narrowing, 2026-09-12-committed-snapshot-provenance-for-enrichment, 2026-09-13-per-entity-io-statistics-attribution, 2026-09-15-non-collapsible-formula-marker, 2026-09-17-row-scoped-reference-having-body]
+relates: [2026-09-11-reference-name-narrowing, 2026-09-12-committed-snapshot-provenance-for-enrichment, 2026-09-13-per-entity-io-statistics-attribution, 2026-09-15-non-collapsible-formula-marker, 2026-09-17-row-scoped-reference-having-body, 2026-09-23-pick-first-reference-ordering-from-selection, 2026-09-25-attribute-is-null-in-reference-having, 2026-09-28-indexed-reference-scope-requires-entity-component]
 ---
 
 # Answer a `referenceHaving` from whichever end of a bidirectional reference is cheaper
@@ -265,6 +265,10 @@ by `referenceProperty` on the same reference.
    entry is gone: `ReferencePropertyTranslator#selectReducedEntityIndexSet:104-122` falls back to
    every reduced index of `R`, ordering owners by their first reference row rather than their first
    *matching* one. Such queries are declined.
+   Since `2026-09-23-pick-first-reference-ordering-from-selection` a pick-first ordering by a comparable value
+   resolves its partitions from the selected owners and no longer reads the candidate set, so for that shape the
+   guard is conservative; traverse orderings and chain attributes still read it, which keeps the guard necessary for
+   them.
 
 **The per-owner formulas are internal state, not inner formulas.** They are positionally paired with
 the owner keys, and `FormulaCloner` is allowed to drop a child its mutator rejects — a dropped child
@@ -430,7 +434,10 @@ being deleted along with the failure:
 - **#1583 — a reflected reference on an archived owner gets no index at all**, although the schema
   declares it indexed in that scope and the entity body still carries the rows. Original references on
   the same archived entity do get one. This makes the *ordinary* path under-report on a two-scope query
-  and the *rewrite* under-report on a live-scope one — one defect, two signs.
+  and the *rewrite* under-report on a live-scope one — one defect, two signs. **Fixed** — the reflected-reference
+  builder left every scope its explicit components did not name indexed with no component:
+  `2026-09-28-indexed-reference-scope-requires-entity-component`, which also makes the rewrite decline on a widened
+  scope still carrying that shape in a stored catalog.
 - **#1584 — `attributeIsNull` on a reference attribute through reduced indexes returns empty.**
   `NOT_NULL` resolves correctly through the very same indexes (measured 76 and 230 where correct),
   `NULL` returns 0 where 154 is correct, so the two do not partition the owner set. One pre-existing

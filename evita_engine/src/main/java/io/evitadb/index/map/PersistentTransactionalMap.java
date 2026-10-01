@@ -184,7 +184,9 @@ public class PersistentTransactionalMap<K, V> implements Map<K, V>,
 	 *
 	 * A snapshot taken while another thread performs a non-transactional write may still fail loudly with
 	 * {@link java.util.ConcurrentModificationException} rather than silently, which is the intended trade: the
-	 * failure is confined to the reader instead of corrupting the map every other caller shares.
+	 * failure is confined to the reader instead of corrupting the map every other caller shares. A reader that must
+	 * not fail - the management surface - retries instead, through {@code ManagementReads#snapshotOf}, which keeps
+	 * this method loud for everyone else.
 	 *
 	 * @return an immutable view of the current state
 	 */

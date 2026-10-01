@@ -39,6 +39,7 @@ import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.exception.ReferenceComponentNotIndexedException;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
 import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
@@ -1075,7 +1076,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			trigger.getFilterByConstraint(), mutation.referenceName(),
 			mutation.mutatedEntityPK(), mutation.dependencyType()
 		);
-		final Bitmap truePKs = target.evaluateFilter(parameterizedFilter, mutation.scope());
+		final Bitmap truePKs = evaluateConditionFilter(target, parameterizedFilter, mutation);
 		final Bitmap shouldBeIndexed = and(
 			new PersistentRoaringBitmap[]{
 				getRoaringBitmap(allAffectedOwnerPKs),
@@ -1130,7 +1131,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			final FilterBy parameterizedFilter = parameterizeForContribution(
 				trigger.getFilterByConstraint(), mutation.referenceName(), group
 			);
-			final Bitmap truePKs = target.evaluateFilter(parameterizedFilter, mutation.scope());
+			final Bitmap truePKs = evaluateConditionFilter(target, parameterizedFilter, mutation);
 			final PersistentRoaringBitmap groupOwnerPKs = getRoaringBitmap(group.ownerPKs());
 			final PersistentRoaringBitmap matched = and(groupOwnerPKs, getRoaringBitmap(truePKs));
 			final PersistentRoaringBitmap notMatched = andNot(groupOwnerPKs, getRoaringBitmap(truePKs));
@@ -1146,6 +1147,41 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			new ContributionVerdicts(new BaseBitmap(shouldBeWriter.get()), shouldBePerRef),
 			new ContributionVerdicts(new BaseBitmap(shouldNotBeWriter.get()), shouldNotBePerRef)
 		);
+	}
+
+	/**
+	 * Evaluates the parameterized condition of a trigger against the owner collection in the mutation's scope.
+	 *
+	 * The condition runs through the query engine, and the query engine refuses to read a reference indexed in the
+	 * queried scope without the component the condition needs - see
+	 * {@link ReferenceComponentNotIndexedException}. That refusal is meant for a query, whose caller can fix the schema
+	 * or narrow the query; here it would abort the write of an unrelated entity, or the replay of the write-ahead log
+	 * that recovers the catalog. A catalog stored before the schema rule existed can carry such a reference, so the
+	 * refusal is caught and the condition answered as matching no owner. The answer was meaningless before the refusal
+	 * existed too - the condition read an index that was never built - so nothing that used to be right is lost. The
+	 * broken schema is logged, and every query over the reference still refuses loudly.
+	 *
+	 * @param target   access to the entity collection's filter evaluator
+	 * @param filter   the parameterized condition
+	 * @param mutation the cross-entity re-evaluation signal, providing the scope and the reference
+	 * @return the owners satisfying the condition, empty when the condition cannot be answered
+	 */
+	@Nonnull
+	private static Bitmap evaluateConditionFilter(
+		@Nonnull IndexMutationTarget target,
+		@Nonnull FilterBy filter,
+		@Nonnull ReevaluateExpressionMutation mutation
+	) {
+		try {
+			return target.evaluateFilter(filter, mutation.scope());
+		} catch (ReferenceComponentNotIndexedException ex) {
+			log.warn(
+				"Condition of the expression on reference `{}` of entity `{}` in scope `{}` cannot be evaluated, " +
+					"the entities it covers are treated as not matching it: {}",
+				mutation.referenceName(), target.getEntitySchema().getName(), mutation.scope(), ex.getMessage()
+			);
+			return EmptyBitmap.INSTANCE;
+		}
 	}
 
 	/**
@@ -1275,7 +1311,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 *
 	 * @param resolution value resolution metadata identifying the histogram's source attribute
 	 * @param mutation   the cross-entity mutation carrying optional pre-mutation values
-	 * @return per-locale old values, or null if the value source was not mutated
+	 * @return per-locale old values, or null if the value source was not mutated; a locale mapped to `null` was
+	 *         unset before the mutation, a locale missing from the map was not mutated
 	 */
 	@Nullable
 	private static Map<Locale, Serializable> resolvePreMutationValues(
@@ -1301,7 +1338,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param rtei               the top-level referenced-type entity index
 	 * @param isGrouped          `true` when the reference has a group type
 	 * @param target             access to entity collection indexes
-	 * @param preMutationValues  per-locale pre-mutation raw values when the value source was mutated, or null
+	 * @param preMutationValues  per-locale pre-mutation raw values when the value source was mutated, or null;
+	 *                           a locale mapped to `null` was unset, a missing locale was not mutated
 	 */
 	private static void scopedRemoveForRefEntityAttrForLocale(
 		@Nonnull String histogramName,
@@ -1317,10 +1355,14 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	) {
 		final String sourceEntityType = Objects.requireNonNull(resolution.sourceEntityType());
 
-		// when the value source attribute was itself mutated, use captured pre-mutation values
-		// for deterministic removal (the source FilterIndex already reflects the NEW values)
+		// when the value source attribute was itself mutated in this locale, use the captured pre-mutation value
+		// for deterministic removal (the source FilterIndex already reflects the NEW values). A captured `null` is
+		// a known old value - the attribute was unset, so only the default (if any) was contributed - and must not
+		// fall through to the current value, which would remove a sibling reference's contribution to the bucket
+		// the new value lands in. A locale missing from the capture was not mutated, so its current value is
+		// still the old one.
 		final Serializable[] knownOldValues;
-		if (preMutationValues != null) {
+		if (preMutationValues != null && preMutationValues.containsKey(locale)) {
 			final Serializable rawOldValue = preMutationValues.get(locale);
 			knownOldValues = ReferenceIndexMutator.resolveHistogramValues(rawOldValue, resolution);
 		} else {

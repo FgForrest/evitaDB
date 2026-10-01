@@ -32,6 +32,7 @@ import io.evitadb.index.bPlusTree.TransactionalElementBPlusTree.BPlusLeafTreeNod
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.JolHeapSize;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -46,6 +47,7 @@ import java.util.PrimitiveIterator.OfInt;
 import java.util.Random;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.ToIntFunction;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
@@ -1839,6 +1841,218 @@ class TransactionalElementBPlusTreeTest {
 				tornSingleLeafTree().toString().isEmpty(),
 				"the verbose rendering must survive the torn leaf"
 			);
+		}
+
+	}
+
+	/**
+	 * An internal node grows in place by storing the new child pointers, then raising `peek`, and shrinks by nulling
+	 * the vacated slot next to lowering it - plain stores with no ordering edge to a session-free reader. Such a reader
+	 * can hold a `peek` whose last slot reads `null`, and the heap walk that `EntityCollection#describeIndex` runs over
+	 * a live price index is exactly such a reader: it takes no snapshot, holds no transaction and runs on a management
+	 * thread while a warm-up load mutates the `priceRecords` tree. The internal node is the one
+	 * {@link AbstractIntKeyedInternalNode} this tree shares with {@link TransactionalIntToLongBPlusTree}, and each tree
+	 * pins it through its own fixture.
+	 *
+	 * The torn state is built through {@link UnpublishedChildSlotSupport#tear}, and each test asserts the figure the
+	 * walk reports rather than merely that nothing was thrown.
+	 */
+	@Nested
+	@DisplayName("Session-free heap walk over a child slot a grow has not published yet")
+	class UnpublishedChildSlot {
+		/**
+		 * The largest tree tried before a fixture gives up looking for the node shape it needs.
+		 */
+		private static final int MAX_FIXTURE_KEYS = 200;
+		/**
+		 * Rounds of the no-op run; each round churns in place and then inside a committed transaction.
+		 */
+		private static final int NO_OP_ROUNDS = 12;
+		/**
+		 * Mutations per churn phase of the no-op run.
+		 */
+		private static final int NO_OP_OPERATIONS = 60;
+		/**
+		 * Keys the no-op run draws from - enough for the tree to grow four levels deep and collapse again.
+		 */
+		private static final int NO_OP_KEY_RANGE = 150;
+		/**
+		 * The key extractor of the no-op run's trees. A named class rather than a method reference, because every leaf
+		 * holds the extractor, and a method reference is a hidden class whose field offsets JOL refuses to read - a
+		 * named class can be excluded from the measurement as the shared root it is.
+		 */
+		private static final ToIntFunction<PriceRecordContract> WALKABLE_KEY = new InternalPriceIdExtractor();
+
+		/**
+		 * Builds a tree with an internal block of three separators, so a few dozen keys already stack internal nodes
+		 * and most of them keep a free child slot.
+		 *
+		 * @param keyCount the number of keys to insert, `0 .. keyCount - 1` in ascending order
+		 * @return the tree, every node of it mutated in place
+		 */
+		@Nonnull
+		private static TransactionalElementBPlusTree<PriceRecordContract> treeOf(int keyCount) {
+			final TransactionalElementBPlusTree<PriceRecordContract> tree = emptyTree();
+			for (int key = 0; key < keyCount; key++) {
+				tree.insert(rec(key));
+			}
+			return tree;
+		}
+
+		/**
+		 * Creates the empty tree every fixture of this class starts from.
+		 *
+		 * @return an empty tree with a leaf block of eight and an internal block of three
+		 */
+		@Nonnull
+		private static TransactionalElementBPlusTree<PriceRecordContract> emptyTree() {
+			return new TransactionalElementBPlusTree<>(8, 3, 3, 1, PriceRecordContract.class, WALKABLE_KEY);
+		}
+
+		/**
+		 * Asserts that stepping over a `null` child cannot change the heap walk's figure on this tree: no live slot is
+		 * `null`, and the walk matches a JOL measurement of the same node graph with the stored records excluded.
+		 *
+		 * @param tree    the consistent tree to check
+		 * @param records every record the run has ever inserted, excluded from the measurement by identity
+		 */
+		private static void assertHeapWalkIsAnIdentity(
+			@Nonnull TransactionalElementBPlusTree<PriceRecordContract> tree,
+			@Nonnull List<PriceRecordContract> records
+		) {
+			UnpublishedChildSlotSupport.assertEveryLiveChildSlotPopulated(tree.getRoot());
+			final Object[] sharedRoots = new Object[records.size() + 2];
+			sharedRoots[0] = WALKABLE_KEY;
+			sharedRoots[1] = PriceRecordContract.class;
+			for (int i = 0; i < records.size(); i++) {
+				sharedRoots[i + 2] = records.get(i);
+			}
+			assertEquals(
+				JolHeapSize.ownedSize(tree.getRoot(), sharedRoots),
+				tree.getNodeGraphHeapSizeInBytes(element -> 0L),
+				"on a consistent tree the heap walk must report exactly the measured node graph"
+			);
+		}
+
+		/**
+		 * Inserts an absent key or deletes a present one, `operations` times, keeping `present` in step and recording
+		 * every inserted record in `records`.
+		 *
+		 * @param tree       the tree to mutate
+		 * @param present    the keys the tree holds
+		 * @param records    every record inserted so far
+		 * @param random     the source of keys
+		 * @param operations the number of mutations
+		 */
+		private static void churn(
+			@Nonnull TransactionalElementBPlusTree<PriceRecordContract> tree,
+			@Nonnull TreeMap<Integer, PriceRecordContract> present,
+			@Nonnull List<PriceRecordContract> records,
+			@Nonnull Random random,
+			int operations
+		) {
+			for (int i = 0; i < operations; i++) {
+				final int key = random.nextInt(NO_OP_KEY_RANGE);
+				if (present.remove(key) != null) {
+					tree.delete(key);
+				} else {
+					final PriceRecordContract record = rec(key);
+					tree.insert(record);
+					present.put(key, record);
+					records.add(record);
+				}
+			}
+		}
+
+		/**
+		 * Tears the fixture's node and asserts the heap walk reports exactly what it reported before the tear.
+		 *
+		 * @param fixture the tree and the node to tear
+		 */
+		private static void assertHeapWalkStepsOverTheUnpublishedSlot(
+			@Nonnull UnpublishedChildSlotSupport.TornSpine<TransactionalElementBPlusTree<PriceRecordContract>> fixture
+		) {
+			final TransactionalElementBPlusTree<PriceRecordContract> tree = fixture.tree();
+			final long heapBefore = tree.getHeapSizeInBytes();
+
+			UnpublishedChildSlotSupport.tear(fixture.node());
+
+			assertEquals(
+				heapBefore, tree.getHeapSizeInBytes(),
+				"the heap walk must step over the unpublished slot - the torn node owns no more heap than before"
+			);
+		}
+
+		@Test
+		@DisplayName("a root above the leaves whose peek admits an unpublished child")
+		void shouldStepOverAnUnpublishedSlotOfARootAboveTheLeaves() {
+			assertHeapWalkStepsOverTheUnpublishedSlot(
+				UnpublishedChildSlotSupport.fixture(
+					UnpublishedChildSlot::treeOf, MAX_FIXTURE_KEYS, UnpublishedChildSlotSupport::rootAboveLeaves
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("an inner node whose peek admits an unpublished child")
+		void shouldStepOverAnUnpublishedSlotOfAnInnerNode() {
+			// one recursion level down: the walk enters the torn node from its parent's loop
+			assertHeapWalkStepsOverTheUnpublishedSlot(
+				UnpublishedChildSlotSupport.fixture(
+					UnpublishedChildSlot::treeOf, MAX_FIXTURE_KEYS, UnpublishedChildSlotSupport::innerNodeAboveLeaves
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("the step is a no-op on every consistent tree, in place and after a commit")
+		void shouldLeaveTheHeapWalkUnchangedOnAConsistentTree() {
+			// in-place churn is the warm-up writer's own view; the committed copies are what a transaction publishes.
+			// Deletes drive steals and merges, whose donors null their vacated slots - none of it may leave a `null`
+			// inside a live run a consistent observer sees
+			final Random random = new Random(42);
+			final TreeMap<Integer, PriceRecordContract> present = new TreeMap<>();
+			final List<PriceRecordContract> records = new ArrayList<>(NO_OP_ROUNDS * NO_OP_OPERATIONS * 2);
+			final AtomicReference<TransactionalElementBPlusTree<PriceRecordContract>> tree =
+				new AtomicReference<>(emptyTree());
+			int deepest = 0;
+			for (int round = 0; round < NO_OP_ROUNDS; round++) {
+				churn(tree.get(), present, records, random, NO_OP_OPERATIONS);
+				assertHeapWalkIsAnIdentity(tree.get(), records);
+				deepest = Math.max(deepest, depthOf(tree.get().getRoot()));
+
+				assertStateAfterCommit(
+					tree.get(),
+					tested -> churn(tested, present, records, random, NO_OP_OPERATIONS),
+					(original, committed) -> {
+						assertHeapWalkIsAnIdentity(committed, records);
+						tree.set(committed);
+					}
+				);
+			}
+			assertTrue(deepest >= 3, "the churn must stack internal nodes, the deepest tree had " + deepest + " levels");
+		}
+
+		/**
+		 * The number of levels of the subtree, leaves included.
+		 *
+		 * @param node the subtree root
+		 * @return its depth
+		 */
+		private static int depthOf(@Nonnull BPlusTreeNode<?> node) {
+			return node instanceof InternalBPlusTreeNode<?> internal ? 1 + depthOf(internal.getChildren()[0]) : 1;
+		}
+
+		/**
+		 * Extracts {@link PriceRecordContract#internalPriceId()} - see {@link #WALKABLE_KEY} for why it is a named
+		 * class.
+		 */
+		private static final class InternalPriceIdExtractor implements ToIntFunction<PriceRecordContract> {
+
+			@Override
+			public int applyAsInt(PriceRecordContract value) {
+				return value.internalPriceId();
+			}
 		}
 
 	}

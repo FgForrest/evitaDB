@@ -137,7 +137,7 @@
 		<slf4j.version>2.0.18</slf4j.version>
 		<logback.version>1.6.1</logback.version>
 		<kryo.version>5.6.2</kryo.version>
-		<jackson.version>2.22.2</jackson.version>
+		<jackson.version>2.22.3</jackson.version>
 		<jackson.annotations.version>2.22</jackson.annotations.version>
 		<snakeyaml.version>2.7</snakeyaml.version>
 		<roaringbitmap.version>1.6.18</roaringbitmap.version>
@@ -147,11 +147,10 @@
 			.github/dependabot.yml). The Lucene analysis chain defines the CONTENT of the future
 			full-text term dictionary: a minor upgrade may change a stop-word list or a stemmer's
 			output, which changes the terms produced for an unchanged attribute value - i.e. it is a
-			catalog reindex, not a dependency bump. All three lucene artifacts are pinned to this one
+			catalog reindex, not a dependency bump. Both lucene artifacts are pinned to this one
 			property so patch levels can never be mixed across them.
 		-->
 		<lucene.version>9.12.3</lucene.version>
-		<junit.jupiter.version>6.1.2</junit.jupiter.version>
 		<mockito.junit.version>5.23.0</mockito.junit.version>
 		<assertj.version>3.27.7</assertj.version>
 		<maven.compiler.version>3.15.0</maven.compiler.version>
@@ -233,7 +232,7 @@
 			<dependency>
 				<groupId>com.carrotsearch</groupId>
 				<artifactId>hppc</artifactId>
-				<version>0.11.1</version>
+				<version>0.12.0</version>
 			</dependency>
 			<!--
 				Lucene analysis chain - consumed only by evita_engine (see the module boundary rationale
@@ -981,7 +980,7 @@
 			<plugin>
 				<groupId>org.owasp</groupId>
 				<artifactId>dependency-check-maven</artifactId>
-				<version>12.2.2</version>
+				<version>13.0.0</version>
 				<configuration>
 					<format>ALL</format>
 					<failBuildOnCVSS>5</failBuildOnCVSS>
@@ -1061,7 +1060,7 @@
 			<plugin>
 				<groupId>org.owasp</groupId>
 				<artifactId>dependency-check-maven</artifactId>
-				<version>12.2.2</version>
+				<version>13.0.0</version>
 			</plugin>
 		</plugins>
 	</reporting>

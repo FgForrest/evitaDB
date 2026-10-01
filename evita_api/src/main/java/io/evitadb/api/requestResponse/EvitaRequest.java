@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse;
 
+import io.evitadb.annotation.Internal;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Constraint;
@@ -508,7 +509,7 @@ public class EvitaRequest {
 			this.scopesAsArray = evitaRequest.scopesAsArray;
 		} else {
 			this.scopes = overriddenScopes.getScope();
-			this.scopesAsArray = this.scopes.toArray(Scope[]::new);
+			this.scopesAsArray = overriddenScopes.getScopesInRequestedOrder();
 		}
 	}
 
@@ -524,7 +525,7 @@ public class EvitaRequest {
 	 * @param filterBy     optional filter constraints override
 	 * @param orderBy      optional order constraints override
 	 * @param locale       optional locale override
-	 * @param scopes       optional scopes override
+	 * @param scopes       optional scopes override, iterated in the order a unique lookup prefers them
 	 */
 	public EvitaRequest(
 		@Nonnull EvitaRequest evitaRequest,
@@ -1793,6 +1794,7 @@ public class EvitaRequest {
 	 *
 	 * @return map of the instance/reference key to the single requirement context that applies to it
 	 */
+	@Internal("use getReferenceEntityFetch() for the requirements a query states")
 	@Nonnull
 	public Map<ReferenceContentKey, RequirementContext> getNamedReferenceEntityFetch() {
 		if (this.entityFetchRequirements == null) {
@@ -1938,6 +1940,9 @@ public class EvitaRequest {
 	 * and `filterConstraint`. The copy will share already resolved
 	 * and memoized values of this request except those that relate
 	 * to the changed entity type and the filtering constraints.
+	 *
+	 * The iteration order of `scopes` becomes the requested order of the copy, which a unique lookup
+	 * prefers the earlier scopes by - pass an ordered set when the order matters.
 	 */
 	@Nonnull
 	public EvitaRequest deriveCopyWith(
@@ -1962,17 +1967,22 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Retrieves the set of scopes associated with the current query.
+	 * Retrieves the scopes associated with the current query, answering membership only - see
+	 * {@link #getScopesAsArray()} for the order a unique lookup prefers them in.
 	 * If the scopes have not been initialized, it attempts to find the required
 	 * scopes from the query, falling back to the default scopes if none are found.
 	 *
-	 * @return an EnumSet of Scope objects representing the scopes for the current query
+	 * @return the {@link Scope}s the current query searches; the iteration order is not meaningful
 	 */
 	@Nonnull
 	public Set<Scope> getScopes() {
 		if (this.scopes == null || this.scopesAsArray == null) {
-			this.scopesAsArray = ofNullable(QueryUtils.findFilter(this.query, EntityScope.class))
-				.map(it -> it.getScope().toArray(Scope[]::new))
+			// a `scope(...)` nested in `referenceHaving`, `entityHaving` or another separate container targets the entities
+			// that container reaches, never the queried ones - the lookup stops at its boundary
+			this.scopesAsArray = ofNullable(
+					QueryUtils.findFilter(this.query, EntityScope.class, SeparateEntityScopeContainer.class)
+				)
+				.map(EntityScope::getScopesInRequestedOrder)
 				.orElse(Scope.DEFAULT_SCOPES);
 			final EnumSet<Scope> theScopes = EnumSet.noneOf(Scope.class);
 			Collections.addAll(theScopes, this.scopesAsArray);
@@ -1982,10 +1992,13 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Retrieves an array representation of the scopes.
+	 * Retrieves the scopes in the order the query requested them in `scope(...)`, each once.
 	 * Internally, it initializes the scopes by calling the getScopes() method.
 	 *
-	 * @return an array of Scope objects representing the initialized scopes.
+	 * The order is meaningful, unlike the order of {@link #getScopes()}: a lookup by a unique value that lives in
+	 * several requested scopes walks this array and prefers the scope listed first.
+	 *
+	 * @return the requested scopes in the requested order
 	 */
 	@Nonnull
 	public Scope[] getScopesAsArray() {
@@ -2253,6 +2266,7 @@ public class EvitaRequest {
 	 * @param instanceName  optional name of the reference content instance
 	 * @param referenceName name of the reference
 	 */
+	@Internal("the key type of the named requirement map; not part of the request contract")
 	public record ReferenceContentKey(
 		@Nullable String instanceName,
 		@Nonnull String referenceName

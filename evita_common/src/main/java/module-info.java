@@ -3,6 +3,7 @@
  */
 module evita.common {
 
+	exports io.evitadb.annotation;
 	exports io.evitadb.dataType;
 	exports io.evitadb.dataType.data;
 	exports io.evitadb.dataType.map;

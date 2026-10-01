@@ -23,7 +23,10 @@ jobs:
             arch: ARM64
       fail-fast: false
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    # The generative tests are bounded by wall-clock time, so the run's floor is the sum of their per-test
+    # budgets divided by the runner's core count (4 on ubuntu/windows, 3 on macos-latest). Keep the margin
+    # generous: a hung test burns its own client timeout (often 10 minutes) before it fails.
+    timeout-minutes: 150
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

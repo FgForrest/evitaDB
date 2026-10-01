@@ -40,7 +40,9 @@ import java.io.Serializable;
 /**
  * Example interface for ClassSchemaAnalyzerTest demonstrating `indexedComponents` usage.
  * Covers the empty-scope branch (general `indexedComponents`) and the per-scope branch
- * (`indexedComponents` on `@ScopeReferenceSettings`).
+ * (`indexedComponents` on `@ScopeReferenceSettings`). Every indexed scope keeps
+ * `REFERENCED_ENTITY`, so the schema this model produces is valid and publishes - the shapes the
+ * schema rule refuses live in {@link GetterBasedEntityWithGroupOnlyIndexedComponents}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -65,18 +67,8 @@ public interface GetterBasedEntityWithIndexedComponents {
 	Brand getDefaultComponents();
 
 	/**
-	 * Reference indexed for filtering with `indexedComponents = {REFERENCED_GROUP_ENTITY}` —
-	 * verifies the analyzer wires the override through.
-	 */
-	@Reference(
-		managed = false,
-		indexed = ReferenceIndexType.FOR_FILTERING,
-		indexedComponents = { ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY }
-	)
-	Brand getGroupOnlyComponents();
-
-	/**
-	 * Reference indexed with both components — verifies multiple component selection.
+	 * Reference indexed with both components — verifies the analyzer wires a non-default override
+	 * through, and that multiple components can be selected.
 	 */
 	@Reference(
 		managed = false,
@@ -91,7 +83,7 @@ public interface GetterBasedEntityWithIndexedComponents {
 	/**
 	 * Reference using per-scope `@ScopeReferenceSettings#indexedComponents` — verifies the
 	 * scope-driven branch of the analyzer. LIVE indexes both sides; ARCHIVED indexes only the
-	 * group entity.
+	 * referenced entity, so the two scopes end up with different component sets.
 	 */
 	@Reference(
 		managed = false,
@@ -107,7 +99,7 @@ public interface GetterBasedEntityWithIndexedComponents {
 			@ScopeReferenceSettings(
 				scope = Scope.ARCHIVED,
 				indexed = ReferenceIndexType.FOR_FILTERING,
-				indexedComponents = { ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY }
+				indexedComponents = { ReferenceIndexedComponents.REFERENCED_ENTITY }
 			)
 		}
 	)

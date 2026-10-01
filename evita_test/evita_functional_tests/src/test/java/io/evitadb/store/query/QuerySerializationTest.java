@@ -199,7 +199,7 @@ public class QuerySerializationTest {
 					Query.query(collection("a"),
 						require(debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS), entityFetchAll()))),
 				// the head is a whole HeadConstraint subtree, not just the Collection extracted from it —
-				// a serializer that persists only the collection silently drops query labels (issue #1507)
+				// a serializer that persists only the collection silently drops query labels
 				arguments("head(collection + label)",
 					Query.query(head(collection("a"), label("x", "y")))),
 				arguments("head(collection + label) + filter",
@@ -405,7 +405,10 @@ public class QuerySerializationTest {
 					arguments("inScope wrapping attribute",
 						inScope(Scope.LIVE, attributeEquals("a", "b"))),
 					arguments("scope (LIVE, ARCHIVED)",
-						scope(Scope.LIVE, Scope.ARCHIVED))
+						scope(Scope.LIVE, Scope.ARCHIVED)),
+					// the order decides which scope a unique lookup prefers, so it has to survive the round trip
+					arguments("scope (ARCHIVED, LIVE)",
+						scope(Scope.ARCHIVED, Scope.LIVE))
 				);
 			}
 		}

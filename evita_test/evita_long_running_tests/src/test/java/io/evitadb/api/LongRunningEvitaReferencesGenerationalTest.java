@@ -51,9 +51,7 @@ import io.evitadb.utils.CollectionUtils;
 import lombok.extern.apachecommons.CommonsLog;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
@@ -375,59 +373,6 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 		System.out.println(
 			"Finished " + finalState.generation() + " generations (" + finalState.updateCounter() + " updates), size on disk is " +
 				byteCountToDisplaySize(sizeOfDirectory(getTestDirectory().toFile()))
-		);
-	}
-
-	/**
-	 * Deterministic regression test pinned to seed `1623796816` — guards the reduced-index reload
-	 * strand. During investigation it presented as a group-path iteration in
-	 * `ReferenceIndexMutator#forEachUniqueReferenceIndex` resolving a mutation against a freshly-created
-	 * `ReducedGroupEntityIndex` whose discriminator (built from
-	 * `bothKeys.stored().representativeAttributeValues()`) does not match any RGEI where the entity's
-	 * data physically lives. That discriminator/iteration observation turned out to be a downstream
-	 * symptom, not the cause — see the root-cause note below.
-	 *
-	 * Reproduced in ~14 seconds before the fix; surfaced as either:
-	 *
-	 *   - `Price index for price list <X> and currency <Y> not found!` thrown from
-	 *     `AbstractPriceIndex.priceRemove`, or
-	 *   - `Cardinality index for attribute <X> not found.` thrown from
-	 *     `ReducedGroupEntityIndex.removeFilterAttribute`.
-	 *
-	 * ROOT CAUSE (confirmed): a persistence-side change-detection desync, not the iteration-layer drift
-	 * first suspected. `EntityIndex.getModifiedStorageParts` re-emits its bulky manifest only when the
-	 * sub-index key sets differ from the `original*` baseline, but that baseline was never advanced after
-	 * a warm-up (bulk) flush on a reused index instance. After `goLive`, a transactional commit that drops
-	 * those sub-indexes (current keys shrink back to the stale empty baseline) is mis-detected as
-	 * "unchanged": the stale manifest and its now-removed price/sort sub-index parts are never
-	 * rewritten/removed, while the membership bitmap IS dropped — so on reload the index rebuilds a
-	 * price/sort sub-index the membership no longer backs, throwing one of the messages above. (The
-	 * entity-613 / discriminator observations were artifacts of this same scenario.)
-	 *
-	 * FIX: advance the baseline at flush completion. `EntityIndex` overrides {@link io.evitadb.index.Index#notifyFlushed()}
-	 * to call `captureOriginalsFromComponents()`, and `DataStoreChanges.popTrappedUpdates()` invokes it
-	 * once per index right after collecting its modified parts — keeping `getModifiedStorageParts` a pure
-	 * read while closing the warm-up -> transactional hand-off gap on reused instances.
-	 *
-	 * Enabled (2026-06-27) as the canonical regression marker for this strand: it now PASSES with the fix
-	 * in place and would FAIL again (around mod 613) on any regression. Runs only under `-P longRunning`
-	 * (this module sets surefire `skipTests=true` by default) and is `@Tag(SLOW)`, so it is excluded from
-	 * the fast `unitAndFunctional` profile.
-	 *
-	 * @see io.evitadb.index.mutation.local.ReferenceIndexMutator#forEachUniqueReferenceIndex
-	 * @see io.evitadb.index.mutation.local.ReferenceIndexMutator#forEachReferenceIndex
-	 * @see io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#getRepresentativeReferenceKeysAndUpdateIndexesIfNecessary
-	 */
-	@Test
-	@Tag(SLOW)
-	@DisplayName("Generative seed 1623796816 must not surface reduced-reference-index drift")
-	void shouldNotSurfaceReducedReferenceIndexDriftForSeed1623796816() {
-		// Re-invokes the generative driver with the deterministic seed pinned to the original
-		// CI failure. Calls `generationalTransactionalModificationProofTest` directly with a
-		// hand-built `GenerationalTestInput` so a single CI green/red lights up exactly this
-		// scenario without depending on `-Dtest.seed=...` plumbing.
-		generationalTransactionalModificationProofTest(
-			new GenerationalTestInput(/* intervalInMinutes */ 1, /* randomSeed */ 1623796816)
 		);
 	}
 

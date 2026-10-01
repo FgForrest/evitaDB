@@ -27,6 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
@@ -42,10 +43,14 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
+import io.evitadb.store.schema.serializer.ReferenceSchemaSerializer;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import io.evitadb.store.shared.kryo.SharedClassesConfigurer;
 import io.evitadb.test.Entities;
@@ -53,6 +58,7 @@ import io.evitadb.test.TestConstants;
 import io.evitadb.utils.NamingConvention;
 import lombok.Data;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -67,8 +73,10 @@ import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static io.evitadb.test.Assertions.assertExactlyEquals;
@@ -85,6 +93,24 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(STORAGE)
 @Tag(SCHEMA)
 class SchemaSerializationServiceTest {
+
+	/**
+	 * Name of the reference built by the stored-shape tests, on whichever side it is declared.
+	 */
+	private static final String STORED_SHAPE_REFERENCE = "storedShapeReference";
+	/**
+	 * Name of the category-side reference the stored-shape reflected references reflect.
+	 */
+	private static final String STORED_SHAPE_REFLECTED_NAME = "productsInCategory";
+	/**
+	 * Group entity type of every stored-shape reference - the group component is only declared on grouped references.
+	 */
+	private static final String STORED_SHAPE_GROUP_TYPE = "BrandGroup";
+	/**
+	 * Serial version UID under which the latest released format stores a {@link ReferenceSchema}, routed to
+	 * `ReferenceSchemaSerializer_2026_2` by the version-routing serializer.
+	 */
+	private static final long REFERENCE_SCHEMA_RELEASED_FORMAT_UID = 5443565766311111159L;
 
 	@Test
 	void shouldSerializeAndDeserializeSchema() {
@@ -595,6 +621,543 @@ class SchemaSerializationServiceTest {
 		// the bucketed maps should be empty after round-trip
 		assertTrue(deserialized.getAllHistogramIndexDefinitions().isEmpty());
 		assertTrue(deserialized.getBucketedPartiallyInScopes().isEmpty());
+	}
+
+	/**
+	 * Covers the read path for the reference shapes the entity-component schema rule refuses: an indexed scope whose
+	 * components lack `REFERENCED_ENTITY` - either group-only, or empty. Catalogs written before the rule existed store
+	 * these shapes, and they must keep loading; the rule therefore lives in `validate()` and nowhere on the read path.
+	 *
+	 * Most tests write the shape with the current serializer and read it back with the current reader, then, for
+	 * reflected references, re-bind them to the reference they reflect
+	 * ({@link ReflectedReferenceSchema#withReferencedSchema}), which runs construction-time scope validation of its own.
+	 * That proves the readers and the re-binding accept the shape, not that bytes written by a released version decode.
+	 * The released format of a plain reference is read by a backward-compatible reader of its own, so one test routes
+	 * the shape through it; a reflected reference stored by the latest release is read by the current reader.
+	 */
+	@Nested
+	@DisplayName("Loading reference shapes that lack REFERENCED_ENTITY in an indexed scope")
+	class StoredShapesWithoutEntityComponent {
+
+		@Test
+		@DisplayName("should deserialize an entity schema whose reference is indexed only for the group component")
+		void shouldDeserializeEntitySchemaWithGroupOnlyReference() {
+			final EntitySchemaContract createdSchema = createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
+					whichIs -> whichIs
+						.indexedForFilteringAndPartitioningInScope(Scope.LIVE, Scope.ARCHIVED)
+						.withGroupTypeRelatedToEntity(STORED_SHAPE_GROUP_TYPE)
+						.indexedWithComponentsInScope(Scope.LIVE, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY)
+						.indexedWithComponentsInScope(
+							Scope.ARCHIVED,
+							ReferenceIndexedComponents.REFERENCED_ENTITY,
+							ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+						)
+				)
+				.toInstance();
+
+			final EntitySchema deserialized = roundTripEntitySchema(createKryo(), createdSchema);
+
+			assertEquals(createdSchema, deserialized, "The group-only reference must survive the round trip intact");
+			final ReferenceSchemaContract brand = deserialized.getReference(Entities.BRAND).orElseThrow();
+			assertEquals(
+				Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+				brand.getIndexedComponents(Scope.LIVE),
+				"The stored group-only LIVE scope must load exactly as stored - no default filled in, no refusal"
+			);
+			assertTrue(brand.isIndexedInScope(Scope.LIVE), "The group-only LIVE scope must stay indexed");
+		}
+
+		@Test
+		@DisplayName("should deserialize a reference schema indexed with an empty component set")
+		void shouldDeserializeReferenceSchemaWithEmptyComponentsInIndexedScope() {
+			final ReferenceSchema created = buildStoredReferenceSchema(
+				STORED_SHAPE_REFERENCE, Entities.BRAND, Map.of(Scope.LIVE, Collections.emptySet())
+			);
+			assertEquals(
+				Set.of(), created.getIndexedComponents(Scope.LIVE),
+				"The premise is an indexed LIVE scope with no component"
+			);
+
+			final ReferenceSchema deserialized = roundTripReferenceSchema(createKryo(), created);
+
+			assertEquals(created, deserialized, "The empty-component reference must survive the round trip intact");
+			assertTrue(deserialized.isIndexedInScope(Scope.LIVE), "The empty-component LIVE scope must stay indexed");
+			assertEquals(
+				Set.of(), deserialized.getIndexedComponents(Scope.LIVE),
+				"The stored empty component set must load exactly as stored - no default filled in, no refusal"
+			);
+		}
+
+		@Test
+		@DisplayName("should read group-only and empty scopes of a reference stored in the released format")
+		void shouldReadGroupOnlyAndEmptyScopesOfAReferenceStoredInTheReleasedFormat() {
+			final Map<Scope, Set<ReferenceIndexedComponents>> components = new EnumMap<>(Scope.class);
+			components.put(Scope.LIVE, EnumSet.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY));
+			components.put(Scope.ARCHIVED, EnumSet.noneOf(ReferenceIndexedComponents.class));
+			final ReferenceSchema created = buildStoredReferenceSchema(
+				STORED_SHAPE_REFERENCE, Entities.BRAND, components, Scope.LIVE, Scope.ARCHIVED
+			);
+			final Kryo kryo = createKryo();
+
+			// the released format is the current payload without the trailing conflict resolution override, stored
+			// under the serial version UID the version-routing serializer hands to ReferenceSchemaSerializer_2026_2
+			final ByteArrayOutputStream baos = new ByteArrayOutputStream(2048);
+			try (final Output output = new Output(baos)) {
+				output.writeLong(REFERENCE_SCHEMA_RELEASED_FORMAT_UID);
+				new ReferenceSchemaSerializer().write(kryo, output, created);
+			}
+			final ReferenceSchema deserialized;
+			try (final Input input = new Input(new ByteArrayInputStream(baos.toByteArray()))) {
+				deserialized = kryo.readObject(input, ReferenceSchema.class);
+			}
+
+			assertEquals(
+				"LIVE=[REFERENCED_GROUP_ENTITY] ARCHIVED=[]",
+				"LIVE=" + deserialized.getIndexedComponents(Scope.LIVE) +
+					" ARCHIVED=" + deserialized.getIndexedComponents(Scope.ARCHIVED),
+				"Both stored scopes must load exactly as stored - no default filled in, no refusal"
+			);
+			assertTrue(
+				deserialized.isIndexedInScope(Scope.LIVE) && deserialized.isIndexedInScope(Scope.ARCHIVED),
+				"Both stored scopes must stay indexed"
+			);
+		}
+
+		@Test
+		@DisplayName("should deserialize and rebind a reflected reference declaring group-only components")
+		void shouldDeserializeAndRebindReflectedReferenceWithGroupOnlyComponents() {
+			final Map<Scope, Set<ReferenceIndexedComponents>> groupOnly =
+				Map.of(Scope.LIVE, Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY));
+			final ReflectedReferenceSchema created = buildStoredReflectedReferenceSchema(groupOnly);
+
+			final ReflectedReferenceSchema rebound = roundTripReflectedReferenceSchema(createKryo(), created)
+				.withReferencedSchema(
+					buildStoredReferenceSchema(STORED_SHAPE_REFLECTED_NAME, Entities.PRODUCT, groupOnly)
+				);
+
+			assertFalse(rebound.isIndexedComponentsInherited(), "The premise is an explicit component declaration");
+			assertEquals(
+				Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+				rebound.getIndexedComponents(Scope.LIVE),
+				"The stored group-only reflected reference must load and rebind exactly as stored"
+			);
+		}
+
+		/**
+		 * The most likely stored form: a reflected reference that inherits its components from a source reference
+		 * that is itself group-only. The components reach it only through the rebinding, so this is the path that
+		 * would break first.
+		 */
+		@Test
+		@DisplayName("should deserialize and rebind a reflected reference inheriting group-only components")
+		void shouldDeserializeAndRebindReflectedReferenceInheritingGroupOnlyComponents() {
+			final ReflectedReferenceSchema created = buildStoredReflectedReferenceSchema(null);
+
+			final ReflectedReferenceSchema rebound = roundTripReflectedReferenceSchema(createKryo(), created)
+				.withReferencedSchema(
+					buildStoredReferenceSchema(
+						STORED_SHAPE_REFLECTED_NAME, Entities.PRODUCT,
+						Map.of(Scope.LIVE, Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY))
+					)
+				);
+
+			assertTrue(rebound.isIndexedComponentsInherited(), "The premise is inherited components");
+			assertEquals(
+				Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+				rebound.getIndexedComponents(Scope.LIVE),
+				"The group-only components inherited from the stored source must load without a refusal"
+			);
+		}
+
+		@Test
+		@DisplayName("should deserialize and rebind a reflected reference declaring an empty component set")
+		void shouldDeserializeAndRebindReflectedReferenceWithEmptyComponents() {
+			final ReflectedReferenceSchema created = buildStoredReflectedReferenceSchema(
+				Map.of(Scope.LIVE, Collections.emptySet())
+			);
+
+			final ReflectedReferenceSchema rebound = roundTripReflectedReferenceSchema(createKryo(), created)
+				.withReferencedSchema(
+					buildStoredReferenceSchema(
+						STORED_SHAPE_REFLECTED_NAME, Entities.PRODUCT,
+						Map.of(Scope.LIVE, Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY))
+					)
+				);
+
+			assertTrue(rebound.isIndexedInScope(Scope.LIVE), "The empty-component LIVE scope must stay indexed");
+			assertEquals(
+				Set.of(), rebound.getIndexedComponents(Scope.LIVE),
+				"The stored empty component set must load and rebind exactly as stored"
+			);
+		}
+
+		/**
+		 * The stored form of the route that left reflected references on archived owners unindexed: explicit
+		 * components naming {@link Scope#LIVE} alone, scopes inherited from a reference indexed in both. Schema-change
+		 * paths now complete the uncovered scope with the default component, but a catalog stored before that has
+		 * never indexed anything there - so loading must leave the scope empty, and the schema rule must keep refusing
+		 * it. Filling it on load would make the scope claim `REFERENCED_ENTITY` over indexes that were never built,
+		 * and silence exactly the checks that exist to say so.
+		 *
+		 * The second half pins the same for a later schema change: a scope the reference was already indexed in is
+		 * not completed by re-binding either, so an unrelated change to the reference it reflects cannot quietly turn
+		 * the stored empty scope into one that looks healthy.
+		 */
+		@Test
+		@DisplayName("should keep a stored uncovered scope empty on load so that validation still refuses it")
+		void shouldKeepAStoredUncoveredScopeEmptyOnLoadSoThatValidationStillRefusesIt() {
+			final ReferenceSchema originalReference = buildStoredReferenceSchema(
+				STORED_SHAPE_REFLECTED_NAME, Entities.PRODUCT,
+				Map.of(
+					Scope.LIVE, Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY),
+					Scope.ARCHIVED, Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY)
+				),
+				Scope.LIVE, Scope.ARCHIVED
+			);
+			final ReflectedReferenceSchema created = buildStoredReflectedReferenceSchemaInheritingScopes(
+				Map.of(Scope.LIVE, Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY))
+			);
+
+			// the binding catalog load performs
+			final ReflectedReferenceSchema loaded = roundTripReflectedReferenceSchema(createKryo(), created)
+				.withReferencedSchema(originalReference);
+
+			assertTrue(loaded.isIndexedInherited(), "The premise is scopes inherited from the reflected reference");
+			assertFalse(loaded.isIndexedComponentsInherited(), "The premise is an explicit component declaration");
+			assertTrue(loaded.isIndexedInScope(Scope.ARCHIVED), "ARCHIVED is inherited from the reflected reference");
+			assertEquals(
+				Set.of(), loaded.getIndexedComponents(Scope.ARCHIVED),
+				"The stored uncovered ARCHIVED scope must load exactly as stored - never filled with a default"
+			);
+			assertEquals(
+				Set.of(),
+				loaded.withReferencedSchemaAfterSchemaChange(originalReference).getIndexedComponents(Scope.ARCHIVED),
+				"A schema change re-binding a reference already indexed in ARCHIVED must not fill the stored empty " +
+					"scope"
+			);
+
+			// validation needs no more of the catalog than the reference the reflected one points at
+			final EntitySchema ownerSchema = EntitySchema._internalBuild(Entities.PRODUCT);
+			final EntitySchemaContract reflectedSchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(reflectedSchema.getReference(STORED_SHAPE_REFLECTED_NAME))
+				.thenReturn(Optional.of(originalReference));
+			final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchemaContract.class);
+			Mockito.when(catalogSchema.getName()).thenReturn(TestConstants.TEST_CATALOG);
+			Mockito.when(catalogSchema.getEntitySchema(Entities.CATEGORY))
+				.thenReturn(Optional.of(reflectedSchema));
+			final InvalidSchemaMutationException refusal = assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> loaded.validate(catalogSchema, ownerSchema),
+				"The loaded schema must still be refused by the schema rule"
+			);
+			for (String expected : List.of("`" + STORED_SHAPE_REFERENCE + "`", "ARCHIVED", "REFERENCED_ENTITY")) {
+				assertTrue(
+					refusal.getMessage().contains(expected),
+					"The refusal must name `" + expected + "`, was: " + refusal.getMessage()
+				);
+			}
+		}
+
+		/**
+		 * An indexing mutation that changes another scope of a plain reference completes every indexed scope it leaves
+		 * without components with the default - except one the reference is already stored with and no component. That
+		 * scope never indexed anything, and filling it as a side effect would make it look healthy over indexes that
+		 * were never built. Asking for the component in that scope explicitly is still honoured - it is the repair.
+		 */
+		@Test
+		@DisplayName("should not fill a stored empty scope of a plain reference when a mutation changes another scope")
+		void shouldNotFillAStoredEmptyScopeOfAPlainReferenceWhenAMutationChangesAnotherScope() {
+			final ReferenceSchema stored = buildStoredReferenceSchema(
+				STORED_SHAPE_REFERENCE, Entities.BRAND,
+				Map.of(
+					Scope.LIVE, Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY),
+					Scope.ARCHIVED, Collections.emptySet()
+				),
+				Scope.LIVE, Scope.ARCHIVED
+			);
+			final ScopedReferenceIndexType[] bothScopes = {
+				new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING),
+				new ScopedReferenceIndexType(Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING)
+			};
+			final EntitySchemaContract ownerSchema = Mockito.mock(EntitySchemaContract.class);
+
+			final ReferenceSchemaContract liveComponentsChanged = new SetReferenceSchemaIndexedMutation(
+				STORED_SHAPE_REFERENCE, bothScopes,
+				new ScopedReferenceIndexedComponents[]{
+					new ScopedReferenceIndexedComponents(
+						Scope.LIVE,
+						new ReferenceIndexedComponents[]{
+							ReferenceIndexedComponents.REFERENCED_ENTITY,
+							ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+						}
+					)
+				}
+			).mutate(ownerSchema, stored);
+			assertEquals(
+				Set.of(), liveComponentsChanged.getIndexedComponents(Scope.ARCHIVED),
+				"Changing the LIVE components must leave the stored empty ARCHIVED scope empty"
+			);
+
+			final ReferenceSchemaContract componentsUnspecified =
+				new SetReferenceSchemaIndexedMutation(STORED_SHAPE_REFERENCE, bothScopes).mutate(ownerSchema, stored);
+			assertEquals(
+				Set.of(), componentsUnspecified.getIndexedComponents(Scope.ARCHIVED),
+				"A mutation that names no components must leave the stored empty ARCHIVED scope empty too"
+			);
+
+			final ReferenceSchemaContract repaired = new SetReferenceSchemaIndexedMutation(
+				STORED_SHAPE_REFERENCE, bothScopes,
+				new ScopedReferenceIndexedComponents[]{
+					new ScopedReferenceIndexedComponents(
+						Scope.ARCHIVED, new ReferenceIndexedComponents[]{ReferenceIndexedComponents.REFERENCED_ENTITY}
+					)
+				}
+			).mutate(ownerSchema, stored);
+			assertEquals(
+				Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY), repaired.getIndexedComponents(Scope.ARCHIVED),
+				"Asking for the component in the stored empty scope explicitly must repair it"
+			);
+			assertEquals(
+				Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY), repaired.getIndexedComponents(Scope.LIVE),
+				"The LIVE scope the repair leaves uncovered was indexed with components, so it gets the default"
+			);
+		}
+
+		/**
+		 * The reflected counterpart of the test above: the indexing mutation of a reflected reference completes the
+		 * scopes it leaves without components, and must skip one the reference is already stored with and no
+		 * component - the shape the reflected-reference builder used to leave behind in every scope its explicit
+		 * components did not name.
+		 */
+		@Test
+		@DisplayName("should not fill a stored empty scope of a reflected reference when a mutation changes another scope")
+		void shouldNotFillAStoredEmptyScopeOfAReflectedReferenceWhenAMutationChangesAnotherScope() {
+			final ReferenceSchema originalReference = buildStoredReferenceSchema(
+				STORED_SHAPE_REFLECTED_NAME, Entities.PRODUCT,
+				Map.of(
+					Scope.LIVE, Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY),
+					Scope.ARCHIVED, Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY)
+				),
+				Scope.LIVE, Scope.ARCHIVED
+			);
+			final Map<Scope, ReferenceIndexType> indexedInScopes = new EnumMap<>(Scope.class);
+			indexedInScopes.put(Scope.LIVE, ReferenceIndexType.FOR_FILTERING);
+			indexedInScopes.put(Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING);
+			final ReflectedReferenceSchema stored = buildStoredReflectedReferenceSchema(
+				indexedInScopes,
+				Map.of(
+					Scope.LIVE, Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY),
+					Scope.ARCHIVED, Collections.emptySet()
+				)
+			).withReferencedSchema(originalReference);
+			assertEquals(Set.of(), stored.getIndexedComponents(Scope.ARCHIVED), "The premise is a stored empty scope");
+
+			// explicit components naming LIVE alone, as the builder sends them - a mutation with no components at all
+			// would switch the reference to inherited components instead, which never reaches the default fill
+			final ReferenceSchemaContract mutated = new SetReferenceSchemaIndexedMutation(
+				STORED_SHAPE_REFERENCE,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING),
+					new ScopedReferenceIndexType(Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING)
+				},
+				new ScopedReferenceIndexedComponents[]{
+					new ScopedReferenceIndexedComponents(
+						Scope.LIVE,
+						new ReferenceIndexedComponents[]{
+							ReferenceIndexedComponents.REFERENCED_ENTITY,
+							ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+						}
+					)
+				}
+			).mutate(Mockito.mock(EntitySchemaContract.class), stored);
+
+			assertFalse(
+				((ReflectedReferenceSchemaContract) mutated).isIndexedComponentsInherited(),
+				"The premise is a reflected reference keeping its explicit components"
+			);
+			assertEquals(
+				Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+				mutated.getIndexedComponents(Scope.LIVE),
+				"The mutation must have been applied at all, or the assertion below proves nothing"
+			);
+			assertEquals(
+				Set.of(), mutated.getIndexedComponents(Scope.ARCHIVED),
+				"Changing the LIVE components must leave the stored empty ARCHIVED scope empty"
+			);
+		}
+
+		/**
+		 * A reflected reference inheriting its components has none of its own to add the missing one to, so the
+		 * refusal must point at the inheritance - the reference it reflects - rather than tell the user to add a
+		 * component to a reference that declares none.
+		 */
+		@Test
+		@DisplayName("should point a reflected reference inheriting its components at the reference it reflects")
+		void shouldPointAReflectedReferenceInheritingItsComponentsAtTheReferenceItReflects() {
+			final ReferenceSchema originalReference = buildStoredReferenceSchema(
+				STORED_SHAPE_REFLECTED_NAME, Entities.PRODUCT,
+				Map.of(Scope.LIVE, Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY))
+			);
+			final ReflectedReferenceSchema loaded = buildStoredReflectedReferenceSchema(null)
+				.withReferencedSchema(originalReference);
+			assertTrue(loaded.isIndexedComponentsInherited(), "The premise is inherited components");
+
+			final EntitySchemaContract reflectedSchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(reflectedSchema.getReference(STORED_SHAPE_REFLECTED_NAME))
+				.thenReturn(Optional.of(originalReference));
+			final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchemaContract.class);
+			Mockito.when(catalogSchema.getName()).thenReturn(TestConstants.TEST_CATALOG);
+			Mockito.when(catalogSchema.getEntitySchema(Entities.CATEGORY))
+				.thenReturn(Optional.of(reflectedSchema));
+			final InvalidSchemaMutationException refusal = assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> loaded.validate(catalogSchema, EntitySchema._internalBuild(Entities.PRODUCT)),
+				"The inherited group-only components must be refused"
+			);
+			assertTrue(
+				refusal.getMessage().contains("inherited from reference `" + STORED_SHAPE_REFLECTED_NAME + "`"),
+				"The refusal must point at the reference the components are inherited from, was: " +
+					refusal.getMessage()
+			);
+		}
+
+	}
+
+	/**
+	 * Builds a {@link ReferenceSchema} indexed in {@link Scope#LIVE} with exactly the given components, through the
+	 * map overload of `_internalBuild` - the one the Kryo reader uses, which neither validates nor fills defaults, so
+	 * shapes the builder API can no longer produce can still be constructed.
+	 *
+	 * @param name       name of the reference
+	 * @param entityType referenced entity type
+	 * @param components indexed components per scope, taken verbatim
+	 * @return the reference schema
+	 */
+	@Nonnull
+	private static ReferenceSchema buildStoredReferenceSchema(
+		@Nonnull String name,
+		@Nonnull String entityType,
+		@Nonnull Map<Scope, Set<ReferenceIndexedComponents>> components
+	) {
+		return buildStoredReferenceSchema(name, entityType, components, Scope.LIVE);
+	}
+
+	/**
+	 * Builds a {@link ReferenceSchema} indexed for filtering in the given scopes with exactly the given components,
+	 * through the map overload of `_internalBuild` - see {@link #buildStoredReferenceSchema(String, String, Map)}.
+	 *
+	 * @param name          name of the reference
+	 * @param entityType    referenced entity type
+	 * @param components    indexed components per scope, taken verbatim
+	 * @param indexedScopes scopes the reference is indexed in
+	 * @return the reference schema
+	 */
+	@Nonnull
+	private static ReferenceSchema buildStoredReferenceSchema(
+		@Nonnull String name,
+		@Nonnull String entityType,
+		@Nonnull Map<Scope, Set<ReferenceIndexedComponents>> components,
+		@Nonnull Scope... indexedScopes
+	) {
+		final Map<Scope, ReferenceIndexType> indexedInScopes = new EnumMap<>(Scope.class);
+		for (Scope scope : indexedScopes) {
+			indexedInScopes.put(scope, ReferenceIndexType.FOR_FILTERING);
+		}
+		return ReferenceSchema._internalBuild(
+			name, NamingConvention.generate(name),
+			null, null,
+			Cardinality.ZERO_OR_MORE,
+			entityType, Collections.emptyMap(), true,
+			STORED_SHAPE_GROUP_TYPE, Collections.emptyMap(), true,
+			indexedInScopes,
+			components,
+			Collections.emptySet(),
+			Collections.emptyMap(),
+			Collections.emptyMap(),
+			Collections.emptyMap(),
+			Collections.emptyMap(),
+			Collections.emptyMap(),
+			ConflictResolutionOverride.INHERITED
+		);
+	}
+
+	/**
+	 * Builds a {@link ReflectedReferenceSchema} on the product side, indexed in {@link Scope#LIVE}, reflecting the
+	 * reference {@link #STORED_SHAPE_REFLECTED_NAME} of the category collection.
+	 *
+	 * @param components explicit indexed components per scope, or `null` to inherit them from the reflected reference
+	 * @return the reflected reference schema, not yet bound to the reference it reflects
+	 */
+	@Nonnull
+	private static ReflectedReferenceSchema buildStoredReflectedReferenceSchema(
+		@Nullable Map<Scope, Set<ReferenceIndexedComponents>> components
+	) {
+		final Map<Scope, ReferenceIndexType> indexedInScopes = new EnumMap<>(Scope.class);
+		indexedInScopes.put(Scope.LIVE, ReferenceIndexType.FOR_FILTERING);
+		return buildStoredReflectedReferenceSchema(indexedInScopes, components);
+	}
+
+	/**
+	 * Builds the same reflected reference as {@link #buildStoredReflectedReferenceSchema(Map)}, but inheriting its
+	 * indexed scopes from the reference it reflects.
+	 *
+	 * @param components explicit indexed components per scope
+	 * @return the reflected reference schema, not yet bound to the reference it reflects
+	 */
+	@Nonnull
+	private static ReflectedReferenceSchema buildStoredReflectedReferenceSchemaInheritingScopes(
+		@Nonnull Map<Scope, Set<ReferenceIndexedComponents>> components
+	) {
+		return buildStoredReflectedReferenceSchema(null, components);
+	}
+
+	/**
+	 * Builds a {@link ReflectedReferenceSchema} on the product side through the map overload of `_internalBuild`.
+	 *
+	 * @param indexedInScopes explicit indexed scopes, or `null` to inherit them from the reflected reference
+	 * @param components      explicit indexed components per scope, or `null` to inherit them
+	 * @return the reflected reference schema, not yet bound to the reference it reflects
+	 */
+	@Nonnull
+	private static ReflectedReferenceSchema buildStoredReflectedReferenceSchema(
+		@Nullable Map<Scope, ReferenceIndexType> indexedInScopes,
+		@Nullable Map<Scope, Set<ReferenceIndexedComponents>> components
+	) {
+		return ReflectedReferenceSchema._internalBuild(
+			STORED_SHAPE_REFERENCE,
+			NamingConvention.generate(STORED_SHAPE_REFERENCE),
+			null, null,
+			Entities.CATEGORY,
+			STORED_SHAPE_REFLECTED_NAME,
+			null,
+			indexedInScopes, components, null, null, null, null,
+			Collections.emptyMap(),
+			Collections.emptyMap(),
+			AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
+			null
+		);
+	}
+
+	/**
+	 * Serializes and deserializes a {@link ReferenceSchema} via Kryo, returning the deserialized result.
+	 *
+	 * @param kryo   the Kryo instance to use
+	 * @param schema the reference schema to round-trip
+	 * @return the deserialized reference schema
+	 */
+	@Nonnull
+	private static ReferenceSchema roundTripReferenceSchema(@Nonnull Kryo kryo, @Nonnull ReferenceSchema schema) {
+		final ByteArrayOutputStream baos = new ByteArrayOutputStream(2048);
+		try (final Output output = new Output(baos)) {
+			kryo.writeObject(output, schema);
+		}
+		final byte[] bytes = baos.toByteArray();
+		assertTrue(bytes.length > 0);
+		try (final Input input = new Input(new ByteArrayInputStream(bytes))) {
+			return kryo.readObject(input, ReferenceSchema.class);
+		}
 	}
 
 	/**

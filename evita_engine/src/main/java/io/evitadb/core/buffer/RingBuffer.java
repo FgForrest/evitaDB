@@ -360,6 +360,9 @@ public abstract class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY> & S
 	 * entries in two segments: first clearing from the start index to the end of the array, then
 	 * clearing from the beginning of the array to the end index.
 	 *
+	 * The effective start only ever advances: a boundary below the current effective start clears nothing and leaves
+	 * the start where it is, even when the buffer is empty.
+	 *
 	 * This method acquires a lock to ensure thread safety during the operation.
 	 *
 	 * @param boundary the boundary value up to which entries in the buffer should be cleared
@@ -382,7 +385,13 @@ public abstract class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY> & S
 			}
 			if (finished) {
 				this.effectiveStart = this.boundaryExtractor.apply(Objects.requireNonNull(this.workspace[this.startIndex]));
-			} else {
+			} else if (boundary.compareTo(this.effectiveStart) > 0) {
+				// INVARIANT - the effective start never moves back. Everything between a lower boundary and the
+				// current start has already been cleared, so lowering it would claim coverage of a range the buffer
+				// holds nothing for, and a scan from inside that range would report it as empty instead of throwing
+				// `OutsideScopeException`. Callers do pass lower boundaries: conflict keys are released down to the
+				// lowest version a racy census reports, which can drop below an earlier release - and the conflict
+				// check then skipped its write-ahead log fallback and missed a real conflict.
 				this.effectiveStart = boundary;
 			}
 			// indices and boundaries changed -> recompute gauges

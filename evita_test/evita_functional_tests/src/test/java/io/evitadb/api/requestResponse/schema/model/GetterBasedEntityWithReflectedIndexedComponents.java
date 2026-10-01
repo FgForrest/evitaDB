@@ -41,7 +41,8 @@ import io.evitadb.dataType.Scope;
 /**
  * Example interface for ClassSchemaAnalyzerTest demonstrating `indexedComponents` usage on
  * a `@ReflectedReference`. Covers both the empty-scope branch (general `indexedComponents`)
- * and the per-scope branch.
+ * and the per-scope branch. Every indexed scope keeps `REFERENCED_ENTITY`, because a scope
+ * indexed without it is refused when the session closes.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -55,20 +56,26 @@ public interface GetterBasedEntityWithReflectedIndexedComponents {
 	String getCode();
 
 	/**
-	 * Reflected reference with general `indexedComponents = {REFERENCED_GROUP_ENTITY}` —
-	 * exercises the empty-scope branch of `applyReflectedReferenceScopedProperties`.
+	 * Reflected reference with general `indexedComponents = {REFERENCED_ENTITY, REFERENCED_GROUP_ENTITY}` —
+	 * exercises the empty-scope branch of `applyReflectedReferenceScopedProperties`. The source reference
+	 * indexes the default `{REFERENCED_ENTITY}` only, so seeing the group component proves the override was
+	 * wired through rather than inherited.
 	 */
 	@ReflectedReference(
 		ofName = "items",
 		allowEmpty = InheritableBoolean.TRUE,
 		attributesInheritanceBehavior = AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-		indexedComponents = { ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY }
+		indexedComponents = {
+			ReferenceIndexedComponents.REFERENCED_ENTITY,
+			ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+		}
 	)
 	BrandReference getMarketingBrand();
 
 	/**
 	 * Reflected reference using per-scope `@ScopeReferenceSettings#indexedComponents` —
-	 * exercises the per-scope branch of `applyReflectedReferenceScopedProperties`.
+	 * exercises the per-scope branch of `applyReflectedReferenceScopedProperties`. LIVE indexes
+	 * both components, ARCHIVED the referenced entity only.
 	 */
 	@ReflectedReference(
 		ofName = "secondaryItems",
@@ -86,7 +93,7 @@ public interface GetterBasedEntityWithReflectedIndexedComponents {
 			@ScopeReferenceSettings(
 				scope = Scope.ARCHIVED,
 				indexed = ReferenceIndexType.FOR_FILTERING,
-				indexedComponents = { ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY }
+				indexedComponents = { ReferenceIndexedComponents.REFERENCED_ENTITY }
 			)
 		}
 	)

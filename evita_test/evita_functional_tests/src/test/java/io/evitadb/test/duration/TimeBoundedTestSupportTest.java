@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,8 +37,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.evitadb.test.TestTags.CONTRACT;
-import static io.evitadb.test.TestTags.TASK;
+import static io.evitadb.test.TestTags.TEST_HARNESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -46,17 +45,16 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies the driving contract of {@link TimeBoundedTestSupport#runFor}: a zero-minute interval
- * must execute the test body exactly once (so tests can be exercised without waiting a whole
- * minute), the accumulated state must be threaded back to the caller, the supplied {@link Random}
+ * Verifies the driving contract of {@link TimeBoundedTestSupport#runFor}: a zero-second interval
+ * must execute the test body exactly once (so tests can be exercised without waiting out a real
+ * budget), the accumulated state must be threaded back to the caller, the supplied {@link Random}
  * must be seeded deterministically from the input seed, and any failure must be re-thrown
  * enriched with a reproduce-with-seed hint while preserving the original cause and the
  * expected/actual diff values.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-@Tag(CONTRACT)
-@Tag(TASK)
+@Tag(TEST_HARNESS)
 @DisplayName("TimeBoundedTestSupport generational driver contract")
 class TimeBoundedTestSupportTest {
 
@@ -68,7 +66,7 @@ class TimeBoundedTestSupportTest {
 	};
 
 	/**
-	 * Builds an input that drives the do-while body exactly once: a zero-minute interval makes the
+	 * Builds an input that drives the do-while body exactly once: a zero-second interval makes the
 	 * loop condition false immediately after the first iteration, avoiding any real wall-clock wait.
 	 *
 	 * @param seed random seed forwarded to the {@link Random} handed to the test body
@@ -79,13 +77,12 @@ class TimeBoundedTestSupportTest {
 	}
 
 	@Nested
-	@Tag(CONTRACT)
-	@Tag(TASK)
+	@Tag(TEST_HARNESS)
 	@DisplayName("Single-iteration execution")
 	class SingleIterationExecution {
 
 		@Test
-		@DisplayName("runs the test body exactly once when the interval is zero minutes")
+		@DisplayName("runs the test body exactly once when the interval is zero seconds")
 		void shouldRunSingleIterationWhenIntervalIsZero() {
 			final AtomicInteger iterations = new AtomicInteger();
 
@@ -130,8 +127,7 @@ class TimeBoundedTestSupportTest {
 	}
 
 	@Nested
-	@Tag(CONTRACT)
-	@Tag(TASK)
+	@Tag(TEST_HARNESS)
 	@DisplayName("Failure enrichment")
 	class FailureEnrichment {
 
@@ -178,8 +174,7 @@ class TimeBoundedTestSupportTest {
 	}
 
 	@Nested
-	@Tag(CONTRACT)
-	@Tag(TASK)
+	@Tag(TEST_HARNESS)
 	@DisplayName("On-exception callback")
 	class OnExceptionCallback {
 

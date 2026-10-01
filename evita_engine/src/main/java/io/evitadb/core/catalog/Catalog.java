@@ -3116,7 +3116,10 @@ public final class Catalog
 		long lastKnownMinimalActiveVersionRead,
 		long lastKnownMinimalActiveVersionWritten
 	) {
-		// we may now release conflict keys, there is no active transaction that may need them
+		// we may now release conflict keys, there is no active transaction the census knows of that may need them -
+		// a read-write session still being built is not in the census yet and may need keys released here; its commit
+		// then finds them out of the ring buffer's scope and re-derives them from the WAL, which holds only as long
+		// as the buffer's effective start never moves back (see `RingBuffer#clearAllUntil`)
 		this.transactionManager.releaseConflictKeys(lastKnownMinimalActiveVersionWritten);
 		// notify persistence service as well
 		if (this.persistenceService instanceof CatalogConsumersListener cvbthl) {

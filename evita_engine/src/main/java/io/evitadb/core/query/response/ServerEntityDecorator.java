@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.response;
 
+import io.evitadb.annotation.Internal;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.requestResponse.EntityFetchAwareDecorator;
 import io.evitadb.api.requestResponse.EvitaRequest;
@@ -817,6 +818,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 * @param instanceName name of the reference content instance
 	 * @return collection of references
 	 */
+	@Internal("read getReferences(String) / getReferenceChunk(String)")
 	@Nonnull
 	public Optional<DataChunk<ReferenceContract>> getReferencesForReferenceContentInstance(@Nonnull ReferenceContentKey instanceName) {
 		if (this.namedReferenceSets == null) {

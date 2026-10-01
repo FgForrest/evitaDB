@@ -1,15 +1,15 @@
 ---
 title: Size the value tree's leaf columns to their live content instead of adding a second array-backed representation
 date: 2026-09-03
-updated: 2026-09-21 08:35
+updated: 2026-09-29 07:15
 status: accepted
 kind: optimization
 issues: [1486]
 prs: []
-areas: [evita_engine/index/bPlusTree, evita_engine/index/invertedIndex, evita_engine/core/session, evita_common/dataType, evita_test/evita_performance_tests/spike/trigram]
+areas: [evita_engine/index/bPlusTree, evita_engine/index/array, evita_engine/index/map, evita_roaring_bitmap, evita_engine/index/invertedIndex, evita_engine/core/session, evita_common/dataType, evita_test/evita_performance_tests/spike/trigram]
 supersedes: []
 superseded-by: []
-relates: [2026-09-06-go-live-session-drain, 2026-09-04-long-keyed-tree-content-sizing, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-10-more-optimized-data-structures, 2026-08-31-front-coded-column-stores-wtf8, 2026-08-31-trigram-query-path-optimization, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-09-04-millisecond-temporal-precision]
+relates: [2026-09-06-go-live-session-drain, 2026-08-10-catalog-and-collection-statistics, 2026-09-04-long-keyed-tree-content-sizing, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-10-more-optimized-data-structures, 2026-08-31-front-coded-column-stores-wtf8, 2026-08-31-trigram-query-path-optimization, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-09-04-millisecond-temporal-precision]
 ---
 
 # Size the value tree's leaf columns to their live content instead of adding a second representation
@@ -484,8 +484,11 @@ proportionally larger against a smaller total, and the census charged the tempor
   `ColumnSizing.MIN_PHYSICAL_LENGTH` and grows). `TransactionalObjectBPlusTree`, `TransactionalLongBPlusTree` and
   the int-keyed family via `AbstractIntKeyedInternalNode` each allocate `blockSize + 1` children once and never
   resize, so `peek < children.length` holds unconditionally there. `AbstractTransactionalBPlusTree` carries the
-  two sibling-cursor methods in the *same unclamped shape* that was just fixed here — **do not copy the fix into
-  it.** The three sibling trees do content-size their leaf arrays, and each already applies its own
+  two sibling-cursor methods in the *same unclamped shape* that was just fixed here — **do not copy the
+  array-length clamp into it**, because a fixed-length array cannot be outrun by its `peek`. This warning is about
+  the index running off the array only. It says nothing about a slot *inside* the array reading `null`, which the
+  fixed-array trees can have and which is handled separately (see the 2026-09-28 bullet on the sibling trees'
+  heap walks below). The three sibling trees do content-size their leaf arrays, and each already applies its own
   `observableLeafPeek` at every point-lookup site; the bucket tree was the outlier that did not.
 - **`IntRecordColumn#intAt` / `longAt` remain bounded by `size` rather than by the array they index, and that is
   a deliberate hold rather than an oversight.** `OverflowColumn#recordsAt` next door already reads its array into
@@ -575,6 +578,116 @@ proportionally larger against a smaller total, and the census charged the tempor
   proves nothing about an entry point it does not call, and "the tree is covered" is not the same claim
   as "every way into the tree is covered". The sweep now probes `contains`, `cardinalityOf`, `valueIdOf`,
   `getRecordsEqualTo` and `computePreviousRecord` on every pass.
+- **Bounding an index by its array is not enough: a slot inside the bound can still read `null`, and AArch64
+  showed it.** The weekly sweep failed on 2026-09-28 on the macOS/AArch64 leg only, at round 3857:
+  `findLeafNode` returned `null` into `contains`. The x86 Linux, x86 Windows and Linux/AArch64 legs of the same
+  commit passed the same test. An internal node grows in place by storing the new separator, then the new
+  child pointers, then raising `peek`. `observableInternalPeek` keeps a raised `peek` inside the array, but not
+  off a slot whose store the reader cannot see yet. In the insert-only sweep no plain interleaving reaches that
+  slot, because it needs the stores to become visible out of program order, which x86's total store order
+  forbids in hardware. So the evidence is one weak-memory leg, and the claim is no stronger than that. Every
+  session-free descent that dereferences a child slot now steps **left** to the nearest populated slot
+  (`observableChildIndex`), which is the slot the pre-growth node would have chosen. That turns the crash into
+  an answer, not into an exact one: the slot reads the node being split only until `adaptToLeafSplit` stores
+  `left` there (see the third open neighbour below). The descents that step are:
+  - `findLeafNode`, whose levels are now `BPlusInternalTreeNode#pointLookupChild`. It resolves the
+    transactional layer once per level instead of twice, a hot-path change as well as a fix.
+  - The keyed cursor descent `addCursorLevels`.
+  - The reverse walk's rightmost re-descent.
+  - The previous-node rebuild.
+
+  The forward walk's re-descent and the heap walk skip the `null` slot instead of failing on the
+  `Internal node expected!` premise or the `Unexpected B+ tree node kind` check. The separator search is pulled
+  in past a trailing `null` separator (`childIndexIn`). That is the same reordering one store earlier, and it
+  would fail inside `Arrays.binarySearch`; it is inferred, not observed. The point descent also answers an
+  emptied merge donor as absent (`findLeafNode` returns `null`) where it used to fail the binary search's range
+  check. Every guard is an identity on a consistent observer. `UnpublishedChildSlot` pins that half with a
+  transactional and an in-place churn, which land on the very leaf instance an unguarded descent reaches, and
+  pins the torn half with one counterfactual per site.
+- **The release/acquire trigger in the options table fired here, and the reader-side guard was extended
+  instead.** A release store of `peek` does not order the publication of a freshly reallocated array against
+  its copied content. The array-first readers also load the array before `peek`, so closing the window at the
+  writer would take release/acquire on `keys`, `children` and `peek` alike, on every descent of the hottest read
+  path. The reader-side step reuses the slot load the descent makes anyway. Revisit only if an escape turns up
+  that stepping cannot absorb.
+- **Three neighbours of that fix remain open.** (1) A reallocated array whose copied content the reader cannot see
+  yet could show a `null` in the middle of the live run rather than at its end. Only the trailing case is
+  guarded, and whether the middle case occurs at all depends on how the JVM publishes a freshly copied array,
+  which the Java memory model leaves open. (2) The emptied-donor answer reached the point descent but not the
+  structures around it. `computePreviousRecord` for the first key after an emptied subtree climbs into the
+  donor through `getCursorForPreviousNode`, and `cursor(key)` routed into one still fails `searchIndex`'s range
+  check. Both need a merge window and a session-free reader, and neither has a production caller that meets
+  both. (3) A session-free point lookup can answer **absent** for a key that is present before and after an
+  in-place restructure, with no `null` anywhere and no reordering. `adaptToLeafSplit` shifts the separators,
+  stores `left` over the split child, shifts in `right`, and only then raises `peek`. Between those plain stores,
+  a split of the last child routes a key of the right half to `left`, which lacks it. A split of an inner child
+  pairs the shifted separators with the unshifted children, sending a key to the neighbouring sibling. The
+  steals, merges and `removeChildOnIndex` shift the same arrays in place. The answer is a miss rather than a
+  failure, so no guard can see it. Closing it would take a writer-side option the options table declined for the
+  hot path: release/acquire, or an immutable holder published whole, on every in-place restructure. No
+  production reader meets it: the session-free management projections call only `size()`,
+  `getDistinctValueCount()`, `recordCount()` and `getHeapSizeInBytes()`, none of which runs a point lookup. The long-running sweep drives the point lookups on
+  purpose, but deliberately asserts only that they do not fail. Revisit if a session-free caller of
+  `contains`, `cardinalityOf`, `getRecordsEqualTo`, `valueIdOf` or `computePreviousRecord` appears.
+- **The fixed-array sibling trees share the unpublished-slot hazard, and only their heap walk has a reader that
+  can meet it.** `TransactionalLongBPlusTree`, `AbstractIntKeyedInternalNode` (the internal node of
+  `TransactionalElementBPlusTree` and `TransactionalIntToLongBPlusTree`) and `UnorderedLookupTree` grow an
+  internal node in place in the same order: child stores first, then `peek` (or `childCount`). They shrink it by
+  nulling the vacated slot next to lowering the count. Their arrays never resize, so the count cannot run off
+  the array, but the last slot it admits can read `null`. The torn state built through the public `setPeek` /
+  `setChildCount` breaks every reader of these trees: the point descents return a `null` leaf into
+  `searchOrNull` / `searchOrDefault` / `search`, the forward and reverse iterators fail in `loadCurrentLeaf`
+  (the keyed ones of the long and int-to-long trees fail in their constructors first), `toString` fails in
+  `toVerboseString`, and the internal-node heap walk fails with
+  `NullPointerException: ... because "this.children[i]" is null`. **Only the heap walk was guarded,
+  because it is the only one with a production reader that shares no happens-before edge with the in-place
+  writer.** `EvitaManagement#getIndexDetail` is exposed over gRPC and needs no session. It reaches
+  `EntityCollection#describeIndex`, which takes no snapshot, then `IndexDetailProjection`, then
+  `EntityIndex#getHeapSizeInBytes`. From there the walk enters `RangeIndex` (long tree), the price indexes'
+  `priceRecords` (element tree), and the sort and chain indexes' `TransactionalUnorderedIntArray` (int-to-long
+  value index plus the `UnorderedLookupTree` position tree), while a warm-up load mutates all of them in place.
+  The heap walk loads the count once and then recurses through the whole subtree, so a removal that nulls the
+  last slot in the meantime reaches it with no reordering at all. The grow side needs the stores to become
+  visible out of program order, and that has been observed only on the AArch64 leg, for the bucket tree. Each of
+  the three internal-node walks now skips a `null` slot. While a load runs, that makes the figure advisory rather
+  than exact. After a removal the skipped slot really is empty. On a grow, though, the child exists and only
+  this reader cannot see it yet, so its subtree is missing from the figure. This is the contract the leaf walks
+  above already carry. On a consistent observer the skip changes nothing: the
+  `UnpublishedChildSlot` tests churn each tree in place and through committed transactions, assert that no live
+  slot is `null`, and match the walk against a JOL measurement. The torn-state tests fail on the unguarded
+  code with the NPE quoted above.
+- **The other readers of those trees were rejected, not overlooked.** A warm-up catalog admits exactly one
+  session (`SessionRegistry#addSession` under `exclusiveAdmissionLock`). A read-write session refuses a second
+  thread (`EvitaSessionProxy#concurrentAccessGuarded`), so every query and write that descends or iterates these
+  trees during warm-up runs on the writer's own thread. In ALIVE a committed node is never mutated in place. The
+  management readers reach these trees only through the heap walk and `O(1)` counters (`INDEX_CARDINALITY`,
+  `INDEX_SUMMARY`). Guarding the descents and iterators would decorate sites whose every caller already has the
+  edge, the same judgement as the `predecessorLeaf` pair below. The bucket tree guards its descents and walks
+  where the siblings do not because its session-free reader walks: `INDEX_CARDINALITY` reaches
+  `TransactionalBucketBPlusTree#recordCount()`, which runs a full cursor walk down through the internal nodes, and
+  `LongRunningBucketBPlusTreeConcurrentReadTest` sweeps those entry points. The siblings' management readers only
+  count and size. **Revisit if a session-free caller of a point
+  lookup, an iterator or `toString` appears**, for example a management call that samples values. The bucket
+  tree's `observableChildIndex` and `pointLookupChild` are the shape to copy. `TransactionalObjectBPlusTree` was
+  rejected for the same reason: its only production owner, `TrafficRecordingIndex`, is built unpublished and
+  then updated copy-on-write inside a `Transaction` and republished through an `AtomicReference`, and nothing in
+  production calls its heap walk.
+- **The same heap walk crosses two more structures with the same hazard, and both are fixed.**
+  `PersistentRoaringBitmap#getHeapSizeInBytes` sits under every `TransactionalBitmap` the walk reaches.
+  `RoaringArray#removeAtIndex` nulls the vacated last container slot before lowering `size`, which is the
+  tree nodes' shrink order, so a plain interleaving meets a `null` on x86 too. `extendArray` reallocates `values`
+  before `size` rises, so a torn reader can also index past the array it holds. The walk now reads `values`
+  once, bounds the count by its length and skips a `null` slot. `MapHeapSize#sizeOf` walks the `HashMap` that
+  `TransactionalMap` writes into directly outside a transaction. Any warm-up put or remove during the walk,
+  such as the price super index gaining an entity, made it throw `ConcurrentModificationException`.
+  `HashMap#forEach` checks `modCount` only after the whole table (verified in the JDK 21 bytecode), so the
+  helper keeps the sum it reached, and the tests pin that figure between the consistent before and after
+  figures. Two further sites read a nullable field twice where a warm-up writer can null it in between:
+  `ChainIndexChanges`' memos, which every warm-up chain write `reset()`s, and the bucket leaf's `overflow`
+  column, which a savepoint rollback nulls. Both now read the field once. **No deterministic test exists for
+  those two**, because the gap is two adjacent loads with no callback between them. The management readers'
+  own map walks are the other half of this problem, and are recorded with the statistics surface in
+  [2026-08-10](2026-08-10-catalog-and-collection-statistics/README.md).
 - **Two `getChildren()[getPeek()]` pairs are deliberately left unguarded.** `predecessorLeaf` and
   `predecessorLeafOf` carry the same array-first shape, but both are reached only from the insert path's
   boundary asserts, which run with a happens-before edge to the writer. The clamp would be a provable
@@ -672,3 +785,9 @@ proportionally larger against a smaller total, and the census charged the tempor
   re-calibration; the dictionary lever refused on numbers; range keys moved to primitive bound columns
   and gated; the opt-in `largeMachine` test profile added; Option A declined and the bucket count moved
   onto the tree's own diff layer
+- **2026-09-28** — the weekly sweep's AArch64-only `null` leaf out of `findLeafNode`; every session-free descent
+  now steps over a child slot a grow has not published yet; the fixed-array siblings' internal-node heap
+  walks (long, int-keyed, `UnorderedLookupTree`) skip such a slot too, their other readers rejected for want
+  of a session-free caller; the same heap walk's roaring backbone and `HashMap` sizing made tolerant of an
+  in-place warm-up writer; a review found that stepping left does not make a mid-split point lookup exact, so the
+  claim was withdrawn and the silent miss recorded as the third open neighbour

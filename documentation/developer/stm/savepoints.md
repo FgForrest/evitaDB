@@ -501,7 +501,7 @@ The warm-up mechanism additionally has:
 | `EntityAtomicMutationRollbackWarmUpFunctionalTest` | the end-to-end behaviour -- a failed entity in a bulk load leaves neither index entries nor a storage body behind |
 
 The warm-up fuzz methods run on their own budget (`-DwarmUpFuzz.seconds`) rather than the
-minute-bounded budget the transactional methods use; raise it for a deep sweep.
+shared `intervalInSeconds` budget the transactional methods use; raise it for a deep sweep.
 
 See [testing.md](testing.md) for the general generational / property-based testing pattern these build
 on.

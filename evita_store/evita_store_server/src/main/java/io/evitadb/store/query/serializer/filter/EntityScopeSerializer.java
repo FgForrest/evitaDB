@@ -32,8 +32,6 @@ import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.dataType.Scope;
 import lombok.RequiredArgsConstructor;
 
-import java.util.Set;
-
 /**
  * This {@link Serializer} implementation reads/writes {@link EntityScope} from/to binary format.
  *
@@ -44,8 +42,9 @@ public class EntityScopeSerializer extends Serializer<EntityScope> {
 
 	@Override
 	public void write(Kryo kryo, Output output, EntityScope entityScope) {
-		final Set<Scope> scopes = entityScope.getScope();
-		output.writeVarInt(scopes.size(), true);
+		// the requested order decides which scope a unique lookup prefers, so it is what gets written
+		final Scope[] scopes = entityScope.getScopesInRequestedOrder();
+		output.writeVarInt(scopes.length, true);
 		for (Scope theScope : scopes) {
 			kryo.writeObject(output, theScope);
 		}
