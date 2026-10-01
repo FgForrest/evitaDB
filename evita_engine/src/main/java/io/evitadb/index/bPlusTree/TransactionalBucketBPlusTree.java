@@ -1031,12 +1031,20 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 *                 {@code valueIds[0, count)} are read. {@code null} when the tree carries no value ids, in which
 	 *                 case the page is loaded without an id column
 	 * @param count    the number of live entries ({@code 1 <= count <= valueBlockSize})
+	 * @throws GenericEvitaInternalError when this tree carries impacts, which a page cannot restore yet, or the page
+	 *                                   is malformed
 	 */
 	@SuppressWarnings("unchecked")
 	public void bulkLoadPage(
 		@Nonnull Object[] keys, @Nonnull long[] payloads, @Nullable Object[] overflow,
 		@Nullable int[] valueIds, int count
 	) {
+		// the page format carries no impacts, and an impact-carrying leaf without them would hold null slots - a
+		// shape ImpactRecords defines as illegal, surfacing at the first read far from the load that caused it
+		Assert.isPremiseValid(
+			!this.impactCarrying,
+			"A bulk-loaded page carries no impacts - an impact-carrying tree cannot be loaded from one!"
+		);
 		Assert.isPremiseValid(count > 0, "A bulk-loaded page must hold at least one entry.");
 		Assert.isPremiseValid(
 			count <= this.valueBlockSize, "A page can never exceed the leaf block size (" + this.valueBlockSize + ")."
@@ -1091,7 +1099,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			valueIdColumn.bulkLoad(widenedValueIds, count);
 		}
 		setRoot(new BPlusLeafTreeNode<>(
-			keyColumn, recordColumn, overflowColumn, valueIdColumn, createImpactColumn(count), count - 1,
+			keyColumn, recordColumn, overflowColumn, valueIdColumn, null, count - 1,
 			this.comparator, true
 		));
 	}
@@ -7129,7 +7137,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 
 		@Override
 		public BPlusLeafTreeNode<M> createLayer() {
-			return new BPlusLeafTreeNode<>(
+			final BPlusLeafTreeNode<M> layer = new BPlusLeafTreeNode<>(
 				this.keys,
 				this.records,
 				this.overflow,
@@ -7145,6 +7153,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				this.comparator,
 				false
 			);
+			if (this.impacts != null) {
+				// a leaf born in this transaction holds pending deltas in its base column, which the layer must not
+				// write in place - a savepoint that created the layer would drop it on rollback and keep those writes
+				layer.impacts = ImpactRecords.ownPendingDeltas(this.impacts);
+			}
+			return layer;
 		}
 
 		/**

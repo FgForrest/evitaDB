@@ -46,8 +46,11 @@ import java.util.Arrays;
  * | typo distance | the smallest edit distance any token matched at | smaller |
  * | impact | the largest impact byte any matched expansion carries | larger |
  *
- * and composes them, once, into a 64-bit value whose natural order is the ranking:
- * `matchedTokens << 56 | exactness << 48 | (0xFF - typo) << 40 | impact << 32`. The low 32 bits are reserved for the
+ * and composes them, once, into a 64-bit value whose **unsigned** order is the ranking:
+ * `matchedTokens << 56 | exactness << 48 | (0xFE - distance) << 40 | impact << 32`, where `distance` is the smallest
+ * edit distance - the typo lane holds `distance + 1` while it accumulates, so `0` can mean "not hit", and the
+ * composite stores `0xFF` minus that. The matched-token lane fills the top byte, so 128 or more matched tokens set the
+ * sign bit: compare composites with `Long.compareUnsigned`, never as signed longs. The low 32 bits are reserved for the
  * contextual lanes of later ranking phases and are left zero here.
  *
  * ## The counting rule
@@ -151,7 +154,8 @@ public final class FulltextPhaseOneScorer {
 	 * The result of one scoring pass: the selected entities in descending rank order.
 	 *
 	 * @param primaryKeys      primary keys of the top entities, best first
-	 * @param composites       the composite of each, parallel to `primaryKeys`
+	 * @param composites       the composite of each, parallel to `primaryKeys`; compare them unsigned (see the
+	 *                         class documentation)
 	 * @param matchedDocuments how many candidates matched at least one token
 	 * @param postingsWalked   how many postings the merges stepped over, the cost model's dominant term
 	 */
@@ -234,7 +238,8 @@ public final class FulltextPhaseOneScorer {
 					if (Byte.toUnsignedInt(tokenImpact[i]) > Byte.toUnsignedInt(maxImpact[i])) {
 						maxImpact[i] = tokenImpact[i];
 					}
-					if (bestTypo[i] == 0 || typo < bestTypo[i]) {
+					// the lane is one-based up to MAX_DISTANCE + 1 = 255, so it compares unsigned
+					if (bestTypo[i] == 0 || Byte.toUnsignedInt(typo) < Byte.toUnsignedInt(bestTypo[i])) {
 						bestTypo[i] = typo;
 					}
 					if (typo == 1) {
@@ -406,7 +411,10 @@ public final class FulltextPhaseOneScorer {
 		if (Byte.toUnsignedInt(impact) > Byte.toUnsignedInt(tokenImpact[candidateIndex])) {
 			tokenImpact[candidateIndex] = impact;
 		}
-		if (tokenTypo[candidateIndex] == 0 || distance < tokenTypo[candidateIndex]) {
+		if (
+			tokenTypo[candidateIndex] == 0
+				|| Byte.toUnsignedInt(distance) < Byte.toUnsignedInt(tokenTypo[candidateIndex])
+		) {
 			tokenTypo[candidateIndex] = distance;
 		}
 	}
@@ -463,8 +471,8 @@ public final class FulltextPhaseOneScorer {
 	}
 
 	/**
-	 * Returns whether the first candidate ranks strictly above the second: higher composite, or the same composite
-	 * and a smaller primary key.
+	 * Returns whether the first candidate ranks strictly above the second: higher composite in unsigned order, or the
+	 * same composite and a smaller primary key.
 	 *
 	 * @param first      index of the first candidate
 	 * @param second     index of the second candidate
@@ -475,8 +483,9 @@ public final class FulltextPhaseOneScorer {
 	private static boolean ranksAbove(int first, int second, @Nonnull int[] candidates, @Nonnull long[] composites) {
 		final long firstComposite = composites[first];
 		final long secondComposite = composites[second];
-		return firstComposite > secondComposite
-			|| (firstComposite == secondComposite && candidates[first] < candidates[second]);
+		// unsigned: the matched-token lane fills the top byte, so 128 or more matched tokens set the sign bit
+		final int comparison = Long.compareUnsigned(firstComposite, secondComposite);
+		return comparison > 0 || (comparison == 0 && candidates[first] < candidates[second]);
 	}
 
 	/**

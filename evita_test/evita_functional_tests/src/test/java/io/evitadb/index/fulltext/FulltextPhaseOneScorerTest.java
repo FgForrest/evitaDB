@@ -123,6 +123,42 @@ class FulltextPhaseOneScorerTest {
 			}
 		}
 
+		@Test
+		@DisplayName("An expansion at a distance of 127 or more never overrides a closer one of the same token")
+		void shouldKeepTheBestTypoLaneWhenADistantExpansionAlsoHits() {
+			final Expansion exact = expansion(0, 1, 10);
+			final Expansion distant = expansion(200, 1, 10);
+			for (MergeStrategy strategy : MergeStrategy.values()) {
+				for (Expansion[] expansions : new Expansion[][]{{exact, distant}, {distant, exact}}) {
+					final Result result = FulltextPhaseOneScorer.score(
+						new int[]{1}, new Expansion[][]{expansions}, 1, strategy
+					);
+					final long composite = result.composites()[0];
+					final String message = strategy.name() + ", distance " + expansions[0].distance() + " first";
+					assertEquals(1, lane(composite, 48), message);
+					assertEquals(0xFF - 1, lane(composite, 40), message);
+					assertEquals(1L << 56 | 1L << 48 | 0xFEL << 40 | 10L << 32, composite, message);
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("A token at a distance of 127 or more never overrides a closer token's typo lane")
+		void shouldKeepTheBestTypoLaneAcrossTokens() {
+			final Expansion[] exact = {expansion(0, 1, 10)};
+			final Expansion[] distant = {expansion(200, 1, 10)};
+			for (MergeStrategy strategy : MergeStrategy.values()) {
+				for (Expansion[][] tokens : new Expansion[][][]{{exact, distant}, {distant, exact}}) {
+					final Result result = FulltextPhaseOneScorer.score(new int[]{1}, tokens, 1, strategy);
+					final long composite = result.composites()[0];
+					final String message = strategy.name() + ", distance " + tokens[0][0].distance() + " first";
+					assertEquals(2, lane(composite, 56), message);
+					assertEquals(1, lane(composite, 48), message);
+					assertEquals(0xFF - 1, lane(composite, 40), message);
+				}
+			}
+		}
+
 	}
 
 	@Nested
@@ -152,6 +188,25 @@ class FulltextPhaseOneScorerTest {
 			assertEquals(7, result.postingsWalked());
 			for (int i = 1; i < result.composites().length; i++) {
 				assertTrue(result.composites()[i - 1] > result.composites()[i], "composites not descending at " + i);
+			}
+		}
+
+		@Test
+		@DisplayName("A candidate matching 128 or more tokens ranks above one matching fewer")
+		void shouldRankByMatchedTokensBeyond127() {
+			// 128 tokens hit candidate 1; only the first one hits candidate 2 - the matched-token lane of candidate 1
+			// sets the composite's top bit
+			final Expansion[][] tokens = new Expansion[128][];
+			tokens[0] = new Expansion[]{expansion(0, 1, 10, 2, 10)};
+			for (int i = 1; i < tokens.length; i++) {
+				tokens[i] = new Expansion[]{expansion(0, 1, 10)};
+			}
+			for (MergeStrategy strategy : MergeStrategy.values()) {
+				final Result top = FulltextPhaseOneScorer.score(new int[]{1, 2}, tokens, 1, strategy);
+				assertArrayEquals(new int[]{1}, top.primaryKeys(), strategy.name());
+				assertEquals(128, lane(top.composites()[0], 56), strategy.name());
+				final Result both = FulltextPhaseOneScorer.score(new int[]{1, 2}, tokens, 2, strategy);
+				assertArrayEquals(new int[]{1, 2}, both.primaryKeys(), strategy.name());
 			}
 		}
 

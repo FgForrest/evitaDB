@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.Random;
+import java.util.function.Consumer;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
@@ -60,6 +61,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -706,6 +708,31 @@ class BucketImpactColumnTest {
 			);
 		}
 
+		@Test
+		@DisplayName("a savepoint rollback rewinds an impact replaced in a delta a split carried into a new leaf")
+		void shouldRewindASplitLeafDeltaWhenTheSavepointReplacesAnImpact() {
+			assertSplitLeafDeltaRewinds(t -> t.addRecord(1, 0, (byte) 99));
+		}
+
+		@Test
+		@DisplayName("a savepoint rollback rewinds a removal from a delta a split carried into a new leaf")
+		void shouldRewindASplitLeafDeltaWhenTheSavepointRemovesARecord() {
+			assertSplitLeafDeltaRewinds(t -> t.removeRecord(1, 5_000));
+		}
+
+		@Test
+		@DisplayName("a savepoint rollback rewinds a delta a split carried into a new leaf the savepoint rebalanced")
+		void shouldRewindASplitLeafDeltaWhenTheSavepointRebalancesTheLeaf() {
+			assertSplitLeafDeltaRewinds(
+				t -> {
+					// the removal underflows the split-born leaf, so its layer is first created by the rebalancing
+					t.removeRecord(2, 2);
+					t.addRecord(1, 0, (byte) 99);
+					t.addRecord(1, 6_000, (byte) 50);
+				}
+			);
+		}
+
 		@ParameterizedTest(name = "seed {0}")
 		@ValueSource(longs = {42L, 7L, 1_234L})
 		@DisplayName("a savepoint rollback inside a transaction restores every impact written before it")
@@ -750,6 +777,44 @@ class BucketImpactColumnTest {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Asserts that a savepoint rollback restores a bitmap bucket whose pending delta a split carried into a leaf born
+	 * in the running transaction. The transaction opens the delta, then fills the leaf until it splits as its LAST
+	 * write before the savepoint, so the bucket lands in a fresh leaf that holds the delta in its base column and has
+	 * no layer yet - the savepoint's first write to it creates one, which no memento ever captures.
+	 *
+	 * @param savepointOps the failing entity's writes, which must be reverted
+	 */
+	private static void assertSplitLeafDeltaRewinds(
+		@Nonnull Consumer<TransactionalBucketBPlusTree<Integer>> savepointOps
+	) {
+		final int threshold = OverflowRecords.SMALL_BUCKET_THRESHOLD;
+		final TransactionalBucketBPlusTree<Integer> tree = emptyImpactTree(5);
+		for (int i = 0; i <= threshold; i++) {
+			tree.addRecord(1, i, (byte) (i + 1));
+		}
+		tree.addRecord(2, 2, (byte) 2);
+		tree.addRecord(3, 3, (byte) 3);
+		tree.addRecord(4, 4, (byte) 4);
+		assertSavepointRollbackRestores(
+			tree,
+			t -> {
+				t.addRecord(1, 5_000, (byte) 7);
+				// the fifth key fills the leaf, which splits: key 1 moves into the left half, a leaf born here
+				t.addRecord(5, 5, (byte) 5);
+				final BPlusLeafTreeNode<Integer> leaf = t.findLeafNode(1);
+				assertNotSame(leaf, t.findLeafNode(5), "the leaf must have split");
+				assertNull(
+					Transaction.getTransactionalMemoryLayerIfExists(leaf),
+					"the split-born leaf must enter the savepoint without a layer of its own"
+				);
+				assertInstanceOf(PendingImpacts.class, impactSlot(t, 1), "the split must carry the delta along");
+			},
+			BucketImpactColumnTest::contentOf,
+			savepointOps
+		);
 	}
 
 	/**
@@ -824,6 +889,17 @@ class BucketImpactColumnTest {
 			tree.addRecord(1, 10);
 			assertThrows(GenericEvitaInternalError.class, tree::enableImpacts);
 			assertFalse(tree.carriesImpacts());
+		}
+
+		@Test
+		@DisplayName("an impact-carrying tree refuses a bulk-loaded page, which carries no impacts")
+		void shouldRefuseBulkLoadingAPageIntoAnImpactCarryingTree() {
+			final TransactionalBucketBPlusTree<Integer> tree = emptyImpactTree(5);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> tree.bulkLoadPage(new Object[]{10, 20, 30}, new long[]{1, 2, 3}, null, null, 3)
+			);
+			assertEquals(0, tree.size(), "the refused page must not have been attached");
 		}
 
 		@Test

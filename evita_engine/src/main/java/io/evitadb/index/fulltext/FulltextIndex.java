@@ -289,13 +289,16 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
-	 * Returns the id of a field, registering it with the default pivot when it is new.
+	 * Returns the id of a field, registering it with the default pivot when it is new. An existing field is returned
+	 * whatever pivot it was registered with.
 	 *
 	 * @param fieldName name of the searchable field
 	 * @return the field's id
 	 */
 	public int getOrAssignFieldId(@Nonnull String fieldName) {
-		return getOrAssignFieldId(fieldName, this.defaultLengthPivot);
+		final int existing = getFieldId(fieldName);
+		// the default pivot applies to a registration only - a field registered with its own keeps it
+		return existing == UNKNOWN_FIELD_ID ? getOrAssignFieldId(fieldName, this.defaultLengthPivot) : existing;
 	}
 
 	/**

@@ -87,6 +87,10 @@ import java.util.Arrays;
  * {@link #snapshotColumn}, {@link #restoreColumn} and {@link #releaseColumn}, which mark the delta, rewind it to the
  * mark, and stop its undo log again - see {@link PendingImpacts}.
  *
+ * For the same reason a delta is written through exactly one live column. A split copies a delta by reference into
+ * the base column of a leaf born in the transaction, and a layer that later starts over that base would alias it;
+ * {@link #ownPendingDeltas} gives such a layer copies of its own, so the base keeps the delta it held.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 final class ImpactRecords {
@@ -932,6 +936,34 @@ final class ImpactRecords {
 	}
 
 	/**
+	 * Returns the impact column a new transactional layer of a leaf starts from: the leaf's own column when it holds
+	 * no {@link PendingImpacts}, otherwise a copy in which every delta is replaced by an independent copy of it.
+	 *
+	 * A committed leaf never holds a delta, so the common case scans the column and allocates nothing. A leaf born in
+	 * the running transaction - a split half, built from its origin's layer - holds the deltas of its multi buckets in
+	 * its BASE column. A layer sharing them would write them in place, and a layer created inside a savepoint is not
+	 * snapshotted (the rollback simply drops it), so those writes would survive the rollback in the base the leaf
+	 * falls back to. With its own copies the layer writes only what it owns, and the base keeps the pre-layer delta.
+	 *
+	 * @param impacts the leaf's base impact column
+	 * @return the column for the new layer - the same instance when it holds no delta
+	 */
+	@Nonnull
+	static OverflowColumn ownPendingDeltas(@Nonnull OverflowColumn impacts) {
+		OverflowColumn owned = null;
+		final int size = impacts.size();
+		for (int i = 0; i < size; i++) {
+			if (impacts.recordsAt(i) instanceof final PendingImpacts pending) {
+				if (owned == null) {
+					owned = impacts.duplicate();
+				}
+				owned.setAt(i, pending.copy());
+			}
+		}
+		return owned == null ? impacts : owned;
+	}
+
+	/**
 	 * Rebuilds a live impact column from a column {@link #snapshotColumn} captured: every marked delta is rewound to
 	 * its mark and put back in place of the mark. The memento is left as it was, so it can be restored from again -
 	 * rewinding to a position the log has already been cut back to changes nothing.
@@ -1034,6 +1066,20 @@ final class ImpactRecords {
 		PendingImpacts(@Nonnull PersistentRoaringBitmap committedView, @Nonnull byte[][] committedChunks) {
 			this.committedView = committedView;
 			this.committedChunks = committedChunks;
+		}
+
+		/**
+		 * Returns an independent copy of this delta: the same committed view and chunks, which are never written, and
+		 * a private copy of the pairs. The copy starts with no undo log and no open mark - a mark belongs to the
+		 * memento that opened it on this instance.
+		 *
+		 * @return the copy
+		 */
+		@Nonnull
+		PendingImpacts copy() {
+			final PendingImpacts copy = new PendingImpacts(this.committedView, this.committedChunks);
+			copy.delta.putAll(this.delta);
+			return copy;
 		}
 
 		/**

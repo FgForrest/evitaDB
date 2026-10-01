@@ -378,6 +378,34 @@ class FulltextIndexTest {
 		}
 
 		@Test
+		@DisplayName("A value is indexed into a field registered with its own pivot, and its impacts use that pivot")
+		void shouldAddValueToFieldRegisteredWithCustomPivot() {
+			final FulltextIndex index = newIndex();
+			final double pivot = 7.0;
+			final int body = index.getOrAssignFieldId("body", pivot);
+			index.addValue("body", 1, "Praha a Praha a Brno");
+			index.addValue("body", 2, new String[]{"Praha", "Brno"});
+			assertEquals(body, index.getOrAssignFieldId("body"), "a known field is found, whatever its pivot");
+			assertEquals(pivot, index.getLengthPivot(body));
+			final String praha = termFrequencies("Praha").keySet().iterator().next();
+			assertArrayEquals(new int[]{1, 2}, index.getPostings(body, praha).getArray());
+			final int expectedImpact = FulltextIndex.computeImpact(
+				termFrequencies("Praha a Praha a Brno").get(praha), positions("Praha a Praha a Brno"), pivot
+			);
+			assertEquals(expectedImpact, Byte.toUnsignedInt(index.getImpacts(body, praha)[0]));
+
+			index.removeValue("body", 1, "Praha a Praha a Brno");
+			index.removeValue("body", 2, new String[]{"Praha", "Brno"});
+			assertEquals(0, index.getTermCount());
+			assertEquals(0, index.getFieldLengths(body).size());
+			// a removal never registers a field
+			index.removeValue("unknown", 1, "Praha");
+			index.removeValue("unknown", 1, new String[]{"Praha"});
+			assertEquals(FulltextIndex.UNKNOWN_FIELD_ID, index.getFieldId("unknown"));
+			assertEquals(1, index.getFieldCount());
+		}
+
+		@Test
 		@DisplayName("Impacts grow with term frequency and shrink with field length, and never reach zero")
 		void shouldComputeImpactsMonotonically() {
 			final double pivot = 20.0;
