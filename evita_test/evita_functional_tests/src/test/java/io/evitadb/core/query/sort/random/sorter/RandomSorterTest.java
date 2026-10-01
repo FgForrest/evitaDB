@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,7 +35,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
 
 import static io.evitadb.test.TestTags.ENGINE;
@@ -236,6 +238,53 @@ class RandomSorterTest {
 					null
 				)
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Skipped records")
+	class SkippedRecordsTest {
+
+		@Test
+		@DisplayName("The records preceding a later page are the first ones of the permutation")
+		void shouldReportFirstRecordsOfPermutationAsSkipped() {
+			final int[] records = range(1, 20);
+			final int[] fullOrder = sortAndSlice(
+				new RandomSorter(SEED), mockQueryContext(), records, 0, records.length
+			);
+			final List<Integer> skipped = new ArrayList<>(7);
+			final int[] result = new int[5];
+
+			final SortingContext resultContext = new RandomSorter(SEED).sortAndSlice(
+				new SortingContext(mockQueryContext(), new BaseBitmap(records), 7, 12, 0, 0),
+				result,
+				skipped::add
+			);
+
+			assertArrayEquals(Arrays.copyOfRange(fullOrder, 7, 12), SortUtils.asResult(result, resultContext.peak()));
+			assertEquals(Arrays.stream(fullOrder, 0, 7).boxed().toList(), skipped);
+		}
+
+		@Test
+		@DisplayName("An empty slice still reports the records it skips")
+		void shouldReportSkippedRecordsWhenSliceIsEmpty() {
+			// a segment whose whole part of the permutation precedes the requested page asks for an empty slice
+			// and must still learn which records it skipped
+			final int[] records = range(1, 20);
+			final int[] fullOrder = sortAndSlice(
+				new RandomSorter(SEED), mockQueryContext(), records, 0, records.length
+			);
+			final List<Integer> skipped = new ArrayList<>(3);
+
+			final SortingContext resultContext = new RandomSorter(SEED).sortAndSlice(
+				new SortingContext(mockQueryContext(), new BaseBitmap(records), 3, 3, 0, 0),
+				new int[0],
+				skipped::add
+			);
+
+			assertEquals(0, resultContext.peak());
+			assertEquals(3, resultContext.skipped());
+			assertEquals(Arrays.stream(fullOrder, 0, 3).boxed().toList(), skipped);
 		}
 	}
 
