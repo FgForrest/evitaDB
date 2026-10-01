@@ -50,8 +50,9 @@ import java.util.Locale;
  * is a materialized {@link ReducedEntityIndex}, which implements this interface directly, so a partition costs no
  * wrapper object and keeps its identity. The interface is sealed so that code which genuinely needs the object -
  * a write that goes through the generic {@link EntityIndex} write API, the query body channel that is bound to
- * {@link Index} - unwraps it in an exhaustive `switch`, and a future non-materialized variant makes the compiler list
- * every such place. Partitions are resolved through {@link ReferencePartitions} and the resolver surfaces built on it;
+ * {@link Index} (see {@link ReferencePartitions#toReducedEntityIndex}) - unwraps it in an exhaustive `switch`, and a
+ * future non-materialized variant makes the compiler list every such place. Partitions are resolved through
+ * {@link ReferencePartitions} and the resolver surfaces built on it;
  * a guard test in the functional test suite rejects new direct accesses to the reduced index family.
  *
  * The read surface is deliberately narrow: identity (primary key, key, representative key, target), owners, and the

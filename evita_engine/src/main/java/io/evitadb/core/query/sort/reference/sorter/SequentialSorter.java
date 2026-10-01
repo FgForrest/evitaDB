@@ -61,6 +61,13 @@ public class SequentialSorter implements Sorter {
 	 */
 	private final List<Sorter> embeddedSorters;
 
+	/**
+	 * Creates the sorter.
+	 *
+	 * @param atomicBlocks    blocks of partitions sorted one after another; an owner sorted in an earlier block is
+	 *                        not sorted again
+	 * @param embeddedSorters sorters applied to each block in order; a {@link NoSorter} is dropped
+	 */
 	public SequentialSorter(
 		@Nonnull ReferencePartition[][] atomicBlocks,
 		@Nonnull List<Sorter> embeddedSorters

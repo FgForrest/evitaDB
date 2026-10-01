@@ -1576,9 +1576,9 @@ public class BidirectionalReferenceRewriteFunctionalTest
 	/**
 	 * A reference allowing duplicate rows per `(owner, referenced)` pair used to be a hard decline, on the grounds
 	 * that its reduced-index family is addressed by index primary key rather than by a fully qualified key. That was
-	 * an *addressing* problem, not a semantic one, and it has been fixed in
-	 * {@link io.evitadb.core.query.QueryPlanningContext#getEntityIndexByPrimaryKey(String, int, Class)} by naming the
-	 * collection the keys came from. The rewrite is now taken here.
+	 * an *addressing* problem, not a semantic one, and it is resolved by
+	 * {@link io.evitadb.core.query.QueryPlanningContext#resolvePartitionsOfTarget}, which resolves the listed
+	 * primary keys in the collection that handed them out. The rewrite is taken here.
 	 *
 	 * The fixture writes three `PRODUCT.variants` rows per product 1..{@link #LAST_VARIANT_PRODUCT_PK}: two pointing
 	 * at category 1 (tags `a` and `b`) and one at category 2 (tag `a`). Tag `b` therefore reaches exactly one

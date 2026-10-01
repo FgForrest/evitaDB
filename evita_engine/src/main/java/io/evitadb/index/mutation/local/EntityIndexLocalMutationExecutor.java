@@ -567,6 +567,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * of a reference indexed for filtering must never reach the generic write consumers.
 	 *
 	 * @param indexType the reference-index level requested by the caller
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the level is not
+	 *                                                         {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}
 	 */
 	private static void assertPartitioningFanOut(@Nonnull ReferenceIndexType indexType) {
 		Assert.isPremiseValid(
@@ -1648,13 +1650,18 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Method returns existing index by primary key and adds it to the changed set of indexes that needs persisting.
 	 *
 	 * The resolution MUST go through the registering accessor, not the plain read: every caller of this method mutates
-	 * the index it gets back (it is the by-primary-key half of {@code getAllReducedIndexes}, which feeds the reduced
-	 * indexes an entity upsert then writes into). An index that is mutated without being registered is invisible to the
+	 * the index it gets back - it is the by-primary-key half of {@link #getPartitionForWrite(int)}, of
+	 * {@link #forEachPartitionOfTargetForWrite(Scope, ReferenceSchemaContract, int, Consumer)}, and of the group-index
+	 * walk in {@link #applyOnExistingReducedIndexes}, and all three feed the reduced indexes an entity upsert then
+	 * writes into. An index that is mutated without being registered is invisible to the
 	 * flush, so its changed storage parts are never persisted — and it is invisible to the dirty-key snapshot the
 	 * commit-time merge prunes on, so the merge carries it across the catalog version by reference and orphans the
 	 * transactional layers its mutation created, which surfaces as a `StaleTransactionMemoryException` that suspends
 	 * the catalog. {@link #accessedIndexes} does not cover this: that set drives the empty-index cleanup, not
 	 * persistence.
+	 *
+	 * @param indexPrimaryKey the storage primary key of the index
+	 * @return the existing index registered for modification, or empty when no index with the given PK exists
 	 */
 	@Nonnull
 	Optional<EntityIndex> getIndexByPrimaryKey(int indexPrimaryKey) {
@@ -1672,6 +1679,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * @param scope                      the scope of the partition
 	 * @param representativeReferenceKey the representative reference key of the partition
 	 * @return the existing or newly created partition
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key holds an index that is not a reference
+	 *                                                         partition
 	 */
 	@Nonnull
 	ReferencePartition getOrCreatePartitionForWrite(
@@ -1708,6 +1717,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * @param referenceSchema  the reference of this collection's entity type
 	 * @param targetPrimaryKey the primary key of the referenced entity
 	 * @param consumer         receives each partition of the target, registered for modification
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when a primary key the type index lists names no
+	 *                                                         partition of the reference in the scope
 	 */
 	void forEachPartitionOfTargetForWrite(
 		@Nonnull Scope scope,
@@ -2428,6 +2439,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 *
 	 * @param locale                      the locale context for the operation, which may be null;
 	 *                                    if null, the operation is performed without locale-specific considerations
+	 * @param entitySchema                the entity schema the target index belongs to
 	 * @param targetIndex                 the target entity index where the sortable attribute compounds will be inserted;
 	 *                                    it must not be null
 	 * @param referenceKey                the explicit reference key to use for the reduced entity index lookup;
@@ -2501,6 +2513,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 *
 	 * @param locale                      the locale for which the attribute compounds should be removed;
 	 *                                    this may be null if locale-specific processing is not required
+	 * @param entitySchema                the entity schema the target index belongs to
 	 * @param targetIndex                 the target entity index from which the sortable attribute
 	 *                                    compounds will be removed; must not be null
 	 * @param referenceKey                the explicit reference key to use for the reduced entity index lookup;
@@ -3167,6 +3180,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * remove entries the index holds once per entity, so a second visit would insert an entry again or remove it from
 	 * a structure the first visit already emptied. The primary keys of the visited indexes are therefore tracked, in a
 	 * set created only for the references that can reach an index twice.
+	 *
+	 * Entity-family partitions are acquired for writing through {@link #forEachPartitionOfTargetForWrite}, and group
+	 * indexes through the group type index; both are acquired before any consumer runs.
+	 *
+	 * @param scope                the scope the existing references are indexed in
+	 * @param referenceSupplier    supplies the entity's currently existing reference keys
+	 * @param entityIndexConsumer  receives each distinct reduced index with the reference schema it was reached
+	 *                             through
 	 */
 	private void applyOnExistingReducedIndexes(
 		@Nonnull Scope scope,

@@ -985,6 +985,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		 * Resolves every candidate into the index object the query body channel consumes.
 		 *
 		 * @return the resolved indexes, in candidate primary key order
+		 * @throws io.evitadb.exception.GenericEvitaInternalError when a candidate primary key resolves to no partition
 		 */
 		@Nonnull
 		public List<ReducedEntityIndex> resolve() {
@@ -1262,6 +1263,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 *
 	 * @param index the element of the processing scope
 	 * @return always `true`
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the element is not an entity index
 	 */
 	private static boolean requirePartitionIsEntityIndex(@Nonnull Index<?> index) {
 		isPremiseValid(
@@ -1282,7 +1284,18 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
-	 * Returns {@link EntityIndex} that contains indexed entities that reference `referenceName` and `referencedEntityId`.
+	 * Returns the target's partitions of the reference in each scope of the processing scope (the default scope
+	 * when none is set). The stream never contains `null` -
+	 * {@link io.evitadb.core.query.filter.translator.hierarchy.AbstractHierarchyTranslator#requirePartitionIndex}
+	 * relies on that.
+	 *
+	 * @param entitySchema       the entity schema owning the reference
+	 * @param referenceSchema    the reference whose partitions of the target are returned
+	 * @param referencedEntityId the primary key of the target entity
+	 * @return the target's partitions, one per processing scope that holds any
+	 * @throws io.evitadb.core.exception.ReferenceComponentNotIndexedException when a processing scope indexes the
+	 *         reference without the `REFERENCED_ENTITY` component, propagated from
+	 *         {@link io.evitadb.core.query.QueryPlanningContext#resolvePartitionsOfTarget}
 	 */
 	@Nonnull
 	public Stream<AbstractReducedEntityIndex> getReferencedEntityIndexes(

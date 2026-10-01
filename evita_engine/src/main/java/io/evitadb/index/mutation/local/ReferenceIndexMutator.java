@@ -1166,8 +1166,9 @@ public interface ReferenceIndexMutator {
 
 	/**
 	 * Performs the group-component removal of a reference - the group family counterpart of
-	 * {@link #referenceRemovalPerComponent(int, EntitySchema, ReferenceSchemaContract, EntityIndexLocalMutationExecutor,
-	 * ReferencedTypeEntityIndex, ReferencePartition, ReferenceKey, int, ExistingDataSupplierFactory)}.
+	 * {@link #referenceRemovalPerComponent(int, EntitySchema, ReferenceSchemaContract,
+	 * EntityIndexLocalMutationExecutor, ReferencedTypeEntityIndex, ReferencePartition, ReferenceKey, int,
+	 * ExistingDataSupplierFactory)}.
 	 *
 	 * @param entityPrimaryKey            the primary key of the entity being removed
 	 * @param entitySchema                the entity schema
@@ -1220,7 +1221,8 @@ public interface ReferenceIndexMutator {
 
 	/**
 	 * Un-advertises a reduced index in the type index of its component and removes the reference attributes there -
-	 * the type-index half of a reference removal, written for the reduced index's primary key whatever the index's form.
+	 * the type-index half of a reference removal, written for the reduced index's primary key whatever the index's
+	 * form.
 	 *
 	 * @param entitySchema                the entity schema
 	 * @param referenceSchema             the schema of the reference being removed

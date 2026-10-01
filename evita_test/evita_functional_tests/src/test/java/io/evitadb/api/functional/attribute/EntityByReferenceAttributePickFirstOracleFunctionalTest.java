@@ -269,6 +269,8 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 
 	/**
 	 * Both references crossed with both compounds - the one with a localized element and the one without.
+	 *
+	 * @return every reference and compound pair the index route is checked on
 	 */
 	@Nonnull
 	static Stream<Arguments> compounds() {

@@ -143,6 +143,8 @@ class ReferencePartitionAccessGuardTest {
 	);
 	/**
 	 * Names of the raw by-primary-key accessors reported by rule R3 whatever their descriptor.
+	 * `getEntityIndexByPrimaryKey` and `getEntityIndexByPrimaryKeyIfExists` name no production accessor any more -
+	 * they stay listed so that reintroducing one under either name is reported rather than pruned as a dead entry.
 	 */
 	private static final Set<String> RAW_PRIMARY_KEY_ACCESSORS = Set.of(
 		"getIndexByPrimaryKeyIfExists",

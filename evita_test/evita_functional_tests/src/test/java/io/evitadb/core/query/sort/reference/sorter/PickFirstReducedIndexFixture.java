@@ -97,7 +97,7 @@ final class PickFirstReducedIndexFixture {
 	);
 	/**
 	 * Every index of the collection by its primary key, the backing of
-	 * {@link QueryPlanningContext#getEntityIndexByPrimaryKeyIfExists(int)}.
+	 * {@link QueryPlanningContext#resolvePartitionIfExists(int)}.
 	 */
 	private final Map<Integer, EntityIndex> indexesByPrimaryKey = new HashMap<>(32);
 	/**

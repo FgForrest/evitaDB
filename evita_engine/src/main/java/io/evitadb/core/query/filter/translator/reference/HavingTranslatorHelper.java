@@ -286,7 +286,7 @@ public class HavingTranslatorHelper {
 	 * catalog stored before the rule existed still carries it and reaches this guard.
 	 *
 	 * The guard is called where the entity index family is looked up - `FilterByVisitor#getReducedIndexPrimaryKeyFormula`,
-	 * `QueryPlanningContext#getReducedEntityIndexes`, the chain-index lookup of `ReferenceOrderByVisitor` and the
+	 * `QueryPlanningContext#resolvePartitionsOfTarget`, the chain-index lookup of `ReferenceOrderByVisitor` and the
 	 * type-index lookup of `ReferenceHistogramAccumulator` - rather than once per constraint, so that no path reading
 	 * the family can bypass it; `ReferencePropertyTranslator` checks every ordered scope up front, because it may be
 	 * handed a reduced index set that index selection narrowed with `inScope(...)` and never look the family up at

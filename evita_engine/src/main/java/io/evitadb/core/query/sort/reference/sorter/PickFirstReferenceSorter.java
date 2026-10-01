@@ -94,7 +94,7 @@ public final class PickFirstReferenceSorter implements Sorter {
 	 */
 	@Nonnull private final PickFirstReducedIndexResolver indexResolver;
 	/**
-	 * Returns the source of the provider of sorted values of one reduced index, or `null` when the index holds none.
+	 * Returns the source of the provider of sorted values of one partition, or `null` when the index holds none.
 	 * Finding out whether an index holds values is cheap; building its provider is not (it creates the value seeker
 	 * eagerly), so the provider is built only once the index has shown it holds an unclaimed owner.
 	 */
@@ -112,8 +112,8 @@ public final class PickFirstReferenceSorter implements Sorter {
 	/**
 	 * Creates the sorter.
 	 *
-	 * @param indexResolver   resolves the reduced indexes that may hold a row of the selection
-	 * @param providerFactory returns the source of the provider of sorted values of one reduced index, or `null` when
+	 * @param indexResolver   resolves the partitions that may hold a row of the selection
+	 * @param providerFactory returns the source of the provider of sorted values of one partition, or `null` when
 	 *                        the index holds no value
 	 * @param comparator      comparator of the provided values in the ordering direction
 	 * @param primaryKeyOrder direction of the ordering, applied to the primary keys of owners with equal values
@@ -182,7 +182,7 @@ public final class PickFirstReferenceSorter implements Sorter {
 	 *
 	 * @param queryContext the context of the executed query
 	 * @param selection    the owners being sorted
-	 * @param indexes      the reduced indexes that may hold a row of the selection, in target order
+	 * @param indexes      the partitions that may hold a row of the selection, in target order
 	 * @return one sorted run per index that claimed an owner, and the owners no index claimed
 	 */
 	@Nonnull

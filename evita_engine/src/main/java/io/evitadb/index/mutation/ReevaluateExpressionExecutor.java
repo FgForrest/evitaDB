@@ -643,6 +643,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param indexPrimaryKeys primary keys of the reduced indexes to probe
 	 * @param affected         roaring bitmap of affected owner PKs, intersected against each index
 	 * @param result           accumulator, keyed by owner PK
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the sibling reference is not indexed for
+	 *                                                         partitioning in the scope
 	 */
 	private static void collectOwnersOfProbedIndexes(
 		@Nonnull IndexMutationTarget target,
@@ -739,6 +741,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param siblingSchema the reference whose partitions are walked
 	 * @param affected      roaring bitmap of affected owner PKs, intersected against each partition
 	 * @param result        accumulator, keyed by owner PK
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the sibling reference is not indexed for
+	 *                                                         partitioning in the scope
 	 */
 	private static void collectOwnersOfReducedIndexes(
 		@Nonnull IndexMutationTarget target,
@@ -806,6 +810,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 *
 	 * @param siblingSchema the sibling reference
 	 * @param scope         the scope whose indexes are walked
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the sibling reference is not indexed for
+	 *                                                         partitioning in the scope
 	 */
 	private static void assertPartitioningSibling(
 		@Nonnull ReferenceSchemaContract siblingSchema,
@@ -900,6 +906,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param refKey       the `(referenceName, referencedEntityPK)` key
 	 * @param entry        the `(referencedEntityPK, groupPK, ownerPK)` triple
 	 * @param nowFaceted   `true` when the owner should be faceted in `entry.groupPK()`, `false` otherwise
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the reference is not indexed for partitioning in
+	 *                                                         the type index's scope
 	 */
 	private static void applyFacetToReducedIndexFamily(
 		@Nonnull IndexMutationTarget target,

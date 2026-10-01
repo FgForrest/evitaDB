@@ -203,11 +203,11 @@ public final class PickFirstReducedIndexResolver {
 	}
 
 	/**
-	 * Resolves the reduced indexes that may hold a row of the selected owners, in target order: a superset of those
+	 * Resolves the partitions that may hold a row of the selected owners, in target order: a superset of those
 	 * that do under the plain primary key order, exactly those that do under any other target order.
 	 *
 	 * @param selection primary keys of the owners being sorted
-	 * @return the indexes and the rank function of their targets
+	 * @return the partitions and the rank function of their targets
 	 */
 	@Nonnull
 	public ResolvedReducedIndexes resolve(@Nonnull Bitmap selection) {
@@ -347,11 +347,11 @@ public final class PickFirstReducedIndexResolver {
 	}
 
 	/**
-	 * Orders the found indexes by the rank of their target, and indexes sharing one target by their representative
-	 * attribute values.
+	 * Orders the found partitions by the rank of their target, and partitions sharing one target by their
+	 * representative attribute values.
 	 *
-	 * @param found the indexes in any order
-	 * @return the ordered indexes along with the rank function of the targets
+	 * @param found the partitions in any order
+	 * @return the ordered partitions along with the rank function of the targets
 	 */
 	@Nonnull
 	private ResolvedReducedIndexes order(@Nonnull List<ReferencePartition> found) {

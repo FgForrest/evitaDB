@@ -2148,6 +2148,8 @@ public final class EntityCollection implements
 	 * @param scope                      the scope of the partition
 	 * @param representativeReferenceKey the representative reference key of the partition
 	 * @return the partition or `null` when the collection holds none
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key holds an index that is not a reference
+	 *                                                         partition
 	 */
 	@Nullable
 	public ReferencePartition resolvePartitionIfExists(
@@ -2180,6 +2182,8 @@ public final class EntityCollection implements
 	 * @param referenceSchema  the reference of this collection's entity type
 	 * @param targetPrimaryKey the primary key of the referenced entity
 	 * @return the partitions of the target, possibly empty
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when a key or a listed primary key names an index that
+	 *                                                         is not a partition of the reference in the scope
 	 */
 	@Nonnull
 	public ReferencePartition[] resolvePartitionsOfTarget(

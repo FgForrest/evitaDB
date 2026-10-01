@@ -181,6 +181,7 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 	 * @param index the resolved partition
 	 * @param <T>   the type of the index
 	 * @return the same index
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the index is null
 	 */
 	@Nonnull
 	private static <T extends EntityIndex> T requirePartitionIndex(@Nullable T index) {

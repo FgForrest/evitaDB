@@ -970,11 +970,13 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 	/**
 	 * Returns the reference partition of the **queried** collection holding the rows of the representative reference
-	 * key in the scope, read from the index snapshot this query was set up with.
+	 * key in the scope, read from the queried collection's own index maps this context was created with.
 	 *
 	 * @param scope                      the scope of the partition
 	 * @param representativeReferenceKey the representative reference key of the partition
 	 * @return the partition or `null` when the queried collection holds none
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key holds an index that is not a reference
+	 *                                                         partition
 	 */
 	@Nullable
 	public ReferencePartition resolvePartitionIfExists(
@@ -993,7 +995,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * keys handed out by {@link ReferencedTypeEntityIndex#getAllReferenceIndexes(int)} therefore has to say which
 	 * collection that type index belonged to; resolving them against the queried collection instead returns whichever
 	 * of its indexes happens to carry the same number, which is a wrong answer rather than a missing one. The queried
-	 * collection is read from the index snapshot this query was set up with, any other collection from its live
+	 * collection is read from the index maps this context was created with, any other collection from its live
 	 * indexes (dirty buffer first).
 	 *
 	 * @param entityType          the collection the primary key belongs to
@@ -1030,6 +1032,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @param scope                      the scope of the partition
 	 * @param representativeReferenceKey the representative reference key of the partition
 	 * @return the partition or `null` when the collection holds none
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key holds an index that is not a reference
+	 *                                                         partition
 	 */
 	@Nullable
 	public ReferencePartition resolvePartitionIfExists(
@@ -1097,6 +1101,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @param entityType           the collection the primary key belongs to, `null` for the queried one
 	 * @param groupIndexPrimaryKey primary key of the group index
 	 * @return the group index
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key names no reduced group entity index
 	 */
 	@Nonnull
 	private ReducedGroupEntityIndex requireReducedGroupEntityIndex(
@@ -1114,8 +1119,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns the index of the named collection registered under the primary key: this query's index snapshot for the
-	 * queried collection, the collection's live indexes (dirty buffer first) for any other.
+	 * Returns the index of the named collection registered under the primary key: the index maps this context was
+	 * created with for the queried collection, the collection's live indexes (dirty buffer first) for any other.
 	 *
 	 * @param entityType      the collection, `null` or equal to the queried entity type for the queried collection
 	 * @param indexPrimaryKey primary key of the index
@@ -1130,8 +1135,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns the by-key index lookup of the named collection: this query's index snapshot for the queried collection,
-	 * the collection's live indexes (dirty buffer first) for any other.
+	 * Returns the by-key index lookup of the named collection: the index maps this context was created with for the
+	 * queried collection, the collection's live indexes (dirty buffer first) for any other.
 	 *
 	 * @param entityType the collection
 	 * @return the lookup answering `null` when the key holds nothing
@@ -1146,8 +1151,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns the by-primary-key index lookup of the named collection: this query's index snapshot for the queried
-	 * collection, the collection's live indexes (dirty buffer first) for any other.
+	 * Returns the by-primary-key index lookup of the named collection: the index maps this context was created with
+	 * for the queried collection, the collection's live indexes (dirty buffer first) for any other.
 	 *
 	 * @param entityType the collection
 	 * @return the lookup answering `null` when the primary key names nothing

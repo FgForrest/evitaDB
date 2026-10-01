@@ -590,6 +590,10 @@ class PickFirstReferenceSorterTest {
 
 		/**
 		 * Returns the provider of an index of the fixture for the ordering direction, or `null` when it has none.
+		 *
+		 * @param direction the ordering direction
+		 * @param index     the partition to return the provider of
+		 * @return the provider, or `null` when the fixture has none for the partition in that direction
 		 */
 		@Nullable
 		SortedRecordsProvider provider(@Nonnull OrderDirection direction, @Nonnull ReferencePartition index) {

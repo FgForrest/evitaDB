@@ -191,12 +191,12 @@ public class EntityPrimaryKeyNaturalTranslator
 	}
 
 	/**
-	 * Creates the provider of one reduced index for a `pickFirst` ordering by the referenced primary key: every owner
+	 * Creates the provider of one partition for a `pickFirst` ordering by the referenced primary key: every owner
 	 * of the index carries the same value, the primary key of the index's referenced entity, and owners follow in the
 	 * order of their own primary keys in the direction of the ordering - the order the merge keeps for equal values.
-	 * The owners are read from the index's bitmap whatever its implementation.
+	 * The owners are read from the partition's bitmap.
 	 *
-	 * @param index          the partition
+	 * @param index          the partition whose owners are ordered
 	 * @param orderDirection the direction of the ordering
 	 * @return the provider or `null` when the index holds no owner
 	 */

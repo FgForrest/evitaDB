@@ -42,11 +42,12 @@ import java.util.function.IntFunction;
 
 /**
  * The single implementation of {@link ReferencePartition} resolution. Every resolver surface -
- * `EntityCollection`, `QueryPlanningContext`, the local mutation executor - delegates here and only chooses where
- * the indexes are read from: a collection's committed maps under its dirty buffer, a query's snapshot, a
- * `DataStoreReader` layering another collection's in-flight state, or a write acquisition that enrols what it
- * returns. The checks themselves - which objects are partitions at all, which belong to a scope and a reference, and
- * how the partitions of one target are found - exist only here.
+ * `EntityCollection`, `QueryPlanningContext`, {@link io.evitadb.index.mutation.IndexMutationTarget}, the local
+ * mutation executor - delegates here and only chooses where the indexes are read from: a collection's committed maps
+ * under its dirty buffer, the index maps a query was created with, a `DataStoreReader` layering another collection's
+ * in-flight state, or a write acquisition that enrols what it returns. The checks themselves - which objects are
+ * partitions at all, which belong to a scope and a reference, and how the partitions of one target are found - exist
+ * only here.
  *
  * ## Lenient and strict resolution
  *
@@ -329,6 +330,8 @@ public final class ReferencePartitions {
 	 * @param allowsDuplicates whether the reference allows duplicate references to one target
 	 * @param targetPrimaryKey the primary key of the target entity
 	 * @return the partitions of the target, possibly empty
+	 * @throws GenericEvitaInternalError when a key or a listed primary key names an index that is not a partition of
+	 *                                   the reference in the scope
 	 */
 	@Nonnull
 	public static ReferencePartition[] resolveOfTarget(

@@ -905,7 +905,7 @@ public final class ContainerizedLocalMutationExecutor
 		@Nonnull Scope usedScope
 	) {
 		if (hardReference) {
-			// provide reduced entity index related to provided entity primary key
+			// the partition of the given entity primary key
 			return (epk, representativeAttributeValues) -> {
 				// a missing partition reads as "absent"
 				final ReferencePartition targetPartition = ReferencePartitions.resolveIfExists(
@@ -920,7 +920,7 @@ public final class ContainerizedLocalMutationExecutor
 				return targetPartition != null && targetPartition.getAllPrimaryKeys().contains(entityPrimaryKey);
 			};
 		} else {
-			// always provide the same reference index
+			// always the partition of this entity
 			return (epk, representativeAttributeValues) -> {
 				// a missing partition reads as "absent"
 				final ReferencePartition targetPartition = ReferencePartitions.resolveIfExists(

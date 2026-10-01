@@ -185,8 +185,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * cosmetic - {@link #getFilteredReferencedEntityIds} depends on it: sorting brings all indexes sharing the same
 	 * discriminator next to each other, which allows their partial results to be OR-ed together in a single streaming
 	 * pass instead of being accumulated in a map (the same discriminator may be backed by more than one index, e.g.
-	 * one per examined scope). An index carrying no discriminator fails fast here, since it could never take part in
-	 * that aggregation.
+	 * one per examined scope). A partition carrying no discriminator fails fast
+	 * (see {@link ReferencePartition#getRepresentativeReferenceKey()}).
 	 */
 	private static final Comparator<ReferencePartition> BY_DISCRIMINATOR = Comparator.comparing(
 		ReferencePartition::getRepresentativeReferenceKey
