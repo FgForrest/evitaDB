@@ -31,23 +31,31 @@ import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.Scope;
 import io.evitadb.function.Functions;
+import io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.SortKeyFixture;
+import io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.SortSnapshot;
+import io.evitadb.index.attribute.OwnerSortIndex;
+import io.evitadb.index.attribute.SortIndex;
+import io.evitadb.index.attribute.SortIndexView;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
 import io.evitadb.index.component.loader.LoadContext;
 import io.evitadb.index.component.loader.LoadedComponentBundle;
 import io.evitadb.index.component.loader.LoadedComponentBundle.VirtualReferencePartitions;
 import io.evitadb.index.component.loader.VirtualReferencePartitionLoader;
+import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.KeyCompressorSnapshot;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceNameKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart.SortValueSlot;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionLeafStreamKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionRootRemoval;
 import io.evitadb.store.catalog.CatalogHeaderKryoConfigurer;
@@ -72,6 +80,7 @@ import io.evitadb.utils.IOUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -86,9 +95,11 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -100,10 +111,13 @@ import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.SERIALIZATION;
 import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.TRANSACTION;
+import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -114,7 +128,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the production {@link VirtualReferencePartitionLoader}. Covers the PAGED and SINGLE shapes, the write bound of a
  * reloaded index (one changed entry costs one leaf page and no root), the root rewrite a new dictionary tuple forces,
  * a collapse from PAGED to SINGLE, an index emptied after a flush, and the absent root that every catalog without a
- * virtual partition has.
+ * virtual partition has. The sort value slots are covered too: the sort indexes rebuilt on load equal the live ones
+ * after random churn in warm-up and in transactions, a sort value change costs one leaf page, a retired key leaves
+ * nothing behind, and a value tree shared with real partitions cannot reach the rebuilt sort index.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -364,6 +380,249 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 			this.offsetIndex.getReadOnlyKeyCompressor().getIdIfExists(new ReferenceNameKey(REFERENCE_NAME)).isPresent()
 		);
 		assertTrue(reloadThroughLoader().isEmpty());
+	}
+
+	@Nested
+	@DisplayName("Sort value slots")
+	class SortValueSlots {
+		/**
+		 * Partitions the sort value churn draws from - enough for the entries of all sort keys to span many leaves.
+		 */
+		private static final int SORT_PARTITIONS = 1_500;
+
+		/**
+		 * Asserts every fixture's sort index of the reloaded index equals the live one exactly - records, values and
+		 * blocks - and follows the model.
+		 *
+		 * @param live     the index the parts were flushed from
+		 * @param reloaded the index reloaded from the persisted parts
+		 * @param models   the raw value of every partition per sort key
+		 */
+		private static void assertRebuiltEqualsLive(
+			@Nonnull VirtualReferencePartitionIndex live,
+			@Nonnull VirtualReferencePartitionIndex reloaded,
+			@Nonnull Map<AttributeIndexKey, Map<Integer, Serializable>> models
+		) {
+			for (final SortKeyFixture fixture : VirtualReferencePartitionIndexSortValueTest.FIXTURES) {
+				final OwnerSortIndex liveIndex = live.getSortIndex(fixture.key());
+				final OwnerSortIndex reloadedIndex = reloaded.getSortIndex(fixture.key());
+				assertNotNull(liveIndex, "Sort key " + fixture + " must be declared on the live index");
+				assertNotNull(reloadedIndex, "Sort key " + fixture + " must be declared on the reloaded index");
+				assertEquals(
+					VirtualReferencePartitionIndexSortValueTest.snapshotOf(liveIndex),
+					VirtualReferencePartitionIndexSortValueTest.snapshotOf(reloadedIndex),
+					"The rebuilt sort index of " + fixture + " must equal the live one"
+				);
+				VirtualReferencePartitionIndexSortValueTest.assertMatchesModel(
+					fixture, reloadedIndex, models.getOrDefault(fixture.key(), Map.of())
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("sort indexes rebuilt on load equal the live ones after warm-up churn, and keep doing so")
+		void shouldRebuildEverySortIndexAfterWarmUpChurn() {
+			final VirtualReferencePartitionIndex live = VirtualReferencePartitionIndexSortValueTest.declaredIndex();
+			final Map<AttributeIndexKey, Map<Integer, Serializable>> models = new HashMap<>();
+			final Random random = new Random(1615);
+			for (int partition = 1; partition <= SORT_PARTITIONS; partition += 3) {
+				live.putPartitionOwner(partition, -partition, partition);
+			}
+			for (int round = 0; round < 4; round++) {
+				VirtualReferencePartitionIndexSortValueTest.churn(live, models, random, 4_000, SORT_PARTITIONS);
+				flushAndPersist(live);
+			}
+			final VirtualReferencePartitionIndexStoragePart root = readRootOrNull();
+			assertNotNull(root);
+			assertTrue(root.isPaged(), "The sort value entries must page out");
+
+			final VirtualReferencePartitionIndex reloaded = reloadThroughLoader();
+			assertRebuiltEqualsLive(live, reloaded, models);
+			assertEquals(
+				VirtualReferencePartitionIndexTest.contentOf(live), VirtualReferencePartitionIndexTest.contentOf(reloaded)
+			);
+			assertTrue(flush(reloaded).isEmpty(), "A freshly reloaded index is clean and emits nothing");
+
+			// the reloaded index goes on from where the live one stopped - same changes on both, flushed from the reload
+			final Map<AttributeIndexKey, Map<Integer, Serializable>> liveModels =
+				VirtualReferencePartitionIndexSortValueTest.copyOf(models);
+			VirtualReferencePartitionIndexSortValueTest.churn(live, liveModels, new Random(7), 2_000, SORT_PARTITIONS);
+			VirtualReferencePartitionIndexSortValueTest.churn(reloaded, models, new Random(7), 2_000, SORT_PARTITIONS);
+			assertRebuiltEqualsLive(live, reloaded, models);
+			flushAndPersist(reloaded);
+			assertRebuiltEqualsLive(live, reloadThroughLoader(), models);
+		}
+
+		@Test
+		@Tag(TRANSACTION)
+		@DisplayName("sort indexes rebuilt on load equal the committed ones after transactional churn")
+		void shouldRebuildEverySortIndexAfterTransactionalChurn() {
+			final VirtualReferencePartitionIndex initial = VirtualReferencePartitionIndexSortValueTest.declaredIndex();
+			final Map<AttributeIndexKey, Map<Integer, Serializable>> models = new HashMap<>();
+			final Random random = new Random(42);
+			VirtualReferencePartitionIndexSortValueTest.churn(initial, models, random, 4_000, SORT_PARTITIONS);
+			flushAndPersist(initial);
+
+			final VirtualReferencePartitionIndex[] current = {reloadThroughLoader()};
+			for (int round = 0; round < 3; round++) {
+				assertStateAfterCommit(
+					current[0],
+					original -> {
+						VirtualReferencePartitionIndexSortValueTest.churn(original, models, random, 1_500, SORT_PARTITIONS);
+						// the flush runs inside the transaction, before the commit merges it - as the catalog flushes
+						persist(flush(original));
+					},
+					(original, committed) -> current[0] = committed
+				);
+				assertRebuiltEqualsLive(current[0], reloadThroughLoader(), models);
+			}
+		}
+
+		@Test
+		@DisplayName("a sort value change rewrites one leaf, the root only when a value appears or disappears")
+		void shouldBoundTheWriteOfASortValueChange() {
+			final AttributeIndexKey order = VirtualReferencePartitionIndexSortValueTest.ORDER;
+			final VirtualReferencePartitionIndex source = new VirtualReferencePartitionIndex();
+			source.declareSortKey(order, VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC, 0);
+			for (int partition = 1; partition <= PARTITION_COUNT; partition++) {
+				source.putSortValue(order, partition, 1 + partition % 77);
+			}
+			final VirtualReferencePartitionIndexStoragePart persistedRoot = singleRoot(flushAndPersist(source));
+			assertTrue(persistedRoot.isPaged());
+			final VirtualReferencePartitionIndex reloaded = reloadThroughLoader();
+
+			// partition 2000 holds 1 + 2000 % 77 = 76 - moving it to another existing value touches one leaf only
+			final int touchedPartition = 2_000;
+			reloaded.putSortValue(order, touchedPartition, 3);
+			final List<StoragePart> existingValueChange = flush(reloaded);
+			reloaded.resetDirty();
+			assertEquals(1, countLeafPages(existingValueChange), "One changed entry rewrites one leaf: " + existingValueChange);
+			assertEquals(0, countRoots(existingValueChange), "An existing value must keep the root: " + existingValueChange);
+			assertEquals(0, countLeafPageRemovals(existingValueChange));
+
+			// a value the dictionary does not know yet rewrites the root as well
+			reloaded.putSortValue(order, touchedPartition, 1_000);
+			final List<StoragePart> newValueChange = flush(reloaded);
+			reloaded.resetDirty();
+			assertEquals(1, countLeafPages(newValueChange), "One changed entry rewrites one leaf: " + newValueChange);
+			final VirtualReferencePartitionIndexStoragePart newRoot = singleRoot(newValueChange);
+			assertEquals(78, newRoot.getSortValueSlots()[0].values().length, "The root must carry the new value");
+			assertArrayEquals(persistedRoot.getLeafPageSequences(), newRoot.getLeafPageSequences());
+
+			// and the root goes again once the value loses its only partition
+			reloaded.removeSortValue(order, touchedPartition);
+			final List<StoragePart> lastUserRemoval = flush(reloaded);
+			reloaded.resetDirty();
+			assertEquals(1, countLeafPages(lastUserRemoval));
+			assertEquals(77, singleRoot(lastUserRemoval).getSortValueSlots()[0].values().length);
+
+			persist(existingValueChange);
+			persist(newValueChange);
+			persist(lastUserRemoval);
+			assertEquals(
+				VirtualReferencePartitionIndexSortValueTest.snapshotOf(reloaded.getSortIndex(order)),
+				VirtualReferencePartitionIndexSortValueTest.snapshotOf(reloadThroughLoader().getSortIndex(order))
+			);
+		}
+
+		@Test
+		@DisplayName("a value tree shared with real partitions cannot shift the blocks of the rebuilt sort index")
+		void shouldRebuildAnOwnerSortIndexBesideASharedValueTree() {
+			final AttributeIndexKey priority = new AttributeIndexKey(REFERENCE_NAME, "priority", null);
+			final SortIndex.ComparatorSource[] integerAsc = VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC;
+			// the filter value tree of a filterable and sortable attribute at the reference level holds every partition
+			// with a value: the real partitions 1 and 2 as well as the virtual ones
+			final InvertedIndex sharedTree = new InvertedIndex(
+				Integer.class, Serializable.class::cast, SortIndex.createComparatorFor(null, integerAsc[0])
+			);
+			sharedTree.addRecord(5, 1);
+			sharedTree.addRecord(5, 2);
+			sharedTree.addRecord(5, 3);
+			sharedTree.addRecord(5, 4);
+			sharedTree.addRecord(7, 6);
+
+			final VirtualReferencePartitionIndex source = new VirtualReferencePartitionIndex();
+			source.declareSortKey(priority, integerAsc, 0);
+			source.putSortValue(priority, 3, 5);
+			source.putSortValue(priority, 4, 5);
+			source.putSortValue(priority, 6, 7);
+			flushAndPersist(source);
+
+			final OwnerSortIndex rebuilt = reloadThroughLoader().getSortIndex(priority);
+			assertNotNull(rebuilt);
+			final SortSnapshot expected = new SortSnapshot(List.of(3, 4, 6), List.of(5, 7), List.of(2, 1));
+			assertEquals(expected, VirtualReferencePartitionIndexSortValueTest.snapshotOf(source.getSortIndex(priority)));
+			assertEquals(expected, VirtualReferencePartitionIndexSortValueTest.snapshotOf(rebuilt));
+
+			// the negative control: the same persisted blocks folded onto the shared tree as a view take their block
+			// boundaries from the real partitions too
+			final SortIndex view = SortIndex.create(
+				integerAsc, null, priority, 0, rebuilt.getSortedRecords(), rebuilt.getSortedRecordValues(),
+				Map.<Serializable, Integer>of(5, 2), () -> sharedTree
+			);
+			assertInstanceOf(SortIndexView.class, view);
+			assertNotEquals(
+				rebuilt.getRecordsEqualTo(5).size(), view.getRecordsEqualTo(5).size(),
+				"A view counts the real partitions of the shared value as its own"
+			);
+		}
+
+		@Test
+		@DisplayName("a retired sort key leaves no entry, no value and no slot behind on disk")
+		void shouldLeaveNothingOfARetiredKeyOnDisk() {
+			final VirtualReferencePartitionIndex live = VirtualReferencePartitionIndexSortValueTest.declaredIndex();
+			final Map<AttributeIndexKey, Map<Integer, Serializable>> models = new HashMap<>();
+			VirtualReferencePartitionIndexSortValueTest.churn(live, models, new Random(3), 6_000, SORT_PARTITIONS);
+			flushAndPersist(live);
+			final VirtualReferencePartitionIndex reloaded = reloadThroughLoader();
+
+			final SortKeyFixture retired = VirtualReferencePartitionIndexSortValueTest.FIXTURES.get(0);
+			assertTrue(reloaded.retireSortKey(retired.key()));
+			final List<StoragePart> retirement = flush(reloaded);
+			reloaded.resetDirty();
+			assertTrue(
+				Arrays.stream(singleRoot(retirement).getSortValueSlots())
+					.map(SortValueSlot::attributeIndexKey)
+					.noneMatch(retired.key()::equals),
+				"The root must drop the retired slot"
+			);
+			persist(retirement);
+
+			// the loader refuses entries of a slot the root does not declare, so a clean load proves the reclaim
+			final VirtualReferencePartitionIndex afterRetirement = reloadThroughLoader();
+			assertNull(afterRetirement.getSortIndex(retired.key()));
+			for (final SortKeyFixture fixture : VirtualReferencePartitionIndexSortValueTest.FIXTURES.subList(
+				1, VirtualReferencePartitionIndexSortValueTest.FIXTURES.size()
+			)) {
+				assertEquals(
+					VirtualReferencePartitionIndexSortValueTest.snapshotOf(live.getSortIndex(fixture.key())),
+					VirtualReferencePartitionIndexSortValueTest.snapshotOf(afterRetirement.getSortIndex(fixture.key()))
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("a declared key without a value persists and reloads, and its retirement leaves an empty index")
+		void shouldRoundTripADeclaredKeyWithoutValues() {
+			final AttributeIndexKey order = VirtualReferencePartitionIndexSortValueTest.ORDER;
+			final VirtualReferencePartitionIndex source = new VirtualReferencePartitionIndex();
+			source.declareSortKey(order, VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC, 0);
+			final VirtualReferencePartitionIndexStoragePart root = singleRoot(flushAndPersist(source));
+			assertFalse(root.isPaged());
+			assertEquals(0, root.getKeys().length);
+
+			final VirtualReferencePartitionIndex reloaded = reloadThroughLoader();
+			final OwnerSortIndex sortIndex = reloaded.getSortIndex(order);
+			assertNotNull(sortIndex);
+			assertTrue(sortIndex.isEmpty());
+
+			reloaded.retireSortKey(order);
+			final List<StoragePart> retirement = flush(reloaded);
+			assertEquals(0, countRoots(retirement));
+			assertEquals(1, retirement.stream().filter(VirtualReferencePartitionRootRemoval.class::isInstance).count());
+			persist(retirement);
+			assertTrue(reloadThroughLoader().isEmpty());
+		}
 	}
 
 	/*

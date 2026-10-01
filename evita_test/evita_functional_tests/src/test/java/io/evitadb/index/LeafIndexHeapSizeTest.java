@@ -24,7 +24,9 @@
 package io.evitadb.index;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
@@ -34,6 +36,7 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.OwnerSortIndex;
 import io.evitadb.index.attribute.OwnerUniqueIndex;
+import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex;
@@ -1076,11 +1079,13 @@ class LeafIndexHeapSizeTest {
 	class VirtualReferencePartitionIndexes {
 
 		/**
-		 * The flush bookkeeping and the two column-factory lambdas of the entry tree.
+		 * The flush bookkeeping, the two column-factory lambdas of the entry tree and the shared function the sort
+		 * index map converts committed sort indexes with.
 		 */
 		private static final String[] VIRTUAL_PARTITION_EXCLUSIONS = {
 			"pageStreamRegistry",
-			"entries.valueColumnFactory", "entries.recordColumnFactory", "entries.comparator"
+			"entries.valueColumnFactory", "entries.recordColumnFactory", "entries.comparator",
+			"sortIndexes.transactionalLayerWrapper"
 		};
 
 		@Test
@@ -1110,6 +1115,56 @@ class LeafIndexHeapSizeTest {
 				fewTuples.getHeapSizeInBytes(), fewTuples, manyTuples.getHeapSizeInBytes(), manyTuples,
 				VIRTUAL_PARTITION_EXCLUSIONS
 			);
+		}
+
+		@Test
+		void shouldNotLetSortValuesDivergeWithTheirCount() {
+			// four times the partitions over the same values - a per-entry term the arithmetic missed (in the slot,
+			// the sort index or the dictionary user counts) would widen the gap
+			final VirtualReferencePartitionIndex small = seededWithSortValues(300, 20);
+			final VirtualReferencePartitionIndex large = seededWithSortValues(1_200, 20);
+			assertDivergenceDoesNotGrowWithTheData(
+				small.getHeapSizeInBytes(), small, large.getHeapSizeInBytes(), large, VIRTUAL_PARTITION_EXCLUSIONS
+			);
+		}
+
+		@Test
+		void shouldOverReportEachPlainSortValueByExactlyTheInstanceItsSortIndexShares() {
+			// the dictionary and the sort index each charge a distinct value in full. A plain value its normalizer
+			// leaves untouched - an Integer here - is the very instance both hold, so the arithmetic exceeds the walk
+			// by one box per distinct value: a bounded, documented excess that grows with the values, never with the
+			// partitions. Anything beyond it - a key wrapper or an id box charged twice - would show up here
+			final VirtualReferencePartitionIndex fewValues = seededWithSortValues(200, 5);
+			final VirtualReferencePartitionIndex manyValues = seededWithSortValues(200, 100);
+			final long fewExcess =
+				fewValues.getHeapSizeInBytes() - measuredHeapOf(fewValues, VIRTUAL_PARTITION_EXCLUSIONS);
+			final long manyExcess =
+				manyValues.getHeapSizeInBytes() - measuredHeapOf(manyValues, VIRTUAL_PARTITION_EXCLUSIONS);
+			assertEquals(95L * VMLayout.current().sizeOfObject(Integer.BYTES), manyExcess - fewExcess);
+		}
+
+		/**
+		 * Seeds an index with one sort key and the given number of partitions cycling through the given number of
+		 * distinct values.
+		 *
+		 * @param partitions how many partitions
+		 * @param values     how many distinct values, at most `partitions`
+		 * @return the seeded index
+		 */
+		@Nonnull
+		private static VirtualReferencePartitionIndex seededWithSortValues(int partitions, int values) {
+			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
+			final AttributeIndexKey key = new AttributeIndexKey("media", "mediaOrder", null);
+			index.declareSortKey(
+				key,
+				new ComparatorSource[]{new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)},
+				0
+			);
+			for (int partition = 1; partition <= partitions; partition++) {
+				// values and partitions above the autobox cache, so no JVM-cached box is shared by accident
+				index.putSortValue(key, AUTOBOX_CACHE_CEILING + partition, AUTOBOX_CACHE_CEILING + partition % values);
+			}
+			return index;
 		}
 
 		/**

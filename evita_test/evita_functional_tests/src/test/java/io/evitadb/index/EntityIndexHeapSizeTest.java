@@ -778,7 +778,8 @@ class EntityIndexHeapSizeTest {
 				"indexPrimaryKeyCardinality.referencedPrimaryKeysIndex.transactionalLayerWrapper",
 				"virtualReferencePartitionIndex.pageStreamRegistry",
 				"virtualReferencePartitionIndex.entries.valueColumnFactory",
-				"virtualReferencePartitionIndex.entries.recordColumnFactory"
+				"virtualReferencePartitionIndex.entries.recordColumnFactory",
+				"virtualReferencePartitionIndex.sortIndexes.transactionalLayerWrapper"
 			);
 		}
 

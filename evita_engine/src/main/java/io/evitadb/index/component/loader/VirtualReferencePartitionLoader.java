@@ -42,7 +42,8 @@ import static io.evitadb.utils.Assert.isPremiseValid;
  *
  * Unlike the other loaders this one treats a missing root as a valid state: an index that never held an entry
  * persists nothing, so an absent root - in a catalog written before the index existed, or in one that never put an
- * entry into it - loads as an empty index. A root that is present, however, must have every leaf page it lists.
+ * entry into it - loads as an empty index. A root that is present, however, must have every leaf page it lists. The
+ * sort indexes of the declared sort keys are not persisted at all; the index rebuilds them from the loaded entries.
  *
  * The reference name is the `EntityIndexKey.discriminator()`, which the dispatcher has validated to be a `String`
  * before invoking the loader.
@@ -102,13 +103,13 @@ public final class VirtualReferencePartitionLoader implements ComponentLoader {
 			}
 			index = VirtualReferencePartitionIndex.fromPersistedPages(
 				indexDescription, orderedPageSequences, perPageKeys, perPagePayloads,
-				part.getHighWaterPageSequence(), part.getTupleIds(), part.getTuples()
+				part.getHighWaterPageSequence(), part.getTupleIds(), part.getTuples(), part.getSortValueSlots()
 			);
 		} else {
 			index = new VirtualReferencePartitionIndex(
 				indexDescription,
 				Objects.requireNonNull(part.getKeys()), Objects.requireNonNull(part.getPayloads()),
-				part.getTupleIds(), part.getTuples()
+				part.getTupleIds(), part.getTuples(), part.getSortValueSlots()
 			);
 		}
 		return new LoadedComponentBundle.VirtualReferencePartitions(index);

@@ -23,6 +23,7 @@
 
 package io.evitadb.spi.store.catalog.persistence.storageParts.index;
 
+import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.RecordWithCompressedId;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
@@ -38,8 +39,8 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * Persists the root of a {@link io.evitadb.index.VirtualReferencePartitionIndex}: its slot-keyed entries and its
- * representative tuple dictionary.
+ * Persists the root of a {@link io.evitadb.index.VirtualReferencePartitionIndex}: its slot-keyed entries, its
+ * representative tuple dictionary and its sort value slots.
  *
  * The entries are carried in one of two shapes. A registry that fits one bucket-tree leaf is written inline on this
  * root as positionally-aligned `(keys, payloads)` columns (the SINGLE shape). A larger one is paged out as individual
@@ -50,12 +51,17 @@ import java.io.Serializable;
  * in ascending id order. It holds only the tuples and their ids; how many partitions share each tuple is derived from
  * the entries on load, so a partition switching between existing tuples never rewrites this root.
  *
+ * Each sort value slot rides inline as well, as one {@link SortValueSlot}: the sort key the slot was declared for and
+ * the slot's dictionary of normalized sort values. Again only the values and their ids are kept - which partitions
+ * hold each value is read off the slot's entries on load - so a partition switching between existing values never
+ * rewrites this root either.
+ *
  * The primary key is `pack(entityIndexPrimaryKey, id(ReferenceNameKey))` - the same number the reference-type
  * cardinality root of the same entity index carries, which cannot collide with it, because the offset index keys
  * every record by its record type as well.
  *
- * Only an index holding at least one entry is ever persisted: an empty one has no root at all, and the loader reads
- * an absent root as an empty index.
+ * Only an index holding at least one entry or one declared sort key is ever persisted: an empty one has no root at
+ * all, and the loader reads an absent root as an empty index.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -101,6 +107,10 @@ public class VirtualReferencePartitionIndexStoragePart implements StoragePart, R
 	 */
 	@Nonnull @Getter private final Serializable[][] tuples;
 	/**
+	 * The declared sort keys with their value dictionaries, in ascending slot id order.
+	 */
+	@Nonnull @Getter private final SortValueSlot[] sortValueSlots;
+	/**
 	 * Id used for lookups in file offset index for this particular container.
 	 */
 	@Nullable @Getter @Setter private Long storagePartPK;
@@ -118,6 +128,7 @@ public class VirtualReferencePartitionIndexStoragePart implements StoragePart, R
 		@Nullable int[] leafPageSequences,
 		@Nonnull int[] tupleIds,
 		@Nonnull Serializable[][] tuples,
+		@Nonnull SortValueSlot[] sortValueSlots,
 		@Nullable Long storagePartPK
 	) {
 		Assert.isPremiseValid(
@@ -132,6 +143,7 @@ public class VirtualReferencePartitionIndexStoragePart implements StoragePart, R
 		this.leafPageSequences = leafPageSequences;
 		this.tupleIds = tupleIds;
 		this.tuples = tuples;
+		this.sortValueSlots = sortValueSlots;
 		this.storagePartPK = storagePartPK;
 	}
 
@@ -144,6 +156,7 @@ public class VirtualReferencePartitionIndexStoragePart implements StoragePart, R
 	 * @param payloads              the entry payloads, aligned with `keys`
 	 * @param tupleIds              the dictionary tuple ids in ascending order
 	 * @param tuples                the dictionary tuples, aligned with `tupleIds`
+	 * @param sortValueSlots        the declared sort keys with their value dictionaries, in ascending slot id order
 	 * @param storagePartPK         the already-known primary key, or `null` on the write path
 	 * @return the SINGLE root storage part
 	 */
@@ -155,11 +168,13 @@ public class VirtualReferencePartitionIndexStoragePart implements StoragePart, R
 		@Nonnull long[] payloads,
 		@Nonnull int[] tupleIds,
 		@Nonnull Serializable[][] tuples,
+		@Nonnull SortValueSlot[] sortValueSlots,
 		@Nullable Long storagePartPK
 	) {
 		Assert.isPremiseValid(keys.length == payloads.length, "Keys and payloads must be positionally aligned!");
 		return new VirtualReferencePartitionIndexStoragePart(
-			entityIndexPrimaryKey, referenceName, false, keys, payloads, 0, null, tupleIds, tuples, storagePartPK
+			entityIndexPrimaryKey, referenceName, false, keys, payloads, 0, null, tupleIds, tuples, sortValueSlots,
+			storagePartPK
 		);
 	}
 
@@ -173,6 +188,7 @@ public class VirtualReferencePartitionIndexStoragePart implements StoragePart, R
 	 * @param leafPageSequences     every live leaf's page sequence in ascending key order
 	 * @param tupleIds              the dictionary tuple ids in ascending order
 	 * @param tuples                the dictionary tuples, aligned with `tupleIds`
+	 * @param sortValueSlots        the declared sort keys with their value dictionaries, in ascending slot id order
 	 * @param storagePartPK         the already-known primary key, or `null` on the write path
 	 * @return the PAGED root storage part
 	 */
@@ -184,11 +200,12 @@ public class VirtualReferencePartitionIndexStoragePart implements StoragePart, R
 		@Nonnull int[] leafPageSequences,
 		@Nonnull int[] tupleIds,
 		@Nonnull Serializable[][] tuples,
+		@Nonnull SortValueSlot[] sortValueSlots,
 		@Nullable Long storagePartPK
 	) {
 		return new VirtualReferencePartitionIndexStoragePart(
 			entityIndexPrimaryKey, referenceName, true, null, null,
-			highWaterPageSequence, leafPageSequences, tupleIds, tuples, storagePartPK
+			highWaterPageSequence, leafPageSequences, tupleIds, tuples, sortValueSlots, storagePartPK
 		);
 	}
 
@@ -219,6 +236,39 @@ public class VirtualReferencePartitionIndexStoragePart implements StoragePart, R
 	@Override
 	public String getStoragePartSourceKey() {
 		return this.referenceName;
+	}
+
+	/**
+	 * One declared sort key of the index as the root persists it: the slot its entries are keyed under, what the slot
+	 * sorts by, and the slot's dictionary of distinct normalized sort values as positionally-aligned `(valueIds,
+	 * values)` columns in ascending id order. The payload of every entry of the slot is one of `valueIds`.
+	 *
+	 * A value of a single attribute is stored the way the sort index normalizes it (a decomposed `String`, a scaled
+	 * `BigDecimal`, a comparable wrapper of a `Locale` or `Currency`); a value of a sortable attribute compound is a
+	 * {@link io.evitadb.index.attribute.SortIndex.ComparableArray} of such elements.
+	 *
+	 * @param slotId               the id of the slot, the high half of every key of its entries
+	 * @param attributeIndexKey    the attribute or compound (and its locale) the slot sorts by
+	 * @param comparatorBase       one descriptor per sorted element - a single one for a plain attribute
+	 * @param indexedDecimalPlaces the decimal places a `BigDecimal` attribute is scaled by, `0` for any other type
+	 * @param valueIds             the dictionary value ids in ascending order
+	 * @param values               the normalized values, aligned with `valueIds`
+	 */
+	public record SortValueSlot(
+		int slotId,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull ComparatorSource[] comparatorBase,
+		int indexedDecimalPlaces,
+		@Nonnull int[] valueIds,
+		@Nonnull Serializable[] values
+	) implements Serializable {
+
+		public SortValueSlot {
+			Assert.isPremiseValid(
+				valueIds.length == values.length, "Sort value ids and values must be positionally aligned!"
+			);
+		}
+
 	}
 
 }

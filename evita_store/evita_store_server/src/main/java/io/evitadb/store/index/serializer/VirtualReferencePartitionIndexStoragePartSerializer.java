@@ -27,9 +27,12 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceNameKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart.SortValueSlot;
 import io.evitadb.store.index.serializer.PagedStreamMetadataSerializer.PagedStreamMetadata;
 import lombok.RequiredArgsConstructor;
 
@@ -45,6 +48,12 @@ import static java.util.Optional.ofNullable;
  * metadata. The tuple dictionary follows in both shapes - each id as a positive varint and each tuple as its length
  * followed by its values written with their classes, as
  * {@link RepresentativeReferenceKeySerializer} writes representative attribute values.
+ *
+ * The sort value slots close the part, in ascending slot id order: each slot id as a positive varint, the compressed
+ * id of its {@link AttributeIndexKey}, its comparator base and decimal places, and its value dictionary - each value id
+ * as a positive varint followed by the value in the encoding a
+ * {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart} uses for its distinct
+ * values, so the element types of a compound travel with each element.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -90,6 +99,23 @@ public class VirtualReferencePartitionIndexStoragePartSerializer
 				kryo.writeClassAndObject(output, value);
 			}
 		}
+
+		final SortValueSlot[] sortValueSlots = storagePart.getSortValueSlots();
+		output.writeVarInt(sortValueSlots.length, true);
+		for (final SortValueSlot slot : sortValueSlots) {
+			output.writeVarInt(slot.slotId(), true);
+			output.writeVarInt(this.keyCompressor.getId(slot.attributeIndexKey()), true);
+			final ComparatorSource[] comparatorBase = slot.comparatorBase();
+			SortIndexStoragePartSerializer.writeComparatorBase(kryo, output, comparatorBase);
+			output.writeVarInt(slot.indexedDecimalPlaces(), true);
+			final int[] valueIds = slot.valueIds();
+			final Serializable[] values = slot.values();
+			output.writeVarInt(valueIds.length, true);
+			for (int i = 0; i < valueIds.length; i++) {
+				output.writeVarInt(valueIds[i], true);
+				SortIndexStoragePartSerializer.writeComparableValue(kryo, output, values[i], comparatorBase.length);
+			}
+		}
 	}
 
 	@Override
@@ -124,14 +150,32 @@ public class VirtualReferencePartitionIndexStoragePartSerializer
 			tuples[i] = tuple;
 		}
 
+		final SortValueSlot[] sortValueSlots = new SortValueSlot[input.readVarInt(true)];
+		for (int i = 0; i < sortValueSlots.length; i++) {
+			final int slotId = input.readVarInt(true);
+			final AttributeIndexKey attributeIndexKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
+			final ComparatorSource[] comparatorBase = SortIndexStoragePartSerializer.readComparatorBase(kryo, input);
+			final int indexedDecimalPlaces = input.readVarInt(true);
+			final int valueCount = input.readVarInt(true);
+			final int[] valueIds = new int[valueCount];
+			final Serializable[] values = new Serializable[valueCount];
+			for (int j = 0; j < valueCount; j++) {
+				valueIds[j] = input.readVarInt(true);
+				values[j] = SortIndexStoragePartSerializer.readComparableValue(kryo, input, comparatorBase.length);
+			}
+			sortValueSlots[i] = new SortValueSlot(
+				slotId, attributeIndexKey, comparatorBase, indexedDecimalPlaces, valueIds, values
+			);
+		}
+
 		return paged ?
 			VirtualReferencePartitionIndexStoragePart.paged(
 				entityIndexPrimaryKey, referenceNameKey.referenceName(),
-				highWaterPageSequence, leafPageSequences, tupleIds, tuples, uniquePartId
+				highWaterPageSequence, leafPageSequences, tupleIds, tuples, sortValueSlots, uniquePartId
 			) :
 			VirtualReferencePartitionIndexStoragePart.single(
 				entityIndexPrimaryKey, referenceNameKey.referenceName(),
-				entries[0], entries[1], tupleIds, tuples, uniquePartId
+				entries[0], entries[1], tupleIds, tuples, sortValueSlots, uniquePartId
 			);
 	}
 

@@ -23,13 +23,19 @@
 
 package io.evitadb.index;
 
+import com.carrotsearch.hppc.IntIntHashMap;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.dataType.ComparableCurrency;
+import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.array.CompositeLongArray;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.attribute.OwnerSortIndex;
+import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
+import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.index.bPlusTree.LongPayloadBucketTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
@@ -37,11 +43,14 @@ import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.LeafPageHandle;
 import io.evitadb.index.bPlusTree.ValueColumnFactory;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.PersistentTransactionalMap;
+import io.evitadb.index.map.PersistentTransactionalProducerMap;
 import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.page.PageStreamRegistry;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart.SortValueSlot;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionRootRemoval;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -52,12 +61,17 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.OptionalLong;
+import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 /**
  * Keeps, for one reference of one entity type and scope, what is known about each reference partition that has no
@@ -87,15 +101,32 @@ import java.util.OptionalLong;
  * dictionary counts how many partitions use each tuple and drops a tuple together with its last user. Ids are
  * allocated one above the largest id in use, so an id is reused only after nothing refers to it any longer.
  *
+ * # Sort value slots
+ *
+ * Partitions are also ordered by their sortable attributes and sortable attribute compounds. Each sort key - an
+ * attribute or a compound, with its locale - is declared once and gets a slot of its own, with an id from
+ * {@link VirtualReferencePartitionSlot#FIRST_DECLARED_SLOT_ID} up that stays fixed while the key is declared. The
+ * entry of a partition in that slot holds the id of the partition's sort value in the slot's value dictionary, which
+ * keeps every distinct value once, normalized exactly as {@link SortIndex} normalizes it, and counts its users the way
+ * the tuple dictionary does. Values the sort key orders as equal - `1.0` and `1.00` in a compound - are one value, as
+ * they are one bucket of the sort index.
+ *
+ * Next to the entries the index keeps one {@link OwnerSortIndex} per sort key, its record ids being partition primary
+ * keys, and every put and removal updates the slot and the sort index together. The sort index itself is never
+ * persisted. The slot and its dictionary are, and the sort index is rebuilt from them on load by a counting pass:
+ * the persisted entries of a slot come in ascending partition order, so bucketing them by value id and laying the
+ * buckets out in the order of the sorted distinct values yields exactly the blocks of ascending record ids the sort
+ * index holds. Only the distinct values are ever compared, and the pass allocates nothing per entry.
+ *
  * # Persistence
  *
  * The tree is persisted granularly, exactly like {@link io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex}:
  * a tree of one leaf is written inline on the root part, a larger one as one
- * {@link VirtualReferencePartitionIndexLeafPagePart} per leaf, rewriting only the leaves a flush changed. The
- * dictionary rides inline on the root, without its counts - they are rebuilt from the
- * {@link VirtualReferencePartitionSlot#REPRESENTATIVE_TUPLE} entries on load. A PAGED root is therefore rewritten
- * only when its leaf list or its dictionary changes, and a change of one partition's entry costs one leaf page.
- * An empty index persists nothing at all and has no root on disk.
+ * {@link VirtualReferencePartitionIndexLeafPagePart} per leaf, rewriting only the leaves a flush changed. The tuple
+ * dictionary, the declared sort keys and their value dictionaries ride inline on the root, without their counts -
+ * those are rebuilt from the entries on load. A PAGED root is therefore rewritten only when its leaf list or one of
+ * its dictionaries changes, and a change of one partition's entry costs one leaf page. An index with no entry and no
+ * declared sort key persists nothing at all and has no root on disk.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -122,14 +153,20 @@ public class VirtualReferencePartitionIndex
 	 * Natural `long` order of the entry keys, which sorts by slot first and by partition primary key within a slot.
 	 */
 	private static final Comparator<Comparable<?>> NATURAL_ORDER = (Comparator) Comparator.naturalOrder();
+	/**
+	 * Turns the committed copy of a sort index back into the owner sort index it always is - a single shared instance,
+	 * so the sort index map holds no function of its own.
+	 */
+	private static final Function<SortIndex, OwnerSortIndex> TO_OWNER_SORT_INDEX = OwnerSortIndex.class::cast;
 
 	/**
 	 * Whether anything changed since the last flush.
 	 */
 	@Nonnull private final TransactionalBoolean dirty;
 	/**
-	 * Whether a tuple was added to or dropped from the dictionary since the last flush, which is what forces a PAGED
-	 * root to be rewritten even when its leaf list did not change.
+	 * Whether a tuple or a sort value was added to or dropped from its dictionary, or a sort key was declared or
+	 * retired, since the last flush - which is what forces a PAGED root to be rewritten even when its leaf list did not
+	 * change.
 	 */
 	@Nonnull private final TransactionalBoolean dictionaryDirty;
 	/**
@@ -150,6 +187,24 @@ public class VirtualReferencePartitionIndex
 	 * The tuple dictionary keyed by the tuple id - resolves an id back to its tuple and counts its users.
 	 */
 	@Nonnull private final PersistentTransactionalMap<Integer, DictionaryEntry> tuples;
+	/**
+	 * The declared sort keys - the slot of each and what it sorts by.
+	 */
+	@Nonnull private final PersistentTransactionalMap<AttributeIndexKey, DeclaredSortKey> sortKeys;
+	/**
+	 * The value dictionaries of every sort value slot keyed by the slot and the normalized value - finds the id of a
+	 * known value. The values are the very boxes {@link #sortValues} holds.
+	 */
+	@Nonnull private final PersistentTransactionalMap<SortValueKey, Integer> sortValueIds;
+	/**
+	 * The value dictionaries of every sort value slot keyed by `pack(slotId, valueId)` - resolves an id back to its
+	 * value and counts its users.
+	 */
+	@Nonnull private final PersistentTransactionalMap<Long, SortValueEntry> sortValues;
+	/**
+	 * The sort index of each declared sort key, holding the partition primary keys of the slot's entries.
+	 */
+	@Nonnull private final PersistentTransactionalProducerMap<AttributeIndexKey, OwnerSortIndex> sortIndexes;
 
 	/**
 	 * Creates a fresh, empty entry tree ordered by natural `long` key order.
@@ -169,6 +224,19 @@ public class VirtualReferencePartitionIndex
 	}
 
 	/**
+	 * Wraps the sort indexes in the transactional map that keeps them.
+	 *
+	 * @param sortIndexes the sort indexes keyed by their sort key
+	 * @return the transactional sort index map
+	 */
+	@Nonnull
+	private static PersistentTransactionalProducerMap<AttributeIndexKey, OwnerSortIndex> createSortIndexMap(
+		@Nonnull Map<AttributeIndexKey, OwnerSortIndex> sortIndexes
+	) {
+		return new PersistentTransactionalProducerMap<>(sortIndexes, SortIndex.class, TO_OWNER_SORT_INDEX);
+	}
+
+	/**
 	 * Rebuilds an index whose entries were persisted as leaf pages, preserving the leaf boundaries and page identities,
 	 * so that the first flush after the load rewrites only the leaves that changed.
 	 *
@@ -179,6 +247,7 @@ public class VirtualReferencePartitionIndex
 	 * @param highWaterPageSequence the largest page sequence ever allocated for the stream
 	 * @param tupleIds              the persisted dictionary tuple ids
 	 * @param tuples                the persisted dictionary tuples, aligned with `tupleIds`
+	 * @param sortValueSlots        the persisted sort value slots in ascending slot id order
 	 * @return the rebuilt index
 	 */
 	@Nonnull
@@ -189,7 +258,8 @@ public class VirtualReferencePartitionIndex
 		@Nonnull long[][] perPagePayloads,
 		int highWaterPageSequence,
 		@Nonnull int[] tupleIds,
-		@Nonnull Serializable[][] tuples
+		@Nonnull Serializable[][] tuples,
+		@Nonnull SortValueSlot[] sortValueSlots
 	) {
 		Assert.isPremiseValid(
 			orderedPageSequences.length == perPageKeys.length && perPageKeys.length == perPagePayloads.length,
@@ -216,7 +286,9 @@ public class VirtualReferencePartitionIndex
 		final PageStreamRegistry registry = PageStreamRegistry.restoredFrom(
 			ENTRY_PAGE_STREAM, highWaterPageSequence, tree.leafPageHandles()
 		);
-		return new VirtualReferencePartitionIndex(tree, registry, tupleIds, tuples, indexDescription);
+		return new VirtualReferencePartitionIndex(
+			tree, registry, tupleIds, tuples, sortValueSlots, perPageKeys, perPagePayloads, indexDescription
+		);
 	}
 
 	/**
@@ -229,6 +301,10 @@ public class VirtualReferencePartitionIndex
 		this.pageStreamRegistry = new PageStreamRegistry();
 		this.tupleIds = new PersistentTransactionalMap<>(CollectionUtils.createHashMap(4));
 		this.tuples = new PersistentTransactionalMap<>(CollectionUtils.createHashMap(4));
+		this.sortKeys = new PersistentTransactionalMap<>(CollectionUtils.createHashMap(4));
+		this.sortValueIds = new PersistentTransactionalMap<>(CollectionUtils.createHashMap(16));
+		this.sortValues = new PersistentTransactionalMap<>(CollectionUtils.createHashMap(16));
+		this.sortIndexes = createSortIndexMap(CollectionUtils.createHashMap(4));
 	}
 
 	/**
@@ -239,25 +315,35 @@ public class VirtualReferencePartitionIndex
 	 * @param payloads         the persisted entry payloads, aligned with `keys`
 	 * @param tupleIds         the persisted dictionary tuple ids
 	 * @param tuples           the persisted dictionary tuples, aligned with `tupleIds`
+	 * @param sortValueSlots   the persisted sort value slots in ascending slot id order
 	 */
 	public VirtualReferencePartitionIndex(
 		@Nonnull String indexDescription,
 		@Nonnull long[] keys,
 		@Nonnull long[] payloads,
 		@Nonnull int[] tupleIds,
-		@Nonnull Serializable[][] tuples
+		@Nonnull Serializable[][] tuples,
+		@Nonnull SortValueSlot[] sortValueSlots
 	) {
-		this(seedTree(keys, payloads), new PageStreamRegistry(), tupleIds, tuples, indexDescription);
+		this(
+			seedTree(keys, payloads), new PageStreamRegistry(), tupleIds, tuples, sortValueSlots,
+			new long[][]{keys}, new long[][]{payloads}, indexDescription
+		);
 	}
 
 	/**
-	 * Adopts a tree rebuilt from storage and rebuilds the tuple dictionary around it - the persisted tuples paired
-	 * with the user counts read off the {@link VirtualReferencePartitionSlot#REPRESENTATIVE_TUPLE} entries.
+	 * Adopts a tree rebuilt from storage and rebuilds the dictionaries and the sort indexes around it - the persisted
+	 * tuples paired with the user counts read off the {@link VirtualReferencePartitionSlot#REPRESENTATIVE_TUPLE}
+	 * entries, and each sort value slot by {@link #rebuildSortKeys}.
 	 *
 	 * @param tree               the rebuilt entry tree
 	 * @param pageStreamRegistry the page bookkeeping matching the tree
 	 * @param tupleIds           the persisted dictionary tuple ids
 	 * @param tuples             the persisted dictionary tuples, aligned with `tupleIds`
+	 * @param sortValueSlots     the persisted sort value slots in ascending slot id order
+	 * @param keyColumns         the persisted entry keys the tree was built from, in ascending key order across the
+	 *                           columns
+	 * @param payloadColumns     the persisted entry payloads, aligned with `keyColumns`
 	 * @param indexDescription   identification of the index for corruption diagnostics
 	 */
 	private VirtualReferencePartitionIndex(
@@ -265,6 +351,9 @@ public class VirtualReferencePartitionIndex
 		@Nonnull PageStreamRegistry pageStreamRegistry,
 		@Nonnull int[] tupleIds,
 		@Nonnull Serializable[][] tuples,
+		@Nonnull SortValueSlot[] sortValueSlots,
+		@Nonnull long[][] keyColumns,
+		@Nonnull long[][] payloadColumns,
 		@Nonnull String indexDescription
 	) {
 		Assert.isPremiseValid(
@@ -321,6 +410,20 @@ public class VirtualReferencePartitionIndex
 		}
 		this.tupleIds = new PersistentTransactionalMap<>(tupleIdIndex);
 		this.tuples = new PersistentTransactionalMap<>(tupleIndex);
+
+		final Map<AttributeIndexKey, DeclaredSortKey> sortKeyIndex = CollectionUtils.createHashMap(sortValueSlots.length);
+		final Map<SortValueKey, Integer> sortValueIdIndex = CollectionUtils.createHashMap(16);
+		final Map<Long, SortValueEntry> sortValueIndex = CollectionUtils.createHashMap(16);
+		final Map<AttributeIndexKey, OwnerSortIndex> sortIndexIndex =
+			CollectionUtils.createHashMap(sortValueSlots.length);
+		rebuildSortKeys(
+			indexDescription, sortValueSlots, keyColumns, payloadColumns,
+			sortKeyIndex, sortValueIdIndex, sortValueIndex, sortIndexIndex
+		);
+		this.sortKeys = new PersistentTransactionalMap<>(sortKeyIndex);
+		this.sortValueIds = new PersistentTransactionalMap<>(sortValueIdIndex);
+		this.sortValues = new PersistentTransactionalMap<>(sortValueIndex);
+		this.sortIndexes = createSortIndexMap(sortIndexIndex);
 	}
 
 	/**
@@ -330,12 +433,20 @@ public class VirtualReferencePartitionIndex
 	 * @param pageStreamRegistry the page bookkeeping, carried by reference
 	 * @param tupleIds           the committed `tuple -> id` map
 	 * @param tuples             the committed `id -> entry` map
+	 * @param sortKeys           the committed declared sort keys
+	 * @param sortValueIds       the committed `(slot, value) -> id` map
+	 * @param sortValues         the committed `pack(slot, id) -> entry` map
+	 * @param sortIndexes        the committed sort indexes
 	 */
 	private VirtualReferencePartitionIndex(
 		@Nonnull LongPayloadBucketTree committedTree,
 		@Nonnull PageStreamRegistry pageStreamRegistry,
 		@Nonnull Map<ComparableArray, Integer> tupleIds,
-		@Nonnull Map<Integer, DictionaryEntry> tuples
+		@Nonnull Map<Integer, DictionaryEntry> tuples,
+		@Nonnull Map<AttributeIndexKey, DeclaredSortKey> sortKeys,
+		@Nonnull Map<SortValueKey, Integer> sortValueIds,
+		@Nonnull Map<Long, SortValueEntry> sortValues,
+		@Nonnull Map<AttributeIndexKey, OwnerSortIndex> sortIndexes
 	) {
 		this.dirty = new TransactionalBoolean();
 		this.dictionaryDirty = new TransactionalBoolean();
@@ -343,6 +454,10 @@ public class VirtualReferencePartitionIndex
 		this.pageStreamRegistry = pageStreamRegistry;
 		this.tupleIds = new PersistentTransactionalMap<>(tupleIds);
 		this.tuples = new PersistentTransactionalMap<>(tuples);
+		this.sortKeys = new PersistentTransactionalMap<>(sortKeys);
+		this.sortValueIds = new PersistentTransactionalMap<>(sortValueIds);
+		this.sortValues = new PersistentTransactionalMap<>(sortValues);
+		this.sortIndexes = createSortIndexMap(sortIndexes);
 	}
 
 	/**
@@ -370,22 +485,33 @@ public class VirtualReferencePartitionIndex
 	 * @return the composed key
 	 */
 	private static long key(@Nonnull VirtualReferencePartitionSlot slot, int partitionPrimaryKey) {
+		return key(slot.getId(), partitionPrimaryKey);
+	}
+
+	/**
+	 * Composes the tree key of a partition's entry in the slot with the given id.
+	 *
+	 * @param slotId              the slot id
+	 * @param partitionPrimaryKey the partition primary key, positive
+	 * @return the composed key
+	 */
+	private static long key(int slotId, int partitionPrimaryKey) {
 		// a plain branch rather than an assertion with a message, so the valid path builds no string
 		if (partitionPrimaryKey <= 0) {
 			throw new GenericEvitaInternalError(
 				"Partition primary key must be positive, but was " + partitionPrimaryKey + "!"
 			);
 		}
-		return NumberUtils.pack(slot.getId(), partitionPrimaryKey);
+		return NumberUtils.pack(slotId, partitionPrimaryKey);
 	}
 
 	/**
-	 * Returns TRUE if the index holds no entry.
+	 * Returns TRUE if the index holds no entry and no declared sort key.
 	 *
-	 * @return TRUE if the index holds no entry
+	 * @return TRUE if the index holds nothing
 	 */
 	public boolean isEmpty() {
-		return this.entries.size() == 0;
+		return this.entries.size() == 0 && this.sortKeys.isEmpty();
 	}
 
 	/**
@@ -519,6 +645,156 @@ public class VirtualReferencePartitionIndex
 	}
 
 	/**
+	 * Declares a sort key: gives it a slot of its own and an empty sort index. Declaring a key that is already
+	 * declared with the same comparator base and decimal places does nothing; declaring it with different ones is a
+	 * programming error, because the values already in its slot were normalized and ordered by the old ones.
+	 *
+	 * @param attributeIndexKey    the attribute or compound, with its locale, to sort the partitions by
+	 * @param comparatorBase       one descriptor per sorted element - a single one for a plain attribute, at least two
+	 *                             for a sortable attribute compound
+	 * @param indexedDecimalPlaces the decimal places a `BigDecimal` attribute is scaled by, `0` for any other type
+	 */
+	public void declareSortKey(
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull ComparatorSource[] comparatorBase,
+		int indexedDecimalPlaces
+	) {
+		final DeclaredSortKey declared = this.sortKeys.get(attributeIndexKey);
+		if (declared != null) {
+			if (!Arrays.equals(declared.comparatorBase(), comparatorBase) ||
+				declared.indexedDecimalPlaces() != indexedDecimalPlaces) {
+				throw new GenericEvitaInternalError(
+					"Sort key `" + attributeIndexKey + "` is already declared with comparator base " +
+						Arrays.toString(declared.comparatorBase()) + " and " + declared.indexedDecimalPlaces() +
+						" decimal places, it cannot be declared again with " + Arrays.toString(comparatorBase) +
+						" and " + indexedDecimalPlaces + "!"
+				);
+			}
+			return;
+		}
+		// one above the largest slot in use: a slot id is reused only after its key was retired with all its entries
+		final int[] largestSlotId = {VirtualReferencePartitionSlot.FIRST_DECLARED_SLOT_ID - 1};
+		this.sortKeys.forEach(
+			(key, sortKey) -> largestSlotId[0] = Math.max(largestSlotId[0], sortKey.slotId())
+		);
+		final DeclaredSortKey sortKey = DeclaredSortKey.of(
+			largestSlotId[0] + 1, attributeIndexKey, Arrays.copyOf(comparatorBase, comparatorBase.length),
+			indexedDecimalPlaces, 1
+		);
+		this.sortKeys.put(attributeIndexKey, sortKey);
+		this.sortIndexes.put(attributeIndexKey, createSortIndex(sortKey, new int[0], new Serializable[0], Map.of()));
+		this.dictionaryDirty.setToTrue();
+		this.dirty.setToTrue();
+	}
+
+	/**
+	 * Retires a sort key: removes the sort value of every partition from its slot, its value dictionary, its sort index
+	 * and the slot itself.
+	 *
+	 * @param attributeIndexKey the attribute or compound, with its locale, the partitions are sorted by
+	 * @return true if the key was declared
+	 */
+	public boolean retireSortKey(@Nonnull AttributeIndexKey attributeIndexKey) {
+		final DeclaredSortKey sortKey = this.sortKeys.remove(attributeIndexKey);
+		if (sortKey == null) {
+			return false;
+		}
+		final int slotId = sortKey.slotId();
+		// collect first, the tree must not change under its own cursor
+		final CompositeLongArray slotKeys = new CompositeLongArray();
+		forEachEntry(
+			slotId, (partitionPrimaryKey, valueId) -> slotKeys.add(NumberUtils.pack(slotId, partitionPrimaryKey))
+		);
+		for (final long slotKey : slotKeys.toArray()) {
+			this.entries.removeLongRecord(slotKey);
+		}
+		final List<SortValueEntry> slotValues = new ArrayList<>(16);
+		this.sortValues.forEach(
+			(packedId, entry) -> {
+				if (entry.key().slotId() == slotId) {
+					slotValues.add(entry);
+				}
+			}
+		);
+		for (final SortValueEntry entry : slotValues) {
+			this.sortValues.remove(NumberUtils.pack(slotId, entry.id()));
+			this.sortValueIds.remove(entry.key());
+		}
+		this.sortIndexes.remove(attributeIndexKey);
+		this.dictionaryDirty.setToTrue();
+		this.dirty.setToTrue();
+		return true;
+	}
+
+	/**
+	 * Records the sort value of the partition for a declared sort key of a plain attribute, replacing the previous one.
+	 * The value is normalized as {@link SortIndex} normalizes it, a value the slot's dictionary does not know yet is
+	 * added to it, and the partition is moved to the value's block of the key's sort index.
+	 *
+	 * @param attributeIndexKey   the declared sort key of a plain attribute
+	 * @param partitionPrimaryKey the partition primary key, positive
+	 * @param value               the attribute value, of the type the key was declared with
+	 */
+	public void putSortValue(
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		int partitionPrimaryKey,
+		@Nonnull Serializable value
+	) {
+		putSortValue(attributeIndexKey, partitionPrimaryKey, value, false);
+	}
+
+	/**
+	 * Records the sort value of the partition for a declared sort key of a sortable attribute compound, replacing the
+	 * previous one. See {@link #putSortValue(AttributeIndexKey, int, Serializable)}; the array is not modified.
+	 *
+	 * @param attributeIndexKey   the declared sort key of a sortable attribute compound
+	 * @param partitionPrimaryKey the partition primary key, positive
+	 * @param value               the values of the compound elements, in element order, `null` for a missing one
+	 */
+	public void putSortValue(
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		int partitionPrimaryKey,
+		@Nonnull Serializable[] value
+	) {
+		putSortValue(attributeIndexKey, partitionPrimaryKey, value, true);
+	}
+
+	/**
+	 * Forgets the sort value of the partition for a declared sort key, dropping the value from the slot's dictionary
+	 * when the partition was its last user.
+	 *
+	 * @param attributeIndexKey   the declared sort key
+	 * @param partitionPrimaryKey the partition primary key, positive
+	 * @return true if the partition had a sort value recorded
+	 */
+	public boolean removeSortValue(@Nonnull AttributeIndexKey attributeIndexKey, int partitionPrimaryKey) {
+		final DeclaredSortKey sortKey = getDeclaredSortKey(attributeIndexKey);
+		final long key = key(sortKey.slotId(), partitionPrimaryKey);
+		final OptionalLong previousValueId = this.entries.getLongRecordEqualTo(key);
+		if (previousValueId.isEmpty()) {
+			return false;
+		}
+		this.entries.removeLongRecord(key);
+		final Serializable previousValue = releaseSortValue(sortKey.slotId(), (int) previousValueId.getAsLong());
+		this.sortIndexes.markValueMutated(attributeIndexKey);
+		removeFromSortIndex(getSortIndexOfDeclaredKey(attributeIndexKey), previousValue, partitionPrimaryKey);
+		this.dirty.setToTrue();
+		return true;
+	}
+
+	/**
+	 * Returns the sort index of a sort key, its record ids being the primary keys of the partitions holding a sort value
+	 * for the key.
+	 *
+	 * @param attributeIndexKey the sort key
+	 * @return the sort index, or `null` when the key is not declared
+	 */
+	@Nullable
+	public OwnerSortIndex getSortIndex(@Nonnull AttributeIndexKey attributeIndexKey) {
+		return this.sortIndexes.get(attributeIndexKey);
+	}
+
+	/**
 	 * Emits a removal for every leaf page this index has on disk, used when the owning entity index is dropped and
 	 * its persisted footprint must be reclaimed. Reads only the persisted page baseline and has no side effects.
 	 *
@@ -543,9 +819,10 @@ public class VirtualReferencePartitionIndex
 	/**
 	 * Appends the storage parts that changed since the last flush to the sink:
 	 *
-	 * - an empty index removes its root and every leaf page it has on disk, so it leaves nothing behind,
+	 * - an index with no entry and no declared sort key removes its root and every leaf page it has on disk, so it
+	 *   leaves nothing behind,
 	 * - a PAGED index writes one leaf page per changed leaf and a removal per freed leaf, and rewrites its root only
-	 *   when the leaf list or the tuple dictionary changed,
+	 *   when the leaf list, a dictionary or the declared sort keys changed,
 	 * - a SINGLE index removes the leaf pages left behind by a collapse from PAGED and writes the inline root.
 	 *
 	 * @param entityIndexPrimaryKey primary key of the owning entity index
@@ -560,7 +837,7 @@ public class VirtualReferencePartitionIndex
 		if (!this.dirty.isTrue()) {
 			return;
 		}
-		if (this.entries.size() == 0) {
+		if (isEmpty()) {
 			// reclaim against what the previous flush left on disk (its staged set while unpublished), then forget the
 			// stream so a later regrowth starts from a clean baseline; a root that never reached disk resolves to a
 			// removal of nothing
@@ -583,7 +860,7 @@ public class VirtualReferencePartitionIndex
 					)
 				);
 			}
-			// the root carries the leaf list and the dictionary only - a flush that changed neither leaves the
+			// the root carries the leaf list and the dictionaries only - a flush that changed neither leaves the
 			// persisted root byte-identical, so a one-entry change costs one leaf page
 			if (emission.pageListChanged() || this.dictionaryDirty.isTrue()) {
 				final DictionarySnapshot dictionary = dictionarySnapshot();
@@ -591,7 +868,7 @@ public class VirtualReferencePartitionIndex
 					VirtualReferencePartitionIndexStoragePart.paged(
 						entityIndexPrimaryKey, referenceName,
 						emission.highWaterPageSequence(), emission.orderedPageSequences(),
-						dictionary.tupleIds(), dictionary.tuples(), null
+						dictionary.tupleIds(), dictionary.tuples(), dictionary.sortValueSlots(), null
 					)
 				);
 			}
@@ -612,26 +889,36 @@ public class VirtualReferencePartitionIndex
 			sink.addChangeToStore(
 				VirtualReferencePartitionIndexStoragePart.single(
 					entityIndexPrimaryKey, referenceName, keys.toArray(), payloads.toArray(),
-					dictionary.tupleIds(), dictionary.tuples(), null
+					dictionary.tupleIds(), dictionary.tuples(), dictionary.sortValueSlots(), null
 				)
 			);
 		}
 	}
 
+	/**
+	 * Clears the dirty flags once the flush wrote the changes - those of the sort indexes too, which are never flushed
+	 * themselves, but whose flags are what tells their own commit whether they changed.
+	 */
 	@Override
 	public void resetDirty() {
 		this.dirty.reset();
 		this.dictionaryDirty.reset();
+		this.sortIndexes.forEach((attributeIndexKey, sortIndex) -> sortIndex.resetDirty());
 	}
 
 	/**
-	 * Returns the heap this index occupies, in bytes - its own object, both dirty flags, the entry tree and the tuple
-	 * dictionary.
+	 * Returns the heap this index occupies, in bytes - its own object, both dirty flags, the entry tree, the tuple
+	 * dictionary, the declared sort keys, their value dictionaries and their sort indexes.
 	 *
 	 * The entry tree keeps its keys inline in a primitive column, but its internal nodes box one separator key per
 	 * leaf boundary, which {@link IndexHeapSize#OWNED_KEY_SIZER} prices. Each dictionary tuple and each id box is
 	 * shared by both dictionary maps and charged once, at the `tuple -> id` map; the `id -> entry` map is charged only
-	 * for its entry shells. {@link #pageStreamRegistry} is flush bookkeeping rather than index content and is excluded.
+	 * for its entry shells. The sort value dictionaries follow the same rule: the value, its key wrapper and its id box
+	 * are charged at the `(slot, value) -> id` map, the `pack(slot, id) -> entry` map pays its `Long` keys and its entry
+	 * shells. The sort index charges its own values in full as well, and a plain value its normalizer leaves untouched
+	 * is the very instance both hold - so the figure exceeds the heap by at most one value per distinct sort value,
+	 * never by anything per partition. An attribute index key belongs to the schema and contributes only its slot.
+	 * {@link #pageStreamRegistry} is flush bookkeeping rather than index content and is excluded.
 	 *
 	 * Walking the tree is `O(entries / blockSize)`, so this belongs to the index detail call and must never be called
 	 * from a query path.
@@ -643,15 +930,27 @@ public class VirtualReferencePartitionIndex
 		final long boxedInteger = layout.sizeOfObject(Integer.BYTES);
 		// the tuple, the id box and the user count
 		final long dictionaryEntry = layout.sizeOfObject(2L * layout.referenceSize() + Integer.BYTES);
-		// the dirty / dictionaryDirty / entries / pageStreamRegistry / tupleIds / tuples slots
-		return layout.sizeOfObject(6L * layout.referenceSize())
+		// the slot id, the key wrapper's value and the id box are charged at the `(slot, value) -> id` map
+		final long sortValueKey = layout.sizeOfObject(Integer.BYTES + layout.referenceSize());
+		// the key, the id box and the user count
+		final long sortValueEntry = layout.sizeOfObject(2L * layout.referenceSize() + Integer.BYTES);
+		final long boxedLong = layout.sizeOfObject(Long.BYTES);
+		// the dirty / dictionaryDirty / entries / pageStreamRegistry / tupleIds / tuples / sortKeys / sortValueIds /
+		// sortValues / sortIndexes slots
+		return layout.sizeOfObject(10L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.dictionaryDirty.getHeapSizeInBytes()
 			+ this.entries.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER)
 			+ this.tupleIds.getHeapSizeInBytes(
 				VirtualReferencePartitionIndex::tupleSizeInBytes, tupleId -> boxedInteger
 			)
-			+ this.tuples.getHeapSizeInBytes(tupleId -> 0L, entry -> dictionaryEntry);
+			+ this.tuples.getHeapSizeInBytes(tupleId -> 0L, entry -> dictionaryEntry)
+			+ this.sortKeys.getHeapSizeInBytes(attributeIndexKey -> 0L, DeclaredSortKey::getHeapSizeInBytes)
+			+ this.sortValueIds.getHeapSizeInBytes(
+				key -> sortValueKey + sortValueSizeInBytes(key.value()), valueId -> boxedInteger
+			)
+			+ this.sortValues.getHeapSizeInBytes(packedId -> boxedLong, entry -> sortValueEntry)
+			+ this.sortIndexes.getHeapSizeInBytes(attributeIndexKey -> 0L, OwnerSortIndex::getHeapSizeInBytes);
 	}
 
 	/*
@@ -663,6 +962,10 @@ public class VirtualReferencePartitionIndex
 		this.entries.removeLayer(transactionalLayer);
 		this.tupleIds.removeLayer(transactionalLayer);
 		this.tuples.removeLayer(transactionalLayer);
+		this.sortKeys.removeLayer(transactionalLayer);
+		this.sortValueIds.removeLayer(transactionalLayer);
+		this.sortValues.removeLayer(transactionalLayer);
+		this.sortIndexes.removeLayer(transactionalLayer);
 		this.dirty.removeLayer(transactionalLayer);
 		this.dictionaryDirty.removeLayer(transactionalLayer);
 	}
@@ -686,7 +989,11 @@ public class VirtualReferencePartitionIndex
 				committedTree,
 				this.pageStreamRegistry,
 				transactionalLayer.getStateCopyWithCommittedChanges(this.tupleIds),
-				transactionalLayer.getStateCopyWithCommittedChanges(this.tuples)
+				transactionalLayer.getStateCopyWithCommittedChanges(this.tuples),
+				transactionalLayer.getStateCopyWithCommittedChanges(this.sortKeys),
+				transactionalLayer.getStateCopyWithCommittedChanges(this.sortValueIds),
+				transactionalLayer.getStateCopyWithCommittedChanges(this.sortValues),
+				transactionalLayer.getStateCopyWithCommittedChanges(this.sortIndexes)
 			);
 		} else {
 			return this;
@@ -714,6 +1021,567 @@ public class VirtualReferencePartitionIndex
 			}
 		}
 		return size;
+	}
+
+	/**
+	 * Prices one normalized sort value the index owns: a plain value, or a compound's wrapper, its array and every
+	 * element in it.
+	 *
+	 * @param value the normalized sort value
+	 * @return the heap footprint of the value in bytes
+	 */
+	private static long sortValueSizeInBytes(@Nonnull Serializable value) {
+		if (value instanceof ComparableArray compound) {
+			return tupleSizeInBytes(compound);
+		}
+		return EvitaDataTypes.estimateSize(value);
+	}
+
+	/**
+	 * Creates the comparator a sort index of the given sort key orders its normalized values by - the very comparator
+	 * {@link SortIndex} derives for itself.
+	 *
+	 * @param locale         the locale of the sort key, `null` when it is not localized
+	 * @param comparatorBase one descriptor per sorted element
+	 * @return the comparator of normalized values
+	 */
+	@Nonnull
+	private static Comparator<Serializable> createSortValueComparator(
+		@Nullable Locale locale,
+		@Nonnull ComparatorSource[] comparatorBase
+	) {
+		return comparatorBase.length == 1 ?
+			SortIndex.createComparatorFor(locale, comparatorBase[0]) :
+			(Comparator) SortIndex.createCombinedComparatorFor(locale, comparatorBase);
+	}
+
+	/**
+	 * Creates the sort index of a sort key from its blocks: `sortedRecords` is laid out value block by value block in
+	 * the order of `sortedValues`, with ascending partition primary keys inside each block. The sort index is always
+	 * built as an owner of its values - never as a view over a value tree it would share with another index - so its
+	 * blocks hold exactly the partitions of this slot.
+	 *
+	 * @param sortKey       the declared sort key
+	 * @param sortedRecords the partition primary keys, blocked per value
+	 * @param sortedValues  the distinct normalized values in the sort key's order
+	 * @param cardinalities the size of every block larger than one
+	 * @return the sort index
+	 */
+	@Nonnull
+	private static OwnerSortIndex createSortIndex(
+		@Nonnull DeclaredSortKey sortKey,
+		@Nonnull int[] sortedRecords,
+		@Nonnull Serializable[] sortedValues,
+		@Nonnull Map<Serializable, Integer> cardinalities
+	) {
+		return new OwnerSortIndex(
+			sortKey.comparatorBase(), null, sortKey.attributeIndexKey(), sortKey.indexedDecimalPlaces(),
+			sortedRecords, sortedValues, cardinalities
+		);
+	}
+
+	/**
+	 * Rebuilds the declared sort keys, their value dictionaries and their sort indexes from the persisted slots and
+	 * the persisted entries, filling the passed maps.
+	 *
+	 * Per slot only the distinct values are sorted, by the comparator of the sort key. The entries are then walked
+	 * twice in the order they were persisted, which is ascending by slot and by partition within a slot: the first
+	 * walk counts the partitions of every value, which are both the user counts of the dictionary and the block sizes
+	 * of the sort index, and the second drops each partition into the next free position of its value's block. The
+	 * blocks therefore come out with ascending partition primary keys, exactly as the sort index keeps them, without a
+	 * single comparison between entries and without an allocation per entry.
+	 *
+	 * @param indexDescription identification of the index for corruption diagnostics
+	 * @param sortValueSlots   the persisted sort value slots in ascending slot id order
+	 * @param keyColumns       the persisted entry keys in ascending key order across the columns
+	 * @param payloadColumns   the persisted entry payloads, aligned with `keyColumns`
+	 * @param sortKeys         receives the declared sort keys
+	 * @param sortValueIds     receives the `(slot, value) -> id` dictionary map
+	 * @param sortValues       receives the `pack(slot, id) -> entry` dictionary map
+	 * @param sortIndexes      receives the rebuilt sort indexes
+	 */
+	private static void rebuildSortKeys(
+		@Nonnull String indexDescription,
+		@Nonnull SortValueSlot[] sortValueSlots,
+		@Nonnull long[][] keyColumns,
+		@Nonnull long[][] payloadColumns,
+		@Nonnull Map<AttributeIndexKey, DeclaredSortKey> sortKeys,
+		@Nonnull Map<SortValueKey, Integer> sortValueIds,
+		@Nonnull Map<Long, SortValueEntry> sortValues,
+		@Nonnull Map<AttributeIndexKey, OwnerSortIndex> sortIndexes
+	) {
+		final int slotCount = sortValueSlots.length;
+		final int[] slotIds = new int[slotCount];
+		// per slot: value id -> position of the value in the sort key's order
+		final IntIntHashMap[] positionsByValueId = new IntIntHashMap[slotCount];
+		final Serializable[][] sortedValues = new Serializable[slotCount][];
+		final int[][] sortedValueIds = new int[slotCount][];
+		// per slot: the first record position of every value's block, with the total record count appended
+		final int[][] blockStarts = new int[slotCount][];
+		for (int slotIndex = 0; slotIndex < slotCount; slotIndex++) {
+			final SortValueSlot slot = sortValueSlots[slotIndex];
+			final int slotId = slot.slotId();
+			if (slotId < VirtualReferencePartitionSlot.FIRST_DECLARED_SLOT_ID ||
+				(slotIndex > 0 && slotId <= slotIds[slotIndex - 1])) {
+				throw new GenericEvitaInternalError(
+					"The sort value slots of the virtual reference partition index for " + indexDescription +
+						" are not in ascending order of declared slot ids at slot " + slotId + "!"
+				);
+			}
+			slotIds[slotIndex] = slotId;
+
+			// only the distinct values are ever compared
+			final Serializable[] values = slot.values();
+			final int[] valueIds = slot.valueIds();
+			final Comparator<Serializable> comparator = createSortValueComparator(
+				slot.attributeIndexKey().locale(), slot.comparatorBase()
+			);
+			final Integer[] order = new Integer[values.length];
+			for (int i = 0; i < order.length; i++) {
+				order[i] = i;
+			}
+			Arrays.sort(order, (first, second) -> comparator.compare(values[first], values[second]));
+
+			final IntIntHashMap positions = new IntIntHashMap(values.length);
+			final Serializable[] slotSortedValues = new Serializable[values.length];
+			final int[] slotSortedValueIds = new int[values.length];
+			for (int position = 0; position < order.length; position++) {
+				final int valueIndex = order[position];
+				slotSortedValues[position] = values[valueIndex];
+				slotSortedValueIds[position] = valueIds[valueIndex];
+				if (!positions.putIfAbsent(valueIds[valueIndex], position)) {
+					throw new GenericEvitaInternalError(
+						"The value dictionary of slot " + slotId + " of the virtual reference partition index for " +
+							indexDescription + " lists value id " + valueIds[valueIndex] + " twice!"
+					);
+				}
+				if (position > 0 && comparator.compare(slotSortedValues[position - 1], slotSortedValues[position]) == 0) {
+					throw new GenericEvitaInternalError(
+						"The value dictionary of slot " + slotId + " of the virtual reference partition index for " +
+							indexDescription + " holds the values `" + slotSortedValues[position - 1] + "` and `" +
+							slotSortedValues[position] + "`, which its sort key orders as one!"
+					);
+				}
+			}
+			positionsByValueId[slotIndex] = positions;
+			sortedValues[slotIndex] = slotSortedValues;
+			sortedValueIds[slotIndex] = slotSortedValueIds;
+			blockStarts[slotIndex] = new int[values.length + 1];
+		}
+
+		// first walk: the size of every value's block, counted one position to the right
+		walkSortValueEntries(
+			indexDescription, keyColumns, payloadColumns, slotIds, positionsByValueId,
+			(slotIndex, position, partitionPrimaryKey) -> blockStarts[slotIndex][position + 1]++
+		);
+		final int[][] sortedRecords = new int[slotCount][];
+		final int[][] nextPositions = new int[slotCount][];
+		for (int slotIndex = 0; slotIndex < slotCount; slotIndex++) {
+			final int[] starts = blockStarts[slotIndex];
+			for (int position = 0; position < starts.length - 1; position++) {
+				if (starts[position + 1] == 0) {
+					throw new GenericEvitaInternalError(
+						"The value dictionary of slot " + slotIds[slotIndex] + " of the virtual reference partition " +
+							"index for " + indexDescription + " holds value id " + sortedValueIds[slotIndex][position] +
+							", which no partition refers to!"
+					);
+				}
+				starts[position + 1] += starts[position];
+			}
+			sortedRecords[slotIndex] = new int[starts[starts.length - 1]];
+			nextPositions[slotIndex] = Arrays.copyOf(starts, starts.length - 1);
+		}
+		// second walk: every partition into the next free position of its value's block, in ascending partition order
+		walkSortValueEntries(
+			indexDescription, keyColumns, payloadColumns, slotIds, positionsByValueId,
+			(slotIndex, position, partitionPrimaryKey) ->
+				sortedRecords[slotIndex][nextPositions[slotIndex][position]++] = partitionPrimaryKey
+		);
+
+		for (int slotIndex = 0; slotIndex < slotCount; slotIndex++) {
+			final SortValueSlot slot = sortValueSlots[slotIndex];
+			final int slotId = slotIds[slotIndex];
+			final Serializable[] slotSortedValues = sortedValues[slotIndex];
+			final int[] slotSortedValueIds = sortedValueIds[slotIndex];
+			final int[] starts = blockStarts[slotIndex];
+			final Map<Serializable, Integer> cardinalities = CollectionUtils.createHashMap(slotSortedValues.length);
+			int largestValueId = 0;
+			for (int position = 0; position < slotSortedValues.length; position++) {
+				final Serializable value = slotSortedValues[position];
+				final int userCount = starts[position + 1] - starts[position];
+				if (userCount > 1) {
+					cardinalities.put(value, userCount);
+				}
+				// one box shared by both maps, see SortValueEntry
+				final Integer valueId = slotSortedValueIds[position];
+				final SortValueKey valueKey = new SortValueKey(slotId, value);
+				sortValueIds.put(valueKey, valueId);
+				sortValues.put(NumberUtils.pack(slotId, valueId), new SortValueEntry(valueKey, valueId, userCount));
+				largestValueId = Math.max(largestValueId, valueId);
+			}
+			final DeclaredSortKey sortKey = DeclaredSortKey.of(
+				slotId, slot.attributeIndexKey(), slot.comparatorBase(), slot.indexedDecimalPlaces(),
+				largestValueId + 1
+			);
+			sortKeys.put(slot.attributeIndexKey(), sortKey);
+			sortIndexes.put(
+				slot.attributeIndexKey(),
+				createSortIndex(sortKey, sortedRecords[slotIndex], slotSortedValues, cardinalities)
+			);
+		}
+	}
+
+	/**
+	 * Walks the persisted entries of every sort value slot in persisted order and hands each one to the visitor with
+	 * the position of its value in the sort key's order. Entries of the fixed slots are skipped.
+	 *
+	 * @param indexDescription   identification of the index for corruption diagnostics
+	 * @param keyColumns         the persisted entry keys in ascending key order across the columns
+	 * @param payloadColumns     the persisted entry payloads, aligned with `keyColumns`
+	 * @param slotIds            the ids of the persisted slots in ascending order
+	 * @param positionsByValueId per slot, the position of each value id in the sort key's order
+	 * @param visitor            receives every sort value entry
+	 */
+	private static void walkSortValueEntries(
+		@Nonnull String indexDescription,
+		@Nonnull long[][] keyColumns,
+		@Nonnull long[][] payloadColumns,
+		@Nonnull int[] slotIds,
+		@Nonnull IntIntHashMap[] positionsByValueId,
+		@Nonnull SortValueEntryVisitor visitor
+	) {
+		int currentSlotId = -1;
+		int currentSlotIndex = -1;
+		for (int column = 0; column < keyColumns.length; column++) {
+			final long[] keys = keyColumns[column];
+			final long[] payloads = payloadColumns[column];
+			for (int i = 0; i < keys.length; i++) {
+				final int slotId = NumberUtils.unpackHigh(keys[i]);
+				if (slotId < VirtualReferencePartitionSlot.FIRST_DECLARED_SLOT_ID) {
+					continue;
+				}
+				// the entries are ordered by slot, so the slot is looked up once per run of its entries
+				if (slotId != currentSlotId) {
+					currentSlotIndex = Arrays.binarySearch(slotIds, slotId);
+					if (currentSlotIndex < 0) {
+						throw new GenericEvitaInternalError(
+							"The virtual reference partition index for " + indexDescription + " holds entries of slot " +
+								slotId + ", which is not declared!"
+						);
+					}
+					currentSlotId = slotId;
+				}
+				final int position = positionsByValueId[currentSlotIndex].getOrDefault((int) payloads[i], -1);
+				if (position < 0) {
+					throw new GenericEvitaInternalError(
+						"Partition " + NumberUtils.unpackLow(keys[i]) + " of the virtual reference partition index for " +
+							indexDescription + " refers to value id " + payloads[i] + " of slot " + slotId +
+							", which its dictionary lacks!"
+					);
+				}
+				visitor.visit(currentSlotIndex, position, NumberUtils.unpackLow(keys[i]));
+			}
+		}
+	}
+
+	/**
+	 * Normalizes a sort value as the sort index of the key normalizes it, and checks it against the declared types
+	 * before anything is written. A compound is normalized on a copy, which the dictionary then owns.
+	 *
+	 * @param sortKey the declared sort key
+	 * @param value   the attribute value, or the element values of a compound
+	 * @return the normalized value, a {@link ComparableArray} for a compound
+	 */
+	@Nonnull
+	private static Serializable normalize(@Nonnull DeclaredSortKey sortKey, @Nonnull Serializable value) {
+		final ComparatorSource[] comparatorBase = sortKey.comparatorBase();
+		if (sortKey.isCompound()) {
+			final Serializable[] elements = (Serializable[]) value;
+			if (elements.length != comparatorBase.length) {
+				throw new GenericEvitaInternalError(
+					"Sort key `" + sortKey.attributeIndexKey() + "` sorts by " + comparatorBase.length +
+						" elements, but " + elements.length + " values were passed!"
+				);
+			}
+			// the compound normalizer rewrites the array it is given in place
+			final Serializable[] normalized = (Serializable[]) sortKey.normalizer()
+				.apply(Arrays.copyOf(elements, elements.length));
+			// the validating constructor checks every element against its declared type
+			return new ComparableArray(comparatorBase, normalized);
+		} else {
+			if (!comparatorBase[0].type().isInstance(value)) {
+				throw new GenericEvitaInternalError(
+					"Sort key `" + sortKey.attributeIndexKey() + "` sorts by `" + comparatorBase[0].type().getName() +
+						"`, but `" + value.getClass().getName() + "` was passed!"
+				);
+			}
+			return sortKey.normalizer().apply(value);
+		}
+	}
+
+	/**
+	 * Turns a normalized sort value back into the value the sort index accepts, which normalizes it again by itself.
+	 * Only the comparable wrappers of `Locale` and `Currency` need unwrapping - every other normalized form, a
+	 * decomposed `String` or a scaled `BigDecimal`, is one the normalizer maps onto itself.
+	 *
+	 * @param normalizedValue the normalized value of one attribute or one compound element
+	 * @return the value the sort index normalizes into `normalizedValue`
+	 */
+	@Nullable
+	private static Serializable denormalize(@Nullable Serializable normalizedValue) {
+		if (normalizedValue instanceof ComparableLocale comparableLocale) {
+			return comparableLocale.getLocale();
+		} else if (normalizedValue instanceof ComparableCurrency comparableCurrency) {
+			return comparableCurrency.getCurrency();
+		} else {
+			return normalizedValue;
+		}
+	}
+
+	/**
+	 * Removes the partition from the block of its sort value in the sort index.
+	 *
+	 * @param sortIndex           the sort index of the sort key
+	 * @param normalizedValue     the normalized sort value the partition held, as the dictionary keeps it
+	 * @param partitionPrimaryKey the partition primary key
+	 */
+	private static void removeFromSortIndex(
+		@Nonnull OwnerSortIndex sortIndex,
+		@Nonnull Serializable normalizedValue,
+		int partitionPrimaryKey
+	) {
+		if (normalizedValue instanceof ComparableArray compound) {
+			final Serializable[] elements = compound.array();
+			final Serializable[] values = new Serializable[elements.length];
+			for (int i = 0; i < elements.length; i++) {
+				values[i] = denormalize(elements[i]);
+			}
+			sortIndex.removeRecord(values, partitionPrimaryKey);
+		} else {
+			sortIndex.removeRecord(Objects.requireNonNull(denormalize(normalizedValue)), partitionPrimaryKey);
+		}
+	}
+
+	/**
+	 * Compares two normalized sort values the way their sort index does when it looks for a value's block: element by
+	 * element, a `BigDecimal` by its numeric value and anything else by `equals` - which every other sortable type
+	 * keeps consistent with its order.
+	 *
+	 * @param first  the first normalized value
+	 * @param second the second normalized value
+	 * @return true if the sort index keeps both in one block
+	 */
+	private static boolean isSameSortValue(@Nonnull Serializable first, @Nonnull Serializable second) {
+		if (first instanceof ComparableArray firstCompound && second instanceof ComparableArray secondCompound) {
+			final Serializable[] firstElements = firstCompound.array();
+			final Serializable[] secondElements = secondCompound.array();
+			if (firstElements.length != secondElements.length) {
+				return false;
+			}
+			for (int i = 0; i < firstElements.length; i++) {
+				if (!isSameSortElement(firstElements[i], secondElements[i])) {
+					return false;
+				}
+			}
+			return true;
+		}
+		return isSameSortElement(first, second);
+	}
+
+	/**
+	 * Compares one attribute value or compound element as {@link #isSameSortValue} describes.
+	 *
+	 * @param first  the first value
+	 * @param second the second value
+	 * @return true if the sort index orders both as one
+	 */
+	private static boolean isSameSortElement(@Nullable Serializable first, @Nullable Serializable second) {
+		if (first instanceof BigDecimal firstNumber && second instanceof BigDecimal secondNumber) {
+			return firstNumber.compareTo(secondNumber) == 0;
+		}
+		return Objects.equals(first, second);
+	}
+
+	/**
+	 * Hashes a normalized sort value consistently with {@link #isSameSortValue}: a `BigDecimal` by its value with the
+	 * trailing zeros stripped, so `1.0` and `1.00` meet in one bucket.
+	 *
+	 * @param value the normalized value
+	 * @return the hash
+	 */
+	private static int sortValueHash(@Nonnull Serializable value) {
+		if (value instanceof ComparableArray compound) {
+			int hash = 1;
+			for (final Serializable element : compound.array()) {
+				hash = 31 * hash + sortElementHash(element);
+			}
+			return hash;
+		}
+		return sortElementHash(value);
+	}
+
+	/**
+	 * Hashes one attribute value or compound element as {@link #sortValueHash} describes.
+	 *
+	 * @param value the value, `null` for a missing compound element
+	 * @return the hash
+	 */
+	private static int sortElementHash(@Nullable Serializable value) {
+		if (value instanceof BigDecimal number) {
+			return number.stripTrailingZeros().hashCode();
+		}
+		return Objects.hashCode(value);
+	}
+
+	/**
+	 * Records the sort value of the partition, see {@link #putSortValue(AttributeIndexKey, int, Serializable)}. The
+	 * value is normalized and checked before anything changes, and the new value is acquired before the previous one
+	 * is released, so the two never share an id.
+	 *
+	 * @param attributeIndexKey   the declared sort key
+	 * @param partitionPrimaryKey the partition primary key, positive
+	 * @param value               the attribute value, or the element values of a compound
+	 * @param compound            whether `value` holds the element values of a compound
+	 */
+	private void putSortValue(
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		int partitionPrimaryKey,
+		@Nonnull Serializable value,
+		boolean compound
+	) {
+		final DeclaredSortKey sortKey = getDeclaredSortKey(attributeIndexKey);
+		if (sortKey.isCompound() != compound) {
+			throw new GenericEvitaInternalError(
+				"Sort key `" + attributeIndexKey + "` sorts by " + (sortKey.isCompound() ? "a compound" : "an attribute") +
+					", but " + (compound ? "compound element values were" : "an attribute value was") + " passed!"
+			);
+		}
+		final int slotId = sortKey.slotId();
+		final long key = key(slotId, partitionPrimaryKey);
+		final SortValueKey valueKey = new SortValueKey(slotId, normalize(sortKey, value));
+		final Integer knownValueId = this.sortValueIds.get(valueKey);
+		final OptionalLong previousValueId = this.entries.getLongRecordEqualTo(key);
+		if (knownValueId != null && previousValueId.isPresent() && previousValueId.getAsLong() == knownValueId) {
+			return;
+		}
+		final OwnerSortIndex sortIndex = getSortIndexOfDeclaredKey(attributeIndexKey);
+		this.sortIndexes.markValueMutated(attributeIndexKey);
+		final int valueId = knownValueId == null ? addSortValue(sortKey, valueKey) : retainSortValue(slotId, knownValueId);
+		if (previousValueId.isPresent()) {
+			this.entries.removeLongRecord(key);
+			final Serializable previousValue = releaseSortValue(slotId, (int) previousValueId.getAsLong());
+			removeFromSortIndex(sortIndex, previousValue, partitionPrimaryKey);
+		}
+		this.entries.addLongRecord(key, (long) valueId);
+		if (compound) {
+			// the sort index normalizes the array it is given in place, and the caller's array stays untouched
+			final Serializable[] elements = (Serializable[]) value;
+			sortIndex.addRecord(Arrays.copyOf(elements, elements.length), partitionPrimaryKey);
+		} else {
+			sortIndex.addRecord(value, partitionPrimaryKey);
+		}
+		this.dirty.setToTrue();
+	}
+
+	/**
+	 * Returns a declared sort key, failing when it is not declared.
+	 *
+	 * @param attributeIndexKey the sort key
+	 * @return the declared sort key
+	 */
+	@Nonnull
+	private DeclaredSortKey getDeclaredSortKey(@Nonnull AttributeIndexKey attributeIndexKey) {
+		final DeclaredSortKey sortKey = this.sortKeys.get(attributeIndexKey);
+		if (sortKey == null) {
+			throw new GenericEvitaInternalError("Sort key `" + attributeIndexKey + "` is not declared!");
+		}
+		return sortKey;
+	}
+
+	/**
+	 * Returns the sort index of a declared sort key, which a declared key always has.
+	 *
+	 * @param attributeIndexKey the declared sort key
+	 * @return the sort index
+	 */
+	@Nonnull
+	private OwnerSortIndex getSortIndexOfDeclaredKey(@Nonnull AttributeIndexKey attributeIndexKey) {
+		final OwnerSortIndex sortIndex = this.sortIndexes.get(attributeIndexKey);
+		if (sortIndex == null) {
+			throw new GenericEvitaInternalError("Sort key `" + attributeIndexKey + "` is declared without a sort index!");
+		}
+		return sortIndex;
+	}
+
+	/**
+	 * Adds a value the slot's dictionary does not know yet, with one user, under the next id of the slot.
+	 *
+	 * @param sortKey  the declared sort key
+	 * @param valueKey the slot and the normalized value, which the dictionary then owns
+	 * @return the new value id
+	 */
+	private int addSortValue(@Nonnull DeclaredSortKey sortKey, @Nonnull SortValueKey valueKey) {
+		// one box shared by both maps, see SortValueEntry
+		final Integer valueId = sortKey.nextValueId();
+		this.sortKeys.put(sortKey.attributeIndexKey(), sortKey.withNextValueId(valueId + 1));
+		this.sortValueIds.put(valueKey, valueId);
+		this.sortValues.put(NumberUtils.pack(sortKey.slotId(), valueId), new SortValueEntry(valueKey, valueId, 1));
+		this.dictionaryDirty.setToTrue();
+		return valueId;
+	}
+
+	/**
+	 * Adds one user to a known sort value.
+	 *
+	 * @param slotId  the slot id
+	 * @param valueId the value id
+	 * @return the value id
+	 */
+	private int retainSortValue(int slotId, int valueId) {
+		final SortValueEntry entry = getSortValueEntry(slotId, valueId);
+		this.sortValues.put(
+			NumberUtils.pack(slotId, valueId), new SortValueEntry(entry.key(), entry.id(), entry.userCount() + 1)
+		);
+		return valueId;
+	}
+
+	/**
+	 * Removes one user from a known sort value and drops the value from the dictionary when it was the last one.
+	 *
+	 * @param slotId  the slot id
+	 * @param valueId the value id
+	 * @return the normalized value
+	 */
+	@Nonnull
+	private Serializable releaseSortValue(int slotId, int valueId) {
+		final SortValueEntry entry = getSortValueEntry(slotId, valueId);
+		final long packedId = NumberUtils.pack(slotId, valueId);
+		if (entry.userCount() == 1) {
+			this.sortValues.remove(packedId);
+			this.sortValueIds.remove(entry.key());
+			this.dictionaryDirty.setToTrue();
+		} else {
+			this.sortValues.put(packedId, new SortValueEntry(entry.key(), entry.id(), entry.userCount() - 1));
+		}
+		return entry.key().value();
+	}
+
+	/**
+	 * Returns the dictionary entry of a sort value an entry refers to.
+	 *
+	 * @param slotId  the slot id
+	 * @param valueId the value id
+	 * @return the dictionary entry
+	 */
+	@Nonnull
+	private SortValueEntry getSortValueEntry(int slotId, int valueId) {
+		final SortValueEntry entry = this.sortValues.get(NumberUtils.pack(slotId, valueId));
+		if (entry == null) {
+			throw new GenericEvitaInternalError(
+				"Value id " + valueId + " of slot " + slotId + " is referred to, but missing from the value dictionary!"
+			);
+		}
+		return entry;
 	}
 
 	/**
@@ -849,7 +1717,48 @@ public class VirtualReferencePartitionIndex
 			tupleIdColumn[i] = dictionaryEntries[i].id();
 			tupleColumn[i] = dictionaryEntries[i].tuple().array();
 		}
-		return new DictionarySnapshot(tupleIdColumn, tupleColumn);
+		return new DictionarySnapshot(tupleIdColumn, tupleColumn, sortValueSlotSnapshot());
+	}
+
+	/**
+	 * Captures the declared sort keys with their value dictionaries in ascending slot id order, each dictionary in
+	 * ascending id order - the shape the root part persists.
+	 *
+	 * @return the sort value slots
+	 */
+	@Nonnull
+	private SortValueSlot[] sortValueSlotSnapshot() {
+		final DeclaredSortKey[] declaredSortKeys = new DeclaredSortKey[this.sortKeys.size()];
+		final int[] keyIndex = {0};
+		this.sortKeys.forEach((attributeIndexKey, sortKey) -> declaredSortKeys[keyIndex[0]++] = sortKey);
+		Arrays.sort(declaredSortKeys, Comparator.comparingInt(DeclaredSortKey::slotId));
+		// `pack(slotId, valueId)` of non-negative halves orders by slot first and by id within a slot
+		final long[] packedIds = new long[this.sortValues.size()];
+		final int[] valueIndex = {0};
+		this.sortValues.forEach((packedId, entry) -> packedIds[valueIndex[0]++] = packedId);
+		Arrays.sort(packedIds);
+
+		final SortValueSlot[] slots = new SortValueSlot[declaredSortKeys.length];
+		int nextPackedId = 0;
+		for (int slotIndex = 0; slotIndex < declaredSortKeys.length; slotIndex++) {
+			final DeclaredSortKey sortKey = declaredSortKeys[slotIndex];
+			final int firstPackedId = nextPackedId;
+			while (nextPackedId < packedIds.length && NumberUtils.unpackHigh(packedIds[nextPackedId]) == sortKey.slotId()) {
+				nextPackedId++;
+			}
+			final int[] valueIds = new int[nextPackedId - firstPackedId];
+			final Serializable[] values = new Serializable[valueIds.length];
+			for (int i = 0; i < valueIds.length; i++) {
+				final SortValueEntry entry = this.sortValues.get(packedIds[firstPackedId + i]);
+				valueIds[i] = entry.id();
+				values[i] = entry.key().value();
+			}
+			slots[slotIndex] = new SortValueSlot(
+				sortKey.slotId(), sortKey.attributeIndexKey(), sortKey.comparatorBase(),
+				sortKey.indexedDecimalPlaces(), valueIds, values
+			);
+		}
+		return slots;
 	}
 
 	/**
@@ -926,12 +1835,164 @@ public class VirtualReferencePartitionIndex
 	}
 
 	/**
-	 * The tuple dictionary as positionally-aligned columns in ascending id order.
-	 *
-	 * @param tupleIds the tuple ids
-	 * @param tuples   the tuples, aligned with `tupleIds`
+	 * Receives one entry of a sort value slot during the rebuild on load.
 	 */
-	private record DictionarySnapshot(@Nonnull int[] tupleIds, @Nonnull Serializable[][] tuples) {
+	@FunctionalInterface
+	private interface SortValueEntryVisitor {
+
+		/**
+		 * Receives one entry of a sort value slot.
+		 *
+		 * @param slotIndex           the index of the slot among the persisted slots
+		 * @param position            the position of the entry's value in the sort key's order
+		 * @param partitionPrimaryKey the partition primary key
+		 */
+		void visit(int slotIndex, int position, int partitionPrimaryKey);
+
+	}
+
+	/**
+	 * A declared sort key: the slot its sort values live in, what it sorts by, and the next id its value dictionary
+	 * hands out. Ids are handed out in ascending order and never twice while the key stays declared.
+	 *
+	 * @param slotId               the id of the slot, the high half of every key of its entries
+	 * @param attributeIndexKey    the attribute or compound, with its locale, the partitions are sorted by
+	 * @param comparatorBase       one descriptor per sorted element - a single one for a plain attribute
+	 * @param indexedDecimalPlaces the decimal places a `BigDecimal` attribute is scaled by, `0` for any other type
+	 * @param normalizer           the normalizer the sort index of the key applies to each value
+	 * @param nextValueId          the id the next value added to the slot's dictionary gets
+	 */
+	private record DeclaredSortKey(
+		int slotId,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull ComparatorSource[] comparatorBase,
+		int indexedDecimalPlaces,
+		@Nonnull UnaryOperator<Serializable> normalizer,
+		int nextValueId
+	) implements Serializable {
+
+		/**
+		 * Declares a sort key with the normalizer its sort index uses - the single-attribute normalizer for one
+		 * element, the compound one for more.
+		 *
+		 * @param slotId               the id of the slot
+		 * @param attributeIndexKey    the attribute or compound, with its locale
+		 * @param comparatorBase       one descriptor per sorted element
+		 * @param indexedDecimalPlaces the decimal places a `BigDecimal` attribute is scaled by
+		 * @param nextValueId          the id the next value added to the slot's dictionary gets
+		 * @return the declared sort key
+		 */
+		@Nonnull
+		static DeclaredSortKey of(
+			int slotId,
+			@Nonnull AttributeIndexKey attributeIndexKey,
+			@Nonnull ComparatorSource[] comparatorBase,
+			int indexedDecimalPlaces,
+			int nextValueId
+		) {
+			final UnaryOperator<Serializable> normalizer = comparatorBase.length == 1 ?
+				SortIndex.createNormalizerFor(comparatorBase[0], indexedDecimalPlaces)
+					.orElseGet(UnaryOperator::identity) :
+				SortIndex.createNormalizerFor(comparatorBase, indexedDecimalPlaces);
+			return new DeclaredSortKey(
+				slotId, attributeIndexKey, comparatorBase, indexedDecimalPlaces, normalizer, nextValueId
+			);
+		}
+
+		/**
+		 * Returns TRUE if the key sorts by a sortable attribute compound rather than a plain attribute.
+		 *
+		 * @return TRUE for a compound
+		 */
+		boolean isCompound() {
+			return this.comparatorBase.length > 1;
+		}
+
+		/**
+		 * Returns this key with the next value id advanced.
+		 *
+		 * @param nextValueId the id the next value added to the slot's dictionary gets
+		 * @return the updated key
+		 */
+		@Nonnull
+		DeclaredSortKey withNextValueId(int nextValueId) {
+			return new DeclaredSortKey(
+				this.slotId, this.attributeIndexKey, this.comparatorBase, this.indexedDecimalPlaces,
+				this.normalizer, nextValueId
+			);
+		}
+
+		/**
+		 * Prices the record and its comparator base. The attribute index key belongs to the schema and every
+		 * {@link ComparatorSource} component addresses a `Class` or an enum constant, both JVM-owned; the normalizer
+		 * is fixed scaffolding chosen by the comparator base and contributes its slot alone, as in {@link SortIndex}.
+		 *
+		 * @return the heap footprint in bytes
+		 */
+		long getHeapSizeInBytes() {
+			final VMLayout layout = VMLayout.current();
+			return layout.sizeOfObject(3L * Integer.BYTES + 3L * layout.referenceSize())
+				+ layout.sizeOfArray(this.comparatorBase.length, layout.referenceSize())
+				+ this.comparatorBase.length * layout.sizeOfObject(3L * layout.referenceSize());
+		}
+
+	}
+
+	/**
+	 * A normalized sort value of one slot as the value dictionary is keyed by it. Equality and hash follow the sort
+	 * index, not plain `equals`: values the sort key orders as one, `1.0` and `1.00` among them, are one key.
+	 *
+	 * @param slotId the id of the slot
+	 * @param value  the normalized value, a {@link ComparableArray} for a compound
+	 */
+	private record SortValueKey(int slotId, @Nonnull Serializable value) implements Serializable {
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) {
+				return true;
+			}
+			if (!(o instanceof SortValueKey that)) {
+				return false;
+			}
+			return this.slotId == that.slotId && isSameSortValue(this.value, that.value);
+		}
+
+		@Override
+		public int hashCode() {
+			return 31 * this.slotId + sortValueHash(this.value);
+		}
+
+	}
+
+	/**
+	 * One value of a slot's dictionary with the number of partitions holding it. The key and the id box are the very
+	 * instances the `(slot, value) -> id` map holds, so the two maps share them rather than holding copies.
+	 *
+	 * @param key       the slot and the normalized value
+	 * @param id        the value id
+	 * @param userCount how many partitions hold the value, always positive
+	 */
+	private record SortValueEntry(
+		@Nonnull SortValueKey key,
+		@Nonnull Integer id,
+		int userCount
+	) implements Serializable {
+	}
+
+	/**
+	 * The dictionaries as the root part persists them: the tuples as positionally-aligned columns in ascending id
+	 * order, and the declared sort keys with their value dictionaries.
+	 *
+	 * @param tupleIds       the tuple ids
+	 * @param tuples         the tuples, aligned with `tupleIds`
+	 * @param sortValueSlots the sort value slots in ascending slot id order
+	 */
+	private record DictionarySnapshot(
+		@Nonnull int[] tupleIds,
+		@Nonnull Serializable[][] tuples,
+		@Nonnull SortValueSlot[] sortValueSlots
+	) {
 	}
 
 	/**

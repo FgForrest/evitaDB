@@ -24,6 +24,7 @@
 package io.evitadb.index;
 
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart.SortValueSlot;
 import io.evitadb.utils.NumberUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -111,7 +112,7 @@ class VirtualReferencePartitionIndexStaleLeafPageTwinTest {
 		}
 		VirtualReferencePartitionIndex.fromPersistedPages(
 			"reference `media`", pageSequences, keyPages, payloadPages, keyPages.length - 1,
-			new int[0], new Serializable[0][]
+			new int[0], new Serializable[0][], new SortValueSlot[0]
 		);
 	}
 

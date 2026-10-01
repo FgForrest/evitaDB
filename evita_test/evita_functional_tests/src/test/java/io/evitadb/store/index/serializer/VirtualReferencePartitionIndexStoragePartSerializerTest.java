@@ -26,10 +26,19 @@ package io.evitadb.store.index.serializer;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.dataType.ComparableCurrency;
+import io.evitadb.dataType.ComparableLocale;
+import io.evitadb.index.attribute.SortIndex.ComparableArray;
+import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceNameKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart.SortValueSlot;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
+import io.evitadb.store.schema.SchemaKryoConfigurer;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import io.evitadb.store.shared.kryo.SharedClassesConfigurer;
 import io.evitadb.utils.NumberUtils;
@@ -46,6 +55,7 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Collections;
+import java.util.Currency;
 import java.util.Locale;
 
 import static io.evitadb.test.TestTags.REFERENCE;
@@ -59,8 +69,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Round-trip coverage for {@link VirtualReferencePartitionIndexStoragePartSerializer}: the inline SINGLE shape with
- * entry payloads of any sign and magnitude, the PAGED shape with its page-stream metadata, and the tuple dictionary of
- * mixed value types and `null` values that both shapes carry.
+ * entry payloads of any sign and magnitude, the PAGED shape with its page-stream metadata, the tuple dictionary of
+ * mixed value types and `null` values that both shapes carry, and the sort value slots with the normalized value
+ * forms a sort key can hold.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -72,6 +83,7 @@ class VirtualReferencePartitionIndexStoragePartSerializerTest {
 	private static final int ENTITY_INDEX_PK = 42;
 	private static final String REFERENCE_NAME = "media";
 	private static final int[] TUPLE_IDS = {1, 2, 9};
+	private static final SortValueSlot[] NO_SORT_VALUE_SLOTS = new SortValueSlot[0];
 	private static final Serializable[][] TUPLES = {
 		{"gallery"},
 		{"video", 7, new BigDecimal("1.50"), null},
@@ -87,7 +99,9 @@ class VirtualReferencePartitionIndexStoragePartSerializerTest {
 		this.keyCompressor = new ReadWriteKeyCompressor(Collections.emptyMap());
 		this.serializer = new VirtualReferencePartitionIndexStoragePartSerializer(this.keyCompressor);
 		this.kryo = KryoFactory.createKryo(
-			SharedClassesConfigurer.INSTANCE.andThen(new IndexStoragePartConfigurer(this.keyCompressor))
+			SharedClassesConfigurer.INSTANCE
+				.andThen(SchemaKryoConfigurer.INSTANCE)
+				.andThen(new IndexStoragePartConfigurer(this.keyCompressor))
 		);
 	}
 
@@ -152,7 +166,7 @@ class VirtualReferencePartitionIndexStoragePartSerializerTest {
 			payloads[i] = 9L;
 
 			final VirtualReferencePartitionIndexStoragePart part = VirtualReferencePartitionIndexStoragePart.single(
-				ENTITY_INDEX_PK, REFERENCE_NAME, keys, payloads, TUPLE_IDS, TUPLES, null
+				ENTITY_INDEX_PK, REFERENCE_NAME, keys, payloads, TUPLE_IDS, TUPLES, NO_SORT_VALUE_SLOTS, null
 			);
 			final VirtualReferencePartitionIndexStoragePart deserialized = roundTrip(part);
 
@@ -171,7 +185,7 @@ class VirtualReferencePartitionIndexStoragePartSerializerTest {
 		void shouldRoundTripEmptyDictionary() {
 			final VirtualReferencePartitionIndexStoragePart part = VirtualReferencePartitionIndexStoragePart.single(
 				ENTITY_INDEX_PK, REFERENCE_NAME, new long[]{NumberUtils.pack(0, 1)}, new long[]{NumberUtils.pack(5, 6)},
-				new int[0], new Serializable[0][], null
+				new int[0], new Serializable[0][], NO_SORT_VALUE_SLOTS, null
 			);
 			final VirtualReferencePartitionIndexStoragePart deserialized = roundTrip(part);
 			assertEquals(0, deserialized.getTupleIds().length);
@@ -188,7 +202,7 @@ class VirtualReferencePartitionIndexStoragePartSerializerTest {
 		void shouldRoundTripPagedRoot() {
 			final int[] leafPageSequences = {0, 3, 4, 17};
 			final VirtualReferencePartitionIndexStoragePart part = VirtualReferencePartitionIndexStoragePart.paged(
-				ENTITY_INDEX_PK, REFERENCE_NAME, 17, leafPageSequences, TUPLE_IDS, TUPLES, null
+				ENTITY_INDEX_PK, REFERENCE_NAME, 17, leafPageSequences, TUPLE_IDS, TUPLES, NO_SORT_VALUE_SLOTS, null
 			);
 			final VirtualReferencePartitionIndexStoragePart deserialized = roundTrip(part);
 
@@ -209,7 +223,8 @@ class VirtualReferencePartitionIndexStoragePartSerializerTest {
 		@DisplayName("packs the entity index primary key with the compressed reference name")
 		void shouldPackEntityIndexAndReferenceName() {
 			final VirtualReferencePartitionIndexStoragePart part = VirtualReferencePartitionIndexStoragePart.single(
-				ENTITY_INDEX_PK, REFERENCE_NAME, new long[0], new long[0], new int[0], new Serializable[0][], null
+				ENTITY_INDEX_PK, REFERENCE_NAME, new long[0], new long[0], new int[0], new Serializable[0][],
+				NO_SORT_VALUE_SLOTS, null
 			);
 			final long primaryKey = part.computeUniquePartIdAndSet(
 				VirtualReferencePartitionIndexStoragePartSerializerTest.this.keyCompressor
@@ -224,7 +239,7 @@ class VirtualReferencePartitionIndexStoragePartSerializerTest {
 		@DisplayName("round-trips through the registered index Kryo")
 		void shouldRoundTripViaRegisteredKryo() {
 			final VirtualReferencePartitionIndexStoragePart part = VirtualReferencePartitionIndexStoragePart.paged(
-				ENTITY_INDEX_PK, REFERENCE_NAME, 2, new int[]{1, 2}, TUPLE_IDS, TUPLES, null
+				ENTITY_INDEX_PK, REFERENCE_NAME, 2, new int[]{1, 2}, TUPLE_IDS, TUPLES, NO_SORT_VALUE_SLOTS, null
 			);
 			final Kryo theKryo = VirtualReferencePartitionIndexStoragePartSerializerTest.this.kryo;
 			final ByteArrayOutputStream os = new ByteArrayOutputStream(4_096);
@@ -237,6 +252,123 @@ class VirtualReferencePartitionIndexStoragePartSerializerTest {
 			}
 			assertArrayEquals(part.getLeafPageSequences(), deserialized.getLeafPageSequences());
 			assertSameDictionary(part, deserialized);
+		}
+	}
+
+	/**
+	 * Builds sort value slots covering every normalized value form: a plain number, a decomposed localized string, a
+	 * scaled `BigDecimal`, the comparable wrappers of `Locale` and `Currency`, and a compound with a `BigDecimal` and a
+	 * missing element, sorted descending with nulls first.
+	 *
+	 * @return the slots in ascending slot id order
+	 */
+	@Nonnull
+	private static SortValueSlot[] sortValueSlots() {
+		return new SortValueSlot[]{
+			new SortValueSlot(
+				16, new AttributeIndexKey(REFERENCE_NAME, "order", null),
+				new ComparatorSource[]{new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)},
+				0, new int[]{1, 2, 5}, new Serializable[]{7, -3, Integer.MAX_VALUE}
+			),
+			new SortValueSlot(
+				17, new AttributeIndexKey(REFERENCE_NAME, "title", Locale.forLanguageTag("cs")),
+				new ComparatorSource[]{new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)},
+				0, new int[]{3}, new Serializable[]{"c\u030Cesky\u0301"}
+			),
+			new SortValueSlot(
+				18, new AttributeIndexKey(REFERENCE_NAME, "weight", null),
+				new ComparatorSource[]{
+					new ComparatorSource(BigDecimal.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+				},
+				2, new int[]{1}, new Serializable[]{150}
+			),
+			new SortValueSlot(
+				19, new AttributeIndexKey(REFERENCE_NAME, "language", null),
+				new ComparatorSource[]{new ComparatorSource(Locale.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)},
+				0, new int[]{1, 2}, new Serializable[]{new ComparableLocale(Locale.ENGLISH), new ComparableLocale(Locale.GERMAN)}
+			),
+			new SortValueSlot(
+				20, new AttributeIndexKey(REFERENCE_NAME, "currency", null),
+				new ComparatorSource[]{new ComparatorSource(Currency.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)},
+				0, new int[]{4}, new Serializable[]{new ComparableCurrency(Currency.getInstance("CZK"))}
+			),
+			new SortValueSlot(
+				21, new AttributeIndexKey(REFERENCE_NAME, "compound", null),
+				new ComparatorSource[]{
+					new ComparatorSource(String.class, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
+					new ComparatorSource(BigDecimal.class, OrderDirection.ASC, OrderBehaviour.NULLS_FIRST)
+				},
+				0, new int[]{1, 2},
+				new Serializable[]{
+					new ComparableArray(new Serializable[]{"video", new BigDecimal("1.50")}),
+					new ComparableArray(new Serializable[]{null, new BigDecimal("-0.001")})
+				}
+			),
+			new SortValueSlot(
+				22, new AttributeIndexKey(REFERENCE_NAME, "empty", null),
+				new ComparatorSource[]{new ComparatorSource(Long.class, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)},
+				0, new int[0], new Serializable[0]
+			)
+		};
+	}
+
+	/**
+	 * Asserts the deserialized sort value slots equal the original ones.
+	 *
+	 * @param expected the original slots
+	 * @param actual   the deserialized slots
+	 */
+	private static void assertSameSortValueSlots(@Nonnull SortValueSlot[] expected, @Nonnull SortValueSlot[] actual) {
+		assertEquals(expected.length, actual.length, "Every slot must survive the round-trip.");
+		for (int i = 0; i < expected.length; i++) {
+			assertEquals(expected[i].slotId(), actual[i].slotId());
+			assertEquals(expected[i].attributeIndexKey(), actual[i].attributeIndexKey());
+			assertArrayEquals(expected[i].comparatorBase(), actual[i].comparatorBase());
+			assertEquals(expected[i].indexedDecimalPlaces(), actual[i].indexedDecimalPlaces());
+			assertArrayEquals(expected[i].valueIds(), actual[i].valueIds());
+			// equals of ComparableArray is element-wise, so a BigDecimal element must keep its scale exactly
+			assertArrayEquals(expected[i].values(), actual[i].values(), "Values of slot " + i + " must survive.");
+		}
+	}
+
+	@Nested
+	@DisplayName("Sort value slots")
+	class SortValueSlots {
+
+		@Test
+		@DisplayName("round-trip on a SINGLE root with every normalized value form")
+		void shouldRoundTripSortValueSlotsOnSingleRoot() {
+			final SortValueSlot[] slots = sortValueSlots();
+			final VirtualReferencePartitionIndexStoragePart part = VirtualReferencePartitionIndexStoragePart.single(
+				ENTITY_INDEX_PK, REFERENCE_NAME, new long[]{NumberUtils.pack(16, 1)}, new long[]{1L},
+				TUPLE_IDS, TUPLES, slots, null
+			);
+			final VirtualReferencePartitionIndexStoragePart deserialized = roundTrip(part);
+			assertSameSortValueSlots(slots, deserialized.getSortValueSlots());
+			assertSameDictionary(part, deserialized);
+			assertArrayEquals(part.getKeys(), deserialized.getKeys());
+		}
+
+		@Test
+		@DisplayName("round-trip on a PAGED root")
+		void shouldRoundTripSortValueSlotsOnPagedRoot() {
+			final SortValueSlot[] slots = sortValueSlots();
+			final VirtualReferencePartitionIndexStoragePart part = VirtualReferencePartitionIndexStoragePart.paged(
+				ENTITY_INDEX_PK, REFERENCE_NAME, 3, new int[]{1, 3}, new int[0], new Serializable[0][], slots, null
+			);
+			final VirtualReferencePartitionIndexStoragePart deserialized = roundTrip(part);
+			assertTrue(deserialized.isPaged());
+			assertArrayEquals(new int[]{1, 3}, deserialized.getLeafPageSequences());
+			assertSameSortValueSlots(slots, deserialized.getSortValueSlots());
+		}
+
+		@Test
+		@DisplayName("round-trip a root without any sort value slot")
+		void shouldRoundTripRootWithoutSortValueSlots() {
+			final VirtualReferencePartitionIndexStoragePart part = VirtualReferencePartitionIndexStoragePart.single(
+				ENTITY_INDEX_PK, REFERENCE_NAME, new long[0], new long[0], TUPLE_IDS, TUPLES, NO_SORT_VALUE_SLOTS, null
+			);
+			assertEquals(0, roundTrip(part).getSortValueSlots().length);
 		}
 	}
 }

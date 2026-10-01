@@ -31,6 +31,10 @@ package io.evitadb.index;
  * Because the {@link #getId() id} is baked into every key ever written, it is assigned explicitly and never derived
  * from the declaration order: reordering or inserting constants must not re-point the entries already on disk.
  *
+ * The constants name the slots every index has. Slots the index declares at runtime - one per sort key, holding the
+ * sort value of each partition - take ids from {@link #FIRST_DECLARED_SLOT_ID} up, so the ids below it stay reserved
+ * for constants and a constant added later can never collide with a declared slot already on disk.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public enum VirtualReferencePartitionSlot {
@@ -45,6 +49,11 @@ public enum VirtualReferencePartitionSlot {
 	 * referenced entity. The payload is the id of the value tuple in the index's tuple dictionary.
 	 */
 	REPRESENTATIVE_TUPLE(1);
+
+	/**
+	 * The smallest id a slot declared at runtime may take. Every id below it is reserved for a constant of this enum.
+	 */
+	public static final int FIRST_DECLARED_SLOT_ID = 16;
 
 	/**
 	 * The persisted slot id - the high half of every key of this slot.
