@@ -368,7 +368,7 @@ class WarmUpRollbackConformanceTest implements EvitaTestSupport {
 		 * {@link Transaction#isTransactionAvailable()}, each with the reason its gates are not a warm-up-rollback
 		 * hole. Nothing else may.
 		 *
-		 * The exemptions fall into four kinds, and every entry below is one of them:
+		 * The exemptions fall into the kinds below, and every entry is one of them:
 		 *
 		 * - **Cache read gates.** The gate picks between a memoized value and a freshly computed one. It writes no
 		 *   index state, and the memo it may fill is recomputable — a rollback re-invalidates it rather than
@@ -387,6 +387,9 @@ class WarmUpRollbackConformanceTest implements EvitaTestSupport {
 		 *   garbage — nothing has to rewind it.
 		 * - **Premise refusals.** `Assert.isPremiseValid(!isTransactionAvailable(), ...)` forbids a call rather than
 		 *   choosing between two behaviours. An assertion writes nothing, so it cannot leave anything unrewound.
+		 * - **Representation gates.** The gate picks how a write is recorded, not whether it is journalled: both arms
+		 *   hand back a new value that the caller journals before storing it, so the warm-up arm leaves nothing
+		 *   unrewound. Only `ImpactRecords` is one.
 		 * - **Schema-lifecycle gates.** The write happens on a schema change rather than on an entity mutation, so
 		 *   it never runs inside the bracket that opens a savepoint. Only `detachValueIdConsumer` is one, and its
 		 *   own comment states why the transactional arm keeps the column instead.
@@ -461,6 +464,13 @@ class WarmUpRollbackConformanceTest implements EvitaTestSupport {
 				"io/evitadb/index/bPlusTree/TransactionalElementBPlusTree.java",
 				"node-construction flags for split offspring, plus one read-only assert precondition - the node " +
 					"writes themselves go through WarmUpSavepoint#writeLayer"
+			),
+			Map.entry(
+				"io/evitadb/index/bPlusTree/ImpactRecords.java",
+				"representation gates - the bitmap tier defers its impacts to a pending delta inside a transaction " +
+					"and keeps its chunks aligned eagerly outside one. The warm-up arm never writes a slot in place: " +
+					"it returns a new one, which the leaf journals through journalBucketImpactsIfOpen before storing " +
+					"it (BucketImpactColumnTest$Savepoints)"
 			)
 		);
 
