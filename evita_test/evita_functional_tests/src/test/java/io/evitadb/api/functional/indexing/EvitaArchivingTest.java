@@ -33,9 +33,13 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
@@ -49,6 +53,7 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.core.exception.AttributeNotSortableException;
@@ -58,9 +63,12 @@ import io.evitadb.core.exception.ReferenceNotFacetedException;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Functions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -69,6 +77,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Currency;
 import java.util.List;
@@ -86,6 +95,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.HIERARCHY;
 import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * This test verifies archiving (changing scope) of the entities.
@@ -917,6 +927,201 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 					productColl3, Scope.LIVE, Entities.CATEGORY, 10
 				).getAllPrimaryKeys().contains(200),
 				"Product 200 should still be in group entity index"
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Prices in reduced indexes reached from several references")
+	@Tag(PRICE)
+	class SharedReducedIndexPriceArchivalTest {
+		private static final String ATTRIBUTE_COUNTRY = "country";
+		private static final Scope[] BOTH_SCOPES = {Scope.LIVE, Scope.ARCHIVED};
+		private static final int PRODUCT = 100;
+		private static final int BRAND = 10;
+		private static final int CATEGORY = 20;
+		private static final int OTHER_CATEGORY = 21;
+		private static final String[] COUNTRIES = {"DE", "US"};
+
+		@Test
+		@DisplayName("Prices should move once through the group index shared by two references of the product")
+		void shouldMovePricesThroughGroupIndexSharedByTwoReferences() {
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.BRAND).withoutGeneratedPrimaryKey().updateVia(session);
+					session.defineEntitySchema(Entities.CATEGORY).withoutGeneratedPrimaryKey().updateVia(session);
+					session.defineEntitySchema(Entities.PRODUCT)
+						.withoutGeneratedPrimaryKey()
+						.withIndexedPriceInCurrency(new Currency[]{CURRENCY_CZK}, BOTH_SCOPES)
+						.withReferenceToEntity(
+							Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+							thatIs -> thatIs
+								.withGroupTypeRelatedToEntity(Entities.BRAND)
+								.indexedForFilteringAndPartitioningInScope(BOTH_SCOPES)
+								.indexedWithComponentsInScope(
+									Scope.LIVE,
+									ReferenceIndexedComponents.REFERENCED_ENTITY,
+									ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+								)
+								.indexedWithComponentsInScope(
+									Scope.ARCHIVED,
+									ReferenceIndexedComponents.REFERENCED_ENTITY,
+									ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+								)
+						)
+						.updateVia(session);
+
+					session.upsertEntity(session.createNewEntity(Entities.BRAND, BRAND));
+					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, CATEGORY));
+					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, OTHER_CATEGORY));
+
+					// both references resolve the same group index
+					session.createNewEntity(Entities.PRODUCT, PRODUCT)
+						.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
+						.setReference(Entities.CATEGORY, CATEGORY, whichIs -> whichIs.setGroup(Entities.BRAND, BRAND))
+						.setReference(Entities.CATEGORY, OTHER_CATEGORY, whichIs -> whichIs.setGroup(Entities.BRAND, BRAND))
+						.upsertVia(session);
+				}
+			);
+			assertPriceIndexed(getReferencedGroupEntityIndex(productCollection(), Scope.LIVE, Entities.CATEGORY, BRAND));
+
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG, session -> {
+					session.archiveEntity(Entities.PRODUCT, PRODUCT);
+				}
+			);
+			assertNull(getReferencedGroupEntityIndex(productCollection(), Scope.LIVE, Entities.CATEGORY, BRAND));
+			assertPriceIndexed(
+				getReferencedGroupEntityIndex(productCollection(), Scope.ARCHIVED, Entities.CATEGORY, BRAND)
+			);
+
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG, session -> {
+					session.restoreEntity(Entities.PRODUCT, PRODUCT);
+				}
+			);
+			assertNull(getReferencedGroupEntityIndex(productCollection(), Scope.ARCHIVED, Entities.CATEGORY, BRAND));
+			assertPriceIndexed(getReferencedGroupEntityIndex(productCollection(), Scope.LIVE, Entities.CATEGORY, BRAND));
+		}
+
+		@Test
+		@DisplayName("Prices should move once through each partition of a target referenced twice by the product")
+		void shouldMovePricesThroughEachPartitionOfTargetReferencedTwice() {
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.CATEGORY).withoutGeneratedPrimaryKey().updateVia(session);
+					session.defineEntitySchema(Entities.PRODUCT)
+						.withoutGeneratedPrimaryKey()
+						.withIndexedPriceInCurrency(new Currency[]{CURRENCY_CZK}, BOTH_SCOPES)
+						.withReferenceToEntity(
+							Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+							thatIs -> thatIs
+								.indexedForFilteringAndPartitioningInScope(BOTH_SCOPES)
+								.withAttribute(
+									ATTRIBUTE_COUNTRY, String.class, whichIs -> whichIs.filterable().representative()
+								)
+						)
+						.updateVia(session);
+
+					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, CATEGORY));
+					session.createNewEntity(Entities.PRODUCT, PRODUCT)
+						.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
+						.upsertVia(session);
+				}
+			);
+			// one partition per country, each populated by the insertion of its own reference; both references
+			// resolve both partitions of the category
+			for (String country : COUNTRIES) {
+				EvitaArchivingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.getEntity(Entities.PRODUCT, PRODUCT, entityFetchAllContent())
+							.orElseThrow()
+							.openForWrite()
+							.setOrUpdateReference(
+								Entities.CATEGORY, CATEGORY, Functions.alwaysFalse(),
+								whichIs -> whichIs.setAttribute(ATTRIBUTE_COUNTRY, country)
+							)
+							.upsertVia(session);
+					}
+				);
+			}
+			assertPriceIndexedInEachPartition(Scope.LIVE);
+
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG, session -> {
+					session.archiveEntity(Entities.PRODUCT, PRODUCT);
+				}
+			);
+			assertNoPartition(Scope.LIVE);
+			assertPriceIndexedInEachPartition(Scope.ARCHIVED);
+
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG, session -> {
+					session.restoreEntity(Entities.PRODUCT, PRODUCT);
+				}
+			);
+			assertNoPartition(Scope.ARCHIVED);
+			assertPriceIndexedInEachPartition(Scope.LIVE);
+		}
+
+		/**
+		 * Returns the current product collection of the test catalog.
+		 */
+		@Nonnull
+		private EntityCollectionContract productCollection() {
+			return EvitaArchivingTest.this.evita.getCatalogInstance(TEST_CATALOG)
+				.orElseThrow()
+				.getCollectionForEntity(Entities.PRODUCT)
+				.orElseThrow();
+		}
+
+		/**
+		 * Returns the partition of {@link #CATEGORY} holding the references of `country` in `scope`, if it exists.
+		 */
+		@Nullable
+		private EntityIndex getPartition(@Nonnull Scope scope, @Nonnull String country) {
+			return ((EntityCollection) productCollection()).getIndexByKeyIfExists(
+				new EntityIndexKey(
+					EntityIndexType.REFERENCED_ENTITY,
+					scope,
+					new RepresentativeReferenceKey(
+						new ReferenceKey(Entities.CATEGORY, CATEGORY), new Serializable[]{country}
+					)
+				)
+			);
+		}
+
+		/**
+		 * Asserts that every partition of {@link #CATEGORY} exists in `scope` and indexes the product's price.
+		 */
+		private void assertPriceIndexedInEachPartition(@Nonnull Scope scope) {
+			for (String country : COUNTRIES) {
+				assertPriceIndexed(getPartition(scope, country));
+			}
+		}
+
+		/**
+		 * Asserts that no partition of {@link #CATEGORY} is left in `scope`.
+		 */
+		private void assertNoPartition(@Nonnull Scope scope) {
+			for (String country : COUNTRIES) {
+				assertNull(getPartition(scope, country), "The " + country + " partition must be gone in " + scope + ".");
+			}
+		}
+
+		/**
+		 * Asserts that `index` exists and its price index of the basic price list in CZK holds the product.
+		 */
+		private static void assertPriceIndexed(@Nullable EntityIndex index) {
+			assertNotNull(index, "The index must exist.");
+			assertTrue(
+				index.getPriceIndex(PRICE_LIST_BASIC, CURRENCY_CZK, PriceInnerRecordHandling.NONE)
+					.getIndexedPriceEntityIds()
+					.contains(PRODUCT),
+				"The index " + index + " must hold the price of the product."
 			);
 		}
 	}

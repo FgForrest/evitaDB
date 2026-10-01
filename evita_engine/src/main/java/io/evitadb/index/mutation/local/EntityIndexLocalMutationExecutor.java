@@ -23,6 +23,7 @@
 
 package io.evitadb.index.mutation.local;
 
+import com.carrotsearch.hppc.IntHashSet;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
@@ -3155,7 +3156,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 
 	/**
 	 * Applies passed consumer function on all {@link AbstractReducedEntityIndex} related to currently existing
-	 * {@link ReferenceContract} of the entity.
+	 * {@link ReferenceContract} of the entity, each of them exactly once.
+	 *
+	 * One index can be reached from several references of the entity - every partition of a target from each
+	 * duplicate reference to it, every group index from each reference in the group - while the consumers insert and
+	 * remove entries the index holds once per entity, so a second visit would insert an entry again or remove it from
+	 * a structure the first visit already emptied. The primary keys of the visited indexes are therefore tracked, in a
+	 * set created only for the references that can reach an index twice.
 	 */
 	private void applyOnExistingReducedIndexes(
 		@Nonnull Scope scope,
@@ -3164,6 +3171,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	) {
 		final EntitySchema entitySchema = getEntitySchema();
 		final AtomicReference<ReferenceSchemaContract> referenceSchema = new AtomicReference<>();
+		final AtomicReference<IntHashSet> visitedIndexes = new AtomicReference<>();
 		referenceSupplier
 			.getReferenceKeys()
 			.forEach(refKey -> {
@@ -3176,14 +3184,20 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				// entity reduced indexes (only when entity component is configured)
 				if (ReferenceIndexMutator.isIndexedForEntityComponent(theReferenceSchema, scope)) {
 					final ReferenceSchemaContract partitionSchema = theReferenceSchema;
+					// only duplicates of one reference share partitions - the partitions of a target are all
+					// resolved for each of them
+					final IntHashSet visitedPartitions = partitionSchema.getCardinality().allowsDuplicates() ?
+						visitedIndexes.updateAndGet(it -> it == null ? new IntHashSet() : it) : null;
 					forEachPartitionOfTargetForWrite(
 						scope, partitionSchema, refKey.primaryKey(),
 						// the consumers (locales, prices) write through the generic index API, which only a
 						// materialized partition offers
 						partition -> {
-							switch (partition) {
-								case ReducedEntityIndex reducedIndex ->
-									entityIndexConsumer.accept(partitionSchema, reducedIndex);
+							if (visitedPartitions == null || visitedPartitions.add(partition.getPrimaryKey())) {
+								switch (partition) {
+									case ReducedEntityIndex reducedIndex ->
+										entityIndexConsumer.accept(partitionSchema, reducedIndex);
+								}
 							}
 						}
 					);
@@ -3203,13 +3217,18 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 									this, theReferenceSchema.getName(), scope
 								);
 							final int[] groupIndexPrimaryKeys = groupTypeIndex.getAllReferenceIndexes(groupPK);
+							// every reference in the group resolves the same group indexes
+							final IntHashSet visitedGroupIndexes =
+								visitedIndexes.updateAndGet(it -> it == null ? new IntHashSet() : it);
 							// every group index is acquired for writing before the first consumer runs
 							final List<ReducedGroupEntityIndex> groupReducedIndexes =
 								new ArrayList<>(groupIndexPrimaryKeys.length);
 							for (final int groupIndexPrimaryKey : groupIndexPrimaryKeys) {
-								getIndexByPrimaryKey(groupIndexPrimaryKey)
-									.map(ReducedGroupEntityIndex.class::cast)
-									.ifPresent(groupReducedIndexes::add);
+								if (visitedGroupIndexes.add(groupIndexPrimaryKey)) {
+									getIndexByPrimaryKey(groupIndexPrimaryKey)
+										.map(ReducedGroupEntityIndex.class::cast)
+										.ifPresent(groupReducedIndexes::add);
+								}
 							}
 							for (ReducedGroupEntityIndex groupIndex : groupReducedIndexes) {
 								entityIndexConsumer.accept(theReferenceSchema, groupIndex);
