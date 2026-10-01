@@ -32,6 +32,7 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.FilterInScope;
 import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.query.require.HierarchyRequireConstraint;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -81,8 +82,10 @@ import static io.evitadb.api.query.QueryConstraints.debug;
 import static io.evitadb.api.query.QueryConstraints.entityHaving;
 import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
+import static io.evitadb.api.query.QueryConstraints.excluding;
 import static io.evitadb.api.query.QueryConstraints.facetHaving;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.fromRoot;
 import static io.evitadb.api.query.QueryConstraints.hierarchyOfReference;
 import static io.evitadb.api.query.QueryConstraints.hierarchyWithin;
 import static io.evitadb.api.query.QueryConstraints.hierarchyWithinRoot;
@@ -975,6 +978,139 @@ public class InScopeReducedIndexPlanFunctionalTest {
 			List.of(SUBTREE_CATEGORY),
 			fetched.getReferences(REF_CATEGORIES).stream().map(ReferenceContract::getReferencedPrimaryKey).toList()
 		);
+	}
+
+	/**
+	 * Checks that hierarchy statistics of a scope use the roots resolved by an occurrence of the constraint that covers
+	 * that scope when an equal `hierarchyWithin` sits both in `inScope(ARCHIVED, ...)` and at the top level of a query
+	 * over both scopes (#1686).
+	 *
+	 * The parent filter `entityPrimaryKeyInSet(1)` resolves to root 1 for the top-level occurrence (category 1 is
+	 * live) and to no root at all for the occurrence scoped to ARCHIVED (the archived tree does not contain 1). The
+	 * live `children` statistics must describe root 1 with its 8 live owners, whichever occurrence is translated first
+	 * and whether they are one instance or two - the archived occurrence does not apply to the live scope.
+	 *
+	 * @param scopedFirst whether the scoped constraint precedes the top-level one
+	 * @param reused      whether both places hold the same instance
+	 * @param session     the session provided by the test extension
+	 */
+	@DisplayName("Should compute hierarchy statistics from the roots covering their scope when scoped and top-level mix")
+	@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+	@ParameterizedTest(name = "scoped first: {0}, reused instance: {1}")
+	@MethodSource("mixedHierarchyOccurrenceRows")
+	@Tag(ENGINE)
+	@Tag(QUERY)
+	void shouldComputeHierarchyStatisticsFromRootsCoveringTheirScope(
+		boolean scopedFirst,
+		boolean reused,
+		@Nonnull EvitaSessionContract session
+	) {
+		final FilterConstraint scoped = hierarchyWithin(REF_CATEGORIES, entityPrimaryKeyInSet(ROOT_CATEGORY));
+		final FilterConstraint topLevel = reused ?
+			scoped : hierarchyWithin(REF_CATEGORIES, entityPrimaryKeyInSet(ROOT_CATEGORY));
+		final List<LevelInfo> levels = queryLiveHierarchyStatistics(
+			session,
+			scopedFirst ?
+				new FilterConstraint[]{inScope(Scope.ARCHIVED, scoped), topLevel} :
+				new FilterConstraint[]{topLevel, inScope(Scope.ARCHIVED, scoped)},
+			children(HIERARCHY_OUTPUT, statistics(StatisticsType.QUERIED_ENTITY_COUNT))
+		);
+		assertEquals(
+			List.of(ROOT_CATEGORY),
+			levels.stream().map(it -> it.entity().getPrimaryKey()).toList(),
+			() -> "the live statistics must describe the live root 1, got: " + levels
+		);
+		assertEquals(Integer.valueOf(LIVE_SUBTREE.length), levels.get(0).queriedEntityCount());
+	}
+
+	/**
+	 * Checks that hierarchy statistics of a scope use the node visibility the filter resolved for that scope when an
+	 * equal `hierarchyWithinRoot(..., excluding(...))` sits both in `inScope(ARCHIVED, ...)` and at the top level of
+	 * a query over both scopes (#1686).
+	 *
+	 * The exclusion of category 3 resolved in the archived scope sees no live node at all; resolved for the top-level
+	 * constraint it hides the subtree of 3 only. The live `fromRoot` statistics must therefore list root 1 - the only
+	 * live root with live owners once 3 is hidden (4 has archived owners only) - whichever constraint comes first.
+	 *
+	 * @param scopedFirst whether the scoped constraint precedes the top-level one
+	 * @param reused      whether both places hold the same instance
+	 * @param session     the session provided by the test extension
+	 */
+	@DisplayName("Should compute hierarchy statistics with the visibility covering their scope when scoped and top-level mix")
+	@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+	@ParameterizedTest(name = "scoped first: {0}, reused instance: {1}")
+	@MethodSource("mixedHierarchyOccurrenceRows")
+	@Tag(ENGINE)
+	@Tag(QUERY)
+	void shouldComputeHierarchyStatisticsWithVisibilityCoveringTheirScope(
+		boolean scopedFirst,
+		boolean reused,
+		@Nonnull EvitaSessionContract session
+	) {
+		final FilterConstraint scoped = hierarchyWithinRoot(
+			REF_CATEGORIES, excluding(entityPrimaryKeyInSet(OTHER_CATEGORY))
+		);
+		final FilterConstraint topLevel = reused ?
+			scoped : hierarchyWithinRoot(REF_CATEGORIES, excluding(entityPrimaryKeyInSet(OTHER_CATEGORY)));
+		final List<LevelInfo> levels = queryLiveHierarchyStatistics(
+			session,
+			scopedFirst ?
+				new FilterConstraint[]{inScope(Scope.ARCHIVED, scoped), topLevel} :
+				new FilterConstraint[]{topLevel, inScope(Scope.ARCHIVED, scoped)},
+			fromRoot(HIERARCHY_OUTPUT, statistics(StatisticsType.QUERIED_ENTITY_COUNT))
+		);
+		assertEquals(
+			List.of(ROOT_CATEGORY),
+			levels.stream().map(it -> it.entity().getPrimaryKey()).toList(),
+			() -> "the live statistics must list root 1 only, got: " + levels
+		);
+	}
+
+	/**
+	 * Returns the rows of the mixed scoped / top-level hierarchy witnesses: whether the scoped constraint comes first,
+	 * and whether both places hold the same instance.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> mixedHierarchyOccurrenceRows() {
+		return Stream.of(
+			Arguments.of(true, true),
+			Arguments.of(true, false),
+			Arguments.of(false, true),
+			Arguments.of(false, false)
+		);
+	}
+
+	/**
+	 * Runs a query over both scopes with the passed filter constraints and returns the live hierarchy statistics of
+	 * the `categories` reference computed by the passed requirement.
+	 *
+	 * @param session     the session to query
+	 * @param constraints the constraints placed next to `scope(LIVE, ARCHIVED)`
+	 * @param requirement the statistics requirement, named {@link #HIERARCHY_OUTPUT}
+	 * @return the live statistics
+	 */
+	@Nonnull
+	private static List<LevelInfo> queryLiveHierarchyStatistics(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull FilterConstraint[] constraints,
+		@Nonnull HierarchyRequireConstraint requirement
+	) {
+		final EvitaResponse<EntityReference> response = session.query(
+			query(
+				collection(ENTITY_PRODUCT),
+				filterBy(ArrayUtils.mergeArrays(new FilterConstraint[]{scope(BOTH_SCOPES)}, constraints)),
+				require(
+					page(1, PRODUCT_COUNT),
+					inScope(Scope.LIVE, hierarchyOfReference(REF_CATEGORIES, requirement))
+				)
+			),
+			EntityReference.class
+		);
+		final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+		assertNotNull(hierarchy, "the hierarchy statistics must be computed");
+		return hierarchy.getReferenceHierarchy(REF_CATEGORIES, HIERARCHY_OUTPUT);
 	}
 
 	/**

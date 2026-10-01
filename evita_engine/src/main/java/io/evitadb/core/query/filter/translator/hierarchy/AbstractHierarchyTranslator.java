@@ -69,6 +69,26 @@ import static io.evitadb.api.query.QueryConstraints.*;
 public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> implements FilteringConstraintTranslator<T>, SelfTraversingTranslator {
 
 	/**
+	 * Encodes the processing scopes as an additional cache key of
+	 * {@link QueryPlanningContext#computeOnlyOnce(java.util.List, FilterConstraint, Supplier, long...)}.
+	 *
+	 * The memoized computation registers the roots and the node visibility of the constraint for the processing
+	 * scopes it runs in, and its result depends on them too, so an equal constraint translated in another scope set
+	 * (`inScope(LIVE, ...)` next to a top-level occurrence over both scopes) must not be answered from the cache -
+	 * it would leave its own scope set unregistered.
+	 *
+	 * @param scopes the processing scopes of the translated occurrence
+	 * @return a positive key, one bit per scope
+	 */
+	protected static long scopesCacheKey(@Nonnull Set<Scope> scopes) {
+		long key = 0L;
+		for (final Scope scope : scopes) {
+			key |= 1L << scope.ordinal();
+		}
+		return key;
+	}
+
+	/**
 	 * Creates a hierarchy exclusion predicate if the exclusion filter is defined and stores it to
 	 * {@link QueryPlanningContext} for later use, under the constraint that declared it - the requirement phase
 	 * asks for the visibility of the hierarchy it describes, never for whatever a sibling constraint declared.

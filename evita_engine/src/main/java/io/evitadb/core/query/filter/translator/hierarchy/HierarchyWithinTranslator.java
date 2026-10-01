@@ -142,7 +142,8 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 							referenceSchema,
 							targetEntitySchema
 						);
-					}
+					},
+					scopesCacheKey(scopesToLookup)
 				))
 			.filter(it -> it != EmptyFormula.INSTANCE)
 			.findFirst()

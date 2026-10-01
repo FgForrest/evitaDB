@@ -105,7 +105,8 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 							),
 							hierarchyWithinRoot.isDirectRelation(),
 							targetEntityIndex
-						)
+						),
+						scopesCacheKey(scopesToLookup)
 					)
 			)
 			.findFirst()
