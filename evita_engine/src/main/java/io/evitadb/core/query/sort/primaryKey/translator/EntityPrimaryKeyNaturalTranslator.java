@@ -101,7 +101,7 @@ public class EntityPrimaryKeyNaturalTranslator
 		} else if (pickFirstIndexResolver != null) {
 			// if prefetch happens, the comparator reads the references - and, for a reference allowing duplicates,
 			// their representative attributes, which order the references sharing one referenced entity
-			registerReferencesToPrefetch(referenceSchema, orderByVisitor);
+			registerReferencesWithRepresentativeAttributesToPrefetch(referenceSchema, orderByVisitor);
 			return Stream.of(
 				new PrefetchedRecordsSorter(
 					new PickFirstReferencePrimaryKeyEntityComparator(referenceSchema, orderDirection, pickFirstIndexResolver)
@@ -114,9 +114,9 @@ public class EntityPrimaryKeyNaturalTranslator
 				)
 			);
 		} else {
-			// if prefetch happens, the traversal comparator classifies every owner of a block by its rows to the block's
-			// referenced entity - taken in representative order for a reference allowing duplicates - so it reads them
-			registerReferencesToPrefetch(referenceSchema, orderByVisitor);
+			// if prefetch happens, the traversal comparator classifies every owner of a block by whether it has a row
+			// to the block's referenced entity - it reads the rows, never their attributes
+			orderByVisitor.addRequirementToPrefetch(referenceContent(referenceSchema.getName()));
 			final EntityIndex[] entityIndices = processingScope.entityIndex();
 			// every owner of a block carries the same value, so both routes order a block by the owner primary key in
 			// the direction of the ordering: the comparator breaks the tie that way and each provider lists its
@@ -171,14 +171,14 @@ public class EntityPrimaryKeyNaturalTranslator
 	}
 
 	/**
-	 * Registers the content the prefetch-route comparators of an ordering by the referenced primary key read: the
-	 * references of the ordered reference and, for a reference allowing duplicates, their representative attributes,
-	 * which tell the references sharing one referenced entity apart.
+	 * Registers the content the prefetch-route comparator of a `pickFirst` ordering by the referenced primary key
+	 * reads: the references of the ordered reference and, for a reference allowing duplicates, their representative
+	 * attributes, which order the references sharing one referenced entity.
 	 *
 	 * @param referenceSchema the ordered reference
 	 * @param orderByVisitor  the visitor collecting the requirements of the prefetch
 	 */
-	private static void registerReferencesToPrefetch(
+	private static void registerReferencesWithRepresentativeAttributesToPrefetch(
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nonnull OrderByVisitor orderByVisitor
 	) {
@@ -313,7 +313,8 @@ public class EntityPrimaryKeyNaturalTranslator
 
 		/**
 		 * Compares two entities classified as sortable by {@link #canSort(EntityContract)} within the bound block.
-		 * Both have a row to the block's referenced entity, so both carry the same value - its primary key - and the tie is broken by their own primary keys in the direction of the ordering. Neither row is
+		 * Both have a row to the block's referenced entity, so both carry the same value - its primary key -
+		 * and the tie is broken by their own primary keys in the direction of the ordering. Neither row is
 		 * looked up again: the classification already established it, and the value it would yield is fixed by the
 		 * block key.
 		 *

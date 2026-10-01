@@ -52,6 +52,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -66,10 +67,13 @@ import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.BLOCK_1
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.BLOCK_2;
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.BLOCK_3;
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.COMPOUND;
+import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.DECIMAL_VARIANTS_REFERENCE_SCHEMA;
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.OWNERS;
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.REFERENCE_SCHEMA;
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.VARIANTS_REFERENCE_SCHEMA;
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.blockKey;
+import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.decimalVariantKey;
+import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.decimalVariantsBlockKey;
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.sort;
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.variantKey;
 import static io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.variantsBlockKey;
@@ -536,6 +540,71 @@ class PrefetchedRecordsSorterClassificationTest {
 			);
 		}
 
+		/**
+		 * Creates the traversal comparator of the `orderSecond` compound of the `variants` reference in the direction.
+		 */
+		@Nonnull
+		private static TraverseReferenceCompoundAttributeComparator variantsCompoundComparator(
+			@Nonnull OrderDirection direction
+		) {
+			final SortableAttributeCompoundSchemaContract compound =
+				VARIANTS_REFERENCE_SCHEMA.getSortableAttributeCompound(COMPOUND).orElseThrow();
+			return new TraverseReferenceCompoundAttributeComparator(
+				compound, VARIANTS_REFERENCE_SCHEMA, null,
+				attributeName -> VARIANTS_REFERENCE_SCHEMA.getAttribute(attributeName)
+					.map(AttributeSchemaContract.class::cast)
+					.orElseThrow(),
+				direction
+			);
+		}
+
+		/**
+		 * Creates the traversal comparator of the `chain` attribute of the `variants` reference over the providers.
+		 */
+		@Nonnull
+		private static TraverseReferencePredecessorAttributeComparator variantsChainComparator(
+			@Nonnull SortedRecordsProvider[] providers
+		) {
+			return new TraverseReferencePredecessorAttributeComparator(
+				ATTRIBUTE_CHAIN, Predecessor.class, VARIANTS_REFERENCE_SCHEMA, null, OrderDirection.ASC, () -> providers
+			);
+		}
+
+		/**
+		 * Creates the traversal comparator of the `chain` attribute of the `decimalVariants` reference over the
+		 * providers.
+		 */
+		@Nonnull
+		private static TraverseReferencePredecessorAttributeComparator decimalVariantsChainComparator(
+			@Nonnull SortedRecordsProvider... providers
+		) {
+			return new TraverseReferencePredecessorAttributeComparator(
+				ATTRIBUTE_CHAIN, Predecessor.class, DECIMAL_VARIANTS_REFERENCE_SCHEMA, null, OrderDirection.ASC,
+				() -> providers
+			);
+		}
+
+		/**
+		 * Creates the chain provider of one representative key.
+		 *
+		 * @param transactionalId the id of the provider
+		 * @param sortedOwners    the owners in the order of the chain
+		 * @param ownerPositions  the position of each owner, in ascending owner order, within `sortedOwners`
+		 * @param key             the representative key of the provider
+		 * @return the provider
+		 */
+		@Nonnull
+		private static ReferenceSortedRecordsProvider chainProvider(
+			long transactionalId,
+			@Nonnull int[] sortedOwners,
+			@Nonnull int[] ownerPositions,
+			@Nonnull RepresentativeReferenceKey key
+		) {
+			return new ReferenceSortedRecordsProvider(
+				transactionalId, sortedOwners, ownerPositions, new BaseBitmap(sortedOwners), position -> null, key
+			);
+		}
+
 		@Test
 		@DisplayName("should represent each owner by its first valued row in representative order and order by value")
 		void shouldRepresentOwnerByFirstValuedRow() {
@@ -567,6 +636,27 @@ class PrefetchedRecordsSorterClassificationTest {
 			assertAll(
 				() -> assertArrayEquals(new int[]{72}, lone.written(), "row b carries the value"),
 				() -> assertArrayEquals(new int[0], lone.passedOn())
+			);
+		}
+
+		@Test
+		@DisplayName("should represent each owner by its first row carrying any element of the compound")
+		void shouldRepresentOwnerByFirstRowCarryingAnyCompoundElement() {
+			// block of brand 2: 70 by z (1,-), 72 by b (50,-) - its a row carries no element, 73 by b (60,-), 75 by
+			// a (60,-), 71 by a (100,-) and 77 by a (-,7), which carries `second` only and so follows every owner
+			// with an `order`; ordered by `order` alone, 77 is represented by its b row (40) instead
+			final SortResult compound = sort(
+				variantsCompoundComparator(OrderDirection.ASC), variantsBlockKey(2), 0, 10, 70, 71, 72, 73, 74, 75, 77
+			);
+			final SortResult order = sort(
+				variantsOrderComparator(OrderDirection.ASC), variantsBlockKey(2), 0, 10, 70, 71, 72, 73, 74, 75, 77
+			);
+
+			assertAll(
+				() -> assertArrayEquals(new int[]{70, 72, 73, 75, 71, 77}, compound.written(), "compound"),
+				() -> assertArrayEquals(new int[]{74}, compound.passedOn(), "74 has a row of brand 1 only"),
+				() -> assertArrayEquals(new int[]{70, 77, 72, 73, 75, 71}, order.written(), "order"),
+				() -> assertArrayEquals(new int[]{74}, order.passedOn())
 			);
 		}
 
@@ -603,6 +693,93 @@ class PrefetchedRecordsSorterClassificationTest {
 			assertAll(
 				() -> assertArrayEquals(new int[]{71, 73, 72, 70}, sorted.written()),
 				() -> assertArrayEquals(new int[]{74}, sorted.passedOn())
+			);
+		}
+
+		@Test
+		@DisplayName("should pass a chained row its key's providers do not hold on to the next row of the owner")
+		void shouldPassRowItsKeysProviderCannotPlaceToTheNextRow() {
+			// the chain of b holds 72 only: 73's b row carries a chain, yet no provider of b places 73, so its c row
+			// represents it - a | b | c | z
+			final SortedRecordsProvider[] providers = {
+				chainProvider(1L, new int[]{74}, new int[]{0}, variantKey(1, "m")),
+				chainProvider(2L, new int[]{71}, new int[]{0}, variantKey(2, "a")),
+				chainProvider(3L, new int[]{72}, new int[]{0}, variantKey(2, "b")),
+				chainProvider(4L, new int[]{73}, new int[]{0}, variantKey(2, "c")),
+				chainProvider(5L, new int[]{70}, new int[]{0}, variantKey(2, "z"))
+			};
+			final SortResult sorted = sort(
+				variantsChainComparator(providers), variantsBlockKey(2), 0, 10, 70, 71, 72, 73, 74
+			);
+
+			assertAll(
+				() -> assertArrayEquals(new int[]{71, 72, 73, 70}, sorted.written()),
+				() -> assertArrayEquals(new int[]{74}, sorted.passedOn())
+			);
+		}
+
+		@Test
+		@DisplayName("should order the chains of two keys whose representative values compare equal but differ")
+		void shouldOrderChainsOfEqualComparingKeys() {
+			// the providers line up the key 1.00 (84) before the key 1.0 (82, then 83), so the index route appends
+			// 84, 82, 83
+			final SortedRecordsProvider[] providers = {
+				new ReferenceSortedRecordsProvider(
+					1L, new int[]{84}, new int[]{0}, new BaseBitmap(84), position -> null,
+					decimalVariantKey(2, new BigDecimal("1.00"))
+				),
+				new ReferenceSortedRecordsProvider(
+					2L, new int[]{82, 83}, new int[]{0, 1}, new BaseBitmap(82, 83), position -> null,
+					decimalVariantKey(2, new BigDecimal("1.0"))
+				)
+			};
+			final TraverseReferencePredecessorAttributeComparator comparator =
+				new TraverseReferencePredecessorAttributeComparator(
+					ATTRIBUTE_CHAIN, Predecessor.class, DECIMAL_VARIANTS_REFERENCE_SCHEMA, null, OrderDirection.ASC,
+					() -> providers
+				);
+			final SortResult sorted = sort(comparator, decimalVariantsBlockKey(2), 0, 10, 82, 83, 84);
+			final int[] comparisons = new int[3];
+			comparator.prepareFor(3);
+			comparator.withReferencedEntityId(
+				decimalVariantsBlockKey(2),
+				() -> {
+					comparisons[0] = Integer.signum(comparator.compare(OWNERS.get(82), OWNERS.get(83)));
+					comparisons[1] = Integer.signum(comparator.compare(OWNERS.get(82), OWNERS.get(84)));
+					comparisons[2] = Integer.signum(comparator.compare(OWNERS.get(83), OWNERS.get(84)));
+				}
+			);
+
+			// owners placed by two keys follow the order the providers line the keys up in, even when the keys compare
+			// equal, and the owners of one key follow its chain - no pair compares as equal, so the comparator keeps
+			// its contract
+			assertAll(
+				() -> assertArrayEquals(new int[]{84, 82, 83}, sorted.written()),
+				() -> assertArrayEquals(new int[]{-1, 1, 1}, comparisons, "82 vs 83, 82 vs 84, 83 vs 84")
+			);
+		}
+
+		@Test
+		@DisplayName("should represent an owner by the row of the key lined up first among keys comparing equal")
+		void shouldPickRowOfFirstLinedUpKeyAmongEqualComparingKeys() {
+			// 85 sits in the chains of both 1.0 (after 83) and 1.00 (after 84): the providers of the key lined up
+			// first claim it on the index route, whichever of its rows the owner stores first
+			final ReferenceSortedRecordsProvider scale1 = chainProvider(
+				1L, new int[]{82, 83, 85}, new int[]{0, 1, 2}, decimalVariantKey(2, new BigDecimal("1.0"))
+			);
+			final ReferenceSortedRecordsProvider scale2 = chainProvider(
+				2L, new int[]{84, 85}, new int[]{0, 1}, decimalVariantKey(2, new BigDecimal("1.00"))
+			);
+			final SortResult scale1First = sort(
+				decimalVariantsChainComparator(scale1, scale2), decimalVariantsBlockKey(2), 0, 10, 82, 83, 84, 85
+			);
+			final SortResult scale2First = sort(
+				decimalVariantsChainComparator(scale2, scale1), decimalVariantsBlockKey(2), 0, 10, 82, 83, 84, 85
+			);
+
+			assertAll(
+				() -> assertArrayEquals(new int[]{82, 83, 85, 84}, scale1First.written(), "1.0 lined up first"),
+				() -> assertArrayEquals(new int[]{84, 85, 82, 83}, scale2First.written(), "1.00 lined up first")
 			);
 		}
 	}

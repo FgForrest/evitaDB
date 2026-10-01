@@ -98,7 +98,7 @@ class ReferencePropertyTranslatorIndexGroupingTest {
 	@DisplayName("should keep apart keys whose values compare equal but differ, each key contiguous")
 	void shouldKeepApartKeysComparingEqual() {
 		// 1.0 and 1.00 compare equal but are two keys with indexes of their own: neither may be taken for the other,
-		// they keep the order they were met in, and the archived index of 1.0 stays next to its live one
+		// a traversal lines up 1.0 before 1.00 by scale, and the archived index of 1.0 stays next to its live one
 		final ReducedEntityIndex liveScale2 = createIndex(1, Scope.LIVE, new BigDecimal("1.00"));
 		final ReducedEntityIndex liveScale1 = createIndex(2, Scope.LIVE, new BigDecimal("1.0"));
 		final ReducedEntityIndex archivedScale1 = createIndex(3, Scope.ARCHIVED, new BigDecimal("1.0"));
@@ -106,11 +106,38 @@ class ReferencePropertyTranslatorIndexGroupingTest {
 
 		assertAll(
 			() -> assertArrayEquals(
-				new int[]{4, 1, 2, 3}, group(true, liveScale2, liveScale1, archivedScale1, liveHalf), "traversal"
+				new int[]{4, 2, 3, 1}, group(true, liveScale2, liveScale1, archivedScale1, liveHalf), "traversal"
 			),
 			() -> assertArrayEquals(
 				new int[]{1, 2, 3, 4}, group(false, liveScale2, liveScale1, archivedScale1, liveHalf), "pick-first"
 			)
+		);
+	}
+
+	@Test
+	@DisplayName("should line up the keys comparing equal but differing in the same order whichever was met first")
+	void shouldOrderEqualComparingKeysIndependentlyOfMetOrder() {
+		final ReducedEntityIndex liveScale2 = createIndex(1, Scope.LIVE, new BigDecimal("1.00"));
+		final ReducedEntityIndex liveScale1 = createIndex(2, Scope.LIVE, new BigDecimal("1.0"));
+
+		// the representative order tells 1.0 from 1.00 by scale, so 1.0 goes first whichever key was met first - the
+		// row an owner holding both is represented by never depends on the order the selection met the indexes in
+		assertAll(
+			() -> assertArrayEquals(new int[]{2, 1}, group(true, liveScale2, liveScale1), "1.00 met first"),
+			() -> assertArrayEquals(new int[]{2, 1}, group(true, liveScale1, liveScale2), "1.0 met first")
+		);
+	}
+
+	@Test
+	@DisplayName("should put the live index of a single key before its archived one in both orders of the keys")
+	void shouldPutLiveBeforeArchivedForSingleKeyOfTraversal() {
+		// a single key needs no ordering of the keys at all, yet its indexes still lie live first
+		final ReducedEntityIndex archivedA = createIndex(1, Scope.ARCHIVED, "a");
+		final ReducedEntityIndex liveA = createIndex(2, Scope.LIVE, "a");
+
+		assertAll(
+			() -> assertArrayEquals(new int[]{2, 1}, group(true, archivedA, liveA), "traversal"),
+			() -> assertArrayEquals(new int[]{2, 1}, group(false, archivedA, liveA), "pick-first")
 		);
 	}
 

@@ -81,7 +81,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -472,7 +471,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	 * selection built one, the whole family of the reference otherwise - in both cases restricted to the scopes the
 	 * ordering sorts. Indexes sharing one referenced entity are grouped by their representative reference key and, inside
 	 * a key, by scope (live first), so the indexes of one referenced entity, and of each of its keys, are contiguous; the
-	 * keys follow {@link RepresentativeReferenceKey#GENERIC_COMPARATOR} for a traversal and the order the selection met
+	 * keys follow {@link RepresentativeReferenceKey#STRICT_COMPARATOR} for a traversal and the order the selection met
 	 * them otherwise (see {@link #appendGroupedByRepresentativeKey(List, boolean, ReducedEntityIndex[], int)}).
 	 *
 	 * This is the index set of the block-by-block orderings - `traverseByEntityProperty` and chain attributes, whose
@@ -534,7 +533,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	/**
 	 * Appends the reduced indexes of one referenced entity grouped by their representative reference keys, so that
 	 * the indexes of one key lie next to each other, live first. The keys follow either
-	 * {@link RepresentativeReferenceKey#GENERIC_COMPARATOR} (`inRepresentativeKeyOrder`) or the order in which the
+	 * {@link RepresentativeReferenceKey#STRICT_COMPARATOR} (`inRepresentativeKeyOrder`) or the order in which the
 	 * selection met them.
 	 *
 	 * The representative order carries the rule of a traversal for rows sharing one target: a traversal block is the
@@ -545,21 +544,24 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	 * same planning-time indexes without blocks and is left in the order the keys were met - the order it had before
 	 * the traversal adopted the representative one.
 	 *
-	 * Keys are told apart by their own equality, never by the representative order: values comparing equal may still
-	 * be different keys (`BigDecimal` 1.0 and 1.00), and each has an index of its own. Such keys keep the order in which
-	 * they were met (the sort is stable). Contiguity of one key's indexes is what the providers' lookup by key
-	 * (`MergedSortedRecordsSupplierSorter#createSortedRecordsOffsets`) requires, and a chain of a key relies on its
-	 * live chain preceding the archived one.
+	 * Keys are told apart by their own equality: values comparing equal may still be different keys (`BigDecimal` 1.0
+	 * and 1.00), and each has an index of its own. The representative order tells such keys apart by the values
+	 * themselves, so their order never depends on the order the selection met them in - the prefetch route, which never
+	 * sees that order, picks its row the same way. Two contiguity invariants rest on this append: the indexes of the
+	 * whole referenced entity lie together, which `MergedSortedRecordsSupplierSorter#createTargetSlices` requires to
+	 * slice the providers of a block and refuses to do without, and so do the indexes of one key, which the chain
+	 * comparator's lookup of a key's providers (`MergedSortedRecordsSupplierSorter#createSortedRecordsOffsets`) requires
+	 * and a repeated key would silently break. A chain of a key relies on its live chain preceding the archived one.
 	 *
 	 * Costs one pass over the `m` indexes of the referenced entity plus, in representative order, a sort of its `k`
 	 * distinct keys (`O(k log k)`); reached only by a referenced entity with more than one index - a reference
 	 * allowing duplicates, or one entity referenced from both scopes.
 	 *
-	 * @param sameTarget              the reduced indexes of one referenced entity in the order they were selected in
+	 * @param sameTarget               the reduced indexes of one referenced entity in the order they were selected in
 	 * @param inRepresentativeKeyOrder whether the keys follow the representative order rather than the order they
-	 *                                were met in
-	 * @param result                  the array the indexes are appended to
-	 * @param peak                    the first free position of `result`
+	 *                                 were met in
+	 * @param result                   the array the indexes are appended to
+	 * @param peak                     the first free position of `result`
 	 * @return the first free position of `result` after the append
 	 */
 	static int appendGroupedByRepresentativeKey(
@@ -585,29 +587,43 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 			);
 			scopeSlots[slot] = index;
 		}
-		final Collection<ReducedEntityIndex[]> keyGroups;
+		int resultPeak = peak;
 		if (inRepresentativeKeyOrder && byKey.size() > 1) {
 			final List<Entry<RepresentativeReferenceKey, ReducedEntityIndex[]>> entries = new ArrayList<>(byKey.entrySet());
-			// a stable sort - keys the representative order cannot tell apart keep the order they were met in
-			entries.sort(Entry.comparingByKey(RepresentativeReferenceKey.GENERIC_COMPARATOR));
-			final List<ReducedEntityIndex[]> sortedGroups = new ArrayList<>(entries.size());
+			// the keys are distinct, and the strict order tells apart even those whose values compare equal
+			entries.sort(Entry.comparingByKey(RepresentativeReferenceKey.STRICT_COMPARATOR));
 			for (Entry<RepresentativeReferenceKey, ReducedEntityIndex[]> entry : entries) {
-				sortedGroups.add(entry.getValue());
+				resultPeak = appendScopeSlots(entry.getValue(), result, resultPeak);
 			}
-			keyGroups = sortedGroups;
 		} else {
-			keyGroups = byKey.values();
-		}
-		int resultPeak = peak;
-		for (ReducedEntityIndex[] scopeSlots : keyGroups) {
-			// slots follow the order of the scopes - live first
-			for (ReducedEntityIndex index : scopeSlots) {
-				if (index != null) {
-					result[resultPeak++] = index;
-				}
+			for (ReducedEntityIndex[] scopeSlots : byKey.values()) {
+				resultPeak = appendScopeSlots(scopeSlots, result, resultPeak);
 			}
 		}
 		return resultPeak;
+	}
+
+	/**
+	 * Appends one representative key's scope slots to the result, live first - a slot left `null` (a scope the key
+	 * has no index in) is skipped.
+	 *
+	 * @param scopeSlots one representative key's index per scope, `null` for a scope it has none in
+	 * @param result     the array the indexes are appended to
+	 * @param peak       the first free position of `result`
+	 * @return the first free position of `result` after the append
+	 */
+	private static int appendScopeSlots(
+		@Nonnull ReducedEntityIndex[] scopeSlots,
+		@Nonnull ReducedEntityIndex[] result,
+		int peak
+	) {
+		// slots follow the order of the scopes - live first
+		for (ReducedEntityIndex index : scopeSlots) {
+			if (index != null) {
+				result[peak++] = index;
+			}
+		}
+		return peak;
 	}
 
 	/**

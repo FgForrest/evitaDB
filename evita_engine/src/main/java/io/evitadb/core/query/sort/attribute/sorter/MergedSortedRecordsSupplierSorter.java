@@ -61,7 +61,7 @@ import java.util.function.IntConsumer;
  *
  * A traversal block is one referenced entity - the sorting context names it - and its providers are all the providers
  * of that entity: one per representative reference key and scope, lined up in the order of the keys
- * ({@link RepresentativeReferenceKey#GENERIC_COMPARATOR}) and, for one key, of the scopes, live first. The providers
+ * ({@link RepresentativeReferenceKey#STRICT_COMPARATOR}) and, for one key, of the scopes, live first. The providers
  * claim the block's records in that order, each the records it holds that no earlier provider claimed - so an owner
  * is represented by its first row, in key order, that carries the value (a provider holds only the owners with
  * a value). The claimed records are then combined in one of two ways:
@@ -158,7 +158,9 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 	 * @return the slice of each referenced entity, `null` when the providers are not reference providers
 	 */
 	@Nullable
-	private static Map<ReferenceKey, OffsetAndLimit> createTargetSlices(@Nonnull SortedRecordsProvider[] sortedRecordsProviders) {
+	private static Map<ReferenceKey, OffsetAndLimit> createTargetSlices(
+		@Nonnull SortedRecordsProvider[] sortedRecordsProviders
+	) {
 		final int srpCount = sortedRecordsProviders.length;
 		Map<ReferenceKey, OffsetAndLimit> targetSlices = null;
 		ReferenceKey target = null;

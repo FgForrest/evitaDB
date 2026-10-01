@@ -69,7 +69,8 @@ public class TraverseReferenceAttributeComparator
 	/**
 	 * Tells whether a row carries the sorted attribute - created once, so picking a row allocates no lambda.
 	 */
-	@Nonnull private final Predicate<ReferenceContract> carriesValue = reference -> this.attributeExtractor.apply(reference) != null;
+	@Nonnull private final Predicate<ReferenceContract> carriesValue =
+		reference -> this.attributeExtractor.apply(reference) != null;
 
 	public TraverseReferenceAttributeComparator(
 		@Nonnull String attributeName,

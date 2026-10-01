@@ -37,6 +37,7 @@ import io.evitadb.core.query.sort.EntityReferenceSensitiveComparator;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeMode;
 import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -69,8 +70,9 @@ import static io.evitadb.core.query.sort.attribute.sorter.MergedSortedRecordsSup
  * such a row is classified as not sortable ({@link #canSort(EntityContract)}), so it is passed on to the next block
  * rather than claimed by this one - matching what the index route does, where the providers of a block claim their
  * owners in the same order. Chain positions are not comparable across providers, so the entities of a block follow
- * the provider that placed them: entities represented by an earlier representative key precede those represented by
- * a later one, and for one key the live chain precedes the archived one. Without a bound block (a chain sorted under
+ * the provider that placed them: entities represented by a key whose providers are lined up earlier precede those
+ * represented by a key lined up later - even when the representative values of the two keys compare equal - and for
+ * one key the live chain precedes the archived one. Without a bound block (a chain sorted under
  * an implicit {@code pickFirst}), every entity is classified as sortable and
  * {@link #compare(EntityContract, EntityContract)} keeps reporting the entities it cannot place through
  * {@link #getNonSortedEntities()}.
@@ -214,11 +216,12 @@ public class TraverseReferencePredecessorAttributeComparator
 	}
 
 	/**
-	 * Picks the row representing the entity in the bound block: among its rows to the block's referenced entity, the
-	 * first one in {@link RepresentativeReferenceKey#GENERIC_COMPARATOR} order of their representative keys that
-	 * carries the chain attribute and that one of the chain providers of its key holds - the provider that claims the
-	 * entity on the index route, where the providers of a block are lined up in the same order. The positions found
-	 * on the way are memoized, so the comparisons that follow find them in the cache.
+	 * Picks the row representing the entity in the bound block: among its rows to the block's referenced entity that
+	 * carry the chain attribute and that one of the chain providers of their key holds, the one whose key's providers
+	 * are lined up first - the providers that claim the entity on the index route, which walks them in the same order.
+	 * The order of the providers decides, not the representative values themselves, so keys whose values compare equal
+	 * without being equal are told apart exactly as the index route tells them apart. The positions found on the way
+	 * are memoized, so the comparisons that follow find them in the cache.
 	 *
 	 * @param entity the entity whose row is picked
 	 * @return the representing row, `null` when no row of the entity can be placed in the block
@@ -226,21 +229,22 @@ public class TraverseReferencePredecessorAttributeComparator
 	@Nullable
 	private ReferenceContract pickRowOfBlock(@Nonnull EntityContract entity) {
 		initializeProviders();
-		if (this.sortedRecordsOffsets == null) {
+		final LinkedHashMap<RepresentativeReferenceKey, OffsetAndLimit> offsets = this.sortedRecordsOffsets;
+		if (offsets == null) {
 			return null;
 		}
 		final int primaryKey = entity.getPrimaryKeyOrThrowException();
 		ReferenceContract picked = null;
-		RepresentativeReferenceKey pickedKey = null;
+		int pickedOffset = Integer.MAX_VALUE;
 		for (ReferenceContract row : entity.getReferences(Objects.requireNonNull(this.referenceKey).referenceKey())) {
 			if (this.attributeExtractor.apply(row) != null) {
-				final RepresentativeReferenceKey rowKey = representativeKeyOf(row);
+				final OffsetAndLimit rowProviders = offsets.get(representativeKeyOf(row));
 				if (
-					(pickedKey == null || RepresentativeReferenceKey.GENERIC_COMPARATOR.compare(rowKey, pickedKey) < 0) &&
-						isPlacedByProviderOf(rowKey, primaryKey)
+					rowProviders != null && rowProviders.offset() < pickedOffset &&
+						isPlacedByProviders(rowProviders, primaryKey)
 				) {
 					picked = row;
-					pickedKey = rowKey;
+					pickedOffset = rowProviders.offset();
 				}
 			}
 		}
@@ -264,17 +268,13 @@ public class TraverseReferencePredecessorAttributeComparator
 	}
 
 	/**
-	 * Tells whether one of the chain providers of the representative key holds the entity.
+	 * Tells whether one of the chain providers of one representative key holds the entity.
 	 *
-	 * @param representativeKey the representative key whose providers are searched
-	 * @param primaryKey        the primary key of the entity
+	 * @param offsetAndLimit the range of the key's providers
+	 * @param primaryKey     the primary key of the entity
 	 * @return `true` when a provider of the key holds the entity
 	 */
-	private boolean isPlacedByProviderOf(@Nonnull RepresentativeReferenceKey representativeKey, int primaryKey) {
-		final OffsetAndLimit offsetAndLimit = Objects.requireNonNull(this.sortedRecordsOffsets).get(representativeKey);
-		if (offsetAndLimit == null) {
-			return false;
-		}
+	private boolean isPlacedByProviders(@Nonnull OffsetAndLimit offsetAndLimit, int primaryKey) {
 		for (int i = offsetAndLimit.offset(); i < offsetAndLimit.limit(); i++) {
 			if (cachedPositionOf(this.sortedRecordsProviders, this.positionCaches, i, this.estimatedCount, primaryKey) >= 0) {
 				return true;
@@ -308,9 +308,11 @@ public class TraverseReferencePredecessorAttributeComparator
 
 	/**
 	 * Compares two entities by their positions in the chain providers. Within a bound block both entities were
-	 * classified as placeable by {@link #canSort(EntityContract)}, so they share the block's reference key and are
-	 * found in its providers; without a bound block the entities may sit on different references and the comparison
-	 * reports every entity it cannot place through {@link #getNonSortedEntities()}.
+	 * classified as placeable by {@link #canSort(EntityContract)}, so each is found in the providers of its
+	 * representing row's key: entities of one key follow its chains, entities of two keys follow the order the
+	 * providers of the keys are lined up in - the order the index route appends their chains in, which tells apart
+	 * even keys whose representative values compare equal. Without a bound block the entities may sit on different
+	 * references and the comparison reports every entity it cannot place through {@link #getNonSortedEntities()}.
 	 *
 	 * @param o1 the first entity
 	 * @param o2 the second entity
@@ -347,6 +349,11 @@ public class TraverseReferencePredecessorAttributeComparator
 				}
 			}
 			return 0;
+		} else if (bothAttributesSpecified && this.referenceKey != null) {
+			return Integer.compare(
+				providerOffsetOf(attribute1.referencedKey()),
+				providerOffsetOf(attribute2.referencedKey())
+			);
 		} else if (bothAttributesSpecified) {
 			return RepresentativeReferenceKey.GENERIC_COMPARATOR.compare(
 				attribute1.referencedKey(),
@@ -359,6 +366,25 @@ public class TraverseReferencePredecessorAttributeComparator
 		} else {
 			return 0;
 		}
+	}
+
+	/**
+	 * Returns the position of the first chain provider of the representative key among all the providers - within
+	 * a bound block the key of a row that {@link #pickRowOfBlock(EntityContract)} picked, so it always has providers.
+	 *
+	 * @param representativeKey the key of the row representing an entity in the bound block
+	 * @return the offset of the key's providers
+	 * @throws GenericEvitaInternalError when the key has no provider - the entity was never classified for the block
+	 */
+	private int providerOffsetOf(@Nonnull RepresentativeReferenceKey representativeKey) {
+		final OffsetAndLimit offsetAndLimit = this.sortedRecordsOffsets == null ?
+			null : this.sortedRecordsOffsets.get(representativeKey);
+		if (offsetAndLimit == null) {
+			throw new GenericEvitaInternalError(
+				"Only entities classified as sortable within the bound block may be compared!"
+			);
+		}
+		return offsetAndLimit.offset();
 	}
 
 	/**

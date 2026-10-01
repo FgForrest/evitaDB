@@ -81,13 +81,15 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Fixture - rows `(owner, value)` of each representative key, `-` for a row without the value:
  *
  * - target 1, key `m`: (74, 60)
- * - target 2, key `a`: (71, 100) (72, -)
+ * - target 2, key `a`: (71, 100) (72, -) (78, -)
  * - target 2, key `b`: (72, 50) (73, 60) and, for the laziness test only, (75, 51) (76, 52) (77, 53)
  * - target 2, key `c`: (73, 5)
  * - target 2, key `z`: (70, 1)
+ * - target 3, key `q`: (79, -) - no provider at all
  *
  * Each owner of target 2 is represented by its first valued row in key order: 70 by `z` (1), 71 by `a` (100), 72 by `b`
- * (50) - its `a` row has no value - and 73 by `b` (60) although its `c` row carries 5.
+ * (50) - its `a` row has no value - and 73 by `b` (60) although its `c` row carries 5. Owner 78 has no valued row of
+ * target 2, and target 3 has no provider to claim 79.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -120,6 +122,10 @@ class SequentialSorterRepresentativeRowsTest {
 	 */
 	private ReducedEntityIndex target2Z;
 	/**
+	 * Index of target 3, key `q`, which no provider backs.
+	 */
+	private ReducedEntityIndex target3Q;
+	/**
 	 * The providers asked to resolve positions, in the order they were asked - `target/key` each.
 	 */
 	private List<String> claims;
@@ -136,10 +142,11 @@ class SequentialSorterRepresentativeRowsTest {
 	void setUp() {
 		this.fixture = new PickFirstReducedIndexFixture();
 		this.target1M = createIndex(1, 1, "m", 74);
-		this.target2A = createIndex(2, 2, "a", 71, 72);
+		this.target2A = createIndex(2, 2, "a", 71, 72, 78);
 		this.target2B = createIndex(3, 2, "b", 72, 73, 75, 76, 77);
 		this.target2C = createIndex(4, 2, "c", 73);
 		this.target2Z = createIndex(5, 2, "z", 70);
+		this.target3Q = createIndex(6, 3, "q", 79);
 		this.claims = new ArrayList<>(8);
 		this.valueReads = 0;
 		this.providerBuilds = 0;
@@ -150,9 +157,11 @@ class SequentialSorterRepresentativeRowsTest {
 	void shouldMergeFirstValuedRowsAscending() {
 		// 74 | 70 (z 1) 72 (b 50) 73 (b 60) 71 (a 100); rejected: best value over the rows puts 73 (c 5) second,
 		// one sub-block per key gives 71 72 73 70, the first row whether valued or not hands 72 to its value-less a row
-		assertArrayEquals(
-			new int[]{74, 70, 72, 73, 71},
-			sort(ascending(), 0, 10, 70, 71, 72, 73, 74).written()
+		final SortOutcome outcome = sort(ascending(), 0, 10, 70, 71, 72, 73, 74);
+
+		assertAll(
+			() -> assertArrayEquals(new int[]{74, 70, 72, 73, 71}, outcome.written()),
+			() -> assertArrayEquals(new int[0], outcome.remaining(), "every owner finds its block")
 		);
 	}
 
@@ -160,9 +169,11 @@ class SequentialSorterRepresentativeRowsTest {
 	@DisplayName("should represent each owner by its first valued row in key order and merge the owners by value, descending")
 	void shouldMergeFirstValuedRowsDescending() {
 		// the keys are walked in the same order whatever the direction - only the merge follows it
-		assertArrayEquals(
-			new int[]{74, 71, 73, 72, 70},
-			sort(descending(), 0, 10, 70, 71, 72, 73, 74).written()
+		final SortOutcome outcome = sort(descending(), 0, 10, 70, 71, 72, 73, 74);
+
+		assertAll(
+			() -> assertArrayEquals(new int[]{74, 71, 73, 72, 70}, outcome.written()),
+			() -> assertArrayEquals(new int[0], outcome.remaining(), "every owner finds its block")
 		);
 	}
 
@@ -227,6 +238,22 @@ class SequentialSorterRepresentativeRowsTest {
 		assertAll(
 			() -> assertArrayEquals(new int[]{70, 72}, outcome.written()),
 			() -> assertEquals(4, this.valueReads)
+		);
+	}
+
+	@Test
+	@DisplayName("should pass on an owner no provider of its target holds and the owners of a target without providers")
+	void shouldPassOnOwnerNoProviderOfTargetHolds() {
+		// 78 sits in the index of key a without a value, 79 in the index of target 3, which has no provider at all
+		final SortOutcome outcome = sort(ascending(), 0, 10, 70, 78, 79);
+
+		assertAll(
+			() -> assertArrayEquals(new int[]{70}, outcome.written()),
+			() -> assertArrayEquals(new int[]{78, 79}, outcome.remaining(), "no block claims them"),
+			() -> assertEquals(
+				List.of("2/a", "2/b", "2/c", "2/z"), this.claims, "a target without providers asks no provider"
+			),
+			() -> assertEquals(0, this.valueReads)
 		);
 	}
 
@@ -331,9 +358,9 @@ class SequentialSorterRepresentativeRowsTest {
 	}
 
 	/**
-	 * Creates the sequential sorter of the two blocks - target 1, then target 2 with its keys in
-	 * {@link RepresentativeReferenceKey#GENERIC_COMPARATOR} order - sorting each by a pre-sorted records sorter over
-	 * the providers of the family, which the supplier builds on the first sort and counts.
+	 * Creates the sequential sorter of the three blocks - target 1, then target 2 with its keys in
+	 * {@link RepresentativeReferenceKey#GENERIC_COMPARATOR} order, then target 3 - sorting each by a pre-sorted records
+	 * sorter over the providers of the family, which the supplier builds on the first sort and counts.
 	 *
 	 * @param comparator      the value comparator in the direction of the ordering, `null` for a chain
 	 * @param primaryKeyOrder the direction of the ordering
@@ -349,7 +376,8 @@ class SequentialSorterRepresentativeRowsTest {
 		return new SequentialSorter(
 			new ReducedEntityIndex[][]{
 				{this.target1M},
-				{this.target2A, this.target2B, this.target2C, this.target2Z}
+				{this.target2A, this.target2B, this.target2C, this.target2Z},
+				{this.target3Q}
 			},
 			new ArrayList<>(
 				List.of(

@@ -56,6 +56,7 @@ import io.evitadb.utils.NamingConvention;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -91,19 +92,40 @@ import static org.mockito.Mockito.mock;
  * Owner 11 has the attribute `tail` 2, 13 has 1 and 14 has 3; the others have none. Owner 19 ties owner 15 on `order`
  * and on the compound in category 1.
  *
- * Owners 70-74 carry rows of `variants`, a reference allowing several rows to one brand, told apart by the
- * representative attribute `variant` (rows as `[brand] variant: order, chain`):
+ * Owners 70-77 carry rows of `variants`, a reference allowing several rows to one brand, told apart by the
+ * representative attribute `variant` (rows as `[brand] variant: order, second, chain`, in the order they were added):
  *
  * | owner | rows                                       |
  * |-------|--------------------------------------------|
- * | 70    | [2] z: 1, head                             |
- * | 71    | [2] a: 100, head                           |
- * | 72    | [2] a: -, -; [2] b: 50, after 73           |
- * | 73    | [2] b: 60, head; [2] c: 5, head            |
- * | 74    | [1] m: 60, head                            |
- * | 75    | [2] a: 60, -                               |
+ * | 70    | [2] z: 1, -, head                          |
+ * | 71    | [2] a: 100, -, head                        |
+ * | 72    | [2] a: -, -, -; [2] b: 50, -, after 73     |
+ * | 73    | [2] b: 60, -, head; [2] c: 5, -, head      |
+ * | 74    | [1] m: 60, -, head                         |
+ * | 75    | [2] a: 60, -, -                            |
+ * | 76    | [2] c: 5, -, head; [2] b: 60, -, head      |
+ * | 77    | [2] a: -, 7, -; [2] b: 40, -, -            |
  *
  * Owner 75 ties owner 73 on `order` in brand 2, but by a row of another representative value (`a` against `b`).
+ * Owner 76 holds the rows of owner 73 added in the mirrored order, so the representative values - not the order in
+ * which the rows were added - must pick its row. Owner 77 is represented by its `a` row for the `orderSecond` compound,
+ * which that row carries an element of, but by its `b` row for `order`.
+ *
+ * Owners 80-85 carry rows of `decimalVariants`, a reference allowing several rows to one brand, told apart by the
+ * `BigDecimal` representative attribute `scale` - 1.0 and 1.00 compare equal, yet they are two different rows (rows
+ * as `[brand] scale: order, chain`, in the order they were added):
+ *
+ * | owner | rows                                       |
+ * |-------|--------------------------------------------|
+ * | 80    | [2] 1.00: 1, -; [2] 1.0: 20, -             |
+ * | 81    | [2] 1.0: 2, -; [2] 1.00: 30, -             |
+ * | 82    | [2] 1.0: -, head                           |
+ * | 83    | [2] 1.0: -, after 82                       |
+ * | 84    | [2] 1.00: -, head                          |
+ * | 85    | [2] 1.00: -, after 84; [2] 1.0: -, after 83 |
+ *
+ * Owner 81 holds the rows of owner 80 added in the mirrored order; owners 82-85 sit in the chains of the two keys,
+ * owner 85 in both of them.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -117,6 +139,8 @@ public final class PrefetchedOwnersFixture {
 	public static final String COMPOUND = "orderSecond";
 	public static final String VARIANTS_REFERENCE_NAME = "variants";
 	public static final String ATTRIBUTE_VARIANT = "variant";
+	public static final String DECIMAL_VARIANTS_REFERENCE_NAME = "decimalVariants";
+	public static final String ATTRIBUTE_SCALE = "scale";
 	/**
 	 * The key of the block of category 1.
 	 */
@@ -162,6 +186,20 @@ public final class PrefetchedOwnersFixture {
 				.indexedForFilteringAndPartitioning()
 				.withAttribute(ATTRIBUTE_VARIANT, String.class, attribute -> attribute.representative())
 				.withAttribute(ATTRIBUTE_ORDER, Integer.class, attribute -> attribute.sortable().nullable())
+				.withAttribute(ATTRIBUTE_SECOND, Integer.class, attribute -> attribute.sortable().nullable())
+				.withAttribute(ATTRIBUTE_CHAIN, Predecessor.class, attribute -> attribute.sortable().nullable())
+				.withSortableAttributeCompound(
+					COMPOUND,
+					new AttributeElement(ATTRIBUTE_ORDER, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+					new AttributeElement(ATTRIBUTE_SECOND, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+				)
+		)
+		.withReferenceTo(
+			DECIMAL_VARIANTS_REFERENCE_NAME, "brand", Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+			thatIs -> thatIs
+				.indexedForFilteringAndPartitioning()
+				.withAttribute(ATTRIBUTE_SCALE, BigDecimal.class, attribute -> attribute.representative())
+				.withAttribute(ATTRIBUTE_ORDER, Integer.class, attribute -> attribute.sortable().nullable())
 				.withAttribute(ATTRIBUTE_CHAIN, Predecessor.class, attribute -> attribute.sortable().nullable())
 		)
 		.toInstance();
@@ -175,6 +213,12 @@ public final class PrefetchedOwnersFixture {
 	 */
 	public static final ReferenceSchema VARIANTS_REFERENCE_SCHEMA =
 		(ReferenceSchema) SCHEMA.getReferenceOrThrowException(VARIANTS_REFERENCE_NAME);
+	/**
+	 * The schema of the `decimalVariants` reference, which allows several rows to one brand told apart by a
+	 * `BigDecimal`.
+	 */
+	public static final ReferenceSchema DECIMAL_VARIANTS_REFERENCE_SCHEMA =
+		(ReferenceSchema) SCHEMA.getReferenceOrThrowException(DECIMAL_VARIANTS_REFERENCE_NAME);
 	/**
 	 * The owners described in the class documentation, by primary key.
 	 */
@@ -223,6 +267,33 @@ public final class PrefetchedOwnersFixture {
 	}
 
 	/**
+	 * Creates the key of the block of the brand of the `decimalVariants` reference - the brand alone, as a traversal
+	 * names its blocks.
+	 *
+	 * @param brandPrimaryKey the primary key of the brand
+	 * @return the key of its block
+	 */
+	@Nonnull
+	public static RepresentativeReferenceKey decimalVariantsBlockKey(int brandPrimaryKey) {
+		return new RepresentativeReferenceKey(new ReferenceKey(DECIMAL_VARIANTS_REFERENCE_NAME, brandPrimaryKey));
+	}
+
+	/**
+	 * Creates the representative key of one row of the `decimalVariants` reference - the key of the reduced index, and
+	 * so of the providers, the row belongs to.
+	 *
+	 * @param brandPrimaryKey the primary key of the brand
+	 * @param scale           the representative attribute value of the row
+	 * @return the representative key of the row
+	 */
+	@Nonnull
+	public static RepresentativeReferenceKey decimalVariantKey(int brandPrimaryKey, @Nonnull BigDecimal scale) {
+		return new RepresentativeReferenceKey(
+			new ReferenceKey(DECIMAL_VARIANTS_REFERENCE_NAME, brandPrimaryKey), new Serializable[]{scale}
+		);
+	}
+
+	/**
 	 * Runs a {@link PrefetchedRecordsSorter} with the comparator over the selection within the block and returns what
 	 * it wrote, what it passed on and what it skipped.
 	 *
@@ -262,7 +333,7 @@ public final class PrefetchedOwnersFixture {
 	 */
 	@Nonnull
 	private static Map<Integer, SealedEntity> createOwners() {
-		final Map<Integer, SealedEntity> owners = createHashMap(16);
+		final Map<Integer, SealedEntity> owners = createHashMap(32);
 		addOwner(owners, 11, 2, builder -> builder.setReference(
 			REFERENCE_NAME, 1, ref -> ref.setAttribute(ATTRIBUTE_ORDER, 50).setAttribute(ATTRIBUTE_SECOND, 1)
 				.setAttribute(ATTRIBUTE_CHAIN, new Predecessor(15))
@@ -296,18 +367,48 @@ public final class PrefetchedOwnersFixture {
 		addOwner(owners, 19, null, builder -> builder.setReference(
 			REFERENCE_NAME, 1, ref -> ref.setAttribute(ATTRIBUTE_ORDER, 10).setAttribute(ATTRIBUTE_SECOND, 2)
 		));
-		addOwner(owners, 70, null, builder -> addVariant(builder, 2, "z", 1, Predecessor.HEAD));
-		addOwner(owners, 71, null, builder -> addVariant(builder, 2, "a", 100, Predecessor.HEAD));
+		addOwner(owners, 70, null, builder -> addVariant(builder, 2, "z", 1, null, Predecessor.HEAD));
+		addOwner(owners, 71, null, builder -> addVariant(builder, 2, "a", 100, null, Predecessor.HEAD));
 		addOwner(owners, 72, null, builder -> {
-			addVariant(builder, 2, "a", null, null);
-			addVariant(builder, 2, "b", 50, new Predecessor(73));
+			addVariant(builder, 2, "a", null, null, null);
+			addVariant(builder, 2, "b", 50, null, new Predecessor(73));
 		});
 		addOwner(owners, 73, null, builder -> {
-			addVariant(builder, 2, "b", 60, Predecessor.HEAD);
-			addVariant(builder, 2, "c", 5, Predecessor.HEAD);
+			addVariant(builder, 2, "b", 60, null, Predecessor.HEAD);
+			addVariant(builder, 2, "c", 5, null, Predecessor.HEAD);
 		});
-		addOwner(owners, 74, null, builder -> addVariant(builder, 1, "m", 60, Predecessor.HEAD));
-		addOwner(owners, 75, null, builder -> addVariant(builder, 2, "a", 60, null));
+		addOwner(owners, 74, null, builder -> addVariant(builder, 1, "m", 60, null, Predecessor.HEAD));
+		addOwner(owners, 75, null, builder -> addVariant(builder, 2, "a", 60, null, null));
+		addOwner(owners, 76, null, builder -> {
+			addVariant(builder, 2, "c", 5, null, Predecessor.HEAD);
+			addVariant(builder, 2, "b", 60, null, Predecessor.HEAD);
+		});
+		addOwner(owners, 77, null, builder -> {
+			addVariant(builder, 2, "a", null, 7, null);
+			addVariant(builder, 2, "b", 40, null, null);
+		});
+		addOwner(owners, 80, null, builder -> {
+			addDecimalVariant(builder, 2, new BigDecimal("1.00"), 1, null);
+			addDecimalVariant(builder, 2, new BigDecimal("1.0"), 20, null);
+		});
+		addOwner(owners, 81, null, builder -> {
+			addDecimalVariant(builder, 2, new BigDecimal("1.0"), 2, null);
+			addDecimalVariant(builder, 2, new BigDecimal("1.00"), 30, null);
+		});
+		addOwner(
+			owners, 82, null, builder -> addDecimalVariant(builder, 2, new BigDecimal("1.0"), null, Predecessor.HEAD)
+		);
+		addOwner(
+			owners, 83, null,
+			builder -> addDecimalVariant(builder, 2, new BigDecimal("1.0"), null, new Predecessor(82))
+		);
+		addOwner(
+			owners, 84, null, builder -> addDecimalVariant(builder, 2, new BigDecimal("1.00"), null, Predecessor.HEAD)
+		);
+		addOwner(owners, 85, null, builder -> {
+			addDecimalVariant(builder, 2, new BigDecimal("1.00"), null, new Predecessor(84));
+			addDecimalVariant(builder, 2, new BigDecimal("1.0"), null, new Predecessor(83));
+		});
 		return owners;
 	}
 
@@ -318,6 +419,7 @@ public final class PrefetchedOwnersFixture {
 	 * @param brand   the primary key of the brand
 	 * @param variant the representative attribute value of the row
 	 * @param order   the `order` of the row, `null` for none
+	 * @param second  the `second` of the row, `null` for none
 	 * @param chain   the `chain` of the row, `null` for none
 	 */
 	private static void addVariant(
@@ -325,12 +427,46 @@ public final class PrefetchedOwnersFixture {
 		int brand,
 		@Nonnull String variant,
 		@Nullable Integer order,
+		@Nullable Integer second,
 		@Nullable Predecessor chain
 	) {
 		builder.setOrUpdateReference(
 			VARIANTS_REFERENCE_NAME, brand, Functions.alwaysFalse(),
 			ref -> {
 				ref.setAttribute(ATTRIBUTE_VARIANT, variant);
+				if (order != null) {
+					ref.setAttribute(ATTRIBUTE_ORDER, order);
+				}
+				if (second != null) {
+					ref.setAttribute(ATTRIBUTE_SECOND, second);
+				}
+				if (chain != null) {
+					ref.setAttribute(ATTRIBUTE_CHAIN, chain);
+				}
+			}
+		);
+	}
+
+	/**
+	 * Adds one more row of the `decimalVariants` reference to the brand, never replacing a row the owner already has.
+	 *
+	 * @param builder the builder of the owner
+	 * @param brand   the primary key of the brand
+	 * @param scale   the representative attribute value of the row
+	 * @param order   the `order` of the row, `null` for none
+	 * @param chain   the `chain` of the row, `null` for none
+	 */
+	private static void addDecimalVariant(
+		@Nonnull InitialEntityBuilder builder,
+		int brand,
+		@Nonnull BigDecimal scale,
+		@Nullable Integer order,
+		@Nullable Predecessor chain
+	) {
+		builder.setOrUpdateReference(
+			DECIMAL_VARIANTS_REFERENCE_NAME, brand, Functions.alwaysFalse(),
+			ref -> {
+				ref.setAttribute(ATTRIBUTE_SCALE, scale);
 				if (order != null) {
 					ref.setAttribute(ATTRIBUTE_ORDER, order);
 				}

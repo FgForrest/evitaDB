@@ -32,6 +32,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import org.junit.jupiter.api.Tag;
 
@@ -48,7 +49,7 @@ import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link RepresentativeReferenceKey} verifying construction, delegation, equality,
- * hashing, natural ordering, generic comparator, and string formatting.
+ * hashing, natural ordering, generic and strict comparators, and string formatting.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -582,6 +583,102 @@ class RepresentativeReferenceKeyTest {
 
 			assertEquals("B", keys[4].referenceName());
 			assertEquals(2, keys[4].primaryKey());
+		}
+	}
+
+	@Nested
+	@DisplayName("STRICT_COMPARATOR")
+	class StrictComparatorTests {
+
+		@Test
+		@DisplayName("should order keys as the generic comparator does wherever that one tells them apart")
+		void shouldOrderAsGenericComparatorWhereItTellsKeysApart() {
+			final RepresentativeReferenceKey[][] pairs = {
+				{rrk("A", 1, "x"), rrk("B", 1, "a")},
+				{rrk("A", 1, "x"), rrk("A", 2, "a")},
+				{rrk("A", 1, "a"), rrk("A", 1, "b")},
+				{rrk("A", 1, new Serializable[]{null}), rrk("A", 1, "a")},
+				{rrk("A", 1), rrk("A", 1, "a")},
+				{rrk("A", 1, new BigDecimal("1.00"), "a"), rrk("A", 1, new BigDecimal("1.0"), "b")}
+			};
+
+			for (RepresentativeReferenceKey[] pair : pairs) {
+				assertEquals(
+					Integer.signum(RepresentativeReferenceKey.GENERIC_COMPARATOR.compare(pair[0], pair[1])),
+					Integer.signum(RepresentativeReferenceKey.STRICT_COMPARATOR.compare(pair[0], pair[1])),
+					pair[0] + " vs " + pair[1]
+				);
+				assertTrue(
+					RepresentativeReferenceKey.STRICT_COMPARATOR.compare(pair[0], pair[1]) < 0, pair[0] + " goes first"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should put the smaller scale first among decimals comparing equal")
+		void shouldPutSmallerScaleFirstAmongDecimalsComparingEqual() {
+			final RepresentativeReferenceKey scale1 = rrk("A", 1, new BigDecimal("1.0"));
+			final RepresentativeReferenceKey scale2 = rrk("A", 1, new BigDecimal("1.00"));
+
+			assertEquals(0, RepresentativeReferenceKey.GENERIC_COMPARATOR.compare(scale1, scale2), "generic tie");
+			assertTrue(RepresentativeReferenceKey.STRICT_COMPARATOR.compare(scale1, scale2) < 0, "1.0 before 1.00");
+			assertTrue(RepresentativeReferenceKey.STRICT_COMPARATOR.compare(scale2, scale1) > 0, "1.00 after 1.0");
+		}
+
+		@Test
+		@DisplayName("should tell apart other values comparing equal by their string form")
+		void shouldTellApartOtherValuesComparingEqualByStringForm() {
+			final RepresentativeReferenceKey upper = rrk("A", 1, new CaseInsensitive("A"));
+			final RepresentativeReferenceKey lower = rrk("A", 1, new CaseInsensitive("a"));
+
+			assertEquals(0, RepresentativeReferenceKey.GENERIC_COMPARATOR.compare(upper, lower), "generic tie");
+			assertTrue(RepresentativeReferenceKey.STRICT_COMPARATOR.compare(upper, lower) < 0, "A before a");
+			assertTrue(RepresentativeReferenceKey.STRICT_COMPARATOR.compare(lower, upper) > 0, "a after A");
+		}
+
+		@Test
+		@DisplayName("should rank equal keys as equal")
+		void shouldRankEqualKeysAsEqual() {
+			assertEquals(
+				0,
+				RepresentativeReferenceKey.STRICT_COMPARATOR.compare(
+					rrk("A", 1, new BigDecimal("1.0"), null, "x"), rrk("A", 1, new BigDecimal("1.0"), null, "x")
+				)
+			);
+			assertEquals(0, RepresentativeReferenceKey.STRICT_COMPARATOR.compare(rrk("A", 1), rrk("A", 1)));
+		}
+
+		@Test
+		@DisplayName("should break the tie at the first pair of values comparing equal without being equal")
+		void shouldBreakTieAtFirstDifferingPair() {
+			// the first pair is equal, the second decides by scale although the third would decide the other way
+			final RepresentativeReferenceKey first = rrk(
+				"A", 1, "x", new BigDecimal("2.5"), new BigDecimal("1.000")
+			);
+			final RepresentativeReferenceKey second = rrk(
+				"A", 1, "x", new BigDecimal("2.50"), new BigDecimal("1.0")
+			);
+
+			assertTrue(RepresentativeReferenceKey.STRICT_COMPARATOR.compare(first, second) < 0);
+			assertTrue(
+				RepresentativeReferenceKey.compareRepresentativeValuesStrictly(
+					second.representativeAttributeValues(), first.representativeAttributeValues()
+				) > 0
+			);
+		}
+	}
+
+	/**
+	 * A value whose natural order ignores the case of its text while its equality does not - it compares equal to
+	 * a value it is not equal to.
+	 *
+	 * @param text the text of the value
+	 */
+	private record CaseInsensitive(@Nonnull String text) implements Comparable<CaseInsensitive>, Serializable {
+
+		@Override
+		public int compareTo(@Nonnull CaseInsensitive o) {
+			return this.text.compareToIgnoreCase(o.text);
 		}
 	}
 
