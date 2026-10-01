@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,8 @@ import org.mockito.Mockito;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.ORDER;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
@@ -97,6 +99,32 @@ class AttributeComparatorTest {
 		assertEquals(-1, this.comparator.compare(entity1, entity2));
 		assertEquals(1, ((CompositeObjectArray<EntityContract>) this.comparator.getNonSortedEntities()).getSize());
 		assertEquals(entity2, ((CompositeObjectArray<EntityContract>) this.comparator.getNonSortedEntities()).get(0));
+	}
+
+	@Test
+	void shouldClassifyEntityWithoutAttributeAsNotSortableWithoutReportingIt() {
+		// an entity sorted alone is never compared, so only the classification can tell it lacks the attribute
+		final SealedEntity entity1 = Mockito.mock(SealedEntity.class);
+		Mockito.when(entity1.getPrimaryKeyOrThrowException()).thenReturn(1);
+		Mockito.when(entity1.getAttribute(ATTRIBUTE_NAME)).thenReturn(null);
+		assertFalse(this.comparator.canSort(entity1));
+		assertFalse(this.comparator.getNonSortedEntities().iterator().hasNext());
+	}
+
+	@Test
+	void shouldClassifyEntityWithAttributeAsSortableAndMemoizeItsValue() {
+		final SealedEntity entity1 = Mockito.mock(SealedEntity.class);
+		Mockito.when(entity1.getPrimaryKeyOrThrowException()).thenReturn(1);
+		Mockito.when(entity1.getAttribute(ATTRIBUTE_NAME)).thenReturn("A");
+		final SealedEntity entity2 = Mockito.mock(SealedEntity.class);
+		Mockito.when(entity2.getPrimaryKeyOrThrowException()).thenReturn(2);
+		Mockito.when(entity2.getAttribute(ATTRIBUTE_NAME)).thenReturn("B");
+		assertTrue(this.comparator.canSort(entity1));
+		assertTrue(this.comparator.canSort(entity2));
+		assertEquals(-1, this.comparator.compare(entity1, entity2));
+		// the classification read the value, the comparison reused it
+		Mockito.verify(entity1, Mockito.times(1)).getAttribute(ATTRIBUTE_NAME);
+		assertFalse(this.comparator.getNonSortedEntities().iterator().hasNext());
 	}
 
 }

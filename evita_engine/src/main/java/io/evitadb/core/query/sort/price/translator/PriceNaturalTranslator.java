@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,6 +53,7 @@ import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -90,6 +91,9 @@ public class PriceNaturalTranslator implements OrderingConstraintTranslator<Pric
 					orderByVisitor.getQueryPriceMode(),
 					filteredPriceRecordAccessors
 			);
+		} else if (orderByVisitor.isWithinSegment()) {
+			// otherwise, we cannot sort the entities by price - and a segment takes no entity it cannot sort
+			thisSorter = null;
 		} else {
 			// otherwise, we cannot sort the entities by price
 			thisSorter = NoSorter.INSTANCE;
@@ -98,30 +102,62 @@ public class PriceNaturalTranslator implements OrderingConstraintTranslator<Pric
 		final EntityComparator entityComparator;
 		final Function<PriceContract, BigDecimal> priceExtractor = orderByVisitor.getQueryPriceMode() == QueryPriceMode.WITH_TAX ?
 			PriceContract::priceWithTax : PriceContract::priceWithoutTax;
+		final boolean withinSegment = orderByVisitor.isWithinSegment();
 		if (priceNatural.getOrderDirection() == OrderDirection.ASC) {
-			entityComparator = new PriceForSaleEntityComparator(priceExtractor, Comparator.naturalOrder());
+			entityComparator = new PriceForSaleEntityComparator(
+				priceExtractor, Comparator.naturalOrder(), withinSegment
+			);
 		} else {
-			entityComparator = new PriceForSaleEntityComparator(priceExtractor, Comparator.reverseOrder());
+			entityComparator = new PriceForSaleEntityComparator(
+				priceExtractor, Comparator.reverseOrder(), withinSegment
+			);
 		}
 
-		return Stream.of(
-			new PrefetchedRecordsSorter(entityComparator),
-			thisSorter
-		);
+		final PrefetchedRecordsSorter prefetchedRecordsSorter = new PrefetchedRecordsSorter(entityComparator);
+		return thisSorter == null ?
+			Stream.of(prefetchedRecordsSorter) : Stream.of(prefetchedRecordsSorter, thisSorter);
 	}
 
 	/**
 	 * The PriceForSaleEntityComparator class is responsible for comparing two EntityContract objects based on their prices.
 	 * It implements the EntityComparator and Serializable interfaces.
 	 * It uses a provided priceExtractor function to extract BigDecimal prices from PriceContract objects and a provided
-	 * priceComparator to compare these prices. If an entity doesn't have a price for sale, it falls back to BigDecimal.ZERO.
+	 * priceComparator to compare these prices. If an entity doesn't have a price for sale, it falls back to
+	 * BigDecimal.ZERO - except within a segment, where such an entity is classified as not sortable and left out of the
+	 * segment.
 	 */
 	@RequiredArgsConstructor
 	private static class PriceForSaleEntityComparator implements EntityComparator, Serializable {
 		@Serial private static final long serialVersionUID = 5350421028034052368L;
 		private final Function<PriceContract, BigDecimal> priceExtractor;
 		private final Comparator<BigDecimal> priceComparator;
+		/**
+		 * `true` when the comparator orders a segment, which takes only the entities with a price for sale.
+		 */
+		private final boolean withinSegment;
 		private final IntObjectMap<BigDecimal> memoizedPrices = new IntObjectHashMap<>(64);
+
+		/**
+		 * Within a segment, classifies the entity as sortable when it has a price for sale, memoizing the price for the
+		 * comparisons that follow; outside a segment every entity is sortable and one without a price for sale is
+		 * compared as zero.
+		 *
+		 * @param entity the entity to classify
+		 * @return `true` when the entity is to be sorted by this comparator
+		 */
+		@Override
+		public boolean canSort(@Nonnull EntityContract entity) {
+			if (!this.withinSegment) {
+				return true;
+			}
+			final Optional<PriceContract> priceForSale = entity.getPriceForSaleIfAvailable();
+			if (priceForSale.isPresent()) {
+				this.memoizedPrices.put(entity.getPrimaryKey(), this.priceExtractor.apply(priceForSale.get()));
+				return true;
+			} else {
+				return false;
+			}
+		}
 
 		@Nonnull
 		@Override

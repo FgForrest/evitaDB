@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -392,10 +392,49 @@ class EntityFetchSortingFunctionalTest extends AbstractEntityFetchingFunctionalT
 			);
 		}
 
-		@DisplayName("Should exclude the products filling up an exact segment skipped by the page from the next segment")
+		@DisplayName("Should exclude the products of an ascending primary key segment a page skips from the next one")
 		@UseDataSet(HUNDRED_PRODUCTS)
 		@Test
-		void shouldExcludeSkippedProductsFillingUpExactSegmentFromNextSegment(Evita evita, List<SealedEntity> originalProducts) {
+		void shouldExcludeSkippedProductsOfAscendingSegmentFromNextSegment(
+			Evita evita, List<SealedEntity> originalProducts
+		) {
+			final int[] ascending = originalProducts.stream()
+				.mapToInt(EntityContract::getPrimaryKeyOrThrowException)
+				.sorted()
+				.toArray();
+			final int[] expectedOrder = IntStream.concat(
+					Arrays.stream(ascending, 0, 5),
+					IntStream.range(5, ascending.length).map(i -> ascending[ascending.length - 1 - (i - 5)])
+				)
+				.toArray();
+
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertEveryPageIsSliceOf(
+						expectedOrder,
+						(pageNumber, pageSize) -> queryProductPage(
+							session,
+							orderBy(
+								segments(
+									segment(orderBy(entityPrimaryKeyNatural(OrderDirection.ASC)), limit(5)),
+									segment(orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)))
+								)
+							),
+							pageNumber, pageSize
+						)
+					);
+					return null;
+				}
+			);
+		}
+
+		@DisplayName("Should take only the listed products into an exact segment and leave the rest to the next one")
+		@UseDataSet(HUNDRED_PRODUCTS)
+		@Test
+		void shouldTakeOnlyListedProductsIntoExactSegment(Evita evita, List<SealedEntity> originalProducts) {
+			// an exact order keeps only the products it lists - the limit larger than the list is only a cap, and the
+			// unlisted products are left to the descending primary key segment, on every page
 			final int[] exactOrder = {10, 3, 57};
 			final Set<Integer> exactKeys = Arrays.stream(exactOrder).boxed().collect(Collectors.toSet());
 			final int[] rest = originalProducts.stream()
@@ -404,8 +443,8 @@ class EntityFetchSortingFunctionalTest extends AbstractEntityFetchingFunctionalT
 				.sorted()
 				.toArray();
 			final int[] expectedOrder = IntStream.concat(
-					IntStream.concat(Arrays.stream(exactOrder), Arrays.stream(rest, 0, 2)),
-					IntStream.range(2, rest.length).map(i -> rest[rest.length - 1 - (i - 2)])
+					Arrays.stream(exactOrder),
+					IntStream.range(0, rest.length).map(i -> rest[rest.length - 1 - i])
 				)
 				.toArray();
 

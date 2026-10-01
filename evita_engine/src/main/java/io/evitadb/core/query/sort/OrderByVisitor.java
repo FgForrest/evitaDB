@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -133,6 +133,10 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * Contemporary stack for auxiliary data resolved for each level of the query.
 	 */
 	private final Deque<ProcessingScope> scope = new ArrayDeque<>(16);
+	/**
+	 * Set while the sorters of a segment ordering are being created - see {@link #isWithinSegment()}.
+	 */
+	private boolean withinSegment;
 
 	/**
 	 * Method creates the {@link Sorter} implementation that could be used for sorting primary keys of entities
@@ -293,6 +297,52 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 */
 	@Nonnull
 	public final List<Sorter> collectIsolatedSorters(@Nonnull Runnable lambda) {
+		return collectIsolatedSorters(lambda, true);
+	}
+
+	/**
+	 * Collects the sorters of a segment ordering: the lambda registers them within an isolated processing scope
+	 * exactly as in {@link #collectIsolatedSorters(Runnable)}, but the result lacks the default {@link NoSorter} that
+	 * {@link #getSorters()} appends to every chain lacking one, and while the lambda runs {@link #isWithinSegment()}
+	 * answers `true`. The result therefore holds only the sorters the ordering constraints produced themselves - it
+	 * may be empty - and the records none of them can sort stay unsorted, so that they fall out of the segment.
+	 *
+	 * @param lambda the lambda to execute within the isolated scope that creates and registers the sorter chain
+	 * @return the sorters registered by the lambda in registration order, possibly an empty list
+	 */
+	@Nonnull
+	public final List<Sorter> collectSegmentSorters(@Nonnull Runnable lambda) {
+		final boolean previouslyWithinSegment = this.withinSegment;
+		this.withinSegment = true;
+		try {
+			return collectIsolatedSorters(lambda, false);
+		} finally {
+			this.withinSegment = previouslyWithinSegment;
+		}
+	}
+
+	/**
+	 * Returns `true` while the sorters of a segment ordering are being created (see
+	 * {@link #collectSegmentSorters(Runnable)}). A segment takes only the entities its ordering can sort, so a
+	 * translator must neither register a sorter that places entities lacking the sorted data, nor a prefetch
+	 * comparator that sorts them - outside a segment, such a fallback keeps the entities in the ordering.
+	 *
+	 * @return `true` within a segment ordering
+	 */
+	public boolean isWithinSegment() {
+		return this.withinSegment;
+	}
+
+	/**
+	 * Runs the lambda within a new isolated {@link ProcessingScope} and returns the sorters it registered.
+	 *
+	 * @param lambda              the lambda that creates and registers the sorter chain
+	 * @param appendDefaultSorter `true` to return {@link #getSorters()} - ending with the default {@link NoSorter}
+	 *                            when the chain lacks one - `false` to return the registered sorters only
+	 * @return the collected sorters
+	 */
+	@Nonnull
+	private List<Sorter> collectIsolatedSorters(@Nonnull Runnable lambda, boolean appendDefaultSorter) {
 		try {
 			final ProcessingScope currentScope = getProcessingScope();
 			final LinkedList<Set<Scope>> requestedScopes = new LinkedList<>();
@@ -312,7 +362,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 				)
 			);
 			lambda.run();
-			return getSorters();
+			return appendDefaultSorter ? getSorters() : new ArrayList<>(getProcessingScope().sorters());
 		} finally {
 			this.scope.pop();
 		}

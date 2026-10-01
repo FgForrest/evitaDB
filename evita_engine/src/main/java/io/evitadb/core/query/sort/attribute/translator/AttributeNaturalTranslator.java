@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,6 +53,7 @@ import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
@@ -66,9 +67,11 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -278,11 +281,20 @@ public class AttributeNaturalTranslator
 			);
 			mergeMode = mergeModeDefinition == null ? MergeMode.APPEND_FIRST : mergeModeDefinition.mergeMode();
 			if (referenceSchema == null) {
+				// the comparator sorts the entities of exactly the scopes whose index sorts them on the index route -
+				// the scopes in which the attribute is sortable
+				final Set<Scope> sortableScopes = EnumSet.noneOf(Scope.class);
+				for (Scope scope : Scope.values()) {
+					if (attributeSchema.isSortableInScope(scope)) {
+						sortableScopes.add(scope);
+					}
+				}
 				entityComparator = new AttributeComparator(
 					attributeOrCompoundName,
 					attributeSchema.getPlainType(),
 					locale,
-					orderDirection
+					orderDirection,
+					sortableScopes
 				);
 			} else {
 				assertTraversing(mergeMode);

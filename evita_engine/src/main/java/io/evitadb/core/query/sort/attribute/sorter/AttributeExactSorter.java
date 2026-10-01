@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -50,11 +49,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.PrimitiveIterator.OfInt;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntConsumer;
 import java.util.function.ToIntFunction;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * AttributeExactSorter sorter outputs filtered results in an order of the attribute values in {@link #exactOrder}.
@@ -179,60 +175,56 @@ public class AttributeExactSorter implements Sorter {
 		final int peak = sortingContext.peak();
 		final QueryExecutionContext queryContext = sortingContext.queryContext();
 
-		// collect entity primary keys
+		// classify every entity once - only the entities whose value is listed are sorted, the others are passed on
+		// to the next sorter and never compared, so that even a lone one is recognized
 		final Bitmap nonSortedKeys = sortingContext.nonSortedKeys();
-		final OfInt it = nonSortedKeys.iterator();
-		final List<EntityContract> entities = new ArrayList<>(nonSortedKeys.size());
-		while (it.hasNext()) {
-			int id = it.next();
-			entities.add(queryContext.translateToEntity(id));
-		}
-
-		// create the comparator instance
 		final AttributePositionComparator entityComparator = new AttributePositionComparator(
 			this.attributeName, this.exactOrder
 		);
-
-		// sort the entities by the comparator
-		entities.sort(entityComparator);
-
-		// collect entity primary keys that miss the attribute we sort along
-		int notFoundRecordsCnt = 0;
+		entityComparator.prepareFor(nonSortedKeys.size());
+		final List<EntityContract> sortedEntities = new ArrayList<>(nonSortedKeys.size());
 		final PersistentRoaringBitmap notFoundRecords = new PersistentRoaringBitmap();
-		for (EntityContract entityContract : entityComparator.getNonSortedEntities()) {
-			if (notFoundRecords.checkedAdd(queryContext.translateEntity(entityContract))) {
-				notFoundRecordsCnt++;
+		final OfInt it = nonSortedKeys.iterator();
+		while (it.hasNext()) {
+			final int id = it.nextInt();
+			final EntityContract entity = queryContext.translateToEntity(id);
+			if (entityComparator.canSort(entity)) {
+				sortedEntities.add(entity);
+			} else {
+				notFoundRecords.add(id);
 			}
 		}
+		sortedEntities.sort(entityComparator);
 
-		// collect the result
-		final AtomicInteger index = new AtomicInteger();
-		final List<EntityContract> finalEntities = entities.subList(0, nonSortedKeys.size() - notFoundRecordsCnt);
-		final int skippedRecords = Math.min(recomputedStartIndex, finalEntities.size());
+		// skip and copy the requested slice of the sorted entities
+		final int sortedCount = sortedEntities.size();
+		final int skippedRecords = Math.min(recomputedStartIndex, sortedCount);
 		if (skippedRecordsConsumer != null) {
 			for (int i = 0; i < skippedRecords; i++) {
-				skippedRecordsConsumer.accept(queryContext.translateEntity(finalEntities.get(i)));
+				skippedRecordsConsumer.accept(queryContext.translateEntity(sortedEntities.get(i)));
 			}
 		}
-		finalEntities
-			.stream()
-			.skip(recomputedStartIndex)
-			.limit((long) recomputedEndIndex - recomputedStartIndex)
-			.mapToInt(queryContext::translateEntity)
-			.forEach(pk -> result[peak + index.getAndIncrement()] = pk);
+		final int appendedRecords = Math.max(
+			0, Math.min(Math.min(recomputedEndIndex, sortedCount) - skippedRecords, result.length - peak)
+		);
+		for (int i = 0; i < appendedRecords; i++) {
+			result[peak + i] = queryContext.translateEntity(sortedEntities.get(skippedRecords + i));
+		}
 
-		// and return appending the not sorted records
+		// and pass the entities without a listed value on
 		return sortingContext.createResultContext(
 			notFoundRecords.isEmpty() ?
 				EmptyBitmap.INSTANCE : new BaseBitmap(notFoundRecords),
-			index.get(),
+			appendedRecords,
 			skippedRecords
 		);
 	}
 
 	/**
-	 * The {@link EntityComparator} implementation that compares two attributes of the {@link EntityContract}, but
-	 * tracks the entities that miss the attribute whatsoever.
+	 * The {@link EntityComparator} implementation that orders entities by the position of their attribute value in
+	 * the exact order. Every entity is classified by {@link #canSort(EntityContract)} before any comparison: an entity
+	 * without the attribute, or with a value the exact order does not list, is not sortable and is never compared -
+	 * the sorter passes it on to the next sorter.
 	 */
 	@SuppressWarnings({"ObjectInstantiationInEqualsHashCode", "ComparatorNotSerializable"})
 	@RequiredArgsConstructor
@@ -246,24 +238,38 @@ public class AttributeExactSorter implements Sorter {
 		private int estimatedCount = 100;
 		private ObjectIntMap<Serializable> cache;
 		/**
-		 * Resolved positions keyed by entity primary key, so that every entity is resolved (and tracked as non-sorted)
-		 * only once, although it takes part in many comparisons.
+		 * Resolved positions keyed by entity primary key, so that every entity is resolved only once, although it
+		 * takes part in many comparisons.
 		 */
 		private IntIntMap positionsByPrimaryKey;
-		@Nullable private CompositeObjectArray<EntityContract> nonSortedEntities;
 
 		@Override
 		public void prepareFor(int entityCount) {
 			this.estimatedCount = entityCount;
-			this.nonSortedEntities = null;
 			this.positionsByPrimaryKey = null;
 		}
 
+		/**
+		 * Every entity is classified before it is compared, so there is never anything to report.
+		 *
+		 * @return an empty iterable
+		 */
 		@Nonnull
 		@Override
 		public Iterable<EntityContract> getNonSortedEntities() {
-			return ofNullable((Iterable<EntityContract>) this.nonSortedEntities)
-				.orElse(Collections.emptyList());
+			return Collections.emptyList();
+		}
+
+		/**
+		 * Classifies the entity as sortable when its attribute value is listed in the exact order. The position is
+		 * memoized for the comparisons that follow.
+		 *
+		 * @param entity the entity to classify
+		 * @return `true` when the entity's attribute value is listed
+		 */
+		@Override
+		public boolean canSort(@Nonnull EntityContract entity) {
+			return getPosition(entity) != Integer.MAX_VALUE;
 		}
 
 		@Override
@@ -273,8 +279,8 @@ public class AttributeExactSorter implements Sorter {
 
 		/**
 		 * Returns the position of the entity's attribute value in {@link #attributeValues}. Entities that miss
-		 * the attribute or whose value is not part of the exact order are tracked as non-sorted and placed after all
-		 * the sorted ones, so that they form the trailing part of the sorted list the caller hands to the next sorter.
+		 * the attribute or whose value is not part of the exact order get {@link Integer#MAX_VALUE} - they are
+		 * classified as not sortable and never compared.
 		 *
 		 * @param entity the entity to locate
 		 * @return the position of the entity's attribute value or {@link Integer#MAX_VALUE} for non-sorted entities
@@ -301,9 +307,6 @@ public class AttributeExactSorter implements Sorter {
 				position = computeIfAbsent(this.cache, attribute, it -> ArrayUtils.indexOf(it, this.attributeValues));
 			}
 			if (position < 0) {
-				this.nonSortedEntities = ofNullable(this.nonSortedEntities)
-					.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));
-				this.nonSortedEntities.add(entity);
 				this.positionsByPrimaryKey.put(primaryKey, Integer.MAX_VALUE);
 				return Integer.MAX_VALUE;
 			} else {

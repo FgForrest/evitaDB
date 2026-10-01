@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -712,6 +712,15 @@ class EvitaQLOrderConstraintVisitorTest {
             1, 5, 8L
         );
         assertEquals(orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(1)), orderBy(random()), limit(5)), segment(orderBy(randomWithSeed(8L))))), constraint7);
+
+        // nested segments parse - the engine rejects them when it plans the query
+        final OrderConstraint nestedConstraint = parseOrderConstraintUnsafe(
+            "orderBy(segments(segment(orderBy(inScope(LIVE, segments(segment(orderBy(random()))))))))"
+        );
+        assertEquals(
+            orderBy(segments(segment(orderBy(inScope(Scope.LIVE, segments(segment(orderBy(random())))))))),
+            nestedConstraint
+        );
 
         final OrderConstraint constraint8 = parseOrderConstraint(
             "orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(@pk)),orderBy(random()),limit(@limit)),segment(orderBy(randomWithSeed(@seed))))))",

@@ -34,8 +34,10 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.comparator.IntComparator;
 import io.evitadb.comparator.IntComparator.IntAscendingComparator;
 import io.evitadb.comparator.IntComparator.IntDescendingComparator;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.EntityReferenceSensitiveComparator;
+import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.OrderByVisitor.MergeModeDefinition;
 import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
@@ -47,10 +49,12 @@ import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeM
 import io.evitadb.core.query.sort.generic.PrefetchedRecordsSorter;
 import io.evitadb.core.query.sort.primaryKey.comparator.ReferencePrimaryKeyComparator;
 import io.evitadb.core.query.sort.primaryKey.sorter.ReversedPrimaryKeySorter;
+import io.evitadb.core.query.sort.primaryKey.sorter.ScopedPrimaryKeySorter;
 import io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver;
 import io.evitadb.core.query.sort.reference.sorter.PickFirstReferenceSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
+import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.dataType.iterator.EmptyIterator;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -58,17 +62,23 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.attribute.ReferenceSortedRecordsProvider;
 import io.evitadb.index.attribute.SortedRecordsSupplier;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.referenceContent;
@@ -89,6 +99,48 @@ public class EntityPrimaryKeyNaturalTranslator
 	 */
 	private static final int MISSING = Integer.MIN_VALUE;
 
+	/**
+	 * Creates the sorter of an ascending entity primary key order declared in a segment ordering. Every entity has a
+	 * primary key, so the order sorts every entity it receives - {@link NoSorter} does exactly that. Within an
+	 * `inScope` container (which narrows the ordered scopes below the scopes of the query) the order sorts only the
+	 * entities of the ordered scopes and leaves the others to the following sorters, which
+	 * {@link ScopedPrimaryKeySorter} does. A query without a collection has no collection index telling which records
+	 * a scope holds, so its scoped order falls back to {@link NoSorter}.
+	 *
+	 * @param orderByVisitor  the visitor creating the sorters of the segment
+	 * @param processingScope the processing scope carrying the ordered scopes
+	 * @return the sorter applying the ascending primary key order
+	 */
+	@Nonnull
+	private static Sorter createAscendingPrimaryKeySorter(
+		@Nonnull OrderByVisitor orderByVisitor,
+		@Nonnull ProcessingScope processingScope
+	) {
+		final QueryPlanningContext queryContext = orderByVisitor.getQueryContext();
+		final Set<Scope> orderedScopes = processingScope.getScopes();
+		if (!queryContext.isEntityTypeKnown() || orderedScopes.containsAll(queryContext.getScopes())) {
+			return NoSorter.INSTANCE;
+		}
+		final List<PersistentRoaringBitmap> scopeRecords = new ArrayList<>(orderedScopes.size());
+		for (Scope scope : orderedScopes) {
+			queryContext.getGlobalEntityIndexIfExists(scope)
+				.ifPresent(
+					index -> scopeRecords.add(RoaringBitmapBackedBitmap.getRoaringBitmap(index.getAllPrimaryKeys()))
+				);
+		}
+		final Bitmap orderedRecords;
+		if (scopeRecords.isEmpty()) {
+			orderedRecords = EmptyBitmap.INSTANCE;
+		} else if (scopeRecords.size() == 1) {
+			orderedRecords = new BaseBitmap(scopeRecords.get(0));
+		} else {
+			orderedRecords = new BaseBitmap(
+				PersistentRoaringBitmap.or(scopeRecords.toArray(PersistentRoaringBitmap[]::new))
+			);
+		}
+		return new ScopedPrimaryKeySorter(orderedRecords);
+	}
+
 	@Nonnull
 	@Override
 	public Stream<Sorter> createSorter(@Nonnull EntityPrimaryKeyNatural entityPrimaryKeyNatural, @Nonnull OrderByVisitor orderByVisitor) {
@@ -97,7 +149,15 @@ public class EntityPrimaryKeyNaturalTranslator
 		final ReferenceSchema referenceSchema = processingScope.referenceSchema();
 		final PickFirstReducedIndexResolver pickFirstIndexResolver = processingScope.pickFirstIndexResolver();
 		if (referenceSchema == null) {
-			return orderDirection == OrderDirection.DESC ? Stream.of(ReversedPrimaryKeySorter.INSTANCE) : Stream.empty();
+			if (orderDirection == OrderDirection.DESC) {
+				return Stream.of(ReversedPrimaryKeySorter.INSTANCE);
+			} else if (orderByVisitor.isWithinSegment()) {
+				// a segment chain has no default sorter, so the ascending order is registered at its declared position
+				return Stream.of(createAscendingPrimaryKeySorter(orderByVisitor, processingScope));
+			} else {
+				// the default sorter appended to every chain applies the ascending order
+				return Stream.empty();
+			}
 		} else if (pickFirstIndexResolver != null) {
 			// if prefetch happens, the comparator reads the references - and, for a reference allowing duplicates,
 			// their representative attributes, which order the references sharing one referenced entity

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -112,6 +112,42 @@ class PredecessorAttributeComparatorTest {
 			collected.add(entity);
 		}
 		return collected;
+	}
+
+	@Nested
+	@DisplayName("Classification")
+	class ClassificationTest {
+
+		@Test
+		@DisplayName("classifies an entity no provider holds as not sortable without parking it")
+		void shouldClassifyEntityMissingFromEveryProviderAsNotSortable() {
+			// an entity sorted alone is never compared, so only the classification can tell no provider holds it
+			final PredecessorAttributeComparator comparator = new PredecessorAttributeComparator(
+				() -> new SortedRecordsProvider[]{singleRecordProvider(10), singleRecordProvider(20)}
+			);
+			comparator.prepareFor(100);
+
+			assertFalse(comparator.canSort(entityWithPrimaryKey(30)), "no provider holds record 30");
+			assertFalse(
+				comparator.getNonSortedEntities().iterator().hasNext(),
+				"an entity classified as not sortable must not be parked as well"
+			);
+		}
+
+		@Test
+		@DisplayName("classifies an entity held by any provider as sortable")
+		void shouldClassifyEntityHeldByAnyProviderAsSortable() {
+			final PredecessorAttributeComparator comparator = new PredecessorAttributeComparator(
+				() -> new SortedRecordsProvider[]{singleRecordProvider(10), singleRecordProvider(20)}
+			);
+			comparator.prepareFor(100);
+
+			final EntityContract entity10 = entityWithPrimaryKey(10);
+			final EntityContract entity20 = entityWithPrimaryKey(20);
+			assertTrue(comparator.canSort(entity10), "the first provider holds record 10");
+			assertTrue(comparator.canSort(entity20), "the second provider holds record 20");
+			assertEquals(-1, comparator.compare(entity10, entity20), "the earlier provider wins");
+		}
 	}
 
 	@Nested

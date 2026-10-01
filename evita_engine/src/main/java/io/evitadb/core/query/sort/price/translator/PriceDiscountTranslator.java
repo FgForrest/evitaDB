@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -193,6 +193,9 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 				),
 				sellingPriceRecordAccessors
 			);
+		} else if (orderByVisitor.isWithinSegment()) {
+			// otherwise, we cannot sort the entities by price - and a segment takes no entity it cannot sort
+			thisSorter = null;
 		} else {
 			// otherwise, we cannot sort the entities by price
 			thisSorter = NoSorter.INSTANCE;
@@ -202,17 +205,21 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		final EntityComparator entityComparator;
 		final Function<PriceContract, BigDecimal> priceExtractor = queryPriceMode == QueryPriceMode.WITH_TAX ?
 			PriceContract::priceWithTax : PriceContract::priceWithoutTax;
+		final boolean withinSegment = orderByVisitor.isWithinSegment();
 		if (priceDiscount.getOrder() == OrderDirection.ASC) {
-			entityComparator = new EntityPriceDiscountEntityComparator(priceExtractor, Comparator.naturalOrder(), priceLists);
+			entityComparator = new EntityPriceDiscountEntityComparator(
+				priceExtractor, Comparator.naturalOrder(), priceLists, withinSegment
+			);
 		} else {
-			entityComparator = new EntityPriceDiscountEntityComparator(priceExtractor, Comparator.reverseOrder(), priceLists);
+			entityComparator = new EntityPriceDiscountEntityComparator(
+				priceExtractor, Comparator.reverseOrder(), priceLists, withinSegment
+			);
 		}
 
 		// return both sorters
-		return Stream.of(
-			new PrefetchedRecordsSorter(entityComparator),
-			thisSorter
-		);
+		final PrefetchedRecordsSorter prefetchedRecordsSorter = new PrefetchedRecordsSorter(entityComparator);
+		return thisSorter == null ?
+			Stream.of(prefetchedRecordsSorter) : Stream.of(prefetchedRecordsSorter, thisSorter);
 	}
 
 	/**
@@ -249,6 +256,11 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		 */
 		private final String[] discountPriceLists;
 		/**
+		 * `true` when the comparator orders a segment, which classifies every entity up front so that an entity without
+		 * a discount is left out of the segment even when it is the only one there - it is never compared then.
+		 */
+		private final boolean withinSegment;
+		/**
 		 * Memoized discounts for the entities so that for each entity the discount is calculated only once.
 		 * NULL values are represented by {@link #NEGATIVE_DISCOUNT}.
 		 */
@@ -262,6 +274,23 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		@Override
 		public Iterable<EntityContract> getNonSortedEntities() {
 			return this.nonSortedEntities == null ? List.of() : this.nonSortedEntities;
+		}
+
+		/**
+		 * Within a segment, classifies the entity as sortable when it has a price for sale and a discount against it,
+		 * memoizing the discount for the comparisons that follow; outside a segment every entity is sortable and the
+		 * ones without a discount are reported while comparing.
+		 *
+		 * @param entity the entity to classify
+		 * @return `true` when the entity is to be sorted by this comparator
+		 */
+		@SuppressWarnings("NumberEquality")
+		@Override
+		public boolean canSort(@Nonnull EntityContract entity) {
+			if (!this.withinSegment) {
+				return true;
+			}
+			return entity.getPriceForSaleIfAvailable().isPresent() && getPriceDiscount(entity) != NEGATIVE_DISCOUNT;
 		}
 
 		@SuppressWarnings({"NumberEquality", "ObjectInstantiationInEqualsHashCode"})

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.filter.EntityHaving;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -179,6 +180,31 @@ class SegmentTest {
 			);
 
 			assertNull(result);
+		}
+	}
+
+	@Nested
+	@DisplayName("Nested segments")
+	class NestedSegmentsTest {
+
+		@Test
+		@DisplayName("should construct segments nested in the ordering of a segment - the engine rejects them")
+		void shouldConstructSegmentsNestedInOrderingOfSegment() {
+			// the shape is rejected when the query is planned, not here, so that a stored query of this shape stays
+			// readable (a traffic recording deserializes every query it holds)
+			final Segment direct = segment(orderBy(segments(segment(orderBy(attributeNatural("code"))))), limit(1));
+			final Segment inScopeContainer = segment(
+				entityHaving(attributeEquals("code", "123")),
+				orderBy(inScope(Scope.LIVE, segments(segment(orderBy(attributeNatural("code"))))))
+			);
+			assertNotNull(direct);
+			assertNotNull(inScopeContainer);
+			assertNotNull(
+				direct.getCopyWithNewChildren(
+					new OrderConstraint[]{orderBy(segments(segment(orderBy(random()))))},
+					new Constraint<?>[0]
+				)
+			);
 		}
 	}
 

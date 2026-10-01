@@ -89,6 +89,29 @@ public class PredecessorAttributeComparator implements EntityComparator {
 		this.nonSortedEntities = null;
 	}
 
+	/**
+	 * Classifies the entity as sortable when any of the sorted-records providers holds it. The positions resolved
+	 * on the way are memoized for the comparisons that follow; an entity no provider holds is not reported through
+	 * {@link #getNonSortedEntities()}, because it is never compared - the caller passes it on by itself.
+	 *
+	 * @param entity the entity to classify
+	 * @return `true` when a provider places the entity
+	 */
+	@Override
+	public boolean canSort(@Nonnull EntityContract entity) {
+		final SortedRecordsProvider[] sortedRecordsProviders = getSortedRecordsProviders();
+		if (this.cache == null) {
+			this.cache = new IntIntMap[sortedRecordsProviders.length];
+		}
+		final int primaryKey = entity.getPrimaryKeyOrThrowException();
+		for (int i = 0; i < sortedRecordsProviders.length; i++) {
+			if (cachedPositionOf(sortedRecordsProviders, this.cache, i, this.estimatedCount, primaryKey) >= 0) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	@Override
 	public int compare(EntityContract o1, EntityContract o2) {
 		final SortedRecordsProvider[] sortedRecordsProviders = getSortedRecordsProviders();
