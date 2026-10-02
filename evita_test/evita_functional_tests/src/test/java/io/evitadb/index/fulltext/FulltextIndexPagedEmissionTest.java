@@ -24,6 +24,7 @@
 package io.evitadb.index.fulltext;
 
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.fulltext.FulltextIndex.DictionaryPage;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.invertedIndex.ValueToRecord;
@@ -57,6 +58,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -225,6 +227,10 @@ class FulltextIndexPagedEmissionTest {
 		 * How many pages the flushes freed in total.
 		 */
 		private int freedTotal;
+		/**
+		 * The high-water page sequence of the last flush.
+		 */
+		private int highWater = -1;
 
 		/**
 		 * Applies one flush: writes the changed pages, removes the freed ones, and checks the disk holds exactly the
@@ -241,6 +247,7 @@ class FulltextIndexPagedEmissionTest {
 				this.freedTotal++;
 			}
 			this.orderedPageSequences = emission.orderedPageSequences();
+			this.highWater = emission.highWaterPageSequence();
 			final Set<Integer> live = new HashSet<>();
 			for (final int sequence : this.orderedPageSequences) {
 				assertTrue(live.add(sequence), "A page is listed twice: " + sequence);
@@ -271,6 +278,46 @@ class FulltextIndexPagedEmissionTest {
 				}
 			}
 			return lines;
+		}
+
+		/**
+		 * Returns the listed pages in list order - what a cold load reads.
+		 *
+		 * @return the pages
+		 */
+		@Nonnull
+		DictionaryPage[] listedPages() {
+			final DictionaryPage[] result = new DictionaryPage[this.orderedPageSequences.length];
+			for (int i = 0; i < result.length; i++) {
+				result[i] = this.pages.get(this.orderedPageSequences[i]);
+			}
+			return result;
+		}
+
+		/**
+		 * Loads the index back from this disk, with the registry of the passed index.
+		 *
+		 * @param index the index whose field registry to restore
+		 * @return the reloaded index
+		 */
+		@Nonnull
+		FulltextIndex reload(@Nonnull FulltextIndex index) {
+			final List<FulltextIndex.Field> fields = new ArrayList<>(index.getFieldCount());
+			for (int fieldId = 0; fieldId < index.getFieldCount(); fieldId++) {
+				fields.add(
+					new FulltextIndex.Field(
+						index.getFieldName(fieldId), index.getLengthPivot(fieldId), index.getFieldLengths(fieldId)
+					)
+				);
+			}
+			return FulltextIndex.fromPersistedPages(
+				registry.getIndexAnalyzer("product", Locale.forLanguageTag("cs")),
+				FulltextIndex.DEFAULT_LENGTH_PIVOT,
+				fields,
+				this.orderedPageSequences,
+				listedPages(),
+				this.highWater
+			);
 		}
 
 		/**
@@ -472,6 +519,148 @@ class FulltextIndexPagedEmissionTest {
 				flush(index, disk);
 				disk.assertHolds(index);
 			}
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Reload")
+	class Reload {
+
+		@Test
+		@DisplayName("A reloaded dictionary equals the flushed one, and its first flush writes nothing")
+		void shouldReloadBoundaryStable() {
+			final FulltextIndex index = newIndex();
+			addRandom(new Random(9), index, 6_000);
+			final SimulatedDisk disk = new SimulatedDisk();
+			flush(index, disk);
+
+			final FulltextIndex reloaded = disk.reload(index);
+
+			assertEquals(dictionaryOf(index), dictionaryOf(reloaded));
+			assertFalse(reloaded.isDirty(), "A reloaded index is clean.");
+			final PageEmission<DictionaryPage> first = reloaded.collectChangedPages();
+			assertTrue(first.changedPages().isEmpty(), "Every leaf kept its page and none is dirty.");
+			assertEquals(0, first.freedPageSequences().length);
+			assertArrayEquals(disk.orderedPageSequences, first.orderedPageSequences());
+			assertEquals(disk.highWater, first.highWaterPageSequence());
+		}
+
+		@Test
+		@DisplayName("A reloaded index takes writes with impacts, splits and merges, and flushes them correctly")
+		void shouldKeepWorkingAfterAReload() {
+			final Random random = new Random(10);
+			final FulltextIndex index = newIndex();
+			addRandom(random, index, 6_000);
+			final SimulatedDisk disk = new SimulatedDisk();
+			flush(index, disk);
+
+			FulltextIndex current = disk.reload(index);
+			for (int round = 0; round < 10; round++) {
+				final int from = random.nextInt(TERM_COUNT);
+				removeRange(current, from, Math.min(TERM_COUNT, from + random.nextInt(600)));
+				addRandom(random, current, random.nextInt(3_000));
+				flush(current, disk);
+				disk.assertHolds(current);
+				current = disk.reload(current);
+				assertEquals(dictionaryOf(current), disk.read());
+			}
+		}
+
+		@Test
+		@DisplayName("Every record tier reloads with its impacts - single, array and a bitmap over several containers")
+		void shouldReloadEveryRecordTier() {
+			final FulltextIndex index = newIndex();
+			index.addPosting(0, "single", 5, 17);
+			for (int pk = 0; pk < 40; pk++) {
+				index.addPosting(0, "array", pk * 3, 1 + pk);
+			}
+			// above the array tier's threshold, and spread over two roaring containers
+			for (int pk = 0; pk < 200; pk++) {
+				index.addPosting(0, "bitmap", pk, 1 + pk % 255);
+				index.addPosting(0, "bitmap", 70_000 + pk, 255 - pk % 200);
+			}
+			final SimulatedDisk disk = new SimulatedDisk();
+			flush(index, disk);
+
+			final FulltextIndex reloaded = disk.reload(index);
+
+			assertEquals(dictionaryOf(index), dictionaryOf(reloaded));
+			assertArrayEquals(index.getImpacts(0, "bitmap"), reloaded.getImpacts(0, "bitmap"));
+			// the reloaded buckets keep working in every tier
+			reloaded.addPosting(0, "bitmap", 70_500, 99);
+			reloaded.removePosting(0, "array", 0);
+			reloaded.addPosting(0, "single", 6, 33);
+			flush(reloaded, disk);
+			disk.assertHolds(reloaded);
+		}
+
+		@Test
+		@DisplayName("An empty dictionary is persisted as one empty page and reloads as such")
+		void shouldReloadAnEmptyDictionary() {
+			final FulltextIndex index = newIndex();
+			addRandom(new Random(11), index, 3_000);
+			final SimulatedDisk disk = new SimulatedDisk();
+			flush(index, disk);
+			removeRange(index, 0, TERM_COUNT);
+			flush(index, disk);
+			assertEquals(1, disk.orderedPageSequences.length, "An empty dictionary keeps its root leaf's page.");
+			assertEquals(0, disk.listedPages()[0].buckets().length);
+
+			final FulltextIndex reloaded = disk.reload(index);
+
+			assertEquals(0, reloaded.getTermCount());
+			assertTrue(reloaded.collectChangedPages().changedPages().isEmpty());
+			addRandom(new Random(12), reloaded, 2_000);
+			flush(reloaded, disk);
+			disk.assertHolds(reloaded);
+		}
+
+		@Test
+		@DisplayName("Pages listed out of key order are refused as overlapping")
+		void shouldRefuseOverlappingPages() {
+			final FulltextIndex index = newIndex();
+			addRandom(new Random(13), index, 6_000);
+			final SimulatedDisk disk = new SimulatedDisk();
+			flush(index, disk);
+			final int[] swapped = disk.orderedPageSequences.clone();
+			final int last = swapped[swapped.length - 1];
+			swapped[swapped.length - 1] = swapped[0];
+			swapped[0] = last;
+			disk.orderedPageSequences = swapped;
+
+			assertThrows(GenericEvitaInternalError.class, () -> disk.reload(index));
+		}
+
+		@Test
+		@DisplayName("A page whose impacts do not cover its records is refused")
+		void shouldRefuseMisalignedImpacts() {
+			final FulltextIndex index = newIndex();
+			addRandom(new Random(14), index, 6_000);
+			final SimulatedDisk disk = new SimulatedDisk();
+			flush(index, disk);
+			final DictionaryPage page = disk.pages.get(disk.orderedPageSequences[0]);
+			final byte[][] impacts = page.impacts().clone();
+			impacts[0] = new byte[impacts[0].length + 1];
+			disk.pages.put(page.pageSequence(), new DictionaryPage(page.pageSequence(), page.buckets(), impacts));
+
+			assertThrows(GenericEvitaInternalError.class, () -> disk.reload(index));
+		}
+
+		@Test
+		@DisplayName("A page listed under another sequence is refused")
+		void shouldRefuseAMislabelledPage() {
+			final FulltextIndex index = newIndex();
+			addRandom(new Random(15), index, 6_000);
+			final SimulatedDisk disk = new SimulatedDisk();
+			flush(index, disk);
+			final DictionaryPage page = disk.pages.get(disk.orderedPageSequences[1]);
+			disk.pages.put(
+				disk.orderedPageSequences[1],
+				new DictionaryPage(page.pageSequence() + 1_000, page.buckets(), page.impacts())
+			);
+
+			assertThrows(GenericEvitaInternalError.class, () -> disk.reload(index));
 		}
 
 	}

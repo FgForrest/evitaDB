@@ -29,6 +29,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.index.bPlusTree.ImpactView;
+import io.evitadb.index.bPlusTree.OverflowRecords;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.LeafPageHandle;
@@ -250,7 +251,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * @param lengthPivot the field's length pivot
 	 * @param lengths     the lengths of the field's indexed values
 	 */
-	record Field(@Nonnull String name, double lengthPivot, @Nonnull FieldLengthTable lengths) {
+	public record Field(@Nonnull String name, double lengthPivot, @Nonnull FieldLengthTable lengths) {
 	}
 
 	/**
@@ -269,22 +270,13 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * @param defaultLengthPivot length pivot a field gets when registered without one; must be positive and finite
 	 * @throws io.evitadb.exception.GenericEvitaInternalError when the pivot is not positive and finite
 	 */
-	@SuppressWarnings("unchecked")
 	public FulltextIndex(@Nonnull FulltextAnalyzer indexAnalyzer, double defaultLengthPivot) {
 		assertPivotValid(defaultLengthPivot);
 		this.indexAnalyzer = indexAnalyzer;
 		this.defaultLengthPivot = defaultLengthPivot;
 		this.fieldIds = CollectionUtils.createHashMap(8);
 		this.fields = new ArrayList<>(8);
-		// natural `String` order - UTF-16 code-unit order, not code-point order: the field prefix relies on it, see
-		// FulltextTermKeys
-		this.dictionary = new TransactionalBucketBPlusTree<>(
-			VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_INTERNAL_NODE_BLOCK_SIZE,
-			String.class,
-			null,
-			(ValueColumnFactory<String>) ValueColumnFactory.forKey(String.class, null)
-		);
-		this.dictionary.enableImpacts();
+		this.dictionary = createDictionary();
 		this.dirty = new TransactionalBoolean(false);
 		this.pageStreamRegistry = new PageStreamRegistry();
 	}
@@ -315,6 +307,129 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		// the merge runs after the flush collected this version's changes, so the committed copy starts clean
 		this.dirty = new TransactionalBoolean(false);
 		this.pageStreamRegistry = pageStreamRegistry;
+	}
+
+	/**
+	 * Restores an index from its persisted parts: the field registry with every field's lengths, and the dictionary's
+	 * leaf pages in key order. Each page becomes one leaf, so the restored dictionary has the leaf boundaries it was
+	 * written with, and the page bookkeeping is restored with it - every leaf keeps its page sequence and none is
+	 * dirty, so the first flush after the load writes nothing for an unchanged dictionary.
+	 *
+	 * An empty dictionary is persisted as the single empty page of its root leaf, and restored as such.
+	 *
+	 * @param indexAnalyzer         analyzer of the index slot of the partition's locale
+	 * @param defaultLengthPivot    length pivot a field registered later without one gets
+	 * @param fields                the registered fields in id order, each with its length table
+	 * @param orderedPageSequences  the dictionary's page sequences in key order, as the last flush listed them
+	 * @param pages                 the pages, positionally aligned with `orderedPageSequences`
+	 * @param highWaterPageSequence the highest page sequence the dictionary ever allocated
+	 * @return the restored index, clean
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the pages do not match their list, overlap, or an
+	 *                                                        empty page is not the dictionary's only one
+	 */
+	@Nonnull
+	public static FulltextIndex fromPersistedPages(
+		@Nonnull FulltextAnalyzer indexAnalyzer,
+		double defaultLengthPivot,
+		@Nonnull List<Field> fields,
+		@Nonnull int[] orderedPageSequences,
+		@Nonnull DictionaryPage[] pages,
+		int highWaterPageSequence
+	) {
+		assertPivotValid(defaultLengthPivot);
+		Assert.isPremiseValid(
+			orderedPageSequences.length == pages.length,
+			() -> "The dictionary lists " + orderedPageSequences.length + " pages but " + pages.length +
+				" were passed!"
+		);
+		Assert.isPremiseValid(orderedPageSequences.length > 0, "A persisted dictionary lists at least one page!");
+		final TransactionalBucketBPlusTree<String> dictionary;
+		if (pages.length == 1 && pages[0].buckets().length == 0) {
+			// the empty root leaf keeps its page, so it is not written again until it holds something
+			dictionary = createDictionary();
+			dictionary.leafPageHandles().get(0).setPageSequence(orderedPageSequences[0]);
+		} else {
+			final List<TransactionalBucketBPlusTree<String>> pageTrees = new ArrayList<>(pages.length);
+			for (int i = 0; i < pages.length; i++) {
+				pageTrees.add(loadPage(pages[i], orderedPageSequences[i]));
+			}
+			dictionary = createDictionary().assembleFromSingleLeafTrees(
+				pageTrees, orderedPageSequences, "fulltext dictionary"
+			);
+		}
+		final PageStreamRegistry pageStreamRegistry = PageStreamRegistry.restoredFrom(
+			DICTIONARY_PAGE_STREAM, highWaterPageSequence, dictionary.leafPageHandles()
+		);
+		final Map<String, Integer> fieldIds = CollectionUtils.createHashMap(fields.size());
+		for (int fieldId = 0; fieldId < fields.size(); fieldId++) {
+			final Field field = fields.get(fieldId);
+			assertPivotValid(field.lengthPivot());
+			final Integer previous = fieldIds.put(field.name(), fieldId);
+			Assert.isPremiseValid(previous == null, () -> "Fulltext field `" + field.name() + "` is persisted twice!");
+		}
+		return new FulltextIndex(
+			indexAnalyzer, defaultLengthPivot, fieldIds, new ArrayList<>(fields), dictionary, pageStreamRegistry
+		);
+	}
+
+	/**
+	 * Builds the single-leaf tree of one persisted dictionary page.
+	 *
+	 * @param page         the page
+	 * @param pageSequence the sequence the page list gives it
+	 * @return the tree, holding exactly the page's buckets with their impacts
+	 */
+	@Nonnull
+	private static TransactionalBucketBPlusTree<String> loadPage(@Nonnull DictionaryPage page, int pageSequence) {
+		Assert.isPremiseValid(
+			page.pageSequence() == pageSequence,
+			() -> "Dictionary page " + page.pageSequence() + " is listed as page " + pageSequence + "!"
+		);
+		final ValueToRecord[] buckets = page.buckets();
+		Assert.isPremiseValid(
+			buckets.length > 0,
+			() -> "Dictionary page " + pageSequence + " is empty, but only the sole page of an empty dictionary may be!"
+		);
+		final Object[] keys = new Object[buckets.length];
+		final long[] payloads = new long[buckets.length];
+		Object[] overflow = null;
+		for (int i = 0; i < buckets.length; i++) {
+			keys[i] = buckets[i].getValue();
+			final Bitmap recordIds = buckets[i].getRecordIds();
+			if (recordIds.size() == 1) {
+				payloads[i] = recordIds.getFirst();
+			} else {
+				if (overflow == null) {
+					overflow = new Object[buckets.length];
+				}
+				// the record tier is chosen here, so a small bucket never builds a bitmap only to be demoted again
+				overflow[i] = OverflowRecords.loadedRecordSet(recordIds);
+			}
+		}
+		final TransactionalBucketBPlusTree<String> pageTree = createDictionary();
+		pageTree.bulkLoadPage(keys, payloads, overflow, null, page.impacts(), buckets.length);
+		return pageTree;
+	}
+
+	/**
+	 * Creates an empty dictionary carrying impacts - the one shape every dictionary, and every page loaded into one,
+	 * has.
+	 *
+	 * @return the empty dictionary
+	 */
+	@Nonnull
+	@SuppressWarnings("unchecked")
+	private static TransactionalBucketBPlusTree<String> createDictionary() {
+		// natural `String` order - UTF-16 code-unit order, not code-point order: the field prefix relies on it, see
+		// FulltextTermKeys
+		final TransactionalBucketBPlusTree<String> dictionary = new TransactionalBucketBPlusTree<>(
+			VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_INTERNAL_NODE_BLOCK_SIZE,
+			String.class,
+			null,
+			(ValueColumnFactory<String>) ValueColumnFactory.forKey(String.class, null)
+		);
+		dictionary.enableImpacts();
+		return dictionary;
 	}
 
 	/**
