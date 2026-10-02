@@ -202,8 +202,10 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 				() -> new FacetGroupOrFormula(referenceSchema.getName(), facetGroupId, new BaseBitmap(facetId), facetEntityIdsBitmap)
 			);
 			hypotheticalFormula.accept(mutableFormulaFinderAndReplacer);
-			Assert.isPremiseValid(mutableFormulaFinderAndReplacer.isTargetFound(), "Expected single MutableFormula in the formula tree!");
-			return mutableFormulaFinderAndReplacer.getTarget().suppressPivot(
+			Assert.isPremiseValid(
+				mutableFormulaFinderAndReplacer.isTargetFound(), "Expected a MutableFormula in the formula tree!"
+			);
+			return mutableFormulaFinderAndReplacer.suppressPivot(
 				() -> !hypotheticalFormula.compute().isEmpty()
 			);
 		}

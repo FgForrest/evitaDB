@@ -96,7 +96,9 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 					// filter over the formula without the user filter instead, the same as when there is none
 					final Formula countedFormula = isUserFilterScoped(baseFormula) ?
 						FilterFormulaFacetOptimizeVisitor.optimize(baseFormulaWithoutUserFilter) : baseFormula;
-					return super.generateFormula(countedFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds);
+					return super.generateFormula(
+						countedFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds
+					);
 				} else {
 					final Bitmap facetEntityIdsBitmap = getBaseEntityIds(facetEntityIds);
 					final MutableFormulaFinderAndReplacer mutableFormulaFinderAndReplacer = new MutableFormulaFinderAndReplacer(
@@ -105,7 +107,9 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 							new FacetGroupOrFormula(referenceSchema.getName(), facetGroupId, new BaseBitmap(facetId), facetEntityIdsBitmap)
 					);
 					formula.accept(mutableFormulaFinderAndReplacer);
-					Assert.isPremiseValid(mutableFormulaFinderAndReplacer.isTargetFound(), "Expected single MutableFormula in the formula tree!");
+					Assert.isPremiseValid(
+						mutableFormulaFinderAndReplacer.isTargetFound(), "Expected a MutableFormula in the formula tree!"
+					);
 					return formula;
 				}
 			}

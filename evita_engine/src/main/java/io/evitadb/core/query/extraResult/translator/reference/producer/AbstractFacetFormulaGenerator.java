@@ -43,13 +43,13 @@ import io.evitadb.core.query.algebra.facet.CombinedFacetFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupAndFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
+import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.facet.FacetHavingTranslator;
 import io.evitadb.dataType.array.CompositeObjectArray;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -68,6 +68,7 @@ import java.util.Arrays;
 import java.util.Deque;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -747,15 +748,17 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	}
 
 	/**
-	 * This implementation of {@link FormulaVisitor} traverses the formula tree and replaces the first found
-	 * {@link MutableFormula} with the formula provided by the supplier (there should be only one such formula).
-	 * The replacement is done in-place and the memoized results of all the parent formulas are cleared so that
-	 * the new formula has chance to alter the computation result.
+	 * This implementation of {@link FormulaVisitor} traverses the formula tree and replaces every found
+	 * {@link MutableFormula} with a formula provided by the supplier, a new one for each occurrence. There is usually
+	 * a single one, but a user filter that the scope post-processing copies into the {@link ScopeContainerFormula} of
+	 * every scope holds one in each container, and a facet replaced in one of them only would leave the previous facet
+	 * selected in the other scopes. The replacement is done in-place and the memoized results of all the parent
+	 * formulas of each occurrence are cleared so that the new formula has chance to alter the computation result.
 	 */
 	@RequiredArgsConstructor
 	protected static class MutableFormulaFinderAndReplacer implements FormulaVisitor {
 		/**
-		 * The supplier of the formula that should replace the first found {@link MutableFormula}.
+		 * The supplier of the formula that replaces each found {@link MutableFormula}.
 		 */
 		private final Supplier<FacetGroupFormula> formulaToReplaceSupplier;
 		/**
@@ -763,43 +766,92 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 		 */
 		private final Deque<Formula> formulaStack = new ArrayDeque<>(16);
 		/**
-		 * Reference to {@link MutableFormula} found.
+		 * The first {@link MutableFormula} found.
 		 */
-		@Getter
-		private MutableFormula target;
+		@Nullable private MutableFormula target;
+		/**
+		 * The {@link MutableFormula} instances found after the {@link #target}, allocated only when there are any.
+		 */
+		@Nullable private MutableFormula[] otherTargets;
+		/**
+		 * The number of valid entries in {@link #otherTargets}.
+		 */
+		private int otherTargetCount;
 
 		/**
-		 * Returns true if the target {@link MutableFormula} has been found.
+		 * Returns true if at least one target {@link MutableFormula} has been found.
 		 *
-		 * @return True if the target {@link MutableFormula} has been found.
+		 * @return True if at least one target {@link MutableFormula} has been found.
 		 */
 		public boolean isTargetFound() {
 			return this.target != null;
 		}
 
+		/**
+		 * Evaluates the lambda with the pivot of every found {@link MutableFormula} suppressed - see
+		 * {@link MutableFormula#suppressPivot(BooleanSupplier)}. Suppressing it in one of them only would let the pivot
+		 * of the others still contribute to the result.
+		 *
+		 * @param lambda the lambda to be evaluated
+		 * @return the result of the lambda
+		 */
+		public boolean suppressPivot(@Nonnull BooleanSupplier lambda) {
+			Assert.isPremiseValid(this.target != null, "Expected a MutableFormula in the formula tree!");
+			return this.otherTargetCount == 0 ?
+				this.target.suppressPivot(lambda) :
+				this.target.suppressPivot(() -> suppressPivotOfOtherTargets(0, lambda));
+		}
+
 		@Override
 		public void visit(@Nonnull Formula formula) {
-			if (this.target == null) {
-				if (formula instanceof MutableFormula mutableFormula) {
-					if (this.target != null) {
-						throw new GenericEvitaInternalError("Expected single MutableFormula in the formula tree!");
-					} else {
-						this.target = mutableFormula;
-						mutableFormula.setDelegate(this.formulaToReplaceSupplier.get());
-						for (Formula parentFormula : this.formulaStack) {
-							parentFormula.clearMemory();
-						}
-					}
-				} else {
-					this.formulaStack.push(formula);
-					for (Formula innerFormula : formula.getInnerFormulas()) {
-						innerFormula.accept(this);
-					}
-					this.formulaStack.pop();
+			if (formula instanceof MutableFormula mutableFormula) {
+				registerTarget(mutableFormula);
+				mutableFormula.setDelegate(this.formulaToReplaceSupplier.get());
+				for (Formula parentFormula : this.formulaStack) {
+					parentFormula.clearMemory();
 				}
+			} else {
+				this.formulaStack.push(formula);
+				for (Formula innerFormula : formula.getInnerFormulas()) {
+					innerFormula.accept(this);
+				}
+				this.formulaStack.pop();
 			}
 		}
 
-	}
+		/**
+		 * Registers the found {@link MutableFormula} - the first one in {@link #target}, the others in
+		 * {@link #otherTargets}.
+		 *
+		 * @param mutableFormula the found formula
+		 */
+		private void registerTarget(@Nonnull MutableFormula mutableFormula) {
+			if (this.target == null) {
+				this.target = mutableFormula;
+			} else {
+				if (this.otherTargets == null) {
+					this.otherTargets = new MutableFormula[2];
+				} else if (this.otherTargetCount == this.otherTargets.length) {
+					this.otherTargets = Arrays.copyOf(this.otherTargets, this.otherTargetCount << 1);
+				}
+				this.otherTargets[this.otherTargetCount++] = mutableFormula;
+			}
+		}
 
+		/**
+		 * Evaluates the lambda with the pivot of the {@link #otherTargets} from the passed index on suppressed.
+		 *
+		 * @param index  the index of the first target in {@link #otherTargets} to suppress the pivot of
+		 * @param lambda the lambda to be evaluated
+		 * @return the result of the lambda
+		 */
+		@SuppressWarnings("DataFlowIssue")
+		private boolean suppressPivotOfOtherTargets(int index, @Nonnull BooleanSupplier lambda) {
+			final MutableFormula otherTarget = this.otherTargets[index];
+			return index == this.otherTargetCount - 1 ?
+				otherTarget.suppressPivot(lambda) :
+				otherTarget.suppressPivot(() -> suppressPivotOfOtherTargets(index + 1, lambda));
+		}
+
+	}
 }

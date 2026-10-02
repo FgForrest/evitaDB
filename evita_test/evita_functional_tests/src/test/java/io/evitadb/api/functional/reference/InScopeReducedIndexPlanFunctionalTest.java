@@ -50,6 +50,7 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.RequestImpact;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.core.query.indexSelection.TargetIndexes.EligibilityObstacle;
@@ -2902,6 +2903,123 @@ public class InScopeReducedIndexPlanFunctionalTest {
 					"facet " + facets[i]
 				);
 			}
+		}
+
+		/**
+		 * Checks that the impact of the brand facet re-targeted from the cache, in a query over both scopes with
+		 * `userFilter(facetHaving(brand, 1))` next to an `inScope(LIVE, ...)` constraint, is the number of products the
+		 * same query returns with both brands selected, and its difference is the number of products that adds: under
+		 * the default relation the impact adds the facet to the user filter in every scope. The impact of the first facet
+		 * is checked as a premise - it selects nothing new, so it is the count of the query as it stands.
+		 *
+		 * @param session the session provided by the test extension
+		 */
+		@Test
+		@DisplayName("Should compute the impact of every facet when the user filter sits outside inScope")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN_SECOND_BRAND)
+		@Tag(ENGINE)
+		@Tag(QUERY)
+		@Tag(FACET)
+		void shouldComputeImpactOfEveryFacetWhenUserFilterSitsOutsideInScope(@Nonnull EvitaSessionContract session) {
+			final FilterConstraint visibleInLive = inScope(Scope.LIVE, attributeEquals(ATTR_VISIBLE, true));
+			final int firstSelected = queryProductCount(
+				session, BOTH_SCOPES, userFilter(facetHaving(REF_BRAND, entityPrimaryKeyInSet(BRAND))), visibleInLive
+			);
+			final int bothSelected = queryProductCount(
+				session,
+				BOTH_SCOPES,
+				userFilter(facetHaving(REF_BRAND, entityPrimaryKeyInSet(BRAND, OTHER_BRAND))),
+				visibleInLive
+			);
+			assertNotEquals(firstSelected, bothSelected, "selecting the cached facet must change the result");
+
+			final FacetGroupStatistics statistics = queryBrandStatistics(
+				session,
+				FacetStatisticsDepth.IMPACT,
+				new FilterConstraint[]{userFilter(facetHaving(REF_BRAND, entityPrimaryKeyInSet(BRAND))), visibleInLive},
+				null
+			);
+
+			assertEquals(firstSelected, impactOf(statistics, BRAND).matchCount(), "the impact of the first facet");
+			assertEquals(
+				bothSelected, impactOf(statistics, OTHER_BRAND).matchCount(), "the impact of the cached facet"
+			);
+			assertEquals(
+				bothSelected - firstSelected,
+				impactOf(statistics, OTHER_BRAND).difference(),
+				"the difference of the cached facet"
+			);
+		}
+
+		/**
+		 * Checks that a cached brand facet that selects nothing on its own makes no sense, in a query over both scopes
+		 * whose user filter - `facetHaving(brand, 1)` plus an exclusion of every owner of brand 2 - sits next to an
+		 * `inScope(LIVE, ...)` constraint. The facet is listed, because its count drops the user filter, and it adds no
+		 * product, so its sense is judged on the facet alone: the selected brand 1 must be left out of the container of
+		 * every scope, not only of the first one, or the archived owners of brand 1 make the facet look sensible.
+		 *
+		 * @param session the session provided by the test extension
+		 */
+		@Test
+		@DisplayName("Should judge the sense of every facet alone in every scope, user filter outside inScope")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN_SECOND_BRAND)
+		@Tag(ENGINE)
+		@Tag(QUERY)
+		@Tag(FACET)
+		void shouldJudgeSenseOfEveryFacetAloneInEveryScopeWhenUserFilterSitsOutsideInScope(
+			@Nonnull EvitaSessionContract session
+		) {
+			// excludes every owner of the cached brand: the live products 4, 12 and 20, and the archived one
+			final FilterConstraint withoutOtherBrand = not(
+				entityPrimaryKeyInSet(4, 12, 20, ARCHIVED_OTHER_BRAND_PRODUCT)
+			);
+			final FilterConstraint visibleInLive = inScope(Scope.LIVE, attributeEquals(ATTR_VISIBLE, true));
+			assertEquals(
+				0,
+				queryProductCount(
+					session,
+					BOTH_SCOPES,
+					userFilter(facetHaving(REF_BRAND, entityPrimaryKeyInSet(OTHER_BRAND)), withoutOtherBrand),
+					visibleInLive
+				),
+				"the cached facet alone must select no product"
+			);
+
+			final FacetGroupStatistics statistics = queryBrandStatistics(
+				session,
+				FacetStatisticsDepth.IMPACT,
+				new FilterConstraint[]{
+					userFilter(facetHaving(REF_BRAND, entityPrimaryKeyInSet(BRAND)), withoutOtherBrand), visibleInLive
+				},
+				null
+			);
+
+			final RequestImpact impact = impactOf(statistics, OTHER_BRAND);
+			assertEquals(0, impact.difference(), "the cached facet must add no product");
+			assertTrue(impact.matchCount() > 0, "the query must return products of brand 1");
+			assertTrue(
+				queryProductCount(
+					session,
+					ARCHIVED_ONLY,
+					userFilter(facetHaving(REF_BRAND, entityPrimaryKeyInSet(BRAND)), withoutOtherBrand)
+				) > 0,
+				"brand 1 must have an owner in the archived scope"
+			);
+			assertFalse(impact.hasSense(), "the cached facet selects nothing on its own");
+		}
+
+		/**
+		 * Returns the impact of the passed brand facet.
+		 *
+		 * @param statistics the statistics of the brand reference, computed with the impact
+		 * @param facetId    the primary key of the brand
+		 * @return the impact of the facet
+		 */
+		@Nonnull
+		private static RequestImpact impactOf(@Nonnull FacetGroupStatistics statistics, int facetId) {
+			final RequestImpact impact = brandFacet(statistics, facetId).getImpact();
+			assertNotNull(impact, "brand " + facetId + " must have an impact");
+			return impact;
 		}
 
 	}
