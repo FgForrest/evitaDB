@@ -29,6 +29,7 @@ import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.fulltext.FulltextScoreAccessor;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
 import io.evitadb.core.query.algebra.price.FilteredOutPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
@@ -41,12 +42,14 @@ import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramComputer;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -69,7 +72,7 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class SelectionFormula extends AbstractFormula implements ChildrenDependentFormula, FilteredPriceRecordAccessor, FilteredOutPriceRecordAccessor, RequirementsDefiner {
+public class SelectionFormula extends AbstractFormula implements ChildrenDependentFormula, FilteredPriceRecordAccessor, FilteredOutPriceRecordAccessor, FulltextScoreAccessor, RequirementsDefiner {
 	/**
 	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
 	 */
@@ -98,6 +101,11 @@ public class SelectionFormula extends AbstractFormula implements ChildrenDepende
 	 * immutable after construction, so the boolean is computed at most once per instance.
 	 */
 	@Nullable private Boolean memoizedExposesPerInnerRecordHistogramRecords;
+	/**
+	 * Memoized SHALLOW probe over the delegate sub-tree for inner {@link FulltextScoreAccessor} instances that
+	 * provide scores. Stable for the lifetime of this formula for the same reason as {@link #memoizedInnerAccessors}.
+	 */
+	@Nullable private List<FulltextScoreAccessor> memoizedInnerScoreAccessors;
 	/**
 	 * Updated cardinality based on current execution context.
 	 */
@@ -366,6 +374,51 @@ public class SelectionFormula extends AbstractFormula implements ChildrenDepende
 			);
 		}
 		return this.memoizedInnerAccessors;
+	}
+
+	@Override
+	public boolean providesFulltextScores() {
+		return !findInnerScoreAccessors().isEmpty();
+	}
+
+	/**
+	 * Delegates to the fulltext formula inside {@link #getDelegate()} - on the prefetch path too. A fulltext score is
+	 * keyed by primary key and read from the index, never from the entity body, so the delegate's terms rank the
+	 * entities the {@link #alternative} filtered exactly as they rank the ones the delegate computed. The alternative
+	 * is therefore never asked, unlike for price records, which do live in the entity body.
+	 */
+	@Nonnull
+	@Override
+	public FulltextPhaseOneScorer.Result getFulltextScores(@Nonnull int[] candidates, int topN) {
+		final List<FulltextScoreAccessor> accessors = findInnerScoreAccessors();
+		Assert.isPremiseValid(
+			accessors.size() == 1,
+			() -> "Selection formula wraps " + accessors.size() + " fulltext score accessors, exactly one expected!"
+		);
+		return accessors.get(0).getFulltextScores(candidates, topN);
+	}
+
+	/**
+	 * Finds the {@link FulltextScoreAccessor}s with scores to give in the delegate sub-tree, once. The probe is SHALLOW,
+	 * so a nested wrapper answers for what it wraps itself.
+	 *
+	 * @return the inner accessors that provide scores - empty when the delegate holds no fulltext formula
+	 */
+	@Nonnull
+	private List<FulltextScoreAccessor> findInnerScoreAccessors() {
+		if (this.memoizedInnerScoreAccessors == null) {
+			final Collection<FulltextScoreAccessor> found = FormulaFinder.find(
+				getDelegate(), FulltextScoreAccessor.class, LookUp.SHALLOW
+			);
+			final List<FulltextScoreAccessor> providing = new ArrayList<>(found.size());
+			for (final FulltextScoreAccessor accessor : found) {
+				if (accessor.providesFulltextScores()) {
+					providing.add(accessor);
+				}
+			}
+			this.memoizedInnerScoreAccessors = providing;
+		}
+		return this.memoizedInnerScoreAccessors;
 	}
 
 	@Override

@@ -30,10 +30,12 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.fulltext.FulltextScoreAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
 
@@ -49,7 +51,7 @@ import javax.annotation.Nullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class EntityFilteringFormula extends AbstractFormula implements RequirementsDefiner, FilteredPriceRecordAccessor {
+public class EntityFilteringFormula extends AbstractFormula implements RequirementsDefiner, FilteredPriceRecordAccessor, FulltextScoreAccessor {
 	/**
 	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
 	 */
@@ -99,6 +101,24 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 		return this.alternative instanceof FilteredPriceRecordAccessor fpra ?
 			fpra.getFilteredPriceRecords(context) :
 			new ResolvedFilteredPriceRecords();
+	}
+
+	/**
+	 * This formula has no delegate, so the only fulltext scores it can give are those of its {@link #alternative}.
+	 */
+	@Override
+	public boolean providesFulltextScores() {
+		return this.alternative instanceof final FulltextScoreAccessor accessor && accessor.providesFulltextScores();
+	}
+
+	@Nonnull
+	@Override
+	public FulltextPhaseOneScorer.Result getFulltextScores(@Nonnull int[] candidates, int topN) {
+		Assert.isPremiseValid(
+			providesFulltextScores(),
+			"Entity filtering formula has no fulltext scores to give - its alternative provides none!"
+		);
+		return ((FulltextScoreAccessor) this.alternative).getFulltextScores(candidates, topN);
 	}
 
 	@Nonnull
