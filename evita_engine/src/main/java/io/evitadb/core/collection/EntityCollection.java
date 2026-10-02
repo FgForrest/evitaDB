@@ -726,6 +726,19 @@ public final class EntityCollection implements
 		this.catalog.getVirtualReferencePartitionMaintenance().setMaintained(getEntityType(), maintained);
 	}
 
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns the keys of the indexes of this collection acquired for modification and not flushed yet - within a
+	 * transaction those the transaction acquired. Meant for tests comparing what two engines enroll.
+	 *
+	 * @return a copy of the dirty index keys
+	 */
+	// TODO JNO - remove at the end of #1615
+	@Nonnull
+	public Set<IndexKey> getDirtyIndexKeys() {
+		return this.dataStoreBuffer.getDirtyIndexKeys();
+	}
+
 	@Override
 	@Nonnull
 	public <S extends Serializable, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {

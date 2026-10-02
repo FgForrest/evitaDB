@@ -59,6 +59,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+// TODO JNO - remove at the end of #1615
+import java.util.function.ObjIntConsumer;
 
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.comparatorFor;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.foldOntoDistinctValues;
@@ -346,6 +348,22 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	@Override
 	public Bitmap getRecordIds() {
 		return this.recordIds;
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Visits every unique value this index holds together with the record it belongs to, in the value order of the
+	 * index. The values are the raw ones the index was given. Meant for tests comparing two indexes value by value.
+	 *
+	 * @param consumer invoked with each value and the record id it maps to
+	 */
+	// TODO JNO - remove at the end of #1615
+	public void forEachValueToRecord(@Nonnull ObjIntConsumer<Serializable> consumer) {
+		final BucketCursor cursor = this.tree.cursor();
+		while (cursor.next()) {
+			Assert.isPremiseValid(cursor.isSingle(), "A unique index bucket must hold exactly one record!");
+			consumer.accept((Serializable) cursor.value(), cursor.singleRecordId());
+		}
 	}
 
 	@Override

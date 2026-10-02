@@ -729,6 +729,27 @@ public abstract sealed class SortIndex
 	}
 
 	/**
+	 * Returns the value the record is ordered by, exactly as this index stores it - the normalized form, so a
+	 * `Locale` comes back as a {@link ComparableLocale}, a temporal value as its `Instant` and a compound as the
+	 * {@link ComparableArray} of its normalized elements. The value is the one of the block the record occupies, read
+	 * by position, so no lookup by value - which would normalize the value once more - is ever made.
+	 *
+	 * The answer is meaningful only between two mutations: within a running one a record may already have left its
+	 * old block without having entered the new one.
+	 *
+	 * @param recordId the record whose value is requested
+	 * @return the stored value of the record, empty when the record is not part of this index
+	 */
+	@Nonnull
+	public Optional<Serializable> getValueOfRecord(int recordId) {
+		final int position = this.sortedRecords.indexOf(recordId);
+		if (position < 0) {
+			return Optional.empty();
+		}
+		return Optional.of(createSortedComparableForwardSeeker().getValueToCompareOn(position));
+	}
+
+	/**
 	 * Returns {@link SortedRecordsSupplier} that contains record ids sorted by value in ascending order.
 	 *
 	 * A plain query opens no transaction at all (read-only sessions never do, and even a read-write session only binds

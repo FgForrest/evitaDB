@@ -37,6 +37,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.OptionalLong;
+// TODO JNO - remove at the end of #1615
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -224,6 +226,14 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 		StoragePart.assertPersistable(value, "transactional trapped update");
 		final DataStoreChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this.transactionalMemoryDataSource);
 		Objects.requireNonNullElse(layer, this.dataStoreChanges).trapPutStoragePart(value);
+	}
+
+	// TODO JNO - remove at the end of #1615
+	@Nonnull
+	@Override
+	public Set<IndexKey> getDirtyIndexKeys() {
+		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(this.transactionalMemoryDataSource);
+		return Objects.requireNonNullElse(layer, this.dataStoreChanges).getDirtyIndexKeys();
 	}
 
 	@Nonnull

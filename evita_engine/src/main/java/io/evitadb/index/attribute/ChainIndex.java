@@ -72,6 +72,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.OptionalInt;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.stream.Collectors;
 
@@ -694,6 +695,20 @@ public class ChainIndex implements
 	 */
 	public boolean isEmpty() {
 		return this.predecessors.isEmpty();
+	}
+
+	/**
+	 * Returns the predecessor the element declares - the primary key it received through
+	 * {@link #upsertPredecessor(ChainableType, int)}, {@link ChainableType#HEAD_PK} for a head - regardless of where
+	 * the element currently sits in the materialized order.
+	 *
+	 * @param primaryKey the primary key of the element
+	 * @return the predecessor primary key the element declares, empty when the element is not part of this index
+	 */
+	@Nonnull
+	public OptionalInt getPredecessorPrimaryKey(int primaryKey) {
+		final Integer predecessor = this.predecessors.get(primaryKey);
+		return predecessor == null ? OptionalInt.empty() : OptionalInt.of(predecessor);
 	}
 
 	@Nonnull

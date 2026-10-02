@@ -49,14 +49,18 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.IndexKey;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.attribute.OwnerUniqueIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.cardinality.AttributeCardinalityIndex.AttributeCardinalityKey;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.membership.ReducedIndexMembership;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart;
@@ -70,7 +74,6 @@ import io.evitadb.utils.ExceptionUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -83,6 +86,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -141,12 +145,29 @@ import static org.junit.jupiter.api.Assertions.fail;
  *   filterable attributes, the reference histograms, and the entities `referenceHaving` matches per referenced
  *   entity;
  * - **index level** (the indexes maintaining the partitions must not notice the registry) - the global index's
- *   members and attribute indexes, every referenced-type index's advertised partitions per referenced entity and its
- *   filter values with their complete value-to-record mappings, every advertised partition's key, primary key, owners,
- *   languages and attribute indexes, the reduced-index membership's covered and residual partitions and owners, and
- *   the index population per type and scope;
+ *   members and attribute indexes, every referenced-type index's advertised partitions per referenced entity, its
+ *   filter values with their complete value-to-record mappings and its registration counts, every advertised
+ *   partition's key, primary key, owners, languages and attribute indexes, the reduced-index membership's covered and
+ *   residual partitions and owners, and the index population per type and scope;
+ * - **enrollment** (inside the session only) - the indexes the open session has acquired for modification and not
+ *   flushed yet, so a maintaining engine that touches an index the reference engine leaves alone is found even when
+ *   it leaves the index's content unchanged;
  * - **storage level** - the record count and byte total per storage part type, and the collection header's last index
  *   primary key.
+ *
+ * Every attribute index is compared in full:
+ *
+ * - a filter index by its value-to-record mapping;
+ * - a sort index position by position (see {@link SortIndexWalk}) - the records, the value of each and the blocks of
+ *   records sharing a value, so two indexes ordering the same records over the same values but splitting them into
+ *   blocks differently differ;
+ * - a unique index by its records and value count, and a standalone one (see {@link OwnerUniqueIndex}) also value by
+ *   value - a unique index folded onto a filter index is compared through that filter index's mapping;
+ * - a chain index by its materialized order and by the predecessor every element declares, so a predecessor that
+ *   changes without moving the element is found.
+ *
+ * Values are compared by their {@link CanonicalValue} encoding, never by their rendering, which is lossy for exactly
+ * the values an index normalizes.
  *
  * # Accepted differences
  *
@@ -154,15 +175,15 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * - the storage part types of the registry itself - {@link #EXCLUDED_STORAGE_PART_TYPES};
  * - the heap size of the referenced-type entity index, which includes the registry - no heap size is ever sampled;
- * - how often a referenced-type entity index is dirty and flushed - only the live record set is compared, never the
- *   data store's waste or file sizes.
+ * - how often a referenced-type entity index of referenced entities is enrolled for modification, dirty and flushed -
+ *   its enrollment is not compared, and only the live record set is, never the data store's waste or file sizes.
  *
- * # What cannot be compared without reflection
+ * # Test-only reads
  *
- * The per-partition registration cardinality of a referenced-type entity index and the per-value multiplicity of its
- * filter attributes are kept in private structures without a public read. They are compared indirectly - through the
- * advertised partitions and their owners, and through the values and records the filter indexes expose - and directly
- * only as far as the byte totals of their persisted storage parts reach.
+ * Four structures have no public read and are compared through reads that exist for this harness alone: the
+ * per-partition registration counts and the per-value counts of the filter attributes of a referenced-type entity
+ * index, the value-to-record mapping of a standalone unique index, and the indexes a collection has enrolled for
+ * modification.
  *
  * # Restart and crash recovery
  *
@@ -831,6 +852,8 @@ final class DifferentialEngines implements AutoCloseable {
 			}
 			if (committed) {
 				describeStorage(snapshot, evita, entityType);
+			} else {
+				describeEnrollment(snapshot, collection);
 			}
 		}
 		return snapshot;
@@ -1022,6 +1045,7 @@ final class DifferentialEngines implements AutoCloseable {
 			snapshot.put(path + "/target/" + target, Arrays.toString(partitions));
 		}
 		describeAttributeIndexes(snapshot, path, typeIndex);
+		describeCardinalities(snapshot, path, typeIndex);
 		final int[] advertised = typeIndex.getAllPrimaryKeys().getArray();
 		for (final int partitionPrimaryKey : advertised) {
 			final EntityIndex partition = collection.getIndexByPrimaryKeyIfExists(partitionPrimaryKey);
@@ -1032,6 +1056,54 @@ final class DifferentialEngines implements AutoCloseable {
 				describeIndex(snapshot, partitionPath, partition);
 			}
 		}
+	}
+
+	/**
+	 * Adds the registration counts of a referenced-type entity index: how many times each partition is registered, in
+	 * total and per referenced entity, and how many times each partition carries each value of each filterable
+	 * attribute.
+	 *
+	 * @param snapshot  the snapshot to add to
+	 * @param path      the path of the lines
+	 * @param typeIndex the referenced-type entity index
+	 */
+	private static void describeCardinalities(
+		@Nonnull Snapshot snapshot,
+		@Nonnull String path,
+		@Nonnull ReferencedTypeEntityIndex typeIndex
+	) {
+		snapshot.put(
+			path + "/cardinality/partitions", new TreeMap<>(typeIndex.getIndexPrimaryKeyCardinalities()).toString()
+		);
+		for (final Entry<AttributeIndexKey, Map<AttributeCardinalityKey, Integer>> attribute :
+			new TreeMap<>(typeIndex.getAttributeCardinalities()).entrySet()) {
+			final SortedMap<String, Integer> counts = new TreeMap<>();
+			for (final Entry<AttributeCardinalityKey, Integer> count : attribute.getValue().entrySet()) {
+				counts.put(
+					count.getKey().recordId() + ":" + CanonicalValue.encode(count.getKey().value()), count.getValue()
+				);
+			}
+			snapshot.put(path + "/cardinality/attribute/" + attribute.getKey(), counts.toString());
+		}
+	}
+
+	/**
+	 * Adds the line listing the indexes of one collection the open session has acquired for modification and not
+	 * flushed yet, minus the referenced-type entity indexes of referenced entities - the ones carrying the registry,
+	 * which the maintaining engine legitimately enrolls more often.
+	 *
+	 * @param snapshot   the snapshot to add to
+	 * @param collection the collection
+	 */
+	private static void describeEnrollment(@Nonnull Snapshot snapshot, @Nonnull EntityCollection collection) {
+		final Set<String> enrolled = new TreeSet<>();
+		for (final IndexKey indexKey : collection.getDirtyIndexKeys()) {
+			if (!(indexKey instanceof final EntityIndexKey entityIndexKey) ||
+				entityIndexKey.type() != EntityIndexType.REFERENCED_ENTITY_TYPE) {
+				enrolled.add(indexKey.toString());
+			}
+		}
+		snapshot.put("enrollment/" + collection.getEntityType(), enrolled.toString());
 	}
 
 	/**
@@ -1074,7 +1146,7 @@ final class DifferentialEngines implements AutoCloseable {
 			if (filterIndex != null) {
 				final StringBuilder buckets = new StringBuilder(64);
 				for (final ValueToRecord bucket : filterIndex.getHistogramOfAllRecords().getBuckets()) {
-					buckets.append(describeValue(bucket.getValue()))
+					buckets.append(CanonicalValue.encode(bucket.getValue()))
 						.append('=')
 						.append(toString(bucket.getRecordIds()))
 						.append("; ");
@@ -1085,13 +1157,7 @@ final class DifferentialEngines implements AutoCloseable {
 		index.forEachAttributeIndexKey(AttributeIndexType.SORT, key -> {
 			final SortIndex sortIndex = index.getSortIndex(key);
 			if (sortIndex != null) {
-				snapshot.put(
-					path + "/sort/" + key,
-					Arrays.toString(sortIndex.getSortedRecords()) + " by " +
-						Arrays.stream(sortIndex.getSortedRecordValues())
-							.map(DifferentialEngines::describeValue)
-							.toList()
-				);
+				snapshot.put(path + "/sort/" + key, describeSortIndex(sortIndex));
 			}
 		});
 		index.forEachAttributeIndexKey(AttributeIndexType.UNIQUE, key -> {
@@ -1101,12 +1167,16 @@ final class DifferentialEngines implements AutoCloseable {
 					path + "/unique/" + key,
 					toString(uniqueIndex.getRecordIds()) + " of " + uniqueIndex.getDistinctValueCount() + " values"
 				);
+				if (uniqueIndex instanceof final OwnerUniqueIndex ownerUniqueIndex) {
+					snapshot.put(path + "/unique/" + key + "/mapping", describeUniqueMapping(ownerUniqueIndex));
+				}
 			}
 		});
 		index.forEachAttributeIndexKey(AttributeIndexType.CHAIN, key -> {
 			final ChainIndex chainIndex = index.getChainIndex(key);
 			if (chainIndex != null) {
 				snapshot.put(path + "/chain/" + key, Arrays.toString(chainIndex.getUnorderedLookup().getArray()));
+				snapshot.put(path + "/chain/" + key + "/predecessors", describeChainPredecessors(chainIndex));
 			}
 		});
 	}
@@ -1169,18 +1239,49 @@ final class DifferentialEngines implements AutoCloseable {
 	}
 
 	/**
-	 * Renders a value of an attribute index so that two equal values render the same in both engines - arrays by
-	 * their elements rather than by their identity.
+	 * Renders a sort index position by position - see {@link SortIndexWalk#describe()}.
 	 *
-	 * @param value the value
+	 * @param sortIndex the sort index
 	 * @return its rendering
 	 */
 	@Nonnull
-	private static String describeValue(@Nullable Serializable value) {
-		if (value instanceof final Object[] array) {
-			return Arrays.deepToString(array);
+	static String describeSortIndex(@Nonnull SortIndex sortIndex) {
+		return SortIndexWalk.of(sortIndex).describe();
+	}
+
+	/**
+	 * Renders the value-to-record mapping of a standalone unique index, in the value order of the index.
+	 *
+	 * @param uniqueIndex the unique index
+	 * @return its rendering
+	 */
+	@Nonnull
+	static String describeUniqueMapping(@Nonnull OwnerUniqueIndex uniqueIndex) {
+		final StringBuilder mapping = new StringBuilder(64);
+		uniqueIndex.forEachValueToRecord(
+			(value, recordId) -> mapping.append(CanonicalValue.encode(value)).append('=').append(recordId).append("; ")
+		);
+		return mapping.toString();
+	}
+
+	/**
+	 * Renders the predecessor every element of a chain index declares, by ascending element primary key.
+	 *
+	 * @param chainIndex the chain index
+	 * @return its rendering
+	 */
+	@Nonnull
+	static String describeChainPredecessors(@Nonnull ChainIndex chainIndex) {
+		final int[] elements = chainIndex.getUnorderedLookup().getArray().clone();
+		Arrays.sort(elements);
+		final StringBuilder predecessors = new StringBuilder(16 * elements.length + 2);
+		for (final int element : elements) {
+			final OptionalInt predecessor = chainIndex.getPredecessorPrimaryKey(element);
+			predecessors.append(element).append("<-")
+				.append(predecessor.isPresent() ? String.valueOf(predecessor.getAsInt()) : "NONE")
+				.append("; ");
 		}
-		return String.valueOf(value);
+		return predecessors.toString();
 	}
 
 	/**

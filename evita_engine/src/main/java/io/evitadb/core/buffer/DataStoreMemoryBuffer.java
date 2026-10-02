@@ -31,6 +31,8 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+// TODO JNO - remove at the end of #1615
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -61,6 +63,17 @@ public interface DataStoreMemoryBuffer extends DataStoreReader {
 	 */
 	@Nonnull
 	<IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(int entityIndexPrimaryKey, @Nonnull IntFunction<I> accessorWhenMissing);
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns the keys of the indexes acquired for modification and not flushed yet - in a transaction those of its
+	 * own layer. Meant for tests comparing what two engines enroll.
+	 *
+	 * @return a copy of the dirty index keys
+	 */
+	// TODO JNO - remove at the end of #1615
+	@Nonnull
+	Set<IndexKey> getDirtyIndexKeys();
 
 	/**
 	 * Removes {@link EntityIndex} from the change set. After removal (either successfully or unsuccessful)
