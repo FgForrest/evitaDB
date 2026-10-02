@@ -93,18 +93,6 @@ class CurrentMutationLogFile implements Closeable {
 	 */
 	private boolean closed = false;
 
-	public CurrentMutationLogFile(
-		int walFileIndex,
-		long firstCatalogVersion,
-		long lastCatalogVersion,
-		@Nonnull Path walFilePath,
-		@Nonnull FileChannel walFileChannel,
-		@Nonnull ObservableOutput<ByteArrayOutputStream> output,
-		long size
-	) {
-		this(walFileIndex, firstCatalogVersion, lastCatalogVersion, -1L, walFilePath, walFileChannel, output, size, 0L);
-	}
-
 	/**
 	 * Creates the record of the WAL file the log appends to.
 	 *
