@@ -1,10 +1,10 @@
 ---
 title: A CDC subscriber catching up from the WAL is served everything it is owed or told why not
 date: 2026-10-01
-updated: 2026-10-01 21:55
+updated: 2026-10-02 07:45
 status: accepted
 kind: fix
-issues: [1687, 1446]
+issues: [1687, 1446, 1690]
 prs: [1688]
 areas: [evita_store/evita_store_key_value/src/main/java/io/evitadb/store/kryo, evita_store/evita_store_server/src/main/java/io/evitadb/store/wal, evita_store/evita_store_server/src/main/java/io/evitadb/store/engine, evita_engine/src/main/java/io/evitadb/core/cdc, evita_engine/src/main/java/io/evitadb/spi/store]
 supersedes: []
