@@ -77,6 +77,11 @@ public final class TrigramIndexMapComponent implements IndexComponent {
 	}
 
 	@Override
+	public void announceKeys(@Nonnull EntityIndexManifest manifest) {
+		// derived state - see the class javadoc and `collectModifiedStorageParts`
+	}
+
+	@Override
 	public void resetDirty() {
 		// A trigram index does carry a dirty flag, but it is NOT flush state - it is the gate that lets an index no
 		// transaction touched keep its identity through the commit merge, and it is cleared by the merge itself

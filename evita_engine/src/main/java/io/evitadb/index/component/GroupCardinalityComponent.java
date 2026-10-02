@@ -109,6 +109,11 @@ public final class GroupCardinalityComponent implements IndexComponent {
 	}
 
 	@Override
+	public void announceKeys(@Nonnull EntityIndexManifest manifest) {
+		// the group cardinality part is addressed independently of the parent manifest - nothing to announce
+	}
+
+	@Override
 	public void resetDirty() {
 		this.cardinalityDirty.reset();
 	}

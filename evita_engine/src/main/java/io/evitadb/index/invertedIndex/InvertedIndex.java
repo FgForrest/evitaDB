@@ -1602,19 +1602,22 @@ public class InvertedIndex implements
 	 * {@link io.evitadb.index.Index#getModifiedStorageParts} is documented as a pure, idempotent read, with the
 	 * baseline advance deliberately relocated to `notifyFlushed` — so a baseline that moves here looks, at first
 	 * glance, like it is in the wrong place. It is not, and the reason is worth stating because it is not local: in
-	 * production `EntityIndex#getModifiedStorageParts` is reached from exactly two places, and both are accounted for.
-	 * `DataStoreChanges#popTrappedUpdates` collects the parts that are then written, and `notifyFlushed` immediately
-	 * re-runs the same collect through `captureOriginalsFromComponents` into a sink it discards. The second pass
-	 * finds this mark already advanced and the page list unchanged, so it emits no root at all — pinned by
-	 * `FilterIndexValueIdRootEmissionTest#shouldNotDisturbValueIdHighWaterWhenBaselineCaptureRepeatsTheCollect`.
+	 * production `EntityIndex#getModifiedStorageParts` is reached from exactly one place,
+	 * `DataStoreChanges#popTrappedUpdates`, which writes the parts it collects. The change-detection baseline the
+	 * entity index captures when it is built and after every flush (`captureOriginalsFromComponents`) only announces
+	 * keys and never collects. A collect repeated over an unchanged tree finds this mark already advanced and the page
+	 * list unchanged, so it emits no root at all — pinned by
+	 * `FilterIndexValueIdRootEmissionTest#shouldNotDisturbValueIdHighWaterWhenCollectIsRepeated`.
 	 *
-	 * A third caller that collected and threw the result away WOULD strand the mark: the next real flush would find
-	 * it clean, skip the root, and leave the persisted high-water behind ids the leaf pages already carry, which a
-	 * restart resolves by handing one id to two values. No such caller exists, and the page-stream registry beside
-	 * this one makes exactly the same assumption — {@link #collectChangedPages()} publishes the previous flush's
-	 * staged page set and clears each leaf's dirty flag on the way through, so a discarded collect loses leaf pages
-	 * outright, before this mark is even reached. Adding one is therefore not a licence to stage this mark instead;
-	 * it is a change that has to be weighed against that whole contract at once.
+	 * A caller that collected and threw the result away WOULD strand the mark: the next real flush would find it
+	 * clean, skip the root, and leave the persisted high-water behind ids the leaf pages already carry, which a
+	 * restart resolves by handing one id to two values. The page-stream registry beside this one makes exactly the
+	 * same assumption — {@link #collectChangedPages()} publishes the previous flush's staged page set and clears each
+	 * leaf's dirty flag on the way through, so a discarded collect loses leaf pages outright, before this mark is even
+	 * reached. That is not hypothetical: the baseline capture used to be such a collect, and it lost every page a
+	 * load-time repair of this tree had released (`FilterIndexLoadRepairPersistenceTest`). Adding one is therefore
+	 * not a licence to stage this mark instead; it is a change that has to be weighed against that whole contract at
+	 * once.
 	 */
 	public void markValueIdHighWaterEmitted() {
 		this.emittedNextValueId = getNextValueId();
@@ -2728,7 +2731,7 @@ public class InvertedIndex implements
 	 *
 	 * Publishing a staged set HERE — rather than only at the merge — is correct for every path, because of one
 	 * invariant: **a failed flush is never followed by another flush of the same data**. Note that this publish runs at
-	 * COLLECT time, before this flush has written anything (the baseline-capture pass re-enters this pipeline), so it
+	 * COLLECT time, before this flush has written anything, so it
 	 * cannot and does not lean on the previous flush's bytes having landed by now. It does not need to: a flush that
 	 * fails during trunk incorporation SUSPENDS the catalog's transaction processing ({@code TransactionManager.suspend}),
 	 * and a flush that fails on the warm-up path makes the catalog UNPUBLISHABLE

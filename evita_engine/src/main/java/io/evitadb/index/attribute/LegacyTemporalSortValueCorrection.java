@@ -56,11 +56,13 @@ import java.util.function.Function;
  *   its pages in normalized form and frees the legacy ones.
  *
  * The correction is made in memory only and repeats on every load until the index is written again, which happens
- * the first time a record of it changes. **The index is deliberately not flagged dirty at load.** Every entity index
- * runs the full storage-part emission of its components into a sink it discards right after it is built
- * (`EntityIndex#captureOriginalsFromComponents`), on the premise that a loaded component is clean. A paged index dirty
- * at that point assigns its new page sequences there, so the next real flush finds no page left to write, and every
- * later write lands against a root that still lists the legacy pages - losing the records it wrote.
+ * the first time a record of it changes. **The sort index is not flagged dirty at load**, and its own dirty flag is
+ * what gates its emission, so a flush of the owning entity index for any other reason - a write to a sibling
+ * attribute, say - leaves the legacy pages on disk untouched. Until the index is written, a paged one keeps every leaf
+ * released and its page registry seeded from the persisted root's page list, so the first write that does flush it
+ * frees every legacy page and writes the normalized ones, and dropping the emptied index reclaims the legacy pages the
+ * root still lists. Nothing between the load and that write consumes the released leaves: the baseline an entity
+ * index captures when it is built only announces keys (`IndexComponent#announceKeys`) and collects nothing.
  *
  * An index holding no temporal value, or holding only values already normalized, is loaded exactly as before.
  *

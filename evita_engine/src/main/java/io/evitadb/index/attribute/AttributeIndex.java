@@ -1934,8 +1934,12 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * {@inheritDoc}
 	 *
 	 * **Every walk here is a `forEach`**, for the reason spelled out on {@link #collectKeys}: an accessor asked for on
-	 * this path leaves a view object cached in the map for the lifetime of the index, and this path runs from every
-	 * entity index constructor as well as from every flush.
+	 * this path leaves a view object cached in the map for the lifetime of the index, and this path runs on every
+	 * flush.
+	 *
+	 * Only the flush that writes the result may call this: the emitters it reaches stamp page sequences, clear leaf
+	 * dirty flags and stage page lists as they collect, so a collect whose output is discarded loses pages for good -
+	 * see {@link io.evitadb.index.component.IndexComponent#announceKeys} for the read-only half.
 	 */
 	@Override
 	public void getModifiedStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges trappedChanges) {
@@ -1996,7 +2000,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		);
 		// refresh the empty-drop-reclaim snapshots from the surviving sub-indexes now that each has staged this commit's page set:
 		// a reused instance (warm-up / repeated flush) then diffs the next drop against the pages just written here, not a
-		// stale construction-time snapshot. Idempotent: re-running it (the baseline-capture pass) reproduces the same maps,
+		// stale construction-time snapshot. Idempotent: re-running it over an unchanged index reproduces the same maps,
 		// and on a transactional commit the pre-merge instance this mutates is discarded (the merge-copy rebuilds afresh).
 		this.persistedChainLeafPages = snapshotLeafPages(this.chainIndex, ChainIndex::currentLeafPageSequences);
 		this.persistedFilterInvertedLeafPages = snapshotLeafPages(this.sharedValueIndex, InvertedIndex::currentLeafPageSequences);

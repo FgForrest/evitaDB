@@ -76,6 +76,12 @@ public final class VirtualReferencePartitionComponent implements IndexComponent 
 	}
 
 	@Override
+	public void announceKeys(@Nonnull EntityIndexManifest manifest) {
+		// the partition root is addressed by its own storage key, not listed by the parent manifest - nothing to
+		// announce
+	}
+
+	@Override
 	public void emitPersistedFootprintRemovals(
 		int entityIndexPrimaryKey,
 		@Nonnull TrappedChanges trappedChanges

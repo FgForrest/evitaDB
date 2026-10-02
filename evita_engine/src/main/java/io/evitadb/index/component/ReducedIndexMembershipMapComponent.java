@@ -86,6 +86,11 @@ public final class ReducedIndexMembershipMapComponent implements IndexComponent 
 	}
 
 	@Override
+	public void announceKeys(@Nonnull EntityIndexManifest manifest) {
+		// derived state - see the class javadoc and `collectModifiedStorageParts`
+	}
+
+	@Override
 	public void resetDirty() {
 		// nothing to reset - this component contributes no flush state, because it contributes no storage part
 	}

@@ -81,6 +81,11 @@ public final class PriceIndexComponent implements IndexComponent {
 				"Unexpected PriceIndexContract impl: " + this.priceIndex.getClass()
 			);
 		}
+		announceKeys(manifest);
+	}
+
+	@Override
+	public void announceKeys(@Nonnull EntityIndexManifest manifest) {
 		// announce every live price-list-and-currency key into the manifest; for the void flavour this hands over
 		// nothing, so the walk is a no-op without an explicit branch. `forEach` rather than the collection accessor:
 		// this runs from every entity index constructor and every flush, and the collection that accessor returns is
