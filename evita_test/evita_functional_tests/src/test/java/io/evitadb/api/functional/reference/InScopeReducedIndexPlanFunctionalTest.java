@@ -88,6 +88,7 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.anyHaving;
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
+import static io.evitadb.api.query.QueryConstraints.attributeIsNull;
 import static io.evitadb.api.query.QueryConstraints.attributeNatural;
 import static io.evitadb.api.query.QueryConstraints.children;
 import static io.evitadb.api.query.QueryConstraints.collection;
@@ -198,6 +199,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * archived and without a category, so the `brand` reference has two facets whose owners live in both scopes. The
  * `FacetSummaryOverScopeContainers` tests use it to pin the facet summary of a facet computed after another one.
  *
+ * A fourth data set, {@link #IN_SCOPE_REDUCED_INDEX_PLAN_SINGLE_ARCHIVED_NODE}, restores categories 12 and 15 of the
+ * fixture above to the live scope, so the archived tree holds the single node 11 - the only tree in which a parent
+ * filter that does not restrict the archived scope still selects exactly one node - and adds the archived product
+ * {@link #ARCHIVED_ROOT_OWNER_PRODUCT} referencing category 11, its only owner.
+ *
  * `inScopePlanProduct` supports the `en` and `de` locales and has a `visible` attribute filterable in both scopes,
  * a CZK price in price list `basic`, a partitioned `categories` reference, a partitioned and faceted `brand`
  * reference, and a `tags` reference indexed for filtering only (no partitions) - all indexed in both scopes. The
@@ -265,6 +271,12 @@ public class InScopeReducedIndexPlanFunctionalTest {
 	 * {@link #ARCHIVED_OTHER_BRAND_PRODUCT}.
 	 */
 	private static final String IN_SCOPE_REDUCED_INDEX_PLAN_SECOND_BRAND = "inScopeReducedIndexPlanSecondBrand";
+	/**
+	 * The fixture with categories 12 and 15 restored to the live scope, leaving category 11 the only archived node, and
+	 * with {@link #ARCHIVED_ROOT_OWNER_PRODUCT} referencing it.
+	 */
+	private static final String IN_SCOPE_REDUCED_INDEX_PLAN_SINGLE_ARCHIVED_NODE =
+		"inScopeReducedIndexPlanSingleArchivedNode";
 	private static final String ENTITY_CATEGORY = "inScopePlanCategory";
 	private static final String ENTITY_BRAND = "inScopePlanBrand";
 	private static final String ENTITY_TAG = "inScopePlanTag";
@@ -326,6 +338,11 @@ public class InScopeReducedIndexPlanFunctionalTest {
 	 * {@link #IN_SCOPE_REDUCED_INDEX_PLAN_SECOND_BRAND} data set only.
 	 */
 	private static final int ARCHIVED_OTHER_BRAND_PRODUCT = 101;
+	/**
+	 * An archived product referencing the archived root category 11 directly, present in the
+	 * {@link #IN_SCOPE_REDUCED_INDEX_PLAN_SINGLE_ARCHIVED_NODE} data set only.
+	 */
+	private static final int ARCHIVED_ROOT_OWNER_PRODUCT = 102;
 	/**
 	 * A product primary key that does not exist in any scope.
 	 */
@@ -475,6 +492,37 @@ public class InScopeReducedIndexPlanFunctionalTest {
 			TEST_CATALOG,
 			session -> {
 				session.archiveEntity(ENTITY_PRODUCT, ARCHIVED_OTHER_BRAND_PRODUCT);
+			}
+		);
+	}
+
+	/**
+	 * Builds the read-only fixture described on the class with categories 12 and 15 restored to the live scope, so
+	 * that category 11 is the only node of the archived tree, and with {@link #ARCHIVED_ROOT_OWNER_PRODUCT} created
+	 * live referencing it and archived afterwards.
+	 *
+	 * @param evita the engine instance provided by the test extension
+	 */
+	@DataSet(value = IN_SCOPE_REDUCED_INDEX_PLAN_SINGLE_ARCHIVED_NODE, destroyAfterClass = true)
+	void setUpWithSingleArchivedNode(@Nonnull Evita evita) {
+		buildFixture(evita);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.restoreEntity(ENTITY_CATEGORY, ARCHIVED_SUBTREE_CATEGORY);
+				session.restoreEntity(ENTITY_CATEGORY, ARCHIVED_NODE_WITH_LIVE_OWNERS);
+				session.upsertEntity(
+					session.createNewEntity(ENTITY_PRODUCT, ARCHIVED_ROOT_OWNER_PRODUCT)
+						.setAttribute(ATTR_NAME, LOCALE, "archived root owner")
+						.setAttribute(ATTR_VISIBLE, true)
+						.setReference(REF_CATEGORIES, ARCHIVED_ROOT_CATEGORY)
+				);
+			}
+		);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.archiveEntity(ENTITY_PRODUCT, ARCHIVED_ROOT_OWNER_PRODUCT);
 			}
 		);
 	}
@@ -2031,6 +2079,144 @@ public class InScopeReducedIndexPlanFunctionalTest {
 						session, BOTH_SCOPES, Scope.LIVE, true,
 						new FilterConstraint[]{inScope(Scope.LIVE, hierarchyWithinSelf(entityPrimaryKeyInSet(pivot)))},
 						requirement
+					)
+				)
+			);
+		}
+
+		/**
+		 * Returns the rows of the parent filter restricted by `inScope` of the scope it is resolved in: a label,
+		 * whether the statistics describe the queried entity's own hierarchy, the parent filter, and the expected
+		 * description of the live statistics.
+		 *
+		 * The filters avoid `entityPrimaryKeyInSet`: its own post-processor intersects every scope branch with the
+		 * entities of that scope, which hides a branch of a scope the evaluation does not process.
+		 *
+		 * @return the row arguments
+		 */
+		@Nonnull
+		static Stream<Arguments> parentFilterRestrictingItsOwnScopeRows() {
+			// categories 1, 2 and 3 carry the attribute, so the live root 4 alone is selected
+			final FilterConstraint withoutLiveOnly = not(inScope(Scope.LIVE, attributeEquals(ATTR_LIVE_ONLY, true)));
+			// category 1 alone holds the code among the live categories, so it alone is selected
+			final FilterConstraint withCode = not(inScope(Scope.LIVE, attributeIsNull(ATTR_CODE)));
+			return Stream.of(
+				// node 4 has no children - a node counts the queried entities below it, not itself
+				Arguments.of(
+					"own, without liveOnly", true, withoutLiveOnly, List.of(LIVE_NODE_WITH_ARCHIVED_OWNERS + ": 0")
+				),
+				// node 1 has the single child 2, which has none
+				Arguments.of(
+					"own, with code", true, withCode,
+					List.of(ROOT_CATEGORY + ": 1", "  " + SUBTREE_CATEGORY + ": 0")
+				),
+				// the 8 live products 1-8 reference node 2, the child of node 1
+				Arguments.of(
+					"referenced, with code", false, withCode,
+					List.of(ROOT_CATEGORY + ": 8", "  " + SUBTREE_CATEGORY + ": 8")
+				)
+			);
+		}
+
+		/**
+		 * Checks that a parent filter whose `inScope(LIVE, ...)` restricts the live scope selects the live parent among
+		 * the live nodes only when it is resolved for the live tree of a query over both scopes.
+		 *
+		 * Each parent filter negates an `inScope(LIVE, ...)` container and selects exactly one live node, so the live
+		 * `children` statistics, which require exactly one selected node, must describe it, as they do in a query over
+		 * the live scope alone. The archived scope must play no part in resolving the live parent: a branch built for
+		 * it would stand for every entity of that scope, which the evaluation over the live tree does not hold, and its
+		 * negation would select every live node.
+		 *
+		 * @param label        the row label, used in the test name only
+		 * @param self         whether the statistics describe the queried entity's own hierarchy
+		 * @param parentFilter the parent filter of the hierarchy constraint
+		 * @param expected     the expected description of the live statistics
+		 * @param session      the session provided by the test extension
+		 */
+		@DisplayName("Should resolve a parent restricted by inScope of the tree's scope among that tree's nodes only")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("parentFilterRestrictingItsOwnScopeRows")
+		@Tag(ENGINE)
+		@Tag(QUERY)
+		void shouldResolveParentRestrictedByInScopeOfTreeScopeAmongThatTreeNodesOnly(
+			@Nonnull String label,
+			boolean self,
+			@Nonnull FilterConstraint parentFilter,
+			@Nonnull List<String> expected,
+			@Nonnull EvitaSessionContract session
+		) {
+			final FilterConstraint[] hierarchyFilter = {
+				self ? hierarchyWithinSelf(parentFilter) : hierarchyWithin(REF_CATEGORIES, parentFilter)
+			};
+			final HierarchyRequireConstraint requirement = children(
+				HIERARCHY_OUTPUT, statistics(StatisticsType.QUERIED_ENTITY_COUNT)
+			);
+			assertEquals(
+				expected,
+				describe(queryStatistics(session, LIVE_ONLY, Scope.LIVE, self, hierarchyFilter, requirement)),
+				"the live-only control"
+			);
+			assertEquals(
+				expected,
+				describe(queryStatistics(session, BOTH_SCOPES, Scope.LIVE, self, hierarchyFilter, requirement))
+			);
+		}
+
+		/**
+		 * Returns the rows of the parent filter restricted by `inScope` of the other scope: whether the statistics
+		 * describe the queried entity's own hierarchy, and the expected description of the archived statistics.
+		 *
+		 * @return the row arguments
+		 */
+		@Nonnull
+		static Stream<Arguments> parentFilterRestrictingOtherScopeRows() {
+			return Stream.of(
+				// node 11 is the whole archived tree - a node counts the queried entities below it, not itself
+				Arguments.of(true, List.of(ARCHIVED_ROOT_CATEGORY + ": 0")),
+				// node 11 is referenced by the archived product 102 alone, its former children are live now
+				Arguments.of(false, List.of(ARCHIVED_ROOT_CATEGORY + ": 1"))
+			);
+		}
+
+		/**
+		 * Checks that a parent filter whose only constraint sits in `inScope(LIVE, ...)` does not restrict the archived
+		 * tree of a query over both scopes, and never brings a live node into it.
+		 *
+		 * In the data set {@link #IN_SCOPE_REDUCED_INDEX_PLAN_SINGLE_ARCHIVED_NODE} the archived tree is the single
+		 * node 11. The parent filter `inScope(LIVE, referenceHaving(tags, 1))` restricts the live scope only, so
+		 * resolved for the archived tree it selects every archived node - node 11 alone - and the archived `children`
+		 * statistics, which require exactly one selected node, must describe it. The live category 1, which references
+		 * the tag too, belongs to the live tree and must not be selected in the archived one.
+		 *
+		 * @param self     whether the statistics describe the queried entity's own hierarchy
+		 * @param expected the expected description of the archived statistics
+		 * @param session  the session provided by the test extension
+		 */
+		@DisplayName("Should resolve a parent restricted by inScope of the other scope among the tree's own nodes only")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN_SINGLE_ARCHIVED_NODE)
+		@ParameterizedTest(name = "self: {0}")
+		@MethodSource("parentFilterRestrictingOtherScopeRows")
+		@Tag(ENGINE)
+		@Tag(QUERY)
+		void shouldResolveParentRestrictedByInScopeOfOtherScopeAmongTreeOwnNodesOnly(
+			boolean self,
+			@Nonnull List<String> expected,
+			@Nonnull EvitaSessionContract session
+		) {
+			final FilterConstraint parentFilter = inScope(
+				Scope.LIVE, referenceHaving(REF_TAGS, entityPrimaryKeyInSet(TAG))
+			);
+			assertEquals(
+				expected,
+				describe(
+					queryStatistics(
+						session, BOTH_SCOPES, Scope.ARCHIVED, self,
+						new FilterConstraint[]{
+							self ? hierarchyWithinSelf(parentFilter) : hierarchyWithin(REF_CATEGORIES, parentFilter)
+						},
+						children(HIERARCHY_OUTPUT, statistics(StatisticsType.QUERIED_ENTITY_COUNT))
 					)
 				)
 			);

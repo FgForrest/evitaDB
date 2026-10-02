@@ -62,11 +62,21 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 			"Scope `" + scopeToUse + "` used in `inScope` filter container was not requested by `scope` constraint!"
 		);
 
+		// a nested evaluation may process fewer scopes than the query requested - the parent filter of a hierarchy
+		// constraint is resolved in the tree of one scope at a time - and the container must restrict only those
+		final Set<Scope> processingScopes = filterByVisitor.getProcessingScope().getScopes();
 		filterByVisitor.registerFormulaPostProcessorBefore(
 			InScopeFormulaPostProcessor.class,
-			() -> new InScopeFormulaPostProcessor(requestedScopes, filterByVisitor::getSuperSetFormula),
+			() -> new InScopeFormulaPostProcessor(processingScopes, filterByVisitor::getSuperSetFormula),
 			EntityPrimaryKeyInSetTranslator.SuperSetMatchingPostProcessor.class
 		);
+
+		if (!processingScopes.contains(scopeToUse)) {
+			// the container restricts a scope this evaluation does not process, so it restricts nothing here - its
+			// constraints are not evaluated and the post-processor replaces it with every entity of each processed
+			// scope
+			return new ScopeContainerFormula(scopeToUse);
+		}
 
 		return filterByVisitor.getProcessingScope()
 			.doWithScope(
@@ -134,9 +144,12 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 	@RequiredArgsConstructor
 	public static final class InScopeFormulaPostProcessor implements FormulaPostProcessor {
 		/**
-		 * The set of scopes that were requested by the input query.
+		 * The set of scopes the visitor processes when the post-processor is registered - the scopes of the query at
+		 * the top level, fewer of them in a nested evaluation narrowed to the scopes of the indexes it searches.
+		 * A branch is built for each of them and for no other: a branch of a scope the evaluation does not process
+		 * would stand for every entity of that scope, which the searched indexes do not hold.
 		 */
-		private final Set<Scope> requestedScopes;
+		private final Set<Scope> processedScopes;
 		/**
 		 * Supplier that provides the super set formula.
 		 */
@@ -155,7 +168,7 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 		@Override
 		public void visit(@Nonnull Formula formula) {
 			this.finalFormula = FormulaFactory.or(
-				this.requestedScopes.stream()
+				this.processedScopes.stream()
 					.map(
 						scope -> {
 							// if the formula is a ScopeContainerFormula and the scope matches, return the inner formulas
