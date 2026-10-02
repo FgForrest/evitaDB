@@ -72,6 +72,9 @@ import io.evitadb.index.mutation.local.dataAccess.ExistingPriceSupplier;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.index.result.CardinalityChange;
 import io.evitadb.spi.store.catalog.persistence.accessor.EntityStoragePartAccessor;
+import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
+import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleScope;
+import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleWithScope;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.utils.Assert;
@@ -3064,7 +3067,7 @@ public interface ReferenceIndexMutator {
 		// leaves (price indexes) would have their bucket destroyed by the first reference's removal
 		// while sibling references still expect the data to be present
 		if (entityFullyRemovedFromTargetIndex) {
-			final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
+			final WritableEntityStorageContainerAccessor containerAccessor = executor.getContainerAccessor();
 			final EntityBodyStoragePart entityCnt = containerAccessor.getEntityStoragePart(
 				entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
 
@@ -3077,6 +3080,24 @@ public interface ReferenceIndexMutator {
 				executor.removeEntityAttributeLocaleInTargetIndex(
 					locale, entitySchema, targetIndex, referenceKey, existingDataSupplierFactory
 				);
+			}
+			// the entity body drops a locale the moment its last value goes, while the indexes learn about it only at
+			// the end of the entity mutation - and that step visits the reduced indexes of the references the entity
+			// still has, which this one no longer is; so the locales this mutation removed are still in this index and
+			// must go here (a locale the body still has was removed by the loops above already)
+			for (LocaleWithScope removedLocale : containerAccessor.getRemovedLocales()) {
+				final Locale locale = removedLocale.locale();
+				if (removedLocale.scope().contains(LocaleScope.ENTITY) && !entityCnt.getLocales().contains(locale)) {
+					executor.removeEntityLocaleInTargetIndex(
+						locale, entitySchema, targetIndex, entityPrimaryKey
+					);
+				}
+				if (removedLocale.scope().contains(LocaleScope.ATTRIBUTE) &&
+					!entityCnt.getAttributeLocales().contains(locale)) {
+					executor.removeEntityAttributeLocaleInTargetIndex(
+						locale, entitySchema, targetIndex, referenceKey, existingDataSupplierFactory
+					);
+				}
 			}
 
 			removeAllPrices(
