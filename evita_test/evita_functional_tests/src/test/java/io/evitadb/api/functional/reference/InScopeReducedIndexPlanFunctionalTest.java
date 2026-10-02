@@ -33,13 +33,17 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.FilterInScope;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.EntityContentRequire;
+import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.HierarchyRequireConstraint;
+import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.extraResult.FacetSummary;
+import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
@@ -88,6 +92,7 @@ import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.excluding;
 import static io.evitadb.api.query.QueryConstraints.facetHaving;
+import static io.evitadb.api.query.QueryConstraints.facetSummaryOfReference;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.fromNode;
 import static io.evitadb.api.query.QueryConstraints.fromRoot;
@@ -120,6 +125,7 @@ import static io.evitadb.api.query.QueryConstraints.userFilter;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.FACET;
 import static io.evitadb.test.TestTags.FILTER;
 import static io.evitadb.test.TestTags.HIERARCHY;
 import static io.evitadb.test.TestTags.QUERY;
@@ -2514,6 +2520,137 @@ public class InScopeReducedIndexPlanFunctionalTest {
 	@Nonnull
 	private static int[] sortedPrimaryKeys(@Nonnull EvitaResponse<EntityReference> response) {
 		return response.getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).sorted().toArray();
+	}
+
+	/**
+	 * An extra result computed without the user filter over a query whose only constraint of one scope is
+	 * `inScope(S, userFilter(...))`: removing the user filter from the planned formula leaves that scope unrestricted,
+	 * so the extra result counts every entity of the scope - it must never lose the scope as if it selected nothing.
+	 */
+	@Nested
+	@DisplayName("Statistics base of a scope restricted by a user filter alone")
+	class UserFilterStrippedFromScope {
+
+		/**
+		 * Returns the rows of the own-hierarchy statistics: the label and the requirement named
+		 * {@link #HIERARCHY_OUTPUT}, both counting the queried entities without the user filter.
+		 *
+		 * @return the row arguments
+		 */
+		@Nonnull
+		static Stream<Arguments> statisticsWithoutUserFilterRows() {
+			return Stream.of(
+				Arguments.of(
+					"fromRoot",
+					fromRoot(
+						HIERARCHY_OUTPUT,
+						statistics(StatisticsBase.WITHOUT_USER_FILTER, StatisticsType.QUERIED_ENTITY_COUNT)
+					)
+				),
+				Arguments.of(
+					"children",
+					children(
+						HIERARCHY_OUTPUT,
+						statistics(StatisticsBase.WITHOUT_USER_FILTER, StatisticsType.QUERIED_ENTITY_COUNT)
+					)
+				)
+			);
+		}
+
+		/**
+		 * Checks that the live statistics of the categories' own hierarchy, computed without the user filter in a
+		 * query over both scopes whose only live constraint is `inScope(LIVE, userFilter(...))`, equal those of the
+		 * query over the live scope alone with the same user filter - both count every live category.
+		 *
+		 * @param label       the row label, used in the test name only
+		 * @param requirement the live statistics requirement
+		 * @param session     the session provided by the test extension
+		 */
+		@DisplayName("Should compute own statistics without user filter of a scope restricted by a user filter alone")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("statisticsWithoutUserFilterRows")
+		@Tag(ENGINE)
+		@Tag(QUERY)
+		void shouldComputeOwnStatisticsWithoutUserFilterOfScopeRestrictedByUserFilterAlone(
+			@Nonnull String label,
+			@Nonnull HierarchyRequireConstraint requirement,
+			@Nonnull EvitaSessionContract session
+		) {
+			final FilterConstraint rootByCode = userFilter(attributeEquals(ATTR_CODE, ROOT_CODE));
+			final List<String> expected = HierarchyStatisticsPerScope.describe(
+				queryStatistics(session, LIVE_ONLY, Scope.LIVE, true, new FilterConstraint[]{rootByCode}, requirement)
+			);
+			assertFalse(expected.isEmpty(), "the statistics of the single-scope control must not be empty");
+			assertEquals(
+				expected,
+				HierarchyStatisticsPerScope.describe(
+					queryStatistics(
+						session, BOTH_SCOPES, Scope.LIVE, true,
+						new FilterConstraint[]{inScope(Scope.LIVE, rootByCode)},
+						requirement
+					)
+				)
+			);
+		}
+
+		/**
+		 * Checks that the brand group of the facet summary of a query over both scopes whose only live constraint is
+		 * `inScope(LIVE, userFilter(facetHaving(...)))` counts every branded product of both scopes, the same as the
+		 * query without any filter: the group count is computed without the user filter.
+		 *
+		 * @param session the session provided by the test extension
+		 */
+		@Test
+		@DisplayName("Should count the facet group of a scope restricted by a user filter alone over the whole scope")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+		@Tag(ENGINE)
+		@Tag(QUERY)
+		@Tag(FACET)
+		void shouldCountFacetGroupOfScopeRestrictedByUserFilterAlone(@Nonnull EvitaSessionContract session) {
+			final int expected = queryBrandGroupCount(session, new FilterConstraint[0]);
+			assertEquals(ALL_PRODUCTS.length - UNBRANDED.length, expected, "every branded product counts in the group");
+			assertEquals(
+				expected,
+				queryBrandGroupCount(
+					session,
+					new FilterConstraint[]{
+						inScope(Scope.LIVE, userFilter(facetHaving(REF_BRAND, entityPrimaryKeyInSet(BRAND))))
+					}
+				)
+			);
+		}
+
+		/**
+		 * Runs a product query over both scopes with the passed filter constraints and returns the count of the brand
+		 * group in its facet summary.
+		 *
+		 * @param session     the session to query
+		 * @param constraints the constraints placed next to `scope(LIVE, ARCHIVED)`
+		 * @return the count of the brand group
+		 */
+		private static int queryBrandGroupCount(
+			@Nonnull EvitaSessionContract session,
+			@Nonnull FilterConstraint[] constraints
+		) {
+			final EvitaResponse<EntityReference> response = session.query(
+				query(
+					collection(ENTITY_PRODUCT),
+					filterBy(ArrayUtils.mergeArrays(new FilterConstraint[]{scope(BOTH_SCOPES)}, constraints)),
+					require(
+						page(1, PRODUCT_COUNT),
+						facetSummaryOfReference(REF_BRAND, FacetStatisticsDepth.COUNTS)
+					)
+				),
+				EntityReference.class
+			);
+			final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
+			assertNotNull(facetSummary, "the facet summary must be computed");
+			final FacetGroupStatistics brandStatistics = facetSummary.getFacetGroupStatistics(REF_BRAND);
+			assertNotNull(brandStatistics, "the brand reference must have facet statistics");
+			return brandStatistics.getCount();
+		}
+
 	}
 
 	/**

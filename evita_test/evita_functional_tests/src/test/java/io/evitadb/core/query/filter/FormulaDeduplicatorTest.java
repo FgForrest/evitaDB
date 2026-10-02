@@ -69,6 +69,7 @@ class FormulaDeduplicatorTest {
 
 		final Formula deduplicated = initialize(deduplicate(union));
 
+		// the deduplicator hands the original tree back untouched when it merged nothing
 		assertSame(union, deduplicated, "formulas over different indexes must not be merged");
 		assertArrayEquals(new int[]{1, 2, 11, 12}, deduplicated.compute().getArray());
 	}
@@ -83,8 +84,10 @@ class FormulaDeduplicatorTest {
 
 		final Formula deduplicated = initialize(deduplicate(union));
 
-		// the deduplicator hands the original tree back untouched when it merged nothing
+		// a merge rebuilds the tree: the second branch is replaced by the instance seen first, and a union of that
+		// single instance is the instance itself
 		assertNotSame(union, deduplicated, "equal formulas over one index must be merged");
+		assertSame(union.getInnerFormulas()[0], deduplicated, "both branches must be merged into the first one");
 		assertArrayEquals(new int[]{1, 2}, deduplicated.compute().getArray());
 	}
 
