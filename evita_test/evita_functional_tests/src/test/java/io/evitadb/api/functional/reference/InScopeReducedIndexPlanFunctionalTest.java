@@ -1466,7 +1466,8 @@ public class InScopeReducedIndexPlanFunctionalTest {
 	/**
 	 * A negated `inScope(S, ...)` container at the top level of a query over both scopes: the container restricts
 	 * scope `S` only and stands for every entity of the other scope, so its negation selects the entities of `S` the
-	 * container does not match and no entity of the other scope.
+	 * container does not match and no entity of the other scope. A negation inside the container, conversely, narrows
+	 * scope `S` alone and keeps every entity of the other scope.
 	 */
 	@Nested
 	@DisplayName("Negated inScope container")
@@ -1541,6 +1542,124 @@ public class InScopeReducedIndexPlanFunctionalTest {
 		@Tag(ENGINE)
 		@Tag(QUERY)
 		void shouldSelectEntitiesOfContainerScopeItDoesNotMatchAndNothingElse(
+			@Nonnull String label,
+			@Nonnull String entityType,
+			@Nonnull FilterConstraint filter,
+			@Nonnull int[] expected,
+			@Nonnull EvitaSessionContract session
+		) {
+			assertArrayEquals(
+				expected,
+				sortedPrimaryKeys(
+					session.query(
+						query(
+							collection(entityType),
+							filterBy(scope(BOTH_SCOPES), filter),
+							require(page(1, PRODUCT_COUNT))
+						),
+						EntityReference.class
+					)
+				)
+			);
+		}
+
+		/**
+		 * Returns the rows of the negation placed inside the container: a label, the queried entity type, the filter,
+		 * and the primary keys it selects over both scopes.
+		 *
+		 * @return the row arguments
+		 */
+		@Nonnull
+		static Stream<Arguments> negationInScopeContainerRows() {
+			final FilterConstraint tagged = referenceHaving(REF_TAGS, entityPrimaryKeyInSet(TAG));
+			final FilterConstraint visible = attributeEquals(ATTR_VISIBLE, true);
+			return Stream.of(
+				// category 1 alone references the tag among the live categories
+				Arguments.of(
+					"live categories without the tag and every archived one", ENTITY_CATEGORY,
+					inScope(Scope.LIVE, not(tagged)),
+					new int[]{
+						SUBTREE_CATEGORY, OTHER_CATEGORY, LIVE_NODE_WITH_ARCHIVED_OWNERS,
+						ARCHIVED_ROOT_CATEGORY, ARCHIVED_SUBTREE_CATEGORY, ARCHIVED_NODE_WITH_LIVE_OWNERS
+					}
+				),
+				// category 11 alone references the tag among the archived categories
+				Arguments.of(
+					"archived categories without the tag and every live one", ENTITY_CATEGORY,
+					inScope(Scope.ARCHIVED, not(tagged)),
+					new int[]{
+						ROOT_CATEGORY, SUBTREE_CATEGORY, OTHER_CATEGORY, LIVE_NODE_WITH_ARCHIVED_OWNERS,
+						ARCHIVED_SUBTREE_CATEGORY, ARCHIVED_NODE_WITH_LIVE_OWNERS
+					}
+				),
+				// the live products 1-8 reference the tag
+				Arguments.of(
+					"live products without the tag and every archived one", ENTITY_PRODUCT,
+					inScope(Scope.LIVE, not(tagged)),
+					range(9, PRODUCT_COUNT)
+				),
+				// the archived products 49-56 reference the tag
+				Arguments.of(
+					"archived products without the tag and every live one", ENTITY_PRODUCT,
+					inScope(Scope.ARCHIVED, not(tagged)),
+					union(LIVE_ALL, range(57, PRODUCT_COUNT))
+				),
+				// the negation is subtracted from its positive sibling: of the live products 9-48 the invisible 10 and 18
+				// drop out
+				Arguments.of(
+					"visible live products without the tag and every archived one", ENTITY_PRODUCT,
+					inScope(Scope.LIVE, visible, not(tagged)),
+					union(without(range(9, 48), INVISIBLE), ARCHIVED_ALL)
+				),
+				// a disjunction with a negated member is a negation too: the tagged live products 1-8 and the invisible
+				// live products 10 and 18
+				Arguments.of(
+					"tagged or invisible live products and every archived one", ENTITY_PRODUCT,
+					inScope(Scope.LIVE, or(tagged, not(visible))),
+					union(LIVE_SUBTREE, new int[]{10, 18}, ARCHIVED_ALL)
+				),
+				// the live parents are the untagged roots 3 and 4 and the leaf 2, none of which has children; the container
+				// does not restrict the archived tree, so every archived node is a parent
+				Arguments.of(
+					"categories within the live nodes without the tag and every archived one", ENTITY_CATEGORY,
+					hierarchyWithinSelf(inScope(Scope.LIVE, not(tagged))),
+					new int[]{
+						SUBTREE_CATEGORY, OTHER_CATEGORY, LIVE_NODE_WITH_ARCHIVED_OWNERS,
+						ARCHIVED_ROOT_CATEGORY, ARCHIVED_SUBTREE_CATEGORY, ARCHIVED_NODE_WITH_LIVE_OWNERS
+					}
+				),
+				// the live parent is the tagged node 1 with its child 2; the negated container selects no archived node
+				Arguments.of(
+					"categories within the tagged live node", ENTITY_CATEGORY,
+					hierarchyWithinSelf(not(inScope(Scope.LIVE, not(tagged)))),
+					new int[]{ROOT_CATEGORY, SUBTREE_CATEGORY}
+				)
+			);
+		}
+
+		/**
+		 * Checks that a negation inside an `inScope(S, ...)` container of a query over both scopes selects the entities
+		 * of scope `S` the negated constraint does not match, together with every entity of the other scope, which the
+		 * container does not restrict - at the top level of the filter and in the parent filter of a hierarchy
+		 * constraint alike.
+		 *
+		 * A negation is resolved by the container that collects it, against the formulas next to it or, when it stands
+		 * alone, against every entity of the container's scope. The `inScope` container must therefore resolve it
+		 * itself: the levels above it see the container, not the negation inside it.
+		 *
+		 * @param label      the row label, used in the test name only
+		 * @param entityType the queried entity type
+		 * @param filter     the filter placed next to `scope(LIVE, ARCHIVED)`
+		 * @param expected   the expected primary keys, ascending
+		 * @param session    the session provided by the test extension
+		 */
+		@DisplayName("Should select the entities of the container's scope the negation inside it admits and the rest")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("negationInScopeContainerRows")
+		@Tag(ENGINE)
+		@Tag(QUERY)
+		void shouldSelectEntitiesOfContainerScopeNegationInsideItAdmitsAndTheRest(
 			@Nonnull String label,
 			@Nonnull String entityType,
 			@Nonnull FilterConstraint filter,

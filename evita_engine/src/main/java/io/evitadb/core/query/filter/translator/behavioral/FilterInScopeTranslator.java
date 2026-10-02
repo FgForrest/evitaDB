@@ -25,6 +25,8 @@ package io.evitadb.core.query.filter.translator.behavioral;
 
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.FilterInScope;
+import io.evitadb.core.query.QueryPlanner.EnclosingContainerRelation;
+import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
@@ -40,6 +42,7 @@ import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Objects;
 import java.util.Set;
@@ -85,9 +88,20 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 					for (FilterConstraint innerConstraint : inScope.getChildren()) {
 						innerConstraint.accept(filterByVisitor);
 					}
+					final Formula[] collectedFormulas = filterByVisitor.getCollectedFormulasOnCurrentLevel();
+					if (Arrays.stream(collectedFormulas).noneMatch(FutureNotFormula.class::isInstance)) {
+						return new ScopeContainerFormula(scopeToUse, collectedFormulas);
+					}
+					// a negation must be resolved by the container that collects it - the levels above see this
+					// container, not the placeholder inside it - and standing alone it subtracts from every entity of
+					// the container's scope, which is all the container restricts
 					return new ScopeContainerFormula(
 						scopeToUse,
-						filterByVisitor.getCollectedFormulasOnCurrentLevel()
+						FutureNotFormula.postProcess(
+							collectedFormulas,
+							EnclosingContainerRelation.CONJUNCTION,
+							() -> filterByVisitor.getSuperSetFormula(scopeToUse)
+						)
 					);
 				}
 			);
