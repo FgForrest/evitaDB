@@ -42,16 +42,20 @@ import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.component.FulltextIndexMapComponent;
 import io.evitadb.index.component.PriceIndexComponent;
 import io.evitadb.index.component.ReducedIndexMembershipMapComponent;
 import io.evitadb.index.component.TrigramIndexMapComponent;
 import io.evitadb.index.component.loader.AttributeIndexLoader;
 import io.evitadb.index.component.loader.FacetIndexLoader;
+import io.evitadb.index.component.loader.FulltextIndexMapLoader;
 import io.evitadb.index.component.loader.HierarchyIndexLoader;
 import io.evitadb.index.component.loader.IndexReloadPlan;
 import io.evitadb.index.component.loader.LoadedComponentBundle;
 import io.evitadb.index.component.loader.PriceSuperIndexLoader;
 import io.evitadb.index.facet.FacetIndex;
+import io.evitadb.index.fulltext.FulltextIndex;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.membership.ReducedIndexMembership;
@@ -61,6 +65,7 @@ import io.evitadb.index.trigram.TrigramIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
@@ -189,6 +194,21 @@ public class GlobalEntityIndex extends EntityIndex
 	 */
 	@Nonnull private final TransactionalMap<AttributeIndexKey, TrigramIndex> trigramIndex;
 	/**
+	 * The fulltext indexes of this index, one per locale partition - each holds the term dictionary, the impacts and the
+	 * field lengths of every searchable field of the entities in that locale. Empty, and costing a bare `HashMap`
+	 * object, for every collection without a fulltext-searchable field.
+	 *
+	 * Hosted here and nowhere else: the global index is the one index every entity belongs to, so a catalog pays for
+	 * the dictionary once. Unlike the trigram indexes these are primary state with a footprint of their own on disk -
+	 * see {@link FulltextIndexMapComponent}.
+	 */
+	@Nonnull private final TransactionalMap<Locale, FulltextIndex> fulltextIndexes;
+	/**
+	 * The component flushing {@link #fulltextIndexes}; held for its heap accounting, as it owns a snapshot nothing else
+	 * reaches.
+	 */
+	@Nonnull private final FulltextIndexMapComponent fulltextIndexComponent;
+	/**
 	 * Per-reference reverse lookup of "which reduced indexes hold this owner", keyed by reference name, used
 	 * by the cross-entity conditional-facet trigger to avoid walking every reduced index of the collection.
 	 *
@@ -287,6 +307,10 @@ public class GlobalEntityIndex extends EntityIndex
 		// nowhere is charged the map object alone
 		this.trigramIndex = new TransactionalMap<>(new HashMap<>(), TrigramIndex.class, Function.identity());
 		addComponent(new TrigramIndexMapComponent(this.trigramIndex));
+		// likewise allocated empty: a collection with no fulltext-searchable field never puts anything here
+		this.fulltextIndexes = new TransactionalMap<>(new HashMap<>(), FulltextIndex.class, Function.identity());
+		this.fulltextIndexComponent = new FulltextIndexMapComponent(this.fulltextIndexes);
+		addComponent(this.fulltextIndexComponent);
 		// likewise allocated empty: a collection with no cross-entity conditional facet never puts anything here
 		this.reducedIndexMembership = new TransactionalMap<>(
 			new HashMap<>(), ReducedIndexMembership.class, Function.identity()
@@ -317,17 +341,19 @@ public class GlobalEntityIndex extends EntityIndex
 	) {
 		this(
 			primaryKey, entityIndexKey, version, entityIds, entityIdsByLanguage,
-			attributeIndex, priceIndex, hierarchyIndex, facetIndex, Map.of(), Map.of(), activity
+			attributeIndex, priceIndex, hierarchyIndex, facetIndex, Map.of(), Map.of(), Map.of(), activity
 		);
 	}
 
 	/**
-	 * Reconstructs a global entity index from persisted or committed state, together with the two derived
-	 * structures it hosts — the substring-search accelerators and the reduced-index membership lookup.
+	 * Reconstructs a global entity index from persisted or committed state, together with the fulltext indexes and the
+	 * two derived structures it hosts — the substring-search accelerators and the reduced-index membership lookup.
 	 *
 	 * @param trigramIndexes the per-`(attribute, locale)` trigram indexes — the committed ones on the merge copy, the
 	 *                       ones {@link TrigramIndex#rebuildAll} derived from the reloaded shared value trees on a cold
 	 *                       load, and empty for a caller that maintains none
+	 * @param fulltextIndexes the per-locale fulltext indexes — the committed ones on the merge copy, the ones loaded
+	 *                        from their pages on a cold load
 	 * @param reducedIndexMembership the per-reference reverse lookup of owners to the reduced indexes holding
 	 *                               them — derived state, empty on a freshly loaded index until it is rebuilt
 	 * @param activity       the activity holder to keep counting into — the copied index's own instance on the
@@ -345,6 +371,7 @@ public class GlobalEntityIndex extends EntityIndex
 		@Nonnull HierarchyIndex hierarchyIndex,
 		@Nonnull FacetIndex facetIndex,
 		@Nonnull Map<AttributeIndexKey, TrigramIndex> trigramIndexes,
+		@Nonnull Map<Locale, FulltextIndex> fulltextIndexes,
 		@Nonnull Map<String, ReducedIndexMembership> reducedIndexMembership,
 		@Nullable IndexActivity activity
 	) {
@@ -359,6 +386,11 @@ public class GlobalEntityIndex extends EntityIndex
 			new HashMap<>(trigramIndexes), TrigramIndex.class, Function.identity()
 		);
 		addComponent(new TrigramIndexMapComponent(this.trigramIndex));
+		this.fulltextIndexes = new TransactionalMap<>(
+			new HashMap<>(fulltextIndexes), FulltextIndex.class, Function.identity()
+		);
+		this.fulltextIndexComponent = new FulltextIndexMapComponent(this.fulltextIndexes);
+		addComponent(this.fulltextIndexComponent);
 		this.reducedIndexMembership = new TransactionalMap<>(
 			new HashMap<>(reducedIndexMembership), ReducedIndexMembership.class, Function.identity()
 		);
@@ -386,6 +418,7 @@ public class GlobalEntityIndex extends EntityIndex
 		.add(new PriceSuperIndexLoader())
 		.add(new HierarchyIndexLoader())
 		.add(new FacetIndexLoader())
+		.add(new FulltextIndexMapLoader())
 		.build((bundles, context) -> {
 			final LoadedComponentBundle.AttributeIndexes attributes =
 				(LoadedComponentBundle.AttributeIndexes) bundles.get(LoadedComponentBundle.AttributeIndexes.class);
@@ -395,6 +428,8 @@ public class GlobalEntityIndex extends EntityIndex
 				(LoadedComponentBundle.Hierarchy) bundles.get(LoadedComponentBundle.Hierarchy.class);
 			final LoadedComponentBundle.Facet facet =
 				(LoadedComponentBundle.Facet) bundles.get(LoadedComponentBundle.Facet.class);
+			final LoadedComponentBundle.FulltextIndexes fulltext =
+				(LoadedComponentBundle.FulltextIndexes) bundles.get(LoadedComponentBundle.FulltextIndexes.class);
 			final io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart manifest =
 				context.entityIndexStoragePart();
 			return new GlobalEntityIndex(
@@ -423,6 +458,7 @@ public class GlobalEntityIndex extends EntityIndex
 					manifest.getEntityIndexKey().scope(),
 					attributes.sharedValueIndexes()
 				),
+				fulltext.fulltextIndexes(),
 				// likewise derived state, but derived from the REDUCED indexes rather than from anything this
 				// index carries - and those are loaded independently of it, so there is nothing to rebuild from
 				// here. It starts empty, which costs correctness nothing (an uncovered reduced index is walked)
@@ -513,6 +549,68 @@ public class GlobalEntityIndex extends EntityIndex
 	}
 
 	/*
+		FULLTEXT INDEXES
+	 */
+
+	/**
+	 * Returns the fulltext index of the passed locale partition.
+	 *
+	 * @param locale the locale of the partition
+	 * @return the fulltext index, or `null` when this index keeps none for the locale
+	 */
+	@Nullable
+	public FulltextIndex getFulltextIndex(@Nonnull Locale locale) {
+		return this.fulltextIndexes.get(locale);
+	}
+
+	/**
+	 * Returns the locales this index keeps a fulltext index for.
+	 *
+	 * @return an immutable snapshot of the locales
+	 */
+	@Nonnull
+	public Set<Locale> getFulltextIndexLocales() {
+		return Set.copyOf(this.fulltextIndexes.keySet());
+	}
+
+	/**
+	 * Returns the fulltext index of the passed locale partition, creating an empty one built with the passed analyzer
+	 * when there is none. An existing index must have been built with the same analyzer: one index never holds the
+	 * terms of two analyzers, which no query could tokenize consistently.
+	 *
+	 * @param locale        the locale of the partition
+	 * @param indexAnalyzer analyzer of the index slot of the locale
+	 * @return the fulltext index, never `null`
+	 * @throws GenericEvitaInternalError when the existing index was built with a different analyzer
+	 */
+	@Nonnull
+	public FulltextIndex getOrCreateFulltextIndex(@Nonnull Locale locale, @Nonnull FulltextAnalyzer indexAnalyzer) {
+		final FulltextIndex existing = this.fulltextIndexes.get(locale);
+		if (existing != null) {
+			Assert.isPremiseValid(
+				existing.getAnalyzerName().equals(indexAnalyzer.getAnalyzerName()),
+				() -> "The fulltext index of locale `" + locale + "` was built with analyzer `" +
+					existing.getAnalyzerName() + "`, it cannot be written with `" + indexAnalyzer.getAnalyzerName() +
+					"`!"
+			);
+			return existing;
+		}
+		final FulltextIndex created = new FulltextIndex(indexAnalyzer);
+		this.fulltextIndexes.put(locale, created);
+		return created;
+	}
+
+	/**
+	 * Drops the fulltext index of the passed locale partition. Its footprint on disk - the root, the dictionary pages and
+	 * the length blocks - is removed by the next flush.
+	 *
+	 * @param locale the locale of the partition
+	 */
+	public void removeFulltextIndex(@Nonnull Locale locale) {
+		this.fulltextIndexes.remove(locale);
+	}
+
+	/*
 		TRANSACTIONAL MEMORY IMPLEMENTATION
 	 */
 
@@ -533,6 +631,7 @@ public class GlobalEntityIndex extends EntityIndex
 			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.trigramIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.fulltextIndexes),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.reducedIndexMembership),
 			// the very same holder, not a copy: this is one logical index carried into the next catalog version
 			getActivity()
@@ -888,8 +987,8 @@ public class GlobalEntityIndex extends EntityIndex
 	@Override
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// the priceIndex, trigramIndex and reducedIndexMembership slots
-		return getBaseHeapSizeInBytes(3L * layout.referenceSize())
+		// the priceIndex, trigramIndex, fulltextIndexes, fulltextIndexComponent and reducedIndexMembership slots
+		return getBaseHeapSizeInBytes(5L * layout.referenceSize())
 			+ this.priceIndex.getHeapSizeInBytes()
 			// the price component this class registers, holding the price index alone
 			+ layout.sizeOfObject(layout.referenceSize())
@@ -900,6 +999,12 @@ public class GlobalEntityIndex extends EntityIndex
 			+ this.trigramIndex.getHeapSizeInBytes(key -> 0L, TrigramIndex::getHeapSizeInBytes)
 			// the trigram component this class registers, holding the map alone
 			+ layout.sizeOfObject(layout.referenceSize())
+			// the locales are interned by the JVM; the indexes themselves are not priced yet, as FulltextIndex has no
+			// heap accounting of its own
+			//TODO JNO change it at the end of #258
+			+ this.fulltextIndexes.getHeapSizeInBytes(locale -> 0L, index -> 0L)
+			// the fulltext component this class registers, with the footprint snapshot it alone holds
+			+ this.fulltextIndexComponent.getHeapSizeInBytes()
 			// the membership map charges its own keys: a reference name is held here and nowhere else in this index
 			+ this.reducedIndexMembership.getHeapSizeInBytes(
 				MemoryMeasuringConstants::computeStringSize, ReducedIndexMembership::getHeapSizeInBytes

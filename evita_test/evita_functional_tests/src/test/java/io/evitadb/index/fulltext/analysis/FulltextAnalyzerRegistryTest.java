@@ -301,6 +301,51 @@ class FulltextAnalyzerRegistryTest {
 	}
 
 	@Nested
+	@DisplayName("Lookup by name")
+	class LookupByName {
+
+		@Test
+		@DisplayName("A name resolves to the instance the assignment lookup shares")
+		void shouldShareTheInstanceWithTheAssignmentLookup() {
+			final FulltextAnalyzerRegistry registry = createRegistry();
+			assertSame(
+				registry.getIndexAnalyzer(ENTITY_TYPE, CZECH),
+				registry.getIndexAnalyzerByName(BuiltInAnalyzers.CZECH_ANALYZER_NAME)
+			);
+		}
+
+		@Test
+		@DisplayName("A name resolves whatever the assignment for any collection and locale says")
+		void shouldIgnoreTheAssignment() {
+			// a persisted index is read back with the chain that produced its terms, even when the schema moved on
+			final FulltextAnalyzerRegistry registry = createRegistry(
+				(entityType, locale) -> Optional.of(AnalyzerAssignment.uniform(BuiltInAnalyzers.GENERIC_ANALYZER_NAME))
+			);
+			assertEquals(
+				BuiltInAnalyzers.CZECH_ANALYZER_NAME,
+				registry.getIndexAnalyzerByName(BuiltInAnalyzers.CZECH_ANALYZER_NAME).getAnalyzerName()
+			);
+		}
+
+		@Test
+		@DisplayName("An unknown name, a search-time chain and a closed registry are refused")
+		void shouldRefuseWhatTheIndexSlotCannotUse() {
+			final FulltextAnalyzerRegistry registry = createRegistry();
+			assertThrows(EvitaInvalidUsageException.class, () -> registry.getIndexAnalyzerByName("no-such-chain"));
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> registry.getIndexAnalyzerByName(BuiltInAnalyzers.CZECH_SEARCH_ANALYZER_NAME)
+			);
+			registry.close();
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> registry.getIndexAnalyzerByName(BuiltInAnalyzers.CZECH_ANALYZER_NAME)
+			);
+		}
+
+	}
+
+	@Nested
 	@DisplayName("Analyzer assignment")
 	class Assignments {
 

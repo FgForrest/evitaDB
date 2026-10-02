@@ -1720,7 +1720,7 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 	) {
 		final EntityIndexStoragePart manifest = new EntityIndexStoragePart(
 			ENTITY_INDEX_PK, 1, ENTITY_INDEX_KEY,
-			Set.of(), Set.of(), false, Set.of(), manifestKeys
+			Set.of(), Set.of(), false, Set.of(), manifestKeys, Set.of()
 		);
 		return new LoadContext(
 			catalogVersion,

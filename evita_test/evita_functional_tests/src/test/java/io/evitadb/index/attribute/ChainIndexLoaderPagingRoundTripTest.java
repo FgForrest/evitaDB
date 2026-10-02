@@ -258,7 +258,7 @@ class ChainIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 		final EntityIndexStoragePart manifest = new EntityIndexStoragePart(
 			ENTITY_INDEX_PK, 1, ENTITY_INDEX_KEY,
 			new BaseBitmap(), new HashMap<Locale, TransactionalBitmap>(0),
-			manifestKeys, Set.of(), false, Set.of(), Set.of()
+			manifestKeys, Set.of(), false, Set.of(), Set.of(), Set.of()
 		);
 		return new LoadContext(
 			PERSISTED_VERSION,

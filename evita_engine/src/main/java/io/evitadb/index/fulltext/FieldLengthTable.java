@@ -414,6 +414,18 @@ public class FieldLengthTable implements TransactionalLayerProducer<FieldLengthT
 	}
 
 	/**
+	 * Returns the keys of the blocks the last flush left on disk - the ones a {@link #collectChangedBlocks()} diffs
+	 * against, and the ones a dropped table must reclaim. The set is replaced wholesale by every collect, never changed
+	 * in place, so the returned array keeps describing the flush it was taken after; the caller must not modify it.
+	 *
+	 * @return keys of the blocks on disk, ascending; empty for a table never flushed
+	 */
+	@Nonnull
+	public int[] getPersistedBlockKeys() {
+		return this.flushState.persistedBlockKeys;
+	}
+
+	/**
 	 * Returns whether the block covering the primary key is stored densely in this instance - the committed shape,
 	 * whatever a running transaction wrote. Exposed for tests of the per-block representation choice.
 	 *

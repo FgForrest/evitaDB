@@ -30,6 +30,7 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.IndexActivity;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
@@ -71,6 +72,9 @@ import java.util.Map;
  *                               {@link io.evitadb.index.IndexActivity} holder — carried through the reload
  *                               because an index restored from disk starts a fresh observation window, and
  *                               a server running with `server.usageStatisticsTracking` off must not open one
+ * @param fulltextAnalyzerRegistry the registry the fulltext indexes resolve the analyzer they were built with by its
+ *                               persisted name, or `null` when the caller has none - a manifest listing a fulltext
+ *                               index then fails to load
  */
 public record LoadContext(
 	long catalogVersion,
@@ -83,8 +87,34 @@ public record LoadContext(
 	@Nonnull Map<Locale, TransactionalBitmap> entityIdsByLanguage,
 	@Nonnull StoragePartPersistenceService<?> storagePartService,
 	@Nullable RepresentativeReferenceKey referenceKey,
-	boolean usageStatisticsTracking
+	boolean usageStatisticsTracking,
+	@Nullable FulltextAnalyzerRegistry fulltextAnalyzerRegistry
 ) {
+
+	/**
+	 * Builds a context without a fulltext analyzer registry - the form the catalog load uses until the catalog owns
+	 * one. Nothing in production can create a fulltext index before then, so no manifest it loads lists one.
+	 */
+	//TODO JNO change it at the end of #258
+	public LoadContext(
+		long catalogVersion,
+		int entityIndexId,
+		@Nonnull EntitySchema entitySchema,
+		@Nonnull EntityIndexKey entityIndexKey,
+		@Nonnull EntityIndexStoragePart entityIndexStoragePart,
+		int version,
+		@Nonnull Bitmap entityIds,
+		@Nonnull Map<Locale, TransactionalBitmap> entityIdsByLanguage,
+		@Nonnull StoragePartPersistenceService<?> storagePartService,
+		@Nullable RepresentativeReferenceKey referenceKey,
+		boolean usageStatisticsTracking
+	) {
+		this(
+			catalogVersion, entityIndexId, entitySchema, entityIndexKey, entityIndexStoragePart,
+			version, entityIds, entityIdsByLanguage, storagePartService, referenceKey,
+			usageStatisticsTracking, null
+		);
+	}
 
 	/**
 	 * Builds a context that tracks usage statistics — the default, and the form every caller that has no opinion on

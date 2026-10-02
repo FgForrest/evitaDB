@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2026
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,7 +33,6 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
-import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -45,29 +44,23 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceName
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
-import java.util.Collections;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 
-import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
- * Backward-compatible {@link Serializer} that reads the 2026.1 binary format of
- * {@link EntityIndex} data.
+ * Backward-compatible {@link Serializer} that reads the 2026.2 binary format of {@link EntityIndex} data.
  *
- * The 2026.1 format contained no histogram index section. The current serializer was extended
- * with a trailing histogram section, which caused deserialization of 2026.1 data to fail
- * because the current reader attempts to read histogram counts that are not present in the
- * stream. This serializer reads the legacy layout and constructs an {@link EntityIndexStoragePart}
- * with an empty set of {@link HistogramIndexStorageKey histogram indexes}.
+ * The 2026.2 format ends with the histogram section. The current serializer appends the fulltext index section after
+ * it, so this one reads the legacy layout and constructs an {@link EntityIndexStoragePart} with an empty set of
+ * fulltext indexes.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@Deprecated(since = "2026.2", forRemoval = true)
+@Deprecated(since = "2026.3", forRemoval = true)
 @RequiredArgsConstructor
-public class EntityIndexStoragePartSerializer_2026_1 extends Serializer<EntityIndexStoragePart> {
+public class EntityIndexStoragePartSerializer_2026_2 extends Serializer<EntityIndexStoragePart> {
 	private final KeyCompressor keyCompressor;
 
 	@Override
@@ -86,16 +79,6 @@ public class EntityIndexStoragePartSerializer_2026_1 extends Serializer<EntityIn
 		final EntityIndexKey entityIndexKey = discriminator == null ?
 			new EntityIndexKey(entityIndexType, entityIndexScope, null) :
 			new EntityIndexKey(entityIndexType, entityIndexScope, discriminator);
-
-		final TransactionalBitmap entityIds = kryo.readObject(input, TransactionalBitmap.class);
-
-		final int languageCount = input.readVarInt(true);
-		final Map<Locale, TransactionalBitmap> entityIdsByLocale = createHashMap(languageCount);
-		for (int i = 0; i < languageCount; i++) {
-			final Locale locale = kryo.readObject(input, Locale.class);
-			final TransactionalBitmap localeSpecificEntityIds = kryo.readObject(input, TransactionalBitmap.class);
-			entityIdsByLocale.put(locale, localeSpecificEntityIds);
-		}
 
 		final int attributeIndexesCount = input.readVarInt(true);
 		final Set<AttributeIndexStorageKey> attributeIndexes = createHashSet(attributeIndexesCount);
@@ -125,14 +108,23 @@ public class EntityIndexStoragePartSerializer_2026_1 extends Serializer<EntityIn
 			facetIndexes.add(key.referenceName());
 		}
 
+		final int histogramIndexesCount = input.readVarInt(true);
+		final Set<HistogramIndexStorageKey> histogramIndexes = createHashSet(histogramIndexesCount);
+		for (int i = 0; i < histogramIndexesCount; i++) {
+			final String histogramName = input.readString();
+			final Locale locale = kryo.readObjectOrNull(input, Locale.class);
+			histogramIndexes.add(new HistogramIndexStorageKey(
+				entityIndexKey, histogramName, locale
+			));
+		}
+
 		return new EntityIndexStoragePart(
 			primaryKey, version, entityIndexKey,
-			entityIds, entityIdsByLocale,
 			attributeIndexes,
 			priceIndexes,
 			hierarchyIndex, facetIndexes,
-			Collections.emptySet(),
-			Collections.emptySet()
+			histogramIndexes,
+			Set.of()
 		);
 	}
 }

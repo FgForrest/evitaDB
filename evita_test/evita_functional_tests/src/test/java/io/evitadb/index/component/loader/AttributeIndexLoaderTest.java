@@ -758,7 +758,7 @@ class AttributeIndexLoaderTest {
 			return new EntityIndexStoragePart(
 				INDEX_PK, 1, entityIndexKey,
 				new BaseBitmap(), new HashMap<Locale, TransactionalBitmap>(0),
-				this.manifestKeys, Set.of(), false, Set.of(), Set.of()
+				this.manifestKeys, Set.of(), false, Set.of(), Set.of(), Set.of()
 			);
 		}
 

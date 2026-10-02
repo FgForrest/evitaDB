@@ -570,6 +570,50 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
+	 * Returns the name of the analyzer of the index slot every value of this index went through. The persisted index
+	 * records it, so that it is read back with the analyzer it was built with.
+	 *
+	 * @return the analyzer name
+	 */
+	@Nonnull
+	public String getAnalyzerName() {
+		return this.indexAnalyzer.getAnalyzerName();
+	}
+
+	/**
+	 * Returns the pivot a field gets when it is registered without one.
+	 *
+	 * @return the default length pivot
+	 */
+	public double getDefaultLengthPivot() {
+		return this.defaultLengthPivot;
+	}
+
+	/**
+	 * Returns the sequences of the dictionary pages on disk once the flush in progress is durable - the pages a dropped
+	 * index must reclaim. See {@link PageStreamRegistry#pendingLivePageSequences(int)}.
+	 *
+	 * @return the page sequences, empty for an index never flushed
+	 */
+	@Nonnull
+	public int[] getPersistedDictionaryPages() {
+		return this.pageStreamRegistry.pendingLivePageSequences(DICTIONARY_PAGE_STREAM);
+	}
+
+	/**
+	 * Returns the keys of the length-table blocks of a field the last flush left on disk - the blocks a dropped index
+	 * must reclaim. See {@link FieldLengthTable#getPersistedBlockKeys()}.
+	 *
+	 * @param fieldId id of a field this index assigned
+	 * @return keys of the blocks on disk, ascending; the caller must not modify the array
+	 */
+	@Nonnull
+	public int[] getPersistedLengthBlocks(int fieldId) {
+		assertFieldKnown(fieldId);
+		return fieldAt(fieldId).lengths().getPersistedBlockKeys();
+	}
+
+	/**
 	 * Indexes the value of an entity's field: analyzes it through the index slot, and records every distinct term
 	 * with its impact and the value's length. The entity must not already have a value indexed for the field — an
 	 * update is a {@link #removeValue(String, int, String)} of the old value followed by this.

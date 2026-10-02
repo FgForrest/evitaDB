@@ -64,6 +64,8 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexRootRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FacetIndexRootRemoval;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexRootRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HierarchyIndexRootRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramRootRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceIndexRootRemoval;
@@ -203,6 +205,12 @@ public abstract class EntityIndex implements
 	 */
 	protected Set<HistogramIndexStorageKey> originalHistogramKeys;
 	/**
+	 * This field captures the original state of the fulltext indexes when this index was created.
+	 * This information is used along with {@link #dirty} flag to determine whether {@link EntityIndexStoragePart}
+	 * should be persisted.
+	 */
+	protected Set<FulltextIndexKey> originalFulltextKeys;
+	/**
 	 * Whether this index already existed in persistent storage when it was constructed (proxied by a
 	 * committed entity-id bitmaps part, i.e. a non-empty `entityIds`). It guarantees the manifest is
 	 * written at least once even for an index whose only change is entity membership (no sub-index ever
@@ -310,6 +318,7 @@ public abstract class EntityIndex implements
 		this.originalPriceIndexes = Collections.emptySet();
 		this.originalFacetIndexes = Collections.emptySet();
 		this.originalHistogramKeys = Collections.emptySet();
+		this.originalFulltextKeys = Collections.emptySet();
 		registerBaseComponents();
 	}
 
@@ -378,6 +387,7 @@ public abstract class EntityIndex implements
 		this.originalPriceIndexes = Collections.emptySet();
 		this.originalFacetIndexes = Collections.emptySet();
 		this.originalHistogramKeys = Collections.emptySet();
+		this.originalFulltextKeys = Collections.emptySet();
 		registerBaseComponents();
 	}
 
@@ -917,11 +927,11 @@ public abstract class EntityIndex implements
 		final VMLayout layout = VMLayout.current();
 		// id, primaryKey, version and the two booleans, then the attributeIndex / dirty / entityIds
 		// / entityIdsByLanguage / indexKey / facetIndex / hierarchyIndex / originalAttributeIndexes
-		// / originalPriceIndexes / originalFacetIndexes / originalHistogramKeys / components / activity slots, plus
-		// whatever the concrete subclass declares - the instance carries ONE header, so the whole hierarchy's fields
-		// are sized in a single call
+		// / originalPriceIndexes / originalFacetIndexes / originalHistogramKeys / originalFulltextKeys / components
+		// / activity slots, plus whatever the concrete subclass declares - the instance carries ONE header, so the whole
+		// hierarchy's fields are sized in a single call
 		long size = layout.sizeOfObject(
-			Long.BYTES + 2L * Integer.BYTES + 2L + 13L * layout.referenceSize() + ownFieldBytes
+			Long.BYTES + 2L * Integer.BYTES + 2L + 14L * layout.referenceSize() + ownFieldBytes
 		);
 		// the activity holder: five longs and nothing else, since its CAS updaters are static - and nothing at all when
 		// usage statistics are not tracked, because then there is no holder to charge for
@@ -956,6 +966,11 @@ public abstract class EntityIndex implements
 			this.originalHistogramKeys,
 			key -> layout.sizeOfObject(3L * layout.referenceSize())
 		);
+		// the key record holds a JVM-interned locale and nothing else
+		size += IndexHeapSize.immutableSetSizeInBytes(
+			this.originalFulltextKeys,
+			key -> layout.sizeOfObject(layout.referenceSize())
+		);
 		return size;
 	}
 
@@ -987,6 +1002,7 @@ public abstract class EntityIndex implements
 		final Set<PriceIndexKey> priceIndexKeys = manifest.getPriceKeys();
 		final Set<String> facetIndexReferencedEntities = manifest.getFacetReferencedEntities();
 		final Set<HistogramIndexStorageKey> histogramIndexStorageKeys = manifest.getHistogramKeys();
+		final Set<FulltextIndexKey> fulltextKeys = manifest.getFulltextKeys();
 
 		final boolean bitmapsDirty = this.dirty.isTrue();
 		final boolean manifestStructurallyChanged =
@@ -994,7 +1010,8 @@ public abstract class EntityIndex implements
 				!Objects.equals(this.originalAttributeIndexes, attributeIndexStorageKeys) ||
 				!Objects.equals(this.originalPriceIndexes, priceIndexKeys) ||
 				!Objects.equals(this.originalFacetIndexes, facetIndexReferencedEntities) ||
-				!Objects.equals(this.originalHistogramKeys, histogramIndexStorageKeys);
+				!Objects.equals(this.originalHistogramKeys, histogramIndexStorageKeys) ||
+				!Objects.equals(this.originalFulltextKeys, fulltextKeys);
 
 		// The bulky manifest (the sub-index reference sets) is re-emitted only when its own content
 		// changed. The extra `bitmapsDirty && !previouslyPersisted` term guarantees the manifest is
@@ -1006,7 +1023,7 @@ public abstract class EntityIndex implements
 			trappedChanges.addChangeToStore(
 				createStoragePart(
 					hierarchyIndexEmpty, attributeIndexStorageKeys, priceIndexKeys,
-					facetIndexReferencedEntities, histogramIndexStorageKeys
+					facetIndexReferencedEntities, histogramIndexStorageKeys, fulltextKeys
 				)
 			);
 		}
@@ -1031,7 +1048,7 @@ public abstract class EntityIndex implements
 		// SINGLE-shaped roots (which own no leaf pages), so the diff must run here, not in the leaf-page reclaim.
 		emitVanishedRootRemovals(
 			attributeIndexStorageKeys, priceIndexKeys, facetIndexReferencedEntities,
-			histogramIndexStorageKeys, !hierarchyIndexEmpty, trappedChanges
+			histogramIndexStorageKeys, fulltextKeys, !hierarchyIndexEmpty, trappedChanges
 		);
 	}
 
@@ -1047,6 +1064,7 @@ public abstract class EntityIndex implements
 	 * @param survivingPrices     the price sub-index keys that remain
 	 * @param survivingFacets     the facet referenced-entity types that remain
 	 * @param survivingHistograms the histogram sub-index keys that remain
+	 * @param survivingFulltexts  the fulltext index keys that remain
 	 * @param hierarchyPresent    whether a hierarchy is still present
 	 * @param sink                the accumulator collecting the removal instructions
 	 */
@@ -1055,6 +1073,7 @@ public abstract class EntityIndex implements
 		@Nonnull Set<PriceIndexKey> survivingPrices,
 		@Nonnull Set<String> survivingFacets,
 		@Nonnull Set<HistogramIndexStorageKey> survivingHistograms,
+		@Nonnull Set<FulltextIndexKey> survivingFulltexts,
 		boolean hierarchyPresent,
 		@Nonnull TrappedChanges sink
 	) {
@@ -1078,6 +1097,11 @@ public abstract class EntityIndex implements
 				sink.addChangeToStore(new HistogramRootRemoval(this.primaryKey, key.histogramName(), key.locale()));
 			}
 		}
+		for (final FulltextIndexKey key : this.originalFulltextKeys) {
+			if (!survivingFulltexts.contains(key)) {
+				sink.addChangeToStore(new FulltextIndexRootRemoval(this.primaryKey, key.locale()));
+			}
+		}
 		// a hierarchy root was persisted (baseline non-empty) and is now gone
 		if (!this.originalHierarchyIndexEmpty && !hierarchyPresent) {
 			sink.addChangeToStore(new HierarchyIndexRootRemoval(this.primaryKey));
@@ -1097,7 +1121,7 @@ public abstract class EntityIndex implements
 	public final void emitFootprintRemovals(@Nonnull TrappedChanges sink) {
 		emitVanishedRootRemovals(
 			Collections.emptySet(), Collections.emptySet(), Collections.emptySet(),
-			Collections.emptySet(), false, sink
+			Collections.emptySet(), Collections.emptySet(), false, sink
 		);
 		for (final IndexComponent component : this.components) {
 			component.emitPersistedFootprintRemovals(this.primaryKey, sink);
@@ -1174,7 +1198,8 @@ public abstract class EntityIndex implements
 
 	/**
 	 * Rebuilds the change-detection baseline (`originalAttributeIndexes`, `originalPriceIndexes`,
-	 * `originalFacetIndexes`, `originalHistogramKeys`, `originalHierarchyIndexEmpty`) by running every
+	 * `originalFacetIndexes`, `originalHistogramKeys`, `originalFulltextKeys`, `originalHierarchyIndexEmpty`) by running
+	 * every
 	 * registered {@link IndexComponent} once against a discardable {@link EntityIndexManifest}. The
 	 * resulting snapshot is the "what was on disk" reference against which
 	 * {@link #getModifiedStorageParts(TrappedChanges)} diffs current state.
@@ -1200,6 +1225,7 @@ public abstract class EntityIndex implements
 		this.originalPriceIndexes = Set.copyOf(baseline.getPriceKeys());
 		this.originalFacetIndexes = Set.copyOf(baseline.getFacetReferencedEntities());
 		this.originalHistogramKeys = Set.copyOf(baseline.getHistogramKeys());
+		this.originalFulltextKeys = Set.copyOf(baseline.getFulltextKeys());
 	}
 
 	/**
@@ -1251,6 +1277,7 @@ public abstract class EntityIndex implements
 	 *                                      components
 	 * @param facetIndexReferencedEntities  all facet referenced entity types gathered from components
 	 * @param histogramIndexStorageKeys     all histogram storage keys gathered from components
+	 * @param fulltextKeys                  all fulltext index keys gathered from components
 	 * @return the fully-shaped storage part listing every sub-index that must reload on restart
 	 */
 	@Nonnull
@@ -1259,7 +1286,8 @@ public abstract class EntityIndex implements
 		@Nonnull Set<AttributeIndexStorageKey> attributeIndexStorageKeys,
 		@Nonnull Set<PriceIndexKey> priceIndexKeys,
 		@Nonnull Set<String> facetIndexReferencedEntities,
-		@Nonnull Set<HistogramIndexStorageKey> histogramIndexStorageKeys
+		@Nonnull Set<HistogramIndexStorageKey> histogramIndexStorageKeys,
+		@Nonnull Set<FulltextIndexKey> fulltextKeys
 	) {
 		return new EntityIndexStoragePart(
 			this.primaryKey, this.version, this.indexKey,
@@ -1267,7 +1295,8 @@ public abstract class EntityIndex implements
 			priceIndexKeys,
 			!hierarchyIndexEmpty,
 			facetIndexReferencedEntities,
-			histogramIndexStorageKeys
+			histogramIndexStorageKeys,
+			fulltextKeys
 		);
 	}
 
