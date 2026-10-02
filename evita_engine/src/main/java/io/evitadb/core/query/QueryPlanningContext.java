@@ -1996,8 +1996,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 *
 	 * The roots come from an occurrence covering the scope - see
 	 * {@link #findCoveringResolution(Map, HierarchyFilterConstraint, Scope)}. For a `hierarchyWithin` an empty bitmap
-	 * therefore means that the covering occurrence selected no node in the scope, and its statistics are empty - just
-	 * like those of a query over that scope alone, which an unmatched `hierarchyWithin` empties entirely. An empty
+	 * therefore means that the covering occurrence selected no node in the scope, so the statistics that describe the
+	 * selected node - `children`, `parents` and `siblings` - are empty. The statistics that do not depend on it -
+	 * `fromRoot` and `fromNode` - use the roots only to mark the requested nodes and are computed as usual. An empty
 	 * bitmap is returned as well when no occurrence covers the scope, but the producers never ask about such
 	 * a constraint: it does not restrict the scope, so `getHierarchyFilterForScope` hands them NULL in its place.
 	 *

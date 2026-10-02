@@ -365,6 +365,10 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * Method creates a new formula that looks for entity primary keys in global index of `entityType` collection that
 	 * match the `filterBy` constraint.
 	 *
+	 * The filter is processed in the scopes of `indexesToUse` only, not in all scopes of the query: a constraint that
+	 * discovers further indexes by the processing scopes would otherwise reach the entities of a scope the caller did
+	 * not ask about.
+	 *
 	 * @param queryContext            used for accessing global index, global cache and recording query telemetry
 	 * @param filterBy                the filter constraints the entities must match
 	 * @param entitySchema            the entity schema of the entity that is looked up
@@ -398,28 +402,38 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			if (indexesToUse.isEmpty()) {
 				return EmptyFormula.INSTANCE;
 			} else {
-				theFormula = queryContext.analyse(
-					theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
-						indexType,
-						() -> indexesToUse,
-						null,
-						entitySchema,
-						null,
-						null,
-						null,
-						new AttributeSchemaAccessor(queryContext.getCatalogSchema(), entitySchema),
-						(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale)),
-						() -> {
-							// initialize root constraint for the execution
-							if (rootFilterBy != null) {
-								// we don't need to pop it, because the filter by visitor is going to be discarded
-								getProcessingScope(theFilterByVisitor.scope).pushConstraint(rootFilterBy);
-							}
+				// the nested evaluation is processed in the scopes of the searched indexes only - the translators that
+				// discover further indexes by the processing scopes (`referenceHaving`, `entityHaving`, unique lookups,
+				// a nested hierarchy constraint) must not reach the entities of the other queried scopes
+				final Set<Scope> indexScopes = EnumSet.noneOf(Scope.class);
+				for (final T index : indexesToUse) {
+					indexScopes.add(index.getIndexKey().scope());
+				}
+				theFormula = theFilterByVisitor.getProcessingScope().doWithScope(
+					indexScopes,
+					() -> queryContext.analyse(
+						theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
+							indexType,
+							() -> indexesToUse,
+							null,
+							entitySchema,
+							null,
+							null,
+							null,
+							new AttributeSchemaAccessor(queryContext.getCatalogSchema(), entitySchema),
+							(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale)),
+							() -> {
+								// initialize root constraint for the execution
+								if (rootFilterBy != null) {
+									// we don't need to pop it, because the filter by visitor is going to be discarded
+									getProcessingScope(theFilterByVisitor.scope).pushConstraint(rootFilterBy);
+								}
 
-							filterBy.accept(theFilterByVisitor);
-							// get the result and clear the visitor internal structures
-							return theFilterByVisitor.getFormulaAndClear();
-						}
+								filterBy.accept(theFilterByVisitor);
+								// get the result and clear the visitor internal structures
+								return theFilterByVisitor.getFormulaAndClear();
+							}
+						)
 					)
 				);
 			}

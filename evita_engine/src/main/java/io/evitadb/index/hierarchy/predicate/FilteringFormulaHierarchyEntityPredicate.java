@@ -324,27 +324,31 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 			);
 			this.targetEntityType = entitySchema.getName();
 			this.requestedScopes = Set.of(entityIndex.getIndexKey().scope());
-			// now analyze the filter by in a nested context with exchanged primary entity index
-			final Formula theFormula = queryContext.analyse(
-				theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
-					GlobalEntityIndex.class,
-					() -> Collections.singletonList(entityIndex),
-					null,
-					entitySchema,
-					null,
-					null,
-					null,
-					new AttributeSchemaAccessor(
-						queryContext.getCatalogSchema(),
+			// now analyze the filter by in a nested context with exchanged primary entity index, processed in the scope
+			// of that index only - the node must be looked up in the tree the statistics describe
+			final Formula theFormula = theFilterByVisitor.getProcessingScope().doWithScope(
+				this.requestedScopes,
+				() -> queryContext.analyse(
+					theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
+						GlobalEntityIndex.class,
+						() -> Collections.singletonList(entityIndex),
+						null,
 						entitySchema,
-						null
-					),
-					(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale)),
-					() -> {
-						filterBy.accept(theFilterByVisitor);
-						// get the result and clear the visitor internal structures
-						return theFilterByVisitor.getFormulaAndClear();
-					}
+						null,
+						null,
+						null,
+						new AttributeSchemaAccessor(
+							queryContext.getCatalogSchema(),
+							entitySchema,
+							null
+						),
+						(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale)),
+						() -> {
+							filterBy.accept(theFilterByVisitor);
+							// get the result and clear the visitor internal structures
+							return theFilterByVisitor.getFormulaAndClear();
+						}
+					)
 				)
 			);
 			// create a deferred formula that will log the execution time to query telemetry
