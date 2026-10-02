@@ -113,6 +113,8 @@ class StoragePartGroupRegistrationTest {
 			Map.entry("SortIndexLeafPagePart", StoragePartGroup.ATTRIBUTE_INDEX),
 			Map.entry("ChainIndexLeafPagePart", StoragePartGroup.ATTRIBUTE_INDEX),
 			Map.entry("GlobalUniqueIndexLeafPagePart", StoragePartGroup.ATTRIBUTE_INDEX),
+			Map.entry("FulltextIndexStoragePart", StoragePartGroup.ATTRIBUTE_INDEX),
+			Map.entry("FulltextDictionaryLeafPagePart", StoragePartGroup.ATTRIBUTE_INDEX),
 
 			// price indexes
 			Map.entry("PriceListAndCurrencySuperIndexStoragePart", StoragePartGroup.PRICE_INDEX),

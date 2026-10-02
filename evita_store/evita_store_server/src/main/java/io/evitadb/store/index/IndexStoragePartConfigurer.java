@@ -357,6 +357,24 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			index++
 		);
 
+		// the fulltext index root record and its dictionary leaf-page record - brand-new record types with no
+		// backward-compatible reader (the fulltext feature is unreleased). Appended last to keep the preceding
+		// registration ids stable.
+		kryo.register(
+			FulltextIndexStoragePart.class,
+			new SerialVersionBasedSerializer<>(
+				new FulltextIndexStoragePartSerializer(this.keyCompressor), FulltextIndexStoragePart.class
+			),
+			index++
+		);
+		kryo.register(
+			FulltextDictionaryLeafPagePart.class,
+			new SerialVersionBasedSerializer<>(
+				new FulltextDictionaryLeafPagePartSerializer(), FulltextDictionaryLeafPagePart.class
+			),
+			index++
+		);
+
 		Assert.isPremiseValid(index < 700, "Index count overflow.");
 	}
 
