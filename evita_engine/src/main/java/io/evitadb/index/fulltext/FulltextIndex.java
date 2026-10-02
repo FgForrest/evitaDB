@@ -36,22 +36,27 @@ import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.LeafPageHandle;
 import io.evitadb.index.bPlusTree.ValueColumnFactory;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.IndexHeapSize;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.fulltext.FieldLengthTable.LengthBlockEmission;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordPrimitive;
+import io.evitadb.index.map.MapHeapSize;
 import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.page.PageStreamRegistry;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.MemoryMeasuringConstants;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -179,6 +184,11 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	private static final int DICTIONARY_PAGE_STREAM = 0;
 
 	/**
+	 * The field registry of an index without a field, shared by every such index.
+	 */
+	private static final Field[] NO_FIELDS = new Field[0];
+
+	/**
 	 * Identity of this instance in the transactional memory.
 	 */
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
@@ -200,9 +210,10 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 
 	/**
 	 * Per-field state indexed by the field's id, for the same fields as {@link #fieldIds}. A transaction's own
-	 * registrations follow them, in its {@link FulltextIndexChanges}.
+	 * registrations follow them, in its {@link FulltextIndexChanges}. Copy-on-write: a field is registered a handful of
+	 * times in the life of an index, so the array is replaced rather than grown, and its length is the field count.
 	 */
-	@Nonnull private final List<Field> fields;
+	@Nonnull private Field[] fields;
 
 	/**
 	 * The term dictionary: key is {@link FulltextTermKeys#encode(int, String)}, bucket is the posting list, and every
@@ -277,7 +288,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		this.indexAnalyzer = indexAnalyzer;
 		this.defaultLengthPivot = defaultLengthPivot;
 		this.fieldIds = CollectionUtils.createHashMap(8);
-		this.fields = new ArrayList<>(8);
+		this.fields = NO_FIELDS;
 		this.dictionary = createDictionary();
 		this.dirty = new TransactionalBoolean(false);
 		this.pageStreamRegistry = new PageStreamRegistry();
@@ -297,7 +308,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		@Nonnull FulltextAnalyzer indexAnalyzer,
 		double defaultLengthPivot,
 		@Nonnull Map<String, Integer> fieldIds,
-		@Nonnull List<Field> fields,
+		@Nonnull Field[] fields,
 		@Nonnull TransactionalBucketBPlusTree<String> dictionary,
 		@Nonnull PageStreamRegistry pageStreamRegistry
 	) {
@@ -370,7 +381,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			Assert.isPremiseValid(previous == null, () -> "Fulltext field `" + field.name() + "` is persisted twice!");
 		}
 		return new FulltextIndex(
-			indexAnalyzer, defaultLengthPivot, fieldIds, new ArrayList<>(fields), dictionary, pageStreamRegistry
+			indexAnalyzer, defaultLengthPivot, fieldIds, fields.toArray(NO_FIELDS), dictionary, pageStreamRegistry
 		);
 	}
 
@@ -508,7 +519,9 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 				savepoint.push(() -> unregisterFieldsFrom(fieldId));
 			}
 			this.fieldIds.put(fieldName, fieldId);
-			this.fields.add(field);
+			final Field[] registered = Arrays.copyOf(this.fields, fieldId + 1);
+			registered[fieldId] = field;
+			this.fields = registered;
 		}
 		return fieldId;
 	}
@@ -529,7 +542,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			final List<Field> added = layer.getAddedFields();
 			for (int i = 0; i < added.size(); i++) {
 				if (added.get(i).name().equals(fieldName)) {
-					return this.fields.size() + i;
+					return this.fields.length + i;
 				}
 			}
 		}
@@ -566,7 +579,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 */
 	public int getFieldCount() {
 		final FulltextIndexChanges layer = Transaction.getTransactionalMemoryLayerIfExists(this);
-		return layer == null ? this.fields.size() : this.fields.size() + layer.getAddedFields().size();
+		return layer == null ? this.fields.length : this.fields.length + layer.getAddedFields().size();
 	}
 
 	/**
@@ -851,6 +864,44 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		return this.dictionary.size();
 	}
 
+	/**
+	 * Returns the heap this index occupies, in bytes: the index object and its dirty flag, the field registry - the
+	 * name-to-id map, the field array and every field's length table - and the term dictionary with its postings and
+	 * impacts, priced by the dictionary itself.
+	 *
+	 * Not charged: the analyzer, which the registry shares among every index using it, and the page bookkeeping, which
+	 * no paged index charges - it is flush state carried by reference through every committed copy. Each field name is
+	 * charged once, as the key of {@link #fieldIds}; its {@link Field} holds the very same instance. A running
+	 * transaction's layer belongs to the transaction.
+	 *
+	 * Walking the dictionary costs `O(terms / block size)`, so this is an index-detail figure, never one a query path
+	 * may ask for.
+	 *
+	 * @return the heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// id and defaultLengthPivot, then the indexAnalyzer / fieldIds / fields / dictionary / dirty /
+		// pageStreamRegistry slots
+		long size = layout.sizeOfObject(Long.BYTES + Double.BYTES + 6L * layout.referenceSize())
+			+ this.dirty.getHeapSizeInBytes()
+			// the boxed field id is charged to this map, its only holder
+			+ MapHeapSize.sizeOf(
+				this.fieldIds, MemoryMeasuringConstants::computeStringSize, fieldId -> layout.sizeOfObject(Integer.BYTES)
+			)
+			+ this.dictionary.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER);
+		if (this.fields.length > 0) {
+			// the shared empty registry belongs to no index
+			size += layout.sizeOfArray(this.fields.length, layout.referenceSize());
+			for (final Field field : this.fields) {
+				// lengthPivot, then the name / lengths slots
+				size += layout.sizeOfObject(Double.BYTES + 2L * layout.referenceSize())
+					+ field.lengths().getHeapSizeInBytes();
+			}
+		}
+		return size;
+	}
+
 	@Nonnull
 	@Override
 	public FulltextIndexChanges createLayer() {
@@ -884,21 +935,19 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		// flush instead - see publishPreviousFlush
 		this.pageStreamRegistry.publishStaged();
 		final List<Field> added = layer.getAddedFields();
-		final int committedCount = this.fields.size();
+		final int committedCount = this.fields.length;
 		final int fieldCount = committedCount + added.size();
 		final Map<String, Integer> mergedFieldIds = CollectionUtils.createHashMap(fieldCount);
-		final List<Field> mergedFields = new ArrayList<>(fieldCount);
+		final Field[] mergedFields = fieldCount == 0 ? NO_FIELDS : new Field[fieldCount];
 		for (int fieldId = 0; fieldId < fieldCount; fieldId++) {
 			final Field field = fieldId < committedCount
-				? this.fields.get(fieldId)
+				? this.fields[fieldId]
 				: added.get(fieldId - committedCount);
 			mergedFieldIds.put(field.name(), fieldId);
-			mergedFields.add(
-				new Field(
-					field.name(),
-					field.lengthPivot(),
-					transactionalLayer.getStateCopyWithCommittedChanges(field.lengths())
-				)
+			mergedFields[fieldId] = new Field(
+				field.name(),
+				field.lengthPivot(),
+				transactionalLayer.getStateCopyWithCommittedChanges(field.lengths())
 			);
 		}
 		return new FulltextIndex(
@@ -1040,9 +1089,9 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 */
 	@Nonnull
 	private Field fieldAt(int fieldId) {
-		final int committedCount = this.fields.size();
+		final int committedCount = this.fields.length;
 		if (fieldId < committedCount) {
-			return this.fields.get(fieldId);
+			return this.fields[fieldId];
 		}
 		final FulltextIndexChanges layer = Transaction.getTransactionalMemoryLayerIfExists(this);
 		Assert.isPremiseValid(layer != null, () -> "Fulltext field id " + fieldId + " is not registered!");
@@ -1064,8 +1113,11 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * @param fieldId the first id to unregister
 	 */
 	private void unregisterFieldsFrom(int fieldId) {
-		while (this.fields.size() > fieldId) {
-			this.fieldIds.remove(this.fields.remove(this.fields.size() - 1).name());
+		if (this.fields.length > fieldId) {
+			for (int i = fieldId; i < this.fields.length; i++) {
+				this.fieldIds.remove(this.fields[i].name());
+			}
+			this.fields = fieldId == 0 ? NO_FIELDS : Arrays.copyOf(this.fields, fieldId);
 		}
 	}
 

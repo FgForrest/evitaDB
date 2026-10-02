@@ -999,10 +999,8 @@ public class GlobalEntityIndex extends EntityIndex
 			+ this.trigramIndex.getHeapSizeInBytes(key -> 0L, TrigramIndex::getHeapSizeInBytes)
 			// the trigram component this class registers, holding the map alone
 			+ layout.sizeOfObject(layout.referenceSize())
-			// the locales are interned by the JVM; the indexes themselves are not priced yet, as FulltextIndex has no
-			// heap accounting of its own
-			//TODO JNO change it at the end of #258
-			+ this.fulltextIndexes.getHeapSizeInBytes(locale -> 0L, index -> 0L)
+			// the locales are interned by the JVM
+			+ this.fulltextIndexes.getHeapSizeInBytes(locale -> 0L, FulltextIndex::getHeapSizeInBytes)
 			// the fulltext component this class registers, with the footprint snapshot it alone holds
 			+ this.fulltextIndexComponent.getHeapSizeInBytes()
 			// the membership map charges its own keys: a reference name is held here and nowhere else in this index

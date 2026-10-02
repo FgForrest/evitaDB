@@ -32,6 +32,7 @@ import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 import org.apache.lucene.util.SmallFloat;
 
@@ -411,6 +412,37 @@ public class FieldLengthTable implements TransactionalLayerProducer<FieldLengthT
 	public int size() {
 		final FieldLengthTableChanges layer = Transaction.getTransactionalMemoryLayerIfExists(this);
 		return layer == null ? this.size : this.size + layer.getSizeDelta();
+	}
+
+	/**
+	 * Returns the heap this table occupies, in bytes: the table object, its three parallel arrays at their allocated
+	 * capacity, and every live block - a dense block is its full 64 KiB slot array, a sparse one its object and its two
+	 * arrays at their allocated capacity.
+	 *
+	 * The {@link FlushState} is not charged: it is flush bookkeeping shared by every committed copy of the table, the
+	 * way a {@link io.evitadb.index.page.PageStreamRegistry} is for a paged tree, and no index charges that either. A
+	 * running transaction's layer belongs to the transaction.
+	 *
+	 * @return the heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// id, blockCount and size, then the blockKeys / blocks / blockSizes / flushState slots
+		long size = layout.sizeOfObject(Long.BYTES + 2L * Integer.BYTES + 4L * layout.referenceSize())
+			+ layout.sizeOfArray(this.blockKeys.length, Character.BYTES)
+			+ layout.sizeOfArray(this.blocks.length, layout.referenceSize())
+			+ layout.sizeOfArray(this.blockSizes.length, Integer.BYTES);
+		for (int i = 0; i < this.blockCount; i++) {
+			if (this.blocks[i] instanceof final SparseBlock sparse) {
+				// count, then the lows / lengths slots
+				size += layout.sizeOfObject(Integer.BYTES + 2L * layout.referenceSize())
+					+ layout.sizeOfArray(sparse.lows.length, Character.BYTES)
+					+ layout.sizeOfArray(sparse.lengths.length, Byte.BYTES);
+			} else {
+				size += layout.sizeOfArray(((byte[]) this.blocks[i]).length, Byte.BYTES);
+			}
+		}
+		return size;
 	}
 
 	/**

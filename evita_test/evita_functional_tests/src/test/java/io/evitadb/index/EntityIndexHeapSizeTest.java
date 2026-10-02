@@ -39,6 +39,8 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.HistogramIndex.PersistedHistogramLeafPages;
+import io.evitadb.index.fulltext.FulltextIndex;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.OwnerFilterIndex;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
@@ -563,6 +565,36 @@ class EntityIndexHeapSizeTest {
 				reportedWithBoth - reportedWithOne,
 				"one entry must cost one map node and the index it points at, and nothing for the borrowed key"
 			);
+		}
+
+		@Test
+		@DisplayName("a global index charges its fulltext map for the index it holds, and nothing for the locale")
+		void shouldMatchAGlobalIndexCarryingFulltextIndexes() {
+			// as for the trigram map above: two entries, so that taking one out leaves the map's table in place and the
+			// difference is one map node plus the index the entry points at - which FulltextIndexHeapSizeTest measures
+			// against JOL on its own
+			try (final FulltextAnalyzerRegistry registry = new FulltextAnalyzerRegistry()) {
+				final GlobalEntityIndex index = newGlobalIndex();
+				for (final Locale locale : List.of(Locale.forLanguageTag("cs"), Locale.ENGLISH)) {
+					final FulltextIndex fulltext = index.getOrCreateFulltextIndex(
+						locale, registry.getIndexAnalyzer(ENTITY_TYPE, locale)
+					);
+					fulltext.addPosting(fulltext.getOrAssignFieldId("title"), "žluť", AUTOBOX_CACHE_CEILING, 10);
+				}
+				final FulltextIndex dropped = index.getFulltextIndex(Locale.ENGLISH);
+				assertNotNull(dropped);
+
+				final VMLayout layout = VMLayout.current();
+				final long reportedWithBoth = index.getHeapSizeInBytes();
+				index.removeFulltextIndex(Locale.ENGLISH);
+				final long reportedWithOne = index.getHeapSizeInBytes();
+
+				assertEquals(
+					layout.sizeOfObject(Integer.BYTES + 3L * layout.referenceSize()) + dropped.getHeapSizeInBytes(),
+					reportedWithBoth - reportedWithOne,
+					"one entry must cost one map node and the index it points at, and nothing for the interned locale"
+				);
+			}
 		}
 
 		/**
