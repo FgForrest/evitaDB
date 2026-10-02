@@ -29,6 +29,8 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import org.apache.lucene.util.SmallFloat;
@@ -36,7 +38,10 @@ import org.apache.lucene.util.SmallFloat;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
+import java.util.List;
 
 /**
  * The length, in tokens, of one searchable field's value for every entity that has one — quantized to a single byte
@@ -86,6 +91,16 @@ import java.util.Arrays;
  * restores every length it changed. The restore is per entity, not per block: a block the rolled-back write promoted
  * to dense may stay dense. That is no divergence - the shape of a block already depends on its history, through the
  * hysteresis above.
+ *
+ * ## Persistence
+ *
+ * The block is also the unit a flush writes: one page per block, keyed by the field and the block's key, so a flush
+ * rewrites only the blocks that changed since the previous one - {@link #collectChangedBlocks()} - instead of the whole
+ * table. What changed is known from where the writes went: inside a transaction, the blocks of the layer's overrides
+ * (the engine flushes a transaction before the commit merges it); outside one, the blocks written in place, which
+ * every such write marks. A block that left the table since it was last written becomes a removal, which takes the set
+ * of blocks on disk - kept, like the marks, in bookkeeping that is not transactional and is carried by reference into
+ * the committed copy at every merge.
  *
  * Not thread-safe for writes - one writer at a time, as with every index structure, which is what the
  * `@NotThreadSafe` annotation states. Readers of a committed instance are safe concurrently and never disturbed,
@@ -150,10 +165,94 @@ public class FieldLengthTable implements TransactionalLayerProducer<FieldLengthT
 	private int size;
 
 	/**
+	 * Which blocks are on disk and which were written in place since the last flush; shared with every committed copy.
+	 */
+	@Nonnull private final FlushState flushState;
+
+	/**
+	 * One block of the table as a flush writes it: the entities it holds, in ascending order of their primary keys.
+	 *
+	 * @param blockKey high 16 bits of the primary keys the block covers
+	 * @param lows     low 16 bits of the primary keys, strictly ascending
+	 * @param lengths  the encoded lengths, parallel to `lows`, never `0`
+	 */
+	public record LengthBlock(int blockKey, @Nonnull char[] lows, @Nonnull byte[] lengths) {
+
+		/**
+		 * Verifies the block is non-empty, ordered and holds only real lengths.
+		 */
+		public LengthBlock {
+			Assert.isPremiseValid(
+				blockKey >= 0 && blockKey <= 0xFFFF,
+				() -> "A length block key must be a 16-bit value, " + blockKey + " was passed!"
+			);
+			Assert.isPremiseValid(
+				lows.length > 0 && lows.length == lengths.length,
+				() -> "Length block " + blockKey + " must hold at least one entity with one length each, but has " +
+					lows.length + " keys and " + lengths.length + " lengths!"
+			);
+			// a plain check per entity - a dense block loads tens of thousands, too many for a message lambda each
+			for (int i = 0; i < lows.length; i++) {
+				if ((i > 0 && lows[i] <= lows[i - 1]) || lengths[i] == 0) {
+					throw new GenericEvitaInternalError(
+						"Length block " + blockKey + " is not strictly ascending or holds a zero length at " + i + "!"
+					);
+				}
+			}
+		}
+
+		/**
+		 * Builds the block from its slots, one encoded length per low 16 bits of the primary key.
+		 *
+		 * @param blockKey high 16 bits of the primary keys the block covers
+		 * @param slots    {@link #BLOCK_SIZE} encoded lengths, `0` for an absent entity
+		 * @return the block, or `null` when no slot is occupied
+		 */
+		@Nullable
+		static LengthBlock fromSlots(int blockKey, @Nonnull byte[] slots) {
+			int count = 0;
+			for (final byte slot : slots) {
+				if (slot != 0) {
+					count++;
+				}
+			}
+			if (count == 0) {
+				return null;
+			}
+			final char[] lows = new char[count];
+			final byte[] lengths = new byte[count];
+			int position = 0;
+			for (int low = 0; low < slots.length; low++) {
+				if (slots[low] != 0) {
+					lows[position] = (char) low;
+					lengths[position] = slots[low];
+					position++;
+				}
+			}
+			return new LengthBlock(blockKey, lows, lengths);
+		}
+
+	}
+
+	/**
+	 * What a flush of the table writes.
+	 *
+	 * @param blockKeys        the keys of every block the table holds after the flush, ascending - the page list
+	 * @param changedBlocks    the blocks written since the previous flush, ascending by key
+	 * @param removedBlockKeys the keys of the blocks on disk that left the table, ascending
+	 */
+	public record LengthBlockEmission(
+		@Nonnull int[] blockKeys,
+		@Nonnull List<LengthBlock> changedBlocks,
+		@Nonnull int[] removedBlockKeys
+	) {
+	}
+
+	/**
 	 * Creates an empty table.
 	 */
 	public FieldLengthTable() {
-		this(new char[4], new Object[4], new int[4], 0, 0);
+		this(new char[4], new Object[4], new int[4], 0, 0, new FlushState(ArrayUtils.EMPTY_INT_ARRAY));
 	}
 
 	/**
@@ -164,19 +263,73 @@ public class FieldLengthTable implements TransactionalLayerProducer<FieldLengthT
 	 * @param blockSizes entity count of each block
 	 * @param blockCount number of live blocks
 	 * @param size       number of entities
+	 * @param flushState the flush bookkeeping, shared with the version the copy is made from
 	 */
 	private FieldLengthTable(
 		@Nonnull char[] blockKeys,
 		@Nonnull Object[] blocks,
 		@Nonnull int[] blockSizes,
 		int blockCount,
-		int size
+		int size,
+		@Nonnull FlushState flushState
 	) {
 		this.blockKeys = blockKeys;
 		this.blocks = blocks;
 		this.blockSizes = blockSizes;
 		this.blockCount = blockCount;
 		this.size = size;
+		this.flushState = flushState;
+	}
+
+	/**
+	 * Restores a table from its persisted blocks. The restored table is clean: its blocks are the ones on disk, so the
+	 * first flush after the load writes nothing for an unchanged table.
+	 *
+	 * Each block takes the shape its entity count makes the smaller one; the shape it had before it was written is not
+	 * persisted, and need not be, since it never changes a length.
+	 *
+	 * @param blocks the blocks in ascending key order
+	 * @return the restored table
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the blocks are not in ascending key order
+	 */
+	@Nonnull
+	public static FieldLengthTable fromPersistedBlocks(@Nonnull LengthBlock[] blocks) {
+		final int capacity = Math.max(4, blocks.length);
+		final char[] blockKeys = new char[capacity];
+		final Object[] blockArray = new Object[capacity];
+		final int[] blockSizes = new int[capacity];
+		final int[] persistedBlockKeys = new int[blocks.length];
+		int size = 0;
+		for (int i = 0; i < blocks.length; i++) {
+			final LengthBlock block = blocks[i];
+			final int position = i;
+			Assert.isPremiseValid(
+				i == 0 || block.blockKey() > blocks[i - 1].blockKey(),
+				() -> "Persisted length blocks must be in strictly ascending key order, but block " +
+					block.blockKey() + " is at position " + position + "!"
+			);
+			final int count = block.lows().length;
+			if (count > DENSE_PROMOTION_SIZE) {
+				final byte[] dense = new byte[BLOCK_SIZE];
+				for (int j = 0; j < count; j++) {
+					dense[block.lows()[j]] = block.lengths()[j];
+				}
+				blockArray[i] = dense;
+			} else {
+				final SparseBlock sparse = new SparseBlock(Math.max(INITIAL_SPARSE_CAPACITY, count));
+				System.arraycopy(block.lows(), 0, sparse.lows, 0, count);
+				System.arraycopy(block.lengths(), 0, sparse.lengths, 0, count);
+				sparse.count = count;
+				blockArray[i] = sparse;
+			}
+			blockKeys[i] = (char) block.blockKey();
+			blockSizes[i] = count;
+			persistedBlockKeys[i] = block.blockKey();
+			size += count;
+		}
+		return new FieldLengthTable(
+			blockKeys, blockArray, blockSizes, blocks.length, size, new FlushState(persistedBlockKeys)
+		);
 	}
 
 	/**
@@ -272,6 +425,70 @@ public class FieldLengthTable implements TransactionalLayerProducer<FieldLengthT
 		return blockIndex >= 0 && this.blocks[blockIndex] instanceof byte[];
 	}
 
+	/**
+	 * Returns what a flush must write: every block that changed since the previous flush, as the caller's transaction
+	 * sees it, the blocks on disk that left the table, and the keys of every block the table now holds. The returned
+	 * set of blocks becomes the set on disk the next flush diffs against, and the in-place marks are cleared.
+	 *
+	 * Publishing at collect time is safe for the reason the dictionary's page registry records: a failed flush is
+	 * never followed by another flush of the same data.
+	 *
+	 * @return the changed blocks, the removed block keys and the full block list
+	 */
+	@Nonnull
+	public LengthBlockEmission collectChangedBlocks() {
+		final FieldLengthTableChanges layer = Transaction.getTransactionalMemoryLayerIfExists(this);
+		final int[] overriddenKeys = layer == null
+			? ArrayUtils.EMPTY_INT_ARRAY
+			: sortedByBlock(layer.getOverrides().keys().toArray());
+		final BitSet candidates = this.flushState.drainWrittenInPlace();
+		for (final int primaryKey : overriddenKeys) {
+			candidates.set(primaryKey >>> 16);
+		}
+		final BitSet present = new BitSet(BLOCK_SIZE);
+		for (int i = 0; i < this.blockCount; i++) {
+			present.set(this.blockKeys[i]);
+		}
+
+		final int candidateCount = candidates.cardinality();
+		final List<LengthBlock> changed = new ArrayList<>(candidateCount);
+		final int[] removed = new int[candidateCount];
+		int removedCount = 0;
+		final byte[] slots = new byte[candidateCount == 0 ? 0 : BLOCK_SIZE];
+		int overrideIndex = 0;
+		for (int blockKey = candidates.nextSetBit(0); blockKey >= 0; blockKey = candidates.nextSetBit(blockKey + 1)) {
+			// the block as the caller sees it: this instance's own content, then the transaction's overrides of it,
+			// which come in block order because both walks ascend
+			Arrays.fill(slots, (byte) 0);
+			copyBlockInto(blockKey, slots);
+			while (overrideIndex < overriddenKeys.length && overriddenKeys[overrideIndex] >>> 16 == blockKey) {
+				final int primaryKey = overriddenKeys[overrideIndex++];
+				slots[primaryKey & 0xFFFF] = (byte) layer.getEncoded(primaryKey);
+			}
+			final LengthBlock block = LengthBlock.fromSlots(blockKey, slots);
+			if (block != null) {
+				present.set(blockKey);
+				changed.add(block);
+			} else {
+				present.clear(blockKey);
+				if (this.flushState.isPersisted(blockKey)) {
+					removed[removedCount++] = blockKey;
+				}
+			}
+		}
+		Assert.isPremiseValid(
+			overrideIndex == overriddenKeys.length,
+			"Every override of the transaction must belong to a collected block!"
+		);
+
+		final int[] blockKeys = new int[present.cardinality()];
+		for (int i = 0, blockKey = present.nextSetBit(0); blockKey >= 0; blockKey = present.nextSetBit(blockKey + 1)) {
+			blockKeys[i++] = blockKey;
+		}
+		this.flushState.setPersisted(blockKeys);
+		return new LengthBlockEmission(blockKeys, changed, Arrays.copyOf(removed, removedCount));
+	}
+
 	@Nonnull
 	@Override
 	public FieldLengthTableChanges createLayer() {
@@ -307,7 +524,8 @@ public class FieldLengthTable implements TransactionalLayerProducer<FieldLengthT
 			Arrays.copyOf(this.blocks, this.blocks.length),
 			Arrays.copyOf(this.blockSizes, this.blockSizes.length),
 			this.blockCount,
-			this.size
+			this.size,
+			this.flushState
 		);
 		int ownedBlockKey = -1;
 		for (final int primaryKey : primaryKeys) {
@@ -344,6 +562,9 @@ public class FieldLengthTable implements TransactionalLayerProducer<FieldLengthT
 			layer.set(primaryKey, encoded, getEncoded(primaryKey));
 			return;
 		}
+		// in place, so no layer will tell the flush which block changed - the mark does; a rolled-back write leaves its
+		// mark behind, which only rewrites a block with the content it already has
+		this.flushState.markWrittenInPlace(primaryKey >>> 16);
 		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
 		if (savepoint != null) {
 			// an absolute restore of this entity's length, whatever the writes after it did to its block
@@ -513,6 +734,118 @@ public class FieldLengthTable implements TransactionalLayerProducer<FieldLengthT
 		System.arraycopy(this.blockSizes, position + 1, this.blockSizes, position, tail);
 		this.blockCount--;
 		this.blocks[this.blockCount] = null;
+	}
+
+	/**
+	 * Copies the slots of this instance's own block into the passed array; an absent block copies nothing.
+	 *
+	 * @param blockKey high 16 bits of the keys the block covers
+	 * @param slots    {@link #BLOCK_SIZE} slots to copy into
+	 */
+	private void copyBlockInto(int blockKey, @Nonnull byte[] slots) {
+		final int blockIndex = Arrays.binarySearch(this.blockKeys, 0, this.blockCount, (char) blockKey);
+		if (blockIndex < 0) {
+			return;
+		}
+		final Object block = this.blocks[blockIndex];
+		if (block instanceof byte[] dense) {
+			System.arraycopy(dense, 0, slots, 0, BLOCK_SIZE);
+		} else {
+			final SparseBlock sparse = (SparseBlock) block;
+			for (int i = 0; i < sparse.count; i++) {
+				slots[sparse.lows[i]] = sparse.lengths[i];
+			}
+		}
+	}
+
+	/**
+	 * Sorts primary keys by their block and, within it, by their low bits - unsigned order, which keeps a key past
+	 * `Integer.MAX_VALUE` in the block its high bits name.
+	 *
+	 * @param primaryKeys the keys, sorted in place
+	 * @return the same array
+	 */
+	@Nonnull
+	private static int[] sortedByBlock(@Nonnull int[] primaryKeys) {
+		for (int i = 0; i < primaryKeys.length; i++) {
+			primaryKeys[i] ^= Integer.MIN_VALUE;
+		}
+		Arrays.sort(primaryKeys);
+		for (int i = 0; i < primaryKeys.length; i++) {
+			primaryKeys[i] ^= Integer.MIN_VALUE;
+		}
+		return primaryKeys;
+	}
+
+	/**
+	 * The flush bookkeeping of one table: the keys of the blocks on disk, which a flush diffs against to find the
+	 * removed ones, and the blocks written in place since the last flush. Not transactional - single-writer flush
+	 * bookkeeping shared by reference with every committed copy of the table.
+	 */
+	private static final class FlushState {
+
+		/**
+		 * Keys of the blocks on disk, ascending.
+		 */
+		@Nonnull private int[] persistedBlockKeys;
+
+		/**
+		 * Keys of the blocks written in place since the last flush; `null` while there is none.
+		 */
+		@Nullable private BitSet writtenInPlace;
+
+		/**
+		 * Creates the bookkeeping of a table with the passed blocks on disk.
+		 *
+		 * @param persistedBlockKeys keys of the blocks on disk, ascending
+		 */
+		FlushState(@Nonnull int[] persistedBlockKeys) {
+			this.persistedBlockKeys = persistedBlockKeys;
+		}
+
+		/**
+		 * Marks a block as written in place.
+		 *
+		 * @param blockKey high 16 bits of the keys the block covers
+		 */
+		void markWrittenInPlace(int blockKey) {
+			if (this.writtenInPlace == null) {
+				this.writtenInPlace = new BitSet(BLOCK_SIZE);
+			}
+			this.writtenInPlace.set(blockKey);
+		}
+
+		/**
+		 * Takes the blocks written in place since the last flush, leaving none marked.
+		 *
+		 * @return the marked block keys, a set the caller may modify
+		 */
+		@Nonnull
+		BitSet drainWrittenInPlace() {
+			final BitSet marked = this.writtenInPlace;
+			this.writtenInPlace = null;
+			return marked == null ? new BitSet(BLOCK_SIZE) : marked;
+		}
+
+		/**
+		 * Returns whether a block is on disk.
+		 *
+		 * @param blockKey high 16 bits of the keys the block covers
+		 * @return true when the last flush left the block on disk
+		 */
+		boolean isPersisted(int blockKey) {
+			return Arrays.binarySearch(this.persistedBlockKeys, blockKey) >= 0;
+		}
+
+		/**
+		 * Replaces the set of blocks on disk.
+		 *
+		 * @param blockKeys keys of the blocks on disk, ascending
+		 */
+		void setPersisted(@Nonnull int[] blockKeys) {
+			this.persistedBlockKeys = blockKeys;
+		}
+
 	}
 
 	/**

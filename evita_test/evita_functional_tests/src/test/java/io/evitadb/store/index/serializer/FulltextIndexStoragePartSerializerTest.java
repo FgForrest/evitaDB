@@ -27,6 +27,9 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.fulltext.FieldLengthTable;
+import io.evitadb.index.fulltext.FieldLengthTable.LengthBlock;
+import io.evitadb.index.fulltext.FieldLengthTable.LengthBlockEmission;
 import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.FulltextIndex.DictionaryPage;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
@@ -38,6 +41,8 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWrit
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AbstractLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextDictionaryLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextDictionaryLeafPageRemoval;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextFieldLengthBlockPart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextFieldLengthBlockRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexStoragePart.FieldEntry;
@@ -311,6 +316,123 @@ class FulltextIndexStoragePartSerializerTest {
 	}
 
 	@Nested
+	@DisplayName("Field length block page")
+	class FieldLengthBlockPage {
+
+		/**
+		 * Builds a write-path block page and resolves its primary key.
+		 *
+		 * @param fieldId the field id
+		 * @param block   the block
+		 * @return the key-assigned page
+		 */
+		@Nonnull
+		private FulltextFieldLengthBlockPart blockPage(int fieldId, @Nonnull LengthBlock block) {
+			final FulltextFieldLengthBlockPart page = new FulltextFieldLengthBlockPart(7, CZECH, fieldId, block);
+			page.computeUniquePartIdAndSet(FulltextIndexStoragePartSerializerTest.this.keyCompressor);
+			return page;
+		}
+
+		/**
+		 * Builds a block of the passed entity count, the entities spread evenly over the block.
+		 *
+		 * @param blockKey the block key
+		 * @param count    the entity count
+		 * @return the block
+		 */
+		@Nonnull
+		private static LengthBlock block(int blockKey, int count) {
+			final char[] lows = new char[count];
+			final byte[] lengths = new byte[count];
+			final int step = (1 << 16) / count;
+			for (int i = 0; i < count; i++) {
+				lows[i] = (char) (i * step);
+				lengths[i] = (byte) (1 + i % 255);
+			}
+			return new LengthBlock(blockKey, lows, lengths);
+		}
+
+		/**
+		 * Asserts a block page survives the round-trip.
+		 *
+		 * @param page the written page
+		 * @return the size of the page in bytes
+		 */
+		private int assertRoundTrips(@Nonnull FulltextFieldLengthBlockPart page) {
+			final Kryo kryo = FulltextIndexStoragePartSerializerTest.this.indexKryo;
+			final byte[] bytes = StoragePartSerializerTestSupport.encodeCurrent(kryo, page);
+			final FulltextFieldLengthBlockPart read = StoragePartSerializerTestSupport.decode(
+				kryo, bytes, FulltextFieldLengthBlockPart.class
+			);
+			assertEquals(page.getStreamId(), read.getStreamId());
+			assertEquals(page.getPageSequence(), read.getPageSequence());
+			assertEquals(page.getStoragePartPK(), read.getStoragePartPK());
+			assertEquals(page.getFieldId(), read.getFieldId());
+			assertEquals(page.getBlock().blockKey(), read.getBlock().blockKey());
+			assertArrayEquals(page.getBlock().lows(), read.getBlock().lows());
+			assertArrayEquals(page.getBlock().lengths(), read.getBlock().lengths());
+			return bytes.length;
+		}
+
+		@Test
+		@DisplayName("round-trips a sparse block at about three bytes per entity")
+		void shouldRoundTripASparseBlock() {
+			final int size = assertRoundTrips(blockPage(3, block(0x7FFF, 1_000)));
+			assertTrue(size < 3_100, "A sparse block of 1,000 entities must stay near 3 bytes each: " + size);
+		}
+
+		@Test
+		@DisplayName("round-trips a block past a third of its slots in the slot encoding")
+		void shouldRoundTripABlockInTheSlotEncoding() {
+			final int size = assertRoundTrips(blockPage(0, block(4, 30_000)));
+			assertTrue(size > 65_536 && size < 65_600, "The slot encoding costs one byte per slot: " + size);
+		}
+
+		@Test
+		@DisplayName("round-trips the blocks either side of the encoding threshold")
+		void shouldRoundTripTheBlocksAroundTheThreshold() {
+			assertRoundTrips(blockPage(1, block(2, 21_845)));
+			assertRoundTrips(blockPage(1, block(2, 21_846)));
+		}
+
+		@Test
+		@DisplayName("packs the field id and block key into the page sequence, and a removal resolves to its key")
+		void shouldPackFieldAndBlockAndResolveTheRemoval() {
+			final FulltextFieldLengthBlockPart page = blockPage(5, block(9, 3));
+			assertEquals(5 << 16 | 9, page.getPageSequence());
+			assertEquals(5, page.getFieldId());
+			assertEquals(
+				FulltextIndexStoragePartSerializerTest.this.keyCompressor.getId(
+					new FulltextLeafStreamKey(7, CZECH, StreamKind.FIELD_LENGTHS)
+				),
+				page.getStreamId(),
+				"The page must resolve the length stream of its index."
+			);
+			assertNotEquals(
+				page.getStoragePartPK(), blockPage(6, block(9, 3)).getStoragePartPK(),
+				"The same block of another field is another page."
+			);
+			final FulltextFieldLengthBlockRemoval removal = new FulltextFieldLengthBlockRemoval(7, CZECH, 5, 9);
+			assertEquals(
+				page.getStoragePartPK().longValue(),
+				removal.computeUniquePartIdAndSet(FulltextIndexStoragePartSerializerTest.this.keyCompressor)
+			);
+			assertSame(FulltextFieldLengthBlockPart.class, removal.removedContainerType());
+		}
+
+		@Test
+		@DisplayName("refuses a field id that does not fit the page sequence")
+		void shouldRefuseAnOversizedFieldId() {
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> FulltextFieldLengthBlockPart.pageSequenceOf(FulltextFieldLengthBlockPart.MAX_FIELD_ID + 1, 0)
+			);
+			assertThrows(GenericEvitaInternalError.class, () -> FulltextFieldLengthBlockPart.pageSequenceOf(-1, 0));
+		}
+
+	}
+
+	@Nested
 	@DisplayName("Root part")
 	class Root {
 
@@ -422,7 +544,7 @@ class FulltextIndexStoragePartSerializerTest {
 	class EndToEnd {
 
 		@Test
-		@DisplayName("a flushed index loads back from the serialized pages with every posting and impact")
+		@DisplayName("a flushed index loads back from the serialized pages with every posting, impact and length")
 		void shouldLoadAFlushedIndexBackFromTheBytes() {
 			final FulltextIndex index = new FulltextIndex(registry.getIndexAnalyzer("product", CZECH));
 			final int title = index.getOrAssignFieldId("title");
@@ -436,8 +558,16 @@ class FulltextIndexStoragePartSerializerTest {
 				}
 			}
 			index.addValue("title", 5, "Rychlá hnědá liška");
+			// lengths: a body block past a third of its slots, which takes the slot encoding, and sparse title blocks
+			for (int primaryKey = 1; primaryKey <= 22_000; primaryKey++) {
+				index.addValue("body", primaryKey, "slovo " + "dlouhé ".repeat(primaryKey % 40));
+			}
+			for (int primaryKey = 140_000; primaryKey < 140_050; primaryKey++) {
+				index.addValue("title", primaryKey, "krátký titulek " + primaryKey);
+			}
 
 			final PageEmission<DictionaryPage> emission = index.collectChangedPages();
+			final LengthBlockEmission[] lengthEmissions = index.collectChangedLengthBlocks();
 			assertTrue(emission.orderedPageSequences().length > 1, "The dictionary must span several pages.");
 
 			// write path: every page through the registered serializer, keyed the way the store keys it
@@ -449,13 +579,22 @@ class FulltextIndexStoragePartSerializerTest {
 				);
 				disk.put(page.pageSequence(), StoragePartSerializerTestSupport.encodeCurrent(kryo, part));
 			}
+			final Map<Integer, byte[]> lengthDisk = CollectionUtils.createHashMap(8);
+			for (int fieldId = 0; fieldId < lengthEmissions.length; fieldId++) {
+				for (final LengthBlock block : lengthEmissions[fieldId].changedBlocks()) {
+					final FulltextFieldLengthBlockPart part =
+						new FulltextFieldLengthBlockPart(3, CZECH, fieldId, block);
+					part.computeUniquePartIdAndSet(FulltextIndexStoragePartSerializerTest.this.keyCompressor);
+					lengthDisk.put(part.getPageSequence(), StoragePartSerializerTestSupport.encodeCurrent(kryo, part));
+				}
+			}
 			final FulltextIndexStoragePart root = roundTrip(
 				kryo,
 				new FulltextIndexStoragePart(
 					3, CZECH, "czech", FulltextIndex.DEFAULT_LENGTH_PIVOT,
 					new FieldEntry[]{
-						new FieldEntry("title", index.getLengthPivot(title), new int[0]),
-						new FieldEntry("body", index.getLengthPivot(body), new int[0])
+						new FieldEntry("title", index.getLengthPivot(title), lengthEmissions[title].blockKeys()),
+						new FieldEntry("body", index.getLengthPivot(body), lengthEmissions[body].blockKeys())
 					},
 					emission.highWaterPageSequence(), emission.orderedPageSequences(), null
 				),
@@ -474,7 +613,21 @@ class FulltextIndexStoragePartSerializerTest {
 			final List<FulltextIndex.Field> fields = new ArrayList<>(2);
 			for (int fieldId = 0; fieldId < root.getFields().length; fieldId++) {
 				final FieldEntry entry = root.getFields()[fieldId];
-				fields.add(new FulltextIndex.Field(entry.name(), entry.lengthPivot(), index.getFieldLengths(fieldId)));
+				final LengthBlock[] blocks = new LengthBlock[entry.lengthBlocks().length];
+				for (int i = 0; i < blocks.length; i++) {
+					final FulltextFieldLengthBlockPart part = StoragePartSerializerTestSupport.decode(
+						kryo,
+						lengthDisk.get(FulltextFieldLengthBlockPart.pageSequenceOf(fieldId, entry.lengthBlocks()[i])),
+						FulltextFieldLengthBlockPart.class
+					);
+					assertEquals(fieldId, part.getFieldId());
+					blocks[i] = part.getBlock();
+				}
+				fields.add(
+					new FulltextIndex.Field(
+						entry.name(), entry.lengthPivot(), FieldLengthTable.fromPersistedBlocks(blocks)
+					)
+				);
 			}
 			final FulltextIndex reloaded = FulltextIndex.fromPersistedPages(
 				registry.getIndexAnalyzer("product", CZECH), root.getDefaultLengthPivot(), fields,
@@ -486,7 +639,22 @@ class FulltextIndexStoragePartSerializerTest {
 			for (final int fieldId : new int[]{title, body}) {
 				assertEquals(terms(index, fieldId), terms(reloaded, fieldId), "Field " + fieldId + " must survive.");
 			}
+			assertArrayEquals(new int[]{0, 2}, root.getFields()[title].lengthBlocks());
+			assertArrayEquals(new int[]{0}, root.getFields()[body].lengthBlocks());
+			for (final int fieldId : new int[]{title, body}) {
+				final FieldLengthTable expected = index.getFieldLengths(fieldId);
+				final FieldLengthTable actual = reloaded.getFieldLengths(fieldId);
+				assertEquals(expected.size(), actual.size(), "Field " + fieldId + " must keep every length.");
+				for (int primaryKey = 0; primaryKey < 140_100; primaryKey++) {
+					assertEquals(
+						expected.getEncoded(primaryKey), actual.getEncoded(primaryKey), "Length of " + primaryKey
+					);
+				}
+			}
 			assertTrue(reloaded.collectChangedPages().changedPages().isEmpty(), "A reloaded index writes nothing.");
+			for (final LengthBlockEmission lengths : reloaded.collectChangedLengthBlocks()) {
+				assertTrue(lengths.changedBlocks().isEmpty(), "A reloaded length table writes nothing.");
+			}
 		}
 
 		/**

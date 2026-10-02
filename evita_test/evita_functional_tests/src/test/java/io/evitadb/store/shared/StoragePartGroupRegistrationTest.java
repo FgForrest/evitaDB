@@ -136,7 +136,8 @@ class StoragePartGroupRegistrationTest {
 
 			// the fulltext index of each locale - searchability is a schema decision of its own
 			Map.entry("FulltextIndexStoragePart", StoragePartGroup.FULLTEXT_INDEX),
-			Map.entry("FulltextDictionaryLeafPagePart", StoragePartGroup.FULLTEXT_INDEX)
+			Map.entry("FulltextDictionaryLeafPagePart", StoragePartGroup.FULLTEXT_INDEX),
+			Map.entry("FulltextFieldLengthBlockPart", StoragePartGroup.FULLTEXT_INDEX)
 		)
 	);
 

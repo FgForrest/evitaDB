@@ -37,6 +37,7 @@ import io.evitadb.index.bPlusTree.ValueColumnFactory;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
+import io.evitadb.index.fulltext.FieldLengthTable.LengthBlockEmission;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
@@ -118,7 +119,8 @@ import java.util.Map;
  * The dictionary is written in pages, one per leaf, the way the inverted index writes its buckets: a separate dirty
  * flag - "written since the last flush", on both paths - gates the flush, {@link #collectChangedPages()} emits the
  * leaves that changed and the pages that left, and a {@link PageStreamRegistry} keeps the page sequences and the
- * baseline the next flush diffs against, carried by reference through every merge.
+ * baseline the next flush diffs against, carried by reference through every merge. The field length tables are
+ * written in pages of their own, one per 65,536-key block - see {@link #collectChangedLengthBlocks()}.
  *
  * Not thread-safe for writes - one writer at a time, as with every index structure.
  *
@@ -945,6 +947,26 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 				);
 			}
 		);
+	}
+
+	/**
+	 * Returns what this flush must write of the field length tables, one emission per field in field-id order: the
+	 * blocks that changed since the last flush, the blocks that left, and every block the field's table holds. A
+	 * table pages by its 65,536-key blocks - see {@link FieldLengthTable#collectChangedBlocks()} - so an entity
+	 * written in a large table rewrites one block, not the table.
+	 *
+	 * The caller gates on {@link #isDirty()}, as for {@link #collectChangedPages()}.
+	 *
+	 * @return the emission of each field, the i-th belonging to field id `i`
+	 */
+	@Nonnull
+	public LengthBlockEmission[] collectChangedLengthBlocks() {
+		final int fieldCount = getFieldCount();
+		final LengthBlockEmission[] emissions = new LengthBlockEmission[fieldCount];
+		for (int fieldId = 0; fieldId < fieldCount; fieldId++) {
+			emissions[fieldId] = fieldAt(fieldId).lengths().collectChangedBlocks();
+		}
+		return emissions;
 	}
 
 	/**

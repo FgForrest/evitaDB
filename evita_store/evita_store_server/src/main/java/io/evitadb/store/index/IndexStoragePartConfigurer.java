@@ -374,6 +374,15 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			),
 			index++
 		);
+		// the fulltext field length block record - a brand-new record type with no backward-compatible reader (the
+		// fulltext feature is unreleased). Appended last to keep the preceding registration ids stable.
+		kryo.register(
+			FulltextFieldLengthBlockPart.class,
+			new SerialVersionBasedSerializer<>(
+				new FulltextFieldLengthBlockPartSerializer(), FulltextFieldLengthBlockPart.class
+			),
+			index++
+		);
 
 		Assert.isPremiseValid(index < 700, "Index count overflow.");
 	}
