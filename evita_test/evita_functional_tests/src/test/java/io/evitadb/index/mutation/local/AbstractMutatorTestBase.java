@@ -168,7 +168,9 @@ abstract class AbstractMutatorTestBase {
 			this.usageRegistry,
 			this.catalogUsageRegistry,
 
-			true
+			true,
+			// TODO JNO - remove at the end of #1615
+			false
 		);
 
 		final EntityCollection productCollection = Mockito.mock(EntityCollection.class);

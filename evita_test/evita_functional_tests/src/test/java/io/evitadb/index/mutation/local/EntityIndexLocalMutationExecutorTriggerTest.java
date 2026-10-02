@@ -314,7 +314,9 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			NOOP_CLASSIFIER_RESOLVER,
 			new SchemaCapabilityUsageRegistry(),
 			new SchemaCapabilityUsageRegistry(),
-			true
+			true,
+			// TODO JNO - remove at the end of #1615
+			false
 		);
 	}
 
@@ -1248,7 +1250,9 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			NOOP_CLASSIFIER_RESOLVER,
 			new SchemaCapabilityUsageRegistry(),
 			new SchemaCapabilityUsageRegistry(),
-			true
+			true,
+			// TODO JNO - remove at the end of #1615
+			false
 		);
 	}
 

@@ -436,7 +436,9 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						this.usageRegistry,
 						this.catalogUsageRegistry,
 
-						true
+						true,
+						// TODO JNO - remove at the end of #1615
+						false
 					),
 					null,
 					this.productAttributeSchemaProvider,
@@ -468,7 +470,9 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						this.usageRegistry,
 						this.catalogUsageRegistry,
 
-						true
+						true,
+						// TODO JNO - remove at the end of #1615
+						false
 					),
 					null,
 					this.productAttributeSchemaProvider,
@@ -505,7 +509,9 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.usageRegistry,
 				this.catalogUsageRegistry,
 
-				true
+				true,
+				// TODO JNO - remove at the end of #1615
+				false
 			),
 			null,
 			this.productAttributeSchemaProvider,
@@ -532,7 +538,9 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.usageRegistry,
 				this.catalogUsageRegistry,
 
-				true
+				true,
+				// TODO JNO - remove at the end of #1615
+				false
 			),
 			null,
 			this.productAttributeSchemaProvider,
@@ -664,7 +672,9 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.usageRegistry,
 				this.catalogUsageRegistry,
 
-				true
+				true,
+				// TODO JNO - remove at the end of #1615
+				false
 			),
 			null,
 			this.productAttributeSchemaProvider,

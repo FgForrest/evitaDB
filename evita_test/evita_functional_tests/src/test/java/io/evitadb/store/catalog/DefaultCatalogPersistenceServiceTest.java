@@ -63,6 +63,8 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.catalog.Catalog;
+// TODO JNO - remove at the end of #1615
+import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.executor.ImmediateExecutorService;
 import io.evitadb.core.executor.Scheduler;
@@ -216,6 +218,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	private static Catalog getMockCatalog(SealedCatalogSchema catalogSchema, @Nonnull SealedEntitySchema schema) {
 		final Catalog mockCatalog = mock(Catalog.class);
 		when(mockCatalog.getSchema()).thenReturn(catalogSchema);
+		// TODO JNO - remove at the end of #1615
+		when(mockCatalog.getVirtualReferencePartitionMaintenance()).thenReturn(new VirtualReferencePartitionMaintenance());
 		when(mockCatalog.getEntitySchema(schema.getName())).thenReturn(of(schema));
 		when(mockCatalog.getEntityIndexIfExists(ArgumentMatchers.eq(schema.getName()), any(EntityIndexKey.class), any(Class.class))).thenReturn(empty());
 		return mockCatalog;

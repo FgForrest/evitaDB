@@ -700,6 +700,32 @@ public final class EntityCollection implements
 		return this.usageRegistry;
 	}
 
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns TRUE when writes into this collection maintain virtual reference partitions. The switch is held by the
+	 * catalog under this collection's entity type name rather than by the collection itself, so every instance of the
+	 * collection - after a commit, going live, a rename, or the one a commit replay creates anew - reads the same one.
+	 *
+	 * @return TRUE when the switch is on for this collection
+	 */
+	// TODO JNO - remove at the end of #1615
+	public boolean isVirtualReferencePartitionsMaintained() {
+		return this.catalog.getVirtualReferencePartitionMaintenance().isMaintained(getEntityType());
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Turns maintenance of virtual reference partitions on or off for this collection. Meant for tests only: turning
+	 * it on maintains nothing retroactively, so it is safe only on a collection that is empty or whose partitions were
+	 * maintained ever since it was last loaded.
+	 *
+	 * @param maintained TRUE to maintain virtual reference partitions, FALSE to stop
+	 */
+	// TODO JNO - remove at the end of #1615
+	public void setVirtualReferencePartitionsMaintained(boolean maintained) {
+		this.catalog.getVirtualReferencePartitionMaintenance().setMaintained(getEntityType(), maintained);
+	}
+
 	@Override
 	@Nonnull
 	public <S extends Serializable, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
@@ -3841,7 +3867,9 @@ public final class EntityCollection implements
 			// globally-unique attributes are declared by the catalog schema and maintained in the catalog index, so
 			// their counters belong to the catalog rather than to whichever collection happened to write one
 			this.catalog.getUsageRegistry(),
-			this.catalog.isUsageStatisticsTracked()
+			this.catalog.isUsageStatisticsTracked(),
+			// TODO JNO - remove at the end of #1615
+			isVirtualReferencePartitionsMaintained()
 		);
 
 		return localMutationExecutorCollector.execute(

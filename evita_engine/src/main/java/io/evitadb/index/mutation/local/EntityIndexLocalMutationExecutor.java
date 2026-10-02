@@ -251,6 +251,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * lookup per touched element and a CAS per touched index from every entity mutation.
 	 */
 	private final boolean usageStatisticsTracking;
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Whether this mutation maintains the virtual reference partitions of the collection it writes into - the
+	 * collection's test switch, resolved once when the executor is built. See
+	 * {@link io.evitadb.core.catalog.VirtualReferencePartitionMaintenance}.
+	 */
+	// TODO JNO - remove at the end of #1615
+	private final boolean virtualReferencePartitionsMaintained;
 	/**
 	 * Set contains keys of indexes that were accessed in this particular entity upsert / removal.
 	 */
@@ -429,7 +437,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull EntityTypeClassifierResolver entityTypeClassifierResolver,
 		@Nonnull SchemaCapabilityUsageRegistry usageRegistry,
 		@Nonnull SchemaCapabilityUsageRegistry catalogUsageRegistry,
-		boolean usageStatisticsTracking
+		boolean usageStatisticsTracking,
+		// TODO JNO - remove at the end of #1615
+		boolean virtualReferencePartitionsMaintained
 	) {
 		this.containerAccessor = containerAccessor;
 		this.entityPrimaryKey.add((anyType, anyPurpose) -> entityPrimaryKey);
@@ -446,6 +456,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		this.usageRegistry = usageRegistry;
 		this.catalogUsageRegistry = catalogUsageRegistry;
 		this.usageStatisticsTracking = usageStatisticsTracking;
+		// TODO JNO - remove at the end of #1615
+		this.virtualReferencePartitionsMaintained = virtualReferencePartitionsMaintained;
 	}
 
 	/**
