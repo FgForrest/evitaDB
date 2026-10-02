@@ -110,6 +110,8 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 	 * @param filterByVisitor the visitor translating the constraint
 	 * @param scope           the scope to select the nodes in
 	 * @return the formula of the nodes selected in the scope, {@link EmptyFormula} when the scope has no index
+	 * @throws HierarchyNotIndexedException when the hierarchy is not indexed in the scope, whether or not the scope
+	 *                                      holds an index of the target entity
 	 */
 	@Nonnull
 	public static Formula createFormulaFromHierarchyIndex(
@@ -137,24 +139,8 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 					Collections.singletonList(targetEntityIndex),
 					hierarchyWithin,
 					() -> {
-						Assert.isTrue(
-							targetEntitySchema.isWithHierarchy(),
-							() -> new EntityIsNotHierarchicalException(
-								ofNullable(referenceSchema).map(ReferenceSchemaContract::getName).orElse(null),
-								targetEntitySchema.getName()
-							)
-						);
-
-						Assert.isTrue(
-							targetEntitySchema.isHierarchyIndexedInScope(scope),
-							() -> new HierarchyNotIndexedException(targetEntitySchema)
-						);
-
-						// past the assertion on purpose - the count has to mean "a query depended on this flag being
-						// on". A `hierarchyWithin` naming another collection's entity records nothing here, the same
-						// way a filter evaluated against another collection does
-						queryContext.recordRequestedEntityCapability(
-							targetEntitySchema, Capability.HIERARCHICAL, scopeToLookup
+						verifyHierarchyIndexedAndRecordUsage(
+							queryContext, targetEntitySchema, referenceSchema, scope, scopeToLookup
 						);
 
 						final FilterConstraint parentFilter = hierarchyWithin.getParentFilter();
@@ -187,7 +173,54 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 					scopesCacheKey(scopeToLookup)
 				)
 			)
-			.orElse(EmptyFormula.INSTANCE);
+			.orElseGet(
+				() -> {
+					// a scope holding no entity of the hierarchy yet selects no node, but the query depends on its
+					// tree all the same - it must be indexed, whether or not an entity happens to live there
+					verifyHierarchyIndexedAndRecordUsage(
+						queryContext, targetEntitySchema, referenceSchema, scope, scopeToLookup
+					);
+					return EmptyFormula.INSTANCE;
+				}
+			);
+	}
+
+	/**
+	 * Verifies that the target entity is hierarchical and that its hierarchy is indexed in the scope, and records
+	 * that the query depended on the hierarchy indexing of that scope.
+	 *
+	 * @param queryContext       the context of the query the usage is recorded in
+	 * @param targetEntitySchema the schema of the entity whose tree is searched
+	 * @param referenceSchema    the reference leading to the tree, NULL for the queried entity's own tree
+	 * @param scope              the scope whose tree is searched
+	 * @param scopeToLookup      the set holding the scope only
+	 * @throws EntityIsNotHierarchicalException when the target entity is not hierarchical
+	 * @throws HierarchyNotIndexedException     when the hierarchy is not indexed in the scope
+	 */
+	private static void verifyHierarchyIndexedAndRecordUsage(
+		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull EntitySchemaContract targetEntitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull Scope scope,
+		@Nonnull Set<Scope> scopeToLookup
+	) {
+		Assert.isTrue(
+			targetEntitySchema.isWithHierarchy(),
+			() -> new EntityIsNotHierarchicalException(
+				ofNullable(referenceSchema).map(ReferenceSchemaContract::getName).orElse(null),
+				targetEntitySchema.getName()
+			)
+		);
+
+		Assert.isTrue(
+			targetEntitySchema.isHierarchyIndexedInScope(scope),
+			() -> new HierarchyNotIndexedException(targetEntitySchema, scope)
+		);
+
+		// past the assertion on purpose - the count has to mean "a query depended on this flag being on".
+		// A `hierarchyWithin` naming another collection's entity records nothing here, the same way a filter
+		// evaluated against another collection does
+		queryContext.recordRequestedEntityCapability(targetEntitySchema, Capability.HIERARCHICAL, scopeToLookup);
 	}
 
 	/**
