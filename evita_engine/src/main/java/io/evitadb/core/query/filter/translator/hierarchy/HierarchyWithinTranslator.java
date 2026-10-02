@@ -110,6 +110,7 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 	 * @param filterByVisitor the visitor translating the constraint
 	 * @param scope           the scope to select the nodes in
 	 * @return the formula of the nodes selected in the scope, {@link EmptyFormula} when the scope has no index
+	 * @throws EntityIsNotHierarchicalException when the target entity is not hierarchical
 	 * @throws HierarchyNotIndexedException when the hierarchy is not indexed in the scope, whether or not the scope
 	 *                                      holds an index of the target entity
 	 */
