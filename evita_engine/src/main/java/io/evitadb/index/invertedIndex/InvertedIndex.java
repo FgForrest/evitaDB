@@ -679,7 +679,7 @@ public class InvertedIndex implements
 	 * @return the rebuilt, boundary-stable `PAGED` inverted index
 	 */
 	@Nonnull
-	@SuppressWarnings({"unchecked", "rawtypes"})
+	@SuppressWarnings("rawtypes")
 	public static InvertedIndex fromPersistedPages(
 		@Nonnull Class<?> plainType,
 		@Nonnull int[] orderedPageSequences,
@@ -689,6 +689,78 @@ public class InvertedIndex implements
 		@Nonnull Function<Object, Serializable> normalizer,
 		@Nonnull Comparator comparator,
 		int indexedDecimalPlaces
+	) {
+		return fromPersistedPages(
+			plainType, orderedPageSequences, perPageBuckets, perPageValueIds, highWaterPageSequence,
+			normalizer, comparator, indexedDecimalPlaces, false
+		);
+	}
+
+	/**
+	 * Rebuilds a `PAGED` inverted index exactly as {@link #fromPersistedPages(Class, int[], ValueToRecord[][], int[][],
+	 * int, Function, Comparator, int)} does, for a tree whose persisted keys may still be in a **legacy form** the
+	 * `normalizer` now maps onto another one - the raw temporal values an owner sort index stored before its temporal
+	 * values were normalized to their millisecond form.
+	 *
+	 * Such a normalization is not monotone in general: within a sortable attribute compound, two elements that tie
+	 * only after the normalization hand the decision to the next element, which may order the pair the other way. So
+	 * whenever any persisted key is not already in the normalized form (`normalizer` returns a different instance), the
+	 * whole index is re-sorted, its colliding buckets merged and every page given up for rewrite by the next flush that
+	 * writes the tree - the path a second-granularity range order takes, see the "When the persisted order is no longer
+	 * the order the keys compare in" section of the sibling method. The re-sort is permitted only when the persisted
+	 * keys are **strictly ascending** under `comparator`, which is the order every owner wrote its pages in; a stale
+	 * leaf-page twin fails that test and keeps reaching the corruption diagnostics. A tree whose keys are all
+	 * normalized already is loaded exactly as the sibling method loads it, and is not flagged dirty.
+	 *
+	 * @param plainType             the plain (non-array) declared attribute type
+	 * @param orderedPageSequences  the persisted leaf-page sequences in ascending key order (the root's leaf list)
+	 * @param perPageBuckets        the buckets of each leaf page, positionally aligned with `orderedPageSequences`
+	 * @param perPageValueIds       the persisted value ids of each leaf page, or `null` when the tree carries none
+	 * @param highWaterPageSequence the persisted stream high-water (largest page sequence ever allocated)
+	 * @param normalizer            the value normalizer, returning the very instance it is given for a normalized key
+	 * @param comparator            the value order
+	 * @param indexedDecimalPlaces  the frozen decimal-places scale (0 for non-`BigDecimal` types)
+	 * @return the rebuilt `PAGED` inverted index, dirty when a legacy key had to be normalized
+	 * @deprecated exists only to normalize owner sort indexes persisted before their temporal values were normalized;
+	 * it can be removed once every such index has been written again by a version that normalizes them
+	 */
+	@Deprecated(since = "2026.3", forRemoval = true)
+	@Nonnull
+	@SuppressWarnings("rawtypes")
+	public static InvertedIndex fromPersistedPagesNormalizingLegacyKeys(
+		@Nonnull Class<?> plainType,
+		@Nonnull int[] orderedPageSequences,
+		@Nonnull ValueToRecord[][] perPageBuckets,
+		@Nullable int[][] perPageValueIds,
+		int highWaterPageSequence,
+		@Nonnull Function<Object, Serializable> normalizer,
+		@Nonnull Comparator comparator,
+		int indexedDecimalPlaces
+	) {
+		return fromPersistedPages(
+			plainType, orderedPageSequences, perPageBuckets, perPageValueIds, highWaterPageSequence,
+			normalizer, comparator, indexedDecimalPlaces, true
+		);
+	}
+
+	/**
+	 * Shared implementation of {@link #fromPersistedPages(Class, int[], ValueToRecord[][], int[][], int, Function,
+	 * Comparator, int)} and {@link #fromPersistedPagesNormalizingLegacyKeys}; see both for the contract.
+	 *
+	 * @param legacyKeysPermitted `true` when persisted keys not yet in the normalized form re-sort the whole index
+	 */
+	@Nonnull
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private static InvertedIndex fromPersistedPages(
+		@Nonnull Class<?> plainType,
+		@Nonnull int[] orderedPageSequences,
+		@Nonnull ValueToRecord[][] perPageBuckets,
+		@Nullable int[][] perPageValueIds,
+		int highWaterPageSequence,
+		@Nonnull Function<Object, Serializable> normalizer,
+		@Nonnull Comparator comparator,
+		int indexedDecimalPlaces,
+		boolean legacyKeysPermitted
 	) {
 		Assert.isPremiseValid(
 			orderedPageSequences.length == perPageBuckets.length,
@@ -721,12 +793,18 @@ public class InvertedIndex implements
 		final Object[][] normalizedKeys = new Object[orderedPageSequences.length][];
 		boolean collapsed = false;
 		boolean inverted = false;
+		// tracked only when legacy keys are permitted: whether any persisted key had to be normalized, and whether the
+		// persisted keys themselves are strictly ascending - the order an untouched legacy writer left them in
+		boolean legacyKeyFound = false;
+		boolean persistedKeysAscending = true;
 		Comparable previousKey = null;
+		Comparable previousPersistedKey = null;
 		for (int i = 0; i < orderedPageSequences.length; i++) {
 			final ValueToRecord[] buckets = perPageBuckets[i];
 			final Object[] keys = new Object[buckets.length];
 			for (int j = 0; j < buckets.length; j++) {
-				final Comparable key = (Comparable) normalizer.apply(buckets[j].getValue());
+				final Serializable persistedKey = buckets[j].getValue();
+				final Comparable key = (Comparable) normalizer.apply(persistedKey);
 				keys[j] = key;
 				if (previousKey != null) {
 					final int comparison = comparator.compare(previousKey, key);
@@ -735,13 +813,24 @@ public class InvertedIndex implements
 					//noinspection NonShortCircuitBooleanExpression
 					inverted |= comparison > 0;
 				}
+				if (legacyKeysPermitted) {
+					//noinspection NonShortCircuitBooleanExpression
+					legacyKeyFound |= key != persistedKey;
+					if (previousPersistedKey != null && persistedKeysAscending) {
+						persistedKeysAscending = comparator.compare(previousPersistedKey, persistedKey) < 0;
+					}
+					previousPersistedKey = (Comparable) persistedKey;
+				}
 				previousKey = key;
 			}
 			normalizedKeys[i] = keys;
 		}
 		// an inversion is repaired ONLY when the persisted sequence is the one a second-granularity release would
-		// have written; every other inversion is corruption and must reach the diagnostics below untouched
-		final boolean resorted = inverted && isSecondGranularityRangeOrder(normalizedKeys);
+		// have written; every other inversion is corruption and must reach the diagnostics below untouched. A legacy
+		// key, when permitted, re-sorts the whole index for the same reason - but again only over a persisted
+		// sequence a writer could have produced
+		final boolean resorted = (inverted && isSecondGranularityRangeOrder(normalizedKeys)) ||
+			(legacyKeyFound && persistedKeysAscending);
 
 		int[] loadedPageSequences = orderedPageSequences;
 		Object[][] loadedKeys = normalizedKeys;

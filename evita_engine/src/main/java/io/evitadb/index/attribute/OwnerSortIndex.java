@@ -111,7 +111,7 @@ public final class OwnerSortIndex extends SortIndex {
 	 */
 	@Nonnull
 	@SuppressWarnings({"rawtypes"})
-	private static InvertedIndex createOwnedTree(
+	static InvertedIndex createOwnedTree(
 		@Nonnull ComparatorSource[] comparatorBase,
 		@Nonnull Comparator comparator,
 		int indexedDecimalPlaces
@@ -197,6 +197,13 @@ public final class OwnerSortIndex extends SortIndex {
 		@Nonnull ValueToRecord[][] perPageBuckets,
 		int highWaterPageSequence
 	) {
+		if (LegacyTemporalSortValueCorrection.isApplicable(comparatorBase)) {
+			// pages persisted before temporal sort values were normalized are normalized and re-sorted on load
+			return LegacyTemporalSortValueCorrection.fromPersistedPages(
+				comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces,
+				orderedPageSequences, perPageBuckets, highWaterPageSequence
+			);
+		}
 		// the combined comparator (direction + NULL handling) is derived exactly as the SortIndex base derives its own
 		// `comparator` from the same comparatorBase + locale, so the reloaded tree orders keys identically to a live owner
 		final Comparator comparator = comparatorBase.length == 1
@@ -375,9 +382,10 @@ public final class OwnerSortIndex extends SortIndex {
 	/**
 	 * Internal constructor used by {@link #copyWithMergedValueSide} to wrap the already-merged (committed) sorted-records
 	 * façade and owned tree directly, instead of rebuilding them from arrays (preserves the structural sharing of the
-	 * underlying two-tree backing and the owned {@link InvertedIndex} across commits).
+	 * underlying two-tree backing and the owned {@link InvertedIndex} across commits), and by the load paths that build
+	 * the owned tree themselves.
 	 */
-	private OwnerSortIndex(
+	OwnerSortIndex(
 		@Nonnull ComparatorSource[] comparatorBase,
 		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeIndexKey attributeIndexKey,

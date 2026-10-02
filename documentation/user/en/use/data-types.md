@@ -260,6 +260,12 @@ wall-clock data such as opening hours or a recurring schedule. If your data *is*
 with the
 [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html) on the
 client side and be explicit about the offset from the first day.
+
+An `OffsetDateTime` is compared, sorted and indexed by the moment it denotes. Two values denoting the same moment at
+different offsets — `2024-01-01T11:00+02:00` and `2024-01-01T10:00+01:00` — sort as ties, whether you order by the
+attribute itself or by a sortable attribute compound containing it. The tie is broken like any other tie in the
+ordering: by the next element of the compound, or by the primary key in the ordering direction. The value you read back
+keeps the offset you wrote.
 </LS>
 <LS to="c">
 Although evitaDB supports *local* variants of the date time like
@@ -268,6 +274,12 @@ using the evitaDB server system default timezone. You can control the default Ja
 [several ways](https://www.baeldung.com/java-jvm-time-zone). If your data is time zone specific, we recommend to work
 directly with the [DateTimeOffset](https://learn.microsoft.com/en-us/dotnet/api/system.datetimeoffset)
 on the client side and be explicit about the offset from the first day.
+
+A `DateTimeOffset` is compared, sorted and indexed by the moment it denotes. Two values denoting the same moment at
+different offsets — `2024-01-01T11:00+02:00` and `2024-01-01T10:00+01:00` — sort as ties, whether you order by the
+attribute itself or by a sortable attribute compound containing it. The tie is broken like any other tie in the
+ordering: by the next element of the compound, or by the primary key in the ordering direction. The value you read back
+keeps the offset you wrote.
 </LS>
 
 <Note type="question">
