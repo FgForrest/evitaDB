@@ -113,8 +113,6 @@ class StoragePartGroupRegistrationTest {
 			Map.entry("SortIndexLeafPagePart", StoragePartGroup.ATTRIBUTE_INDEX),
 			Map.entry("ChainIndexLeafPagePart", StoragePartGroup.ATTRIBUTE_INDEX),
 			Map.entry("GlobalUniqueIndexLeafPagePart", StoragePartGroup.ATTRIBUTE_INDEX),
-			Map.entry("FulltextIndexStoragePart", StoragePartGroup.ATTRIBUTE_INDEX),
-			Map.entry("FulltextDictionaryLeafPagePart", StoragePartGroup.ATTRIBUTE_INDEX),
 
 			// price indexes
 			Map.entry("PriceListAndCurrencySuperIndexStoragePart", StoragePartGroup.PRICE_INDEX),
@@ -134,7 +132,11 @@ class StoragePartGroupRegistrationTest {
 			Map.entry("HistogramIndexStoragePart", StoragePartGroup.REFERENCE_HISTOGRAM_INDEX),
 			Map.entry("HistogramCardinalityStoragePart", StoragePartGroup.REFERENCE_HISTOGRAM_INDEX),
 			Map.entry("HistogramIndexLeafPagePart", StoragePartGroup.REFERENCE_HISTOGRAM_INDEX),
-			Map.entry("HistogramRangeIndexLeafPagePart", StoragePartGroup.REFERENCE_HISTOGRAM_INDEX)
+			Map.entry("HistogramRangeIndexLeafPagePart", StoragePartGroup.REFERENCE_HISTOGRAM_INDEX),
+
+			// the fulltext index of each locale - searchability is a schema decision of its own
+			Map.entry("FulltextIndexStoragePart", StoragePartGroup.FULLTEXT_INDEX),
+			Map.entry("FulltextDictionaryLeafPagePart", StoragePartGroup.FULLTEXT_INDEX)
 		)
 	);
 
@@ -212,6 +214,7 @@ class StoragePartGroupRegistrationTest {
 				Map.entry(StoragePartGroup.FACET_INDEX, StoragePartKind.INDEX),
 				Map.entry(StoragePartGroup.HIERARCHY_INDEX, StoragePartKind.INDEX),
 				Map.entry(StoragePartGroup.REFERENCE_HISTOGRAM_INDEX, StoragePartKind.INDEX),
+				Map.entry(StoragePartGroup.FULLTEXT_INDEX, StoragePartKind.INDEX),
 				Map.entry(StoragePartGroup.SCHEMA, StoragePartKind.METADATA),
 				Map.entry(StoragePartGroup.HEADER, StoragePartKind.METADATA)
 			)

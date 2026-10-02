@@ -25,7 +25,7 @@ package io.evitadb.api.statistics;
 
 /**
  * What a storage part fundamentally *is* - the coarse axis of {@link StoragePartGroup}, and the one a composition
- * table folds to when it wants three rows rather than fourteen.
+ * table folds to when it wants three rows rather than fifteen.
  *
  * The three kinds answer three different questions, which is why they are not one scale:
  *

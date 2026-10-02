@@ -160,6 +160,17 @@ public enum GrpcStoragePartGroup
   STORAGE_PART_GROUP_REFERENCE_HISTOGRAM_INDEX(12),
   /**
    * <pre>
+   * Everything built because an attribute or associated data is searchable - the fulltext index of each locale with
+   * its term dictionary, the impact of every posting and the field length tables. Charged apart from
+   * `ATTRIBUTE_INDEX` because searchability is a separate schema decision. Numbered after `HEADER` because it was
+   * added later; wire numbers are never reassigned.
+   * </pre>
+   *
+   * <code>STORAGE_PART_GROUP_FULLTEXT_INDEX = 15;</code>
+   */
+  STORAGE_PART_GROUP_FULLTEXT_INDEX(15),
+  /**
+   * <pre>
    * Schema records - the catalog schema and one entity schema per collection.
    * </pre>
    *
@@ -290,6 +301,17 @@ public enum GrpcStoragePartGroup
   public static final int STORAGE_PART_GROUP_REFERENCE_HISTOGRAM_INDEX_VALUE = 12;
   /**
    * <pre>
+   * Everything built because an attribute or associated data is searchable - the fulltext index of each locale with
+   * its term dictionary, the impact of every posting and the field length tables. Charged apart from
+   * `ATTRIBUTE_INDEX` because searchability is a separate schema decision. Numbered after `HEADER` because it was
+   * added later; wire numbers are never reassigned.
+   * </pre>
+   *
+   * <code>STORAGE_PART_GROUP_FULLTEXT_INDEX = 15;</code>
+   */
+  public static final int STORAGE_PART_GROUP_FULLTEXT_INDEX_VALUE = 15;
+  /**
+   * <pre>
    * Schema records - the catalog schema and one entity schema per collection.
    * </pre>
    *
@@ -343,6 +365,7 @@ public enum GrpcStoragePartGroup
       case 10: return STORAGE_PART_GROUP_FACET_INDEX;
       case 11: return STORAGE_PART_GROUP_HIERARCHY_INDEX;
       case 12: return STORAGE_PART_GROUP_REFERENCE_HISTOGRAM_INDEX;
+      case 15: return STORAGE_PART_GROUP_FULLTEXT_INDEX;
       case 13: return STORAGE_PART_GROUP_SCHEMA;
       case 14: return STORAGE_PART_GROUP_HEADER;
       default: return null;
