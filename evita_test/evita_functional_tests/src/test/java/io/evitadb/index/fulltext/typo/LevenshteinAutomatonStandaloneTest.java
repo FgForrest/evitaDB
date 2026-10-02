@@ -23,6 +23,7 @@
 
 package io.evitadb.index.fulltext.typo;
 
+import io.evitadb.test.fulltext.EditDistances;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
@@ -50,7 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * test touches lives in {@code org.apache.lucene.util.automaton}, which is already on evitaDB's classpath.
  *
  * The reference distance the automaton is checked against is the restricted Damerau–Levenshtein distance (optimal
- * string alignment: insert, delete, substitute, and swap two adjacent characters), computed by the textbook DP.
+ * string alignment: insert, delete, substitute, and swap two adjacent characters) of {@link EditDistances}.
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -58,31 +59,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(ENGINE)
 @Tag(FULLTEXT)
 class LevenshteinAutomatonStandaloneTest {
-
-	/**
-	 * Restricted Damerau–Levenshtein (optimal string alignment) distance over code points.
-	 */
-	static int osaDistance(@Nonnull String a, @Nonnull String b) {
-		final int[] x = a.codePoints().toArray();
-		final int[] y = b.codePoints().toArray();
-		final int[][] d = new int[x.length + 1][y.length + 1];
-		for (int i = 0; i <= x.length; i++) {
-			d[i][0] = i;
-		}
-		for (int j = 0; j <= y.length; j++) {
-			d[0][j] = j;
-		}
-		for (int i = 1; i <= x.length; i++) {
-			for (int j = 1; j <= y.length; j++) {
-				final int cost = x[i - 1] == y[j - 1] ? 0 : 1;
-				d[i][j] = Math.min(Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1), d[i - 1][j - 1] + cost);
-				if (i > 1 && j > 1 && x[i - 1] == y[j - 2] && x[i - 2] == y[j - 1]) {
-					d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
-				}
-			}
-		}
-		return d[x.length][y.length];
-	}
 
 	@Nonnull
 	private static CharacterRunAutomaton acceptor(@Nonnull String word, int maxEdits) {
@@ -222,7 +198,7 @@ class LevenshteinAutomatonStandaloneTest {
 				};
 				for (int i = 0; i < 40; i++) {
 					final String candidate = mutate(random, alphabet, query);
-					final int distance = osaDistance(query, candidate);
+					final int distance = EditDistances.osaDistance(query, candidate);
 					for (int maxEdits = 0; maxEdits <= 2; maxEdits++) {
 						assertEquals(
 							distance <= maxEdits,
@@ -235,6 +211,41 @@ class LevenshteinAutomatonStandaloneTest {
 				}
 			}
 			assertTrue(checked > 30_000);
+		}
+
+		@Test
+		@DisplayName("Approximate substring matching agrees with the minimum over all substrings, both metrics")
+		void shouldMatchSubstringsExactlyAsBruteForce() {
+			final Random random = new Random(7);
+			final String alphabet = "abcě";
+			int checked = 0;
+			for (int round = 0; round < 3_000; round++) {
+				final String text = randomWord(random, alphabet, random.nextInt(9));
+				final String pattern = randomWord(random, alphabet, 1 + random.nextInt(5));
+				for (final boolean transpositions : new boolean[]{false, true}) {
+					// the reference: the closest substring of the text, including the empty one
+					int closest = pattern.length();
+					for (int start = 0; start <= text.length(); start++) {
+						for (int end = start; end <= text.length(); end++) {
+							closest = Math.min(
+								closest, EditDistances.distance(text.substring(start, end), pattern, transpositions)
+							);
+						}
+					}
+					for (int maxEdits = 0; maxEdits <= 2; maxEdits++) {
+						assertEquals(
+							closest <= maxEdits,
+							EditDistances.approximatelyContains(
+								text.codePoints().toArray(), pattern.codePoints().toArray(), maxEdits, transpositions
+							),
+							"text `" + text + "`, pattern `" + pattern + "`, maxEdits " + maxEdits +
+								", transpositions " + transpositions + ", closest substring distance " + closest
+						);
+						checked++;
+					}
+				}
+			}
+			assertTrue(checked > 10_000);
 		}
 
 		@Nonnull

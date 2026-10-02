@@ -24,8 +24,10 @@
 package io.evitadb.index.fulltext.typo;
 
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
-import io.evitadb.index.fulltext.typo.LevenshteinDictionaryWalker.Hit;
-import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
+import io.evitadb.test.fulltext.CzechLexicon;
+import io.evitadb.test.fulltext.EditDistances;
+import io.evitadb.test.fulltext.LevenshteinDictionaryWalker;
+import io.evitadb.test.fulltext.LevenshteinDictionaryWalker.Hit;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -35,15 +37,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import javax.annotation.Nonnull;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.TreeSet;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
@@ -65,54 +61,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(ENGINE)
 @Tag(FULLTEXT)
 class FuzzyDictionaryWalkTest {
-	private static final String DICTIONARY_RESOURCE = "/fulltext/hunspell/cs_CZ.dic";
 	// odd on purpose: the tree derives its minimum block size as half of this and requires it to be strictly less
 	private static final int LEAF_BLOCK_SIZE = 63;
 	private static TransactionalBucketBPlusTree<String> dictionary;
 	private static int dictionarySize;
 
 	@BeforeAll
-	static void loadDictionary() throws IOException {
-		final Set<String> words = new TreeSet<>();
-		try (
-			final InputStream stream = FuzzyDictionaryWalkTest.class.getResourceAsStream(DICTIONARY_RESOURCE);
-			final BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))
-		) {
-			// the first line of a .dic file is the entry count
-			reader.readLine();
-			String line;
-			while ((line = reader.readLine()) != null) {
-				final int flagsSeparator = line.indexOf('/');
-				final String word = (flagsSeparator < 0 ? line : line.substring(0, flagsSeparator))
-					.trim()
-					.toLowerCase(Locale.ROOT);
-				if (word.isEmpty() || !word.chars().allMatch(Character::isLetter)) {
-					continue;
-				}
-				final String folded = fold(word);
-				// the walker assumes natural String order equals code point order, which holds inside the BMP
-				assertTrue(folded.codePointCount(0, folded.length()) == folded.length(), "BMP only: " + word);
-				words.add(folded);
-			}
-		}
+	static void loadDictionary() {
+		// lowercased and diacritics-folded, mirroring the index-side analyzer chain of this branch
+		final Set<String> words = CzechLexicon.load(true);
 		dictionary = new TransactionalBucketBPlusTree<>(LEAF_BLOCK_SIZE, String.class);
 		int pk = 1;
 		for (final String word : words) {
+			// the walker assumes natural String order equals code point order, which holds inside the BMP
+			assertTrue(word.codePointCount(0, word.length()) == word.length(), "BMP only: " + word);
 			dictionary.addRecord(word, pk++);
 		}
 		dictionarySize = words.size();
 		assertTrue(dictionarySize > 200_000, "expected a real-sized vocabulary, got " + dictionarySize);
-	}
-
-	/**
-	 * Mirrors {@code ASCIIFoldingFilter} placed at the end of the index-side chain.
-	 */
-	@Nonnull
-	private static String fold(@Nonnull String word) {
-		final char[] input = word.toCharArray();
-		final char[] output = new char[input.length * 4];
-		final int length = ASCIIFoldingFilter.foldToASCII(input, 0, output, 0, input.length);
-		return new String(output, 0, length);
 	}
 
 	@Nested
@@ -155,7 +121,7 @@ class FuzzyDictionaryWalkTest {
 			assertTrue(hits.size() > 1, "expected several neighbours for `" + query + "`");
 			for (final Hit hit : hits) {
 				assertEquals(
-					LevenshteinAutomatonStandaloneTest.osaDistance(query, hit.term()),
+					EditDistances.osaDistance(query, hit.term()),
 					hit.distance(),
 					"distance of `" + hit.term() + "` from `" + query + "`"
 				);

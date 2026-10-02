@@ -5,6 +5,7 @@ module evita.test.support {
 	exports io.evitadb.test;
 	exports io.evitadb.test.generator;
 	exports io.evitadb.test.builder;
+	exports io.evitadb.test.fulltext;
 
 	requires static lombok;
 	requires static jsr305;
@@ -19,6 +20,9 @@ module evita.test.support {
 
 	requires evita.api;
 	requires evita.engine;
+	// the automaton and the folding filter of the typo-tolerance helpers; the engine requires both non-transitively
+	requires org.apache.lucene.core;
+	requires org.apache.lucene.analysis.common;
 	requires evita.common;
 	requires evita.export.fs;
 	requires evita.query;

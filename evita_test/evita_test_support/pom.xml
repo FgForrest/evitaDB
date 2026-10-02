@@ -45,6 +45,16 @@
 			<artifactId>evita_engine</artifactId>
 			<version>${project.parent.version}</version>
 		</dependency>
+		<!-- the typo-tolerance helpers in io.evitadb.test.fulltext use the automaton and the folding filter directly;
+		     module-info requires both, so they are declared here rather than borrowed from the engine's transitive scope -->
+		<dependency>
+			<groupId>org.apache.lucene</groupId>
+			<artifactId>lucene-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.lucene</groupId>
+			<artifactId>lucene-analysis-common</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>evita_query</artifactId>

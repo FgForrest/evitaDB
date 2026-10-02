@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.fulltext.typo;
+package io.evitadb.test.fulltext;
 
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
@@ -41,7 +41,8 @@ import java.util.List;
  * Proof-of-concept port of Lucene's {@code AutomatonTermsEnum} walk ("read while the automaton accepts, seek to the
  * next acceptable string on rejection") over evitaDB's own {@link TransactionalBucketBPlusTree} keyed by
  * {@link String}. Test code only: it exists to show that the guided walk needs nothing from Lucene but the
- * {@link Automaton} classes, and to measure how much of a dictionary the walk touches.
+ * {@link Automaton} classes, and to measure how much of a dictionary the walk touches. Lives in the test-support
+ * module so that both the functional tests and the JMH spikes can drive it.
  *
  * Differences from the Lucene original, all deliberate:
  *
@@ -54,7 +55,7 @@ import java.util.List;
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
  */
-final class LevenshteinDictionaryWalker {
+public final class LevenshteinDictionaryWalker {
 	private final Automaton automaton;
 	private final CharacterRunAutomaton[] acceptorsByDistance;
 	private final Transition transition = new Transition();
@@ -74,7 +75,7 @@ final class LevenshteinDictionaryWalker {
 	 * @param distance the exact Damerau–Levenshtein distance from the query (0..maxEdits)
 	 * @param records  how many records the bucket holds
 	 */
-	record Hit(@Nonnull String term, int distance, int records) {
+	public record Hit(@Nonnull String term, int distance, int records) {
 	}
 
 	/**
@@ -84,7 +85,7 @@ final class LevenshteinDictionaryWalker {
 	 * @param maxEdits       0, 1 or 2
 	 * @param nonFuzzyPrefix number of leading characters in which no edit is permitted
 	 */
-	LevenshteinDictionaryWalker(@Nonnull String query, int maxEdits, int nonFuzzyPrefix) {
+	public LevenshteinDictionaryWalker(@Nonnull String query, int maxEdits, int nonFuzzyPrefix) {
 		this(query, maxEdits, nonFuzzyPrefix, 0);
 	}
 
@@ -98,7 +99,7 @@ final class LevenshteinDictionaryWalker {
 	 *
 	 * @param readAhead maximum sequential reads before falling back to a seek; 0 disables the read-ahead
 	 */
-	LevenshteinDictionaryWalker(@Nonnull String query, int maxEdits, int nonFuzzyPrefix, int readAhead) {
+	public LevenshteinDictionaryWalker(@Nonnull String query, int maxEdits, int nonFuzzyPrefix, int readAhead) {
 		this.readAhead = readAhead;
 		final int prefixLength = Math.min(nonFuzzyPrefix, query.length());
 		final String prefix = query.substring(0, prefixLength);
@@ -124,7 +125,7 @@ final class LevenshteinDictionaryWalker {
 	 * @return accepted keys with their distance and bucket size
 	 */
 	@Nonnull
-	List<Hit> walk(@Nonnull TransactionalBucketBPlusTree<String> tree) {
+	public List<Hit> walk(@Nonnull TransactionalBucketBPlusTree<String> tree) {
 		final List<Hit> hits = new ArrayList<>(32);
 		this.reads = 0;
 		this.seeks = 0;
@@ -198,7 +199,7 @@ final class LevenshteinDictionaryWalker {
 	 * @return accepted keys, in dictionary order
 	 */
 	@Nonnull
-	List<String> scan(@Nonnull TransactionalBucketBPlusTree<String> tree) {
+	public List<String> scan(@Nonnull TransactionalBucketBPlusTree<String> tree) {
 		final List<String> hits = new ArrayList<>(32);
 		final CharacterRunAutomaton widest = this.acceptorsByDistance[this.acceptorsByDistance.length - 1];
 		final BucketCursor<String> cursor = tree.cursor();
@@ -214,21 +215,21 @@ final class LevenshteinDictionaryWalker {
 	/**
 	 * Number of keys the last {@link #walk} read from the tree.
 	 */
-	long getReads() {
+	public long getReads() {
 		return this.reads;
 	}
 
 	/**
 	 * Number of cursor seeks the last {@link #walk} issued.
 	 */
-	long getSeeks() {
+	public long getSeeks() {
 		return this.seeks;
 	}
 
 	/**
 	 * Number of rejections the last {@link #walk} resolved by sequential read-ahead instead of a seek.
 	 */
-	long getReadAheadHits() {
+	public long getReadAheadHits() {
 		return this.readAheadHits;
 	}
 
@@ -369,7 +370,7 @@ final class LevenshteinDictionaryWalker {
 	 * Exposes the acceptor of the widest distance, for tests that want to check a single string.
 	 */
 	@Nullable
-	CharacterRunAutomaton widestAcceptor() {
+	public CharacterRunAutomaton widestAcceptor() {
 		return this.acceptorsByDistance[this.acceptorsByDistance.length - 1];
 	}
 }
