@@ -126,9 +126,14 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 	}
 
 	/**
-	 * Creates the container of one scope of the query that stands for every entity of the scope once a clone removes
-	 * all its inner formulas. A factory rather than a constructor, because a `(Scope, Formula, Formula)` constructor
-	 * would capture every two-child call of {@link #ScopeContainerFormula(Scope, Formula...)}.
+	 * Creates the container of one scope of the query: it keeps the entities of the scope that match the constraint,
+	 * and stands for every entity of the scope once a clone removes all its inner formulas. A factory rather than
+	 * a constructor, because a `(Scope, Formula, Formula)` constructor would capture every two-child call of
+	 * {@link #ScopeContainerFormula(Scope, Formula...)}.
+	 *
+	 * The constraint is intersected with the scope's entities, because it may produce entities of other scopes:
+	 * a negation subtracts from the entities of every queried scope, so the branch of one scope would otherwise
+	 * select every entity of the other scopes too.
 	 *
 	 * @param scope             the scope the container restricts
 	 * @param emptyScopeFormula the formula of every entity of the scope
@@ -141,7 +146,9 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 		@Nonnull Formula emptyScopeFormula,
 		@Nonnull Formula innerFormula
 	) {
-		return new ScopeContainerFormula(null, scope, emptyScopeFormula, new Formula[]{innerFormula}, null);
+		return new ScopeContainerFormula(
+			null, scope, emptyScopeFormula, new Formula[]{emptyScopeFormula, innerFormula}, null
+		);
 	}
 
 	@Override

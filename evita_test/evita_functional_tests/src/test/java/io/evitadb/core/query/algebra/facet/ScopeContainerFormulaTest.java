@@ -136,6 +136,19 @@ class ScopeContainerFormulaTest {
 
 			assertArrayEquals(new int[]{20, 30}, result.getArray());
 		}
+
+		@Test
+		@DisplayName("should keep only the entities of its scope when restricting a scope")
+		void shouldKeepOnlyEntitiesOfItsScopeWhenRestrictingScope() {
+			// a negation subtracts from the entities of every queried scope, so its result holds 6 and 7 of another one
+			final ScopeContainerFormula formula = ScopeContainerFormula.restrictingScope(
+				Scope.LIVE,
+				new ConstantFormula(new ArrayBitmap(1, 2, 3, 4, 5)),
+				new ConstantFormula(new ArrayBitmap(4, 5, 6, 7))
+			);
+
+			assertArrayEquals(new int[]{4, 5}, formula.compute().getArray());
+		}
 	}
 
 	@Nested

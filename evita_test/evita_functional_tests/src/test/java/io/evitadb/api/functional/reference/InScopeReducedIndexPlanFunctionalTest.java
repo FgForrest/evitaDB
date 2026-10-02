@@ -1464,6 +1464,107 @@ public class InScopeReducedIndexPlanFunctionalTest {
 	}
 
 	/**
+	 * A negated `inScope(S, ...)` container at the top level of a query over both scopes: the container restricts
+	 * scope `S` only and stands for every entity of the other scope, so its negation selects the entities of `S` the
+	 * container does not match and no entity of the other scope.
+	 */
+	@Nested
+	@DisplayName("Negated inScope container")
+	class NegatedScopeContainer {
+
+		/**
+		 * Returns the rows of the negation witness: a label, the queried entity type, the filter, and the primary keys
+		 * it selects over both scopes.
+		 *
+		 * @return the row arguments
+		 */
+		@Nonnull
+		static Stream<Arguments> negatedScopeContainerRows() {
+			final FilterConstraint tagged = referenceHaving(REF_TAGS, entityPrimaryKeyInSet(TAG));
+			return Stream.of(
+				// category 1 alone references the tag among the live categories
+				Arguments.of(
+					"live categories without the tag", ENTITY_CATEGORY,
+					not(inScope(Scope.LIVE, tagged)),
+					new int[]{SUBTREE_CATEGORY, OTHER_CATEGORY, LIVE_NODE_WITH_ARCHIVED_OWNERS}
+				),
+				// category 11 alone references the tag among the archived categories
+				Arguments.of(
+					"archived categories without the tag", ENTITY_CATEGORY,
+					not(inScope(Scope.ARCHIVED, tagged)),
+					new int[]{ARCHIVED_SUBTREE_CATEGORY, ARCHIVED_NODE_WITH_LIVE_OWNERS}
+				),
+				// the live products 1-8 reference the tag
+				Arguments.of(
+					"live products without the tag", ENTITY_PRODUCT,
+					not(inScope(Scope.LIVE, tagged)),
+					range(9, 48)
+				),
+				// the archived products 49-56 reference the tag
+				Arguments.of(
+					"archived products without the tag", ENTITY_PRODUCT,
+					not(inScope(Scope.ARCHIVED, tagged)),
+					range(57, PRODUCT_COUNT)
+				),
+				// the second product of every live group is invisible
+				Arguments.of(
+					"invisible live products", ENTITY_PRODUCT,
+					not(inScope(Scope.LIVE, attributeEquals(ATTR_VISIBLE, true))),
+					new int[]{2, 10, 18}
+				),
+				// the container restricts the live scope only, the archived categories all stay
+				Arguments.of(
+					"tagged live categories and every archived one", ENTITY_CATEGORY,
+					inScope(Scope.LIVE, tagged),
+					new int[]{
+						ROOT_CATEGORY, ARCHIVED_ROOT_CATEGORY, ARCHIVED_SUBTREE_CATEGORY, ARCHIVED_NODE_WITH_LIVE_OWNERS
+					}
+				)
+			);
+		}
+
+		/**
+		 * Checks that a negated `inScope(S, ...)` container of a query over both scopes selects the entities of scope
+		 * `S` its constraints do not match and nothing of the other scope, and that the container without the negation
+		 * keeps selecting every entity of the other scope.
+		 *
+		 * @param label      the row label, used in the test name only
+		 * @param entityType the queried entity type
+		 * @param filter     the filter placed next to `scope(LIVE, ARCHIVED)`
+		 * @param expected   the expected primary keys, ascending
+		 * @param session    the session provided by the test extension
+		 */
+		@DisplayName("Should select the entities of the container's scope it does not match and nothing else")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("negatedScopeContainerRows")
+		@Tag(ENGINE)
+		@Tag(QUERY)
+		void shouldSelectEntitiesOfContainerScopeItDoesNotMatchAndNothingElse(
+			@Nonnull String label,
+			@Nonnull String entityType,
+			@Nonnull FilterConstraint filter,
+			@Nonnull int[] expected,
+			@Nonnull EvitaSessionContract session
+		) {
+			assertArrayEquals(
+				expected,
+				sortedPrimaryKeys(
+					session.query(
+						query(
+							collection(entityType),
+							filterBy(scope(BOTH_SCOPES), filter),
+							require(page(1, PRODUCT_COUNT))
+						),
+						EntityReference.class
+					)
+				)
+			);
+		}
+
+	}
+
+	/**
 	 * Hierarchy statistics of one scope computed from what an occurrence of the hierarchy filter covering that scope
 	 * resolved - its roots and its node visibility - and never from an occurrence restricted to another scope.
 	 */
