@@ -157,13 +157,31 @@ public class CompressedInputOutputTest extends AbstractObservableInputOutputTest
 	 * A compressed record whose raw bytes do not fit into the rest of the input buffer forces the inflater to refill
 	 * the raw buffer from the underlying stream. `total()` after the record must still equal the stream offset of the
 	 * record end - the WAL reader derives record sizes from its difference and refuses an intact file otherwise.
+	 *
+	 * The records are read once for every shift of the stream against the raw buffer, so where a compressed record
+	 * ends relative to the buffer - including right at its edge, where the inflater has consumed the whole buffer -
+	 * is swept rather than left to the payload sizes the seed happens to produce.
 	 */
 	@Test
 	void shouldReportStreamOffsetAfterCompressedRecordsSpanningRawBufferRefills() {
 		final int inputBufferSize = 64;
+		for (int leadingBytes = 0; leadingBytes < inputBufferSize; leadingBytes++) {
+			assertStreamOffsetsAfterCompressedRecords(inputBufferSize, leadingBytes);
+		}
+	}
+
+	/**
+	 * Writes compressed records after the passed number of plain leading bytes, reads them back through an input with
+	 * the passed buffer size and checks the stream offset reported after every record.
+	 *
+	 * @param inputBufferSize size of the input buffer, which is also the size of the raw buffer it inflates from
+	 * @param leadingBytes    number of bytes preceding the first record, shifting every record against the buffer
+	 */
+	private void assertStreamOffsetsAfterCompressedRecords(int inputBufferSize, int leadingBytes) {
 		final int recordCount = 40;
 		final Random seededRandom = new Random(1687);
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream(65_536);
+		baos.writeBytes(new byte[leadingBytes]);
 		final ObservableOutput<?> output = new ObservableOutput<>(
 			baos, 16_384, 16_384, 0,
 			Crc32CChecksumFactory.INSTANCE.createChecksum(),
@@ -176,7 +194,7 @@ public class CompressedInputOutputTest extends AbstractObservableInputOutputTest
 			payloads[i] = generateCompressibleBytes(200 + seededRandom.nextInt(3_000), seededRandom);
 			writeRecord(output, null, payloads[i].length, payloads[i]);
 			// `total()` counts the uncompressed bytes, the stream offset is what actually reached the stream
-			recordEnds[i] = output.getWrittenBytesSinceReset();
+			recordEnds[i] = leadingBytes + output.getWrittenBytesSinceReset();
 		}
 		output.flush();
 
@@ -185,20 +203,27 @@ public class CompressedInputOutputTest extends AbstractObservableInputOutputTest
 			Crc32CChecksumFactory.INSTANCE.createChecksum(),
 			ZipCompressionFactory.INSTANCE.createDecompressor().orElseThrow()
 		);
+		input.skip(leadingBytes);
 
+		final String shift = leadingBytes + " leading bytes";
 		int refillingRecords = 0;
-		long recordStart = 0L;
+		long recordStart = leadingBytes;
 		for (int i = 0; i < recordCount; i++) {
 			// a compressed payload longer than the raw buffer cannot be inflated without at least one refill
 			if (recordEnds[i] - recordStart - OVERHEAD_SIZE > inputBufferSize) {
 				refillingRecords++;
 			}
-			assertArrayEquals(payloads[i], readAndVerifyRecord(input, payloads[i].length), "Payload of record " + i);
-			assertEquals(recordEnds[i], input.total(), "Stream offset after record " + i);
+			assertArrayEquals(
+				payloads[i], readAndVerifyRecord(input, payloads[i].length), "Payload of record " + i + ", " + shift
+			);
+			assertEquals(recordEnds[i], input.total(), "Stream offset after record " + i + ", " + shift);
 			recordStart = recordEnds[i];
 		}
 		// the scenario is only proven when records actually refilled the raw buffer
-		assertTrue(refillingRecords > recordCount / 2, "Only " + refillingRecords + " records refilled the raw buffer.");
+		assertTrue(
+			refillingRecords > recordCount / 2,
+			"Only " + refillingRecords + " records refilled the raw buffer, " + shift + "."
+		);
 	}
 
 	/**
