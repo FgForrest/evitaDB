@@ -530,7 +530,7 @@ public interface AttributeIndexMutator {
 		// schema resolver and value provider are loop invariant - allocate them once instead of per compound
 		final Function<String, ? extends AttributeSchemaContract> schemaResolver = attributeSchemaProvider::getAttributeSchema;
 		final boolean wantLocalized = locale != null;
-		final Function<AttributeElement, AttributeValue> attributeElementValueProvider = createAttributeElementToAttributeValueProvider(
+		final Function<AttributeElement, Serializable> attributeElementValueProvider = createAttributeElementValueProvider(
 			attributeSchemaProvider,
 			attributeKey -> entityAttributeValueSupplier.getAttributeValue(attributeKey).orElse(null),
 			locale
@@ -605,7 +605,7 @@ public interface AttributeIndexMutator {
 		// schema resolver and value provider are loop invariant - allocate them once instead of per compound
 		final Function<String, ? extends AttributeSchemaContract> schemaResolver = attributeSchemaProvider::getAttributeSchema;
 		final boolean wantLocalized = locale != null;
-		final Function<AttributeElement, AttributeValue> attributeElementValueProvider = createAttributeElementToAttributeValueProvider(
+		final Function<AttributeElement, Serializable> attributeElementValueProvider = createAttributeElementValueProvider(
 			attributeSchemaProvider,
 			attributeKey -> entityAttributeValueSupplier.getAttributeValue(attributeKey).orElse(null),
 			locale
@@ -776,7 +776,7 @@ public interface AttributeIndexMutator {
 		@Nonnull Function<AttributeKey, AttributeValue> existingAttributeValueProvider
 	) {
 		if (locale == null || availableAttributeLocales.contains(locale)) {
-			final Function<AttributeElement, AttributeValue> attributeElementValueProvider = createAttributeElementToAttributeValueProvider(
+			final Function<AttributeElement, Serializable> attributeElementValueProvider = createAttributeElementValueProvider(
 				attributeSchemaProvider, existingAttributeValueProvider, locale
 			);
 
@@ -828,7 +828,7 @@ public interface AttributeIndexMutator {
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
-		@Nonnull Function<AttributeElement, AttributeValue> attributeElementValueProvider
+		@Nonnull Function<AttributeElement, Serializable> attributeElementValueProvider
 	) {
 		final List<AttributeElement> attributeElements = compound.getAttributeElements();
 		final Serializable[] newCompoundValues = new Serializable[attributeElements.size()];
@@ -837,8 +837,7 @@ public interface AttributeIndexMutator {
 			if (Objects.equals(element.attributeName(), updatedAttributeName)) {
 				newCompoundValues[i] = valueToUpdate;
 			} else {
-				final AttributeValue elementValue = attributeElementValueProvider.apply(element);
-				newCompoundValues[i] = elementValue == null ? null : elementValue.value();
+				newCompoundValues[i] = attributeElementValueProvider.apply(element);
 			}
 		}
 
@@ -876,13 +875,12 @@ public interface AttributeIndexMutator {
 		@Nullable Locale locale,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull Function<AttributeElement, AttributeValue> attributeElementValueProvider
+		@Nonnull Function<AttributeElement, Serializable> attributeElementValueProvider
 	) {
 		final List<AttributeElement> attributeElements = compound.getAttributeElements();
 		final Serializable[] oldCompoundValues = new Serializable[attributeElements.size()];
 		for (int i = 0; i < attributeElements.size(); i++) {
-			final AttributeValue elementValue = attributeElementValueProvider.apply(attributeElements.get(i));
-			oldCompoundValues[i] = elementValue == null ? null : elementValue.value();
+			oldCompoundValues[i] = attributeElementValueProvider.apply(attributeElements.get(i));
 		}
 
 		if (!ArrayUtils.isEmptyOrItsValuesNull(oldCompoundValues)) {
@@ -893,24 +891,33 @@ public interface AttributeIndexMutator {
 	}
 
 	/**
-	 * Builds a function that resolves the stored {@link AttributeValue} for each {@link AttributeElement} in a
-	 * sortable attribute compound.
+	 * Builds a function that resolves the stored value of each {@link AttributeElement} in a sortable attribute
+	 * compound, in the form the compound index holds it.
 	 *
 	 * The returned function automatically selects the correct {@link io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey}
 	 * variant based on whether the attribute is localized:
 	 * - **Localized attribute** — the key includes the provided `locale`.
 	 * - **Non-localized attribute** — the key omits the locale.
 	 *
+	 * The stored value is then normalized with {@link NumberUtils#normalizeForIndexing(Serializable, int)} at the
+	 * element's own `indexedDecimalPlaces` — the same normalization {@link #executeAttributeUpsert} applies to the
+	 * value it hands to {@link #updateSortableAttributeCompounds}. The entity body keeps a `BigDecimalNumberRange` at
+	 * the scale of its own bounds, and a range compares by bounds encoded at that scale, so without this step an entry
+	 * built from the body (a new entity index, a removal, the unchanged elements of an updated compound) would encode
+	 * the range differently from an entry built from a mutation: the two would neither order consistently nor match
+	 * each other on removal.
+	 *
 	 * This abstraction keeps the callers (`insertNewCompound`, `removeOldCompound`) free from locale-resolution logic.
 	 *
-	 * @param attributeSchemaProvider       supplies individual attribute schemas to determine localization
+	 * @param attributeSchemaProvider       supplies individual attribute schemas to determine localization and the
+	 *                                      indexed decimal places
 	 * @param existingAttributeValueProvider resolves the stored attribute value for a given key
 	 * @param locale                        the locale to use for localized attributes; may be `null` when processing
 	 *                                      non-localized compounds
-	 * @return a function mapping each `AttributeElement` to its current `AttributeValue`, or `null` if absent
+	 * @return a function mapping each `AttributeElement` to its current value in index form, or `null` if absent
 	 */
 	@Nonnull
-	private static Function<AttributeElement, AttributeValue> createAttributeElementToAttributeValueProvider(
+	private static Function<AttributeElement, Serializable> createAttributeElementValueProvider(
 		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
 		@Nonnull Function<AttributeKey, AttributeValue> existingAttributeValueProvider,
 		@Nullable Locale locale
@@ -918,11 +925,14 @@ public interface AttributeIndexMutator {
 		return it -> {
 			final AttributeSchema attributeSchema = attributeSchemaProvider.getAttributeSchema(it.attributeName());
 			// canonical keys shared by the schema - they are only used to look the existing value up
-			return existingAttributeValueProvider.apply(
+			final AttributeValue attributeValue = existingAttributeValueProvider.apply(
 				attributeSchema.isLocalized() ?
 					attributeSchema.getAttributeKey(locale) :
 					attributeSchema.getAttributeKey()
 			);
+			final Serializable value = attributeValue == null ? null : attributeValue.value();
+			return value == null ?
+				null : NumberUtils.normalizeForIndexing(value, attributeSchema.getIndexedDecimalPlaces());
 		};
 	}
 
