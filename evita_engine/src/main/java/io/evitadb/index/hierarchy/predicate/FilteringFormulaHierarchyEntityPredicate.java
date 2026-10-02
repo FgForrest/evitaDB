@@ -168,24 +168,31 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 				final AttributeSchemaAccessor attributeSchemaAccessor = new AttributeSchemaAccessor(queryContext);
 				globalEntityIndex = queryContext.getGlobalEntityIndex(scope);
 				final List<GlobalEntityIndex> globalEntityIndices = Collections.singletonList(globalEntityIndex);
-				final Function<FilterBy, Formula> formulaFactory = theFilterBy -> queryContext.analyse(
-					theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
-						GlobalEntityIndex.class,
-						() -> globalEntityIndices,
-						null,
-						queryContext.getSchema(),
-						null,
-						null,
-						null,
-						attributeSchemaAccessor,
-						(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale)),
-						() -> {
-							theFilterBy.accept(theFilterByVisitor);
-							// get the result and clear the visitor internal structures
-							return theFilterByVisitor.getFormulaAndClear();
-						}
-					)
-				);
+				// the node filter is processed in the scope of the searched tree only - a unique attribute must resolve
+				// to the node of that tree and the filterability is checked against that scope alone
+				final Function<FilterBy, Formula> formulaFactory = theFilterBy -> theFilterByVisitor.getProcessingScope()
+					.doWithScope(
+						requestedScopes,
+						() -> queryContext.analyse(
+							theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
+								GlobalEntityIndex.class,
+								() -> globalEntityIndices,
+								null,
+								queryContext.getSchema(),
+								null,
+								null,
+								null,
+								attributeSchemaAccessor,
+								(entityContract, attributeName, locale) ->
+									Stream.of(entityContract.getAttributeValue(attributeName, locale)),
+								() -> {
+									theFilterBy.accept(theFilterByVisitor);
+									// get the result and clear the visitor internal structures
+									return theFilterByVisitor.getFormulaAndClear();
+								}
+							)
+						)
+					);
 				theFormula = filterBy == null ? null : formulaFactory.apply(filterBy);
 				theAnyChildFormula = anyChildFilter == null ? null : formulaFactory.apply(anyChildFilter);
 			} else {

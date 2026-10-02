@@ -171,8 +171,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * | 15 | ARCHIVED | - (root) | products 9-16 - live owners only |
  *
  * Categories 1 and 11 share the `code` value `root`, which is unique within each scope: category 11 receives it while
- * every category is live, category 1 only after 11 has been archived. Both of them, and no other category, reference
- * tag 1 through the `tags` reference of the categories.
+ * every category is live, category 1 only after 11 has been archived. The same holds for the catalog attribute
+ * `globalCode`, which is unique globally within each scope. Both of them, and no other category, reference tag 1
+ * through the `tags` reference of the categories. The `liveOnly` attribute of the categories is filterable in the live
+ * scope only and is true on categories 1, 2 and 3.
+ *
+ * A second data set, {@link #IN_SCOPE_REDUCED_INDEX_PLAN_ARCHIVED_SUBTREE_OWNER}, adds product
+ * {@link #ARCHIVED_SUBTREE_ONLY_PRODUCT} to the fixture above: created referencing only category 12, the archived
+ * subtree, and archived afterwards, so it has no owner anywhere in the live tree. The `HierarchyWithinOverBothScopes`
+ * tests use it to pin that a product reachable through the archived tree alone is neither lost nor duplicated when
+ * the hierarchy filter spans both scopes.
  *
  * `inScopePlanProduct` supports the `en` and `de` locales and has a `visible` attribute filterable in both scopes,
  * a CZK price in price list `basic`, a partitioned `categories` reference, a partitioned and faceted `brand`
@@ -246,6 +254,14 @@ public class InScopeReducedIndexPlanFunctionalTest {
 	private static final String ATTR_NAME = "name";
 	private static final String ATTR_VISIBLE = "visible";
 	private static final String ATTR_CODE = "code";
+	/**
+	 * A catalog attribute unique globally in both scopes, held by categories 1 and 11 with the value {@link #ROOT_CODE}.
+	 */
+	private static final String ATTR_GLOBAL_CODE = "globalCode";
+	/**
+	 * A category attribute filterable in the live scope only, true on categories 1, 2 and 3.
+	 */
+	private static final String ATTR_LIVE_ONLY = "liveOnly";
 	private static final String ROOT_CODE = "root";
 	private static final String PRICE_LIST = "basic";
 	private static final Currency CZK = Currency.getInstance("CZK");
@@ -415,12 +431,22 @@ public class InScopeReducedIndexPlanFunctionalTest {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
+				session.getCatalogSchema()
+					.openForWrite()
+					.withAttribute(
+						ATTR_GLOBAL_CODE, String.class, thatIs -> thatIs.nullable().uniqueGloballyInScope(BOTH_SCOPES)
+					)
+					.updateVia(session);
 				session.defineEntitySchema(ENTITY_CATEGORY)
 					.withoutGeneratedPrimaryKey()
 					.withHierarchyIndexedInScope(BOTH_SCOPES)
 					.withLocale(LOCALE)
 					.withAttribute(ATTR_NAME, String.class, thatIs -> thatIs.localized())
 					.withAttribute(ATTR_CODE, String.class, thatIs -> thatIs.nullable().uniqueInScope(BOTH_SCOPES))
+					.withGlobalAttribute(ATTR_GLOBAL_CODE)
+					.withAttribute(
+						ATTR_LIVE_ONLY, Boolean.class, thatIs -> thatIs.nullable().filterableInScope(Scope.LIVE)
+					)
 					.updateVia(session);
 				session.defineEntitySchema(ENTITY_BRAND)
 					.withoutGeneratedPrimaryKey()
@@ -458,15 +484,19 @@ public class InScopeReducedIndexPlanFunctionalTest {
 				session.upsertEntity(
 					session.createNewEntity(ENTITY_CATEGORY, ROOT_CATEGORY)
 						.setAttribute(ATTR_NAME, LOCALE, "root")
+						.setAttribute(ATTR_LIVE_ONLY, true)
 						.setReference(REF_TAGS, TAG)
 				);
 				session.upsertEntity(
 					session.createNewEntity(ENTITY_CATEGORY, SUBTREE_CATEGORY)
 						.setParent(ROOT_CATEGORY)
 						.setAttribute(ATTR_NAME, LOCALE, "child")
+						.setAttribute(ATTR_LIVE_ONLY, true)
 				);
 				session.upsertEntity(
-					session.createNewEntity(ENTITY_CATEGORY, OTHER_CATEGORY).setAttribute(ATTR_NAME, LOCALE, "other")
+					session.createNewEntity(ENTITY_CATEGORY, OTHER_CATEGORY)
+						.setAttribute(ATTR_NAME, LOCALE, "other")
+						.setAttribute(ATTR_LIVE_ONLY, true)
 				);
 				session.upsertEntity(
 					session.createNewEntity(ENTITY_CATEGORY, LIVE_NODE_WITH_ARCHIVED_OWNERS)
@@ -476,6 +506,7 @@ public class InScopeReducedIndexPlanFunctionalTest {
 					session.createNewEntity(ENTITY_CATEGORY, ARCHIVED_ROOT_CATEGORY)
 						.setAttribute(ATTR_NAME, LOCALE, "archived root")
 						.setAttribute(ATTR_CODE, ROOT_CODE)
+						.setAttribute(ATTR_GLOBAL_CODE, ROOT_CODE)
 						.setReference(REF_TAGS, TAG)
 				);
 				session.upsertEntity(
@@ -511,6 +542,7 @@ public class InScopeReducedIndexPlanFunctionalTest {
 					.orElseThrow()
 					.openForWrite()
 					.setAttribute(ATTR_CODE, ROOT_CODE)
+					.setAttribute(ATTR_GLOBAL_CODE, ROOT_CODE)
 					.upsertVia(session);
 			}
 		);
@@ -2129,6 +2161,31 @@ public class InScopeReducedIndexPlanFunctionalTest {
 					"own whole hierarchy", ENTITY_CATEGORY,
 					hierarchyWithinRootSelf(),
 					union(liveCategories, archivedCategories), liveCategories, archivedCategories
+				),
+				// the globally unique value is held by category 1 in the live scope and by category 11 in the archived
+				// one: each tree hides the root of its own scope together with its child
+				Arguments.of(
+					"own whole hierarchy, excluding by global unique attribute", ENTITY_CATEGORY,
+					hierarchyWithinRootSelf(excluding(attributeEquals(ATTR_GLOBAL_CODE, ROOT_CODE))),
+					new int[]{OTHER_CATEGORY, LIVE_NODE_WITH_ARCHIVED_OWNERS, ARCHIVED_NODE_WITH_LIVE_OWNERS},
+					new int[]{OTHER_CATEGORY, LIVE_NODE_WITH_ARCHIVED_OWNERS},
+					new int[]{ARCHIVED_NODE_WITH_LIVE_OWNERS}
+				),
+				// only the root holding the globally unique value in its scope satisfies the filter
+				Arguments.of(
+					"own whole hierarchy, having by global unique attribute", ENTITY_CATEGORY,
+					hierarchyWithinRootSelf(having(attributeEquals(ATTR_GLOBAL_CODE, ROOT_CODE))),
+					new int[]{ROOT_CATEGORY, ARCHIVED_ROOT_CATEGORY},
+					new int[]{ROOT_CATEGORY},
+					new int[]{ARCHIVED_ROOT_CATEGORY}
+				),
+				// the referenced counterpart: nodes 3, 4 and 15 stay, so do their owners of both scopes
+				Arguments.of(
+					"whole hierarchy, excluding by global unique attribute", ENTITY_PRODUCT,
+					hierarchyWithinRoot(REF_CATEGORIES, excluding(attributeEquals(ATTR_GLOBAL_CODE, ROOT_CODE))),
+					union(range(9, 48), range(57, 72)),
+					range(17, 48),
+					none
 				)
 			);
 		}
@@ -2216,6 +2273,70 @@ public class InScopeReducedIndexPlanFunctionalTest {
 					() -> "the negation over " + scopeLabel
 				);
 			}
+		}
+
+		/**
+		 * Returns the rows of the own-hierarchy witness inside `inScope(...)`: a label, the scope of the container, the
+		 * hierarchy filter of the categories' own hierarchy, and the categories it selects over that scope alone.
+		 *
+		 * @return the row arguments
+		 */
+		@Nonnull
+		static Stream<Arguments> ownHierarchyInScopeRows() {
+			return Stream.of(
+				// the attribute is filterable in the live scope only, the only scope its tree belongs to
+				Arguments.of(
+					"having by attribute filterable in live scope only", Scope.LIVE,
+					hierarchyWithinRootSelf(having(attributeEquals(ATTR_LIVE_ONLY, true))),
+					new int[]{ROOT_CATEGORY, SUBTREE_CATEGORY, OTHER_CATEGORY}
+				),
+				// the archived tree hides category 11, which holds the globally unique value in the archived scope
+				Arguments.of(
+					"excluding by global unique attribute", Scope.ARCHIVED,
+					hierarchyWithinRootSelf(excluding(attributeEquals(ATTR_GLOBAL_CODE, ROOT_CODE))),
+					new int[]{ARCHIVED_NODE_WITH_LIVE_OWNERS}
+				)
+			);
+		}
+
+		/**
+		 * Checks that a hierarchy filter of the categories' own hierarchy placed in `inScope(S, ...)` of a query over
+		 * both scopes resolves its node filter in the tree of scope `S` only: it selects in scope `S` what it selects
+		 * over that scope alone, and the other scope stays unrestricted.
+		 *
+		 * @param label            the row label, used in the test name only
+		 * @param scope            the scope of the `inScope` container
+		 * @param hierarchyFilter  the hierarchy filter of the categories' own hierarchy
+		 * @param expectedInScope  the categories the filter selects over scope `S` alone
+		 * @param session          the session provided by the test extension
+		 */
+		@DisplayName("Should resolve the node filter of an own hierarchy in inScope in the tree of that scope")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN_ARCHIVED_SUBTREE_OWNER)
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("ownHierarchyInScopeRows")
+		@Tag(ENGINE)
+		@Tag(QUERY)
+		void shouldResolveNodeFilterOfOwnHierarchyInScopeInTreeOfThatScope(
+			@Nonnull String label,
+			@Nonnull Scope scope,
+			@Nonnull FilterConstraint hierarchyFilter,
+			@Nonnull int[] expectedInScope,
+			@Nonnull EvitaSessionContract session
+		) {
+			final Scope otherScope = scope == Scope.LIVE ? Scope.ARCHIVED : Scope.LIVE;
+			assertArrayEquals(
+				expectedInScope,
+				queryPrimaryKeys(session, ENTITY_CATEGORY, new Scope[]{scope}, hierarchyFilter),
+				"the single-scope control"
+			);
+			final int[] otherScopeCategories = queryPrimaryKeys(
+				session, ENTITY_CATEGORY, new Scope[]{otherScope}, entityPrimaryKeyInSet(ALL_KEYS)
+			);
+			assertTrue(otherScopeCategories.length > 0, "the other scope must hold categories");
+			assertArrayEquals(
+				union(expectedInScope, otherScopeCategories),
+				queryPrimaryKeys(session, ENTITY_CATEGORY, BOTH_SCOPES, inScope(scope, hierarchyFilter))
+			);
 		}
 
 		/**
@@ -2407,122 +2528,6 @@ public class InScopeReducedIndexPlanFunctionalTest {
 	}
 
 	/**
-	 * Runs a query filtering by the passed constraints and returns the statistics the passed requirement computes in
-	 * the passed scope.
-	 *
-	 * @param session         the session to query
-	 * @param scopes          the scopes of `scope(...)`
-	 * @param statisticsScope the scope the statistics are computed for
-	 * @param self            whether the categories are queried for their own hierarchy, or the products for the
-	 *                        `categories` reference
-	 * @param constraints     the constraints placed next to `scope(...)`
-	 * @param requirement     the statistics requirement, named {@link #HIERARCHY_OUTPUT}
-	 * @return the statistics
-	 */
-	@Nonnull
-	private static List<LevelInfo> queryStatistics(
-		@Nonnull EvitaSessionContract session,
-		@Nonnull Scope[] scopes,
-		@Nonnull Scope statisticsScope,
-		boolean self,
-		@Nonnull FilterConstraint[] constraints,
-		@Nonnull HierarchyRequireConstraint requirement
-	) {
-		final EvitaResponse<EntityReference> response = session.query(
-			query(
-				collection(self ? ENTITY_CATEGORY : ENTITY_PRODUCT),
-				filterBy(ArrayUtils.mergeArrays(new FilterConstraint[]{scope(scopes)}, constraints)),
-				require(
-					page(1, PRODUCT_COUNT * 2),
-					inScope(
-						statisticsScope,
-						self ? hierarchyOfSelf(requirement) : hierarchyOfReference(REF_CATEGORIES, requirement)
-					)
-				)
-			),
-			EntityReference.class
-		);
-		final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-		assertNotNull(hierarchy, "the hierarchy statistics must be computed");
-		return self ?
-			hierarchy.getSelfHierarchy(HIERARCHY_OUTPUT) :
-			hierarchy.getReferenceHierarchy(REF_CATEGORIES, HIERARCHY_OUTPUT);
-	}
-
-	/**
-	 * Runs a query over both scopes with the passed filter constraints and returns the live hierarchy statistics of
-	 * the `categories` reference computed by the passed requirement.
-	 *
-	 * @param session     the session to query
-	 * @param constraints the constraints placed next to `scope(LIVE, ARCHIVED)`
-	 * @param requirement the statistics requirement, named {@link #HIERARCHY_OUTPUT}
-	 * @return the live statistics
-	 */
-	@Nonnull
-	private static List<LevelInfo> queryLiveHierarchyStatistics(
-		@Nonnull EvitaSessionContract session,
-		@Nonnull FilterConstraint[] constraints,
-		@Nonnull HierarchyRequireConstraint requirement
-	) {
-		return liveStatistics(queryLiveHierarchy(session, BOTH_SCOPES, constraints, requirement));
-	}
-
-	/**
-	 * Runs a query over the passed scopes with the passed filter constraints, requesting the live hierarchy
-	 * statistics of the `categories` reference computed by the passed requirement.
-	 *
-	 * @param session     the session to query
-	 * @param scopes      the scopes of `scope(...)`
-	 * @param constraints the constraints placed next to `scope(...)`
-	 * @param requirement the statistics requirement, named {@link #HIERARCHY_OUTPUT}
-	 * @return the response
-	 */
-	@Nonnull
-	private static EvitaResponse<EntityReference> queryLiveHierarchy(
-		@Nonnull EvitaSessionContract session,
-		@Nonnull Scope[] scopes,
-		@Nonnull FilterConstraint[] constraints,
-		@Nonnull HierarchyRequireConstraint requirement
-	) {
-		return session.query(
-			query(
-				collection(ENTITY_PRODUCT),
-				filterBy(ArrayUtils.mergeArrays(new FilterConstraint[]{scope(scopes)}, constraints)),
-				require(
-					page(1, PRODUCT_COUNT),
-					inScope(Scope.LIVE, hierarchyOfReference(REF_CATEGORIES, requirement))
-				)
-			),
-			EntityReference.class
-		);
-	}
-
-	/**
-	 * Returns the live hierarchy statistics of the `categories` reference named {@link #HIERARCHY_OUTPUT} that the
-	 * response carries.
-	 *
-	 * @param response the response of a query requesting the live statistics
-	 * @return the live statistics
-	 */
-	@Nonnull
-	private static List<LevelInfo> liveStatistics(@Nonnull EvitaResponse<EntityReference> response) {
-		final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-		assertNotNull(hierarchy, "the hierarchy statistics must be computed");
-		return hierarchy.getReferenceHierarchy(REF_CATEGORIES, HIERARCHY_OUTPUT);
-	}
-
-	/**
-	 * Returns the primary keys the response carries, ascending.
-	 *
-	 * @param response the response
-	 * @return the ascending primary keys
-	 */
-	@Nonnull
-	private static int[] sortedPrimaryKeys(@Nonnull EvitaResponse<EntityReference> response) {
-		return response.getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).sorted().toArray();
-	}
-
-	/**
 	 * An extra result computed without the user filter over a query whose only constraint of one scope is
 	 * `inScope(S, userFilter(...))`: removing the user filter from the planned formula leaves that scope unrestricted,
 	 * so the extra result counts every entity of the scope - it must never lose the scope as if it selected nothing.
@@ -2651,6 +2656,122 @@ public class InScopeReducedIndexPlanFunctionalTest {
 			return brandStatistics.getCount();
 		}
 
+	}
+
+	/**
+	 * Runs a query filtering by the passed constraints and returns the statistics the passed requirement computes in
+	 * the passed scope.
+	 *
+	 * @param session         the session to query
+	 * @param scopes          the scopes of `scope(...)`
+	 * @param statisticsScope the scope the statistics are computed for
+	 * @param self            whether the categories are queried for their own hierarchy, or the products for the
+	 *                        `categories` reference
+	 * @param constraints     the constraints placed next to `scope(...)`
+	 * @param requirement     the statistics requirement, named {@link #HIERARCHY_OUTPUT}
+	 * @return the statistics
+	 */
+	@Nonnull
+	private static List<LevelInfo> queryStatistics(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Scope[] scopes,
+		@Nonnull Scope statisticsScope,
+		boolean self,
+		@Nonnull FilterConstraint[] constraints,
+		@Nonnull HierarchyRequireConstraint requirement
+	) {
+		final EvitaResponse<EntityReference> response = session.query(
+			query(
+				collection(self ? ENTITY_CATEGORY : ENTITY_PRODUCT),
+				filterBy(ArrayUtils.mergeArrays(new FilterConstraint[]{scope(scopes)}, constraints)),
+				require(
+					page(1, PRODUCT_COUNT * 2),
+					inScope(
+						statisticsScope,
+						self ? hierarchyOfSelf(requirement) : hierarchyOfReference(REF_CATEGORIES, requirement)
+					)
+				)
+			),
+			EntityReference.class
+		);
+		final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+		assertNotNull(hierarchy, "the hierarchy statistics must be computed");
+		return self ?
+			hierarchy.getSelfHierarchy(HIERARCHY_OUTPUT) :
+			hierarchy.getReferenceHierarchy(REF_CATEGORIES, HIERARCHY_OUTPUT);
+	}
+
+	/**
+	 * Runs a query over both scopes with the passed filter constraints and returns the live hierarchy statistics of
+	 * the `categories` reference computed by the passed requirement.
+	 *
+	 * @param session     the session to query
+	 * @param constraints the constraints placed next to `scope(LIVE, ARCHIVED)`
+	 * @param requirement the statistics requirement, named {@link #HIERARCHY_OUTPUT}
+	 * @return the live statistics
+	 */
+	@Nonnull
+	private static List<LevelInfo> queryLiveHierarchyStatistics(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull FilterConstraint[] constraints,
+		@Nonnull HierarchyRequireConstraint requirement
+	) {
+		return liveStatistics(queryLiveHierarchy(session, BOTH_SCOPES, constraints, requirement));
+	}
+
+	/**
+	 * Runs a query over the passed scopes with the passed filter constraints, requesting the live hierarchy
+	 * statistics of the `categories` reference computed by the passed requirement.
+	 *
+	 * @param session     the session to query
+	 * @param scopes      the scopes of `scope(...)`
+	 * @param constraints the constraints placed next to `scope(...)`
+	 * @param requirement the statistics requirement, named {@link #HIERARCHY_OUTPUT}
+	 * @return the response
+	 */
+	@Nonnull
+	private static EvitaResponse<EntityReference> queryLiveHierarchy(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Scope[] scopes,
+		@Nonnull FilterConstraint[] constraints,
+		@Nonnull HierarchyRequireConstraint requirement
+	) {
+		return session.query(
+			query(
+				collection(ENTITY_PRODUCT),
+				filterBy(ArrayUtils.mergeArrays(new FilterConstraint[]{scope(scopes)}, constraints)),
+				require(
+					page(1, PRODUCT_COUNT),
+					inScope(Scope.LIVE, hierarchyOfReference(REF_CATEGORIES, requirement))
+				)
+			),
+			EntityReference.class
+		);
+	}
+
+	/**
+	 * Returns the live hierarchy statistics of the `categories` reference named {@link #HIERARCHY_OUTPUT} that the
+	 * response carries.
+	 *
+	 * @param response the response of a query requesting the live statistics
+	 * @return the live statistics
+	 */
+	@Nonnull
+	private static List<LevelInfo> liveStatistics(@Nonnull EvitaResponse<EntityReference> response) {
+		final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+		assertNotNull(hierarchy, "the hierarchy statistics must be computed");
+		return hierarchy.getReferenceHierarchy(REF_CATEGORIES, HIERARCHY_OUTPUT);
+	}
+
+	/**
+	 * Returns the primary keys the response carries, ascending.
+	 *
+	 * @param response the response
+	 * @return the ascending primary keys
+	 */
+	@Nonnull
+	private static int[] sortedPrimaryKeys(@Nonnull EvitaResponse<EntityReference> response) {
+		return response.getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).sorted().toArray();
 	}
 
 	/**
