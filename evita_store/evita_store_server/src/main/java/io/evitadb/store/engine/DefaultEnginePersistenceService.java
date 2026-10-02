@@ -568,7 +568,17 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		// files queued for removal stay on disk until a restart opens it at a later one
 		final EngineMutationLog theMutationLog = this.mutationLog;
 		if (theMutationLog != null) {
-			theMutationLog.walProcessedUntil(engineState.version());
+			try {
+				theMutationLog.walProcessedUntil(engineState.version());
+			} catch (RuntimeException ex) {
+				// the record above is already published, so nothing after it may fail the write - a caller rolling
+				// back on failure would remove WAL bytes the published record references; the processed version is
+				// set before the removal is scheduled, so the next publish schedules the removal again
+				log.warn(
+					"Failed to schedule the removal of WAL files processed up to engine version {}.",
+					engineState.version(), ex
+				);
+			}
 		}
 	}
 
@@ -660,6 +670,8 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 				// directly. This keeps the WAL append + bootstrap write as a
 				// single fused critical section.
 				this.created = false;
+				// the publish - nothing that can fail may follow it in this block, because the catch below would
+				// roll back the WAL append the published record already references
 				writeBootstrapFile(newEngineState);
 				return txRef;
 			} catch (Throwable t) {

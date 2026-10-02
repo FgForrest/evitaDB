@@ -1048,6 +1048,65 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 		}
 
 		/**
+		 * Once the bootstrap record names a transaction, rolling its WAL append back removes bytes a published record
+		 * reaches. What the publish triggers afterwards - reporting the version as processed, which schedules the
+		 * removal of rotated WAL files - is housekeeping, and its failure must not reach the rollback. The test makes
+		 * it fail the way an abruptly shut down scheduler does: the append that rotates queues a removal the retention
+		 * cannot run yet, and the scheduler goes away between that append and its publish.
+		 */
+		@Test
+		@DisplayName("should keep a published append when the removal of rotated WAL files cannot be scheduled")
+		void shouldKeepAPublishedAppendWhenTheRemovalOfRotatedWalFilesCannotBeScheduled() {
+			DefaultEnginePersistenceServiceTest.this.service.close();
+			// one kept file, so the very first rotation queues the removal of the file before it
+			DefaultEnginePersistenceServiceTest.this.transactionOptions = TransactionOptions
+				.builder(DefaultEnginePersistenceServiceTest.this.transactionOptions)
+				.walFileCountKept(1)
+				.build();
+			final ImmediateScheduledThreadPoolExecutor executor = new ImmediateScheduledThreadPoolExecutor();
+			DefaultEnginePersistenceServiceTest.this.scheduler = new Scheduler(executor);
+			DefaultEnginePersistenceServiceTest.this.service = reopenService();
+
+			long publishedVersion = -1L;
+			for (long version = DefaultEnginePersistenceServiceTest.this.service.getVersion() + 1;
+			     version <= MAX_VERSION_BEFORE_ROTATION && publishedVersion == -1L; version++) {
+				final long appendedVersion = version;
+				final boolean[] rotated = {false};
+				assertDoesNotThrow(
+					() -> DefaultEnginePersistenceServiceTest.this.service.appendWalAndStoreState(
+						appendedVersion, UUID.randomUUID(), createTestEngineMutation("catalog" + appendedVersion),
+						txRef -> {
+							if (((LogFileRecordReference) txRef.walReference()).fileIndex() > 0) {
+								rotated[0] = true;
+								executor.shutdownNow();
+							}
+							return minimalEngineState(appendedVersion, txRef);
+						}
+					),
+					"Version " + appendedVersion + " was published by the bootstrap record before scheduling the " +
+						"removal of rotated WAL files failed. A failure after the publish must not roll back an " +
+						"append the published record already references."
+				);
+				if (rotated[0]) {
+					publishedVersion = appendedVersion;
+				}
+			}
+			assertTrue(publishedVersion > 0L, "The WAL never rotated - lower ROTATING_WAL_FILE_SIZE_BYTES.");
+			assertEquals(publishedVersion, DefaultEnginePersistenceServiceTest.this.service.getVersion());
+			assertEquals(
+				publishedVersion, DefaultEnginePersistenceServiceTest.this.service.getLastVersionInMutationStream()
+			);
+
+			DefaultEnginePersistenceServiceTest.this.service.close();
+			DefaultEnginePersistenceServiceTest.this.scheduler = new Scheduler(new ImmediateScheduledThreadPoolExecutor());
+			DefaultEnginePersistenceServiceTest.this.service = assertDoesNotThrow(this::reopenService);
+			assertEquals(publishedVersion, DefaultEnginePersistenceServiceTest.this.service.getVersion());
+			assertEquals(
+				publishedVersion, DefaultEnginePersistenceServiceTest.this.service.getLastVersionInMutationStream()
+			);
+		}
+
+		/**
 		 * After a crash between rotation and the first append, the published engine state references the last
 		 * transaction of the finalized file while appends land in the empty file after it. A rolled-back append
 		 * there has to be removed from the file it landed in - the file the published reference points into ends
