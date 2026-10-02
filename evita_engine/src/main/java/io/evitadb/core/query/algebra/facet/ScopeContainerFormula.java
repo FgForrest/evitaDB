@@ -73,6 +73,17 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 	 */
 	private List<Formula> sortedFormulasByComplexity;
 
+	/**
+	 * Creates the container with a computation callback and no formula to stand for the scope once emptied - a clone
+	 * that strips every inner formula collapses this container to {@link EmptyFormula#INSTANCE}, see
+	 * {@link #emptyScopeFormula}. Use {@link #restrictingScope} instead when the container must survive emptying as
+	 * its whole scope.
+	 *
+	 * @param computationCallback the callback of the computation
+	 * @param scope               the scope the container restricts
+	 * @param innerFormulas       the constraints of the scope
+	 * @param indexTransactionId  the transactional ids of the indexes the formula was built from
+	 */
 	public ScopeContainerFormula(@Nonnull Consumer<CacheableFormula> computationCallback, @Nonnull Scope scope, @Nonnull Formula[] innerFormulas, @Nonnull long[] indexTransactionId) {
 		this(computationCallback, scope, null, innerFormulas, indexTransactionId);
 	}
@@ -100,6 +111,16 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 		this.initFields(innerFormulas);
 	}
 
+	/**
+	 * Creates the container with no computation callback and no formula to stand for the scope once emptied - a clone
+	 * that strips every inner formula collapses this container to {@link EmptyFormula#INSTANCE}, see
+	 * {@link #emptyScopeFormula}. This is the entry point used outside the cloning/caching machinery, e.g. by
+	 * `FilterInScopeTranslator#translate`. Use {@link #restrictingScope} instead when the container must survive
+	 * emptying as its whole scope.
+	 *
+	 * @param scope         the scope the container restricts
+	 * @param innerFormulas the constraints of the scope
+	 */
 	public ScopeContainerFormula(@Nonnull Scope scope, @Nonnull Formula... innerFormulas) {
 		this(null, scope, null, innerFormulas, null);
 	}
@@ -192,6 +213,10 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 		return "SCOPE_CONTAINER(" + this.scope.name() + ")";
 	}
 
+	/**
+	 * Deviates from the inherited contract when {@link #emptyScopeFormula} is set: emptying does not drop this
+	 * container as the identity element, it is replaced by a container standing for the whole scope instead.
+	 */
 	@Nonnull
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {

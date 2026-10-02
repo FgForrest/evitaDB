@@ -450,8 +450,10 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 * `UserFilterFormula.getCloneWithInnerFormulas([])` collapses into {@link EmptyFormula} (the "empty result"
 	 * sentinel). {@link FormulaCloner} now generalises this: any wrapper whose `getCloneWithInnerFormulas([])`
 	 * returns {@link EmptyFormula} is dropped as the identity element of its parent — covering not only
-	 * `UserFilterFormula` but also nested `AndFormula`/`OrFormula`/`ScopeContainerFormula` chains that the
-	 * strip mutators can empty out, so the shortcut handles all three modes safely.
+	 * `UserFilterFormula` but also nested `AndFormula`/`OrFormula` chains that the strip mutators can empty out.
+	 * A `ScopeContainerFormula` built by `restrictingScope` takes a third path when emptied this way: it is
+	 * replaced by a substitute standing for its whole scope rather than dropped, so a scope whose only constraint
+	 * was stripped is still counted in full instead of disappearing from the statistics base.
 	 */
 	private boolean canUseShortcut(@Nullable ReferenceSchemaContract referenceSchema) {
 		final String referenceName = referenceSchema == null ? null : referenceSchema.getName();
