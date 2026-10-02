@@ -39,6 +39,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -262,14 +263,34 @@ public abstract sealed class SortIndex
 	}
 
 	/**
-	 * Creates a normalizer if any part of the comparator base needs canonicalization (a {@link String}, {@link Locale},
-	 * {@link Currency} or one of the temporal types normalized to their millisecond form).
+	 * Creates the normalizer a comparator of prefetched entities applies to the compound values it reads from entity
+	 * bodies - one element normalizer per compound element, see
+	 * {@link #createComparatorNormalizerFor(ComparatorSource, int)}.
 	 *
-	 * @see #normalizer
+	 * @param comparatorBase       one descriptor per compound element
+	 * @param indexedDecimalPlaces the `indexedDecimalPlaces` of each element's attribute schema, in element order
+	 * @return the normalizer of a compound value, identity when no element needs one
 	 */
 	@Nonnull
-	public static UnaryOperator<Serializable> createNormalizerFor(@Nonnull ComparatorSource[] comparatorBase) {
-		return createNormalizerFor(comparatorBase, 0);
+	public static UnaryOperator<Serializable> createComparatorNormalizerFor(
+		@Nonnull ComparatorSource[] comparatorBase,
+		@Nonnull int[] indexedDecimalPlaces
+	) {
+		Assert.isPremiseValid(
+			comparatorBase.length == indexedDecimalPlaces.length,
+			"Expected decimal places for each of " + comparatorBase.length + " compound elements!"
+		);
+		//noinspection unchecked
+		final UnaryOperator<Serializable>[] normalizers = new UnaryOperator[comparatorBase.length];
+		boolean atLeastOneNormalizerFound = false;
+		for (int i = 0; i < comparatorBase.length; i++) {
+			final Optional<UnaryOperator<Serializable>> normalizer =
+				createComparatorNormalizerFor(comparatorBase[i], indexedDecimalPlaces[i]);
+			normalizers[i] = normalizer.orElseGet(UnaryOperator::identity);
+			atLeastOneNormalizerFound = atLeastOneNormalizerFound || normalizer.isPresent();
+		}
+		return atLeastOneNormalizerFound ?
+			new ComparableArrayNormalizer<>(normalizers) : UnaryOperator.identity();
 	}
 
 	/**
@@ -305,18 +326,36 @@ public abstract sealed class SortIndex
 	}
 
 	/**
-	 * Creates a normalizer if the comparator base is of type {@link String}, {@link Locale}, {@link Currency} or one
-	 * of the temporal types normalized to their millisecond form, so a comparator of prefetched entities orders them
-	 * exactly as a sort index does. `BigDecimal` is intentionally NOT normalized here: the query-side comparators that
-	 * call this overload compare raw `BigDecimal` entity values among themselves, where natural order is already
-	 * correct. The index-side scaling is supplied through the {@link #createNormalizerFor(ComparatorSource, int)}
-	 * overload.
+	 * Creates the normalizer a comparator of prefetched entities applies to the values it reads from entity bodies, if
+	 * the comparator base is of type {@link String}, {@link Locale}, {@link Currency}, {@link BigDecimalNumberRange} or
+	 * one of the temporal types normalized to their millisecond form, so the comparator orders the entities exactly as
+	 * a sort index does.
 	 *
+	 * `BigDecimal` is intentionally NOT normalized here: the comparators compare raw `BigDecimal` entity values among
+	 * themselves, where natural order is already correct. A `BigDecimalNumberRange` is different - it compares by its
+	 * bounds encoded at a decimal scale, and the entity body keeps each range at the scale of its own bounds, so the
+	 * ranges of two entities are comparable only once both are encoded at one scale. They are re-encoded at the
+	 * attribute's `indexedDecimalPlaces`, the scale the sort index holds them at, so the comparators order the entities
+	 * exactly as the index does. The index-side scaling is supplied through the
+	 * {@link #createNormalizerFor(ComparatorSource, int)} overload.
+	 *
+	 * @param comparatorBase       descriptor of the compared value
+	 * @param indexedDecimalPlaces the `indexedDecimalPlaces` of the attribute schema the value belongs to
+	 * @return the normalizer, or empty when the type needs none
 	 * @see #normalizer
 	 */
 	@Nonnull
-	public static Optional<UnaryOperator<Serializable>> createNormalizerFor(@Nonnull ComparatorSource comparatorBase) {
-		return createNormalizerFor(comparatorBase, 0, false);
+	public static Optional<UnaryOperator<Serializable>> createComparatorNormalizerFor(
+		@Nonnull ComparatorSource comparatorBase,
+		int indexedDecimalPlaces
+	) {
+		if (BigDecimalNumberRange.class.isAssignableFrom(comparatorBase.type())) {
+			return Optional.of(
+				value -> value == null ? null : NumberUtils.normalizeForIndexing(value, indexedDecimalPlaces)
+			);
+		} else {
+			return createNormalizerFor(comparatorBase, indexedDecimalPlaces, false);
+		}
 	}
 
 	/**

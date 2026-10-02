@@ -61,6 +61,7 @@ public class TraverseReferenceAttributeComparator
 	public TraverseReferenceAttributeComparator(
 		@Nonnull String attributeName,
 		@Nonnull Class<?> type,
+		int indexedDecimalPlaces,
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull OrderDirection orderDirection
@@ -68,6 +69,7 @@ public class TraverseReferenceAttributeComparator
 		super(
 			attributeName,
 			type,
+			indexedDecimalPlaces,
 			referenceSchema,
 			locale,
 			orderDirection

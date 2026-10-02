@@ -38,6 +38,7 @@ import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -907,7 +908,50 @@ class SortIndexTest {
 			final ComparatorSource source =
 				new ComparatorSource(BigDecimal.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
 			// the query-side overload leaves BigDecimal unscaled - sorting result rows by raw BigDecimal is order-correct
-			assertTrue(SortIndex.createNormalizerFor(source).isEmpty());
+			assertTrue(SortIndex.createComparatorNormalizerFor(source, 2).isEmpty());
+		}
+
+		@Test
+		@DisplayName("should re-encode a BigDecimalNumberRange at the schema scale in the query-comparator normalizer")
+		void shouldReencodeRangeInComparatorNormalizer() {
+			final ComparatorSource source =
+				new ComparatorSource(BigDecimalNumberRange.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
+			final UnaryOperator<Serializable> normalizer =
+				SortIndex.createComparatorNormalizerFor(source, 2).orElseThrow();
+
+			// a range of one decimal place (bounds 34..45) and one of two decimal places (bounds 225..250) compare
+			// in the wrong order as they are, and in the right one once both are encoded at two decimal places
+			final BigDecimalNumberRange oneDecimal =
+				BigDecimalNumberRange.between(new BigDecimal("3.4"), new BigDecimal("4.5"));
+			final BigDecimalNumberRange twoDecimals =
+				BigDecimalNumberRange.between(new BigDecimal("2.25"), new BigDecimal("2.50"));
+			assertTrue(oneDecimal.compareTo(twoDecimals) < 0);
+			final BigDecimalNumberRange normalizedOneDecimal = (BigDecimalNumberRange) normalizer.apply(oneDecimal);
+			final BigDecimalNumberRange normalizedTwoDecimals = (BigDecimalNumberRange) normalizer.apply(twoDecimals);
+			assertTrue(normalizedOneDecimal.compareTo(normalizedTwoDecimals) > 0);
+			assertEquals(340L, normalizedOneDecimal.getFrom());
+			// the precise bounds are kept, and a range already at the scale passes through untouched
+			assertEquals(new BigDecimal("3.4"), normalizedOneDecimal.getPreciseFrom());
+			assertSame(twoDecimals, normalizedTwoDecimals);
+			assertNull(normalizer.apply(null));
+		}
+
+		@Test
+		@DisplayName("should re-encode a BigDecimalNumberRange compound element at its own scale")
+		void shouldReencodeRangeElementInCompoundComparatorNormalizer() {
+			final ComparatorSource[] sources = {
+				new ComparatorSource(BigDecimalNumberRange.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+				new ComparatorSource(BigDecimalNumberRange.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+				new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+			};
+			final UnaryOperator<Serializable> normalizer =
+				SortIndex.createComparatorNormalizerFor(sources, new int[]{2, 3, 0});
+
+			final BigDecimalNumberRange range = BigDecimalNumberRange.between(new BigDecimal("3.4"), new BigDecimal("4.5"));
+			final Serializable[] normalized = (Serializable[]) normalizer.apply(new Serializable[]{range, range, 7});
+			assertEquals(340L, ((BigDecimalNumberRange) normalized[0]).getFrom());
+			assertEquals(3400L, ((BigDecimalNumberRange) normalized[1]).getFrom());
+			assertEquals(7, normalized[2]);
 		}
 
 		@Test
@@ -929,7 +973,7 @@ class SortIndexTest {
 		void shouldCreateNormalizerForLocale() {
 			final ComparatorSource source =
 				new ComparatorSource(Locale.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
-			final UnaryOperator<Serializable> normalizer = SortIndex.createNormalizerFor(source).orElseThrow();
+			final UnaryOperator<Serializable> normalizer = SortIndex.createComparatorNormalizerFor(source, 2).orElseThrow();
 
 			final Serializable result = normalizer.apply(Locale.ENGLISH);
 			assertInstanceOf(ComparableLocale.class, result);
@@ -941,7 +985,7 @@ class SortIndexTest {
 		void shouldCreateNormalizerForCurrency() {
 			final ComparatorSource source =
 				new ComparatorSource(Currency.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
-			final UnaryOperator<Serializable> normalizer = SortIndex.createNormalizerFor(source).orElseThrow();
+			final UnaryOperator<Serializable> normalizer = SortIndex.createComparatorNormalizerFor(source, 2).orElseThrow();
 
 			final Serializable result = normalizer.apply(Currency.getInstance("USD"));
 			assertInstanceOf(ComparableCurrency.class, result);
@@ -953,7 +997,7 @@ class SortIndexTest {
 		void shouldCreateNormalizerForString() {
 			final ComparatorSource source =
 				new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
-			final UnaryOperator<Serializable> normalizer = SortIndex.createNormalizerFor(source).orElseThrow();
+			final UnaryOperator<Serializable> normalizer = SortIndex.createComparatorNormalizerFor(source, 2).orElseThrow();
 
 			final Serializable result = normalizer.apply("é"); // e-acute
 			assertNotNull(result);
@@ -965,7 +1009,7 @@ class SortIndexTest {
 		void shouldReturnEmptyNormalizerForInteger() {
 			final ComparatorSource source =
 				new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
-			assertTrue(SortIndex.createNormalizerFor(source).isEmpty());
+			assertTrue(SortIndex.createComparatorNormalizerFor(source, 2).isEmpty());
 		}
 
 		@SuppressWarnings({"rawtypes", "unchecked"})

@@ -282,6 +282,7 @@ public class AttributeNaturalTranslator
 				entityComparator = new AttributeComparator(
 					attributeOrCompoundName,
 					attributeSchema.getPlainType(),
+					attributeSchema.getIndexedDecimalPlaces(),
 					locale,
 					orderDirection
 				);
@@ -290,6 +291,7 @@ public class AttributeNaturalTranslator
 				entityComparator = new TraverseReferenceAttributeComparator(
 					attributeOrCompoundName,
 					attributeSchema.getPlainType(),
+					attributeSchema.getIndexedDecimalPlaces(),
 					referenceSchema,
 					locale,
 					orderDirection
@@ -444,6 +446,7 @@ public class AttributeNaturalTranslator
 			entityComparator = new PickFirstReferenceAttributeComparator(
 				attributeSchema.getName(),
 				attributeSchema.getPlainType(),
+				attributeSchema.getIndexedDecimalPlaces(),
 				referenceSchema,
 				locale,
 				orderDirection,
@@ -532,6 +535,7 @@ public class AttributeNaturalTranslator
 			comparator = new ReferenceAttributeReferenceComparator(
 				attributeOrCompoundName,
 				attributeSchema.getPlainType(),
+				attributeSchema.getIndexedDecimalPlaces(),
 				attributeSchema.isLocalized() ? locale : null,
 				orderDirection
 			);

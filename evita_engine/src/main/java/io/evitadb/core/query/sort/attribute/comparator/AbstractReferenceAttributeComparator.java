@@ -52,7 +52,7 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.index.attribute.SortIndex.createComparatorFor;
-import static io.evitadb.index.attribute.SortIndex.createNormalizerFor;
+import static io.evitadb.index.attribute.SortIndex.createComparatorNormalizerFor;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -100,6 +100,7 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 	public AbstractReferenceAttributeComparator(
 		@Nonnull String attributeName,
 		@Nonnull Class<?> type,
+		int indexedDecimalPlaces,
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull OrderDirection orderDirection
@@ -117,7 +118,8 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 			final ComparatorSource comparatorSource = new ComparatorSource(
 				type, orderDirection, OrderBehaviour.NULLS_LAST
 			);
-			final Optional<UnaryOperator<Serializable>> normalizerFor = createNormalizerFor(comparatorSource);
+			final Optional<UnaryOperator<Serializable>> normalizerFor =
+				createComparatorNormalizerFor(comparatorSource, indexedDecimalPlaces);
 			normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
 			valueComparator = createComparatorFor(locale, comparatorSource);
 		} else {
