@@ -34,6 +34,8 @@ import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+// TODO JNO - remove at the end of #1615
+import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.MutationHandle;
 import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -180,7 +182,7 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 
 			true,
 			// TODO JNO - remove at the end of #1615
-			false
+			MutationHandle.OFF
 		);
 	}
 

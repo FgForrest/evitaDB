@@ -70,6 +70,8 @@ import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefiniti
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.core.catalog.CatalogExpressionTriggerRegistry;
+// TODO JNO - remove at the end of #1615
+import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.MutationHandle;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
 import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
@@ -254,11 +256,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	// TODO JNO - remove at the end of #1615
 	/**
 	 * Whether this mutation maintains the virtual reference partitions of the collection it writes into - the
-	 * collection's test switch, resolved once when the executor is built. See
-	 * {@link io.evitadb.core.catalog.VirtualReferencePartitionMaintenance}.
+	 * collection's test switch, resolved once when the executor is built - and the probe it reports the transitions
+	 * of their partitions to. See {@link io.evitadb.core.catalog.VirtualReferencePartitionMaintenance}.
 	 */
 	// TODO JNO - remove at the end of #1615
-	private final boolean virtualReferencePartitionsMaintained;
+	@Nonnull private final MutationHandle virtualReferencePartitionMutation;
 	/**
 	 * Set contains keys of indexes that were accessed in this particular entity upsert / removal.
 	 */
@@ -439,7 +441,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull SchemaCapabilityUsageRegistry catalogUsageRegistry,
 		boolean usageStatisticsTracking,
 		// TODO JNO - remove at the end of #1615
-		boolean virtualReferencePartitionsMaintained
+		@Nonnull MutationHandle virtualReferencePartitionMutation
 	) {
 		this.containerAccessor = containerAccessor;
 		this.entityPrimaryKey.add((anyType, anyPurpose) -> entityPrimaryKey);
@@ -457,7 +459,20 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		this.catalogUsageRegistry = catalogUsageRegistry;
 		this.usageStatisticsTracking = usageStatisticsTracking;
 		// TODO JNO - remove at the end of #1615
-		this.virtualReferencePartitionsMaintained = virtualReferencePartitionsMaintained;
+		this.virtualReferencePartitionMutation = virtualReferencePartitionMutation;
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns whether this mutation maintains the virtual reference partitions of its collection, and the probe it
+	 * reports their transitions to.
+	 *
+	 * @return the handle of this mutation
+	 */
+	// TODO JNO - remove at the end of #1615
+	@Nonnull
+	MutationHandle getVirtualReferencePartitionMutation() {
+		return this.virtualReferencePartitionMutation;
 	}
 
 	/**

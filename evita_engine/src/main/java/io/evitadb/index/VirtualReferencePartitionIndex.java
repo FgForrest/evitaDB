@@ -624,6 +624,48 @@ public class VirtualReferencePartitionIndex
 	}
 
 	/**
+	 * Forgets everything the index records about the partition: its owner, its representative attribute values, its
+	 * sort value for every declared sort key and its predecessor in every declared chain. The declared keys themselves
+	 * stay - see {@link #retireAllKeysIfNoPartition()}.
+	 *
+	 * @param partitionPrimaryKey the partition primary key, positive
+	 * @return true if the index recorded anything about the partition
+	 */
+	public boolean removePartition(int partitionPrimaryKey) {
+		boolean removed = removePartitionOwner(partitionPrimaryKey);
+		removed |= removeRepresentativeTuple(partitionPrimaryKey);
+		for (final AttributeIndexKey sortKey : getDeclaredSortKeys()) {
+			removed |= removeSortValue(sortKey, partitionPrimaryKey);
+		}
+		for (final AttributeIndexKey chainKey : getDeclaredChainKeys()) {
+			removed |= removeChainPredecessor(chainKey, partitionPrimaryKey);
+		}
+		return removed;
+	}
+
+	/**
+	 * Retires every declared sort and chain key once no partition has an owner recorded any longer. Every entry of a
+	 * declared key belongs to a partition with an owner, so with no owner left the keys hold nothing and only keep the
+	 * index from being empty - and the referenced-type entity index carrying it from being dropped.
+	 *
+	 * @return true if any key was retired
+	 */
+	public boolean retireAllKeysIfNoPartition() {
+		if (hasEntry(VirtualReferencePartitionSlot.PARTITION_OWNER.getId())) {
+			return false;
+		}
+		boolean retired = false;
+		// the declared keys are read as copies, so retiring one does not change the set being iterated
+		for (final AttributeIndexKey sortKey : getDeclaredSortKeys()) {
+			retired |= retireSortKey(sortKey);
+		}
+		for (final AttributeIndexKey chainKey : getDeclaredChainKeys()) {
+			retired |= retireChainKey(chainKey);
+		}
+		return retired;
+	}
+
+	/**
 	 * Returns the owner of the partition and the entity it references, packed as `pack(ownerPrimaryKey,
 	 * targetPrimaryKey)` - {@link NumberUtils#unpackHigh(long)} reads the owner, {@link NumberUtils#unpackLow(long)}
 	 * the referenced entity.
@@ -1797,11 +1839,29 @@ public class VirtualReferencePartitionIndex
 	 * @return true if an entry was removed
 	 */
 	private boolean removePayload(long key) {
+		// an absent key is looked up first and never handed to the removal: the tree opens a transactional layer of
+		// the leaf it searches before it finds the key missing, and with nothing marking this index dirty the commit
+		// would not merge the tree, leaving that layer unswept
+		if (this.entries.getLongRecordEqualTo(key).isEmpty()) {
+			return false;
+		}
 		final boolean removed = this.entries.removeLongRecord(key);
 		if (removed) {
 			this.dirty.setToTrue();
 		}
 		return removed;
+	}
+
+	/**
+	 * Returns TRUE when the slot with the given id holds at least one entry.
+	 *
+	 * @param slotId the slot id
+	 * @return TRUE when the slot is not empty
+	 */
+	private boolean hasEntry(int slotId) {
+		// partition primary keys are positive, so the slot's first possible key is pack(slotId, 1)
+		final BucketCursor cursor = this.entries.cursor(NumberUtils.pack(slotId, 0));
+		return cursor.next() && NumberUtils.unpackHigh((Long) cursor.value()) == slotId;
 	}
 
 	/**

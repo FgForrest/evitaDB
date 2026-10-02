@@ -45,7 +45,11 @@ import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
  * - `gallery` - indexed for filtering in both scopes, allowing duplicates told apart by the representative attribute
  *   `role`. Each product shows its own media `n` in two roles (two single-owner partitions differing in their tuple)
  *   and {@link #SHARED_MEDIA} as a thumbnail (a partition every product owns);
- * - `brand` - indexed for filtering and partitioning, so it is never shadowed by the registry.
+ * - `brand` - indexed for filtering and partitioning, so it is never shadowed by the registry;
+ * - optionally (see {@link #setUpWithReflectedProducts(EvitaSessionContract)}) `products` on the category - the
+ *   reflection of `categories`, indexed for filtering in both scopes and inheriting its attributes. Product `n`'s
+ *   partition there is owned by category `n` alone (a single-owner partition maintained by the reflected mutations a
+ *   product mutation spawns), and by the shared category too for the first three products.
  *
  * Products also carry a unique `code` and a numeric, filterable and sortable `rank`.
  *
@@ -63,6 +67,7 @@ final class SingleOwnerPartitionFixture {
 	static final String REFERENCE_CATEGORIES = "categories";
 	static final String REFERENCE_GALLERY = "gallery";
 	static final String REFERENCE_BRAND = "brand";
+	static final String REFERENCE_PRODUCTS = "products";
 	static final String ATTRIBUTE_CODE = "code";
 	static final String ATTRIBUTE_RANK = "rank";
 	static final String ATTRIBUTE_ORDER = "orderInCategory";
@@ -116,6 +121,31 @@ final class SingleOwnerPartitionFixture {
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Consumer<ReferenceSchemaBuilder> categories
 	) {
+		setUp(session, categories, false);
+	}
+
+	/**
+	 * Defines the schema with the reflected `products` reference on the category, the referenced entities and the
+	 * initial products.
+	 *
+	 * @param session the session to write in
+	 */
+	static void setUpWithReflectedProducts(@Nonnull EvitaSessionContract session) {
+		setUp(session, categories -> { }, true);
+	}
+
+	/**
+	 * Defines the schema, the referenced entities and the initial products.
+	 *
+	 * @param session           the session to write in
+	 * @param categories        extends the definition of the category reference
+	 * @param reflectedProducts TRUE to define the reflected `products` reference on the category
+	 */
+	private static void setUp(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Consumer<ReferenceSchemaBuilder> categories,
+		boolean reflectedProducts
+	) {
 		session.defineEntitySchema(ENTITY_CATEGORY).updateVia(session);
 		session.defineEntitySchema(ENTITY_MEDIA).updateVia(session);
 		session.defineEntitySchema(ENTITY_BRAND).updateVia(session);
@@ -149,6 +179,17 @@ final class SingleOwnerPartitionFixture {
 				whichIs -> whichIs.indexedForFilteringAndPartitioningInScope(Scope.LIVE, Scope.ARCHIVED)
 			)
 			.updateVia(session);
+		if (reflectedProducts) {
+			session.defineEntitySchema(ENTITY_CATEGORY)
+				.withReflectedReferenceToEntity(
+					REFERENCE_PRODUCTS, ENTITY_PRODUCT, REFERENCE_CATEGORIES,
+					whichIs -> whichIs
+						.withCardinality(Cardinality.ZERO_OR_MORE)
+						.withAttributesInherited()
+						.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
+				)
+				.updateVia(session);
+		}
 		for (int pk = 1; pk <= REFERENCED_ENTITY_COUNT; pk++) {
 			session.upsertEntity(session.createNewEntity(ENTITY_CATEGORY, pk));
 			session.upsertEntity(session.createNewEntity(ENTITY_MEDIA, pk));

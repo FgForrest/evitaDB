@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.core.Evita;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
@@ -44,6 +45,7 @@ import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.index.attribute.OwnerSortIndex;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
+import io.evitadb.index.virtual.VirtualReferencePartitionOracle.Coverage;
 import io.evitadb.index.virtual.VirtualReferencePartitionOracle.ExpectedSortValue;
 import io.evitadb.index.virtual.VirtualReferencePartitionOracle.Finding;
 import io.evitadb.index.virtual.VirtualReferencePartitionOracle.FindingKind;
@@ -238,6 +240,43 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 				it -> it.partitionPrimaryKey() == categoryPartition || it.partitionPrimaryKey() == galleryPartition
 			),
 			exact::toString
+		);
+	}
+
+	// TODO JNO - remove at the end of #1615 (the whole test, with the coverage)
+	@Test
+	@DisplayName("the rows-only coverage ignores the keys of the partitions, but refuses a declared key")
+	void shouldCheckTheRowsOnlyUntilTheMirrorExists() {
+		// a catalog of its own, maintained from its first write, so the writers register every row
+		final String maintained = CATALOG + "Maintained";
+		this.catalog = maintained;
+		this.evita.defineCatalog(maintained).updateViaNewSession(this.evita);
+		final Catalog theCatalog = (Catalog) this.evita.getCatalogInstance(maintained).orElseThrow();
+		for (final String entityType : ENTITY_TYPES) {
+			theCatalog.getVirtualReferencePartitionMaintenance().setMaintained(entityType, true);
+		}
+		this.evita.updateCatalog(maintained, SingleOwnerPartitionFixture::setUp);
+
+		assertNoFindings(VirtualReferencePartitionOracle.inspect(product(), Set.of(), Coverage.ROWS_UNTIL_MIRROR));
+		// the full check sees the sort values of the order the rows-only one leaves aside
+		assertTrue(
+			VirtualReferencePartitionOracle.inspect(product(), Set.of(), Coverage.FULL).stream()
+				.anyMatch(it -> it.kind() == FindingKind.SORT_VALUE_MISMATCH),
+			"the registered category partitions hold an order the registry does not mirror yet"
+		);
+
+		registryOf(REFERENCE_CATEGORIES).declareSortKey(ORDER_KEY, INTEGER_BASE, 0);
+		final List<Finding> declared =
+			VirtualReferencePartitionOracle.inspect(product(), Set.of(), Coverage.ROWS_UNTIL_MIRROR);
+		assertTrue(
+			declared.stream().anyMatch(it -> it.kind() == FindingKind.KEY_BEFORE_MIRROR), declared::toString
+		);
+
+		registryOf(REFERENCE_CATEGORIES).putSortValue(ORDER_KEY, partitionOf(REFERENCE_CATEGORIES, 4), 4);
+		final List<Finding> counted =
+			VirtualReferencePartitionOracle.inspect(product(), Set.of(), Coverage.ROWS_UNTIL_MIRROR);
+		assertTrue(
+			counted.stream().anyMatch(it -> it.kind() == FindingKind.ENTRY_COUNT_MISMATCH), counted::toString
 		);
 	}
 

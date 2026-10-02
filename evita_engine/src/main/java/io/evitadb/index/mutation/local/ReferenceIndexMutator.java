@@ -40,6 +40,10 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+// TODO JNO - remove at the end of #1615
+import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.MutationHandle;
+// TODO JNO - remove at the end of #1615
+import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.TransitionStage;
 import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramValueDescriptor;
@@ -880,6 +884,10 @@ public interface ReferenceIndexMutator {
 				// REI indexes are keyed per-reference so no duplicate refs can land here; always run the
 				// full entity-level + reference-level population when the entity is freshly inserted
 				if (firstIndexed) {
+					// the registry of single-owner partitions follows the owner count before the owner's data is
+					// replicated into the partition, so a partition that has just become a single-owner one has its
+					// row while that data is written
+					ownerAddedToPartition(executor, referenceSchema, referenceTypeIndex, referenceIndex);
 					indexAllExistingData(
 						executor, referenceIndex,
 						entitySchema, referenceSchema,
@@ -901,6 +909,101 @@ public interface ReferenceIndexMutator {
 		}
 		// add facet to the partition
 		addFacetToPartition(partition, referenceSchema, referenceKey, groupId, entityPrimaryKey, executor);
+	}
+
+	/**
+	 * Keeps the registry of single-owner partitions in step with a partition that has just gained an owner: a
+	 * partition with its only owner now (0 -> 1) gets its row registered, one with its second owner now (1 -> 2) gets
+	 * its row dropped. Any other owner count leaves the registry alone. Only partitions of a reference whose partitions
+	 * may be virtual are concerned - see {@link VirtualReferencePartitionWriter}.
+	 *
+	 * @param executor           the mutation executor
+	 * @param referenceSchema    the schema of the partition's reference
+	 * @param referenceTypeIndex the `REFERENCED_ENTITY_TYPE` index of the reference, carrying the registry
+	 * @param partition          the partition that has just gained an owner
+	 */
+	private static void ownerAddedToPartition(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
+		@Nonnull ReferencePartition partition
+	) {
+		// TODO JNO - remove at the end of #1615
+		final MutationHandle mutation = executor.getVirtualReferencePartitionMutation();
+		// TODO JNO - remove at the end of #1615 (the whole condition)
+		if (!mutation.maintained() && mutation.probe() == null) {
+			return;
+		}
+		final Scope scope = referenceTypeIndex.getIndexKey().scope();
+		if (!VirtualReferencePartitionWriter.isShadowed(referenceSchema, scope)) {
+			return;
+		}
+		final int ownerCount = partition.size();
+		if (ownerCount == 1) {
+			// TODO JNO - remove at the end of #1615 (the condition, its body stays)
+			if (mutation.maintained()) {
+				VirtualReferencePartitionWriter.partitionEntered(
+					referenceTypeIndex.getVirtualReferencePartitionIndex(),
+					partition.getPrimaryKey(),
+					partition.getAllPrimaryKeys().getFirst(),
+					partition.getRepresentativeReferenceKey()
+				);
+			}
+			// TODO JNO - remove at the end of #1615
+			mutation.transitionPassed(
+				TransitionStage.ENTERED, referenceSchema.getName(), scope, partition.getPrimaryKey()
+			);
+		} else if (ownerCount == 2) {
+			// TODO JNO - remove at the end of #1615 (the condition, its body stays)
+			if (mutation.maintained()) {
+				VirtualReferencePartitionWriter.partitionShared(
+					referenceTypeIndex.getVirtualReferencePartitionIndex(), partition.getPrimaryKey()
+				);
+			}
+			// TODO JNO - remove at the end of #1615
+			mutation.transitionPassed(
+				TransitionStage.SHARED, referenceSchema.getName(), scope, partition.getPrimaryKey()
+			);
+		}
+	}
+
+	/**
+	 * Keeps the registry of single-owner partitions in step with a partition that has just lost an owner: a partition
+	 * left without any owner (1 -> 0) gets its row dropped. A partition left with one owner (2 -> 1) gets its row back
+	 * only when the mutation finishes, and any other owner count leaves the registry alone. Only partitions of a
+	 * reference whose partitions may be virtual are concerned - see {@link VirtualReferencePartitionWriter}.
+	 *
+	 * @param executor           the mutation executor
+	 * @param referenceSchema    the schema of the partition's reference
+	 * @param referenceTypeIndex the `REFERENCED_ENTITY_TYPE` index of the reference, carrying the registry
+	 * @param partition          the partition that has just lost an owner
+	 */
+	private static void ownerRemovedFromPartition(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
+		@Nonnull ReferencePartition partition
+	) {
+		// TODO JNO - remove at the end of #1615
+		final MutationHandle mutation = executor.getVirtualReferencePartitionMutation();
+		// TODO JNO - remove at the end of #1615 (the whole condition)
+		if (!mutation.maintained() && mutation.probe() == null) {
+			return;
+		}
+		final Scope scope = referenceTypeIndex.getIndexKey().scope();
+		if (!VirtualReferencePartitionWriter.isShadowed(referenceSchema, scope) || partition.size() != 0) {
+			return;
+		}
+		// TODO JNO - remove at the end of #1615 (the condition, its body stays)
+		if (mutation.maintained()) {
+			VirtualReferencePartitionWriter.partitionVacated(
+				referenceTypeIndex.getVirtualReferencePartitionIndex(), partition.getPrimaryKey()
+			);
+		}
+		// TODO JNO - remove at the end of #1615
+		mutation.transitionPassed(
+			TransitionStage.VACATED, referenceSchema.getName(), scope, partition.getPrimaryKey()
+		);
 	}
 
 	/**
@@ -1110,6 +1213,8 @@ public interface ReferenceIndexMutator {
 						true,
 						existingDataSupplierFactory
 					);
+					// the owner's data is gone from the partition, the registry follows the owner count
+					ownerRemovedFromPartition(executor, referenceSchema, referenceTypeIndex, referenceIndex);
 				}
 				yield removed;
 			}

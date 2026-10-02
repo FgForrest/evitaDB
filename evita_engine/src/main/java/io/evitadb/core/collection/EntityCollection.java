@@ -3882,7 +3882,10 @@ public final class EntityCollection implements
 			this.catalog.getUsageRegistry(),
 			this.catalog.isUsageStatisticsTracked(),
 			// TODO JNO - remove at the end of #1615
-			this.catalog.getVirtualReferencePartitionMaintenance().isMaintainedForMutation(entityType)
+			// the collector is shared by the whole root mutation, so it identifies the root mutation for the probe
+			this.catalog.getVirtualReferencePartitionMaintenance().forMutation(
+				entityType, localMutationExecutorCollector
+			)
 		);
 
 		return localMutationExecutorCollector.execute(

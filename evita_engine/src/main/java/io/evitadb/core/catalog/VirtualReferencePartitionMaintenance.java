@@ -24,7 +24,10 @@
 // TODO JNO - remove at the end of #1615 (the whole file)
 package io.evitadb.core.catalog;
 
+import io.evitadb.dataType.Scope;
+
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -57,6 +60,12 @@ import java.util.concurrent.atomic.AtomicLong;
  * {@link #carryOver(String, String)}). A name is never turned off implicitly - a collection that is removed and
  * created again under the same name is maintained again.
  *
+ * The holder also carries an optional {@link TransitionProbe} a test installs to observe the transitions of
+ * single-owner partitions and the outcome of every root entity mutation, and to inject failures at them. The probe is
+ * consulted whenever it is installed, with the switch on or off, so that two engines - one maintaining, one not - can
+ * be made to fail at the very same point of one mutation; without a probe nothing is reported and nothing is allocated
+ * per mutation (see {@link MutationHandle}).
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public final class VirtualReferencePartitionMaintenance {
@@ -74,6 +83,12 @@ public final class VirtualReferencePartitionMaintenance {
 	 * state of the switch read after the load can tell.
 	 */
 	private final AtomicLong maintainedMutationCount = new AtomicLong();
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * The probe a test installed, `null` when none is. Volatile, because a test installs it on its own thread while
+	 * mutations - the trunk replay of a commit among them - run on others.
+	 */
+	@Nullable private volatile TransitionProbe probe;
 
 	// TODO JNO - remove at the end of #1615
 	/**
@@ -90,7 +105,24 @@ public final class VirtualReferencePartitionMaintenance {
 	 * @param maintainedEntityTypes the names of the entity types to maintain
 	 */
 	public VirtualReferencePartitionMaintenance(@Nonnull Set<String> maintainedEntityTypes) {
+		this(maintainedEntityTypes, null);
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Creates a holder with the switch already on for the collections of the given entity types and the given probe
+	 * installed - the holder of a catalog being loaded from disk, seeded before any of its collections is attached, so
+	 * the probe observes the mutations the write-ahead log replays at load as well.
+	 *
+	 * @param maintainedEntityTypes the names of the entity types to maintain
+	 * @param probe                 the probe to install, `null` for none
+	 */
+	public VirtualReferencePartitionMaintenance(
+		@Nonnull Set<String> maintainedEntityTypes,
+		@Nullable TransitionProbe probe
+	) {
 		this.maintainedEntityTypes.addAll(maintainedEntityTypes);
+		this.probe = probe;
 	}
 
 	// TODO JNO - remove at the end of #1615
@@ -107,20 +139,60 @@ public final class VirtualReferencePartitionMaintenance {
 
 	// TODO JNO - remove at the end of #1615
 	/**
-	 * Returns TRUE when the collection of the given entity type maintains virtual reference partitions, and counts the
-	 * answer when it is TRUE. Asked once per entity mutation, by the code building the executor of its entity index
-	 * mutations - and by nothing else, so that {@link #getMaintainedMutationCount()} counts mutations rather than
-	 * reads.
+	 * Returns the handle one entity mutation consults about virtual reference partitions: whether it maintains them
+	 * and which probe, if any, it reports its transitions to. Asked once per entity mutation, by the code building the
+	 * executor of its entity index mutations - and by nothing else, so that {@link #getMaintainedMutationCount()}
+	 * counts mutations rather than reads.
 	 *
-	 * @param entityType the name of the entity type the mutation writes into
-	 * @return TRUE when the mutation maintains virtual reference partitions
+	 * Without a probe installed the handle is one of two shared constants, so nothing is allocated per mutation.
+	 *
+	 * @param entityType   the name of the entity type the mutation writes into
+	 * @param rootMutation the identity of the root entity mutation this mutation belongs to - its own, or the one
+	 *                     whose implicit or reflected mutation it is
+	 * @return the handle of the mutation
 	 */
-	public boolean isMaintainedForMutation(@Nonnull String entityType) {
+	@Nonnull
+	public MutationHandle forMutation(@Nonnull String entityType, @Nonnull Object rootMutation) {
 		final boolean maintained = isMaintained(entityType);
 		if (maintained) {
 			this.maintainedMutationCount.incrementAndGet();
 		}
-		return maintained;
+		final TransitionProbe theProbe = this.probe;
+		if (theProbe == null) {
+			return maintained ? MutationHandle.MAINTAINED : MutationHandle.OFF;
+		}
+		return new MutationHandle(maintained, entityType, theProbe, rootMutation);
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Reports to the installed probe, if any, that a root entity mutation finished - its changes committed or rolled
+	 * back. Called once per root entity mutation, after the outcome is final.
+	 *
+	 * @param rootMutation the identity of the root entity mutation, the one its mutations' handles carry
+	 * @param committed    TRUE when the root mutation committed, FALSE when it was rolled back
+	 * @param trunkReplay  TRUE when the root mutation replays a committed transaction - onto the trunk after a commit,
+	 *                     or from the write-ahead log at load - rather than running in a session
+	 */
+	public void rootMutationFinished(@Nonnull Object rootMutation, boolean committed, boolean trunkReplay) {
+		final TransitionProbe theProbe = this.probe;
+		if (theProbe != null) {
+			theProbe.rootMutationFinished(
+				committed ? TransitionStage.ROOT_COMMITTED : TransitionStage.ROOT_ROLLED_BACK,
+				rootMutation,
+				trunkReplay
+			);
+		}
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Installs the probe, replacing the previous one, or removes it.
+	 *
+	 * @param probe the probe to install, `null` to remove it
+	 */
+	public void setProbe(@Nullable TransitionProbe probe) {
+		this.probe = probe;
 	}
 
 	// TODO JNO - remove at the end of #1615
@@ -164,6 +236,130 @@ public final class VirtualReferencePartitionMaintenance {
 	public void carryOver(@Nonnull String sourceEntityType, @Nonnull String targetEntityType) {
 		if (isMaintained(sourceEntityType)) {
 			this.maintainedEntityTypes.add(targetEntityType);
+		}
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * The points of an entity mutation a {@link TransitionProbe} is told about.
+	 */
+	public enum TransitionStage {
+		/**
+		 * A partition of a shadowed reference gained its first owner (0 -> 1), and its row was registered when the
+		 * switch is on. Reported right after the registration, before the owner's data is replicated into the
+		 * partition.
+		 */
+		ENTERED,
+		/**
+		 * A single-owner partition of a shadowed reference gained a second owner (1 -> 2), and its row was dropped
+		 * when the switch is on. Reported right after the drop, before the new owner's data is replicated into the
+		 * partition.
+		 */
+		SHARED,
+		/**
+		 * A partition of a shadowed reference lost its last owner (1 -> 0), and its row was dropped when the switch
+		 * is on. Reported after the owner's data was removed from the partition and the row dropped.
+		 */
+		VACATED,
+		/**
+		 * A root entity mutation committed.
+		 */
+		ROOT_COMMITTED,
+		/**
+		 * A root entity mutation failed and its changes were rolled back.
+		 */
+		ROOT_ROLLED_BACK
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Observes the transitions of the partitions of shadowed references and the outcome of every root entity mutation.
+	 * A transition is reported while its mutation is still running, so a probe that throws fails that mutation exactly
+	 * at that point - which is how a test injects a failure.
+	 */
+	public interface TransitionProbe {
+
+		/**
+		 * Reports a transition of a partition of a shadowed reference.
+		 *
+		 * @param stage               {@link TransitionStage#ENTERED}, {@link TransitionStage#SHARED} or
+		 *                            {@link TransitionStage#VACATED}
+		 * @param entityType          the entity type owning the reference
+		 * @param referenceName       the reference
+		 * @param scope               the scope of the partition
+		 * @param partitionPrimaryKey the primary key of the partition
+		 * @param rootMutation        the identity of the root entity mutation the transition belongs to
+		 */
+		void transitionPassed(
+			@Nonnull TransitionStage stage,
+			@Nonnull String entityType,
+			@Nonnull String referenceName,
+			@Nonnull Scope scope,
+			int partitionPrimaryKey,
+			@Nonnull Object rootMutation
+		);
+
+		/**
+		 * Reports that a root entity mutation finished.
+		 *
+		 * @param stage        {@link TransitionStage#ROOT_COMMITTED} or {@link TransitionStage#ROOT_ROLLED_BACK}
+		 * @param rootMutation the identity of the root entity mutation
+		 * @param trunkReplay  TRUE when the root mutation replays a committed transaction rather than running in a
+		 *                     session
+		 */
+		void rootMutationFinished(
+			@Nonnull TransitionStage stage,
+			@Nonnull Object rootMutation,
+			boolean trunkReplay
+		);
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * What one entity mutation knows about virtual reference partitions: whether it maintains them, and the probe it
+	 * reports its transitions to. Without a probe the handle is one of the shared constants {@link #OFF} and
+	 * {@link #MAINTAINED}, so building it allocates nothing.
+	 *
+	 * @param maintained   TRUE when the mutation maintains the virtual reference partitions of its collection
+	 * @param entityType   the entity type the mutation writes into, `null` in the shared constants
+	 * @param probe        the probe to report to, `null` for none
+	 * @param rootMutation the identity of the root entity mutation, `null` in the shared constants
+	 */
+	public record MutationHandle(
+		boolean maintained,
+		@Nullable String entityType,
+		@Nullable TransitionProbe probe,
+		@Nullable Object rootMutation
+	) {
+		/**
+		 * The handle of a mutation that maintains nothing and reports to no probe.
+		 */
+		public static final MutationHandle OFF = new MutationHandle(false, null, null, null);
+		/**
+		 * The handle of a mutation that maintains the virtual reference partitions and reports to no probe.
+		 */
+		public static final MutationHandle MAINTAINED = new MutationHandle(true, null, null, null);
+
+		/**
+		 * Reports a transition to the probe, if there is one. A probe may throw, which fails the mutation at this
+		 * point.
+		 *
+		 * @param stage               the transition
+		 * @param referenceName       the reference
+		 * @param scope               the scope of the partition
+		 * @param partitionPrimaryKey the primary key of the partition
+		 */
+		public void transitionPassed(
+			@Nonnull TransitionStage stage,
+			@Nonnull String referenceName,
+			@Nonnull Scope scope,
+			int partitionPrimaryKey
+		) {
+			if (this.probe != null && this.entityType != null && this.rootMutation != null) {
+				this.probe.transitionPassed(
+					stage, this.entityType, referenceName, scope, partitionPrimaryKey, this.rootMutation
+				);
+			}
 		}
 	}
 

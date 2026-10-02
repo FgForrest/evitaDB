@@ -99,8 +99,7 @@ class DifferentialEnginesTest implements EvitaTestSupport {
 	@DisplayName("an identical history leaves the engines equal at every checkpoint, failures and restart included")
 	void shouldFindIdenticalHistoriesEqual(CatalogState state) {
 		this.engines = new DifferentialEngines(this, "identicalHistory", ENTITY_TYPES);
-		// nothing writes the registry yet, so it must stay empty at every checkpoint
-		this.engines.addMaintainingEngineCheck(VirtualReferencePartitionOracle::assertRegistryEmpty);
+		// the harness checks the registry of the maintaining engine against its partitions at every checkpoint
 		this.engines.prepare(state, SingleOwnerPartitionFixture::setUp);
 
 		// a new single-owner partition, then a second owner joining it

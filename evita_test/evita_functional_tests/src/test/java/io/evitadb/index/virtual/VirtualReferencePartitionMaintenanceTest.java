@@ -26,13 +26,21 @@ package io.evitadb.index.virtual;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
+import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.MutationHandle;
+import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.TransitionStage;
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,6 +50,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -49,8 +58,12 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.awaitility.Awaitility.await;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -261,6 +274,59 @@ class VirtualReferencePartitionMaintenanceTest implements EvitaTestSupport {
 			() -> this.evita.maintainVirtualReferencePartitionsOnLoad(CATALOG, Set.of(ENTITY_CATEGORY)),
 			"A switch set after the loading started would miss the mutations replayed at load, so it must be refused"
 		);
+	}
+
+	@Test
+	@DisplayName("a mutation without a probe gets one of two shared handles, so the switch allocates nothing")
+	void shouldHandOutSharedHandlesWithoutAProbe() {
+		final VirtualReferencePartitionMaintenance maintenance = new VirtualReferencePartitionMaintenance();
+
+		final MutationHandle off = maintenance.forMutation(ENTITY_PRODUCT, new Object());
+		assertSame(MutationHandle.OFF, off, "a mutation of a collection the switch is off for gets the shared handle");
+		assertSame(off, maintenance.forMutation(ENTITY_PRODUCT, new Object()), "every one of them gets the same one");
+		assertFalse(off.maintained());
+		assertNull(off.probe(), "nothing can be reported through a handle without a probe");
+
+		maintenance.setMaintained(ENTITY_PRODUCT, true);
+		assertSame(MutationHandle.MAINTAINED, maintenance.forMutation(ENTITY_PRODUCT, new Object()));
+		assertSame(MutationHandle.OFF, maintenance.forMutation(ENTITY_CATEGORY, new Object()));
+
+		final TransitionHistory probe = new TransitionHistory();
+		maintenance.setProbe(probe);
+		final Object root = new Object();
+		final MutationHandle observed = maintenance.forMutation(ENTITY_CATEGORY, root);
+		assertNotSame(MutationHandle.OFF, observed, "only a probe makes a mutation get a handle of its own");
+		assertFalse(observed.maintained());
+		assertSame(probe, observed.probe());
+		assertSame(root, observed.rootMutation());
+
+		maintenance.setProbe(null);
+		assertSame(MutationHandle.OFF, maintenance.forMutation(ENTITY_CATEGORY, new Object()));
+	}
+
+	@Test
+	@DisplayName("with the switch off, an installed probe sees the transitions while the registry stays empty")
+	void shouldReportTransitionsWithTheSwitchOffOnlyToAnInstalledProbe() {
+		final TransitionHistory probe = new TransitionHistory();
+		maintenanceOf(CATALOG).setProbe(probe);
+		this.evita.updateCatalog(CATALOG, session -> {
+			upsertProduct(session, ENTITY_PRODUCT, 1);
+			upsertProduct(session, ENTITY_PRODUCT, 2);
+		});
+		probe.sessionClosed(true, false);
+
+		assertEquals(
+			List.of(TransitionStage.ENTERED, TransitionStage.SHARED),
+			probe.getCommitted().stream().map(TransitionHistory.Transition::stage).toList(),
+			"the first product makes the category partition a single-owner one, the second a shared one"
+		);
+		final EntityIndex typeIndex = collectionOf(CATALOG, ENTITY_PRODUCT).getIndexByKeyIfExists(
+			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, REFERENCE_CATEGORIES)
+		);
+		final VirtualReferencePartitionIndex registry =
+			assertInstanceOf(ReferencedTypeEntityIndex.class, typeIndex).getVirtualReferencePartitionIndex();
+		assertEquals(0, registry.getEntryCount(), "the switch is off, so nothing writes the registry");
+		assertTrue(registry.isEmpty());
 	}
 
 	/**

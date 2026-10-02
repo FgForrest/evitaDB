@@ -44,6 +44,7 @@ import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.StoragePartUsage;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.TransitionStage;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
@@ -57,6 +58,8 @@ import io.evitadb.index.attribute.OwnerUniqueIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.virtual.TransitionHistory.InjectedTransitionFailure;
+import io.evitadb.index.virtual.VirtualReferencePartitionOracle.Coverage;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex.AttributeCardinalityKey;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.membership.ReducedIndexMembership;
@@ -92,7 +95,6 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -168,6 +170,21 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * Values are compared by their {@link CanonicalValue} encoding, never by their rendering, which is lossy for exactly
  * the values an index normalizes.
+ *
+ * # The registry itself
+ *
+ * At every checkpoint the registry of single-owner partitions of every collection of the maintaining engine is checked
+ * against its partitions by {@link VirtualReferencePartitionOracle}. A partition may lack its row only while it awaits
+ * its demotion, which the transitions the engine recorded tell (see {@link TransitionHistory}): both engines report
+ * every transition of their partitions and the outcome of every root mutation to a history of their own, installed
+ * before the catalog is defined and before every load. Inside the open session the check uses the committed history
+ * followed by the session's, after the session closes the committed history alone - so a transition a failed or
+ * rolled-back mutation passed never excuses a missing row. Any further check can be added by
+ * {@link #addMaintainingEngineCheck(MaintainingEngineCheck)}.
+ *
+ * Failures can be injected right after a transition, in both engines at once (see
+ * {@link #failingStepAfter(String, TransitionStage, String, int, Consumer)}): the engine that maintains nothing passes
+ * the very same transitions, so both fail at the same point of the same mutation and must end in the same state.
  *
  * # Accepted differences
  *
@@ -251,7 +268,16 @@ final class DifferentialEngines implements AutoCloseable {
 	/**
 	 * Checks run on every collection of the maintaining engine at every checkpoint, with the checkpoint label.
 	 */
-	private final List<BiConsumer<String, EntityCollection>> maintainingEngineChecks = new ArrayList<>(2);
+	private final List<MaintainingEngineCheck> maintainingEngineChecks = new ArrayList<>(2);
+	/**
+	 * The transitions the reference engine passed. It maintains nothing, but it passes the same transitions, and a
+	 * failure injected after one of them must fail it at the same point as the maintaining engine.
+	 */
+	private final TransitionHistory referenceHistory = new TransitionHistory();
+	/**
+	 * The transitions the maintaining engine passed - which partitions await their demotion.
+	 */
+	private final TransitionHistory maintainingHistory = new TransitionHistory();
 	/**
 	 * The engine with the switch off.
 	 */
@@ -312,6 +338,8 @@ final class DifferentialEngines implements AutoCloseable {
 	void prepare(@Nonnull CatalogState state, @Nonnull Consumer<EvitaSessionContract> setup) {
 		this.reference.defineCatalog(CATALOG).updateViaNewSession(this.reference);
 		this.maintaining.defineCatalog(CATALOG).updateViaNewSession(this.maintaining);
+		catalogOf(this.reference).getVirtualReferencePartitionMaintenance().setProbe(this.referenceHistory);
+		catalogOf(this.maintaining).getVirtualReferencePartitionMaintenance().setProbe(this.maintainingHistory);
 		switchMaintainingEngineOn();
 		step("setup", setup);
 		if (state == CatalogState.ALIVE) {
@@ -322,12 +350,12 @@ final class DifferentialEngines implements AutoCloseable {
 	}
 
 	/**
-	 * Registers a check run on every collection of the maintaining engine at every checkpoint - typically the parity
-	 * oracle of the registry.
+	 * Registers a check run on every collection of the maintaining engine at every checkpoint, next to the parity
+	 * oracle of the registry, which runs there always.
 	 *
-	 * @param check receives the checkpoint label and the collection
+	 * @param check receives the checkpoint label, the collection and the partitions awaiting their demotion
 	 */
-	void addMaintainingEngineCheck(@Nonnull BiConsumer<String, EntityCollection> check) {
+	void addMaintainingEngineCheck(@Nonnull MaintainingEngineCheck check) {
 		this.maintainingEngineChecks.add(check);
 	}
 
@@ -389,6 +417,45 @@ final class DifferentialEngines implements AutoCloseable {
 		final Snapshot onMaintaining = runSession(this.maintaining, List.of(caught), false).get(0);
 		assertNoDifference(label + " / after the caught failure inside the session", onReference, onMaintaining);
 		assertEqual(label + " / after the session closed");
+	}
+
+	/**
+	 * Applies a step to both engines, each in a session of its own, failing it in both right after the first
+	 * transition of the given kind of the given entity type it passes - see {@link TransitionHistory}. The failure is
+	 * caught inside the session, which then goes on and closes normally. The engines are compared right after the
+	 * caught failure and after the session closes, and both must have failed at the transition.
+	 *
+	 * @param label      names the step in failure messages
+	 * @param stage      the transition to fail after
+	 * @param entityType the entity type owning the reference whose partition passes the transition
+	 * @param skip       how many matching transitions to let pass before failing after the next one
+	 * @param step       the mutation to fail
+	 */
+	void failingStepAfter(
+		@Nonnull String label,
+		@Nonnull TransitionStage stage,
+		@Nonnull String entityType,
+		int skip,
+		@Nonnull Consumer<EvitaSessionContract> step
+	) {
+		final int referenceInjected = this.referenceHistory.getInjectedFailures();
+		final int maintainingInjected = this.maintainingHistory.getInjectedFailures();
+		this.referenceHistory.failAfter(stage, entityType, skip);
+		this.maintainingHistory.failAfter(stage, entityType, skip);
+		try {
+			failingStep(label, step, InjectedTransitionFailure.class);
+		} finally {
+			this.referenceHistory.disarm();
+			this.maintainingHistory.disarm();
+		}
+		assertEquals(
+			referenceInjected + 1, this.referenceHistory.getInjectedFailures(),
+			label + ": the reference engine must have failed after " + stage + " of `" + entityType + "`"
+		);
+		assertEquals(
+			maintainingInjected + 1, this.maintainingHistory.getInjectedFailures(),
+			label + ": the maintaining engine must have failed after " + stage + " of `" + entityType + "`"
+		);
 	}
 
 	/**
@@ -504,6 +571,26 @@ final class DifferentialEngines implements AutoCloseable {
 		return this.maintaining;
 	}
 
+	/**
+	 * Returns the transitions the reference engine passed.
+	 *
+	 * @return the history of the reference engine
+	 */
+	@Nonnull
+	TransitionHistory getReferenceHistory() {
+		return this.referenceHistory;
+	}
+
+	/**
+	 * Returns the transitions the maintaining engine passed.
+	 *
+	 * @return the history of the maintaining engine
+	 */
+	@Nonnull
+	TransitionHistory getMaintainingHistory() {
+		return this.maintainingHistory;
+	}
+
 	@Override
 	public void close() {
 		try {
@@ -559,7 +646,10 @@ final class DifferentialEngines implements AutoCloseable {
 	@Nonnull
 	private EngineLoad startReference(long appliedVersion, long persistedVersion) {
 		final long imageVersion = readImageVersion(this.referencePaths);
-		this.reference = new Evita(configurationOf(this.referencePaths));
+		this.reference = new Evita(configurationOf(this.referencePaths), false);
+		// maintaining nothing, but observed from the load on like the maintaining engine
+		this.reference.maintainVirtualReferencePartitionsOnLoad(CATALOG, Set.of(), this.referenceHistory);
+		this.reference.scheduleInitialCatalogLoading();
 		awaitCatalogLoaded(this.reference);
 		return describeLoad(this.reference, appliedVersion, persistedVersion, imageVersion);
 	}
@@ -576,7 +666,7 @@ final class DifferentialEngines implements AutoCloseable {
 	private EngineLoad startMaintaining(long appliedVersion, long persistedVersion) {
 		final long imageVersion = readImageVersion(this.maintainingPaths);
 		this.maintaining = new Evita(configurationOf(this.maintainingPaths), false);
-		this.maintaining.maintainVirtualReferencePartitionsOnLoad(CATALOG, this.entityTypes);
+		this.maintaining.maintainVirtualReferencePartitionsOnLoad(CATALOG, this.entityTypes, this.maintainingHistory);
 		this.maintaining.scheduleInitialCatalogLoading();
 		awaitCatalogLoaded(this.maintaining);
 		return describeLoad(this.maintaining, appliedVersion, persistedVersion, imageVersion);
@@ -769,7 +859,10 @@ final class DifferentialEngines implements AutoCloseable {
 		boolean rollback
 	) {
 		final boolean maintained = evita == this.maintaining;
+		final TransitionHistory history = maintained ? this.maintainingHistory : this.referenceHistory;
+		final boolean wroteInPlace = catalogOf(evita).getCatalogState() == CatalogState.WARMING_UP;
 		final List<Snapshot> snapshots = new ArrayList<>(steps.size());
+		boolean rolledBack = rollback;
 		try {
 			evita.updateCatalog(
 				CATALOG,
@@ -790,6 +883,12 @@ final class DifferentialEngines implements AutoCloseable {
 			if (!rollback) {
 				throw ex;
 			}
+		} catch (RuntimeException ex) {
+			// a session that fails to close is rolled back, whatever it wrote
+			rolledBack = true;
+			throw ex;
+		} finally {
+			history.sessionClosed(wroteInPlace, rolledBack);
 		}
 		return snapshots;
 	}
@@ -841,8 +940,13 @@ final class DifferentialEngines implements AutoCloseable {
 					" in the " + (maintained ? "maintaining" : "reference") + " engine"
 			);
 			if (maintained) {
-				for (final BiConsumer<String, EntityCollection> check : this.maintainingEngineChecks) {
-					check.accept(label, collection);
+				final Set<Integer> awaitingDemotion = this.maintainingHistory.awaitingDemotion(entityType, !committed);
+				VirtualReferencePartitionOracle.assertConsistent(
+					// TODO JNO - remove at the end of #1615 (the coverage; FULL once sort and chain keys are mirrored)
+					label, collection, awaitingDemotion, Coverage.ROWS_UNTIL_MIRROR
+				);
+				for (final MaintainingEngineCheck check : this.maintainingEngineChecks) {
+					check.check(label, collection, awaitingDemotion);
 				}
 			}
 			final EntitySchemaContract schema = session.getEntitySchemaOrThrowException(entityType);
@@ -1338,7 +1442,7 @@ final class DifferentialEngines implements AutoCloseable {
 	 *
 	 * @param evita the reopened engine
 	 */
-	private static void awaitCatalogLoaded(@Nonnull Evita evita) {
+	static void awaitCatalogLoaded(@Nonnull Evita evita) {
 		evita.waitUntilFullyInitialized();
 		await()
 			.atMost(30, TimeUnit.SECONDS)
@@ -1404,6 +1508,23 @@ final class DifferentialEngines implements AutoCloseable {
 	/**
 	 * One engine reduced to sorted `path -> value` lines.
 	 */
+	/**
+	 * A check run on every collection of the maintaining engine at every checkpoint.
+	 */
+	@FunctionalInterface
+	interface MaintainingEngineCheck {
+
+		/**
+		 * Checks one collection.
+		 *
+		 * @param label            names the checkpoint in failure messages
+		 * @param collection       the collection
+		 * @param awaitingDemotion primary keys of the partitions of the collection awaiting their demotion at the
+		 *                         checkpoint - see {@link TransitionHistory#awaitingDemotion(String, boolean)}
+		 */
+		void check(@Nonnull String label, @Nonnull EntityCollection collection, @Nonnull Set<Integer> awaitingDemotion);
+	}
+
 	private static final class Snapshot {
 		/**
 		 * The lines, sorted by path.

@@ -30,8 +30,12 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
+import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.TransitionStage;
+import io.evitadb.dataType.Scope;
+import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.index.virtual.DifferentialEngines.EngineLoad;
 import io.evitadb.index.virtual.DifferentialEngines.Reload;
+import io.evitadb.index.virtual.TransitionHistory.Transition;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -41,7 +45,9 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Function;
 
 import static io.evitadb.api.query.Query.query;
@@ -51,6 +57,11 @@ import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static io.evitadb.index.virtual.DifferentialEngines.CATALOG;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.*;
+import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.assertNoRow;
+import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.assertRow;
+import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.category;
+import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.partitionOf;
+import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.registryOf;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.WAL;
@@ -190,6 +201,8 @@ class VirtualReferencePartitionRecoveryTest implements EvitaTestSupport {
 				);
 			}
 			assertOwners(theEngines, 11, List.of(1), "after the restart");
+			// the row the commit before the restart registered was persisted and loaded with the registry
+			assertRow(theEngines, ENTITY_PRODUCT, Scope.LIVE, category(11), 1);
 		}
 
 		/**
@@ -234,12 +247,12 @@ class VirtualReferencePartitionRecoveryTest implements EvitaTestSupport {
 	 *   copy is booted - replay itself checkpoints, so the version the engine reports afterwards cannot tell that a
 	 *   replay happened.
 	 *
-	 * The switch is not read by anything that writes yet, so the replayed mutations cannot show what the switch did to
-	 * them; what is asserted here is that the replay ran and that every replayed entity mutation found the switch on.
-	 * Once the maintenance writes the registry of single-owner partitions, this test gains the registry assertions -
-	 * the partition vacated by the tail gone from the registry, the partition joined by a second owner no longer
-	 * registered as a single-owner one - together with the counterfactual that turns the switch on only after the
-	 * load and must turn both of them red.
+	 * Besides the replay running whole with every replayed entity mutation finding the switch on, the replayed
+	 * mutations must have maintained the registry of single-owner partitions: the partition vacated by the tail has no
+	 * row any longer, and the partition the tail gave a second owner is no longer registered as a single-owner one. The
+	 * harness checks the registry against the partitions at every checkpoint, the recovery included; this test also
+	 * asserts both rows explicitly, and that the replay at load passed both transitions. Turning the switch on only
+	 * after the load leaves both rows behind, which turns the recovery red.
 	 */
 	@Nested
 	@DisplayName("Recovery from a write-ahead log tail")
@@ -296,6 +309,12 @@ class VirtualReferencePartitionRecoveryTest implements EvitaTestSupport {
 			assertCheckpointed("maintaining", checkpointed.maintaining(), theEngines.getMaintaining());
 			assertOwners(theEngines, VACATED_CATEGORY, List.of(VACATED_CATEGORY), "before the tail");
 			assertOwners(theEngines, JOINED_CATEGORY, List.of(JOINED_CATEGORY), "before the tail");
+			assertRow(theEngines, ENTITY_PRODUCT, Scope.LIVE, category(VACATED_CATEGORY), VACATED_CATEGORY);
+			assertRow(theEngines, ENTITY_PRODUCT, Scope.LIVE, category(JOINED_CATEGORY), JOINED_CATEGORY);
+			final int vacatedPartition =
+				partitionOf(theEngines.getMaintaining(), ENTITY_PRODUCT, Scope.LIVE, category(VACATED_CATEGORY));
+			final int joinedPartition =
+				partitionOf(theEngines.getMaintaining(), ENTITY_PRODUCT, Scope.LIVE, category(JOINED_CATEGORY));
 
 			theEngines.step(
 				"the last owner leaves a checkpointed single-owner partition",
@@ -320,6 +339,34 @@ class VirtualReferencePartitionRecoveryTest implements EvitaTestSupport {
 			);
 			assertOwners(theEngines, VACATED_CATEGORY, List.of(), "after the recovery");
 			assertOwners(theEngines, JOINED_CATEGORY, List.of(JOINED_CATEGORY, JOINING_PRODUCT), "after the recovery");
+
+			// the replay maintained the registry: neither partition has a row any longer
+			final VirtualReferencePartitionIndex registry = Objects.requireNonNull(
+				registryOf(theEngines.getMaintaining(), ENTITY_PRODUCT, Scope.LIVE, REFERENCE_CATEGORIES)
+			);
+			assertTrue(
+				registry.getPartitionOwner(vacatedPartition).isEmpty(),
+				"The replayed removal of the last owner must have dropped the row of partition " + vacatedPartition
+			);
+			assertNoRow(theEngines, ENTITY_PRODUCT, Scope.LIVE, category(JOINED_CATEGORY));
+			// and it did so through the transitions it passed while being replayed at load
+			final List<Transition> replayed = theEngines.getMaintainingHistory().getCommitted();
+			assertTrue(
+				Collections.frequency(
+					replayed,
+					new Transition(
+						TransitionStage.VACATED, ENTITY_PRODUCT, REFERENCE_CATEGORIES, Scope.LIVE, vacatedPartition
+					)
+				) == 2 &&
+					Collections.frequency(
+						replayed,
+						new Transition(
+							TransitionStage.SHARED, ENTITY_PRODUCT, REFERENCE_CATEGORIES, Scope.LIVE, joinedPartition
+						)
+					) == 2,
+				"Both tail transitions must have been passed twice - by the commit and by the replay at load: " +
+					replayed
+			);
 		}
 
 		/**

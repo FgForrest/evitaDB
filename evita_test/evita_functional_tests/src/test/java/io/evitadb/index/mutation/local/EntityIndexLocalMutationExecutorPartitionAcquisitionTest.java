@@ -31,6 +31,8 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+// TODO JNO - remove at the end of #1615
+import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.MutationHandle;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
@@ -130,7 +132,7 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 			this.catalogUsageRegistry,
 			true,
 			// TODO JNO - remove at the end of #1615
-			false
+			MutationHandle.OFF
 		);
 	}
 

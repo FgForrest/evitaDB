@@ -871,7 +871,8 @@ public final class Catalog
 		// replayed onto this catalog, so the replayed mutations are maintained as well
 		// TODO JNO - remove at the end of #1615
 		this.virtualReferencePartitionMaintenance = new VirtualReferencePartitionMaintenance(
-			evita.getEntityTypesMaintainingVirtualReferencePartitionsOnLoad(catalogName)
+			evita.getEntityTypesMaintainingVirtualReferencePartitionsOnLoad(catalogName),
+			evita.getVirtualReferencePartitionProbeOnLoad(catalogName)
 		);
 		this.persistenceService.readCatalogIndex(this, Scope.ARCHIVED)
 			.filter(it -> !it.isEmpty())
