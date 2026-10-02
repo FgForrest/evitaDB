@@ -90,4 +90,17 @@ public class TemporalDataNotAvailableException extends EvitaInvalidUsageExceptio
 		this.catalogVersion = catalogVersion;
 	}
 
+	/**
+	 * Creates a new exception indicating the oldest available catalog version for historical data, recognized only
+	 * after a read of the purged data had already failed.
+	 *
+	 * @param catalogVersion the earliest catalog version for which data is still available
+	 * @param cause          the failure of the read that ran into the purged data
+	 */
+	public TemporalDataNotAvailableException(long catalogVersion, @Nonnull Throwable cause) {
+		super("The oldest data available is for catalog version " + catalogVersion + ".", cause);
+		this.offsetDateTime = null;
+		this.catalogVersion = catalogVersion;
+	}
+
 }

@@ -2556,6 +2556,16 @@ public final class Catalog
 	}
 
 	/**
+	 * Retrieves the first catalog version the WAL can still replay once retention has removed older WAL files.
+	 * See {@link CatalogPersistenceService#getFirstReplayableCatalogVersion()}.
+	 *
+	 * @return the first replayable catalog version, or `-1` when retention has not removed any WAL file
+	 */
+	public long getFirstReplayableCatalogVersion() {
+		return this.persistenceService.getFirstReplayableCatalogVersion();
+	}
+
+	/**
 	 * Method allows to immediately flush all information held in memory to the persistent storage. It stores
 	 * an {@link EntityCollectionHeader} for every collection whose file offset index changed and, when anything
 	 * changed at all, the catalog header that publishes them.

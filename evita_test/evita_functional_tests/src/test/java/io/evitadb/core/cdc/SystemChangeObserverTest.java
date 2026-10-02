@@ -61,6 +61,7 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -489,12 +490,12 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 	 * subscriber-version map drains to empty inside `clearUnusedDataInRingBuffer`.
 	 *
 	 * Mirrors the catalog-level regression for the system publisher. Reproduces the exact production
-	 * state: an initialised ring buffer plus a `versionSubscribersCount` whose only tracked version is
-	 * strictly below the buffer's effective start version. The cleanup loop removes that stale entry,
-	 * emptying the map; the old code then called
+	 * state: an initialised ring buffer plus a `versionSubscribersCount` whose only entry - one no subscriber
+	 * tracks any more - sits strictly below the buffer's effective start version. The cleanup removes that
+	 * stale entry, emptying the map; the old code then called
 	 * {@link java.util.concurrent.ConcurrentSkipListMap#firstKey()} on the now-empty map and threw
-	 * {@link java.util.NoSuchElementException}. The fix re-reads `firstEntry()`, which returns `null`
-	 * on an empty map, so the loop terminates cleanly.
+	 * {@link java.util.NoSuchElementException}. The cleanup now sweeps the head of the map without asking it
+	 * for a first key, so it terminates cleanly. An entry with a live count is a lagging subscriber and is kept.
 	 *
 	 * @param evita the Evita database instance with the test dataset already loaded
 	 */
@@ -521,20 +522,72 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 			evita.defineCatalog(catalog);
 			evita.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
 
-			// craft the production state: the only tracked version sits strictly below the ring
-			// buffer's effective start version, so cleanup removes it and empties the map
+			// craft the production state: the only entry sits strictly below the ring buffer's effective start
+			// version and nobody tracks it any more, so cleanup removes it and empties the map - an entry with
+			// a live count belongs to a lagging subscriber and is kept for the lagging-subscriber metric
 			final ChangeCaptureRingBuffer<ChangeSystemCapture> ringBuffer =
 				getNonnullFieldValue(sharedPublisher, "lastCaptures");
 			final ConcurrentSkipListMap<Long, Integer> versionSubscribersCount =
 				getNonnullFieldValue(sharedPublisher, "versionSubscribersCount");
 			versionSubscribersCount.clear();
-			versionSubscribersCount.put(ringBuffer.getEffectiveStartCatalogVersion() - 1, 1);
+			versionSubscribersCount.put(ringBuffer.getEffectiveStartCatalogVersion() - 1, 0);
 
 			// previously threw NoSuchElementException from firstKey() once the loop emptied the map
 			assertDoesNotThrow(sharedPublisher::checkSubscribersLeft);
 			assertTrue(
 				versionSubscribersCount.isEmpty(),
 				"Stale sub-threshold version entry should have been drained"
+			);
+		}
+	}
+
+	/**
+	 * Mirrors the catalog-level sweep test for the system publisher: the periodic cleanup sweeps the
+	 * subscriber-version counts below the ring buffer's effective start - but only the counts nobody holds any more.
+	 * A positive count below the start belongs to a subscriber lagging behind the ring buffer and reading the WAL,
+	 * and counts at or above the start are none of the sweep's business.
+	 *
+	 * @param evita the Evita database instance with the test dataset already loaded
+	 */
+	@UseDataSet(value = SYSTEM_CDC_TRANSACTIONS, destroyAfterTest = true)
+	@Test
+	@DisplayName("sweep only the untracked versions below the ring buffer start and keep a lagging subscriber's count")
+	void shouldSweepOnlyUntrackedVersionsBelowTheRingBufferStart(@Nonnull Evita evita) {
+		final SystemChangeObserver tested = evita.getChangeObserver();
+		final ChangeSystemCaptureSharedPublisher sharedPublisher = getNonnullFieldValue(tested, "sharedPublisher");
+
+		final long currentVersion = evita.getEngineState().version();
+		final ChangeSystemCaptureRequest request = new ChangeSystemCaptureRequest(
+			currentVersion + 1, 0, null, ChangeCaptureContent.BODY
+		);
+
+		try (
+			final ChangeCapturePublisher<ChangeSystemCapture> publisher = evita.registerSystemChangeCapture(request)
+		) {
+			publisher.subscribe(new MockSystemChangeSubscriber());
+
+			// drive an engine mutation so the ring buffer (lastCaptures) is initialised
+			final String catalog = TEST_CATALOG + "_sweep";
+			evita.defineCatalog(catalog);
+			evita.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
+
+			final ChangeCaptureRingBuffer<ChangeSystemCapture> ringBuffer =
+				getNonnullFieldValue(sharedPublisher, "lastCaptures");
+			final ConcurrentSkipListMap<Long, Integer> versionSubscribersCount =
+				getNonnullFieldValue(sharedPublisher, "versionSubscribersCount");
+			final long ringBufferStart = ringBuffer.getEffectiveStartCatalogVersion();
+			versionSubscribersCount.clear();
+			versionSubscribersCount.put(ringBufferStart - 2, 0);
+			versionSubscribersCount.put(ringBufferStart - 1, 3);
+			versionSubscribersCount.put(ringBufferStart, 0);
+
+			sharedPublisher.checkSubscribersLeft();
+
+			assertEquals(
+				Map.of(ringBufferStart - 1, 3, ringBufferStart, 0),
+				versionSubscribersCount,
+				"Only the zero count below the ring buffer start may be swept: the positive one belongs to a " +
+					"lagging subscriber, and the one at the start is not below it."
 			);
 		}
 	}
