@@ -24,9 +24,7 @@
 package io.evitadb.index.virtual;
 
 import io.evitadb.api.CatalogState;
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.UniqueValueViolationException;
-import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.index.virtual.DifferentialEngines.Divergence;
 import io.evitadb.index.virtual.VirtualReferencePartitionOracle.Mode;
 import io.evitadb.test.EvitaTestSupport;
@@ -40,9 +38,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.SortedMap;
-import java.util.function.Consumer;
 
-import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.*;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
@@ -177,28 +173,6 @@ class DifferentialEnginesTest implements EvitaTestSupport {
 			"The rollback must leave nothing to compare after the session, or this test proves nothing about the " +
 				"checkpoint inside it: " + divergence.afterClose()
 		);
-	}
-
-	/**
-	 * Creates a step updating one product.
-	 *
-	 * @param primaryKey the product primary key
-	 * @param change     the change to make
-	 * @return the step
-	 */
-	@Nonnull
-	private static Consumer<EvitaSessionContract> updateProduct(
-		int primaryKey,
-		@Nonnull Consumer<EntityBuilder> change
-	) {
-		return session -> {
-			final EntityBuilder builder = session
-				.getEntity(ENTITY_PRODUCT, primaryKey, entityFetchAllContent())
-				.orElseThrow()
-				.openForWrite();
-			change.accept(builder);
-			builder.upsertVia(session);
-		};
 	}
 
 	/**

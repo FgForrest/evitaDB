@@ -31,6 +31,9 @@ import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
 import java.util.Set;
+import java.util.function.Consumer;
+
+import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 
 /**
  * A small catalog whose products own reference partitions of every shape the virtual reference partitions care about:
@@ -169,6 +172,28 @@ final class SingleOwnerPartitionFixture {
 		withMedia(product, primaryKey, ROLE_DETAIL);
 		withMedia(product, SHARED_MEDIA, ROLE_THUMBNAIL);
 		return product;
+	}
+
+	/**
+	 * Creates a step updating one product.
+	 *
+	 * @param primaryKey the product primary key
+	 * @param change     the change to make
+	 * @return the step
+	 */
+	@Nonnull
+	static Consumer<EvitaSessionContract> updateProduct(
+		int primaryKey,
+		@Nonnull Consumer<EntityBuilder> change
+	) {
+		return session -> {
+			final EntityBuilder builder = session
+				.getEntity(ENTITY_PRODUCT, primaryKey, entityFetchAllContent())
+				.orElseThrow()
+				.openForWrite();
+			change.accept(builder);
+			builder.upsertVia(session);
+		};
 	}
 
 	/**

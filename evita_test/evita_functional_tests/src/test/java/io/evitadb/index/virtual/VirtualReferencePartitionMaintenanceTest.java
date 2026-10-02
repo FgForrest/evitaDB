@@ -24,6 +24,7 @@
 package io.evitadb.index.virtual;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
@@ -31,6 +32,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,6 +42,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.EnumSet;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static io.evitadb.test.TestTags.ENGINE;
@@ -48,13 +51,14 @@ import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Pins where the switch maintaining virtual reference partitions lives and how long: it belongs to one catalog
  * lineage, it reaches every instance of a collection - after a commit, going live, a rename, a replacement, and the
  * instance a commit replay creates for a collection created inside the transaction - and it does not survive the
- * catalog being loaded from disk again.
+ * catalog being loaded from disk again, unless the engine is told before it starts loading.
  *
  * Each survival assertion is paired with a check that the collection really was re-instantiated, so that a switch
  * held by the collection instance itself could not pass for one that survives.
@@ -235,6 +239,30 @@ class VirtualReferencePartitionMaintenanceTest implements EvitaTestSupport {
 		assertFalse(collectionOf(OTHER_CATALOG, ENTITY_PRODUCT).isVirtualReferencePartitionsMaintained());
 	}
 
+	@Test
+	@DisplayName("the switch for the catalog load is refused once the catalog loading was scheduled")
+	void shouldRefuseTheLoadSwitchOnceLoadingWasScheduled() {
+		this.evita.updateCatalog(CATALOG, session -> {
+			upsertProduct(session, ENTITY_PRODUCT, 1);
+		});
+		this.evita.close();
+		this.evita = new Evita(configuration(), false);
+		this.evita.maintainVirtualReferencePartitionsOnLoad(CATALOG, Set.of(ENTITY_PRODUCT));
+		this.evita.scheduleInitialCatalogLoading();
+		awaitCatalogLoaded(CATALOG);
+
+		assertMaintained(ENTITY_PRODUCT, "after a load the switch was set for");
+		assertFalse(
+			collectionOf(CATALOG, ENTITY_CATEGORY).isVirtualReferencePartitionsMaintained(),
+			"The load switch reaches only the entity types it names"
+		);
+		assertThrows(
+			GenericEvitaInternalError.class,
+			() -> this.evita.maintainVirtualReferencePartitionsOnLoad(CATALOG, Set.of(ENTITY_CATEGORY)),
+			"A switch set after the loading started would miss the mutations replayed at load, so it must be refused"
+		);
+	}
+
 	/**
 	 * Starts an engine over the test directories.
 	 *
@@ -242,11 +270,19 @@ class VirtualReferencePartitionMaintenanceTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private Evita newEvita() {
-		return new Evita(
-			newTestEvitaConfigurationBuilder(this.paths)
-				.server(ServerOptions.builder().closeSessionsAfterSecondsOfInactivity(-1).build())
-				.build()
-		);
+		return new Evita(configuration());
+	}
+
+	/**
+	 * Builds the configuration of an engine over the test directories.
+	 *
+	 * @return the configuration
+	 */
+	@Nonnull
+	private EvitaConfiguration configuration() {
+		return newTestEvitaConfigurationBuilder(this.paths)
+			.server(ServerOptions.builder().closeSessionsAfterSecondsOfInactivity(-1).build())
+			.build();
 	}
 
 	/**

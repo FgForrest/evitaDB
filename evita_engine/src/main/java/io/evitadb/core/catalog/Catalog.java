@@ -866,9 +866,13 @@ public final class Catalog
 		// has its row before the first query arrives rather than from whenever one first names it
 		this.usageRegistry = new SchemaCapabilityUsageRegistry();
 		this.usageRegistry.alignWith(catalogSchema);
-		// the switch is not persisted, so a catalog read back from disk maintains nothing until a test turns it on
+		// the switch is not persisted, so a catalog read back from disk maintains only what the engine was told to
+		// before loading began - seeded here, before any collection is attached and before the write-ahead log is
+		// replayed onto this catalog, so the replayed mutations are maintained as well
 		// TODO JNO - remove at the end of #1615
-		this.virtualReferencePartitionMaintenance = new VirtualReferencePartitionMaintenance();
+		this.virtualReferencePartitionMaintenance = new VirtualReferencePartitionMaintenance(
+			evita.getEntityTypesMaintainingVirtualReferencePartitionsOnLoad(catalogName)
+		);
 		this.persistenceService.readCatalogIndex(this, Scope.ARCHIVED)
 			.filter(it -> !it.isEmpty())
 			.ifPresent(this.archiveCatalogIndex::set);

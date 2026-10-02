@@ -3869,7 +3869,7 @@ public final class EntityCollection implements
 			this.catalog.getUsageRegistry(),
 			this.catalog.isUsageStatisticsTracked(),
 			// TODO JNO - remove at the end of #1615
-			isVirtualReferencePartitionsMaintained()
+			this.catalog.getVirtualReferencePartitionMaintenance().isMaintainedForMutation(entityType)
 		);
 
 		return localMutationExecutorCollector.execute(

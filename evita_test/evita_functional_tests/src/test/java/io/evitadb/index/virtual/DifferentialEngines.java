@@ -27,6 +27,8 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -58,13 +60,20 @@ import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart;
+import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
+import io.evitadb.store.catalog.model.CatalogBootstrap;
+import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.utils.ExceptionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.IOException;
 import java.io.Serializable;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -82,6 +91,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.attributeHistogram;
@@ -99,6 +109,7 @@ import static io.evitadb.api.query.QueryConstraints.scope;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
@@ -116,7 +127,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * - **After a caught mutation failure**, still inside the session - the failed mutation must leave both engines
  *   exactly where they were, savepoint rollback included.
  * - **After the session closes** - a commit in `ALIVE`, a flush in `WARMING_UP`.
- * - **After a restart** of both engines.
+ * - **After a restart** of both engines, and **after a crash recovery** of both - see below.
  *
  * Every checkpoint also asserts that the switch is on for every collection of the maintaining engine and off for every
  * collection of the reference engine, so a switch lost on the way through a commit, going live or a rename fails the
@@ -153,10 +164,18 @@ import static org.junit.jupiter.api.Assertions.fail;
  * advertised partitions and their owners, and through the values and records the filter indexes expose - and directly
  * only as far as the byte totals of their persisted storage parts reach.
  *
- * # Restart
+ * # Restart and crash recovery
  *
- * The switch is not persisted, so the maintaining engine is switched on again right after a restart. Mutations the
- * reopened catalog replays from its write-ahead log at load are applied with the switch still off.
+ * The switch is not persisted, so the maintaining engine is told which collections to maintain before it loads the
+ * catalog again (see {@link Evita#maintainVirtualReferencePartitionsOnLoad(String, Set)}). The mutations the reopened
+ * catalog replays from its write-ahead log at load are therefore maintained too.
+ *
+ * {@link #restart()} closes both engines cleanly, which publishes everything they applied, so the reopened catalogs
+ * have nothing to replay. {@link #crashAndRecover()} copies the storage of both engines aside while they run - the
+ * image a crash at that moment would leave - and boots both engines from the copies. Combined with a checkpoint
+ * interval long enough to defer every checkpoint (see {@link #DifferentialEngines(EvitaTestSupport, String, Set,
+ * TransactionOptions)}), the copies hold the mutations committed after the last checkpoint in the write-ahead log only,
+ * and the boot replays them. Both report what the load found and did as a {@link Reload}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -192,13 +211,22 @@ final class DifferentialEngines implements AutoCloseable {
 	 */
 	private final Set<String> entityTypes;
 	/**
-	 * Directories of the reference engine.
+	 * The transaction settings of both engines; `null` for the defaults of the test configuration.
 	 */
-	private final TestPaths referencePaths;
+	@Nullable private final TransactionOptions transactionOptions;
 	/**
-	 * Directories of the maintaining engine.
+	 * Every directory set any engine of this instance has used - the original ones and the crash images - so that
+	 * {@link #close()} removes them all.
 	 */
-	private final TestPaths maintainingPaths;
+	private final List<TestPaths> allocatedPaths = new ArrayList<>(4);
+	/**
+	 * Directories of the reference engine - replaced by its crash image once the engine recovers from one.
+	 */
+	private TestPaths referencePaths;
+	/**
+	 * Directories of the maintaining engine - replaced by its crash image once the engine recovers from one.
+	 */
+	private TestPaths maintainingPaths;
 	/**
 	 * Checks run on every collection of the maintaining engine at every checkpoint, with the checkpoint label.
 	 */
@@ -224,10 +252,31 @@ final class DifferentialEngines implements AutoCloseable {
 		@Nonnull String label,
 		@Nonnull Set<String> entityTypes
 	) {
+		this(support, label, entityTypes, null);
+	}
+
+	/**
+	 * Starts both engines, each in its own directories with an identical configuration using the given transaction
+	 * settings - typically a checkpoint interval that defers every checkpoint, so that {@link #crashAndRecover()} finds
+	 * a write-ahead log tail to replay.
+	 *
+	 * @param support            the test owning the engines
+	 * @param label              a label naming the engines' directories
+	 * @param entityTypes        the entity types the maintaining engine maintains
+	 * @param transactionOptions the transaction settings of both engines; `null` for the defaults of the test
+	 *                           configuration
+	 */
+	DifferentialEngines(
+		@Nonnull EvitaTestSupport support,
+		@Nonnull String label,
+		@Nonnull Set<String> entityTypes,
+		@Nullable TransactionOptions transactionOptions
+	) {
 		this.support = support;
 		this.entityTypes = Set.copyOf(entityTypes);
-		this.referencePaths = support.createTestPaths(label + "_reference");
-		this.maintainingPaths = support.createTestPaths(label + "_maintaining");
+		this.transactionOptions = transactionOptions;
+		this.referencePaths = allocatePaths(label + "_reference");
+		this.maintainingPaths = allocatePaths(label + "_maintaining");
 		this.reference = new Evita(configurationOf(this.referencePaths));
 		this.maintaining = new Evita(configurationOf(this.maintainingPaths));
 	}
@@ -345,18 +394,54 @@ final class DifferentialEngines implements AutoCloseable {
 	}
 
 	/**
-	 * Closes both engines, starts them again over the same directories, switches the maintaining engine on again and
-	 * compares them.
+	 * Closes both engines cleanly, starts them again over the same directories - the maintaining one with the switch
+	 * on from the moment it loads the catalog - and compares them.
+	 *
+	 * @return what each engine applied before the close and what its load found and did
 	 */
-	void restart() {
+	@Nonnull
+	Reload restart() {
+		final Catalog referenceCatalog = catalogOf(this.reference);
+		final Catalog maintainingCatalog = catalogOf(this.maintaining);
 		this.reference.close();
 		this.maintaining.close();
-		this.reference = new Evita(configurationOf(this.referencePaths));
-		this.maintaining = new Evita(configurationOf(this.maintainingPaths));
-		awaitCatalogLoaded(this.reference);
-		awaitCatalogLoaded(this.maintaining);
-		switchMaintainingEngineOn();
+		final Reload reload = new Reload(
+			startReference(referenceCatalog.getVersion(), referenceCatalog.getLastPersistedCatalogVersion()),
+			startMaintaining(maintainingCatalog.getVersion(), maintainingCatalog.getLastPersistedCatalogVersion())
+		);
 		assertEqual("after restart");
+		return reload;
+	}
+
+	/**
+	 * Takes the image a crash would leave of both running engines - a copy of each engine's own storage directory
+	 * taken while the engine is quiescent and before it is closed - closes the engines, boots them from the copies -
+	 * the maintaining one with the switch on from the moment it loads the catalog - and compares them.
+	 *
+	 * Closing an engine publishes everything it applied, so the copy must be taken before the close for it to keep the
+	 * write-ahead log tail a crash would leave. The copy is taken only once the engine has incorporated everything its
+	 * write-ahead log holds, and is accepted only when no file of the storage directory changed while it was being
+	 * copied and the catalog published no new version meanwhile.
+	 *
+	 * @return what each engine had applied and checkpointed when it was copied and what its load from the copy found
+	 * and did
+	 */
+	@Nonnull
+	Reload crashAndRecover() {
+		final CrashImage referenceImage = takeCrashImage(this.reference, this.referencePaths, "_referenceImage");
+		final CrashImage maintainingImage = takeCrashImage(
+			this.maintaining, this.maintainingPaths, "_maintainingImage"
+		);
+		this.reference.close();
+		this.maintaining.close();
+		this.referencePaths = referenceImage.paths();
+		this.maintainingPaths = maintainingImage.paths();
+		final Reload reload = new Reload(
+			startReference(referenceImage.appliedVersion(), referenceImage.persistedVersion()),
+			startMaintaining(maintainingImage.appliedVersion(), maintainingImage.persistedVersion())
+		);
+		assertEqual("after the crash recovery");
+		return reload;
 	}
 
 	/**
@@ -404,9 +489,23 @@ final class DifferentialEngines implements AutoCloseable {
 			this.reference.close();
 			this.maintaining.close();
 		} finally {
-			this.support.cleanupTestPaths(this.referencePaths);
-			this.support.cleanupTestPaths(this.maintainingPaths);
+			for (final TestPaths paths : this.allocatedPaths) {
+				this.support.cleanupTestPaths(paths);
+			}
 		}
+	}
+
+	/**
+	 * Allocates a set of directories and remembers it for {@link #close()}.
+	 *
+	 * @param label a label naming the directories
+	 * @return the directories, not created yet
+	 */
+	@Nonnull
+	private TestPaths allocatePaths(@Nonnull String label) {
+		final TestPaths paths = this.support.createTestPaths(label);
+		this.allocatedPaths.add(paths);
+		return paths;
 	}
 
 	/**
@@ -417,13 +516,209 @@ final class DifferentialEngines implements AutoCloseable {
 	 */
 	@Nonnull
 	private EvitaConfiguration configurationOf(@Nonnull TestPaths paths) {
-		return this.support.newTestEvitaConfigurationBuilder(paths)
+		final EvitaConfiguration.Builder builder = this.support.newTestEvitaConfigurationBuilder(paths)
 			.server(
 				ServerOptions.builder()
 					.closeSessionsAfterSecondsOfInactivity(-1)
 					.build()
+			);
+		if (this.transactionOptions != null) {
+			builder.transaction(this.transactionOptions);
+		}
+		return builder.build();
+	}
+
+	/**
+	 * Starts the reference engine over its current directories and waits until it has loaded the catalog.
+	 *
+	 * @param appliedVersion   the catalog version the previous engine had applied when it stopped
+	 * @param persistedVersion the catalog version the previous engine had checkpointed when it stopped
+	 * @return what the load found and did
+	 */
+	@Nonnull
+	private EngineLoad startReference(long appliedVersion, long persistedVersion) {
+		final long imageVersion = readImageVersion(this.referencePaths);
+		this.reference = new Evita(configurationOf(this.referencePaths));
+		awaitCatalogLoaded(this.reference);
+		return describeLoad(this.reference, appliedVersion, persistedVersion, imageVersion);
+	}
+
+	/**
+	 * Starts the maintaining engine over its current directories with the switch on from the moment it loads the
+	 * catalog, and waits until it has loaded it.
+	 *
+	 * @param appliedVersion   the catalog version the previous engine had applied when it stopped
+	 * @param persistedVersion the catalog version the previous engine had checkpointed when it stopped
+	 * @return what the load found and did
+	 */
+	@Nonnull
+	private EngineLoad startMaintaining(long appliedVersion, long persistedVersion) {
+		final long imageVersion = readImageVersion(this.maintainingPaths);
+		this.maintaining = new Evita(configurationOf(this.maintainingPaths), false);
+		this.maintaining.maintainVirtualReferencePartitionsOnLoad(CATALOG, this.entityTypes);
+		this.maintaining.scheduleInitialCatalogLoading();
+		awaitCatalogLoaded(this.maintaining);
+		return describeLoad(this.maintaining, appliedVersion, persistedVersion, imageVersion);
+	}
+
+	/**
+	 * Reads the catalog version of the last bootstrap record in the storage of an engine that is not running - the
+	 * version its next load starts from, before anything it replays advances it.
+	 *
+	 * @param paths the directories of the engine
+	 * @return the catalog version the last bootstrap record publishes
+	 */
+	private long readImageVersion(@Nonnull TestPaths paths) {
+		final StorageOptions storageOptions = configurationOf(paths).storage();
+		try (
+			final Stream<CatalogBootstrap> records = DefaultCatalogPersistenceService.getCatalogBootstrapRecordStream(
+				CATALOG,
+				EvitaTestSupport.catalogDirectory(paths.storage(), CATALOG),
+				// bootstrap records are never compressed
+				new StorageSettings(
+					StorageOptions.builder(storageOptions).compress(false).build(),
+					TransactionOptions.builder().build()
+				)
 			)
-			.build();
+		) {
+			return records.reduce((previous, next) -> next).orElseThrow().catalogVersion();
+		}
+	}
+
+	/**
+	 * Describes the load an engine has just finished, before anything else runs in it.
+	 *
+	 * @param evita            the engine that has just loaded the catalog
+	 * @param appliedVersion   the catalog version the previous engine had applied when it stopped
+	 * @param persistedVersion the catalog version the previous engine had checkpointed when it stopped
+	 * @param imageVersion     the catalog version of the last bootstrap record of the storage the engine loaded
+	 * @return what the load found and did
+	 */
+	@Nonnull
+	private static EngineLoad describeLoad(
+		@Nonnull Evita evita,
+		long appliedVersion,
+		long persistedVersion,
+		long imageVersion
+	) {
+		final Catalog catalog = catalogOf(evita);
+		return new EngineLoad(
+			appliedVersion,
+			persistedVersion,
+			imageVersion,
+			catalog.getVersion(),
+			catalog.getVirtualReferencePartitionMaintenance().getMaintainedMutationCount()
+		);
+	}
+
+	/**
+	 * Copies the storage directory of a running engine aside as the image a crash at this moment would leave.
+	 *
+	 * The engine must be quiescent while it is copied, and this method makes sure it is rather than assuming it:
+	 *
+	 * - it waits until the catalog has incorporated every transaction its write-ahead log holds, so no commit is still
+	 *   in flight;
+	 * - it lists every file of the storage directory with its length and modification time before and after the copy,
+	 *   and requires both listings and the listing of the copy to be identical;
+	 * - it requires the catalog instance published before the copy to be still the published one after it.
+	 *
+	 * @param evita  the running engine
+	 * @param paths  the directories of the engine
+	 * @param suffix a suffix naming the directories of the image
+	 * @return the image and the versions the engine had applied and checkpointed when it was copied
+	 */
+	@Nonnull
+	private CrashImage takeCrashImage(@Nonnull Evita evita, @Nonnull TestPaths paths, @Nonnull String suffix) {
+		await()
+			.atMost(30, TimeUnit.SECONDS)
+			.pollInterval(50, TimeUnit.MILLISECONDS)
+			.until(() -> catalogOf(evita).getVersion() == catalogOf(evita).getLastCatalogVersionInMutationStream());
+		final Catalog catalog = catalogOf(evita);
+		final long appliedVersion = catalog.getVersion();
+		final long persistedVersion = catalog.getLastPersistedCatalogVersion();
+
+		final TestPaths image = allocatePaths(paths.storage().getFileName() + suffix);
+		final SortedMap<String, String> beforeCopy = listFiles(paths.storage());
+		copyRecursively(paths.storage(), image.storage());
+		final SortedMap<String, String> afterCopy = listFiles(paths.storage());
+
+		assertEquals(
+			beforeCopy, afterCopy,
+			"The storage of the engine changed while it was being copied - the image is not the state of one moment"
+		);
+		assertEquals(
+			beforeCopy, listFiles(image.storage()),
+			"The image must hold every file of the storage, whole"
+		);
+		assertSame(
+			catalog, catalogOf(evita),
+			"The catalog published a new version while its storage was being copied"
+		);
+		return new CrashImage(image, appliedVersion, persistedVersion);
+	}
+
+	/**
+	 * Lists every file under a directory with its length and last modification time in milliseconds.
+	 *
+	 * @param root the directory
+	 * @return the relative path of every file mapped to its length and modification time
+	 */
+	@Nonnull
+	private static SortedMap<String, String> listFiles(@Nonnull Path root) {
+		final SortedMap<String, String> listing = new TreeMap<>();
+		try (final Stream<Path> tree = Files.walk(root)) {
+			for (final Path file : tree.filter(Files::isRegularFile).toList()) {
+				listing.put(
+					root.relativize(file).toString(),
+					// milliseconds, because the copy keeps the modification time only as precisely as the file system
+					// it copies to stores it
+					Files.size(file) + " bytes, modified at " + Files.getLastModifiedTime(file).toMillis()
+				);
+			}
+		} catch (IOException ex) {
+			throw new IllegalStateException("Cannot list `" + root + "`!", ex);
+		}
+		return listing;
+	}
+
+	/**
+	 * Copies a directory tree, creating the target if it does not exist, and keeps the modification time of every
+	 * file so the copy can be compared with its source.
+	 *
+	 * @param source tree to copy from
+	 * @param target tree to copy into
+	 */
+	private static void copyRecursively(@Nonnull Path source, @Nonnull Path target) {
+		try {
+			final List<Path> entries;
+			try (final Stream<Path> tree = Files.walk(source)) {
+				entries = tree.toList();
+			}
+			for (final Path entry : entries) {
+				final Path destination = target.resolve(source.relativize(entry).toString());
+				if (Files.isDirectory(entry)) {
+					Files.createDirectories(destination);
+				} else {
+					Files.createDirectories(destination.getParent());
+					Files.copy(
+						entry, destination, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES
+					);
+				}
+			}
+		} catch (IOException ex) {
+			throw new IllegalStateException("Cannot copy `" + source + "` to `" + target + "`!", ex);
+		}
+	}
+
+	/**
+	 * Returns the currently published catalog of an engine.
+	 *
+	 * @param evita the engine
+	 * @return the catalog
+	 */
+	@Nonnull
+	private static Catalog catalogOf(@Nonnull Evita evita) {
+		return (Catalog) evita.getCatalogInstance(CATALOG).orElseThrow();
 	}
 
 	/**
@@ -431,7 +726,7 @@ final class DifferentialEngines implements AutoCloseable {
 	 * not.
 	 */
 	private void switchMaintainingEngineOn() {
-		final Catalog catalog = (Catalog) this.maintaining.getCatalogInstance(CATALOG).orElseThrow();
+		final Catalog catalog = catalogOf(this.maintaining);
 		for (final String entityType : this.entityTypes) {
 			catalog.getVirtualReferencePartitionMaintenance().setMaintained(entityType, true);
 		}
@@ -954,6 +1249,46 @@ final class DifferentialEngines implements AutoCloseable {
 					.unusable()
 			);
 		assertNotNull(evita.getCatalogInstance(CATALOG).orElse(null), "The catalog must be loaded again");
+	}
+
+	/**
+	 * What loading the catalog again found and did in both engines.
+	 *
+	 * @param reference   the load of the reference engine
+	 * @param maintaining the load of the maintaining engine
+	 */
+	record Reload(@Nonnull EngineLoad reference, @Nonnull EngineLoad maintaining) {
+	}
+
+	/**
+	 * What loading the catalog again found and did in one engine.
+	 *
+	 * @param appliedVersion          the catalog version the engine had applied when it was closed or copied
+	 * @param persistedVersion        the catalog version the engine had checkpointed when it was closed or copied; a
+	 *                                clean close publishes whatever lies between the two
+	 * @param imageVersion            the catalog version of the last bootstrap record in the storage the engine loaded,
+	 *                                read before the load - the version the load started from
+	 * @param loadedVersion           the catalog version once the load finished, the write-ahead log replay included
+	 * @param maintainedMutationCount the entity mutations the load executed with the switch on - every one of them a
+	 *                                replayed one, since nothing else runs in the engine before it is described
+	 */
+	record EngineLoad(
+		long appliedVersion,
+		long persistedVersion,
+		long imageVersion,
+		long loadedVersion,
+		long maintainedMutationCount
+	) {
+	}
+
+	/**
+	 * The copy of a running engine's storage directory and what the engine had done when it was taken.
+	 *
+	 * @param paths            the directories of the image, its storage holding the copy
+	 * @param appliedVersion   the catalog version the engine had applied when it was copied
+	 * @param persistedVersion the catalog version the engine had checkpointed when it was copied
+	 */
+	private record CrashImage(@Nonnull TestPaths paths, long appliedVersion, long persistedVersion) {
 	}
 
 	/**

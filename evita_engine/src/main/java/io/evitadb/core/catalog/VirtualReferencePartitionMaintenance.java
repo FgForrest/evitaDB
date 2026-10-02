@@ -27,6 +27,7 @@ package io.evitadb.core.catalog;
 import javax.annotation.Nonnull;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 // TODO JNO - remove at the end of #1615
 /**
@@ -46,7 +47,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * - **Shared across catalog versions by reference.** Every constructor that rebuilds an existing catalog - a commit,
  *   going live, a catalog rename - hands the holder over, exactly as it hands over the catalog's usage counters. Only a
  *   brand-new catalog and one loaded from disk start with a fresh one, so the switch is **not persisted**: a reopened
- *   catalog maintains nothing until the switch is turned on again.
+ *   catalog maintains nothing until the switch is turned on again - unless the engine was told before it loaded the
+ *   catalog (see {@link io.evitadb.core.Evita#maintainVirtualReferencePartitionsOnLoad(String, Set)}), in which case
+ *   the fresh holder starts switched on and the write-ahead log replayed at load is maintained too.
  * - **Non-transactional.** Turning the switch on inside a transaction that later rolls back leaves it on. It is a test
  *   instrument, not catalog state, and a test sets it deliberately.
  *
@@ -64,6 +67,31 @@ public final class VirtualReferencePartitionMaintenance {
 	 * holder is shared by every catalog version and read by every entity mutation, whichever thread runs it.
 	 */
 	private final Set<String> maintainedEntityTypes = ConcurrentHashMap.newKeySet();
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * How many entity mutations have been executed with the switch on since this holder was created - a probe that
+	 * lets a test tell whether the mutations replayed from the write-ahead log at load ran with the switch on, which no
+	 * state of the switch read after the load can tell.
+	 */
+	private final AtomicLong maintainedMutationCount = new AtomicLong();
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Creates a holder with the switch off for every collection.
+	 */
+	public VirtualReferencePartitionMaintenance() {
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Creates a holder with the switch already on for the collections of the given entity types - the holder of a
+	 * catalog being loaded from disk, seeded before any of its collections is attached.
+	 *
+	 * @param maintainedEntityTypes the names of the entity types to maintain
+	 */
+	public VirtualReferencePartitionMaintenance(@Nonnull Set<String> maintainedEntityTypes) {
+		this.maintainedEntityTypes.addAll(maintainedEntityTypes);
+	}
 
 	// TODO JNO - remove at the end of #1615
 	/**
@@ -75,6 +103,36 @@ public final class VirtualReferencePartitionMaintenance {
 	public boolean isMaintained(@Nonnull String entityType) {
 		// the empty check keeps the hash lookup off every entity mutation of a catalog no test has switched
 		return !this.maintainedEntityTypes.isEmpty() && this.maintainedEntityTypes.contains(entityType);
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns TRUE when the collection of the given entity type maintains virtual reference partitions, and counts the
+	 * answer when it is TRUE. Asked once per entity mutation, by the code building the executor of its entity index
+	 * mutations - and by nothing else, so that {@link #getMaintainedMutationCount()} counts mutations rather than
+	 * reads.
+	 *
+	 * @param entityType the name of the entity type the mutation writes into
+	 * @return TRUE when the mutation maintains virtual reference partitions
+	 */
+	public boolean isMaintainedForMutation(@Nonnull String entityType) {
+		final boolean maintained = isMaintained(entityType);
+		if (maintained) {
+			this.maintainedMutationCount.incrementAndGet();
+		}
+		return maintained;
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns how many entity mutations have been executed with the switch on since this holder was created. A catalog
+	 * loaded from disk gets a fresh holder, so right after the load the count is the number of mutations the
+	 * write-ahead log replay executed with the switch on.
+	 *
+	 * @return the number of entity mutations that maintained virtual reference partitions
+	 */
+	public long getMaintainedMutationCount() {
+		return this.maintainedMutationCount.get();
 	}
 
 	// TODO JNO - remove at the end of #1615
