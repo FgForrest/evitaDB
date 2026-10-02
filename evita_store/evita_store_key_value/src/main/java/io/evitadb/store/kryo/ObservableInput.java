@@ -712,7 +712,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 		this.payloadPrefixLength = computeReadLengthUpTo(this.payloadStartPosition);
 		this.actualLimit = this.limit > 0 ? this.limit : -1;
 		// cap at the current limit to avoid extending beyond actual data in partially filled buffers
-		final int cappedLimit = Math.min(this.limit, constraintLimitWithRecordLength(0) + this.payloadPrefixLength);
+		final int cappedLimit = Math.min(this.limit, constraintLimitWithRecordLength(0));
 		this.limit = cappedLimit;
 		final long totalBeforeRead = this.total;
 		this.readingTail = true;
@@ -746,7 +746,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 		this.payloadPrefixLength = computeReadLengthUpTo(this.payloadStartPosition);
 		this.actualLimit = this.limit > 0 ? this.limit : -1;
 		// cap at the current limit to avoid extending beyond actual data in partially filled buffers
-		final int cappedLimit = Math.min(this.limit, constraintLimitWithRecordLength(0) + this.payloadPrefixLength);
+		final int cappedLimit = Math.min(this.limit, constraintLimitWithRecordLength(0));
 		this.limit = cappedLimit;
 		final long totalBeforeRead = this.total;
 		this.readingTail = true;
