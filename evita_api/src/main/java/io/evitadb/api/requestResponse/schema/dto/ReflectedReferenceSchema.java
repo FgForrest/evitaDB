@@ -1050,16 +1050,24 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 					referenceErrors,
 					ReferenceSchema.validateEntityComponentIndexed(this, entitySchema.getName())
 				);
-				if (this.reflectedReference.getCardinality().allowsDuplicates()) {
-					if (!this.getCardinality().allowsDuplicates()) {
-						referenceErrors = Stream.concat(
-							referenceErrors,
-							Stream.of(
-								"Reflected reference `" + this.getName() + "` cannot disallow duplicates, " +
-									"because the original reflected reference `" + this.reflectedReferenceName + "` in entity `" + referencedEntityType + "` allows them!"
-							)
-						);
-					}
+				// both sides must agree on duplicates - the engine propagates references between them by looking up
+				// the partitions of one side with the duplicate setting of the other, and a mismatch makes it miss
+				final boolean originalAllowsDuplicates = this.reflectedReference.getCardinality().allowsDuplicates();
+				if (originalAllowsDuplicates != this.getCardinality().allowsDuplicates()) {
+					referenceErrors = Stream.concat(
+						referenceErrors,
+						Stream.of(
+							"Reflected reference `" + this.getName() + "` cannot " +
+								(originalAllowsDuplicates ? "disallow" : "allow") + " duplicates, " +
+								"because the original reflected reference `" + this.reflectedReferenceName + "` " +
+								"in entity `" + referencedEntityType + "` " +
+								(originalAllowsDuplicates ? "allows" : "disallows") + " them! " +
+								"Align the cardinality of both references, for example by letting the reflected " +
+								"reference inherit the cardinality of the original one."
+						)
+					);
+				}
+				if (originalAllowsDuplicates) {
 					final Set<String> representativeAttributes;
 					if (this.reflectedReference instanceof ReferenceSchema rs) {
 						representativeAttributes = new HashSet<>(
@@ -1074,16 +1082,17 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 							.map(NamedSchemaContract::getName)
 							.collect(Collectors.toSet());
 					}
-					this.getAttributes().keySet().forEach(
-						representativeAttributes::remove
-					);
+					// a same-named attribute declared on the reflected side does not count - propagation fills only
+					// inherited attributes, and the declared one is not persisted while the original defines the name
+					representativeAttributes.removeAll(this.inheritedAttributes);
 					if (!representativeAttributes.isEmpty()) {
 						referenceErrors = Stream.concat(
 							referenceErrors,
 							Stream.of(
-								"Reflected reference `" + this.getName() + "` must contain all representative attributes " +
-									"of the original reflected reference `" + this.reflectedReferenceName + "` in entity `" + referencedEntityType + "`! " +
-									"Missing representative attributes: " + String.join(", ", representativeAttributes)
+								"Reflected reference `" + this.getName() + "` must inherit all representative attributes " +
+									"of the original reflected reference `" + this.reflectedReferenceName + "` " +
+									"in entity `" + referencedEntityType + "`! " +
+									"Representative attributes not inherited: " + String.join(", ", representativeAttributes)
 							)
 						);
 					}
