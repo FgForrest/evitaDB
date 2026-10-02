@@ -31,9 +31,17 @@ import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.index.bPlusTree.ImpactView;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.LeafPageHandle;
 import io.evitadb.index.bPlusTree.ValueColumnFactory;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
+import io.evitadb.index.invertedIndex.ValueToRecord;
+import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecordPrimitive;
+import io.evitadb.index.page.PageEmission;
+import io.evitadb.index.page.PageStreamRegistry;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
@@ -95,13 +103,21 @@ import java.util.Map;
  * Each part versions itself: the dictionary through the bucket tree's node layers (the impacts ride along in the
  * leaves), every length table through its own layer, and the field registry through this index's
  * {@link FulltextIndexChanges}, which holds the fields a transaction registered. Every write also creates that
- * layer, so it doubles as the dirty flag: an index no transaction wrote to is carried forward as the same instance -
- * keeping its identity, which is what a consumer keys a cache on - and none of its parts is merged.
+ * layer, so it doubles as the "written in this transaction" mark: an index no transaction wrote to is carried forward
+ * as the same instance - keeping its identity, which is what a consumer keys a cache on - and none of its parts is
+ * merged.
  *
  * Outside a transaction (the warm-up bulk path) everything is written in place, and each part journals its writes
  * into an open warm-up savepoint; the registry journals a field's registration, so a rolled-back entity mutation
  * that introduced a field leaves no field behind. Inside a transaction a per-entity savepoint rewinds every part
  * through its layer's memento.
+ *
+ * ## Persistence
+ *
+ * The dictionary is written in pages, one per leaf, the way the inverted index writes its buckets: a separate dirty
+ * flag - "written since the last flush", on both paths - gates the flush, {@link #collectChangedPages()} emits the
+ * leaves that changed and the pages that left, and a {@link PageStreamRegistry} keeps the page sequences and the
+ * baseline the next flush diffs against, carried by reference through every merge.
  *
  * Not thread-safe for writes - one writer at a time, as with every index structure.
  *
@@ -153,6 +169,13 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	private static final int MIN_INTERNAL_NODE_BLOCK_SIZE = (int) (Math.ceil(MIN_VALUE_BLOCK_SIZE / 2.0) - 1);
 
 	/**
+	 * Local key of the dictionary's page stream in {@link #pageStreamRegistry} - the index's only paged structure so
+	 * far. It is not the stream id the storage resolves for the pages; that one is assigned by the catalog's key
+	 * compressor when the pages are written.
+	 */
+	private static final int DICTIONARY_PAGE_STREAM = 0;
+
+	/**
 	 * Identity of this instance in the transactional memory.
 	 */
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
@@ -183,6 +206,21 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * posting carries its impact.
 	 */
 	@Nonnull private final TransactionalBucketBPlusTree<String> dictionary;
+
+	/**
+	 * Whether anything was written to the index since its last flush collected it - the gate of the flush. Set by
+	 * every write, inside a transaction and outside one alike, and cleared by {@link #resetDirty()} once the flush has
+	 * collected the changes.
+	 */
+	@Nonnull private final TransactionalBoolean dirty;
+
+	/**
+	 * The page bookkeeping of the dictionary: the page sequence allocator, its high-water and the set of pages on disk
+	 * the next flush diffs against. Owner-resident and not transactional - single-writer flush bookkeeping, carried by
+	 * reference into the committed copy at every merge, exactly as {@link io.evitadb.index.invertedIndex.InvertedIndex}
+	 * carries its own.
+	 */
+	@Nonnull @Getter private final PageStreamRegistry pageStreamRegistry;
 
 	/**
 	 * Visitor of the terms a {@link #forEachTerm(int, String, TermVisitor)} walk reaches.
@@ -247,6 +285,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			(ValueColumnFactory<String>) ValueColumnFactory.forKey(String.class, null)
 		);
 		this.dictionary.enableImpacts();
+		this.dirty = new TransactionalBoolean(false);
+		this.pageStreamRegistry = new PageStreamRegistry();
 	}
 
 	/**
@@ -257,19 +297,24 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * @param fieldIds           field name to id
 	 * @param fields             per-field state by id
 	 * @param dictionary         the term dictionary
+	 * @param pageStreamRegistry the page bookkeeping, carried by reference from the version being merged
 	 */
 	private FulltextIndex(
 		@Nonnull FulltextAnalyzer indexAnalyzer,
 		double defaultLengthPivot,
 		@Nonnull Map<String, Integer> fieldIds,
 		@Nonnull List<Field> fields,
-		@Nonnull TransactionalBucketBPlusTree<String> dictionary
+		@Nonnull TransactionalBucketBPlusTree<String> dictionary,
+		@Nonnull PageStreamRegistry pageStreamRegistry
 	) {
 		this.indexAnalyzer = indexAnalyzer;
 		this.defaultLengthPivot = defaultLengthPivot;
 		this.fieldIds = fieldIds;
 		this.fields = fields;
 		this.dictionary = dictionary;
+		// the merge runs after the flush collected this version's changes, so the committed copy starts clean
+		this.dirty = new TransactionalBoolean(false);
+		this.pageStreamRegistry = pageStreamRegistry;
 	}
 
 	/**
@@ -329,6 +374,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			return existing;
 		}
 		final FulltextIndexChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+		// a new field changes what the index persists even before it holds a value
+		this.dirty.setToTrue();
 		final int fieldId = getFieldCount();
 		Assert.isPremiseValid(
 			fieldId <= FulltextTermKeys.MAX_FIELD_ID,
@@ -670,6 +717,11 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			// every write creates the layer, so no part of this index was written - carried forward as is
 			return this;
 		}
+		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		// the flush of this transaction has already written the pages it staged, so they become the baseline the next
+		// flush diffs against; a staged set that never reaches a merge (warm-up has none) is published by the next
+		// flush instead - see publishPreviousFlush
+		this.pageStreamRegistry.publishStaged();
 		final List<Field> added = layer.getAddedFields();
 		final int committedCount = this.fields.size();
 		final int fieldCount = committedCount + added.size();
@@ -693,7 +745,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			this.defaultLengthPivot,
 			mergedFieldIds,
 			mergedFields,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.dictionary)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.dictionary),
+			this.pageStreamRegistry
 		);
 	}
 
@@ -709,6 +762,93 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			}
 		}
 		this.dictionary.removeLayer(transactionalLayer);
+		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.dirty);
+	}
+
+	/**
+	 * Returns whether anything was written to the index since its last flush collected it. A clean index must not be
+	 * collected.
+	 *
+	 * @return true when the index has changes to persist
+	 */
+	public boolean isDirty() {
+		return this.dirty.isTrue();
+	}
+
+	/**
+	 * Clears the dirty flag, once the flush has collected the changes.
+	 */
+	public void resetDirty() {
+		this.dirty.setToFalse();
+	}
+
+	/**
+	 * Walks the dictionary leaf by leaf and returns what this flush must write: the leaf pages that changed since the
+	 * last flush, the ordered list of every live page, the high-water of the page sequences, and the pages that left
+	 * the dictionary and must be removed.
+	 *
+	 * A leaf without a page - a fresh one, or either half of a split, both of which are new leaves - is assigned a newly
+	 * allocated page; a leaf is collected when it is new or its transaction-aware dirty flag is set, and the flag is
+	 * cleared on the way. The next set of live pages is staged, and becomes the baseline at the commit merge.
+	 *
+	 * Before anything is staged, the set staged by the PREVIOUS flush is published: see {@link #publishPreviousFlush()}
+	 * for why that is necessary. The dictionary is always written in pages, even when it fits one leaf: an index
+	 * holding a whole corpus's terms is never small, so an inline shape would only add a collapse path to maintain.
+	 *
+	 * The caller gates on {@link #isDirty()}; a clean index must not be collected.
+	 *
+	 * @return the changed pages, the ordered live page sequences, the high-water and the freed page sequences
+	 */
+	@Nonnull
+	public PageEmission<DictionaryPage> collectChangedPages() {
+		publishPreviousFlush();
+		final List<LeafPageHandle<String>> handles = this.dictionary.leafPageHandles();
+		return this.pageStreamRegistry.collectChangedPages(
+			DICTIONARY_PAGE_STREAM, handles,
+			(pageSequence, handle) -> {
+				final BucketCursor<String> cursor = handle.cursor();
+				final List<ValueToRecord> buckets = new ArrayList<>(VALUE_BLOCK_SIZE);
+				final List<byte[]> impacts = new ArrayList<>(VALUE_BLOCK_SIZE);
+				while (cursor.next()) {
+					final String key = cursor.value();
+					// a multi-record bucket is written as a bitmap whichever tier holds it in memory, as the inverted
+					// index writes its own; the bitmap tier is wrapped, the array tier copied once per dirty leaf
+					if (cursor.isSingle()) {
+						buckets.add(new ValueToRecordPrimitive(key, cursor.singleRecordId()));
+					} else {
+						final Bitmap records = cursor.records();
+						buckets.add(
+							records instanceof final TransactionalBitmap live
+								? new ValueToRecordBitmap(key, live)
+								: new ValueToRecordBitmap(key, records)
+						);
+					}
+					impacts.add(cursor.impacts().toArray());
+				}
+				return new DictionaryPage(
+					pageSequence, buckets.toArray(ValueToRecord[]::new), impacts.toArray(byte[][]::new)
+				);
+			}
+		);
+	}
+
+	/**
+	 * Promotes the set of pages staged by the previous flush to the baseline this flush diffs against.
+	 *
+	 * The commit merge publishes the staged set, but a warm-up (bulk) flush never reaches a merge, so without this the
+	 * baseline would stay empty for the whole warm-up while the disk moved on, and the freed-page diff of every warm-up
+	 * flush would come out empty. A leaf merge is the one structural change that drops a page without allocating one:
+	 * the surviving leaf absorbs its sibling in place and keeps its own page. With an empty baseline the dropped page
+	 * would be neither removed nor taken off the page list, and the next cold load would assemble the survivor
+	 * followed by its stale sibling, whose keys overlap the survivor's.
+	 *
+	 * Publishing at collect time is safe on every path, for the reason
+	 * {@link io.evitadb.index.invertedIndex.InvertedIndex} records at its own copy of this method: a failed flush is
+	 * never followed by another flush of the same data, so no later flush can diff against a set that did not land.
+	 * On the transactional path the merge has already published, and this is a no-op.
+	 */
+	private void publishPreviousFlush() {
+		this.pageStreamRegistry.publishStaged();
 	}
 
 	/**
@@ -729,11 +869,12 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
-	 * Marks the index as written in the current transaction, so the commit merges it. Outside a transaction it
-	 * writes nothing.
+	 * Marks the index as written: in the current transaction, so the commit merges it, and dirty, so the next flush
+	 * collects it. Outside a transaction only the dirty flag is written.
 	 */
 	private void markWritten() {
 		Transaction.getOrCreateTransactionalMemoryLayer(this);
+		this.dirty.setToTrue();
 	}
 
 	/**
@@ -801,6 +942,16 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			fieldId >= 0 && fieldId < getFieldCount(),
 			() -> "Fulltext field id " + fieldId + " was never assigned by this index!"
 		);
+	}
+
+	/**
+	 * One leaf page of the dictionary, as a flush writes it.
+	 *
+	 * @param pageSequence the page's stable sequence
+	 * @param buckets      the leaf's buckets in ascending key order: the encoded key and its posting list
+	 * @param impacts      the impacts of each bucket, `impacts[i][j]` belonging to the j-th posting of `buckets[i]`
+	 */
+	public record DictionaryPage(int pageSequence, @Nonnull ValueToRecord[] buckets, @Nonnull byte[][] impacts) {
 	}
 
 	/**
