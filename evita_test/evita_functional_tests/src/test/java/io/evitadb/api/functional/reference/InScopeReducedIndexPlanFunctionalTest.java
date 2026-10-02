@@ -1861,6 +1861,75 @@ public class InScopeReducedIndexPlanFunctionalTest {
 		}
 
 		/**
+		 * Returns the rows of the own-hierarchy witness: the label, the requirement named {@link #HIERARCHY_OUTPUT}
+		 * and the pivot of the `hierarchyWithinSelf` placed in `inScope(LIVE, ...)` - category 999 exists nowhere,
+		 * category 1 is the live root.
+		 *
+		 * @return the row arguments
+		 */
+		@Nonnull
+		static Stream<Arguments> ownStatisticsOfScopedPivotRows() {
+			return Stream.concat(
+				pivotIndependentStatisticsRows()
+					.flatMap(
+						row -> Stream.of(MISSING_CATEGORY, ROOT_CATEGORY)
+							.map(pivot -> Arguments.of(row.get()[0] + ", pivot " + pivot, row.get()[1], pivot))
+					),
+				Stream.of(
+					Arguments.of(
+						"children, pivot " + ROOT_CATEGORY,
+						children(HIERARCHY_OUTPUT, statistics(StatisticsType.QUERIED_ENTITY_COUNT)),
+						ROOT_CATEGORY
+					)
+				)
+			);
+		}
+
+		/**
+		 * Checks that the statistics of the categories' own hierarchy in a scope whose `hierarchyWithinSelf` sits in
+		 * `inScope(LIVE, ...)` of a query over both scopes equal those of a query over the live scope alone with the
+		 * same `hierarchyWithinSelf` - whether it selects a node or not. The statistics count the queried entities
+		 * with the hierarchy filter removed, and removing the only constraint of a scope leaves the scope
+		 * unrestricted, not empty.
+		 *
+		 * @param label       the row label, used in the test name only
+		 * @param requirement the live statistics requirement
+		 * @param pivot       the primary key the `hierarchyWithinSelf` selects its parent by
+		 * @param session     the session provided by the test extension
+		 */
+		@DisplayName("Should compute own statistics of a scope whose occurrence sits in inScope like that scope alone")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("ownStatisticsOfScopedPivotRows")
+		@Tag(ENGINE)
+		@Tag(QUERY)
+		void shouldComputeOwnStatisticsOfScopeWhoseOccurrenceSitsInScopeContainerLikeThatScopeAlone(
+			@Nonnull String label,
+			@Nonnull HierarchyRequireConstraint requirement,
+			int pivot,
+			@Nonnull EvitaSessionContract session
+		) {
+			final List<String> expected = describe(
+				queryStatistics(
+					session, LIVE_ONLY, Scope.LIVE, true,
+					new FilterConstraint[]{hierarchyWithinSelf(entityPrimaryKeyInSet(pivot))},
+					requirement
+				)
+			);
+			assertFalse(expected.isEmpty(), "the statistics of the single-scope control must not be empty");
+			assertEquals(
+				expected,
+				describe(
+					queryStatistics(
+						session, BOTH_SCOPES, Scope.LIVE, true,
+						new FilterConstraint[]{inScope(Scope.LIVE, hierarchyWithinSelf(entityPrimaryKeyInSet(pivot)))},
+						requirement
+					)
+				)
+			);
+		}
+
+		/**
 		 * Describes the statistics as a depth-first list of `primary key: queried entity count` entries, indented by
 		 * level, so that two statistics compare by structure and counts alone.
 		 *

@@ -184,8 +184,11 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 							);
 							// if the result formula is empty - it means that for particular scope there are no constraints set
 							// we need to use super set formula instead - i.e. all entities in the scope match the "zero" constraints
+							// the container stands for the whole scope once a clone removes every constraint it holds
+							final Formula scopeSuperSet = this.superSetFormulaSupplier.apply(scope);
 							return clonedFormula == null ?
-								this.superSetFormulaSupplier.apply(scope) : new ScopeContainerFormula(scope, clonedFormula);
+								scopeSuperSet :
+								ScopeContainerFormula.restrictingScope(scope, scopeSuperSet, clonedFormula);
 						}
 					)
 					.toArray(Formula[]::new)
