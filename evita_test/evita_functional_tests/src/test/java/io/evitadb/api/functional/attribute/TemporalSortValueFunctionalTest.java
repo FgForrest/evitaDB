@@ -565,10 +565,12 @@ class TemporalSortValueFunctionalTest implements EvitaTestSupport {
 			);
 
 			restart();
-			// the flush that persisted the late owner rewrote the global sort indexes it touched in normalized form, and
-			// left the untouched reduced index of target 1 as it was
+			// the flush that persisted the late owner rewrote the global sort indexes it touched in normalized form,
+			// and left the untouched reduced index of target 1 as it was
 			assertSortValueTypes(Instant.class, OffsetDateTime.class, "after the global index was flushed");
-			// the late owner must have reached the disk together with the rewrite - it sorts first everywhere
+			// the late owner must have reached the disk together with the rewrite - it sorts first everywhere. This is
+			// what a sort index flagged dirty at load breaks: the emission an entity index runs into a discarded sink
+			// right after loading would stage the rewritten pages, and the late owner would be lost on the restart
 			assertOrder(withLateOwner, attributeNatural(SORT_ONLY_MOMENT), "after the rewrite");
 			assertOrder(withLateOwner, attributeNatural(MOMENT_THEN_PRIORITY), "after the rewrite");
 			assertOrder(

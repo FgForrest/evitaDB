@@ -66,10 +66,12 @@ import java.util.function.Function;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @deprecated the correction is needed only for catalogs written before temporal sort values were normalized; it can
- * be removed once every such sort index has been written again by a version containing it - together with the call
- * sites in {@link SortIndex#create(ComparatorSource[], RepresentativeReferenceKey, AttributeIndexKey, int, int[],
- * Serializable[], Map, java.util.function.Supplier)} and {@link OwnerSortIndex#fromPersistedPages}, and with
- * {@link InvertedIndex#fromPersistedPagesNormalizingLegacyKeys}
+ * be removed only once every such sort index has been MUTATED - a record added to it or removed from it - by a
+ * version containing it: merely loading and flushing a catalog does not rewrite an index nobody wrote to (see above).
+ * It goes together with the call sites in {@link SortIndex#create(ComparatorSource[], RepresentativeReferenceKey,
+ * AttributeIndexKey, int, int[], Serializable[], Map, java.util.function.Supplier)} and
+ * {@link OwnerSortIndex#fromPersistedPages}, and with {@link InvertedIndex#fromPersistedPagesNormalizingLegacyKeys}
+ * (whose legacy-order gate is part of the same unit)
  */
 @Deprecated(since = "2026.3", forRemoval = true)
 final class LegacyTemporalSortValueCorrection {

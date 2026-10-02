@@ -29,6 +29,7 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
@@ -79,6 +80,8 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -297,6 +300,104 @@ class LegacyTemporalSortValueCorrectionTest {
 		}
 
 		@Test
+		@DisplayName("re-sorts a compound whose order the normalization inverts across a leaf page boundary")
+		void shouldResortInvertedCompoundAcrossLeafPageBoundary() {
+			final ComparatorSource[] base = {
+				new ComparatorSource(OffsetDateTime.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+				new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
+			};
+			// groups of seven values share one moment, written at offsets +00:00 to +06:00: raw, the local time orders
+			// a group by its offset; normalized, the moments tie and the descending integer orders it the other way
+			final LegacyOwnerSortIndexWriter legacy = legacy(base);
+			for (int i = 0; i < PAGED_VALUE_COUNT; i++) {
+				legacy.add(
+					new ComparableArray(
+						new Serializable[]{NINE.plusSeconds(i / 7).atOffset(ZoneOffset.ofHours(i % 7)), i}
+					),
+					i + 1
+				);
+			}
+			final List<StoragePart> legacyParts = legacy.toPagedParts(0);
+			assertTrue(
+				tieGroupStraddlesPageBoundary(legacyParts),
+				"a group of moments tying after normalization must span two legacy pages"
+			);
+
+			roundTripPaged(
+				legacyParts, ownerOf(base, legacy),
+				index -> index.addRecord(new Serializable[]{NINE.minusSeconds(1).atOffset(PLUS_ONE), -1}, 100_000)
+			);
+		}
+
+		@Test
+		@DisplayName("keeps the order of a compound whose temporal element comes last, rewriting every page")
+		void shouldKeepOrderOfCompoundWithTemporalElementLast() {
+			final ComparatorSource[] base = {
+				new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+				new ComparatorSource(OffsetDateTime.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+			};
+			// the integer decides every pair before the moment does - the normalization can change no comparison
+			final LegacyOwnerSortIndexWriter legacy = legacy(base);
+			for (int i = 0; i < PAGED_VALUE_COUNT; i++) {
+				legacy.add(
+					new ComparableArray(
+						new Serializable[]{i / 2, NINE.plusSeconds(i % 2).atOffset(i % 2 == 0 ? PLUS_TWO : PLUS_ONE)}
+					),
+					PAGED_VALUE_COUNT - i
+				);
+			}
+			final List<StoragePart> legacyParts = legacy.toPagedParts(0);
+			final int[] legacyOrder = new int[PAGED_VALUE_COUNT];
+			for (int i = 0; i < PAGED_VALUE_COUNT; i++) {
+				legacyOrder[i] = PAGED_VALUE_COUNT - i;
+			}
+			final OwnerSortIndex expected = ownerOf(base, legacy);
+			assertArrayEquals(legacyOrder, expected.getSortedRecords(), "the normalization must not reorder anything");
+
+			roundTripPaged(
+				legacyParts, expected,
+				index -> index.addRecord(new Serializable[]{-1, NINE.atOffset(PLUS_ONE)}, 100_000)
+			);
+		}
+
+		@Test
+		@DisplayName("refuses a stale leaf page twin listed after the pages it overlaps instead of healing it")
+		void shouldRefuseStaleLeafPageTwin() {
+			final ComparatorSource[] base = single(OffsetDateTime.class);
+			final LegacyOwnerSortIndexWriter legacy = legacy(base);
+			for (int i = 0; i < PAGED_VALUE_COUNT; i++) {
+				legacy.add(NINE.plusSeconds(i).atOffset(PLUS_ONE), i + 1);
+			}
+			final List<StoragePart> parts = legacy.toPagedParts(0);
+			final SortIndexStoragePart persistedRoot = root(parts);
+			final int[] pages = persistedRoot.getLeafPageSequences();
+			// an older copy of the first page under a sequence of its own, listed last by the root
+			SortIndexLeafPagePart firstPage = null;
+			for (StoragePart part : parts) {
+				if (part instanceof SortIndexLeafPagePart page && page.getPageSequence() == pages[0]) {
+					firstPage = page;
+				}
+			}
+			assertNotNull(firstPage);
+			final int twinSequence = persistedRoot.getHighWaterPageSequence() + 1;
+			final int[] pagesWithTwin = Arrays.copyOf(pages, pages.length + 1);
+			pagesWithTwin[pages.length] = twinSequence;
+			final List<StoragePart> corruptedParts = new ArrayList<>(parts);
+			corruptedParts.remove(persistedRoot);
+			corruptedParts.add(
+				new SortIndexLeafPagePart(
+					ENTITY_INDEX_PK, new AttributeKeyWithIndexType(ATTRIBUTE_KEY, AttributeIndexType.SORT),
+					twinSequence, firstPage.getBuckets(), 1
+				)
+			);
+			corruptedParts.add(
+				SortIndexStoragePart.paged(ENTITY_INDEX_PK, ATTRIBUTE_KEY, base, 0, twinSequence, pagesWithTwin)
+			);
+
+			assertRefusedAsCorruption(corruptedParts);
+		}
+
+		@Test
 		@DisplayName("refuses legacy pages whose persisted order is not ascending instead of healing them")
 		void shouldRefuseLegacyPagesWhosePersistedOrderIsNotAscending() {
 			final ComparatorSource[] base = single(OffsetDateTime.class);
@@ -319,44 +420,7 @@ class LegacyTemporalSortValueCorrectionTest {
 				)
 			);
 
-			final OffsetIndex offsetIndex = openWritableOffsetIndex();
-			try {
-				writeEmission(offsetIndex, LEGACY_VERSION, corruptedParts);
-				offsetIndex.flush(LEGACY_VERSION);
-				final SortIndexStoragePart corruptedRoot = readRoot(offsetIndex, LEGACY_VERSION);
-				assertThrows(
-					RuntimeException.class,
-					() -> loadPaged(offsetIndex, LEGACY_VERSION, corruptedRoot),
-					"pages out of order are corruption, not a legacy form to normalize"
-				);
-			} finally {
-				IOUtils.closeQuietly(offsetIndex::close);
-			}
-		}
-
-		@Test
-		@DisplayName("re-sorts a compound whose order the normalization inverts across leaf pages")
-		void shouldResortInvertedCompoundAcrossLeafPages() {
-			final ComparatorSource[] base = {
-				new ComparatorSource(OffsetDateTime.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
-				new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
-			};
-			// within each pair the +01:00 moment sorts first raw, but carries the smaller integer, which sorts last
-			// once the moments tie
-			final LegacyOwnerSortIndexWriter legacy = legacy(base);
-			for (int i = 0; i < PAGED_VALUE_COUNT; i++) {
-				legacy.add(
-					new ComparableArray(
-						new Serializable[]{NINE.plusSeconds(i / 2).atOffset(i % 2 == 0 ? PLUS_ONE : PLUS_TWO), i}
-					),
-					i + 1
-				);
-			}
-
-			roundTripPaged(
-				legacy, ownerOf(base, legacy),
-				index -> index.addRecord(new Serializable[]{NINE.minusSeconds(1).atOffset(PLUS_ONE), -1}, 100_000)
-			);
+			assertRefusedAsCorruption(corruptedParts);
 		}
 	}
 
@@ -481,11 +545,27 @@ class LegacyTemporalSortValueCorrectionTest {
 		@Nonnull OwnerSortIndex expected,
 		@Nonnull Consumer<OwnerSortIndex> write
 	) {
+		roundTripPaged(legacy.toPagedParts(0), expected, write);
+	}
+
+	/**
+	 * The variant of {@link #roundTripPaged(LegacyOwnerSortIndexWriter, OwnerSortIndex, Consumer)} taking the legacy
+	 * parts produced already.
+	 *
+	 * @param legacyParts the legacy leaf pages and paged root
+	 * @param expected    the owner the current engine builds from the same values
+	 * @param write       the write applied to both indexes
+	 */
+	private void roundTripPaged(
+		@Nonnull List<StoragePart> legacyParts,
+		@Nonnull OwnerSortIndex expected,
+		@Nonnull Consumer<OwnerSortIndex> write
+	) {
 		final OffsetIndex offsetIndex = openWritableOffsetIndex();
 		final OffsetIndexDescriptor rewrittenDescriptor;
 		final int[] legacyPageSequences;
 		try {
-			writeEmission(offsetIndex, LEGACY_VERSION, legacy.toPagedParts(0));
+			writeEmission(offsetIndex, LEGACY_VERSION, legacyParts);
 			offsetIndex.flush(LEGACY_VERSION);
 
 			final SortIndexStoragePart legacyRoot = readRoot(offsetIndex, LEGACY_VERSION);
@@ -540,6 +620,57 @@ class LegacyTemporalSortValueCorrectionTest {
 		} finally {
 			IOUtils.closeQuietly(reopened::close);
 		}
+	}
+
+	/**
+	 * Persists the parts and asserts that loading them fails with the corruption diagnostics of the paged tree rather
+	 * than being normalized and healed.
+	 *
+	 * @param corruptedParts leaf pages and a paged root no writer produces
+	 */
+	private void assertRefusedAsCorruption(@Nonnull List<StoragePart> corruptedParts) {
+		final OffsetIndex offsetIndex = openWritableOffsetIndex();
+		try {
+			writeEmission(offsetIndex, LEGACY_VERSION, corruptedParts);
+			offsetIndex.flush(LEGACY_VERSION);
+			final SortIndexStoragePart corruptedRoot = readRoot(offsetIndex, LEGACY_VERSION);
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> loadPaged(offsetIndex, LEGACY_VERSION, corruptedRoot),
+				"pages out of order are corruption, not a legacy form to normalize"
+			);
+			assertNotNull(error.getMessage());
+		} finally {
+			IOUtils.closeQuietly(offsetIndex::close);
+		}
+	}
+
+	/**
+	 * Returns `true` when two neighbouring legacy pages hold compound values whose temporal first elements denote the
+	 * same moment - a group the normalization makes tie is split by a page boundary.
+	 *
+	 * @param legacyParts the legacy leaf pages and paged root
+	 * @return `true` when some page boundary splits such a group
+	 */
+	private static boolean tieGroupStraddlesPageBoundary(@Nonnull List<StoragePart> legacyParts) {
+		final Map<Integer, SortIndexLeafPagePart> pagesBySequence = new HashMap<>(8);
+		for (StoragePart part : legacyParts) {
+			if (part instanceof SortIndexLeafPagePart page) {
+				pagesBySequence.put(page.getPageSequence(), page);
+			}
+		}
+		final int[] sequences = root(legacyParts).getLeafPageSequences();
+		for (int i = 1; i < sequences.length; i++) {
+			final ValueToRecord[] previous = pagesBySequence.get(sequences[i - 1]).getBuckets();
+			final ValueToRecord[] next = pagesBySequence.get(sequences[i]).getBuckets();
+			final OffsetDateTime last = (OffsetDateTime) ((ComparableArray) previous[previous.length - 1].getValue())
+				.array()[0];
+			final OffsetDateTime first = (OffsetDateTime) ((ComparableArray) next[0].getValue()).array()[0];
+			if (last.toInstant().equals(first.toInstant())) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**

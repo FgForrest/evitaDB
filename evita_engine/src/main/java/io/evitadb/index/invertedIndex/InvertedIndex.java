@@ -722,7 +722,8 @@ public class InvertedIndex implements
 	 * @param indexedDecimalPlaces  the frozen decimal-places scale (0 for non-`BigDecimal` types)
 	 * @return the rebuilt `PAGED` inverted index, dirty when a legacy key had to be normalized
 	 * @deprecated exists only to normalize owner sort indexes persisted before their temporal values were normalized;
-	 * it can be removed once every such index has been written again by a version that normalizes them
+	 * it can be removed together with {@link #isLegacyOwnerOrder} once every such index has been mutated by a version
+	 * that normalizes them
 	 */
 	@Deprecated(since = "2026.3", forRemoval = true)
 	@Nonnull
@@ -747,7 +748,8 @@ public class InvertedIndex implements
 	 * Shared implementation of {@link #fromPersistedPages(Class, int[], ValueToRecord[][], int[][], int, Function,
 	 * Comparator, int)} and {@link #fromPersistedPagesNormalizingLegacyKeys}; see both for the contract.
 	 *
-	 * @param legacyKeysPermitted `true` when persisted keys not yet in the normalized form re-sort the whole index
+	 * @param legacyKeysPermitted `true` when persisted keys not yet in the normalized form re-sort the whole index -
+	 *                            see {@link #isLegacyOwnerOrder}; the parameter goes away together with it
 	 */
 	@Nonnull
 	@SuppressWarnings({"unchecked", "rawtypes"})
@@ -793,18 +795,12 @@ public class InvertedIndex implements
 		final Object[][] normalizedKeys = new Object[orderedPageSequences.length][];
 		boolean collapsed = false;
 		boolean inverted = false;
-		// tracked only when legacy keys are permitted: whether any persisted key had to be normalized, and whether the
-		// persisted keys themselves are strictly ascending - the order an untouched legacy writer left them in
-		boolean legacyKeyFound = false;
-		boolean persistedKeysAscending = true;
 		Comparable previousKey = null;
-		Comparable previousPersistedKey = null;
 		for (int i = 0; i < orderedPageSequences.length; i++) {
 			final ValueToRecord[] buckets = perPageBuckets[i];
 			final Object[] keys = new Object[buckets.length];
 			for (int j = 0; j < buckets.length; j++) {
-				final Serializable persistedKey = buckets[j].getValue();
-				final Comparable key = (Comparable) normalizer.apply(persistedKey);
+				final Comparable key = (Comparable) normalizer.apply(buckets[j].getValue());
 				keys[j] = key;
 				if (previousKey != null) {
 					final int comparison = comparator.compare(previousKey, key);
@@ -812,14 +808,6 @@ public class InvertedIndex implements
 					collapsed |= comparison == 0;
 					//noinspection NonShortCircuitBooleanExpression
 					inverted |= comparison > 0;
-				}
-				if (legacyKeysPermitted) {
-					//noinspection NonShortCircuitBooleanExpression
-					legacyKeyFound |= key != persistedKey;
-					if (previousPersistedKey != null && persistedKeysAscending) {
-						persistedKeysAscending = comparator.compare(previousPersistedKey, persistedKey) < 0;
-					}
-					previousPersistedKey = (Comparable) persistedKey;
 				}
 				previousKey = key;
 			}
@@ -830,7 +818,7 @@ public class InvertedIndex implements
 		// key, when permitted, re-sorts the whole index for the same reason - but again only over a persisted
 		// sequence a writer could have produced
 		final boolean resorted = (inverted && isSecondGranularityRangeOrder(normalizedKeys)) ||
-			(legacyKeyFound && persistedKeysAscending);
+			(legacyKeysPermitted && isLegacyOwnerOrder(perPageBuckets, normalizedKeys, comparator));
 
 		int[] loadedPageSequences = orderedPageSequences;
 		Object[][] loadedKeys = normalizedKeys;
@@ -954,6 +942,48 @@ public class InvertedIndex implements
 		final PageStreamRegistry registry = new PageStreamRegistry();
 		registry.restore(BUCKET_PAGE_STREAM, highWaterPageSequence, orderedPageSequences);
 		return registry;
+	}
+
+	/**
+	 * Tells whether the persisted keys are the ones an owner sort index wrote before its temporal values were
+	 * normalized, and may therefore be re-sorted rather than reported as corruption. Two facts have to hold together:
+	 * at least one persisted key is not in the normalized form (`normalizedKeys` holds a different instance for it),
+	 * and the persisted keys themselves are **strictly ascending** under `comparator` across all pages - the order
+	 * every owner wrote its pages in. A stale leaf-page twin fails the second test, its keys overlapping those of the
+	 * page it is a twin of, and keeps reaching the corruption diagnostics.
+	 *
+	 * The re-sort then runs whether or not the normalization reordered anything: it is also what gives up the identity
+	 * of every page, so the first flush writing the index writes all of them in normalized form rather than leaving
+	 * raw and normalized pages side by side.
+	 *
+	 * @param perPageBuckets the persisted buckets of each page, in persisted page order
+	 * @param normalizedKeys the normalized key of each persisted bucket, aligned with `perPageBuckets`
+	 * @param comparator     the value order
+	 * @return `true` when the pages hold legacy keys in a legacy writer's order
+	 * @deprecated exists only for {@link #fromPersistedPagesNormalizingLegacyKeys} and is removed together with it
+	 */
+	@Deprecated(since = "2026.3", forRemoval = true)
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private static boolean isLegacyOwnerOrder(
+		@Nonnull ValueToRecord[][] perPageBuckets,
+		@Nonnull Object[][] normalizedKeys,
+		@Nonnull Comparator comparator
+	) {
+		boolean legacyKeyFound = false;
+		Comparable previousPersistedKey = null;
+		for (int i = 0; i < perPageBuckets.length; i++) {
+			final ValueToRecord[] buckets = perPageBuckets[i];
+			for (int j = 0; j < buckets.length; j++) {
+				final Comparable persistedKey = (Comparable) buckets[j].getValue();
+				//noinspection NonShortCircuitBooleanExpression
+				legacyKeyFound |= normalizedKeys[i][j] != persistedKey;
+				if (previousPersistedKey != null && comparator.compare(previousPersistedKey, persistedKey) >= 0) {
+					return false;
+				}
+				previousPersistedKey = persistedKey;
+			}
+		}
+		return legacyKeyFound;
 	}
 
 	/**
