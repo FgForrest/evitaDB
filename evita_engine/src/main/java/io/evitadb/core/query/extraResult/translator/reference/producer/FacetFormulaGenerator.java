@@ -30,7 +30,12 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.facet.FacetGroupAndFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
+import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
+import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
+import io.evitadb.core.query.extraResult.translator.reference.FilterFormulaFacetOptimizeVisitor;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
@@ -86,7 +91,12 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 			relationType,
 			(cacheKey, formula) -> {
 				if (formula == null) {
-					return super.generateFormula(baseFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds);
+					// the count drops the whole user filter - a user filter inside a scope container restricts only
+					// that scope, and so would the facet replacing its contents, so the facet goes to an empty user
+					// filter over the formula without the user filter instead, the same as when there is none
+					final Formula countedFormula = isUserFilterScoped(baseFormula) ?
+						FilterFormulaFacetOptimizeVisitor.optimize(baseFormulaWithoutUserFilter) : baseFormula;
+					return super.generateFormula(countedFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds);
 				} else {
 					final Bitmap facetEntityIdsBitmap = getBaseEntityIds(facetEntityIds);
 					final MutableFormulaFinderAndReplacer mutableFormulaFinderAndReplacer = new MutableFormulaFinderAndReplacer(
@@ -100,6 +110,20 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 				}
 			}
 		);
+	}
+
+	/**
+	 * Returns true if a {@link UserFilterFormula} of the formula sits inside a {@link ScopeContainerFormula} - the
+	 * inScope post-processor puts each scope of the query into one, so such a user filter restricts the scopes whose
+	 * containers hold it rather than the whole formula.
+	 *
+	 * @param formula the base formula of the facet computation
+	 * @return true if the user filter of the formula is placed in a scope container
+	 */
+	private static boolean isUserFilterScoped(@Nonnull Formula formula) {
+		return FormulaFinder.find(formula, ScopeContainerFormula.class, LookUp.SHALLOW)
+			.stream()
+			.anyMatch(it -> !FormulaFinder.find(it, UserFilterFormula.class, LookUp.SHALLOW).isEmpty());
 	}
 
 	@Override

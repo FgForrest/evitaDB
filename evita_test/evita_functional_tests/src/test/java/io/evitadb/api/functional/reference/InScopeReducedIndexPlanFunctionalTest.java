@@ -30,9 +30,11 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterInScope;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.EntityContentRequire;
+import io.evitadb.api.query.require.FacetGroupRelationLevel;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.HierarchyRequireConstraint;
 import io.evitadb.api.query.require.StatisticsBase;
@@ -91,6 +93,10 @@ import static io.evitadb.api.query.QueryConstraints.entityHaving;
 import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.excluding;
+import static io.evitadb.api.query.QueryConstraints.facetGroupsConjunction;
+import static io.evitadb.api.query.QueryConstraints.facetGroupsDisjunction;
+import static io.evitadb.api.query.QueryConstraints.facetGroupsExclusivity;
+import static io.evitadb.api.query.QueryConstraints.facetGroupsNegation;
 import static io.evitadb.api.query.QueryConstraints.facetHaving;
 import static io.evitadb.api.query.QueryConstraints.facetSummaryOfReference;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
@@ -2624,6 +2630,110 @@ public class InScopeReducedIndexPlanFunctionalTest {
 					}
 				)
 			);
+		}
+
+		/**
+		 * Returns the rows of the facet relation settings: the label, the relation requirement of the brand reference
+		 * (NULL for the default relations) and whether the requirement negates the facet, which flips its count to the
+		 * entities without it.
+		 *
+		 * @return the row arguments
+		 */
+		@Nonnull
+		static Stream<Arguments> facetRelationRows() {
+			return Stream.of(
+				Arguments.of("default", null, false),
+				Arguments.of("facetGroupsConjunction", facetGroupsConjunction(REF_BRAND), false),
+				Arguments.of(
+					"facetGroupsDisjunction between groups",
+					facetGroupsDisjunction(REF_BRAND, FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS), false
+				),
+				Arguments.of("facetGroupsNegation", facetGroupsNegation(REF_BRAND), true),
+				Arguments.of(
+					"facetGroupsNegation between groups",
+					facetGroupsNegation(REF_BRAND, FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS), true
+				),
+				Arguments.of("facetGroupsExclusivity", facetGroupsExclusivity(REF_BRAND), false)
+			);
+		}
+
+		/**
+		 * Checks that the count of the brand facet in the facet summary of a query over both scopes whose only live
+		 * constraint is `inScope(LIVE, userFilter(facetHaving(...)))` is the number of products of both scopes the
+		 * query returns with the facet selected (or, for a negated facet, the products it leaves out) - the count drops
+		 * the whole user filter, so the archived scope is restricted by the facet as much as the live one, and must
+		 * not count its unbranded products.
+		 *
+		 * @param label    the row label, used in the test name only
+		 * @param relation the relation requirement of the brand reference, NULL for the default relations
+		 * @param negated  whether the relation requirement negates the facet
+		 * @param session  the session provided by the test extension
+		 */
+		@DisplayName("Should count the facet of a scope restricted by a user filter alone in every scope")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("facetRelationRows")
+		@Tag(ENGINE)
+		@Tag(QUERY)
+		@Tag(FACET)
+		void shouldCountFacetOfScopeRestrictedByUserFilterAloneInEveryScope(
+			@Nonnull String label,
+			@Nullable RequireConstraint relation,
+			boolean negated,
+			@Nonnull EvitaSessionContract session
+		) {
+			final FilterConstraint brandSelected = userFilter(facetHaving(REF_BRAND, entityPrimaryKeyInSet(BRAND)));
+			final int selected = session.query(
+				query(
+					collection(ENTITY_PRODUCT),
+					filterBy(scope(BOTH_SCOPES), referenceHaving(REF_BRAND, entityPrimaryKeyInSet(BRAND))),
+					require(page(1, 0))
+				),
+				EntityReference.class
+			).getTotalRecordCount();
+			final int expected = negated ? ALL_PRODUCTS.length - selected : selected;
+			assertEquals(
+				expected, queryBrandFacetCount(session, new FilterConstraint[0], relation),
+				"the facet count without any user filter must match the query with the facet selected"
+			);
+			assertEquals(
+				expected,
+				queryBrandFacetCount(session, new FilterConstraint[]{inScope(Scope.LIVE, brandSelected)}, relation)
+			);
+		}
+
+		/**
+		 * Runs a product query over both scopes with the passed filter constraints and returns the count of the brand
+		 * facet in its facet summary.
+		 *
+		 * @param session     the session to query
+		 * @param constraints the constraints placed next to `scope(LIVE, ARCHIVED)`
+		 * @param relation    the relation requirement of the brand reference, NULL for the default relations
+		 * @return the count of the brand facet
+		 */
+		private static int queryBrandFacetCount(
+			@Nonnull EvitaSessionContract session,
+			@Nonnull FilterConstraint[] constraints,
+			@Nullable RequireConstraint relation
+		) {
+			final EvitaResponse<EntityReference> response = session.query(
+				query(
+					collection(ENTITY_PRODUCT),
+					filterBy(ArrayUtils.mergeArrays(new FilterConstraint[]{scope(BOTH_SCOPES)}, constraints)),
+					require(
+						page(1, PRODUCT_COUNT),
+						facetSummaryOfReference(REF_BRAND, FacetStatisticsDepth.COUNTS),
+						relation
+					)
+				),
+				EntityReference.class
+			);
+			final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
+			assertNotNull(facetSummary, "the facet summary must be computed");
+			final FacetGroupStatistics brandStatistics = facetSummary.getFacetGroupStatistics(REF_BRAND);
+			assertNotNull(brandStatistics, "the brand reference must have facet statistics");
+			assertNotNull(brandStatistics.getFacetStatistics(BRAND), "the brand must have facet statistics");
+			return brandStatistics.getFacetStatistics(BRAND).getCount();
 		}
 
 		/**
