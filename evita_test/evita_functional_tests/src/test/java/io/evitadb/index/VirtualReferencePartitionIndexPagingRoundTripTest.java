@@ -32,6 +32,7 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
+import io.evitadb.index.VirtualReferencePartitionIndexNormalizedSortValueTest.ValueFixture;
 import io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.SortKeyFixture;
 import io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.SortSnapshot;
 import io.evitadb.index.attribute.OwnerSortIndex;
@@ -135,7 +136,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * a collapse from PAGED to SINGLE, an index emptied after a flush, and the absent root that every catalog without a
  * virtual partition has. The sort value slots are covered too: the sort indexes rebuilt on load equal the live ones
  * after random churn in warm-up and in transactions, a sort value change costs one leaf page, a retired key leaves
- * nothing behind, and a value tree shared with real partitions cannot reach the rebuilt sort index. Dropping an index
+ * nothing behind, a value tree shared with real partitions cannot reach the rebuilt sort index, and sort values
+ * recorded in their normalized form rebuild exactly as the attribute values they stand for. Dropping an index
  * reclaims its root and every leaf page it has on disk, published or not, a root naming a leaf page the store lacks
  * fails the load, and the reload plan of the referenced type entity index carries the persisted partitions.
  *
@@ -786,6 +788,116 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 			assertEquals(1, retirement.stream().filter(VirtualReferencePartitionRootRemoval.class::isInstance).count());
 			persist(retirement);
 			assertTrue(reloadThroughLoader().isEmpty());
+		}
+	}
+
+	@Nested
+	@DisplayName("Sort values recorded in their normalized form")
+	class NormalizedSortValues {
+		/**
+		 * Partitions every sort key gives a value to - enough for the entries of all keys to span many leaves.
+		 */
+		private static final int PARTITIONS = 400;
+
+		/**
+		 * Gives every partition a value of every sort key - the attribute value to the raw index, its normalized form,
+		 * as a real sort index stores it, to the other one - and records the attribute values in the models.
+		 *
+		 * @param raw        the index receiving attribute values
+		 * @param normalized the index receiving normalized values
+		 * @param models     the attribute value of every partition per sort key, updated in step
+		 * @param shift      shifts which of its values a sort key gives to a partition
+		 */
+		private static void assignValues(
+			@Nonnull VirtualReferencePartitionIndex raw,
+			@Nonnull VirtualReferencePartitionIndex normalized,
+			@Nonnull Map<AttributeIndexKey, Map<Integer, Serializable>> models,
+			int shift
+		) {
+			for (final ValueFixture fixture : VirtualReferencePartitionIndexNormalizedSortValueTest.FIXTURES) {
+				final SortKeyFixture sortKey = fixture.sortKey();
+				final List<Serializable> values = fixture.values();
+				final Map<Integer, Serializable> model = models.computeIfAbsent(sortKey.key(), key -> new HashMap<>());
+				for (int partition = 1; partition <= PARTITIONS; partition++) {
+					final Serializable value = values.get((partition + shift) % values.size());
+					sortKey.put(raw, partition, value);
+					normalized.putNormalizedSortValue(
+						sortKey.key(), partition,
+						VirtualReferencePartitionIndexNormalizedSortValueTest.normalizedBySortIndex(sortKey, value)
+					);
+					model.put(partition, value);
+				}
+			}
+		}
+
+		/**
+		 * Asserts every sort index of `actual` equals the one of `expected` exactly - records, values and blocks - and
+		 * follows the model.
+		 *
+		 * @param expected the index the sort indexes must equal
+		 * @param actual   the index under test
+		 * @param models   the attribute value of every partition per sort key
+		 * @param stage    describes the moment of the assertion
+		 */
+		private static void assertSameSortIndexes(
+			@Nonnull VirtualReferencePartitionIndex expected,
+			@Nonnull VirtualReferencePartitionIndex actual,
+			@Nonnull Map<AttributeIndexKey, Map<Integer, Serializable>> models,
+			@Nonnull String stage
+		) {
+			for (final ValueFixture fixture : VirtualReferencePartitionIndexNormalizedSortValueTest.FIXTURES) {
+				final SortKeyFixture sortKey = fixture.sortKey();
+				final OwnerSortIndex expectedIndex = expected.getSortIndex(sortKey.key());
+				final OwnerSortIndex actualIndex = actual.getSortIndex(sortKey.key());
+				assertNotNull(expectedIndex);
+				assertNotNull(actualIndex, "Sort key " + sortKey + " must be declared " + stage);
+				assertEquals(
+					VirtualReferencePartitionIndexSortValueTest.snapshotOf(expectedIndex),
+					VirtualReferencePartitionIndexSortValueTest.snapshotOf(actualIndex),
+					"The sort index of " + sortKey + " " + stage
+				);
+				VirtualReferencePartitionIndexSortValueTest.assertMatchesModel(
+					sortKey, actualIndex, models.getOrDefault(sortKey.key(), Map.of())
+				);
+			}
+			assertEquals(expected.getEntryCount(), actual.getEntryCount(), "Entry counts " + stage);
+		}
+
+		@Test
+		@DisplayName("normalized values flush, reload and go on exactly as the attribute values they stand for")
+		void shouldRebuildNormalizedSortValuesAsTheirAttributeValues() {
+			final VirtualReferencePartitionIndex raw = new VirtualReferencePartitionIndex();
+			final VirtualReferencePartitionIndex normalized = new VirtualReferencePartitionIndex();
+			for (final ValueFixture fixture : VirtualReferencePartitionIndexNormalizedSortValueTest.FIXTURES) {
+				fixture.sortKey().declare(raw);
+				fixture.sortKey().declare(normalized);
+			}
+			final Map<AttributeIndexKey, Map<Integer, Serializable>> models = new HashMap<>();
+			assignValues(raw, normalized, models, 0);
+			assertSameSortIndexes(raw, normalized, models, "before the flush");
+			flushAndPersist(normalized);
+			final VirtualReferencePartitionIndexStoragePart root = readRootOrNull();
+			assertNotNull(root);
+			assertTrue(root.isPaged(), "The sort value entries must page out");
+
+			final VirtualReferencePartitionIndex reloaded = reloadThroughLoader();
+			assertSameSortIndexes(normalized, reloaded, models, "rebuilt on load");
+			assertSameSortIndexes(raw, reloaded, models, "rebuilt on load, against the attribute values");
+			assertTrue(flush(reloaded).isEmpty(), "A freshly reloaded index is clean and emits nothing");
+
+			// the reloaded index goes on: every value is replaced, and some are removed again
+			assignValues(raw, reloaded, models, 1);
+			for (final ValueFixture fixture : VirtualReferencePartitionIndexNormalizedSortValueTest.FIXTURES) {
+				final AttributeIndexKey key = fixture.sortKey().key();
+				for (int partition = 1; partition <= PARTITIONS; partition += 5) {
+					assertTrue(raw.removeSortValue(key, partition));
+					assertTrue(reloaded.removeSortValue(key, partition));
+					models.get(key).remove(partition);
+				}
+			}
+			assertSameSortIndexes(raw, reloaded, models, "after the reloaded index went on");
+			flushAndPersist(reloaded);
+			assertSameSortIndexes(raw, reloadThroughLoader(), models, "rebuilt on the second load");
 		}
 	}
 

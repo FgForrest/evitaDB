@@ -62,6 +62,10 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -112,6 +116,11 @@ import java.util.function.UnaryOperator;
  * keeps every distinct value once, normalized exactly as {@link SortIndex} normalizes it, and counts its users the way
  * the tuple dictionary does. Values the sort key orders as equal - `1.0` and `1.00` in a compound - are one value, as
  * they are one bucket of the sort index.
+ *
+ * A sort value is recorded either as the attribute value or in the normalized form a sort index stores - the form
+ * {@link SortIndex#getValueOfRecord(int)} reads back, with a scaled `Integer` in place of a `BigDecimal` and an
+ * `Instant` in place of an `OffsetDateTime`. The normalized form is first turned back into a value of the declared
+ * type that normalizes onto it again, so both take the one write path and leave the same entry behind.
  *
  * Next to the entries the index keeps one {@link OwnerSortIndex} per sort key, its record ids being partition primary
  * keys, and every put and removal updates the slot and the sort index together. The sort index itself is never
@@ -880,6 +889,44 @@ public class VirtualReferencePartitionIndex
 	}
 
 	/**
+	 * Records the sort value of the partition for a declared sort key from its normalized form - the form a sort index
+	 * stores and {@link SortIndex#getValueOfRecord(int)} reads back: a scaled `Integer` for a `BigDecimal` attribute,
+	 * a millisecond `Instant` for an `OffsetDateTime` or a `LocalDateTime`, a decomposed `String`, a comparable wrapper
+	 * of a `Locale` or a `Currency`, and a {@link ComparableArray} of such elements for a compound. The value is turned
+	 * back into one of the declared type that normalizes onto it again and is then recorded exactly as
+	 * {@link #putSortValue(AttributeIndexKey, int, Serializable)} records an attribute value, so the slot ends up with
+	 * the same entry and the sort index with the same block as if the attribute value had been put.
+	 *
+	 * @param attributeIndexKey   the declared sort key
+	 * @param partitionPrimaryKey the partition primary key, positive
+	 * @param normalizedValue     the normalized value, a {@link ComparableArray} for a sortable attribute compound
+	 */
+	public void putNormalizedSortValue(
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		int partitionPrimaryKey,
+		@Nonnull Serializable normalizedValue
+	) {
+		final DeclaredSortKey sortKey = getDeclaredSortKey(attributeIndexKey);
+		if (sortKey.isCompound()) {
+			if (!(normalizedValue instanceof ComparableArray compound)) {
+				throw new GenericEvitaInternalError(
+					"Sort key `" + attributeIndexKey + "` sorts by a compound, but `" +
+						normalizedValue.getClass().getName() + "` was passed instead of its normalized elements!"
+				);
+			}
+			putSortValue(attributeIndexKey, partitionPrimaryKey, denormalize(sortKey, compound), true);
+		} else {
+			putSortValue(
+				attributeIndexKey, partitionPrimaryKey,
+				Objects.requireNonNull(
+					denormalize(sortKey.comparatorBase()[0].type(), sortKey.indexedDecimalPlaces(), normalizedValue)
+				),
+				false
+			);
+		}
+	}
+
+	/**
 	 * Forgets the sort value of the partition for a declared sort key, dropping the value from the slot's dictionary
 	 * when the partition was its last user.
 	 *
@@ -897,7 +944,7 @@ public class VirtualReferencePartitionIndex
 		this.entries.removeLongRecord(key);
 		final Serializable previousValue = releaseSortValue(sortKey.slotId(), (int) previousValueId.getAsLong());
 		this.sortIndexes.markValueMutated(attributeIndexKey);
-		removeFromSortIndex(getSortIndexOfDeclaredKey(attributeIndexKey), previousValue, partitionPrimaryKey);
+		removeFromSortIndex(sortKey, getSortIndexOfDeclaredKey(attributeIndexKey), previousValue, partitionPrimaryKey);
 		this.dirty.setToTrue();
 		return true;
 	}
@@ -1505,45 +1552,94 @@ public class VirtualReferencePartitionIndex
 	}
 
 	/**
-	 * Turns a normalized sort value back into the value the sort index accepts, which normalizes it again by itself.
-	 * Only the comparable wrappers of `Locale` and `Currency` need unwrapping - every other normalized form, a
-	 * decomposed `String` or a scaled `BigDecimal`, is one the normalizer maps onto itself.
+	 * Turns a normalized value of one attribute or one compound element back into a value of its declared type - one
+	 * the sort index accepts and normalizes, by itself, onto exactly `normalizedValue` again. It undoes what
+	 * {@link SortIndex#createNormalizerFor(ComparatorSource, int)} does:
 	 *
-	 * @param normalizedValue the normalized value of one attribute or one compound element
+	 * - the comparable wrapper of a `Locale` or a `Currency` is unwrapped,
+	 * - an `Instant` becomes the declared `OffsetDateTime` or `LocalDateTime` at UTC - the offset the normalizer anchors
+	 *   a `LocalDateTime` at, so the instant comes back to the millisecond,
+	 * - the scaled `Integer` of a `BigDecimal` attribute becomes `BigDecimal.valueOf(scaled, indexedDecimalPlaces)`,
+	 *   which scales back onto the very same `Integer`.
+	 *
+	 * Every other normalized form - a decomposed `String`, a millisecond `LocalTime`, the exact `BigDecimal` of a
+	 * compound element, a range rescaled before it reached the index - is one the normalizer maps onto itself, and so
+	 * is a value that already has its declared type.
+	 *
+	 * @param declaredType         the type the attribute or the compound element is declared with
+	 * @param indexedDecimalPlaces the decimal places a `BigDecimal` attribute is scaled by
+	 * @param normalizedValue      the normalized value, `null` for a missing compound element
 	 * @return the value the sort index normalizes into `normalizedValue`
 	 */
 	@Nullable
-	private static Serializable denormalize(@Nullable Serializable normalizedValue) {
+	private static Serializable denormalize(
+		@Nonnull Class<?> declaredType,
+		int indexedDecimalPlaces,
+		@Nullable Serializable normalizedValue
+	) {
 		if (normalizedValue instanceof ComparableLocale comparableLocale) {
 			return comparableLocale.getLocale();
 		} else if (normalizedValue instanceof ComparableCurrency comparableCurrency) {
 			return comparableCurrency.getCurrency();
+		} else if (normalizedValue instanceof Instant instant && OffsetDateTime.class.isAssignableFrom(declaredType)) {
+			return OffsetDateTime.ofInstant(instant, ZoneOffset.UTC);
+		} else if (normalizedValue instanceof Instant instant && LocalDateTime.class.isAssignableFrom(declaredType)) {
+			return LocalDateTime.ofInstant(instant, ZoneOffset.UTC);
+		} else if (normalizedValue instanceof Integer scaled && BigDecimal.class.isAssignableFrom(declaredType)) {
+			return BigDecimal.valueOf(scaled, indexedDecimalPlaces);
 		} else {
 			return normalizedValue;
 		}
 	}
 
 	/**
+	 * Turns a normalized compound value back into the values of its elements, each of its declared type - see
+	 * {@link #denormalize(Class, int, Serializable)}. Missing elements stay `null`.
+	 *
+	 * @param sortKey         the declared sort key of a sortable attribute compound
+	 * @param normalizedValue the normalized compound value
+	 * @return a new array of the element values the sort index normalizes into `normalizedValue`
+	 */
+	@Nonnull
+	private static Serializable[] denormalize(@Nonnull DeclaredSortKey sortKey, @Nonnull ComparableArray normalizedValue) {
+		final ComparatorSource[] comparatorBase = sortKey.comparatorBase();
+		final Serializable[] elements = normalizedValue.array();
+		if (elements.length != comparatorBase.length) {
+			throw new GenericEvitaInternalError(
+				"Sort key `" + sortKey.attributeIndexKey() + "` sorts by " + comparatorBase.length +
+					" elements, but " + elements.length + " values were passed!"
+			);
+		}
+		final Serializable[] values = new Serializable[elements.length];
+		for (int i = 0; i < elements.length; i++) {
+			values[i] = denormalize(comparatorBase[i].type(), sortKey.indexedDecimalPlaces(), elements[i]);
+		}
+		return values;
+	}
+
+	/**
 	 * Removes the partition from the block of its sort value in the sort index.
 	 *
+	 * @param sortKey             the declared sort key
 	 * @param sortIndex           the sort index of the sort key
 	 * @param normalizedValue     the normalized sort value the partition held, as the dictionary keeps it
 	 * @param partitionPrimaryKey the partition primary key
 	 */
 	private static void removeFromSortIndex(
+		@Nonnull DeclaredSortKey sortKey,
 		@Nonnull OwnerSortIndex sortIndex,
 		@Nonnull Serializable normalizedValue,
 		int partitionPrimaryKey
 	) {
 		if (normalizedValue instanceof ComparableArray compound) {
-			final Serializable[] elements = compound.array();
-			final Serializable[] values = new Serializable[elements.length];
-			for (int i = 0; i < elements.length; i++) {
-				values[i] = denormalize(elements[i]);
-			}
-			sortIndex.removeRecord(values, partitionPrimaryKey);
+			sortIndex.removeRecord(denormalize(sortKey, compound), partitionPrimaryKey);
 		} else {
-			sortIndex.removeRecord(Objects.requireNonNull(denormalize(normalizedValue)), partitionPrimaryKey);
+			sortIndex.removeRecord(
+				Objects.requireNonNull(
+					denormalize(sortKey.comparatorBase()[0].type(), sortKey.indexedDecimalPlaces(), normalizedValue)
+				),
+				partitionPrimaryKey
+			);
 		}
 	}
 
@@ -1655,7 +1751,7 @@ public class VirtualReferencePartitionIndex
 		if (previousValueId.isPresent()) {
 			this.entries.removeLongRecord(key);
 			final Serializable previousValue = releaseSortValue(slotId, (int) previousValueId.getAsLong());
-			removeFromSortIndex(sortIndex, previousValue, partitionPrimaryKey);
+			removeFromSortIndex(sortKey, sortIndex, previousValue, partitionPrimaryKey);
 		}
 		this.entries.addLongRecord(key, (long) valueId);
 		if (compound) {
