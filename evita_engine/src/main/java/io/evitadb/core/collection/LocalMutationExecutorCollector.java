@@ -61,10 +61,12 @@ import io.evitadb.index.mutation.IndexMutation;
 import io.evitadb.index.mutation.ReevaluateExpressionMutation;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
+import io.evitadb.index.mutation.storagePart.InFlightEntityAccessorLookup;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService.EntityWithFetchCount;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
+import io.evitadb.spi.store.catalog.persistence.accessor.EntityStoragePartAccessor;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
@@ -141,6 +143,25 @@ class LocalMutationExecutorCollector {
 	 */
 	private final List<EntityMutation> entityMutations = new ArrayList<>(16);
 	/**
+	 * The storage-part executors of every entity this root mutation mutates - the root entity's own and those of the
+	 * implicit and reflected mutations it spawns, in any collection, since the nested invocations share this collector
+	 * - keyed by the entity they mutate. It answers {@link #findInFlightAccessor}, the
+	 * {@link InFlightEntityAccessorLookup} every executor of this root mutation is created with.
+	 *
+	 * The registry exists because no executor writes its storage parts into the data store buffer before the root
+	 * mutation commits them all in {@link #finish()}, after every executor - nested ones included - has applied its
+	 * changes. Until then an entity's applied state lives only in its executor, so a read of that entity issued from
+	 * another entity's executor has to be served by it.
+	 *
+	 * An executor is registered when its mutation enters {@link #execute} and stays registered until the root mutation
+	 * finishes, whatever the outcome: a failure at any level fails the root mutation as a whole (the nested invocation
+	 * rethrows it into the enclosing one), so no level discards its executors on its own and the registry never holds
+	 * an executor the root mutation does not. {@link #finish()} drops it after the commit or the rollback.
+	 *
+	 * Allocated by the first registration, i.e. once per root mutation.
+	 */
+	@Nullable private Map<InFlightEntityKey, ContainerizedLocalMutationExecutor> inFlightExecutors;
+	/**
 	 * Reference to the fully fetched entity that is being mutated. This entity is needed for removal / archive / restore
 	 * mutations to generate local mutations for all necessary parts of the entity.
 	 */
@@ -213,6 +234,18 @@ class LocalMutationExecutorCollector {
 	 * Lazily allocated — stays null for the overwhelming majority of mutations, which fire no histogram trigger.
 	 */
 	@Nullable private Map<ConditionStateKey, Map<String, ContributionVerdicts>> preMutationConditionState;
+
+	/**
+	 * Key of {@link #inFlightExecutors} — identifies the entity an executor mutates.
+	 *
+	 * @param entityType       the entity collection name
+	 * @param entityPrimaryKey the primary key of the entity
+	 */
+	private record InFlightEntityKey(
+		@Nonnull String entityType,
+		int entityPrimaryKey
+	) {
+	}
 
 	/**
 	 * Key of {@link #preMutationConditionState} — a captured condition answer belongs to one trigger *in one
@@ -417,6 +450,7 @@ class LocalMutationExecutorCollector {
 		// first register all mutation applicators and mutations to the internal state
 		this.executors.add(entityIndexUpdater);
 		this.executors.add(changeCollector);
+		registerInFlightExecutor(changeCollector);
 		final LocalMutationExecutor[] orderedExecutors = {entityIndexUpdater, changeCollector};
 
 		// add the mutation to the list of mutations, but only for root level mutations
@@ -655,6 +689,41 @@ class LocalMutationExecutorCollector {
 	}
 
 	/**
+	 * Returns the accessor of the executor mutating the given entity within this root mutation - the
+	 * {@link InFlightEntityAccessorLookup} handed to every executor created for it. See {@link #inFlightExecutors}.
+	 *
+	 * @param entityType       the entity collection name
+	 * @param entityPrimaryKey the primary key of the entity
+	 * @return the in-flight executor of the entity, or `null` when this root mutation does not mutate it or has already
+	 *         finished
+	 */
+	@Nullable
+	EntityStoragePartAccessor findInFlightAccessor(@Nonnull String entityType, int entityPrimaryKey) {
+		return this.inFlightExecutors == null
+			? null
+			: this.inFlightExecutors.get(new InFlightEntityKey(entityType, entityPrimaryKey));
+	}
+
+	/**
+	 * Registers the storage-part executor of a mutation entering {@link #execute} into {@link #inFlightExecutors}.
+	 *
+	 * An entity is expected to have at most one executor per root mutation: the external mutations an executor spawns
+	 * are merged per target entity, and the nested mutations spawn none that lead back to an entity already in flight.
+	 * Should a second one appear nevertheless, it replaces the first: it is the later one, so the reads issued after its
+	 * creation belong to its part of the root mutation.
+	 *
+	 * @param executor the executor to register
+	 */
+	private void registerInFlightExecutor(@Nonnull ContainerizedLocalMutationExecutor executor) {
+		if (this.inFlightExecutors == null) {
+			this.inFlightExecutors = CollectionUtils.createHashMap(4);
+		}
+		this.inFlightExecutors.put(
+			new InFlightEntityKey(executor.getEntityType(), executor.getEntityPrimaryKey()), executor
+		);
+	}
+
+	/**
 	 * Completes the local mutation execution process by determining whether to commit or rollback changes.
 	 *
 	 * Finalization happens in two steps. First, {@link LocalMutationExecutor#applyChanges()} is invoked on every
@@ -669,20 +738,25 @@ class LocalMutationExecutorCollector {
 	 * changes.
 	 */
 	private void finish() {
-		// fallible finalization step — a throw here routes to rollback rather than a half-commit
-		if (this.exception == null) {
-			try {
-				for (final LocalMutationExecutor executor : this.executors) {
-					executor.applyChanges();
+		try {
+			// fallible finalization step — a throw here routes to rollback rather than a half-commit
+			if (this.exception == null) {
+				try {
+					for (final LocalMutationExecutor executor : this.executors) {
+						executor.applyChanges();
+					}
+				} catch (RuntimeException ex) {
+					this.exception = ex;
 				}
-			} catch (RuntimeException ex) {
-				this.exception = ex;
 			}
-		}
-		if (this.exception == null) {
-			commit();
-		} else {
-			rollback();
+			if (this.exception == null) {
+				commit();
+			} else {
+				rollback();
+			}
+		} finally {
+			// the executors are committed or rolled back - none of them is in flight any longer
+			this.inFlightExecutors = null;
 		}
 	}
 

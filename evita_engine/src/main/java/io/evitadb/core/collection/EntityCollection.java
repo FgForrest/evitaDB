@@ -677,6 +677,17 @@ public final class EntityCollection implements
 	}
 
 	/**
+	 * Creates the collector of a new root entity mutation applied to this collection. The collector is then shared by
+	 * every implicit and reflected mutation the root mutation spawns, in this collection or in another one.
+	 *
+	 * @return a fresh collector for one root entity mutation
+	 */
+	@Nonnull
+	LocalMutationExecutorCollector createLocalMutationExecutorCollector() {
+		return new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader);
+	}
+
+	/**
 	 * The per-capability usage counters of this collection - see {@link #usageRegistry} for what they mean and how long
 	 * they live. The registry is the same instance for every catalog version of one logical collection, so a caller may
 	 * hold on to it across a commit; what it must not do is assume the numbers relate to a particular catalog version,
@@ -2700,7 +2711,7 @@ public final class EntityCollection implements
 				removeMutation.shouldVerifyConsistency(),
 				null,
 				removeMutation.getImplicitMutationsBehavior(),
-				new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader),
+				createLocalMutationExecutorCollector(),
 				Void.class
 			);
 		} else if (entityMutation instanceof EntityRemoveMutation) {
@@ -2711,7 +2722,7 @@ public final class EntityCollection implements
 				true,
 				null,
 				EnumSet.noneOf(ImplicitMutationBehavior.class),
-				new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader),
+				createLocalMutationExecutorCollector(),
 				Void.class
 			);
 		} else {
@@ -2739,7 +2750,7 @@ public final class EntityCollection implements
 			true,
 			returnDeletedEntity,
 			EnumSet.allOf(ImplicitMutationBehavior.class),
-			new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader),
+			createLocalMutationExecutorCollector(),
 			returnType
 		);
 	}
@@ -2774,7 +2785,7 @@ public final class EntityCollection implements
 			true,
 			returnEntity,
 			EnumSet.allOf(ImplicitMutationBehavior.class),
-			new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader),
+			createLocalMutationExecutorCollector(),
 			returnType
 		);
 	}
@@ -3699,7 +3710,7 @@ public final class EntityCollection implements
 				veum.shouldVerifyConsistency(),
 				returnUpdatedEntity,
 				veum.getImplicitMutationsBehavior(),
-				new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader),
+				createLocalMutationExecutorCollector(),
 				returnType
 			);
 		} else {
@@ -3711,7 +3722,7 @@ public final class EntityCollection implements
 				true,
 				returnUpdatedEntity,
 				EnumSet.allOf(ImplicitMutationBehavior.class),
-				new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader),
+				createLocalMutationExecutorCollector(),
 				returnType
 			);
 		}
@@ -3801,6 +3812,9 @@ public final class EntityCollection implements
 			theEntityType -> this.catalog.getCollectionForEntityInternal(theEntityType)
 				.map(EntityCollection::getDataStoreReader)
 				.orElse(null),
+			// the collector is shared by the whole root mutation, so this finds the entities its nested mutations
+			// mutate in other collections as well
+			localMutationExecutorCollector::findInFlightAccessor,
 			this::nextInternalPriceId,
 			entityMutation instanceof EntityRemoveMutation
 		);

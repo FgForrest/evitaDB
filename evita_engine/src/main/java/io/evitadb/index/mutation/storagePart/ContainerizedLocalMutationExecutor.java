@@ -173,6 +173,11 @@ public final class ContainerizedLocalMutationExecutor
 	@Nonnull private final Supplier<CatalogSchema> catalogSchemaAccessor;
 	@Nonnull private final Supplier<EntitySchema> schemaAccessor;
 	@Nonnull private final Function<String, DataStoreReader> dataStoreReaderAccessor;
+	/**
+	 * Finds the executors of other entities mutated within the same root mutation, whose applied state the data store
+	 * readers cannot see yet - every read of another entity's storage part asks it first.
+	 */
+	@Nonnull private final InFlightEntityAccessorLookup inFlightAccessorLookup;
 	@Nonnull private final IntSupplier priceInternalIdSupplier;
 	@Getter private final boolean entityRemovedEntirely;
 	private final DataStoreMemoryBuffer dataStoreUpdater;
@@ -1014,6 +1019,21 @@ public final class ContainerizedLocalMutationExecutor
 		return false;
 	}
 
+	/**
+	 * Creates the storage-part executor of one entity's mutation and reads (and caches) the entity's body.
+	 *
+	 * @param dataStoreUpdater        buffer the changed storage parts are written to on {@link #commit()}
+	 * @param dataStoreReader         reader of the entity's own collection
+	 * @param catalogVersion          catalog version the storage parts are read in
+	 * @param entityPrimaryKey        primary key of the mutated entity
+	 * @param requiresExisting        expected existence of the entity, verified when its body is read
+	 * @param catalogSchemaAccessor   supplier of the current catalog schema
+	 * @param schemaAccessor          supplier of the current schema of the mutated entity's collection
+	 * @param dataStoreReaderAccessor resolves the data store reader of another collection, NULL when it does not exist
+	 * @param inFlightAccessorLookup  finds the executors of other entities mutated within the same root mutation
+	 * @param priceInternalIdSupplier supplier of new internal price ids
+	 * @param entityRemovedEntirely   true when the mutation removes the entity
+	 */
 	public ContainerizedLocalMutationExecutor(
 		@Nonnull DataStoreMemoryBuffer dataStoreUpdater,
 		@Nonnull DataStoreReader dataStoreReader,
@@ -1023,6 +1043,7 @@ public final class ContainerizedLocalMutationExecutor
 		@Nonnull Supplier<CatalogSchema> catalogSchemaAccessor,
 		@Nonnull Supplier<EntitySchema> schemaAccessor,
 		@Nonnull Function<String, DataStoreReader> dataStoreReaderAccessor,
+		@Nonnull InFlightEntityAccessorLookup inFlightAccessorLookup,
 		@Nonnull IntSupplier priceInternalIdSupplier,
 		boolean entityRemovedEntirely
 	) {
@@ -1032,6 +1053,7 @@ public final class ContainerizedLocalMutationExecutor
 		this.catalogSchemaAccessor = catalogSchemaAccessor;
 		this.schemaAccessor = schemaAccessor;
 		this.dataStoreReaderAccessor = dataStoreReaderAccessor;
+		this.inFlightAccessorLookup = inFlightAccessorLookup;
 		this.priceInternalIdSupplier = priceInternalIdSupplier;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.entityType = schemaAccessor.get().getName();
@@ -1050,6 +1072,13 @@ public final class ContainerizedLocalMutationExecutor
 	 * the method delegates to the cross-entity data store reader without caching. This enables
 	 * expression evaluation proxies to transparently read storage parts from referenced or group
 	 * entity collections.
+	 *
+	 * Every read of another entity - of any type, this method and its siblings alike - first asks the
+	 * {@link InFlightEntityAccessorLookup} whether that entity is mutated within the same root mutation. If it is,
+	 * the part comes from that entity's own executor, so the read sees what the root mutation has applied to it
+	 * but not yet committed; that executor read and verified the body against its own expectation when it was
+	 * created, so `expects` is not verified again. Otherwise the part is read from the data store reader, which
+	 * ignores `expects` too and returns an empty body for a missing entity.
 	 *
 	 * @param entityType the type of the entity being retrieved
 	 * @param entityPrimaryKey the primary key of the entity to retrieve
@@ -1098,6 +1127,12 @@ public final class ContainerizedLocalMutationExecutor
 						})
 				));
 		} else {
+			// different entity mutated within the same root mutation — its own executor holds the applied state
+			final EntityStoragePartAccessor inFlightAccessor =
+				this.inFlightAccessorLookup.findInFlightAccessor(entityType, entityPrimaryKey);
+			if (inFlightAccessor != null) {
+				return inFlightAccessor.getEntityStoragePart(entityType, entityPrimaryKey, expects);
+			}
 			// different entity (cross-entity or same-type parent) — non-cached read
 			final DataStoreReader reader = this.entityType.equals(entityType)
 				? this.dataStoreReader
@@ -1148,6 +1183,12 @@ public final class ContainerizedLocalMutationExecutor
 					);
 				});
 		} else {
+			// different entity mutated within the same root mutation — its own executor holds the applied state
+			final EntityStoragePartAccessor inFlightAccessor =
+				this.inFlightAccessorLookup.findInFlightAccessor(entityType, entityPrimaryKey);
+			if (inFlightAccessor != null) {
+				return inFlightAccessor.getAttributeStoragePart(entityType, entityPrimaryKey);
+			}
 			// different entity (cross-entity or same-type parent) — non-cached read
 			final DataStoreReader reader = this.entityType.equals(entityType)
 				? this.dataStoreReader
@@ -1180,6 +1221,12 @@ public final class ContainerizedLocalMutationExecutor
 				}
 			);
 		} else {
+			// different entity mutated within the same root mutation — its own executor holds the applied state
+			final EntityStoragePartAccessor inFlightAccessor =
+				this.inFlightAccessorLookup.findInFlightAccessor(entityType, entityPrimaryKey);
+			if (inFlightAccessor != null) {
+				return inFlightAccessor.getAttributeStoragePart(entityType, entityPrimaryKey, locale);
+			}
 			// different entity (cross-entity or same-type parent) — non-cached read
 			final DataStoreReader reader = this.entityType.equals(entityType)
 				? this.dataStoreReader
@@ -1275,6 +1322,12 @@ public final class ContainerizedLocalMutationExecutor
 				}
 			);
 		} else {
+			// different entity mutated within the same root mutation — its own executor holds the applied state
+			final EntityStoragePartAccessor inFlightAccessor =
+				this.inFlightAccessorLookup.findInFlightAccessor(entityType, entityPrimaryKey);
+			if (inFlightAccessor != null) {
+				return inFlightAccessor.getAssociatedDataStoragePart(entityType, entityPrimaryKey, key);
+			}
 			// different entity (cross-entity or same-type parent) — non-cached read
 			final DataStoreReader reader = this.entityType.equals(entityType)
 				? this.dataStoreReader
@@ -1301,6 +1354,12 @@ public final class ContainerizedLocalMutationExecutor
 						.orElseGet(() -> new ReferencesStoragePart(entityPrimaryKey))
 				));
 		} else {
+			// different entity mutated within the same root mutation — its own executor holds the applied state
+			final EntityStoragePartAccessor inFlightAccessor =
+				this.inFlightAccessorLookup.findInFlightAccessor(entityType, entityPrimaryKey);
+			if (inFlightAccessor != null) {
+				return inFlightAccessor.getReferencesStoragePart(entityType, entityPrimaryKey);
+			}
 			// different entity (cross-entity or same-type parent) — non-cached read
 			final DataStoreReader reader = this.entityType.equals(entityType)
 				? this.dataStoreReader
@@ -1323,6 +1382,12 @@ public final class ContainerizedLocalMutationExecutor
 					)).orElseGet(() -> new PricesStoragePart(entityPrimaryKey))
 				));
 		} else {
+			// different entity mutated within the same root mutation — its own executor holds the applied state
+			final EntityStoragePartAccessor inFlightAccessor =
+				this.inFlightAccessorLookup.findInFlightAccessor(entityType, entityPrimaryKey);
+			if (inFlightAccessor != null) {
+				return inFlightAccessor.getPriceStoragePart(entityType, entityPrimaryKey);
+			}
 			// different entity (cross-entity or same-type parent) — non-cached read
 			final DataStoreReader reader = this.entityType.equals(entityType)
 				? this.dataStoreReader
