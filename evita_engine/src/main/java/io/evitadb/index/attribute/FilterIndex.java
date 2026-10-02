@@ -817,21 +817,23 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	}
 
 	/**
-	 * Returns count of records in this index.
+	 * Returns the number of distinct records holding a value in this index. A record owning several values - an array
+	 * attribute with several distinct elements - is counted once, although it sits in one bucket per element.
 	 *
-	 * Unlike {@link #getDistinctValueCount()} this walks a bucket cursor over the whole tree summing per-bucket record
-	 * counts, and is therefore `O(distinct values)` rather than a single counter read - the only cardinality reading
-	 * of the whole statistics surface that is not `O(1)`.
+	 * Unlike {@link #getDistinctValueCount()} this walks a bucket cursor over the whole tree, collecting the records
+	 * into a transient bitmap that dies with the call, and is therefore `O(records)` rather than a single counter
+	 * read - one of the few cardinality readings of the statistics surface that is not `O(1)`.
 	 *
-	 * **How expensive that is depends entirely on the attribute.** For a low-cardinality filterable attribute it is a
-	 * handful of steps. For a *unique* attribute it is one step per record, because uniqueness makes distinct values
-	 * and records the same number - and {@link UniqueIndexView#size()} routes here, so reading a unique index's
-	 * covered-record count on a collection of two million entities is a two-million-step walk. That is why
-	 * {@link io.evitadb.api.statistics.CatalogStatisticsComponent#INDEX_CARDINALITY} is declared expensive and is
-	 * never part of a polled refresh.
+	 * **How expensive that is depends on the attribute.** Every record is visited once per value it holds, so the
+	 * walk costs at least one step per covered record, and {@link UniqueIndexView#size()} routes here too: reading a
+	 * unique index's covered-record count on a collection of two million entities is a two-million-step walk. That
+	 * is why {@link io.evitadb.api.statistics.CatalogStatisticsComponent#INDEX_CARDINALITY} is declared expensive and
+	 * is never part of a polled refresh.
+	 *
+	 * @return number of distinct records covered by this index
 	 */
 	public int size() {
-		return this.invertedIndex.getLength();
+		return this.invertedIndex.getDistinctRecordCount();
 	}
 
 	/**

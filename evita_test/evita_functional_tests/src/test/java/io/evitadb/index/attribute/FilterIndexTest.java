@@ -1302,6 +1302,19 @@ class FilterIndexTest {
 
 			assertEquals(2, index.size());
 		}
+
+		@Test
+		@DisplayName("size counts a record holding several values of an array once")
+		void shouldCountRecordHoldingSeveralArrayValuesOnce() {
+			final OwnerFilterIndex index = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "a", null), String[].class
+			);
+			index.addRecord(1, new String[]{"A", "B"});
+			index.addRecord(2, new String[]{"B"});
+
+			assertEquals(2, index.getDistinctValueCount());
+			assertEquals(2, index.size(), "size() counts distinct records, not their bucket memberships");
+		}
 	}
 
 	@Nested

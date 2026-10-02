@@ -141,20 +141,22 @@ Enforces attribute uniqueness and provides O(1) value-to-record-id lookups. `Uni
 
 | Variant            | Storage / role                                                                                       |
 |--------------------|-------------------------------------------------------------------------------------------------------|
-| `OwnerUniqueIndex` | Full owner: `PersistentTransactionalMap<Serializable, Integer> uniqueValueToRecordId` + `TransactionalBitmap recordIds`. Used where uniqueness cannot be folded into a filter tree (e.g. global-unique localized attributes). |
+| `OwnerUniqueIndex` | Full owner: a `TransactionalBucketBPlusTree` mapping each value to its single owning record, and nothing beside it - which records carry a value is answered by the attribute's filter indexes. Used where uniqueness cannot be folded into a filter tree: a localized attribute unique across locales (`UNIQUE_WITHIN_COLLECTION`). |
 | `UniqueIndexView`  | Stateless flyweight holding only a rebound reference to the shared `FilterIndex` view. Zero commit participation; every read delegates to the filter view. Uniqueness is enforced by `AttributeIndex` **on filter insert**, not by this view. |
 
 **Shared identity fields:** `entityType` (owning collection), `attributeIndexKey`, `type` (declared
 attribute type).
 
-**Behaviour:** Inserting a value that already maps to a different record id throws
-`UniqueValueViolationException`. Array-valued attributes are supported -- each element of the array is
-inserted as a separate unique entry pointing to the same record id. The value-to-record map in
-`OwnerUniqueIndex` is a `PersistentTransactionalMap` (ChampMap-backed, `O(Δ·log N)` commit). Unlike the
-`FilterIndex`, `OwnerUniqueIndex` keeps the **exact, unscaled** value -- `BigDecimal` is not scaled to
-an int here, because uniqueness is enforced on the canonical value.
+**Behaviour:** Inserting a value that is already present throws `UniqueValueViolationException` -- even
+when the record inserting it already owns it. `OwnerUniqueIndex` keys no locale, so such a repeat comes from
+another locale of the same entity, which `unique` forbids: a value occurs once per collection, whatever the
+locale. Array-valued attributes are supported -- the array is folded onto its distinct values, and each is
+inserted as a separate unique entry pointing to the same record id. Unlike the `FilterIndex`,
+`OwnerUniqueIndex` keeps the **exact, unscaled** value -- `BigDecimal` is not scaled to an int here, because
+uniqueness is enforced on the canonical value.
 
-**Supported queries:** `attributeEquals` (exact match), `attributeIs NULL/NOT_NULL`.
+**Supported queries:** `attributeEquals` and `attributeInSet` (exact match). `attributeIs NULL/NOT_NULL` reads
+the attribute's filter indexes, which every unique attribute is written to.
 
 ### FilterIndex
 

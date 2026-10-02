@@ -35,7 +35,6 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -144,7 +143,7 @@ class UniqueIndexFoldTest {
 	class ReadParityTest {
 
 		@Test
-		@DisplayName("folded view resolves a unique value to its single record and exposes all records")
+		@DisplayName("folded view resolves a unique value to its single record and counts all records")
 		void shouldResolveFoldedUniqueValueToRecord() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema = FOLDABLE_SCALAR_CODE;
@@ -157,9 +156,6 @@ class UniqueIndexFoldTest {
 			assertEquals(2, view.getRecordIdByUniqueValue("DEF"));
 			assertNull(view.getRecordIdByUniqueValue("ZZZ"));
 			assertEquals(2, view.size());
-			final Bitmap allRecords = view.getRecordIds();
-			assertTrue(allRecords.contains(1));
-			assertTrue(allRecords.contains(2));
 		}
 
 		@Test
@@ -200,14 +196,21 @@ class UniqueIndexFoldTest {
 		}
 
 		@Test
-		@DisplayName("idempotent re-claim by the same record is allowed")
-		void shouldAllowIdempotentReclaim() {
+		@DisplayName("a re-claim by the record already holding the value is rejected")
+		void shouldRejectReclaimBySameRecord() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema = FOLDABLE_SCALAR_CODE;
 
 			insertFolded(index, schema, "ABC", 1);
-			assertDoesNotThrow(() -> index.insertFilterAttribute(null, schema, ALLOWED_LOCALES, null, "ABC", 1, true));
+			// the bucket would keep one entry for two registrations, so the first removal would drop the value the
+			// second still holds
+			assertThrows(
+				UniqueValueViolationException.class,
+				() -> index.insertFilterAttribute(null, schema, ALLOWED_LOCALES, null, "ABC", 1, true)
+			);
 			assertEquals(1, foldedView(index, schema).getRecordIdByUniqueValue("ABC"));
+			removeFolded(index, schema, "ABC", 1);
+			assertNull(index.getUniqueIndex(null, schema, Scope.LIVE, null));
 		}
 
 		@Test

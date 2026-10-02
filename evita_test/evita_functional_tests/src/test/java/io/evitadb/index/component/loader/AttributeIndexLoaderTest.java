@@ -159,8 +159,7 @@ class AttributeIndexLoaderTest {
 			view.getRecordIdByUniqueValue("WRONG"),
 			"The legacy full part's value-to-record map must be discarded on reload"
 		);
-		assertTrue(view.getRecordIds().contains(10), "View record ids come from the shared tree");
-		assertFalse(view.getRecordIds().contains(999), "Legacy record-id bitmap must be discarded");
+		assertEquals(1, view.size(), "The view counts only the shared tree's record, not the legacy part's");
 	}
 
 	@Test
@@ -177,12 +176,12 @@ class AttributeIndexLoaderTest {
 		final UniqueIndex owner = bundle.uniqueIndexes().get(key);
 		assertNotNull(owner, "Standalone unique must be reconstructed as an owner");
 		assertInstanceOf(OwnerUniqueIndex.class, owner, "Standalone unique must be an OwnerUniqueIndex");
-		// the owner restores its own value map / record bitmap from the full part
+		// the owner restores its own value map from the full part
 		assertEquals(
 			Integer.valueOf(10), owner.getRecordIdByUniqueValue("ABC"),
 			"Owner must resolve the value from its own persisted map"
 		);
-		assertTrue(owner.getRecordIds().contains(10), "Owner record ids come from its own bitmap");
+		assertEquals(1, owner.size(), "The owner counts the record owning its only value");
 	}
 
 	@Test

@@ -30,7 +30,6 @@ import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityTypeClassifierResolver;
-import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -44,8 +43,11 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
+import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
@@ -58,6 +60,12 @@ import static io.evitadb.test.TestTags.ATTRIBUTE;
 @Tag(INDEXING)
 @Tag(ATTRIBUTE)
 class GlobalUniqueIndexTest {
+	/**
+	 * A real resolver knowing products (compact primary key 1) and categories (2), for tests that need a second entity
+	 * type.
+	 */
+	private static final EntityTypeClassifierResolver PRODUCT_AND_CATEGORY =
+		resolverOf(Map.of(Entities.PRODUCT, 1, Entities.CATEGORY, 2));
 	private final Catalog catalog = Mockito.mock(Catalog.class);
 	/**
 	 * The entity-type name ↔ compact primary key resolver the index now receives per call instead of holding a catalog
@@ -83,6 +91,34 @@ class GlobalUniqueIndexTest {
 	private final GlobalUniqueIndex tested = new GlobalUniqueIndex(
 		Scope.LIVE, new AttributeKey("whatever"), String.class
 	);
+
+	/**
+	 * Creates a resolver translating between the entity type names and compact primary keys of `entityTypes`, and
+	 * failing loudly on any entity type it was not given.
+	 *
+	 * @param entityTypes entity type name to compact entity type primary key
+	 * @return the map-backed resolver
+	 */
+	@Nonnull
+	private static EntityTypeClassifierResolver resolverOf(@Nonnull Map<String, Integer> entityTypes) {
+		final Map<Integer, String> namesByPrimaryKey = new HashMap<>(entityTypes.size());
+		entityTypes.forEach((name, primaryKey) -> namesByPrimaryKey.put(primaryKey, name));
+		return new EntityTypeClassifierResolver() {
+			@Override
+			public int toEntityTypePrimaryKey(@Nonnull String entityType) {
+				return Objects.requireNonNull(entityTypes.get(entityType), () -> "Unknown entity type " + entityType);
+			}
+
+			@Nonnull
+			@Override
+			public String toEntityTypeName(int entityTypePrimaryKey) {
+				return Objects.requireNonNull(
+					namesByPrimaryKey.get(entityTypePrimaryKey),
+					() -> "Unknown entity type primary key " + entityTypePrimaryKey
+				);
+			}
+		};
+	}
 
 	@BeforeEach
 	void setUp() {
@@ -207,23 +243,106 @@ class GlobalUniqueIndexTest {
 	}
 
 	@Test
-	void shouldAllowSameValueAcrossLocalesForLocalizedAttribute() {
-		// a localized (within-locale-unique) attribute permits the same value to coexist across different locales
+	void shouldCountRecordForAsLongAsItHoldsAnyValue() {
+		final EntityTypeClassifierResolver resolver = PRODUCT_AND_CATEGORY;
+		// one locale-less index: product 1 owns a value per locale, and category 1 shares product 1's primary key
+		// without being the same entity
+		this.tested.registerUniqueKey("en-A", Entities.PRODUCT, Locale.ENGLISH, 1, resolver);
+		this.tested.registerUniqueKey("de-A", Entities.PRODUCT, Locale.GERMAN, 1, resolver);
+		this.tested.registerUniqueKey("en-B", Entities.PRODUCT, Locale.ENGLISH, 2, resolver);
+		this.tested.registerUniqueKey("en-C", Entities.CATEGORY, Locale.ENGLISH, 1, resolver);
+		assertEquals(4, this.tested.size());
+		assertEquals(3, this.tested.getRecordCount(), "two products and one category");
+
+		this.tested.unregisterUniqueKey("en-A", Entities.PRODUCT, Locale.ENGLISH, 1, resolver);
+		assertEquals(3, this.tested.getRecordCount(), "product 1 still holds `de-A` and must still be counted");
+
+		this.tested.unregisterUniqueKey("de-A", Entities.PRODUCT, Locale.GERMAN, 1, resolver);
+		assertEquals(2, this.tested.getRecordCount(), "product 1 holds nothing any more");
+	}
+
+	@Test
+	void shouldLeaveValueOwnedByAnotherRecordUntouchedOnFailedUnregister() {
+		this.tested.registerUniqueKey("A", Entities.PRODUCT, null, 1, this.classifierResolver);
+
+		assertThrows(
+			IllegalArgumentException.class,
+			() -> this.tested.unregisterUniqueKey("A", Entities.PRODUCT, null, 2, this.classifierResolver)
+		);
+		assertEquals(
+			this.productRef, this.tested.getEntityReferenceByUniqueValue("A", null, this.classifierResolver).orElse(null),
+			"a refused unregister must not have removed the owner's value"
+		);
+	}
+
+	@Test
+	void shouldRejectSameValueInAnotherLocaleOfLocaleLessIndex() {
+		// `uniqueGlobally` on a localized attribute keys one locale-less index, and a value occurs in it once whatever
+		// the locale - `uniqueGloballyWithinLocale` gets one index per locale instead and never meets this case
 		final GlobalUniqueIndex localized = new GlobalUniqueIndex(
-			Scope.LIVE, new AttributeKey("localizedCode", Locale.ENGLISH), String.class
+			Scope.LIVE, new AttributeKey("localizedCode"), String.class
 		);
 		localized.registerUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 2, this.classifierResolver);
-		// registering the same value under a different locale must NOT raise a uniqueness violation
-		assertDoesNotThrow(() -> localized.registerUniqueKey("A", Entities.PRODUCT, Locale.FRENCH, 3, this.classifierResolver));
-		// the value resolves under the last writer's locale (the value-keyed tree overwrites like the HashMap it replaces)
-		assertEquals(
-			new EntityReferenceWithLocale(Entities.PRODUCT, 3, Locale.FRENCH),
-			localized.getEntityReferenceByUniqueValue("A", Locale.FRENCH, this.classifierResolver).orElse(null)
+
+		assertThrows(
+			UniqueValueViolationException.class,
+			() -> localized.registerUniqueKey("A", Entities.PRODUCT, Locale.FRENCH, 3, this.classifierResolver),
+			"another entity must not claim the value in another locale"
 		);
-		// both primary keys remain visible in the per-entity-type record set
-		final Bitmap productRecords = localized.getRecordIds(Entities.PRODUCT, this.classifierResolver);
-		assertTrue(productRecords.contains(2));
-		assertTrue(productRecords.contains(3));
+		assertThrows(
+			UniqueValueViolationException.class,
+			() -> localized.registerUniqueKey("A", Entities.PRODUCT, Locale.FRENCH, 2, this.classifierResolver),
+			"the owning entity must not repeat the value in another locale either"
+		);
+		assertThrows(
+			UniqueValueViolationException.class,
+			() -> localized.registerUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 2, this.classifierResolver),
+			"nor register it a second time in its own locale"
+		);
+		// the rejected claims left the original owner in place
+		assertEquals(
+			new EntityReferenceWithLocale(Entities.PRODUCT, 2, Locale.ENGLISH),
+			localized.getEntityReferenceByUniqueValue("A", Locale.ENGLISH, this.classifierResolver).orElse(null)
+		);
+		// ... and neither re-attributed the value to the rejected locale nor recorded a second entry for it
+		assertTrue(localized.getEntityReferenceByUniqueValue("A", Locale.FRENCH, this.classifierResolver).isEmpty());
+		assertEquals(1, localized.size());
+		assertEquals(1, localized.getRecordCount());
+	}
+
+	@Test
+	void shouldNotAssignLocaleIdWhenLookingUpUnseenLocale() {
+		final GlobalUniqueIndex localized = new GlobalUniqueIndex(
+			Scope.LIVE, new AttributeKey("localizedCode"), String.class
+		);
+		localized.registerUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 1, this.classifierResolver);
+		assertEquals(1, localized.getLocaleIndex().size());
+
+		assertTrue(
+			localized.getEntityReferenceByUniqueValue("A", Locale.JAPANESE, this.classifierResolver).isEmpty(),
+			"a value registered for english must not resolve for a locale the index has never seen"
+		);
+		// a lookup is a read: it must not register the unseen locale in the (persisted) locale map
+		assertEquals(Map.of(1, Locale.ENGLISH), localized.getLocaleIndex());
+	}
+
+	@Test
+	void shouldNotAssignLocaleIdWhenUnregisteringUnderUnseenLocale() {
+		final GlobalUniqueIndex localized = new GlobalUniqueIndex(
+			Scope.LIVE, new AttributeKey("localizedCode"), String.class
+		);
+		localized.registerUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 1, this.classifierResolver);
+
+		// no tuple carries a locale the index has never seen, so the ownership check refuses the removal
+		assertThrows(
+			IllegalArgumentException.class,
+			() -> localized.unregisterUniqueKey("A", Entities.PRODUCT, Locale.JAPANESE, 1, this.classifierResolver)
+		);
+		assertEquals(Map.of(1, Locale.ENGLISH), localized.getLocaleIndex());
+		assertEquals(
+			new EntityReferenceWithLocale(Entities.PRODUCT, 1, Locale.ENGLISH),
+			localized.getEntityReferenceByUniqueValue("A", Locale.ENGLISH, this.classifierResolver).orElse(null)
+		);
 	}
 
 	@Test
@@ -299,12 +418,308 @@ class GlobalUniqueIndexTest {
 			new EntityReferenceWithLocale(Entities.PRODUCT, 1, Locale.ENGLISH),
 			index.getEntityReferenceByUniqueValue("en-value", Locale.ENGLISH, this.classifierResolver).orElse(null)
 		);
-		// the same value under the new locale must not trip the within-locale uniqueness guard against the old locale
-		assertDoesNotThrow(
+		// one index holds a value once whatever the locale, so the english value cannot be claimed again under the
+		// new one
+		assertThrows(
+			UniqueValueViolationException.class,
 			() -> index.registerUniqueKey("en-value", Entities.PRODUCT, Locale.GERMAN, 4, this.classifierResolver)
 		);
 	}
 
+
+	/**
+	 * Tests for {@link GlobalUniqueIndex#getRecordCount()}, the number of distinct `(entity type, primary key)` owners,
+	 * read off the value tree.
+	 */
+	@Nested
+	@DisplayName("Record count")
+	class RecordCountTest {
+
+		@Test
+		@DisplayName("an empty index counts no records, also once its only value is removed again")
+		void shouldCountNoRecordsInEmptyIndex() {
+			final GlobalUniqueIndex index = createIndex();
+			assertEquals(0, index.size());
+			assertEquals(0, index.getRecordCount());
+
+			index.registerUniqueKey("A", Entities.PRODUCT, null, 1, PRODUCT_AND_CATEGORY);
+			index.unregisterUniqueKey("A", Entities.PRODUCT, null, 1, PRODUCT_AND_CATEGORY);
+
+			assertEquals(0, index.size());
+			assertEquals(0, index.getRecordCount());
+		}
+
+		@Test
+		@DisplayName("an owner is counted once when the entity types of neighbouring values interleave")
+		void shouldCountOwnerOnceWhenEntityTypesInterleave() {
+			final GlobalUniqueIndex index = createIndex();
+			// in key order the entity type switches away from products and back to them - the returning product 1
+			// must be recognized as already counted rather than counted afresh on every switch of the type
+			index.registerUniqueKey("a", Entities.PRODUCT, Locale.ENGLISH, 1, PRODUCT_AND_CATEGORY);
+			index.registerUniqueKey("b", Entities.CATEGORY, Locale.ENGLISH, 1, PRODUCT_AND_CATEGORY);
+			index.registerUniqueKey("c", Entities.PRODUCT, Locale.GERMAN, 1, PRODUCT_AND_CATEGORY);
+			index.registerUniqueKey("d", Entities.CATEGORY, Locale.ENGLISH, 2, PRODUCT_AND_CATEGORY);
+
+			assertEquals(4, index.size());
+			assertEquals(3, index.getRecordCount(), "product 1, category 1 and category 2");
+		}
+
+		@Test
+		@DisplayName("owners whose values span several leaves are counted once")
+		void shouldCountOwnersAcrossLeafPages() {
+			final EntityTypeClassifierResolver resolver = resolverOf(Map.of(Entities.PRODUCT, 0, Entities.CATEGORY, 1));
+			final GlobalUniqueIndex index = createIndex();
+			// value i belongs to entity type `i % 2`, and each primary key owns two values 200 keys apart, so the
+			// types interleave in key order and one owner's values sit in different leaves
+			for (int i = 0; i < 400; i++) {
+				index.registerUniqueKey(
+					String.format("key-%04d", i),
+					i % 2 == 0 ? Entities.PRODUCT : Entities.CATEGORY,
+					null,
+					(i / 2) % 100 + 1,
+					resolver
+				);
+			}
+
+			assertTrue(index.isPaged(), "the values must span more than one leaf");
+			assertEquals(400, index.size());
+			assertEquals(200, index.getRecordCount(), "a hundred products and a hundred categories");
+		}
+
+		@Test
+		@DisplayName("primary keys across the whole int range and the boundary entity type ids are counted")
+		void shouldCountExtremePrimaryKeysAndEntityTypeIds() {
+			final EntityTypeClassifierResolver resolver =
+				resolverOf(Map.of(Entities.PRODUCT, 0, Entities.CATEGORY, 0xFFFF));
+			final GlobalUniqueIndex index = createIndex();
+			final int[] primaryKeys = {Integer.MIN_VALUE, -1, 0, Integer.MAX_VALUE};
+			for (int primaryKey : primaryKeys) {
+				index.registerUniqueKey("product-" + primaryKey, Entities.PRODUCT, null, primaryKey, resolver);
+				index.registerUniqueKey("category-" + primaryKey, Entities.CATEGORY, null, primaryKey, resolver);
+			}
+
+			assertEquals(8, index.getRecordCount());
+			// the packed payload unpacks every primary key with its sign, whatever the entity type id next to it
+			assertArrayEquals(
+				primaryKeys, UniqueIndexTestSupport.ownerRecordIds(index, Entities.PRODUCT, resolver)
+			);
+			assertArrayEquals(
+				primaryKeys, UniqueIndexTestSupport.ownerRecordIds(index, Entities.CATEGORY, resolver)
+			);
+		}
+
+		@Test
+		@DisplayName("a transaction's changes are counted inside it and leave the baseline count untouched")
+		void shouldCountTransactionalChangesOnlyInsideTheTransaction() {
+			final GlobalUniqueIndex index = createIndexWithEntityOwningTwoValues();
+
+			assertStateAfterCommit(
+				index,
+				original -> {
+					original.unregisterUniqueKey("en-A", Entities.PRODUCT, Locale.ENGLISH, 1, PRODUCT_AND_CATEGORY);
+					original.registerUniqueKey("en-C", Entities.PRODUCT, Locale.ENGLISH, 3, PRODUCT_AND_CATEGORY);
+					// product 1 still owns `de-A`, and product 3 joins products 1 and 2
+					assertEquals(3, original.getRecordCount());
+				},
+				(original, committed) -> {
+					assertEquals(3, committed.getRecordCount());
+					assertEquals(2, original.getRecordCount(), "the baseline must not see the transaction's changes");
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a rolled back transaction leaves the count as it was")
+		void shouldRestoreRecordCountOnRollback() {
+			final GlobalUniqueIndex index = createIndexWithEntityOwningTwoValues();
+
+			assertStateAfterRollback(
+				index,
+				original -> {
+					original.unregisterUniqueKey("en-A", Entities.PRODUCT, Locale.ENGLISH, 1, PRODUCT_AND_CATEGORY);
+					original.unregisterUniqueKey("de-A", Entities.PRODUCT, Locale.GERMAN, 1, PRODUCT_AND_CATEGORY);
+					assertEquals(1, original.getRecordCount(), "product 1 owns nothing inside the transaction");
+				},
+				(original, committed) -> {
+					assertNull(committed);
+					assertEquals(2, original.getRecordCount());
+				}
+			);
+		}
+
+		/**
+		 * Creates the baseline the transactional count tests start from: product 1 owns `en-A` and `de-A`, product 2
+		 * owns `en-B`, so the locale-less index holds three values of two entities.
+		 *
+		 * @return the prepared index
+		 */
+		@Nonnull
+		private GlobalUniqueIndex createIndexWithEntityOwningTwoValues() {
+			final GlobalUniqueIndex index = createIndex();
+			index.registerUniqueKey("en-A", Entities.PRODUCT, Locale.ENGLISH, 1, PRODUCT_AND_CATEGORY);
+			index.registerUniqueKey("de-A", Entities.PRODUCT, Locale.GERMAN, 1, PRODUCT_AND_CATEGORY);
+			index.registerUniqueKey("en-B", Entities.PRODUCT, Locale.ENGLISH, 2, PRODUCT_AND_CATEGORY);
+			assertEquals(2, index.getRecordCount());
+			return index;
+		}
+	}
+
+	/**
+	 * Tests for the rule that a value occurs in the index once, whoever claims it a second time.
+	 */
+	@Nested
+	@DisplayName("Strict uniqueness")
+	class StrictUniquenessTest {
+
+		@Test
+		@DisplayName("an entity of another type sharing the owner's primary key cannot claim the value")
+		void shouldRejectValueOwnedByAnotherEntityTypeWithSamePrimaryKey() {
+			final GlobalUniqueIndex index = createIndex();
+			index.registerUniqueKey("A", Entities.PRODUCT, null, 1, PRODUCT_AND_CATEGORY);
+
+			final UniqueValueViolationException exception = assertThrows(
+				UniqueValueViolationException.class,
+				() -> index.registerUniqueKey("A", Entities.CATEGORY, null, 1, PRODUCT_AND_CATEGORY)
+			);
+			// both compact entity type ids were translated back to their names for the message
+			assertEquals(Entities.PRODUCT, exception.getExistingRecordType());
+			assertEquals(1, exception.getExistingRecordId());
+			assertEquals(Entities.CATEGORY, exception.getNewRecordType());
+			assertEquals(1, exception.getNewRecordId());
+		}
+
+		@Test
+		@DisplayName("an array repeating a value its own entity already owns is refused without any change")
+		void shouldRejectArrayRepeatingValueTheSameEntityAlreadyOwnsWithoutMutating() {
+			assertArrayWithOwnedValueIsRejectedWithoutMutating(1);
+		}
+
+		@Test
+		@DisplayName("an array holding a value another entity owns is refused without any change")
+		void shouldRejectArrayWithValueOfAnotherRecordWithoutMutating() {
+			assertArrayWithOwnedValueIsRejectedWithoutMutating(99);
+		}
+
+		/**
+		 * Lets product `ownerPrimaryKey` own `B` in english, then has product 1 claim `A`, `B` and `C` as one german
+		 * array, and verifies the claim is refused before any of its elements is registered.
+		 *
+		 * @param ownerPrimaryKey primary key of the product owning `B` before the array claim
+		 */
+		private void assertArrayWithOwnedValueIsRejectedWithoutMutating(int ownerPrimaryKey) {
+			final GlobalUniqueIndex index = createIndex();
+			index.registerUniqueKey("B", Entities.PRODUCT, Locale.ENGLISH, ownerPrimaryKey, PRODUCT_AND_CATEGORY);
+
+			assertThrows(
+				UniqueValueViolationException.class,
+				() -> index.registerUniqueKey(
+					new String[]{"A", "B", "C"}, Entities.PRODUCT, Locale.GERMAN, 1, PRODUCT_AND_CATEGORY
+				)
+			);
+
+			assertTrue(index.getEntityReferenceByUniqueValue("A", null, PRODUCT_AND_CATEGORY).isEmpty());
+			assertTrue(index.getEntityReferenceByUniqueValue("C", null, PRODUCT_AND_CATEGORY).isEmpty());
+			assertEquals(
+				new EntityReferenceWithLocale(Entities.PRODUCT, ownerPrimaryKey, Locale.ENGLISH),
+				index.getEntityReferenceByUniqueValue("B", null, PRODUCT_AND_CATEGORY).orElse(null)
+			);
+			assertEquals(1, index.size());
+			assertEquals(1, index.getRecordCount());
+		}
+	}
+
+	/**
+	 * Tests for the ownership check that precedes every removal, so a refused unregister leaves the index as it was.
+	 */
+	@Nested
+	@DisplayName("Ownership on unregister")
+	class UnregisterOwnershipTest {
+
+		@Test
+		@DisplayName("a value is left in place when unregistered by an entity of another type")
+		void shouldLeaveValueUntouchedWhenUnregisteredUnderAnotherEntityType() {
+			final GlobalUniqueIndex index = createIndex();
+			index.registerUniqueKey("A", Entities.PRODUCT, null, 1, PRODUCT_AND_CATEGORY);
+
+			assertThrows(
+				IllegalArgumentException.class,
+				() -> index.unregisterUniqueKey("A", Entities.CATEGORY, null, 1, PRODUCT_AND_CATEGORY)
+			);
+			assertEquals(
+				new EntityReferenceWithLocale(Entities.PRODUCT, 1, null),
+				index.getEntityReferenceByUniqueValue("A", null, PRODUCT_AND_CATEGORY).orElse(null)
+			);
+		}
+
+		@Test
+		@DisplayName("a value is left in place when unregistered by its owner under another locale")
+		void shouldLeaveValueUntouchedWhenUnregisteredUnderAnotherLocale() {
+			final GlobalUniqueIndex index = createIndex();
+			index.registerUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 1, PRODUCT_AND_CATEGORY);
+
+			// the owning tuple includes the locale, so the same entity in another locale does not own the value
+			assertThrows(
+				IllegalArgumentException.class,
+				() -> index.unregisterUniqueKey("A", Entities.PRODUCT, Locale.GERMAN, 1, PRODUCT_AND_CATEGORY)
+			);
+			assertEquals(
+				new EntityReferenceWithLocale(Entities.PRODUCT, 1, Locale.ENGLISH),
+				index.getEntityReferenceByUniqueValue("A", Locale.ENGLISH, PRODUCT_AND_CATEGORY).orElse(null)
+			);
+		}
+
+		@Test
+		@DisplayName("no element of an array is unregistered when one of them belongs to another entity")
+		void shouldUnregisterNoArrayElementWhenOneIsOwnedByAnotherRecord() {
+			final GlobalUniqueIndex index = createIndex();
+			index.registerUniqueKey(new String[]{"A", "B"}, Entities.PRODUCT, null, 1, PRODUCT_AND_CATEGORY);
+			index.registerUniqueKey("C", Entities.PRODUCT, null, 2, PRODUCT_AND_CATEGORY);
+
+			assertThrows(
+				IllegalArgumentException.class,
+				() -> index.unregisterUniqueKey(new String[]{"A", "C"}, Entities.PRODUCT, null, 1, PRODUCT_AND_CATEGORY)
+			);
+			assertEquals(
+				new EntityReferenceWithLocale(Entities.PRODUCT, 1, null),
+				index.getEntityReferenceByUniqueValue("A", null, PRODUCT_AND_CATEGORY).orElse(null)
+			);
+			assertEquals(
+				new EntityReferenceWithLocale(Entities.PRODUCT, 2, null),
+				index.getEntityReferenceByUniqueValue("C", null, PRODUCT_AND_CATEGORY).orElse(null)
+			);
+			assertEquals(3, index.size());
+			assertEquals(2, index.getRecordCount());
+		}
+
+		@Test
+		@DisplayName("a scalar unregister returns the released reference, an array unregister returns null")
+		void shouldReturnReleasedReferenceForScalarAndNullForArray() {
+			final GlobalUniqueIndex index = createIndex();
+			index.registerUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 1, PRODUCT_AND_CATEGORY);
+			index.registerUniqueKey(new String[]{"B", "C"}, Entities.PRODUCT, Locale.ENGLISH, 1, PRODUCT_AND_CATEGORY);
+
+			assertEquals(
+				new EntityReferenceWithLocale(Entities.PRODUCT, 1, Locale.ENGLISH),
+				index.unregisterUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 1, PRODUCT_AND_CATEGORY)
+			);
+			assertNull(
+				index.unregisterUniqueKey(
+					new String[]{"B", "C"}, Entities.PRODUCT, Locale.ENGLISH, 1, PRODUCT_AND_CATEGORY
+				)
+			);
+			assertTrue(index.isEmpty());
+		}
+	}
+
+	/**
+	 * Creates an empty index over a locale-less attribute, the shape a `uniqueGlobally` localized attribute keys.
+	 *
+	 * @return the fresh empty index
+	 */
+	@Nonnull
+	private static GlobalUniqueIndex createIndex() {
+		return new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("code"), String.class);
+	}
 
 	/**
 	 * A globally-unique temporal attribute. `GlobalUniqueIndex` is created unconditionally for a `uniqueGlobally`
