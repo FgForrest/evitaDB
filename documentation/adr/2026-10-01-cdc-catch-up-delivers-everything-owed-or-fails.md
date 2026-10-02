@@ -1,7 +1,7 @@
 ---
 title: A CDC subscriber catching up from the WAL is served everything it is owed or told why not
 date: 2026-10-01
-updated: 2026-10-02 09:10
+updated: 2026-10-02 12:41
 status: accepted
 kind: fix
 issues: [1687, 1446, 1690]
@@ -203,6 +203,17 @@ reported.
   bytes".
 - The investigation probe (6 seeds × 41 start versions × 3,000 transactions, compression on): 223 of 246 forward
   reads ended early before the fix, 0 after.
+- The reader fix against all the storage at hand: 7 datasets, two of them largely compressed. Run with `tools/verify-storage.sh` (see `documentation/developer/storage-verification.md`), the
+  pre-fix reader shadowed in for the counterfactual:
+  - Records: 90.1 million records (54 GB of payload) read at buffer sizes 16384 and 4096. With the fix every
+    `total()` equals the file offset; without it 1,451,646 do not, over byte-identical payloads. The fix moves the
+    offset and nothing else.
+  - WAL replay through `CatalogWriteAheadLog`, from nearly every start version: 1,568 of 1,568 replays complete with
+    the fix. Without it, 10 stop early on two production WALs - silently in the greedy stream, with "read as -16310
+    bytes" in the strict one.
+  - Deserializers: catalog load plus every entity fetched with full content, 1,590,190 entities, 0 failures in both
+    builds and 133 of 133 per-collection content digests identical. The 2026.2 backport was verified on 2026.2 for
+    the three datasets that release can open, and with the dev build for the three written by a dev build.
 - `CatalogChangeCaptureWalCatchUpTest` and `SystemChangeCaptureWalCatchUpTest` - real engines through the public
   registration API, each test proven against the guard it protects:
   - S1 (content-length prefix of transaction 8 of 2..11 falsified): `onError(WriteAheadLogCorruptedException)` with
