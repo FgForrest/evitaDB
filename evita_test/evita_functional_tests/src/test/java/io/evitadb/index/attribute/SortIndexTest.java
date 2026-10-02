@@ -903,12 +903,35 @@ class SortIndexTest {
 		}
 
 		@Test
-		@DisplayName("should not scale BigDecimal in the query-comparator normalizer (raw natural order is correct)")
-		void shouldNotCreateNormalizerForBigDecimal() {
+		@DisplayName("should round BigDecimal half up to the schema scale in the query-comparator normalizer")
+		void shouldRoundBigDecimalInComparatorNormalizer() {
 			final ComparatorSource source =
 				new ComparatorSource(BigDecimal.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
-			// the query-side overload leaves BigDecimal unscaled - sorting result rows by raw BigDecimal is order-correct
-			assertTrue(SortIndex.createComparatorNormalizerFor(source, 2).isEmpty());
+			final UnaryOperator<Serializable> normalizer =
+				SortIndex.createComparatorNormalizerFor(source, 2).orElseThrow();
+
+			// values differing only past the schema scale tie, as their scaled int keys tie in the sort index
+			final BigDecimal low = (BigDecimal) normalizer.apply(new BigDecimal("1.231"));
+			final BigDecimal high = (BigDecimal) normalizer.apply(new BigDecimal("1.234"));
+			assertEquals(0, low.compareTo(high));
+			// half up, as the sort index rounds, and the value stays a BigDecimal
+			assertEquals(new BigDecimal("1.24"), normalizer.apply(new BigDecimal("1.235")));
+			assertEquals(new BigDecimal("-1.24"), normalizer.apply(new BigDecimal("-1.235")));
+			assertNull(normalizer.apply(null));
+		}
+
+		@Test
+		@DisplayName("should keep a BigDecimal compound element exact in the query-comparator normalizer")
+		void shouldKeepBigDecimalCompoundElementExactInComparatorNormalizer() {
+			final ComparatorSource[] sources = {
+				new ComparatorSource(BigDecimal.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+				new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+			};
+			// the sort index of a compound keeps a BigDecimal element exact, so the comparators must not round it
+			final UnaryOperator<Serializable> normalizer =
+				SortIndex.createComparatorNormalizerFor(sources, new int[]{2, 0});
+			final Serializable[] values = {new BigDecimal("1.231"), 7};
+			assertArrayEquals(values, (Serializable[]) normalizer.apply(values));
 		}
 
 		@Test

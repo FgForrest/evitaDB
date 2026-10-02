@@ -70,6 +70,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -265,7 +266,8 @@ public abstract sealed class SortIndex
 	/**
 	 * Creates the normalizer a comparator of prefetched entities applies to the compound values it reads from entity
 	 * bodies - one element normalizer per compound element, see
-	 * {@link #createComparatorNormalizerFor(ComparatorSource, int)}.
+	 * {@link #createComparatorNormalizerFor(ComparatorSource, int)}, except that a `BigDecimal` element is left exact,
+	 * because the sort index of a compound keeps it exact too.
 	 *
 	 * @param comparatorBase       one descriptor per compound element
 	 * @param indexedDecimalPlaces the `indexedDecimalPlaces` of each element's attribute schema, in element order
@@ -284,8 +286,9 @@ public abstract sealed class SortIndex
 		final UnaryOperator<Serializable>[] normalizers = new UnaryOperator[comparatorBase.length];
 		boolean atLeastOneNormalizerFound = false;
 		for (int i = 0; i < comparatorBase.length; i++) {
+			// the index of a compound keeps a `BigDecimal` element exact, so the comparators must not round it either
 			final Optional<UnaryOperator<Serializable>> normalizer =
-				createComparatorNormalizerFor(comparatorBase[i], indexedDecimalPlaces[i]);
+				createComparatorNormalizerFor(comparatorBase[i], indexedDecimalPlaces[i], false);
 			normalizers[i] = normalizer.orElseGet(UnaryOperator::identity);
 			atLeastOneNormalizerFound = atLeastOneNormalizerFound || normalizer.isPresent();
 		}
@@ -327,17 +330,17 @@ public abstract sealed class SortIndex
 
 	/**
 	 * Creates the normalizer a comparator of prefetched entities applies to the values it reads from entity bodies, if
-	 * the comparator base is of type {@link String}, {@link Locale}, {@link Currency}, {@link BigDecimalNumberRange} or
-	 * one of the temporal types normalized to their millisecond form, so the comparator orders the entities exactly as
-	 * a sort index does.
+	 * the comparator base is of type {@link String}, {@link Locale}, {@link Currency}, {@link BigDecimal},
+	 * {@link BigDecimalNumberRange} or one of the temporal types normalized to their millisecond form, so the comparator
+	 * orders the entities exactly as the sort index of the attribute does.
 	 *
-	 * `BigDecimal` is intentionally NOT normalized here: the comparators compare raw `BigDecimal` entity values among
-	 * themselves, where natural order is already correct. A `BigDecimalNumberRange` is different - it compares by its
-	 * bounds encoded at a decimal scale, and the entity body keeps each range at the scale of its own bounds, so the
-	 * ranges of two entities are comparable only once both are encoded at one scale. They are re-encoded at the
-	 * attribute's `indexedDecimalPlaces`, the scale the sort index holds them at, so the comparators order the entities
-	 * exactly as the index does. The index-side scaling is supplied through the
-	 * {@link #createNormalizerFor(ComparatorSource, int)} overload.
+	 * The sort index holds a `BigDecimal` rounded to the attribute's `indexedDecimalPlaces` (see
+	 * {@link #createNormalizerFor(ComparatorSource, int)}), while the entity body keeps the value as written, so two
+	 * values differing only past that scale are one value - a tie - to the index. The comparator rounds them the same
+	 * way, half up, but keeps them `BigDecimal`: equal and ordered exactly like the scaled `int` keys of the index,
+	 * without their `int` range limit. A `BigDecimalNumberRange` compares by its bounds encoded at a decimal scale, and
+	 * the entity body keeps each range at the scale of its own bounds, so the ranges of two entities are comparable only
+	 * once both are re-encoded at the attribute's `indexedDecimalPlaces`, the scale the sort index holds them at.
 	 *
 	 * @param comparatorBase       descriptor of the compared value
 	 * @param indexedDecimalPlaces the `indexedDecimalPlaces` of the attribute schema the value belongs to
@@ -349,9 +352,32 @@ public abstract sealed class SortIndex
 		@Nonnull ComparatorSource comparatorBase,
 		int indexedDecimalPlaces
 	) {
+		return createComparatorNormalizerFor(comparatorBase, indexedDecimalPlaces, true);
+	}
+
+	/**
+	 * Shared implementation behind the two public `createComparatorNormalizerFor` overloads. `roundBigDecimal` gates
+	 * the rounding of a `BigDecimal` to `indexedDecimalPlaces`: a plain attribute's sort index rounds it, a compound's
+	 * keeps it exact.
+	 *
+	 * @param comparatorBase       descriptor of the compared value
+	 * @param indexedDecimalPlaces the `indexedDecimalPlaces` of the attribute schema the value belongs to
+	 * @param roundBigDecimal      whether a `BigDecimal` is rounded to `indexedDecimalPlaces`
+	 * @return the normalizer, or empty when the type needs none
+	 */
+	@Nonnull
+	private static Optional<UnaryOperator<Serializable>> createComparatorNormalizerFor(
+		@Nonnull ComparatorSource comparatorBase,
+		int indexedDecimalPlaces,
+		boolean roundBigDecimal
+	) {
 		if (BigDecimalNumberRange.class.isAssignableFrom(comparatorBase.type())) {
 			return Optional.of(
 				value -> value == null ? null : NumberUtils.normalizeForIndexing(value, indexedDecimalPlaces)
+			);
+		} else if (roundBigDecimal && BigDecimal.class.isAssignableFrom(comparatorBase.type())) {
+			return Optional.of(
+				value -> value instanceof BigDecimal bd ? bd.setScale(indexedDecimalPlaces, RoundingMode.HALF_UP) : value
 			);
 		} else {
 			return createNormalizerFor(comparatorBase, indexedDecimalPlaces, false);
