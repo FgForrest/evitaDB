@@ -1,7 +1,7 @@
 ---
 title: A CDC subscriber catching up from the WAL is served everything it is owed or told why not
 date: 2026-10-01
-updated: 2026-10-02 07:45
+updated: 2026-10-02 09:10
 status: accepted
 kind: fix
 issues: [1687, 1446, 1690]
@@ -186,15 +186,18 @@ reported.
 - `clearUnusedDataInRingBuffer` sweeps only zero counts below the ring start.
 - `DefaultEnginePersistenceService#writeBootstrapFile` reports the version it publishes to the engine WAL as
   processed - the engine's twin of the catalog's `walProcessedUntil` after `writeCatalogBootstrap`. Replay starts
-  after the published version, and retention still keeps `walFileCountKept` files.
+  after the published version, and retention still keeps `walFileCountKept` files. That call runs **after** the
+  publish and must never throw: `appendWalAndStoreState` rolls the WAL append back on any failure, and a rollback
+  after the publish removes bytes the published record references. A failure to schedule the removal is logged
+  instead; the processed version is already set, so the next publish schedules it again.
 - `AbstractMutationSupplier`'s premise message now prints the prefix, the measured lead size, the declared
   mutation size and the version - a negative lead size cannot come from bytes on disk.
 
 ## Verification
 
 - `CompressedInputOutputTest#shouldReportStreamOffsetAfterCompressedRecordsSpanningRawBufferRefills` - 40
-  compressed records through a 64-byte buffer; without the fix `total()` after the first record is 44 instead of
-  108.
+  compressed records through a 64-byte buffer, read at each of the 64 shifts of the stream against the buffer;
+  without the fix `total()` after the first record is 44 instead of 108.
 - `CatalogWriteAheadLogIntegrationTest$CompressedWalTests` - 1,500 compressed transactions read forward, loud and
   greedy; without the fix it fails with the production signature: version 665's leading record "read as -16330
   bytes".
@@ -210,7 +213,10 @@ reported.
     the first replayable version. Without the retention classification: `WriteAheadLogCorruptedException`; with the
     pre-fix greedy read: no signal at all.
   - S3 (BRAND subscriber, 30 PRODUCT transactions, its file purged): no error and the late BRAND capture delivered.
-    Without the examined-through watermark: `TemporalDataNotAvailableException` (29).
+    Without the examined-through watermark: `TemporalDataNotAvailableException` (29). The engine counterpart
+    (HOST-only subscriber from engine version 2, 60 engine transactions, retention past it during uptime) delivers
+    the late host event with no error; without the watermark in the system publisher it fails with
+    `TemporalDataNotAvailableException` (34).
   - S6: `getLaggingSubscribersCount()` reads 1 for a subscriber parked behind the ring; 0 with the old sweep.
   - S4 is `CatalogChangeObserverTest#shouldRegisterObserverAndReceiveAllExistingMutations`: checking retention
     against the first version in the WAL instead of the first replayable one drops it from 20 captures to 0.
@@ -248,7 +254,10 @@ reported.
   the files present … replay cannot start from a file that is gone!`; also held by the re-open alone);
   `$FusedAppendAndStoreState#shouldKeepServingTheWalAfterARolledBackAppend` (`expected 5 but was 0`);
   `CatalogWriteAheadLogIntegrationTest$MultiFileWalTests#shouldResolveTheFirstReplayableVersionFromAListingThatMissedAFileRemovedMidListing`
-  (`Missing WAL file with index 2`). `WalReadResultTest` pins the suppressed re-check;
+  (`Missing WAL file with index 2`);
+  `DefaultEnginePersistenceServiceTest$WalRotation#shouldKeepAPublishedAppendWhenTheRemovalOfRotatedWalFilesCannotBeScheduled`
+  (`RejectedExecutionException` out of the post-publish `walProcessedUntil`, rolling back a published append, found
+  in PR review). `WalReadResultTest` pins the suppressed re-check;
   `ChangeCaptureSubscriptionFillFailureTest` pins `pendingFillFailure` directly (`expected 2 but was 0` with the
   failure signalled at once); `CatalogChangeObserverTest` / `SystemChangeObserverTest`
   `#shouldSweepOnlyUntrackedVersionsBelowTheRingBufferStart` pin the zero-only sweep.
@@ -264,9 +273,9 @@ reported.
 - **The retention pre-check in `readWal` is invisible to the subscriber** - the post-failure re-check yields the
   same exception. It keeps a retention miss from first being built as `WriteAheadLogCorruptedException`, an
   internal error that moves `io_evitadb_errors_total`; no test pins that counter.
-- **Not pinned by a test:** S3 at the engine level and S6's lagging count there (same code shape as the catalog
-  publisher; the engine sweep itself is pinned by `SystemChangeObserverTest`), and the ring initialisation
-  `version - 1` (a race with a concurrent fill).
+- **Not pinned by a test:** S6's lagging count at the engine level (same code shape as the catalog publisher; the
+  engine sweep itself is pinned by `SystemChangeObserverTest`), and the ring initialisation `version - 1` (a race
+  with a concurrent fill).
 - **An engine with no WAL at all answers an empty catch-up stream** rather than throwing - a fresh engine's system
   subscriber from version 0 legitimately reads nothing. Only a rollback could leave an existing WAL unopened, and it
   now re-opens the log before it returns.
