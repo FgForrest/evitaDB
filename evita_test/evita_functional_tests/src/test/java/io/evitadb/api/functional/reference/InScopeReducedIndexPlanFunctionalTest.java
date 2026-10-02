@@ -49,6 +49,7 @@ import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatist
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.core.query.indexSelection.TargetIndexes.EligibilityObstacle;
@@ -83,12 +84,14 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.anyHaving;
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
 import static io.evitadb.api.query.QueryConstraints.attributeNatural;
 import static io.evitadb.api.query.QueryConstraints.children;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.debug;
+import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.api.query.QueryConstraints.entityHaving;
 import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
@@ -141,6 +144,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -187,6 +191,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * subtree, and archived afterwards, so it has no owner anywhere in the live tree. The `HierarchyWithinOverBothScopes`
  * tests use it to pin that a product reachable through the archived tree alone is neither lost nor duplicated when
  * the hierarchy filter spans both scopes.
+ *
+ * A third data set, {@link #IN_SCOPE_REDUCED_INDEX_PLAN_SECOND_BRAND}, adds brand {@link #OTHER_BRAND} to the fixture
+ * above: the live unbranded products 4, 12 and 20 hold it, and so does product {@link #ARCHIVED_OTHER_BRAND_PRODUCT},
+ * archived and without a category, so the `brand` reference has two facets whose owners live in both scopes. The
+ * `FacetSummaryOverScopeContainers` tests use it to pin the facet summary of a facet computed after another one.
  *
  * `inScopePlanProduct` supports the `en` and `de` locales and has a `visible` attribute filterable in both scopes,
  * a CZK price in price list `basic`, a partitioned `categories` reference, a partitioned and faceted `brand`
@@ -250,6 +259,11 @@ public class InScopeReducedIndexPlanFunctionalTest {
 	 */
 	private static final String IN_SCOPE_REDUCED_INDEX_PLAN_ARCHIVED_SUBTREE_OWNER =
 		"inScopeReducedIndexPlanArchivedSubtreeOwner";
+	/**
+	 * The fixture with brand {@link #OTHER_BRAND} held by live products 4, 12, 20 and archived product
+	 * {@link #ARCHIVED_OTHER_BRAND_PRODUCT}.
+	 */
+	private static final String IN_SCOPE_REDUCED_INDEX_PLAN_SECOND_BRAND = "inScopeReducedIndexPlanSecondBrand";
 	private static final String ENTITY_CATEGORY = "inScopePlanCategory";
 	private static final String ENTITY_BRAND = "inScopePlanBrand";
 	private static final String ENTITY_TAG = "inScopePlanTag";
@@ -295,6 +309,10 @@ public class InScopeReducedIndexPlanFunctionalTest {
 	private static final int MISSING_CATEGORY = 999;
 	private static final int BRAND = 1;
 	/**
+	 * A second brand, present in the {@link #IN_SCOPE_REDUCED_INDEX_PLAN_SECOND_BRAND} data set only.
+	 */
+	private static final int OTHER_BRAND = 2;
+	/**
 	 * A live product referencing the tag, which passes every outer constraint.
 	 */
 	private static final int LIVE_TAGGED_PRODUCT = 8;
@@ -302,6 +320,11 @@ public class InScopeReducedIndexPlanFunctionalTest {
 	 * An archived product referencing the archived category 12 only - none of the live tree.
 	 */
 	private static final int ARCHIVED_SUBTREE_ONLY_PRODUCT = 100;
+	/**
+	 * An archived product holding brand {@link #OTHER_BRAND} and no category, present in the
+	 * {@link #IN_SCOPE_REDUCED_INDEX_PLAN_SECOND_BRAND} data set only.
+	 */
+	private static final int ARCHIVED_OTHER_BRAND_PRODUCT = 101;
 	/**
 	 * A product primary key that does not exist in any scope.
 	 */
@@ -412,6 +435,45 @@ public class InScopeReducedIndexPlanFunctionalTest {
 			TEST_CATALOG,
 			session -> {
 				session.archiveEntity(ENTITY_PRODUCT, ARCHIVED_SUBTREE_ONLY_PRODUCT);
+			}
+		);
+	}
+
+	/**
+	 * Builds the read-only fixture described on the class with brand {@link #OTHER_BRAND} added: the live unbranded
+	 * products 4, 12 and 20 receive it, and so does {@link #ARCHIVED_OTHER_BRAND_PRODUCT}, created live and archived
+	 * afterwards. The archived unbranded products 52, 60 and 68 stay without a brand.
+	 *
+	 * @param evita the engine instance provided by the test extension
+	 */
+	@DataSet(value = IN_SCOPE_REDUCED_INDEX_PLAN_SECOND_BRAND, destroyAfterClass = true)
+	void setUpWithSecondBrand(@Nonnull Evita evita) {
+		buildFixture(evita);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.upsertEntity(session.createNewEntity(ENTITY_BRAND, OTHER_BRAND));
+				for (final int pk : UNBRANDED) {
+					if (pk < FIRST_ARCHIVED) {
+						session.getEntity(ENTITY_PRODUCT, pk, entityFetchAllContent())
+							.orElseThrow()
+							.openForWrite()
+							.setReference(REF_BRAND, OTHER_BRAND)
+							.upsertVia(session);
+					}
+				}
+				session.upsertEntity(
+					session.createNewEntity(ENTITY_PRODUCT, ARCHIVED_OTHER_BRAND_PRODUCT)
+						.setAttribute(ATTR_NAME, LOCALE, "archived other brand")
+						.setAttribute(ATTR_VISIBLE, true)
+						.setReference(REF_BRAND, OTHER_BRAND)
+				);
+			}
+		);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.archiveEntity(ENTITY_PRODUCT, ARCHIVED_OTHER_BRAND_PRODUCT);
 			}
 		);
 	}
@@ -2185,6 +2247,15 @@ public class InScopeReducedIndexPlanFunctionalTest {
 					new int[]{ROOT_CATEGORY},
 					new int[]{ARCHIVED_ROOT_CATEGORY}
 				),
+				// the any-child filter resolves the globally unique value in each tree's own scope: only the roots
+				// have it in their subtree
+				Arguments.of(
+					"own whole hierarchy, any having by global unique attribute", ENTITY_CATEGORY,
+					hierarchyWithinRootSelf(anyHaving(attributeEquals(ATTR_GLOBAL_CODE, ROOT_CODE))),
+					new int[]{ROOT_CATEGORY, ARCHIVED_ROOT_CATEGORY},
+					new int[]{ROOT_CATEGORY},
+					new int[]{ARCHIVED_ROOT_CATEGORY}
+				),
 				// the referenced counterpart: nodes 3, 4 and 15 stay, so do their owners of both scopes
 				Arguments.of(
 					"whole hierarchy, excluding by global unique attribute", ENTITY_PRODUCT,
@@ -2294,6 +2365,12 @@ public class InScopeReducedIndexPlanFunctionalTest {
 				Arguments.of(
 					"having by attribute filterable in live scope only", Scope.LIVE,
 					hierarchyWithinRootSelf(having(attributeEquals(ATTR_LIVE_ONLY, true))),
+					new int[]{ROOT_CATEGORY, SUBTREE_CATEGORY, OTHER_CATEGORY}
+				),
+				// the any-child filter reads the same live-only attribute, again in the live tree alone
+				Arguments.of(
+					"any having by attribute filterable in live scope only", Scope.LIVE,
+					hierarchyWithinRootSelf(anyHaving(attributeEquals(ATTR_LIVE_ONLY, true))),
 					new int[]{ROOT_CATEGORY, SUBTREE_CATEGORY, OTHER_CATEGORY}
 				),
 				// the archived tree hides category 11, which holds the globally unique value in the archived scope
@@ -2619,16 +2696,20 @@ public class InScopeReducedIndexPlanFunctionalTest {
 		@Tag(QUERY)
 		@Tag(FACET)
 		void shouldCountFacetGroupOfScopeRestrictedByUserFilterAlone(@Nonnull EvitaSessionContract session) {
-			final int expected = queryBrandGroupCount(session, new FilterConstraint[0]);
+			final int expected = queryBrandStatistics(
+				session, FacetStatisticsDepth.COUNTS, new FilterConstraint[0], null
+			).getCount();
 			assertEquals(ALL_PRODUCTS.length - UNBRANDED.length, expected, "every branded product counts in the group");
 			assertEquals(
 				expected,
-				queryBrandGroupCount(
+				queryBrandStatistics(
 					session,
+					FacetStatisticsDepth.COUNTS,
 					new FilterConstraint[]{
 						inScope(Scope.LIVE, userFilter(facetHaving(REF_BRAND, entityPrimaryKeyInSet(BRAND))))
-					}
-				)
+					},
+					null
+				).getCount()
 			);
 		}
 
@@ -2683,89 +2764,240 @@ public class InScopeReducedIndexPlanFunctionalTest {
 			@Nonnull EvitaSessionContract session
 		) {
 			final FilterConstraint brandSelected = userFilter(facetHaving(REF_BRAND, entityPrimaryKeyInSet(BRAND)));
-			final int selected = session.query(
-				query(
-					collection(ENTITY_PRODUCT),
-					filterBy(scope(BOTH_SCOPES), referenceHaving(REF_BRAND, entityPrimaryKeyInSet(BRAND))),
-					require(page(1, 0))
-				),
-				EntityReference.class
-			).getTotalRecordCount();
+			final int selected = queryProductCount(
+				session, BOTH_SCOPES, referenceHaving(REF_BRAND, entityPrimaryKeyInSet(BRAND))
+			);
 			final int expected = negated ? ALL_PRODUCTS.length - selected : selected;
 			assertEquals(
-				expected, queryBrandFacetCount(session, new FilterConstraint[0], relation),
+				expected, queryBrandFacetCount(session, new FilterConstraint[0], relation, BRAND),
 				"the facet count without any user filter must match the query with the facet selected"
 			);
 			assertEquals(
 				expected,
-				queryBrandFacetCount(session, new FilterConstraint[]{inScope(Scope.LIVE, brandSelected)}, relation)
+				queryBrandFacetCount(
+					session, new FilterConstraint[]{inScope(Scope.LIVE, brandSelected)}, relation, BRAND
+				)
 			);
 		}
 
+	}
+
+	/**
+	 * The facet summary of a query over both scopes whose user filter ends up in the scope containers - either because
+	 * it sits in `inScope(...)` itself, or because it sits next to an `inScope(...)` and the scope post-processing
+	 * copies the whole filter into the container of every scope. A facet COUNT drops the whole user filter and keeps
+	 * every mandatory constraint, those inside `inScope(...)` included; a facet IMPACT keeps the user filter and adds
+	 * the facet to it in every scope.
+	 *
+	 * Every test reads two facets of the brand reference, because only the first facet of a relation type gets a
+	 * formula of its own: each later one is re-targeted from the formula cached for the first, so a re-targeting that
+	 * misses a scope container is visible on the second facet only. The facets are computed in ascending order of
+	 * their primary keys, so {@link #BRAND} is always the first and {@link #OTHER_BRAND} the cached one.
+	 */
+	@Nested
+	@DisplayName("Facet summary of a query whose user filter sits in scope containers")
+	class FacetSummaryOverScopeContainers {
+
 		/**
-		 * Runs a product query over both scopes with the passed filter constraints and returns the count of the brand
-		 * facet in its facet summary.
+		 * Returns the rows of the facet count witness, the cross product of two query shapes and three relation
+		 * settings (one per distinct shape of the count formula). Each row is a label, the constraints placed next to
+		 * `scope(LIVE, ARCHIVED)`, the same constraints without the user filter, the relation requirement of the brand
+		 * reference (NULL for the default relations) and whether the requirement negates the facet.
 		 *
-		 * @param session     the session to query
+		 * @return the row arguments
+		 */
+		@Nonnull
+		static Stream<Arguments> facetCountOverScopeContainersRows() {
+			final FilterConstraint brandSelected = userFilter(facetHaving(REF_BRAND, entityPrimaryKeyInSet(BRAND)));
+			final FilterConstraint[] mandatory = {inScope(Scope.LIVE, attributeEquals(ATTR_VISIBLE, true))};
+			final List<Arguments> shapes = List.of(
+				// the scope post-processing copies the user filter into the containers of both scopes
+				Arguments.of(
+					"user filter outside inScope",
+					new FilterConstraint[]{brandSelected, inScope(Scope.LIVE, attributeEquals(ATTR_VISIBLE, true))}
+				),
+				// the count must keep the mandatory constraint of the live scope while dropping the user filter
+				Arguments.of(
+					"user filter next to a mandatory constraint in inScope",
+					new FilterConstraint[]{
+						inScope(Scope.LIVE, attributeEquals(ATTR_VISIBLE, true), brandSelected)
+					}
+				)
+			);
+			final List<Arguments> relations = List.of(
+				Arguments.of("default", null, false),
+				Arguments.of("facetGroupsConjunction", facetGroupsConjunction(REF_BRAND), false),
+				Arguments.of("facetGroupsNegation", facetGroupsNegation(REF_BRAND), true)
+			);
+			return shapes.stream()
+				.flatMap(
+					shape -> relations.stream()
+						.map(
+							relation -> Arguments.of(
+								shape.get()[0] + ", " + relation.get()[0],
+								shape.get()[1],
+								mandatory,
+								relation.get()[1],
+								relation.get()[2]
+							)
+						)
+				);
+		}
+
+		/**
+		 * Checks that the count of each brand facet - the first one and the one re-targeted from the cache - is the
+		 * number of products of both scopes the mandatory constraints admit with the facet selected (or, for a
+		 * negated facet, the products they admit without it): the user filter is dropped in every scope container,
+		 * the mandatory constraint of the live scope is kept.
+		 *
+		 * @param label       the row label, used in the test name only
 		 * @param constraints the constraints placed next to `scope(LIVE, ARCHIVED)`
+		 * @param mandatory   the same constraints without the user filter
 		 * @param relation    the relation requirement of the brand reference, NULL for the default relations
-		 * @return the count of the brand facet
+		 * @param negated     whether the relation requirement negates the facet
+		 * @param session     the session provided by the test extension
 		 */
-		private static int queryBrandFacetCount(
-			@Nonnull EvitaSessionContract session,
+		@DisplayName("Should count every facet of the reference in every scope, the cached ones too")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN_SECOND_BRAND)
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("facetCountOverScopeContainersRows")
+		@Tag(ENGINE)
+		@Tag(QUERY)
+		@Tag(FACET)
+		void shouldCountEveryFacetInEveryScopeWhenTheUserFilterSitsInScopeContainers(
+			@Nonnull String label,
 			@Nonnull FilterConstraint[] constraints,
-			@Nullable RequireConstraint relation
+			@Nonnull FilterConstraint[] mandatory,
+			@Nullable RequireConstraint relation,
+			boolean negated,
+			@Nonnull EvitaSessionContract session
 		) {
-			final EvitaResponse<EntityReference> response = session.query(
-				query(
-					collection(ENTITY_PRODUCT),
-					filterBy(ArrayUtils.mergeArrays(new FilterConstraint[]{scope(BOTH_SCOPES)}, constraints)),
-					require(
-						page(1, PRODUCT_COUNT),
-						facetSummaryOfReference(REF_BRAND, FacetStatisticsDepth.COUNTS),
-						relation
+			final int universe = queryProductCount(session, BOTH_SCOPES, mandatory);
+			final int[] facets = {BRAND, OTHER_BRAND};
+			final int[] expected = new int[facets.length];
+			for (int i = 0; i < facets.length; i++) {
+				final int selected = queryProductCount(
+					session,
+					BOTH_SCOPES,
+					ArrayUtils.mergeArrays(
+						mandatory,
+						new FilterConstraint[]{referenceHaving(REF_BRAND, entityPrimaryKeyInSet(facets[i]))}
 					)
-				),
-				EntityReference.class
+				);
+				expected[i] = negated ? universe - selected : selected;
+			}
+			assertNotEquals(
+				expected[0], expected[1], "the facets must differ, or a facet never re-targeted would go unseen"
 			);
-			final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
-			assertNotNull(facetSummary, "the facet summary must be computed");
-			final FacetGroupStatistics brandStatistics = facetSummary.getFacetGroupStatistics(REF_BRAND);
-			assertNotNull(brandStatistics, "the brand reference must have facet statistics");
-			assertNotNull(brandStatistics.getFacetStatistics(BRAND), "the brand must have facet statistics");
-			return brandStatistics.getFacetStatistics(BRAND).getCount();
+			assertTrue(
+				queryProductCount(
+					session, ARCHIVED_ONLY, referenceHaving(REF_BRAND, entityPrimaryKeyInSet(OTHER_BRAND))
+				) > 0,
+				"the cached facet must have an owner in the archived scope"
+			);
+			for (int i = 0; i < facets.length; i++) {
+				assertEquals(
+					expected[i],
+					queryBrandFacetCount(session, constraints, relation, facets[i]),
+					"facet " + facets[i]
+				);
+			}
 		}
 
-		/**
-		 * Runs a product query over both scopes with the passed filter constraints and returns the count of the brand
-		 * group in its facet summary.
-		 *
-		 * @param session     the session to query
-		 * @param constraints the constraints placed next to `scope(LIVE, ARCHIVED)`
-		 * @return the count of the brand group
-		 */
-		private static int queryBrandGroupCount(
-			@Nonnull EvitaSessionContract session,
-			@Nonnull FilterConstraint[] constraints
-		) {
-			final EvitaResponse<EntityReference> response = session.query(
-				query(
-					collection(ENTITY_PRODUCT),
-					filterBy(ArrayUtils.mergeArrays(new FilterConstraint[]{scope(BOTH_SCOPES)}, constraints)),
-					require(
-						page(1, PRODUCT_COUNT),
-						facetSummaryOfReference(REF_BRAND, FacetStatisticsDepth.COUNTS)
-					)
-				),
-				EntityReference.class
-			);
-			final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
-			assertNotNull(facetSummary, "the facet summary must be computed");
-			final FacetGroupStatistics brandStatistics = facetSummary.getFacetGroupStatistics(REF_BRAND);
-			assertNotNull(brandStatistics, "the brand reference must have facet statistics");
-			return brandStatistics.getCount();
-		}
+	}
 
+	/**
+	 * Returns the number of products a query over the passed scopes with the passed filter constraints returns.
+	 *
+	 * @param session     the session to query
+	 * @param scopes      the scopes of `scope(...)`
+	 * @param constraints the constraints placed next to `scope(...)`
+	 * @return the total record count
+	 */
+	private static int queryProductCount(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Scope[] scopes,
+		@Nonnull FilterConstraint... constraints
+	) {
+		return session.query(
+			query(
+				collection(ENTITY_PRODUCT),
+				filterBy(ArrayUtils.mergeArrays(new FilterConstraint[]{scope(scopes)}, constraints)),
+				require(page(1, 0))
+			),
+			EntityReference.class
+		).getTotalRecordCount();
+	}
+
+	/**
+	 * Runs a product query over both scopes with the passed filter constraints and returns the statistics of the
+	 * brand reference in its facet summary.
+	 *
+	 * @param session     the session to query
+	 * @param depth       the depth of the facet summary
+	 * @param constraints the constraints placed next to `scope(LIVE, ARCHIVED)`
+	 * @param relation    the relation requirement of the brand reference, NULL for the default relations
+	 * @return the statistics of the brand reference
+	 */
+	@Nonnull
+	private static FacetGroupStatistics queryBrandStatistics(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull FacetStatisticsDepth depth,
+		@Nonnull FilterConstraint[] constraints,
+		@Nullable RequireConstraint relation
+	) {
+		final EvitaResponse<EntityReference> response = session.query(
+			query(
+				collection(ENTITY_PRODUCT),
+				filterBy(ArrayUtils.mergeArrays(new FilterConstraint[]{scope(BOTH_SCOPES)}, constraints)),
+				require(
+					page(1, PRODUCT_COUNT),
+					facetSummaryOfReference(REF_BRAND, depth),
+					relation
+				)
+			),
+			EntityReference.class
+		);
+		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
+		assertNotNull(facetSummary, "the facet summary must be computed");
+		final FacetGroupStatistics brandStatistics = facetSummary.getFacetGroupStatistics(REF_BRAND);
+		assertNotNull(brandStatistics, "the brand reference must have facet statistics");
+		return brandStatistics;
+	}
+
+	/**
+	 * Runs a product query over both scopes with the passed filter constraints and returns the count of the passed
+	 * brand facet in its facet summary.
+	 *
+	 * @param session     the session to query
+	 * @param constraints the constraints placed next to `scope(LIVE, ARCHIVED)`
+	 * @param relation    the relation requirement of the brand reference, NULL for the default relations
+	 * @param facetId     the primary key of the brand
+	 * @return the count of the brand facet
+	 */
+	private static int queryBrandFacetCount(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull FilterConstraint[] constraints,
+		@Nullable RequireConstraint relation,
+		int facetId
+	) {
+		return brandFacet(
+			queryBrandStatistics(session, FacetStatisticsDepth.COUNTS, constraints, relation), facetId
+		).getCount();
+	}
+
+	/**
+	 * Returns the statistics of the passed brand facet.
+	 *
+	 * @param statistics the statistics of the brand reference
+	 * @param facetId    the primary key of the brand
+	 * @return the statistics of the facet
+	 */
+	@Nonnull
+	private static FacetStatistics brandFacet(@Nonnull FacetGroupStatistics statistics, int facetId) {
+		final FacetStatistics facetStatistics = statistics.getFacetStatistics(facetId);
+		assertNotNull(facetStatistics, "brand " + facetId + " must have facet statistics");
+		return facetStatistics;
 	}
 
 	/**

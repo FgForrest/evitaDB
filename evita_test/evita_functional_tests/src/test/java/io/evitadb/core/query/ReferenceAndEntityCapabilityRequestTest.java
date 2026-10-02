@@ -319,8 +319,42 @@ class ReferenceAndEntityCapabilityRequestTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("Filtering within its own tree over a scope not indexing it is rejected, even an empty scope")
 		void shouldRejectFilteringWithinOwnHierarchyOverScopeNotIndexingItWhenTheScopeHoldsNoEntity() {
-			// the hierarchy is indexed in the live scope only and no category is archived: whether the query is
-			// rejected must not depend on whether an entity happens to be archived
+			assertOwnHierarchyFilterRejectedForArchivedScope();
+		}
+
+		@Test
+		@DisplayName("Filtering within its own tree over a scope not indexing it is rejected, a non-empty one too")
+		void shouldRejectFilteringWithinOwnHierarchyOverScopeNotIndexingItWhenTheScopeHoldsAnEntity() {
+			ReferenceAndEntityCapabilityRequestTest.this.evita.updateCatalog(
+				CATALOG,
+				session -> {
+					session.archiveEntity(ENTITY_CATEGORY, CATEGORY_COUNT);
+				}
+			);
+			final int archivedCategories = ReferenceAndEntityCapabilityRequestTest.this.evita.queryCatalog(
+				CATALOG,
+				session -> {
+					return session.queryList(
+						Query.query(
+							collection(ENTITY_CATEGORY),
+							filterBy(scope(Scope.ARCHIVED), entityPrimaryKeyInSet(CATEGORY_COUNT))
+						),
+						EntityReference.class
+					).size();
+				}
+			);
+			assertEquals(1, archivedCategories, "the archived scope must hold the archived category");
+
+			assertOwnHierarchyFilterRejectedForArchivedScope();
+		}
+
+		/**
+		 * Asserts that filtering the categories within their own tree over both scopes is rejected for the archived
+		 * scope, where the hierarchy is not indexed, and that the rejection names that scope. The hierarchy is indexed
+		 * in the live scope only: whether the query is rejected must not depend on whether an entity happens to be
+		 * archived, so the rejection holds both for an archived scope holding no category and for one holding some.
+		 */
+		private void assertOwnHierarchyFilterRejectedForArchivedScope() {
 			final HierarchyNotIndexedException exception = assertThrows(
 				HierarchyNotIndexedException.class,
 				() -> executeAgainstProducts(
