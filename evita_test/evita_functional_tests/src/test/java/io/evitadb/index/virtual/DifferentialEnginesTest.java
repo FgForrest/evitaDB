@@ -28,7 +28,6 @@ import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.index.virtual.DifferentialEngines.Divergence;
-import io.evitadb.index.virtual.VirtualReferencePartitionOracle.Mode;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -100,9 +99,8 @@ class DifferentialEnginesTest implements EvitaTestSupport {
 	@DisplayName("an identical history leaves the engines equal at every checkpoint, failures and restart included")
 	void shouldFindIdenticalHistoriesEqual(CatalogState state) {
 		this.engines = new DifferentialEngines(this, "identicalHistory", ENTITY_TYPES);
-		this.engines.addMaintainingEngineCheck(
-			(label, collection) -> VirtualReferencePartitionOracle.assertConsistent(label, collection, Mode.SUBSET)
-		);
+		// nothing writes the registry yet, so it must stay empty at every checkpoint
+		this.engines.addMaintainingEngineCheck(VirtualReferencePartitionOracle::assertRegistryEmpty);
 		this.engines.prepare(state, SingleOwnerPartitionFixture::setUp);
 
 		// a new single-owner partition, then a second owner joining it

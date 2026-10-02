@@ -27,6 +27,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
 import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
@@ -100,6 +101,21 @@ final class SingleOwnerPartitionFixture {
 	 * @param session the session to write in
 	 */
 	static void setUp(@Nonnull EvitaSessionContract session) {
+		setUpExtendingCategories(session, categories -> { });
+	}
+
+	/**
+	 * Defines the schema with the category reference extended as the caller needs, the referenced entities and the
+	 * initial products. The extension is part of the schema before the first product is written, so every index the
+	 * extension asks for is maintained from the first write on.
+	 *
+	 * @param session    the session to write in
+	 * @param categories extends the definition of the category reference
+	 */
+	static void setUpExtendingCategories(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Consumer<ReferenceSchemaBuilder> categories
+	) {
 		session.defineEntitySchema(ENTITY_CATEGORY).updateVia(session);
 		session.defineEntitySchema(ENTITY_MEDIA).updateVia(session);
 		session.defineEntitySchema(ENTITY_BRAND).updateVia(session);
@@ -108,17 +124,19 @@ final class SingleOwnerPartitionFixture {
 			.withAttribute(ATTRIBUTE_RANK, Integer.class, whichIs -> whichIs.filterable().sortable().nullable())
 			.withReferenceToEntity(
 				REFERENCE_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs
-					.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
-					.faceted()
-					.withAttribute(
-						ATTRIBUTE_ORDER, Integer.class,
-						thatIs -> thatIs.filterableInScope(Scope.LIVE).sortableInScope(Scope.LIVE).nullable()
-					)
-					.bucketed(
-						HISTOGRAM_ORDER,
-						ExpressionFactory.parse("$reference.attributes['" + ATTRIBUTE_ORDER + "']")
-					)
+				whichIs -> categories.accept(
+					whichIs
+						.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
+						.faceted()
+						.withAttribute(
+							ATTRIBUTE_ORDER, Integer.class,
+							thatIs -> thatIs.filterableInScope(Scope.LIVE).sortableInScope(Scope.LIVE).nullable()
+						)
+						.bucketed(
+							HISTOGRAM_ORDER,
+							ExpressionFactory.parse("$reference.attributes['" + ATTRIBUTE_ORDER + "']")
+						)
+				)
 			)
 			.withReferenceToEntity(
 				REFERENCE_GALLERY, ENTITY_MEDIA, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,

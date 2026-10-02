@@ -71,6 +71,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
@@ -566,6 +567,36 @@ public class VirtualReferencePartitionIndex
 	 */
 	public boolean isEmpty() {
 		return this.entries.size() == 0 && this.sortKeys.isEmpty() && this.chainKeys.isEmpty();
+	}
+
+	/**
+	 * Returns how many entries the index holds across all its slots - owner rows, representative tuples, sort values
+	 * and chain predecessors together. The dictionaries and the declared keys are not entries.
+	 *
+	 * @return the number of entries
+	 */
+	public int getEntryCount() {
+		return this.entries.size();
+	}
+
+	/**
+	 * Returns the declared sort keys - the attributes and compounds, with their locales, the partitions are sorted by.
+	 *
+	 * @return an unmodifiable copy of the declared sort keys
+	 */
+	@Nonnull
+	public Set<AttributeIndexKey> getDeclaredSortKeys() {
+		return Set.copyOf(this.sortKeys.keySet());
+	}
+
+	/**
+	 * Returns the declared chain keys - the chained attributes, with their locales, the partitions take part in.
+	 *
+	 * @return an unmodifiable copy of the declared chain keys
+	 */
+	@Nonnull
+	public Set<AttributeIndexKey> getDeclaredChainKeys() {
+		return Set.copyOf(this.chainKeys.keySet());
 	}
 
 	/**
