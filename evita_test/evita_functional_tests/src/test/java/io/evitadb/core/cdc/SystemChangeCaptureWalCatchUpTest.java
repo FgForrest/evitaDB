@@ -31,7 +31,10 @@ import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.HostSystemEvent;
+import io.evitadb.api.requestResponse.cdc.SystemCaptureArea;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
@@ -63,6 +66,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -77,6 +81,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * - a read failure in the middle of the range the subscriber reads must reach it as `onError`
  * - a position the log retention has already removed must reach it as {@link TemporalDataNotAvailableException}
+ * - a subscriber whose criteria reject every engine mutation must not be mistaken for one that fell behind the
+ *   retention, because its position follows what it examined rather than only what it received
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -113,6 +119,10 @@ class SystemChangeCaptureWalCatchUpTest implements EvitaTestSupport {
 	 * coarse length check, so the read reaches the consistency check that compares it with the records read.
 	 */
 	private static final int LYING_CONTENT_LENGTH = 4;
+	/**
+	 * Pause between two looks at the first replayable version while waiting for the scheduled log retention.
+	 */
+	private static final long RETENTION_POLL_INTERVAL_MILLIS = 50L;
 
 	private TestPaths paths;
 	private EvitaConfiguration configuration;
@@ -138,6 +148,17 @@ class SystemChangeCaptureWalCatchUpTest implements EvitaTestSupport {
 	@Nonnull
 	private static List<Long> versionsOf(@Nonnull List<ChangeSystemCapture> captures) {
 		return captures.stream().map(ChangeSystemCapture::version).distinct().toList();
+	}
+
+	/**
+	 * Returns whether the passed capture carries a host event about the passed catalog.
+	 *
+	 * @param capture     the capture
+	 * @param catalogName name of the catalog
+	 * @return true when the capture is a host event about the catalog
+	 */
+	private static boolean isHostEventOf(@Nonnull ChangeSystemCapture capture, @Nonnull String catalogName) {
+		return capture.body() instanceof HostSystemEvent hostEvent && catalogName.equals(hostEvent.catalogName());
 	}
 
 	/**
@@ -270,6 +291,80 @@ class SystemChangeCaptureWalCatchUpTest implements EvitaTestSupport {
 			subscriber.getItems().isEmpty(),
 			"Nothing may be delivered from a position that is no longer in the log."
 		);
+	}
+
+	@Test
+	@DisplayName("should keep a subscriber whose criteria reject every engine mutation ahead of the log retention")
+	void shouldKeepSelectiveSubscriberAheadOfRetention() throws Exception {
+		startEvita(ROTATING_WAL_FILE_SIZE_BYTES);
+		final long sinceVersion = createCatalogs(0, 1).get(0);
+
+		final AwaitableCaptureSubscriber<ChangeSystemCapture> subscriber = AwaitableCaptureSubscriber.unbounded();
+		try (
+			final ChangeCapturePublisher<ChangeSystemCapture> publisher = this.evita.registerSystemChangeCapture(
+				new ChangeSystemCaptureRequest(
+					sinceVersion, 0,
+					new ChangeSystemCaptureCriteria[]{new ChangeSystemCaptureCriteria(SystemCaptureArea.HOST)},
+					ChangeCaptureContent.BODY
+				)
+			)
+		) {
+			publisher.subscribe(subscriber);
+
+			// every one of these is an engine mutation the subscriber's criteria reject, so none of them moves its
+			// position by being delivered - and enough of them are committed for the retention to remove the log
+			// file holding the version it started at
+			createAndRemoveCatalogs(1, 31);
+			final long firstReplayableVersion = awaitRetentionPast(sinceVersion);
+
+			final String lastCatalogName = TEST_CATALOG + "_last";
+			this.evita.defineCatalog(lastCatalogName);
+			final boolean lastHostEventDelivered = subscriber.awaitUntil(
+				items -> items.stream().anyMatch(it -> isHostEventOf(it, lastCatalogName)),
+				AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS
+			);
+
+			assertNull(
+				subscriber.getError(),
+				"A subscriber that has examined every engine transaction since version " + sinceVersion + " - and " +
+					"missed none it asked for - was reported as having lost history once the retention moved the " +
+					"oldest replayable version to " + firstReplayableVersion + ". Its position must follow what it " +
+					"examined, not only what it received."
+			);
+			assertTrue(
+				lastHostEventDelivered,
+				"The host event of catalog `" + lastCatalogName + "` was never delivered."
+			);
+		}
+		assertTrue(
+			subscriber.getItems().stream().allMatch(it -> it.body() instanceof HostSystemEvent),
+			"A subscriber asking for host events only must receive no engine mutation."
+		);
+	}
+
+	/**
+	 * Waits until the engine log retention has removed the file holding the passed version.
+	 *
+	 * Every engine commit reports its version as processed, which schedules the removal of the files rotated away -
+	 * but the removal runs on the scheduler after a minimal gap, and the engine log offers the test no seam to run
+	 * it on its own thread without closing the log, which would end the subscription under test.
+	 *
+	 * @param removedVersion the version that must no longer be replayable
+	 * @return the first version the log can still replay
+	 */
+	private long awaitRetentionPast(long removedVersion) throws InterruptedException {
+		final long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(AWAIT_TIMEOUT_SECONDS);
+		long firstReplayableVersion = this.evita.getFirstReplayableVersion();
+		while (firstReplayableVersion <= removedVersion && System.nanoTime() < deadline) {
+			Thread.sleep(RETENTION_POLL_INTERVAL_MILLIS);
+			firstReplayableVersion = this.evita.getFirstReplayableVersion();
+		}
+		assertTrue(
+			firstReplayableVersion > removedVersion,
+			"The retention must have removed the engine log file holding version " + removedVersion + " - the " +
+				"fixture depends on it - but the first replayable version is " + firstReplayableVersion + "."
+		);
+		return firstReplayableVersion;
 	}
 
 	/**
