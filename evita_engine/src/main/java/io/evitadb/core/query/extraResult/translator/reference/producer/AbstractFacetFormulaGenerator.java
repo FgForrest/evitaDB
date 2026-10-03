@@ -84,17 +84,19 @@ import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFEREN
 @RequiredArgsConstructor
 public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	/**
+	 * Resolves the one relation the facets of a group take at a level - the same resolution the query result uses,
+	 * so that the reference summary predicts the products the result returns. Relations declared by
+	 * {@link FacetGroupsConjunction}, {@link FacetGroupsDisjunction}, {@link FacetGroupsNegation} or
+	 * {@link FacetGroupsExclusivity} in the input {@link EvitaRequest} take precedence over the request-wide default.
+	 */
+	@Nonnull
+	protected final FacetRelationTypeResolver facetRelationType;
+	/**
 	 * Predicate returns TRUE when facet covered by {@link FacetGroupsConjunction} require query in
 	 * input {@link EvitaRequest}.
 	 */
 	@Nonnull
 	protected final FacetGroupRelationTypeResolver isFacetGroupConjunction;
-	/**
-	 * Predicate returns TRUE when facet covered by {@link FacetGroupsDisjunction} require query in
-	 * input {@link EvitaRequest}.
-	 */
-	@Nonnull
-	protected final FacetGroupRelationTypeResolver isFacetGroupDisjunction;
 	/**
 	 * Predicate returns TRUE when facet covered by {@link FacetGroupsNegation} require query in
 	 * input {@link EvitaRequest}.
@@ -564,8 +566,8 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 */
 	protected boolean handleUserFilter(@Nonnull Formula formula, @Nonnull Formula[] updatedChildren) {
 		// determine the facet group relation to other groups
-		final FacetRelationType relationType = getFacetRelationType(
-			this.referenceSchema, WITH_DIFFERENT_GROUPS, FacetRelationType.CONJUNCTION, this.facetGroupId
+		final FacetRelationType relationType = this.facetRelationType.resolve(
+			this.referenceSchema, this.facetGroupId, WITH_DIFFERENT_GROUPS
 		);
 		// create facet group formula
 		final Formula newFormula = createNewFacetGroupFormula();
@@ -625,38 +627,6 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 			);
 			// we've stored the formula - instruct super method to skip it's handling
 			return true;
-		}
-	}
-
-	/**
-	 * Determines the facet relation type based on the specified facet group relation level,
-	 * using configured conditions. The method evaluates various facet group relation types
-	 * such as negation, disjunction, exclusivity, and conjunction. If none of the conditions are met,
-	 * the provided default relation type is returned.
-	 *
-	 * @param referenceSchema     the reference schema to evaluate
-	 * @param level               the level of the facet group relation to evaluate
-	 * @param defaultRelationType the default relation type to return if no specific relation condition is met
-	 * @param theFacetGroup       the facet group to evaluate
-	 * @return the determined facet relation type based on the evaluation of the provided level and conditions
-	 */
-	@Nonnull
-	protected FacetRelationType getFacetRelationType(
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull FacetGroupRelationLevel level,
-		@Nonnull FacetRelationType defaultRelationType,
-		@Nullable Integer theFacetGroup
-	) {
-		if (this.isFacetGroupNegation.test(referenceSchema, theFacetGroup, level)) {
-			return FacetRelationType.NEGATION;
-		} else if (this.isFacetGroupDisjunction.test(referenceSchema, theFacetGroup, level)) {
-			return FacetRelationType.DISJUNCTION;
-		} else if (this.isFacetGroupExclusivity.test(referenceSchema, theFacetGroup, level)) {
-			return FacetRelationType.EXCLUSIVITY;
-		} else if (this.isFacetGroupConjunction.test(referenceSchema, theFacetGroup, level)) {
-			return FacetRelationType.CONJUNCTION;
-		} else {
-			return defaultRelationType;
 		}
 	}
 
@@ -740,6 +710,31 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	public interface FacetGroupRelationTypeResolver {
 
 		boolean test(
+			@Nonnull ReferenceSchemaContract referenceSchemaContract,
+			@Nullable Integer facetGroupId,
+			@Nonnull FacetGroupRelationLevel level
+		);
+
+	}
+
+	/**
+	 * A functional interface that resolves the one relation the facets of a group take at a level. Unlike
+	 * {@link FacetGroupRelationTypeResolver}, which tests a single relation, it decides among all of them, so that
+	 * the precedence of the declared relations over the default lives in one place.
+	 */
+	@FunctionalInterface
+	public interface FacetRelationTypeResolver {
+
+		/**
+		 * Returns the relation the facets of the passed group take at the passed level.
+		 *
+		 * @param referenceSchemaContract the schema of the reference to which the facet group belongs
+		 * @param facetGroupId            the identifier of the group; NULL for the facets without a group
+		 * @param level                   the level of the facet group relation
+		 * @return the relation of the facets of the group at the level
+		 */
+		@Nonnull
+		FacetRelationType resolve(
 			@Nonnull ReferenceSchemaContract referenceSchemaContract,
 			@Nullable Integer facetGroupId,
 			@Nonnull FacetGroupRelationLevel level

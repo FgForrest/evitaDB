@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.extraResult.translator.facet.producer;
 
+import io.evitadb.api.query.require.FacetRelationType;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
@@ -70,8 +71,19 @@ class ImpactFormulaGeneratorTest {
 	@BeforeEach
 	void setUp() {
 		this.impactFormulaGenerator = new ImpactFormulaGenerator(
+			(referenceSchema, facetGroupId, level) -> {
+				final EntityReference group = new EntityReference(referenceSchema.getReferencedEntityType(), facetGroupId);
+				if (this.facetGroupNegation.contains(group)) {
+					return FacetRelationType.NEGATION;
+				} else if (this.facetGroupDisjunction.contains(group)) {
+					return FacetRelationType.DISJUNCTION;
+				} else if (this.facetGroupExclusivity.contains(group)) {
+					return FacetRelationType.EXCLUSIVITY;
+				} else {
+					return FacetRelationType.CONJUNCTION;
+				}
+			},
 			(referenceSchema, facetGroupId, level) -> ofNullable(this.facetGroupConjunction.contains(new EntityReference(referenceSchema.getReferencedEntityType(), facetGroupId))).orElse(false),
-			(referenceSchema, facetGroupId, level) -> ofNullable(this.facetGroupDisjunction.contains(new EntityReference(referenceSchema.getReferencedEntityType(), facetGroupId))).orElse(false),
 			(referenceSchema, facetGroupId, level) -> ofNullable(this.facetGroupNegation.contains(new EntityReference(referenceSchema.getReferencedEntityType(), facetGroupId))).orElse(false),
 			(referenceSchema, facetGroupId, level) -> ofNullable(this.facetGroupExclusivity.contains(new EntityReference(referenceSchema.getReferencedEntityType(), facetGroupId))).orElse(false)
 		);

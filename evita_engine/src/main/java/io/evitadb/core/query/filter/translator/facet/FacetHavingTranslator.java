@@ -30,6 +30,7 @@ import io.evitadb.api.exception.EntityNotManagedException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.*;
+import io.evitadb.api.query.require.FacetRelationType;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
@@ -362,19 +363,18 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 				Collectors.groupingBy(
 					it -> {
 						// the facets without a group and the groups of a type evitaDB does not manage follow the
-						// relation settings like any other group - the reference summary predicts their counts the
+						// relation settings like any other group - the reference summary resolves the relation the
 						// same way, so the result must not deviate from it
-						final Integer groupId = it.getFacetGroupId();
-						if (filterByVisitor.isFacetGroupDisjunction(referenceSchema, groupId, WITH_DIFFERENT_GROUPS)) {
-							// OR relation is requested for facets of this group
-							return Or.class;
-						} else if (filterByVisitor.isFacetGroupNegation(referenceSchema, groupId, WITH_DIFFERENT_GROUPS)) {
-							// NOT relation is requested for facets of this group
-							return Not.class;
-						} else {
-							// default group relation is and
-							return And.class;
-						}
+						final FacetRelationType relationType = filterByVisitor.getFacetRelationType(
+							referenceSchema, it.getFacetGroupId(), WITH_DIFFERENT_GROUPS
+						);
+						return switch (relationType) {
+							case DISJUNCTION -> Or.class;
+							case NEGATION -> Not.class;
+							// exclusivity changes only the reference summary, the result falls back to the system
+							// default between groups, which is a conjunction
+							case CONJUNCTION, EXCLUSIVITY -> And.class;
+						};
 					}
 				)
 			);

@@ -142,6 +142,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			Scope.ARCHIVED, new EntityIndexKey(EntityIndexType.GLOBAL, Scope.ARCHIVED)
 		)
 	);
+	/**
+	 * The order in which the relations the query declares for a reference are tried when several of them match one
+	 * facet group - see {@link #getFacetRelationType}. It is the order the reference summary has always tried them in,
+	 * so a query declaring overlapping relations keeps the summary it had, and the query result follows it.
+	 */
+	private static final FacetRelationType[] DECLARED_RELATION_PRECEDENCE = {
+		FacetRelationType.NEGATION, FacetRelationType.DISJUNCTION, FacetRelationType.EXCLUSIVITY,
+		FacetRelationType.CONJUNCTION
+	};
 
 	/**
 	 * Contains reference to the parent context of this one. The reference is not NULL only for sub-queries.
@@ -1825,31 +1834,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nullable Integer groupId,
 		@Nonnull FacetGroupRelationLevel level
 	) {
-		return isFacetGroupRelationType(
-			FacetRelationType.CONJUNCTION,
-			referenceSchema, groupId, level,
-			EvitaRequest::getFacetGroupConjunction
-		);
-	}
-
-	/**
-	 * Returns true if passed `groupId` of `referenceName` facets are requested to be joined by disjunction (OR) on
-	 * particular level.
-	 *
-	 * @param referenceSchema reference schema of the facet group
-	 * @param groupId         group id to be tested
-	 * @param level           level of the facet group relation (within group, between groups)
-	 */
-	public boolean isFacetGroupDisjunction(
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nullable Integer groupId,
-		@Nonnull FacetGroupRelationLevel level
-	) {
-		return isFacetGroupRelationType(
-			FacetRelationType.DISJUNCTION,
-			referenceSchema, groupId, level,
-			EvitaRequest::getFacetGroupDisjunction
-		);
+		return isFacetGroupRelationType(FacetRelationType.CONJUNCTION, referenceSchema, groupId, level);
 	}
 
 	/**
@@ -1865,11 +1850,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nullable Integer groupId,
 		@Nonnull FacetGroupRelationLevel level
 	) {
-		return isFacetGroupRelationType(
-			FacetRelationType.NEGATION,
-			referenceSchema, groupId, level,
-			EvitaRequest::getFacetGroupNegation
-		);
+		return isFacetGroupRelationType(FacetRelationType.NEGATION, referenceSchema, groupId, level);
 	}
 
 	/**
@@ -1885,11 +1866,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nullable Integer groupId,
 		@Nonnull FacetGroupRelationLevel level
 	) {
-		return isFacetGroupRelationType(
-			FacetRelationType.EXCLUSIVITY,
-			referenceSchema, groupId, level,
-			EvitaRequest::getFacetGroupExclusivity
-		);
+		return isFacetGroupRelationType(FacetRelationType.EXCLUSIVITY, referenceSchema, groupId, level);
 	}
 
 	/**
@@ -1899,7 +1876,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * summary about others of the references it summarizes, and exclusivity is asked about only while impacts are
 	 * computed - so the same filter would fail one query and be silently ignored by another.
 	 *
-	 * The predicates are planned through {@link #isFacetGroupRelationType} and stay memoized for the planning that
+	 * The predicates are planned through {@link #isFacetGroupRelationDeclared} and stay memoized for the planning that
 	 * follows, so each filter is still planned once per query. A constraint naming a reference the entity schema does
 	 * not have is skipped, because nothing in the query can ever ask about it.
 	 *
@@ -1918,83 +1895,161 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			final Optional<ReferenceSchemaContract> referenceSchema = schema.getReference(constraint.getReferenceName());
 			if (constraint.getFacetGroups().isPresent() && referenceSchema.isPresent()) {
 				// asking about a facet without a group plans the filter without testing any group against it
-				final FacetGroupRelationLevel level = constraint.getFacetGroupRelationLevel();
-				switch (constraint) {
-					case FacetGroupsConjunction ignored -> isFacetGroupConjunction(referenceSchema.get(), null, level);
-					case FacetGroupsDisjunction ignored -> isFacetGroupDisjunction(referenceSchema.get(), null, level);
-					case FacetGroupsNegation ignored -> isFacetGroupNegation(referenceSchema.get(), null, level);
-					case FacetGroupsExclusivity ignored -> isFacetGroupExclusivity(referenceSchema.get(), null, level);
+				final FacetRelationType relationType = switch (constraint) {
+					case FacetGroupsConjunction ignored -> FacetRelationType.CONJUNCTION;
+					case FacetGroupsDisjunction ignored -> FacetRelationType.DISJUNCTION;
+					case FacetGroupsNegation ignored -> FacetRelationType.NEGATION;
+					case FacetGroupsExclusivity ignored -> FacetRelationType.EXCLUSIVITY;
 					default -> throw new GenericEvitaInternalError("Unknown facet relation constraint: " + constraint);
-				}
+				};
+				isFacetGroupRelationDeclared(
+					relationType, referenceSchema.get(), null, constraint.getFacetGroupRelationLevel()
+				);
 			}
 		}
 	}
 
 	/**
-	 * Determines whether the specified relation type matches the given facet group relation criteria. Shared
-	 * implementation of the four `isFacetGroup*` methods, which differ only in the relation type they ask about
-	 * and the request accessor that carries the settings for it.
+	 * Returns the relation the facets of the passed group take at the passed level. This is the one resolution the
+	 * query result and the reference summary share, so that the summary predicts the products the result returns:
 	 *
-	 * The decision has three outcomes worth knowing about:
+	 * - a relation the query declares for the reference, and whose group filter matches the group (or which has no
+	 *   filter at all), takes precedence over the request-wide default of `facetCalculationRules`
+	 * - when several declared relations match the group, the first of {@link #DECLARED_RELATION_PRECEDENCE} wins
+	 * - the default for the level decides only a group no declared relation matches
 	 *
-	 * - the query says nothing about this relation for this reference - the request-wide default for the given
-	 *   `level` decides
-	 * - the query requests the relation **without** a filter - it applies to every group, hence `true`
-	 * - the query requests the relation **with** a filter - the filter is planned into a predicate (memoized in
-	 *   {@link #facetRelationTuples}, since it is asked about many groups in a row) and the group is tested
-	 *   against it; a facet with no group at all cannot match such a filter and gets `false`
-	 *
-	 * The filter is planned even when the asked facet has no group, so that a filter which cannot be evaluated fails
-	 * every query declaring it - see {@link #createFacetGroupPredicate}. {@link #assertFacetGroupFiltersEvaluable}
-	 * relies on that: it asks about a facet without a group to plan every declared filter up front.
-	 *
-	 * @param relationType the type of the facet relation to be checked
 	 * @param referenceSchema the schema of the reference to which the facet group belongs
-	 * @param groupId the identifier of the group being considered; can be null if no group is specified
-	 * @param level the level of facet group relation that should be considered in the evaluation
-	 * @param facetSettingsRetriever accessor pulling the settings of `relationType` for a reference name out of
-	 *                               the request - this is what binds the shared implementation to one relation
-	 * @return `true` if the relation type matches the facet group relation criteria, `false` otherwise
+	 * @param groupId         the identifier of the group; NULL for the facets without a group
+	 * @param level           the level of the facet group relation (within group, between groups)
+	 * @return the relation of the facets of the group at the level
+	 */
+	@Nonnull
+	public FacetRelationType getFacetRelationType(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		final FacetRelationType declared = getDeclaredFacetRelationType(referenceSchema, groupId, level);
+		return declared == null ? getDefaultFacetRelationType(level) : declared;
+	}
+
+	/**
+	 * Determines whether the specified relation type applies to the facets of the passed group at the passed level.
+	 * Shared implementation of the four `isFacetGroup*` methods, which differ only in the relation type they ask
+	 * about. The relation applies when the query declares it for the group, or when it is the request-wide default for
+	 * the level and the query declares no relation for the group at all - a declared relation always takes precedence
+	 * over the default, see {@link #getFacetRelationType}.
+	 *
+	 * Unlike {@link #getFacetRelationType}, two declared relations may both apply - e.g. a conjunction declared within
+	 * the group together with a negation, which is honoured at both levels: the facets of such a group are combined
+	 * with AND and the group is negated.
+	 *
+	 * @param relationType    the type of the facet relation to be checked
+	 * @param referenceSchema the schema of the reference to which the facet group belongs
+	 * @param groupId         the identifier of the group being considered; can be null if no group is specified
+	 * @param level           the level of facet group relation that should be considered in the evaluation
+	 * @return `true` if the relation type applies to the facets of the group, `false` otherwise
 	 */
 	private boolean isFacetGroupRelationType(
 		@Nonnull FacetRelationType relationType,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable Integer groupId,
-		@Nonnull FacetGroupRelationLevel level,
-		@Nonnull FacetSettingsRetriever facetSettingsRetriever
-		) {
-		final String referenceName = referenceSchema.getName();
-		final FacetRelationType theDefault = level == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP ?
-			this.evitaRequest.getDefaultFacetRelationType() : this.evitaRequest.getDefaultGroupRelationType();
-		// the settings are read for the level being asked about - a relation declared between groups must not
-		// decide the relation between the facets inside one group, and vice versa
-		final Optional<FacetFilterBy> facetSettings = facetSettingsRetriever.apply(
-			this.evitaRequest, referenceName, level
-		);
-		if (facetSettings.isEmpty()) {
-			return theDefault == relationType;
-		} else {
-			final FacetFilterBy facetFilterBy = facetSettings.get();
-			final FilterBy filterBy = facetFilterBy.filterBy();
-			if (filterBy != null) {
-				// the filter is planned before the group is looked at: a filter that cannot be evaluated must fail the
-				// query even when only facets without a group ask about it, just as it fails the reference summary,
-				// which asks about every group of the reference
-				final FilteringFormulaPredicate groupPredicate = getFacetRelationTuples()
-					.computeIfAbsent(
-						new FacetRelationTuple(referenceName, relationType, level),
-						tuple -> createFacetGroupPredicate(relationType, referenceSchema, facetFilterBy, filterBy)
-					);
-				if (groupId == null) {
-					// a facet without a group cannot match a group filter
-					return false;
-				} else {
-					return groupPredicate.test(groupId) || theDefault == relationType;
-				}
-			} else {
-				return true;
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		return isFacetGroupRelationDeclared(relationType, referenceSchema, groupId, level) ||
+			(getDefaultFacetRelationType(level) == relationType &&
+				getDeclaredFacetRelationType(referenceSchema, groupId, level) == null);
+	}
+
+	/**
+	 * Returns the first relation of {@link #DECLARED_RELATION_PRECEDENCE} the query declares for the passed group at
+	 * the passed level, or NULL when it declares none of them.
+	 *
+	 * @param referenceSchema the schema of the reference to which the facet group belongs
+	 * @param groupId         the identifier of the group; NULL for the facets without a group
+	 * @param level           the level of the facet group relation
+	 * @return the declared relation, or NULL when the default of the level decides
+	 */
+	@Nullable
+	private FacetRelationType getDeclaredFacetRelationType(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		for (final FacetRelationType relationType : DECLARED_RELATION_PRECEDENCE) {
+			if (isFacetGroupRelationDeclared(relationType, referenceSchema, groupId, level)) {
+				return relationType;
 			}
 		}
+		return null;
+	}
+
+	/**
+	 * Returns the request-wide default relation of the passed level - the one `facetCalculationRules` sets, or the
+	 * system default when the query does not change it.
+	 *
+	 * @param level the level of the facet group relation
+	 * @return the default relation of the level
+	 */
+	@Nonnull
+	private FacetRelationType getDefaultFacetRelationType(@Nonnull FacetGroupRelationLevel level) {
+		return level == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP ?
+			this.evitaRequest.getDefaultFacetRelationType() : this.evitaRequest.getDefaultGroupRelationType();
+	}
+
+	/**
+	 * Returns true when the query declares the passed relation for the passed group at the passed level:
+	 *
+	 * - the query declares no such relation for the reference at the level - `false`
+	 * - the relation is declared **without** a filter - it applies to every group, hence `true`
+	 * - the relation is declared **with** a filter - the filter is planned into a predicate (memoized in
+	 *   {@link #facetRelationTuples}, since it is asked about many groups in a row) and the group is tested against
+	 *   it; a facet with no group at all cannot match such a filter and gets `false`
+	 *
+	 * The filter is planned even when the asked facet has no group, so that a filter which cannot be evaluated fails
+	 * every query declaring it - see {@link #createFacetGroupPredicate}. {@link #assertFacetGroupFiltersEvaluable}
+	 * relies on that: it asks about a facet without a group to plan every declared filter up front.
+	 *
+	 * @param relationType    the type of the facet relation to be checked
+	 * @param referenceSchema the schema of the reference to which the facet group belongs
+	 * @param groupId         the identifier of the group being considered; can be null if no group is specified
+	 * @param level           the level of facet group relation that should be considered in the evaluation
+	 * @return `true` if the query declares the relation for the group at the level
+	 */
+	private boolean isFacetGroupRelationDeclared(
+		@Nonnull FacetRelationType relationType,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		final String referenceName = referenceSchema.getName();
+		// the settings are read for the level being asked about - a relation declared between groups must not
+		// decide the relation between the facets inside one group, and vice versa (negation excepted, see
+		// EvitaRequest#getFacetGroupNegation)
+		final Optional<FacetFilterBy> facetSettings = switch (relationType) {
+			case CONJUNCTION -> this.evitaRequest.getFacetGroupConjunction(referenceName, level);
+			case DISJUNCTION -> this.evitaRequest.getFacetGroupDisjunction(referenceName, level);
+			case NEGATION -> this.evitaRequest.getFacetGroupNegation(referenceName, level);
+			case EXCLUSIVITY -> this.evitaRequest.getFacetGroupExclusivity(referenceName, level);
+		};
+		if (facetSettings.isEmpty()) {
+			return false;
+		}
+		final FacetFilterBy facetFilterBy = facetSettings.get();
+		final FilterBy filterBy = facetFilterBy.filterBy();
+		if (filterBy == null) {
+			return true;
+		}
+		// the filter is planned before the group is looked at: a filter that cannot be evaluated must fail the query
+		// even when only facets without a group ask about it, just as it fails the reference summary, which asks
+		// about every group of the reference
+		final FilteringFormulaPredicate groupPredicate = getFacetRelationTuples()
+			.computeIfAbsent(
+				new FacetRelationTuple(referenceName, relationType, level),
+				tuple -> createFacetGroupPredicate(relationType, referenceSchema, facetFilterBy, filterBy)
+			);
+		// a facet without a group cannot match a group filter
+		return groupId != null && groupPredicate.test(groupId);
 	}
 
 	/**
@@ -2282,32 +2337,6 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull FacetRelationType relation,
 		@Nonnull FacetGroupRelationLevel level
 	) {
-
-	}
-
-	/**
-	 * Pulls the settings of one facet relation type for a reference at a particular
-	 * {@link FacetGroupRelationLevel} out of the request. This is what binds the shared
-	 * {@link #isFacetGroupRelationType} implementation to one of the four relations; the level is part of the lookup
-	 * because the two levels are orthogonal and carry their own settings.
-	 */
-	@FunctionalInterface
-	private interface FacetSettingsRetriever {
-
-		/**
-		 * Returns the settings declared for the given reference at the given level.
-		 *
-		 * @param request       request to read the settings from
-		 * @param referenceName name of the reference the facets belong to
-		 * @param level         level the relation is being asked about
-		 * @return the settings, empty when the query declared none for that reference at that level
-		 */
-		@Nonnull
-		Optional<FacetFilterBy> apply(
-			@Nonnull EvitaRequest request,
-			@Nonnull String referenceName,
-			@Nonnull FacetGroupRelationLevel level
-		);
 
 	}
 

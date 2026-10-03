@@ -1325,6 +1325,11 @@ relationship via dedicated requirements:
 - [Facet groups negation](#facet-groups-negation)
 - [Facet groups exclusivity](#facet-groups-exclusivity)
 
+A relationship one of these requirements sets for a group at a given level takes precedence over the defaults set by
+`facetCalculationRules`, which apply only to the groups none of them selects at that level. If several of them select
+the same group between different groups, negation takes precedence over disjunction, disjunction over exclusivity, and
+exclusivity over conjunction. The query result and the reference summary resolve the relationship the same way.
+
 </Note>
 
 A sample query that changes the default calculation rules:

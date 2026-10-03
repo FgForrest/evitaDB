@@ -92,14 +92,14 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 		this.baseFormulaWithoutUserFilter = baseFormulaWithoutUserFilter;
 		this.baseMatchCount = baseFormula.compute().size();
 		this.facetFormulaGenerator = new FacetFormulaGenerator(
+			queryContext::getFacetRelationType,
 			queryContext::isFacetGroupConjunction,
-			queryContext::isFacetGroupDisjunction,
 			queryContext::isFacetGroupNegation,
 			queryContext::isFacetGroupExclusive
 		);
 		this.impactFormulaGenerator = new ImpactFormulaGenerator(
+			queryContext::getFacetRelationType,
 			queryContext::isFacetGroupConjunction,
-			queryContext::isFacetGroupDisjunction,
 			queryContext::isFacetGroupNegation,
 			queryContext::isFacetGroupExclusive
 		);

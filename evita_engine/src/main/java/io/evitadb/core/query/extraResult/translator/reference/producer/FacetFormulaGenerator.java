@@ -47,6 +47,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.util.Map;
 
 import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
+import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS;
 
 /**
  * This implementation contains the heavy part of {@link FacetCalculator} interface implementation. It computes how many
@@ -60,18 +61,18 @@ import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFEREN
 @NotThreadSafe
 public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 	/**
-	 * Contains cache for already generated formulas indexed by a {@link FacetRelationType} that distinguishes the key
+	 * Contains cache for already generated formulas indexed by a {@link CacheKey} that distinguishes the key
 	 * situations where the formulas have to have different shape and structure.
 	 */
-	private final Map<FacetRelationType, Formula> cache = CollectionUtils.createHashMap(64);
+	private final Map<CacheKey, Formula> cache = CollectionUtils.createHashMap(64);
 
 	public FacetFormulaGenerator(
+		@Nonnull FacetRelationTypeResolver facetRelationType,
 		@Nonnull FacetGroupRelationTypeResolver isFacetGroupConjunction,
-		@Nonnull FacetGroupRelationTypeResolver isFacetGroupDisjunction,
 		@Nonnull FacetGroupRelationTypeResolver isFacetGroupNegation,
 		@Nonnull FacetGroupRelationTypeResolver isFacetGroupExclusive
 	) {
-		super(isFacetGroupConjunction, isFacetGroupDisjunction, isFacetGroupNegation, isFacetGroupExclusive);
+		super(facetRelationType, isFacetGroupConjunction, isFacetGroupNegation, isFacetGroupExclusive);
 	}
 
 	@Nonnull
@@ -84,11 +85,14 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 		int facetId,
 		@Nonnull Bitmap[] facetEntityIds
 	) {
-		final FacetRelationType relationType = getFacetRelationType(
-			referenceSchema, WITH_DIFFERENT_FACETS_IN_GROUP, FacetRelationType.DISJUNCTION, facetGroupId
+		// the shape of the formula depends on the relation of the group to the other groups as well - two groups whose
+		// facets share a relation may still differ in it, and must not share one formula
+		final CacheKey key = new CacheKey(
+			this.facetRelationType.resolve(referenceSchema, facetGroupId, WITH_DIFFERENT_FACETS_IN_GROUP),
+			this.facetRelationType.resolve(referenceSchema, facetGroupId, WITH_DIFFERENT_GROUPS)
 		);
 		return this.cache.compute(
-			relationType,
+			key,
 			(cacheKey, formula) -> {
 				if (formula == null) {
 					// the count drops the whole user filter - a user filter inside a scope container restricts only
@@ -102,7 +106,7 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 				} else {
 					final Bitmap facetEntityIdsBitmap = getBaseEntityIds(facetEntityIds);
 					final MutableFormulaFinderAndReplacer mutableFormulaFinderAndReplacer = new MutableFormulaFinderAndReplacer(
-						() -> cacheKey == FacetRelationType.CONJUNCTION ?
+						() -> cacheKey.facetRelationType() == FacetRelationType.CONJUNCTION ?
 							new FacetGroupAndFormula(referenceSchema.getName(), facetGroupId, new BaseBitmap(facetId), facetEntityIdsBitmap) :
 							new FacetGroupOrFormula(referenceSchema.getName(), facetGroupId, new BaseBitmap(facetId), facetEntityIdsBitmap)
 					);
@@ -159,6 +163,19 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 			// output changed - just propagate it
 			return this.result;
 		}
+	}
+
+	/**
+	 * Key of the {@link #cache}: the relations that decide the shape of the generated formula.
+	 *
+	 * @param facetRelationType the relation of the facets within their group
+	 * @param groupRelationType the relation of the group to the other groups
+	 */
+	private record CacheKey(
+		@Nonnull FacetRelationType facetRelationType,
+		@Nonnull FacetRelationType groupRelationType
+	) {
+
 	}
 
 }

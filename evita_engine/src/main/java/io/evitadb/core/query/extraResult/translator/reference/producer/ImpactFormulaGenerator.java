@@ -70,12 +70,12 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 	private final Map<String, IntSet> facetGroupsInUserFilter = CollectionUtils.createHashMap(16);
 
 	public ImpactFormulaGenerator(
+		@Nonnull FacetRelationTypeResolver facetRelationType,
 		@Nonnull FacetGroupRelationTypeResolver isFacetGroupConjunction,
-		@Nonnull FacetGroupRelationTypeResolver isFacetGroupDisjunction,
 		@Nonnull FacetGroupRelationTypeResolver isFacetGroupNegation,
 		@Nonnull FacetGroupRelationTypeResolver isFacetGroupExclusive
 	) {
-		super(isFacetGroupConjunction, isFacetGroupDisjunction, isFacetGroupNegation, isFacetGroupExclusive);
+		super(facetRelationType, isFacetGroupConjunction, isFacetGroupNegation, isFacetGroupExclusive);
 	}
 
 	@Nonnull
@@ -88,8 +88,8 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 		int facetId,
 		@Nonnull Bitmap[] facetEntityIds
 	) {
-		final FacetRelationType relationType = getFacetRelationType(
-			referenceSchema, WITH_DIFFERENT_GROUPS, FacetRelationType.CONJUNCTION, facetGroupId
+		final FacetRelationType relationType = this.facetRelationType.resolve(
+			referenceSchema, facetGroupId, WITH_DIFFERENT_GROUPS
 		);
 		final String referenceName = referenceSchema.getName();
 		// when facetGroupId is null, we use Integer.MIN_VALUE as a placeholder because IntSet can't work with nulls

@@ -1781,6 +1781,178 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
+	 * Returns the rows of the relation precedence witness over the {@link #FACET_RELATION_SHAPES} data set. Each row is
+	 * a label, the reference the options are selected in, the selected options, the relation requirements - the
+	 * request-wide defaults of `facetCalculationRules` and the relations declared for the reference - and the primary
+	 * keys of the products the query returns, computed from the fixture table.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> relationPrecedenceRows() {
+		final RequireConstraint disjunctionEverywhere = facetCalculationRules(
+			FacetRelationType.DISJUNCTION, FacetRelationType.DISJUNCTION
+		);
+		final RequireConstraint negationBetweenGroups = facetCalculationRules(
+			FacetRelationType.DISJUNCTION, FacetRelationType.NEGATION
+		);
+		final RequireConstraint conjunctionEverywhere = facetCalculationRules(
+			FacetRelationType.CONJUNCTION, FacetRelationType.CONJUNCTION
+		);
+		return Stream.of(
+			Arguments.of(
+				"explicit negation over default disjunction, option without a group", REF_SOURCE, new int[]{1},
+				new RequireConstraint[]{disjunctionEverywhere, facetGroupsNegation(REF_SOURCE, WITH_DIFFERENT_GROUPS)},
+				shapedProductsWithSources(false, 1)
+			),
+			Arguments.of(
+				"explicit negation over default disjunction, group filter", REF_LABEL, new int[]{3},
+				new RequireConstraint[]{
+					disjunctionEverywhere,
+					facetGroupsNegation(REF_LABEL, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_B)))
+				},
+				shapedProductsWithLabels(false, 3)
+			),
+			// the group filter does not match the selected group, so the default decides it
+			Arguments.of(
+				"explicit negation of another group, default disjunction", REF_LABEL, new int[]{1},
+				new RequireConstraint[]{
+					disjunctionEverywhere,
+					facetGroupsNegation(REF_LABEL, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_B)))
+				},
+				shapedProductsWithLabels(true, 1)
+			),
+			Arguments.of(
+				"explicit conjunction between groups over default disjunction", REF_LABEL, new int[]{1, 3},
+				new RequireConstraint[]{
+					disjunctionEverywhere, facetGroupsConjunction(REF_LABEL, WITH_DIFFERENT_GROUPS)
+				},
+				shapedProductsWithAllLabels(1, 3)
+			),
+			Arguments.of(
+				"explicit disjunction between groups over default negation", REF_LABEL, new int[]{3},
+				new RequireConstraint[]{
+					negationBetweenGroups,
+					facetGroupsDisjunction(REF_LABEL, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_B)))
+				},
+				shapedProductsWithLabels(true, 3)
+			),
+			Arguments.of(
+				"explicit disjunction within a group over default conjunction", REF_LABEL, new int[]{1, 2},
+				new RequireConstraint[]{
+					conjunctionEverywhere, facetGroupsDisjunction(REF_LABEL, WITH_DIFFERENT_FACETS_IN_GROUP)
+				},
+				shapedProductsWithLabels(true, 1, 2)
+			),
+			// of two explicit relations matching one group, negation is the one that applies
+			Arguments.of(
+				"explicit negation and disjunction of one group", REF_LABEL, new int[]{3},
+				new RequireConstraint[]{
+					facetGroupsDisjunction(REF_LABEL, WITH_DIFFERENT_GROUPS),
+					facetGroupsNegation(REF_LABEL, WITH_DIFFERENT_GROUPS)
+				},
+				shapedProductsWithLabels(false, 3)
+			),
+			// the defaults alone still apply
+			Arguments.of(
+				"default negation between groups", REF_LABEL, new int[]{3},
+				new RequireConstraint[]{negationBetweenGroups},
+				shapedProductsWithLabels(false, 3)
+			),
+			Arguments.of(
+				"default disjunction between groups", REF_LABEL, new int[]{1, 3},
+				new RequireConstraint[]{disjunctionEverywhere},
+				shapedProductsWithLabels(true, 1, 3)
+			),
+			Arguments.of(
+				"default conjunction between groups", REF_LABEL, new int[]{1, 3},
+				new RequireConstraint[]{conjunctionEverywhere},
+				shapedProductsWithAllLabels(1, 3)
+			)
+		);
+	}
+
+	/**
+	 * Checks that a relation declared for a reference decides the groups it matches whatever the request-wide default
+	 * of `facetCalculationRules` says, that the default decides the groups no declared relation matches, and that the
+	 * reference summary predicts the same products the query returns. A single selected option is checked against the
+	 * count the summary computes for it, the last of several selected options against the impact the summary predicts
+	 * for adding it to the others.
+	 *
+	 * @param label         the row label, used in the test name only
+	 * @param referenceName the reference the options are selected in
+	 * @param optionIds     the selected options
+	 * @param relations     the relation requirements
+	 * @param expected      the primary keys of the products the query returns, ascending
+	 * @param evita         the engine instance provided by the test extension
+	 */
+	@DisplayName("Should let a declared relation take precedence over the default one")
+	@UseDataSet(FACET_RELATION_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("relationPrecedenceRows")
+	void shouldLetDeclaredRelationTakePrecedenceOverDefault(
+		@Nonnull String label,
+		@Nonnull String referenceName,
+		@Nonnull int[] optionIds,
+		@Nonnull RequireConstraint[] relations,
+		@Nonnull int[] expected,
+		Evita evita
+	) {
+		assertTrue(
+			expected.length > 0 && expected.length < SHAPED_PRODUCT_LABELS.length,
+			"the relation must exclude some products and keep others"
+		);
+		final int lastOptionId = optionIds[optionIds.length - 1];
+		final Integer lastGroupId = REF_LABEL.equals(referenceName) ? LABEL_GROUPS[lastOptionId - 1] : null;
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					shapedOptionQuery(referenceName, optionIds, relations, null),
+					EntityReference.class
+				);
+				assertArrayEquals(
+					expected,
+					result.getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).sorted().toArray()
+				);
+
+				if (optionIds.length == 1) {
+					final EvitaResponse<EntityReference> withSummary = session.query(
+						shapedOptionQuery(
+							referenceName, optionIds, relations,
+							referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS)
+						),
+						EntityReference.class
+					);
+					assertEquals(
+						expected.length,
+						facetStatisticsOf(withSummary, referenceName, lastGroupId, lastOptionId).getCount(),
+						"the reference summary must count the products the option leaves in the result"
+					);
+				} else {
+					final EvitaResponse<EntityReference> withSummary = session.query(
+						shapedOptionQuery(
+							referenceName, Arrays.copyOf(optionIds, optionIds.length - 1), relations,
+							referenceSummaryOfReference(referenceName, FacetStatisticsDepth.IMPACT)
+						),
+						EntityReference.class
+					);
+					final RequestImpact impact = facetStatisticsOf(
+						withSummary, referenceName, lastGroupId, lastOptionId
+					).getImpact();
+					assertNotNull(impact, "the reference summary must predict the impact of the option");
+					assertEquals(
+						expected.length,
+						impact.matchCount(),
+						"the reference summary must predict the products adding the option leaves in the result"
+					);
+				}
+				return null;
+			}
+		);
+	}
+
+	/**
 	 * Returns the rows of the group filters that cannot be evaluated, over the {@link #FACET_RELATION_SHAPES} data set.
 	 * Each row is a label, the reference the option is selected in, the selected option, the relation requirement with
 	 * the group filter - which may name another reference - the exact type of the exception the query must fail with,
@@ -2344,6 +2516,58 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
+	 * Builds the query selecting the passed options of a reference of the {@link #FACET_RELATION_SHAPES} data set in the
+	 * user filter.
+	 *
+	 * @param referenceName the reference the options are selected in
+	 * @param optionIds     the selected options
+	 * @param relations     the relation requirements
+	 * @param summary       the reference summary requirement, NULL when no summary is requested
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query shapedOptionQuery(
+		@Nonnull String referenceName,
+		@Nonnull int[] optionIds,
+		@Nonnull RequireConstraint[] relations,
+		@Nullable RequireConstraint summary
+	) {
+		return query(
+			collection(ENTITY_SHAPED_PRODUCT),
+			filterBy(
+				userFilter(
+					facetHaving(referenceName, entityPrimaryKeyInSet(Arrays.stream(optionIds).boxed().toArray(Integer[]::new)))
+				)
+			),
+			require(
+				ArrayUtils.mergeArrays(
+					new RequireConstraint[]{
+						page(1, SHAPED_PRODUCT_LABELS.length),
+						debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+						summary
+					},
+					relations
+				)
+			)
+		);
+	}
+
+	/**
+	 * Returns the primary keys of the products of the {@link #FACET_RELATION_SHAPES} data set that reference all of the
+	 * passed labels, as the fixture table states.
+	 *
+	 * @param labelIds the labels
+	 * @return the ascending primary keys
+	 */
+	@Nonnull
+	private static int[] shapedProductsWithAllLabels(int... labelIds) {
+		return IntStream.rangeClosed(1, SHAPED_PRODUCT_LABELS.length)
+			.filter(pk -> Arrays.stream(labelIds)
+				.allMatch(labelId -> ArrayUtils.indexOf(labelId, SHAPED_PRODUCT_LABELS[pk - 1]) >= 0))
+			.toArray();
+	}
+
+	/**
 	 * Returns the primary keys of the products of the {@link #FACET_RELATION_SHAPES} data set that reference the passed
 	 * tag, as the fixture table states.
 	 *
@@ -2388,6 +2612,25 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 		@Nullable Integer groupId,
 		int optionId
 	) {
+		return facetStatisticsOf(response, referenceName, groupId, optionId).getCount();
+	}
+
+	/**
+	 * Returns the statistics the reference summary of the passed response computes for the passed option.
+	 *
+	 * @param response      the response carrying the reference summary
+	 * @param referenceName the reference the option belongs to
+	 * @param groupId       the group of the option, NULL for an option without a group
+	 * @param optionId      the option
+	 * @return the statistics of the option
+	 */
+	@Nonnull
+	private static FacetStatistics facetStatisticsOf(
+		@Nonnull EvitaResponse<EntityReference> response,
+		@Nonnull String referenceName,
+		@Nullable Integer groupId,
+		int optionId
+	) {
 		final ReferenceSummary summary = response.getExtraResult(ReferenceSummary.class);
 		assertNotNull(summary, "the reference summary must be computed");
 		final ReferenceGroupStatistics groupStatistics = groupId == null ?
@@ -2396,7 +2639,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 		assertNotNull(groupStatistics, "the group " + groupId + " of `" + referenceName + "` must have statistics");
 		final FacetStatistics facetStatistics = groupStatistics.getFacetStatistics(optionId);
 		assertNotNull(facetStatistics, "the option " + optionId + " of `" + referenceName + "` must have statistics");
-		return facetStatistics.getCount();
+		return facetStatistics;
 	}
 
 	@DisplayName("Should return products matching AND combination of facet")
