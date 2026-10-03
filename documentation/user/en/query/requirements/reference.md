@@ -850,7 +850,12 @@ facetGroupsConjunction(
         Optional filter constraint that selects one or more reference groups whose options will be combined with
         logical AND instead of the default logical OR.
 
-        If the filter is not defined, the behaviour applies to all groups of a given reference in the summary.
+        If the filter is not defined, the behaviour applies to all groups of a given reference, including the
+        options that belong to no group.
+
+        A filter that cannot be evaluated makes the query fail: a filter on a reference that has no group type,
+        a filter on a group type not managed by evitaDB that targets anything other than the group primary keys,
+        or a filter on a group attribute that is not filterable.
     </dd>
 </dl>
 
@@ -952,7 +957,12 @@ facetGroupsDisjunction(
         logical disjunction (logical OR) with options from different groups instead of the default logical
         conjunction (logical AND).
 
-        If the filter is not defined, the behaviour applies to all groups of a given reference in the summary.
+        If the filter is not defined, the behaviour applies to all groups of a given reference, including the
+        options that belong to no group.
+
+        A filter that cannot be evaluated makes the query fail: a filter on a reference that has no group type,
+        a filter on a group type not managed by evitaDB that targets anything other than the group primary keys,
+        or a filter on a group attribute that is not filterable.
     </dd>
 </dl>
 
@@ -1039,7 +1049,12 @@ facetGroupsNegation(
         returning items that reference the entity in question, the result returns items that **do not** reference
         it.
 
-        If the filter is not defined, the behaviour applies to all groups of a given reference in the summary.
+        If the filter is not defined, the behaviour applies to all groups of a given reference, including the
+        options that belong to no group.
+
+        A filter that cannot be evaluated makes the query fail: a filter on a reference that has no group type,
+        a filter on a group type not managed by evitaDB that targets anything other than the group primary keys,
+        or a filter on a group attribute that is not filterable.
     </dd>
 </dl>
 
@@ -1143,7 +1158,13 @@ facetGroupsExclusivity(
     <dd>
         Optional filter constraint that selects one or more reference groups whose options are mutually exclusive.
 
-        If the filter is not defined, the behaviour applies to all groups of a given reference in the summary.
+        If the filter is not defined, the behaviour applies to all groups of a given reference, including the
+        options that belong to no group. Either way, the relation changes only the reference summary, never the
+        query result.
+
+        A filter that cannot be evaluated makes the query fail, even though the relation does not affect the query
+        result: a filter on a reference that has no group type, a filter on a group type not managed by evitaDB that
+        targets anything other than the group primary keys, or a filter on a group attribute that is not filterable.
     </dd>
 </dl>
 
