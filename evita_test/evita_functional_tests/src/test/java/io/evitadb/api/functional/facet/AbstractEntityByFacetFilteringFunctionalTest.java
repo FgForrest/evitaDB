@@ -1667,6 +1667,58 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				"unmanaged group, primary key filter in a negation", new int[]{1},
 				facetGroupsNegation(REF_LABEL, filterBy(not(entityPrimaryKeyInSet(LABEL_GROUP_B)))),
 				shapedProductsWithLabels(false, 1)
+			),
+			// the primary key ranges need nothing but the primary keys of the groups either, and each of them is run
+			// once over the group it matches and once over a group it does not match
+			Arguments.of(
+				"unmanaged group, primary key between", new int[]{1},
+				facetGroupsNegation(REF_LABEL, filterBy(entityPrimaryKeyBetween(LABEL_GROUP_A, LABEL_GROUP_A))),
+				shapedProductsWithLabels(false, 1)
+			),
+			Arguments.of(
+				"unmanaged group, primary key between, other group", new int[]{3},
+				facetGroupsNegation(REF_LABEL, filterBy(entityPrimaryKeyBetween(LABEL_GROUP_A, LABEL_GROUP_A))),
+				shapedProductsWithLabels(true, 3)
+			),
+			Arguments.of(
+				"unmanaged group, primary key greater than", new int[]{3},
+				facetGroupsNegation(REF_LABEL, filterBy(entityPrimaryKeyGreaterThan(LABEL_GROUP_A))),
+				shapedProductsWithLabels(false, 3)
+			),
+			Arguments.of(
+				"unmanaged group, primary key greater than, other group", new int[]{1},
+				facetGroupsNegation(REF_LABEL, filterBy(entityPrimaryKeyGreaterThan(LABEL_GROUP_A))),
+				shapedProductsWithLabels(true, 1)
+			),
+			Arguments.of(
+				"unmanaged group, primary key greater than or equal", new int[]{3},
+				facetGroupsNegation(REF_LABEL, filterBy(entityPrimaryKeyGreaterThanEquals(LABEL_GROUP_B))),
+				shapedProductsWithLabels(false, 3)
+			),
+			Arguments.of(
+				"unmanaged group, primary key greater than or equal, other group", new int[]{1},
+				facetGroupsNegation(REF_LABEL, filterBy(entityPrimaryKeyGreaterThanEquals(LABEL_GROUP_B))),
+				shapedProductsWithLabels(true, 1)
+			),
+			Arguments.of(
+				"unmanaged group, primary key less than", new int[]{1},
+				facetGroupsNegation(REF_LABEL, filterBy(entityPrimaryKeyLessThan(LABEL_GROUP_B))),
+				shapedProductsWithLabels(false, 1)
+			),
+			Arguments.of(
+				"unmanaged group, primary key less than, other group", new int[]{3},
+				facetGroupsNegation(REF_LABEL, filterBy(entityPrimaryKeyLessThan(LABEL_GROUP_B))),
+				shapedProductsWithLabels(true, 3)
+			),
+			Arguments.of(
+				"unmanaged group, primary key less than or equal", new int[]{1},
+				facetGroupsNegation(REF_LABEL, filterBy(entityPrimaryKeyLessThanEquals(LABEL_GROUP_A))),
+				shapedProductsWithLabels(false, 1)
+			),
+			Arguments.of(
+				"unmanaged group, primary key less than or equal, other group", new int[]{3},
+				facetGroupsNegation(REF_LABEL, filterBy(entityPrimaryKeyLessThanEquals(LABEL_GROUP_A))),
+				shapedProductsWithLabels(true, 3)
 			)
 		);
 	}

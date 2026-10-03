@@ -854,8 +854,9 @@ facetGroupsConjunction(
         options that belong to no group.
 
         A filter that cannot be evaluated makes the query fail: a filter on a reference that has no group type,
-        a filter on a group type not managed by evitaDB that targets anything other than the group primary keys,
-        or a filter on a group attribute that is not filterable.
+        a filter on a group type not managed by evitaDB that targets anything other than the group primary keys
+        (the `entityPrimaryKey*` constraints, also inside `and`, `or` and `not`), or a filter on a group attribute
+        that is not filterable.
     </dd>
 </dl>
 
@@ -961,8 +962,9 @@ facetGroupsDisjunction(
         options that belong to no group.
 
         A filter that cannot be evaluated makes the query fail: a filter on a reference that has no group type,
-        a filter on a group type not managed by evitaDB that targets anything other than the group primary keys,
-        or a filter on a group attribute that is not filterable.
+        a filter on a group type not managed by evitaDB that targets anything other than the group primary keys
+        (the `entityPrimaryKey*` constraints, also inside `and`, `or` and `not`), or a filter on a group attribute
+        that is not filterable.
     </dd>
 </dl>
 
@@ -1053,8 +1055,9 @@ facetGroupsNegation(
         options that belong to no group.
 
         A filter that cannot be evaluated makes the query fail: a filter on a reference that has no group type,
-        a filter on a group type not managed by evitaDB that targets anything other than the group primary keys,
-        or a filter on a group attribute that is not filterable.
+        a filter on a group type not managed by evitaDB that targets anything other than the group primary keys
+        (the `entityPrimaryKey*` constraints, also inside `and`, `or` and `not`), or a filter on a group attribute
+        that is not filterable.
     </dd>
 </dl>
 
@@ -1164,7 +1167,8 @@ facetGroupsExclusivity(
 
         A filter that cannot be evaluated makes the query fail, even though the relation does not affect the query
         result: a filter on a reference that has no group type, a filter on a group type not managed by evitaDB that
-        targets anything other than the group primary keys, or a filter on a group attribute that is not filterable.
+        targets anything other than the group primary keys (the `entityPrimaryKey*` constraints, also inside `and`,
+        `or` and `not`), or a filter on a group attribute that is not filterable.
     </dd>
 </dl>
 

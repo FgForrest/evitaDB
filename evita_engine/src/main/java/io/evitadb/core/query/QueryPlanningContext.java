@@ -35,7 +35,12 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.And;
+import io.evitadb.api.query.filter.EntityPrimaryKeyBetween;
+import io.evitadb.api.query.filter.EntityPrimaryKeyGreaterThan;
+import io.evitadb.api.query.filter.EntityPrimaryKeyGreaterThanEquals;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
+import io.evitadb.api.query.filter.EntityPrimaryKeyLessThan;
+import io.evitadb.api.query.filter.EntityPrimaryKeyLessThanEquals;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
@@ -2041,14 +2046,19 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 	/**
 	 * Returns true when the passed constraint of a facet group filter cannot be answered from the primary keys of the
-	 * groups alone - i.e. it is neither the filter root, a logical container, nor `entityPrimaryKeyInSet`.
+	 * groups alone - i.e. it is neither the filter root, a logical container, nor one of the primary key constraints.
+	 * The primary key ranges (`entityPrimaryKeyBetween`, `entityPrimaryKeyGreaterThan` and the others) are translated
+	 * against the superset of all primary keys, which the stub index of a group type evitaDB does not manage knows.
 	 *
 	 * @param constraint the constraint of the group filter
 	 * @return true when the constraint needs more than the primary keys of the groups
 	 */
 	private static boolean isNotAnsweredByGroupPrimaryKeys(@Nonnull Constraint<?> constraint) {
 		return !(constraint instanceof FilterBy || constraint instanceof And || constraint instanceof Or ||
-			constraint instanceof Not || constraint instanceof EntityPrimaryKeyInSet);
+			constraint instanceof Not || constraint instanceof EntityPrimaryKeyInSet ||
+			constraint instanceof EntityPrimaryKeyBetween || constraint instanceof EntityPrimaryKeyGreaterThan ||
+			constraint instanceof EntityPrimaryKeyGreaterThanEquals || constraint instanceof EntityPrimaryKeyLessThan ||
+			constraint instanceof EntityPrimaryKeyLessThanEquals);
 	}
 
 	/**
