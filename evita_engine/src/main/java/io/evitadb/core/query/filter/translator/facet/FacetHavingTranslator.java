@@ -26,7 +26,9 @@ package io.evitadb.core.query.filter.translator.facet;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 import io.evitadb.api.exception.EntityIsNotHierarchicalException;
+import io.evitadb.api.exception.EntityNotManagedException;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -156,11 +158,15 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 						hierarchyConstraints
 					) : null,
 				targetSchema,
-				scopes.stream()
-					.map(scope -> filterByVisitor.getGlobalEntityIndexIfExists(referenceSchema.getReferencedEntityType(), scope))
-					.filter(Optional::isPresent)
-					.map(Optional::get)
-					.toArray(EntityIndex[]::new)
+				// the target indexes serve the children expansion only - looking them up for any other facet would
+				// fail for a referenced entity type evitaDB does not manage, which has no collection to look into
+				isHierarchical ?
+					scopes.stream()
+						.map(scope -> filterByVisitor.getGlobalEntityIndexIfExists(referenceSchema.getReferencedEntityType(), scope))
+						.filter(Optional::isPresent)
+						.map(Optional::get)
+						.toArray(EntityIndex[]::new) :
+					null
 			);
 		}
 	}
@@ -250,6 +256,14 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 					Capability.FACETED, scope
 				);
 			}
+		}
+
+		// the facets of a referenced entity type evitaDB does not manage can be selected only by what the owning
+		// entities store about them - the primary keys and the reference attributes; the data of the facet entities
+		// themselves is not there to be asked about
+		if (!referenceSchema.isReferencedEntityTypeManaged() &&
+			QueryUtils.findConstraint(facetHaving, EntityHaving.class, SeparateEntityScopeContainer.class) != null) {
+			throw new EntityNotManagedException(referenceSchema.getReferencedEntityType());
 		}
 
 		final List<Formula> collectedFormulas = filterByVisitor.collectFromIndexes(
@@ -478,7 +492,8 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 	 * @param mainFiltering      constraint to be used for general facet filtering
 	 * @param hierarchyFiltering constraint to be used to match additional children of all matched hierarchy facets
 	 * @param targetSchema       the schema of the target entity
-	 * @param targetIndex        the global index of the target entity
+	 * @param targetIndex        the global indexes of the target entity, present only when the hierarchical facets
+	 *                           include their children
 	 */
 	public record FacetFiltering(
 		@Nonnull FilterBy mainFiltering,

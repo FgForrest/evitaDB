@@ -27,6 +27,7 @@ import com.github.javafaker.Faker;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.exception.EntityNotManagedException;
+import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
@@ -132,31 +133,36 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	private static final int STORE_COUNT = 12;
 	/**
 	 * A small hand-made data set exercising the facet relation settings on reference shapes the generated data set does
-	 * not have. Products of {@link #ENTITY_SHAPED_PRODUCT} carry two faceted references:
+	 * not have. Products of {@link #ENTITY_SHAPED_PRODUCT} carry three faceted references:
 	 *
 	 * - {@link #REF_LABEL} - to labels of type {@link #ENTITY_LABEL}, grouped by {@link #ENTITY_LABEL_GROUP}, a type
 	 *   not managed by evitaDB. Labels 1 and 2 belong to group {@link #LABEL_GROUP_A}, label 3 to group
 	 *   {@link #LABEL_GROUP_B}, labels 4 and 5 belong to no group.
 	 * - {@link #REF_TAG} - to tags of type {@link #ENTITY_TAG}, grouped by the managed type {@link #ENTITY_TAG_GROUP},
 	 *   whose attribute {@link #ATTRIBUTE_NOTE} is not filterable. Tag {@link #GROUPED_TAG} belongs to group
-	 *   {@link #TAG_GROUP}, tag {@link #UNGROUPED_TAG} belongs to no group.
+	 *   {@link #TAG_GROUP}, tag {@link #UNGROUPED_TAG} belongs to no group. Each tag carries the filterable attribute
+	 *   {@link #ATTRIBUTE_CODE} - `tag1` and `tag2`.
+	 * - {@link #REF_SOURCE} - to sources of type {@link #ENTITY_SOURCE}, a type not managed by evitaDB, without any
+	 *   group. Each reference carries the filterable reference attribute {@link #ATTRIBUTE_CHANNEL}, whose value is
+	 *   decided by the source - see {@link #SOURCE_CHANNELS}.
 	 *
-	 * The labels and tags themselves are managed entities, so that the options can be selected in `facetHaving`.
+	 * The labels and tags themselves are managed entities, so that the options can be selected in `facetHaving`
+	 * by anything, while the sources can be selected only by what the products themselves store about them.
 	 *
-	 * | product | labels | tags |
-	 * |---------|--------|------|
-	 * | 1       | 1      | 1    |
-	 * | 2       | 1, 3   | 2    |
-	 * | 3       | 2      |      |
-	 * | 4       | 3      | 1, 2 |
-	 * | 5       | 4      |      |
-	 * | 6       | 1, 4   | 1    |
-	 * | 7       | 5      | 2    |
-	 * | 8       | 3, 4   |      |
-	 * | 9       |        | 1    |
-	 * | 10      | 2, 5   |      |
-	 * | 11      | 1, 4   | 2    |
-	 * | 12      |        |      |
+	 * | product | labels | tags | sources |
+	 * |---------|--------|------|---------|
+	 * | 1       | 1      | 1    | 1       |
+	 * | 2       | 1, 3   | 2    | 2       |
+	 * | 3       | 2      |      | 1       |
+	 * | 4       | 3      | 1, 2 |         |
+	 * | 5       | 4      |      | 2       |
+	 * | 6       | 1, 4   | 1    | 1, 2    |
+	 * | 7       | 5      | 2    |         |
+	 * | 8       | 3, 4   |      | 1       |
+	 * | 9       |        | 1    | 2       |
+	 * | 10      | 2, 5   |      |         |
+	 * | 11      | 1, 4   | 2    |         |
+	 * | 12      |        |      | 1       |
 	 */
 	private static final String FACET_RELATION_SHAPES = "FacetRelationShapes";
 	private static final String ENTITY_SHAPED_PRODUCT = "shapedProduct";
@@ -166,7 +172,10 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	private static final String ENTITY_TAG_GROUP = "tagGroup";
 	private static final String REF_LABEL = "label";
 	private static final String REF_TAG = "tag";
+	private static final String ENTITY_SOURCE = "externalSource";
+	private static final String REF_SOURCE = "source";
 	private static final String ATTRIBUTE_NOTE = "note";
+	private static final String ATTRIBUTE_CHANNEL = "channel";
 	private static final int LABEL_GROUP_A = 10;
 	private static final int LABEL_GROUP_B = 20;
 	/**
@@ -181,6 +190,10 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	private static final int GROUPED_TAG = 1;
 	private static final int UNGROUPED_TAG = 2;
 	/**
+	 * A tag no product references.
+	 */
+	private static final int MISSING_TAG = 3;
+	/**
 	 * The labels of each product of {@link #FACET_RELATION_SHAPES}, indexed by the product primary key minus one.
 	 */
 	private static final int[][] SHAPED_PRODUCT_LABELS = {
@@ -193,6 +206,20 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 		{GROUPED_TAG}, {UNGROUPED_TAG}, {}, {GROUPED_TAG, UNGROUPED_TAG}, {}, {GROUPED_TAG}, {UNGROUPED_TAG}, {},
 		{GROUPED_TAG}, {}, {UNGROUPED_TAG}, {}
 	};
+	/**
+	 * The sources of each product of {@link #FACET_RELATION_SHAPES}, indexed by the product primary key minus one.
+	 */
+	private static final int[][] SHAPED_PRODUCT_SOURCES = {
+		{1}, {2}, {1}, {}, {2}, {1, 2}, {}, {1}, {2}, {}, {}, {1}
+	};
+	/**
+	 * The {@link #ATTRIBUTE_CHANNEL} every reference to a source carries, indexed by the source primary key minus one.
+	 */
+	private static final String[] SOURCE_CHANNELS = {"web", "shop"};
+	/**
+	 * A source no product references.
+	 */
+	private static final int MISSING_SOURCE = 3;
 
 	static {
 		STORE_ORDER = new int[STORE_COUNT];
@@ -1536,9 +1563,13 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				}
 				session.defineEntitySchema(ENTITY_TAG)
 					.withoutGeneratedPrimaryKey()
+					.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::filterable)
 					.updateVia(session);
-				session.upsertEntity(session.createNewEntity(ENTITY_TAG, GROUPED_TAG));
-				session.upsertEntity(session.createNewEntity(ENTITY_TAG, UNGROUPED_TAG));
+				for (final int tagId : new int[]{GROUPED_TAG, UNGROUPED_TAG}) {
+					session.upsertEntity(
+						session.createNewEntity(ENTITY_TAG, tagId).setAttribute(ATTRIBUTE_CODE, "tag" + tagId)
+					);
+				}
 				session.defineEntitySchema(ENTITY_SHAPED_PRODUCT)
 					.withoutGeneratedPrimaryKey()
 					.withReferenceToEntity(
@@ -1548,6 +1579,11 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					.withReferenceToEntity(
 						REF_TAG, ENTITY_TAG, Cardinality.ZERO_OR_MORE,
 						whichIs -> makeReferenceIndexed(whichIs).faceted().withGroupTypeRelatedToEntity(ENTITY_TAG_GROUP)
+					)
+					.withReferenceTo(
+						REF_SOURCE, ENTITY_SOURCE, Cardinality.ZERO_OR_MORE,
+						whichIs -> makeReferenceIndexed(whichIs).faceted()
+							.withAttribute(ATTRIBUTE_CHANNEL, String.class, AttributeSchemaEditor::filterable)
 					)
 					.updateVia(session);
 				for (int pk = 1; pk <= SHAPED_PRODUCT_LABELS.length; pk++) {
@@ -1563,6 +1599,12 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						product.setReference(
 							REF_TAG, tagId,
 							tagId == GROUPED_TAG ? whichIs -> whichIs.setGroup(TAG_GROUP) : null
+						);
+					}
+					for (final int sourceId : SHAPED_PRODUCT_SOURCES[pk - 1]) {
+						product.setReference(
+							REF_SOURCE, sourceId,
+							whichIs -> whichIs.setAttribute(ATTRIBUTE_CHANNEL, SOURCE_CHANNELS[sourceId - 1])
 						);
 					}
 					session.upsertEntity(product);
@@ -1915,6 +1957,208 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
+	 * Returns the rows of the option selections over the {@link #FACET_RELATION_SHAPES} data set, on the reference to
+	 * the unmanaged source type and - as a control - on the reference to the managed tag type. Each row is a label,
+	 * the reference the option is selected in, the selecting constraint of `facetHaving`, the option the selection
+	 * resolves to, its group, the relation requirement of the reference (NULL for the defaults), and the primary keys
+	 * of the products the query returns, computed from the fixture table.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> optionSelectionRows() {
+		final int[] withGroupedTag = shapedProductsWithTag(GROUPED_TAG);
+		return Stream.of(
+			Arguments.of(
+				"unmanaged option, primary key", REF_SOURCE, entityPrimaryKeyInSet(1), 1, null, null,
+				shapedProductsWithSources(true, 1)
+			),
+			Arguments.of(
+				"unmanaged option, primary key, negation", REF_SOURCE, entityPrimaryKeyInSet(1), 1, null,
+				facetGroupsNegation(REF_SOURCE),
+				shapedProductsWithSources(false, 1)
+			),
+			Arguments.of(
+				"unmanaged option, primary key in a logical container", REF_SOURCE,
+				or(entityPrimaryKeyInSet(2), entityPrimaryKeyInSet(MISSING_SOURCE)), 2, null, null,
+				shapedProductsWithSources(true, 2)
+			),
+			Arguments.of(
+				"unmanaged option, primary key in a negation", REF_SOURCE, not(entityPrimaryKeyInSet(1)), 2, null, null,
+				shapedProductsWithSources(true, 2)
+			),
+			// a reference attribute is stored by the products themselves, so it needs nothing of the referenced entity
+			Arguments.of(
+				"unmanaged option, reference attribute", REF_SOURCE, attributeEquals(ATTRIBUTE_CHANNEL, "shop"), 2, null,
+				null,
+				shapedProductsWithSources(true, 2)
+			),
+			Arguments.of(
+				"managed option, primary key", REF_TAG, entityPrimaryKeyInSet(GROUPED_TAG), GROUPED_TAG, TAG_GROUP,
+				null,
+				withGroupedTag
+			),
+			Arguments.of(
+				"managed option, primary key, negation", REF_TAG, entityPrimaryKeyInSet(GROUPED_TAG), GROUPED_TAG,
+				TAG_GROUP, facetGroupsNegation(REF_TAG),
+				IntStream.rangeClosed(1, SHAPED_PRODUCT_TAGS.length)
+					.filter(pk -> ArrayUtils.indexOf(pk, withGroupedTag) < 0)
+					.toArray()
+			),
+			Arguments.of(
+				"managed option, primary key in a logical container", REF_TAG,
+				or(entityPrimaryKeyInSet(GROUPED_TAG), entityPrimaryKeyInSet(MISSING_TAG)), GROUPED_TAG, TAG_GROUP,
+				null,
+				withGroupedTag
+			),
+			Arguments.of(
+				"managed option, entity attribute", REF_TAG, entityHaving(attributeEquals(ATTRIBUTE_CODE, "tag1")),
+				GROUPED_TAG, TAG_GROUP, null,
+				withGroupedTag
+			)
+		);
+	}
+
+	/**
+	 * Checks that `facetHaving` selects the options of a reference to an entity type evitaDB does not manage by what
+	 * the products store about them - the primary keys, also inside logical containers, and the reference attributes -
+	 * exactly as it selects the options of a reference to a managed type, and that the reference summary counts the
+	 * selected option as many products as the query returns, also when the option is negated.
+	 *
+	 * @param label         the row label, used in the test name only
+	 * @param referenceName the reference the option is selected in
+	 * @param selection     the selecting constraint of `facetHaving`
+	 * @param optionId      the option the selection resolves to
+	 * @param groupId       the group of the option, NULL for an option without a group
+	 * @param relation      the relation requirement of the reference, NULL for the defaults
+	 * @param expected      the primary keys of the products the query returns, ascending
+	 * @param evita         the engine instance provided by the test extension
+	 */
+	@DisplayName("Should select options whether the referenced entity type is managed or not")
+	@UseDataSet(FACET_RELATION_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("optionSelectionRows")
+	void shouldSelectOptionsWhetherReferencedTypeIsManagedOrNot(
+		@Nonnull String label,
+		@Nonnull String referenceName,
+		@Nonnull FilterConstraint selection,
+		int optionId,
+		@Nullable Integer groupId,
+		@Nullable RequireConstraint relation,
+		@Nonnull int[] expected,
+		Evita evita
+	) {
+		assertTrue(
+			expected.length > 0 && expected.length < SHAPED_PRODUCT_LABELS.length,
+			"the selection must exclude some products and keep others"
+		);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				for (final boolean withSummary : new boolean[]{false, true}) {
+					final EvitaResponse<EntityReference> result = session.query(
+						query(
+							collection(ENTITY_SHAPED_PRODUCT),
+							filterBy(userFilter(facetHaving(referenceName, selection))),
+							require(
+								page(1, SHAPED_PRODUCT_LABELS.length),
+								debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+								relation,
+								withSummary ? referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS) : null
+							)
+						),
+						EntityReference.class
+					);
+					assertArrayEquals(
+						expected,
+						result.getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).sorted().toArray()
+					);
+					if (withSummary) {
+						assertEquals(
+							expected.length,
+							facetCountOf(result, referenceName, groupId, optionId),
+							"the reference summary must count the products the option leaves in the result"
+						);
+					}
+				}
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Returns the rows of the option selections over the {@link #FACET_RELATION_SHAPES} data set that ask the unmanaged
+	 * source type about its own data, which evitaDB does not have. Each row is a label and the selecting constraint
+	 * of `facetHaving`; every row is run with and without the reference summary of the reference.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> unevaluableUnmanagedOptionSelectionRows() {
+		final FilterConstraint byEntityCode = entityHaving(attributeEquals(ATTRIBUTE_CODE, "anything"));
+		return Stream.of(
+			Arguments.of("entity attribute", new FilterConstraint[]{byEntityCode}),
+			Arguments.of(
+				"entity attribute in a logical container",
+				new FilterConstraint[]{or(entityPrimaryKeyInSet(1), byEntityCode)}
+			),
+			Arguments.of(
+				"entity attribute beside a primary key",
+				new FilterConstraint[]{entityPrimaryKeyInSet(1), byEntityCode}
+			)
+		)
+			.flatMap(row -> Stream.of(false, true).map(withSummary -> Arguments.of(
+				row.get()[0] + (withSummary ? ", with summary" : ", without summary"), row.get()[1], withSummary
+			)));
+	}
+
+	/**
+	 * Checks that `facetHaving` asking a referenced entity type evitaDB does not manage about the data of the entities
+	 * themselves makes the query fail with the client error naming that type, whether the reference summary is
+	 * requested or not.
+	 *
+	 * @param label       the row label, used in the test name only
+	 * @param selection   the selecting constraints of `facetHaving`
+	 * @param withSummary whether the query requests the reference summary of the reference
+	 * @param evita       the engine instance provided by the test extension
+	 */
+	@DisplayName("Should fail the query asking an unmanaged referenced entity type about its own data")
+	@UseDataSet(FACET_RELATION_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("unevaluableUnmanagedOptionSelectionRows")
+	void shouldFailQueryAskingUnmanagedReferencedTypeAboutItsData(
+		@Nonnull String label,
+		@Nonnull FilterConstraint[] selection,
+		boolean withSummary,
+		Evita evita
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EntityNotManagedException exception = assertThrowsExactly(
+					EntityNotManagedException.class,
+					() -> session.query(
+						query(
+							collection(ENTITY_SHAPED_PRODUCT),
+							filterBy(userFilter(facetHaving(REF_SOURCE, selection))),
+							require(
+								page(1, SHAPED_PRODUCT_LABELS.length),
+								withSummary ? referenceSummaryOfReference(REF_SOURCE, FacetStatisticsDepth.COUNTS) : null
+							)
+						),
+						EntityReference.class
+					)
+				);
+				assertTrue(
+					exception.getMessage().contains("`" + ENTITY_SOURCE + "`"),
+					"the message `" + exception.getMessage() + "` must name the unmanaged type"
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
 	 * Returns the rows of the group filter declared for a reference without any group type: the relation requirement,
 	 * the name of its constraint, whether the reference summary is requested and whether an option of the reference is
 	 * selected.
@@ -2058,6 +2302,22 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	private static int[] shapedProductsWithTag(int tagId) {
 		return IntStream.rangeClosed(1, SHAPED_PRODUCT_TAGS.length)
 			.filter(pk -> ArrayUtils.indexOf(tagId, SHAPED_PRODUCT_TAGS[pk - 1]) >= 0)
+			.toArray();
+	}
+
+	/**
+	 * Returns the primary keys of the products of the {@link #FACET_RELATION_SHAPES} data set that reference any of the
+	 * passed sources, or none of them, as the fixture table states.
+	 *
+	 * @param referencingAny `true` for the products referencing any of the sources, `false` for those referencing none
+	 * @param sourceIds      the sources
+	 * @return the ascending primary keys
+	 */
+	@Nonnull
+	private static int[] shapedProductsWithSources(boolean referencingAny, int... sourceIds) {
+		return IntStream.rangeClosed(1, SHAPED_PRODUCT_SOURCES.length)
+			.filter(pk -> Arrays.stream(SHAPED_PRODUCT_SOURCES[pk - 1])
+				.anyMatch(sourceId -> ArrayUtils.indexOf(sourceId, sourceIds) >= 0) == referencingAny)
 			.toArray();
 	}
 

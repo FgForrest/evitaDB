@@ -378,6 +378,9 @@ matched through a selected facet whether or not its own reference satisfies the 
 Reading the constraints per facet keeps the result consistent with the facet statistics, which are counted per facet.
 Use [`referenceHaving`](#reference-having) when the constraint has to hold for the entity's own reference.
 
+When the referenced entity type is not managed by evitaDB, the facets can be selected only by their primary keys and
+by the reference attributes, and a nested `entityHaving` makes the query fail.
+
 </Note>
 
 To demonstrate the cooperation between the `facetHaving` constraint inside `userFilter` and the `referenceSummary`
