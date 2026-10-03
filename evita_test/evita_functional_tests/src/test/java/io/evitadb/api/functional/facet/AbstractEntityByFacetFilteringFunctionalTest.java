@@ -145,6 +145,10 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 * - {@link #REF_SOURCE} - to sources of type {@link #ENTITY_SOURCE}, a type not managed by evitaDB, without any
 	 *   group. Each reference carries the filterable reference attribute {@link #ATTRIBUTE_CHANNEL}, whose value is
 	 *   decided by the source - see {@link #SOURCE_CHANNELS}.
+	 * - {@link #REF_MARK} - to marks of type {@link #ENTITY_MARK}, a type not managed by evitaDB, grouped by the managed
+	 *   type {@link #ENTITY_MARK_GROUP}, whose collection holds no entity at all. Its attribute {@link #ATTRIBUTE_CODE}
+	 *   is filterable, its attribute {@link #ATTRIBUTE_NOTE} is not. Product 1 references mark {@link #UNGROUPED_MARK},
+	 *   which belongs to no group.
 	 *
 	 * The labels and tags themselves are managed entities, so that the options can be selected in `facetHaving`
 	 * by anything, while the sources can be selected only by what the products themselves store about them.
@@ -176,6 +180,10 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	private static final String REF_SOURCE = "source";
 	private static final String ATTRIBUTE_NOTE = "note";
 	private static final String ATTRIBUTE_CHANNEL = "channel";
+	private static final String ENTITY_MARK = "externalMark";
+	private static final String ENTITY_MARK_GROUP = "emptyMarkGroup";
+	private static final String REF_MARK = "mark";
+	private static final int UNGROUPED_MARK = 1;
 	private static final int LABEL_GROUP_A = 10;
 	private static final int LABEL_GROUP_B = 20;
 	/**
@@ -1555,6 +1563,11 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						.setAttribute(ATTRIBUTE_CODE, "tagGroup")
 						.setAttribute(ATTRIBUTE_NOTE, "not filterable")
 				);
+				session.defineEntitySchema(ENTITY_MARK_GROUP)
+					.withoutGeneratedPrimaryKey()
+					.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::filterable)
+					.withAttribute(ATTRIBUTE_NOTE, String.class)
+					.updateVia(session);
 				session.defineEntitySchema(ENTITY_LABEL)
 					.withoutGeneratedPrimaryKey()
 					.updateVia(session);
@@ -1585,6 +1598,10 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						whichIs -> makeReferenceIndexed(whichIs).faceted()
 							.withAttribute(ATTRIBUTE_CHANNEL, String.class, AttributeSchemaEditor::filterable)
 					)
+					.withReferenceTo(
+						REF_MARK, ENTITY_MARK, Cardinality.ZERO_OR_MORE,
+						whichIs -> makeReferenceIndexed(whichIs).faceted().withGroupTypeRelatedToEntity(ENTITY_MARK_GROUP)
+					)
 					.updateVia(session);
 				for (int pk = 1; pk <= SHAPED_PRODUCT_LABELS.length; pk++) {
 					final EntityBuilder product = session.createNewEntity(ENTITY_SHAPED_PRODUCT, pk);
@@ -1606,6 +1623,9 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 							REF_SOURCE, sourceId,
 							whichIs -> whichIs.setAttribute(ATTRIBUTE_CHANNEL, SOURCE_CHANNELS[sourceId - 1])
 						);
+					}
+					if (pk == 1) {
+						product.setReference(REF_MARK, UNGROUPED_MARK);
 					}
 					session.upsertEntity(product);
 				}
@@ -1965,6 +1985,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	static Stream<Arguments> unevaluableGroupFilterRows() {
 		final FilterBy byLabelGroupCode = filterBy(attributeEquals(ATTRIBUTE_CODE, "anything"));
 		final FilterBy byTagGroupNote = filterBy(attributeEquals(ATTRIBUTE_NOTE, "anything"));
+		final FilterBy byMarkGroupNote = filterBy(attributeEquals(ATTRIBUTE_NOTE, "anything"));
 		return Stream.of(
 			Arguments.of(
 				"unmanaged group, attribute filter", REF_LABEL, 1,
@@ -2016,6 +2037,18 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 			Arguments.of(
 				"managed group, non-filterable attribute of a reference not selected", REF_LABEL, 1,
 				facetGroupsConjunction(REF_TAG, byTagGroupNote),
+				AttributeNotFilterableException.class, new String[]{"`" + ATTRIBUTE_NOTE + "`"}
+			),
+			// the group type holds no entity, so there is no index the filter could be looked up in
+			Arguments.of(
+				"managed group without entities, non-filterable attribute", REF_MARK, UNGROUPED_MARK,
+				facetGroupsNegation(REF_MARK, byMarkGroupNote),
+				AttributeNotFilterableException.class, new String[]{"`" + ATTRIBUTE_NOTE + "`"}
+			),
+			Arguments.of(
+				"managed group without entities, non-filterable attribute of a reference not selected", REF_TAG,
+				GROUPED_TAG,
+				facetGroupsExclusivity(REF_MARK, byMarkGroupNote),
 				AttributeNotFilterableException.class, new String[]{"`" + ATTRIBUTE_NOTE + "`"}
 			)
 		)
@@ -2110,6 +2143,11 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 			Arguments.of(
 				"unmanaged group, primary key filter of a reference not selected", REF_TAG, GROUPED_TAG,
 				facetGroupsNegation(REF_LABEL, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_B))),
+				shapedProductsWithTag(GROUPED_TAG)
+			),
+			Arguments.of(
+				"managed group without entities, filterable attribute", REF_TAG, GROUPED_TAG,
+				facetGroupsNegation(REF_MARK, filterBy(attributeEquals(ATTRIBUTE_CODE, "anything"))),
 				shapedProductsWithTag(GROUPED_TAG)
 			),
 			Arguments.of(

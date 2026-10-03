@@ -2083,7 +2083,23 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		final Supplier<String> stepDescription = () -> "Facet group " + relationType.name().toLowerCase() +
 			" of `" + referenceName + "` filter: " + facetFilterBy;
 		if (referenceSchema.isReferencedGroupTypeManaged()) {
-			return new FilteringFormulaPredicate(this, getScopes(), filterBy, referencedGroupType, stepDescription);
+			final List<GlobalEntityIndex> groupIndexes = getScopes().stream()
+				.flatMap(scope -> getGlobalEntityIndexIfExists(referencedGroupType, scope).stream())
+				.toList();
+			// a group type that holds no entity has no index yet, and a filter with no index to look into would never
+			// be translated - empty indexes in its place let the translation check the filter against the group schema
+			// exactly as it does when the groups exist, so that the query does not fail or pass depending on the data
+			return new FilteringFormulaPredicate(
+				this,
+				groupIndexes.isEmpty() ?
+					getScopes().stream()
+						.map(scope -> new GlobalEntityIndex(-1, referencedGroupType, GLOBAL_INDEX_KEY.get(scope)))
+						.toList() :
+					groupIndexes,
+				filterBy,
+				getSchema(referencedGroupType),
+				stepDescription
+			);
 		} else {
 			// the stub indexes of a group type evitaDB does not manage know the primary keys of the groups and nothing
 			// else - planning any other constraint would fail on an error that does not name the actual cause
@@ -2094,6 +2110,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 				this,
 				getThrowingGlobalIndexesForNonManagedEntityTypeGroup(referenceName, referencedGroupType),
 				filterBy,
+				null,
 				stepDescription
 			);
 		}

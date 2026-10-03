@@ -25,6 +25,7 @@ package io.evitadb.core.query.extraResult.translator.reference.producer;
 
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
@@ -35,6 +36,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Set;
 import java.util.function.IntPredicate;
@@ -91,10 +93,22 @@ public class FilteringFormulaPredicate implements IntPredicate {
 		this.filteringFormula.initialize(queryContext.getInternalExecutionContext());
 	}
 
+	/**
+	 * Creates the predicate planning the filter against the passed global indexes rather than the ones the collection
+	 * of the filtered entity type holds.
+	 *
+	 * @param queryContext            used for accessing global cache and recording query telemetry
+	 * @param indexes                 the global indexes the filter is planned against
+	 * @param filterBy                the filter constraints the entities must match
+	 * @param entitySchema            the schema the filter is checked against, NULL for an entity type evitaDB does
+	 *                                not manage
+	 * @param stepDescriptionSupplier the message supplier for the query telemetry
+	 */
 	public FilteringFormulaPredicate(
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull List<GlobalEntityIndex> indexes,
 		@Nonnull FilterBy filterBy,
+		@Nullable EntitySchemaContract entitySchema,
 		@Nonnull Supplier<String> stepDescriptionSupplier
 	) {
 		this.filterBy = filterBy;
@@ -107,7 +121,7 @@ public class FilteringFormulaPredicate implements IntPredicate {
 					indexes,
 					filterBy,
 					null,
-					null,
+					entitySchema,
 					stepDescriptionSupplier
 				),
 				(executionContext, formula) -> {
