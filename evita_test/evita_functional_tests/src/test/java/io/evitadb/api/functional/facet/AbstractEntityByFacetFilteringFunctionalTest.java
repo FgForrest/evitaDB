@@ -1973,6 +1973,223 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
+	 * Returns the rows of the default negation witness over the {@link #FACET_RELATION_SHAPES} data set. Each row is a
+	 * label, the selected labels, the relation requirements - the request-wide defaults of `facetCalculationRules`,
+	 * possibly with relations declared for the label reference - the declared relations the requirements are
+	 * equivalent to (NULL when the row claims no equivalence), the labels whose own count the reference summary
+	 * computes as a negation, and the primary keys of the products the query returns, computed from the fixture table.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> defaultNegationRows() {
+		final RequireConstraint negationWithinGroup = facetCalculationRules(
+			FacetRelationType.NEGATION, FacetRelationType.CONJUNCTION
+		);
+		final RequireConstraint negationBetweenGroups = facetCalculationRules(
+			FacetRelationType.DISJUNCTION, FacetRelationType.NEGATION
+		);
+		final RequireConstraint[] negationOfEveryGroup = {facetGroupsNegation(REF_LABEL)};
+		final RequireConstraint conjunctionWithinFirstGroup = facetGroupsConjunction(
+			REF_LABEL, WITH_DIFFERENT_FACETS_IN_GROUP, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_A))
+		);
+		return Stream.of(
+			// with the other level at its system default, a negation is the same set at either level
+			Arguments.of(
+				"default negation within a group, one option", new int[]{3},
+				new RequireConstraint[]{negationWithinGroup}, negationOfEveryGroup, new int[]{3},
+				shapedProductsWithLabels(false, 3)
+			),
+			Arguments.of(
+				"default negation within a group, options of two groups", new int[]{1, 3},
+				new RequireConstraint[]{negationWithinGroup}, negationOfEveryGroup, new int[]{1, 3},
+				shapedProductsWithLabels(false, 1, 3)
+			),
+			Arguments.of(
+				"default negation between groups, one option", new int[]{3},
+				new RequireConstraint[]{negationBetweenGroups}, negationOfEveryGroup, new int[]{3},
+				shapedProductsWithLabels(false, 3)
+			),
+			Arguments.of(
+				"default negation between groups, options of two groups", new int[]{1, 3},
+				new RequireConstraint[]{negationBetweenGroups}, negationOfEveryGroup, new int[]{1, 3},
+				shapedProductsWithLabels(false, 1, 3)
+			),
+			// a group declaring its own relation within the group is not decided by the default there, so the default
+			// negation does not negate it among the other groups either
+			Arguments.of(
+				"default negation within a group, a group declaring its own relation", new int[]{1, 3},
+				new RequireConstraint[]{negationWithinGroup, conjunctionWithinFirstGroup},
+				new RequireConstraint[]{
+					conjunctionWithinFirstGroup,
+					facetGroupsNegation(REF_LABEL, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_B)))
+				},
+				new int[]{3},
+				IntStream.of(shapedProductsWithLabels(true, 1))
+					.filter(pk -> ArrayUtils.indexOf(pk, shapedProductsWithLabels(true, 3)) < 0)
+					.toArray()
+			),
+			// with the other level away from its system default, the relation between groups decides whether a
+			// group is negated
+			Arguments.of(
+				"default negation within a group, disjunction between groups, one option", new int[]{3},
+				new RequireConstraint[]{facetCalculationRules(FacetRelationType.NEGATION, FacetRelationType.DISJUNCTION)},
+				null, new int[0],
+				shapedProductsWithLabels(true, 3)
+			),
+			Arguments.of(
+				"default negation within a group, disjunction between groups, options of two groups", new int[]{1, 3},
+				new RequireConstraint[]{facetCalculationRules(FacetRelationType.NEGATION, FacetRelationType.DISJUNCTION)},
+				null, new int[0],
+				shapedProductsWithLabels(true, 1, 3)
+			),
+			Arguments.of(
+				"conjunction within a group, default negation between groups, one option", new int[]{3},
+				new RequireConstraint[]{facetCalculationRules(FacetRelationType.CONJUNCTION, FacetRelationType.NEGATION)},
+				null, new int[]{3},
+				shapedProductsWithLabels(false, 3)
+			),
+			Arguments.of(
+				"conjunction within a group, default negation between groups, options of two groups", new int[]{1, 3},
+				new RequireConstraint[]{facetCalculationRules(FacetRelationType.CONJUNCTION, FacetRelationType.NEGATION)},
+				null, new int[]{1, 3},
+				shapedProductsWithLabels(false, 1, 3)
+			)
+		);
+	}
+
+	/**
+	 * Checks that a negation the request-wide defaults of `facetCalculationRules` set at one level, while the other
+	 * level stays at its system default, selects the same products as a declared negation of every group, whichever
+	 * level carries it, and that the reference summary predicts them: the count of each option with no option selected,
+	 * and the count or impact of the last option with the others selected. When the other level is away from its system
+	 * default, the relation between groups decides whether a group is negated, in the result and in the summary alike.
+	 *
+	 * @param label              the row label, used in the test name only
+	 * @param labelIds           the selected labels
+	 * @param relations          the relation requirements
+	 * @param declaredEquivalent the declared relations selecting the same products, NULL when the row claims none
+	 * @param negatedLabelIds    the labels whose count with no option selected is a negation
+	 * @param expected           the primary keys of the products the query returns, ascending
+	 * @param evita              the engine instance provided by the test extension
+	 */
+	@DisplayName("Should apply a default negation the same way at either level")
+	@UseDataSet(FACET_RELATION_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("defaultNegationRows")
+	void shouldApplyDefaultNegationAtEitherLevel(
+		@Nonnull String label,
+		@Nonnull int[] labelIds,
+		@Nonnull RequireConstraint[] relations,
+		@Nullable RequireConstraint[] declaredEquivalent,
+		@Nonnull int[] negatedLabelIds,
+		@Nonnull int[] expected,
+		Evita evita
+	) {
+		assertTrue(
+			expected.length > 0 && expected.length < SHAPED_PRODUCT_LABELS.length,
+			"the relation must exclude some products and keep others"
+		);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertLabelSelectionPredicted(session, labelIds, relations, negatedLabelIds, expected);
+				if (declaredEquivalent != null) {
+					assertLabelSelectionPredicted(session, labelIds, declaredEquivalent, negatedLabelIds, expected);
+				}
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Asserts that selecting the passed labels under the passed relations returns the expected products, and that the
+	 * reference summary predicts them - the count of each label with no label selected, which is the products without
+	 * the label for a negated one and with it otherwise, and the count (one label) or impact (several labels) of the
+	 * last label with the others selected.
+	 *
+	 * @param session         the session to query in
+	 * @param labelIds        the selected labels
+	 * @param relations       the relation requirements
+	 * @param negatedLabelIds the labels whose count with no label selected is a negation
+	 * @param expected        the primary keys of the products the query returns, ascending
+	 */
+	private static void assertLabelSelectionPredicted(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull int[] labelIds,
+		@Nonnull RequireConstraint[] relations,
+		@Nonnull int[] negatedLabelIds,
+		@Nonnull int[] expected
+	) {
+		final EvitaResponse<EntityReference> result = session.query(
+			shapedOptionQuery(REF_LABEL, labelIds, relations, null),
+			EntityReference.class
+		);
+		assertArrayEquals(
+			expected,
+			result.getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).sorted().toArray()
+		);
+
+		// with no label selected, the summary counts each label on its own - the path without a user filter
+		final EvitaResponse<EntityReference> withoutSelection = session.query(
+			query(
+				collection(ENTITY_SHAPED_PRODUCT),
+				require(
+					ArrayUtils.mergeArrays(
+						new RequireConstraint[]{
+							page(1, SHAPED_PRODUCT_LABELS.length),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							referenceSummaryOfReference(REF_LABEL, FacetStatisticsDepth.COUNTS)
+						},
+						relations
+					)
+				)
+			),
+			EntityReference.class
+		);
+		for (final int labelId : labelIds) {
+			final boolean negated = ArrayUtils.indexOf(labelId, negatedLabelIds) >= 0;
+			assertEquals(
+				shapedProductsWithLabels(!negated, labelId).length,
+				facetCountOf(withoutSelection, REF_LABEL, LABEL_GROUPS[labelId - 1], labelId),
+				"the reference summary must count the products selecting the label " + labelId + " alone returns"
+			);
+		}
+
+		final int lastLabelId = labelIds[labelIds.length - 1];
+		if (labelIds.length == 1) {
+			final EvitaResponse<EntityReference> withSummary = session.query(
+				shapedOptionQuery(
+					REF_LABEL, labelIds, relations, referenceSummaryOfReference(REF_LABEL, FacetStatisticsDepth.COUNTS)
+				),
+				EntityReference.class
+			);
+			assertEquals(
+				expected.length,
+				facetCountOf(withSummary, REF_LABEL, LABEL_GROUPS[lastLabelId - 1], lastLabelId),
+				"the reference summary must count the products the label leaves in the result"
+			);
+		} else {
+			final EvitaResponse<EntityReference> withSummary = session.query(
+				shapedOptionQuery(
+					REF_LABEL, Arrays.copyOf(labelIds, labelIds.length - 1), relations,
+					referenceSummaryOfReference(REF_LABEL, FacetStatisticsDepth.IMPACT)
+				),
+				EntityReference.class
+			);
+			final RequestImpact impact = facetStatisticsOf(
+				withSummary, REF_LABEL, LABEL_GROUPS[lastLabelId - 1], lastLabelId
+			).getImpact();
+			assertNotNull(impact, "the reference summary must predict the impact of the label");
+			assertEquals(
+				expected.length,
+				impact.matchCount(),
+				"the reference summary must predict the products adding the label leaves in the result"
+			);
+		}
+	}
+
+	/**
 	 * Returns the rows of the group filters that cannot be evaluated, over the {@link #FACET_RELATION_SHAPES} data set.
 	 * Each row is a label, the reference the option is selected in, the selected option, the relation requirement with
 	 * the group filter - which may name another reference - the exact type of the exception the query must fail with,

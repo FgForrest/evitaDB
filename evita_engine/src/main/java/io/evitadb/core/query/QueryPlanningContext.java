@@ -1916,7 +1916,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * - a relation the query declares for the reference, and whose group filter matches the group (or which has no
 	 *   filter at all), takes precedence over the request-wide default of `facetCalculationRules`
 	 * - when several declared relations match the group, the first of {@link #DECLARED_RELATION_PRECEDENCE} wins
-	 * - the default for the level decides only a group no declared relation matches
+	 * - the default for the level decides only a group no declared relation matches - a default negation within the
+	 *   groups included, which negates the groups it decides between groups too, see
+	 *   {@link #getDefaultFacetRelationType}
 	 *
 	 * @param referenceSchema the schema of the reference to which the facet group belongs
 	 * @param groupId         the identifier of the group; NULL for the facets without a group
@@ -1930,7 +1932,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull FacetGroupRelationLevel level
 	) {
 		final FacetRelationType declared = getDeclaredFacetRelationType(referenceSchema, groupId, level);
-		return declared == null ? getDefaultFacetRelationType(level) : declared;
+		return declared == null ? getDefaultFacetRelationType(referenceSchema, groupId, level) : declared;
 	}
 
 	/**
@@ -1957,7 +1959,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull FacetGroupRelationLevel level
 	) {
 		return isFacetGroupRelationDeclared(relationType, referenceSchema, groupId, level) ||
-			(getDefaultFacetRelationType(level) == relationType &&
+			(getDefaultFacetRelationType(referenceSchema, groupId, level) == relationType &&
 				getDeclaredFacetRelationType(referenceSchema, groupId, level) == null);
 	}
 
@@ -1985,16 +1987,38 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns the request-wide default relation of the passed level - the one `facetCalculationRules` sets, or the
-	 * system default when the query does not change it.
+	 * Returns the request-wide default relation the facets of the passed group take at the passed level - the one
+	 * `facetCalculationRules` sets, or the system default when the query does not change it.
 	 *
-	 * @param level the level of the facet group relation
-	 * @return the default relation of the level
+	 * A negation is the one relation whose level does not change the outcome while the other level stays at its
+	 * system default: by De Morgan's laws, negating each facet of a group and combining them with AND is the same set
+	 * as negating the group's disjunction. Both the query result and the reference summary negate a group only by its
+	 * relation to the other groups, so a default negation within the groups, with the default between them left at
+	 * the system conjunction, is served between groups as well - just as a declared negation is honoured at both
+	 * levels (see {@link EvitaRequest#getFacetGroupNegation}). It negates only the groups it decides within: a group
+	 * declaring its own relation within it takes the default between groups as it stands.
+	 *
+	 * @param referenceSchema the schema of the reference to which the facet group belongs
+	 * @param groupId         the identifier of the group; NULL for the facets without a group
+	 * @param level           the level of the facet group relation
+	 * @return the default relation of the facets of the group at the level
 	 */
 	@Nonnull
-	private FacetRelationType getDefaultFacetRelationType(@Nonnull FacetGroupRelationLevel level) {
-		return level == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP ?
-			this.evitaRequest.getDefaultFacetRelationType() : this.evitaRequest.getDefaultGroupRelationType();
+	private FacetRelationType getDefaultFacetRelationType(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		if (level == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP) {
+			return this.evitaRequest.getDefaultFacetRelationType();
+		}
+		final FacetRelationType groupRelationType = this.evitaRequest.getDefaultGroupRelationType();
+		return groupRelationType == FacetRelationType.CONJUNCTION &&
+			this.evitaRequest.getDefaultFacetRelationType() == FacetRelationType.NEGATION &&
+			getDeclaredFacetRelationType(
+				referenceSchema, groupId, FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP
+			) == null ?
+			FacetRelationType.NEGATION : groupRelationType;
 	}
 
 	/**
