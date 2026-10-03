@@ -327,7 +327,10 @@ class FacetComputationalContext {
 					FacetGroupsConstraint::getFacetGroupRelationLevel,
 					Collectors.flatMapping(
 						it -> {
-							if (ArrayUtils.isEmpty(extractFacetIds(it.getFacetGroups().orElseThrow()))) {
+							// settings without a filter apply to every group of the reference; they are represented by
+							// the bucket of the options without a group, which is every option of a reference that has
+							// no group type
+							if (ArrayUtils.isEmpty(it.getFacetGroups().map(FacetComputationalContext::extractFacetIds).orElse(null))) {
 								return Stream.of(
 									new GroupReference(
 										entitySchema.getReferenceOrThrowException(it.getReferenceName()),

@@ -347,20 +347,20 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 			.collect(
 				Collectors.groupingBy(
 					it -> {
+						// the facets without a group and the groups of a type evitaDB does not manage follow the
+						// relation settings like any other group - the reference summary predicts their counts the
+						// same way, so the result must not deviate from it
 						final Integer groupId = it.getFacetGroupId();
-						if (groupId != null) {
-							if (referenceSchema.isReferencedGroupTypeManaged()) {
-								// OR relation is requested for facets of this group
-								if (filterByVisitor.isFacetGroupDisjunction(referenceSchema, groupId, WITH_DIFFERENT_GROUPS)) {
-									return Or.class;
-									// NOT relation is requested for facets of this group
-								} else if (filterByVisitor.isFacetGroupNegation(referenceSchema, groupId, WITH_DIFFERENT_GROUPS)) {
-									return Not.class;
-								}
-							}
+						if (filterByVisitor.isFacetGroupDisjunction(referenceSchema, groupId, WITH_DIFFERENT_GROUPS)) {
+							// OR relation is requested for facets of this group
+							return Or.class;
+						} else if (filterByVisitor.isFacetGroupNegation(referenceSchema, groupId, WITH_DIFFERENT_GROUPS)) {
+							// NOT relation is requested for facets of this group
+							return Not.class;
+						} else {
+							// default group relation is and
+							return And.class;
 						}
-						// default group relation is and
-						return And.class;
 					}
 				)
 			);

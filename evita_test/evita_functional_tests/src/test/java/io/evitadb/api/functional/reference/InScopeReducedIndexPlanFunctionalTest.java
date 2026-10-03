@@ -3187,6 +3187,81 @@ public class InScopeReducedIndexPlanFunctionalTest {
 			);
 		}
 
+		/**
+		 * Returns the rows of the negated brand witness: a label, the user filter selecting the brand - placed next to
+		 * `scope(LIVE, ARCHIVED)` or inside `inScope(LIVE, ...)` - the negation requirement, and the primary keys the
+		 * query returns. The brand has no group, so the negation applies to the options without a group.
+		 *
+		 * @return the row arguments
+		 */
+		@Nonnull
+		static Stream<Arguments> negatedBrandRows() {
+			final FilterConstraint brandSelected = userFilter(facetHaving(REF_BRAND, entityPrimaryKeyInSet(BRAND)));
+			// the container restricts the live scope only: its unbranded products stay, and so does every archived one
+			final int[] liveUnbrandedAndArchived = union(without(UNBRANDED, ARCHIVED_ALL), ARCHIVED_ALL);
+			return Stream.of(
+				Arguments.of("negation", brandSelected, facetGroupsNegation(REF_BRAND), UNBRANDED),
+				Arguments.of(
+					"negation between groups", brandSelected,
+					facetGroupsNegation(REF_BRAND, FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS), UNBRANDED
+				),
+				Arguments.of(
+					"negation in live scope container", inScope(Scope.LIVE, brandSelected),
+					facetGroupsNegation(REF_BRAND), liveUnbrandedAndArchived
+				),
+				Arguments.of(
+					"negation between groups in live scope container", inScope(Scope.LIVE, brandSelected),
+					facetGroupsNegation(REF_BRAND, FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS),
+					liveUnbrandedAndArchived
+				)
+			);
+		}
+
+		/**
+		 * Checks that a negated brand selected in the user filter of a query over both scopes excludes the branded
+		 * products of every scope the user filter restricts, and that with the user filter next to `scope(...)` the
+		 * result is as large as the count the facet summary predicts for the brand.
+		 *
+		 * @param label    the row label, used in the test name only
+		 * @param filter   the user filter selecting the brand
+		 * @param relation the negation requirement of the brand reference
+		 * @param expected the expected primary keys, ascending
+		 * @param session  the session provided by the test extension
+		 */
+		@DisplayName("Should exclude the products of a negated brand from every scope the user filter restricts")
+		@UseDataSet(IN_SCOPE_REDUCED_INDEX_PLAN)
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("negatedBrandRows")
+		@Tag(ENGINE)
+		@Tag(QUERY)
+		@Tag(FACET)
+		void shouldExcludeProductsOfNegatedBrandFromEveryScopeUserFilterRestricts(
+			@Nonnull String label,
+			@Nonnull FilterConstraint filter,
+			@Nonnull RequireConstraint relation,
+			@Nonnull int[] expected,
+			@Nonnull EvitaSessionContract session
+		) {
+			assertArrayEquals(
+				expected,
+				sortedPrimaryKeys(
+					session.query(
+						query(
+							collection(ENTITY_PRODUCT),
+							filterBy(scope(BOTH_SCOPES), filter),
+							require(page(1, PRODUCT_COUNT), relation)
+						),
+						EntityReference.class
+					)
+				)
+			);
+			if (!(filter instanceof FilterInScope)) {
+				// the count drops the whole user filter, which equals the query result only when the user filter is the
+				// sole restriction of every scope
+				assertEquals(expected.length, queryBrandFacetCount(session, new FilterConstraint[]{filter}, relation, BRAND));
+			}
+		}
+
 	}
 
 	/**

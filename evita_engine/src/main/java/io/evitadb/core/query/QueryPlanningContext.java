@@ -26,23 +26,35 @@ package io.evitadb.core.query;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityCollectionRequiredException;
+import io.evitadb.api.exception.EntityNotManagedException;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.filter.And;
+import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
+import io.evitadb.api.query.filter.Not;
+import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.FacetGroupRelationLevel;
+import io.evitadb.api.query.require.FacetGroupsConjunction;
+import io.evitadb.api.query.require.FacetGroupsConstraint;
+import io.evitadb.api.query.require.FacetGroupsDisjunction;
+import io.evitadb.api.query.require.FacetGroupsExclusivity;
+import io.evitadb.api.query.require.FacetGroupsNegation;
 import io.evitadb.api.query.require.FacetRelationType;
 import io.evitadb.api.query.require.FetchRequirementCollector;
 import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.FacetFilterBy;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -1876,6 +1888,44 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Plans the group filter of every facet relation constraint the query declares, so that a filter which cannot be
+	 * evaluated fails the query whatever else the query asks for. A filter is otherwise planned only when something
+	 * asks about its relation - `facetHaving` asks about some relations of the references it selects, the reference
+	 * summary about others of the references it summarizes, and exclusivity is asked about only while impacts are
+	 * computed - so the same filter would fail one query and be silently ignored by another.
+	 *
+	 * The predicates are planned through {@link #isFacetGroupRelationType} and stay memoized for the planning that
+	 * follows, so each filter is still planned once per query. A constraint naming a reference the entity schema does
+	 * not have is skipped, because nothing in the query can ever ask about it.
+	 *
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when a group filter is declared for a reference without
+	 *                                                          a group type
+	 * @throws EntityNotManagedException when a group filter asks a group type not managed by evitaDB about anything
+	 *                                   but the primary keys of the groups
+	 */
+	public void assertFacetGroupFiltersEvaluable() {
+		if (!isEntityTypeKnown()) {
+			// without a target collection there is no reference schema to plan the filters against
+			return;
+		}
+		final EntitySchema schema = getSchema();
+		for (final FacetGroupsConstraint constraint : QueryUtils.findRequires(this.evitaRequest.getQuery(), FacetGroupsConstraint.class)) {
+			final Optional<ReferenceSchemaContract> referenceSchema = schema.getReference(constraint.getReferenceName());
+			if (constraint.getFacetGroups().isPresent() && referenceSchema.isPresent()) {
+				// asking about a facet without a group plans the filter without testing any group against it
+				final FacetGroupRelationLevel level = constraint.getFacetGroupRelationLevel();
+				switch (constraint) {
+					case FacetGroupsConjunction ignored -> isFacetGroupConjunction(referenceSchema.get(), null, level);
+					case FacetGroupsDisjunction ignored -> isFacetGroupDisjunction(referenceSchema.get(), null, level);
+					case FacetGroupsNegation ignored -> isFacetGroupNegation(referenceSchema.get(), null, level);
+					case FacetGroupsExclusivity ignored -> isFacetGroupExclusivity(referenceSchema.get(), null, level);
+					default -> throw new GenericEvitaInternalError("Unknown facet relation constraint: " + constraint);
+				}
+			}
+		}
+	}
+
+	/**
 	 * Determines whether the specified relation type matches the given facet group relation criteria. Shared
 	 * implementation of the four `isFacetGroup*` methods, which differ only in the relation type they ask about
 	 * and the request accessor that carries the settings for it.
@@ -1888,6 +1938,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * - the query requests the relation **with** a filter - the filter is planned into a predicate (memoized in
 	 *   {@link #facetRelationTuples}, since it is asked about many groups in a row) and the group is tested
 	 *   against it; a facet with no group at all cannot match such a filter and gets `false`
+	 *
+	 * The filter is planned even when the asked facet has no group, so that a filter which cannot be evaluated fails
+	 * every query declaring it - see {@link #createFacetGroupPredicate}. {@link #assertFacetGroupFiltersEvaluable}
+	 * relies on that: it asks about a facet without a group to plan every declared filter up front.
 	 *
 	 * @param relationType the type of the facet relation to be checked
 	 * @param referenceSchema the schema of the reference to which the facet group belongs
@@ -1918,43 +1972,100 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			final FacetFilterBy facetFilterBy = facetSettings.get();
 			final FilterBy filterBy = facetFilterBy.filterBy();
 			if (filterBy != null) {
+				// the filter is planned before the group is looked at: a filter that cannot be evaluated must fail the
+				// query even when only facets without a group ask about it, just as it fails the reference summary,
+				// which asks about every group of the reference
+				final FilteringFormulaPredicate groupPredicate = getFacetRelationTuples()
+					.computeIfAbsent(
+						new FacetRelationTuple(referenceName, relationType, level),
+						tuple -> createFacetGroupPredicate(relationType, referenceSchema, facetFilterBy, filterBy)
+					);
 				if (groupId == null) {
+					// a facet without a group cannot match a group filter
 					return false;
 				} else {
-					final boolean requestedExplicitly = getFacetRelationTuples()
-						.computeIfAbsent(
-							new FacetRelationTuple(referenceName, relationType, level),
-							refName -> {
-								final String referencedGroupType = referenceSchema.getReferencedGroupType();
-								Assert.isTrue(
-									referencedGroupType != null,
-									() -> "Referenced group type must be defined for facet group " + relationType.name().toLowerCase() + " of `" + referenceName + "`!"
-								);
-								if (referenceSchema.isReferencedGroupTypeManaged()) {
-									return new FilteringFormulaPredicate(
-										this,
-										getScopes(),
-										filterBy,
-										referencedGroupType,
-										() -> "Facet group " + relationType.name().toLowerCase() + " of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
-									);
-								} else {
-									return new FilteringFormulaPredicate(
-										this,
-										getThrowingGlobalIndexesForNonManagedEntityTypeGroup(referenceName, referencedGroupType),
-										filterBy,
-										() -> "Facet group "  + relationType.name().toLowerCase() + " of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
-									);
-								}
-							}
-						)
-						.test(groupId);
-					return requestedExplicitly || theDefault == relationType;
+					return groupPredicate.test(groupId) || theDefault == relationType;
 				}
 			} else {
 				return true;
 			}
 		}
+	}
+
+	/**
+	 * Plans the group filter of a facet relation constraint into a predicate testing the primary keys of the facet
+	 * groups. A filter that cannot be evaluated is refused with a client error, so that the query fails the same way
+	 * whether the result, the reference summary, or both of them ask about it.
+	 *
+	 * @param relationType    the relation type the filter belongs to
+	 * @param referenceSchema the schema of the reference whose groups are filtered
+	 * @param facetFilterBy   the relation settings carrying the filter, used in the telemetry step description
+	 * @param filterBy        the group filter of the settings
+	 * @return the predicate testing the primary keys of the facet groups
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the reference has no group type at all
+	 * @throws EntityNotManagedException when the group type is not managed by evitaDB and the filter asks about
+	 *                                   anything but the primary keys of the groups
+	 */
+	@Nonnull
+	private FilteringFormulaPredicate createFacetGroupPredicate(
+		@Nonnull FacetRelationType relationType,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull FacetFilterBy facetFilterBy,
+		@Nonnull FilterBy filterBy
+	) {
+		final String referenceName = referenceSchema.getName();
+		final String referencedGroupType = referenceSchema.getReferencedGroupType();
+		Assert.isTrue(
+			referencedGroupType != null,
+			() -> "The `" + getRelationConstraintName(relationType) + "` constraint of reference `" + referenceName +
+				"` declares a group filter, but the reference has no group type, so the filter cannot be evaluated!"
+		);
+		final Supplier<String> stepDescription = () -> "Facet group " + relationType.name().toLowerCase() +
+			" of `" + referenceName + "` filter: " + facetFilterBy;
+		if (referenceSchema.isReferencedGroupTypeManaged()) {
+			return new FilteringFormulaPredicate(this, getScopes(), filterBy, referencedGroupType, stepDescription);
+		} else {
+			// the stub indexes of a group type evitaDB does not manage know the primary keys of the groups and nothing
+			// else - planning any other constraint would fail on an error that does not name the actual cause
+			if (FinderVisitor.findConstraint(filterBy, QueryPlanningContext::isNotAnsweredByGroupPrimaryKeys) != null) {
+				throw new EntityNotManagedException(referencedGroupType);
+			}
+			return new FilteringFormulaPredicate(
+				this,
+				getThrowingGlobalIndexesForNonManagedEntityTypeGroup(referenceName, referencedGroupType),
+				filterBy,
+				stepDescription
+			);
+		}
+	}
+
+	/**
+	 * Returns true when the passed constraint of a facet group filter cannot be answered from the primary keys of the
+	 * groups alone - i.e. it is neither the filter root, a logical container, nor `entityPrimaryKeyInSet`.
+	 *
+	 * @param constraint the constraint of the group filter
+	 * @return true when the constraint needs more than the primary keys of the groups
+	 */
+	private static boolean isNotAnsweredByGroupPrimaryKeys(@Nonnull Constraint<?> constraint) {
+		return !(constraint instanceof FilterBy || constraint instanceof And || constraint instanceof Or ||
+			constraint instanceof Not || constraint instanceof EntityPrimaryKeyInSet);
+	}
+
+	/**
+	 * Returns the name of the require constraint that declares the passed facet relation type, so that an error
+	 * message names the constraint the client actually wrote.
+	 *
+	 * @param relationType the relation type
+	 * @return the name of the constraint declaring it
+	 */
+	@Nonnull
+	private static String getRelationConstraintName(@Nonnull FacetRelationType relationType) {
+		return switch (relationType) {
+			case CONJUNCTION -> "facetGroupsConjunction";
+			case DISJUNCTION -> "facetGroupsDisjunction";
+			case NEGATION -> "facetGroupsNegation";
+			case EXCLUSIVITY -> "facetGroupsExclusivity";
+		};
 	}
 
 	/**

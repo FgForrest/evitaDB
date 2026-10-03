@@ -26,8 +26,10 @@ package io.evitadb.api.functional.facet;
 import com.github.javafaker.Faker;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityLocaleMissingException;
+import io.evitadb.api.exception.EntityNotManagedException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.EntityFetch;
@@ -39,6 +41,7 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
@@ -58,7 +61,9 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
+import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.annotation.DataSet;
@@ -72,6 +77,7 @@ import one.edee.oss.pmptt.model.HierarchyItem;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
@@ -85,6 +91,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
 
@@ -123,6 +130,69 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	private static final String EMPTY_COLLECTION_ENTITY = "someCollectionWithoutEntities";
 	private final static int[] STORE_ORDER;
 	private static final int STORE_COUNT = 12;
+	/**
+	 * A small hand-made data set exercising the facet relation settings on reference shapes the generated data set does
+	 * not have. Products of {@link #ENTITY_SHAPED_PRODUCT} carry two faceted references:
+	 *
+	 * - {@link #REF_LABEL} - to labels of type {@link #ENTITY_LABEL}, grouped by {@link #ENTITY_LABEL_GROUP}, a type
+	 *   not managed by evitaDB. Labels 1 and 2 belong to group {@link #LABEL_GROUP_A}, label 3 to group
+	 *   {@link #LABEL_GROUP_B}, labels 4 and 5 belong to no group.
+	 * - {@link #REF_TAG} - to tags of type {@link #ENTITY_TAG}, grouped by the managed type {@link #ENTITY_TAG_GROUP},
+	 *   whose attribute {@link #ATTRIBUTE_NOTE} is not filterable. Tag {@link #GROUPED_TAG} belongs to group
+	 *   {@link #TAG_GROUP}, tag {@link #UNGROUPED_TAG} belongs to no group.
+	 *
+	 * The labels and tags themselves are managed entities, so that the options can be selected in `facetHaving`.
+	 *
+	 * | product | labels | tags |
+	 * |---------|--------|------|
+	 * | 1       | 1      | 1    |
+	 * | 2       | 1, 3   | 2    |
+	 * | 3       | 2      |      |
+	 * | 4       | 3      | 1, 2 |
+	 * | 5       | 4      |      |
+	 * | 6       | 1, 4   | 1    |
+	 * | 7       | 5      | 2    |
+	 * | 8       | 3, 4   |      |
+	 * | 9       |        | 1    |
+	 * | 10      | 2, 5   |      |
+	 * | 11      | 1, 4   | 2    |
+	 * | 12      |        |      |
+	 */
+	private static final String FACET_RELATION_SHAPES = "FacetRelationShapes";
+	private static final String ENTITY_SHAPED_PRODUCT = "shapedProduct";
+	private static final String ENTITY_LABEL = "shapedLabel";
+	private static final String ENTITY_LABEL_GROUP = "externalLabelGroup";
+	private static final String ENTITY_TAG = "shapedTag";
+	private static final String ENTITY_TAG_GROUP = "tagGroup";
+	private static final String REF_LABEL = "label";
+	private static final String REF_TAG = "tag";
+	private static final String ATTRIBUTE_NOTE = "note";
+	private static final int LABEL_GROUP_A = 10;
+	private static final int LABEL_GROUP_B = 20;
+	/**
+	 * A label group no label belongs to.
+	 */
+	private static final int MISSING_LABEL_GROUP = 30;
+	/**
+	 * The group of each label, indexed by the label primary key minus one; NULL for a label without a group.
+	 */
+	private static final Integer[] LABEL_GROUPS = {LABEL_GROUP_A, LABEL_GROUP_A, LABEL_GROUP_B, null, null};
+	private static final int TAG_GROUP = 1;
+	private static final int GROUPED_TAG = 1;
+	private static final int UNGROUPED_TAG = 2;
+	/**
+	 * The labels of each product of {@link #FACET_RELATION_SHAPES}, indexed by the product primary key minus one.
+	 */
+	private static final int[][] SHAPED_PRODUCT_LABELS = {
+		{1}, {1, 3}, {2}, {3}, {4}, {1, 4}, {5}, {3, 4}, {}, {2, 5}, {1, 4}, {}
+	};
+	/**
+	 * The tags of each product of {@link #FACET_RELATION_SHAPES}, indexed by the product primary key minus one.
+	 */
+	private static final int[][] SHAPED_PRODUCT_TAGS = {
+		{GROUPED_TAG}, {UNGROUPED_TAG}, {}, {GROUPED_TAG, UNGROUPED_TAG}, {}, {GROUPED_TAG}, {UNGROUPED_TAG}, {},
+		{GROUPED_TAG}, {}, {UNGROUPED_TAG}, {}
+	};
 
 	static {
 		STORE_ORDER = new int[STORE_COUNT];
@@ -1283,6 +1353,738 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				return null;
 			}
 		);
+	}
+
+	/**
+	 * Returns the rows of the negated option witness over the {@link #THOUSAND_PRODUCTS_WITH_FACETS} data set. Each row
+	 * is a label, the reference, the number of options selected in it, whether the selected options belong to a group,
+	 * and the factory of the negation requirement, which receives the group of the first selected option (NULL for an
+	 * option without a group).
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> negatedOptionRows() {
+		return Stream.of(
+			Arguments.of(
+				"brand, within group", Entities.BRAND, 1, false,
+				(Function<Integer, RequireConstraint>) group -> facetGroupsNegation(Entities.BRAND)
+			),
+			Arguments.of(
+				"brand, between groups", Entities.BRAND, 1, false,
+				(Function<Integer, RequireConstraint>) group -> facetGroupsNegation(Entities.BRAND, WITH_DIFFERENT_GROUPS)
+			),
+			Arguments.of(
+				"store, two options", Entities.STORE, 2, false,
+				(Function<Integer, RequireConstraint>) group -> facetGroupsNegation(Entities.STORE)
+			),
+			Arguments.of(
+				"store, between groups", Entities.STORE, 1, false,
+				(Function<Integer, RequireConstraint>) group -> facetGroupsNegation(Entities.STORE, WITH_DIFFERENT_GROUPS)
+			),
+			Arguments.of(
+				"parameter, no group filter", Entities.PARAMETER, 1, true,
+				(Function<Integer, RequireConstraint>) group -> facetGroupsNegation(Entities.PARAMETER)
+			),
+			Arguments.of(
+				"parameter, group filter, between groups", Entities.PARAMETER, 1, true,
+				(Function<Integer, RequireConstraint>) group -> facetGroupsNegation(
+					Entities.PARAMETER, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(group))
+				)
+			)
+		);
+	}
+
+	/**
+	 * Checks that a negated option selected in `facetHaving` excludes the products referencing it from the result
+	 * whether the option belongs to a group or not, and at whichever level the negation is declared. The expected
+	 * products are the ones referencing none of the selected options; when a single option is selected, the result
+	 * must also be as large as the count the reference summary predicts for that option.
+	 *
+	 * The selected options are those with the lowest primary keys any product references.
+	 *
+	 * @param label                   the row label, used in the test name only
+	 * @param referenceName           the reference the options are selected in
+	 * @param optionCount             the number of options to select
+	 * @param grouped                 whether the selected options belong to a group
+	 * @param relationFactory         creates the negation requirement from the group of the first selected option
+	 * @param evita                   the engine instance provided by the test extension
+	 * @param originalProductEntities the products of the data set
+	 */
+	@DisplayName("Should return the products the reference summary counts for a negated option")
+	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("negatedOptionRows")
+	void shouldReturnProductsReferenceSummaryCountsForNegatedOption(
+		@Nonnull String label,
+		@Nonnull String referenceName,
+		int optionCount,
+		boolean grouped,
+		@Nonnull Function<Integer, RequireConstraint> relationFactory,
+		Evita evita,
+		List<SealedEntity> originalProductEntities
+	) {
+		final int[] optionIds = originalProductEntities.stream()
+			.flatMap(it -> it.getReferences(referenceName).stream())
+			.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+			.distinct()
+			.sorted()
+			.limit(optionCount)
+			.toArray();
+		assertEquals(optionCount, optionIds.length, "the data set must reference enough options");
+		final Integer groupId = originalProductEntities.stream()
+			.flatMap(it -> it.getReferences(referenceName).stream())
+			.filter(it -> it.getReferencedPrimaryKey() == optionIds[0])
+			.findFirst()
+			.flatMap(ReferenceContract::getGroup)
+			.map(GroupEntityReference::getPrimaryKey)
+			.orElse(null);
+		assertEquals(grouped, groupId != null, "the selected option must " + (grouped ? "" : "not ") + "have a group");
+
+		final Set<Integer> selectedIds = Arrays.stream(optionIds).boxed().collect(Collectors.toSet());
+		final Predicate<SealedEntity> referencesNoSelectedOption = product -> product.getReferences(referenceName)
+			.stream()
+			.map(ReferenceContract::getReferencedPrimaryKey)
+			.noneMatch(selectedIds::contains);
+		final long expectedCount = originalProductEntities.stream().filter(referencesNoSelectedOption).count();
+		assertTrue(
+			expectedCount > 0 && expectedCount < originalProductEntities.size(),
+			"the negation must exclude some products and keep others"
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final RequireConstraint relation = relationFactory.apply(groupId);
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							userFilter(
+								facetHaving(referenceName, entityPrimaryKeyInSet(Arrays.stream(optionIds).boxed().toArray(Integer[]::new)))
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							relation
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					"Querying " + referenceName + " options " + Arrays.toString(optionIds) + " negated",
+					originalProductEntities,
+					referencesNoSelectedOption,
+					result.getRecordData()
+				);
+
+				if (optionIds.length == 1) {
+					final EvitaResponse<EntityReference> withSummary = session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								userFilter(
+									facetHaving(referenceName, entityPrimaryKeyInSet(optionIds[0]))
+								)
+							),
+							require(
+								page(1, 1),
+								referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS),
+								relation
+							)
+						),
+						EntityReference.class
+					);
+					assertEquals(expectedCount, withSummary.getTotalRecordCount());
+					assertEquals(
+						expectedCount,
+						facetCountOf(withSummary, referenceName, groupId, optionIds[0]),
+						"the reference summary must count the products the negated option leaves in the result"
+					);
+				}
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Builds the small hand-made data set described on {@link #FACET_RELATION_SHAPES}.
+	 *
+	 * @param evita the engine instance provided by the test extension
+	 */
+	@DataSet(value = FACET_RELATION_SHAPES, destroyAfterClass = true)
+	void setUpFacetRelationShapes(Evita evita) {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(ENTITY_TAG_GROUP)
+					.withoutGeneratedPrimaryKey()
+					.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::filterable)
+					.withAttribute(ATTRIBUTE_NOTE, String.class)
+					.updateVia(session);
+				session.upsertEntity(
+					session.createNewEntity(ENTITY_TAG_GROUP, TAG_GROUP)
+						.setAttribute(ATTRIBUTE_CODE, "tagGroup")
+						.setAttribute(ATTRIBUTE_NOTE, "not filterable")
+				);
+				session.defineEntitySchema(ENTITY_LABEL)
+					.withoutGeneratedPrimaryKey()
+					.updateVia(session);
+				for (int labelId = 1; labelId <= LABEL_GROUPS.length; labelId++) {
+					session.upsertEntity(session.createNewEntity(ENTITY_LABEL, labelId));
+				}
+				session.defineEntitySchema(ENTITY_TAG)
+					.withoutGeneratedPrimaryKey()
+					.updateVia(session);
+				session.upsertEntity(session.createNewEntity(ENTITY_TAG, GROUPED_TAG));
+				session.upsertEntity(session.createNewEntity(ENTITY_TAG, UNGROUPED_TAG));
+				session.defineEntitySchema(ENTITY_SHAPED_PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withReferenceToEntity(
+						REF_LABEL, ENTITY_LABEL, Cardinality.ZERO_OR_MORE,
+						whichIs -> makeReferenceIndexed(whichIs).faceted().withGroupType(ENTITY_LABEL_GROUP)
+					)
+					.withReferenceToEntity(
+						REF_TAG, ENTITY_TAG, Cardinality.ZERO_OR_MORE,
+						whichIs -> makeReferenceIndexed(whichIs).faceted().withGroupTypeRelatedToEntity(ENTITY_TAG_GROUP)
+					)
+					.updateVia(session);
+				for (int pk = 1; pk <= SHAPED_PRODUCT_LABELS.length; pk++) {
+					final EntityBuilder product = session.createNewEntity(ENTITY_SHAPED_PRODUCT, pk);
+					for (final int labelId : SHAPED_PRODUCT_LABELS[pk - 1]) {
+						final Integer labelGroup = LABEL_GROUPS[labelId - 1];
+						product.setReference(
+							REF_LABEL, labelId,
+							labelGroup == null ? null : whichIs -> whichIs.setGroup(labelGroup)
+						);
+					}
+					for (final int tagId : SHAPED_PRODUCT_TAGS[pk - 1]) {
+						product.setReference(
+							REF_TAG, tagId,
+							tagId == GROUPED_TAG ? whichIs -> whichIs.setGroup(TAG_GROUP) : null
+						);
+					}
+					session.upsertEntity(product);
+				}
+			}
+		);
+	}
+
+	/**
+	 * Returns the rows of the relation witness over the {@link #FACET_RELATION_SHAPES} data set, whose label groups
+	 * are not managed by evitaDB and whose label reference mixes grouped options with options without a group. Each
+	 * row is a label, the selected labels, the relation requirement, and the primary keys of the products the query
+	 * returns, computed from the fixture table.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> labelRelationRows() {
+		return Stream.of(
+			Arguments.of(
+				"unmanaged group, negation", new int[]{1},
+				facetGroupsNegation(REF_LABEL),
+				shapedProductsWithLabels(false, 1)
+			),
+			Arguments.of(
+				"unmanaged group, group filter, between groups", new int[]{3},
+				facetGroupsNegation(REF_LABEL, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_B))),
+				shapedProductsWithLabels(false, 3)
+			),
+			Arguments.of(
+				"ungrouped option of a mixed reference", new int[]{4},
+				facetGroupsNegation(REF_LABEL),
+				shapedProductsWithLabels(false, 4)
+			),
+			Arguments.of(
+				"disjunction across ungrouped and grouped", new int[]{3, 4},
+				facetGroupsDisjunction(REF_LABEL, WITH_DIFFERENT_GROUPS),
+				shapedProductsWithLabels(true, 3, 4)
+			),
+			// a group filter cannot match an option without a group, so the option stays a positive selection
+			Arguments.of(
+				"ungrouped option, group filter", new int[]{4},
+				facetGroupsNegation(REF_LABEL, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_A))),
+				shapedProductsWithLabels(true, 4)
+			),
+			Arguments.of(
+				"unmanaged group, primary key filter", new int[]{1},
+				facetGroupsNegation(REF_LABEL, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_A))),
+				shapedProductsWithLabels(false, 1)
+			),
+			Arguments.of(
+				"unmanaged group, primary key filter in a logical container", new int[]{1},
+				facetGroupsNegation(
+					REF_LABEL,
+					filterBy(or(entityPrimaryKeyInSet(LABEL_GROUP_A), entityPrimaryKeyInSet(MISSING_LABEL_GROUP)))
+				),
+				shapedProductsWithLabels(false, 1)
+			),
+			Arguments.of(
+				"unmanaged group, primary key filter in a negation", new int[]{1},
+				facetGroupsNegation(REF_LABEL, filterBy(not(entityPrimaryKeyInSet(LABEL_GROUP_B)))),
+				shapedProductsWithLabels(false, 1)
+			)
+		);
+	}
+
+	/**
+	 * Checks that the relation settings of a reference whose groups are not managed by evitaDB, and which mixes grouped
+	 * options with options without a group, decide the query result the same way as for any other reference. When a
+	 * single label is selected, the result must also be as large as the count the reference summary predicts for it.
+	 *
+	 * @param label    the row label, used in the test name only
+	 * @param labelIds the selected labels
+	 * @param relation the relation requirement of the label reference
+	 * @param expected the primary keys of the products the query returns, ascending
+	 * @param evita    the engine instance provided by the test extension
+	 */
+	@DisplayName("Should apply the relation settings to unmanaged groups and to options without a group")
+	@UseDataSet(FACET_RELATION_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("labelRelationRows")
+	void shouldApplyRelationToUnmanagedGroupsAndOptionsWithoutGroup(
+		@Nonnull String label,
+		@Nonnull int[] labelIds,
+		@Nonnull RequireConstraint relation,
+		@Nonnull int[] expected,
+		Evita evita
+	) {
+		assertTrue(
+			expected.length > 0 && expected.length < SHAPED_PRODUCT_LABELS.length,
+			"the relation must exclude some products and keep others"
+		);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					shapedLabelQuery(labelIds, relation, null),
+					EntityReference.class
+				);
+				assertArrayEquals(
+					expected,
+					result.getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).sorted().toArray()
+				);
+
+				if (labelIds.length == 1) {
+					final EvitaResponse<EntityReference> withSummary = session.query(
+						shapedLabelQuery(
+							labelIds, relation, referenceSummaryOfReference(REF_LABEL, FacetStatisticsDepth.COUNTS)
+						),
+						EntityReference.class
+					);
+					assertEquals(expected.length, withSummary.getTotalRecordCount());
+					assertEquals(
+						expected.length,
+						facetCountOf(withSummary, REF_LABEL, LABEL_GROUPS[labelIds[0] - 1], labelIds[0]),
+						"the reference summary must count the products the option leaves in the result"
+					);
+				}
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Returns the rows of the group filters that cannot be evaluated, over the {@link #FACET_RELATION_SHAPES} data set.
+	 * Each row is a label, the reference the option is selected in, the selected option, the relation requirement with
+	 * the group filter - which may name another reference - the exact type of the exception the query must fail with,
+	 * and the fragments its message must contain. Every row is run with and without the reference summary of the
+	 * reference the option is selected in.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> unevaluableGroupFilterRows() {
+		final FilterBy byLabelGroupCode = filterBy(attributeEquals(ATTRIBUTE_CODE, "anything"));
+		final FilterBy byTagGroupNote = filterBy(attributeEquals(ATTRIBUTE_NOTE, "anything"));
+		return Stream.of(
+			Arguments.of(
+				"unmanaged group, attribute filter", REF_LABEL, 1,
+				facetGroupsNegation(REF_LABEL, byLabelGroupCode),
+				EntityNotManagedException.class, new String[]{"`" + ENTITY_LABEL_GROUP + "`", "is not managed"}
+			),
+			Arguments.of(
+				"unmanaged group, attribute filter, ungrouped selection", REF_LABEL, 4,
+				facetGroupsNegation(REF_LABEL, byLabelGroupCode),
+				EntityNotManagedException.class, new String[]{"`" + ENTITY_LABEL_GROUP + "`", "is not managed"}
+			),
+			Arguments.of(
+				"unmanaged group, attribute filter of disjunction, ungrouped selection", REF_LABEL, 4,
+				facetGroupsDisjunction(REF_LABEL, WITH_DIFFERENT_GROUPS, byLabelGroupCode),
+				EntityNotManagedException.class, new String[]{"`" + ENTITY_LABEL_GROUP + "`", "is not managed"}
+			),
+			Arguments.of(
+				"managed group, non-filterable attribute", REF_TAG, GROUPED_TAG,
+				facetGroupsNegation(REF_TAG, byTagGroupNote),
+				AttributeNotFilterableException.class, new String[]{"`" + ATTRIBUTE_NOTE + "`"}
+			),
+			Arguments.of(
+				"managed group, non-filterable attribute, ungrouped selection", REF_TAG, UNGROUPED_TAG,
+				facetGroupsNegation(REF_TAG, byTagGroupNote),
+				AttributeNotFilterableException.class, new String[]{"`" + ATTRIBUTE_NOTE + "`"}
+			),
+			// the query result never asks about exclusivity, only the reference summary does
+			Arguments.of(
+				"unmanaged group, attribute filter of exclusivity", REF_LABEL, 1,
+				facetGroupsExclusivity(REF_LABEL, byLabelGroupCode),
+				EntityNotManagedException.class, new String[]{"`" + ENTITY_LABEL_GROUP + "`", "is not managed"}
+			),
+			Arguments.of(
+				"unmanaged group, attribute filter of exclusivity, ungrouped selection", REF_LABEL, 4,
+				facetGroupsExclusivity(REF_LABEL, byLabelGroupCode),
+				EntityNotManagedException.class, new String[]{"`" + ENTITY_LABEL_GROUP + "`", "is not managed"}
+			),
+			Arguments.of(
+				"managed group, non-filterable attribute of exclusivity", REF_TAG, GROUPED_TAG,
+				facetGroupsExclusivity(REF_TAG, byTagGroupNote),
+				AttributeNotFilterableException.class, new String[]{"`" + ATTRIBUTE_NOTE + "`"}
+			),
+			// the relation names a reference other than the one selected and summarized, so nothing asks about it
+			Arguments.of(
+				"unmanaged group, attribute filter of a reference not selected", REF_TAG, GROUPED_TAG,
+				facetGroupsNegation(REF_LABEL, byLabelGroupCode),
+				EntityNotManagedException.class, new String[]{"`" + ENTITY_LABEL_GROUP + "`", "is not managed"}
+			),
+			Arguments.of(
+				"managed group, non-filterable attribute of a reference not selected", REF_LABEL, 1,
+				facetGroupsConjunction(REF_TAG, byTagGroupNote),
+				AttributeNotFilterableException.class, new String[]{"`" + ATTRIBUTE_NOTE + "`"}
+			)
+		)
+			.flatMap(row -> Stream.of(false, true).map(withSummary -> {
+				final Object[] arguments = row.get();
+				final Object[] withArm = Arrays.copyOf(arguments, arguments.length + 1);
+				withArm[0] = arguments[0] + (withSummary ? ", with summary" : ", without summary");
+				withArm[arguments.length] = withSummary;
+				return Arguments.of(withArm);
+			}));
+	}
+
+	/**
+	 * Checks that a group filter which cannot be evaluated - one asking an unmanaged group type about anything but its
+	 * primary keys, or using an attribute the managed group type cannot filter by - makes the query fail with a client
+	 * error, whether the selected option belongs to a group or not, whether the reference summary is requested or
+	 * not, and whether anything in the query asks about the relation of that reference at all.
+	 *
+	 * @param label            the row label, used in the test name only
+	 * @param referenceName    the reference the option is selected in
+	 * @param optionId         the selected option
+	 * @param relation         the relation requirement with the group filter
+	 * @param expectedType     the exact type of the exception the query must fail with
+	 * @param messageFragments the fragments the exception message must contain
+	 * @param withSummary      whether the query requests the reference summary of the reference
+	 * @param evita            the engine instance provided by the test extension
+	 */
+	@DisplayName("Should fail the query whose group filter cannot be evaluated")
+	@UseDataSet(FACET_RELATION_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("unevaluableGroupFilterRows")
+	void shouldFailQueryWhoseGroupFilterCannotBeEvaluated(
+		@Nonnull String label,
+		@Nonnull String referenceName,
+		int optionId,
+		@Nonnull RequireConstraint relation,
+		@Nonnull Class<? extends Throwable> expectedType,
+		@Nonnull String[] messageFragments,
+		boolean withSummary,
+		Evita evita
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Throwable exception = assertThrowsExactly(
+					expectedType,
+					() -> session.query(
+						query(
+							collection(ENTITY_SHAPED_PRODUCT),
+							filterBy(userFilter(facetHaving(referenceName, entityPrimaryKeyInSet(optionId)))),
+							require(
+								page(1, SHAPED_PRODUCT_LABELS.length),
+								relation,
+								withSummary ? referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS) : null
+							)
+						),
+						EntityReference.class
+					)
+				);
+				for (final String fragment : messageFragments) {
+					assertTrue(
+						exception.getMessage().contains(fragment),
+						"the message `" + exception.getMessage() + "` must contain `" + fragment + "`"
+					);
+				}
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Returns the rows of the group filters that can be evaluated although nothing in the query result asks about them,
+	 * over the {@link #FACET_RELATION_SHAPES} data set. Each row is a label, the reference the option is selected in,
+	 * the selected option, the relation requirement with the group filter, and the primary keys of the products the
+	 * query returns, computed from the fixture table.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> evaluableUnaskedGroupFilterRows() {
+		return Stream.of(
+			Arguments.of(
+				"managed group, primary key filter of exclusivity", REF_TAG, GROUPED_TAG,
+				facetGroupsExclusivity(REF_TAG, filterBy(entityPrimaryKeyInSet(TAG_GROUP))),
+				shapedProductsWithTag(GROUPED_TAG)
+			),
+			Arguments.of(
+				"unmanaged group, primary key filter of exclusivity", REF_LABEL, 1,
+				facetGroupsExclusivity(REF_LABEL, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_A))),
+				shapedProductsWithLabels(true, 1)
+			),
+			Arguments.of(
+				"unmanaged group, primary key filter of a reference not selected", REF_TAG, GROUPED_TAG,
+				facetGroupsNegation(REF_LABEL, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_B))),
+				shapedProductsWithTag(GROUPED_TAG)
+			),
+			Arguments.of(
+				"attribute filter of a reference the entity does not have", REF_TAG, GROUPED_TAG,
+				facetGroupsNegation("missingReference", filterBy(attributeEquals(ATTRIBUTE_CODE, "anything"))),
+				shapedProductsWithTag(GROUPED_TAG)
+			)
+		);
+	}
+
+	/**
+	 * Checks that a group filter which can be evaluated leaves the query result and the reference summary intact when
+	 * the query result itself never asks about the relation it belongs to - for exclusivity, or for a reference other
+	 * than the selected one.
+	 *
+	 * @param label         the row label, used in the test name only
+	 * @param referenceName the reference the option is selected in
+	 * @param optionId      the selected option
+	 * @param relation      the relation requirement with the group filter
+	 * @param expected      the primary keys of the products the query returns, ascending
+	 * @param evita         the engine instance provided by the test extension
+	 */
+	@DisplayName("Should accept an evaluable group filter the query result does not ask about")
+	@UseDataSet(FACET_RELATION_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("evaluableUnaskedGroupFilterRows")
+	void shouldAcceptEvaluableGroupFilterTheResultDoesNotAskAbout(
+		@Nonnull String label,
+		@Nonnull String referenceName,
+		int optionId,
+		@Nonnull RequireConstraint relation,
+		@Nonnull int[] expected,
+		Evita evita
+	) {
+		final Integer groupId = REF_LABEL.equals(referenceName) ?
+			LABEL_GROUPS[optionId - 1] : (optionId == GROUPED_TAG ? TAG_GROUP : null);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				for (final boolean withSummary : new boolean[]{false, true}) {
+					final EvitaResponse<EntityReference> result = session.query(
+						query(
+							collection(ENTITY_SHAPED_PRODUCT),
+							filterBy(userFilter(facetHaving(referenceName, entityPrimaryKeyInSet(optionId)))),
+							require(
+								page(1, SHAPED_PRODUCT_LABELS.length),
+								debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+								relation,
+								withSummary ? referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS) : null
+							)
+						),
+						EntityReference.class
+					);
+					assertArrayEquals(
+						expected,
+						result.getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).sorted().toArray()
+					);
+					if (withSummary) {
+						assertEquals(
+							expected.length,
+							facetCountOf(result, referenceName, groupId, optionId),
+							"the reference summary must count the products the option leaves in the result"
+						);
+					}
+				}
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Returns the rows of the group filter declared for a reference without any group type: the relation requirement,
+	 * the name of its constraint, whether the reference summary is requested and whether an option of the reference is
+	 * selected.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> groupFilterOfReferenceWithoutGroupTypeRows() {
+		return Stream.concat(
+			Stream.of(false, true)
+				.flatMap(withSummary -> Stream.of(
+					Arguments.of(
+						"facetGroupsNegation" + (withSummary ? ", with summary" : ", without summary"),
+						facetGroupsNegation(Entities.BRAND, filterBy(entityPrimaryKeyInSet(1))), "facetGroupsNegation",
+						withSummary, true
+					),
+					Arguments.of(
+						"facetGroupsDisjunction" + (withSummary ? ", with summary" : ", without summary"),
+						facetGroupsDisjunction(Entities.BRAND, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(1))),
+						"facetGroupsDisjunction", withSummary, true
+					),
+					// the query result never asks about exclusivity, only the reference summary does
+					Arguments.of(
+						"facetGroupsExclusivity" + (withSummary ? ", with summary" : ", without summary"),
+						facetGroupsExclusivity(Entities.BRAND, filterBy(entityPrimaryKeyInSet(1))),
+						"facetGroupsExclusivity", withSummary, true
+					)
+				)),
+			// nothing in the query asks about the relations of the reference
+			Stream.of(
+				Arguments.of(
+					"facetGroupsConjunction, no option selected, without summary",
+					facetGroupsConjunction(Entities.BRAND, filterBy(entityPrimaryKeyInSet(1))),
+					"facetGroupsConjunction", false, false
+				)
+			)
+		);
+	}
+
+	/**
+	 * Checks that a group filter declared for a reference that has no group type at all - its options never belong to
+	 * any group - makes the query fail with a client error naming the reference and the relation constraint, whether
+	 * the reference summary is requested or not, and whether an option of the reference is selected or not.
+	 *
+	 * @param label          the row label, used in the test name only
+	 * @param relation       the relation requirement with the group filter
+	 * @param constraintName the name of the relation constraint
+	 * @param withSummary    whether the query requests the reference summary of the reference
+	 * @param selected       whether the query selects an option of the reference in its user filter
+	 * @param evita          the engine instance provided by the test extension
+	 */
+	@DisplayName("Should fail the query with a group filter of a reference without group type")
+	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("groupFilterOfReferenceWithoutGroupTypeRows")
+	void shouldFailQueryWithGroupFilterOfReferenceWithoutGroupType(
+		@Nonnull String label,
+		@Nonnull RequireConstraint relation,
+		@Nonnull String constraintName,
+		boolean withSummary,
+		boolean selected,
+		Evita evita
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaInvalidUsageException exception = assertThrowsExactly(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							selected ? filterBy(userFilter(facetHaving(Entities.BRAND, entityPrimaryKeyInSet(1)))) : null,
+							require(
+								page(1, 20),
+								relation,
+								withSummary ? referenceSummaryOfReference(Entities.BRAND, FacetStatisticsDepth.COUNTS) : null
+							)
+						),
+						EntityReference.class
+					)
+				);
+				final String message = exception.getMessage();
+				assertTrue(message.contains("`" + Entities.BRAND + "`"), message);
+				assertTrue(message.contains("`" + constraintName + "`"), message);
+				assertTrue(message.contains("has no group type"), message);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Builds the query selecting the passed labels of the {@link #FACET_RELATION_SHAPES} data set in the user filter.
+	 *
+	 * @param labelIds the selected labels
+	 * @param relation the relation requirement of the label reference
+	 * @param summary  the reference summary requirement, NULL when no summary is requested
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query shapedLabelQuery(
+		@Nonnull int[] labelIds,
+		@Nonnull RequireConstraint relation,
+		@Nullable RequireConstraint summary
+	) {
+		return query(
+			collection(ENTITY_SHAPED_PRODUCT),
+			filterBy(userFilter(facetHaving(REF_LABEL, entityPrimaryKeyInSet(Arrays.stream(labelIds).boxed().toArray(Integer[]::new))))),
+			require(
+				page(1, SHAPED_PRODUCT_LABELS.length),
+				debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+				relation,
+				summary
+			)
+		);
+	}
+
+	/**
+	 * Returns the primary keys of the products of the {@link #FACET_RELATION_SHAPES} data set that reference any of the
+	 * passed labels, or none of them, as the fixture table states.
+	 *
+	 * @param referencingAny `true` for the products referencing any of the labels, `false` for those referencing none
+	 * @param labelIds       the labels
+	 * @return the ascending primary keys
+	 */
+	@Nonnull
+	private static int[] shapedProductsWithLabels(boolean referencingAny, int... labelIds) {
+		return IntStream.rangeClosed(1, SHAPED_PRODUCT_LABELS.length)
+			.filter(pk -> Arrays.stream(SHAPED_PRODUCT_LABELS[pk - 1])
+				.anyMatch(labelId -> ArrayUtils.indexOf(labelId, labelIds) >= 0) == referencingAny)
+			.toArray();
+	}
+
+	/**
+	 * Returns the primary keys of the products of the {@link #FACET_RELATION_SHAPES} data set that reference the passed
+	 * tag, as the fixture table states.
+	 *
+	 * @param tagId the tag
+	 * @return the ascending primary keys
+	 */
+	@Nonnull
+	private static int[] shapedProductsWithTag(int tagId) {
+		return IntStream.rangeClosed(1, SHAPED_PRODUCT_TAGS.length)
+			.filter(pk -> ArrayUtils.indexOf(tagId, SHAPED_PRODUCT_TAGS[pk - 1]) >= 0)
+			.toArray();
+	}
+
+	/**
+	 * Returns the count the reference summary of the passed response computes for the passed option.
+	 *
+	 * @param response      the response carrying the reference summary
+	 * @param referenceName the reference the option belongs to
+	 * @param groupId       the group of the option, NULL for an option without a group
+	 * @param optionId      the option
+	 * @return the count of the option
+	 */
+	private static int facetCountOf(
+		@Nonnull EvitaResponse<EntityReference> response,
+		@Nonnull String referenceName,
+		@Nullable Integer groupId,
+		int optionId
+	) {
+		final ReferenceSummary summary = response.getExtraResult(ReferenceSummary.class);
+		assertNotNull(summary, "the reference summary must be computed");
+		final ReferenceGroupStatistics groupStatistics = groupId == null ?
+			summary.getReferenceGroupStatistics(referenceName) :
+			summary.getReferenceGroupStatistics(referenceName, groupId);
+		assertNotNull(groupStatistics, "the group " + groupId + " of `" + referenceName + "` must have statistics");
+		final FacetStatistics facetStatistics = groupStatistics.getFacetStatistics(optionId);
+		assertNotNull(facetStatistics, "the option " + optionId + " of `" + referenceName + "` must have statistics");
+		return facetStatistics.getCount();
 	}
 
 	@DisplayName("Should return products matching AND combination of facet")
@@ -2492,7 +3294,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						page(1, Integer.MAX_VALUE),
 						debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 						facetSummary(FacetStatisticsDepth.IMPACT),
-						facetGroupsConjunction(Entities.STORE, filterBy(entityPrimaryKeyInSet(5)))
+						facetGroupsConjunction(Entities.STORE)
 					)
 				);
 				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
@@ -4897,7 +5699,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						page(1, Integer.MAX_VALUE),
 						debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 						referenceSummary(FacetStatisticsDepth.IMPACT),
-						facetGroupsConjunction(Entities.STORE, filterBy(entityPrimaryKeyInSet(5)))
+						facetGroupsConjunction(Entities.STORE)
 					)
 				);
 				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
