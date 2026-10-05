@@ -33,6 +33,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
+import io.evitadb.core.query.algebra.facet.FacetHavingFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.visitor.PrettyPrintingFormulaVisitor;
 import io.evitadb.core.query.extraResult.translator.reference.producer.ImpactFormulaGenerator;
@@ -181,7 +182,10 @@ class ImpactFormulaGeneratorTest {
 				baseFormula,
 				new UserFilterFormula(
 					baseFormula,
-					new FacetGroupOrFormula(Entities.BRAND, 8, new ArrayBitmap(10), new ArrayBitmap(9))
+					new FacetHavingFormula(
+						Entities.BRAND,
+						new FacetGroupOrFormula(Entities.BRAND, 8, new ArrayBitmap(10), new ArrayBitmap(9))
+					)
 				)
 			),
 			baseFormula,
@@ -194,11 +198,46 @@ class ImpactFormulaGeneratorTest {
 			[#0] AND → [8, 9, 10]
 			   [#1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 			   [#2] USER FILTER → [8, 9, 10]
-			      [#3] OR → [8, 9, 10]
-			         [#4] AND → [9]
-			            [Ref to #1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+			      [Ref to #1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+			      [#3] FACET HAVING (COMBINED AND+OR) → [8, 9, 10]
+			         [#4] COMBINED AND+OR → [8, 9, 10]
 			            [#5] FACET BRAND OR (8 - [10]):  ↦ [9]
-			         [#6] FACET BRAND OR (5 - [15]):  ↦ [8, 9, 10]
+			            [#6] FACET BRAND OR (5 - [15]):  ↦ [8, 9, 10]
+			""",
+			PrettyPrintingFormulaVisitor.toStringVerbose(updatedFormula)
+		);
+	}
+
+	@Test
+	void shouldAddNewOrConstraintOfAnotherReferenceByConjunction() {
+		// make group 5 disjunctive - the relation between groups applies between the groups of one reference only
+		this.facetGroupDisjunction.add(new EntityReference(Entities.BRAND, 5));
+		final ConstantFormula baseFormula = new ConstantFormula(new ArrayBitmap(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12));
+		final Formula updatedFormula = this.impactFormulaGenerator.generateFormula(
+			new AndFormula(
+				baseFormula,
+				new UserFilterFormula(
+					baseFormula,
+					new FacetHavingFormula(
+						Entities.PARAMETER,
+						new FacetGroupOrFormula(Entities.PARAMETER, 8, new ArrayBitmap(10), new ArrayBitmap(9))
+					)
+				)
+			),
+			baseFormula,
+			this.brandReference, 5, 15,
+			new Bitmap[]{new ArrayBitmap(8, 9, 10)}
+		);
+		assertArrayEquals(new int[]{9}, updatedFormula.compute().getArray());
+		assertEquals(
+			"""
+			[#0] AND → [9]
+			   [#1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+			   [#2] USER FILTER → [9]
+			      [Ref to #1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+			      [#3] FACET HAVING (FACET PARAMETER OR (8 - [10]):  ↦ [9]) → [9]
+			         [#4] FACET PARAMETER OR (8 - [10]):  ↦ [9]
+			      [#5] FACET BRAND OR (5 - [15]):  ↦ [8, 9, 10]
 			""",
 			PrettyPrintingFormulaVisitor.toStringVerbose(updatedFormula)
 		);

@@ -2131,6 +2131,34 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					facetGroupsConjunction(REF_LABEL, WITH_DIFFERENT_FACETS_IN_GROUP, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_A)))
 				},
 				noSource
+			),
+			// the relation between groups applies between the groups of one reference only, the selections of the
+			// labels and of the sources are joined by the conjunction of the user filter whatever it is
+			Arguments.of(
+				"default disjunction between groups, a source selected as well",
+				new RequireConstraint[]{disjunctionEverywhere},
+				new int[]{1}
+			),
+			Arguments.of(
+				"default disjunction between groups, conjunction of group A, a source selected as well",
+				new RequireConstraint[]{
+					disjunctionEverywhere,
+					facetGroupsConjunction(REF_LABEL, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_A)))
+				},
+				new int[]{1}
+			),
+			Arguments.of(
+				"disjunction between the groups of sources, a source selected as well",
+				new RequireConstraint[]{facetGroupsDisjunction(REF_SOURCE, WITH_DIFFERENT_GROUPS)},
+				new int[]{1}
+			),
+			Arguments.of(
+				"disjunction between the groups of labels and of sources, a source selected as well",
+				new RequireConstraint[]{
+					facetGroupsDisjunction(REF_LABEL, WITH_DIFFERENT_GROUPS),
+					facetGroupsDisjunction(REF_SOURCE, WITH_DIFFERENT_GROUPS)
+				},
+				new int[]{1}
 			)
 		);
 	}
@@ -2138,12 +2166,14 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	/**
 	 * Checks that the reference summary predicts exactly what the query returns, whatever the relations of the label
 	 * groups are: the count of each label with no label selected equals the size of the result selecting the label
-	 * alone, and the impact of each label not selected yet, predicted for every selection of one or two labels, equals
-	 * the size of the result selecting the label along with them. The oracle is the engine's own result, so the check
-	 * holds for any relation setup the result honours. The summary of the tag reference is computed in the same query,
-	 * because one formula generator serves the summaries of all references and must not hand the shape built for one
-	 * of them to another. The count is defined for no selection at all, so it is checked only when no source is
-	 * selected either.
+	 * alone, and the impact of each label and each source not selected yet, predicted for every selection of one or
+	 * two labels - and of no label when a source is selected - equals the size of the result selecting the option
+	 * along with them. The oracle is the engine's own result, so the check holds for any relation setup the result
+	 * honours. The impact of an option of the reference the user filter selects no option of is predicted along with
+	 * the impact of an option joining the selection of its own reference. The summary of the tag reference is computed
+	 * in the same query, because one formula generator serves the summaries of all references and must not hand the
+	 * shape built for one of them to another. The count is defined for no selection at all, so it is checked only when
+	 * no source is selected either.
 	 *
 	 * @param label     the row label, used in the test name only
 	 * @param relations the relation requirements
@@ -2186,7 +2216,11 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					}
 				}
 
-				final List<int[]> selections = new ArrayList<>(labelCount * labelCount);
+				final int sourceCount = SOURCE_CHANNELS.length;
+				final List<int[]> selections = new ArrayList<>(labelCount * labelCount + 1);
+				if (sourceIds.length > 0) {
+					selections.add(new int[0]);
+				}
 				for (int first = 1; first <= labelCount; first++) {
 					selections.add(new int[]{first});
 					for (int second = first + 1; second <= labelCount; second++) {
@@ -2198,7 +2232,8 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						shapedLabelSelectionQuery(
 							selection, sourceIds, relations,
 							referenceSummaryOfReference(REF_TAG, FacetStatisticsDepth.IMPACT),
-							referenceSummaryOfReference(REF_LABEL, FacetStatisticsDepth.IMPACT)
+							referenceSummaryOfReference(REF_LABEL, FacetStatisticsDepth.IMPACT),
+							referenceSummaryOfReference(REF_SOURCE, FacetStatisticsDepth.IMPACT)
 						),
 						EntityReference.class
 					);
@@ -2216,6 +2251,23 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						if (impact == null || impact.matchCount() != resultSize) {
 							disagreements.add(
 								"selection " + Arrays.toString(selection) + " + label " + labelId + ": impact " +
+									(impact == null ? "none" : impact.matchCount()) + ", result " + resultSize
+							);
+						}
+					}
+					for (int sourceId = 1; sourceId <= sourceCount; sourceId++) {
+						if (ArrayUtils.indexOf(sourceId, sourceIds) >= 0) {
+							continue;
+						}
+						final RequestImpact impact = facetStatisticsOf(withSummary, REF_SOURCE, null, sourceId).getImpact();
+						final int resultSize = shapedLabelSelectionSize(
+							session, selection, ArrayUtils.insertIntIntoArrayOnIndex(sourceId, sourceIds, sourceIds.length),
+							relations
+						);
+						if (impact == null || impact.matchCount() != resultSize) {
+							disagreements.add(
+								"selection " + Arrays.toString(selection) + ", sources " + Arrays.toString(sourceIds) +
+									" + source " + sourceId + ": impact " +
 									(impact == null ? "none" : impact.matchCount()) + ", result " + resultSize
 							);
 						}
@@ -2297,6 +2349,178 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	) {
 		return session.query(shapedLabelSelectionQuery(labelIds, sourceIds, relations), EntityReference.class)
 			.getTotalRecordCount();
+	}
+
+	/**
+	 * Returns the rows of the witness of options of a reference the user filter selects no option of, over the
+	 * {@link #FACET_RELATION_SHAPES} data set. Each row is a label, the relation requirements, the constraints of the
+	 * user filter, the reference and the option whose impact is predicted, and the primary keys of the products the
+	 * query returns when it selects the option next to the user filter, computed from the fixture table.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> otherReferenceOptionRows() {
+		final RequireConstraint[] disjunctionEverywhere = {
+			facetCalculationRules(FacetRelationType.DISJUNCTION, FacetRelationType.DISJUNCTION)
+		};
+		final FilterConstraint[] label1 = {facetHaving(REF_LABEL, entityPrimaryKeyInSet(1))};
+		final FilterConstraint[] source2 = {facetHaving(REF_SOURCE, entityPrimaryKeyInSet(2))};
+		final int[] productsWithLabel1AndSource2 = intersectionOf(
+			shapedProductsWithLabels(true, 1), shapedProductsWithSources(true, 2)
+		);
+		return Stream.of(
+			// the relation between groups applies between the groups of one reference only, the options of different
+			// references are combined the way the user filter combines its constraints - by logical AND
+			Arguments.of(
+				"default disjunction between groups, a source option next to a label", disjunctionEverywhere, label1,
+				REF_SOURCE, 2, productsWithLabel1AndSource2
+			),
+			Arguments.of(
+				"disjunction between the groups of sources, a source option next to a label",
+				new RequireConstraint[]{facetGroupsDisjunction(REF_SOURCE, WITH_DIFFERENT_GROUPS)}, label1,
+				REF_SOURCE, 2, productsWithLabel1AndSource2
+			),
+			Arguments.of(
+				"default disjunction between groups, a label option next to a source", disjunctionEverywhere, source2,
+				REF_LABEL, 1, productsWithLabel1AndSource2
+			),
+			Arguments.of(
+				"disjunction between the groups of labels, a label option next to a source",
+				new RequireConstraint[]{facetGroupsDisjunction(REF_LABEL, WITH_DIFFERENT_GROUPS)}, source2,
+				REF_LABEL, 1, productsWithLabel1AndSource2
+			),
+			// an `or` the user wrote is a single constraint of the user filter, the option must not join it
+			Arguments.of(
+				"default disjunction between groups, a source option next to an or of a label and a product",
+				disjunctionEverywhere,
+				new FilterConstraint[]{or(facetHaving(REF_LABEL, entityPrimaryKeyInSet(1)), entityPrimaryKeyInSet(9))},
+				REF_SOURCE, 2,
+				intersectionOf(
+					IntStream.concat(IntStream.of(shapedProductsWithLabels(true, 1)), IntStream.of(9)).sorted().toArray(),
+					shapedProductsWithSources(true, 2)
+				)
+			),
+			// the selection of a reference mixing conjunctive and disjunctive groups is a union of the groups, the
+			// option of another reference must not join its conjunctive part
+			Arguments.of(
+				"disjunction of group B, default conjunction of the labels without a group, a source option",
+				new RequireConstraint[]{
+					facetGroupsDisjunction(REF_LABEL, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_B)))
+				},
+				new FilterConstraint[]{facetHaving(REF_LABEL, entityPrimaryKeyInSet(3, 4))},
+				REF_SOURCE, 2,
+				intersectionOf(shapedProductsWithLabels(true, 3, 4), shapedProductsWithSources(true, 2))
+			)
+		);
+	}
+
+	/**
+	 * Checks that the reference summary predicts the impact of an option of a reference the user filter selects no
+	 * option of as the user filter AND the option, whatever relation between groups the requirements set - the
+	 * relation applies between the groups of one reference, and the result combines the constraints of the user
+	 * filter, the selections of different references included, by logical AND.
+	 *
+	 * @param label         the row label, used in the test name only
+	 * @param relations     the relation requirements
+	 * @param selection     the constraints of the user filter
+	 * @param referenceName the reference of the option whose impact is predicted
+	 * @param optionId      the option whose impact is predicted
+	 * @param expected      the primary keys of the products the query selecting the option returns, ascending
+	 * @param evita         the engine instance provided by the test extension
+	 */
+	@DisplayName("Should combine an option of another reference with the user filter by conjunction")
+	@UseDataSet(FACET_RELATION_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("otherReferenceOptionRows")
+	void shouldCombineOptionOfAnotherReferenceByConjunction(
+		@Nonnull String label,
+		@Nonnull RequireConstraint[] relations,
+		@Nonnull FilterConstraint[] selection,
+		@Nonnull String referenceName,
+		int optionId,
+		@Nonnull int[] expected,
+		Evita evita
+	) {
+		assertTrue(expected.length > 0, "the extended selection must keep some products");
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					shapedFilterQuery(
+						ArrayUtils.mergeArrays(
+							selection,
+							new FilterConstraint[]{facetHaving(referenceName, entityPrimaryKeyInSet(optionId))}
+						),
+						relations
+					),
+					EntityReference.class
+				);
+				assertArrayEquals(
+					expected,
+					result.getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).sorted().toArray()
+				);
+
+				final EvitaResponse<EntityReference> withSummary = session.query(
+					shapedFilterQuery(
+						selection, relations, referenceSummaryOfReference(referenceName, FacetStatisticsDepth.IMPACT)
+					),
+					EntityReference.class
+				);
+				final RequestImpact impact = facetStatisticsOf(
+					withSummary, referenceName, REF_LABEL.equals(referenceName) ? LABEL_GROUPS[optionId - 1] : null, optionId
+				).getImpact();
+				assertNotNull(impact, "the reference summary must predict the impact of the option");
+				assertEquals(
+					expected.length,
+					impact.matchCount(),
+					"the reference summary must predict the products adding the option leaves in the result"
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Builds the query of the {@link #FACET_RELATION_SHAPES} data set whose user filter holds the passed constraints.
+	 *
+	 * @param userFilterConstraints the constraints of the user filter
+	 * @param relations             the relation requirements
+	 * @param summaries             the reference summary requirements
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query shapedFilterQuery(
+		@Nonnull FilterConstraint[] userFilterConstraints,
+		@Nonnull RequireConstraint[] relations,
+		@Nonnull RequireConstraint... summaries
+	) {
+		return query(
+			collection(ENTITY_SHAPED_PRODUCT),
+			filterBy(userFilter(userFilterConstraints)),
+			require(
+				ArrayUtils.mergeArrays(
+					new RequireConstraint[]{
+						page(1, SHAPED_PRODUCT_LABELS.length),
+						debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+					},
+					summaries,
+					relations
+				)
+			)
+		);
+	}
+
+	/**
+	 * Returns the primary keys present in both passed ascending arrays.
+	 *
+	 * @param first  the first ascending primary keys
+	 * @param second the second ascending primary keys
+	 * @return the ascending primary keys present in both
+	 */
+	@Nonnull
+	private static int[] intersectionOf(@Nonnull int[] first, @Nonnull int[] second) {
+		return IntStream.of(first).filter(pk -> ArrayUtils.indexOf(pk, second) >= 0).toArray();
 	}
 
 	/**

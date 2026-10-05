@@ -35,11 +35,9 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaVisitor;
-import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
-import io.evitadb.core.query.algebra.facet.CombinedFacetFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupAndFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
@@ -48,7 +46,6 @@ import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
-import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.facet.FacetHavingTranslator;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -69,7 +66,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
@@ -159,27 +155,6 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	@Nullable @Getter protected Formula result;
 
 	/**
-	 * Method contains the logic that adds brand new {@link Formula} to the examined formula tree. It has
-	 * to take group relation requested by {@link FacetGroupsDisjunction} and {@link FacetGroupsNegation} into
-	 * an account.
-	 */
-	@Nonnull
-	protected static Formula[] alterFormula(
-		@Nonnull Formula newFormula,
-		@Nonnull Formula superSetFormula,
-		@Nonnull FacetRelationType relationType,
-		@Nonnull Formula... children
-	) {
-		// if newly added formula should represent OR join
-		return switch (relationType) {
-			case DISJUNCTION -> addNewFormulaAsDisjunction(newFormula, children);
-			case NEGATION -> addNewFormulaAsNegation(newFormula, children, superSetFormula);
-			case EXCLUSIVITY -> new Formula[]{newFormula};
-			case CONJUNCTION -> addNewFormulaAsConjunction(newFormula, children);
-		};
-	}
-
-	/**
 	 * Method returns true if any of the `updateChildren` differs from (not same as) passed `formula` children.
 	 */
 	protected static boolean isAnyChildrenExchanged(@Nonnull Formula formula, @Nonnull Formula[] updatedChildren) {
@@ -215,207 +190,6 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 						.toArray(PersistentRoaringBitmap[]::new)
 				)
 			);
-		}
-	}
-
-	/**
-	 * Method adds `newFormula` to existing disjunction or creates new one. The method logic must cope with different
-	 * source formula composition. We know that parent is {@link UserFilterFormula} that represents implicit AND. But
-	 * we need to attach `newFormula` with OR.
-	 *
-	 * There might be following compositions:
-	 *
-	 * 1. no OR container is present
-	 *
-	 * USER FILTER
-	 * FACET PARAMETER OR (zero or multiple formulas)
-	 *
-	 * that will be transformed to:
-	 *
-	 * USER FILTER
-	 * OR
-	 * AND
-	 * FACET PARAMETER OR (zero or multiple original formulas)
-	 * FACET PARAMETER OR (newFormula)
-	 *
-	 * 2. existing OR container is present
-	 *
-	 * USER FILTER
-	 * OR
-	 * FACET PARAMETER OR (zero or multiple formulas)
-	 *
-	 * that will be transformed to:
-	 *
-	 * USER FILTER
-	 * OR
-	 * FACET PARAMETER OR (zero or multiple original formulas)
-	 * FACET PARAMETER OR (newFormula)
-	 *
-	 * 3. user filter wth combined facet relations
-	 *
-	 * USER FILTER
-	 * COMBINED AND+OR
-	 * FACET PARAMETER OR (one or multiple original formulas) - AND relation
-	 * FACET PARAMETER OR (one or multiple original formulas) - OR relation
-	 *
-	 * that will be transformed to:
-	 *
-	 * USER FILTER
-	 * COMBINED AND+OR
-	 * FACET PARAMETER OR (one or multiple original formulas) - AND relation
-	 * FACET PARAMETER OR (one or multiple original formulas) - OR relation + newFormula
-	 *
-	 * This method also needs to cope with complicated compositions in case multiple source indexes are used - in such
-	 * occasion the above-mentioned composition is nested within OR containers that combine results from multiple
-	 * source indexes. That's why we use {@link FormulaCloner} internally that traverses the entire `children` structure.
-	 */
-	@Nonnull
-	private static Formula[] addNewFormulaAsDisjunction(@Nonnull Formula newFormula, @Nonnull Formula[] children) {
-		// iterate over existing children
-		final AtomicBoolean childrenAltered = new AtomicBoolean();
-		for (int i = 0; i < children.length; i++) {
-			final Formula mutatedChild = FormulaCloner.clone(children[i], examinedFormula -> {
-				// and if existing OR formula is found
-				if (examinedFormula instanceof OrFormula) {
-					// simply add new facet group formula to the OR formula
-					return examinedFormula.getCloneWithInnerFormulas(
-						ArrayUtils.insertRecordIntoArrayOnIndex(
-							newFormula, examinedFormula.getInnerFormulas(), examinedFormula.getInnerFormulas().length
-						)
-					);
-				} else if (examinedFormula instanceof final CombinedFacetFormula combinedFacetFormula) {
-					// if combined facet formula is found - we know there is combination of AND and OR formulas inside
-					// take the OR part of the combined formula
-					final Formula orFormula = combinedFacetFormula.getOrFormula();
-					// and replace combined formula with AND part untouched and OR part enriched with new facet formula
-					return examinedFormula.getCloneWithInnerFormulas(
-						combinedFacetFormula.getAndFormula(),
-						FormulaFactory.or(
-							newFormula,
-							orFormula
-						)
-					);
-				} else {
-					return examinedFormula;
-				}
-			});
-
-			if (mutatedChild != children[i]) {
-				children[i] = mutatedChild;
-				childrenAltered.set(true);
-			}
-		}
-		if (childrenAltered.get()) {
-			// return the updated array of children
-			return children;
-		} else {
-			// neither OR or combined formula found in children - create new OR wrapping formula and
-			// combine existing children with new facet formula
-			return new Formula[]{
-				FormulaFactory.or(
-					FormulaFactory.and(children),
-					newFormula
-				)
-			};
-		}
-	}
-
-	/**
-	 * Method adds `newFormula` to existing conjunction or creates new one. The method logic must cope with different
-	 * source formula composition. We know that parent is {@link UserFilterFormula} that represents implicit AND and we
-	 * need to append `newFormula` with the same relation type (but on the proper place).
-	 *
-	 * There might be following compositions:
-	 *
-	 * 1. no AND container is present
-	 *
-	 * USER FILTER
-	 * FACET PARAMETER OR (zero or multiple formulas)
-	 *
-	 * that will be transformed to:
-	 *
-	 * USER FILTER
-	 * AND
-	 * FACET PARAMETER OR (zero or multiple original formulas)
-	 * FACET PARAMETER OR (newFormula)
-	 *
-	 * 2. existing AND container is present
-	 *
-	 * USER FILTER
-	 * AND
-	 * FACET PARAMETER OR (zero or multiple formulas)
-	 *
-	 * that will be transformed to:
-	 *
-	 * USER FILTER
-	 * AND
-	 * FACET PARAMETER OR (zero or multiple original formulas)
-	 * FACET PARAMETER OR (newFormula)
-	 *
-	 * 3. user filter wth combined facet relations
-	 *
-	 * USER FILTER
-	 * COMBINED AND+OR
-	 * FACET PARAMETER OR (one or multiple original formulas) - AND relation
-	 * FACET PARAMETER OR (one or multiple original formulas) - OR relation
-	 *
-	 * that will be transformed to:
-	 *
-	 * USER FILTER
-	 * COMBINED AND+OR
-	 * FACET PARAMETER OR (one or multiple original formulas) - AND relation + newFormula
-	 * FACET PARAMETER OR (one or multiple original formulas) - OR relation
-	 *
-	 * This method also needs to cope with complicated compositions in case multiple source indexes are used - in such
-	 * occasion the above-mentioned composition is nested within OR containers that combine results from multiple
-	 * source indexes. That's why we use {@link FormulaCloner} internally that traverses the entire `children` structure.
-	 */
-	@Nonnull
-	private static Formula[] addNewFormulaAsConjunction(@Nonnull Formula newFormula, @Nonnull Formula[] children) {
-		// if newly added formula should represent AND join
-		// iterate over existing children
-		final AtomicBoolean childrenAltered = new AtomicBoolean();
-		for (int i = 0; i < children.length; i++) {
-			final Formula mutatedChild = FormulaCloner.clone(
-				children[i],
-				(cloner, examinedFormula) -> {
-					// and if existing AND formula is found
-					if (examinedFormula instanceof AndFormula && cloner.allParentsMatch(formula -> FilterByVisitor.isConjunctiveFormula(formula.getClass()))) {
-						// simply add new facet group formula to the AND formula
-						return examinedFormula.getCloneWithInnerFormulas(
-							ArrayUtils.insertRecordIntoArrayOnIndex(
-								newFormula, examinedFormula.getInnerFormulas(), examinedFormula.getInnerFormulas().length
-							)
-						);
-					} else if (examinedFormula instanceof final CombinedFacetFormula combinedFacetFormula && cloner.allParentsMatch(formula -> FilterByVisitor.isConjunctiveFormula(formula.getClass()))) {
-						// if combined facet formula is found - we know there is combination of AND and OR formulas inside
-						// take the AND part of the combined formula
-						final Formula andFormula = combinedFacetFormula.getAndFormula();
-						// and replace combined formula with OR part untouched and AND part enriched with new facet formula
-						return examinedFormula.getCloneWithInnerFormulas(
-							FormulaFactory.and(
-								andFormula,
-								newFormula
-							),
-							combinedFacetFormula.getOrFormula()
-						);
-					} else {
-						return examinedFormula;
-					}
-				});
-
-			if (mutatedChild != children[i]) {
-				children[i] = mutatedChild;
-				childrenAltered.set(true);
-			}
-		}
-		if (childrenAltered.get()) {
-			// return the updated array of children
-			return children;
-		} else {
-			// neither AND or combined formula found in children - we know that parent is UserFilterFormula that
-			// represents AND wrapping formula, so we can just combine existing children with new facet formula
-			return ArrayUtils.insertRecordIntoArrayOnIndex(newFormula, children, children.length);
 		}
 	}
 
@@ -617,24 +391,24 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 				return false;
 			}
 		} else {
-			// a positive facet joins the facet selection of its reference the way the result composes it, when the user
-			// filter selects facets of the reference at all
-			final Formula[] childrenWithFacetSelection = relationType == FacetRelationType.DISJUNCTION ||
-				relationType == FacetRelationType.CONJUNCTION ?
-				addNewFormulaToFacetSelection(newFormula, relationType, updatedChildren) : null;
+			final Formula[] alteredChildren = switch (relationType) {
+				case DISJUNCTION, CONJUNCTION -> {
+					// a positive facet joins the facet selection of its reference the way the result composes it
+					final Formula[] childrenWithFacetSelection = addNewFormulaToFacetSelection(
+						newFormula, relationType, updatedChildren
+					);
+					// when the user filter selects no facet of the reference, the facet joins the user filter itself -
+					// the relation between groups applies between the groups of one reference only, and the user filter
+					// combines its constraints, the facet selections of different references included, by conjunction
+					yield childrenWithFacetSelection == null ?
+						ArrayUtils.insertRecordIntoArrayOnIndex(newFormula, updatedChildren, updatedChildren.length) :
+						childrenWithFacetSelection;
+				}
+				case NEGATION -> addNewFormulaAsNegation(newFormula, updatedChildren, this.baseFormulaWithoutUserFilter);
+				case EXCLUSIVITY -> new Formula[]{newFormula};
+			};
 			// we can immediately alter the current formula adding new facet formula
-			storeFormula(
-				formula.getCloneWithInnerFormulas(
-					childrenWithFacetSelection == null ?
-						alterFormula(
-							newFormula,
-							this.baseFormulaWithoutUserFilter,
-							relationType,
-							updatedChildren
-						) :
-						childrenWithFacetSelection
-				)
-			);
+			storeFormula(formula.getCloneWithInnerFormulas(alteredChildren));
 			// we've stored the formula - instruct super method to skip it's handling
 			return true;
 		}
@@ -645,8 +419,8 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * facet selection the user filter holds for the facet's reference, so that the prediction has exactly the shape
 	 * of the result selecting the facet along with the others. {@link FacetHavingTranslator} composes the selection of
 	 * one reference as `(conjunctive groups OR disjunctive groups) AND NOT negated groups`, so a facet joining the
-	 * selection is subtracted by its negated groups, too - merely joining it to the user filter with OR or AND, as
-	 * {@link #alterFormula(Formula, Formula, FacetRelationType, Formula...)} does, would let it escape them.
+	 * selection is subtracted by its negated groups, too - merely joining it to the rest of the user filter would let
+	 * it escape them.
 	 *
 	 * The selection takes one of two places in the user filter:
 	 *
