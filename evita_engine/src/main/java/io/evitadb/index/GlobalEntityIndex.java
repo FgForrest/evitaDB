@@ -24,6 +24,7 @@
 package io.evitadb.index;
 
 import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.exception.EntityNotManagedException;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -35,6 +36,7 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.EntityAttributeIndex;
@@ -256,6 +258,21 @@ public class GlobalEntityIndex extends EntityIndex
 				-1, entityType, entityIndexKey
 			}
 		);
+	}
+
+	/**
+	 * Creates an empty global index of the entity type in the scope, to stand in for the index of a scope the entity
+	 * type holds no entity of. Constraints are planned over it exactly as over the real index - the translation checks
+	 * them against the entity schema - so that a query does not fail or pass depending on the data, and it matches
+	 * nothing. The index is never stored, and its primary key `-1` belongs to no stored index.
+	 *
+	 * @param entityType the type of entity the index stands for
+	 * @param scope      the scope the index stands for
+	 * @return a fresh empty index
+	 */
+	@Nonnull
+	public static GlobalEntityIndex createEmptyIndex(@Nonnull String entityType, @Nonnull Scope scope) {
+		return new GlobalEntityIndex(-1, entityType, new EntityIndexKey(EntityIndexType.GLOBAL, scope));
 	}
 
 	public GlobalEntityIndex(

@@ -106,17 +106,24 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	 * hierarchical entity. Each producer contains all information necessary.
 	 */
 	@Nullable private HierarchySet selfHierarchyRequest;
+	/**
+	 * True while {@link #interpret} plans the statistics of a tree with no index in the requested scope - see the
+	 * `checkOnly` parameter of that method.
+	 */
+	private boolean checkingOnly;
 
 	@Nullable
 	@Override
 	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context) {
 		return new Hierarchy(
 			ofNullable(this.selfHierarchyRequest)
+				.filter(HierarchySet::hasComputers)
 				.map(it -> it.createStatistics(context, this.language))
 				.orElse(null),
 			this.hierarchyRequests
 				.entrySet()
 				.stream()
+				.filter(it -> it.getValue().hasComputers())
 				.collect(
 					Collectors.toMap(
 						Entry::getKey,
@@ -157,6 +164,13 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	 * @param sorter                                 sorter for sorting {@link LevelInfo}, `null` exactly when
 	 *                                               `orderBy` is `null`
 	 * @param interpretationLambda                   lambda that allows additional configuration of the {@link AbstractHierarchyStatisticsComputer}
+	 * @param checkOnly                              true when `targetIndex` is an empty index standing in for a tree
+	 *                                               with no index in the requested scope: the nested constraints are
+	 *                                               planned against the schema all the same, and the output names and
+	 *                                               the order are claimed exactly as for a tree with data, so that the
+	 *                                               query fails or passes regardless of the data - but no statistics
+	 *                                               and no sorter are registered, so the result holds no output of
+	 *                                               the tree
 	 */
 	public void interpret(
 		@Nonnull Supplier<Bitmap> rootHierarchyNodesSupplier,
@@ -171,10 +185,12 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 		@Nonnull EmptyHierarchicalEntityBehaviour behaviour,
 		@Nullable OrderBy orderBy,
 		@Nullable NestedContextSorter sorter,
-		@Nonnull Runnable interpretationLambda
+		@Nonnull Runnable interpretationLambda,
+		boolean checkOnly
 	) {
 		Assert.isTrue(this.context.get() == null, "HierarchyOfSelf / HierarchyOfReference cannot be nested inside each other!");
 		try {
+			this.checkingOnly = checkOnly;
 			this.context.set(
 				new HierarchyProducerContext(
 					rootHierarchyNodesSupplier,
@@ -198,12 +214,17 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 					this.selfHierarchyRequest : this.hierarchyRequests.get(referenceSchema.getName());
 				if (hierarchySet != null) {
 					assertOrderNotContradicted(hierarchySet, referenceSchema, orderBy);
-					// safe: `createSorter` never returns null, so a declared order always carries its sorter
-					hierarchySet.setSorter(orderBy, Objects.requireNonNull(sorter));
+					if (checkOnly) {
+						hierarchySet.claimOrder(orderBy);
+					} else {
+						// safe: `createSorter` never returns null, so a declared order always carries its sorter
+						hierarchySet.setSorter(orderBy, Objects.requireNonNull(sorter));
+					}
 				}
 			}
 		} finally {
 			this.context.set(null);
+			this.checkingOnly = false;
 		}
 	}
 
@@ -239,7 +260,8 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 
 	/**
 	 * Methods registers a specific implementation {@link AbstractHierarchyStatisticsComputer} instance for computing
-	 * a result labeled as `outputName`.
+	 * a result labeled as `outputName`. While the statistics of a tree with no index in the requested scope are
+	 * interpreted, only the output name is claimed and the computer is dropped.
 	 */
 	public void addComputer(
 		@Nonnull String constraintName,
@@ -260,7 +282,11 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 			);
 		}
 		assertOutputNameFree(hierarchySet, ctx.referenceSchema(), outputName);
-		hierarchySet.addComputer(outputName, computer);
+		if (this.checkingOnly) {
+			hierarchySet.claimOutputName(outputName);
+		} else {
+			hierarchySet.addComputer(outputName, computer);
+		}
 	}
 
 	/**

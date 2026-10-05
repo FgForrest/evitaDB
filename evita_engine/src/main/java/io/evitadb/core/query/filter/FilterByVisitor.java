@@ -360,7 +360,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				.stream()
 				.map(
 					scope -> queryContext.getGlobalEntityIndexIfExists(entityType, scope)
-						.orElseGet(() -> new GlobalEntityIndex(-1, entityType, new EntityIndexKey(EntityIndexType.GLOBAL, scope)))
+						.orElseGet(() -> GlobalEntityIndex.createEmptyIndex(entityType, scope))
 				)
 				.toList(),
 			filterBy,

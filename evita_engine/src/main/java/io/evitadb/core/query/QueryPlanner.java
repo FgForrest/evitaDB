@@ -64,7 +64,6 @@ import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.primaryKey.sorter.TranslatedPrimaryKeySorter;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.Index;
@@ -308,7 +307,7 @@ public class QueryPlanner {
 			final Set<Scope> requestedScopes = context.getScopes();
 			final List<GlobalEntityIndex> emptyIndexes = Arrays.stream(Scope.values())
 				.filter(requestedScopes::contains)
-				.map(scope -> new GlobalEntityIndex(-1, entityType, new EntityIndexKey(EntityIndexType.GLOBAL, scope)))
+				.map(scope -> GlobalEntityIndex.createEmptyIndex(entityType, scope))
 				.toList();
 			final List<TargetIndexes<GlobalEntityIndex>> targetIndexes = List.of(
 				new TargetIndexes<>(CONSTRAINT_CHECK_INDEX_DESCRIPTION, GlobalEntityIndex.class, emptyIndexes)

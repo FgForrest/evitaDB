@@ -38,6 +38,7 @@ import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.utils.Assert;
@@ -49,6 +50,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 
 import static java.util.Optional.ofNullable;
 
@@ -95,7 +97,8 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 	 * @param hierarchyWithinRoot the translated constraint
 	 * @param filterByVisitor     the visitor translating the constraint
 	 * @param scope               the scope to select the nodes in
-	 * @return the formula of the nodes selected in the scope, {@link EmptyFormula} when the scope has no index
+	 * @return the formula of the nodes selected in the scope, {@link EmptyFormula} when the scope has no index - the
+	 *         node filters are then checked over an empty index
 	 */
 	@Nonnull
 	public static Formula createFormulaFromHierarchyIndex(
@@ -122,6 +125,20 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 		);
 
 		final Set<Scope> scopeToLookup = EnumSet.of(scope);
+		final Function<EntityIndex, Formula> nodesFormulaFactory = targetEntityIndex -> createFormulaFromHierarchyIndex(
+			createAndStoreHavingPredicate(
+				hierarchyWithinRoot,
+				null,
+				queryContext,
+				scopeToLookup,
+				hierarchyWithinRoot.getHavingChildrenFilter(),
+				hierarchyWithinRoot.getHavingAnyChildFilter(),
+				hierarchyWithinRoot.getExcludedChildrenFilter(),
+				referenceSchema
+			),
+			hierarchyWithinRoot.isDirectRelation(),
+			targetEntityIndex
+		);
 		return queryContext.getEntityIndex(
 				targetEntitySchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL, scope), EntityIndex.class
 			)
@@ -130,24 +147,20 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 					queryContext.computeOnlyOnce(
 						Collections.singletonList(targetEntityIndex),
 						hierarchyWithinRoot,
-						() -> createFormulaFromHierarchyIndex(
-							createAndStoreHavingPredicate(
-								hierarchyWithinRoot,
-								null,
-								queryContext,
-								scopeToLookup,
-								hierarchyWithinRoot.getHavingChildrenFilter(),
-								hierarchyWithinRoot.getHavingAnyChildFilter(),
-								hierarchyWithinRoot.getExcludedChildrenFilter(),
-								referenceSchema
-							),
-							hierarchyWithinRoot.isDirectRelation(),
-							targetEntityIndex
-						),
+						() -> nodesFormulaFactory.apply(targetEntityIndex),
 						scopesCacheKey(scopeToLookup)
 					)
 			)
-			.orElse(EmptyFormula.INSTANCE);
+			.orElseGet(
+				() -> {
+					// a scope holding no entity of the hierarchy selects no node, but the node filters of the
+					// constraint are checked against the schema over an empty index all the same - the query must
+					// not fail or pass depending on the data; the scope contributes nothing, whatever the translation
+					// produced
+					nodesFormulaFactory.apply(GlobalEntityIndex.createEmptyIndex(targetEntitySchema.getName(), scope));
+					return EmptyFormula.INSTANCE;
+				}
+			);
 	}
 
 	@Nonnull

@@ -99,14 +99,17 @@ public class HierarchyOfReferenceTranslator
 			final HierarchyFilterConstraint hierarchyWithin = extraResultPlanner.getQueryContext()
 				.getHierarchyFilterForScope(evitaRequest.getHierarchyWithin(referenceName), scope);
 			final Optional<EntityCollection> targetCollectionRef = extraResultPlanner.getEntityCollection(entityType);
-			final GlobalEntityIndex globalIndex = targetCollectionRef
-				.map(entityCollection -> entityCollection.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope)))
-				.map(GlobalEntityIndex.class::cast)
-				.orElse(null);
-
-			if (globalIndex != null) {
-				// safe: globalIndex != null implies the optional was present
-				final EntityCollection targetCollection = targetCollectionRef.orElseThrow();
+			if (targetCollectionRef.isPresent()) {
+				final EntityCollection targetCollection = targetCollectionRef.get();
+				final GlobalEntityIndex existingIndex = (GlobalEntityIndex) targetCollection.getIndexByKeyIfExists(
+					new EntityIndexKey(EntityIndexType.GLOBAL, scope)
+				);
+				// a scope holding no entity of the hierarchy has no tree to describe - its statistics are planned over
+				// an empty index for checking only, so that the nested constraints are checked against the schema
+				// whether or not an entity happens to live there, and they produce no output
+				final boolean checkOnly = existingIndex == null;
+				final GlobalEntityIndex globalIndex = checkOnly ?
+					GlobalEntityIndex.createEmptyIndex(entityType, scope) : existingIndex;
 				final OrderBy orderBy = hierarchyOfReference.getOrderBy().orElse(null);
 				final NestedContextSorter sorter = orderBy == null ?
 					null :
@@ -163,7 +166,8 @@ public class HierarchyOfReferenceTranslator
 						for (RequireConstraint child : hierarchyOfReference) {
 							child.accept(extraResultPlanner);
 						}
-					}
+					},
+					checkOnly
 				);
 			}
 		}

@@ -54,6 +54,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
@@ -248,7 +249,9 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 * {@link #REF_CATEGORY} to the tags, indexed and faceted in every scope, with the same two attributes of the same
 	 * filterability; no group references a tag by it, so it has no index of any scope. The type
 	 * {@link #ENTITY_UNPOPULATED_TAG} declares the same two attributes and holds no entity at all. The hierarchical type
-	 * {@link #ENTITY_SCOPED_FOLDER} declares them too and holds the live root folder 1 with its child 2.
+	 * {@link #ENTITY_SCOPED_FOLDER} declares them too and holds the live root folder 1 with its child 2, so it has no
+	 * index of the archived scope. The type {@link #ENTITY_SCOPED_FOLDER_ITEM} references the folders by
+	 * {@link #REF_FOLDER}, indexed in every scope: the live item 1 and the archived item 2 are both placed in folder 2.
 	 *
 	 * | product | scope    | tags   |
 	 * |---------|----------|--------|
@@ -272,6 +275,8 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	private static final String ENTITY_SCOPED_TAG_GROUP = "scopedTagGroup";
 	private static final String ENTITY_UNPOPULATED_TAG = "unpopulatedTag";
 	private static final String ENTITY_SCOPED_FOLDER = "scopedFolder";
+	private static final String ENTITY_SCOPED_FOLDER_ITEM = "scopedFolderItem";
+	private static final String REF_FOLDER = "folder";
 	/**
 	 * An attribute no entity type of the {@link #FACET_SCOPE_SHAPES} data set declares.
 	 */
@@ -1846,6 +1851,19 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						.setAttribute(ATTRIBUTE_CODE, "folder2")
 						.setAttribute(ATTRIBUTE_NOTE, "not filterable")
 				);
+				session.defineEntitySchema(ENTITY_SCOPED_FOLDER_ITEM)
+					.withoutGeneratedPrimaryKey()
+					.withReferenceToEntity(
+						REF_FOLDER, ENTITY_SCOPED_FOLDER, Cardinality.ZERO_OR_MORE,
+						this::makeReferenceIndexedInEveryScope
+					)
+					.updateVia(session);
+				for (int pk = 1; pk <= 2; pk++) {
+					session.upsertEntity(
+						session.createNewEntity(ENTITY_SCOPED_FOLDER_ITEM, pk).setReference(REF_FOLDER, 2)
+					);
+				}
+				session.archiveEntity(ENTITY_SCOPED_FOLDER_ITEM, 2);
 				session.defineEntitySchema(ENTITY_SCOPED_TAG_GROUP)
 					.withoutGeneratedPrimaryKey()
 					.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.filterableInScope(Scope.values()))
@@ -5979,6 +5997,577 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						SealedEntity.class
 					).getRecordData().size()
 				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Returns the rows of the hierarchy constraints of the {@link #FACET_SCOPE_SHAPES} data set that the schema
+	 * refuses, each in both scopes. The hierarchical type {@link #ENTITY_SCOPED_FOLDER} holds no entity of the archived
+	 * scope, so there the tree a constraint searches or describes has no index at all: the folders are queried over
+	 * a scope without data, and the archived item of {@link #ENTITY_SCOPED_FOLDER_ITEM} references a tree without any
+	 * archived node. The rows cover the node filters of the hierarchy filter constraints - the parent filter, `having`,
+	 * `anyHaving` and `excluding` - of the folders themselves and of the referenced folders, at the top level and
+	 * in `inScope` of a query over both scopes, and the node filters, the ordering, the fetch and the output names of
+	 * the hierarchy statistics of both - also an output name or an ordering clashing with the statistics of the same
+	 * tree requested for the other scope. Each row is a label, the scope, the query, the client error it must fail with
+	 * and the name the error message must contain.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> hierarchyConstraintRows() {
+		final FilterConstraint noteFilter = attributeEquals(ATTRIBUTE_NOTE, "anything");
+		final FilterBy note = filterBy(noteFilter);
+		return Stream.of(
+			inEveryScope(
+				"having of the folders",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER),
+					filterBy(scope(scope), hierarchyWithinRootSelf(having(noteFilter)))
+				),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			inEveryScope(
+				"excluding of the folders",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER),
+					filterBy(scope(scope), hierarchyWithinRootSelf(excluding(noteFilter)))
+				),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			inEveryScope(
+				"anyHaving of the folders",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER),
+					filterBy(scope(scope), hierarchyWithinRootSelf(anyHaving(noteFilter)))
+				),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			inEveryScope(
+				"parent filter of the folders",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER), filterBy(scope(scope), hierarchyWithinSelf(noteFilter))
+				),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			inEveryScope(
+				"having below a parent of the folders",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER),
+					filterBy(scope(scope), hierarchyWithinSelf(entityPrimaryKeyInSet(1), having(noteFilter)))
+				),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			inEveryScope(
+				"excluding below a parent of the folders",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER),
+					filterBy(scope(scope), hierarchyWithinSelf(entityPrimaryKeyInSet(1), excluding(noteFilter)))
+				),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			inEveryScope(
+				"having of the folders in the scope of a query over both scopes",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER),
+					filterBy(
+						scope(Scope.LIVE, Scope.ARCHIVED), inScope(scope, hierarchyWithinRootSelf(having(noteFilter)))
+					)
+				),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			inEveryScope(
+				"parent filter of the referenced folders",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER_ITEM),
+					filterBy(scope(scope), hierarchyWithin(REF_FOLDER, noteFilter))
+				),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			inEveryScope(
+				"having below a parent of the referenced folders",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER_ITEM),
+					filterBy(scope(scope), hierarchyWithin(REF_FOLDER, entityPrimaryKeyInSet(1), having(noteFilter)))
+				),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			inEveryScope(
+				"excluding below a parent of the referenced folders",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER_ITEM),
+					filterBy(scope(scope), hierarchyWithin(REF_FOLDER, entityPrimaryKeyInSet(1), excluding(noteFilter)))
+				),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			inEveryScope(
+				"anyHaving of the referenced folders",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER_ITEM),
+					filterBy(scope(scope), hierarchyWithinRoot(REF_FOLDER, anyHaving(noteFilter)))
+				),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			inEveryScope(
+				"parent filter of the referenced folders in the scope of a query over both scopes",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER_ITEM),
+					filterBy(scope(Scope.LIVE, Scope.ARCHIVED), inScope(scope, hierarchyWithin(REF_FOLDER, noteFilter)))
+				),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			inEveryScope(
+				"stop node of the statistics of the folders",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER),
+					filterBy(scope(scope)),
+					require(hierarchyOfSelf(fromRoot("tree", stopAt(node(note)))))
+				),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			inEveryScope(
+				"start node of the statistics of the folders",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER),
+					filterBy(scope(scope)),
+					require(hierarchyOfSelf(fromNode("tree", node(note))))
+				),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			inEveryScope(
+				"stop node of the children statistics of the folders",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER),
+					filterBy(scope(scope)),
+					require(hierarchyOfSelf(children("tree", stopAt(node(note)))))
+				),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			inEveryScope(
+				"ordering of the statistics of the folders",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER),
+					filterBy(scope(scope)),
+					require(hierarchyOfSelf(orderBy(attributeNatural(ATTRIBUTE_NOTE)), fromRoot("tree")))
+				),
+				AttributeNotSortableException.class, ATTRIBUTE_NOTE
+			),
+			inEveryScope(
+				"fetch of the statistics of the folders",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER),
+					filterBy(scope(scope)),
+					require(hierarchyOfSelf(fromRoot("tree", entityFetch(attributeContent(ATTRIBUTE_MISSING)))))
+				),
+				AttributeNotFoundException.class, ATTRIBUTE_MISSING
+			),
+			inEveryScope(
+				"output name of the statistics of the folders used twice",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER),
+					filterBy(scope(scope)),
+					require(hierarchyOfSelf(fromRoot("tree"), fromRoot("tree")))
+				),
+				EvitaInvalidUsageException.class, "tree"
+			),
+			inEveryScope(
+				"stop node of the statistics of the folders in the scope of a query over both scopes",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER),
+					filterBy(scope(Scope.LIVE, Scope.ARCHIVED)),
+					require(inScope(scope, hierarchyOfSelf(fromRoot("tree", stopAt(node(note))))))
+				),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			inEveryScope(
+				"stop node of the statistics of the referenced folders",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER_ITEM),
+					filterBy(scope(scope)),
+					require(hierarchyOfReference(REF_FOLDER, fromRoot("tree", stopAt(node(note)))))
+				),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			inEveryScope(
+				"start node of the statistics of the referenced folders",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER_ITEM),
+					filterBy(scope(scope)),
+					require(hierarchyOfReference(REF_FOLDER, fromNode("tree", node(note))))
+				),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			inEveryScope(
+				"ordering of the statistics of the referenced folders",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER_ITEM),
+					filterBy(scope(scope)),
+					require(
+						hierarchyOfReference(REF_FOLDER, orderBy(attributeNatural(ATTRIBUTE_NOTE)), fromRoot("tree"))
+					)
+				),
+				AttributeNotSortableException.class, ATTRIBUTE_NOTE
+			),
+			inEveryScope(
+				"fetch of the statistics of the referenced folders",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER_ITEM),
+					filterBy(scope(scope)),
+					require(
+						hierarchyOfReference(
+							REF_FOLDER, fromRoot("tree", entityFetch(attributeContent(ATTRIBUTE_MISSING)))
+						)
+					)
+				),
+				AttributeNotFoundException.class, ATTRIBUTE_MISSING
+			),
+			inEveryScope(
+				"output name of the statistics of the referenced folders used twice",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER_ITEM),
+					filterBy(scope(scope)),
+					require(hierarchyOfReference(REF_FOLDER, fromRoot("tree"), fromRoot("tree")))
+				),
+				EvitaInvalidUsageException.class, "tree"
+			),
+			inEveryScope(
+				"output name of the statistics of the referenced folders used in another scope",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER_ITEM),
+					filterBy(scope(Scope.LIVE, Scope.ARCHIVED)),
+					require(
+						inScope(Scope.LIVE, hierarchyOfReference(REF_FOLDER, fromRoot("tree"))),
+						inScope(scope, hierarchyOfReference(REF_FOLDER, children("tree")))
+					)
+				),
+				EvitaInvalidUsageException.class, "tree"
+			),
+			inEveryScope(
+				"ordering of the statistics of the referenced folders contradicting another scope",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER_ITEM),
+					filterBy(scope(Scope.LIVE, Scope.ARCHIVED)),
+					require(
+						inScope(
+							Scope.LIVE,
+							hierarchyOfReference(
+								REF_FOLDER,
+								orderBy(entityPrimaryKeyNatural(OrderDirection.ASC)),
+								fromRoot("ascending")
+							)
+						),
+						inScope(
+							scope,
+							hierarchyOfReference(
+								REF_FOLDER,
+								orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)),
+								fromRoot("descending")
+							)
+						)
+					)
+				),
+				EvitaInvalidUsageException.class, REF_FOLDER
+			)
+		).flatMap(Function.identity());
+	}
+
+	/**
+	 * Returns the arguments of a row of {@link #hierarchyConstraintRows()} or {@link #nestedOrderingRows()} for every
+	 * scope.
+	 *
+	 * @param label             the row label
+	 * @param query             the factory of the query of the row for the passed scope
+	 * @param expectedException the client error the query must fail with
+	 * @param name              the name the message of the error must contain
+	 * @return the row arguments, one per scope
+	 */
+	@Nonnull
+	private static Stream<Arguments> inEveryScope(
+		@Nonnull String label,
+		@Nonnull Function<Scope, Query> query,
+		@Nonnull Class<? extends EvitaInvalidUsageException> expectedException,
+		@Nonnull String name
+	) {
+		return Arrays.stream(Scope.values())
+			.map(scope -> Arguments.of(label, scope, query.apply(scope), expectedException, name));
+	}
+
+	/**
+	 * Returns the rows of the orderings of the referenced entities in the reference summary of the
+	 * {@link #FACET_SCOPE_SHAPES} data set that the schema refuses, each in both scopes. The tags and their groups hold
+	 * no entity of the archived scope, so there the ordering is planned for a type without any index. Each row has
+	 * the shape of {@link #hierarchyConstraintRows()}.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> nestedOrderingRows() {
+		return Stream.of(
+			inEveryScope(
+				"ordering of the referenced entities of the reference summary",
+				scope -> query(
+					collection(ENTITY_SCOPED_PRODUCT),
+					filterBy(scope(scope)),
+					require(
+						referenceSummaryOfReference(
+							REF_TAG, FacetStatisticsDepth.COUNTS, orderBy(attributeNatural(ATTRIBUTE_NOTE))
+						)
+					)
+				),
+				AttributeNotSortableException.class, ATTRIBUTE_NOTE
+			),
+			inEveryScope(
+				"ordering of the referenced groups of the reference summary",
+				scope -> query(
+					collection(ENTITY_SCOPED_PRODUCT),
+					filterBy(scope(scope)),
+					require(
+						referenceSummaryOfReference(
+							REF_TAG, FacetStatisticsDepth.COUNTS, orderGroupBy(attributeNatural(ATTRIBUTE_NOTE))
+						)
+					)
+				),
+				AttributeNotSortableException.class, ATTRIBUTE_NOTE
+			)
+		).flatMap(Function.identity());
+	}
+
+	/**
+	 * Checks that a hierarchy constraint or a nested ordering the schema refuses fails the query with the same client
+	 * error in every scope - also where the hierarchy it searches or describes, or the entity type it orders, holds no
+	 * entity, so that the query does not fail or pass depending on the data.
+	 *
+	 * @param label             the row label, used in the test name only
+	 * @param scope             the scope the constraint is evaluated in, used in the test name only
+	 * @param query             the query with the refused constraint
+	 * @param expectedException the client error the query must fail with
+	 * @param name              the name the message of the error must contain
+	 * @param evita             the engine instance provided by the test extension
+	 */
+	@DisplayName("Should fail the query whose nested constraint cannot be evaluated in every scope")
+	@UseDataSet(FACET_SCOPE_SHAPES)
+	@ParameterizedTest(name = "{0} in {1}")
+	@MethodSource({"hierarchyConstraintRows", "nestedOrderingRows"})
+	void shouldFailQueryWhoseNestedConstraintCannotBeEvaluatedInEveryScope(
+		@Nonnull String label,
+		@Nonnull Scope scope,
+		@Nonnull Query query,
+		@Nonnull Class<? extends EvitaInvalidUsageException> expectedException,
+		@Nonnull String name,
+		Evita evita
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaInvalidUsageException exception = assertThrowsExactly(
+					expectedException,
+					() -> session.query(query, EntityClassifier.class)
+				);
+				assertTrue(
+					exception.getMessage().contains("`" + name + "`"),
+					"the message `" + exception.getMessage() + "` must name `" + name + "`"
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Returns the evaluable counterparts of {@link #hierarchyConstraintRows()} and {@link #nestedOrderingRows()} in the
+	 * archived scope, where the folders, the tags and their groups hold no entity. Each row is a label, the query, the
+	 * primary keys it must return, the reference whose hierarchy statistics it computes (NULL for the queried entity's
+	 * own) and the outputs of those statistics that must be absent - a scope without any node has no tree to describe.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> evaluableNestedConstraintRows() {
+		final FilterConstraint codeFilter = attributeEquals(ATTRIBUTE_CODE, "folder1");
+		final FilterBy code = filterBy(codeFilter);
+		final Scope archived = Scope.ARCHIVED;
+		return Stream.of(
+			Arguments.of(
+				"having of the folders",
+				query(
+					collection(ENTITY_SCOPED_FOLDER),
+					filterBy(scope(archived), hierarchyWithinRootSelf(having(codeFilter)))
+				),
+				new int[0], null, new String[0]
+			),
+			Arguments.of(
+				"excluding of the folders",
+				query(
+					collection(ENTITY_SCOPED_FOLDER),
+					filterBy(scope(archived), hierarchyWithinRootSelf(excluding(codeFilter)))
+				),
+				new int[0], null, new String[0]
+			),
+			Arguments.of(
+				"anyHaving of the folders",
+				query(
+					collection(ENTITY_SCOPED_FOLDER),
+					filterBy(scope(archived), hierarchyWithinRootSelf(anyHaving(codeFilter)))
+				),
+				new int[0], null, new String[0]
+			),
+			Arguments.of(
+				"parent filter of the folders",
+				query(collection(ENTITY_SCOPED_FOLDER), filterBy(scope(archived), hierarchyWithinSelf(codeFilter))),
+				new int[0], null, new String[0]
+			),
+			Arguments.of(
+				"having below a parent of the folders",
+				query(
+					collection(ENTITY_SCOPED_FOLDER),
+					filterBy(scope(archived), hierarchyWithinSelf(entityPrimaryKeyInSet(1), having(codeFilter)))
+				),
+				new int[0], null, new String[0]
+			),
+			Arguments.of(
+				"having of the folders in the scope of a query over both scopes",
+				query(
+					collection(ENTITY_SCOPED_FOLDER),
+					filterBy(
+						scope(Scope.LIVE, archived), inScope(archived, hierarchyWithinRootSelf(having(codeFilter)))
+					)
+				),
+				new int[] {1, 2}, null, new String[0]
+			),
+			Arguments.of(
+				"parent filter of the referenced folders",
+				query(
+					collection(ENTITY_SCOPED_FOLDER_ITEM),
+					filterBy(scope(archived), hierarchyWithin(REF_FOLDER, codeFilter))
+				),
+				new int[0], null, new String[0]
+			),
+			Arguments.of(
+				"excluding below a parent of the referenced folders",
+				query(
+					collection(ENTITY_SCOPED_FOLDER_ITEM),
+					filterBy(
+						scope(archived), hierarchyWithin(REF_FOLDER, entityPrimaryKeyInSet(1), excluding(codeFilter))
+					)
+				),
+				new int[0], null, new String[0]
+			),
+			Arguments.of(
+				"parent filter of the referenced folders in the scope of a query over both scopes",
+				query(
+					collection(ENTITY_SCOPED_FOLDER_ITEM),
+					filterBy(scope(Scope.LIVE, archived), inScope(archived, hierarchyWithin(REF_FOLDER, codeFilter)))
+				),
+				new int[] {1}, null, new String[0]
+			),
+			Arguments.of(
+				"stop node, start node, ordering and fetch of the statistics of the folders",
+				query(
+					collection(ENTITY_SCOPED_FOLDER),
+					filterBy(scope(archived)),
+					require(
+						hierarchyOfSelf(
+							orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)),
+							fromRoot("tree", entityFetch(attributeContent(ATTRIBUTE_CODE)), stopAt(node(code))),
+							fromNode("subtree", node(code)),
+							children("children", stopAt(node(code)))
+						)
+					)
+				),
+				new int[0], null, new String[0]
+			),
+			Arguments.of(
+				"stop node of the statistics of the folders in the scope of a query over both scopes",
+				query(
+					collection(ENTITY_SCOPED_FOLDER),
+					filterBy(scope(Scope.LIVE, archived)),
+					require(inScope(archived, hierarchyOfSelf(fromRoot("tree", stopAt(node(code))))))
+				),
+				new int[] {1, 2}, null, new String[] {"tree"}
+			),
+			Arguments.of(
+				"stop node, start node, ordering and fetch of the statistics of the referenced folders",
+				query(
+					collection(ENTITY_SCOPED_FOLDER_ITEM),
+					filterBy(scope(archived)),
+					require(
+						hierarchyOfReference(
+							REF_FOLDER,
+							orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)),
+							fromRoot("tree", entityFetch(attributeContent(ATTRIBUTE_CODE)), stopAt(node(code))),
+							fromNode("subtree", node(code))
+						)
+					)
+				),
+				new int[] {2}, REF_FOLDER, new String[] {"tree", "subtree"}
+			),
+			Arguments.of(
+				"ordering of the referenced entities and groups of the reference summary",
+				query(
+					collection(ENTITY_SCOPED_PRODUCT),
+					filterBy(scope(archived)),
+					require(
+						referenceSummaryOfReference(
+							REF_TAG, FacetStatisticsDepth.COUNTS,
+							orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)),
+							orderGroupBy(entityPrimaryKeyNatural(OrderDirection.DESC))
+						)
+					)
+				),
+				IntStream.rangeClosed(1, SCOPED_PRODUCT_SCOPES.length)
+					.filter(pk -> SCOPED_PRODUCT_SCOPES[pk - 1] == archived)
+					.toArray(),
+				null, new String[0]
+			)
+		);
+	}
+
+	/**
+	 * Checks that the evaluable counterparts of {@link #hierarchyConstraintRows()} and {@link #nestedOrderingRows()} are
+	 * accepted in a scope the folders, the tags and their groups hold no entity of and keep their result - checking the
+	 * nested constraints of such a scope must not refuse a constraint the schema allows. The hierarchy statistics of
+	 * such a scope produce no output.
+	 *
+	 * @param label             the row label, used in the test name only
+	 * @param query             the query with the evaluable constraints
+	 * @param expectedPks       the primary keys the query must return
+	 * @param hierarchyOf       the reference whose hierarchy statistics are checked, NULL for the queried entity's own
+	 * @param absentHierarchies the outputs of the hierarchy statistics that must be absent
+	 * @param evita             the engine instance provided by the test extension
+	 */
+	@DisplayName("Should accept an evaluable nested constraint in a scope without data")
+	@UseDataSet(FACET_SCOPE_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("evaluableNestedConstraintRows")
+	void shouldAcceptEvaluableNestedConstraintInScopeWithoutData(
+		@Nonnull String label,
+		@Nonnull Query query,
+		@Nonnull int[] expectedPks,
+		@Nullable String hierarchyOf,
+		@Nonnull String[] absentHierarchies,
+		Evita evita
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityClassifier> response = session.query(query, EntityClassifier.class);
+				assertArrayEquals(
+					expectedPks,
+					response.getRecordData()
+						.stream()
+						.mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
+						.toArray()
+				);
+				for (final String output : absentHierarchies) {
+					final io.evitadb.api.requestResponse.extraResult.Hierarchy hierarchy = response.getExtraResult(
+						io.evitadb.api.requestResponse.extraResult.Hierarchy.class
+					);
+					assertNotNull(hierarchy);
+					final Map<String, List<LevelInfo>> outputs = hierarchyOf == null ?
+						hierarchy.getSelfHierarchy() : hierarchy.getReferenceHierarchy(hierarchyOf);
+					assertFalse(outputs.containsKey(output), output);
+				}
 				return null;
 			}
 		);

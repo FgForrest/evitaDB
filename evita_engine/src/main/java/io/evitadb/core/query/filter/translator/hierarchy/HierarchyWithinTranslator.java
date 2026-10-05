@@ -43,6 +43,7 @@ import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
@@ -56,6 +57,7 @@ import java.util.EnumSet;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 
 import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
@@ -109,7 +111,8 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 	 * @param hierarchyWithin the translated constraint
 	 * @param filterByVisitor the visitor translating the constraint
 	 * @param scope           the scope to select the nodes in
-	 * @return the formula of the nodes selected in the scope, {@link EmptyFormula} when the scope has no index
+	 * @return the formula of the nodes selected in the scope, {@link EmptyFormula} when the scope has no index - the
+	 *         parent and node filters are then checked over an empty index
 	 * @throws EntityIsNotHierarchicalException when the target entity is not hierarchical
 	 * @throws HierarchyNotIndexedException when the hierarchy is not indexed in the scope, whether or not the scope
 	 *                                      holds an index of the target entity
@@ -132,6 +135,38 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 			.orElse(entitySchema);
 
 		final Set<Scope> scopeToLookup = EnumSet.of(scope);
+		final Function<EntityIndex, Formula> nodesFormulaFactory = targetEntityIndex -> {
+			verifyHierarchyIndexedAndRecordUsage(
+				queryContext, targetEntitySchema, referenceSchema, scope, scopeToLookup
+			);
+
+			final FilterConstraint parentFilter = hierarchyWithin.getParentFilter();
+			final Formula hierarchyParentFormula = createFormulaForTheFilter(
+				queryContext,
+				scopeToLookup,
+				createFilter(queryContext, parentFilter),
+				targetEntitySchema.getName(),
+				() -> "Finding hierarchy parent node: " + parentFilter
+			);
+			// we need to initialize the formula with internal context,
+			// because we'll need the result in planning phase
+			hierarchyParentFormula.initialize(filterByVisitor.getInternalExecutionContext());
+
+			queryContext.setRootHierarchyNodesFormula(
+				hierarchyWithin, scopeToLookup, hierarchyParentFormula
+			);
+
+			final int[] nodeIds = hierarchyParentFormula.compute().stream().toArray();
+			return createFormulaFromHierarchyIndex(
+				hierarchyWithin,
+				targetEntityIndex,
+				nodeIds,
+				queryContext,
+				scopeToLookup,
+				referenceSchema,
+				targetEntitySchema
+			);
+		};
 		return queryContext.getEntityIndex(
 				targetEntitySchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL, scope), EntityIndex.class
 			)
@@ -139,48 +174,17 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 				targetEntityIndex -> queryContext.computeOnlyOnce(
 					Collections.singletonList(targetEntityIndex),
 					hierarchyWithin,
-					() -> {
-						verifyHierarchyIndexedAndRecordUsage(
-							queryContext, targetEntitySchema, referenceSchema, scope, scopeToLookup
-						);
-
-						final FilterConstraint parentFilter = hierarchyWithin.getParentFilter();
-						final Formula hierarchyParentFormula = createFormulaForTheFilter(
-							queryContext,
-							scopeToLookup,
-							createFilter(queryContext, parentFilter),
-							targetEntitySchema.getName(),
-							() -> "Finding hierarchy parent node: " + parentFilter
-						);
-						// we need to initialize the formula with internal context,
-						// because we'll need the result in planning phase
-						hierarchyParentFormula.initialize(filterByVisitor.getInternalExecutionContext());
-
-						queryContext.setRootHierarchyNodesFormula(
-							hierarchyWithin, scopeToLookup, hierarchyParentFormula
-						);
-
-						final int[] nodeIds = hierarchyParentFormula.compute().stream().toArray();
-						return createFormulaFromHierarchyIndex(
-							hierarchyWithin,
-							targetEntityIndex,
-							nodeIds,
-							queryContext,
-							scopeToLookup,
-							referenceSchema,
-							targetEntitySchema
-						);
-					},
+					() -> nodesFormulaFactory.apply(targetEntityIndex),
 					scopesCacheKey(scopeToLookup)
 				)
 			)
 			.orElseGet(
 				() -> {
-					// a scope holding no entity of the hierarchy yet selects no node, but the query depends on its
-					// tree all the same - it must be indexed, whether or not an entity happens to live there
-					verifyHierarchyIndexedAndRecordUsage(
-						queryContext, targetEntitySchema, referenceSchema, scope, scopeToLookup
-					);
+					// a scope holding no entity of the hierarchy selects no node, but the query depends on its tree
+					// all the same - it must be indexed, and the parent and node filters are checked against the
+					// schema over an empty index, whether or not an entity happens to live there; the scope
+					// contributes nothing, whatever the translation produced
+					nodesFormulaFactory.apply(GlobalEntityIndex.createEmptyIndex(targetEntitySchema.getName(), scope));
 					return EmptyFormula.INSTANCE;
 				}
 			);

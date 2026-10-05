@@ -166,7 +166,10 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 
 				this.targetEntityType = queryContext.getSchema().getName();
 				final AttributeSchemaAccessor attributeSchemaAccessor = new AttributeSchemaAccessor(queryContext);
-				globalEntityIndex = queryContext.getGlobalEntityIndex(scope);
+				// a scope holding no entity of the tree has no index of it, yet the node filter is checked against
+				// the schema all the same, over an empty index matching nothing
+				globalEntityIndex = queryContext.getGlobalEntityIndexIfExists(scope)
+					.orElseGet(() -> GlobalEntityIndex.createEmptyIndex(queryContext.getSchema().getName(), scope));
 				final List<GlobalEntityIndex> globalEntityIndices = Collections.singletonList(globalEntityIndex);
 				// the node filter is processed in the scope of the searched tree only - a unique attribute must resolve
 				// to the node of that tree and the filterability is checked against that scope alone
