@@ -39,11 +39,13 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexMaintainer;
+import io.evitadb.index.IndexType;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor.Target;
 import io.evitadb.index.mutation.local.ReferenceIndexMutator.IterationPath;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.Functions;
@@ -64,7 +66,9 @@ import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -98,6 +102,10 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 	 * The representative attribute of {@link #DUPLICATE_REFERENCE}.
 	 */
 	private static final String REPRESENTATIVE_ATTRIBUTE = "variant";
+	/**
+	 * A reference indexed for partitioning - its partitions are never virtual.
+	 */
+	private static final String PARTITIONING_REFERENCE = "acquisitionPartitioningRef";
 	/**
 	 * Primary key of the referenced entity every test acquires partitions of.
 	 */
@@ -153,6 +161,10 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 				thatIs -> thatIs
 					.indexedForFiltering()
 					.withAttribute(REPRESENTATIVE_ATTRIBUTE, String.class, attr -> attr.filterable().representative())
+			)
+			.withReferenceTo(
+				PARTITIONING_REFERENCE, PARTITIONING_REFERENCE, Cardinality.ZERO_OR_MORE,
+				thatIs -> thatIs.indexedForFilteringAndPartitioning()
 			);
 	}
 
@@ -384,6 +396,148 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 				error.getPrivateMessage().contains(ReferenceIndexType.FOR_FILTERING.name()), error.getPrivateMessage()
 			);
 			assertEquals(0, invocations.get(), "the consumer must never be reached");
+		}
+	}
+
+	@Nested
+	@DisplayName("writing as another owner")
+	class AsOtherOwner {
+		/**
+		 * Primary key of the other owner the executor under test writes as.
+		 */
+		private static final int OTHER_OWNER_PK = 42;
+
+		/**
+		 * Creates the executor writing as {@link #OTHER_OWNER_PK}, whose data the parent's accessor serves through an
+		 * accessor of its own.
+		 *
+		 * @return the executor writing as the other owner
+		 */
+		@Nonnull
+		private EntityIndexLocalMutationExecutor otherOwnerExecutor() {
+			EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this.containerAccessor
+				.registerAccessorOfOtherEntity(OTHER_OWNER_PK, new MockStorageContainerAccessor());
+			return EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this.partitionExecutor
+				.createExecutorOfOtherOwner(OTHER_OWNER_PK);
+		}
+
+		/**
+		 * Creates an empty partition of the given reference for {@link #TARGET_PK}, unknown to any index maintainer.
+		 *
+		 * @param primaryKey    primary key of the partition
+		 * @param referenceName the reference the partition belongs to
+		 * @return the partition
+		 */
+		@Nonnull
+		private ReducedEntityIndex partitionOf(int primaryKey, @Nonnull String referenceName) {
+			return new ReducedEntityIndex(
+				primaryKey, EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this.productSchema.getName(),
+				ReferencePartitions.createKey(
+					Scope.LIVE, new RepresentativeReferenceKey(new ReferenceKey(referenceName, TARGET_PK))
+				)
+			);
+		}
+
+		/**
+		 * Asserts that populating the index with the other owner fails on the premise that it is a partition of the
+		 * given reference whose partitions may be virtual, leaving the index without any owner.
+		 *
+		 * @param index           the index handed for population
+		 * @param referenceSchema the reference handed for population
+		 */
+		private void assertRefusedAsNoVirtualPartition(
+			@Nonnull EntityIndex index,
+			@Nonnull ReferenceSchemaContract referenceSchema
+		) {
+			final EntityIndexLocalMutationExecutor otherOwner = otherOwnerExecutor();
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> ReferenceIndexMutator.populatePartitionWithOwner(otherOwner, index, referenceSchema)
+			);
+			assertTrue(error.getPrivateMessage().contains("that may be virtual"), error.getPrivateMessage());
+			assertArrayEquals(new int[0], index.getAllPrimaryKeys().getArray(), "the index must stay without owners");
+		}
+
+		@Test
+		@DisplayName("an executor writing as another owner reports that owner and indexes under its primary key")
+		void shouldReportOtherOwnerWhenWritingAsIt() {
+			final EntityIndexLocalMutationExecutor otherOwner = otherOwnerExecutor();
+			assertEquals(OTHER_OWNER_PK, otherOwner.getOwnerPrimaryKey());
+			assertEquals(OTHER_OWNER_PK, otherOwner.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_INDEX, Target.NEW));
+			assertEquals(
+				1, EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this.partitionExecutor.getOwnerPrimaryKey(),
+				"the executor it was created from keeps writing as its own owner"
+			);
+		}
+
+		@Test
+		@DisplayName("an executor writing as another owner refuses every index acquisition, naming the owner")
+		void shouldRefuseEveryIndexAcquisitionWhenWritingAsOtherOwner() {
+			final EntityIndexLocalMutationExecutor otherOwner = otherOwnerExecutor();
+			final EntityIndexKey globalKey = new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE);
+			final List<GenericEvitaInternalError> errors = List.of(
+				assertThrows(GenericEvitaInternalError.class, () -> otherOwner.getOrCreateIndex(globalKey)),
+				assertThrows(GenericEvitaInternalError.class, () -> otherOwner.getIndexIfExists(globalKey)),
+				assertThrows(
+					GenericEvitaInternalError.class, () -> otherOwner.getEntityIndexByPrimaryKeyForModification(1)
+				),
+				assertThrows(GenericEvitaInternalError.class, () -> otherOwner.getCatalogIndex(Scope.LIVE))
+			);
+			for (GenericEvitaInternalError error : errors) {
+				assertTrue(
+					error.getPrivateMessage().contains("entity " + OTHER_OWNER_PK), error.getPrivateMessage()
+				);
+			}
+			final CountingIndexMaintainer maintainer =
+				EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this.indexMaintainer;
+			assertEquals(0, maintainer.acquisitionsByKey(globalKey), "no refusal may reach the parent's indexes");
+			assertEquals(0, maintainer.acquisitionsByPrimaryKey(1), "no refusal may reach the parent's indexes");
+			assertNull(maintainer.getIndexIfExists(globalKey), "no refusal may create an index");
+		}
+
+		@Test
+		@DisplayName("populating a partition refuses the global index")
+		void shouldRefusePopulatingGlobalIndex() {
+			assertRefusedAsNoVirtualPartition(
+				new GlobalEntityIndex(
+					500, ENTITY_NAME, new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE)
+				),
+				reference(SINGLE_REFERENCE)
+			);
+		}
+
+		@Test
+		@DisplayName("populating a partition refuses a partition of another reference than the one handed with it")
+		void shouldRefusePopulatingPartitionOfAnotherReference() {
+			assertRefusedAsNoVirtualPartition(partitionOf(31, DUPLICATE_REFERENCE), reference(SINGLE_REFERENCE));
+		}
+
+		@Test
+		@DisplayName("populating a partition refuses a partition of a reference indexed for partitioning")
+		void shouldRefusePopulatingPartitionOfPartitioningReference() {
+			assertRefusedAsNoVirtualPartition(
+				partitionOf(32, PARTITIONING_REFERENCE), reference(PARTITIONING_REFERENCE)
+			);
+		}
+
+		@Test
+		@DisplayName("populating a partition refuses a partition that already has the owner")
+		void shouldRefusePopulatingPartitionThatAlreadyHasOwner() {
+			final ReducedEntityIndex partition = partitionOf(33, SINGLE_REFERENCE);
+			partition.insertPrimaryKeyIfMissing(OTHER_OWNER_PK);
+			final EntityIndexLocalMutationExecutor otherOwner = otherOwnerExecutor();
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> ReferenceIndexMutator.populatePartitionWithOwner(
+					otherOwner, partition, reference(SINGLE_REFERENCE)
+				)
+			);
+			assertTrue(
+				error.getPrivateMessage().contains("already has the owner " + OTHER_OWNER_PK), error.getPrivateMessage()
+			);
+			assertArrayEquals(new int[]{OTHER_OWNER_PK}, partition.getAllPrimaryKeys().getArray());
+			assertTrue(partition.getFilterIndexes().isEmpty(), "nothing of the owner's data may have been written");
+			assertTrue(partition.getSortIndexes().isEmpty(), "nothing of the owner's data may have been written");
 		}
 	}
 

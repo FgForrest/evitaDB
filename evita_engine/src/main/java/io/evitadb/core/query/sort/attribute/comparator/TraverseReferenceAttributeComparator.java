@@ -58,6 +58,18 @@ public class TraverseReferenceAttributeComparator
 	 */
 	@Nullable private RepresentativeReferenceKey referenceKey;
 
+	/**
+	 * Creates the comparator for the given reference attribute.
+	 *
+	 * @param attributeName        the name of the sortable attribute
+	 * @param type                 the type of the attribute value
+	 * @param indexedDecimalPlaces the `indexedDecimalPlaces` of the attribute schema - the scale a range value is
+	 *                             compared at, so the comparator orders the entities as the sort index does
+	 * @param referenceSchema      the schema of the reference the attribute belongs to
+	 * @param locale               the locale to use when reading localized attribute values, or `null` when the
+	 *                             attribute is not localized
+	 * @param orderDirection       the direction to sort in
+	 */
 	public TraverseReferenceAttributeComparator(
 		@Nonnull String attributeName,
 		@Nonnull Class<?> type,

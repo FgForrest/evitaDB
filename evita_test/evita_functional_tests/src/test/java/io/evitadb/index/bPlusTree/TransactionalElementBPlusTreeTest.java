@@ -370,6 +370,71 @@ class TransactionalElementBPlusTreeTest {
 		}
 
 		@Test
+		@DisplayName("deleting a key after an insert in the same transaction shifted its position removes that key")
+		void shouldDeleteKeyWhosePositionAnEarlierInsertShifted() {
+			final TransactionalElementBPlusTree<PriceRecordContract> tree = treeOf(8);
+			tree.insert(rec(2));
+			tree.insert(rec(4));
+			tree.insert(rec(6));
+			assertFalse(tree.isRootInternal(), "all keys must share one leaf for the insert to shift the deleted one");
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					// the insert moves key 4 from the second to the third slot of the transaction's layer
+					tested.insert(rec(1));
+					tested.delete(4);
+				},
+				(original, committed) -> {
+					verifyTreeConsistency(original, 2, 4, 6);
+					verifyTreeConsistency(committed, 1, 2, 6);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("deleting a key inserted earlier in the same transaction removes it")
+		void shouldDeleteKeyInsertedEarlierInSameTransaction() {
+			final TransactionalElementBPlusTree<PriceRecordContract> tree = treeOf(8);
+			tree.insert(rec(2));
+			tree.insert(rec(4));
+			tree.insert(rec(6));
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					// key 5 lives only in the transaction's layer, never in the shared node
+					tested.insert(rec(5));
+					tested.delete(5);
+					assertNull(tested.search(5), "the key must be gone from the transaction's own view");
+				},
+				(original, committed) -> {
+					verifyTreeConsistency(original, 2, 4, 6);
+					verifyTreeConsistency(committed, 2, 4, 6);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("deleting a key twice in one transaction removes it once")
+		void shouldDeleteKeyOnceWhenDeletedTwiceInSameTransaction() {
+			final TransactionalElementBPlusTree<PriceRecordContract> tree = treeOf(8);
+			tree.insert(rec(2));
+			tree.insert(rec(4));
+			tree.insert(rec(6));
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					tested.delete(4);
+					// the key is still in the shared node, but no longer in the transaction's layer
+					tested.delete(4);
+				},
+				(original, committed) -> {
+					verifyTreeConsistency(original, 2, 4, 6);
+					verifyTreeConsistency(committed, 2, 6);
+				}
+			);
+		}
+
+		@Test
 		@DisplayName("ignores deletion of an absent key")
 		void shouldIgnoreAbsentKey() {
 			final TransactionalElementBPlusTree<PriceRecordContract> tree = treeOf(3);
@@ -779,6 +844,25 @@ class TransactionalElementBPlusTreeTest {
 			}
 			assertTrue(dirtyOrNew >= 1, "The mutated leaf must be flagged for re-emission");
 			assertTrue(dirtyOrNew <= 3, "A single deletion must not dirty the whole tree (" + dirtyOrNew + ")");
+		}
+
+		@Test
+		@DisplayName("deleting an absent key outside a transaction flags no leaf for re-emission")
+		void shouldFlagNoLeafDirtyWhenDeletingAbsentKey() {
+			final TransactionalElementBPlusTree<PriceRecordContract> tree = treeOf(4);
+			for (int key = 0; key < 80; key += 2) {
+				tree.insert(rec(key));
+			}
+			assertTrue(tree.isRootInternal(), "Test needs a multi-leaf tree so the absent key lands on an inner leaf");
+			emitPages(tree, new AtomicInteger(0));
+
+			// an odd key falls between two present keys of some leaf, which must stay untouched
+			tree.delete(41);
+
+			for (final LeafPageHandle<PriceRecordContract> handle : tree.<PriceRecordContract>leafPageHandles()) {
+				assertFalse(handle.isDirty(), "A delete that changed nothing must not flag its leaf for re-emission");
+			}
+			assertEquals(40, tree.size());
 		}
 
 		@Test

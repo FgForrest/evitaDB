@@ -376,11 +376,6 @@ public final class ReducedEntityIndex extends AbstractReducedEntityIndex impleme
 		delegateRemoveUniqueAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, value, recordId);
 	}
 
-	/**
-	 * {@inheritDoc}
-	 *
-	 * A reduced index declares no state of its own beyond what {@link AbstractReducedEntityIndex} holds.
-	 */
 	@Override
 	public void forEachSortIndexKey(@Nonnull Consumer<AttributeIndexKey> consumer) {
 		forEachAttributeIndexKey(AttributeIndexType.SORT, consumer);
@@ -391,6 +386,11 @@ public final class ReducedEntityIndex extends AbstractReducedEntityIndex impleme
 		forEachAttributeIndexKey(AttributeIndexType.CHAIN, consumer);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * A reduced index declares no state of its own beyond what {@link AbstractReducedEntityIndex} holds.
+	 */
 	@Override
 	public long getHeapSizeInBytes() {
 		return getReducedBaseHeapSizeInBytes(0L);

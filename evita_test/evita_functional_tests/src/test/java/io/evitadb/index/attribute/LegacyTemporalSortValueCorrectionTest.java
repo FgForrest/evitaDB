@@ -61,6 +61,7 @@ import io.evitadb.store.schema.SchemaKryoConfigurer;
 import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.kryo.SharedClassesConfigurer;
 import io.evitadb.store.shared.kryo.VersionedKryoFactory;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.IOUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -81,7 +82,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -653,7 +653,7 @@ class LegacyTemporalSortValueCorrectionTest {
 	 * @return `true` when some page boundary splits such a group
 	 */
 	private static boolean tieGroupStraddlesPageBoundary(@Nonnull List<StoragePart> legacyParts) {
-		final Map<Integer, SortIndexLeafPagePart> pagesBySequence = new HashMap<>(8);
+		final Map<Integer, SortIndexLeafPagePart> pagesBySequence = CollectionUtils.createHashMap(8);
 		for (StoragePart part : legacyParts) {
 			if (part instanceof SortIndexLeafPagePart page) {
 				pagesBySequence.put(page.getPageSequence(), page);

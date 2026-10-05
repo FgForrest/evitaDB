@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
+import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
@@ -113,6 +114,7 @@ class ReducedIndexLocaleMutationOrderTest implements EvitaTestSupport {
 	private static final String ATTR_PRIORITY = "priority";
 	private static final String ATTR_ORDER = "order";
 	private static final String ATTR_COUNTRY = "country";
+	private static final String ASSOCIATED_DATA_NOTE = "note";
 	private static final String COMPOUND_NAME_CODE = "nameCode";
 	private static final String COMPOUND_LABEL_PRIORITY = "labelPriority";
 	private static final String COMPOUND_LABEL_AND_ORDER = "labelAndOrder";
@@ -332,6 +334,127 @@ class ReducedIndexLocaleMutationOrderTest implements EvitaTestSupport {
 		assertPartitionHolds(1, new int[]{1, 2}, Map.of(LOCALE, new int[]{2}));
 	}
 
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName("an owner holding a locale only through associated data puts an attribute in it and adds a reference")
+	void shouldInsertReferenceWhenAttributeEntersLocaleHeldByAssociatedDataFirst(CatalogState state) {
+		prepareProductWithNoteInOtherLocale(state);
+
+		upsertProduct(
+			1,
+			new UpsertAttributeMutation(ATTR_TITLE, OTHER_LOCALE, "Titel1"),
+			new InsertReferenceMutation(new ReferenceKey(REF_BRAND, 2)),
+			new ReferenceAttributeMutation(
+				new ReferenceKey(REF_BRAND, 2), new UpsertAttributeMutation(ATTR_PRIORITY, 20)
+			)
+		);
+
+		assertPartitionHolds(1, new int[]{1, 2}, Map.of(LOCALE, new int[]{1, 2}, OTHER_LOCALE, new int[]{1}));
+		assertPartitionHolds(2, new int[]{1}, Map.of(LOCALE, new int[]{1}, OTHER_LOCALE, new int[]{1}));
+	}
+
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName(
+		"an owner holding a locale only through associated data adds a reference and then puts an attribute in it"
+	)
+	void shouldInsertReferenceWhenAttributeEntersLocaleHeldByAssociatedDataAfterwards(CatalogState state) {
+		prepareProductWithNoteInOtherLocale(state);
+
+		upsertProduct(
+			1,
+			new InsertReferenceMutation(new ReferenceKey(REF_BRAND, 2)),
+			new ReferenceAttributeMutation(
+				new ReferenceKey(REF_BRAND, 2), new UpsertAttributeMutation(ATTR_PRIORITY, 20)
+			),
+			new UpsertAttributeMutation(ATTR_TITLE, OTHER_LOCALE, "Titel1")
+		);
+
+		assertPartitionHolds(1, new int[]{1, 2}, Map.of(LOCALE, new int[]{1, 2}, OTHER_LOCALE, new int[]{1}));
+		assertPartitionHolds(2, new int[]{1}, Map.of(LOCALE, new int[]{1}, OTHER_LOCALE, new int[]{1}));
+	}
+
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName("an owner holding a locale only through associated data puts an attribute in it and drops a reference")
+	void shouldRemoveReferenceWhenAttributeEntersLocaleHeldByAssociatedDataFirst(CatalogState state) {
+		prepareProductWithNoteInOtherLocale(state);
+		upsertProduct(
+			1,
+			new InsertReferenceMutation(new ReferenceKey(REF_BRAND, 2)),
+			new ReferenceAttributeMutation(
+				new ReferenceKey(REF_BRAND, 2), new UpsertAttributeMutation(ATTR_PRIORITY, 20)
+			)
+		);
+
+		upsertProduct(
+			1,
+			new UpsertAttributeMutation(ATTR_TITLE, OTHER_LOCALE, "Titel1"),
+			new RemoveReferenceMutation(REF_BRAND, 1)
+		);
+
+		assertPartitionHolds(1, new int[]{2}, Map.of(LOCALE, new int[]{2}));
+		assertPartitionHolds(2, new int[]{1}, Map.of(LOCALE, new int[]{1}, OTHER_LOCALE, new int[]{1}));
+	}
+
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName("an owner entering a locale through associated data only adds a reference")
+	void shouldInsertReferenceWhenAssociatedDataEntersNewLocaleFirst(CatalogState state) {
+		prepareProducts(state);
+
+		upsertProduct(
+			1,
+			new UpsertAssociatedDataMutation(ASSOCIATED_DATA_NOTE, OTHER_LOCALE, "Notiz"),
+			new InsertReferenceMutation(new ReferenceKey(REF_BRAND, 2)),
+			new ReferenceAttributeMutation(
+				new ReferenceKey(REF_BRAND, 2), new UpsertAttributeMutation(ATTR_PRIORITY, 20)
+			)
+		);
+
+		assertPartitionHolds(
+			1, new int[]{1, 2},
+			Map.of(LOCALE, new int[]{1, 2}, OTHER_LOCALE, new int[]{1}),
+			Map.of(LOCALE, new int[]{1, 2})
+		);
+		assertPartitionHolds(
+			2, new int[]{1},
+			Map.of(LOCALE, new int[]{1}, OTHER_LOCALE, new int[]{1}),
+			Map.of(LOCALE, new int[]{1})
+		);
+	}
+
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName(
+		"an owner holding a locale through associated data and an attribute removes the attribute and drops a reference"
+	)
+	void shouldRemoveReferenceWhenAttributeLeavesLocaleHeldByAssociatedDataFirst(CatalogState state) {
+		prepareProductWithNoteInOtherLocale(state);
+		upsertProduct(
+			1,
+			new UpsertAttributeMutation(ATTR_TITLE, OTHER_LOCALE, "Titel1"),
+			new InsertReferenceMutation(new ReferenceKey(REF_BRAND, 2)),
+			new ReferenceAttributeMutation(
+				new ReferenceKey(REF_BRAND, 2), new UpsertAttributeMutation(ATTR_PRIORITY, 20)
+			)
+		);
+		assertPartitionHolds(1, new int[]{1, 2}, Map.of(LOCALE, new int[]{1, 2}, OTHER_LOCALE, new int[]{1}));
+
+		upsertProduct(
+			1,
+			new RemoveAttributeMutation(ATTR_TITLE, OTHER_LOCALE),
+			new RemoveReferenceMutation(REF_BRAND, 1)
+		);
+
+		assertPartitionHolds(1, new int[]{2}, Map.of(LOCALE, new int[]{2}));
+		assertPartitionHolds(
+			2, new int[]{1},
+			Map.of(LOCALE, new int[]{1}, OTHER_LOCALE, new int[]{1}),
+			Map.of(LOCALE, new int[]{1})
+		);
+	}
+
 	/**
 	 * Returns the key of the partition of outlet 1 for the given country - the representative attribute telling the
 	 * duplicate references to it apart.
@@ -388,9 +511,30 @@ class ReducedIndexLocaleMutationOrderTest implements EvitaTestSupport {
 		@Nonnull int[] expectedOwners,
 		@Nonnull Map<Locale, int[]> ownersByLocale
 	) {
+		assertPartitionHolds(brandPk, expectedOwners, ownersByLocale, ownersByLocale);
+	}
+
+	/**
+	 * Asserts that the partition of the given brand holds exactly the given owners, telling the locales of the owners'
+	 * bodies apart from the locales of their attributes - see
+	 * {@link #assertPartitionHolds(String, RepresentativeReferenceKey, int[], Map, Map)}.
+	 *
+	 * @param brandPk                 primary key of the brand whose partition is checked
+	 * @param expectedOwners          primary keys of the products expected in the partition
+	 * @param ownersByEntityLocale    primary keys of the products expected in the language bitmap of each locale; a
+	 *                                locale left out holds no owner
+	 * @param ownersByAttributeLocale primary keys of the products expected in the localized compounds of each locale; a
+	 *                                locale left out has no compound sort index
+	 */
+	private void assertPartitionHolds(
+		int brandPk,
+		@Nonnull int[] expectedOwners,
+		@Nonnull Map<Locale, int[]> ownersByEntityLocale,
+		@Nonnull Map<Locale, int[]> ownersByAttributeLocale
+	) {
 		assertPartitionHolds(
 			REF_BRAND, new RepresentativeReferenceKey(new ReferenceKey(REF_BRAND, brandPk)),
-			expectedOwners, ownersByLocale
+			expectedOwners, ownersByEntityLocale, ownersByAttributeLocale
 		);
 	}
 
@@ -410,18 +554,42 @@ class ReducedIndexLocaleMutationOrderTest implements EvitaTestSupport {
 		@Nonnull int[] expectedOwners,
 		@Nonnull Map<Locale, int[]> ownersByLocale
 	) {
+		assertPartitionHolds(referenceName, partitionKey, expectedOwners, ownersByLocale, ownersByLocale);
+	}
+
+	/**
+	 * Asserts that the product partition holds exactly the given owners, in each locale exactly the given owners in
+	 * the language bitmap, which follows the locales of the owners' bodies, and exactly the given owners in the sort
+	 * indexes of both localized compounds, which follow the locales of the owners' attributes - every owner carries a
+	 * value of the non-localized element of both compounds, so each compound is indexed in every attribute locale its
+	 * owner has. The two differ for an owner holding a locale only through its associated data.
+	 *
+	 * @param referenceName           the reference the partition belongs to
+	 * @param partitionKey            the key of the partition
+	 * @param expectedOwners          primary keys of the products expected in the partition
+	 * @param ownersByEntityLocale    primary keys of the products expected in the language bitmap of each locale; a
+	 *                                locale left out holds no owner
+	 * @param ownersByAttributeLocale primary keys of the products expected in the localized compounds of each locale; a
+	 *                                locale left out has no compound sort index
+	 */
+	private void assertPartitionHolds(
+		@Nonnull String referenceName,
+		@Nonnull RepresentativeReferenceKey partitionKey,
+		@Nonnull int[] expectedOwners,
+		@Nonnull Map<Locale, int[]> ownersByEntityLocale,
+		@Nonnull Map<Locale, int[]> ownersByAttributeLocale
+	) {
 		final EntityIndex partition = partitionOf(ENTITY_PRODUCT, partitionKey);
 		assertNotNull(partition, "the partition " + partitionKey + " must exist while it has owners");
 		assertArrayEquals(expectedOwners, partition.getAllPrimaryKeys().getArray(), "owners of " + partitionKey);
 		final Set<AttributeIndexKey> expectedSortIndexes = CollectionUtils.createHashSet(4);
 		for (Locale locale : List.of(LOCALE, OTHER_LOCALE)) {
-			final int[] owners = ownersByLocale.getOrDefault(locale, new int[0]);
 			assertArrayEquals(
-				owners,
+				ownersByEntityLocale.getOrDefault(locale, new int[0]),
 				partition.getRecordsWithLanguageFormula(locale).compute().getArray(),
 				"owners of " + partitionKey + " in " + locale
 			);
-			if (owners.length > 0) {
+			if (ownersByAttributeLocale.getOrDefault(locale, new int[0]).length > 0) {
 				expectedSortIndexes.add(new AttributeIndexKey(null, COMPOUND_NAME_CODE, locale));
 				expectedSortIndexes.add(new AttributeIndexKey(referenceName, COMPOUND_LABEL_PRIORITY, locale));
 			}
@@ -429,7 +597,7 @@ class ReducedIndexLocaleMutationOrderTest implements EvitaTestSupport {
 		assertEquals(expectedSortIndexes, partition.getSortIndexes(), "sort indexes of " + partitionKey);
 		for (AttributeIndexKey key : expectedSortIndexes) {
 			assertArrayEquals(
-				ownersByLocale.get(key.locale()),
+				ownersByAttributeLocale.get(key.locale()),
 				partition.getSortIndex(key).getSortedRecords(),
 				"records of " + key + " in " + partitionKey
 			);
@@ -485,6 +653,7 @@ class ReducedIndexLocaleMutationOrderTest implements EvitaTestSupport {
 					.withAttribute(ATTR_TITLE, String.class, thatIs -> thatIs.localized().nullable())
 					.withAttribute(ATTR_NAME, String.class, thatIs -> thatIs.localized().nullable())
 					.withAttribute(ATTR_CODE, String.class, thatIs -> thatIs.nullable())
+					.withAssociatedData(ASSOCIATED_DATA_NOTE, String.class, whichIs -> whichIs.localized().nullable())
 					.withSortableAttributeCompound(
 						COMPOUND_NAME_CODE,
 						new AttributeElement(ATTR_NAME, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
@@ -531,6 +700,23 @@ class ReducedIndexLocaleMutationOrderTest implements EvitaTestSupport {
 			}
 		);
 		assertPartitionHolds(1, new int[]{1, 2}, Map.of(LOCALE, new int[]{1, 2}));
+	}
+
+	/**
+	 * Prepares the products as {@link #prepareProducts(CatalogState)} does and then gives product 1 a localized
+	 * associated data in the other locale - which puts the product's body in that locale, while its attributes stay in
+	 * the first locale only, so only the language bitmap of its partition learns about the other locale.
+	 *
+	 * @param state target catalog state
+	 */
+	private void prepareProductWithNoteInOtherLocale(@Nonnull CatalogState state) {
+		prepareProducts(state);
+		upsertProduct(1, new UpsertAssociatedDataMutation(ASSOCIATED_DATA_NOTE, OTHER_LOCALE, "Notiz"));
+		assertPartitionHolds(
+			1, new int[]{1, 2},
+			Map.of(LOCALE, new int[]{1, 2}, OTHER_LOCALE, new int[]{1}),
+			Map.of(LOCALE, new int[]{1, 2})
+		);
 	}
 
 	/**

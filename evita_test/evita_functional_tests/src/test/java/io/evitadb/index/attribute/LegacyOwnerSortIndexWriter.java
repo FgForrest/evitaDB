@@ -34,13 +34,13 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeInde
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
+import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -136,7 +136,7 @@ public final class LegacyOwnerSortIndexWriter {
 	public SortIndexStoragePart toInlinePart() {
 		final int[] sortedRecords = SortIndexView.reconstructSortedRecords(this.tree);
 		final List<Serializable> values = new ArrayList<>(this.tree.getBucketCount());
-		final Map<Serializable, Integer> cardinalities = new HashMap<>(8);
+		final Map<Serializable, Integer> cardinalities = CollectionUtils.createHashMap(8);
 		final Iterator<ValueToRecord> it = this.tree.getValueIterator();
 		while (it.hasNext()) {
 			final ValueToRecord bucket = it.next();

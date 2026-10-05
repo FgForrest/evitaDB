@@ -50,6 +50,10 @@ import java.util.OptionalInt;
 class MockStorageContainerAccessor implements WritableEntityStorageContainerAccessor {
 	private final Map<Locale, AttributesStoragePart> localizedAttributesStorageContainer = new HashMap<>();
 	private final Map<AssociatedDataKey, AssociatedDataStoragePart> associatedDataStorageContainer = new HashMap<>();
+	/**
+	 * The accessors {@link #getAccessorOfOtherEntity(int)} hands out, by the primary key of the entity they serve.
+	 */
+	private final Map<Integer, WritableEntityStorageContainerAccessor> accessorsOfOtherEntities = new HashMap<>();
 	private EntityBodyStoragePart entityStorageContainer;
 	private AttributesStoragePart attributesStorageContainer;
 	private ReferencesStoragePart referencesStorageContainer;
@@ -59,10 +63,27 @@ class MockStorageContainerAccessor implements WritableEntityStorageContainerAcce
 	@Getter private final LocaleWithScope[] removedLocales = new LocaleWithScope[0];
 	@Getter private int localesIdentityHash;
 
+	/**
+	 * Registers the accessor {@link #getAccessorOfOtherEntity(int)} returns for another entity. The registration
+	 * survives {@link #reset()}, which clears only the containers of the entity this accessor serves itself.
+	 *
+	 * @param entityPrimaryKey the primary key of the other entity
+	 * @param accessor         the accessor serving the other entity
+	 */
+	void registerAccessorOfOtherEntity(int entityPrimaryKey, @Nonnull WritableEntityStorageContainerAccessor accessor) {
+		this.accessorsOfOtherEntities.put(entityPrimaryKey, accessor);
+	}
+
 	@Nonnull
 	@Override
 	public WritableEntityStorageContainerAccessor getAccessorOfOtherEntity(int entityPrimaryKey) {
-		throw new UnsupportedOperationException("The mock accessor serves one entity only.");
+		final WritableEntityStorageContainerAccessor accessor = this.accessorsOfOtherEntities.get(entityPrimaryKey);
+		if (accessor == null) {
+			throw new UnsupportedOperationException(
+				"The mock accessor serves no other entity with primary key " + entityPrimaryKey + "."
+			);
+		}
+		return accessor;
 	}
 
 	@Override

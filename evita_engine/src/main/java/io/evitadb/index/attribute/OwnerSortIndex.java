@@ -175,7 +175,8 @@ public final class OwnerSortIndex extends SortIndex {
 	 * (`comparatorBase.length == 1 ? comparatorBase[0].type() : Comparable.class`) and combined comparator (direction +
 	 * NULL handling) {@link #createOwnedTree} uses, so the reloaded tree is indistinguishable from a freshly built one: the
 	 * persisted leaf values are ALREADY normalized (the base normalizes before the value-side hooks), so the identity
-	 * normalizer stores them verbatim, and the comparator orders those normalized keys.
+	 * normalizer stores them verbatim, and the comparator orders those normalized keys — except for legacy pages predating
+	 * temporal-value normalization, delegated to {@link LegacyTemporalSortValueCorrection} instead (see below).
 	 *
 	 * @param comparatorBase        one descriptor per element (a single entry for plain attributes)
 	 * @param referenceKey          owning reference discriminator, or `null` for the global index

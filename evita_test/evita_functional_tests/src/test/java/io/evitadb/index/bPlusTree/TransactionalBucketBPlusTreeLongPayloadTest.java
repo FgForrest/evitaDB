@@ -278,6 +278,31 @@ class TransactionalBucketBPlusTreeLongPayloadTest {
 		}
 
 		@Test
+		@DisplayName("removing the long record of a key inserted earlier in the same transaction removes it")
+		void shouldRemoveLongRecordInsertedEarlierInSameTransaction() {
+			final TransactionalBucketBPlusTree<Integer> tree = newLongTree(9);
+			tree.addLongRecord(2, payloadFor(2));
+			tree.addLongRecord(4, payloadFor(4));
+			tree.addLongRecord(6, payloadFor(6));
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					// key 5 lives only in the transaction's layer, never in the shared node
+					tested.addLongRecord(5, payloadFor(5));
+					assertTrue(tested.removeLongRecord(5));
+					assertFalse(tested.removeLongRecord(5), "a key removed once is absent from the layer");
+				},
+				(original, committed) -> {
+					assertEquals(3, committed.size());
+					assertEquals(OptionalLong.empty(), committed.getLongRecordEqualTo(5));
+					for (int key = 2; key <= 6; key += 2) {
+						assertEquals(payloadFor(key), committed.getLongRecordEqualTo(key).getAsLong());
+					}
+				}
+			);
+		}
+
+		@Test
 		@DisplayName("commits inserted long payloads")
 		void shouldCommitInsertedPayloads() {
 			final TransactionalBucketBPlusTree<Integer> tree = newLongTree(3);

@@ -115,8 +115,9 @@ import java.util.function.Function;
  *   decides, because the owner count already changed when a departing owner's data is removed;
  * - a sort value is mirrored strictly - a value is recorded only for a partition that holds none for the key, and
  *   removed only when it is exactly the value the partition held - so a mirror that disagrees with the partition
- *   fails the mutation instead of drifting. A chain predecessor is upserted, as the chain index upserts it, and
- *   removed only when it is recorded;
+ *   fails the mutation instead of drifting. A chain predecessor is upserted, as the chain index upserts it, and its
+ *   removal requires one to already be recorded - an absent one fails the mutation instead of being silently
+ *   skipped;
  * - a key is declared with its first value: a plain attribute with the comparator base and decimal places its sort
  *   index has, a compound with the comparator base its elements define. It stays declared while partitions have rows,
  *   even when no partition holds a value for it.

@@ -293,7 +293,11 @@ class RangeCompoundScaleConsistencyTest implements EvitaTestSupport {
 			.openForWrite()
 			.removeReference(REF_BRAND, 1)
 			.upsertVia(session));
-		assertArrayEquals(new int[]{2, 1}, referenceCompoundOf(partitionOf(1)).getSortedRecords(), "partition compound index");
+		assertArrayEquals(
+			new int[]{2, 1},
+			referenceCompoundOf(partitionOf(1)).getSortedRecords(),
+			"partition compound index"
+		);
 	}
 
 	/**

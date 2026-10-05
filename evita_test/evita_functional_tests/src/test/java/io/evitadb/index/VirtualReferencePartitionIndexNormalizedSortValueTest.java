@@ -38,7 +38,6 @@ import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart.SortValueSlot;
 import io.evitadb.utils.NumberUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -89,9 +88,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Verifies that {@link VirtualReferencePartitionIndex} records a sort value handed over in its normalized form - the
  * form a sort index stores and reads back by record, a scaled `Integer` for a `BigDecimal`, an `Instant` for an
- * `OffsetDateTime` or a `LocalDateTime`, a comparable wrapper for a `Locale` or a `Currency` - exactly as it records the
- * attribute value: the same entry, the same dictionary value, the same block of the sort index, through replacement and
- * removal.
+ * `OffsetDateTime` or a `LocalDateTime`, a comparable wrapper for a `Locale` or a `Currency` - exactly as it records
+ * the attribute value: the same entry, the same dictionary value, the same block of the sort index, through replacement
+ * and removal.
  *
  * The normalized values are never made up by the test. Each one is read back from a real sort index the attribute
  * value was added to: an owner sort index, and for a plain attribute also a view over a value tree normalized the way a
@@ -427,7 +426,7 @@ class VirtualReferencePartitionIndexNormalizedSortValueTest {
 	 * @return the persisted slot of the normalized twin, or `null` when nothing changed since the previous flush
 	 */
 	@Nullable
-	private static SortValueSlot assertTwinsAgree(
+	private static VirtualReferencePartitionIndexStoragePart.SortValueSlot assertTwinsAgree(
 		@Nonnull ValueFixture fixture,
 		@Nonnull VirtualReferencePartitionIndex raw,
 		@Nonnull VirtualReferencePartitionIndex normalized,
@@ -474,8 +473,9 @@ class VirtualReferencePartitionIndexNormalizedSortValueTest {
 		final VirtualReferencePartitionIndexStoragePart normalizedRoot = singleInlineRoot(normalizedParts);
 		assertArrayEquals(rawRoot.getKeys(), normalizedRoot.getKeys(), "Persisted entry keys " + stage);
 		assertArrayEquals(rawRoot.getPayloads(), normalizedRoot.getPayloads(), "Persisted value ids " + stage);
-		final SortValueSlot rawSlot = VirtualReferencePartitionIndexSortValueTest.persistedSlot(rawParts, sortKey.key());
-		final SortValueSlot normalizedSlot =
+		final VirtualReferencePartitionIndexStoragePart.SortValueSlot rawSlot =
+			VirtualReferencePartitionIndexSortValueTest.persistedSlot(rawParts, sortKey.key());
+		final VirtualReferencePartitionIndexStoragePart.SortValueSlot normalizedSlot =
 			VirtualReferencePartitionIndexSortValueTest.persistedSlot(normalizedParts, sortKey.key());
 		assertNotNull(rawSlot);
 		assertNotNull(normalizedSlot);
@@ -536,7 +536,8 @@ class VirtualReferencePartitionIndexNormalizedSortValueTest {
 			assertTrue(raw.removeSortValue(fixture.sortKey().key(), partition));
 			model.remove(partition);
 		}
-		final SortValueSlot emptied = assertTwinsAgree(fixture, raw, normalized, model, "after every value was removed");
+		final VirtualReferencePartitionIndexStoragePart.SortValueSlot emptied =
+			assertTwinsAgree(fixture, raw, normalized, model, "after every value was removed");
 		assertNotNull(emptied, "Retiring the last value rewrites the root");
 		assertEquals(0, emptied.values().length, "The dictionary is emptied together with the slot");
 		assertTrue(normalized.getSortIndex(fixture.sortKey().key()).isEmpty());

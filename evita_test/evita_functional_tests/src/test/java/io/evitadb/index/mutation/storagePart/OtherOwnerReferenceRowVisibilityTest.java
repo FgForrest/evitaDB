@@ -155,8 +155,6 @@ class OtherOwnerReferenceRowVisibilityTest implements EvitaTestSupport {
 	private static final int THIRD_OWNER_PK = 3;
 	private static final int COMMITTED_PRIORITY = 1;
 	private static final int SECOND_OWNER_PRIORITY = 5;
-	/** The lookup of an executor that belongs to no root mutation in flight - every read goes to the buffer. */
-	private static final InFlightEntityAccessorLookup OUTSIDE_ROOT_MUTATION = (entityType, entityPrimaryKey) -> null;
 
 	private TestPaths paths;
 	private Evita evita;

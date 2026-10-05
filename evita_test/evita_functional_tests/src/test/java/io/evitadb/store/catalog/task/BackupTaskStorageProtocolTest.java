@@ -74,7 +74,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies that a point-in-time backup carries the storage protocol of the catalog version it backs up, not the
- * protocol of the engine that made it (#1693).
+ * protocol of the engine that made it.
  *
  * A backup copies the storage parts of the backed-up version verbatim, so a version written before a
  * storage-protocol migration is archived in its older format. The protocol in the archived catalog header is what a
@@ -168,22 +168,9 @@ class BackupTaskStorageProtocolTest implements EvitaTestSupport {
 	void shouldRunRemainingMigrationWhenRestoringBackupOfPreUpgradeVersion() throws Exception {
 		final Path archive = backupAtPreUpgradeMoment();
 
-		try (InputStream inputStream = Files.newInputStream(archive)) {
-			this.evita.management()
-				.restoreCatalog(RESTORED_CATALOG, Files.size(archive), inputStream)
-				.getFutureResult()
-				.get(OPERATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-		}
-		// loading the restored catalog is where its protocol is verified and the migrations are run
-		this.evita.activateCatalog(RESTORED_CATALOG);
-
-		final int restoredBrandCount = this.evita.queryCatalog(
-			RESTORED_CATALOG,
-			session -> {
-				return session.getEntityCollectionSize(Entities.BRAND);
-			}
+		assertEquals(
+			2, restoreAndCountBrands(archive), "the restored catalog must hold the two brands of the backed-up version"
 		);
-		assertEquals(2, restoredBrandCount, "the restored catalog must hold the two brands of the backed-up version");
 
 		final DefaultCatalogPersistenceService restored = persistenceService(RESTORED_CATALOG);
 		final long restoredVersion = restored.getLastCatalogVersion();
@@ -203,6 +190,39 @@ class BackupTaskStorageProtocolTest implements EvitaTestSupport {
 					it.storageProtocolVersion() == PersistenceService.STORAGE_PROTOCOL_VERSION
 			),
 			"the migration must have re-published the backed-up version under the current protocol: " + restoredRecords
+		);
+	}
+
+	@Test
+	@DisplayName("a backup of a version written under the current protocol is stamped with the current protocol")
+	void shouldStampBackupWithCurrentProtocolWhenBackedUpVersionIsCurrent() throws Exception {
+		// the setup has already published the version holding brand 3 under the current protocol
+		final Path archive = backupAt(OffsetDateTime.now());
+
+		final Path extracted = extract(archive, this.paths.work().resolve("extracted"));
+		final List<CatalogBootstrap> archivedRecords = bootstrapRecords(extracted.resolve(TEST_CATALOG));
+		assertEquals(1, archivedRecords.size(), "a backup archives exactly one bootstrap record");
+		assertEquals(
+			PersistenceService.STORAGE_PROTOCOL_VERSION, archivedRecords.get(0).storageProtocolVersion(),
+			"the backed-up version was written under the current protocol, and so is the data the archive holds"
+		);
+
+		assertEquals(
+			3, restoreAndCountBrands(archive),
+			"the restored catalog must hold the three brands of the backed-up version"
+		);
+		final DefaultCatalogPersistenceService restored = persistenceService(RESTORED_CATALOG);
+		assertEquals(
+			PersistenceService.STORAGE_PROTOCOL_VERSION,
+			restored.getCatalogHeader(restored.getLastCatalogVersion()).storageProtocolVersion()
+		);
+		// no migration ran, so no record of the restored catalog may carry an older protocol
+		final List<CatalogBootstrap> restoredRecords = bootstrapRecords(restored.getCatalogStoragePath());
+		assertTrue(
+			restoredRecords.stream().allMatch(
+				it -> it.storageProtocolVersion() == PersistenceService.STORAGE_PROTOCOL_VERSION
+			),
+			"every bootstrap record of the restored catalog must carry the current protocol: " + restoredRecords
 		);
 	}
 
@@ -281,14 +301,48 @@ class BackupTaskStorageProtocolTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private Path backupAtPreUpgradeMoment() throws Exception {
+		return backupAt(this.preUpgradeMoment);
+	}
+
+	/**
+	 * Takes a point-in-time backup of the test catalog at the given moment, without the WAL.
+	 *
+	 * @param moment the moment whose catalog version is backed up
+	 * @return the path of the backup archive
+	 */
+	@Nonnull
+	private Path backupAt(@Nonnull OffsetDateTime moment) throws Exception {
 		final FileForFetch backup = this.evita.management()
-			.backupCatalog(TEST_CATALOG, this.preUpgradeMoment, null, false)
+			.backupCatalog(TEST_CATALOG, moment, null, false)
 			.get(OPERATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 		final Path archive = backup.path(
 			((FileSystemExportOptions) this.evita.getConfiguration().export()).getDirectory()
 		);
 		assertTrue(archive.toFile().isFile(), "the backup archive must have been written");
 		return archive;
+	}
+
+	/**
+	 * Restores the backup archive as {@link #RESTORED_CATALOG}, activates it - which is where its protocol is verified
+	 * and the migrations are run - and counts its brands.
+	 *
+	 * @param archive the backup archive to restore
+	 * @return the number of brands the restored catalog holds
+	 */
+	private int restoreAndCountBrands(@Nonnull Path archive) throws Exception {
+		try (InputStream inputStream = Files.newInputStream(archive)) {
+			this.evita.management()
+				.restoreCatalog(RESTORED_CATALOG, Files.size(archive), inputStream)
+				.getFutureResult()
+				.get(OPERATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+		}
+		this.evita.activateCatalog(RESTORED_CATALOG);
+		return this.evita.queryCatalog(
+			RESTORED_CATALOG,
+			session -> {
+				return session.getEntityCollectionSize(Entities.BRAND);
+			}
+		);
 	}
 
 	/**

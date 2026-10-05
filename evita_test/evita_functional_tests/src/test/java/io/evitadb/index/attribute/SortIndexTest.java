@@ -935,6 +935,32 @@ class SortIndexTest {
 		}
 
 		@Test
+		@DisplayName("should refuse compound decimal places that do not match the compound elements")
+		void shouldThrowWhenCompoundDecimalPlacesDoNotMatchElements() {
+			final ComparatorSource[] sources = {
+				new ComparatorSource(BigDecimal.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+				new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+			};
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> SortIndex.createComparatorNormalizerFor(sources, new int[]{2})
+			);
+		}
+
+		@Test
+		@DisplayName("should leave a compound without any normalized element untouched")
+		void shouldReturnIdentityWhenNoCompoundElementNeedsNormalization() {
+			final ComparatorSource[] sources = {
+				new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+				new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
+			};
+			final UnaryOperator<Serializable> normalizer =
+				SortIndex.createComparatorNormalizerFor(sources, new int[]{0, 0});
+			final Serializable[] values = {7, 8};
+			assertSame(values, normalizer.apply(values), "a compound needing no normalization must not be copied");
+		}
+
+		@Test
 		@DisplayName("should re-encode a BigDecimalNumberRange at the schema scale in the query-comparator normalizer")
 		void shouldReencodeRangeInComparatorNormalizer() {
 			final ComparatorSource source =

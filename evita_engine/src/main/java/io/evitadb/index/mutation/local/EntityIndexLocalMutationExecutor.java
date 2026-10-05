@@ -440,6 +440,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		return globalIndex.insertPrimaryKeyIfMissing(entityPrimaryKey);
 	}
 
+	/**
+	 * Creates the index executor of one entity's local mutations.
+	 *
+	 * @param virtualReferencePartitionMutation the collection's virtual-reference-partition test switch, resolved
+	 *                                          once when the executor is built, and the probe it reports the
+	 *                                          transitions of this mutation's partitions to; see
+	 *                                          {@link io.evitadb.core.catalog.VirtualReferencePartitionMaintenance}
+	 */
 	public EntityIndexLocalMutationExecutor(
 		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
 		int entityPrimaryKey,
@@ -1000,7 +1008,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Finalizes this entity's index changes that can only be resolved once every local mutation for the entity
 	 * has been applied: per-locale language upsert / removal, the full removal of the entity from the indexes
-	 * (when it is removed entirely) and the sweep of indexes that became empty.
+	 * (when it is removed entirely), demoting the partitions this mutation left with one owner of two in the
+	 * registry of single-owner partitions, and the sweep of indexes that became empty.
 	 *
 	 * This work historically lived in {@code commit()}, but the collector invoked {@code commit()} from its
 	 * {@code finish()} step in a way that bypassed rollback on failure, so a throw here produced a

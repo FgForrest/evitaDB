@@ -30,6 +30,7 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -384,7 +385,7 @@ class DecimalOrderingRouteParityFunctionalTest implements EvitaTestSupport {
 						)
 						.upsertVia(session);
 				}
-				final var productWithAllBrands = session.createNewEntity(ENTITY_PRODUCT, PRODUCT_WITH_ALL_BRANDS);
+				final EntityBuilder productWithAllBrands = session.createNewEntity(ENTITY_PRODUCT, PRODUCT_WITH_ALL_BRANDS);
 				for (int pk : PRODUCTS) {
 					productWithAllBrands.setReference(
 						REF_BRAND, pk,
