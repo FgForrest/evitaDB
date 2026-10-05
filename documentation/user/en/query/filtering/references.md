@@ -395,9 +395,9 @@ facet may be referenced under several groups — one product referencing it in g
 without a group. A selected facet takes part in every group it is referenced under in the searched scopes, each time
 with the entities referencing it under that group, and these groups are combined by their relations like the groups of
 any other selected facet. With the default relations, a facet referenced in groups *A* and *B* selected alone matches
-only the entities that reference it in both groups. The reference summary lists such a facet in each of its groups,
-and each of these entries predicts the same selection. If a facet is meant to act as a single option, reference it
-under a single group.
+only the entities that reference it in both groups. The reference summary lists such a facet in each of its groups:
+each of these entries counts the entities that reference the facet under its own group, and the impact of every entry
+predicts the same selection. If a facet is meant to act as a single option, reference it under a single group.
 
 A selected facet that no entity of the searched scope references has no reference to take a group from, so it is
 a facet without a group there. It matches no entity and follows the relations of the facets without a group: with the

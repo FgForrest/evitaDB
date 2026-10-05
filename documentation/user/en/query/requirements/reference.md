@@ -269,9 +269,11 @@ This group is returned as a single group inside the reference.
 </LS>
 
 The group belongs to the reference, not to the option: an option referenced under several groups — or under a group
-by some entities and without one by others — is listed in each of these groups. Selecting it selects it in all of
-them (see [facet groups belong to references](../filtering/references.md#facet-groups-belong-to-references)), so each
-entry of the option shows the same statistics.
+by some entities and without one by others — is listed in each of these groups. Each of these entries counts the
+entities referencing the option under its own group, so the entries of one option may show different counts, and an
+entry whose count is zero is left out. Selecting the option selects it in all of its groups (see
+[facet groups belong to references](../filtering/references.md#facet-groups-belong-to-references)), so the impact of
+every entry predicts the same selection.
 
 #### 3rd tier: reference option
 

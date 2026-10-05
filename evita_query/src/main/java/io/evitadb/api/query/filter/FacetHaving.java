@@ -135,8 +135,9 @@ import java.io.Serializable;
  * without a group. A selected facet takes part in every group it is referenced under in the searched scopes, each time
  * with the entities referencing it under that group, and these groups are combined by their relations like the groups
  * of any other selected facets: by default the facet referenced in groups A and B alone matches only the entities
- * referencing it in both groups. The facet summary lists such a facet in each of its groups and every entry predicts
- * the same selection. A catalog that wants a facet to act as a single option references it under a single group.
+ * referencing it in both groups. The facet summary lists such a facet in each of its groups: each entry counts the
+ * entities referencing the facet under its own group, and the impact of every entry predicts the same selection. A
+ * catalog that wants a facet to act as a single option references it under a single group.
  *
  * A selected facet no entity of the searched scope references has no reference to take a group from, so it is a facet
  * without a group there: its term matches no entity and follows the relations of the facets without a group - under the

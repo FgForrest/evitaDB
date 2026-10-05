@@ -434,12 +434,16 @@ public class ReferenceSummary implements EvitaResponseExtraResult, PrettyPrintab
 		 */
 		@Getter private final boolean requested;
 		/**
-		 * Contains number of distinct entities in the response that possess of this reference.
+		 * Contains number of distinct entities in the response that possess of this reference under the group of the
+		 * statistics. A facet referenced under several groups is listed in each of them, and each entry counts only
+		 * the entities referencing the facet under its own group.
 		 */
 		@Getter private final int count;
 		/**
 		 * This field is not null only when this facet is not requested - {@link #requested ()} is FALSE.
 		 * Contains projected impact on the current response if this facet is also requested in filtering constraints.
+		 * A facet referenced under several groups has the same impact in each group it is listed in, because requesting
+		 * it selects it in all of them.
 		 */
 		@Getter @Nullable private final RequestImpact impact;
 

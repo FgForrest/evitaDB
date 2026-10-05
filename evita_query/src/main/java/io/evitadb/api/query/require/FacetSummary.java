@@ -71,6 +71,11 @@ import java.util.Optional;
  *
  * `COUNTS` is the implicit default and is omitted from the EvitaQL string representation.
  *
+ * The group belongs to the reference, not to the facet, so a facet referenced under several groups is listed in each of
+ * them. Each of these entries counts the entities referencing the facet under its own group - the entries of one facet
+ * may count differently, and an entry counting no entity is left out - while the impact of every entry predicts the
+ * same selection, because selecting the facet selects it in all of its groups.
+ *
  * ## Default facet calculation rules
  *
  * Unless overridden by {@link FacetCalculationRules} or the per-group behavior constraints

@@ -3991,8 +3991,8 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 * Returns the rows of the reference summary witness over the {@link #FACET_GROUPING_SHAPES} data set. Each row is
 	 * a label, the requested scopes, the selected tags - each referenced under a single group, so that the selection
 	 * alone in the groups of an option is the selection without the tags of those groups - whether the selection is
-	 * made in each scope separately - `inScope(scope, facetHaving(...))` for every requested scope - and the relation
-	 * requirements.
+	 * made in each scope separately - `inScope(scope, facetHaving(...))` for every requested scope - the relation
+	 * requirements, and the groups they negate.
 	 *
 	 * @return the row arguments
 	 */
@@ -4017,6 +4017,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				facetGroupsNegation(REF_TAG, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(200)))
 			}
 		);
+		final Map<String, int[]> negatedGroups = Map.of("negation of group 200", new int[]{200});
 		final Map<String, Scope[]> scopes = new LinkedHashMap<>();
 		scopes.put("live scope", new Scope[]{Scope.LIVE});
 		scopes.put("both scopes", new Scope[]{Scope.LIVE, Scope.ARCHIVED});
@@ -4024,10 +4025,11 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 		for (final Entry<String, Scope[]> scope : scopes.entrySet()) {
 			for (final int[] selection : selections) {
 				for (final Entry<String, RequireConstraint[]> relation : relations.entrySet()) {
+					final int[] negatedGroupsOfRelation = negatedGroups.getOrDefault(relation.getKey(), new int[0]);
 					rows.add(
 						Arguments.of(
 							scope.getKey() + ", selection " + Arrays.toString(selection) + ", " + relation.getKey(),
-							scope.getValue(), selection, false, relation.getValue()
+							scope.getValue(), selection, false, relation.getValue(), negatedGroupsOfRelation
 						)
 					);
 					if (scope.getValue().length > 1 && selection.length > 0) {
@@ -4035,7 +4037,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 							Arguments.of(
 								scope.getKey() + ", selection " + Arrays.toString(selection) + " in each scope, " +
 									relation.getKey(),
-								scope.getValue(), selection, true, relation.getValue()
+								scope.getValue(), selection, true, relation.getValue(), negatedGroupsOfRelation
 							)
 						);
 					}
@@ -4049,17 +4051,21 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 * Checks that the reference summary predicts the selection of a facet the way the result composes it when the facet
 	 * is referenced under several groups, without a group included, or by an archived product only: every entry of the
 	 * facet - one for each group it is listed in - predicts the result of selecting the facet, which selects it in
-	 * all of its groups. The count must equal the result of selecting the facet alone, the impact the result of adding
-	 * it to the selection, and an entry is listed exactly when that count is not zero. A selection made in each scope
-	 * separately composes the facet in each scope by the groups that scope gives it - a scope holding no reference to
-	 * it makes it a facet without a group; the count drops the selection and so stands for the facet selected in the
-	 * whole query. The oracle is the engine's own result.
+	 * all of its groups. The impact must equal the result of adding the facet to the selection. The count of an entry
+	 * counts the products referencing the facet under the group of the entry - for a facet referenced under a single
+	 * group that is the result of selecting the facet alone, for a facet referenced under several groups it is taken
+	 * from the fixture table, the products the requested scopes hold, without those that reference the facet under the
+	 * group when the group is negated. An entry is listed exactly when its count is not zero. A selection made in each
+	 * scope separately composes the facet in each scope by the groups that scope gives it - a scope holding no
+	 * reference to it makes it a facet without a group; the count drops the selection and so stands for the facet
+	 * selected in the whole query. The oracle of the impact is the engine's own result.
 	 *
 	 * @param label            the row label, used in the test name only
 	 * @param scopes           the requested scopes
 	 * @param selection        the selected tags
 	 * @param selectionByScope whether the selection is made in each scope separately
 	 * @param relations        the relation requirements
+	 * @param negatedGroups    the groups the relation requirements negate
 	 * @param evita            the engine instance provided by the test extension
 	 */
 	@DisplayName("Should predict the selection of a facet in every group it is referenced under")
@@ -4072,6 +4078,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 		@Nonnull int[] selection,
 		boolean selectionByScope,
 		@Nonnull RequireConstraint[] relations,
+		@Nonnull int[] negatedGroups,
 		Evita evita
 	) {
 		final FilterConstraint[] nothing = new FilterConstraint[0];
@@ -4105,16 +4112,16 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						final FacetStatistics statistics = groupStatistics == null ?
 							null : groupStatistics.getFacetStatistics(tagId);
 						final String entry = "tag " + tagId + " in group " + groupId + ": ";
+						final int entryCount = groups.size() == 1 ?
+							aloneSize : groupingTagEntryCount(tagId, groupId, scopes, negatedGroups);
 						if (statistics == null) {
-							if (aloneSize > 0) {
-								disagreements.add(entry + "missing, selecting it alone returns " + aloneSize);
+							if (entryCount > 0) {
+								disagreements.add(entry + "missing, expected count " + entryCount);
 							}
 							continue;
 						}
-						if (statistics.getCount() != aloneSize) {
-							disagreements.add(
-								entry + "count " + statistics.getCount() + ", selecting it alone returns " + aloneSize
-							);
+						if (statistics.getCount() != entryCount) {
+							disagreements.add(entry + "count " + statistics.getCount() + ", expected " + entryCount);
 						}
 						if (ArrayUtils.indexOf(tagId, selection) >= 0) {
 							continue;
@@ -4185,6 +4192,195 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				return null;
 			}
 		);
+	}
+
+	/**
+	 * Returns the rows of the per-entry statistics of the tags of the {@link #FACET_GROUPING_SHAPES} data set referenced
+	 * under several groups - tag 50 in groups 100 and 200, tag 60 in group 300 and without a group. Each row is a label,
+	 * the requested scopes, the constraints of the filter next to the user filter, the selected tags, the statistics
+	 * depth, and the expected entries, computed from the fixture table: the tag, the group ({@link #NO_GROUP} for the
+	 * facets without a group), the count (-1 for an entry that is not listed), and the match count, the difference and
+	 * the has-sense (1 or 0) of the impact - the same for every entry of the tag, because selecting it selects it in all
+	 * of its groups.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> facetEntryCountRows() {
+		final FilterConstraint[] nothing = new FilterConstraint[0];
+		final FilterConstraint[] withoutProduct8 = {entityPrimaryKeyInSet(1, 2, 3, 4, 7, 9, 10, 12)};
+		final Scope[] live = {Scope.LIVE};
+		final Scope[] both = {Scope.LIVE, Scope.ARCHIVED};
+		// nine live products: no tag referenced under several groups is in both of its groups on one product, so
+		// selecting it alone returns nothing, while each of its entries counts the products of its own group
+		final int[][] liveAlone = {
+			{50, 100, 1, 0, -9, 0}, {50, 200, 1, 0, -9, 0}, {60, 300, 1, 0, -9, 0}, {60, NO_GROUP, 1, 0, -9, 0}
+		};
+		return Stream.of(
+			Arguments.of("live scope, no selection", live, nothing, new int[0], FacetStatisticsDepth.IMPACT, liveAlone),
+			Arguments.of(
+				"live scope, no selection, counts", live, nothing, new int[0], FacetStatisticsDepth.COUNTS, liveAlone
+			),
+			// the archived product 11 references tag 50 in group 200, so the two entries of the tag differ
+			Arguments.of(
+				"both scopes, no selection", both, nothing, new int[0], FacetStatisticsDepth.IMPACT,
+				new int[][]{
+					{50, 100, 1, 0, -12, 0}, {50, 200, 2, 0, -12, 0}, {60, 300, 1, 0, -12, 0},
+					{60, NO_GROUP, 1, 0, -12, 0}
+				}
+			),
+			Arguments.of(
+				"both scopes, no selection, counts", both, nothing, new int[0], FacetStatisticsDepth.COUNTS,
+				new int[][]{{50, 100, 1, 0, 0, 0}, {50, 200, 2, 0, 0, 0}}
+			),
+			// tag 10 selected: products 1, 4, 8 and 12; adding tag 50 keeps product 8, which references tag 50 in group
+			// 200 and tag 10 next to it in group 100
+			Arguments.of(
+				"live scope, tag 10 selected", live, nothing, new int[]{10}, FacetStatisticsDepth.IMPACT,
+				new int[][]{
+					{50, 100, 1, 1, -3, 1}, {50, 200, 1, 1, -3, 1}, {60, 300, 1, 0, -4, 0}, {60, NO_GROUP, 1, 0, -4, 0}
+				}
+			),
+			// product 8, the only one referencing tag 50 in group 200, is filtered out: the entry of group 200 counts
+			// nothing and is left out, the entry of group 100 counts product 7
+			Arguments.of(
+				"live scope without product 8, no selection", live, withoutProduct8, new int[0],
+				FacetStatisticsDepth.IMPACT,
+				new int[][]{{50, 100, 1, 0, -8, 0}, {50, 200, -1, 0, 0, 0}}
+			),
+			Arguments.of(
+				"live scope without product 8, no selection, counts", live, withoutProduct8, new int[0],
+				FacetStatisticsDepth.COUNTS,
+				new int[][]{{50, 100, 1, 0, 0, 0}, {50, 200, -1, 0, 0, 0}}
+			)
+		);
+	}
+
+	/**
+	 * Checks the statistics of every entry of a facet referenced under several groups: the count of an entry is the
+	 * number of products of the result without the user filter that reference the facet under the group of the entry,
+	 * so the entries of one facet may count differently, and an entry is listed exactly when its count is not zero.
+	 * The impact and its has-sense predict the result of selecting the facet, which selects it in every group it is
+	 * referenced under, so they are the same for all entries of the facet.
+	 *
+	 * @param label       the row label, used in the test name only
+	 * @param scopes      the requested scopes
+	 * @param constraints the constraints of the filter next to the user filter
+	 * @param selection   the selected tags
+	 * @param depth       the statistics depth
+	 * @param entries     the expected entries, see {@link #facetEntryCountRows()}
+	 * @param evita       the engine instance provided by the test extension
+	 */
+	@DisplayName("Should count each entry of a facet in several groups by the references of its own group")
+	@UseDataSet(FACET_GROUPING_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("facetEntryCountRows")
+	void shouldCountEachEntryOfFacetInSeveralGroupsByReferencesOfItsGroup(
+		@Nonnull String label,
+		@Nonnull Scope[] scopes,
+		@Nonnull FilterConstraint[] constraints,
+		@Nonnull int[] selection,
+		@Nonnull FacetStatisticsDepth depth,
+		@Nonnull int[][] entries,
+		Evita evita
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> withSummary = session.query(
+					groupingTagSelectionQuery(
+						scopes, constraints, selection, new RequireConstraint[0],
+						referenceSummaryOfReference(REF_TAG, depth)
+					),
+					EntityReference.class
+				);
+				final ReferenceSummary summary = withSummary.getExtraResult(ReferenceSummary.class);
+				assertNotNull(summary, "the reference summary must be computed");
+				final List<String> disagreements = new ArrayList<>(8);
+				for (final int[] expected : entries) {
+					final int tagId = expected[0];
+					final Integer groupId = expected[1] == NO_GROUP ? null : expected[1];
+					final ReferenceGroupStatistics groupStatistics = groupId == null ?
+						summary.getReferenceGroupStatistics(REF_TAG) :
+						summary.getReferenceGroupStatistics(REF_TAG, groupId);
+					final FacetStatistics statistics = groupStatistics == null ?
+						null : groupStatistics.getFacetStatistics(tagId);
+					final String entry = "tag " + tagId + " in group " + groupId + ": ";
+					if (expected[2] < 0) {
+						if (statistics != null) {
+							disagreements.add(entry + "listed with count " + statistics.getCount() + ", expected none");
+						}
+						continue;
+					}
+					if (statistics == null) {
+						disagreements.add(entry + "missing, expected count " + expected[2]);
+						continue;
+					}
+					if (statistics.getCount() != expected[2]) {
+						disagreements.add(entry + "count " + statistics.getCount() + ", expected " + expected[2]);
+					}
+					final RequestImpact impact = statistics.getImpact();
+					if (depth == FacetStatisticsDepth.IMPACT) {
+						final boolean hasSense = expected[5] == 1;
+						if (impact == null || impact.matchCount() != expected[3] ||
+							impact.difference() != expected[4] || impact.hasSense() != hasSense) {
+							disagreements.add(
+								entry + "impact " +
+									(impact == null ?
+										"none" :
+										impact.matchCount() + " (difference " + impact.difference() + ", has sense " +
+											impact.hasSense() + ")") +
+									", expected " + expected[3] + " (difference " + expected[4] + ", has sense " +
+									hasSense + ")"
+							);
+						}
+					} else if (impact != null) {
+						disagreements.add(entry + "impact computed for the counts depth");
+					}
+				}
+				assertTrue(
+					disagreements.isEmpty(),
+					() -> "the reference summary must count each entry by its own group:\n" +
+						String.join("\n", disagreements)
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Returns the count of the entry of the passed tag in the passed group of the reference summary over the passed
+	 * scopes of the {@link #FACET_GROUPING_SHAPES} data set, computed from the fixture table: the products referencing
+	 * the tag under the group, or the products not referencing it under the group when the group is negated.
+	 *
+	 * @param tagId         the tag
+	 * @param groupId       the group, NULL for the facets without a group
+	 * @param scopes        the scopes of the products
+	 * @param negatedGroups the negated groups
+	 * @return the count of the entry
+	 */
+	private static int groupingTagEntryCount(
+		int tagId,
+		@Nullable Integer groupId,
+		@Nonnull Scope[] scopes,
+		@Nonnull int[] negatedGroups
+	) {
+		final int group = groupId == null ? NO_GROUP : groupId;
+		int products = 0;
+		int referencing = 0;
+		for (int i = 0; i < GROUPING_PRODUCT_TAGS.length; i++) {
+			if (ArrayUtils.indexOf(GROUPING_PRODUCT_SCOPES[i], scopes) < 0) {
+				continue;
+			}
+			products++;
+			for (int j = 0; j < GROUPING_PRODUCT_TAGS[i].length; j++) {
+				if (GROUPING_PRODUCT_TAGS[i][j] == tagId && GROUPING_PRODUCT_TAG_GROUPS[i][j] == group) {
+					referencing++;
+					break;
+				}
+			}
+		}
+		return ArrayUtils.indexOf(group, negatedGroups) >= 0 ? products - referencing : referencing;
 	}
 
 	/**
@@ -4478,13 +4674,14 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	/**
 	 * Checks that the reference summaries of two references with the same layout of facets and groups each predict
 	 * the selection the result makes for its own reference, under its own relations: every entry of a facet - one for
-	 * each group it is listed in - must have the count of the result selecting the facet alone and the impact and
-	 * has-sense of the result adding it to the selection, and an entry is listed exactly when that count is not zero.
-	 * The has-sense of an option that changes nothing is the result of the option alone in each of its groups, next to
-	 * the selection of the other groups. The oracle is the engine's own result. The count does not depend on the user
-	 * filter, so it is the result of selecting the facet alone in a user filter nothing negates, wherever the row
-	 * places the user filter; the impact and the has-sense are the results of the queries placing it where the row
-	 * does.
+	 * each group it is listed in - must have the impact and has-sense of the result adding it to the selection, and an
+	 * entry is listed exactly when its count is not zero. The has-sense of an option that changes nothing is the
+	 * result of the option alone in each of its groups, next to the selection of the other groups. The oracle of the
+	 * impact and the has-sense is the engine's own result, the queries placing the user filter where the row does. The
+	 * count does not depend on the user filter: for a facet referenced under a single group it is the result of
+	 * selecting the facet alone in a user filter nothing negates, wherever the row places the user filter; for tag 10,
+	 * referenced under groups 100 and 200, which no row negates, each entry counts the products of the row referencing
+	 * the tag under the group of the entry, taken from the fixture table.
 	 *
 	 * @param label      the row label, used in the test name only
 	 * @param selection  the tags selected by {@link #REF_TAG}
@@ -4540,16 +4737,17 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 							final FacetStatistics statistics = groupStatistics == null ?
 								null : groupStatistics.getFacetStatistics(tagId);
 							final String entry = referenceName + " tag " + tagId + " in group " + groupId + ": ";
+							final int entryCount = groups.size() == 1 ?
+								aloneSize : twinTagEntryCount(tagId, groupId, productIds);
 							if (statistics == null) {
-								if (aloneSize > 0) {
-									disagreements.add(entry + "missing, selecting it alone returns " + aloneSize);
+								if (entryCount > 0) {
+									disagreements.add(entry + "missing, expected count " + entryCount);
 								}
 								continue;
 							}
-							if (statistics.getCount() != aloneSize) {
+							if (statistics.getCount() != entryCount) {
 								disagreements.add(
-									entry + "count " + statistics.getCount() + ", selecting it alone returns " +
-										aloneSize
+									entry + "count " + statistics.getCount() + ", expected " + entryCount
 								);
 							}
 							if (ArrayUtils.indexOf(tagId, selectionOfReference) >= 0) {
@@ -4618,6 +4816,31 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 			}
 		}
 		return groups;
+	}
+
+	/**
+	 * Returns the number of the passed products of the {@link #FACET_TWIN_REFERENCE_SHAPES} data set that reference the
+	 * passed tag under the passed group - the same for both references.
+	 *
+	 * @param tagId      the tag
+	 * @param groupId    the group
+	 * @param productIds the products, none meaning all of them
+	 * @return the number of the products
+	 */
+	private static int twinTagEntryCount(int tagId, int groupId, @Nonnull int[] productIds) {
+		int count = 0;
+		for (int i = 0; i < TWIN_PRODUCT_TAGS.length; i++) {
+			if (productIds.length > 0 && ArrayUtils.indexOf(i + 1, productIds) < 0) {
+				continue;
+			}
+			for (int j = 0; j < TWIN_PRODUCT_TAGS[i].length; j++) {
+				if (TWIN_PRODUCT_TAGS[i][j] == tagId && TWIN_PRODUCT_TAG_GROUPS[i][j] == groupId) {
+					count++;
+					break;
+				}
+			}
+		}
+		return count;
 	}
 
 	/**

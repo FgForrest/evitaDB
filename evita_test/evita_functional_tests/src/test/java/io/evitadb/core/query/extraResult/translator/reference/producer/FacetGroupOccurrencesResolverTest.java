@@ -60,8 +60,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * indexes. The reference summary lists a facet referenced under several groups once in each of them, and every entry
  * asks the resolver for the occurrences of its facet. The maps holding the facet indexes count the look-ups of the
  * reference, which tells how many times the resolver resolved a facet - one look-up of the global index per resolution
- * in a query of one scope - and how many searched indexes it probed doing so. The entries share the prediction of
- * the selection through the shared occurrences as well.
+ * in a query of one scope - and how many searched indexes it probed doing so. The entries share the impact of the
+ * selection through the shared occurrences as well.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -224,27 +224,17 @@ class FacetGroupOccurrencesResolverTest {
 	}
 
 	@Test
-	@DisplayName("should compute the prediction of the selection once for all entries of the facet")
-	void shouldComputePredictionOnceForAllEntriesOfFacet() {
+	@DisplayName("should compute the impact once for all entries of the facet")
+	void shouldComputeImpactOnceForAllEntriesOfFacet() {
 		final FacetGroupOccurrences.Resolver resolver = ReferenceSummaryProducer.createFacetGroupOccurrencesResolver(
 			EnumSet.of(Scope.LIVE),
 			Map.of(Scope.LIVE, new CountingFacetIndexMap(createFacetIndex(SEARCHED_INDEX_COUNT))),
 			List.of(new CountingFacetIndexMap(createFacetIndex(0)))
 		);
-		final AtomicInteger countComputations = new AtomicInteger();
 		final AtomicInteger impactComputations = new AtomicInteger();
 		for (final int groupId : GROUPS) {
 			final FacetGroupOccurrences occurrences = resolver.resolve(
 				REFERENCE_SCHEMA, FACET_IN_SEVERAL_GROUPS, groupId, entitiesOf(FACET_IN_SEVERAL_GROUPS, groupId)
-			);
-			assertEquals(
-				7,
-				occurrences.computeCountIfAbsent(
-					() -> {
-						countComputations.incrementAndGet();
-						return 7;
-					}
-				)
 			);
 			// an impact that is not requested is NULL, and it is computed once as well
 			assertNull(
@@ -256,7 +246,6 @@ class FacetGroupOccurrencesResolverTest {
 				)
 			);
 		}
-		assertEquals(1, countComputations.get(), "the count must be computed for the first entry only");
 		assertEquals(1, impactComputations.get(), "the impact must be computed for the first entry only");
 	}
 

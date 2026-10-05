@@ -50,11 +50,14 @@ public interface FacetCalculator {
 	 * respects all mandatory filtering constraints which gets enriched by additional query that represents single
 	 * facet.
 	 *
+	 * The count belongs to one entry of the reference summary - the facet in the passed group - and counts only the
+	 * entities referencing the facet under that group, so a facet referenced under several groups counts each of its
+	 * entries by the references of that entry's group, as if the facet were referenced under that group alone.
+	 *
 	 * @param referenceSchema {@link ReferenceSchema} of the facet
 	 * @param facetId         {@link EntityReference#getPrimaryKey()} of the facet
 	 * @param facetGroupId    {@link GroupEntityReference#getPrimaryKey()} the facet is part of
-	 * @param facetEntityIds  bitmaps that represent primary keys of all entities that posses this facet
-	 * @param facetGroupOccurrences the groups the facet is referenced under - selecting it selects it in each of them
+	 * @param facetEntityIds  bitmaps that represent primary keys of all entities that posses this facet under the group
 	 * @return computed {@link Formula} that returns all entity primary keys, that posses the facet
 	 */
 	@Nonnull
@@ -62,8 +65,7 @@ public interface FacetCalculator {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		int facetId,
 		@Nullable Integer facetGroupId,
-		@Nonnull Bitmap[] facetEntityIds,
-		@Nonnull FacetGroupOccurrences facetGroupOccurrences
+		@Nonnull Bitmap[] facetEntityIds
 	);
 
 	/**

@@ -1417,6 +1417,12 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		 */
 		private Formula resultFormula;
 		/**
+		 * The count of the entry, -1 until computed - the count formula is shared by the facets of the same relations
+		 * and its facet is replaced by every facet computed after this one, so the count is kept rather than
+		 * recomputed.
+		 */
+		private int count = -1;
+		/**
 		 * Contains bitmaps of all entity primary keys that posses this facet. All bitmaps need to be combined with OR
 		 * relation in order to get full entity primary key list.
 		 */
@@ -1451,17 +1457,26 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		 * Produces final result of this accumulator.
 		 */
 		public FacetStatistics toFacetStatistics(@Nonnull EntityClassifier facetEntity) {
+			return new FacetStatistics(facetEntity, this.requested, getCount(), getImpact());
+		}
+
+		/**
+		 * Returns the impact of adding the facet to the selection, which selects it in every group it is referenced
+		 * under - every entry of the facet predicts the same selection, so the first one computes the impact for all.
+		 *
+		 * @return the impact, NULL when it is not requested
+		 */
+		@Nullable
+		private RequestImpact getImpact() {
+			if (this.impactCalculator == ImpactCalculator.NO_IMPACT) {
+				// only the impact needs the groups the facet is referenced under, so they are not resolved at all
+				return null;
+			}
 			final FacetGroupOccurrences occurrences = getFacetGroupOccurrences();
-			return new FacetStatistics(
-				facetEntity,
-				this.requested,
-				getCount(),
-				// every entry of the facet predicts the same selection, so the first one computes the impact for all
-				occurrences.computeImpactIfAbsent(
-					() -> this.impactCalculator.calculateImpact(
-						this.referenceSchema, this.facetId, this.facetGroupId, this.requested,
-						getEntityIdsArray(), occurrences
-					)
+			return occurrences.computeImpactIfAbsent(
+				() -> this.impactCalculator.calculateImpact(
+					this.referenceSchema, this.facetId, this.facetGroupId, this.requested,
+					getEntityIdsArray(), occurrences
 				)
 			);
 		}
@@ -1517,34 +1532,39 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 			this.facetEntityIds.addAll(otherAccumulator.getFacetEntityIds());
 			this.facetEntityIdsArray = null;
 			this.facetGroupOccurrences = null;
+			this.count = -1;
 			return this;
 		}
 
 		/**
-		 * Returns true if there is at least one entity in the query result that has this facet.
+		 * Returns true if there is at least one entity in the query result that has this facet under the group of this
+		 * entry.
 		 */
 		public boolean hasAnyResults() {
 			return getCount() > 0;
 		}
 
 		/**
-		 * Returns count of all entities in the query response that has this facet - every entry of the facet predicts
-		 * the same selection, so the first one computes the count for all.
+		 * Returns count of all entities in the query response that has this facet under the group of this entry - the
+		 * entries of a facet referenced under several groups each count the entities referencing it under their own
+		 * group.
 		 */
 		public int getCount() {
-			return getFacetGroupOccurrences().computeCountIfAbsent(this::computeCount);
+			if (this.count < 0) {
+				this.count = computeCount();
+			}
+			return this.count;
 		}
 
 		/**
-		 * Computes count of all entities in the query response that has this facet.
+		 * Computes count of all entities in the query response that has this facet under the group of this entry.
 		 */
 		private int computeCount() {
 			if (this.resultFormula == null) {
 				// we need to combine all collected facet formulas and then AND them with base formula to get rid
 				// of entity primary keys that haven't passed the filter logic
 				this.resultFormula = this.countCalculator.createCountFormula(
-					this.referenceSchema, this.facetId, this.facetGroupId,
-					getEntityIdsArray(), getFacetGroupOccurrences()
+					this.referenceSchema, this.facetId, this.facetGroupId, getEntityIdsArray()
 				);
 			}
 			// this is the most expensive call in this very class

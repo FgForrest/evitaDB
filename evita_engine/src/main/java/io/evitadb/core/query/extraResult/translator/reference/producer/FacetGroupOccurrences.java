@@ -36,7 +36,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -44,15 +43,16 @@ import java.util.function.Supplier;
  * the facet. The group is a property of a reference rather than of the facet, so a facet may be referenced under
  * several groups - without a group included - and {@link FacetHaving} selects it in each of them. A scope that holds
  * no reference to the facet gives it no group, and the facet is a facet without a group there. The reference summary
- * lists such a facet once in each of its groups, and each of these entries predicts the same selection.
+ * lists such a facet once in each of its groups. Each of these entries counts the entities referencing the facet under
+ * its own group, but all of them predict the same selection - the impact of selecting the facet in every group.
  *
  * The groups are kept for each scope of the query, because the scope post-processing copies a user filter into the
  * branch of every scope and each copy composes the facet the way its own scope does, and for the query as a whole,
  * for a user filter that is not copied. The entities referencing the facet are kept for each group.
  *
  * The reference summary resolves the occurrences once for the facet and shares them by all of its entries, which
- * share the prediction of the selection through them as well - the count and the impact are computed for the first
- * entry asking and reused by the others. The instance is not thread safe.
+ * share the prediction of the selection through them as well - the impact is computed for the first entry asking and
+ * reused by the others. The instance is not thread safe.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -75,11 +75,6 @@ public final class FacetGroupOccurrences {
 	 * a group.
 	 */
 	@Nonnull private final Map<Integer, Bitmap> entityIdsByGroup;
-	/**
-	 * The number of entities the selection of the facet returns, shared by all the entries of the facet; -1 until
-	 * computed.
-	 */
-	private int count = -1;
 	/**
 	 * The impact of adding the facet to the selection, shared by all the entries of the facet; valid only when
 	 * {@link #impactComputed} is true - the impact is NULL when it is not requested.
@@ -170,21 +165,6 @@ public final class FacetGroupOccurrences {
 	@Nullable
 	public Object getSignature() {
 		return this.groupsByScope == null ? null : List.of(this.groupsByScope, this.groupsInQuery);
-	}
-
-	/**
-	 * Returns the number of entities the selection of the facet returns, computed by the passed function for the first
-	 * entry of the facet asking - every entry of the facet, one for each group it is listed in, predicts the same
-	 * selection.
-	 *
-	 * @param countComputation computes the number of entities the selection of the facet returns
-	 * @return the number of entities
-	 */
-	int computeCountIfAbsent(@Nonnull IntSupplier countComputation) {
-		if (this.count < 0) {
-			this.count = countComputation.getAsInt();
-		}
-		return this.count;
 	}
 
 	/**

@@ -143,13 +143,12 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		int facetId,
 		@Nullable Integer facetGroupId,
-		@Nonnull Bitmap[] facetEntityIds,
-		@Nonnull FacetGroupOccurrences facetGroupOccurrences
+		@Nonnull Bitmap[] facetEntityIds
 	) {
-		// create formula that would capture all mandatory filtering constraints plus this single facet selected
+		// create formula that would capture all mandatory filtering constraints plus this single facet selected in
+		// the group of the counted entry only
 		final Formula hypotheticalFormula = this.facetFormulaGenerator.generateFormula(
-			this.baseFormula, this.baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds,
-			facetGroupOccurrences
+			this.baseFormula, this.baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds
 		);
 		// initialize the formula
 		hypotheticalFormula.initialize(this.executionContext);

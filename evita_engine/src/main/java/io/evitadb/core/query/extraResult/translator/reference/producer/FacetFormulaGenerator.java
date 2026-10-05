@@ -34,7 +34,6 @@ import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.extraResult.translator.reference.FilterFormulaFacetOptimizeVisitor;
-import io.evitadb.core.query.filter.translator.facet.FacetHavingTranslator;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -42,8 +41,6 @@ import io.evitadb.utils.CollectionUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
@@ -86,15 +83,17 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 		@Nonnull Bitmap[] facetEntityIds,
 		@Nonnull FacetGroupOccurrences facetGroupOccurrences
 	) {
+		// the count of an entry counts the facet in the group of the entry only, even when the facet is referenced
+		// under several groups - the prediction of the selection taking part in all of them is the impact
+		Assert.isPremiseValid(
+			facetGroupOccurrences.isSingleGroup(), "The count of a facet is computed for a single group of it!"
+		);
 		// the shape of the formula depends on the relation of the group to the other groups as well - two groups whose
-		// facets share a relation may still differ in it, and must not share one formula; a facet taking part in
-		// several groups shares it only with the facets of the very same groups of the very same reference, because
-		// the relations of those groups are the relations of that reference
+		// facets share a relation may still differ in it, and must not share one formula
 		final CacheKey key = new CacheKey(
 			referenceSchema.getName(),
 			this.facetRelationType.resolve(referenceSchema, facetGroupId, WITH_DIFFERENT_FACETS_IN_GROUP),
-			this.facetRelationType.resolve(referenceSchema, facetGroupId, WITH_DIFFERENT_GROUPS),
-			facetGroupOccurrences.getSignature()
+			this.facetRelationType.resolve(referenceSchema, facetGroupId, WITH_DIFFERENT_GROUPS)
 		);
 		return this.cache.compute(
 			key,
@@ -112,13 +111,10 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 					);
 				} else {
 					final MutableFormulaFinderAndReplacer mutableFormulaFinderAndReplacer = new MutableFormulaFinderAndReplacer(
-						mutableFormula -> {
-							final Integer groupId = facetGroupOccurrences.isSingleGroup() ?
-								facetGroupId : mutableFormula.getFacetGroupId();
-							return createFacetGroupFormula(
-								referenceSchema, groupId, facetId, facetGroupOccurrences.getEntityIds(groupId), false
-							);
-						}
+						mutableFormula -> createFacetGroupFormula(
+							referenceSchema, facetGroupId, facetId, facetGroupOccurrences.getEntityIds(facetGroupId),
+							false
+						)
 					);
 					formula.accept(mutableFormulaFinderAndReplacer);
 					Assert.isPremiseValid(
@@ -156,7 +152,7 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 	protected Formula getResult(@Nonnull Formula baseFormula) {
 		Assert.isPremiseValid(this.result != null, "Result formula must be set!");
 		// if the output is same as input, it means the input didn't contain UserFilterFormula
-		if (this.result == baseFormula && this.facetGroupOccurrences.isSingleGroup()) {
+		if (this.result == baseFormula) {
 			// so we need to change it here adding new facet group formula
 			if (this.isFacetGroupNegation.test(this.referenceSchema, this.facetGroupId, WITH_DIFFERENT_FACETS_IN_GROUP)) {
 				return FormulaFactory.not(
@@ -169,37 +165,6 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 					createNewFacetGroupFormula()
 				);
 			}
-		} else if (this.result == baseFormula) {
-			// a facet taking part in several groups is selected in each of them, composed the way the result of
-			// selecting it composes the groups of one reference - the negated groups are subtracted from the rest
-			final List<Formula> positiveFormulas = new ArrayList<>(4);
-			final List<Formula> negatedFormulas = new ArrayList<>(4);
-			for (final Integer groupId : this.facetGroupOccurrences.getGroups(null)) {
-				final MutableFormula groupFormula = createNewFacetGroupFormula(groupId);
-				final FacetRelationType relationType = this.facetRelationType.resolve(
-					this.referenceSchema, groupId, WITH_DIFFERENT_GROUPS
-				);
-				if (relationType == FacetRelationType.NEGATION) {
-					negatedFormulas.add(groupFormula);
-				} else {
-					positiveFormulas.add(groupFormula);
-				}
-			}
-			final Formula positiveFormula = positiveFormulas.isEmpty() ?
-				baseFormula :
-				FormulaFactory.and(
-					baseFormula,
-					FacetHavingTranslator.composeFacetSelectionFormula(
-						this.referenceSchema.getName(),
-						positiveFormulas,
-						it -> this.facetRelationType.resolve(
-							this.referenceSchema, ((MutableFormula) it).getFacetGroupId(), WITH_DIFFERENT_GROUPS
-						)
-					)
-				);
-			return negatedFormulas.isEmpty() ?
-				positiveFormula :
-				FormulaFactory.not(FormulaFactory.or(negatedFormulas.toArray(Formula[]::new)), positiveFormula);
 		} else {
 			// output changed - just propagate it
 			return this.result;
@@ -208,22 +173,17 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 
 	/**
 	 * Key of the {@link #cache}: the relations that decide the shape of the generated formula. The calculator serves
-	 * the summaries of all the requested references, and the relations are resolved for a group of one reference - a
-	 * facet taking part in several groups is composed by the relations of all of them, so the reference and the
-	 * signature together pin the relations of every group in the formula, not only those of the group of the
-	 * statistics.
+	 * the summaries of all the requested references, and the relations are resolved for a group of one reference, so
+	 * the reference pins them together with the relations.
 	 *
 	 * @param referenceName     the name of the faceted reference
 	 * @param facetRelationType the relation of the facets within their group
 	 * @param groupRelationType the relation of the group to the other groups
-	 * @param signature         the {@link FacetGroupOccurrences#getSignature() signature} of the groups of the facet,
-	 *                          null for a facet with a single group everywhere
 	 */
 	private record CacheKey(
 		@Nonnull String referenceName,
 		@Nonnull FacetRelationType facetRelationType,
-		@Nonnull FacetRelationType groupRelationType,
-		@Nullable Object signature
+		@Nonnull FacetRelationType groupRelationType
 	) {
 
 	}
