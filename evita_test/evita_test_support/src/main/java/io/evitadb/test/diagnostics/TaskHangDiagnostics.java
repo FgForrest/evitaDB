@@ -89,7 +89,7 @@ import java.util.stream.Stream;
  * **Everything that decides the case travels in the failure itself.** The only output of a CI runner that reaches a
  * reader is the check-run annotation built from the JUnit report - the failure message and the printed stack trace,
  * including its `Suppressed:` blocks. The failure message therefore carries a summary with the top frames of every
- * busy service thread down to the first engine frame, and the full stack of each of them is attached to the failure
+ * busy service thread down to the first evitaDB frame, and the full stack of each of them is attached to the failure
  * as a suppressed {@link ServiceThreadStack}. The complete evidence still goes to this class's logger at DEBUG level,
  * so it lands in the failing test's `system-out` in the surefire XML report without raising the verbosity of
  * anything else. Enabling that DEBUG level is the job of the logback configuration the test module runs with - no
@@ -133,11 +133,12 @@ public final class TaskHangDiagnostics {
 	 */
 	private static final String SERVICE_THREAD_PREFIX = "Evita-service-";
 	/**
-	 * Package prefix of the engine's own classes; the first frame carrying it anchors a stack excerpt.
+	 * Root package of the project's own classes - engine, driver, external APIs and test support alike, so not only
+	 * the engine's. The first frame carrying it, called the first evitaDB frame here, anchors a stack excerpt.
 	 */
-	private static final String ENGINE_PACKAGE_PREFIX = "io.evitadb.";
+	private static final String PROJECT_PACKAGE_PREFIX = "io.evitadb.";
 	/**
-	 * Most frames of one busy thread quoted in the summary. The frames above the first engine frame are the ones that
+	 * Most frames of one busy thread quoted in the summary. The frames above the first evitaDB frame are the ones that
 	 * tell a native write from compression or a lock, and they rarely number more than a dozen.
 	 */
 	private static final int SUMMARY_FRAME_LIMIT = 12;
@@ -649,11 +650,11 @@ public final class TaskHangDiagnostics {
 	}
 
 	/**
-	 * Quotes the top of a stack for the summary: every frame from the top down to and including the first engine
+	 * Quotes the top of a stack for the summary: every frame from the top down to and including the first evitaDB
 	 * frame, because the JDK frames above it are what tell a native write, compression and a lock apart, and the
-	 * engine frame is what tells which of the engine's operations is affected. At most {@link #SUMMARY_FRAME_LIMIT}
-	 * frames are quoted; when the first engine frame lies deeper, the frames in between are elided but the engine
-	 * frame is kept.
+	 * evitaDB frame is what tells which of the project's operations is affected - usually the engine's, but equally a
+	 * driver call or a test's own code. At most {@link #SUMMARY_FRAME_LIMIT} frames are quoted; when the first evitaDB
+	 * frame lies deeper, the frames in between are elided but the evitaDB frame is kept.
 	 *
 	 * @param stack the stack, top frame first
 	 * @return the frames joined by ` <- `, or `no stack`
@@ -663,18 +664,18 @@ public final class TaskHangDiagnostics {
 		if (stack.length == 0) {
 			return "no stack";
 		}
-		int engineFrame = -1;
+		int projectFrame = -1;
 		for (int i = 0; i < stack.length; i++) {
-			if (stack[i].getClassName().startsWith(ENGINE_PACKAGE_PREFIX)) {
-				engineFrame = i;
+			if (stack[i].getClassName().startsWith(PROJECT_PACKAGE_PREFIX)) {
+				projectFrame = i;
 				break;
 			}
 		}
 		final StringBuilder frames = new StringBuilder(128 * SUMMARY_FRAME_LIMIT);
-		final int lastQuoted = engineFrame < 0 ? Math.min(stack.length, SUMMARY_FRAME_LIMIT) - 1 : engineFrame;
+		final int lastQuoted = projectFrame < 0 ? Math.min(stack.length, SUMMARY_FRAME_LIMIT) - 1 : projectFrame;
 		for (int i = 0; i <= lastQuoted; i++) {
 			if (i == SUMMARY_FRAME_LIMIT - 1 && lastQuoted > i) {
-				// keep the anchoring engine frame, drop what lies between it and the frames already quoted
+				// keep the anchoring evitaDB frame, drop what lies between it and the frames already quoted
 				frames.append(" <- ... ").append(lastQuoted - i).append(" frame(s) ... <- ").append(stack[lastQuoted]);
 				break;
 			}
@@ -688,7 +689,7 @@ public final class TaskHangDiagnostics {
 
 	/**
 	 * Tells whether the thread is a pool worker waiting for its next task - parked in the pool's own task queue with no
-	 * engine frame on its stack.
+	 * evitaDB frame on its stack.
 	 *
 	 * @param thread the thread
 	 * @return TRUE when the thread is an idle pool worker
@@ -698,7 +699,7 @@ public final class TaskHangDiagnostics {
 		return Arrays.stream(stack)
 			.anyMatch(it -> "getTask".equals(it.getMethodName()) &&
 				it.getClassName().startsWith("java.util.concurrent.ThreadPoolExecutor")) &&
-			Arrays.stream(stack).noneMatch(it -> it.getClassName().startsWith(ENGINE_PACKAGE_PREFIX));
+			Arrays.stream(stack).noneMatch(it -> it.getClassName().startsWith(PROJECT_PACKAGE_PREFIX));
 	}
 
 	/**

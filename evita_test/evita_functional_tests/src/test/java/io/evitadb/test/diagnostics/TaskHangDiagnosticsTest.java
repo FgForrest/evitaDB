@@ -219,7 +219,7 @@ class TaskHangDiagnosticsTest implements EvitaTestSupport {
 				message
 			);
 			assertTrue(message.contains("task QUEUED 0%"), message);
-			// the occupant is named by the first engine frame on its stack - this test's own lambda
+			// the occupant is named by the first evitaDB frame on its stack - this test's own lambda, not the engine's
 			assertTrue(message.contains("Evita-service-"), message);
 			assertTrue(message.contains("WAITING on java.util.concurrent.CountDownLatch"), message);
 			assertTrue(message.contains(TaskHangDiagnosticsTest.class.getName()), message);
@@ -230,7 +230,7 @@ class TaskHangDiagnosticsTest implements EvitaTestSupport {
 			assertTrue(message.contains(" GC "), message);
 			assertTrue(message.contains("usable space "), message);
 
-			// the JDK frames above the first engine frame are quoted, from the very top of the stack down
+			// the JDK frames above the first evitaDB frame are quoted, from the very top of the stack down
 			final String occupant = occupantLine(message);
 			assertTrue(occupant.contains("inNative=false"), occupant);
 			assertTrue(occupant.contains("java.util.concurrent.CountDownLatch.await("), occupant);
