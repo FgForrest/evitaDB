@@ -336,12 +336,13 @@ public interface AttributeIndexMutator {
 				attributeSchemaProvider.getContainerName(), attributeDefinition, scope
 			);
 			final int existingPk = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_INDEX, Target.EXISTING);
+			// resolved once and handed to the mirror too, so the mirror costs no extra atomic read when it is off
+			final T theValueToRemove = valueToRemoveSupplier.get();
 			indexForRemoval.removeAttribute(
-				referenceSchema, attributeDefinition, allowedLocales, scope, locale,
-				valueToRemoveSupplier.get(), existingPk
+				referenceSchema, attributeDefinition, allowedLocales, scope, locale, theValueToRemove, existingPk
 			);
 			VirtualReferencePartitionWriter.attributeValueRemoved(
-				executor, referenceSchema, attributeDefinition, indexForRemoval, locale, valueToRemoveSupplier.get()
+				executor, referenceSchema, attributeDefinition, indexForRemoval, locale, theValueToRemove
 			);
 			if (attributeDefinition.isUniqueInScope(scope)
 				&& updateGlobalIndex && attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema
@@ -350,7 +351,7 @@ public interface AttributeIndexMutator {
 				// the catalog-level global-unique index is a separate index object, maintained directly here
 				final CatalogIndex catalogIndex = executor.getCatalogIndex(scope);
 				catalogIndex.removeUniqueAttribute(
-					entitySchema, globalAttributeSchema, allowedLocales, locale, valueToRemoveSupplier.get(),
+					entitySchema, globalAttributeSchema, allowedLocales, locale, theValueToRemove,
 					existingPk, executor.getEntityTypeClassifierResolver()
 				);
 			}
@@ -474,21 +475,23 @@ public interface AttributeIndexMutator {
 		executor.reportAttributeTouched(attributeSchemaProvider.getContainerName(), attributeDefinition, scope);
 
 		final int recordId = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_INDEX, Target.NEW);
+		// resolved once and handed to the mirror too, so the mirror costs no extra atomic read when it is off
+		final T removedValue = valueToRemoveSupplier.get();
+		final T addedValue = valueToUpdateSupplier.get();
 		indexForUpsert.applyAttributeDelta(
-			referenceSchema, attributeDefinition, allowedLocales, scope, locale,
-			valueToRemoveSupplier.get(), valueToUpdateSupplier.get(), recordId
+			referenceSchema, attributeDefinition, allowedLocales, scope, locale, removedValue, addedValue, recordId
 		);
 		// the delta replaced the value in the index it was applied to - the old one went, the new one came
 		VirtualReferencePartitionWriter.attributeValueRemoved(
-			executor, referenceSchema, attributeDefinition, indexForUpsert, locale, valueToRemoveSupplier.get()
+			executor, referenceSchema, attributeDefinition, indexForUpsert, locale, removedValue
 		);
 		VirtualReferencePartitionWriter.attributeValueAdded(
-			executor, referenceSchema, attributeDefinition, indexForUpsert, locale, valueToUpdateSupplier.get()
+			executor, referenceSchema, attributeDefinition, indexForUpsert, locale, addedValue
 		);
 		// now update the compounds
 		updateSortableAttributeCompounds(
 			executor, referenceSchema, attributeSchemaProvider, existingValueSupplier,
-			indexForRemoval, indexForUpsert, valueToUpdateSupplier.get(), locale, attributeName
+			indexForRemoval, indexForUpsert, addedValue, locale, attributeName
 		);
 	}
 
