@@ -1911,6 +1911,31 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Refuses a request-wide default negation within the groups that cannot take effect. The query result and the
+	 * reference summary negate a group only by its relation to the other groups, and a default negation within the
+	 * groups is served there only while the default between them is a conjunction - by De Morgan's laws negating each
+	 * facet of a group and combining them with AND is the same set as negating the group's disjunction - or
+	 * a negation itself. With any other default between groups there is no relation that could negate a group, and
+	 * the negation would be silently ignored by both the result and the summary.
+	 *
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when `facetCalculationRules` sets a negation within the
+	 *                                                          groups and neither a conjunction nor a negation between
+	 *                                                          them
+	 */
+	public void assertDefaultFacetRelationsEffective() {
+		final FacetRelationType groupRelationType = this.evitaRequest.getDefaultGroupRelationType();
+		Assert.isTrue(
+			this.evitaRequest.getDefaultFacetRelationType() != FacetRelationType.NEGATION ||
+				groupRelationType == FacetRelationType.CONJUNCTION || groupRelationType == FacetRelationType.NEGATION,
+			() -> "The `facetCalculationRules(NEGATION, " + groupRelationType + ")` requirement cannot take effect: " +
+				"a group of options is negated by its relation to the other groups, and a negation within the groups " +
+				"applies there only while the groups are combined by `CONJUNCTION` or negated themselves - with `" +
+				groupRelationType + "` between the groups no option would be negated. Use " +
+				"`facetCalculationRules(NEGATION, CONJUNCTION)`, or set the negation between the groups instead."
+		);
+	}
+
+	/**
 	 * Returns the relation the facets of the passed group take at the passed level. This is the one resolution the
 	 * query result and the reference summary share, so that the summary predicts the products the result returns:
 	 *

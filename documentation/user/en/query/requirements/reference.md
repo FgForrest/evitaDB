@@ -1295,6 +1295,11 @@ the same reference group; the second sets it for options between different group
         different groups: by [De Morgan's laws](https://en.wikipedia.org/wiki/De_Morgan%27s_laws) the result is the
         same (`!a && !b` is equivalent to `!(a || b)`).
 
+        NEGATION within the same reference group takes effect only together with CONJUNCTION or NEGATION between
+        different groups. The query fails when the second argument is DISJUNCTION or EXCLUSIVITY, because a group
+        is negated by its relation to the other groups, and with these operators between them no option could be
+        negated. Set NEGATION between the groups instead.
+
         Effect on [impact statistics](#3rd-tier-reference-option): logical AND NOT is likely to expand the number of
         results when entities tend to carry only a small fraction of all possible options on average.
     </dd>

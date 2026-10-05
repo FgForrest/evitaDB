@@ -145,8 +145,11 @@ public class QueryPlanner {
 		QueryUtils.assertNoNestedScopeContainers(context.getEvitaRequest().getQuery());
 		context.pushStep(QueryPhase.PLANNING);
 		try {
-			// every declared facet group filter is planned before anything else, so that one which cannot be evaluated
-			// fails the query regardless of which parts of the query ask about it, and of an empty index short-cut
+			// the facet relation settings are checked before anything else - a default relation that cannot take
+			// effect, and every declared facet group filter, which is planned here - so that a setting the engine
+			// cannot honour fails the query regardless of which parts of the query ask about it, and of an empty
+			// index short-cut
+			context.assertDefaultFacetRelationsEffective();
 			context.assertFacetGroupFiltersEvaluable();
 
 			// determine the indexes that should be used for filtering

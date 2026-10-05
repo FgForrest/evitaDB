@@ -2029,19 +2029,32 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					.filter(pk -> ArrayUtils.indexOf(pk, shapedProductsWithLabels(true, 3)) < 0)
 					.toArray()
 			),
-			// with the other level away from its system default, the relation between groups decides whether a
-			// group is negated
+			// a negation at both levels negates the groups just as at one of them
 			Arguments.of(
-				"default negation within a group, disjunction between groups, one option", new int[]{3},
-				new RequireConstraint[]{facetCalculationRules(FacetRelationType.NEGATION, FacetRelationType.DISJUNCTION)},
-				null, new int[0],
-				shapedProductsWithLabels(true, 3)
+				"default negation at both levels, one option", new int[]{3},
+				new RequireConstraint[]{facetCalculationRules(FacetRelationType.NEGATION, FacetRelationType.NEGATION)},
+				negationOfEveryGroup, new int[]{3},
+				shapedProductsWithLabels(false, 3)
 			),
 			Arguments.of(
-				"default negation within a group, disjunction between groups, options of two groups", new int[]{1, 3},
-				new RequireConstraint[]{facetCalculationRules(FacetRelationType.NEGATION, FacetRelationType.DISJUNCTION)},
-				null, new int[0],
-				shapedProductsWithLabels(true, 1, 3)
+				"default negation at both levels, options of two groups", new int[]{1, 3},
+				new RequireConstraint[]{facetCalculationRules(FacetRelationType.NEGATION, FacetRelationType.NEGATION)},
+				negationOfEveryGroup, new int[]{1, 3},
+				shapedProductsWithLabels(false, 1, 3)
+			),
+			// with the level within the groups away from its system default, the default negation between groups still
+			// negates every group
+			Arguments.of(
+				"exclusivity within a group, default negation between groups, one option", new int[]{3},
+				new RequireConstraint[]{facetCalculationRules(FacetRelationType.EXCLUSIVITY, FacetRelationType.NEGATION)},
+				null, new int[]{3},
+				shapedProductsWithLabels(false, 3)
+			),
+			Arguments.of(
+				"exclusivity within a group, default negation between groups, options of two groups", new int[]{1, 3},
+				new RequireConstraint[]{facetCalculationRules(FacetRelationType.EXCLUSIVITY, FacetRelationType.NEGATION)},
+				null, new int[]{1, 3},
+				shapedProductsWithLabels(false, 1, 3)
 			),
 			Arguments.of(
 				"conjunction within a group, default negation between groups, one option", new int[]{3},
@@ -2062,8 +2075,8 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 * Checks that a negation the request-wide defaults of `facetCalculationRules` set at one level, while the other
 	 * level stays at its system default, selects the same products as a declared negation of every group, whichever
 	 * level carries it, and that the reference summary predicts them: the count of each option with no option selected,
-	 * and the count or impact of the last option with the others selected. When the other level is away from its system
-	 * default, the relation between groups decides whether a group is negated, in the result and in the summary alike.
+	 * and the count or impact of the last option with the others selected. A default negation between groups negates
+	 * every group whatever the default within them is, in the result and in the summary alike.
 	 *
 	 * @param label              the row label, used in the test name only
 	 * @param labelIds           the selected labels
@@ -2096,6 +2109,82 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				assertLabelSelectionPredicted(session, labelIds, relations, negatedLabelIds, expected);
 				if (declaredEquivalent != null) {
 					assertLabelSelectionPredicted(session, labelIds, declaredEquivalent, negatedLabelIds, expected);
+				}
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Returns the rows of the default negation within groups that cannot take effect, over the
+	 * {@link #FACET_RELATION_SHAPES} data set. Each row is a label, the default relation between groups that keeps the
+	 * negation from taking effect, the selected labels (none when the query selects nothing), and whether the query
+	 * requests the reference summary of the label reference.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> ineffectiveDefaultNegationRows() {
+		return Stream.of(FacetRelationType.DISJUNCTION, FacetRelationType.EXCLUSIVITY)
+			.flatMap(
+				groupRelation -> Stream.of(new int[0], new int[]{3}, new int[]{1, 3})
+					.flatMap(labelIds -> Stream.of(false, true).map(
+						withSummary -> Arguments.of(
+							"negation within a group, " + groupRelation.name().toLowerCase() + " between groups, " +
+								(labelIds.length == 0 ? "no option" : "options " + Arrays.toString(labelIds)) +
+								(withSummary ? ", with summary" : ", without summary"),
+							groupRelation, labelIds, withSummary
+						)
+					))
+			);
+	}
+
+	/**
+	 * Checks that a default negation within groups combined with a default relation between groups other than
+	 * a conjunction or a negation - which leaves no relation that could negate a group - makes the query fail with
+	 * a client error naming the requirement and both of its arguments, whether the query selects any option and
+	 * whether it requests the reference summary or not.
+	 *
+	 * @param label         the row label, used in the test name only
+	 * @param groupRelation the default relation between groups
+	 * @param labelIds      the selected labels, empty when the query selects none
+	 * @param withSummary   whether the query requests the reference summary of the label reference
+	 * @param evita         the engine instance provided by the test extension
+	 */
+	@DisplayName("Should refuse a default negation within groups that cannot take effect")
+	@UseDataSet(FACET_RELATION_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("ineffectiveDefaultNegationRows")
+	void shouldRefuseDefaultNegationWithinGroupsThatCannotTakeEffect(
+		@Nonnull String label,
+		@Nonnull FacetRelationType groupRelation,
+		@Nonnull int[] labelIds,
+		boolean withSummary,
+		Evita evita
+	) {
+		final RequireConstraint[] relations = {facetCalculationRules(FacetRelationType.NEGATION, groupRelation)};
+		final RequireConstraint summary = withSummary ?
+			referenceSummaryOfReference(REF_LABEL, FacetStatisticsDepth.IMPACT) : null;
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaInvalidUsageException exception = assertThrowsExactly(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						labelIds.length == 0 ?
+							query(
+								collection(ENTITY_SHAPED_PRODUCT),
+								require(ArrayUtils.mergeArrays(new RequireConstraint[]{summary}, relations))
+							) :
+							shapedOptionQuery(REF_LABEL, labelIds, relations, summary),
+						EntityReference.class
+					)
+				);
+				for (final String fragment : new String[]{"facetCalculationRules", "NEGATION", groupRelation.name()}) {
+					assertTrue(
+						exception.getMessage().contains(fragment),
+						"the message `" + exception.getMessage() + "` must contain `" + fragment + "`"
+					);
 				}
 				return null;
 			}
