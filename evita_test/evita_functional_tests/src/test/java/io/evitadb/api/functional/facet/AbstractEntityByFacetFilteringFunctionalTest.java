@@ -2103,6 +2103,206 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
+	 * Returns the rows of the witness of negations declared at both levels over the {@link #FACET_RELATION_SHAPES} data
+	 * set, each with a group filter of its own. Each row is a label, the selected labels, the relation requirements,
+	 * the declared relations the requirements are equivalent to (NULL when the row claims no equivalence), the labels
+	 * whose own count the reference summary computes as a negation, and the primary keys of the products the query
+	 * returns, computed from the fixture table.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> twoLevelNegationRows() {
+		final RequireConstraint groupAWithin = facetGroupsNegation(
+			REF_LABEL, WITH_DIFFERENT_FACETS_IN_GROUP, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_A))
+		);
+		final RequireConstraint groupBBetween = facetGroupsNegation(
+			REF_LABEL, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_B))
+		);
+		final RequireConstraint groupABetween = facetGroupsNegation(
+			REF_LABEL, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_A))
+		);
+		final RequireConstraint groupBWithin = facetGroupsNegation(
+			REF_LABEL, WITH_DIFFERENT_FACETS_IN_GROUP, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_B))
+		);
+		final RequireConstraint[] bothGroupsInOneDeclaration = {
+			facetGroupsNegation(REF_LABEL, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_A, LABEL_GROUP_B)))
+		};
+		return Stream.of(
+			// a negation applies at both levels whichever level declares it, so a group matching either filter is
+			// negated, and the declaration of the other group changes nothing about it
+			Arguments.of(
+				"group A within, group B between, option of group A", new int[]{1},
+				new RequireConstraint[]{groupAWithin, groupBBetween}, new RequireConstraint[]{groupAWithin},
+				new int[]{1}, shapedProductsWithLabels(false, 1)
+			),
+			Arguments.of(
+				"group A within, group B between, option of group B", new int[]{3},
+				new RequireConstraint[]{groupAWithin, groupBBetween}, new RequireConstraint[]{groupBBetween},
+				new int[]{3}, shapedProductsWithLabels(false, 3)
+			),
+			Arguments.of(
+				"group A within, group B between, options of both groups", new int[]{1, 3},
+				new RequireConstraint[]{groupAWithin, groupBBetween}, bothGroupsInOneDeclaration,
+				new int[]{1, 3}, shapedProductsWithLabels(false, 1, 3)
+			),
+			Arguments.of(
+				"group A between, group B within, option of group A", new int[]{1},
+				new RequireConstraint[]{groupABetween, groupBWithin}, new RequireConstraint[]{groupABetween},
+				new int[]{1}, shapedProductsWithLabels(false, 1)
+			),
+			Arguments.of(
+				"group A between, group B within, option of group B", new int[]{3},
+				new RequireConstraint[]{groupABetween, groupBWithin}, new RequireConstraint[]{groupBWithin},
+				new int[]{3}, shapedProductsWithLabels(false, 3)
+			),
+			Arguments.of(
+				"group A between, group B within, options of both groups", new int[]{1, 3},
+				new RequireConstraint[]{groupABetween, groupBWithin}, bothGroupsInOneDeclaration,
+				new int[]{1, 3}, shapedProductsWithLabels(false, 1, 3)
+			),
+			// a single declaration negates the group it matches and leaves the other one a positive selection
+			Arguments.of(
+				"group A within alone, option of group A", new int[]{1},
+				new RequireConstraint[]{groupAWithin}, null,
+				new int[]{1}, shapedProductsWithLabels(false, 1)
+			),
+			Arguments.of(
+				"group A within alone, option of group B", new int[]{3},
+				new RequireConstraint[]{groupAWithin}, null,
+				new int[0], shapedProductsWithLabels(true, 3)
+			)
+		);
+	}
+
+	/**
+	 * Checks that negations declared at the two levels, each with a group filter of its own, negate every group either
+	 * filter matches - in the query result and in the reference summary alike - and select the same products as a
+	 * single declaration negating the same groups.
+	 *
+	 * @param label              the row label, used in the test name only
+	 * @param labelIds           the selected labels
+	 * @param relations          the relation requirements
+	 * @param declaredEquivalent the declared relations selecting the same products, NULL when the row claims none
+	 * @param negatedLabelIds    the labels whose count with no option selected is a negation
+	 * @param expected           the primary keys of the products the query returns, ascending
+	 * @param evita              the engine instance provided by the test extension
+	 */
+	@DisplayName("Should negate a group matching the negation declared at either level")
+	@UseDataSet(FACET_RELATION_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("twoLevelNegationRows")
+	void shouldNegateGroupMatchingNegationDeclaredAtEitherLevel(
+		@Nonnull String label,
+		@Nonnull int[] labelIds,
+		@Nonnull RequireConstraint[] relations,
+		@Nullable RequireConstraint[] declaredEquivalent,
+		@Nonnull int[] negatedLabelIds,
+		@Nonnull int[] expected,
+		Evita evita
+	) {
+		assertTrue(
+			expected.length > 0 && expected.length < SHAPED_PRODUCT_LABELS.length,
+			"the relation must exclude some products and keep others"
+		);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertLabelSelectionPredicted(session, labelIds, relations, negatedLabelIds, expected);
+				if (declaredEquivalent != null) {
+					assertLabelSelectionPredicted(session, labelIds, declaredEquivalent, negatedLabelIds, expected);
+				}
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Returns the rows of negations declared at both levels, one of which has a group filter that cannot be evaluated,
+	 * over the {@link #FACET_RELATION_SHAPES} data set. Each row is a label and the two relation requirements. Every
+	 * row is run with and without the reference summary of the label reference.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> twoLevelUnevaluableNegationRows() {
+		final FilterBy byLabelGroupCode = filterBy(attributeEquals(ATTRIBUTE_CODE, "anything"));
+		return Stream.of(
+			// the negation without a filter decides every group, so nothing asks about the other filter
+			Arguments.of(
+				"negation of every group within, unevaluable filter between",
+				new RequireConstraint[]{
+					facetGroupsNegation(REF_LABEL, WITH_DIFFERENT_FACETS_IN_GROUP),
+					facetGroupsNegation(REF_LABEL, WITH_DIFFERENT_GROUPS, byLabelGroupCode)
+				}
+			),
+			Arguments.of(
+				"unevaluable filter within, negation of every group between",
+				new RequireConstraint[]{
+					facetGroupsNegation(REF_LABEL, WITH_DIFFERENT_FACETS_IN_GROUP, byLabelGroupCode),
+					facetGroupsNegation(REF_LABEL, WITH_DIFFERENT_GROUPS)
+				}
+			),
+			Arguments.of(
+				"evaluable filter within, unevaluable filter between",
+				new RequireConstraint[]{
+					facetGroupsNegation(
+						REF_LABEL, WITH_DIFFERENT_FACETS_IN_GROUP, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_A))
+					),
+					facetGroupsNegation(REF_LABEL, WITH_DIFFERENT_GROUPS, byLabelGroupCode)
+				}
+			)
+		)
+			.flatMap(row -> Stream.of(false, true).map(withSummary -> {
+				final Object[] arguments = row.get();
+				return Arguments.of(
+					arguments[0] + (withSummary ? ", with summary" : ", without summary"), arguments[1], withSummary
+				);
+			}));
+	}
+
+	/**
+	 * Checks that a group filter which cannot be evaluated fails the query when it belongs to one of two negations
+	 * declared at different levels, even when the negation of the other level decides every group on its own.
+	 *
+	 * @param label       the row label, used in the test name only
+	 * @param relations   the two relation requirements
+	 * @param withSummary whether the query requests the reference summary of the label reference
+	 * @param evita       the engine instance provided by the test extension
+	 */
+	@DisplayName("Should fail the query whose negation of either level has a filter that cannot be evaluated")
+	@UseDataSet(FACET_RELATION_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("twoLevelUnevaluableNegationRows")
+	void shouldFailQueryWhoseNegationOfEitherLevelCannotBeEvaluated(
+		@Nonnull String label,
+		@Nonnull RequireConstraint[] relations,
+		boolean withSummary,
+		Evita evita
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Throwable exception = assertThrowsExactly(
+					EntityNotManagedException.class,
+					() -> session.query(
+						shapedOptionQuery(
+							REF_LABEL, new int[]{1}, relations,
+							withSummary ? referenceSummaryOfReference(REF_LABEL, FacetStatisticsDepth.COUNTS) : null
+						),
+						EntityReference.class
+					)
+				);
+				assertTrue(
+					exception.getMessage().contains("`" + ENTITY_LABEL_GROUP + "`"),
+					"the message `" + exception.getMessage() + "` must name the group type"
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
 	 * Asserts that selecting the passed labels under the passed relations returns the expected products, and that the
 	 * reference summary predicts them - the count of each label with no label selected, which is the products without
 	 * the label for a negated one and with it otherwise, and the count (one label) or impact (several labels) of the

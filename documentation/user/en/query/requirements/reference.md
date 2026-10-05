@@ -1078,8 +1078,10 @@ laws](https://en.wikipedia.org/wiki/De_Morgan%27s_laws) the result is the same (
 `!(a || b)`).
 
 Because the two are equivalent, evitaDB honours a `facetGroupsNegation` at **both** levels regardless of which one
-you wrote, so the level you pick cannot change the answer. This is the single exception to the rule that the two
-levels are orthogonal, and it exists only because negation is the one relation for which they provably are not.
+you wrote, so the level you pick cannot change the answer. When you write one `facetGroupsNegation` for each level,
+both of them apply: a group is negated when the filter of either of them selects it. This is the single exception to
+the rule that the two levels are orthogonal, and it exists only because negation is the one relation for which they
+provably are not.
 If [`facetCalculationRules`](#facet-calculation-rules) moves the other level away from its system default the
 equivalence no longer holds, and a query that changes the defaults should state the level it means.
 

@@ -1876,9 +1876,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * summary about others of the references it summarizes, and exclusivity is asked about only while impacts are
 	 * computed - so the same filter would fail one query and be silently ignored by another.
 	 *
-	 * The predicates are planned through {@link #isFacetGroupRelationDeclared} and stay memoized for the planning that
-	 * follows, so each filter is still planned once per query. A constraint naming a reference the entity schema does
-	 * not have is skipped, because nothing in the query can ever ask about it.
+	 * The predicates are planned through {@link #isFacetGroupRelationDeclaredAt} at the level each constraint declares,
+	 * so that a negation declared at each level has both of its filters planned, and stay memoized for the planning
+	 * that follows, so each filter is still planned once per query. A constraint naming a reference the entity schema
+	 * does not have is skipped, because nothing in the query can ever ask about it.
 	 *
 	 * @throws io.evitadb.exception.EvitaInvalidUsageException when a group filter is declared for a reference without
 	 *                                                          a group type
@@ -1902,7 +1903,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 					case FacetGroupsExclusivity ignored -> FacetRelationType.EXCLUSIVITY;
 					default -> throw new GenericEvitaInternalError("Unknown facet relation constraint: " + constraint);
 				};
-				isFacetGroupRelationDeclared(
+				isFacetGroupRelationDeclaredAt(
 					relationType, referenceSchema.get(), null, constraint.getFacetGroupRelationLevel()
 				);
 			}
@@ -2022,7 +2023,40 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns true when the query declares the passed relation for the passed group at the passed level:
+	 * Returns true when the query declares the passed relation for the passed group at the passed level - see
+	 * {@link #isFacetGroupRelationDeclaredAt} for how one declaration decides it.
+	 *
+	 * A negation is honoured at both levels whichever level declares it (see
+	 * {@link EvitaRequest#getFacetGroupNegation}), so a group is negated at either level when it matches the negation
+	 * served for either of them. Asking only the passed level is not enough: when each level declares a negation of
+	 * its own, the request serves each level its own declaration, and a group matching only the declaration of the
+	 * other level would not be negated at this one.
+	 *
+	 * @param relationType    the type of the facet relation to be checked
+	 * @param referenceSchema the schema of the reference to which the facet group belongs
+	 * @param groupId         the identifier of the group being considered; can be null if no group is specified
+	 * @param level           the level of facet group relation that should be considered in the evaluation
+	 * @return `true` if the query declares the relation for the group at the level
+	 */
+	private boolean isFacetGroupRelationDeclared(
+		@Nonnull FacetRelationType relationType,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		if (relationType == FacetRelationType.NEGATION) {
+			return isFacetGroupRelationDeclaredAt(
+				FacetRelationType.NEGATION, referenceSchema, groupId,
+				FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP
+			) || isFacetGroupRelationDeclaredAt(
+				FacetRelationType.NEGATION, referenceSchema, groupId, FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS
+			);
+		}
+		return isFacetGroupRelationDeclaredAt(relationType, referenceSchema, groupId, level);
+	}
+
+	/**
+	 * Returns true when the relation settings the request serves for the passed level decide the passed group:
 	 *
 	 * - the query declares no such relation for the reference at the level - `false`
 	 * - the relation is declared **without** a filter - it applies to every group, hence `true`
@@ -2032,15 +2066,16 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 *
 	 * The filter is planned even when the asked facet has no group, so that a filter which cannot be evaluated fails
 	 * every query declaring it - see {@link #createFacetGroupPredicate}. {@link #assertFacetGroupFiltersEvaluable}
-	 * relies on that: it asks about a facet without a group to plan every declared filter up front.
+	 * relies on that: it asks about a facet without a group at the level each constraint declares, to plan every
+	 * declared filter up front.
 	 *
 	 * @param relationType    the type of the facet relation to be checked
 	 * @param referenceSchema the schema of the reference to which the facet group belongs
 	 * @param groupId         the identifier of the group being considered; can be null if no group is specified
-	 * @param level           the level of facet group relation that should be considered in the evaluation
-	 * @return `true` if the query declares the relation for the group at the level
+	 * @param level           the level whose relation settings are read
+	 * @return `true` if the relation settings of the level decide the group
 	 */
-	private boolean isFacetGroupRelationDeclared(
+	private boolean isFacetGroupRelationDeclaredAt(
 		@Nonnull FacetRelationType relationType,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable Integer groupId,
@@ -2370,8 +2405,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 *
 	 * @param referenceName name of the reference the facet group belongs to
 	 * @param relation      relation type the memoized predicate decides about
-	 * @param level         the {@link FacetGroupRelationLevel} the relation was asked about (within group vs.
-	 *                      between groups)
+	 * @param level         the {@link FacetGroupRelationLevel} whose relation settings the predicate was planned
+	 *                      from (within group vs. between groups)
 	 */
 	private record FacetRelationTuple(
 		@Nonnull String referenceName,
