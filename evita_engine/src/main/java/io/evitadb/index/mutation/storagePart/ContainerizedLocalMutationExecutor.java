@@ -1711,6 +1711,25 @@ public final class ContainerizedLocalMutationExecutor
 	}
 
 	/**
+	 * {@inheritDoc}
+	 *
+	 * An entity of the same type that the root mutation mutates too is answered by its own executor, found through the
+	 * {@link InFlightEntityAccessorLookup}. Any other entity is answered by an {@link OtherEntityAccessor} reading
+	 * through this executor, whose reads of other entities ask the same lookup first and go to the data store reader
+	 * otherwise. The entity this executor mutates is answered by this executor itself.
+	 */
+	@Nonnull
+	@Override
+	public WritableEntityStorageContainerAccessor getAccessorOfOtherEntity(int entityPrimaryKey) {
+		if (entityPrimaryKey == this.entityPrimaryKey) {
+			return this;
+		}
+		final WritableEntityStorageContainerAccessor inFlightAccessor =
+			this.inFlightAccessorLookup.findInFlightAccessor(this.entityType, entityPrimaryKey);
+		return inFlightAccessor == null ? new OtherEntityAccessor(this) : inFlightAccessor;
+	}
+
+	/**
 	 * Retrieves all entity storage parts from various containers and assemblages them into an array.
 	 * Method is used when the caller needs to return updated entity as its result. In such situation, we collect all
 	 * already fetched / updated parts and enrich them with the missing ones and reconstructs the body of the updated
@@ -4184,6 +4203,124 @@ public final class ContainerizedLocalMutationExecutor
 		Map<ComparableReferenceKey, ReferenceKey> getAssignedPrimaryKeys() {
 			return this.assignedPrimaryKeys == null ?
 				Collections.emptyMap() : this.assignedPrimaryKeys;
+		}
+	}
+
+	/**
+	 * A read-only accessor of an entity of the executor's own type that the root mutation does not mutate - see
+	 * {@link ContainerizedLocalMutationExecutor#getAccessorOfOtherEntity(int)}. Every read goes through the executor,
+	 * whose branches for other entities than its own ask the {@link InFlightEntityAccessorLookup} first and read the
+	 * data store otherwise, without caching. The entity has no pending locale change, no price identifier assigned in
+	 * the root mutation and is not being removed, and nothing may change it through this accessor.
+	 */
+	private static final class OtherEntityAccessor implements WritableEntityStorageContainerAccessor {
+		/**
+		 * The executor every read goes through.
+		 */
+		@Nonnull private final ContainerizedLocalMutationExecutor executor;
+
+		/**
+		 * Creates the accessor.
+		 *
+		 * @param executor the executor every read goes through
+		 */
+		OtherEntityAccessor(@Nonnull ContainerizedLocalMutationExecutor executor) {
+			this.executor = executor;
+		}
+
+		@Nonnull
+		@Override
+		public EntityBodyStoragePart getEntityStoragePart(
+			@Nonnull String entityType,
+			int entityPrimaryKey,
+			@Nonnull EntityExistence expects
+		) {
+			return this.executor.getEntityStoragePart(entityType, entityPrimaryKey, expects);
+		}
+
+		@Nonnull
+		@Override
+		public AttributesStoragePart getAttributeStoragePart(@Nonnull String entityType, int entityPrimaryKey) {
+			return this.executor.getAttributeStoragePart(entityType, entityPrimaryKey);
+		}
+
+		@Nonnull
+		@Override
+		public AttributesStoragePart getAttributeStoragePart(
+			@Nonnull String entityType,
+			int entityPrimaryKey,
+			@Nonnull Locale locale
+		) {
+			return this.executor.getAttributeStoragePart(entityType, entityPrimaryKey, locale);
+		}
+
+		@Nonnull
+		@Override
+		public AssociatedDataStoragePart getAssociatedDataStoragePart(
+			@Nonnull String entityType,
+			int entityPrimaryKey,
+			@Nonnull AssociatedDataKey key
+		) {
+			return this.executor.getAssociatedDataStoragePart(entityType, entityPrimaryKey, key);
+		}
+
+		@Nonnull
+		@Override
+		public ReferencesStoragePart getReferencesStoragePart(@Nonnull String entityType, int entityPrimaryKey) {
+			return this.executor.getReferencesStoragePart(entityType, entityPrimaryKey);
+		}
+
+		@Nonnull
+		@Override
+		public PricesStoragePart getPriceStoragePart(@Nonnull String entityType, int entityPrimaryKey) {
+			return this.executor.getPriceStoragePart(entityType, entityPrimaryKey);
+		}
+
+		@Override
+		public boolean isEntityRemovedEntirely() {
+			return false;
+		}
+
+		@Override
+		public void registerAssignedPriceId(int entityPrimaryKey, @Nonnull PriceKey priceKey, int internalPriceId) {
+			throw new GenericEvitaInternalError(
+				"No price identifier may be assigned to entity " + entityPrimaryKey + " through the accessor of an " +
+					"entity the root mutation does not mutate!"
+			);
+		}
+
+		@Nonnull
+		@Override
+		public OptionalInt findExistingInternalId(
+			@Nonnull String entityType,
+			int entityPrimaryKey,
+			@Nonnull PriceKey priceKey
+		) {
+			return getPriceStoragePart(entityType, entityPrimaryKey).findExistingInternalIds(priceKey);
+		}
+
+		@Nonnull
+		@Override
+		public LocaleWithScope[] getAddedLocales() {
+			return EMPTY_LOCALE_WITH_SCOPES;
+		}
+
+		@Nonnull
+		@Override
+		public LocaleWithScope[] getRemovedLocales() {
+			return EMPTY_LOCALE_WITH_SCOPES;
+		}
+
+		@Override
+		public int getLocalesIdentityHash() {
+			// the locales of an entity the root mutation does not mutate never change while it runs
+			return 0;
+		}
+
+		@Nonnull
+		@Override
+		public WritableEntityStorageContainerAccessor getAccessorOfOtherEntity(int entityPrimaryKey) {
+			return this.executor.getAccessorOfOtherEntity(entityPrimaryKey);
 		}
 	}
 

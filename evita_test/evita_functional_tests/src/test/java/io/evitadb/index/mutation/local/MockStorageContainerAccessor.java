@@ -59,6 +59,12 @@ class MockStorageContainerAccessor implements WritableEntityStorageContainerAcce
 	@Getter private final LocaleWithScope[] removedLocales = new LocaleWithScope[0];
 	@Getter private int localesIdentityHash;
 
+	@Nonnull
+	@Override
+	public WritableEntityStorageContainerAccessor getAccessorOfOtherEntity(int entityPrimaryKey) {
+		throw new UnsupportedOperationException("The mock accessor serves one entity only.");
+	}
+
 	@Override
 	public boolean isEntityRemovedEntirely() {
 		return this.entityStorageContainer != null && this.entityStorageContainer.isMarkedForRemoval();

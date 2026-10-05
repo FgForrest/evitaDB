@@ -49,6 +49,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
@@ -82,6 +83,12 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * A hit is attributed to `Class#member`; a lambda body (`lambda$m$n`) counts as its enclosing method `m`, a field as
  * `Class#field:name`, the class header as `Class#<class>`.
+ *
+ * An entry names a member, not a method, so it vouches for exactly one overload of the name: a member whose hits come
+ * from more overloads than its entry declares fails the test, naming their descriptors - otherwise a new overload
+ * could hide behind the entry an old one earned. A member whose overloads are all allowed on purpose declares how
+ * many there are, as `Class#member (N overloads)`. A lambda body counts as the overload it was written in; bridges
+ * and other synthetic methods, which only forward, count as none.
  *
  * - **R1 type use** of {@link ReducedEntityIndex} or {@link AbstractReducedEntityIndex}: `NEW`, `CHECKCAST`,
  *   `INSTANCEOF`, `ANEWARRAY`, class tokens, the owner of a member access, field and method descriptors, generic
@@ -163,6 +170,14 @@ class ReferencePartitionAccessGuardTest {
 	 */
 	private static final Set<String> ENUMERATIONS = Set.of("forEachReferenceIndexPrimaryKey", "getAllReferenceIndexes");
 	/**
+	 * Stands for the descriptor of a bridge or another forwarding synthetic method, which counts as no overload.
+	 */
+	private static final String FORWARDER = "forwarder";
+	/**
+	 * Matches the member of an allow-list entry, capturing `Class#member` and the declared number of overloads.
+	 */
+	private static final Pattern ALLOW_LIST_MEMBER = Pattern.compile("^(\\S+)(?: \\((\\d+) overloads\\))?$");
+	/**
 	 * Matches the synthetic name javac gives a lambda body, capturing the enclosing method.
 	 */
 	private static final Pattern LAMBDA = Pattern.compile("^lambda\\$(.+)\\$\\d+$");
@@ -193,7 +208,7 @@ class ReferencePartitionAccessGuardTest {
 			"The sentinel sites in ReferencePartitions were not reported - the scanner is broken"
 		);
 
-		final Map<String, String> allowList = readAllowList();
+		final Map<String, AllowListEntry> allowList = readAllowList();
 		final Map<String, Set<String>> unexpected = new TreeMap<>();
 		for (Map.Entry<String, Set<String>> hit : scanner.hits.entrySet()) {
 			if (!allowList.containsKey(hit.getKey())) {
@@ -206,7 +221,18 @@ class ReferencePartitionAccessGuardTest {
 				stale.add(entry);
 			}
 		}
-		if (!unexpected.isEmpty() || !stale.isEmpty()) {
+		// an entry names a member, not a method: a name hit in several overloads would let a new overload hide behind
+		// the entry an old one earned
+		final Map<String, Set<String>> overloaded = new TreeMap<>();
+		for (Map.Entry<String, Set<String>> overload : scanner.overloads.entrySet()) {
+			final AllowListEntry entry = allowList.get(overload.getKey());
+			final int vouchedFor = entry == null ? 1 : entry.overloads();
+			final int found = overload.getValue().size();
+			if (found > vouchedFor || (vouchedFor > 1 && found != vouchedFor)) {
+				overloaded.put(overload.getKey(), overload.getValue());
+			}
+		}
+		if (!unexpected.isEmpty() || !stale.isEmpty() || !overloaded.isEmpty()) {
 			final StringBuilder message = new StringBuilder(256 + 128 * (unexpected.size() + stale.size()));
 			if (!unexpected.isEmpty()) {
 				message.append(unexpected.size())
@@ -217,6 +243,18 @@ class ReferencePartitionAccessGuardTest {
 					final String[] ruleAndSite = hit.getKey().split(" ", 2);
 					message.append(ruleAndSite[0]).append(" | ").append(ruleAndSite[1])
 						.append(" | ? ").append(hit.getValue()).append('\n');
+				}
+			}
+			if (!overloaded.isEmpty()) {
+				message.append(overloaded.size())
+					.append(" member(s) hit in another number of overloads than their allow-list entry vouches for - ")
+					.append("an entry is keyed by the member name, so a new overload must reach the partition through ")
+					.append("the handle, and overloads allowed on purpose are declared as ")
+					.append("`Class#member (N overloads)`:\n");
+				for (Map.Entry<String, Set<String>> overload : overloaded.entrySet()) {
+					final String[] ruleAndSite = overload.getKey().split(" ", 2);
+					message.append(ruleAndSite[0]).append(" | ").append(ruleAndSite[1])
+						.append(" | overloads ").append(overload.getValue()).append('\n');
 				}
 			}
 			if (!stale.isEmpty()) {
@@ -265,7 +303,7 @@ class ReferencePartitionAccessGuardTest {
 		);
 		final String fixture = ReferencePartitionGuardFixture.class.getName() + "#";
 		final String nested = ReferencePartitionGuardFixture.class.getName() + "$";
-		final Map<String, String> expected = CollectionUtils.createLinkedHashMap(20);
+		final Map<String, String> expected = CollectionUtils.createLinkedHashMap(21);
 		expected.put("R1 " + fixture + "castShape", "CHECKCAST");
 		expected.put("R1 " + fixture + "instanceofShape", "INSTANCEOF");
 		expected.put("R1 " + fixture + "classTokenShape", "LDC");
@@ -286,6 +324,7 @@ class ReferencePartitionAccessGuardTest {
 		expected.put("R2 " + nested + "1#<clinit>", "REFERENCED_ENTITY");
 		expected.put("R3 " + fixture + "modificationByPrimaryKeyShape", "getIndexForModification");
 		expected.put("R4 " + fixture + "enumerationByCallbackShape", "forEachReferenceIndexPrimaryKey");
+		expected.put("R1 " + fixture + "overloadShape", "CHECKCAST");
 		for (Map.Entry<String, String> shape : expected.entrySet()) {
 			final Set<String> evidence = scanner.hits.get(shape.getKey());
 			assertNotNull(evidence, "The guard does not report `" + shape.getKey() + "` - found only " + scanner.hits);
@@ -294,6 +333,17 @@ class ReferencePartitionAccessGuardTest {
 				"`" + shape.getKey() + "` was reported, but not through `" + shape.getValue() + "`: " + evidence
 			);
 		}
+		// both overloads of one name are told apart - the one hit in a lambda body by the method it was written in
+		assertEquals(
+			Set.of(
+				"(Lio/evitadb/index/Index;)Lio/evitadb/index/bitmap/Bitmap;",
+				"(Ljava/lang/Object;I)Ljava/util/function/Predicate;"
+			),
+			scanner.overloads.get("R1 " + fixture + "overloadShape"),
+			"The overloads of `overloadShape` were not told apart: " + scanner.overloads
+		);
+		// a lambda body in a single overload counts as that overload, not as a second one
+		assertEquals(1, scanner.overloads.get("R1 " + fixture + "lambdaShape").size(), scanner.overloads.toString());
 		// no hit may be attributed to a synthetic lambda method instead of its enclosing one
 		for (String site : scanner.hits.keySet()) {
 			assertFalse(site.contains("lambda$"), "A lambda body was not attributed to its enclosing method: " + site);
@@ -319,13 +369,14 @@ class ReferencePartitionAccessGuardTest {
 	}
 
 	/**
-	 * Reads the allow-list resource into `rule Class#member` keys mapped to their reason.
+	 * Reads the allow-list resource into `rule Class#member` keys mapped to their entries. A member may declare the
+	 * number of its overloads the entry vouches for as `Class#member (N overloads)`; it vouches for one otherwise.
 	 *
 	 * @return the allow-list entries
 	 */
 	@Nonnull
-	private static Map<String, String> readAllowList() {
-		final Map<String, String> result = new TreeMap<>();
+	private static Map<String, AllowListEntry> readAllowList() {
+		final Map<String, AllowListEntry> result = new TreeMap<>();
 		try (
 			InputStream is = ReferencePartitionAccessGuardTest.class.getResourceAsStream(ALLOW_LIST);
 			BufferedReader reader = new BufferedReader(
@@ -349,13 +400,34 @@ class ReferencePartitionAccessGuardTest {
 					ALLOW_LIST + ":" + lineNumber + " must read `rule | Class#member | reason`"
 				);
 				assertFalse(parts[2].isBlank(), ALLOW_LIST + ":" + lineNumber + " carries no reason");
-				final String previous = result.put(parts[0] + " " + parts[1], parts[2]);
+				final Matcher member = ALLOW_LIST_MEMBER.matcher(parts[1]);
+				assertTrue(
+					member.matches(),
+					ALLOW_LIST + ":" + lineNumber + " must name `Class#member` or `Class#member (N overloads)`"
+				);
+				final int overloads = member.group(2) == null ? 1 : Integer.parseInt(member.group(2));
+				assertTrue(
+					member.group(2) == null || overloads > 1,
+					ALLOW_LIST + ":" + lineNumber + " declares fewer than two overloads - leave the count out"
+				);
+				final AllowListEntry previous = result.put(
+					parts[0] + " " + member.group(1), new AllowListEntry(parts[2], overloads)
+				);
 				assertNull(previous, ALLOW_LIST + ":" + lineNumber + " duplicates an earlier entry");
 			}
 		} catch (IOException e) {
 			throw new UncheckedIOException(e);
 		}
 		return result;
+	}
+
+	/**
+	 * One allow-list entry.
+	 *
+	 * @param reason    why the site reaches a reduced entity index directly
+	 * @param overloads how many overloads of the member the entry vouches for
+	 */
+	private record AllowListEntry(@Nonnull String reason, int overloads) {
 	}
 
 	/**
@@ -366,6 +438,12 @@ class ReferencePartitionAccessGuardTest {
 		 * Hits by `rule Class#member`, each with the instructions or descriptors that produced it.
 		 */
 		private final Map<String, Set<String>> hits = new TreeMap<>();
+		/**
+		 * The descriptors of the methods behind every hit by `rule Class#member` - a lambda body counted under the
+		 * descriptor of the method it was written in. More than one descriptor means that several overloads sharing
+		 * one name hit the rule, which one allow-list entry, keyed by the name alone, cannot tell apart.
+		 */
+		private final Map<String, Set<String>> overloads = new TreeMap<>();
 		/**
 		 * Number of class files scanned.
 		 */
@@ -444,6 +522,17 @@ class ReferencePartitionAccessGuardTest {
 		}
 
 		/**
+		 * Records the descriptor of the method a hit was found in.
+		 *
+		 * @param rule       the rule
+		 * @param site       `Class#member`
+		 * @param descriptor the descriptor of the method - the enclosing one for a lambda body
+		 */
+		private void overload(@Nonnull String rule, @Nonnull String site, @Nonnull String descriptor) {
+			this.overloads.computeIfAbsent(rule + " " + site, key -> new TreeSet<>()).add(descriptor);
+		}
+
+		/**
 		 * Tells whether an internal name, possibly of an array type, names a reduced index type.
 		 *
 		 * @param internalName the internal name
@@ -477,6 +566,20 @@ class ReferencePartitionAccessGuardTest {
 			 * Binary name of the visited class.
 			 */
 			private String className;
+			/**
+			 * Internal name of the visited class.
+			 */
+			private String internalName;
+			/**
+			 * The method each lambda body of the class was created in, as `name descriptor`, by the lambda method
+			 * name - learned from the `invokedynamic` instructions creating them.
+			 */
+			private final Map<String, String> lambdaCreators = new TreeMap<>();
+			/**
+			 * The hits found in lambda bodies, as `rule`, `site` and the lambda method name, whose descriptor is
+			 * resolved once the whole class has been visited.
+			 */
+			private final List<String[]> lambdaHits = new ArrayList<>(4);
 
 			GuardClassVisitor() {
 				super(Opcodes.ASM9);
@@ -487,6 +590,7 @@ class ReferencePartitionAccessGuardTest {
 				int version, int access, String name, String signature, String superName, String[] interfaces
 			) {
 				this.className = name.replace('/', '.');
+				this.internalName = name;
 				final String site = this.className + "#<class>";
 				if (isReducedIndexType(superName)) {
 					hit("R1", site, "extends " + superName);
@@ -515,13 +619,109 @@ class ReferencePartitionAccessGuardTest {
 				int access, String name, String descriptor, String signature, String[] exceptions
 			) {
 				final String site = this.className + "#" + enclosingMethod(name);
+				final String countedDescriptor = countedDescriptor(access, name, descriptor);
 				if (mentionsReducedIndexType(descriptor)) {
-					hit("R1", site, "descriptor " + descriptor);
+					methodHit("R1", site, name, countedDescriptor, "descriptor " + descriptor);
 				}
 				if (mentionsReducedIndexType(signature)) {
-					hit("R1", site, "signature " + signature);
+					methodHit("R1", site, name, countedDescriptor, "signature " + signature);
 				}
-				return new GuardMethodVisitor(site);
+				return new GuardMethodVisitor(this, site, name, countedDescriptor(access, name, descriptor));
+			}
+
+			@Override
+			public void visitEnd() {
+				for (final String[] lambdaHit : this.lambdaHits) {
+					final String descriptor = resolveLambdaCreator(lambdaHit[2]);
+					// a lambda body created in a forwarder counts as no overload, like the forwarder itself
+					if (!FORWARDER.equals(descriptor)) {
+						overload(lambdaHit[0], lambdaHit[1], descriptor);
+					}
+				}
+			}
+
+			/**
+			 * Records a hit found in a method of the class, together with the descriptor of the method - for a lambda
+			 * body, of the method it was written in, resolved once the whole class has been visited.
+			 *
+			 * @param rule             the rule
+			 * @param site             `Class#member`
+			 * @param methodName       the name of the method the hit was found in
+			 * @param methodDescriptor the descriptor of the method the hit was found in
+			 * @param evidence         what produced the hit
+			 */
+			void methodHit(
+				@Nonnull String rule,
+				@Nonnull String site,
+				@Nonnull String methodName,
+				@Nullable String methodDescriptor,
+				@Nonnull String evidence
+			) {
+				hit(rule, site, evidence);
+				if (LAMBDA.matcher(methodName).matches()) {
+					this.lambdaHits.add(new String[]{rule, site, methodName});
+				} else if (methodDescriptor != null) {
+					overload(rule, site, methodDescriptor);
+				}
+			}
+
+			/**
+			 * Returns the descriptor a method's hits are counted under as an overload: its own, except for a bridge or
+			 * another synthetic method that is not a lambda body - those only forward to a method that counts.
+			 *
+			 * @param access     the access flags of the method
+			 * @param name       the name of the method
+			 * @param descriptor the descriptor of the method
+			 * @return the descriptor, or `null` when the method counts as no overload
+			 */
+			@Nullable
+			private static String countedDescriptor(int access, @Nonnull String name, @Nonnull String descriptor) {
+				final boolean forwarder = (access & Opcodes.ACC_BRIDGE) != 0 ||
+					((access & Opcodes.ACC_SYNTHETIC) != 0 && !LAMBDA.matcher(name).matches());
+				return forwarder ? null : descriptor;
+			}
+
+			/**
+			 * Remembers the method a lambda body of the class is created in.
+			 *
+			 * @param handle           the implementation handle of an `invokedynamic` instruction
+			 * @param methodName       the name of the method holding the instruction
+			 * @param methodDescriptor the descriptor of the method holding the instruction
+			 */
+			void lambdaCreated(
+				@Nonnull Handle handle,
+				@Nonnull String methodName,
+				@Nullable String methodDescriptor
+			) {
+				if (this.internalName.equals(handle.getOwner()) && LAMBDA.matcher(handle.getName()).matches()) {
+					this.lambdaCreators.put(
+						handle.getName(), methodName + " " + (methodDescriptor == null ? FORWARDER : methodDescriptor)
+					);
+				}
+			}
+
+			/**
+			 * Returns the descriptor of the method a lambda body was written in, following lambdas created in lambdas
+			 * to the method that is not one.
+			 *
+			 * @param lambdaName the name of the lambda method
+			 * @return the descriptor, or a marker naming the lambda when no creating instruction was found
+			 */
+			@Nonnull
+			private String resolveLambdaCreator(@Nonnull String lambdaName) {
+				String current = lambdaName;
+				for (int depth = 0; depth < 16; depth++) {
+					final String creator = this.lambdaCreators.get(current);
+					if (creator == null) {
+						return "unresolved " + lambdaName;
+					}
+					final String creatorName = creator.substring(0, creator.indexOf(' '));
+					if (!LAMBDA.matcher(creatorName).matches()) {
+						return creator.substring(creator.indexOf(' ') + 1);
+					}
+					current = creatorName;
+				}
+				return "unresolved " + lambdaName;
 			}
 
 			/**
@@ -550,13 +750,43 @@ class ReferencePartitionAccessGuardTest {
 		 */
 		private final class GuardMethodVisitor extends MethodVisitor {
 			/**
+			 * The class visitor the hits are reported through.
+			 */
+			private final GuardClassVisitor classVisitor;
+			/**
 			 * `Class#member` every hit of this body is attributed to.
 			 */
 			private final String site;
+			/**
+			 * The name of the visited method.
+			 */
+			private final String methodName;
+			/**
+			 * The descriptor the hits of the visited method are counted under, `null` when they count as no overload.
+			 */
+			@Nullable private final String methodDescriptor;
 
-			GuardMethodVisitor(@Nonnull String site) {
+			GuardMethodVisitor(
+				@Nonnull GuardClassVisitor classVisitor,
+				@Nonnull String site,
+				@Nonnull String methodName,
+				@Nullable String methodDescriptor
+			) {
 				super(Opcodes.ASM9);
+				this.classVisitor = classVisitor;
 				this.site = site;
+				this.methodName = methodName;
+				this.methodDescriptor = methodDescriptor;
+			}
+
+			/**
+			 * Records a hit of this body.
+			 *
+			 * @param rule     the rule
+			 * @param evidence what produced the hit
+			 */
+			private void bodyHit(@Nonnull String rule, @Nonnull String evidence) {
+				this.classVisitor.methodHit(rule, this.site, this.methodName, this.methodDescriptor, evidence);
 			}
 
 			@Override
@@ -569,34 +799,34 @@ class ReferencePartitionAccessGuardTest {
 						case Opcodes.ANEWARRAY -> "ANEWARRAY";
 						default -> "opcode " + opcode;
 					};
-					hit("R1", this.site, instruction + " " + type);
+					bodyHit("R1", instruction + " " + type);
 				}
 			}
 
 			@Override
 			public void visitMultiANewArrayInsn(String descriptor, int numDimensions) {
 				if (mentionsReducedIndexType(descriptor)) {
-					hit("R1", this.site, "MULTIANEWARRAY " + descriptor);
+					bodyHit("R1", "MULTIANEWARRAY " + descriptor);
 				}
 			}
 
 			@Override
 			public void visitLdcInsn(Object value) {
 				if (value instanceof Type type && mentionsReducedIndexType(type.getDescriptor())) {
-					hit("R1", this.site, "LDC " + type.getDescriptor());
+					bodyHit("R1", "LDC " + type.getDescriptor());
 				}
 			}
 
 			@Override
 			public void visitFieldInsn(int opcode, String owner, String name, String descriptor) {
 				if (isReducedIndexType(owner) || mentionsReducedIndexType(descriptor)) {
-					hit("R1", this.site, "field " + owner + "." + name + " " + descriptor);
+					bodyHit("R1", "field " + owner + "." + name + " " + descriptor);
 				}
 				if (
 					opcode == Opcodes.GETSTATIC && "io/evitadb/api/index/EntityIndexType".equals(owner) &&
 						"REFERENCED_ENTITY".equals(name)
 				) {
-					hit("R2", this.site, "GETSTATIC EntityIndexType.REFERENCED_ENTITY");
+					bodyHit("R2", "GETSTATIC EntityIndexType.REFERENCED_ENTITY");
 				}
 			}
 
@@ -612,21 +842,22 @@ class ReferencePartitionAccessGuardTest {
 				String name, String descriptor, Handle bootstrapMethodHandle, Object... bootstrapMethodArguments
 			) {
 				if (mentionsReducedIndexType(descriptor)) {
-					hit("R1", this.site, "indy descriptor " + descriptor);
+					bodyHit("R1", "indy descriptor " + descriptor);
 				}
 				for (Object argument : bootstrapMethodArguments) {
 					if (argument instanceof Handle handle) {
+						this.classVisitor.lambdaCreated(handle, this.methodName, this.methodDescriptor);
 						if (isReducedIndexType(handle.getOwner()) || mentionsReducedIndexType(handle.getDesc())) {
-							hit("R1", this.site, "indy handle " + handle.getOwner() + "." + handle.getName());
+							bodyHit("R1", "indy handle " + handle.getOwner() + "." + handle.getName());
 						}
 						checkMethod(handle.getOwner(), handle.getName(), handle.getDesc(), "indy handle");
 					} else if (argument instanceof Type type && mentionsReducedIndexType(type.getDescriptor())) {
-						hit("R1", this.site, "indy type " + type.getDescriptor());
+						bodyHit("R1", "indy type " + type.getDescriptor());
 					} else if (
 						"REFERENCED_ENTITY".equals(argument) &&
 							"java/lang/runtime/SwitchBootstraps".equals(bootstrapMethodHandle.getOwner())
 					) {
-						hit("R2", this.site, "enum switch label REFERENCED_ENTITY");
+						bodyHit("R2", "enum switch label REFERENCED_ENTITY");
 					}
 				}
 			}
@@ -636,7 +867,7 @@ class ReferencePartitionAccessGuardTest {
 				String name, String descriptor, String signature, Label start, Label end, int index
 			) {
 				if (mentionsReducedIndexType(descriptor) || mentionsReducedIndexType(signature)) {
-					hit("R1", this.site, "local " + name + " " + (signature == null ? descriptor : signature));
+					bodyHit("R1", "local " + name + " " + (signature == null ? descriptor : signature));
 				}
 			}
 
@@ -655,17 +886,17 @@ class ReferencePartitionAccessGuardTest {
 				@Nonnull String channel
 			) {
 				if (isReducedIndexType(owner) || mentionsReducedIndexType(descriptor)) {
-					hit("R1", this.site, channel + " " + owner + "." + name + descriptor);
+					bodyHit("R1", channel + " " + owner + "." + name + descriptor);
 				}
 				if (
 					RAW_PRIMARY_KEY_ACCESSORS.contains(name) ||
 						("getIndexForModification".equals(name) && descriptor.startsWith("(I")) ||
 						("getIndexIfExists".equals(name) && descriptor.startsWith(DELEGATED_RAW_ACCESSOR_PARAMETERS))
 				) {
-					hit("R3", this.site, channel + " " + owner + "." + name + descriptor);
+					bodyHit("R3", channel + " " + owner + "." + name + descriptor);
 				}
 				if (ENUMERATIONS.contains(name)) {
-					hit("R4", this.site, channel + " " + owner + "." + name);
+					bodyHit("R4", channel + " " + owner + "." + name);
 				}
 			}
 		}

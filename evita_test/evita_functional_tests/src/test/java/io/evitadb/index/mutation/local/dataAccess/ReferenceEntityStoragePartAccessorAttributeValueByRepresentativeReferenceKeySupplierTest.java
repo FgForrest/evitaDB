@@ -644,6 +644,12 @@ class ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceK
 			return 0;
 		}
 
+		@Nonnull
+		@Override
+		public WritableEntityStorageContainerAccessor getAccessorOfOtherEntity(int entityPrimaryKey) {
+			throw new UnsupportedOperationException("The test accessor serves one entity only.");
+		}
+
 		@Override
 		public boolean isEntityRemovedEntirely() {
 			throw new UnsupportedOperationException();

@@ -24,6 +24,7 @@
 
 package io.evitadb.index.virtual;
 
+import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.PromotionRehearsal;
 import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.TransitionProbe;
 import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.TransitionStage;
 import io.evitadb.dataType.Scope;
@@ -34,6 +35,7 @@ import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Records the transitions of the partitions of one engine as its {@link TransitionProbe}, keeping only what the
@@ -58,6 +60,12 @@ import java.util.Map;
  *
  * The recorder can be armed to throw {@link InjectedTransitionFailure} right after an engine passes a given transition
  * of a given entity type - once, inside the mutation passing it, which fails that mutation at exactly that point.
+ *
+ * # Promotion points
+ *
+ * A single-owner partition gaining its second owner is not a transition the histories record. The recorder hands it
+ * to an inspector a test installs (see {@link #setPromotionInspector(Consumer)}), if any, on the thread running the
+ * mutation - the session's or the trunk replay's alike.
  *
  * Every method is synchronized: the probe is called from the threads the engine runs its mutations on - the session's,
  * the trunk replay's, the catalog load's - while the test reads it from its own.
@@ -89,6 +97,10 @@ final class TransitionHistory implements TransitionProbe {
 	 * How many failures the recorder has injected.
 	 */
 	private int injectedFailures;
+	/**
+	 * The inspector every promotion point is handed to; `null` when none is installed.
+	 */
+	@Nullable private Consumer<PromotionRehearsal> promotionInspector;
 
 	/**
 	 * One transition of one partition.
@@ -171,6 +183,27 @@ final class TransitionHistory implements TransitionProbe {
 			case ROOT_ROLLED_BACK -> this.rolledBack.addAll(transitions);
 			default -> throw new IllegalStateException("Unexpected outcome of a root mutation: " + stage);
 		}
+	}
+
+	@Override
+	public void promotionPointPassed(@Nonnull PromotionRehearsal rehearsal, @Nonnull Object rootMutation) {
+		final Consumer<PromotionRehearsal> inspector;
+		synchronized (this) {
+			inspector = this.promotionInspector;
+		}
+		// run outside the lock - the inspector does as much work as a mutation, on the mutation's thread
+		if (inspector != null) {
+			inspector.accept(rehearsal);
+		}
+	}
+
+	/**
+	 * Installs the inspector every later promotion point is handed to, or removes it.
+	 *
+	 * @param inspector the inspector, `null` to remove it
+	 */
+	synchronized void setPromotionInspector(@Nullable Consumer<PromotionRehearsal> inspector) {
+		this.promotionInspector = inspector;
 	}
 
 	/**

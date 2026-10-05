@@ -23,7 +23,7 @@
 
 package io.evitadb.index.mutation.storagePart;
 
-import io.evitadb.spi.store.catalog.persistence.accessor.EntityStoragePartAccessor;
+import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -52,7 +52,10 @@ public interface InFlightEntityAccessorLookup {
 	/**
 	 * Returns the accessor of the executor mutating the given entity within the current root mutation. The accessor
 	 * owns the entity, so asking it for a part of exactly this entity type and primary key answers from its own
-	 * applied (cached) state and falls back to the data store reader only for parts it has not touched yet.
+	 * applied (cached) state and falls back to the data store reader only for parts it has not touched yet. It is
+	 * returned as the executor's writable accessor because that is the only view knowing the entity's pending locale
+	 * changes - see {@link WritableEntityStorageContainerAccessor#getAccessorOfOtherEntity(int)} - and a caller must
+	 * not change the entity through it.
 	 *
 	 * @param entityType       the entity collection name
 	 * @param entityPrimaryKey the primary key of the entity
@@ -60,6 +63,6 @@ public interface InFlightEntityAccessorLookup {
 	 *         entity
 	 */
 	@Nullable
-	EntityStoragePartAccessor findInFlightAccessor(@Nonnull String entityType, int entityPrimaryKey);
+	WritableEntityStorageContainerAccessor findInFlightAccessor(@Nonnull String entityType, int entityPrimaryKey);
 
 }

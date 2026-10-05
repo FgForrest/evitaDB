@@ -114,11 +114,11 @@ class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 	/**
 	 * Filterable and sortable - the partition's sort index is a view over its filter index.
 	 */
-	private static final String ATTRIBUTE_ORDER = "order";
+	static final String ATTRIBUTE_ORDER = "order";
 	/**
 	 * Sortable only, scaled to two decimal places in the sort index.
 	 */
-	private static final String ATTRIBUTE_PRICE = "price";
+	static final String ATTRIBUTE_PRICE = "price";
 	private static final String ATTRIBUTE_VALID_FROM = "validFrom";
 	/**
 	 * Filterable and sortable.
@@ -128,13 +128,13 @@ class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 	/**
 	 * Localized.
 	 */
-	private static final String ATTRIBUTE_LABEL = "label";
+	static final String ATTRIBUTE_LABEL = "label";
 	private static final String ATTRIBUTE_LANGUAGE = "language";
 	private static final String ATTRIBUTE_CURRENCY = "currency";
 	/**
 	 * Sortable, two indexed decimal places, written at an intrinsic scale of one.
 	 */
-	private static final String ATTRIBUTE_SPAN = "span";
+	static final String ATTRIBUTE_SPAN = "span";
 	/**
 	 * Filterable only - never in a sort index, never mirrored.
 	 */
@@ -146,32 +146,32 @@ class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 	/**
 	 * A `Predecessor` - the reflected reference inherits it as a `ReferencedEntityPredecessor`.
 	 */
-	private static final String ATTRIBUTE_PRODUCT_ORDER = "productOrder";
+	static final String ATTRIBUTE_PRODUCT_ORDER = "productOrder";
 	/**
 	 * A `ReferencedEntityPredecessor` - the reflected reference inherits it as a `Predecessor`.
 	 */
-	private static final String ATTRIBUTE_CATEGORY_ORDER = "categoryOrder";
+	static final String ATTRIBUTE_CATEGORY_ORDER = "categoryOrder";
 	/**
 	 * A localized compound: the label, then the price descending with nulls first.
 	 */
-	private static final String COMPOUND_LABEL_AND_PRICE = "labelAndPrice";
+	static final String COMPOUND_LABEL_AND_PRICE = "labelAndPrice";
 	/**
 	 * A compound of the types a sort index wraps or rescales: the language, the currency descending with nulls first,
 	 * the validity, the span and the exact price.
 	 */
-	private static final String COMPOUND_TYPED = "typed";
+	static final String COMPOUND_TYPED = "typed";
 	/**
 	 * The category the first two products share - a partition with two owners and therefore no row.
 	 */
-	private static final int SHARED_CATEGORY = 100;
+	static final int SHARED_CATEGORY = 100;
 	/**
 	 * Categories no product of the fixture references.
 	 */
-	private static final int FREE_CATEGORY = 11;
+	static final int FREE_CATEGORY = 11;
 	/**
 	 * How many products the fixture starts with, each the only owner of the category of its own primary key.
 	 */
-	private static final int PRODUCT_COUNT = 4;
+	static final int PRODUCT_COUNT = 4;
 	/**
 	 * A product the fixture does not create.
 	 */
@@ -179,8 +179,8 @@ class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 	/**
 	 * The schema scale of the price and the span.
 	 */
-	private static final int DECIMAL_PLACES = 2;
-	private static final Locale CZECH = Locale.forLanguageTag("cs");
+	static final int DECIMAL_PLACES = 2;
+	static final Locale CZECH = Locale.forLanguageTag("cs");
 	/**
 	 * A Czech word written precomposed - the decomposed form of {@link #DECOMPOSED_LABEL} is the same string to a sort
 	 * index.
@@ -619,7 +619,7 @@ class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 	 *
 	 * @param session the session to write in
 	 */
-	private static void setUpTypes(@Nonnull EvitaSessionContract session) {
+	static void setUpTypes(@Nonnull EvitaSessionContract session) {
 		session.defineEntitySchema(ENTITY_CATEGORY).updateVia(session);
 		session.defineEntitySchema(ENTITY_PRODUCT)
 			.withLocale(Locale.ENGLISH, CZECH)
@@ -685,7 +685,7 @@ class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 	 *
 	 * @param session the session to write in
 	 */
-	private static void setUpChains(@Nonnull EvitaSessionContract session) {
+	static void setUpChains(@Nonnull EvitaSessionContract session) {
 		session.defineEntitySchema(ENTITY_CATEGORY).updateVia(session);
 		session.defineEntitySchema(ENTITY_PRODUCT)
 			.withReferenceToEntity(
@@ -741,7 +741,7 @@ class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 	 * @param product the product, 1 or 2
 	 * @return the variant
 	 */
-	private static int sharedVariantOf(int product) {
+	static int sharedVariantOf(int product) {
 		return PRODUCT_COUNT + product;
 	}
 
@@ -755,7 +755,7 @@ class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 	 * @return the reference
 	 */
 	@Nonnull
-	private static ReferenceBuilder fillReference(@Nonnull ReferenceBuilder reference, int variant) {
+	static ReferenceBuilder fillReference(@Nonnull ReferenceBuilder reference, int variant) {
 		return reference
 			.setAttribute(ATTRIBUTE_ORDER, variant % 2 + 1)
 			.setAttribute(ATTRIBUTE_PRICE, priceOf(variant))
@@ -848,7 +848,7 @@ class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 	 * @return the span
 	 */
 	@Nonnull
-	private static BigDecimalNumberRange spanOf(int variant) {
+	static BigDecimalNumberRange spanOf(int variant) {
 		return BigDecimalNumberRange.between(
 			new BigDecimal(variant).add(new BigDecimal("0.5")), new BigDecimal(variant).add(new BigDecimal("3.4"))
 		);

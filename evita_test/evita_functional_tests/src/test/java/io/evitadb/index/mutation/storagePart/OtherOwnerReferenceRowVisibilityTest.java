@@ -47,10 +47,12 @@ import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.spi.store.catalog.persistence.EntitySchemaContext;
 import io.evitadb.spi.store.catalog.persistence.accessor.EntityStoragePartAccessor;
+import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AttributesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
@@ -89,6 +91,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -499,6 +502,74 @@ class OtherOwnerReferenceRowVisibilityTest implements EvitaTestSupport {
 		}
 
 		/**
+		 * The accessor an executor hands out for another entity of its own type - the one through which a partition
+		 * gaining its second owner reads its first owner: the executor itself for its own entity, the other entity's
+		 * in-flight executor, with its pending locale changes, when the root mutation mutates that entity too, and
+		 * otherwise a read-only view reading through the executor, with no pending locale change, no removal and no
+		 * price identifier of its own.
+		 *
+		 * @param state catalog state the scenario runs in
+		 */
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("hands out the accessor of another entity by whether the root mutation mutates it")
+		void shouldHandOutAccessorOfOtherEntityByWhetherRootMutationMutatesIt(@Nonnull CatalogState state) {
+			prepare(state);
+
+			OtherOwnerReferenceRowVisibilityTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				(Consumer<EvitaSessionContract>) session -> {
+					final RootMutation rootMutation = new RootMutation(catalog());
+					final ContainerizedLocalMutationExecutor secondOwner =
+						openMutationOfSecondOwner(session, rootMutation);
+					assertSame(
+						secondOwner, secondOwner.getAccessorOfOtherEntity(SECOND_OWNER_PK),
+						"The executor must answer for its own entity itself"
+					);
+
+					final WritableEntityStorageContainerAccessor outside =
+						secondOwner.getAccessorOfOtherEntity(FIRST_OWNER_PK);
+					assertAll(
+						() -> assertEquals(
+							COMMITTED_PRIORITY,
+							priorityOf(outside.getReferencesStoragePart(ENTITY_PRODUCT, FIRST_OWNER_PK)),
+							"The view must read the committed row of an entity the root mutation does not mutate"
+						),
+						() -> assertEquals(0, outside.getAddedLocales().length),
+						() -> assertEquals(0, outside.getRemovedLocales().length),
+						() -> assertFalse(outside.isEntityRemovedEntirely()),
+						() -> assertTrue(
+							outside.findExistingInternalId(ENTITY_PRODUCT, FIRST_OWNER_PK, IN_FLIGHT_PRICE).isEmpty()
+						),
+						() -> assertThrows(
+							GenericEvitaInternalError.class,
+							() -> outside.registerAssignedPriceId(FIRST_OWNER_PK, IN_FLIGHT_PRICE, 1)
+						),
+						() -> assertSame(secondOwner, outside.getAccessorOfOtherEntity(SECOND_OWNER_PK))
+					);
+
+					final EntityMutation firstOwnerMutation = session
+						.getEntity(ENTITY_PRODUCT, FIRST_OWNER_PK, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTR_NAME, Locale.ENGLISH, IN_FLIGHT_VALUE)
+						.toMutation()
+						.orElseThrow();
+					final ContainerizedLocalMutationExecutor firstOwner =
+						rootMutation.openNested(ENTITY_PRODUCT, FIRST_OWNER_PK);
+					applyLocalPhase(firstOwner, firstOwnerMutation.getLocalMutations());
+					final WritableEntityStorageContainerAccessor inFlight =
+						secondOwner.getAccessorOfOtherEntity(FIRST_OWNER_PK);
+					assertSame(firstOwner, inFlight, "The in-flight executor of the other entity must be handed out");
+					assertEquals(
+						Locale.ENGLISH, inFlight.getAddedLocales()[0].locale(),
+						"The other entity's pending locale must be known through its accessor"
+					);
+				}
+			);
+		}
+
+		/**
 		 * Asserts that `reader` reads each storage part of the second owner product in the state `owner` has applied,
 		 * and that it gets the very instances `owner` holds.
 		 *
@@ -629,7 +700,10 @@ class OtherOwnerReferenceRowVisibilityTest implements EvitaTestSupport {
 
 		@Nullable
 		@Override
-		public EntityStoragePartAccessor findInFlightAccessor(@Nonnull String entityType, int entityPrimaryKey) {
+		public WritableEntityStorageContainerAccessor findInFlightAccessor(
+			@Nonnull String entityType,
+			int entityPrimaryKey
+		) {
 			return this.executors.get(key(entityType, entityPrimaryKey));
 		}
 

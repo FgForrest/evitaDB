@@ -522,6 +522,54 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
+	 * Creates an executor that writes as another entity of this collection - another owner of a reference partition -
+	 * into the indexes it is handed, and into nothing else. It reads the other entity's data as the root mutation sees
+	 * it (see {@link WritableEntityStorageContainerAccessor#getAccessorOfOtherEntity(int)}), so the indexes receive
+	 * that entity's state and never this one's, and it is isolated from everything the entity mutation running it
+	 * keeps:
+	 *
+	 * - it acquires no index - every entity or catalog index acquisition fails, so a write that would reach beyond the
+	 *   indexes handed to it surfaces instead of joining this mutation's indexes, their persistence or their sweep;
+	 * - it counts no usage, assigns no price identifier and resolves no full entity;
+	 * - it keeps its own bookkeeping, which nothing applies or commits.
+	 *
+	 * It is the executor that writes a partition's existing owner into the partition when the partition is built
+	 * anew (see {@link ReferenceIndexMutator#populatePartitionWithOwner}).
+	 *
+	 * @param ownerPrimaryKey the primary key of the other entity
+	 * @return the executor writing as the other entity
+	 */
+	@Nonnull
+	EntityIndexLocalMutationExecutor createExecutorOfOtherOwner(int ownerPrimaryKey) {
+		return new EntityIndexLocalMutationExecutor(
+			this.containerAccessor.getAccessorOfOtherEntity(ownerPrimaryKey),
+			ownerPrimaryKey,
+			new RefusingIndexMaintainer<>(ownerPrimaryKey),
+			new RefusingIndexMaintainer<>(ownerPrimaryKey),
+			this.schemaAccessor,
+			() -> {
+				throw new GenericEvitaInternalError(
+					"The executor writing as entity " + ownerPrimaryKey + " must not assign a price identifier!"
+				);
+			},
+			() -> {
+				throw new GenericEvitaInternalError(
+					"The executor writing as entity " + ownerPrimaryKey + " must not resolve the full entity!"
+				);
+			},
+			this.triggerRegistrySupplier,
+			this.localFacetTriggerSupplier,
+			this.crossEntitySchemaResolver,
+			this.entityTypeClassifierResolver,
+			this.usageRegistry,
+			this.catalogUsageRegistry,
+			false,
+			// TODO JNO - remove at the end of #1615
+			MutationHandle.OFF
+		);
+	}
+
+	/**
 	 * Returns the scope of the current entity. If the scope has already been retrieved and memoized, it returns the
 	 * memoized value. Otherwise, it fetches the scope from the main entity storage part, memoizes it, and returns it.
 	 *
@@ -4234,6 +4282,75 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nullable Capability capability,
 		@Nonnull Scope scope
 	) {
+	}
+
+	/**
+	 * The index accessor of an executor writing as another owner of a partition (see
+	 * {@link #createExecutorOfOtherOwner(int)}): it refuses every acquisition and every lookup, so an index write that
+	 * reaches beyond the indexes the executor was handed fails loudly instead of touching the indexes of the running
+	 * mutation.
+	 *
+	 * @param <K> the type of the index key
+	 * @param <T> the type of the index
+	 */
+	private static final class RefusingIndexMaintainer<K extends IndexKey, T extends Index<K>>
+		implements IndexMaintainer<K, T> {
+		/**
+		 * The primary key of the entity the executor writes as, for the failure message.
+		 */
+		private final int ownerPrimaryKey;
+
+		/**
+		 * Creates the accessor.
+		 *
+		 * @param ownerPrimaryKey the primary key of the entity the executor writes as
+		 */
+		RefusingIndexMaintainer(int ownerPrimaryKey) {
+			this.ownerPrimaryKey = ownerPrimaryKey;
+		}
+
+		@Nonnull
+		@Override
+		public T getOrCreateIndex(@Nonnull K entityIndexKey) {
+			throw refusal(entityIndexKey);
+		}
+
+		@Nonnull
+		@Override
+		public T getOrCreateIndexByPrimaryKey(int indexPrimaryKey) {
+			throw refusal("primary key " + indexPrimaryKey);
+		}
+
+		@Nullable
+		@Override
+		public T getIndexIfExists(@Nonnull K entityIndexKey) {
+			throw refusal(entityIndexKey);
+		}
+
+		@Nullable
+		@Override
+		public T getIndexByPrimaryKeyIfExists(int indexPrimaryKey) {
+			throw refusal("primary key " + indexPrimaryKey);
+		}
+
+		@Override
+		public void removeIndex(@Nonnull K entityIndexKey) {
+			throw refusal(entityIndexKey);
+		}
+
+		/**
+		 * Creates the failure of a refused access.
+		 *
+		 * @param index the index asked for
+		 * @return the failure
+		 */
+		@Nonnull
+		private GenericEvitaInternalError refusal(@Nonnull Object index) {
+			return new GenericEvitaInternalError(
+				"The executor writing as entity " + this.ownerPrimaryKey + " into the indexes it was handed must " +
+					"not reach the index `" + index + "`!"
+			);
+		}
 	}
 
 }

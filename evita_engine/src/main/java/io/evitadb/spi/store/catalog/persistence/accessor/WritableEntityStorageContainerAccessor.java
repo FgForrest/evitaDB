@@ -157,6 +157,23 @@ public interface WritableEntityStorageContainerAccessor extends EntityStoragePar
 	int getLocalesIdentityHash();
 
 	/**
+	 * Returns the accessor of another entity of the same entity type, reading its storage parts as the current root
+	 * entity mutation sees them. When the root mutation mutates that entity too, the accessor is the one of the
+	 * entity's own executor: it answers from what the root mutation has applied to the entity so far and reports the
+	 * entity's pending locale changes. Otherwise it reads the entity as this accessor reads any other entity, and it
+	 * has no pending locale change, no price identifier of its own and no removal to report.
+	 *
+	 * It exists for index writes made on behalf of another entity than the mutated one - the data of another owner of a
+	 * reference partition written into that partition - which must read that owner's state, never the mutated
+	 * entity's. The accessor must not be used to change the entity.
+	 *
+	 * @param entityPrimaryKey the primary key of the other entity
+	 * @return the accessor of the other entity
+	 */
+	@Nonnull
+	WritableEntityStorageContainerAccessor getAccessorOfOtherEntity(int entityPrimaryKey);
+
+	/**
 	 * Pairs a locale with the set of scopes in which a change to that locale occurred within the current mutation
 	 * session. A single locale may appear in multiple scopes simultaneously — for example when an attribute mutation
 	 * both adds a localized attribute (implying {@link LocaleScope#ATTRIBUTE}) and is the first locale-carrying

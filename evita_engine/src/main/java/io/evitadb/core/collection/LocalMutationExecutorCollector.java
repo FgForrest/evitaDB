@@ -66,7 +66,7 @@ import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService.EntityWithFetchCount;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
-import io.evitadb.spi.store.catalog.persistence.accessor.EntityStoragePartAccessor;
+import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
@@ -710,7 +710,7 @@ class LocalMutationExecutorCollector {
 	 *         finished
 	 */
 	@Nullable
-	EntityStoragePartAccessor findInFlightAccessor(@Nonnull String entityType, int entityPrimaryKey) {
+	WritableEntityStorageContainerAccessor findInFlightAccessor(@Nonnull String entityType, int entityPrimaryKey) {
 		return this.inFlightExecutors == null
 			? null
 			: this.inFlightExecutors.get(new InFlightEntityKey(entityType, entityPrimaryKey));

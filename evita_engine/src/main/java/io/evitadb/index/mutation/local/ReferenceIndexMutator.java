@@ -62,6 +62,7 @@ import io.evitadb.index.HistogramIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
@@ -75,7 +76,6 @@ import io.evitadb.index.mutation.local.dataAccess.ExistingDataSupplierFactory;
 import io.evitadb.index.mutation.local.dataAccess.ExistingPriceSupplier;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.index.result.CardinalityChange;
-import io.evitadb.spi.store.catalog.persistence.accessor.EntityStoragePartAccessor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleScope;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleWithScope;
@@ -954,6 +954,8 @@ public interface ReferenceIndexMutator {
 				TransitionStage.ENTERED, referenceSchema.getName(), scope, partition.getPrimaryKey()
 			);
 		} else if (ownerCount == 2) {
+			// TODO JNO - remove at the end of #1615
+			mutation.promotionPointPassed(() -> new PartitionPromotionRehearsal(executor, referenceSchema, partition));
 			// TODO JNO - remove at the end of #1615 (the condition, its body stays)
 			if (mutation.maintained()) {
 				VirtualReferencePartitionWriter.partitionShared(
@@ -2798,10 +2800,38 @@ public interface ReferenceIndexMutator {
 		}
 
 		// then apply to reference-level attributes and sortable compounds
+		applyReferenceSortableAttributeCompoundSuite(
+			executor, referenceSchema, targetIndex, rrk, locale, existingDataSupplierFactory, primaryOp
+		);
+	}
+
+	/**
+	 * Applies `primaryOp` to the sortable attribute compounds of the reference itself - the reference-level half of
+	 * {@link #applySortableAttributeCompoundSuite}, reading the values of the reference the representative reference
+	 * key identifies.
+	 *
+	 * @param executor                    the mutation executor
+	 * @param referenceSchema             the schema describing the reference
+	 * @param targetIndex                 the index the compounds are written into or removed from
+	 * @param representativeReferenceKey  the reference whose attribute values build the compounds, with the
+	 *                                    representative attribute values of the index it belongs to
+	 * @param locale                      if non-null, restrict the operation to compounds for this locale
+	 * @param existingDataSupplierFactory factory for reading existing attribute values from storage
+	 * @param primaryOp                   the insertion or the removal of the compounds
+	 */
+	private static void applyReferenceSortableAttributeCompoundSuite(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull EntityIndex targetIndex,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey,
+		@Nullable Locale locale,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
+		@Nonnull SortableCompoundOperation primaryOp
+	) {
 		final ReferenceSchemaAttributeAndCompoundSchemaProvider referenceSchemaAttributeProvider =
-			new ReferenceSchemaAttributeAndCompoundSchemaProvider(entitySchema, referenceSchema);
+			new ReferenceSchemaAttributeAndCompoundSchemaProvider(executor.getEntitySchema(), referenceSchema);
 		final ExistingAttributeValueSupplier referenceAttributeValueSupplier =
-			existingDataSupplierFactory.getNormalizedReferenceAttributeValueSupplier(rrk);
+			existingDataSupplierFactory.getNormalizedReferenceAttributeValueSupplier(representativeReferenceKey);
 
 		primaryOp.apply(
 			executor, referenceSchema, targetIndex, locale, referenceSchemaAttributeProvider,
@@ -2845,6 +2875,73 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
+	 * Writes one owner of a partition into an empty partition of the same key, exactly as the partition-local half of
+	 * the owner's entering a partition writes it: the owner's primary key, then every piece of the owner's existing
+	 * data the partition indexes (see {@link #indexAllExistingData}). Nothing outside the partition is written - not
+	 * the referenced-type index advertising the partition, not the facets of the global index, not the membership of
+	 * the owner's reduced indexes, not the registry of single-owner partitions - so the partition receives the owner's
+	 * representation and nothing else learns that it did.
+	 *
+	 * This is the write a partition needs when it is built anew for an owner that is already counted everywhere else -
+	 * a single-owner partition of a reference whose partitions may be virtual, materialized when it gains its second
+	 * owner. Only such partitions are accepted.
+	 *
+	 * The executor must write as the owner and acquire no index (see
+	 * {@link EntityIndexLocalMutationExecutor#createExecutorOfOtherOwner(int)}), so that the owner's data is read from
+	 * the owner's own state - its staged state when the root mutation mutates it too - and so that a write reaching
+	 * beyond the partition fails rather than lands.
+	 *
+	 * The partition is written from the owner's body as it is now, the locales the root mutation has added to the
+	 * owner or removed from it included. A partition the owner entered earlier learns those locale changes only when
+	 * the owner's own mutation applies its changes, so a caller writing a partition while the owner is still being
+	 * mutated has to keep that finalization from removing from the partition a locale it never received - as the
+	 * finalization already does for the partitions the owner's mutation itself creates.
+	 *
+	 * @param ownerExecutor   the executor writing as the owner
+	 * @param partitionIndex  the empty partition to write the owner into
+	 * @param referenceSchema the reference the partition belongs to, as this collection declares it
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the index is not a partition of the reference, when
+	 *                                                         the reference is not one whose partitions may be
+	 *                                                         virtual in the partition's scope or when the partition
+	 *                                                         already has the owner
+	 */
+	static void populatePartitionWithOwner(
+		@Nonnull EntityIndexLocalMutationExecutor ownerExecutor,
+		@Nonnull EntityIndex partitionIndex,
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		final ReferencePartition partition = ReferencePartitions.asPartition(partitionIndex);
+		isPremiseValid(
+			partition != null &&
+				referenceSchema.getName().equals(partition.getRepresentativeReferenceKey().referenceName()) &&
+				VirtualReferencePartitionWriter.isShadowed(referenceSchema, partition.getIndexKey().scope()),
+			() -> "Index `" + partitionIndex.getIndexKey() + "` is not a partition of `" + referenceSchema.getName() +
+				"` that may be virtual!"
+		);
+		final int ownerPrimaryKey = ownerExecutor.getOwnerPrimaryKey();
+		isPremiseValid(
+			partitionIndex.insertPrimaryKeyIfMissing(ownerPrimaryKey),
+			() -> "Partition " + partitionIndex.getPrimaryKey() + " already has the owner " + ownerPrimaryKey + "!"
+		);
+		final RepresentativeReferenceKey representativeReferenceKey = partition.getRepresentativeReferenceKey();
+		final ExistingDataSupplierFactory existingDataSupplierFactory =
+			ownerExecutor.getStoragePartExistingDataFactory();
+		// the write set of `indexAllExistingData` for a partition of a reference indexed for filtering only: its
+		// facets, prices and entity attributes are indexed only in partitions of references indexed for partitioning
+		indexReferenceAttributes(
+			ownerExecutor, referenceSchema, partitionIndex, representativeReferenceKey, existingDataSupplierFactory
+		);
+		applyReferenceSortableAttributeCompoundSuite(
+			ownerExecutor, referenceSchema, partitionIndex, representativeReferenceKey, null,
+			existingDataSupplierFactory, AttributeIndexMutator::insertInitialSuiteOfSortableAttributeCompounds
+		);
+		indexAllLocales(
+			ownerExecutor, ownerExecutor.getEntitySchema(), partitionIndex, representativeReferenceKey.referenceKey(),
+			ownerPrimaryKey, existingDataSupplierFactory
+		);
+	}
+
+	/**
 	 * Populates a newly created reduced entity index with all existing indexable data for the owning entity. Called
 	 * when an entity's primary key is inserted into the reduced index for the first time — i.e. the first time a
 	 * reference to this particular referenced entity is added to the owning entity.
@@ -2875,8 +2972,6 @@ public interface ReferenceIndexMutator {
 		boolean entityFirstIndexedInTargetIndex,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
-		final String entityType = entitySchema.getName();
-
 		// per-reference fanout: facets are keyed by (referenceKey, entityPrimaryKey) and the
 		// idempotency check in `indexAllFacets` ensures duplicates do not pile up when multiple
 		// references on the same entity resolve to the same group reduced index
@@ -2898,25 +2993,46 @@ public interface ReferenceIndexMutator {
 		// either accumulate the same record once (idempotent insert) and then collapse to zero on
 		// the first remove leaving subsequent references with a corrupt view
 		if (entityFirstIndexedInTargetIndex) {
-			final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
-			final EntityBodyStoragePart entityCnt = containerAccessor.getEntityStoragePart(
-				entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
-
-			for (Locale locale : entityCnt.getLocales()) {
-				executor.upsertEntityLocaleInTargetIndex(
-					locale, entitySchema, targetIndex, entityPrimaryKey
-				);
-			}
-			for (Locale locale : entityCnt.getAttributeLocales()) {
-				executor.upsertEntityAttributeLocaleInTargetIndex(
-					locale, entitySchema, targetIndex, referenceKey, existingDataSupplierFactory
-				);
-			}
+			indexAllLocales(
+				executor, entitySchema, targetIndex, referenceKey, entityPrimaryKey, existingDataSupplierFactory
+			);
 
 			indexAllPrices(
 				executor, referenceSchema, targetIndex, existingDataSupplierFactory.getPriceSupplier());
 			indexAllEntityLevelAttributes(
 				executor, referenceSchema, targetIndex, referenceKey, existingDataSupplierFactory
+			);
+		}
+	}
+
+	/**
+	 * Indexes the owning entity's locales into `targetIndex`: the entity's language for every locale of its body, and
+	 * the sortable attribute compounds of every locale its attributes have.
+	 *
+	 * @param executor                    the mutation executor
+	 * @param entitySchema                the entity schema of the owning entity
+	 * @param targetIndex                 the index the locales are written into
+	 * @param referenceKey                the reference key the index belongs to
+	 * @param entityPrimaryKey            the primary key of the owning entity
+	 * @param existingDataSupplierFactory factory that supplies the entity's current attributes
+	 */
+	private static void indexAllLocales(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull EntitySchema entitySchema,
+		@Nonnull EntityIndex targetIndex,
+		@Nonnull ReferenceKey referenceKey,
+		int entityPrimaryKey,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
+	) {
+		final EntityBodyStoragePart entityCnt = executor.getContainerAccessor().getEntityStoragePart(
+			entitySchema.getName(), entityPrimaryKey, EntityExistence.MUST_EXIST
+		);
+		for (Locale locale : entityCnt.getLocales()) {
+			executor.upsertEntityLocaleInTargetIndex(locale, entitySchema, targetIndex, entityPrimaryKey);
+		}
+		for (Locale locale : entityCnt.getAttributeLocales()) {
+			executor.upsertEntityAttributeLocaleInTargetIndex(
+				locale, entitySchema, targetIndex, referenceKey, existingDataSupplierFactory
 			);
 		}
 	}
@@ -3083,28 +3199,55 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
-		final EntitySchema entitySchema = executor.getEntitySchema();
 		final RepresentativeReferenceKey indexRrk = extractRepresentativeReferenceKey(targetIndex);
 		final RepresentativeReferenceKey rrk = new RepresentativeReferenceKey(
 			referenceKey, indexRrk.representativeAttributeValues()
 		);
-		final ReferenceSchemaAttributeAndCompoundSchemaProvider referenceSchemaAttributeProvider =
-			new ReferenceSchemaAttributeAndCompoundSchemaProvider(
-				entitySchema, referenceSchema
-			);
 
 		// for grouped references (RGEI), key the reference-attribute FilterIndex records on the
 		// referenced entity PK instead of the owner PK — this is what enables REFERENCE_ATTRIBUTE
 		// histogram boundary resolution on grouped references (matches the RTEI scheme established
 		// in `referenceInsertPerComponent` where `executeWithDifferentPrimaryKeyToIndex` swaps the
 		// recordId to the reduced-index PK before inserting into the RTEI attribute FilterIndex)
-		final Runnable indexReferenceAttributes = () -> existingDataSupplierFactory
-			.getNormalizedReferenceAttributeValueSupplier(rrk)
+		final Runnable indexReferenceAttributes = () -> indexReferenceAttributes(
+			executor, referenceSchema, targetIndex, rrk, existingDataSupplierFactory
+		);
+		if (targetIndex instanceof ReducedGroupEntityIndex) {
+			executor.executeWithDifferentPrimaryKeyToIndex(
+				(indexType, target) -> rrk.primaryKey(), indexReferenceAttributes
+			);
+		} else {
+			indexReferenceAttributes.run();
+		}
+	}
+
+	/**
+	 * Indexes the attributes of the reference the representative reference key identifies into `targetIndex`, each
+	 * keyed by the primary key the attribute's type is indexed under (see {@link #executeWithProperPrimaryKey}).
+	 *
+	 * @param executor                    the mutation executor
+	 * @param referenceSchema             the schema of the reference
+	 * @param targetIndex                 the index the attributes are written into
+	 * @param representativeReferenceKey  the reference whose attributes are indexed, with the representative attribute
+	 *                                    values of the index it belongs to
+	 * @param existingDataSupplierFactory factory that supplies the entity's current reference attributes
+	 */
+	private static void indexReferenceAttributes(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull EntityIndex targetIndex,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
+	) {
+		final ReferenceSchemaAttributeAndCompoundSchemaProvider referenceSchemaAttributeProvider =
+			new ReferenceSchemaAttributeAndCompoundSchemaProvider(executor.getEntitySchema(), referenceSchema);
+		existingDataSupplierFactory
+			.getNormalizedReferenceAttributeValueSupplier(representativeReferenceKey)
 			.getAttributeValues()
 			.forEach(attribute ->
 				         executeWithProperPrimaryKey(
 					         executor,
-					         rrk.primaryKey(),
+					         representativeReferenceKey.primaryKey(),
 					         attribute.key().attributeName(),
 					         referenceSchemaAttributeProvider::getAttributeSchema,
 					         () -> AttributeIndexMutator.executeAttributeUpsert(
@@ -3121,13 +3264,6 @@ public interface ReferenceIndexMutator {
 					         )
 				         )
 			);
-		if (targetIndex instanceof ReducedGroupEntityIndex) {
-			executor.executeWithDifferentPrimaryKeyToIndex(
-				(indexType, target) -> rrk.primaryKey(), indexReferenceAttributes
-			);
-		} else {
-			indexReferenceAttributes.run();
-		}
 	}
 
 	/**

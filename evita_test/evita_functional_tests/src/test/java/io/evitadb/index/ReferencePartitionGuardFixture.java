@@ -298,6 +298,29 @@ final class ReferencePartitionGuardFixture {
 	}
 
 	/**
+	 * One overload of a name - the cast is written in the method itself.
+	 *
+	 * @param index any index
+	 * @return the owners
+	 */
+	@Nonnull
+	static Bitmap overloadShape(@Nonnull Index<?> index) {
+		return ((ReducedEntityIndex) index).getAllPrimaryKeys();
+	}
+
+	/**
+	 * Another overload of the same name - the type test is written in a lambda body, which counts as this overload.
+	 *
+	 * @param index any index
+	 * @param times how many times to test it
+	 * @return the predicate testing it
+	 */
+	@Nonnull
+	static Predicate<Object> overloadShape(@Nonnull Object index, int times) {
+		return candidate -> times > 0 && candidate instanceof ReducedEntityIndex;
+	}
+
+	/**
 	 * A read through the partition handle, which is the sanctioned route - never reported.
 	 *
 	 * @param partition any partition

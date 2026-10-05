@@ -25,12 +25,16 @@
 package io.evitadb.core.catalog;
 
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.EntityIndex;
+import io.evitadb.index.ReferencePartition;
+import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleWithScope;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 // TODO JNO - remove at the end of #1615
 /**
@@ -328,6 +332,96 @@ public final class VirtualReferencePartitionMaintenance {
 			@Nonnull Object rootMutation,
 			boolean trunkReplay
 		);
+
+		/**
+		 * Reports that a single-owner partition of a shadowed reference is gaining its second owner (1 -> 2) - the
+		 * point at which a virtual partition would have to be materialized from its first owner's data - and hands
+		 * over the means to rehearse that materialization. Reported before the partition's row is dropped and before
+		 * the second owner's data is written into the partition, with the switch on or off. A probe that throws fails
+		 * the mutation at this point.
+		 *
+		 * The default does nothing.
+		 *
+		 * @param rehearsal    the partition, its owners and the rehearsal of its materialization, valid only for
+		 *                     the duration of the call
+		 * @param rootMutation the identity of the root entity mutation the transition belongs to
+		 */
+		default void promotionPointPassed(@Nonnull PromotionRehearsal rehearsal, @Nonnull Object rootMutation) {
+			// nothing to observe by default
+		}
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * A single-owner partition of a shadowed reference at the moment it gains its second owner (1 -> 2), and the
+	 * rehearsal of its materialization from its first owner: the first owner written into a partition that no
+	 * collection knows, through an executor writing as the first owner and acquiring no index - what a virtual
+	 * partition gaining its second owner would have to go through to become a real one. The live partition still holds
+	 * the first owner's data and nothing of the second owner's but its membership, so the two can be compared.
+	 *
+	 * Valid only during {@link TransitionProbe#promotionPointPassed}, on the thread running the mutation - inside its
+	 * transaction, if there is one.
+	 */
+	public interface PromotionRehearsal {
+
+		/**
+		 * Returns the entity type owning the reference.
+		 *
+		 * @return the entity type
+		 */
+		@Nonnull
+		String getEntityType();
+
+		/**
+		 * Returns the live partition gaining its second owner.
+		 *
+		 * @return the partition
+		 */
+		@Nonnull
+		ReferencePartition getPartition();
+
+		/**
+		 * Returns the primary key of the partition's first owner, the one the partition holds the data of.
+		 *
+		 * @return the first owner's primary key
+		 */
+		int getOwnerPrimaryKey();
+
+		/**
+		 * Returns the primary key of the owner just added to the partition, whose data is not written yet.
+		 *
+		 * @return the second owner's primary key
+		 */
+		int getJoiningOwnerPrimaryKey();
+
+		/**
+		 * Returns the locales the first owner gained in the running root mutation and the partition learns only when
+		 * the first owner's mutation applies its changes - empty when the root mutation does not mutate the first
+		 * owner.
+		 *
+		 * @return the first owner's pending added locales
+		 */
+		@Nonnull
+		LocaleWithScope[] getOwnerAddedLocales();
+
+		/**
+		 * Returns the locales the first owner lost in the running root mutation and the partition learns only when
+		 * the first owner's mutation applies its changes - empty when the root mutation does not mutate the first
+		 * owner.
+		 *
+		 * @return the first owner's pending removed locales
+		 */
+		@Nonnull
+		LocaleWithScope[] getOwnerRemovedLocales();
+
+		/**
+		 * Writes the first owner into the given partition, as the materialization of a virtual partition would - see
+		 * `ReferenceIndexMutator#populatePartitionWithOwner`. The partition must be empty, of the live partition's
+		 * key, and known to no collection; the caller owns it and releases its transactional memory.
+		 *
+		 * @param partition the index of the empty partition to write the first owner into
+		 */
+		void populate(@Nonnull EntityIndex partition);
 	}
 
 	// TODO JNO - remove at the end of #1615
@@ -375,6 +469,18 @@ public final class VirtualReferencePartitionMaintenance {
 				this.probe.transitionPassed(
 					stage, this.entityType, referenceName, scope, partitionPrimaryKey, this.rootMutation
 				);
+			}
+		}
+
+		/**
+		 * Reports a partition gaining its second owner to the probe, if there is one. The rehearsal is created only
+		 * when there is a probe to hand it to. A probe may throw, which fails the mutation at this point.
+		 *
+		 * @param rehearsal creates the rehearsal of the partition's materialization
+		 */
+		public void promotionPointPassed(@Nonnull Supplier<PromotionRehearsal> rehearsal) {
+			if (this.probe != null && this.rootMutation != null) {
+				this.probe.promotionPointPassed(rehearsal.get(), this.rootMutation);
 			}
 		}
 	}

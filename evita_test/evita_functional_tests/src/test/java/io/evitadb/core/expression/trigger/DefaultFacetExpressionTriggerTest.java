@@ -930,6 +930,12 @@ class DefaultFacetExpressionTriggerTest {
 
 		@Nonnull
 		@Override
+		public WritableEntityStorageContainerAccessor getAccessorOfOtherEntity(int entityPrimaryKey) {
+			throw new UnsupportedOperationException("The test accessor serves one entity only.");
+		}
+
+		@Nonnull
+		@Override
 		public EntityBodyStoragePart getEntityStoragePart(
 			@Nonnull String entityType, int entityPrimaryKey, @Nonnull EntityExistence expects
 		) {
@@ -1062,6 +1068,12 @@ class DefaultFacetExpressionTriggerTest {
 		@Override
 		public int getLocalesIdentityHash() {
 			return 0;
+		}
+
+		@Nonnull
+		@Override
+		public WritableEntityStorageContainerAccessor getAccessorOfOtherEntity(int entityPrimaryKey) {
+			throw new UnsupportedOperationException("The test accessor serves one entity only.");
 		}
 
 		@Nonnull
