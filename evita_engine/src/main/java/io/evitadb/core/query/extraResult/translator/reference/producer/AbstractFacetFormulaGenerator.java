@@ -35,7 +35,6 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaVisitor;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupAndFormula;
@@ -67,7 +66,6 @@ import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -114,10 +112,6 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 */
 	protected final Deque<CompositeObjectArray<Formula>> levelStack = new ArrayDeque<>(16);
 	/**
-	 * Contains true if visitor is currently within the scope of {@link NotFormula}.
-	 */
-	private final Deque<Boolean> insideNotContainer = new ArrayDeque<>(16);
-	/**
 	 * Contains true if visitor is currently within the scope of {@link UserFilterFormula}.
 	 */
 	private final Deque<Boolean> insideUserFilter = new ArrayDeque<>(16);
@@ -143,13 +137,6 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * the {@link FacetIndex}.
 	 */
 	protected Bitmap facetEntityIds;
-	/**
-	 * Contains deferred lambda function that should be applied at the moment {@link NotFormula} processing is finished
-	 * by this visitor. This postponed mutator solves the situation when the facet formula needs to be applied above
-	 * NOT container and not within it. This is related to the internal mechanisms of {@link FutureNotFormula}
-	 * propagation and {@link FacetHavingTranslator} facet formula composition.
-	 */
-	protected BiFunction<Formula, Formula[], Formula> deferredMutator;
 	/**
 	 * Result optimized form of formula.
 	 */
@@ -258,11 +245,6 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 		if (isUserFilter) {
 			this.insideUserFilter.push(true);
 		}
-		// evaluate and set flag that signalizes visitor is within NotFormula scope
-		boolean isNotContainer = formula instanceof NotFormula;
-		if (isNotContainer) {
-			this.insideNotContainer.push(true);
-		}
 		// now iterate and copy children
 		final Formula[] updatedChildren;
 		this.levelStack.push(new CompositeObjectArray<>(Formula.class));
@@ -286,20 +268,6 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 				return;
 			}
 		}
-		// if we're leaving NotFormula scope
-		if (isInsideNotContainer() && isNotContainer) {
-			// reset not container flag
-			this.insideNotContainer.pop();
-			// if the logic instantiated deferred mutator - now it's time to apply it
-			if (this.deferredMutator != null) {
-				storeFormula(
-					this.deferredMutator.apply(formula, updatedChildren)
-				);
-				// if the user filter has been handled skip early - we don't need another storeFormula call
-				return;
-			}
-		}
-
 		// allow descendants to react to current formula
 		if (handleFormula(formula)) {
 			// if it has been handled skip early - we don't need another storeFormula call
@@ -319,13 +287,6 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	}
 
 	/**
-	 * Returns true if currently examined constraint is placed within NOT container (may not be placed directly in it).
-	 */
-	protected boolean isInsideNotContainer() {
-		return !this.insideNotContainer.isEmpty() && this.insideNotContainer.peek();
-	}
-
-	/**
 	 * Returns true if currently examined constraint is placed within user filter container (may not be placed directly in it).
 	 */
 	protected boolean isInsideUserFilter() {
@@ -340,7 +301,10 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	}
 
 	/**
-	 * Method allows to respond to leaving {@link UserFilterFormula} scope.
+	 * Method allows to respond to leaving {@link UserFilterFormula} scope. The facet joins the user filter wherever the
+	 * user filter is placed - also in the subtracted part of a {@link NotFormula} (`not(userFilter(...))`) or in its
+	 * superset part (a negated constraint next to the user filter) - because selecting the facet extends the user
+	 * filter only, and the formula around it then composes the extended user filter the way the result does.
 	 */
 	protected boolean handleUserFilter(@Nonnull Formula formula, @Nonnull Formula[] updatedChildren) {
 		// determine the facet group relation to other groups
@@ -349,70 +313,26 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 		);
 		// create facet group formula
 		final Formula newFormula = createNewFacetGroupFormula();
-		// if we're inside NotFormula
-		if (isInsideNotContainer()) {
-			// and the facet is also negated
-			if (relationType == FacetRelationType.NEGATION) {
-				// we need to defer the mutation to the moment when we leave not container and subtract
-				this.deferredMutator = (laterEncounteredFormula, laterEncounteredChildren) -> {
-					// and we need to create facet conjunction with base formula without user filter
-					final Formula facetConjunction = FormulaFactory.and(
-						newFormula,
-						this.baseFormulaWithoutUserFilter
-					);
-					if (facetConjunction.compute().isEmpty()) {
-						// and if product is empty - return empty formula (no entity matches negation of this facet)
-						return EmptyFormula.INSTANCE;
-					} else {
-						// and return the original negation
-						return laterEncounteredFormula.getCloneWithInnerFormulas(
-							laterEncounteredChildren[0], // subtracted part is untouched
-							FormulaFactory.not(
-								facetConjunction,
-								this.baseFormulaWithoutUserFilter
-							) // but we subtract the conjunction of new formula and base formula instead of superset
-						);
-					}
-				};
-				return false;
-			} else {
-				// we need to defer the mutation to the moment when we leave not container and add the facet formula
-				// to the "positive" (superset) part of the not container
-				this.deferredMutator = (laterEncounteredFormula, laterEncounteredChildren) -> {
-					final Formula replacedNotContainer = laterEncounteredFormula.getCloneWithInnerFormulas(
-						laterEncounteredChildren[0], // subtracted part is untouched
-						newFormula // but we add new facet formula as its superset
-					);
-					// and now combine it all with original superset in and container
-					return FormulaFactory.and(
-						laterEncounteredChildren[1], // original superset
-						replacedNotContainer // altered not container
-					);
-				};
-				return false;
+		final Formula[] alteredChildren = switch (relationType) {
+			case DISJUNCTION, CONJUNCTION -> {
+				// a positive facet joins the facet selection of its reference the way the result composes it
+				final Formula[] childrenWithFacetSelection = addNewFormulaToFacetSelection(
+					newFormula, relationType, updatedChildren
+				);
+				// when the user filter selects no facet of the reference, the facet joins the user filter itself -
+				// the relation between groups applies between the groups of one reference only, and the user filter
+				// combines its constraints, the facet selections of different references included, by conjunction
+				yield childrenWithFacetSelection == null ?
+					ArrayUtils.insertRecordIntoArrayOnIndex(newFormula, updatedChildren, updatedChildren.length) :
+					childrenWithFacetSelection;
 			}
-		} else {
-			final Formula[] alteredChildren = switch (relationType) {
-				case DISJUNCTION, CONJUNCTION -> {
-					// a positive facet joins the facet selection of its reference the way the result composes it
-					final Formula[] childrenWithFacetSelection = addNewFormulaToFacetSelection(
-						newFormula, relationType, updatedChildren
-					);
-					// when the user filter selects no facet of the reference, the facet joins the user filter itself -
-					// the relation between groups applies between the groups of one reference only, and the user filter
-					// combines its constraints, the facet selections of different references included, by conjunction
-					yield childrenWithFacetSelection == null ?
-						ArrayUtils.insertRecordIntoArrayOnIndex(newFormula, updatedChildren, updatedChildren.length) :
-						childrenWithFacetSelection;
-				}
-				case NEGATION -> addNewFormulaAsNegation(newFormula, updatedChildren, this.baseFormulaWithoutUserFilter);
-				case EXCLUSIVITY -> replaceFacetSelection(newFormula, updatedChildren);
-			};
-			// we can immediately alter the current formula adding new facet formula
-			storeFormula(formula.getCloneWithInnerFormulas(alteredChildren));
-			// we've stored the formula - instruct super method to skip it's handling
-			return true;
-		}
+			case NEGATION -> addNewFormulaAsNegation(newFormula, updatedChildren, this.baseFormulaWithoutUserFilter);
+			case EXCLUSIVITY -> replaceFacetSelection(newFormula, updatedChildren);
+		};
+		// we can immediately alter the current formula adding new facet formula
+		storeFormula(formula.getCloneWithInnerFormulas(alteredChildren));
+		// we've stored the formula - instruct super method to skip it's handling
+		return true;
 	}
 
 	/**
@@ -709,7 +629,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 *
 	 * This method sets several internal fields to null or reset values, effectively clearing
 	 * any previously stored state or data within the object. It also clears the internal
-	 * collections for tracking specific contexts (such as `insideNotContainer` and `insideUserFilter`),
+	 * stack tracking the user filter context (`insideUserFilter`),
 	 * and resets identifiers like `facetId` and `facetGroupId`.
 	 *
 	 * This operation is intended to ensure that the object cannot be used in its current form
@@ -723,8 +643,6 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 		this.facetGroupId = null;
 		this.facetEntityIds = null;
 		this.result = null;
-		this.deferredMutator = null;
-		this.insideNotContainer.clear();
 		this.insideUserFilter.clear();
 	}
 

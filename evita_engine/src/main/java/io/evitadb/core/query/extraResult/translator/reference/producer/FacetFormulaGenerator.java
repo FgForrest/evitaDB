@@ -28,6 +28,7 @@ import io.evitadb.api.query.require.FacetRelationType;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupAndFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
@@ -96,9 +97,10 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 			(cacheKey, formula) -> {
 				if (formula == null) {
 					// the count drops the whole user filter - a user filter inside a scope container restricts only
-					// that scope, and so would the facet replacing its contents, so the facet goes to an empty user
-					// filter over the formula without the user filter instead, the same as when there is none
-					final Formula countedFormula = isUserFilterScoped(baseFormula) ?
+					// that scope, and a negated user filter is subtracted, and so would be the facet replacing its
+					// contents, so the facet goes to an empty user filter over the formula without the user filter
+					// instead, the same as when there is none
+					final Formula countedFormula = isUserFilterScoped(baseFormula) || isUserFilterNegated(baseFormula) ?
 						FilterFormulaFacetOptimizeVisitor.optimize(baseFormulaWithoutUserFilter) : baseFormula;
 					return super.generateFormula(
 						countedFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds
@@ -132,6 +134,21 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 		return FormulaFinder.find(formula, ScopeContainerFormula.class, LookUp.SHALLOW)
 			.stream()
 			.anyMatch(it -> !FormulaFinder.find(it, UserFilterFormula.class, LookUp.SHALLOW).isEmpty());
+	}
+
+	/**
+	 * Returns true if a {@link UserFilterFormula} of the formula sits in the subtracted part of a {@link NotFormula} -
+	 * a user filter negated by the user, `not(userFilter(...))` - so the formula subtracts the user filter rather than
+	 * restricting the result to it. A user filter in the superset part of a {@link NotFormula} - next to a negated
+	 * constraint - still restricts the result, the negated constraint is subtracted from it.
+	 *
+	 * @param formula the base formula of the facet computation
+	 * @return true if the user filter of the formula is subtracted
+	 */
+	private static boolean isUserFilterNegated(@Nonnull Formula formula) {
+		return FormulaFinder.find(formula, NotFormula.class, LookUp.DEEP)
+			.stream()
+			.anyMatch(it -> !FormulaFinder.find(it.getSubtractedFormula(), UserFilterFormula.class, LookUp.SHALLOW).isEmpty());
 	}
 
 	@Override

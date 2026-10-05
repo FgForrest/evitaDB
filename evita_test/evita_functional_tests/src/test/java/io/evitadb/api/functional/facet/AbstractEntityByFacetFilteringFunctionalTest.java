@@ -74,6 +74,8 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.ArrayUtils;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import one.edee.oss.pmptt.model.Hierarchy;
 import one.edee.oss.pmptt.model.HierarchyItem;
@@ -2314,16 +2316,81 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 		@Nonnull int[] sourceIds,
 		Evita evita
 	) {
+		assertPredictedResultOfEveryExtendedSelection(relations, sourceIds, UserFilterPlacement.ALONE, evita);
+	}
+
+	/**
+	 * Returns the relation setups of {@link #predictedSelectionRows()}, each with the user filter in either place a
+	 * `not` container puts it into - negated by the user, or next to a negated constraint. Each row is a label, the
+	 * relation requirements, the sources selected next to the labels and the place of the user filter.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> predictedSelectionInNotContainerRows() {
+		return predictedSelectionRows()
+			.flatMap(
+				row -> Stream.of(UserFilterPlacement.NEGATED, UserFilterPlacement.NEXT_TO_NEGATED_CONSTRAINT)
+					.map(placement -> {
+						final Object[] arguments = row.get();
+						return Arguments.of(
+							arguments[0] + ", " + placement.getDescription(), arguments[1], arguments[2], placement
+						);
+					})
+			);
+	}
+
+	/**
+	 * Checks what {@link #shouldPredictResultOfEveryExtendedSelection} checks, with the user filter in a `not`
+	 * container: the option joins the user filter the way it joins a user filter nothing negates, and the `not`
+	 * container then applies to the extended user filter, so the impact equals the result of the query selecting the
+	 * option inside the same container.
+	 *
+	 * @param label     the row label, used in the test name only
+	 * @param relations the relation requirements
+	 * @param sourceIds the sources selected next to the labels, possibly none
+	 * @param placement the place of the user filter in the filter
+	 * @param evita     the engine instance provided by the test extension
+	 */
+	@DisplayName("Should predict the result of every extended selection of a user filter in a not container")
+	@UseDataSet(FACET_RELATION_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("predictedSelectionInNotContainerRows")
+	void shouldPredictResultOfEveryExtendedSelectionOfUserFilterInNotContainer(
+		@Nonnull String label,
+		@Nonnull RequireConstraint[] relations,
+		@Nonnull int[] sourceIds,
+		@Nonnull UserFilterPlacement placement,
+		Evita evita
+	) {
+		assertPredictedResultOfEveryExtendedSelection(relations, sourceIds, placement, evita);
+	}
+
+	/**
+	 * Asserts that the reference summary predicts exactly what the query returns for the relation setup - see
+	 * {@link #shouldPredictResultOfEveryExtendedSelection} for what is compared.
+	 *
+	 * @param relations the relation requirements
+	 * @param sourceIds the sources selected next to the labels, possibly none
+	 * @param placement the place of the user filter in the filter
+	 * @param evita     the engine instance provided by the test extension
+	 */
+	private static void assertPredictedResultOfEveryExtendedSelection(
+		@Nonnull RequireConstraint[] relations,
+		@Nonnull int[] sourceIds,
+		@Nonnull UserFilterPlacement placement,
+		@Nonnull Evita evita
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final List<String> disagreements = new ArrayList<>(16);
 				final int labelCount = LABEL_GROUPS.length;
 
-				if (sourceIds.length == 0) {
+				if (sourceIds.length == 0 && placement == UserFilterPlacement.ALONE) {
 					final EvitaResponse<EntityReference> withoutSelection = session.query(
 						shapedLabelSelectionQuery(
-							new int[0], sourceIds, relations,
+							new int[0], sourceIds, relations, placement,
 							referenceSummaryOfReference(REF_TAG, FacetStatisticsDepth.COUNTS),
 							referenceSummaryOfReference(REF_LABEL, FacetStatisticsDepth.COUNTS)
 						),
@@ -2331,7 +2398,9 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					);
 					for (int labelId = 1; labelId <= labelCount; labelId++) {
 						final int count = facetCountOf(withoutSelection, REF_LABEL, LABEL_GROUPS[labelId - 1], labelId);
-						final int resultSize = shapedLabelSelectionSize(session, new int[]{labelId}, sourceIds, relations);
+						final int resultSize = shapedLabelSelectionSize(
+							session, new int[]{labelId}, sourceIds, relations, placement
+						);
 						if (count != resultSize) {
 							disagreements.add(
 								"no selection, label " + labelId + ": count " + count + ", result " + resultSize
@@ -2354,7 +2423,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				for (final int[] selection : selections) {
 					final EvitaResponse<EntityReference> withSummary = session.query(
 						shapedLabelSelectionQuery(
-							selection, sourceIds, relations,
+							selection, sourceIds, relations, placement,
 							referenceSummaryOfReference(REF_TAG, FacetStatisticsDepth.IMPACT),
 							referenceSummaryOfReference(REF_LABEL, FacetStatisticsDepth.IMPACT),
 							referenceSummaryOfReference(REF_SOURCE, FacetStatisticsDepth.IMPACT)
@@ -2370,7 +2439,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						).getImpact();
 						final int resultSize = shapedLabelSelectionSize(
 							session, ArrayUtils.insertIntIntoArrayOnIndex(labelId, selection, selection.length),
-							sourceIds, relations
+							sourceIds, relations, placement
 						);
 						if (impact == null || impact.matchCount() != resultSize) {
 							disagreements.add(
@@ -2386,7 +2455,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						final RequestImpact impact = facetStatisticsOf(withSummary, REF_SOURCE, null, sourceId).getImpact();
 						final int resultSize = shapedLabelSelectionSize(
 							session, selection, ArrayUtils.insertIntIntoArrayOnIndex(sourceId, sourceIds, sourceIds.length),
-							relations
+							relations, placement
 						);
 						if (impact == null || impact.matchCount() != resultSize) {
 							disagreements.add(
@@ -2409,11 +2478,12 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 
 	/**
 	 * Builds the query selecting the passed labels and sources of the {@link #FACET_RELATION_SHAPES} data set in the
-	 * user filter, or selecting nothing when neither is passed.
+	 * user filter placed as requested, or selecting nothing when neither is passed.
 	 *
 	 * @param labelIds  the selected labels, possibly none
 	 * @param sourceIds the selected sources, possibly none
 	 * @param relations the relation requirements
+	 * @param placement the place of the user filter in the filter
 	 * @param summaries the reference summary requirements
 	 * @return the query
 	 */
@@ -2422,6 +2492,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 		@Nonnull int[] labelIds,
 		@Nonnull int[] sourceIds,
 		@Nonnull RequireConstraint[] relations,
+		@Nonnull UserFilterPlacement placement,
 		@Nonnull RequireConstraint... summaries
 	) {
 		return query(
@@ -2429,17 +2500,19 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 			labelIds.length == 0 && sourceIds.length == 0 ?
 				null :
 				filterBy(
-					userFilter(
-						Stream.of(
-								labelIds.length == 0 ?
-									null :
-									facetHaving(REF_LABEL, entityPrimaryKeyInSet(Arrays.stream(labelIds).boxed().toArray(Integer[]::new))),
-								sourceIds.length == 0 ?
-									null :
-									facetHaving(REF_SOURCE, entityPrimaryKeyInSet(Arrays.stream(sourceIds).boxed().toArray(Integer[]::new)))
-							)
-							.filter(Objects::nonNull)
-							.toArray(FilterConstraint[]::new)
+					placement.place(
+						userFilter(
+							Stream.of(
+									labelIds.length == 0 ?
+										null :
+										facetHaving(REF_LABEL, entityPrimaryKeyInSet(Arrays.stream(labelIds).boxed().toArray(Integer[]::new))),
+									sourceIds.length == 0 ?
+										null :
+										facetHaving(REF_SOURCE, entityPrimaryKeyInSet(Arrays.stream(sourceIds).boxed().toArray(Integer[]::new)))
+								)
+								.filter(Objects::nonNull)
+								.toArray(FilterConstraint[]::new)
+						)
 					)
 				),
 			require(
@@ -2463,16 +2536,59 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 * @param labelIds  the selected labels
 	 * @param sourceIds the selected sources, possibly none
 	 * @param relations the relation requirements
+	 * @param placement the place of the user filter in the filter
 	 * @return the number of the returned products
 	 */
 	private static int shapedLabelSelectionSize(
 		@Nonnull EvitaSessionContract session,
 		@Nonnull int[] labelIds,
 		@Nonnull int[] sourceIds,
-		@Nonnull RequireConstraint[] relations
+		@Nonnull RequireConstraint[] relations,
+		@Nonnull UserFilterPlacement placement
 	) {
-		return session.query(shapedLabelSelectionQuery(labelIds, sourceIds, relations), EntityReference.class)
+		return session.query(shapedLabelSelectionQuery(labelIds, sourceIds, relations, placement), EntityReference.class)
 			.getTotalRecordCount();
+	}
+
+	/**
+	 * The place of the user filter in the filter of the queries of {@link #shapedLabelSelectionQuery}.
+	 */
+	@RequiredArgsConstructor
+	enum UserFilterPlacement {
+		/**
+		 * The user filter is the only filter constraint.
+		 */
+		ALONE("the user filter alone"),
+		/**
+		 * The user filter is negated by the user - `not(userFilter(...))`.
+		 */
+		NEGATED("the user filter negated"),
+		/**
+		 * The user filter is next to a negated constraint - `not(...), userFilter(...)` - and so the set the negated
+		 * constraint is subtracted from. The excluded product references label 1, the grouped tag and both sources.
+		 */
+		NEXT_TO_NEGATED_CONSTRAINT("the user filter next to a negated constraint");
+
+		/**
+		 * The description of the placement used in the test names.
+		 */
+		@Getter private final String description;
+
+		/**
+		 * Places the user filter into the filter.
+		 *
+		 * @param userFilter the user filter
+		 * @return the filter constraints holding the user filter
+		 */
+		@Nonnull
+		FilterConstraint[] place(@Nonnull FilterConstraint userFilter) {
+			return switch (this) {
+				case ALONE -> new FilterConstraint[]{userFilter};
+				case NEGATED -> new FilterConstraint[]{not(userFilter)};
+				case NEXT_TO_NEGATED_CONSTRAINT -> new FilterConstraint[]{not(entityPrimaryKeyInSet(6)), userFilter};
+			};
+		}
+
 	}
 
 	/**
@@ -2769,6 +2885,346 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				return null;
 			}
 		);
+	}
+
+	/**
+	 * Returns the rows of the witness of a user filter placed in a `not` container, over the
+	 * {@link #FACET_RELATION_SHAPES} data set - either negated by the user, `not(userFilter(...))`, or next to a
+	 * negated constraint, `not(...), userFilter(...)`, which makes the user filter the set the negated constraint is
+	 * subtracted from. Selecting an option adds it to the user filter exactly as when nothing negates anything, and
+	 * the `not` container then applies to the extended user filter. Each row is a label, the relation requirements,
+	 * the filter constraints of the query, the reference, group and primary key of the option whose impact is
+	 * predicted, the filter constraints of the query selecting the option, the filter constraints of the query
+	 * selecting the option alone in its group, the filter constraints without the user filter, and the primary keys of
+	 * the products the query selecting the option returns, computed from the fixture table.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> negatedUserFilterRows() {
+		final RequireConstraint[] defaults = new RequireConstraint[0];
+		final RequireConstraint[] disjunctionOfLabelGroups = {facetGroupsDisjunction(REF_LABEL, WITH_DIFFERENT_GROUPS)};
+		final RequireConstraint[] negationOfGroupB = {
+			facetGroupsNegation(REF_LABEL, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_B)))
+		};
+		final RequireConstraint[] exclusivityOfLabelGroups = {facetGroupsExclusivity(REF_LABEL, WITH_DIFFERENT_GROUPS)};
+		final FilterConstraint label1 = facetHaving(REF_LABEL, entityPrimaryKeyInSet(1));
+		final FilterConstraint label3 = facetHaving(REF_LABEL, entityPrimaryKeyInSet(3));
+		final FilterConstraint labels1And2 = facetHaving(REF_LABEL, entityPrimaryKeyInSet(1, 2));
+		final FilterConstraint labels1And3 = facetHaving(REF_LABEL, entityPrimaryKeyInSet(1, 3));
+		final FilterConstraint label2 = facetHaving(REF_LABEL, entityPrimaryKeyInSet(2));
+		final FilterConstraint tag = facetHaving(REF_TAG, entityPrimaryKeyInSet(GROUPED_TAG));
+		final FilterConstraint source2 = facetHaving(REF_SOURCE, entityPrimaryKeyInSet(2));
+		final FilterConstraint notProduct1 = not(entityPrimaryKeyInSet(1));
+		final FilterConstraint[] noConstraint = new FilterConstraint[0];
+		final int[] products1 = shapedProductsWithLabels(true, 1);
+		final int[] products3 = shapedProductsWithLabels(true, 3);
+		final int[] productsWithTag = shapedProductsWithTag(GROUPED_TAG);
+		final int[] withoutProduct1 = differenceOf(shapedProducts(), new int[]{1});
+		return Stream.of(
+			// the user filter negated by the user: the option joins the user filter, the negation applies to the result
+			Arguments.of(
+				"system defaults, a tag option in a negated user filter selecting a label", defaults,
+				new FilterConstraint[]{not(userFilter(label1))}, REF_TAG, TAG_GROUP, GROUPED_TAG,
+				new FilterConstraint[]{not(userFilter(label1, tag))}, null, noConstraint,
+				differenceOf(shapedProducts(), intersectionOf(products1, productsWithTag))
+			),
+			Arguments.of(
+				"disjunction between the groups of tags, a tag option in a negated user filter selecting a label",
+				new RequireConstraint[]{facetGroupsDisjunction(REF_TAG, WITH_DIFFERENT_GROUPS)},
+				new FilterConstraint[]{not(userFilter(label1))}, REF_TAG, TAG_GROUP, GROUPED_TAG,
+				new FilterConstraint[]{not(userFilter(label1, tag))}, null, noConstraint,
+				differenceOf(shapedProducts(), intersectionOf(products1, productsWithTag))
+			),
+			Arguments.of(
+				"negation of the tags, a tag option in a negated user filter selecting a label",
+				new RequireConstraint[]{facetGroupsNegation(REF_TAG)},
+				new FilterConstraint[]{not(userFilter(label1))}, REF_TAG, TAG_GROUP, GROUPED_TAG,
+				new FilterConstraint[]{not(userFilter(label1, tag))}, null, noConstraint,
+				differenceOf(shapedProducts(), differenceOf(products1, productsWithTag))
+			),
+			Arguments.of(
+				"exclusivity between the groups of tags, a tag option in a negated user filter selecting a label",
+				new RequireConstraint[]{facetGroupsExclusivity(REF_TAG, WITH_DIFFERENT_GROUPS)},
+				new FilterConstraint[]{not(userFilter(label1))}, REF_TAG, TAG_GROUP, GROUPED_TAG,
+				new FilterConstraint[]{not(userFilter(label1, tag))}, null, noConstraint,
+				differenceOf(shapedProducts(), intersectionOf(products1, productsWithTag))
+			),
+			Arguments.of(
+				"system defaults, a source option in a negated user filter selecting a label", defaults,
+				new FilterConstraint[]{not(userFilter(label1))}, REF_SOURCE, null, 2,
+				new FilterConstraint[]{not(userFilter(label1, source2))}, null, noConstraint,
+				differenceOf(shapedProducts(), intersectionOf(products1, shapedProductsWithSources(true, 2)))
+			),
+			Arguments.of(
+				"system defaults, a label option of another group in a negated user filter", defaults,
+				new FilterConstraint[]{not(userFilter(label1))}, REF_LABEL, LABEL_GROUP_B, 3,
+				new FilterConstraint[]{not(userFilter(facetHaving(REF_LABEL, entityPrimaryKeyInSet(1, 3))))}, null,
+				noConstraint, differenceOf(shapedProducts(), intersectionOf(products1, products3))
+			),
+			Arguments.of(
+				"disjunction between the groups of labels, a label option of another group in a negated user filter",
+				disjunctionOfLabelGroups, new FilterConstraint[]{not(userFilter(label1))}, REF_LABEL, LABEL_GROUP_B, 3,
+				new FilterConstraint[]{not(userFilter(facetHaving(REF_LABEL, entityPrimaryKeyInSet(1, 3))))}, null,
+				noConstraint, differenceOf(shapedProducts(), shapedProductsWithLabels(true, 1, 3))
+			),
+			Arguments.of(
+				"negation of group B, a label option of group B in a negated user filter",
+				negationOfGroupB, new FilterConstraint[]{not(userFilter(label1))}, REF_LABEL, LABEL_GROUP_B, 3,
+				new FilterConstraint[]{not(userFilter(facetHaving(REF_LABEL, entityPrimaryKeyInSet(1, 3))))}, null,
+				noConstraint, differenceOf(shapedProducts(), differenceOf(products1, products3))
+			),
+			Arguments.of(
+				"exclusivity between the groups of labels, a label option of another group in a negated user filter",
+				exclusivityOfLabelGroups, new FilterConstraint[]{not(userFilter(label1))}, REF_LABEL, LABEL_GROUP_B, 3,
+				new FilterConstraint[]{not(userFilter(label3))}, null, noConstraint,
+				differenceOf(shapedProducts(), products3)
+			),
+			Arguments.of(
+				"system defaults, a label option of the selected group in a negated user filter", defaults,
+				new FilterConstraint[]{not(userFilter(label1))}, REF_LABEL, LABEL_GROUP_A, 2,
+				new FilterConstraint[]{not(userFilter(labels1And2))}, new FilterConstraint[]{not(userFilter(label2))},
+				noConstraint, differenceOf(shapedProducts(), shapedProductsWithLabels(true, 1, 2))
+			),
+			Arguments.of(
+				"conjunction within group A, a label option of the selected group in a negated user filter",
+				new RequireConstraint[]{
+					facetGroupsConjunction(REF_LABEL, WITH_DIFFERENT_FACETS_IN_GROUP, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_A)))
+				},
+				new FilterConstraint[]{not(userFilter(label1))}, REF_LABEL, LABEL_GROUP_A, 2,
+				new FilterConstraint[]{not(userFilter(labels1And2))}, new FilterConstraint[]{not(userFilter(label2))},
+				noConstraint, differenceOf(shapedProducts(), shapedProductsWithAllLabels(1, 2))
+			),
+			Arguments.of(
+				"exclusivity within the groups of labels, a label option of the selected group in a negated user filter",
+				new RequireConstraint[]{facetGroupsExclusivity(REF_LABEL, WITH_DIFFERENT_FACETS_IN_GROUP)},
+				new FilterConstraint[]{not(userFilter(label1))}, REF_LABEL, LABEL_GROUP_A, 2,
+				new FilterConstraint[]{not(userFilter(label2))}, null, noConstraint,
+				differenceOf(shapedProducts(), shapedProductsWithLabels(true, 2))
+			),
+			Arguments.of(
+				"exclusivity between the groups of labels, a label option of a selected group in a negated user filter",
+				exclusivityOfLabelGroups, new FilterConstraint[]{not(userFilter(labels1And3))},
+				REF_LABEL, LABEL_GROUP_A, 2,
+				new FilterConstraint[]{not(userFilter(labels1And2))}, new FilterConstraint[]{not(userFilter(label2))},
+				noConstraint, differenceOf(shapedProducts(), shapedProductsWithLabels(true, 1, 2))
+			),
+			// a user filter selecting only negated groups subtracts them inside the negated user filter
+			Arguments.of(
+				"negation of group A, a label option of the selected group in a negated user filter",
+				new RequireConstraint[]{facetGroupsNegation(REF_LABEL, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_A)))},
+				new FilterConstraint[]{not(userFilter(label1))}, REF_LABEL, LABEL_GROUP_A, 2,
+				new FilterConstraint[]{not(userFilter(labels1And2))}, new FilterConstraint[]{not(userFilter(label2))},
+				noConstraint, shapedProductsWithLabels(true, 1, 2)
+			),
+			// the user filter next to a negated constraint is the set the constraint is subtracted from
+			Arguments.of(
+				"system defaults, a tag option in a user filter next to a negated constraint", defaults,
+				new FilterConstraint[]{notProduct1, userFilter(label1)}, REF_TAG, TAG_GROUP, GROUPED_TAG,
+				new FilterConstraint[]{notProduct1, userFilter(label1, tag)}, null,
+				new FilterConstraint[]{notProduct1},
+				intersectionOf(withoutProduct1, intersectionOf(products1, productsWithTag))
+			),
+			Arguments.of(
+				"negation of the tags, a tag option in a user filter next to a negated constraint",
+				new RequireConstraint[]{facetGroupsNegation(REF_TAG)},
+				new FilterConstraint[]{notProduct1, userFilter(label1)}, REF_TAG, TAG_GROUP, GROUPED_TAG,
+				new FilterConstraint[]{notProduct1, userFilter(label1, tag)}, null,
+				new FilterConstraint[]{notProduct1},
+				intersectionOf(withoutProduct1, differenceOf(products1, productsWithTag))
+			),
+			Arguments.of(
+				"disjunction between the groups of labels, a label option of another group in a user filter next to a " +
+					"negated constraint",
+				disjunctionOfLabelGroups, new FilterConstraint[]{notProduct1, userFilter(label1)},
+				REF_LABEL, LABEL_GROUP_B, 3,
+				new FilterConstraint[]{notProduct1, userFilter(facetHaving(REF_LABEL, entityPrimaryKeyInSet(1, 3)))}, null,
+				new FilterConstraint[]{notProduct1},
+				intersectionOf(withoutProduct1, shapedProductsWithLabels(true, 1, 3))
+			),
+			Arguments.of(
+				"negation of group B, a label option of group B in a user filter next to a negated constraint",
+				negationOfGroupB, new FilterConstraint[]{notProduct1, userFilter(label1)}, REF_LABEL, LABEL_GROUP_B, 3,
+				new FilterConstraint[]{notProduct1, userFilter(facetHaving(REF_LABEL, entityPrimaryKeyInSet(1, 3)))}, null,
+				new FilterConstraint[]{notProduct1},
+				intersectionOf(withoutProduct1, differenceOf(products1, products3))
+			),
+			Arguments.of(
+				"exclusivity between the groups of labels, a label option of another group in a user filter next to a " +
+					"negated constraint",
+				exclusivityOfLabelGroups, new FilterConstraint[]{notProduct1, userFilter(label1)},
+				REF_LABEL, LABEL_GROUP_B, 3,
+				new FilterConstraint[]{notProduct1, userFilter(label3)}, null,
+				new FilterConstraint[]{notProduct1}, intersectionOf(withoutProduct1, products3)
+			),
+			Arguments.of(
+				"system defaults, a label option of the selected group in a user filter next to a negated constraint",
+				defaults, new FilterConstraint[]{notProduct1, userFilter(label1)}, REF_LABEL, LABEL_GROUP_A, 2,
+				new FilterConstraint[]{notProduct1, userFilter(labels1And2)},
+				new FilterConstraint[]{notProduct1, userFilter(label2)},
+				new FilterConstraint[]{notProduct1},
+				intersectionOf(withoutProduct1, shapedProductsWithLabels(true, 1, 2))
+			),
+			Arguments.of(
+				"exclusivity between the groups of labels, a label option of a selected group in a user filter next to " +
+					"a negated constraint",
+				exclusivityOfLabelGroups, new FilterConstraint[]{notProduct1, userFilter(labels1And3)},
+				REF_LABEL, LABEL_GROUP_A, 2,
+				new FilterConstraint[]{notProduct1, userFilter(labels1And2)},
+				new FilterConstraint[]{notProduct1, userFilter(label2)},
+				new FilterConstraint[]{notProduct1},
+				intersectionOf(withoutProduct1, shapedProductsWithLabels(true, 1, 2))
+			)
+		);
+	}
+
+	/**
+	 * Checks that the reference summary predicts the impact of an option whose user filter sits in a `not` container
+	 * as the result of the query selecting it - the option joins the user filter the way it joins a user filter nothing
+	 * negates, and the `not` container applies to the extended user filter. The match count, the difference and
+	 * whether the selection makes sense are predicted - it does when the result is not empty and either changes the
+	 * current result or keeps some products with the option selected alone in its group - and the count of the option
+	 * does not depend on the user filter at all, so it equals the count of the query without it.
+	 *
+	 * @param label           the row label, used in the test name only
+	 * @param relations       the relation requirements
+	 * @param filter          the filter constraints of the query
+	 * @param referenceName   the reference of the option whose impact is predicted
+	 * @param groupId         the group of the option, NULL for an option without a group
+	 * @param optionId        the option whose impact is predicted
+	 * @param optionFilter    the filter constraints of the query selecting the option
+	 * @param aloneFilter     the filter constraints of the query selecting the option alone in its group, NULL when
+	 *                        they are the `optionFilter`
+	 * @param mandatoryFilter the filter constraints of the query without the user filter, possibly none
+	 * @param expected        the primary keys of the products the query selecting the option returns, ascending
+	 * @param evita           the engine instance provided by the test extension
+	 */
+	@DisplayName("Should predict an option of a user filter in a not container as the result selecting it")
+	@UseDataSet(FACET_RELATION_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("negatedUserFilterRows")
+	void shouldPredictOptionOfUserFilterInNotContainer(
+		@Nonnull String label,
+		@Nonnull RequireConstraint[] relations,
+		@Nonnull FilterConstraint[] filter,
+		@Nonnull String referenceName,
+		@Nullable Integer groupId,
+		int optionId,
+		@Nonnull FilterConstraint[] optionFilter,
+		@Nullable FilterConstraint[] aloneFilter,
+		@Nonnull FilterConstraint[] mandatoryFilter,
+		@Nonnull int[] expected,
+		Evita evita
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					shapedTopLevelFilterQuery(optionFilter, relations), EntityReference.class
+				);
+				assertArrayEquals(
+					expected,
+					result.getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).sorted().toArray()
+				);
+				final int aloneSize = aloneFilter == null ?
+					expected.length :
+					session.query(shapedTopLevelFilterQuery(aloneFilter, relations), EntityReference.class)
+						.getTotalRecordCount();
+				final int countWithoutUserFilter = facetCountOf(
+					session.query(
+						shapedTopLevelFilterQuery(
+							mandatoryFilter, relations, referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS)
+						),
+						EntityReference.class
+					),
+					referenceName, groupId, optionId
+				);
+
+				final EvitaResponse<EntityReference> withSummary = session.query(
+					shapedTopLevelFilterQuery(
+						filter, relations, referenceSummaryOfReference(referenceName, FacetStatisticsDepth.IMPACT)
+					),
+					EntityReference.class
+				);
+				final int currentSize = withSummary.getTotalRecordCount();
+				final FacetStatistics statistics = facetStatisticsOf(withSummary, referenceName, groupId, optionId);
+				final RequestImpact impact = statistics.getImpact();
+				assertNotNull(impact, "the reference summary must predict the impact of the option");
+				assertEquals(
+					expected.length,
+					impact.matchCount(),
+					"the reference summary must predict the products selecting the option leaves in the result"
+				);
+				assertEquals(
+					expected.length - currentSize,
+					impact.difference(),
+					"the reference summary must predict the difference selecting the option makes"
+				);
+				assertEquals(
+					expected.length > 0 && (expected.length != currentSize || aloneSize > 0),
+					impact.hasSense(),
+					"the reference summary must predict whether selecting the option makes sense"
+				);
+				assertEquals(
+					countWithoutUserFilter,
+					statistics.getCount(),
+					"the count of the option must not depend on the user filter"
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Builds the query of the {@link #FACET_RELATION_SHAPES} data set filtered by the passed constraints.
+	 *
+	 * @param filterConstraints the filter constraints of the query, possibly none
+	 * @param relations         the relation requirements
+	 * @param summaries         the reference summary requirements
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query shapedTopLevelFilterQuery(
+		@Nonnull FilterConstraint[] filterConstraints,
+		@Nonnull RequireConstraint[] relations,
+		@Nonnull RequireConstraint... summaries
+	) {
+		return query(
+			collection(ENTITY_SHAPED_PRODUCT),
+			filterConstraints.length == 0 ? null : filterBy(filterConstraints),
+			require(
+				ArrayUtils.mergeArrays(
+					new RequireConstraint[]{
+						page(1, SHAPED_PRODUCT_LABELS.length),
+						debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+					},
+					summaries,
+					relations
+				)
+			)
+		);
+	}
+
+	/**
+	 * Returns the primary keys of all products of the {@link #FACET_RELATION_SHAPES} data set.
+	 *
+	 * @return the ascending primary keys
+	 */
+	@Nonnull
+	private static int[] shapedProducts() {
+		return IntStream.rangeClosed(1, SHAPED_PRODUCT_LABELS.length).toArray();
+	}
+
+	/**
+	 * Returns the primary keys present in the first passed ascending array and not in the second.
+	 *
+	 * @param first  the ascending primary keys to keep
+	 * @param second the ascending primary keys to remove
+	 * @return the ascending primary keys of the first array missing in the second
+	 */
+	@Nonnull
+	private static int[] differenceOf(@Nonnull int[] first, @Nonnull int[] second) {
+		return IntStream.of(first).filter(pk -> ArrayUtils.indexOf(pk, second) < 0).toArray();
 	}
 
 	/**

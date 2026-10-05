@@ -175,7 +175,7 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 		this.facetGroupFoundInCurrentUserFilter = false;
 		// a facet of a group exclusive with the other groups deselects them, so the selection of its reference is
 		// replaced by the enriched group formula even when the user filter already selects the group
-		final boolean replacesFacetSelection = !isInsideNotContainer() &&
+		final boolean replacesFacetSelection =
 			this.facetRelationType.resolve(this.referenceSchema, this.facetGroupId, WITH_DIFFERENT_GROUPS) ==
 				FacetRelationType.EXCLUSIVITY;
 
