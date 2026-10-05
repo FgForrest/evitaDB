@@ -67,6 +67,7 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.index.usage.SchemaCapabilityUsage;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NumberUtils;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
@@ -162,6 +163,11 @@ public class HavingTranslatorHelper {
 	 * `scope(...)` of the filter names, which the nested query honours whatever the enclosing query processes, see
 	 * {@link #getNestedQueryScopes} - so that it refuses nothing the nested query evaluated over data accepts.
 	 *
+	 * A nested query planned over data counts the schema capabilities its filter requests when its plan is built. A
+	 * scope the target entity type holds no entity of gets no nested query - neither here nor when the references are
+	 * fetched - so the check of such a scope hands what it requested to the enclosing context, which counts it once.
+	 * The check of a scope holding data counts nothing: the nested query evaluating the filter there counts it.
+	 *
 	 * @param targetEntityType         the type of the target entity for which the nested query is being planned
 	 * @param filter                   the filter constraint that applies the necessary filtering logic
 	 * @param filterByVisitor          the visitor object used for traversing and processing filter constraints
@@ -186,11 +192,32 @@ public class HavingTranslatorHelper {
 			nestedFilterBy, EntityScope.class, SeparateEntityScopeContainer.class
 		);
 		if (filterByVisitor.isConstraintCheckOnly()) {
-			checkNestedFilter(
-				targetEntityCollection, nestedFilterBy,
-				getNestedQueryScopes(nestedScope, processingScope.getScopes()),
-				filterByVisitor, taskDescriptionSupplier
-			);
+			final Set<Scope> nestedQueryScopes = getNestedQueryScopes(nestedScope, processingScope.getScopes());
+			final Set<Scope> scopesWithoutData = EnumSet.noneOf(Scope.class);
+			for (final Scope scope : nestedQueryScopes) {
+				if (targetEntityCollection.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope)) == null) {
+					scopesWithoutData.add(scope);
+				}
+			}
+			if (nestedScope == null && !scopesWithoutData.isEmpty() && scopesWithoutData.size() < nestedQueryScopes.size()) {
+				// the scopes without data are checked apart, because only their check counts what it requested - a
+				// nested `scope(...)` is never split, the filter names the scopes it is checked in together
+				final Set<Scope> scopesWithData = EnumSet.copyOf(nestedQueryScopes);
+				scopesWithData.removeAll(scopesWithoutData);
+				checkNestedFilter(
+					targetEntityCollection, nestedFilterBy, scopesWithData, filterByVisitor, taskDescriptionSupplier,
+					false
+				);
+				checkNestedFilter(
+					targetEntityCollection, nestedFilterBy, scopesWithoutData, filterByVisitor, taskDescriptionSupplier,
+					true
+				);
+			} else {
+				checkNestedFilter(
+					targetEntityCollection, nestedFilterBy, nestedQueryScopes, filterByVisitor, taskDescriptionSupplier,
+					scopesWithoutData.size() == nestedQueryScopes.size()
+				);
+			}
 			return List.of(new GlobalIndexAndFormula(null, EmptyFormula.INSTANCE));
 		}
 		final List<GlobalEntityIndex> globalIndexes = processingScope.getScopes()
@@ -217,8 +244,9 @@ public class HavingTranslatorHelper {
 			scopesToCheck = globalIndexes.isEmpty() ? nestedScope.getScope() : Set.of();
 		}
 		if (!scopesToCheck.isEmpty()) {
+			// no nested query is planned in the checked scopes, so the check counts what it requested there
 			checkNestedFilter(
-				targetEntityCollection, nestedFilterBy, scopesToCheck, filterByVisitor, taskDescriptionSupplier
+				targetEntityCollection, nestedFilterBy, scopesToCheck, filterByVisitor, taskDescriptionSupplier, true
 			);
 		}
 
@@ -333,18 +361,25 @@ public class HavingTranslatorHelper {
 	 * in the planning context of the nested query, by a visitor that only checks it - so the reference constraints the
 	 * filter nests look into no index holding data either, however deep they are - and the formula is thrown away.
 	 *
-	 * @param targetEntityCollection  the collection of the target entity type
-	 * @param filterBy                the nested filter
-	 * @param scopes                  the scopes the nested query is planned in
-	 * @param filterByVisitor         the visitor translating the enclosing filter
-	 * @param taskDescriptionSupplier a supplier of the description of the nested query for the telemetry
+	 * The planning context of the check is thrown away and no plan of it is ever built, so the schema capabilities the
+	 * check requested are counted only when they are handed to the context of the enclosing filter - which is done
+	 * when no nested query evaluated over data counts them in the checked scopes.
+	 *
+	 * @param targetEntityCollection     the collection of the target entity type
+	 * @param filterBy                   the nested filter
+	 * @param scopes                     the scopes the nested query is planned in
+	 * @param filterByVisitor            the visitor translating the enclosing filter
+	 * @param taskDescriptionSupplier    a supplier of the description of the nested query for the telemetry
+	 * @param countRequestedCapabilities true to hand the capabilities the check requested to the context of the
+	 *                                   enclosing filter, which counts them
 	 */
 	private static void checkNestedFilter(
 		@Nonnull EntityCollection targetEntityCollection,
 		@Nonnull FilterBy filterBy,
 		@Nonnull Set<Scope> scopes,
 		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull Supplier<String> taskDescriptionSupplier
+		@Nonnull Supplier<String> taskDescriptionSupplier,
+		boolean countRequestedCapabilities
 	) {
 		final String targetEntityType = targetEntityCollection.getEntityType();
 		final QueryPlanningContext nestedQueryContext = createNestedQueryContext(
@@ -362,6 +397,12 @@ public class HavingTranslatorHelper {
 			taskDescriptionSupplier,
 			true
 		);
+		if (countRequestedCapabilities) {
+			final QueryPlanningContext queryContext = filterByVisitor.getQueryContext();
+			for (final SchemaCapabilityUsage requestedCapability : nestedQueryContext.drainRequestedCapabilities()) {
+				queryContext.registerRequestedCapability(requestedCapability);
+			}
+		}
 	}
 
 	/**

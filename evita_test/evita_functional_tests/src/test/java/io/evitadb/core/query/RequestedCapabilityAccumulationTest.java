@@ -673,6 +673,71 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		}
 
 		@Test
+		@DisplayName("An entity filter of a reference counts the target's flag in a scope where the target holds nothing")
+		void shouldCountEntityFilterOfReferenceInScopeWithoutTargetData() {
+			// the products of both scopes are filtered by the name of their category: the live categories are queried
+			// by a nested query, which counts the live flag it named; the categories hold no archived entity, so the
+			// filter is only checked against the archived scope - it named the archived flag all the same
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY, productsOfCategoryNamed(Scope.LIVE, Scope.ARCHIVED)
+			);
+
+			assertEquals(
+				Map.of(
+					categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L,
+					categoryNameKey(Capability.FILTERABLE, Scope.ARCHIVED), 1L
+				),
+				requested,
+				"The filter of the categories must be counted once in each scope, with and without categories there"
+			);
+		}
+
+		@Test
+		@DisplayName("An entity filter of a reference of a query matching nothing counts the target's flag")
+		void shouldCountEntityFilterOfReferenceOfQueryMatchingNothing() {
+			// the products hold no archived entity, so the query is answered by the empty plan after its filter was
+			// checked, and the categories hold no archived entity either, so their filter is only checked - the query
+			// named the archived flag of the category name all the same
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY, productsOfCategoryNamed(Scope.ARCHIVED)
+			);
+
+			assertEquals(
+				Map.of(categoryNameKey(Capability.FILTERABLE, Scope.ARCHIVED), 1L), requested,
+				"The filter of the categories must be counted once for the query matching nothing"
+			);
+		}
+
+		@Test
+		@DisplayName("An entity filter of the fetched references counts once in a scope where the target holds nothing")
+		void shouldCountEntityFilterOfFetchedReferencesInScopeWithoutTargetDataOnce() {
+			// the products of both scopes fetch their categories filtered by name: the categories hold no archived
+			// entity, so no nested query is planned for the archived scope, neither while the query is planned nor
+			// when a product is fetched - the check made while planning is the only place the archived flag is
+			// requested, and it must be counted once whether or not there is a product to fetch; the live flag is
+			// counted once by the nested query the fetch plans over the live categories
+			final Map<SchemaCapabilityKey, Long> requestedWithProduct = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY, productOfBothScopesWithCategoriesFilteredByName(1)
+			);
+			final Map<SchemaCapabilityKey, Long> requestedWithoutProduct = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY, productOfBothScopesWithCategoriesFilteredByName(PRODUCT_COUNT + 1)
+			);
+
+			assertEquals(
+				Map.of(
+					categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L,
+					categoryNameKey(Capability.FILTERABLE, Scope.ARCHIVED), 1L
+				),
+				requestedWithProduct,
+				"The query fetching a product must count the flags the filter of its categories named once"
+			);
+			assertEquals(
+				1L, requestedWithoutProduct.get(categoryNameKey(Capability.FILTERABLE, Scope.ARCHIVED)),
+				"The query fetching no product must count the archived flag like its twin fetching one"
+			);
+		}
+
+		@Test
 		@DisplayName("A query refused over a scope without index counts nothing")
 		void shouldCountNothingWhenQueryOverScopeWithoutIndexIsRefused() {
 			// the catalog holds no index of the archived scope, and `code` is not filterable there - the query fails
@@ -882,6 +947,50 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 						entityFetch(
 							referenceContent(REFERENCE_TAGS, filterBy(attributeEquals(ATTRIBUTE_WEIGHT, 1L)))
 						)
+					)
+				)
+			)
+		);
+	}
+
+	/**
+	 * Builds the query of the products of the passed scopes referencing a category named `category-1`.
+	 *
+	 * @param scopes the scopes of the products
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query productsOfCategoryNamed(@Nonnull Scope... scopes) {
+		return Query.query(
+			collection(ENTITY_PRODUCT),
+			filterBy(
+				and(
+					scope(scopes),
+					referenceHaving(
+						REFERENCE_CATEGORIES, entityHaving(attributeEquals(ATTRIBUTE_CATEGORY_NAME, "category-1"))
+					)
+				)
+			)
+		);
+	}
+
+	/**
+	 * Builds the query fetching one product of the live or the archived scope with its references to the categories
+	 * filtered by the name of the category.
+	 *
+	 * @param productPrimaryKey the product to fetch
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query productOfBothScopesWithCategoriesFilteredByName(int productPrimaryKey) {
+		return Query.query(
+			collection(ENTITY_PRODUCT),
+			filterBy(and(scope(Scope.LIVE, Scope.ARCHIVED), entityPrimaryKeyInSet(productPrimaryKey))),
+			require(
+				entityFetch(
+					referenceContent(
+						REFERENCE_CATEGORIES,
+						filterBy(entityHaving(attributeEquals(ATTRIBUTE_CATEGORY_NAME, "category-1")))
 					)
 				)
 			)

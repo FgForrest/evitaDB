@@ -413,7 +413,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * constraint - see {@link #createFormulaForTheFilter(QueryPlanningContext, Class, List, FilterBy, FilterBy,
 	 * EntitySchemaContract, Supplier)} - by a visitor that only checks the filter when `constraintCheckOnly` is true
 	 * (see {@link #isConstraintCheckOnly()}). A check of a nested filter passes true, so that the check stays one
-	 * however deep the filter nests further reference constraints.
+	 * however deep the filter nests further reference constraints. Such a check records the attribute capabilities the
+	 * filter requests in the passed context, as the nested query planned there over data does; any other call leaves
+	 * them unrecorded.
 	 *
 	 * @param queryContext            used for accessing global index, global cache and recording query telemetry
 	 * @param indexType               the type of the indexes to use
@@ -474,7 +476,12 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 							null,
 							null,
 							null,
-							new AttributeSchemaAccessor(queryContext.getCatalogSchema(), entitySchema),
+							// a check stands for the nested query planned in the same context over data, so it records the
+							// capabilities that query would - whether they are counted is up to the caller of the check
+							new AttributeSchemaAccessor(
+								queryContext.getCatalogSchema(), entitySchema, null,
+								constraintCheckOnly ? queryContext : null
+							),
 							(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale)),
 							() -> {
 								// initialize root constraint for the execution
