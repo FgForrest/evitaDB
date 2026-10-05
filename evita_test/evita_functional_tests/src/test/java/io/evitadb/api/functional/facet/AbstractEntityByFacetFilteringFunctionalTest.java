@@ -4353,6 +4353,18 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				new RequireConstraint[]{
 					facetGroupsDisjunction(REF_TAG, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(200)))
 				}
+			),
+			Arguments.of(
+				"tags 20 and 30 selected, groups 100 and 200 disjunctive, conjunction within group 100, " +
+					"group 300 negated",
+				new int[]{20, 30},
+				new RequireConstraint[]{
+					facetGroupsDisjunction(REF_TAG, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(100, 200))),
+					facetGroupsConjunction(
+						REF_TAG, WITH_DIFFERENT_FACETS_IN_GROUP, filterBy(entityPrimaryKeyInSet(100))
+					),
+					facetGroupsNegation(REF_TAG, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(300)))
+				}
 			)
 		);
 	}

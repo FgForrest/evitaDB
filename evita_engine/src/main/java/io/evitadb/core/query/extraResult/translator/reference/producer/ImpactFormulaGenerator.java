@@ -273,6 +273,11 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 	 * We need to calculate whether the `facetId` returns any results when other facets in the groups it takes part in
 	 * are removed.
 	 *
+	 * A facet of a single group whose facets are joined by conjunction is answered by the hypothetical formula itself -
+	 * removing the other facets of the group can only widen the facet's term. A facet taking part in several groups is
+	 * always requested on its own in each of them, because the shortcut would depend on the group of the statistics
+	 * being computed, and every entry of such a facet - one for each of its groups - predicts the same selection.
+	 *
 	 * @param hypotheticalFormula   the current formula including this facet and all other facets
 	 * @param referenceSchema       the reference schema of the facet group
 	 * @param facetGroupId          the facet group id of the statistics being computed
@@ -288,7 +293,8 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 		int facetId,
 		@Nonnull FacetGroupOccurrences facetGroupOccurrences
 	) {
-		if (this.isFacetGroupConjunction.test(referenceSchema, facetGroupId, WITH_DIFFERENT_FACETS_IN_GROUP)) {
+		if (facetGroupOccurrences.isSingleGroup() &&
+			this.isFacetGroupConjunction.test(referenceSchema, facetGroupId, WITH_DIFFERENT_FACETS_IN_GROUP)) {
 			return !hypotheticalFormula.compute().isEmpty();
 		} else {
 			final MutableFormulaFinderAndReplacer mutableFormulaFinderAndReplacer = new MutableFormulaFinderAndReplacer(
