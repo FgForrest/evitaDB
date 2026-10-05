@@ -1,7 +1,7 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-10-05 13:19
+updated: 2026-10-05 14:17
 status: partially-implemented
 kind: feature
 issues: [258, 1454]
@@ -298,6 +298,15 @@ Shallow pointers only — the depth is in the supporting files.
   resolving to it, and the root part persists it with a retired flag. A query or a write resolves fields by key
   and so never reaches a retired one; code iterating field ids - a flush, a heap figure, a reindex - does, and
   must ask `isFieldRetired`.
+- **The fulltext index is written at every mutation, and ahead of the reference `indexed` gate.**
+  `FulltextIndexMutator` updates the global index's fulltext index of the value's locale as each local mutation
+  is applied, so between any two mutations it holds exactly what the entity's storage parts hold - the invariant a
+  scope change relies on when it removes the entity's values from the scope it leaves. Reconciling once per entity
+  at `applyChanges` would write less, but could let a scope change in the same batch remove values that were never
+  the indexed ones. A reference attribute is united whether its reference is `indexed()` or not: the field lives in
+  the global index, which the reduced-index gate in `ReferenceMutationFanOut` does not concern. A value is indexed
+  as its **distinct** elements, so a `String[]` repeating an element counts it once - the set rule the reference
+  union follows, applied to entity attributes too so that add and remove always agree.
 - **The fulltext structures must be confined to the global index deliberately.** `AttributeIndex`
   lives on the common `EntityIndex` ancestor, not on `GlobalEntityIndex`, so reduced indexes have it
   too; the restriction is enforced the way `ReferencedTypeEntityIndex` does it for the sort
@@ -1175,6 +1184,9 @@ rather than a tuning one. Both are open items below.
 - **2026-10-05** — the catalog owns the analyzer registry: one per catalog, carried through going live, commits and
   renames, closed when the catalog terminates, and handed to every entity index it loads, so a catalog load reads a
   persisted fulltext index back with the analyzer it names
+- **2026-10-05** — the write path: entity, global and reference attributes declared `searchable()` are indexed into
+  the global index's fulltext index of their locale on every entity mutation, scope changes move them, and a write to
+  a withdrawn attribute retires its field - the end of P1's S8b
 
 ## Supporting material
 

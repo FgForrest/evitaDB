@@ -35,6 +35,7 @@ import io.evitadb.index.IndexType;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor.Target;
 import io.evitadb.index.mutation.local.EntitySchemaAttributeAndCompoundSchemaProvider;
+import io.evitadb.index.mutation.local.FulltextIndexMutator;
 import io.evitadb.index.mutation.local.ReferenceIndexConsumer;
 import io.evitadb.index.mutation.local.ReferenceIndexMutator;
 import io.evitadb.index.mutation.local.dataAccess.ExistingAttributeValueSupplier;
@@ -101,6 +102,8 @@ final class AttributeMutationFanOut {
 		}
 		//noinspection DataFlowIssue
 		applicator.accept(true, globalIndex, globalIndex, null);
+		// the fulltext indexes live in the global index only, so they take no part in the fan-out below
+		FulltextIndexMutator.executeAttributeMutation(executor, globalIndex, mutation, entityAttributeValueSupplier);
 		// Entity-level attribute mutations fan out to every reference reduced index. When multiple
 		// references on the same entity resolve to the same shared `ReducedGroupEntityIndex` (shared
 		// group + representative attribute values), the entity-level bookkeeping — indexed once per

@@ -34,6 +34,7 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexType;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor.Target;
+import io.evitadb.index.mutation.local.FulltextIndexMutator;
 import io.evitadb.index.mutation.local.ReferenceIndexConsumer;
 import io.evitadb.index.mutation.local.ReferenceIndexMutator;
 
@@ -63,6 +64,9 @@ final class ReferenceMutationFanOut {
 		@Nonnull GlobalEntityIndex globalIndex
 	) {
 		final ReferenceKey referenceKey = mutation.getReferenceKey();
+		// the fulltext index unites a searchable reference attribute in the global index, which keeps it whether the
+		// reference itself is indexed or not
+		FulltextIndexMutator.executeReferenceMutation(executor, globalIndex, mutation);
 		final ReferenceSchemaContract referenceSchema =
 			executor.getEntitySchema().getReferenceOrThrowException(referenceKey.referenceName());
 		if (!referenceSchema.isIndexedInScope(executor.getScope())) {

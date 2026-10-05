@@ -3648,6 +3648,7 @@ public final class EntityCollection implements
 			// globally-unique attributes are declared by the catalog schema and maintained in the catalog index, so
 			// their counters belong to the catalog rather than to whichever collection happened to write one
 			this.catalog.getUsageRegistry(),
+			this.catalog.getFulltextAnalyzerRegistry(),
 			this.catalog.isUsageStatisticsTracked()
 		);
 

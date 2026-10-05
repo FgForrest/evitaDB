@@ -45,6 +45,7 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.usage.SchemaCapabilityUsageRegistry;
 import io.evitadb.test.TestConstants;
 import io.evitadb.test.generator.DataGenerator;
@@ -167,7 +168,7 @@ abstract class AbstractMutatorTestBase {
 			this.classifierResolver,
 			this.usageRegistry,
 			this.catalogUsageRegistry,
-
+			new FulltextAnalyzerRegistry(),
 			true
 		);
 

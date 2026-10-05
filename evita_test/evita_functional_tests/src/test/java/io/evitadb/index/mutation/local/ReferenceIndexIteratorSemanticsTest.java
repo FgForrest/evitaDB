@@ -41,6 +41,7 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexMaintainer;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.utils.Functions;
 import org.junit.jupiter.api.DisplayName;
@@ -165,7 +166,7 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 			this.classifierResolver,
 			this.usageRegistry,
 			this.catalogUsageRegistry,
-
+			new FulltextAnalyzerRegistry(),
 			true
 		);
 	}

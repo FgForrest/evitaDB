@@ -78,6 +78,7 @@ import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.TriConsumer;
 import io.evitadb.index.*;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor;
 import io.evitadb.index.mutation.EntityIndexMutation;
 import io.evitadb.index.mutation.IndexImplicitMutations;
@@ -241,6 +242,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Held by reference for the same reason the collection's registry is - it outlives every catalog version.
 	 */
 	@Nonnull private final SchemaCapabilityUsageRegistry catalogUsageRegistry;
+	/**
+	 * The catalog's analyzer registry, which supplies the analyzer a fulltext index of a locale is created with when a
+	 * searchable value is written into a locale that has none yet.
+	 */
+	@Nonnull private final FulltextAnalyzerRegistry fulltextAnalyzerRegistry;
 	/**
 	 * Whether this mutation counts the index-maintenance effort it costs - the server-wide
 	 * `server.usageStatisticsTracking` switch, resolved once when the executor is built.
@@ -427,6 +433,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull EntityTypeClassifierResolver entityTypeClassifierResolver,
 		@Nonnull SchemaCapabilityUsageRegistry usageRegistry,
 		@Nonnull SchemaCapabilityUsageRegistry catalogUsageRegistry,
+		@Nonnull FulltextAnalyzerRegistry fulltextAnalyzerRegistry,
 		boolean usageStatisticsTracking
 	) {
 		this.containerAccessor = containerAccessor;
@@ -443,6 +450,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		this.entityTypeClassifierResolver = entityTypeClassifierResolver;
 		this.usageRegistry = usageRegistry;
 		this.catalogUsageRegistry = catalogUsageRegistry;
+		this.fulltextAnalyzerRegistry = fulltextAnalyzerRegistry;
 		this.usageStatisticsTracking = usageStatisticsTracking;
 	}
 
@@ -503,6 +511,16 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	@Nonnull
 	public String getEntityType() {
 		return this.entityType;
+	}
+
+	/**
+	 * Returns the catalog's analyzer registry, which supplies the analyzer of a fulltext index this mutation creates.
+	 *
+	 * @return the analyzer registry
+	 */
+	@Nonnull
+	public FulltextAnalyzerRegistry getFulltextAnalyzerRegistry() {
+		return this.fulltextAnalyzerRegistry;
 	}
 
 	/**
@@ -2535,6 +2553,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		unindexAllGlobalAttributes(entity, entitySchema, globalIndex, existingDataSupplierFactory);
 		// un-index hierarchy (hierarchies are only in global index)
 		unindexHierarchyPlacement(entityPrimaryKey, entitySchema, globalIndex);
+		// un-index searchable values from the fulltext indexes (they live in the global index only)
+		FulltextIndexMutator.unindexEntity(this, globalIndex, entity);
 		// remove all languages from the global indexes
 		unindexLocales(entity, entitySchema, globalIndex, existingDataSupplierFactory);
 		// finally, remove entity from the global index
@@ -2826,6 +2846,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		indexAllPrices(entity, scope, globalIndex, existingDataSupplierFactory);
 		// index references (and their attributes)
 		indexAllReferences(entity, scope, entitySchema, globalIndex, existingDataSupplierFactory);
+		// index searchable values into the fulltext indexes (they live in the global index only)
+		FulltextIndexMutator.indexEntity(this, globalIndex, entity);
 	}
 
 	/**
