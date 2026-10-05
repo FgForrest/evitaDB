@@ -60,6 +60,7 @@ import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.RequestImpact
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
@@ -344,6 +345,40 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 		Scope.LIVE, Scope.LIVE, Scope.LIVE, Scope.LIVE, Scope.ARCHIVED, Scope.ARCHIVED, Scope.LIVE, Scope.LIVE,
 		Scope.LIVE, Scope.LIVE, Scope.ARCHIVED, Scope.LIVE
 	};
+	/**
+	 * A small hand-made data set exercising two faceted references with the very same layout of facets and groups:
+	 * live products of {@link #ENTITY_TWIN_PRODUCT} reference tags of type {@link #ENTITY_TWIN_TAG} both by
+	 * {@link #REF_TAG} and by {@link #REF_TAG_COPY}, each grouped by the managed type {@link #ENTITY_TWIN_TAG_GROUP}
+	 * (groups 100, 200 and 300). Tag 10 is referenced in group 100 by one product and in group 200 by another.
+	 *
+	 * | product | tags (group) of both references |
+	 * |---------|---------------------------------|
+	 * | 1       | 10 (100), 30 (300)              |
+	 * | 2       | 10 (200), 30 (300)              |
+	 * | 3       | 20 (200)                        |
+	 */
+	private static final String FACET_TWIN_REFERENCE_SHAPES = "FacetTwinReferenceShapes";
+	private static final String ENTITY_TWIN_PRODUCT = "twinProduct";
+	private static final String ENTITY_TWIN_TAG = "twinTag";
+	private static final String ENTITY_TWIN_TAG_GROUP = "twinTagGroup";
+	private static final String REF_TAG_COPY = "tagCopy";
+	/**
+	 * The tags of the {@link #FACET_TWIN_REFERENCE_SHAPES} data set.
+	 */
+	private static final int[] TWIN_TAGS = {10, 20, 30};
+	/**
+	 * The groups of the {@link #FACET_TWIN_REFERENCE_SHAPES} data set.
+	 */
+	private static final int[] TWIN_TAG_GROUPS = {100, 200, 300};
+	/**
+	 * The tags each product of {@link #FACET_TWIN_REFERENCE_SHAPES} references by both references, indexed by the
+	 * product primary key minus one.
+	 */
+	private static final int[][] TWIN_PRODUCT_TAGS = {{10, 30}, {10, 30}, {20}};
+	/**
+	 * The group of each reference of {@link #TWIN_PRODUCT_TAGS}, at the same position.
+	 */
+	private static final int[][] TWIN_PRODUCT_TAG_GROUPS = {{100, 300}, {200, 300}, {200}};
 
 	static {
 		STORE_ORDER = new int[STORE_COUNT];
@@ -1865,6 +1900,55 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					if (GROUPING_PRODUCT_SCOPES[pk - 1] == Scope.ARCHIVED) {
 						session.archiveEntity(ENTITY_GROUPING_PRODUCT, pk);
 					}
+				}
+			}
+		);
+	}
+
+	/**
+	 * Builds the small hand-made data set described on {@link #FACET_TWIN_REFERENCE_SHAPES}.
+	 *
+	 * @param evita the engine instance provided by the test extension
+	 */
+	@DataSet(value = FACET_TWIN_REFERENCE_SHAPES, destroyAfterClass = true)
+	void setUpFacetTwinReferenceShapes(Evita evita) {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(ENTITY_TWIN_TAG_GROUP)
+					.withoutGeneratedPrimaryKey()
+					.updateVia(session);
+				for (final int groupId : TWIN_TAG_GROUPS) {
+					session.upsertEntity(session.createNewEntity(ENTITY_TWIN_TAG_GROUP, groupId));
+				}
+				session.defineEntitySchema(ENTITY_TWIN_TAG)
+					.withoutGeneratedPrimaryKey()
+					.updateVia(session);
+				for (final int tagId : TWIN_TAGS) {
+					session.upsertEntity(session.createNewEntity(ENTITY_TWIN_TAG, tagId));
+				}
+				final EntitySchemaBuilder productSchema = session.defineEntitySchema(ENTITY_TWIN_PRODUCT)
+					.withoutGeneratedPrimaryKey();
+				for (final String referenceName : new String[]{REF_TAG, REF_TAG_COPY}) {
+					productSchema.withReferenceToEntity(
+						referenceName, ENTITY_TWIN_TAG, Cardinality.ZERO_OR_MORE,
+						whichIs -> makeReferenceIndexedInEveryScope(whichIs)
+							.facetedInScope(Scope.values())
+							.withGroupTypeRelatedToEntity(ENTITY_TWIN_TAG_GROUP)
+					);
+				}
+				productSchema.updateVia(session);
+				for (int pk = 1; pk <= TWIN_PRODUCT_TAGS.length; pk++) {
+					final EntityBuilder product = session.createNewEntity(ENTITY_TWIN_PRODUCT, pk);
+					for (int i = 0; i < TWIN_PRODUCT_TAGS[pk - 1].length; i++) {
+						final int groupId = TWIN_PRODUCT_TAG_GROUPS[pk - 1][i];
+						for (final String referenceName : new String[]{REF_TAG, REF_TAG_COPY}) {
+							product.setReference(
+								referenceName, TWIN_PRODUCT_TAGS[pk - 1][i], whichIs -> whichIs.setGroup(groupId)
+							);
+						}
+					}
+					session.upsertEntity(product);
 				}
 			}
 		);
@@ -4235,6 +4319,207 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				ArrayUtils.mergeArrays(
 					new RequireConstraint[]{
 						page(1, GROUPING_PRODUCT_TAGS.length),
+						debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+					},
+					summaries,
+					relations
+				)
+			)
+		);
+	}
+
+	/**
+	 * Returns the rows of the reference summary witness over the {@link #FACET_TWIN_REFERENCE_SHAPES} data set, whose
+	 * two references share the layout of facets and groups and differ only in the relations a row declares for them.
+	 * Each row is a label, the tags selected by {@link #REF_TAG} - each referenced under a single group - and the
+	 * relation requirements.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> twinReferenceSummaryRows() {
+		return Stream.of(
+			Arguments.of("no selection, defaults", new int[0], new RequireConstraint[0]),
+			Arguments.of(
+				"no selection, group 200 of the copy disjunctive",
+				new int[0],
+				new RequireConstraint[]{
+					facetGroupsDisjunction(REF_TAG_COPY, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(200)))
+				}
+			),
+			Arguments.of(
+				"no selection, group 200 of the tag disjunctive",
+				new int[0],
+				new RequireConstraint[]{
+					facetGroupsDisjunction(REF_TAG, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(200)))
+				}
+			)
+		);
+	}
+
+	/**
+	 * Checks that the reference summaries of two references with the same layout of facets and groups each predict
+	 * the selection the result makes for its own reference, under its own relations: every entry of a facet - one for
+	 * each group it is listed in - must have the count of the result selecting the facet alone and the impact and
+	 * has-sense of the result adding it to the selection, and an entry is listed exactly when that count is not zero.
+	 * The has-sense of an option that changes nothing is the result of the option alone in each of its groups, next to
+	 * the selection of the other groups. The oracle is the engine's own result.
+	 *
+	 * @param label     the row label, used in the test name only
+	 * @param selection the tags selected by {@link #REF_TAG}
+	 * @param relations the relation requirements
+	 * @param evita     the engine instance provided by the test extension
+	 */
+	@DisplayName("Should predict the selection of a facet of either of two references with the same layout")
+	@UseDataSet(FACET_TWIN_REFERENCE_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("twinReferenceSummaryRows")
+	void shouldPredictSelectionOfFacetOfEitherReferenceWithSameLayout(
+		@Nonnull String label,
+		@Nonnull int[] selection,
+		@Nonnull RequireConstraint[] relations,
+		Evita evita
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<String> disagreements = new ArrayList<>(16);
+				final ToIntFunction<Map<String, int[]>> resultSize = tags -> session.query(
+					twinTagSelectionQuery(tags, relations), EntityReference.class
+				).getTotalRecordCount();
+				final EvitaResponse<EntityReference> withSummary = session.query(
+					twinTagSelectionQuery(
+						Map.of(REF_TAG, selection), relations,
+						referenceSummaryOfReference(REF_TAG, FacetStatisticsDepth.IMPACT),
+						referenceSummaryOfReference(REF_TAG_COPY, FacetStatisticsDepth.IMPACT)
+					),
+					EntityReference.class
+				);
+				final int currentSize = withSummary.getTotalRecordCount();
+				final ReferenceSummary summary = withSummary.getExtraResult(ReferenceSummary.class);
+				assertNotNull(summary, "the reference summary must be computed");
+				for (final String referenceName : new String[]{REF_TAG, REF_TAG_COPY}) {
+					final int[] selectionOfReference = REF_TAG.equals(referenceName) ? selection : new int[0];
+					for (final int tagId : TWIN_TAGS) {
+						final Set<Integer> groups = twinTagGroupsOf(tagId);
+						final int aloneSize = resultSize.applyAsInt(Map.of(referenceName, new int[]{tagId}));
+						for (final Integer groupId : groups) {
+							final ReferenceGroupStatistics groupStatistics =
+								summary.getReferenceGroupStatistics(referenceName, groupId);
+							final FacetStatistics statistics = groupStatistics == null ?
+								null : groupStatistics.getFacetStatistics(tagId);
+							final String entry = referenceName + " tag " + tagId + " in group " + groupId + ": ";
+							if (statistics == null) {
+								if (aloneSize > 0) {
+									disagreements.add(entry + "missing, selecting it alone returns " + aloneSize);
+								}
+								continue;
+							}
+							if (statistics.getCount() != aloneSize) {
+								disagreements.add(
+									entry + "count " + statistics.getCount() + ", selecting it alone returns " +
+										aloneSize
+								);
+							}
+							if (ArrayUtils.indexOf(tagId, selectionOfReference) >= 0) {
+								continue;
+							}
+							final Map<String, int[]> extendedSelection = new LinkedHashMap<>(4);
+							extendedSelection.put(REF_TAG, selection);
+							extendedSelection.merge(
+								referenceName, new int[]{tagId},
+								(selected, added) -> ArrayUtils.mergeArrays(selected, added)
+							);
+							final int extendedSize = resultSize.applyAsInt(extendedSelection);
+							// the option alone in each of its groups, next to the selection of the other groups
+							final Map<String, int[]> aloneSelection = new LinkedHashMap<>(extendedSelection);
+							aloneSelection.put(
+								referenceName,
+								IntStream.concat(
+									IntStream.of(selectionOfReference)
+										.filter(it -> twinTagGroupsOf(it).stream().noneMatch(groups::contains)),
+									IntStream.of(tagId)
+								).toArray()
+							);
+							final int extendedAloneSize = resultSize.applyAsInt(aloneSelection);
+							final boolean hasSense = extendedSize > 0 &&
+								(extendedSize != currentSize || extendedAloneSize > 0);
+							final RequestImpact impact = statistics.getImpact();
+							if (impact == null || impact.matchCount() != extendedSize ||
+								impact.difference() != extendedSize - currentSize || impact.hasSense() != hasSense) {
+								disagreements.add(
+									entry + "impact " +
+										(impact == null ?
+											"none" :
+											impact.matchCount() + " (difference " + impact.difference() +
+												", has sense " + impact.hasSense() + ")") +
+										", result " + extendedSize + " (difference " + (extendedSize - currentSize) +
+										", has sense " + hasSense + ")"
+								);
+							}
+						}
+					}
+				}
+				assertTrue(
+					disagreements.isEmpty(),
+					() -> "the reference summaries must predict the result:\n" + String.join("\n", disagreements)
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Returns the groups the products of the {@link #FACET_TWIN_REFERENCE_SHAPES} data set reference the passed tag
+	 * under - the same for both references.
+	 *
+	 * @param tagId the tag
+	 * @return the groups
+	 */
+	@Nonnull
+	private static Set<Integer> twinTagGroupsOf(int tagId) {
+		final Set<Integer> groups = new LinkedHashSet<>(4);
+		for (int i = 0; i < TWIN_PRODUCT_TAGS.length; i++) {
+			for (int j = 0; j < TWIN_PRODUCT_TAGS[i].length; j++) {
+				if (TWIN_PRODUCT_TAGS[i][j] == tagId) {
+					groups.add(TWIN_PRODUCT_TAG_GROUPS[i][j]);
+				}
+			}
+		}
+		return groups;
+	}
+
+	/**
+	 * Builds the query of the {@link #FACET_TWIN_REFERENCE_SHAPES} data set selecting the passed tags of each reference
+	 * in the user filter.
+	 *
+	 * @param selection the selected tags of each reference, possibly none
+	 * @param relations the relation requirements
+	 * @param summaries the reference summary requirements
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query twinTagSelectionQuery(
+		@Nonnull Map<String, int[]> selection,
+		@Nonnull RequireConstraint[] relations,
+		@Nonnull RequireConstraint... summaries
+	) {
+		final FilterConstraint[] facetSelections = Stream.of(REF_TAG, REF_TAG_COPY)
+			.filter(referenceName -> selection.getOrDefault(referenceName, new int[0]).length > 0)
+			.map(
+				referenceName -> facetHaving(
+					referenceName,
+					entityPrimaryKeyInSet(Arrays.stream(selection.get(referenceName)).boxed().toArray(Integer[]::new))
+				)
+			)
+			.toArray(FilterConstraint[]::new);
+		return query(
+			collection(ENTITY_TWIN_PRODUCT),
+			filterBy(scope(Scope.LIVE), facetSelections.length == 0 ? null : userFilter(facetSelections)),
+			require(
+				ArrayUtils.mergeArrays(
+					new RequireConstraint[]{
+						page(1, TWIN_PRODUCT_TAGS.length),
 						debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
 					},
 					summaries,

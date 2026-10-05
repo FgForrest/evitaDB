@@ -89,8 +89,10 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 	) {
 		// the shape of the formula depends on the relation of the group to the other groups as well - two groups whose
 		// facets share a relation may still differ in it, and must not share one formula; a facet taking part in
-		// several groups shares it only with the facets of the very same groups
+		// several groups shares it only with the facets of the very same groups of the very same reference, because
+		// the relations of those groups are the relations of that reference
 		final CacheKey key = new CacheKey(
+			referenceSchema.getName(),
 			this.facetRelationType.resolve(referenceSchema, facetGroupId, WITH_DIFFERENT_FACETS_IN_GROUP),
 			this.facetRelationType.resolve(referenceSchema, facetGroupId, WITH_DIFFERENT_GROUPS),
 			facetGroupOccurrences.getSignature()
@@ -221,14 +223,20 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 	}
 
 	/**
-	 * Key of the {@link #cache}: the relations that decide the shape of the generated formula.
+	 * Key of the {@link #cache}: the relations that decide the shape of the generated formula. The calculator serves
+	 * the summaries of all the requested references, and the relations are resolved for a group of one reference - a
+	 * facet taking part in several groups is composed by the relations of all of them, so the reference and the
+	 * signature together pin the relations of every group in the formula, not only those of the group of the
+	 * statistics.
 	 *
+	 * @param referenceName     the name of the faceted reference
 	 * @param facetRelationType the relation of the facets within their group
 	 * @param groupRelationType the relation of the group to the other groups
 	 * @param signature         the {@link FacetGroupOccurrences#getSignature() signature} of the groups of the facet,
 	 *                          null for a facet with a single group everywhere
 	 */
 	private record CacheKey(
+		@Nonnull String referenceName,
 		@Nonnull FacetRelationType facetRelationType,
 		@Nonnull FacetRelationType groupRelationType,
 		@Nullable Object signature
