@@ -28,7 +28,6 @@ import io.evitadb.index.fulltext.FieldLengthTable.LengthBlock;
 import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.FulltextIndex.DictionaryPage;
 import io.evitadb.index.fulltext.FulltextIndex.Field;
-import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AbstractLeafPagePart;
@@ -59,7 +58,7 @@ import static io.evitadb.utils.Assert.isPremiseValid;
  * The analyzer is the one the root names, resolved by name through the context's
  * {@link LoadContext#fulltextAnalyzerRegistry()} - an index is read back with the analyzer that produced its terms,
  * never with whatever the schema's assignment would resolve today, which could tokenize a query differently from the
- * stored terms without any error. A manifest that lists a fulltext index when the context carries no registry fails.
+ * stored terms without any error.
  */
 public final class FulltextIndexMapLoader implements ComponentLoader {
 
@@ -70,15 +69,9 @@ public final class FulltextIndexMapLoader implements ComponentLoader {
 		if (keys.isEmpty()) {
 			return new LoadedComponentBundle.FulltextIndexes(Map.of());
 		}
-		final FulltextAnalyzerRegistry registry = context.fulltextAnalyzerRegistry();
-		isPremiseValid(
-			registry != null,
-			() -> "Entity index `" + context.entityIndexId() + "` lists " + keys.size() + " fulltext indexes, but " +
-				"no analyzer registry was supplied to load them with!"
-		);
 		final Map<Locale, FulltextIndex> fulltextIndexes = CollectionUtils.createHashMap(keys.size());
 		for (final FulltextIndexKey key : keys) {
-			fulltextIndexes.put(key.locale(), loadIndex(context, registry, key.locale()));
+			fulltextIndexes.put(key.locale(), loadIndex(context, key.locale()));
 		}
 		return new LoadedComponentBundle.FulltextIndexes(fulltextIndexes);
 	}
@@ -86,17 +79,12 @@ public final class FulltextIndexMapLoader implements ComponentLoader {
 	/**
 	 * Loads the fulltext index of one locale.
 	 *
-	 * @param context  the reload context
-	 * @param registry the registry resolving the persisted analyzer name
-	 * @param locale   the locale of the index
+	 * @param context the reload context
+	 * @param locale  the locale of the index
 	 * @return the restored index, clean
 	 */
 	@Nonnull
-	private static FulltextIndex loadIndex(
-		@Nonnull LoadContext context,
-		@Nonnull FulltextAnalyzerRegistry registry,
-		@Nonnull Locale locale
-	) {
+	private static FulltextIndex loadIndex(@Nonnull LoadContext context, @Nonnull Locale locale) {
 		final StoragePartPersistenceService<?> service = context.storagePartService();
 		final KeyCompressor keyCompressor = service.getReadOnlyKeyCompressor();
 		final int entityIndexId = context.entityIndexId();
@@ -168,7 +156,7 @@ public final class FulltextIndexMapLoader implements ComponentLoader {
 		}
 
 		return FulltextIndex.fromPersistedPages(
-			registry.getIndexAnalyzerByName(root.getAnalyzerName()),
+			context.fulltextAnalyzerRegistry().getIndexAnalyzerByName(root.getAnalyzerName()),
 			root.getDefaultLengthPivot(),
 			fields,
 			pageSequences,

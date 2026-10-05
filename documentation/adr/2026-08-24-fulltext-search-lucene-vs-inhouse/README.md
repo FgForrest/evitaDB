@@ -1,7 +1,7 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-10-05 12:45
+updated: 2026-10-05 13:19
 status: partially-implemented
 kind: feature
 issues: [258, 1454]
@@ -1172,6 +1172,9 @@ rather than a tuning one. Both are open items below.
   to F1
 - **2026-10-05** — fulltext fields got their identity: `FulltextFieldKey` (kind, reference, name) replaces the bare
   field name, and a retired field stays in the persisted registry under its id
+- **2026-10-05** — the catalog owns the analyzer registry: one per catalog, carried through going live, commits and
+  renames, closed when the catalog terminates, and handed to every entity index it loads, so a catalog load reads a
+  persisted fulltext index back with the analyzer it names
 
 ## Supporting material
 

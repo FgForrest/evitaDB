@@ -455,21 +455,6 @@ class GlobalEntityIndexFulltextPersistenceTest {
 		}
 
 		@Test
-		@DisplayName("a manifest listing a fulltext index refuses to load without an analyzer registry")
-		void shouldRefuseToLoadWithoutARegistry() {
-			final GlobalEntityIndex index = newGlobalIndex();
-			fill(index.getOrCreateFulltextIndex(CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH)), 1, 50);
-
-			try (final Disk disk = new Disk()) {
-				disk.write(flush(index));
-				final GenericEvitaInternalError error = assertThrows(
-					GenericEvitaInternalError.class, () -> disk.reload(null)
-				);
-				assertTrue(error.getMessage().contains("no analyzer registry"), error.getMessage());
-			}
-		}
-
-		@Test
 		@DisplayName("an index nothing was written to is neither persisted nor listed")
 		void shouldNotPersistAnIndexNothingWasWrittenTo() {
 			final GlobalEntityIndex index = newGlobalIndex();
@@ -716,11 +701,11 @@ class GlobalEntityIndexFulltextPersistenceTest {
 		/**
 		 * Reopens the store and rebuilds the global index through its reload plan, from the manifest it reads back.
 		 *
-		 * @param analyzerRegistry the registry the context carries, or `null` for none
+		 * @param analyzerRegistry the registry the context carries
 		 * @return the reloaded index
 		 */
 		@Nonnull
-		GlobalEntityIndex reload(@Nullable FulltextAnalyzerRegistry analyzerRegistry) {
+		GlobalEntityIndex reload(@Nonnull FulltextAnalyzerRegistry analyzerRegistry) {
 			final OffsetIndexReadService service = new OffsetIndexReadService(reopen());
 			final EntityIndexStoragePart manifest = service.getStoragePart(
 				this.version, ENTITY_INDEX_PK, EntityIndexStoragePart.class

@@ -148,6 +148,7 @@ import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.IndexMaintainer;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
@@ -426,6 +427,17 @@ public final class Catalog
 	 */
 	@Nonnull private final SchemaCapabilityUsageRegistry usageRegistry;
 	/**
+	 * The analyzers this catalog's fulltext indexes are built and read back with: one registry per catalog, so that
+	 * every collection shares the analyzer instances of a language rather than each building its own chain.
+	 *
+	 * **Carried by reference across catalog versions** - a commit, going live and a rename all hand it on - because the
+	 * instances it holds are stateless chains with no versioned content, and a fresh registry per commit would rebuild
+	 * every chain on the next write. Only a brand-new catalog and one loaded from disk mint their own. It is closed by
+	 * {@link #terminate()}, together with the persistence service that shares its lifetime: a Lucene analyzer keeps its
+	 * per-thread stream components reachable until it is closed.
+	 */
+	@Nonnull private final FulltextAnalyzerRegistry fulltextAnalyzerRegistry;
+	/**
 	 * Last persisted schema version of the catalog.
 	 */
 	private long lastPersistedSchemaVersion;
@@ -601,7 +613,8 @@ public final class Catalog
 									if (globalIndexPk != null) {
 										globalIndex = entityCollectionPersistenceService.readEntityIndex(
 											catalogVersion, globalIndexPk, entityCollection.getInternalSchema(),
-											initBulk.catalog().isUsageStatisticsTracked()
+											initBulk.catalog().isUsageStatisticsTracked(),
+											initBulk.catalog().getFulltextAnalyzerRegistry()
 										);
 										initBulk.addGlobalIndex(entityCollection.getEntityType(), globalIndex);
 									} else {
@@ -627,7 +640,8 @@ public final class Catalog
 													final EntityIndex loadedIndex = entityCollectionPersistenceService
 														.readEntityIndex(
 															catalogVersion, eid, entityCollection.getInternalSchema(),
-															initBulk.catalog().isUsageStatisticsTracked()
+															initBulk.catalog().isUsageStatisticsTracked(),
+															initBulk.catalog().getFulltextAnalyzerRegistry()
 														);
 													if (loadedIndex.getIndexKey().type() == EntityIndexType.GLOBAL) {
 														initBulk.addGlobalIndex(
@@ -766,6 +780,7 @@ public final class Catalog
 		// nothing today; it is here so that a future constructor accepting a populated schema cannot skip it
 		this.usageRegistry = new SchemaCapabilityUsageRegistry();
 		this.usageRegistry.alignWith(internalCatalogSchema);
+		this.fulltextAnalyzerRegistry = new FulltextAnalyzerRegistry();
 		this.proxyFactory = proxyFactory;
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = internalCatalogSchema.version();
@@ -856,6 +871,7 @@ public final class Catalog
 		// has its row before the first query arrives rather than from whenever one first names it
 		this.usageRegistry = new SchemaCapabilityUsageRegistry();
 		this.usageRegistry.alignWith(catalogSchema);
+		this.fulltextAnalyzerRegistry = new FulltextAnalyzerRegistry();
 		this.persistenceService.readCatalogIndex(this, Scope.ARCHIVED)
 			.filter(it -> !it.isEmpty())
 			.ifPresent(this.archiveCatalogIndex::set);
@@ -932,6 +948,7 @@ public final class Catalog
 		// the registry travels with it exactly as the catalog index's own activity holder does. Minting one here would
 		// reset the counters on every commit, which is to say on precisely the catalogs worth measuring
 		this.usageRegistry = previousCatalogVersion.usageRegistry;
+		this.fulltextAnalyzerRegistry = previousCatalogVersion.fulltextAnalyzerRegistry;
 		this.archiveCatalogIndex.set(archiveCatalogIndex);
 		this.persistenceService = persistenceService;
 		this.cacheSupervisor = previousCatalogVersion.cacheSupervisor;
@@ -2145,7 +2162,11 @@ public final class Catalog
 			try {
 				terminateInternally();
 			} finally {
-				this.persistenceService.close();
+				try {
+					this.persistenceService.close();
+				} finally {
+					this.fulltextAnalyzerRegistry.close();
+				}
 			}
 		}
 	}
@@ -2238,6 +2259,17 @@ public final class Catalog
 	@Nonnull
 	public SchemaCapabilityUsageRegistry getUsageRegistry() {
 		return this.usageRegistry;
+	}
+
+	/**
+	 * Returns the registry of the analyzers this catalog's fulltext indexes are built and read back with - shared by
+	 * every collection and every version of this catalog, see {@link #fulltextAnalyzerRegistry}.
+	 *
+	 * @return the catalog's analyzer registry
+	 */
+	@Nonnull
+	public FulltextAnalyzerRegistry getFulltextAnalyzerRegistry() {
+		return this.fulltextAnalyzerRegistry;
 	}
 
 	/**

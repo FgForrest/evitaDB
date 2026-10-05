@@ -41,6 +41,7 @@ import io.evitadb.index.component.loader.AttributeIndexLoader;
 import io.evitadb.index.component.loader.LoadContext;
 import io.evitadb.index.component.loader.LoadedComponentBundle;
 import io.evitadb.index.component.loader.LoadedComponentBundle.AttributeIndexes;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
@@ -130,6 +131,11 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(ATTRIBUTE)
 @DisplayName("Chain index granular paging reloads through the real AttributeIndexLoader + OffsetIndex")
 class ChainIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
+	/**
+	 * The analyzer registry every load context carries. These manifests list no fulltext index, so it is never asked
+	 * for an analyzer and holds nothing that would need closing.
+	 */
+	private static final FulltextAnalyzerRegistry ANALYZER_REGISTRY = new FulltextAnalyzerRegistry();
 	private static final String ENTITY_TYPE = "product";
 	private static final int ENTITY_INDEX_PK = 7;
 	private static final AttributeIndexKey CHAIN_KEY = new AttributeIndexKey(null, "order", null);
@@ -270,7 +276,8 @@ class ChainIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 			EmptyBitmap.INSTANCE,
 			Map.of(),
 			service,
-			null
+			null,
+			ANALYZER_REGISTRY
 		);
 	}
 
