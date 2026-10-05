@@ -27,6 +27,7 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.QueryPlanningContext;
+import io.evitadb.core.session.EvitaSession;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
@@ -73,7 +74,7 @@ public class FilteringFormulaPredicate implements IntPredicate {
 		this.filteringFormula = new DeferredFormula(
 			new FormulaWrapper(
 				createFormulaForTheFilter(
-					queryContext,
+					createTargetQueryContext(queryContext, requestedScopes, filterBy, entityType),
 					requestedScopes,
 					filterBy,
 					entityType,
@@ -91,6 +92,42 @@ public class FilteringFormulaPredicate implements IntPredicate {
 		);
 		// we need to initialize formula immediately with new execution context - the results are needed in planning phase already
 		this.filteringFormula.initialize(queryContext.getInternalExecutionContext());
+	}
+
+	/**
+	 * Returns the planning context the filter over the passed entity type is planned in: a context of the collection of
+	 * that type, derived from the enclosing one the way a nested query is - several translators resolve their
+	 * constraint against the entity type of the context, e.g. `hierarchyWithinSelf` against the tree of that type, and
+	 * would resolve it against the queried entity type in the enclosing context. The enclosing context is used when the
+	 * filter targets the queried entity type itself, when the type has no collection, or when there is no session to
+	 * derive a context in.
+	 *
+	 * @param queryContext    the planning context of the enclosing query
+	 * @param requestedScopes the scopes the filter is planned in
+	 * @param filterBy        the filter
+	 * @param entityType      the entity type the filter selects
+	 * @return the planning context of the filter
+	 */
+	@Nonnull
+	private static QueryPlanningContext createTargetQueryContext(
+		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull Set<Scope> requestedScopes,
+		@Nonnull FilterBy filterBy,
+		@Nonnull String entityType
+	) {
+		final EvitaSession session = queryContext.getEvitaSession();
+		if (session == null || entityType.equals(queryContext.getEntityType())) {
+			return queryContext;
+		}
+		return queryContext.getEntityCollection(entityType)
+			.map(
+				collection -> collection.createQueryContext(
+					queryContext,
+					queryContext.getEvitaRequest().deriveCopyWith(entityType, filterBy, null, null, requestedScopes),
+					session
+				)
+			)
+			.orElse(queryContext);
 	}
 
 	/**

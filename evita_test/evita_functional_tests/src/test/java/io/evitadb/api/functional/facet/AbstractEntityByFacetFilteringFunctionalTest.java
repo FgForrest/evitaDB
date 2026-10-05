@@ -9466,6 +9466,85 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
+	 * Checks that the filter of the options of a reference summary is resolved against the referenced entity type, not
+	 * against the queried one: the categories are hierarchical while the products are not, so a `hierarchyWithinSelf`
+	 * filter of the category options selects the categories of one subtree. The options listed are those of the summary
+	 * without the filter that sit in the subtree, with the same counts - the subtree is computed by a query of the
+	 * categories themselves.
+	 *
+	 * @param evita the engine instance provided by the test extension
+	 */
+	@DisplayName("Should filter the options of a reference summary by the hierarchy of the referenced entity")
+	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@Test
+	void shouldFilterReferenceSummaryOptionsByHierarchyOfReferencedEntity(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final int subtreeRoot = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(hierarchyWithinRootSelf(directRelation())),
+						require(page(1, 1))
+					),
+					EntityReference.class
+				).getRecordData().get(0).getPrimaryKeyOrThrowException();
+				final Set<Integer> subtree = session.query(
+						query(
+							collection(Entities.CATEGORY),
+							filterBy(hierarchyWithinSelf(entityPrimaryKeyInSet(subtreeRoot))),
+							require(page(1, Integer.MAX_VALUE))
+						),
+						EntityReference.class
+					).getRecordData()
+					.stream()
+					.map(EntityReference::getPrimaryKeyOrThrowException)
+					.collect(Collectors.toSet());
+
+				final ReferenceGroupStatistics unfiltered = session.query(
+						query(
+							collection(Entities.PRODUCT),
+							require(referenceSummaryOfReference(Entities.CATEGORY, FacetStatisticsDepth.COUNTS))
+						),
+						EntityReference.class
+					).getExtraResult(ReferenceSummary.class)
+					.getReferenceGroupStatistics(Entities.CATEGORY);
+				final ReferenceGroupStatistics filtered = session.query(
+						query(
+							collection(Entities.PRODUCT),
+							require(
+								referenceSummaryOfReference(
+									Entities.CATEGORY, FacetStatisticsDepth.COUNTS,
+									filterBy(hierarchyWithinSelf(entityPrimaryKeyInSet(subtreeRoot)))
+								)
+							)
+						),
+						EntityReference.class
+					).getExtraResult(ReferenceSummary.class)
+					.getReferenceGroupStatistics(Entities.CATEGORY);
+
+				assertNotNull(unfiltered, "the categories must be summarized");
+				final Map<Integer, Integer> expected = new TreeMap<>();
+				for (final FacetStatistics statistics : unfiltered.getFacetStatistics()) {
+					final int categoryId = statistics.getFacetEntity().getPrimaryKeyOrThrowException();
+					if (subtree.contains(categoryId)) {
+						expected.put(categoryId, statistics.getCount());
+					}
+				}
+				assertFalse(expected.isEmpty(), "the subtree must hold a summarized category");
+				assertTrue(expected.size() < unfiltered.getFacetStatistics().size(), "the subtree must not hold all");
+				assertNotNull(filtered, "the categories of the subtree must be summarized");
+				final Map<Integer, Integer> actual = new TreeMap<>();
+				for (final FacetStatistics statistics : filtered.getFacetStatistics()) {
+					actual.put(statistics.getFacetEntity().getPrimaryKeyOrThrowException(), statistics.getCount());
+				}
+				assertEquals(expected, actual);
+				return null;
+			}
+		);
+	}
+
+	/**
 	* @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSetWithFilteredAndOrderedFacets} instead. Remove this
 	* method once FacetSummary is removed.
 	 */
