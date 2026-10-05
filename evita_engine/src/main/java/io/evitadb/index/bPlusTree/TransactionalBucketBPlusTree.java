@@ -7069,31 +7069,21 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @return true if a bucket was deleted, false when the value was absent
 		 */
 		public boolean removeLongRecord(@Nonnull M value) {
+			final InsertionPosition insertionPosition = findPositionInCurrentState(value);
+			if (!insertionPosition.alreadyPresent()) {
+				return false;
+			}
 			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			// removing a record mutates this leaf's page: flag it for re-emission
 			if (layer == null) {
 				this.dirty = true;
-			} else {
-				layer.dirty = true;
-			}
-			if (layer == null) {
-				final InsertionPosition insertionPosition =
-					this.keys.findKeyPosition(value, 0, this.peek + 1, this.comparator);
-				if (!insertionPosition.alreadyPresent()) {
-					return false;
-				}
 				deleteBucketAt(insertionPosition.position());
-				return true;
 			} else {
 				decoupleTransactionalArrays(false);
-				final InsertionPosition insertionPosition =
-					layer.keys.findKeyPosition(value, 0, layer.peek + 1, this.comparator);
-				if (!insertionPosition.alreadyPresent()) {
-					return false;
-				}
+				layer.dirty = true;
 				layer.deleteBucketAt(insertionPosition.position());
-				return true;
 			}
+			return true;
 		}
 
 		/**
@@ -7157,29 +7147,41 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * {@link #NO_DELETED_BUCKET} when no bucket was deleted
 		 */
 		public int removeRecords(@Nonnull M value, @Nonnull int... pks) {
+			final InsertionPosition insertionPosition = findPositionInCurrentState(value);
+			if (!insertionPosition.alreadyPresent()) {
+				return NO_DELETED_BUCKET;
+			}
 			final BPlusLeafTreeNode<M> layer = perOperationWriteLayer(this, this.transactionalLayer);
 			// removing records mutates this leaf's page: flag it for re-emission
 			if (layer == null) {
 				this.dirty = true;
-			} else {
-				layer.dirty = true;
-			}
-			if (layer == null) {
-				final InsertionPosition insertionPosition =
-					this.keys.findKeyPosition(value, 0, this.peek + 1, this.comparator);
-				if (!insertionPosition.alreadyPresent()) {
-					return NO_DELETED_BUCKET;
-				}
 				return removeFromBucket(insertionPosition.position(), value, pks);
 			} else {
 				decoupleTransactionalArrays(false);
-				final InsertionPosition insertionPosition =
-					layer.keys.findKeyPosition(value, 0, layer.peek + 1, this.comparator);
-				if (!insertionPosition.alreadyPresent()) {
-					return NO_DELETED_BUCKET;
-				}
+				layer.dirty = true;
 				return layer.removeFromBucket(insertionPosition.position(), value, pks);
 			}
+		}
+
+		/**
+		 * Locates `value` in the leaf's CURRENT state — the transaction's write layer when one is already open, the
+		 * node itself otherwise — without resolving a write layer. The removal paths settle presence here first, so
+		 * removing an absent value stays a pure read: no layer is opened, no column is copied by the decouple, no
+		 * savepoint memento is taken and the page is not flagged for re-emission, all for a call that changes nothing.
+		 *
+		 * The position stays valid for the write that follows: a freshly opened layer shares this node's columns and
+		 * peek, and {@link #decoupleTransactionalArrays(boolean)} copies the columns without reordering them.
+		 *
+		 * @param value the value to locate
+		 * @return the position of `value`, or the position it would be inserted at when absent
+		 */
+		@Nonnull
+		private InsertionPosition findPositionInCurrentState(@Nonnull M value) {
+			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
+				? Transaction.getTransactionalMemoryLayerIfExists(this)
+				: null;
+			final BPlusLeafTreeNode<M> current = layer == null ? this : layer;
+			return current.keys.findKeyPosition(value, 0, current.peek + 1, this.comparator);
 		}
 
 		/**

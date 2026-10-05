@@ -318,6 +318,58 @@ class TransactionalElementBPlusTreeTest {
 	class DeleteOperationsTest {
 
 		@Test
+		@DisplayName("deleting an absent key in a transaction opens no write layer on its leaf")
+		void shouldOpenNoWriteLayerWhenDeletingAbsentKey() {
+			final TransactionalElementBPlusTree<PriceRecordContract> tree = treeOf(3);
+			tree.insert(rec(1));
+			tree.insert(rec(2));
+			// both keys fit one leaf, so the root IS the leaf every removal below lands on
+			final BPlusLeafTreeNode<PriceRecordContract> leaf = (BPlusLeafTreeNode<PriceRecordContract>) tree.getRoot();
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					tested.delete(99);
+					assertNull(
+						Transaction.getTransactionalMemoryLayerIfExists(leaf),
+						"an absent key must be settled on the current state: no layer opened, nothing copied"
+					);
+				},
+				(original, committed) -> {
+					assertEquals(2, committed.size());
+					assertEquals(rec(1), committed.search(1));
+					assertEquals(rec(2), committed.search(2));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("deleting a present key in a transaction writes through a layer on its leaf")
+		void shouldWriteThroughLayerWhenDeletingPresentKey() {
+			final TransactionalElementBPlusTree<PriceRecordContract> tree = treeOf(3);
+			tree.insert(rec(1));
+			tree.insert(rec(2));
+			// both keys fit one leaf, so the root IS the leaf every removal below lands on
+			final BPlusLeafTreeNode<PriceRecordContract> leaf = (BPlusLeafTreeNode<PriceRecordContract>) tree.getRoot();
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					tested.delete(1);
+					assertNotNull(
+						Transaction.getTransactionalMemoryLayerIfExists(leaf),
+						"a removal that changes the leaf must write into the transaction's layer, not the shared node"
+					);
+				},
+				(original, committed) -> {
+					assertEquals(2, original.size());
+					assertEquals(rec(1), original.search(1));
+					assertEquals(1, committed.size());
+					assertNull(committed.search(1));
+					assertEquals(rec(2), committed.search(2));
+				}
+			);
+		}
+
+		@Test
 		@DisplayName("ignores deletion of an absent key")
 		void shouldIgnoreAbsentKey() {
 			final TransactionalElementBPlusTree<PriceRecordContract> tree = treeOf(3);

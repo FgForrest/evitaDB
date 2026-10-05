@@ -455,6 +455,56 @@ class TransactionalBucketBPlusTreeTest {
 	class RemoveOperationsTest {
 
 		@Test
+		@DisplayName("removing records of an absent value in a transaction opens no write layer on its leaf")
+		void shouldOpenNoWriteLayerWhenRemovingRecordsOfAbsentValue() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			tree.addRecord(1, 10);
+			tree.addRecord(2, 20);
+			// both keys fit one leaf, so the root IS the leaf every removal below lands on
+			final BPlusLeafTreeNode<Integer> leaf = (BPlusLeafTreeNode<Integer>) tree.getRoot();
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					tested.removeRecord(99, 10);
+					assertNull(
+						Transaction.getTransactionalMemoryLayerIfExists(leaf),
+						"an absent key must be settled on the current state: no layer opened, nothing copied"
+					);
+				},
+				(original, committed) -> {
+					assertEquals(2, committed.bucketCount());
+					verifyTreeConsistency(committed, 1, 2);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("removing records of a present value in a transaction writes through a layer on its leaf")
+		void shouldWriteThroughLayerWhenRemovingRecordsOfPresentValue() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			tree.addRecord(1, 10);
+			tree.addRecord(2, 20);
+			// both keys fit one leaf, so the root IS the leaf every removal below lands on
+			final BPlusLeafTreeNode<Integer> leaf = (BPlusLeafTreeNode<Integer>) tree.getRoot();
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					tested.removeRecord(1, 10);
+					assertNotNull(
+						Transaction.getTransactionalMemoryLayerIfExists(leaf),
+						"a removal that changes the leaf must write into the transaction's layer, not the shared node"
+					);
+				},
+				(original, committed) -> {
+					assertEquals(2, original.bucketCount());
+					verifyTreeConsistency(original, 1, 2);
+					assertEquals(1, committed.bucketCount());
+					verifyTreeConsistency(committed, 2);
+				}
+			);
+		}
+
+		@Test
 		@DisplayName("deletes a single bucket when its sole record is removed")
 		void shouldDeleteSingleBucket() {
 			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);

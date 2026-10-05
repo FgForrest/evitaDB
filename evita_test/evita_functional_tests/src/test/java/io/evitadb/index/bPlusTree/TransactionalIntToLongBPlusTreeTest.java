@@ -590,6 +590,58 @@ class TransactionalIntToLongBPlusTreeTest {
 	class DeleteOperationsTest {
 
 		@Test
+		@DisplayName("deleting an absent key in a transaction opens no write layer on its leaf")
+		void shouldOpenNoWriteLayerWhenDeletingAbsentKey() {
+			final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree(3);
+			tree.insert(1, 10L);
+			tree.insert(2, 20L);
+			// both keys fit one leaf, so the root IS the leaf every removal below lands on
+			final BPlusLeafTreeNode leaf = (BPlusLeafTreeNode) tree.getRoot();
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					tested.delete(99);
+					assertNull(
+						Transaction.getTransactionalMemoryLayerIfExists(leaf),
+						"an absent key must be settled on the current state: no layer opened, nothing copied"
+					);
+				},
+				(original, committed) -> {
+					assertEquals(2, committed.size());
+					assertEquals(10L, committed.search(1).orElseThrow());
+					assertEquals(20L, committed.search(2).orElseThrow());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("deleting a present key in a transaction writes through a layer on its leaf")
+		void shouldWriteThroughLayerWhenDeletingPresentKey() {
+			final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree(3);
+			tree.insert(1, 10L);
+			tree.insert(2, 20L);
+			// both keys fit one leaf, so the root IS the leaf every removal below lands on
+			final BPlusLeafTreeNode leaf = (BPlusLeafTreeNode) tree.getRoot();
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					tested.delete(1);
+					assertNotNull(
+						Transaction.getTransactionalMemoryLayerIfExists(leaf),
+						"a removal that changes the leaf must write into the transaction's layer, not the shared node"
+					);
+				},
+				(original, committed) -> {
+					assertEquals(2, original.size());
+					assertEquals(10L, original.search(1).orElseThrow());
+					assertEquals(1, committed.size());
+					assertTrue(committed.search(1).isEmpty());
+					assertEquals(20L, committed.search(2).orElseThrow());
+				}
+			);
+		}
+
+		@Test
 		@DisplayName("deletes all elements one by one in random order")
 		void shouldDeleteEntireContentsOfTheTree() {
 			final Random rnd = new Random(42);

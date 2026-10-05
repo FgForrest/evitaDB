@@ -1931,7 +1931,8 @@ public class InvertedIndex implements
 	 * nothing happens. If the bucket contains no record id that match passed record id, nothing happens. If removal
 	 * of the record ids leaves the bucket empty, it's entirely removed (the tree releases the value's transactional
 	 * layer). A bitmap bucket is mutated in place; a single-record bucket can only be deleted (it holds a single
-	 * id, so removing that id empties it). The dirty flag is always raised to mirror the historical behaviour.
+	 * id, so removing that id empties it). The dirty flag is raised unconditionally, before the tree is touched — see
+	 * {@link #removeRecord(Serializable, ValueLifecycleSink, int...)} for why that order is deliberate.
 	 */
 	public void removeRecord(@Nonnull Serializable value, int... recordId) {
 		removeRecord(value, null, recordId);
@@ -1952,7 +1953,14 @@ public class InvertedIndex implements
 	 */
 	public void removeRecord(@Nonnull Serializable value, @Nullable ValueLifecycleSink sink, @Nonnull int... recordId) {
 		Assert.isTrue(!ArrayUtils.isEmpty(recordId), "Record ids must be not null and non-empty!");
-		// historical quirk: the dirty flag is raised unconditionally BEFORE the lookup, even on a no-op remove
+		// deliberately unconditional and BEFORE the tree is touched, even for a removal that changes nothing. Both the
+		// commit merge (`createCopyWithMergedTransactionalMemory`) and the flush skip `buckets` entirely while this flag
+		// is false, and the tree cannot tell us whether a removal changed it: it reports a bucket's death, not records
+		// leaving a surviving bucket, and even a removal of ids the bucket does not hold decouples the leaf into a
+		// write layer. Raising the flag only on an observed change would therefore leave that layer unconsumed at
+		// commit (a `StaleTransactionMemoryException` at the sweep) and an in-place shrink of a surviving bucket
+		// neither merged nor persisted; raising it first keeps every exit from the call, a throwing one included,
+		// covered by the merge that consumes whatever layer the tree opened
 		this.dirty.setToTrue();
 		final Comparable normalizedValue = (Comparable) this.normalizer.apply(value);
 		if (sink == null) {

@@ -227,6 +227,57 @@ class TransactionalBucketBPlusTreeLongPayloadTest {
 	class Transactional {
 
 		@Test
+		@DisplayName("removing the long record of an absent key in a transaction opens no write layer on its leaf")
+		void shouldOpenNoWriteLayerWhenRemovingAbsentLongRecord() {
+			final TransactionalBucketBPlusTree<Integer> tree = newLongTree(3);
+			tree.addLongRecord(1, payloadFor(1));
+			tree.addLongRecord(2, payloadFor(2));
+			// both keys fit one leaf, so the root IS the leaf every removal below lands on
+			final BPlusLeafTreeNode<Integer> leaf = (BPlusLeafTreeNode<Integer>) tree.getRoot();
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					assertFalse(tested.removeLongRecord(99));
+					assertNull(
+						Transaction.getTransactionalMemoryLayerIfExists(leaf),
+						"an absent key must be settled on the current state: no layer opened, nothing copied"
+					);
+				},
+				(original, committed) -> {
+					assertEquals(2, committed.size());
+					assertEquals(payloadFor(1), committed.getLongRecordEqualTo(1).getAsLong());
+					assertEquals(payloadFor(2), committed.getLongRecordEqualTo(2).getAsLong());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("removing the long record of a present key in a transaction writes through a layer on its leaf")
+		void shouldWriteThroughLayerWhenRemovingPresentLongRecord() {
+			final TransactionalBucketBPlusTree<Integer> tree = newLongTree(3);
+			tree.addLongRecord(1, payloadFor(1));
+			tree.addLongRecord(2, payloadFor(2));
+			// both keys fit one leaf, so the root IS the leaf every removal below lands on
+			final BPlusLeafTreeNode<Integer> leaf = (BPlusLeafTreeNode<Integer>) tree.getRoot();
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					assertTrue(tested.removeLongRecord(1));
+					assertNotNull(
+						Transaction.getTransactionalMemoryLayerIfExists(leaf),
+						"a removal that changes the leaf must write into the transaction's layer, not the shared node"
+					);
+				},
+				(original, committed) -> {
+					assertEquals(payloadFor(1), original.getLongRecordEqualTo(1).getAsLong());
+					assertEquals(1, committed.size());
+					assertEquals(OptionalLong.empty(), committed.getLongRecordEqualTo(1));
+					assertEquals(payloadFor(2), committed.getLongRecordEqualTo(2).getAsLong());
+				}
+			);
+		}
+
+		@Test
 		@DisplayName("commits inserted long payloads")
 		void shouldCommitInsertedPayloads() {
 			final TransactionalBucketBPlusTree<Integer> tree = newLongTree(3);

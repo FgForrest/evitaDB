@@ -1577,37 +1577,32 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		 * @return true if the key was found and removed, false otherwise
 		 */
 		public boolean delete(int key) {
+			// presence is settled on the current state BEFORE a write layer is resolved, so deleting an absent key stays
+			// a pure read: no layer opened and no array copied for a call that changes nothing
+			final int index = getValueIndex(key);
+			if (index < 0) {
+				return false;
+			}
+			// the index stays valid below: a freshly opened layer shares this node's arrays and peek, and the
+			// decouple copies them without reordering
 			final BPlusLeafTreeNode layer = perOperationWriteLayer(this, this.transactionalLayer);
 			if (layer == null) {
-				final int index = Arrays.binarySearch(this.keys, 0, this.peek + 1, key);
-
-				if (index >= 0) {
-					// journalled BEFORE the first column write, as WarmUpSavepoint#push requires of every inverse
-					journalEntryDeletionIfOpen(key, this.values[index]);
-					removeIntFromSameArrayOnIndex(this.keys, index);
-					removeLongFromSameArrayOnIndex(this.values, index);
-					this.keys[this.peek] = 0;
-					this.values[this.peek] = 0L;
-					this.peek--;
-					return true;
-				} else {
-					return false;
-				}
+				// journalled BEFORE the first column write, as WarmUpSavepoint#push requires of every inverse
+				journalEntryDeletionIfOpen(key, this.values[index]);
+				removeIntFromSameArrayOnIndex(this.keys, index);
+				removeLongFromSameArrayOnIndex(this.values, index);
+				this.keys[this.peek] = 0;
+				this.values[this.peek] = 0L;
+				this.peek--;
 			} else {
 				decoupleTransactionalArrays();
-				final int index = Arrays.binarySearch(layer.keys, 0, layer.peek + 1, key);
-
-				if (index >= 0) {
-					removeIntFromSameArrayOnIndex(layer.keys, index);
-					removeLongFromSameArrayOnIndex(layer.values, index);
-					layer.keys[layer.peek] = 0;
-					layer.values[layer.peek] = 0L;
-					layer.peek--;
-					return true;
-				} else {
-					return false;
-				}
+				removeIntFromSameArrayOnIndex(layer.keys, index);
+				removeLongFromSameArrayOnIndex(layer.values, index);
+				layer.keys[layer.peek] = 0;
+				layer.values[layer.peek] = 0L;
+				layer.peek--;
 			}
+			return true;
 		}
 
 		/**
