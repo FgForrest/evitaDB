@@ -37,6 +37,8 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
@@ -61,6 +63,7 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -179,6 +182,23 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 	 * How the chain index receives the head of a chain.
 	 */
 	private static final int HEAD = -1;
+	/**
+	 * A sortable `DateTimeRange` category reference attribute of the range test.
+	 */
+	private static final String ATTRIBUTE_VALIDITY = "validity";
+	/**
+	 * A sortable `BigDecimalNumberRange` category reference attribute of the range test, indexed at one decimal place.
+	 */
+	private static final String ATTRIBUTE_SPAN = "span";
+	/**
+	 * The sort key of {@link #ATTRIBUTE_VALIDITY}.
+	 */
+	private static final AttributeIndexKey VALIDITY_KEY =
+		new AttributeIndexKey(REFERENCE_CATEGORIES, ATTRIBUTE_VALIDITY, null);
+	/**
+	 * The sort key of {@link #ATTRIBUTE_SPAN}.
+	 */
+	private static final AttributeIndexKey SPAN_KEY = new AttributeIndexKey(REFERENCE_CATEGORIES, ATTRIBUTE_SPAN, null);
 
 	/**
 	 * The catalog of the key tests, whose category reference has extra sort and chain keys.
@@ -271,6 +291,77 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 		assertEquals(
 			Set.of(FindingKind.SORT_VALUE_MISMATCH, FindingKind.SORT_ORDER_MISMATCH),
 			findings.stream().map(Finding::kind).collect(Collectors.toSet()),
+			findings::toString
+		);
+	}
+
+	@Test
+	@DisplayName("equal ranges written with other endpoints share a registry block, a value at another scale does not")
+	void shouldAcceptEqualRangesWrittenWithOtherEndpoints() {
+		// a catalog of its own, maintained from its first write, whose products 7 and 8 own their category partitions
+		// with ranges the index finds equal - the same instants at other offsets, decimals rounded onto the same bounds
+		final String maintained = CATALOG + "Ranges";
+		this.catalog = maintained;
+		this.evita.defineCatalog(maintained).updateViaNewSession(this.evita);
+		final Catalog theCatalog = (Catalog) this.evita.getCatalogInstance(maintained).orElseThrow();
+		for (final String entityType : ENTITY_TYPES) {
+			theCatalog.getVirtualReferencePartitionMaintenance().setMaintained(entityType, true);
+		}
+		final DateTimeRange validity = DateTimeRange.between(VALID_FROM, VALID_FROM.plusDays(1));
+		final DateTimeRange validityElsewhere = DateTimeRange.between(
+			VALID_FROM_ELSEWHERE, VALID_FROM_ELSEWHERE.plusDays(1)
+		);
+		final BigDecimalNumberRange span = BigDecimalNumberRange.between(
+			new BigDecimal("3.44"), new BigDecimal("4.5")
+		);
+		final BigDecimalNumberRange spanRounded = BigDecimalNumberRange.between(
+			new BigDecimal("3.36"), new BigDecimal("4.53")
+		);
+		this.evita.updateCatalog(
+			maintained,
+			session -> {
+				SingleOwnerPartitionFixture.setUpExtendingCategories(
+					session,
+					categories -> categories
+						.withAttribute(
+							ATTRIBUTE_VALIDITY, DateTimeRange.class,
+							thatIs -> thatIs.sortableInScope(Scope.LIVE).nullable()
+						)
+						.withAttribute(
+							ATTRIBUTE_SPAN, BigDecimalNumberRange.class,
+							thatIs -> thatIs.sortableInScope(Scope.LIVE).nullable().indexDecimalPlaces(1)
+						)
+				);
+				addProductWithRanges(session, 7, validity, span);
+				addProductWithRanges(session, 8, validityElsewhere, spanRounded);
+			}
+		);
+		final int partition7 = partitionOf(REFERENCE_CATEGORIES, 7);
+		final int partition8 = partitionOf(REFERENCE_CATEGORIES, 8);
+		// the premise: each key holds one block of both partitions, represented by one of the two values
+		final VirtualReferencePartitionIndex registry = registryOf(REFERENCE_CATEGORIES);
+		for (final AttributeIndexKey key : List.of(VALIDITY_KEY, SPAN_KEY)) {
+			final SortIndexWalk walk = SortIndexWalk.of(registry.getSortIndex(key));
+			assertEquals(1, walk.blocks().size(), "the premise: one block under " + key + ": " + walk);
+			assertArrayEquals(new int[]{partition7, partition8}, walk.records(), walk.toString());
+		}
+		assertTrue(
+			!CanonicalValue.encode(validity).equals(CanonicalValue.encode(validityElsewhere)) &&
+				!CanonicalValue.encode(span).equals(CanonicalValue.encode(spanRounded)),
+			"the premise: the partitions keep values with other endpoints"
+		);
+
+		assertNoFindings(VirtualReferencePartitionOracle.inspect(product()));
+
+		// a value at another scale still is a different value: the span of partition 8 encoded at two places
+		registry.putSortValue(
+			SPAN_KEY, partition8, BigDecimalNumberRange.between(new BigDecimal("3.40"), new BigDecimal("4.50"), 2)
+		);
+		final List<Finding> findings = VirtualReferencePartitionOracle.inspect(product());
+		assertTrue(
+			findings.stream().anyMatch(
+				it -> it.kind() == FindingKind.SORT_VALUE_MISMATCH && it.partitionPrimaryKey() == partition8
+			),
 			findings::toString
 		);
 	}
@@ -759,6 +850,28 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 				)
 			).accept(session);
 		}
+	}
+
+	/**
+	 * Adds a product as the fixture creates it, its category reference also carrying the validity and the span.
+	 *
+	 * @param session           the session to write in
+	 * @param productPrimaryKey the product, whose category reference has the same primary key
+	 * @param validity          the validity
+	 * @param span              the span
+	 */
+	private static void addProductWithRanges(
+		@Nonnull EvitaSessionContract session,
+		int productPrimaryKey,
+		@Nonnull DateTimeRange validity,
+		@Nonnull BigDecimalNumberRange span
+	) {
+		session.upsertEntity(
+			newProduct(session, productPrimaryKey).updateReference(
+				REFERENCE_CATEGORIES, productPrimaryKey,
+				ref -> ref.setAttribute(ATTRIBUTE_VALIDITY, validity).setAttribute(ATTRIBUTE_SPAN, span)
+			)
+		);
 	}
 
 	/**

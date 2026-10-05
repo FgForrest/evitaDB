@@ -23,6 +23,7 @@
 
 package io.evitadb.index.virtual;
 
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.dataType.DateTimeRange;
@@ -56,6 +57,13 @@ import java.util.UUID;
  * depends on, recursively for compounds, and refuses a class it does not know rather than falling back to its
  * rendering - an unknown class must be taught, never guessed.
  *
+ * A sort index tells two ranges apart by less than that: {@link DateTimeRange} and {@link NumberRange} are equal
+ * when their encoded bounds are, so one block of a sort index may hold ranges whose original endpoints differ - the
+ * same instants at other offsets, or decimals rounded onto the same bound at the retained decimal places - and keeps
+ * one of them as its value. {@link #encodeIndexed(Object)} is the encoding for comparing a value with the one such a
+ * block represents it by: it drops the original endpoints of a range and keeps its encoded bounds together with the
+ * effective decimal places they were encoded at, so a value at another scale is still told apart.
+ *
  * Use `toString` for failure messages only.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -76,17 +84,35 @@ final class CanonicalValue {
 	@Nonnull
 	static String encode(@Nullable Object value) {
 		final StringBuilder target = new StringBuilder(32);
-		encode(value, target);
+		encode(value, false, target);
+		return target.toString();
+	}
+
+	/**
+	 * Encodes a value by what a sort index tells it apart by: as {@link #encode(Object)} does, except that a range -
+	 * on its own or as a compound element - is encoded by its bounds as the index compares them and the effective
+	 * decimal places they are encoded at, without its original endpoints.
+	 *
+	 * @param value the value, possibly `null`
+	 * @return the encoding
+	 * @throws IllegalArgumentException when the class of the value (or of one of its components) is not known to the
+	 *                                  encoder
+	 */
+	@Nonnull
+	static String encodeIndexed(@Nullable Object value) {
+		final StringBuilder target = new StringBuilder(32);
+		encode(value, true, target);
 		return target.toString();
 	}
 
 	/**
 	 * Appends the encoding of a value.
 	 *
-	 * @param value  the value, possibly `null`
-	 * @param target the builder to append to
+	 * @param value   the value, possibly `null`
+	 * @param indexed true to encode a range by its encoded bounds only, see {@link #encodeIndexed(Object)}
+	 * @param target  the builder to append to
 	 */
-	private static void encode(@Nullable Object value, @Nonnull StringBuilder target) {
+	private static void encode(@Nullable Object value, boolean indexed, @Nonnull StringBuilder target) {
 		if (value == null) {
 			target.append("null");
 		} else if (value instanceof final String string) {
@@ -125,29 +151,47 @@ final class CanonicalValue {
 			appendTime(time, target);
 			target.append(')');
 		} else if (value instanceof final NumberRange<?> range) {
-			target.append(range.getClass().getSimpleName()).append("(from=");
-			encode(range.getPreciseFrom(), target);
-			target.append(", to=");
-			encode(range.getPreciseTo(), target);
-			target.append(", encodedFrom=").append(range.getFrom())
-				.append(", encodedTo=").append(range.getTo())
-				.append(", decimalPlaces=").append(range.getRetainedDecimalPlaces()).append(')');
+			target.append(range.getClass().getSimpleName()).append('(');
+			if (indexed) {
+				// the bounds an index compares, at the scale they were encoded at - the endpoints they were rounded
+				// from are not part of it
+				target.append("encodedFrom=").append(range.getFrom())
+					.append(", encodedTo=").append(range.getTo())
+					.append(", decimalPlaces=").append(
+						range instanceof final BigDecimalNumberRange decimalRange ?
+							Integer.valueOf(decimalRange.getEffectiveRetainedDecimalPlaces()) :
+							range.getRetainedDecimalPlaces()
+					).append(')');
+			} else {
+				target.append("from=");
+				encode(range.getPreciseFrom(), false, target);
+				target.append(", to=");
+				encode(range.getPreciseTo(), false, target);
+				target.append(", encodedFrom=").append(range.getFrom())
+					.append(", encodedTo=").append(range.getTo())
+					.append(", decimalPlaces=").append(range.getRetainedDecimalPlaces()).append(')');
+			}
 		} else if (value instanceof final DateTimeRange range) {
-			target.append("DateTimeRange(from=");
-			encode(range.getPreciseFrom(), target);
-			target.append(", to=");
-			encode(range.getPreciseTo(), target);
-			target.append(", encodedFrom=").append(range.getFrom())
+			target.append("DateTimeRange(");
+			if (!indexed) {
+				// the offsets of the endpoints - an index compares the instants only
+				target.append("from=");
+				encode(range.getPreciseFrom(), false, target);
+				target.append(", to=");
+				encode(range.getPreciseTo(), false, target);
+				target.append(", ");
+			}
+			target.append("encodedFrom=").append(range.getFrom())
 				.append(", encodedTo=").append(range.getTo()).append(')');
 		} else if (value instanceof final ComparableLocale locale) {
 			target.append("ComparableLocale(");
-			encode(locale.getLocale(), target);
+			encode(locale.getLocale(), indexed, target);
 			target.append(')');
 		} else if (value instanceof final Locale locale) {
 			appendLocale(locale, target);
 		} else if (value instanceof final ComparableCurrency currency) {
 			target.append("ComparableCurrency(");
-			encode(currency.getCurrency(), target);
+			encode(currency.getCurrency(), indexed, target);
 			target.append(')');
 		} else if (value instanceof final Currency currency) {
 			target.append("Currency(").append(currency.getCurrencyCode()).append(')');
@@ -160,10 +204,10 @@ final class CanonicalValue {
 			target.append("ReferencedEntityPredecessor(").append(predecessor.predecessorPk()).append(')');
 		} else if (value instanceof final ComparableArray array) {
 			target.append("ComparableArray");
-			appendElements(array.array(), target);
+			appendElements(array.array(), indexed, target);
 		} else if (value instanceof final Object[] array) {
 			target.append(array.getClass().getComponentType().getSimpleName()).append("[]");
-			appendElements(array, target);
+			appendElements(array, indexed, target);
 		} else {
 			throw new IllegalArgumentException(
 				"The canonical encoding does not know `" + value.getClass().getName() + "` (value `" + value + "`) - " +
@@ -177,16 +221,21 @@ final class CanonicalValue {
 	 * Appends the elements of an array, each at its position and nulls included.
 	 *
 	 * @param elements the elements
+	 * @param indexed  true to encode a range element by its encoded bounds only, see {@link #encodeIndexed(Object)}
 	 * @param target   the builder to append to
 	 */
-	private static void appendElements(@Nonnull Object[] elements, @Nonnull StringBuilder target) {
+	private static void appendElements(
+		@Nonnull Object[] elements,
+		boolean indexed,
+		@Nonnull StringBuilder target
+	) {
 		target.append('(').append(elements.length).append(")[");
 		for (int i = 0; i < elements.length; i++) {
 			if (i > 0) {
 				target.append(", ");
 			}
 			target.append(i).append('=');
-			encode(elements[i], target);
+			encode(elements[i], indexed, target);
 		}
 		target.append(']');
 	}

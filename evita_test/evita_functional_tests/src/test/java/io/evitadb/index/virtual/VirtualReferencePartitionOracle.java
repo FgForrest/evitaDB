@@ -96,7 +96,9 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * - its sort value in the registry equals the value the partition orders its only owner by. Both values are read
  *   position by position (see {@link SortIndexWalk}) as the two sort indexes store them, in the normalized space of
- *   the index, and compared by their {@link CanonicalValue} encoding; absence must meet absence;
+ *   the index, and compared by their {@link CanonicalValue#encodeIndexed(Object) indexed encoding} - one block of the
+ *   registry represents ranges that are equal by their encoded bounds by one of them, whatever endpoints they were
+ *   written with, while a value at another scale stays told apart; absence must meet absence;
  * - its chain predecessor in the registry equals the predecessor the owner declares in the partition's chain index -
  *   the referenced entity's record for a `ReferencedEntityPredecessor` attribute. A key the registry does not declare
  *   holds no predecessor; its strict reader is never asked. A declared chain key may have no entry at all while owners
@@ -699,8 +701,12 @@ final class VirtualReferencePartitionOracle {
 				final Serializable expectedValue = realSortIndex == null ?
 					null : valuesByRecord(SortIndexWalk.of(realSortIndex)).get(entry.getValue().owner());
 				final Serializable actualValue = actualValues.get(partitionPrimaryKey);
-				final String expectedEncoding = expectedValue == null ? "absent" : CanonicalValue.encode(expectedValue);
-				final String actualEncoding = actualValue == null ? "absent" : CanonicalValue.encode(actualValue);
+				// one registry block holds the partitions whose values the index finds equal, by a value of one of them
+				// - compared in the index's terms, so equal ranges written with other endpoints are not told apart
+				final String expectedEncoding = expectedValue == null ?
+					"absent" : CanonicalValue.encodeIndexed(expectedValue);
+				final String actualEncoding = actualValue == null ?
+					"absent" : CanonicalValue.encodeIndexed(actualValue);
 				if (!expectedEncoding.equals(actualEncoding)) {
 					findings.add(
 						new Finding(

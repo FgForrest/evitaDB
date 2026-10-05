@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.OwnerSortIndex;
@@ -108,6 +109,55 @@ class DifferentialComparisonTest {
 
 			assertEquals(atOnePlace.toString(), atTwoPlaces.toString(), "the premise: the compounds print alike");
 			assertNotEquals(CanonicalValue.encode(atOnePlace), CanonicalValue.encode(atTwoPlaces));
+		}
+
+		@Test
+		@DisplayName("ranges equal by their encoded bounds encode alike when indexed, whatever endpoints they keep")
+		void shouldEncodeEqualRangesAlikeWhenIndexed() {
+			final OffsetDateTime from = OffsetDateTime.of(2026, 10, 2, 14, 0, 0, 0, ZoneOffset.ofHours(2));
+			final DateTimeRange inPrague = DateTimeRange.between(from, from.plusDays(1));
+			final ZoneOffset tokyo = ZoneOffset.ofHours(9);
+			final DateTimeRange inTokyo = DateTimeRange.between(
+				from.withOffsetSameInstant(tokyo), from.plusDays(1).withOffsetSameInstant(tokyo)
+			);
+			assertEquals(inPrague, inTokyo, "the premise: the index finds the ranges equal");
+			assertNotEquals(CanonicalValue.encode(inPrague), CanonicalValue.encode(inTokyo));
+			assertEquals(CanonicalValue.encodeIndexed(inPrague), CanonicalValue.encodeIndexed(inTokyo));
+
+			final BigDecimalNumberRange roundedDown = BigDecimalNumberRange.between(
+				new BigDecimal("3.44"), new BigDecimal("4.5"), 1
+			);
+			final BigDecimalNumberRange roundedUp = BigDecimalNumberRange.between(
+				new BigDecimal("3.36"), new BigDecimal("4.53"), 1
+			);
+			assertEquals(roundedDown, roundedUp, "the premise: the index finds the ranges equal");
+			assertNotEquals(CanonicalValue.encode(roundedDown), CanonicalValue.encode(roundedUp));
+			assertEquals(CanonicalValue.encodeIndexed(roundedDown), CanonicalValue.encodeIndexed(roundedUp));
+			// a range keeping its natural scale is encoded at the scale it is compared at, explicit or not
+			assertEquals(CanonicalValue.encodeIndexed(roundedDown), CanonicalValue.encodeIndexed(
+				BigDecimalNumberRange.between(new BigDecimal("3.4"), new BigDecimal("4.5"))
+			));
+			// and so is a compound element
+			assertEquals(
+				CanonicalValue.encodeIndexed(new ComparableArray(new Serializable[]{roundedDown, inPrague})),
+				CanonicalValue.encodeIndexed(new ComparableArray(new Serializable[]{roundedUp, inTokyo}))
+			);
+		}
+
+		@Test
+		@DisplayName("ranges at different scales encode differently when indexed, even when the index finds them equal")
+		void shouldTellApartRangeScalesWhenIndexed() {
+			assertNotEquals(CanonicalValue.encodeIndexed(rangeAt(1)), CanonicalValue.encodeIndexed(rangeAt(2)));
+			// the same encoded bounds at another scale - a value the index cannot tell apart, but a different one
+			final BigDecimalNumberRange tenTimesSmaller = BigDecimalNumberRange.between(
+				new BigDecimal("0.34"), new BigDecimal("0.45"), 2
+			);
+			assertEquals(rangeAt(1), tenTimesSmaller, "the premise: the index finds the ranges equal");
+			assertNotEquals(CanonicalValue.encodeIndexed(rangeAt(1)), CanonicalValue.encodeIndexed(tenTimesSmaller));
+			assertNotEquals(
+				CanonicalValue.encodeIndexed(new ComparableArray(new Serializable[]{rangeAt(1), 1})),
+				CanonicalValue.encodeIndexed(new ComparableArray(new Serializable[]{rangeAt(2), 1}))
+			);
 		}
 
 		@Test
